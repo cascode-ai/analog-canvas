@@ -35,12 +35,17 @@ import {
   GALLERY_MAX_NAME_LENGTH,
   GALLERY_MAX_PROJECT_BYTES,
   GALLERY_MAX_REJECT_REASON_LENGTH,
+  GALLERY_MAX_SEARCH_LENGTH,
   sanitizeGalleryTags,
   shortId,
   wrapTags,
   type GalleryEntrySummary,
   type GalleryEnv,
 } from "./gallery-do";
+import {
+  galleryEntryMatchesQuery,
+  normalizeGallerySearchText,
+} from "../apps/editor/src/gallery-search";
 
 export * from "./gallery-do";
 
@@ -1686,16 +1691,42 @@ export async function routeGalleryRequest(
     !(await galleryReaderOf(request, env))
   ) {
     const wall = await anonymousGalleryWall(env);
-    if (wall && segments.length === 0)
+    if (wall && segments.length === 0) {
+      // A search reads only the wall itself, so signed out it cannot page
+      // through the rest of the Gallery.
+      const search = url.searchParams.get("q") ?? "";
+      const entries = normalizeGallerySearchText(search)
+        ? wall.entries.filter((entry) => {
+            const summary = entry as Record<string, unknown>;
+            return galleryEntryMatchesQuery(
+              {
+                name: String(summary.name ?? ""),
+                author: String(summary.author ?? ""),
+                description:
+                  typeof summary.description === "string"
+                    ? summary.description
+                    : null,
+                tags: Array.isArray(summary.tags)
+                  ? summary.tags.filter(
+                      (tag): tag is string => typeof tag === "string",
+                    )
+                  : [],
+              },
+              search.slice(0, GALLERY_MAX_SEARCH_LENGTH),
+            );
+          })
+        : wall.entries;
       return Response.json(
         {
-          entries: wall.entries,
+          entries,
           nextCursor: null,
-          total: wall.total,
+          total: entries === wall.entries ? wall.total : entries.length,
+          ...(entries === wall.entries ? {} : { search: search.trim() }),
           signInForMore: true,
         },
         { headers: { "cache-control": "no-store" } },
       );
+    }
     const readsWallCircuit =
       wall !== null &&
       wall.ids.has(segments[0] ?? "") &&
@@ -1750,6 +1781,8 @@ export async function routeGalleryRequest(
       liked: url.searchParams.get("liked") === "1",
       // Sizes by part count; several mean any of them.
       parts: requestedParts(url),
+      // Words over names, bylines, descriptions and tags.
+      q: url.searchParams.get("q"),
     });
     return Response.json(payload, {
       headers: { "cache-control": "no-store" },
@@ -2015,6 +2048,7 @@ export async function routeGalleryRequest(
       liked,
       netlistable: url.searchParams.get("netlistable") === "1",
       parts: requestedParts(url),
+      q: url.searchParams.get("q"),
     });
     return Response.json(payload, { headers: { "cache-control": "no-store" } });
   }

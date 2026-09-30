@@ -231,6 +231,39 @@ describe("Gallery readers", () => {
     resetAnonymousGalleryWall();
   });
 
+  it("lets a signed-out search read only the newest wall", async () => {
+    resetAnonymousGalleryWall();
+    const env = environment();
+    const cookie = await adminOf(env);
+    const ids: string[] = [];
+    for (let index = 0; index < ANONYMOUS_GALLERY_SIZE + 2; index++)
+      ids.push(await submitOne(env, `Circuit ${index}`, { cookie }));
+    // The oldest circuit is the only one named for a bandgap.
+    env.gallerySql.exec(
+      "UPDATE gallery_entries SET name = 'Bandgap' WHERE id = ?",
+      ids[0]!,
+    );
+    const newest = `Circuit ${ANONYMOUS_GALLERY_SIZE + 1}`;
+    const search = async (query: string) =>
+      (await (await direct(env, `/api/gallery?q=${query}`)).json()) as {
+        entries: { name: string }[];
+        nextCursor: string | null;
+        total: number;
+        signInForMore: boolean;
+      };
+    expect(await search("bandgap")).toEqual({
+      entries: [],
+      nextCursor: null,
+      total: 0,
+      search: "bandgap",
+      signInForMore: true,
+    });
+    const found = await search(encodeURIComponent(newest));
+    expect(found.entries.map((entry) => entry.name)).toEqual([newest]);
+    expect(found).toMatchObject({ total: 1, signInForMore: true });
+    resetAnonymousGalleryWall();
+  });
+
   it("serves a signed-in member and the read credential every read", async () => {
     const env = environment();
     const paths = await reads(env);
@@ -1335,6 +1368,96 @@ describe("newest-first gallery feed", () => {
     ).json()) as { entries: unknown[]; total: number };
     expect(filtered.entries).toHaveLength(3);
     expect(filtered.total).toBe(3);
+  });
+
+  it("answers a search on the server, over metadata, before counts and pages", async () => {
+    const env = environment();
+    const ids = await wallOf(env, 6);
+    const fixtures = [
+      [
+        "Three-stage loop",
+        "Alice",
+        "Nested Miller compensation",
+        ",amplifier,",
+      ],
+      ["Ring Oscillator", "Bob", "Three-stage ring", ",oscillator,"],
+      ["Bandgap", "Carol", "Stable reference", ",reference,"],
+      ["Folded cascode", "Dora", "", ",amplifier,stage,"],
+      ["LDO", "Eve", "", ",regulator,"],
+      ["Hidden stage", "Fay", "", ",amplifier,", "rejected"],
+    ] as const;
+    fixtures.forEach(([name, author, description, tags, status], index) =>
+      env.gallerySql.exec(
+        "UPDATE gallery_entries SET name=?, author=?, owner_user_id=?, description=?, tags=?, status=? WHERE id=?",
+        name,
+        author,
+        `owner-${index}`,
+        description,
+        tags,
+        status ?? "public",
+        ids[index]!,
+      ),
+    );
+    const list = async (query: string) =>
+      (await (
+        await route(env, new Request(`${ORIGIN}/api/gallery?${query}`))
+      ).json()) as {
+        entries: { id: string; name: string }[];
+        nextCursor: string | null;
+        total: number;
+        search?: string;
+        authors: { author: string; count: number }[];
+      };
+    const names = (page: { entries: { name: string }[] }) =>
+      page.entries.map((entry) => entry.name).sort();
+    // Any case, over a name, a description or a tag; never a hidden one.
+    env.galleryQueries.length = 0;
+    const stage = await list("q=STAGE");
+    expect(names(stage)).toEqual([
+      "Folded cascode",
+      "Ring Oscillator",
+      "Three-stage loop",
+    ]);
+    expect(stage.total).toBe(3);
+    // The answer says which search it is, so its counts are read as its.
+    expect(stage.search).toBe("STAGE");
+    expect(await list("tags=amplifier")).not.toHaveProperty("search");
+    // Read from metadata: no search query touches Project Code or previews.
+    expect(env.galleryQueries.join("\n")).not.toMatch(/project_text|svg_text/u);
+    // The browser's one-edit tolerance, word for word.
+    expect(names(await list("q=stgae"))).toEqual(names(stage));
+    // A byline or a description alone.
+    expect(names(await list("q=carol"))).toEqual(["Bandgap"]);
+    expect(names(await list("q=miller"))).toEqual(["Three-stage loop"]);
+    // Contributors and pages describe the same answer.
+    expect(stage.authors.map((author) => author.author).sort()).toEqual([
+      "Alice",
+      "Bob",
+      "Dora",
+    ]);
+    const first = await list("q=stage&limit=2");
+    expect(first.total).toBe(3);
+    const second = await list(
+      `q=stage&limit=2&cursor=${encodeURIComponent(first.nextCursor!)}`,
+    );
+    expect(second.nextCursor).toBeNull();
+    expect([...names(first), ...names(second)].sort()).toEqual(names(stage));
+    // Other filters narrow the answer further.
+    expect(names(await list("q=stage&tags=amplifier"))).toEqual([
+      "Folded cascode",
+      "Three-stage loop",
+    ]);
+    // So do the tag counts beside it.
+    const tags = (await (
+      await route(env, new Request(`${ORIGIN}/api/gallery/tags?q=stage`))
+    ).json()) as { tags: { tag: string; count: number }[] };
+    expect(tags.tags).toEqual([
+      { tag: "amplifier", count: 2 },
+      { tag: "oscillator", count: 1 },
+      { tag: "stage", count: 1 },
+    ]);
+    // Blank words search nothing and change nothing.
+    expect((await list("q=%20-%20")).total).toBe(5);
   });
 
   it("ranks public contributors by circuit count and excludes hidden or blank bylines", async () => {

@@ -67,6 +67,13 @@ import {
 import { type CircuitProject } from "@icm/model";
 
 import type { AuthNamespaceLike } from "./auth";
+import {
+  galleryEntryMatchesQuery,
+  normalizeGallerySearchText,
+} from "../apps/editor/src/gallery-search";
+
+/** Longest search a reader may send; longer text is cut, not refused. */
+export const GALLERY_MAX_SEARCH_LENGTH = 200;
 
 const GALLERY_TAG_GROUPS = Object.entries(taxonomy.tagsByGroup);
 const GALLERY_TAG_ALIASES: Record<string, string> = {
@@ -375,6 +382,15 @@ export function sanitizeGalleryTags(
 /** Storage form: `,a,b,` so `LIKE '%,a,%'` matches exactly one tag. */
 export function wrapTags(tags: string[]): string {
   return tags.length === 0 ? "" : `,${tags.join(",")},`;
+}
+
+/** The search a feed request asks, if any. */
+function requestedSearch(body: Record<string, unknown>): string | null {
+  const query =
+    typeof body.q === "string"
+      ? body.q.slice(0, GALLERY_MAX_SEARCH_LENGTH)
+      : "";
+  return normalizeGallerySearchText(query) ? query : null;
 }
 
 function unwrapTags(stored: string | null): string[] {
@@ -1190,6 +1206,13 @@ export class GalleryDO {
       }
     }
     if (body.netlistable === true) conditions.push("e.netlistable = 1");
+    // A search narrows the wall before its counts and cursor, so totals, tags,
+    // contributors and pages all describe the same circuits.
+    const search = requestedSearch(body);
+    if (search !== null) {
+      conditions.push("e.id IN (SELECT value FROM json_each(?))");
+      bindings.push(this.searchMatches(body, search));
+    }
     // Several sizes mean any of them. The size counts leave the choice out,
     // or choosing one size would zero the others beside it.
     const ranges =
@@ -1213,6 +1236,47 @@ export class GalleryDO {
     }
     return { conditions, bindings, viewerId };
   }
+
+  /**
+   * The public circuits a search answers, as a JSON array of IDs. Read from
+   * metadata alone, never Project Code or previews, with the same rule the
+   * browser narrows loaded circuits by; worked out once per request, however
+   * many of its counts ask.
+   */
+  private searchMatches(body: Record<string, unknown>, search: string): string {
+    const known = this.searchMatchesByRequest.get(body);
+    if (known !== undefined) return known;
+    const rows = this.sql
+      .exec<{
+        id: string;
+        name: string;
+        author: string;
+        description: string | null;
+        tags: string | null;
+      }>(
+        `SELECT e.id, e.name, e.author, e.description, e.tags
+           FROM gallery_entries e WHERE e.status = 'public'`,
+      )
+      .toArray();
+    const matches = JSON.stringify(
+      rows
+        .filter((row) =>
+          galleryEntryMatchesQuery(
+            {
+              name: row.name,
+              author: row.author,
+              description: row.description,
+              tags: unwrapTags(row.tags),
+            },
+            search,
+          ),
+        )
+        .map((row) => row.id),
+    );
+    this.searchMatchesByRequest.set(body, matches);
+    return matches;
+  }
+  private readonly searchMatchesByRequest = new WeakMap<object, string>();
 
   private list(body: Record<string, unknown>): Response {
     const limit = Math.min(
@@ -1287,6 +1351,10 @@ export class GalleryDO {
       ),
       nextCursor,
       total: Number(counts.total),
+      // Which search this answers, so a reader knows the counts are its.
+      ...(requestedSearch(body) !== null
+        ? { search: requestedSearch(body)!.trim() }
+        : {}),
       authors,
       filterCounts: {
         attention: Number(counts.attention),

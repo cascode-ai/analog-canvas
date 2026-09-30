@@ -2,7 +2,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
-import { galleryEntryMatchesQuery } from "../../gallery-client";
+import { galleryEntryMatchesQuery } from "../../gallery-search";
 import { libraryProjectExamples } from "../../examples/library-examples";
 import { deriveGalleryPanelView, ExamplesPanel } from "./examples-panel";
 import { LocalExamplesCards } from "./local-examples-cards";
@@ -122,6 +122,37 @@ describe("gallery panel view", () => {
       "No matches yet — searching older circuits…",
     );
     expect(view.countLabel).toBe("120 circuits · 0 matches so far");
+  });
+
+  it("takes the server's answer to a search as the whole answer", () => {
+    // What the server found for "bandgap": its total is the matches, and an
+    // unread cursor holds more matches, not circuits still to check.
+    const answered = {
+      ...feed,
+      entries: [feed.entries[1]!],
+      total: 7,
+      nextCursor: "cursor-1",
+      search: "bandgap",
+    };
+    const view = deriveGalleryPanelView(answered, { searchQuery: "bandgap" });
+    expect(view.visibleEntries.map((candidate) => candidate.id)).toEqual([
+      "g-2",
+    ]);
+    expect(view.countLabel).toBe("7 matching circuits");
+    expect(view.emptyMessage).toBeNull();
+    // Nothing found is a verdict at once, with no older pages to search.
+    const none = deriveGalleryPanelView(
+      { ...feed, entries: [], total: 0, search: "zzz" },
+      { searchQuery: "zzz" },
+    );
+    expect(none.showGallery).toBe(true);
+    expect(none.emptyMessage).toBe("No circuits match “zzz”.");
+    expect(none.countLabel).toBe("0 matching circuits");
+    // Still typing: the loaded answer is for other words, so narrow it.
+    expect(
+      deriveGalleryPanelView(answered, { searchQuery: "bandgap x" })
+        .emptyMessage,
+    ).toBe("No matches yet — searching older circuits…");
   });
 
   it("says nothing matches only once the feed is exhausted", () => {

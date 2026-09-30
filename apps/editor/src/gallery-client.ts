@@ -226,6 +226,11 @@ export interface GalleryFeedPage {
    * unpaged; `total` still counts every one a signed-in reader would see.
    */
   signInForMore?: boolean;
+  /**
+   * The search the server applied, echoed: then entries, totals and counts
+   * are its answer. Absent, the server did not search.
+   */
+  search?: string;
 }
 
 /** A Gallery read's answer when only signed-in readers may see the Gallery. */
@@ -244,95 +249,8 @@ export interface GalleryFeedState {
   authors?: GalleryAuthorOption[];
   /** The signed-out wall: its newest few circuits only. */
   signInForMore?: boolean;
-}
-
-function normalizeGallerySearchText(value: string): string {
-  return value
-    .normalize("NFKD")
-    .replace(/\p{M}+/gu, "")
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}]+/gu, " ")
-    .trim();
-}
-
-/** One insertion, deletion, replacement, or adjacent transposition. */
-function galleryTokensWithinOneEdit(left: string, right: string): boolean {
-  const lengthDifference = left.length - right.length;
-  if (Math.abs(lengthDifference) > 1) return false;
-  if (left === right) return true;
-  if (lengthDifference === 0) {
-    const mismatches: number[] = [];
-    for (let index = 0; index < left.length; index++) {
-      if (left[index] === right[index]) continue;
-      mismatches.push(index);
-      if (mismatches.length > 2) return false;
-    }
-    if (mismatches.length === 1) return true;
-    const [first, second] = mismatches;
-    return (
-      second === first! + 1 &&
-      left[first!] === right[second!] &&
-      left[second!] === right[first!]
-    );
-  }
-  const shorter = lengthDifference < 0 ? left : right;
-  const longer = lengthDifference < 0 ? right : left;
-  let shorterIndex = 0;
-  let longerIndex = 0;
-  let skipped = false;
-  while (shorterIndex < shorter.length && longerIndex < longer.length) {
-    if (shorter[shorterIndex] === longer[longerIndex]) {
-      shorterIndex++;
-      longerIndex++;
-      continue;
-    }
-    if (skipped) return false;
-    skipped = true;
-    longerIndex++;
-  }
-  return true;
-}
-
-function gallerySearchTokenMatches(query: string, candidate: string): boolean {
-  if (candidate.includes(query)) return true;
-  // Keep short circuit acronyms precise: fuzzy matching OTA against every
-  // three-letter neighbour creates more noise than it removes.
-  if (query.length < 4 || candidate.length < 4) return false;
-  if (!/^[a-z0-9]+$/u.test(query) || !/^[a-z0-9]+$/u.test(candidate)) {
-    return false;
-  }
-  return galleryTokensWithinOneEdit(query, candidate);
-}
-
-/**
- * Whether one entry answers a search over its name, author, description and
- * tags. Exact case-insensitive containment wins first; otherwise every query
- * word may tolerate one small Latin-letter typo.
- */
-export function galleryEntryMatchesQuery(
-  entry: Pick<GalleryFeedEntry, "name" | "author" | "description" | "tags">,
-  query: string,
-): boolean {
-  const normalizedQuery = normalizeGallerySearchText(query);
-  if (!normalizedQuery) return true;
-  const fields = [
-    entry.name,
-    entry.author,
-    entry.description,
-    ...(entry.tags ?? []),
-  ]
-    .filter((field): field is string => Boolean(field))
-    .map(normalizeGallerySearchText)
-    .filter(Boolean);
-  if (fields.some((field) => field.includes(normalizedQuery))) return true;
-  const candidates = fields.flatMap((field) => field.split(" "));
-  return normalizedQuery
-    .split(" ")
-    .every((token) =>
-      candidates.some((candidate) =>
-        gallerySearchTokenMatches(token, candidate),
-      ),
-    );
+  /** The search the server answered for these entries; "" for none. */
+  search?: string;
 }
 
 /** Tag menu entries, newest count first, as the wall's tag bar shows them. */
@@ -364,6 +282,8 @@ export interface GalleryLandingPreload {
 
 /** The wall filters that also narrow the tag counts beside it. */
 export interface GalleryTagFilters {
+  /** Words the server searches circuits for; the tags counted are theirs. */
+  q?: string;
   netlistable?: boolean;
   liked?: boolean;
   attention?: boolean;
@@ -376,6 +296,7 @@ export interface GalleryTagFilters {
 /** One stable key per combination of the filters that narrow tag counts. */
 export function galleryTagScope(filters: GalleryTagFilters): string {
   return new URLSearchParams([
+    ...(filters.q?.trim() ? [["q", filters.q.trim()]] : []),
     ...(filters.netlistable ? [["netlistable", "1"]] : []),
     ...(filters.liked ? [["liked", "1"]] : []),
     ...(filters.attention ? [["attention", "1"]] : []),
@@ -450,6 +371,11 @@ export function removeGalleryAuthorEntry(
 
 /** The server filters one wall asks for. */
 export interface GalleryFeedQuery {
+  /**
+   * Words the server searches names, bylines, descriptions and tags for,
+   * before it pages, so an older match comes back on the first page.
+   */
+  q?: string;
   author?: string | null;
   ownerUserId?: string | null;
   tags?: readonly string[];
@@ -466,6 +392,7 @@ export interface GalleryFeedQuery {
 
 function galleryFeedParams(query: GalleryFeedQuery): URLSearchParams {
   const params = new URLSearchParams();
+  if (query.q?.trim()) params.set("q", query.q.trim());
   if (query.attention) params.set("attention", "1");
   if (query.attention && query.attentionKind)
     params.set("reason", query.attentionKind);
@@ -512,6 +439,7 @@ export async function loadGalleryFeed(
       entries?: GalleryFeedEntry[];
       nextCursor?: unknown;
       total?: unknown;
+      search?: unknown;
       filterCounts?: GalleryQuickFilterCounts;
       authors?: GalleryAuthorOption[];
       signInForMore?: unknown;
@@ -522,6 +450,7 @@ export async function loadGalleryFeed(
         typeof payload.nextCursor === "string" ? payload.nextCursor : null,
       total: typeof payload.total === "number" ? payload.total : null,
       ...(payload.signInForMore === true ? { signInForMore: true } : {}),
+      ...(typeof payload.search === "string" ? { search: payload.search } : {}),
       ...(Array.isArray(payload.authors) &&
       payload.authors.every(
         (author) =>
@@ -680,10 +609,13 @@ export function galleryCountLabel(
   options: {
     filtered?: boolean;
     search?: { visible: number; settled: boolean } | null;
+    /** The server answered the search: the total is its matches. */
+    searched?: boolean;
   } = {},
 ): string | null {
   if (total === null) return null;
   const noun = total === 1 ? "circuit" : "circuits";
+  if (options.searched) return `${total.toLocaleString()} matching ${noun}`;
   const base = `${total.toLocaleString()} ${
     options.filtered ? `filtered ${noun}` : noun
   }`;
