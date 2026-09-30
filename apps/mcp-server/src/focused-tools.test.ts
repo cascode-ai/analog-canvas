@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
-import { FOCUSED_TOOLS, focusedTools } from "./focused-tools.js";
+import {
+  FOCUSED_TOOLS,
+  canonicalSimulationSchema,
+  focusedTools,
+} from "./focused-tools.js";
 import { callTool, listToolDefinitions, toolInputSchema } from "./tools.js";
 import { selectToolSchema, contractOperations } from "./tool-contracts.js";
 import { inlineSchema } from "./inline-schema.js";
@@ -73,8 +77,11 @@ describe("focused tools", () => {
       const tool = focusedTools(originals, () => "test").find(
         (t) => t.definition.name === name,
       )!;
+      const selected = selectToolSchema(toolInputSchema(source)!, operations);
       expect(tool.definition.inputSchema).toEqual(
-        selectToolSchema(toolInputSchema(source)!, operations),
+        source === "simulation_files"
+          ? canonicalSimulationSchema(selected)
+          : selected,
       );
       expect(contractOperations(tool.definition.inputSchema)).toEqual(
         [...operations].sort(
@@ -162,6 +169,34 @@ describe("focused tools", () => {
       code: "INVALID_TOOL_OPERATION",
       message: "update is served by simulation_edit.",
     });
+  });
+
+  it("accepts action and operation aliases across sibling simulation tools", async () => {
+    const calls: unknown[] = [];
+    const originals = [
+      ...new Set(FOCUSED_TOOLS.map((entry) => entry.source)),
+    ].map((source) => ({
+      definition: {
+        name: source,
+        description: "canonical",
+        inputSchema: toolInputSchema(source)!,
+      },
+      handle: async (args: unknown) => {
+        calls.push(args);
+        return { ok: true };
+      },
+    }));
+    const tools = focusedTools(originals, () => "focused");
+    await tools
+      .find((tool) => tool.definition.name === "simulation_run")!
+      .handle({ request: { action: "capabilities" } }, {});
+    await tools
+      .find((tool) => tool.definition.name === "simulation_source")!
+      .handle({ request: { operation: "list" } }, {});
+    expect(calls).toEqual([
+      { request: { operation: "capabilities" } },
+      { request: { action: "list" } },
+    ]);
   });
 
   it("uses numeric items for homogeneous closed tuples without changing the canonical schema", () => {

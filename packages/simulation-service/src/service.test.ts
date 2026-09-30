@@ -1074,12 +1074,49 @@ describe("shared simulation lifecycle", () => {
           batch: {
             state: "finished",
             items: [
-              { state: "finished", runId: expect.any(String) },
-              { state: "finished", runId: expect.any(String) },
+              {
+                state: "finished",
+                runId: expect.any(String),
+                outcome: { status: firstRunFails ? "failed" : "completed" },
+                execution: firstRunFails ? "failed" : "completed",
+                collection: "complete",
+                datasetCount: expect.any(Number),
+                diagnostics: {
+                  total: firstRunFails ? 1 : 0,
+                  errors: firstRunFails ? 1 : 0,
+                  warnings: 0,
+                },
+              },
+              {
+                state: "finished",
+                runId: expect.any(String),
+                outcome: { status: "completed" },
+                execution: "completed",
+                collection: "complete",
+                datasetCount: expect.any(Number),
+                diagnostics: { total: 0, errors: 0, warnings: 0 },
+              },
             ],
           },
         }),
       );
+      const withSignal = await service.handle(
+        {
+          operation: "read-batch",
+          batchId: preparedReply.batch.id,
+          signals: ["output"],
+        },
+        "read-batch-signals",
+      );
+      expect(withSignal).toMatchObject({
+        ok: true,
+        batch: {
+          items: [
+            { signals: [{ signal: "output", status: "available" }] },
+            { signals: [{ signal: "output", status: "available" }] },
+          ],
+        },
+      });
       expect(maxActive).toBe(1);
       now += 24 * 60 * 60 * 1000;
       // Recover identifiers from the existing Batch resource rather than
@@ -1156,14 +1193,27 @@ describe("shared simulation lifecycle", () => {
     expect(reply).toMatchObject({ ok: true, batch: { state: "prepared" } });
     if (!reply.ok || !("batch" in reply)) throw Error(JSON.stringify(reply));
     expect(reply.batch.items.map((item) => item.label)).toEqual([
-      `${instance.id}.w=10u, corner=tt, temp=27C`,
-      `${instance.id}.w=10u, corner=tt, temp=125C`,
-      `${instance.id}.w=10u, corner=ff, temp=27C`,
-      `${instance.id}.w=10u, corner=ff, temp=125C`,
-      `${instance.id}.w=20u, corner=tt, temp=27C`,
-      `${instance.id}.w=20u, corner=tt, temp=125C`,
-      `${instance.id}.w=20u, corner=ff, temp=27C`,
-      `${instance.id}.w=20u, corner=ff, temp=125C`,
+      `${instance.reference}.w=10u, corner=tt, temp=27C`,
+      `${instance.reference}.w=10u, corner=tt, temp=125C`,
+      `${instance.reference}.w=10u, corner=ff, temp=27C`,
+      `${instance.reference}.w=10u, corner=ff, temp=125C`,
+      `${instance.reference}.w=20u, corner=tt, temp=27C`,
+      `${instance.reference}.w=20u, corner=tt, temp=125C`,
+      `${instance.reference}.w=20u, corner=ff, temp=27C`,
+      `${instance.reference}.w=20u, corner=ff, temp=125C`,
+    ]);
+    expect(reply.batch.items[0]?.point).toEqual([
+      {
+        axis: 0,
+        kind: "parameter",
+        documentId: document.id,
+        instanceId: instance.id,
+        reference: instance.reference,
+        parameter: "w",
+        value: "10u",
+      },
+      { axis: 1, kind: "corner", value: "tt" },
+      { axis: 2, kind: "temperature", value: 27 },
     ]);
     expect(
       new Set(reply.batch.items.map((item) => item.prepared.digest)).size,

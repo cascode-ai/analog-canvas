@@ -547,6 +547,36 @@ export const SimulationBatchItemRequestSchema = z.strictObject({
   id: Id,
   folderId: Id,
 });
+export const SimulationBatchPointSchema = z.strictObject({
+  axis: z.number().int().nonnegative(),
+  kind: z.enum(["corner", "temperature", "variable", "parameter"]),
+  value: z.union([z.string(), z.number().finite()]),
+  variableId: Id.optional(),
+  documentId: Id.optional(),
+  instanceId: Id.optional(),
+  reference: z.string().min(1).max(128).optional(),
+  parameter: z.string().min(1).max(128).optional(),
+});
+export type SimulationBatchPoint = z.infer<typeof SimulationBatchPointSchema>;
+const SimulationBatchSignalSchema = z.discriminatedUnion("status", [
+  z.strictObject({
+    status: z.literal("available"),
+    signal: z.string().min(1).max(256),
+    analysisIndex: z.number().int().nonnegative(),
+    analysis: z.enum(["op", "dc", "ac", "tran", "noise"]),
+    unit: z.string().nullable(),
+    value: z.number().finite(),
+    aggregation: z.enum(["op", "final"]),
+    minimum: z.number().finite().optional(),
+    maximum: z.number().finite().optional(),
+  }),
+  z.strictObject({
+    status: z.literal("unavailable"),
+    signal: z.string().min(1).max(256),
+    reason: z.string(),
+  }),
+]);
+export type SimulationBatchSignal = z.infer<typeof SimulationBatchSignalSchema>;
 /** The transient service consumes the same sweep-axis contract persisted by a Setup. */
 export const SimulationSweepAxisSchema = SimulationRunPlanAxisSchema;
 export const SimulationOperationSchema = z.discriminatedUnion("operation", [
@@ -657,7 +687,11 @@ export const SimulationOperationSchema = z.discriminatedUnion("operation", [
     batchId: Id,
     timeoutMs: z.number().int().positive().max(120000).optional(),
   }),
-  z.strictObject({ operation: z.literal("read-batch"), batchId: Id }),
+  z.strictObject({
+    operation: z.literal("read-batch"),
+    batchId: Id,
+    signals: z.array(z.string().min(1).max(256)).max(64).optional(),
+  }),
   z.strictObject({ operation: z.literal("cancel-batch"), batchId: Id }),
   z.strictObject({
     operation: z.literal("export"),
@@ -861,6 +895,20 @@ export const SimulationBatchItemSchema = z.strictObject({
   ]),
   runId: Id.optional(),
   error: ProblemSchema.optional(),
+  point: z.array(SimulationBatchPointSchema).max(4).optional(),
+  outcome: SimulationResultSchema.shape.outcome.optional(),
+  execution: ResultCatalogSchema.shape.execution.optional(),
+  collection: ResultCatalogSchema.shape.collection.optional(),
+  datasetCount: z.number().int().nonnegative().optional(),
+  diagnostics: z
+    .strictObject({
+      total: z.number().int().nonnegative(),
+      errors: z.number().int().nonnegative(),
+      warnings: z.number().int().nonnegative(),
+    })
+    .optional(),
+  outputDiagnostics: z.number().int().nonnegative().optional(),
+  signals: z.array(SimulationBatchSignalSchema).max(64).optional(),
 });
 export const SimulationBatchSchema = z.strictObject({
   id: Id,
