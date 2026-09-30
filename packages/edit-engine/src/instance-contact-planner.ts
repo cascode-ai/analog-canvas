@@ -1,6 +1,8 @@
 import {
   isEligibleSeriesInsertionPinPair,
   planSeriesInstanceSplice,
+  planSeriesInstanceSpliceAtRouteEnd,
+  type SeriesSplicePlan,
 } from "./series-splice-planner.js";
 import { createContactPlanningDraft } from "./contact-planning-draft.js";
 import { planElectricalMarkerRename } from "./net-name-operation-planner.js";
@@ -19,6 +21,7 @@ import {
   isVisibleEndpoint,
   isMosBulkTerminal,
   findRouteSegmentsAtPoint,
+  resolveDocumentLogicalNets,
   resolveEndpointConnection,
   resolveDocumentRoutingGeometry,
   resolveElectricalContactTargets,
@@ -150,13 +153,98 @@ function isEligibleSeriesInsertionPair(
   );
 }
 
+interface PlacementContact {
+  source: WireSource;
+  target: ElectricalContactTarget;
+}
+
+/**
+ * The two pins of `instance` when one lands inside a Wire and the other on
+ * the Junction or pin that ends that same Wire.
+ */
+function routeEndSpliceContacts(
+  document: SchematicDocument,
+  instance: Instance,
+  contacts: readonly PlacementContact[],
+):
+  | {
+      inner: {
+        source: WireSource;
+        route: NonNullable<ElectricalContactTarget["route"]>;
+      };
+      outer: { source: WireSource; routeEnd: RouteEndpoint };
+    }
+  | undefined {
+  if (
+    !contacts.every(
+      ({ source }) =>
+        source.endpoint.kind === "terminal" &&
+        source.endpoint.instanceId === instance.id,
+    )
+  )
+    return undefined;
+  const inner = contacts.find(({ target }) => target.route && !target.endpoint);
+  const outer = contacts.find(
+    (contact) => contact !== inner && contact.target.endpoint,
+  );
+  if (!inner || !outer) return undefined;
+  const route = document.routes.find(
+    (candidate) => candidate.id === inner.target.route!.routeId,
+  );
+  const end = outer.target.endpoint!.endpoint;
+  if (
+    !route ||
+    !routeEndpoints(route).some(
+      (endpoint) => endpointKey(endpoint) === endpointKey(end),
+    )
+  )
+    return undefined;
+  return {
+    inner: { source: inner.source, route: inner.target.route! },
+    outer: { source: outer.source, routeEnd: end },
+  };
+}
+
+/**
+ * Why a contact must be refused: it would leave both pins of a two-pin part
+ * on one Logical Net, which shorts the part. `connected` holds every pin's
+ * membership once all contacts are made. A part with more pins may tie them
+ * together on purpose (a dummy transistor), so only two-pin parts are held.
+ */
+function shortedTwoPinPart(
+  connected: SchematicDocument,
+  instances: readonly Instance[],
+  sources: readonly WireSource[],
+): string | undefined {
+  let logical: ReturnType<typeof resolveDocumentLogicalNets> | undefined;
+  for (const item of instances) {
+    const pins = sources.filter(
+      ({ endpoint }) =>
+        endpoint.kind === "terminal" && endpoint.instanceId === item.id,
+    );
+    if (pins.length !== 2) continue;
+    logical ??= resolveDocumentLogicalNets(connected);
+    const [first, second] = pins.map((pin) => {
+      const netId = endpointOwnerNetId(connected, pin.endpoint);
+      return netId ? (logical!.byBaseNetId.get(netId)?.id ?? netId) : null;
+    });
+    if (!first || first !== second) continue;
+    const name = logical.byId.get(first)?.name;
+    const label = item.reference ?? item.id;
+    return `Both pins of ${label} would join ${name ? `Net ${name}` : "one Net"}, which shorts it`;
+  }
+  return undefined;
+}
+
 /**
  * A component may acquire electrical connectivity only from an exact visible
  * pin-to-pin, pin-to-Junction, or pin-to-Route contact. Grid coincidence alone
  * is deliberately insufficient. Multiple independent contacts commit
  * together; multiple disconnected conductors at one point remain ambiguous.
  * Several pins landing on one conductor at distinct points are the
- * series-insertion drop and attach together, cutting the Route at each pin.
+ * series-insertion drop and attach together, cutting the Route at each pin;
+ * so is one pin inside a Wire with the other on that Wire's own end. A drop
+ * that would still put both pins of a two-pin part on one Net is refused.
  */
 export function proposePlacementContact(
   document: SchematicDocument,
@@ -172,10 +260,7 @@ export function proposePlacementContact(
     routeIds?: ReadonlySet<string>;
   } = {},
 ): PlacementContactProposal {
-  const contacts: Array<{
-    source: WireSource;
-    target: ElectricalContactTarget;
-  }> = [];
+  const contacts: PlacementContact[] = [];
   let ambiguous = false;
   const routingGeometry = resolveDocumentRoutingGeometry(document, resolver);
   const sources = (options.instances ?? [instance]).flatMap((item) =>
@@ -302,9 +387,23 @@ export function proposePlacementContact(
       ),
     ),
   );
+  // One pin inside a Wire and the other on the Junction or pin that ends
+  // that same Wire is the same gesture. Joined as two ordinary contacts, both
+  // pins would land on one Net with the Wire still running between them.
+  const endSplice =
+    !spliceGroup && contacts.length === 2
+      ? routeEndSpliceContacts(document, instance, contacts)
+      : undefined;
+  const spliceAtEnd =
+    endSplice &&
+    isEligibleSeriesInsertionPair(instance, sources, [
+      endSplice.inner.source,
+      endSplice.outer.source,
+    ])
+      ? endSplice
+      : undefined;
   if (
-    spliceGroup &&
-    spliceGroup.length === 2 &&
+    ((spliceGroup && spliceGroup.length === 2) || spliceAtEnd) &&
     !(options.mode === "move" && alreadyRouted)
   ) {
     const projected = structuredClone(document);
@@ -314,24 +413,41 @@ export function proposePlacementContact(
       ),
       structuredClone(instance),
     ];
-    const splice = planSeriesInstanceSplice(
-      projected,
-      resolver,
-      spliceGroup[0]!.route.routeId,
-      [
-        {
-          endpoint: spliceGroup[0]!.source.endpoint,
-          point: spliceGroup[0]!.source.connection.contactPoint,
-          segmentIndex: spliceGroup[0]!.route.segmentIndex,
-        },
-        {
-          endpoint: spliceGroup[1]!.source.endpoint,
-          point: spliceGroup[1]!.source.connection.contactPoint,
-          segmentIndex: spliceGroup[1]!.route.segmentIndex,
-        },
-      ],
-      `splice-${instance.id.toLowerCase()}`,
-    );
+    const suffix = `splice-${instance.id.toLowerCase()}`;
+    const splice: SeriesSplicePlan = spliceAtEnd
+      ? planSeriesInstanceSpliceAtRouteEnd(
+          projected,
+          resolver,
+          spliceAtEnd.inner.route.routeId,
+          {
+            endpoint: spliceAtEnd.inner.source.endpoint,
+            point: spliceAtEnd.inner.source.connection.contactPoint,
+            segmentIndex: spliceAtEnd.inner.route.segmentIndex,
+          },
+          {
+            endpoint: spliceAtEnd.outer.source.endpoint,
+            routeEnd: spliceAtEnd.outer.routeEnd,
+          },
+          suffix,
+        )
+      : planSeriesInstanceSplice(
+          projected,
+          resolver,
+          spliceGroup![0]!.route.routeId,
+          [
+            {
+              endpoint: spliceGroup![0]!.source.endpoint,
+              point: spliceGroup![0]!.source.connection.contactPoint,
+              segmentIndex: spliceGroup![0]!.route.segmentIndex,
+            },
+            {
+              endpoint: spliceGroup![1]!.source.endpoint,
+              point: spliceGroup![1]!.source.connection.contactPoint,
+              segmentIndex: spliceGroup![1]!.route.segmentIndex,
+            },
+          ],
+          suffix,
+        );
     return splice.ok
       ? {
           edits: splice.edits,
@@ -390,6 +506,14 @@ export function proposePlacementContact(
       ambiguous: false,
       rejected: error instanceof Error ? error.message : String(error),
     };
+  }
+  const shorted = shortedTwoPinPart(
+    connected,
+    options.instances ?? [instance],
+    sources,
+  );
+  if (shorted) {
+    return { edits: [], matched: false, ambiguous: false, rejected: shorted };
   }
   edits.push(...contactDraft.edits);
   // A contact may merge the target's Net away (the survivor can be the pin's

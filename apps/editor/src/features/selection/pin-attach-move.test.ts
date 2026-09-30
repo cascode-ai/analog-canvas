@@ -448,29 +448,35 @@ describe("two-pin device moved onto one wire", () => {
     expect(throughDevice).toBeUndefined();
   });
 
-  it("keeps the ordinary attachment when one pin is already wired", () => {
-    const { document, results, transactions } = runTwoPinMove({
+  it("moves without shorting a device whose other pin is already wired", () => {
+    const { document, results, statuses, transactions } = runTwoPinMove({
       prewirePlus: true,
     });
     expect(results.some((result) => result.ok)).toBe(true);
-    // Not a series drop: only "-" is a new contact, so nothing is cut.
+    // Not a series drop: "+" is already wired, so nothing is cut.
     expect(
       transactions
         .flatMap(({ edits }) => edits)
         .some((edit) => edit.kind === "cut_connection"),
     ).toBe(false);
-    // Route counts belong to commit-time canonicalization; the contract here
-    // is electrical: everything stays one conductor family on one Net.
+    // "+" is on net-h through its stub, and "-" landed on a wire of net-h:
+    // joining it would short the source. The move keeps it unconnected and
+    // says why.
+    expect(statuses).toContain(
+      "Moved without connecting: Both pins of I1 would join Net HORIZONTAL, which shorts it",
+    );
     const netH = document.nets.find((candidate) => candidate.id === "net-h")!;
     expect(netH.terminals).toEqual(
       expect.arrayContaining([
         { instanceId: "A", pinName: "P" },
         { instanceId: "B", pinName: "P" },
         { instanceId: "I1", pinName: "+" },
-        { instanceId: "I1", pinName: "-" },
       ]),
     );
-    // No partition happened: everything still shares one Base Net.
+    expect(netH.terminals).not.toContainEqual({
+      instanceId: "I1",
+      pinName: "-",
+    });
     expect(document.routes.every((route) => route.netId === "net-h")).toBe(
       true,
     );

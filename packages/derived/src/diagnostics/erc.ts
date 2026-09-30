@@ -569,6 +569,7 @@ export function runErcChecks(
     );
     reportDanglingWires(document, diagnostics);
     reportLabelsNamingAnotherPart(document, diagnostics);
+    reportShortedTwoPinParts(document, logicalNets, resolver, diagnostics);
   }
 
   // A child interface can be shared by several parent instances. Preserve the
@@ -761,6 +762,62 @@ function reportLabelsNamingAnotherPart(
  * part or a cut, and it connects nothing. A Power Rail's ends and a wire whose
  * end or run carries a label are drawn that way on purpose and stay silent.
  */
+/**
+ * A two-pin part whose pins share one Logical Net does nothing: it is
+ * shorted. The drawing can still show it in series, as a part dropped onto a
+ * wire over the wire's own end once did, with the wire hidden under its body.
+ * Parts with more pins are not judged: a dummy transistor ties every pin to
+ * one supply on purpose.
+ */
+function reportShortedTwoPinParts(
+  document: CircuitProject["documents"][number],
+  logicalNets: ReturnType<typeof resolveDocumentLogicalNets>,
+  resolver: SymbolResolver,
+  diagnostics: ErcDiagnostic[],
+): void {
+  const netOfTerminal = new Map<string, string>();
+  for (const net of document.nets)
+    for (const terminal of net.terminals)
+      netOfTerminal.set(
+        `${terminal.instanceId}\u0000${terminal.pinName}`,
+        net.id,
+      );
+  for (const instance of document.instances) {
+    if (!instance.placement) continue;
+    const resolved = resolver.resolve(
+      instance.symbolId,
+      instance.symbolVariantId,
+    );
+    if (!resolved) continue;
+    const hidden = new Set(resolved.variant?.hiddenPinNames ?? []);
+    const pins = resolved.definition.pins.filter(
+      (pin) => !hidden.has(pin.name),
+    );
+    if (pins.length !== 2) continue;
+    const [first, second] = pins.map((pin) => {
+      const netId = netOfTerminal.get(`${instance.id}\u0000${pin.name}`);
+      return netId ? (logicalNets.byBaseNetId.get(netId)?.id ?? netId) : null;
+    });
+    if (!first || first !== second) continue;
+    const name = logicalNets.byId.get(first)?.name;
+    const label = instance.reference ?? instance.id;
+    diagnostics.push({
+      id: `erc:shorted-part:${document.id}:${instance.id}`,
+      domain: "erc",
+      code: "ERC_SHORTED_DEVICE",
+      severity: "warning",
+      confidence: "high",
+      gateEligible: false,
+      message: `${label}'s two pins are on one Net${name ? ` (${name})` : ""}, so the part is shorted`,
+      primary: directObjectLocator(document.id, "instance", instance.id),
+      related: pins.map((pin) =>
+        terminalLocator(document.id, instance.id, pin.name),
+      ),
+      parameters: { instanceId: instance.id, netId: first },
+    });
+  }
+}
+
 function reportDanglingWires(
   document: CircuitProject["documents"][number],
   diagnostics: ErcDiagnostic[],

@@ -373,18 +373,86 @@ describe("ERC engine", () => {
   it("is silent on a clean project where every pin is connected", () => {
     const project = emptyProject();
     const document = project.documents[0]!;
-    document.instances = [instance("I1", "M1")];
+    document.instances = [instance("I1", "M1"), instance("I2", "M2")];
     document.nets = [
       {
         id: "net-1",
+        terminals: [
+          { instanceId: "I1", pinName: "L" },
+          { instanceId: "I2", pinName: "L" },
+        ],
+      },
+      {
+        id: "net-2",
+        terminals: [
+          { instanceId: "I1", pinName: "R" },
+          { instanceId: "I2", pinName: "R" },
+        ],
+      },
+    ];
+    expect(run(project)).toEqual([]);
+  });
 
+  it("warns when both pins of a two-pin part are on one Net", () => {
+    const project = emptyProject();
+    const document = project.documents[0]!;
+    document.instances = [instance("I1", "R1")];
+    document.nets = [
+      {
+        id: "net-1",
         terminals: [
           { instanceId: "I1", pinName: "L" },
           { instanceId: "I1", pinName: "R" },
         ],
       },
     ];
-    expect(run(project)).toEqual([]);
+
+    expect(run(project)).toEqual([
+      expect.objectContaining({
+        code: "ERC_SHORTED_DEVICE",
+        severity: "warning",
+        gateEligible: false,
+        message: "R1's two pins are on one Net, so the part is shorted",
+        primary: expect.objectContaining({
+          kind: "instance",
+          objectId: "I1",
+        }),
+        related: [
+          expect.objectContaining({ kind: "terminal", objectId: "I1:L" }),
+          expect.objectContaining({ kind: "terminal", objectId: "I1:R" }),
+        ],
+        parameters: { instanceId: "I1", netId: "net-1" },
+      }),
+    ]);
+  });
+
+  it("does not call a dummy transistor tied to one Net shorted", () => {
+    const project = emptyProject();
+    const document = project.documents[0]!;
+    document.instances = [
+      {
+        id: "M1",
+        symbolId: "mos",
+        placement: {
+          position: { x: 0, y: 0 },
+          rotation: 0,
+          mirror: "none",
+        },
+      },
+    ];
+    document.nets = [
+      {
+        id: "vss",
+        terminals: ["G", "D", "S", "B"].map((pinName) => ({
+          instanceId: "M1",
+          pinName,
+        })),
+      },
+    ];
+
+    expect(
+      roleRun(project).filter((item) => item.code === "ERC_SHORTED_DEVICE"),
+    ).toEqual([]);
   });
 
   it("reports a pin a wire of another Net passes straight through", () => {
