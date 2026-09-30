@@ -2506,7 +2506,15 @@ describe("MCP → API → shared editor parity", () => {
       ).ok,
     ).toBe(true);
     const search = await tool("search", { query: "g_m" });
-    expect(search.hits).toHaveLength(1);
+    expect(search.hits).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "drafting",
+          name: "\\frac{g_m}{C}",
+          documentId: "main",
+        }),
+      ]),
+    );
     expect(
       (await tool("inspect", { target: { kind: "activity" } })).transactions
         .length,

@@ -156,8 +156,19 @@ test.each([
             (diagnostic) =>
               diagnostic.code !== "IMPORT_REFERENCE_UNAVAILABLE" &&
               diagnostic.code !== "VISUAL_LABEL_CLEARANCE" &&
-              diagnostic.code !== "ERC_DANGLING_WIRE",
+              diagnostic.code !== "ERC_DANGLING_WIRE" &&
+              diagnostic.code !== "GENERATED_NET_NAME",
           );
+          for (const diagnostic of inspection.document.diagnostics.filter(
+            (item) => item.code === "GENERATED_NET_NAME",
+          ))
+            expect(diagnostic).toMatchObject({
+              category: "structural",
+              domain: "spice",
+              severity: "warning",
+              confidence: "high",
+              gateEligible: true,
+            });
           if (item.id !== "ota-library") {
             expect(drawingDiagnostics).toEqual([]);
           } else {
