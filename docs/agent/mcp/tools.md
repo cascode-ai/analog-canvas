@@ -57,7 +57,10 @@ crossing is rejected even with a qualifier: a Junction there would short Nets.
 
 `copy` follows GUI copy for internal wires and references. `detach-move` leaves
 wires behind; `unplace` retains electrical facts in the Placement Tray.
-`undo`/`redo` share Editor history, not a private Agent stack. Routine layout
+`undo`/`redo` share one chronological Editor Project history, not a private Agent
+or per-Cell stack. They cannot skip newer work on another Cell; the rejection
+names the Cell to inspect. Structural history also requires current
+`expectedStructureRevision` (the shared client supplies it). Routine layout
 work should use move/transform/align rather than reset; choose a `reset-cell`
 mode deliberately when discarding drawing state.
 
@@ -68,6 +71,12 @@ edits only for custom or unreviewed definitions.
 
 `selection` accepts `instanceIds`, `routeIds`, `junctionIds`,
 `annotationIds` and `draftingIds`; omitted lists are empty.
+`move` with a Junction target (or a Junction selection translation) plans its
+incident routes atomically and preserves electrical connectivity. Locked/trunk
+geometry is protected; a requested Junction position that conductor normalization
+cannot retain is rejected, not reported as a successful move. The HTTP command
+is `move-junction`; raw `move_junction` remains a low-level edit requiring the
+caller to supply consistent incident route geometry.
 Drafting rotations in 45-degree steps match the GUI's in-place rotation; other drafting
 transforms use canonical `upsert_drafting_object` geometry rather than silently
 partially transforming a mixed selection.

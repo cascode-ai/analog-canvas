@@ -484,10 +484,14 @@ export function compileActions(
             document.junctions,
             action.target,
           );
-          pushEdit(index, action.kind, {
-            kind: "move_junction",
-            junctionId: junction.id,
-            position: action.position!,
+          transactions.push({
+            form: "command",
+            actionKinds: [action.kind],
+            command: {
+              kind: "move-junction",
+              junctionId: junction.id,
+              position: action.position!,
+            },
           });
         } else {
           const instance = resolveInstance(

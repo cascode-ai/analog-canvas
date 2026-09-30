@@ -974,7 +974,7 @@ export function createAgentCircuitService(
             );
           }
           const result = host
-            ? host.dispatchProjectTransaction!(transaction)
+            ? host.dispatchProjectTransaction!(transaction, document.id)
             : executeProjectTransaction(project, transaction);
           if (!result.ok) {
             return fail(
@@ -1152,6 +1152,12 @@ export function createAgentCircuitService(
               documentId: request.documentId,
               expectedRevision: request.expectedRevision,
               actor: { kind: "agent", id: options.agentId },
+              ...(request.expectedStructureRevision === undefined
+                ? {}
+                : {
+                    expectedStructureRevision:
+                      request.expectedStructureRevision,
+                  }),
               ...(request.dryRun === undefined
                 ? {}
                 : { dryRun: request.dryRun }),

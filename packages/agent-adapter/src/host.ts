@@ -45,6 +45,7 @@ export interface AgentHostTransactionRequest {
   transactionId: string;
   documentId: string;
   expectedRevision: number;
+  expectedStructureRevision?: number;
   actor: { kind: "agent"; id: string };
   dryRun?: boolean;
   edits: readonly SchematicEdit[];
@@ -88,6 +89,8 @@ export interface AgentOperationHost {
   ): EditTransactionResult;
   dispatchProjectTransaction?(
     request: ProjectTransaction,
+    /** History target; must not change the foreground Cell. */
+    documentId?: string,
   ): ProjectTransactionResult;
   /** Optional because loopback/in-process hosts deliberately have no GUI. */
   applySemanticIntent?(

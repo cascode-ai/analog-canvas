@@ -545,6 +545,27 @@ function routeEdits(
   });
 }
 
+/** Explicit Junction targets and all incident geometry form one transaction. */
+export function proposeJunctionMoveEdits(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  moves: readonly JunctionMoveProposal[],
+): GroupMoveEditProposal {
+  const proposal = proposeJunctionGroupTranslation(document, resolver, moves, {
+    preserveBranchDirections: true,
+  });
+  return {
+    preview: proposal,
+    edits: [
+      ...proposal.junctions.map((move): SchematicEdit => ({
+        kind: "move_junction",
+        ...move,
+      })),
+      ...routeEdits(document, proposal.routes),
+    ],
+  };
+}
+
 /**
  * Plan one topology-preserving segment drag as typed transaction edits.
  * `origin` is where the drag began; a 45-degree segment moves along the

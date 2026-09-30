@@ -2,7 +2,12 @@ import { describe, expect, it, vi } from "vitest";
 
 import { createEmptyProject } from "@icm/model";
 
-import { DocumentHistory } from "@icm/edit-engine";
+import * as editEngine from "@icm/edit-engine";
+
+vi.mock("@icm/edit-engine", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@icm/edit-engine")>();
+  return { ...actual, executeTransaction: vi.fn(actual.executeTransaction) };
+});
 
 vi.mock("./editor-session", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./editor-session")>();
@@ -36,15 +41,12 @@ describe("EditorDocumentController internal-error fence", () => {
     const revisionBefore = controller.document.revision;
     const projectBefore = structuredClone(controller.project);
 
-    const transactSpy = vi
-      .spyOn(DocumentHistory.prototype, "transact")
-      .mockImplementationOnce(() => {
-        throw new Error("engine exploded");
-      });
+    vi.mocked(editEngine.executeTransaction).mockImplementationOnce(() => {
+      throw new Error("engine exploded");
+    });
     const rejected = controller.transact([
       { kind: "add_instance", instance: instance("R2") },
     ]);
-    transactSpy.mockRestore();
 
     expect(rejected.ok).toBe(false);
     if (!rejected.ok) {
@@ -56,11 +58,10 @@ describe("EditorDocumentController internal-error fence", () => {
     expect(controller.document.instances.map((entry) => entry.id)).toEqual([
       "R1",
     ]);
-    expect(controller.canUndo).toBe(false);
+    expect(controller.canUndo).toBe(true);
     expect(controller.project).toEqual(projectBefore);
 
-    // The histories were rebuilt from the unchanged Project, so the next
-    // transaction continues from a consistent revision.
+    // Candidate execution failed before commit: the old history is intact.
     const next = controller.transact([
       { kind: "add_instance", instance: instance("R2") },
     ]);
