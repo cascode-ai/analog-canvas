@@ -199,6 +199,16 @@ export const AgentAuthoringCommandSchema = z.discriminatedUnion("kind", [
         "Defaults to the existing Net scope, otherwise local; global must be intentional.",
       ),
   }),
+  z
+    .strictObject({
+      kind: z.literal("extend-power-rail"),
+      routeId: StableIdSchema.describe("Any segment of the rail."),
+      start: PointSchema,
+      end: PointSchema,
+    })
+    .describe(
+      "Set a straight Power Rail's two ends on its own line. Taps and the one label stay; no pin is joined.",
+    ),
   z.strictObject({
     kind: z.literal("place-cell"),
     childDocumentId: StableIdSchema,

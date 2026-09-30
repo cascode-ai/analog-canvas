@@ -415,6 +415,7 @@ export function compileActions(
       case "set-vdd-mode":
       case "delete-selection":
       case "add-power-rail":
+      case "extend-power-rail":
       case "move-annotation":
       case "batch":
       case "place-components":

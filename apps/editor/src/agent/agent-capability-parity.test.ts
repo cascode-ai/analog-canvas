@@ -7,6 +7,7 @@ import {
 import {
   resolveDocumentLogicalNets,
   resolveEndpointConnection,
+  derivePowerRailComponent,
 } from "@icm/derived";
 import { createAgentCircuitService } from "@icm/agent-adapter";
 import { AgentSessionClient } from "../../../../packages/agent-client/src/session-client";
@@ -1325,6 +1326,96 @@ it("uses local supply rails by default, preserves explicit global and rejects di
   expect(report.ok).toBe(false);
   expect(report.message).toContain("horizontal or vertical");
   expect(controller.project).toEqual(before);
+});
+
+it("extends a Power Rail instead of doubling it, keeping its taps and its one label", async () => {
+  const { client, controller, tool } = await folder();
+  const at = (x: number) => ({ x, y: 240 });
+  expect(
+    (
+      await client.applyActions([
+        { kind: "add-power-rail", start: at(300), end: at(460) },
+      ])
+    ).ok,
+  ).toBe(true);
+  // R1 taps the rail from below, at x = 380.
+  expect(
+    (
+      await client.applyActions([
+        {
+          kind: "place-component",
+          symbol: "resistor",
+          reference: "R1",
+          position: { x: 380, y: 320 },
+        },
+      ])
+    ).ok,
+  ).toBe(true);
+  const railId = () =>
+    controller.document.routes.find(
+      (route) => route.presentation === "power-rail",
+    )!.id;
+  const tapped = await client.applyActions([
+    {
+      kind: "connect",
+      from: { kind: "pin", instance: "R1", pin: "1" },
+      to: { kind: "wire-at", point: at(380) },
+    },
+  ]);
+  expect(tapped.ok, tapped.message).toBe(true);
+  const span = () => {
+    const component = derivePowerRailComponent(controller.document, railId())!;
+    const position = (id: string) =>
+      controller.document.junctions.find((junction) => junction.id === id)!
+        .position;
+    return {
+      ends: component.endpointJunctionIds
+        .map((id) => position(id).x)
+        .sort((left, right) => left - right),
+      taps: component.junctionIds
+        .filter((id) => !component.endpointJunctionIds.includes(id))
+        .map(position),
+    };
+  };
+  expect(span()).toEqual({ ends: [300, 460], taps: [at(380)] });
+  const labels = () =>
+    controller.document.annotations.filter(
+      (annotation) => annotation.kind === "power-label",
+    );
+  expect(labels()).toHaveLength(1);
+
+  // Before: a second rail over the first, with a second V_DD label.
+  const wider = await client.applyActions([
+    { kind: "add-power-rail", start: at(190), end: at(560) },
+  ]);
+  expect(wider.ok, wider.message).toBe(true);
+  expect(span()).toEqual({ ends: [190, 560], taps: [at(380)] });
+  expect(labels()).toHaveLength(1);
+
+  const extended = await tool("circuit_transform", {
+    actions: [
+      {
+        kind: "extend-power-rail",
+        routeId: railId(),
+        start: at(100),
+        end: at(560),
+      },
+    ],
+  });
+  expect(extended.ok, extended.message).toBe(true);
+  expect(span()).toEqual({ ends: [100, 560], taps: [at(380)] });
+
+  const shrunk = await client.applyActions([
+    {
+      kind: "extend-power-rail",
+      routeId: railId(),
+      start: at(400),
+      end: at(560),
+    },
+  ]);
+  expect(shrunk.ok).toBe(false);
+  expect(shrunk.message).toContain("would fall off the rail");
+  expect(span()).toEqual({ ends: [100, 560], taps: [at(380)] });
 });
 
 it("batches different display preferences once without advancing structure revision; errors locate the source action", async () => {

@@ -65,6 +65,15 @@ targets to avoid full-Snapshot name resolution. Names remain supported when usef
   the default PMOS bulk; geometry alone does not connect nearby pins in Agent
   placement. The complete typed `add_power_rail` remains available. Ground and
   power markers are not named devices.
+- A rail grows, it is not doubled. `add-power-rail` along the line of an
+  existing rail of the same supply, overlapping or touching it, extends that
+  rail to cover both spans, with one label. `extend-power-rail`
+  `{routeId,start,end}` sets a straight rail's two ends on its own line:
+  - taps stay where they are;
+  - the label goes with its end;
+  - no pin is joined;
+  - a span that would drop a tap, or move an end that carries a tap, is
+    refused with the tap's ID.
 - Set electrical values before their display. MOS sizes are physical quantities:
   `w:"10u", l:"1u"`, not `10/1` assuming micrometres. Use
   `set-instance-display` for Reference/Value/parameters, not detached text.

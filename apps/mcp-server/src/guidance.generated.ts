@@ -19,7 +19,7 @@ export const agentToolHelp = {
   circuit_wire:
     "Connect/disconnect in an atomic batch; via gives interior points. Explicit instance IDs avoid a full-Snapshot name lookup; server routing/validation is unchanged. Artwork contact is not connectivity.",
   circuit_transform:
-    "Move/rotate/mirror individual targets, arrange or detach-move instances using one supported action batch. Preserves original planner boundaries and topology semantics. For mixed action families use apply_actions.",
+    "Move/rotate/mirror individual targets, arrange or detach-move instances, or extend a Power Rail using one supported action batch. Preserves original planner boundaries and topology semantics. For mixed action families use apply_actions.",
   circuit_selection:
     "Translate/rotate/mirror/copy/align a selection. Uses original selection IDs, topology rules and atomic planner. For individual targets use circuit_transform; for mixed families use apply_actions.",
   circuit_text:

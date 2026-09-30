@@ -18,7 +18,7 @@ Focused circuit tools retain the `{documentId?, actions:[...]}` call envelope:
 | -------------------- | ----------------------------------------------------------------- |
 | `circuit_place`      | Built-in symbol, Cell and existing-instance placement; power rail |
 | `circuit_wire`       | Connect and disconnect                                            |
-| `circuit_transform`  | Individual move/rotate/mirror, arrange and detach-move            |
+| `circuit_transform`  | Individual move/rotate/mirror, arrange, detach-move and rail span |
 | `circuit_selection`  | Selection transform, copy and align                               |
 | `circuit_text`       | Labels, annotations, text changes and annotation movement         |
 | `circuit_properties` | References, parameters, model selection and display flags         |
