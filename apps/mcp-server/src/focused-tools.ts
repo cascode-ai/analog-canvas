@@ -138,11 +138,20 @@ export function focusedTools<S>(
       definition: { name, description: help(name), inputSchema },
       async handle(args: unknown, session: S) {
         const selected = selectedArgumentOperations(inputSchema, args);
-        if (selected.some((operation) => !allowed.has(operation)))
+        const invalid = selected.find((operation) => !allowed.has(operation));
+        if (invalid) {
+          const owner = FOCUSED_TOOLS.find(
+            (candidate) =>
+              candidate.name !== name &&
+              (candidate.operations as readonly string[]).includes(invalid),
+          )?.name;
           throw new ContractQueryError(
             "INVALID_TOOL_OPERATION",
-            `Use ${source} or the matching focused tool for this operation.`,
+            owner
+              ? `${invalid} is served by ${owner}.`
+              : `Use ${source} or the matching focused tool for this operation.`,
           );
+        }
         // Parse and execute with the exact original handler: revision guards,
         // idempotency, atomic planning, offline workspaces and errors stay shared.
         return original.handle(args, session);

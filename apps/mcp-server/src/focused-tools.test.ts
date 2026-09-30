@@ -142,6 +142,28 @@ describe("focused tools", () => {
     },
   );
 
+  it("points a focused simulation error at the owning focused tool", async () => {
+    const tool = focusedTools(
+      [...new Set(FOCUSED_TOOLS.map((entry) => entry.source))].map(
+        (source) => ({
+          definition: {
+            name: source,
+            description: "canonical",
+            inputSchema: toolInputSchema(source)!,
+          },
+          handle: async () => ({ ok: true }),
+        }),
+      ),
+      () => "focused",
+    ).find((entry) => entry.definition.name === "simulation_source")!;
+    await expect(
+      tool.handle({ request: { action: "update" } }, {}),
+    ).rejects.toMatchObject({
+      code: "INVALID_TOOL_OPERATION",
+      message: "update is served by simulation_edit.",
+    });
+  });
+
   it("uses numeric items for homogeneous closed tuples without changing the canonical schema", () => {
     const validator = z.strictObject({
       range: z.tuple([z.number(), z.number()]),
