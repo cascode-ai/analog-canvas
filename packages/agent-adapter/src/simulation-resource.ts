@@ -1,4 +1,6 @@
 import { z } from "zod";
+
+import { lazyJsonSchema } from "./lazy-json-schema.js";
 import {
   SimulationOperationSchema,
   SimulationReplySchema,
@@ -31,13 +33,11 @@ export const AgentSimulationResourceResponseSchema = z.union(
     schema.extend({ ...envelope, operation: z.string() }),
   ),
 );
-export const AgentSimulationResourceRequestJsonSchema = z.toJSONSchema(
+export const agentSimulationResourceRequestJsonSchema = lazyJsonSchema(
   AgentSimulationResourceRequestSchema,
-  { target: "draft-2020-12", reused: "ref" },
 );
-export const AgentSimulationResourceResponseJsonSchema = z.toJSONSchema(
+export const agentSimulationResourceResponseJsonSchema = lazyJsonSchema(
   AgentSimulationResourceResponseSchema,
-  { target: "draft-2020-12", reused: "ref" },
 );
 type AgentSimulationRequestEnvelope = {
   apiVersion: typeof AGENT_API_VERSION;

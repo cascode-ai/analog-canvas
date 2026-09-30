@@ -37,6 +37,8 @@ import {
   SchematicEditSchema,
 } from "@icm/edit-engine";
 import { z } from "zod";
+
+import { lazyJsonSchema } from "./lazy-json-schema.js";
 import { AgentAuthoringCommandSchema } from "./authoring-command.js";
 export { AgentAuthoringCommandSchema } from "./authoring-command.js";
 export type { AgentAuthoringCommand } from "./authoring-command.js";
@@ -956,13 +958,11 @@ export const AgentProductionCircuitResponseSchema = z.union([
   AgentErrorResponseSchema,
 ]);
 export const AgentCircuitResponseSchema = AgentProductionCircuitResponseSchema;
-export const AgentCircuitRequestJsonSchema = z.toJSONSchema(
+export const agentCircuitRequestJsonSchema = lazyJsonSchema(
   AgentProductionCircuitRequestSchema,
-  { target: "draft-2020-12", reused: "ref" },
 );
-export const AgentCircuitResponseJsonSchema = z.toJSONSchema(
+export const agentCircuitResponseJsonSchema = lazyJsonSchema(
   AgentProductionCircuitResponseSchema,
-  { target: "draft-2020-12", reused: "ref" },
 );
 
 export type AgentPermissions = z.infer<typeof AgentPermissionsSchema>;

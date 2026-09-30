@@ -1,4 +1,6 @@
 import { z } from "zod";
+
+import { lazyJsonSchema } from "./lazy-json-schema.js";
 import {
   SimulationFileOperationSchema,
   SimulationFileResultSchema,
@@ -225,13 +227,11 @@ export const AgentFileResourceResponseSchema = z.union([
   }),
 ]);
 
-export const AgentFileResourceRequestJsonSchema = z.toJSONSchema(
+export const agentFileResourceRequestJsonSchema = lazyJsonSchema(
   AgentFileResourceRequestSchema,
-  { target: "draft-2020-12", reused: "ref" },
 );
-export const AgentFileResourceResponseJsonSchema = z.toJSONSchema(
+export const agentFileResourceResponseJsonSchema = lazyJsonSchema(
   AgentFileResourceResponseSchema,
-  { target: "draft-2020-12", reused: "ref" },
 );
 
 /** Strict hosted parser. File requests intentionally have no legacy dialect. */

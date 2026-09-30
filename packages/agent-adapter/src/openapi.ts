@@ -1,27 +1,27 @@
 import { agentApiHelp } from "./agent-api-help.generated.js";
 import {
   AGENT_API_VERSION,
-  AgentCircuitRequestJsonSchema,
-  AgentCircuitResponseJsonSchema,
+  agentCircuitRequestJsonSchema,
+  agentCircuitResponseJsonSchema,
 } from "./schema.js";
 import {
-  AgentFileResourceRequestJsonSchema,
-  AgentFileResourceResponseJsonSchema,
+  agentFileResourceRequestJsonSchema,
+  agentFileResourceResponseJsonSchema,
 } from "./file-resource.js";
 import {
-  AgentSimulationResourceRequestJsonSchema,
-  AgentSimulationResourceResponseJsonSchema,
+  agentSimulationResourceRequestJsonSchema,
+  agentSimulationResourceResponseJsonSchema,
 } from "./simulation-resource.js";
 import {
-  AgentProjectResourceRequestJsonSchema,
-  AgentProjectResourceResponseJsonSchema,
+  agentProjectResourceRequestJsonSchema,
+  agentProjectResourceResponseJsonSchema,
 } from "./project-resource.js";
 import {
-  AgentClaimRequestJsonSchema,
-  AgentConnectionCredentialResponseJsonSchema,
-  AgentConnectorResumeRequestJsonSchema,
-  AgentTransportErrorResponseJsonSchema,
-  AgentSessionStatusResponseJsonSchema,
+  agentClaimRequestJsonSchema,
+  agentConnectionCredentialResponseJsonSchema,
+  agentConnectorResumeRequestJsonSchema,
+  agentTransportErrorResponseJsonSchema,
+  agentSessionStatusResponseJsonSchema,
 } from "./envelope.js";
 
 function componentSchema(
@@ -55,54 +55,39 @@ function componentSchemaValue(value: unknown, componentName: string): unknown {
   );
 }
 
-const agentCircuitRequestSchema = componentSchema(
-  AgentCircuitRequestJsonSchema as Record<string, unknown>,
-  "agentCircuitRequest",
-);
-const agentCircuitResponseSchema = componentSchema(
-  AgentCircuitResponseJsonSchema as Record<string, unknown>,
-  "agentCircuitResponse",
-);
-const agentFileResourceRequestSchema = componentSchema(
-  AgentFileResourceRequestJsonSchema as Record<string, unknown>,
-  "agentFileResourceRequest",
-);
-const agentFileResourceResponseSchema = componentSchema(
-  AgentFileResourceResponseJsonSchema as Record<string, unknown>,
-  "agentFileResourceResponse",
-);
-const agentSimulationResourceRequestSchema = componentSchema(
-  AgentSimulationResourceRequestJsonSchema as Record<string, unknown>,
-  "agentSimulationResourceRequest",
-);
-const agentSimulationResourceResponseSchema = componentSchema(
-  AgentSimulationResourceResponseJsonSchema as Record<string, unknown>,
-  "agentSimulationResourceResponse",
-);
-const agentProjectResourceRequestSchema = componentSchema(
-  AgentProjectResourceRequestJsonSchema as Record<string, unknown>,
-  "agentProjectResourceRequest",
-);
-const agentProjectResourceResponseSchema = componentSchema(
-  AgentProjectResourceResponseJsonSchema as Record<string, unknown>,
-  "agentProjectResourceResponse",
-);
-const agentClaimRequestSchema = componentSchema(
-  AgentClaimRequestJsonSchema as Record<string, unknown>,
-  "agentClaimRequest",
-);
-const agentConnectorResumeRequestSchema = componentSchema(
-  AgentConnectorResumeRequestJsonSchema as Record<string, unknown>,
-  "agentConnectorResumeRequest",
-);
-const agentConnectionCredentialResponseSchema = componentSchema(
-  AgentConnectionCredentialResponseJsonSchema as Record<string, unknown>,
-  "agentClaimResponse",
-);
-const agentTransportErrorResponseSchema = componentSchema(
-  AgentTransportErrorResponseJsonSchema as Record<string, unknown>,
-  "agentTransportErrorResponse",
-);
+const componentJsonSchemas = {
+  agentSessionStatus: agentSessionStatusResponseJsonSchema,
+  agentClaimRequest: agentClaimRequestJsonSchema,
+  agentConnectorResumeRequest: agentConnectorResumeRequestJsonSchema,
+  agentTransportErrorResponse: agentTransportErrorResponseJsonSchema,
+  agentCircuitRequest: agentCircuitRequestJsonSchema,
+  agentCircuitResponse: agentCircuitResponseJsonSchema,
+  agentFileResourceRequest: agentFileResourceRequestJsonSchema,
+  agentFileResourceResponse: agentFileResourceResponseJsonSchema,
+  agentSimulationResourceRequest: agentSimulationResourceRequestJsonSchema,
+  agentSimulationResourceResponse: agentSimulationResourceResponseJsonSchema,
+  agentProjectResourceRequest: agentProjectResourceRequestJsonSchema,
+  agentProjectResourceResponse: agentProjectResourceResponseJsonSchema,
+  agentClaimResponse: agentConnectionCredentialResponseJsonSchema,
+} as const;
+let builtComponentSchemas:
+  | Record<keyof typeof componentJsonSchemas, Record<string, unknown>>
+  | undefined;
+/**
+ * The contract schemas, converted when the document is first read, so the
+ * Worker's startup does not pay for them (see lazyJsonSchema).
+ */
+function componentSchemas(): Record<
+  keyof typeof componentJsonSchemas,
+  Record<string, unknown>
+> {
+  return (builtComponentSchemas ??= Object.fromEntries(
+    Object.entries(componentJsonSchemas).map(([name, jsonSchema]) => [
+      name,
+      componentSchema(jsonSchema(), name),
+    ]),
+  ) as Record<keyof typeof componentJsonSchemas, Record<string, unknown>>);
+}
 const agentCircuitRequestRef = {
   $ref: "#/components/schemas/agentCircuitRequest",
 } as const;
@@ -652,23 +637,8 @@ export const agentCircuitOpenApi = {
     securitySchemes: {
       bearerAuth: { type: "http", scheme: "bearer" },
     },
-    schemas: {
-      agentSessionStatus: componentSchema(
-        AgentSessionStatusResponseJsonSchema as Record<string, unknown>,
-        "agentSessionStatus",
-      ),
-      agentClaimRequest: agentClaimRequestSchema,
-      agentConnectorResumeRequest: agentConnectorResumeRequestSchema,
-      agentTransportErrorResponse: agentTransportErrorResponseSchema,
-      agentCircuitRequest: agentCircuitRequestSchema,
-      agentCircuitResponse: agentCircuitResponseSchema,
-      agentFileResourceRequest: agentFileResourceRequestSchema,
-      agentFileResourceResponse: agentFileResourceResponseSchema,
-      agentSimulationResourceRequest: agentSimulationResourceRequestSchema,
-      agentSimulationResourceResponse: agentSimulationResourceResponseSchema,
-      agentProjectResourceRequest: agentProjectResourceRequestSchema,
-      agentProjectResourceResponse: agentProjectResourceResponseSchema,
-      agentClaimResponse: agentConnectionCredentialResponseSchema,
+    get schemas() {
+      return componentSchemas();
     },
   },
 } as const;
