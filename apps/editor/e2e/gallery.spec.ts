@@ -1394,6 +1394,8 @@ test("a View in Gallery link shows its circuit at once, centres it and rings it"
 test("a tab returning to a Gallery link shows the current entry unless its copy was changed", async ({
   page,
 }) => {
+  // Seven full page loads, the editor five times: slow by design.
+  test.slow();
   const id = "g-return";
   const name = "Return Visit";
   let stored = galleryResistorProject("1k", 1);
