@@ -97,10 +97,14 @@ export async function loadAccountState(
   }
 }
 
-async function requestEmailLink(
+/** What asking for, or typing, an emailed sign-in code came to. */
+export type EmailCodeResult = { ok: true } | { ok: false; message: string };
+
+/** Emails a six-digit sign-in code to `email`. */
+export async function requestEmailCode(
   email: string,
   fetchLike: typeof fetch = fetch,
-): Promise<string> {
+): Promise<EmailCodeResult> {
   try {
     const response = await fetchLike("/api/auth/email/start", {
       method: "POST",
@@ -108,12 +112,59 @@ async function requestEmailLink(
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ email }),
     });
-    if (response.status === 202) return "Check your inbox for the link.";
-    if (response.status === 429) return "Daily limit reached — try tomorrow.";
-    if (response.status === 400) return "That email address looks invalid.";
-    return "Could not send the link — try again later.";
+    if (response.status === 202) return { ok: true };
+    if (response.status === 429)
+      return { ok: false, message: "Daily limit reached — try tomorrow." };
+    if (response.status === 400)
+      return { ok: false, message: "That email address looks invalid." };
+    return { ok: false, message: "Could not send the code — try again later." };
   } catch {
-    return "Could not send the link — try again later.";
+    return { ok: false, message: "Could not send the code — try again later." };
+  }
+}
+
+/**
+ * Signs this browser in with the code emailed to `email`; the session
+ * cookie comes back with the answer.
+ */
+export async function verifyEmailCode(
+  email: string,
+  code: string,
+  fetchLike: typeof fetch = fetch,
+): Promise<EmailCodeResult> {
+  try {
+    const response = await fetchLike("/api/auth/email/verify", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email, code }),
+    });
+    if (response.ok) return { ok: true };
+    const payload = (await response.json().catch(() => ({}))) as {
+      error?: string;
+      attemptsLeft?: number;
+    };
+    if (payload.error === "too-many-attempts")
+      return {
+        ok: false,
+        message: "Too many wrong codes — send a new one.",
+      };
+    if (payload.error === "expired-code")
+      return {
+        ok: false,
+        message: "That code has expired or was used — send a new one.",
+      };
+    if (payload.error === "invalid-code")
+      return {
+        ok: false,
+        message:
+          payload.attemptsLeft === undefined
+            ? "Enter the 6-digit code from the email."
+            : `That code is not right — ${payload.attemptsLeft} ${payload.attemptsLeft === 1 ? "try" : "tries"} left.`,
+      };
+    return { ok: false, message: "Could not sign in — try again." };
+  } catch {
+    return { ok: false, message: "Could not sign in — try again." };
   }
 }
 
@@ -151,7 +202,10 @@ export interface AccountMenuViewProps {
   state: AccountState;
   notice: string | null;
   showGalleryLinks?: boolean;
-  onEmailStart: (email: string) => void;
+  /** Emails a sign-in code. */
+  onEmailStart: (email: string) => Promise<EmailCodeResult>;
+  /** Signs in with the emailed code. */
+  onEmailVerify: (email: string, code: string) => Promise<EmailCodeResult>;
   onRename: (displayName: string) => void;
   onSignOut: () => void;
 }
@@ -186,8 +240,13 @@ export function AccountMenu({
         state={state}
         notice={notice}
         showGalleryLinks={showGalleryLinks}
-        onEmailStart={(email) => {
-          void requestEmailLink(email).then(setNotice);
+        onEmailStart={(email) => requestEmailCode(email)}
+        onEmailVerify={async (email, code) => {
+          const result = await verifyEmailCode(email, code);
+          // Signed in: the page starts over with the session, as a GitHub or
+          // Google sign-in returns to a freshly loaded page.
+          if (result.ok) window.location.reload();
+          return result;
         }}
         onRename={(displayName) => {
           void renameAccount(displayName).then((user) => {

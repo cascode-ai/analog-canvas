@@ -67,10 +67,16 @@ export {
   type GalleryTagOption,
 };
 import { fetchSessionUser } from "./account";
+import { requestSignIn } from "./sign-in-request";
 import { GalleryChrome } from "./gallery-chrome";
 import { GalleryTagSidebar } from "./gallery-tag-sidebar";
 import { Masonry } from "./masonry";
 import type { GalleryDuplicateReport } from "../gallery-duplicates";
+
+/** Circuits a signed-out visitor sees in full. */
+const ANONYMOUS_OPEN_TILES = 10;
+/** Circuits after those, fading out under the invitation to sign in. */
+const ANONYMOUS_FADED_TILES = 5;
 
 const ShelfWall = lazy(() =>
   import("./shelf-wall").then((module) => ({ default: module.ShelfWall })),
@@ -1021,6 +1027,17 @@ export function GalleryFeed({
         galleryEntryMatchesQuery(entry, normalizedSearchQuery),
       )
     : entries;
+  // Signed out, the wall shows its first circuits in full; the next few fade
+  // out under the invitation to sign in.
+  const wallEntries = anonymousWall
+    ? visibleEntries.slice(0, ANONYMOUS_OPEN_TILES)
+    : visibleEntries;
+  const lockedEntries = anonymousWall
+    ? visibleEntries.slice(
+        ANONYMOUS_OPEN_TILES,
+        ANONYMOUS_OPEN_TILES + ANONYMOUS_FADED_TILES,
+      )
+    : [];
 
   // A "View in Gallery" link names one circuit. The wall shows it at once: in
   // its place when the first page holds it, otherwise first on the wall,
@@ -1420,14 +1437,6 @@ export function GalleryFeed({
             />
           )}
           <div className="gallery-main">
-            {anonymousWall ? (
-              <p
-                className="gallery-status gallery-sign-in-more"
-                data-testid="gallery-sign-in-more"
-              >
-                {`These are the ${entries.length} newest of ${state.total ?? entries.length} circuits. Sign in (top right) to browse them all.`}
-              </p>
-            ) : null}
             {author ? (
               <div className="gallery-filter" data-testid="gallery-filter">
                 <span>Circuits by {author}</span>
@@ -1470,7 +1479,7 @@ export function GalleryFeed({
                 <Masonry
                   aria-label="Published circuits"
                   items={[
-                    ...visibleEntries.map((entry) => ({
+                    ...wallEntries.map((entry) => ({
                       key: entry.id,
                       node: (
                         <div
@@ -1668,8 +1677,62 @@ export function GalleryFeed({
                             ),
                           }))
                       : []),
+                    // Signed out, the circuits after the open ones continue
+                    // each column and fade out there: a glimpse of what
+                    // signing in opens, seen but not used.
+                    ...lockedEntries.map((entry) => ({
+                      key: `locked-${entry.id}`,
+                      node: (
+                        <div
+                          className="gallery-tile gallery-tile-locked"
+                          aria-hidden="true"
+                          inert
+                        >
+                          <TilePreview
+                            src={galleryPreviewUrl(
+                              entry.id,
+                              entry.previewRevision,
+                            )}
+                            alt=""
+                            {...(entry.previewWidth !== undefined &&
+                            entry.previewHeight !== undefined
+                              ? {
+                                  width: entry.previewWidth,
+                                  height: entry.previewHeight,
+                                }
+                              : {})}
+                          />
+                        </div>
+                      ),
+                    })),
                   ]}
                 />
+                {anonymousWall ? (
+                  <div className="gallery-locked" data-testid="gallery-locked">
+                    <button
+                      type="button"
+                      className="gallery-unlock"
+                      data-testid="gallery-unlock"
+                      onClick={requestSignIn}
+                    >
+                      <svg
+                        className="gallery-unlock-icon"
+                        viewBox="0 0 24 24"
+                        aria-hidden="true"
+                      >
+                        <path
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M7 11V8a5 5 0 0 1 9.6-2M5 11h14v10H5z M12 15v2"
+                        />
+                      </svg>
+                      Sign in to unlock the gallery
+                    </button>
+                  </div>
+                ) : null}
                 {entries.length === 0 &&
                 selectedTags.length > 0 &&
                 author === null ? (

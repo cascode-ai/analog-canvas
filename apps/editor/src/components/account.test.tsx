@@ -2,7 +2,12 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { fetchSessionUser, type AccountState } from "./account";
+import {
+  fetchSessionUser,
+  requestEmailCode,
+  verifyEmailCode,
+  type AccountState,
+} from "./account";
 import AccountMenuView from "./account-menu-view";
 
 function markupFor(
@@ -15,7 +20,8 @@ function markupFor(
       state,
       notice,
       showGalleryLinks,
-      onEmailStart: () => undefined,
+      onEmailStart: async () => ({ ok: true }) as const,
+      onEmailVerify: async () => ({ ok: true }) as const,
       onRename: () => undefined,
       onSignOut: () => undefined,
     }),
@@ -45,6 +51,49 @@ describe("AccountMenuView", () => {
     expect(markup).not.toContain("google/start");
     expect(markup).toContain('data-testid="signin-email-input"');
     expect(markup).toContain("Sign-in failed — try again.");
+    // Each provider shows its mark; email asks for a code, not a link.
+    expect(markup).toContain('class="account-provider-logo"');
+    expect(markup).toContain("Email me a code");
+    expect(markup).not.toMatch(/Email me a link/u);
+  });
+
+  it("asks for a code and reads each answer the server gives", async () => {
+    const reply =
+      (status: number, body: unknown = {}): typeof fetch =>
+      async () =>
+        Response.json(body, { status });
+    expect(await requestEmailCode("a@b.co", reply(202))).toEqual({ ok: true });
+    expect(await requestEmailCode("a@b.co", reply(429))).toEqual({
+      ok: false,
+      message: "Daily limit reached — try tomorrow.",
+    });
+    expect(await verifyEmailCode("a@b.co", "123456", reply(200))).toEqual({
+      ok: true,
+    });
+    expect(
+      await verifyEmailCode(
+        "a@b.co",
+        "123456",
+        reply(400, { error: "invalid-code", attemptsLeft: 1 }),
+      ),
+    ).toEqual({ ok: false, message: "That code is not right — 1 try left." });
+    expect(
+      await verifyEmailCode(
+        "a@b.co",
+        "123456",
+        reply(400, { error: "expired-code" }),
+      ),
+    ).toEqual({
+      ok: false,
+      message: "That code has expired or was used — send a new one.",
+    });
+    expect(
+      await verifyEmailCode(
+        "a@b.co",
+        "123456",
+        reply(429, { error: "too-many-attempts" }),
+      ),
+    ).toEqual({ ok: false, message: "Too many wrong codes — send a new one." });
   });
 
   it("shows the signed-in identity with rename, badge, and sign out", () => {

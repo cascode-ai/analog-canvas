@@ -1,4 +1,5 @@
 /* Gallery, Moderation, and My Submissions share one route presentation. */
 @import "../gallery.css";
+@import "../components/account.css";
 @import "../components/inline-confirm.css";
 @import "../components/version-history-dialog.css";

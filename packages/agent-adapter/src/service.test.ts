@@ -14,9 +14,9 @@ import { describe, expect, it } from "vitest";
 
 import { agentCircuitOpenApi } from "./openapi.js";
 import {
-  AgentCircuitRequestJsonSchema,
+  agentCircuitRequestJsonSchema,
   AgentCircuitRequestSchema,
-  AgentCircuitResponseJsonSchema,
+  agentCircuitResponseJsonSchema,
   AgentCircuitResponseSchema,
   AgentSnapshotInstanceSchema,
 } from "./schema.js";
@@ -393,7 +393,7 @@ describe("current Agent Circuit API service", () => {
       );
       expect(AgentCircuitRequestSchema.parse(request)).toEqual(request);
     }
-    expect(AgentCircuitRequestJsonSchema).toMatchObject({
+    expect(agentCircuitRequestJsonSchema()).toMatchObject({
       $schema: "https://json-schema.org/draft/2020-12/schema",
     });
     expect(Object.keys(agentCircuitOpenApi.paths).sort()).toEqual([
@@ -466,8 +466,8 @@ describe("current Agent Circuit API service", () => {
 
   it("keeps every generated local reference resolvable and bounded", () => {
     for (const artifact of [
-      AgentCircuitRequestJsonSchema,
-      AgentCircuitResponseJsonSchema,
+      agentCircuitRequestJsonSchema(),
+      agentCircuitResponseJsonSchema(),
       agentCircuitOpenApi,
     ]) {
       const references = localReferences(artifact);
@@ -486,12 +486,12 @@ describe("current Agent Circuit API service", () => {
     // response under 180,000, OpenAPI 537,392 characters), so ordinary
     // contract growth never trips them. Focused MCP tools keep their own
     // 5,000-byte limit, which a real host's compaction sets.
-    expect(JSON.stringify(AgentCircuitRequestJsonSchema).length).toBeLessThan(
+    expect(JSON.stringify(agentCircuitRequestJsonSchema()).length).toBeLessThan(
       350_000,
     );
-    expect(JSON.stringify(AgentCircuitResponseJsonSchema).length).toBeLessThan(
-      360_000,
-    );
+    expect(
+      JSON.stringify(agentCircuitResponseJsonSchema()).length,
+    ).toBeLessThan(360_000);
     expect(JSON.stringify(agentCircuitOpenApi).length).toBeLessThan(1_100_000);
   });
 

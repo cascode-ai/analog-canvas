@@ -829,6 +829,23 @@
   display: none;
 }
 
+/* In the header's one menu, which scrolls, Import and Export open in place
+   beneath their own row: a flyout would be clipped by that scroll. */
+.project-menu-popover .export-submenu-options {
+  position: static;
+  min-width: 0;
+  margin: 2px 0 4px 12px;
+  padding: 0 0 0 6px;
+  border: 0;
+  border-left: 1px solid var(--icm-border);
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.project-menu-popover .export-submenu > button[aria-expanded="true"] > span {
+  rotate: 90deg;
+}
+
 @media (min-width: 481px) and (max-width: 780px) {
   .file-command-popover .export-submenu-options {
     right: 100%;
@@ -1301,6 +1318,167 @@
   vertical-align: middle;
 }
 
+/* The header's one menu is named for the project; every editor command is a
+   group inside it, below the project's details. */
+.project-menu > summary {
+  max-width: min(18rem, 34vw);
+  font-weight: 600;
+}
+
+.project-menu-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.project-menu-commands {
+  display: grid;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--icm-border);
+}
+
+.command-section {
+  display: grid;
+  gap: 2px;
+}
+
+.command-section-title {
+  padding: 0 10px 2px;
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+  font-weight: 600;
+}
+
+/* The actions sit together on the right, one shape; Publish is the one
+   primary action. */
+.app-chrome-main .app-command-surface {
+  margin-right: 0;
+  margin-left: auto;
+}
+
+.app-chrome-main .app-chrome-actions {
+  margin-left: 0;
+}
+
+.app-actions {
+  gap: 8px;
+}
+
+.app-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--icm-control-h);
+  padding: 0 12px;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
+  color: var(--icm-text);
+  background: var(--icm-surface);
+  font: inherit;
+  font-size: var(--icm-font-md);
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.app-action:hover {
+  border-color: var(--icm-border-hover);
+  background: var(--icm-surface-hover);
+}
+
+.app-action[aria-pressed="true"] {
+  border-color: var(--icm-accent);
+  color: var(--icm-accent);
+  background: var(--icm-accent-tint);
+}
+
+.app-action-icon {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+}
+
+.app-action-primary {
+  border-color: var(--icm-accent);
+  color: #fff;
+  background: var(--icm-accent);
+  font-weight: 600;
+}
+
+.app-action-primary:hover {
+  border-color: var(--icm-accent);
+  background: var(--icm-accent);
+  filter: brightness(0.93);
+}
+
+/* What the header says about the site rather than the drawing: one ⋯. */
+.app-more-menu > summary {
+  justify-content: center;
+  width: var(--icm-control-h);
+  padding: 0;
+  color: var(--icm-text-muted);
+}
+
+.app-more-menu > summary::after {
+  display: none;
+}
+
+.app-more-menu > summary svg {
+  width: 16px;
+  height: 16px;
+}
+
+.app-more-popover {
+  right: 0;
+  left: auto;
+  min-width: 13rem;
+}
+
+.app-chrome-actions .app-more-popover .bug-report-link,
+.app-chrome-actions .app-more-popover .app-repository-link {
+  display: flex;
+  justify-content: flex-start;
+  gap: 8px;
+  width: 100%;
+  height: auto;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--icm-text);
+  font-size: var(--icm-font-md);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.app-more-popover .bug-report-link:hover,
+.app-more-popover .app-repository-link:hover {
+  background: var(--icm-surface-hover);
+}
+
+.app-chrome-actions .app-more-popover .bug-report-label,
+.app-chrome-actions .app-more-popover .tokenzhang-link-label {
+  display: inline;
+}
+
+.app-more-popover .app-repository-link svg {
+  width: 16px;
+  height: 16px;
+}
+
+.app-more-popover .tokenzhang-credit {
+  margin-top: 4px;
+  padding: 8px 10px 4px;
+  border-top: 1px solid var(--icm-border);
+}
+
+.app-more-note {
+  padding: 6px 10px;
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-sm);
+}
+
 @media (max-width: 1100px) {
   .app-brand-copy h1 {
     font-size: var(--icm-font-md);
@@ -1330,18 +1508,6 @@
 
   .app-brand {
     min-width: 9rem;
-  }
-
-  /* Collapsed chrome keeps just the Z mark; the wording returns with
-     room. */
-  .app-chrome-actions .tokenzhang-credit-kicker,
-  .app-chrome-actions .tokenzhang-link-label {
-    display: none;
-  }
-
-  .app-chrome-actions .tokenzhang-link-icon {
-    width: 16px;
-    height: 16px;
   }
 
   /* Half-width windows keep the grid toggle as a round icon button; its
@@ -1426,18 +1592,12 @@
   text-overflow: ellipsis;
 }
 
-/* The account (or Sign in) widens the right side. Its role chip and the bug
-   report's wording yield first, then the long publish label and the name's
-   width, so the commands never run under the account. */
+/* The account (or Sign in) widens the right side. Its role chip yields
+   first, then the long publish label and the name's width, so the actions
+   never run under the account. */
 @media (max-width: 1320px) {
-  .app-chrome-actions:has(.account-menu, .account-signin) .account-owner-badge,
-  .app-chrome-actions:has(.account-menu, .account-signin) .bug-report-label {
+  .app-chrome-actions:has(.account-menu, .account-signin) .account-owner-badge {
     display: none;
-  }
-
-  .app-chrome-actions:has(.account-menu, .account-signin) .bug-report-link {
-    width: var(--icm-control-h);
-    padding: 0;
   }
 }
 
@@ -1492,23 +1652,12 @@
   box-shadow: 0 12px 32px rgb(15 15 15 / 12%);
 }
 
+/* Its contents are styled once for every route, in components/account.css. */
 .app-chrome-actions .account-signin-panel {
-  width: 17rem;
-}
-
-.app-chrome-actions .account-signin-panel a {
-  display: block;
-  padding: var(--icm-space-2);
-  border: 1px solid var(--icm-border);
-  border-radius: var(--icm-radius-sm);
-  color: var(--icm-text);
-  font-weight: 600;
-  text-align: center;
-  text-decoration: none;
-}
-
-.app-chrome-actions .account-signin-panel a:hover {
-  background: var(--icm-surface-hover);
+  width: 18rem;
+  gap: 10px;
+  padding: 16px;
+  border-radius: 12px;
 }
 
 .app-chrome-actions .account-owner-badge {

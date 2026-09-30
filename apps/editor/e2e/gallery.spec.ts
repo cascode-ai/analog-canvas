@@ -1974,11 +1974,17 @@ test("a signed-out visitor sees the newest circuits and is asked to sign in for 
   await page.route("**/api/gallery/tags*", (route) =>
     route.fulfill({ status: 401, json: { error: "sign-in-required" } }),
   );
+  await page.route("**/api/auth/providers", (route) =>
+    route.fulfill({ json: { github: true, google: true, email: true } }),
+  );
+  await page.route("**/api/auth/me", (route) =>
+    route.fulfill({ json: { user: null } }),
+  );
   await page.goto("/");
+  // The first ten open; no sentence above the wall says what is missing.
   const tiles = page.locator("a.gallery-tile");
-  await expect(tiles).toHaveCount(24);
-  const more = page.getByTestId("gallery-sign-in-more");
-  await expect(more).toContainText("24 newest of 42 circuits");
+  await expect(tiles).toHaveCount(10);
+  await expect(page.getByText(/newest of/u)).toHaveCount(0);
   // Without the sidebar the wall still spans the page: several columns, not
   // one tile-wide strip.
   await expect
@@ -1989,7 +1995,22 @@ test("a signed-out visitor sees the newest circuits and is asked to sign in for 
       return new Set(lefts).size;
     })
     .toBeGreaterThanOrEqual(3);
-  await expect(more).toContainText("Sign in (top right)");
+  // The next few continue the same wall, each column fading out: seen but
+  // not usable.
+  const lockedTiles = page.locator(".masonry .gallery-tile-locked");
+  await expect(lockedTiles).toHaveCount(5);
+  await expect(
+    page.locator(".masonry .gallery-tile-locked[inert]"),
+  ).toHaveCount(5);
+  await expect(page.locator(".masonry")).toHaveCount(1);
+  // The invitation opens the header's sign-in choices.
+  const unlock = page.getByTestId("gallery-unlock");
+  await expect(unlock).toHaveText("Sign in to unlock the gallery");
+  await expect(page.getByTestId("account-signin")).toBeVisible();
+  await expect(page.getByTestId("signin-github")).toBeHidden();
+  await unlock.click();
+  await expect(page.getByTestId("signin-github")).toBeVisible();
+  await expect(page.getByTestId("signin-google")).toBeVisible();
   // Nothing to narrow: no tags, search or filters beside the wall.
   await expect(page.getByTestId("gallery-tag-sidebar")).toHaveCount(0);
   await expect(page.getByTestId("gallery-sign-in")).toHaveCount(0);
@@ -3420,20 +3441,44 @@ test("a gallery tile opens its circuit in the editor", async ({ page }) => {
   await expect(page.getByTestId("gallery-feed")).toBeVisible();
 });
 
-test("the feed offers exactly the enabled sign-in providers and sends email links", async ({
+test("the feed offers exactly the enabled sign-in providers and signs in with an emailed code", async ({
   page,
 }) => {
   await mockGallery(page, [ENTRY]);
   await page.route("**/api/auth/providers", (route) =>
     route.fulfill({ json: { github: true, google: false, email: true } }),
   );
+  let signedIn = false;
+  const user = {
+    id: "u-mail",
+    displayName: "vivian",
+    email: "vivian@example.com",
+    provider: "email",
+    role: "user",
+    isAdmin: false,
+  };
   await page.route("**/api/auth/me", (route) =>
-    route.fulfill({ json: { user: null } }),
+    route.fulfill({ json: { user: signedIn ? user : null } }),
   );
   const emailStarts: string[] = [];
   await page.route("**/api/auth/email/start", (route) => {
     emailStarts.push(String(route.request().postDataJSON().email));
     return route.fulfill({ status: 202, json: { sent: true } });
+  });
+  const verifications: { email: string; code: string }[] = [];
+  await page.route("**/api/auth/email/verify", (route) => {
+    const body = route.request().postDataJSON() as {
+      email: string;
+      code: string;
+    };
+    verifications.push(body);
+    if (body.code.replace(/\s/gu, "") !== "314159")
+      return route.fulfill({
+        status: 400,
+        json: { error: "invalid-code", attemptsLeft: 4 },
+      });
+    signedIn = true;
+    return route.fulfill({ json: { signedIn: true } });
   });
 
   await page.goto("/");
@@ -3442,13 +3487,43 @@ test("the feed offers exactly the enabled sign-in providers and sends email link
     "href",
     "/api/auth/github/start",
   );
+  // Each provider shows its mark before its name.
+  await expect(
+    page.getByTestId("signin-github").locator(".account-provider-logo"),
+  ).toBeVisible();
   await expect(page.getByTestId("signin-google")).toHaveCount(0);
-  await page.getByTestId("signin-email-input").fill("vivian@example.com");
-  await page.getByTestId("signin-email-send").click();
-  await expect(page.getByTestId("account-notice")).toHaveText(
-    "Check your inbox for the link.",
-  );
+  // The address takes a whole row, its button the row below.
+  const input = page.getByTestId("signin-email-input");
+  const send = page.getByTestId("signin-email-send");
+  await expect(send).toHaveText("Email me a code");
+  const [inputBox, sendBox] = await Promise.all([
+    input.boundingBox(),
+    send.boundingBox(),
+  ]);
+  expect(Math.round(inputBox!.width)).toBe(Math.round(sendBox!.width));
+  expect(sendBox!.y).toBeGreaterThan(inputBox!.y + inputBox!.height - 1);
+
+  await input.fill("vivian@example.com");
+  await send.click();
   expect(emailStarts).toEqual(["vivian@example.com"]);
+  // The code is typed here, whichever browser read the email.
+  await expect(page.getByTestId("signin-code-hint")).toContainText(
+    "vivian@example.com",
+  );
+  const code = page.getByTestId("signin-code-input");
+  await code.fill("271828");
+  await page.getByTestId("signin-code-verify").click();
+  await expect(page.getByTestId("account-notice")).toHaveText(
+    "That code is not right — 4 tries left.",
+  );
+  await code.fill("314 159");
+  await page.getByTestId("signin-code-verify").click();
+  // Signed in, the page starts over with the session.
+  await expect(page.getByTestId("account-name")).toHaveText("vivian");
+  expect(verifications).toEqual([
+    { email: "vivian@example.com", code: "271828" },
+    { email: "vivian@example.com", code: "314 159" },
+  ]);
 });
 
 test("a signed-in owner renames the display name and signs out", async ({

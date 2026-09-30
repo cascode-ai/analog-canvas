@@ -734,7 +734,7 @@ test("visual clipboard reports denied access and empty selection without downloa
       exact: true,
     }),
   ).toHaveCount(0);
-  await emptyEditMenu.locator("summary").click();
+  await page.getByTestId("project-menu-toggle").click();
   await placeComponent(page, "resistor", { x: 300, y: 220 });
   const downloads: string[] = [];
   page.on("download", (download) =>
@@ -865,7 +865,8 @@ test("Netlist keeps format selection in the project panel while File keeps drawi
   const svg = Buffer.concat(chunks).toString("utf8");
   expect(svg).toContain('data-symbol-id="resistor"');
   expect(svg).toContain('data-symbol-id="capacitor"');
-  await expect(menu).not.toHaveAttribute("open");
+  // The command done, the header's menu closes.
+  await expect(page.getByTestId("project-menu")).not.toHaveAttribute("open");
 });
 
 test("toolbar undo and redo buttons follow history state", async ({ page }) => {

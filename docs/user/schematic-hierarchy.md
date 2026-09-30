@@ -4,7 +4,7 @@ Analog Canvas treats every Project Document as one reusable schematic Cell.
 The top Cell is the saved default entry; other Cells may be instantiated any number of
 times or kept unreferenced while they are being authored.
 
-Open **Hierarchy**, select a Cell and choose **Set as Top**, or drag it onto the first, **Top** row to change
+Open **Cell Manager…** (project menu → **Hierarchy**), select a Cell and choose **Set as Top**, or drag it onto the first, **Top** row to change
 the saved default entry. The drop preview says **Set as Top**. Dragging among
 other rows only changes the saved list order; dropping at the bottom moves a Cell
 to the end. Both order and Top changes are undone together. This does not change the circuit, its callers, the
@@ -18,8 +18,9 @@ its definition; edit the detail heading to rename it (Enter or blur commits,
 Escape cancels). **Delete** is beside the selected Cell's heading. Alt+Up/Down also reorder a focused row;
 Alt+Up into the first row makes that Cell Top.
 
-Use the persistent **Hierarchy** entry beside **Project**, or **Manage Cells…**
-in the hierarchy toolbar, to manage the active Project's definitions in one place. It shows each
+Use **Cell Manager…** under **Hierarchy** in the header's project menu, or
+**Manage Cells…** in the hierarchy toolbar, to manage the active Project's
+definitions in one place. It shows each
 Cell's projected Port and caller counts, opens or renames a definition, and lists
 each caller with **Jump to caller**. Equal Port names occupy one row, matching
 the generated Symbol; a marker count preserves visibility into repeated canvas

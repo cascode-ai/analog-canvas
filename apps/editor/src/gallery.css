@@ -156,62 +156,12 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
-  width: 17rem;
-  padding: 14px;
+  width: 18rem;
+  padding: 16px;
   border: 1px solid var(--icm-border);
   border-radius: 12px;
   background: var(--icm-surface);
   box-shadow: 0 16px 36px rgb(15 15 15 / 16%);
-}
-
-.account-signin-panel a {
-  display: block;
-  padding: 8px 12px;
-  border: 1px solid var(--icm-border);
-  border-radius: var(--icm-radius-sm);
-  color: var(--icm-text);
-  font-size: 13px;
-  font-weight: 500;
-  text-align: center;
-  text-decoration: none;
-}
-
-.account-signin-panel a:hover {
-  background: var(--icm-surface-hover);
-}
-
-.account-signin-email {
-  display: flex;
-  gap: 6px;
-}
-
-.account-signin-email input {
-  box-sizing: border-box;
-  min-width: 0;
-  flex: 1;
-  padding: 7px 10px;
-  border: 1px solid var(--icm-border);
-  border-radius: var(--icm-radius-sm);
-  font: inherit;
-  font-size: 13px;
-}
-
-.account-signin-email button {
-  padding: 7px 10px;
-  border: 1px solid var(--icm-accent);
-  border-radius: var(--icm-radius-sm);
-  color: #fff;
-  background: var(--icm-accent);
-  font-size: 12px;
-  font-weight: 600;
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.account-notice {
-  margin: 0;
-  color: var(--icm-text-muted);
-  font-size: 12px;
 }
 
 .account-link {
@@ -607,6 +557,75 @@
   padding: 18px 22px;
   width: 100%;
   box-sizing: border-box;
+}
+
+/* Signed out: after the circuits shown in full, the next row fades into
+   the page, and the invitation to sign in sits where it disappears. */
+.gallery-locked {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-bottom: 48px;
+}
+
+/* Each locked circuit continues its column, so the wall has no seam, and
+   fades out within the same short height in every column. */
+.gallery-tile-locked {
+  max-height: 200px;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    rgb(0 0 0 / 50%),
+    rgb(0 0 0 / 0%) 85%
+  );
+  mask-image: linear-gradient(to bottom, rgb(0 0 0 / 50%), rgb(0 0 0 / 0%) 85%);
+}
+
+.gallery-unlock {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 14px 30px;
+  border: 0;
+  border-radius: 999px;
+  color: #fff;
+  background: linear-gradient(120deg, #2563eb 0%, #7c3aed 55%, #db2777 100%);
+  background-size: 180% 100%;
+  background-position: 0% 50%;
+  box-shadow:
+    0 12px 28px -12px rgb(124 58 237 / 60%),
+    0 2px 6px rgb(15 23 42 / 12%);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  transition:
+    background-position 500ms ease,
+    box-shadow 200ms ease,
+    transform 200ms ease;
+}
+
+.gallery-unlock:hover {
+  background-position: 100% 50%;
+  box-shadow:
+    0 16px 34px -12px rgb(124 58 237 / 70%),
+    0 3px 8px rgb(15 23 42 / 14%);
+  transform: translateY(-1px);
+}
+
+.gallery-unlock:focus-visible {
+  outline: 3px solid rgb(124 58 237 / 45%);
+  outline-offset: 3px;
+}
+
+.gallery-unlock-icon {
+  width: 18px;
+  height: 18px;
 }
 
 /* True masonry: the component measures tiles and writes width/transform;

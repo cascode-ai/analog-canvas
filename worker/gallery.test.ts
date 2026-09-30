@@ -3268,9 +3268,15 @@ async function signIn(authDurable: AuthDO, email: string): Promise<string> {
       body: JSON.stringify({ email }),
     }),
   );
-  const link = sent[0]!.match(/https?:\/\/\S+/u)![0];
-  const callback = await authDurable.fetch(new Request(link));
-  return callback.headers
+  const code = /\b(\d{6})\b/u.exec(sent[0]!)![1]!;
+  const verified = await authDurable.fetch(
+    new Request(`${ORIGIN}/api/auth/email/verify`, {
+      method: "POST",
+      headers: { Origin: ORIGIN, "content-type": "application/json" },
+      body: JSON.stringify({ email, code }),
+    }),
+  );
+  return verified.headers
     .getSetCookie()
     .find((cookie) => cookie.startsWith("icm_session="))!
     .split(";")[0]!;
