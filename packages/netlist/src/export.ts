@@ -161,8 +161,10 @@ function applyPortCase(ir: DesignNetlistIR, portCase: NetlistPortCase): void {
  * subcircuits, so a circuit drawn with them now extracts.
  * 9 recognizes an explicit Zener BV as a local diode model and a new ideal
  * comparator target as a signal-only ngspice subcircuit.
+ * 10 refuses built-in subcircuit targets without an emitted or external
+ * definition, including the reviewed logic-symbol set.
  */
-export const NETLIST_MARK_RULE_VERSION = 9;
+export const NETLIST_MARK_RULE_VERSION = 10;
 
 export function designExtractsNetlist(
   project: CircuitProject,

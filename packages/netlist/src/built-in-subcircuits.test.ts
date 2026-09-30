@@ -8,6 +8,7 @@ import {
 import { subcircuitDescriptor } from "@icm/devices";
 
 import { createDesignNetlistExport } from "./export.js";
+import { analyzeDesignNetlistForAuthoring } from "./extract.js";
 import { compileNgspiceSourceSimulation } from "./simulation-source-ngspice.js";
 import { generateCircuitSource } from "./simulation-circuit-source.js";
 
@@ -79,6 +80,30 @@ function analogBlockProject(
 }
 
 describe("built-in Analog Block subcircuits", () => {
+  it("blocks logic subcircuits whose targets have no emitted definition", () => {
+    const result = createDesignNetlistExport(
+      analogBlockProject(
+        ["nand-gate"],
+        [
+          ["VDD", "vdd"],
+          ["VSS", "vss"],
+          ["A", "a"],
+          ["B", "b"],
+          ["Y", "y"],
+        ],
+      ),
+    );
+    expect(result.status).toBe("blocked");
+    expect(result.diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "UNDEFINED_SUBCIRCUIT_TARGET",
+          message: expect.stringContaining("nand_gate"),
+        }),
+      ]),
+    );
+  });
+
   it.each([
     {
       symbolId: "opamp",
@@ -304,11 +329,29 @@ describe("built-in Analog Block subcircuits", () => {
         ],
       );
       const result = createDesignNetlistExport(project);
-      expect(result.status).toBe("ready");
-      if (result.status !== "ready") return;
-      expect(result.file.text).toContain(
-        `X1 VDD VSS a b c d y ${family}_gate_4`,
+      expect(result.status).toBe("blocked");
+      expect(result.diagnostics).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            code: "UNDEFINED_SUBCIRCUIT_TARGET",
+            message: expect.stringContaining(`${family}_gate_4`),
+          }),
+        ]),
       );
+      const authoring = analyzeDesignNetlistForAuthoring(project);
+      const instance = authoring.ir?.cells
+        .find((cell) => cell.id === "dut")
+        ?.instances.find((item) => item.id === "block-1");
+      expect(instance?.nodes.map((node) => node.netName)).toEqual([
+        "VDD",
+        "VSS",
+        "a",
+        "b",
+        "c",
+        "d",
+        "y",
+      ]);
+      expect(instance?.target).toBe(`${family}_gate_4`);
     },
   );
   for (const family of ["opamp", "opamp-differential"])
