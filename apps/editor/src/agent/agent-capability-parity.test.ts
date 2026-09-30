@@ -1770,9 +1770,10 @@ describe("MCP → API → shared editor parity", () => {
 
   it("controls schema-54 magnetic labels independently and preserves authored state", async () => {
     const { client, controller } = await folder();
+    // Both are subcircuit calls, so their names take the X prefix.
     for (const [symbol, reference, parameters] of [
-      ["xfmr", "T1", { k: "0.8", lp: "2n", ls: "4n" }],
-      ["tcoil", "T2", { k: "0.7", l1: "3n", l2: "5n", cb: "1p" }],
+      ["xfmr", "X1", { k: "0.8", lp: "2n", ls: "4n" }],
+      ["tcoil", "X2", { k: "0.7", l1: "3n", l2: "5n", cb: "1p" }],
     ] as const) {
       expect(
         (
@@ -1943,6 +1944,66 @@ describe("MCP → API → shared editor parity", () => {
     ).toBe(true);
     expect(labels().every((a) => a.anchor.kind === "object")).toBe(true);
   });
+  it("names placed parts as the GUI does and refuses a name that would block the netlist", async () => {
+    const { client, controller } = await folder();
+    expect(
+      (
+        await client.applyActions([
+          { kind: "create-cell", id: "tb", name: "Testbench" },
+        ])
+      ).ok,
+    ).toBe(true);
+    const placeCell = (instanceId: string, reference?: string) =>
+      client.applyActions(
+        [
+          {
+            kind: "place-cell",
+            childDocumentId: "main",
+            instanceId,
+            ...(reference ? { reference } : {}),
+            placement: {
+              position: { x: 100, y: 100 },
+              rotation: 0,
+              mirror: "none",
+            },
+          },
+        ],
+        { documentId: "tb" },
+      );
+    const tb = () =>
+      controller.project.documents.find((d) => d.id === "tb")!.instances;
+
+    // Before, I1 was accepted and the netlist was blocked afterwards.
+    const wrong = await placeCell("inv-i1", "I1");
+    expect(wrong.ok).toBe(false);
+    expect(wrong.message).toContain(
+      "Cell instances use the X prefix, so I1 would block the netlist; X1 is free. Nothing was placed.",
+    );
+    expect(tb()).toHaveLength(0);
+
+    // Before, a missing name became the Instance ID, which blocks it too.
+    const unnamed = await placeCell("inv-a");
+    expect(unnamed.ok, unnamed.message).toBe(true);
+    expect(tb().map((instance) => instance.reference)).toEqual(["X1"]);
+
+    const taken = await placeCell("inv-b", "x1");
+    expect(taken.ok).toBe(false);
+    expect(taken.message).toContain("x1 already names inv-a; X2 is free.");
+
+    const device = await client.applyActions([
+      {
+        kind: "place-component",
+        symbol: "resistor",
+        reference: "C1",
+        position: { x: 0, y: 0 },
+      },
+    ]);
+    expect(device.ok).toBe(false);
+    expect(device.message).toContain(
+      "resistor parts use the R prefix, so C1 would block the netlist; R1 is free.",
+    );
+  });
+
   it("places the original top in a new TB through public actions and retains normal history", async () => {
     const { client, controller } = await folder();
     expect(

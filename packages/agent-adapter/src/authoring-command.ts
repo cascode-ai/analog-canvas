@@ -194,7 +194,9 @@ export const AgentAuthoringCommandSchema = z.discriminatedUnion("kind", [
     kind: z.literal("place-cell"),
     childDocumentId: StableIdSchema,
     instanceId: StableIdSchema,
-    reference: NameSchema.optional(),
+    reference: NameSchema.optional().describe(
+      "X and a number; omit it for the next free one, as the GUI names a Cell instance.",
+    ),
     placement: PlacementSchema,
     pinAnchor: OptionalPinAnchorSchema,
   }),

@@ -15708,6 +15708,7 @@
                     "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema1"
                   },
                   "reference": {
+                    "description": "X and a number; omit it for the next free one, as the GUI names a Cell instance.",
                     "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema400"
                   },
                   "placement": {

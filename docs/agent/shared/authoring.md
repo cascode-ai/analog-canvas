@@ -33,6 +33,11 @@ targets to avoid full-Snapshot name resolution. Names remain supported when usef
   `set-port-direction` addresses one
   terminal or every declaration of a projected Port; `set-vdd-mode` explicitly
   switches VDD between Cell Pin and Global. Do not substitute a bare `add_instance`.
+- Parts are named as the GUI names them. A device's `reference` starts with
+  its prefix (R, C, M, …), and a `place-cell` instance's with X. Leave it out
+  and the next free name is taken (`X1`, `X2`, …). A name with another prefix,
+  or one already in use, is rejected with a free name, because it would block
+  the netlist; nothing is placed.
 - For exact pin placement, `place-component` accepts `pinAnchor:{pinName,position}`
   instead of origin `position`; rotation/mirror still apply. It uses the shared
   routing landing (including variants and fine-pitch pins), not artwork contact,

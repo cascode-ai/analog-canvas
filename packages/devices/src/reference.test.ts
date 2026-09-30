@@ -144,6 +144,12 @@ describe("ReferencePolicy and ReferenceIndex", () => {
       "DUPLICATE_REFERENCE",
       "DUPLICATE_REFERENCE",
     ]);
+    // A wrong prefix says which one the part takes.
+    expect(
+      createReferenceIndex(document)
+        .issues.filter((issue) => issue.code === "WRONG_REFERENCE_PREFIX")
+        .map((issue) => issue.expectedPrefix),
+    ).toEqual(["R", "R"]);
   });
 
   it("does not allocate a reference already claimed by an invalid prefix", () => {
