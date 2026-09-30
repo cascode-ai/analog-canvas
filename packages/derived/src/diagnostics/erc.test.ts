@@ -134,6 +134,78 @@ function connectDrainAndSource(project: CircuitProject): void {
 }
 
 describe("ERC engine", () => {
+  it("names swapped part labels, but not a deliberate display alias", () => {
+    const project = emptyProject();
+    const document = project.documents[0]!;
+    for (const [index, id] of ["R9", "R10", "R5", "R3", "R2", "R1"].entries())
+      document.instances.push({
+        id,
+        symbolId: "resistor",
+        reference: id,
+        placement: {
+          position: { x: index * 100, y: 0 },
+          rotation: 0,
+          mirror: "none",
+        },
+        netlist: {
+          binding: { kind: "primitive", deviceClass: "resistor" },
+          parameters: {},
+        },
+      });
+    const label = (
+      id: string,
+      owner: string,
+      shows: { text: string } | { bound: true },
+    ) =>
+      document.annotations.push({
+        id,
+        kind: "instance-label",
+        ...("bound" in shows
+          ? { binding: { kind: "instance-reference", instanceId: owner } }
+          : { content: { runs: [{ kind: "text", value: shows.text }] } }),
+        anchor: {
+          kind: "object",
+          objectId: owner,
+          localOffset: { x: 0, y: -30 },
+          fallbackPosition: { x: 0, y: -30 },
+        },
+        alignment: "middle",
+        rotation: 0,
+        locked: false,
+      });
+    // As in the Gallery's two-stage op amp: M9 and M10 read each other.
+    label("label-r9", "R9", { text: "R10" });
+    label("label-r10", "R10", { text: "R9" });
+    // One name for several parts: R5 is R5, and R3 shows R5 on purpose.
+    label("label-r5", "R5", { bound: true });
+    label("label-r3", "R3", { text: "R5" });
+    // A name no part has, and text that is no name, stay silent too.
+    label("label-r2", "R2", { text: "R7" });
+    label("label-r1", "R1", { text: "gain stage" });
+    const mismatches = run(project).filter(
+      (diagnostic) => diagnostic.code === "ERC_LABEL_REFERENCE_MISMATCH",
+    );
+    expect(mismatches.map((item) => item.parameters)).toEqual([
+      {
+        instanceId: "R10",
+        reference: "R10",
+        labelText: "R9",
+        namedInstanceId: "R9",
+      },
+      {
+        instanceId: "R9",
+        reference: "R9",
+        labelText: "R10",
+        namedInstanceId: "R10",
+      },
+    ]);
+    expect(
+      mismatches.find((item) => item.parameters.instanceId === "R9")?.message,
+    ).toBe(
+      "R9's name label reads R10, another part's name, while R10 reads R9. The netlist calls this part R9; untick Display alias on the label to show its own name.",
+    );
+  });
+
   it("names a wire that ends in the open, but not a rail's end or a labelled end", () => {
     const project = emptyProject();
     const document = project.documents[0]!;

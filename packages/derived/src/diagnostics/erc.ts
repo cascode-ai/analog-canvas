@@ -1,4 +1,4 @@
-import { projectCellInterface, routeEnd } from "@icm/model";
+import { flattenRichText, projectCellInterface, routeEnd } from "@icm/model";
 import type { CircuitProject } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
@@ -568,6 +568,7 @@ export function runErcChecks(
       diagnostics,
     );
     reportDanglingWires(document, diagnostics);
+    reportLabelsNamingAnotherPart(document, diagnostics);
   }
 
   // A child interface can be shared by several parent instances. Preserve the
@@ -668,6 +669,90 @@ export function runErcChecks(
       a.code.localeCompare(b.code, "en") ||
       a.primary.objectId.localeCompare(b.primary.objectId, "en"),
   );
+}
+
+/**
+ * A part whose name label reads another part's name, while that other part
+ * shows something else: the drawing then names the wrong devices, and the
+ * netlist, which goes by References, disagrees with it. Swapped labels are
+ * the usual case.
+ *
+ * A display alias that reads a name no part has, or the name of a part that
+ * shows that same name (several parts drawn as one), is deliberate and stays
+ * silent.
+ */
+function reportLabelsNamingAnotherPart(
+  document: CircuitProject["documents"][number],
+  diagnostics: ErcDiagnostic[],
+): void {
+  const fold = (text: string) => text.trim().toLowerCase();
+  const byReference = new Map<string, string>();
+  for (const instance of document.instances)
+    if (instance.reference)
+      byReference.set(fold(instance.reference), instance.id);
+  // What each part's visible name label reads: its Reference when bound,
+  // the literal text otherwise.
+  const shown = new Map<string, string>();
+  const literal: { annotationId: string; instanceId: string; text: string }[] =
+    [];
+  for (const annotation of document.annotations) {
+    if (annotation.kind !== "instance-label" || annotation.visible === false)
+      continue;
+    const binding = annotation.binding;
+    if (binding?.kind === "instance-reference") {
+      const instance = document.instances.find(
+        (item) => item.id === binding.instanceId,
+      );
+      if (instance?.reference && !shown.has(instance.id))
+        shown.set(instance.id, instance.reference);
+      continue;
+    }
+    if (binding || annotation.anchor.kind !== "object" || !annotation.content)
+      continue;
+    const owner = annotation.anchor.objectId;
+    const text = flattenRichText(annotation.content).trim();
+    if (!/^[A-Za-z][A-Za-z0-9_]*$/u.test(text)) continue;
+    if (!shown.has(owner)) shown.set(owner, text);
+    literal.push({ annotationId: annotation.id, instanceId: owner, text });
+  }
+  for (const label of literal) {
+    const owner = document.instances.find(
+      (item) => item.id === label.instanceId,
+    );
+    if (!owner?.reference || fold(owner.reference) === fold(label.text))
+      continue;
+    const namedId = byReference.get(fold(label.text));
+    if (!namedId || namedId === owner.id) continue;
+    const named = document.instances.find((item) => item.id === namedId)!;
+    const namedShows = shown.get(namedId);
+    if (namedShows && fold(namedShows) === fold(label.text)) continue;
+    diagnostics.push({
+      id: `erc:label-reference-mismatch:${document.id}:${label.annotationId}`,
+      domain: "erc",
+      code: "ERC_LABEL_REFERENCE_MISMATCH",
+      severity: "warning",
+      confidence: "high",
+      gateEligible: false,
+      message: `${owner.reference}'s name label reads ${label.text}, another part's name${
+        namedShows ? `, while ${named.reference} reads ${namedShows}` : ""
+      }. The netlist calls this part ${owner.reference}; untick Display alias on the label to show its own name.`,
+      primary: directObjectLocator(
+        document.id,
+        "annotation",
+        label.annotationId,
+      ),
+      related: [
+        directObjectLocator(document.id, "instance", owner.id),
+        directObjectLocator(document.id, "instance", namedId),
+      ],
+      parameters: {
+        instanceId: owner.id,
+        reference: owner.reference,
+        labelText: label.text,
+        namedInstanceId: namedId,
+      },
+    });
+  }
 }
 
 /**
