@@ -50,6 +50,65 @@ function raw(text: string) {
   });
 }
 describe("source simulation compiler", () => {
+  it("prepares distinct authored Greek names with their ASCII spellings", () => {
+    const compiled = compileNgspiceSourceSimulation(
+      project(),
+      raw(
+        "V1 a 0 1\nR1 a φ1 1k\nR2 φ1 0 1k\nR3 θ1 0 1k\nR4 φ1 φ1 1k\n.op\n.end\n",
+      ),
+    );
+    expect(compiled.ok).toBe(true);
+    if (!compiled.ok) return;
+    const text = compiled.files.find((file) => file.path === "run.cir")?.text;
+    expect(text).toContain("R1 a phi1 1k");
+    expect(text).toContain("R3 theta1 0 1k");
+    expect(text).toContain("R4 phi1 phi1 1k");
+  });
+
+  it("refuses authored names that collide after Greek spelling", () => {
+    const compiled = compileNgspiceSourceSimulation(
+      project(),
+      raw("V1 a 0 1\nR1 a φ1 1k\nR2 phi1 0 1k\n.op\n.end\n"),
+    );
+    expect(compiled.ok).toBe(false);
+    if (compiled.ok) return;
+    expect(compiled.diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "SIMULATION_NON_ASCII_NAME_COLLISION",
+          message: expect.stringContaining("phi1"),
+          related: [
+            expect.objectContaining({
+              message: expect.stringContaining("φ1"),
+            }),
+          ],
+        }),
+      ]),
+    );
+  });
+
+  it("warns about one authored non-ASCII name and suggests its ASCII spelling", () => {
+    const compiled = compileNgspiceSourceSimulation(
+      project(),
+      raw("Test\nV1 φ1 0 1\n.op\n.end\n"),
+    );
+    expect(compiled.ok).toBe(true);
+    if (!compiled.ok) return;
+    expect(compiled.warnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "SIMULATION_NON_ASCII_NAME",
+          severity: "info",
+          message: expect.stringContaining("phi1"),
+          path: "run.cir",
+          sourceRef: expect.objectContaining({
+            start: expect.objectContaining({ line: 2 }),
+          }),
+        }),
+      ]),
+    );
+  });
+
   it.each(["ngspice", "vacask"] as const)(
     "preserves missing parameter evidence for %s",
     (engine) => {

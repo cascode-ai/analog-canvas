@@ -25,6 +25,7 @@ export * from "./simulation-source-projection.js";
 export * from "./simulation-starter.js";
 export * from "./simulation-ngspice-save-edit.js";
 export * from "./simulation-ngspice-signal-names.js";
+export * from "./simulation-ngspice-name-diagnostics.js";
 export {
   ngspiceSimulationDevices,
   nativeDeviceOpVectors as ngspiceDeviceOpVectors,

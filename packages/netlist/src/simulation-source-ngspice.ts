@@ -43,6 +43,10 @@ import {
   ngspiceSimulationDevices,
   NATIVE_MOS_OP_PARAMETERS,
 } from "./simulation-ngspice-devices.js";
+import {
+  prepareNgspiceAuthoredNames,
+  spellNgspiceAuthoredText,
+} from "./simulation-ngspice-name-diagnostics.js";
 
 type Plan = Extract<CompiledSimulation, { ok: true }>;
 type BoundLeaf = Extract<
@@ -119,11 +123,40 @@ export function compileNgspiceSourceSimulation(
         ...(issue.field ? { field: issue.field } : {}),
       })),
     };
-  const graph = inspectSimulationSourceGraph(folder.input);
-  diagnostics.push(...graph.diagnostics);
+  const authoredGraph = inspectSimulationSourceGraph(folder.input);
+  diagnostics.push(...authoredGraph.diagnostics);
+  const authoredNames = prepareNgspiceAuthoredNames(authoredGraph);
+  diagnostics.push(...authoredNames.diagnostics);
+  if (diagnostics.some((d) => d.severity === "error"))
+    return { ok: false, diagnostics };
+  const replacementsByPath = new Map<
+    string,
+    typeof authoredNames.replacements
+  >();
+  for (const replacement of authoredNames.replacements)
+    replacementsByPath.set(replacement.path, [
+      ...(replacementsByPath.get(replacement.path) ?? []),
+      replacement,
+    ]);
+  const preparedFiles = folder.input.files.map((file) => {
+    let text = file.text;
+    for (const replacement of (replacementsByPath.get(file.path) ?? []).sort(
+      (left, right) => right.start - left.start,
+    ))
+      text =
+        text.slice(0, replacement.start) +
+        replacement.text +
+        text.slice(replacement.end);
+    return { ...file, text };
+  });
+  const preparedFolder = {
+    ...folder,
+    input: { ...folder.input, files: preparedFiles },
+  };
+  const graph = inspectSimulationSourceGraph(preparedFolder.input);
   const projection = projectSourceSimulation(
     project,
-    folder,
+    preparedFolder,
     parsedConfig.config,
     graph,
     variant,
@@ -423,7 +456,11 @@ export function compileNgspiceSourceSimulation(
           "SIMULATION_VECTOR_INVALID",
           "A native vector must be one expression, not multiple commands",
         );
-      return acquisition(source.vector, "native", false);
+      return acquisition(
+        spellNgspiceAuthoredText(source.vector),
+        "native",
+        false,
+      );
     }
     if ("operand" in source)
       return { ...source, operand: expression(source.operand) };
@@ -457,7 +494,10 @@ export function compileNgspiceSourceSimulation(
   // Discover mappings, but do not request any acquisition here. Only vectors
   // actually returned by the native program become Device OP rows.
   if (parsedConfig.authority === "code") {
-    for (const device of ngspiceSimulationDevices(project, folder.input)) {
+    for (const device of ngspiceSimulationDevices(
+      project,
+      preparedFolder.input,
+    )) {
       if (!device.polarity || !device.nativeDevice) continue;
       deviceOperatingPoints.push({
         id: `native-op:${device.nativeDevice}`,
@@ -511,7 +551,10 @@ export function compileNgspiceSourceSimulation(
         ({ statement }) =>
           statement.kind === "control_command" &&
           statement.command.toLowerCase() === "save",
-      ) || folder.input.files.some((file) => /^\s*\.save\b/imu.test(file.text));
+      ) ||
+      preparedFolder.input.files.some((file) =>
+        /^\s*\.save\b/imu.test(file.text),
+      );
     const prefix = `* Canvas acquisitions (generated)\n.save ${explicitSave ? "" : "all "}${[...capture].join(" ")}\n`;
     // Keep the native title in place. Other author bytes are never reformatted.
     mappedFiles[index] = insertSimulationText(
