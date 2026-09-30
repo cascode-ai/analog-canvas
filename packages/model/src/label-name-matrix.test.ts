@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   createEmptyDocument,
+  defaultDraftTextDocument,
   flattenRichText,
   formatLabelIdentifier,
   identifierTextDocument,
@@ -9,6 +10,7 @@ import {
   richTextIdentifier,
   richTextPresentsIdentifier,
   roleLabelFormat,
+  supplyLabelFormat,
   type RichTextDocument,
   type RichTextRun,
 } from "./index.js";
@@ -151,4 +153,63 @@ describe("label names across every formatter", () => {
     // Q_bar as a Reference has no standard look; its bar is only styling.
     expect(reference("Q_bar", "Q")).toBeUndefined();
   });
+});
+
+/** Each character run with the styles that reach it. */
+function characters(document: RichTextDocument) {
+  const found: { text: string; italic: boolean; subscript: boolean }[] = [];
+  const visit = (runs: readonly RichTextRun[], styles: Set<string>): void => {
+    for (const run of runs) {
+      if (run.kind === "span")
+        visit(run.children, new Set([...styles, run.style]));
+      else if (run.kind === "text")
+        found.push({
+          text: run.value,
+          // A script resets the slant it inherits, as the renderers draw it.
+          italic: styles.has("italic") && !styles.has("subscript"),
+          subscript: styles.has("subscript"),
+        });
+    }
+  };
+  visit(document.runs, new Set());
+  return found;
+}
+
+describe("supply and voltage names", () => {
+  it.each([
+    ["a supply marker", supplyLabelFormat("VDD")!],
+    ["a Cell Pin or Net label", roleLabelFormat("voltage-node", "VDD")!],
+    ["free drafting text", defaultDraftTextDocument("VDD")],
+  ])("VDD on %s is an italic V over an upright DD", (_path, document) => {
+    expect(characters(document)).toEqual([
+      { text: "V", italic: true, subscript: false },
+      { text: "DD", italic: false, subscript: true },
+    ]);
+    expect(richTextPresentsIdentifier(document, "VDD")).toBe(true);
+  });
+
+  it.each([
+    // name, what is drawn, the subscript
+    ["VSS", "VSS", "SS"],
+    ["vdd", "vdd", "dd"],
+    ["VIN", "VIN", "IN"],
+    ["V_IN", "VIN", "IN"],
+    ["V_IN_SAM_2", "VIN_SAM_2", "IN_SAM_2"],
+  ])(
+    "%s keeps its exact characters and case, split only where it may be",
+    (name, visible, subscript) => {
+      // The standard look where the name has one, else its own `_` split.
+      const document =
+        roleLabelFormat("voltage-node", name) ?? identifierTextDocument(name);
+      expect(flattenRichText(document)).toBe(visible);
+      expect(
+        characters(document)
+          .filter((run) => run.subscript)
+          .map((run) => run.text)
+          .join(""),
+      ).toBe(subscript);
+      expect(richTextPresentsIdentifier(document, name)).toBe(true);
+      expect(roleLabelFormat("supply", name) ?? document).toEqual(document);
+    },
+  );
 });

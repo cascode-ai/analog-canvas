@@ -2,6 +2,7 @@ import { resolveAnnotationName, resolveAnnotationText } from "@icm/derived";
 import {
   flattenRichText,
   richTextPresentsIdentifier,
+  roleLabelFormat,
   type Annotation,
   type CircuitProject,
   type RichTextDocument,
@@ -48,6 +49,39 @@ async function imported() {
   const index = drawn.documents.findIndex(
     (document) => document.sourceBinding?.cellName === "matrix",
   );
+  // Net labels on three of its Nets, in the look the editor places them in.
+  const document = drawn.documents[index]!;
+  for (const name of ["VIN", "V_IN", "Q_bar"]) {
+    const { netId } = document.netlist!.terminals.find(
+      (terminal) => terminal.name === name,
+    )!;
+    const format = roleLabelFormat("voltage-node", name);
+    document.annotations.push({
+      id: `net-label-${name}`,
+      kind: "net-label",
+      netId,
+      binding: { kind: "net-name", netId },
+      anchor: {
+        kind: "object",
+        objectId: document.instances[0]!.id,
+        localOffset: { x: 0, y: 0 },
+        fallbackPosition: { x: 0, y: 0 },
+      },
+      alignment: "start",
+      rotation: 0,
+      locked: false,
+      ...(format ? { formatOverride: format } : {}),
+    });
+    // A Net label names its Net through its own claim.
+    document.connectivityEvidence.push({
+      id: `claim-${name}`,
+      kind: "name-claim",
+      netId,
+      name,
+      owner: { kind: "net-label", annotationId: `net-label-${name}` },
+      scope: "local",
+    });
+  }
   // Export this Cell as the root of its own netlist.
   return {
     project: { ...drawn, topDocumentId: drawn.documents[index]!.id },
@@ -71,11 +105,12 @@ function styled(document: RichTextDocument) {
   return found;
 }
 
-function boundLabels(document: SchematicDocument): Annotation[] {
-  return document.annotations.filter(
-    (annotation) =>
-      annotation.binding?.kind === "cell-terminal-name" ||
-      annotation.binding?.kind === "instance-reference",
+function boundLabels(
+  document: SchematicDocument,
+  kinds = ["cell-terminal-name", "instance-reference", "net-name"],
+): Annotation[] {
+  return document.annotations.filter((annotation) =>
+    kinds.includes(annotation.binding?.kind ?? ""),
   );
 }
 
@@ -102,12 +137,14 @@ describe("label names drawn and restyled in the editor", () => {
     const { project, index } = await imported();
     const document = project.documents[index]!;
     const looks = Object.fromEntries(
-      boundLabels(document).map((annotation) => {
-        const name = resolveAnnotationName(document, annotation);
-        const text = resolveAnnotationText(document, annotation);
-        expect(richTextPresentsIdentifier(text, name), name).toBe(true);
-        return [name, { visible: flattenRichText(text), ...styled(text) }];
-      }),
+      boundLabels(document, ["cell-terminal-name", "instance-reference"]).map(
+        (annotation) => {
+          const name = resolveAnnotationName(document, annotation);
+          const text = resolveAnnotationText(document, annotation);
+          expect(richTextPresentsIdentifier(text, name), name).toBe(true);
+          return [name, { visible: flattenRichText(text), ...styled(text) }];
+        },
+      ),
     );
     expect(looks).toEqual({
       // Cell Pins: V over IN for both spellings, CLK and RF whole, a bar
@@ -137,6 +174,13 @@ describe("label names drawn and restyled in the editor", () => {
     expect(before[0]).toContain("Q_bar");
     expect(before[0]).toContain("R12_a");
     const document = structuredClone(project.documents[index]!);
+    const identities = () => ({
+      references: document.instances.map((instance) => instance.reference),
+      terminals: document.netlist!.terminals.map((terminal) => terminal.name),
+      claims: document.connectivityEvidence,
+    });
+    const originally = structuredClone(identities());
+    expect(boundLabels(document, ["net-name"])).toHaveLength(3);
     for (const [restyle, apply] of RESTYLES) {
       for (const annotation of boundLabels(document)) {
         const name = resolveAnnotationName(document, annotation);
@@ -167,6 +211,8 @@ describe("label names drawn and restyled in the editor", () => {
         ),
       };
       expect(netlists(restyled), restyle).toEqual(before);
+      // No Reference, Cell terminal name or Net name claim moved.
+      expect(identities(), restyle).toEqual(originally);
     }
   });
 
