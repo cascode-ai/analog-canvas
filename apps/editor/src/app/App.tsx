@@ -9634,6 +9634,13 @@ function WorkspaceEditor({
         wireRoutingMode={wireRoutingMode}
         wireCornerOrder={wireCornerOrder}
         recoveryLabel={isDirtyWork() ? recoveryStateLabel(recoveryState) : null}
+        agentExpiring={
+          agentSession.expiringSoon &&
+          agentSession.status !== "expired" &&
+          agentSession.status !== "revoked"
+            ? { onKeep: agentSession.keepConnected }
+            : null
+        }
         zoomPercent={zoomPercent}
         shortcutHintsVisible={shortcutHintsVisible}
         onToggleShortcutHints={() =>

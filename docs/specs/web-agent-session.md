@@ -96,13 +96,30 @@ The deployed defaults are part of the accepted transport contract:
 - an Agent bearer remains valid for at most 8 hours and is never persisted;
 - the session and its connector expire after 30 minutes of inactivity;
   activity renews the deadline without an absolute lifetime limit;
+- a person present in the paired editor renews it too, but only within 8
+  hours (the bearer lifetime) of the last Agent operation or edit;
 - a completed request result remains in the idempotency cache for 5 minutes,
   still subject to the configured entry-count and byte ceilings.
 
 Claim redemption, admitted Circuit/File/Simulation/Project operations and their
 responses, manual Document edits (including changes to the Cell roster), and
 explicit pause/resume reset the idle window. Capabilities probes, connector refresh, heartbeat acknowledgements,
-SSE keepalives, and transport reconnects do not. Relay forwards time out after
+SSE keepalives, and transport reconnects do not.
+
+A person reading or reviewing in the paired editor is present, not idle:
+conversational drawing pauses between turns for longer than the idle window.
+While its editor socket is attached and its tab is visible or had pointer,
+keyboard or scroll input in the last 30 minutes, the editor sends the
+editor-secret `presence` control every 5 minutes, which renews the idle
+deadline. Presence is not activity: it renews only within 8 hours of the last
+Agent operation or edit (the bearer lifetime), so a forgotten open tab still
+expires, and a relay without an attached editor socket ignores it. A closed tab
+sends nothing, so its session still expires 30 minutes after the last
+activity. When `session.expiring` arrives, one minute before the deadline, the
+editor's status bar says "Agent connection ends in 1 minute" with **Keep
+connected**; that explicit choice sends the `keep-alive` control and renews as
+Pause and Resume do. Both remain bound to the editor secret and are ended at
+once by Disconnect. Relay forwards time out after
 30 seconds, well within the idle window. The relay persists the renewed
 deadline, reschedules expiry, and sends `session.renewed` so browser recovery
 and its timer follow the same deadline. `session.expired` ends idle sessions.

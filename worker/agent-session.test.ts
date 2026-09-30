@@ -863,6 +863,67 @@ describe("public Agent session routes", () => {
     }
   });
 
+  it("renews on presence only with the editor attached, and on Keep connected", async () => {
+    let sockets: WebSocket[] = [];
+    const object = new AgentSessionDO(
+      { storage: new MemoryStorage(), getWebSockets: () => sockets },
+      {},
+    );
+    const created = (await (
+      await object.fetch(
+        new Request("https://agent-session.internal/create", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            sessionId: "present",
+            projectSessionId: "project:1",
+            projectId: "project",
+            documentIds: ["document-main"],
+            scopes: ["circuit.snapshot"],
+          }),
+        }),
+      )
+    ).json()) as { session: { editorSecret: string } };
+    const control = async (action: string) =>
+      (await (
+        await object.fetch(
+          new Request("https://agent-session.internal/control", {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              "x-editor-secret": created.session.editorSecret,
+            },
+            body: JSON.stringify({ action }),
+          }),
+        )
+      ).json()) as { renewed: boolean; expiresAt: string };
+    const start = Date.now();
+    const clock = vi.spyOn(Date, "now").mockReturnValue(start + 20 * 60_000);
+    try {
+      // A tab no longer attached is not a person present.
+      expect(await control("presence")).toMatchObject({ renewed: false });
+      const send = vi.fn();
+      sockets = [{ readyState: WebSocket.OPEN, send } as unknown as WebSocket];
+      expect(await control("presence")).toEqual({
+        ok: true,
+        renewed: true,
+        status: "active",
+        expiresAt: new Date(start + 50 * 60_000).toISOString(),
+      });
+      // The editor hears the new deadline, as after any renewal.
+      expect(String(send.mock.calls.at(-1)?.[0])).toContain("session.renewed");
+      // Keep connected is the person's own choice, attached or not.
+      sockets = [];
+      clock.mockReturnValue(start + 45 * 60_000);
+      expect(await control("keep-alive")).toMatchObject({
+        renewed: true,
+        expiresAt: new Date(start + 75 * 60_000).toISOString(),
+      });
+    } finally {
+      clock.mockRestore();
+    }
+  });
+
   it("acknowledges the editor close handshake so the browser can reconnect", async () => {
     const close = vi.fn();
     const socket = {

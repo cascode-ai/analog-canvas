@@ -148,8 +148,15 @@ export interface AgentSessionViewModel {
   claimExpiresAt: number | null;
   scopes: readonly AgentSessionScope[];
   expiresAt: number | null;
+  /** The session's final minute: "Keep connected" renews it. */
+  expiringSoon: boolean;
   error: string | null;
 }
+
+/** How often a present person renews the session: well inside its window. */
+const PRESENCE_INTERVAL_MS = 5 * 60_000;
+/** Human input this recent, or a visible tab, counts as someone present. */
+const PRESENCE_WINDOW_MS = 30 * 60_000;
 
 export interface UseAgentSessionOptions {
   contextRevision: string;
@@ -200,6 +207,8 @@ export interface UseAgentSessionResult extends AgentSessionViewModel {
   transportDiagnostics: readonly TransportDiagnostic[];
   pause: () => Promise<void>;
   resume: () => Promise<void>;
+  /** Renew a session about to end, as an explicit human choice. */
+  keepConnected: () => void;
   reconnect: () => void;
   newConnection: () => Promise<void>;
   revoke: () => Promise<void>;
@@ -292,6 +301,7 @@ export function useAgentSession(
       claimExpiresAt: null,
       scopes: recovery?.scopes ?? [],
       expiresAt: recovery?.expiresAt ?? null,
+      expiringSoon: false,
       error: null,
     };
   });
@@ -330,7 +340,7 @@ export function useAgentSession(
   const control = useCallback(
     async (
       live: LiveSession,
-      action: "pause" | "resume" | "revoke",
+      action: "pause" | "resume" | "revoke" | "presence" | "keep-alive",
       signal: AbortSignal,
     ) => {
       const response = await fetch(
@@ -713,6 +723,9 @@ export function useAgentSession(
                   sessionEvent.data.type === "session.expiring")
               ) {
                 syncDeadline(Date.parse(sessionEvent.data.expiresAt));
+                update({
+                  expiringSoon: sessionEvent.data.type === "session.expiring",
+                });
               } else if (
                 sessionEvent.success &&
                 (sessionEvent.data.type === "session.revoked" ||
@@ -731,6 +744,7 @@ export function useAgentSession(
                       : "revoked",
                   claimCode: null,
                   claimExpiresAt: null,
+                  expiringSoon: false,
                 });
               } else if (
                 sessionEvent.success &&
@@ -1613,11 +1627,56 @@ export function useAgentSession(
     [],
   );
 
+  // Someone reading or reviewing in the paired editor keeps the session: a
+  // visible tab or recent input renews it every few minutes. Heartbeats
+  // alone never do, and the server stops renewing on presence 8 hours after
+  // the last Agent operation or edit.
+  useEffect(() => {
+    if (!options.enabled) return;
+    let inputAt = Date.now();
+    const noteInput = () => {
+      inputAt = Date.now();
+    };
+    const inputs = ["pointerdown", "keydown", "wheel", "scroll"] as const;
+    for (const type of inputs)
+      window.addEventListener(type, noteInput, {
+        capture: true,
+        passive: true,
+      });
+    const timer = window.setInterval(() => {
+      const live = liveRef.current;
+      if (!live || live.socket?.readyState !== WebSocket.OPEN) return;
+      if (
+        document.visibilityState !== "visible" &&
+        Date.now() - inputAt >= PRESENCE_WINDOW_MS
+      )
+        return;
+      void control(live, "presence", AbortSignal.timeout(15_000)).catch(
+        () => undefined,
+      );
+    }, PRESENCE_INTERVAL_MS);
+    return () => {
+      window.clearInterval(timer);
+      for (const type of inputs)
+        window.removeEventListener(type, noteInput, { capture: true });
+    };
+  }, [control, options.enabled]);
+
+  const keepConnected = useCallback(() => {
+    const live = liveRef.current;
+    if (!live) return;
+    update({ expiringSoon: false });
+    void control(live, "keep-alive", AbortSignal.timeout(15_000)).catch(() =>
+      update({ expiringSoon: true }),
+    );
+  }, [control, update]);
+
   return {
     ...view,
     transportDiagnostics: liveRef.current?.transport?.diagnostics ?? [],
     pause,
     resume,
+    keepConnected,
     reconnect,
     newConnection,
     revoke,

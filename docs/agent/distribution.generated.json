@@ -9,7 +9,7 @@
     },
     {
       "source": "docs/agent/mcp-quickstart.md",
-      "sha256": "fa6a44a715b4d73dd1c0f440f5639f25d4b2f72059db04ba91b8b1f7f2905683"
+      "sha256": "6b92ded8f36874625f6555aa5209ee3d5f4b6f892432b5ccd78a5f354ae762ec"
     },
     {
       "source": "docs/agent/http-kit/skills/icm-circuit-session/SKILL.md",
@@ -621,7 +621,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/circuit-style-knowledge.md"
       ],
-      "sha256": "b0e2f4a69f4d8da0f4a1f550872e44048df08fa5d5509df4935ad5801e74cbd7"
+      "sha256": "d6f743c4034a6a7d85c42baebf9db142e6ae5186361948ff4884c1c7253615a7"
     },
     {
       "file": "packages/agent-adapter/src/agent-docs.generated.ts",

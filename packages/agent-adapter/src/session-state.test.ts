@@ -100,6 +100,63 @@ describe("AgentSessionMachine", () => {
     ).toMatchObject({ code: "SESSION_EXPIRED" });
   });
 
+  it("keeps a session while a person is present in the editor, within the cap", () => {
+    const { machine, session, now, advance, random } = setup();
+    const claimedAt = now();
+    const claimed = machine.redeemClaim(session.claimCode, claimedAt);
+    if (!claimed.ok) throw new Error("claim failed");
+    // Reviewing for 45 minutes with no Agent call or edit: presence every
+    // five minutes keeps the next Agent call admissible.
+    for (let minute = 5; minute <= 45; minute += 5) {
+      advance(5 * 60_000);
+      expect(machine.recordPresence(now())).toBe(true);
+    }
+    expect(machine.authorize(claimed.claim.agentToken, now()).ok).toBe(true);
+    expect(machine.expiresAt).toBe(now() + 30 * 60_000);
+    // Presence is not activity: the cap counts from the claim, and survives
+    // a restore.
+    const restored = AgentSessionMachine.restore(
+      machine.serialize(),
+      random,
+      now(),
+    );
+    const cap = claimedAt + 8 * 60 * 60_000;
+    while (now() + 5 * 60_000 < cap) {
+      advance(5 * 60_000);
+      expect(restored.recordPresence(now())).toBe(true);
+    }
+    advance(cap - now());
+    const renewedUntil = restored.expiresAt;
+    expect(restored.recordPresence(now())).toBe(false);
+    expect(restored.expiresAt).toBe(renewedUntil);
+    advance(renewedUntil - now());
+    expect(restored.statusAt(now())).toBe("expired");
+  });
+
+  it("expires 30 minutes after the last activity once nobody is present", () => {
+    const { machine, session, now, advance } = setup();
+    const claimed = machine.redeemClaim(session.claimCode, now());
+    if (!claimed.ok) throw new Error("claim failed");
+    advance(10 * 60_000);
+    expect(machine.recordPresence(now())).toBe(true);
+    // The tab closes: no more presence.
+    advance(30 * 60_000);
+    expect(machine.statusAt(now())).toBe("expired");
+    expect(machine.recordPresence(now())).toBe(false);
+  });
+
+  it("restores a session saved before presence with its last activity", () => {
+    const { machine, session, now, random, advance } = setup();
+    machine.redeemClaim(session.claimCode, now());
+    const { activityAt: _drop, ...legacy } = machine.serialize();
+    advance(60_000);
+    const restored = AgentSessionMachine.restore(legacy, random, now());
+    // The idle deadline minus the window is when it was last active.
+    advance(8 * 60 * 60_000 - 2 * 60_000);
+    expect(restored.statusAt(now())).toBe("expired");
+    expect(restored.recordPresence(now())).toBe(false);
+  });
+
   it("can keep using one connector beyond seven days with bearer rotation", () => {
     const { machine, session, now, advance } = setup();
     let claim = machine.redeemClaim(session.claimCode, now());
