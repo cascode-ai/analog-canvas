@@ -16,6 +16,11 @@ import {
 import { testSnapshot } from "../../../packages/agent-client/src/test-support/snapshot-fixture.js";
 import { callTool, listToolDefinitions } from "./tools.js";
 import type { ToolSessionState } from "./tools.js";
+import otaProject from "../../../netlists/native-ota-library/legacy-source.icproj.json";
+
+const dutDocumentId = "document-ota-5t";
+const dutName = "ota_5t";
+const dutPorts = ["VDD", "VSS", "IN", "OUT", "IBIAS", "VOUT"];
 
 async function toolSession(
   http: FakeAgentHttp = new FakeAgentHttp(),
@@ -184,6 +189,14 @@ describe("mcp tool surface", () => {
       const http = new FakeAgentHttp();
       const { session } = await toolSession(http);
       await callTool("connect", { claimCode: "session-1.code" }, session);
+      vi.spyOn(session.client, "projectResource").mockResolvedValue({
+        apiVersion: "3.0",
+        requestId: "netlist",
+        operation: "read-project-code",
+        ok: true,
+        structureRevision: 0,
+        projectCode: JSON.stringify(otaProject),
+      });
       vi.spyOn(session.client, "simulationResource").mockResolvedValue({
         apiVersion: "3.0",
         requestId: "caps",
@@ -217,21 +230,27 @@ describe("mcp tool surface", () => {
         }
         return capabilitiesResponse(request.requestId);
       };
-      expect(
-        parseText(
-          await callTool(
-            "simulation_folder",
-            {
-              action: "create",
-              name: "Bias",
-              profileId: "selected",
-              rootDocumentId: "main",
-              dut: { name: "amp", ports: ["VDD", "VSS", "IN", "OUT"] },
-            },
-            session,
-          ),
+      const created = parseText(
+        await callTool(
+          "simulation_folder",
+          {
+            action: "create",
+            name: "Bias",
+            profileId: "selected",
+            rootDocumentId: dutDocumentId,
+            dut: { name: dutName, ports: dutPorts },
+          },
+          session,
         ),
-      ).toMatchObject({ ok: true });
+      );
+      expect(created).toMatchObject({
+        ok: true,
+        dut: {
+          name: dutName,
+          ports: dutPorts,
+          subckt: expect.stringContaining(`.subckt ${dutName}`),
+        },
+      });
       expect(snapshots).toBe(1);
       expect(writes).toEqual([
         expect.objectContaining({
@@ -250,8 +269,8 @@ describe("mcp tool surface", () => {
                       path: "testbench.spice",
                       text: expect.stringContaining(
                         engine === "ngspice"
-                          ? "XDUT VDD VSS IN OUT amp"
-                          : "XDUT ('VDD' 'VSS' 'IN' 'OUT') 'amp'",
+                          ? `XDUT ${dutPorts.join(" ")} ${dutName}`
+                          : `XDUT (${dutPorts.map((port) => `'${port}'`).join(" ")}) '${dutName}'`,
                       ),
                     }),
                   ]),
@@ -574,6 +593,14 @@ describe("mcp tool surface", () => {
       },
     });
     const snapshot = testSnapshot();
+    vi.spyOn(session.client, "projectResource").mockResolvedValue({
+      apiVersion: "3.0",
+      requestId: "netlist",
+      operation: "read-project-code",
+      ok: true,
+      structureRevision: 0,
+      projectCode: JSON.stringify(otaProject),
+    });
     const folder = createSimulationFolder({
       id: "s",
       name: "OP",
@@ -675,8 +702,8 @@ describe("mcp tool surface", () => {
             folderId: "bad-dut",
             name: "Bad DUT",
             profileId: "test",
-            rootDocumentId: "main",
-            dut: { name: "amp", ports: ["in\ncontrol"] },
+            rootDocumentId: dutDocumentId,
+            dut: { name: dutName, ports: ["in\ncontrol"] },
           },
           session,
         ),
@@ -695,8 +722,8 @@ describe("mcp tool surface", () => {
             folderId: "dut-text",
             name: "DUT text",
             profileId: "test",
-            rootDocumentId: "main",
-            dut: { name: "amp", ports: ["inp", "inn", "out"] },
+            rootDocumentId: dutDocumentId,
+            dut: { name: dutName, ports: dutPorts },
           },
           session,
         ),
@@ -707,12 +734,14 @@ describe("mcp tool surface", () => {
         {
           folder: {
             input: {
-              circuitBindings: [{ documentId: "main", emission: "subcircuit" }],
+              circuitBindings: [
+                { documentId: dutDocumentId, emission: "subcircuit" },
+              ],
               files: expect.arrayContaining([
                 expect.objectContaining({
                   path: "testbench.spice",
                   text: expect.stringContaining(
-                    "XDUT ('inp' 'inn' 'out') 'amp'",
+                    `XDUT (${dutPorts.map((port) => `'${port}'`).join(" ")}) '${dutName}'`,
                   ),
                 }),
               ]),

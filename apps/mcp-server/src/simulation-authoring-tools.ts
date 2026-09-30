@@ -1,5 +1,8 @@
 import { agentToolHelp } from "./guidance.generated.js";
 import { z } from "zod";
+import { createSimulationStarter } from "@icm/netlist";
+import { parseProject } from "@icm/project-protocol";
+import { AGENT_API_VERSION } from "@icm/agent-adapter";
 import { inputContract } from "./input-contract.js";
 import {
   createSimulationFolder,
@@ -18,9 +21,9 @@ import type { CachedSnapshot } from "@icm/agent-client";
 
 const Id = z.string().min(1).max(256);
 const Name = z.string().trim().min(1).max(128);
-const NativeName = Id.regex(
-  /^\S+$/u,
-  "Use an exact native identifier without whitespace",
+const SpiceIdentifier = Id.regex(
+  /^[A-Za-z_][A-Za-z0-9_]*$/u,
+  "Use an ASCII SPICE identifier (letters, digits and underscores)",
 );
 const common = {
   documentId: Id.optional(),
@@ -43,13 +46,14 @@ const FolderArgs = z.discriminatedUnion("action", [
     template: z.enum(["op", "ac", "tran"]).optional(),
     dut: z
       .strictObject({
-        name: NativeName.describe(
-          "Exact exported subcircuit name, not the instance name XDUT. For .subckt dut IN OUT, use name:'dut'; the template creates XDUT IN OUT dut.",
+        name: SpiceIdentifier.optional().describe(
+          "Optional exact exported subcircuit name; when rootDocumentId is present it is derived and checked against the Cell.",
         ),
         ports: z
-          .array(NativeName)
+          .array(SpiceIdentifier)
+          .optional()
           .describe(
-            "Port names in the exported subcircuit's exact order; the template uses these as testbench node names. Do not reorder power pins. Read the generated circuit interface when unknown.",
+            "Optional testbench node names in the exported subcircuit's exact order; the count must match the Cell interface. Names must be ASCII SPICE identifiers.",
           ),
       })
       .optional(),
@@ -150,7 +154,7 @@ function tool<T extends z.ZodType>(
       if (!parsed.success)
         return failure(
           "SIMULATION_HELPER_INPUT_INVALID",
-          parsed.error.issues[0]!.message,
+          `${parsed.error.issues[0]!.path.join(".") || "input"}: ${parsed.error.issues[0]!.message}`,
         );
       try {
         return await handle(parsed.data, session);
@@ -224,6 +228,7 @@ async function save(
     },
   );
 }
+
 function configFolder(
   folder: ProjectSimulationFolder,
   config: SimulationExperimentConfig,
@@ -288,6 +293,7 @@ export const simulationAuthoringTools: readonly Entry[] = [
           },
         );
       let next: ProjectSimulationFolder;
+      let dut: { name: string; ports: string[]; subckt: string } | undefined;
       if (parsed.action === "create") {
         if (parsed.dut && !parsed.rootDocumentId)
           return failure(
@@ -317,12 +323,66 @@ export const simulationAuthoringTools: readonly Entry[] = [
             "SIMULATION_PROFILE_UNAVAILABLE",
             "The selected Profile must advertise its engine before creating a template. Existing source remains editable.",
           );
+        if (parsed.rootDocumentId) {
+          const code = await session.client.projectResource({
+            apiVersion: AGENT_API_VERSION,
+            requestId: crypto.randomUUID(),
+            operation: "read-project-code",
+          });
+          if (!code.ok || code.operation !== "read-project-code")
+            return failure(
+              "SIMULATION_DUT_INTERFACE_UNAVAILABLE",
+              code.ok ? "Expected Project Code" : code.error.message,
+            );
+          if (code.structureRevision !== project.structureRevision)
+            return failure(
+              "SIMULATION_DUT_STALE",
+              "Project changed while resolving the DUT; refresh and create again",
+            );
+          const starter = createSimulationStarter(
+            parseProject(code.projectCode),
+            {
+              id: parsed.folderId ?? crypto.randomUUID(),
+              name: parsed.name,
+              profileId: parsed.profileId,
+              engine: profile.engine,
+              documentId: parsed.rootDocumentId,
+              mode: "dut",
+              ...(parsed.template ? { template: parsed.template } : {}),
+            },
+          );
+          if (!starter.ok || !starter.dut)
+            return failure(
+              "SIMULATION_DUT_INTERFACE_BLOCKED",
+              starter.ok ? "Expected a DUT interface" : starter.message,
+            );
+          const resolved = starter.dut;
+          if (parsed.dut?.name && parsed.dut.name !== resolved.name)
+            return failure(
+              "SIMULATION_DUT_NAME_MISMATCH",
+              `dut.name must match the exported Cell name ${resolved.name}`,
+            );
+          if (
+            parsed.dut?.ports &&
+            parsed.dut.ports.length !== resolved.ports.length
+          )
+            return failure(
+              "SIMULATION_DUT_PORT_COUNT_MISMATCH",
+              `dut.ports must contain ${resolved.ports.length} names in the exported order`,
+            );
+          dut = {
+            ...resolved,
+            subckt:
+              `.subckt ${resolved.name} ${resolved.ports.join(" ")}`.trimEnd(),
+            ...(parsed.dut?.ports ? { ports: parsed.dut.ports } : {}),
+          };
+        }
         next = createSimulationFolder({
           id: parsed.folderId ?? crypto.randomUUID(),
           name: parsed.name,
           profileId: parsed.profileId,
           engine: profile.engine,
-          ...(parsed.dut ? { dut: parsed.dut } : {}),
+          ...(dut ? { dut } : {}),
           ...(parsed.template ? { template: parsed.template } : {}),
           ...(parsed.rootDocumentId
             ? { documentId: parsed.rootDocumentId }
@@ -357,6 +417,15 @@ export const simulationAuthoringTools: readonly Entry[] = [
         ? {
             ...result,
             folder: { id: next.id, name: next.name, entry: next.input.entry },
+            ...(dut
+              ? {
+                  dut: {
+                    name: dut.name,
+                    ports: dut.ports,
+                    subckt: dut.subckt,
+                  },
+                }
+              : {}),
             source: {
               owner: { kind: "project-folder", folderId: next.id },
               ...(result.projectStructure

@@ -195,6 +195,12 @@ importers:
       "@icm/model":
         specifier: workspace:*
         version: link:../../packages/model
+      "@icm/netlist":
+        specifier: workspace:*
+        version: link:../../packages/netlist
+      "@icm/project-protocol":
+        specifier: workspace:*
+        version: link:../../packages/project-protocol
       "@icm/simulation-service":
         specifier: workspace:*
         version: link:../../packages/simulation-service

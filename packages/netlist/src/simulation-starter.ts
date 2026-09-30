@@ -1,6 +1,19 @@
 import { createSimulationFolder, type CircuitProject } from "@icm/model";
 import { analyzeDesignNetlist } from "./extract.js";
 
+export interface SimulationStarterDut {
+  name: string;
+  ports: string[];
+}
+
+export type SimulationStarterResult =
+  | {
+      ok: true;
+      folder: ReturnType<typeof createSimulationFolder>;
+      dut?: SimulationStarterDut;
+    }
+  | { ok: false; message: string };
+
 /** Resolve the interface through the same printer IR as the generated DUT. */
 export function createSimulationStarter(
   project: CircuitProject,
@@ -13,7 +26,7 @@ export function createSimulationStarter(
     mode: "circuit" | "dut" | "text";
     template?: "op" | "ac" | "tran";
   },
-) {
+): SimulationStarterResult {
   if (options.mode === "text")
     return {
       ok: true as const,
@@ -49,6 +62,7 @@ export function createSimulationStarter(
     };
   return {
     ok: true as const,
+    dut: { name: root.name, ports: root.ports.map((port) => port.netName) },
     folder: createSimulationFolder({
       ...options,
       dut: { name: root.name, ports: root.ports.map((port) => port.netName) },
