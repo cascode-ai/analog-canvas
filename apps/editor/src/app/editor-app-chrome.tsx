@@ -89,7 +89,6 @@ export interface EditorAppChromeProps {
 /** Persistent command chrome above the document workspace. */
 export function EditorAppChrome({
   communityEnabled = true,
-  identityEnabled = true,
   externalLinksEnabled = true,
   projectTabs,
   projectChoices,
@@ -466,7 +465,7 @@ export function EditorAppChrome({
             </button>
           ) : null}
           {/* Who is signed in, as the Gallery shows it; Sign in otherwise. */}
-          {identityEnabled ? <AccountMenu showGalleryLinks={false} /> : null}
+          <AccountMenu showGalleryLinks={false} alwaysVisible />
           {externalLinksEnabled ? (
             <>
               <BugReportLink

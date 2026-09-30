@@ -219,3 +219,22 @@ test("compacts the editor header at half width and keeps the account role in its
   );
   await expect(page.getByTestId("account-owner")).toHaveText("Owner");
 });
+
+test("keeps the account affordance when auth providers are unavailable", async ({
+  page,
+}) => {
+  await page.route("**/api/auth/providers", (route) =>
+    route.fulfill({ status: 503, json: { error: "unavailable" } }),
+  );
+  await page.route("**/api/auth/me", (route) =>
+    route.fulfill({ status: 503, json: { error: "unavailable" } }),
+  );
+  await page.setViewportSize({ width: 390, height: 900 });
+  await page.goto("/editor");
+
+  const fallback = page.locator(".account-menu-fallback");
+  await expect(fallback).toBeVisible();
+  await expect(fallback.locator("summary")).toContainText("⋯");
+  await fallback.locator("summary").click();
+  await expect(fallback.locator(".account-popover")).toContainText("Account");
+});
