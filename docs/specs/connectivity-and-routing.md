@@ -170,6 +170,13 @@ Undo restores the whole committed document, including the derived membership.
   attachment; power rails, MOS bulk leads, locked geometry, and undeclared or
   ambiguous multi-pin pairs never cut the conductor. Their exact contacts may
   still use ordinary attachment semantics; visual overlap alone does nothing.
+  One pin inside a Route with the other on the Junction or pin that ends that
+  Route is the same splice: the span between the pins is removed and the
+  outer pin joins that end directly. A T-Junction left with two Wires would
+  fold into one straight Wire under the pin, so the pin takes its place and
+  both Wires end on it. A placement or move whose contacts would still leave
+  both pins of a two-pin part on one Logical Net is refused with that reason;
+  a move then completes without connecting.
 - Moving a connected Instance stretches the attached Route while preserving
   endpoint identity.
 - Placement and an explicitly snapped instance move use the same engine contact
@@ -365,7 +372,10 @@ and a labelled wire are exempt. `ERC_LABEL_REFERENCE_MISMATCH` names a part
 whose name label reads another part's name while that part shows something
 else, as with swapped labels: the drawing then misnames devices the netlist
 calls by Reference. A display alias naming no part, or naming a part that shows
-the same name, is deliberate and stays silent. `ERC_INSTANCE_NOT_DRAWN`
+the same name, is deliberate and stays silent. `ERC_SHORTED_DEVICE` warns
+about a part with two visible pins that are both on one Logical Net: the part
+does nothing, whatever the drawing shows. A part with more pins may tie them
+together on purpose, as a dummy transistor does, and is not judged. `ERC_INSTANCE_NOT_DRAWN`
 counts the Instances a Cell holds that the sheet does not draw: they keep their
 reference, their Net terminals and their netlist cards while nothing on the
 sheet shows them, so the warning names them and the Placement Tray — which

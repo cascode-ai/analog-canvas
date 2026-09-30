@@ -46,8 +46,10 @@ export type BrowserRecoveryWriteOutcome =
       status: "stored";
       record: BrowserRecoveryRecordV2;
       deletedRecordIds: string[];
+      /** The open working copies alone exceed the total byte cap. */
+      overCapacity: boolean;
     }
-  | { status: "unchanged" }
+  | { status: "unchanged"; overCapacity: boolean }
   | { status: "rejected-too-large"; byteLength: number }
   | {
       status: "failed";
@@ -87,10 +89,13 @@ export interface BrowserRecoveryStore {
   /**
    * Atomically rotate the candidate into its session's `latest` slot and
    * apply retention. A rejected, unchanged, or failed candidate performs no
-   * destructive operation.
+   * destructive operation. `openWorkingCopyIds` names the working copies
+   * the editor has open besides the candidate's: retention never evicts
+   * their latest copy.
    */
   writeRecord(
     candidate: BrowserRecoveryRecordV2,
+    openWorkingCopyIds?: readonly string[],
   ): Promise<BrowserRecoveryWriteOutcome>;
   /** Delete exactly the record with this id, if owned by this store. */
   deleteRecord(recordId: string): Promise<BrowserRecoveryDeleteOutcome>;
@@ -322,6 +327,7 @@ export function createBrowserRecoveryStore(
 
     async writeRecord(
       candidate: BrowserRecoveryRecordV2,
+      openWorkingCopyIds: readonly string[] = [],
     ): Promise<BrowserRecoveryWriteOutcome> {
       const byteLength = browserRecoveryByteLength(candidate.projectText);
       if (byteLength > BROWSER_RECOVERY_MAX_RECORD_BYTES) {
@@ -334,6 +340,7 @@ export function createBrowserRecoveryStore(
       try {
         let written = false;
         let deletedRecordIds: string[] = [];
+        let overCapacity = false;
         await runMutation(async (objectStore, stored) => {
           const sessions = buildSessions(stored);
           const current = sessions.get(candidate.workingCopyId) ?? {
@@ -350,8 +357,9 @@ export function createBrowserRecoveryStore(
           );
           const plan = planBrowserRecoveryRetention(
             [...others, rotation.session],
-            candidate.workingCopyId,
+            new Set([candidate.workingCopyId, ...openWorkingCopyIds]),
           );
+          overCapacity = plan.overCapacity;
           const plannedIds = new Set(plan.deleteRecordIds);
           await deleteStoredRecords(objectStore, stored, (record) =>
             plannedIds.has(record.recordId),
@@ -384,11 +392,12 @@ export function createBrowserRecoveryStore(
           }
           deletedRecordIds = plan.deleteRecordIds;
         });
-        if (!written) return { status: "unchanged" };
+        if (!written) return { status: "unchanged", overCapacity };
         return {
           status: "stored",
           record: asLatest,
           deletedRecordIds,
+          overCapacity,
         };
       } catch (error) {
         return {

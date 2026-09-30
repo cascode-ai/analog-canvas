@@ -222,11 +222,6 @@ export interface GalleryFeedPage {
   /** Contributors to the filtered wall, before pagination. */
   authors?: GalleryAuthorOption[];
   /**
-   * Signed out, the wall is only its newest few circuits, unfiltered and
-   * unpaged; `total` still counts every one a signed-in reader would see.
-   */
-  signInForMore?: boolean;
-  /**
    * The search the server applied, echoed: then entries, totals and counts
    * are its answer. Absent, the server did not search.
    */
@@ -247,8 +242,6 @@ export interface GalleryFeedState {
   filterCounts?: GalleryQuickFilterCounts;
   /** Contributors to the filtered wall, before pagination. */
   authors?: GalleryAuthorOption[];
-  /** The signed-out wall: its newest few circuits only. */
-  signInForMore?: boolean;
   /** The search the server answered for these entries; "" for none. */
   search?: string;
 }
@@ -442,14 +435,12 @@ export async function loadGalleryFeed(
       search?: unknown;
       filterCounts?: GalleryQuickFilterCounts;
       authors?: GalleryAuthorOption[];
-      signInForMore?: unknown;
     };
     return {
       entries: payload.entries ?? [],
       nextCursor:
         typeof payload.nextCursor === "string" ? payload.nextCursor : null,
       total: typeof payload.total === "number" ? payload.total : null,
-      ...(payload.signInForMore === true ? { signInForMore: true } : {}),
       ...(typeof payload.search === "string" ? { search: payload.search } : {}),
       ...(Array.isArray(payload.authors) &&
       payload.authors.every(

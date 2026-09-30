@@ -47,14 +47,18 @@ function generationLine(
 ): string {
   const record = generation === "latest" ? summary.latest : summary.previous;
   const label = reviewLabel(reviewStatus(summary, generation));
-  if (
-    record !== null &&
-    record.review === "valid" &&
-    record.revision !== null
-  ) {
-    return `${label} · revision ${record.revision}`;
-  }
-  return label;
+  if (record === null || record.review !== "valid") return label;
+  const parts = [label];
+  if (record.revision !== null) parts.push(`revision ${record.revision}`);
+  // The structure revision moves with every edit anywhere in the Project; a
+  // Cell's own revision can stand still while the rest changes, which made
+  // two different copies read "revision 20" alike.
+  if (record.structureRevision !== null)
+    parts.push(
+      `edit ${record.structureRevision}`,
+      new Date(record.updatedAt).toLocaleTimeString(),
+    );
+  return parts.join(" · ");
 }
 
 const SOURCE_LABELS: Record<BrowserRecoverySource, string> = {

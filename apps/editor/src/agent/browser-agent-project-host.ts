@@ -32,6 +32,10 @@ import { planNetlistCodeEdit } from "../features/netlist-export/netlist-code-edi
 import { importChunk } from "../components/chunk-import";
 import { prepareDocumentFormulaArtifacts } from "../features/text-editing/formula-artifacts";
 
+/** Signed out, the Gallery answers nothing, the Agent included. */
+const GALLERY_SIGN_IN_MESSAGE =
+  "The Community Gallery is for signed-in members; sign in to the Editor first";
+
 export interface BrowserAgentProjectHostOptions {
   loadProjectCode?: () => Promise<
     typeof import("../features/project-code/project-code")
@@ -121,7 +125,7 @@ export class BrowserAgentProjectHost {
         return this.error(
           request,
           "GALLERY_UNAVAILABLE",
-          "The Community Gallery is for signed-in members; sign in to the Editor first",
+          GALLERY_SIGN_IN_MESSAGE,
           "retry",
         );
       }
@@ -358,7 +362,9 @@ export class BrowserAgentProjectHost {
           : "GALLERY_UNAVAILABLE",
         response.status === 404
           ? "The Gallery entry does not exist"
-          : `The Gallery entry could not be read (${response.status})`,
+          : response.status === 401
+            ? GALLERY_SIGN_IN_MESSAGE
+            : `The Gallery entry could not be read (${response.status})`,
         response.status === 404 ? "fix-input" : "retry",
       );
     }

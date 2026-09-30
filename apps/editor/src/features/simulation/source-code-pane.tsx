@@ -70,6 +70,38 @@ import { SourceProbePicker } from "./source-probe-picker";
 import { SimulationActionIcon } from "./simulation-action-icon";
 import { flushSelectedFolders } from "./flush-selected-folders";
 import { isVisibleSimulationSource } from "./simulation-source-visibility";
+import { directObjectLocator } from "@icm/derived";
+
+/**
+ * The generated Circuit source, or why it cannot be shown. A projection that
+ * throws is a defect, but it is one folder's: the Simulate surface shows it
+ * there as a problem instead of taking the whole editor down with it.
+ */
+function projectCircuitSource(
+  ...args: Parameters<typeof generateCircuitSource>
+): ReturnType<typeof generateCircuitSource> {
+  try {
+    return generateCircuitSource(...args);
+  } catch (error) {
+    console.error("Circuit source projection failed", error);
+    const documentId = args[1].documentId;
+    return {
+      ok: false,
+      diagnostics: [
+        {
+          code: "SIMULATION_SOURCE_PROJECTION_FAILED",
+          severity: "error",
+          documentId,
+          objectIds: [],
+          primary: directObjectLocator(documentId, "document", documentId),
+          message: `The Circuit source could not be generated (${
+            error instanceof Error ? error.message : String(error)
+          })`,
+        },
+      ],
+    };
+  }
+}
 
 export type SourceFlush =
   | { ok: true; folder: ProjectSimulationFolder; revision: number }
@@ -495,7 +527,7 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
       () =>
         input.circuitBindings.map((binding) => ({
           binding,
-          result: generateCircuitSource(props.project, binding, input, engine),
+          result: projectCircuitSource(props.project, binding, input, engine),
         })),
       [props.project, input, engine],
     );
@@ -659,7 +691,7 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
         for (const [draftKey, draft] of pending) {
           const filePath = draftKey.slice(folder.id.length + 1);
           if (draft.binding) {
-            const regenerated = generateCircuitSource(
+            const regenerated = projectCircuitSource(
               current.current.project,
               draft.binding,
               folder.input,
@@ -896,7 +928,7 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
         (item) => item.path === filePath,
       );
       if (!binding) return "";
-      const generated = generateCircuitSource(
+      const generated = projectCircuitSource(
         props.project,
         binding,
         folder?.input,

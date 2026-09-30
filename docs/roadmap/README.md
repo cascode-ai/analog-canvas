@@ -22,6 +22,12 @@ acceptance reviews, not missing feature implementations. Candidate receipts and
 commits carry their evidence. Investigate concrete gaps revealed by those reviews;
 do not recreate an already implemented subsystem.
 
+## Issue handoff
+
+[Open issues after the 2026-09-30 batch](open-issues-2026-09-30.md) lists what
+that batch left partly done, the urgent issues not yet started, the next batch,
+and the questions waiting for a decision.
+
 ## Desktop fork integration
 
 [Issue #1003 review and migration proposal](desktop-fork/README.md) records the

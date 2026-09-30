@@ -12,6 +12,7 @@ import {
   type GalleryFeedEntry,
 } from "../../gallery-client";
 import { galleryEntryMatchesQuery } from "../../gallery-search";
+import { requestSignIn } from "../../components/sign-in-request";
 
 const ExamplesPanelTags = lazy(() =>
   import("./examples-panel-tags").then((module) => ({
@@ -123,9 +124,11 @@ export function deriveGalleryPanelView(
 }
 
 /**
- * The circuit gallery, docked beside the canvas. Every card carries a preview
- * of the circuit itself: a name and a sentence do not tell you whether a
- * circuit is the one you want to borrow from.
+ * Insert from Gallery, docked beside the canvas: Gallery circuits to place in
+ * this drawing. Browsing the Gallery itself is the header's Gallery; the
+ * panel links there. Every card carries a preview of the circuit itself: a
+ * name and a sentence do not tell you whether a circuit is the one you want
+ * to borrow from.
  *
  * It reads the same feed as the Gallery wall through the same shared data
  * layer, so paging and free-text search behave identically in both places.
@@ -241,13 +244,26 @@ export function ExamplesPanel({
       className={
         open ? "shapes-panel examples-panel" : "shapes-panel collapsed"
       }
-      aria-label="Gallery"
+      aria-label="Insert from Gallery"
       aria-hidden={!open}
       inert={!open ? true : undefined}
       data-testid="examples-panel"
       data-open={open ? "true" : "false"}
     >
       <div className="shapes-panel-body">
+        <div className="examples-panel-header">
+          <h2 className="examples-panel-title">Insert from Gallery</h2>
+          <a
+            className="examples-panel-open-gallery"
+            href="/"
+            target="_blank"
+            rel="noopener"
+            data-testid="examples-panel-open-gallery"
+            title="Open the Community Gallery in a new tab"
+          >
+            Open Gallery ↗
+          </a>
+        </div>
         {showGallery ? (
           <div className="examples-panel-controls">
             <input
@@ -304,6 +320,31 @@ export function ExamplesPanel({
             </aside>
           ) : null}
           <div className="examples-panel-results">
+            {/* Signed out, the Gallery shows no circuit here either: grey
+            stand-ins under a veil, and the way to sign in. */}
+            {feed.status === "signed-out" ? (
+              <div
+                className="examples-panel-sign-in"
+                data-testid="examples-panel-sign-in"
+              >
+                <div className="examples-panel-sign-in-veil" aria-hidden="true">
+                  {[0, 1, 2, 3, 4, 5].map((index) => (
+                    <span key={index} className="examples-panel-sign-in-tile" />
+                  ))}
+                </div>
+                <div className="examples-panel-sign-in-card">
+                  <p>Sign in to insert circuits from the Gallery.</p>
+                  <button
+                    type="button"
+                    className="examples-panel-sign-in-button"
+                    data-testid="examples-panel-sign-in-button"
+                    onClick={requestSignIn}
+                  >
+                    Sign in
+                  </button>
+                </div>
+              </div>
+            ) : null}
             {/* Columns follow the panel's dragged width, the same way the Library
             tiles do; a separate control for the same thing is one knob too
             many. */}
@@ -339,19 +380,19 @@ export function ExamplesPanel({
                     </span>
                   </button>
                 ))
-              ) : localhostExamplesEnabled() ? (
+              ) : localhostExamplesEnabled() && feed.status !== "signed-out" ? (
                 <Suspense fallback={null}>
                   <LocalExamplesCards onOpenExample={onOpenExample} />
                 </Suspense>
               ) : null}
             </div>
-            {!showGallery && !localhostExamplesEnabled() ? (
+            {!showGallery &&
+            !localhostExamplesEnabled() &&
+            feed.status !== "signed-out" ? (
               <p className="examples-panel-empty">
-                {feed.status === "signed-out"
-                  ? "Sign in to browse the Community Gallery's circuits."
-                  : feed.status === "unavailable"
-                    ? "Gallery is unavailable. Try again later."
-                    : "No published circuits yet."}
+                {feed.status === "unavailable"
+                  ? "Gallery is unavailable. Try again later."
+                  : "No published circuits yet."}
               </p>
             ) : null}
             {/* Says "still looking" while pages remain, and only claims nothing

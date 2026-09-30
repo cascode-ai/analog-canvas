@@ -253,6 +253,18 @@ function socketUrl(sessionId: string): string {
   return url.toString();
 }
 
+/**
+ * Why a host operation threw, briefly, for the Agent's error message: a bare
+ * "failed" leaves an Agent nothing to report or work around.
+ */
+function hostFailureReason(error: unknown): string {
+  const reason = (error instanceof Error ? error.message : String(error))
+    .replace(/\s+/gu, " ")
+    .trim();
+  if (!reason) return "no reason given";
+  return reason.length > 240 ? `${reason.slice(0, 239)}…` : reason;
+}
+
 export function useAgentSession(
   input: UseAgentSessionOptions,
 ): UseAgentSessionResult {
@@ -865,7 +877,8 @@ export function useAgentSession(
               void target.fileHost
                 .handle(fileRequest.data)
                 .then(sendFileResponse)
-                .catch(() =>
+                .catch((error: unknown) => {
+                  console.error("Agent File request failed", error);
                   sendFileResponse({
                     apiVersion: AGENT_API_VERSION,
                     requestId: parsed.data.requestId,
@@ -873,11 +886,10 @@ export function useAgentSession(
                     ok: false,
                     error: {
                       code: "FILE_HOST_ERROR",
-                      message:
-                        "The File operation failed without revoking the session; inspect current state before retrying",
+                      message: `The File operation failed without revoking the session (${hostFailureReason(error)}); inspect current state before retrying`,
                     },
-                  }),
-                )
+                  });
+                })
                 .finally(() => {
                   if (isReadOnlyFileRequest(fileRequest.data))
                     live.requestHashes.delete(parsed.data.requestId);
@@ -951,7 +963,8 @@ export function useAgentSession(
               void target.simulationHost
                 .handle(simulationRequest.data)
                 .then(sendSimulationResponse)
-                .catch(() =>
+                .catch((error: unknown) => {
+                  console.error("Agent Simulation request failed", error);
                   sendSimulationResponse({
                     apiVersion: AGENT_API_VERSION,
                     requestId: parsed.data.requestId,
@@ -959,13 +972,12 @@ export function useAgentSession(
                     ok: false,
                     error: {
                       code: "SIMULATION_HOST_ERROR",
-                      message:
-                        "The operation failed without revoking the session",
+                      message: `The operation failed without revoking the session (${hostFailureReason(error)})`,
                       stage: "read",
                       recovery: "retry-after",
                     },
-                  }),
-                )
+                  });
+                })
                 .finally(() => {
                   if (isReadOnlySimulationRequest(simulationRequest.data))
                     live.requestHashes.delete(parsed.data.requestId);
@@ -1048,7 +1060,8 @@ export function useAgentSession(
               void target.projectHost
                 .handle(projectRequest.data)
                 .then(sendProjectResponse)
-                .catch(() =>
+                .catch((error: unknown) => {
+                  console.error("Agent Project request failed", error);
                   sendProjectResponse({
                     apiVersion: AGENT_API_VERSION,
                     requestId: parsed.data.requestId,
@@ -1056,12 +1069,11 @@ export function useAgentSession(
                     ok: false,
                     error: {
                       code: "PROJECT_HOST_ERROR",
-                      message:
-                        "The operation failed without revoking the Agent session",
+                      message: `The operation failed without revoking the Agent session (${hostFailureReason(error)})`,
                       recovery: "retry",
                     },
-                  }),
-                )
+                  });
+                })
                 .finally(() => {
                   if (isReadOnlyProjectRequest(projectRequest.data))
                     live.requestHashes.delete(parsed.data.requestId);

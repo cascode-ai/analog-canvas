@@ -236,42 +236,71 @@ describe("createBrowserRecoveryStore", () => {
     const deduped = await store.writeRecord(
       record({ recordId: "record-3", projectText: changedText }),
     );
-    expect(deduped).toEqual({ status: "unchanged" });
+    expect(deduped).toEqual({ status: "unchanged", overCapacity: false });
     const afterRepeat = await store.readAll();
     expect(firstSession(afterRepeat).latest?.recordId).toBe("record-2");
     expect(firstSession(afterRepeat).previous?.recordId).toBe("record-1");
   });
 
-  it("prunes the oldest inactive session when a third session appears", async () => {
+  it("keeps a third Project's copy, and one closed copy per Project", async () => {
     const { store } = freshStore();
+    const own = (
+      workingCopyId: string,
+      recordId: string,
+      updatedAt: string,
+    ) => {
+      const owned = createEmptyProject(`project-${workingCopyId}`, recordId);
+      return record({
+        workingCopyId,
+        recordId,
+        updatedAt,
+        projectId: owned.id,
+        projectName: owned.name,
+        topDocumentId: owned.topDocumentId,
+        projectText: serializeProject(owned),
+      });
+    };
     await store.writeRecord(
-      record({
-        workingCopyId: "copy-old",
-        recordId: "record-old",
-        updatedAt: "2026-08-14T08:00:00.000Z",
-      }),
+      own("copy-a", "record-a", "2026-08-14T08:00:00.000Z"),
     );
     await store.writeRecord(
-      record({
-        workingCopyId: "copy-mid",
-        recordId: "record-mid",
-        updatedAt: "2026-08-14T09:00:00.000Z",
-      }),
+      own("copy-b", "record-b", "2026-08-14T09:00:00.000Z"),
     );
     const third = await store.writeRecord(
-      record({
-        workingCopyId: "copy-new",
-        recordId: "record-new",
-        updatedAt: "2026-08-14T10:00:00.000Z",
-      }),
+      own("copy-c", "record-c", "2026-08-14T10:00:00.000Z"),
     );
-    expect(third).toMatchObject({
-      status: "stored",
-      deletedRecordIds: ["record-old"],
-    });
+    // Issue #1250: a third edited tab used to evict the first one's copy.
+    expect(third).toMatchObject({ status: "stored", deletedRecordIds: [] });
     const read = await store.readAll();
-    const ids = read.sessions.map((session) => session.workingCopyId).sort();
-    expect(ids).toEqual(["copy-mid", "copy-new"]);
+    expect(
+      read.sessions.map((session) => session.workingCopyId).sort(),
+    ).toEqual(["copy-a", "copy-b", "copy-c"]);
+    // A newer copy of copy-a's Project replaces the closed one, unless copy-a
+    // is still open in a tab.
+    const again = record({
+      workingCopyId: "copy-a2",
+      recordId: "record-a2",
+      updatedAt: "2026-08-14T11:00:00.000Z",
+      projectId: "project-copy-a",
+      projectName: "record-a",
+      topDocumentId: createEmptyProject("project-copy-a", "record-a")
+        .topDocumentId,
+      projectText: serializeProject(
+        createEmptyProject("project-copy-a", "record-a"),
+      ),
+    });
+    expect(await store.writeRecord(again, ["copy-a"])).toMatchObject({
+      status: "stored",
+      deletedRecordIds: [],
+    });
+    expect(
+      await store.writeRecord({
+        ...again,
+        recordId: "record-a3",
+        updatedAt: "2026-08-14T12:00:00.000Z",
+        projectText: `${again.projectText}\n`,
+      }),
+    ).toMatchObject({ status: "stored", deletedRecordIds: ["record-a"] });
   });
 
   it("rejects an oversized candidate without touching stored records", async () => {
@@ -449,11 +478,16 @@ describe("createBrowserRecoveryStore", () => {
         projectText: serializeProject(createEmptyProject("p", "v2")),
       }),
     );
+    const other = createEmptyProject("project-b", "Beta");
     await store.writeRecord(
       record({
         workingCopyId: "copy-b",
         recordId: "record-b1",
         updatedAt: "2026-08-14T10:02:00.000Z",
+        projectId: other.id,
+        projectName: other.name,
+        topDocumentId: other.topDocumentId,
+        projectText: serializeProject(other),
       }),
     );
     const one = await store.deleteRecord("record-a1");

@@ -372,7 +372,8 @@ describe("createRecoveryCoordinator", () => {
     harness.fire();
     await harness.settle();
     harness.coordinator.beginWorkingCopy("opened-file");
-    harness.coordinator.stage(projectB);
+    // Another Project: retention keeps one closed copy per Project.
+    harness.coordinator.stage(createEmptyProject("project-beta", "Beta"));
     await harness.coordinator.flushNow();
     await harness.coordinator.discover();
     expect(harness.sessions).toHaveLength(2);
