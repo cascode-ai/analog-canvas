@@ -41061,6 +41061,45 @@
                     "properties": {
                       "action": {
                         "type": "string",
+                        "const": "new"
+                      },
+                      "name": {
+                        "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema2"
+                      },
+                      "background": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "action"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "action": {
+                        "type": "string",
+                        "const": "rename"
+                      },
+                      "name": {
+                        "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema2"
+                      },
+                      "workspaceId": {
+                        "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema1"
+                      }
+                    },
+                    "required": [
+                      "action",
+                      "name"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "action": {
+                        "type": "string",
                         "const": "copy"
                       },
                       "sourceWorkspaceId": {
@@ -41311,7 +41350,7 @@
               "netlistFormat": {
                 "anyOf": [
                   {
-                    "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema2"
+                    "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema3"
                   },
                   {
                     "type": "null"
@@ -41319,10 +41358,17 @@
                 ]
               },
               "namingProfile": {
-                "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema3"
+                "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema4"
               },
               "portCase": {
-                "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema4"
+                "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema5"
+              },
+              "render": {
+                "type": "string",
+                "enum": [
+                  "svg",
+                  "png"
+                ]
               }
             },
             "required": [
@@ -41357,7 +41403,7 @@
               "netlistFormat": {
                 "anyOf": [
                   {
-                    "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema2"
+                    "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema3"
                   },
                   {
                     "type": "null"
@@ -41365,10 +41411,10 @@
                 ]
               },
               "namingProfile": {
-                "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema3"
+                "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema4"
               },
               "portCase": {
-                "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema4"
+                "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema5"
               }
             },
             "required": [
@@ -41414,7 +41460,7 @@
                 "const": "replace-project-code"
               },
               "projectCode": {
-                "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema5"
+                "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema6"
               },
               "expectedStructureRevision": {
                 "type": "integer",
@@ -41445,13 +41491,13 @@
                 "const": "read-netlist"
               },
               "format": {
-                "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema2"
-              },
-              "namingProfile": {
                 "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema3"
               },
-              "portCase": {
+              "namingProfile": {
                 "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema4"
+              },
+              "portCase": {
+                "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema5"
               },
               "rootDocumentId": {
                 "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema1"
@@ -41478,7 +41524,7 @@
                 "const": "replace-netlist"
               },
               "netlist": {
-                "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema5"
+                "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema6"
               },
               "expectedStructureRevision": {
                 "type": "integer",
@@ -41486,13 +41532,13 @@
                 "maximum": 9007199254740991
               },
               "format": {
-                "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema2"
-              },
-              "namingProfile": {
                 "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema3"
               },
-              "portCase": {
+              "namingProfile": {
                 "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema4"
+              },
+              "portCase": {
+                "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema5"
               },
               "rootDocumentId": {
                 "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema1"
@@ -41520,26 +41566,31 @@
           },
           "__schema2": {
             "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "__schema3": {
+            "type": "string",
             "enum": [
               "spice",
               "spectre"
             ]
           },
-          "__schema3": {
+          "__schema4": {
             "type": "string",
             "enum": [
               "native",
               "cadence-bang"
             ]
           },
-          "__schema4": {
+          "__schema5": {
             "type": "string",
             "enum": [
               "lower",
               "upper"
             ]
           },
-          "__schema5": {
+          "__schema6": {
             "type": "string",
             "maxLength": 2200000
           }
@@ -41661,7 +41712,9 @@
                         "type": "string",
                         "enum": [
                           "open",
-                          "activate"
+                          "activate",
+                          "new",
+                          "rename"
                         ]
                       },
                       "applied": {
@@ -42069,6 +42122,47 @@
               },
               "netlist": {
                 "$ref": "#/components/schemas/agentProjectResourceResponse/$defs/__schema6"
+              },
+              "figure": {
+                "type": "object",
+                "properties": {
+                  "documentId": {
+                    "$ref": "#/components/schemas/agentProjectResourceResponse/$defs/__schema1"
+                  },
+                  "mediaType": {
+                    "type": "string",
+                    "enum": [
+                      "image/svg+xml",
+                      "image/png"
+                    ]
+                  },
+                  "encoding": {
+                    "type": "string",
+                    "const": "base64"
+                  },
+                  "data": {
+                    "type": "string",
+                    "minLength": 4
+                  },
+                  "byteLength": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "sha256": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  }
+                },
+                "required": [
+                  "documentId",
+                  "mediaType",
+                  "encoding",
+                  "data",
+                  "byteLength",
+                  "sha256"
+                ],
+                "additionalProperties": false
               }
             },
             "required": [

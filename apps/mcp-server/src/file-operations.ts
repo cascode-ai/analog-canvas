@@ -128,6 +128,89 @@ export async function exportFile(
   };
 }
 
+async function workspaceIds(client: AgentSessionClient) {
+  const response = await client.projectResource({
+    apiVersion: AGENT_API_VERSION,
+    requestId: requestId(),
+    operation: "workspace",
+    request: { action: "list" },
+  });
+  return response.ok &&
+    response.operation === "workspace" &&
+    response.result.action === "list"
+    ? response.result
+    : null;
+}
+
+/**
+ * A Gallery entry as a new working copy in one call: its Project Code is
+ * staged and opened in memory, as `import_file` stages and opens a file.
+ */
+export async function openGalleryEntry(
+  client: AgentSessionClient,
+  galleryEntryId: string,
+  background: boolean,
+): Promise<Record<string, unknown>> {
+  const read = await client.projectResource({
+    apiVersion: AGENT_API_VERSION,
+    requestId: requestId(),
+    operation: "read-gallery-entry",
+    galleryEntryId,
+    netlistFormat: null,
+  });
+  if (!read.ok || read.operation !== "read-gallery-entry")
+    throw requestFailure(
+      read.ok ? "INVALID_RESPONSE" : read.error.code,
+      read.ok ? "unexpected Gallery response" : read.error.message,
+    );
+  const staged = await client.fileResource({
+    apiVersion: AGENT_API_VERSION,
+    requestId: requestId(),
+    operation: "stage",
+    kind: "project",
+    files: [
+      fileBlob(
+        `${galleryEntryId}.icproj.json`,
+        "application/json",
+        Buffer.from(read.projectCode, "utf8"),
+      ),
+    ],
+  });
+  if (!staged.ok || staged.operation !== "stage")
+    throw requestFailure(
+      staged.ok ? "INVALID_RESPONSE" : staged.error.code,
+      staged.ok ? "unexpected stage response" : staged.error.message,
+    );
+  const before = await workspaceIds(client);
+  const opened = await client.fileResource({
+    apiVersion: AGENT_API_VERSION,
+    requestId: requestId(),
+    operation: "open",
+    candidateId: staged.candidate.candidateId,
+    ...(background ? { background: true } : {}),
+  });
+  if (!opened.ok || opened.operation !== "open")
+    throw requestFailure(
+      opened.ok ? "INVALID_RESPONSE" : opened.error.code,
+      opened.ok ? "unexpected open response" : opened.error.message,
+    );
+  const after = await workspaceIds(client);
+  const known = new Set(
+    before?.projects.map((project) => project.workspaceId) ?? [],
+  );
+  const workspace = after?.projects.find(
+    (project) => !known.has(project.workspaceId),
+  );
+  return {
+    ok: true,
+    galleryEntryId,
+    name: read.entry.name,
+    workspaceId: workspace?.workspaceId ?? null,
+    activeWorkspaceId: after?.activeWorkspaceId ?? null,
+    background,
+  };
+}
+
 export async function importFile(
   client: AgentSessionClient,
   operation: ImportFileOperation,

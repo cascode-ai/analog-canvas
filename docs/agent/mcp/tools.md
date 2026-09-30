@@ -105,9 +105,13 @@ library-compatibility failures are recoverable and do not revoke the session.
 `project_cells` with `action:"workspace"` exposes `request.action`:
 `list` live Project tabs and Cell revisions; `activate` a tab; `open` a saved
 Cloud Project (use `background:true` to leave the human's tab selected);
-`save` (or `asNew:true`); `copy` a selection or whole Cell into
+`save` (or `asNew:true`); `new` a blank working copy, as the tab strip's **+**
+opens one, with an optional `name` and `background:true`; `rename` a working
+copy's Project (`name`, and `workspaceId`, defaulting to the bound copy) so
+`list` tells copies apart; `copy` a selection or whole Cell into
 an explicit live target and offset. Copy follows the same atomic, undoable GUI
-planner including dependencies. Live tab contents include unsaved work; the
+planner including dependencies. `new` and `rename` answer with the
+`workspaceId` they acted on. Live tab contents include unsaved work; the
 existing Cloud list/inspect/import actions read saved versions.
 
 To work on another open Project without selecting its tab, call `project_cells`
@@ -124,8 +128,11 @@ entry's complete canonical Project Code and, by default, its generated SPICE
 netlist. `read-many` accepts up to 12 listed IDs and reads them concurrently;
 continue any returned `remainingEntryIds` when the response-size guard stops a
 batch early. Select Spectre explicitly or pass `netlistFormat:null` when only
-the Project Code is needed. This reads the same public Gallery records as the
-UI; it does not copy them into the active Project.
+the Project Code is needed. `read` with `render:"svg"` or `"png"` also returns
+the top Cell's figure as an image, drawn by the same exporter as `export_file`.
+`open` opens an entry as a new working copy in one call (`background:true`
+leaves the human's tab selected) and returns its `workspaceId`; no local file
+is involved. Reading copies nothing into the active Project.
 
 Use `project_code` to read or replace the complete open Project. A replacement
 is parsed and committed through the same revision-guarded, undoable Project

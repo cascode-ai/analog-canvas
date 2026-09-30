@@ -37,6 +37,50 @@ export function entryResult(name: string, result: unknown) {
       ],
     };
   }
+  // A Gallery read with render: the figure as an image, the rest as text.
+  if (
+    name === "gallery_circuits" &&
+    !failed &&
+    result !== null &&
+    typeof result === "object" &&
+    "figure" in result &&
+    result.figure
+  ) {
+    const { figure, ...rest } = result as {
+      figure: {
+        documentId: string;
+        mediaType: string;
+        data: string;
+        byteLength: number;
+        sha256: string;
+      };
+    };
+    return {
+      content: [
+        {
+          type: "text" as const,
+          text: JSON.stringify(
+            {
+              ...rest,
+              figure: {
+                documentId: figure.documentId,
+                mediaType: figure.mediaType,
+                byteLength: figure.byteLength,
+                sha256: figure.sha256,
+              },
+            },
+            null,
+            2,
+          ),
+        },
+        {
+          type: "image" as const,
+          data: figure.data,
+          mimeType: figure.mediaType,
+        },
+      ],
+    };
+  }
   return textResult(result, failed);
 }
 

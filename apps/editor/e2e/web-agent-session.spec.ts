@@ -1486,6 +1486,78 @@ test("keeps pairing across Project tabs, rejects old writes and copies through t
     }),
   ).toMatchObject({ ok: false, error: { code: "WORKSPACE_NOT_FOUND" } });
   client.workspaceId = undefined;
+
+  // A blank scratch copy and a name for each copy, without the GUI.
+  const workspace = (
+    requestId: string,
+    request: Parameters<typeof client.projects>[2] extends infer Envelope
+      ? Envelope extends { operation: "workspace"; request: infer Action }
+        ? Action
+        : never
+      : never,
+  ) =>
+    // Read the current context first, as the Agent client does itself.
+    client.status(session.sessionId, session.agentToken).then(() =>
+      client.projects(session.sessionId, session.agentToken, {
+        apiVersion: "3.0",
+        requestId,
+        operation: "workspace",
+        request,
+      }),
+    );
+  const tabs = page.getByRole("tab");
+  const created = await workspace("workspace-new", {
+    action: "new",
+    name: "Scratch RC",
+    background: true,
+  });
+  if (
+    !created.ok ||
+    created.operation !== "workspace" ||
+    created.result.action !== "new"
+  )
+    throw new Error(JSON.stringify(created));
+  const scratch = created.result.workspaceId!;
+  await expect(tabs).toHaveCount(2);
+  // In the background: the human's tab stays selected.
+  await expect(tabs.first()).toHaveAttribute("aria-selected", "true");
+  await expect(tabs.last()).toContainText("Scratch RC");
+  expect(
+    await workspace("workspace-rename-background", {
+      action: "rename",
+      workspaceId: scratch,
+      name: "Telescopic redraw",
+    }),
+  ).toMatchObject({
+    ok: true,
+    result: { action: "rename", applied: true, workspaceId: scratch },
+  });
+  await expect(tabs.last()).toContainText("Telescopic redraw");
+  // The bound (here the active) copy is renamed as the Project menu does.
+  expect(
+    await workspace("workspace-rename-active", {
+      action: "rename",
+      name: "Differential pair",
+    }),
+  ).toMatchObject({ ok: true, result: { action: "rename", applied: true } });
+  await expect(page.getByTestId("project-menu-toggle")).toHaveAttribute(
+    "title",
+    "Differential pair",
+  );
+  const names = await workspace("workspace-names", { action: "list" });
+  if (
+    !names.ok ||
+    names.operation !== "workspace" ||
+    names.result.action !== "list"
+  )
+    throw new Error(JSON.stringify(names));
+  expect(names.result.projects.map((project) => project.name)).toEqual([
+    "Differential pair",
+    "Telescopic redraw",
+  ]);
+  expect(
+    await workspace("workspace-rename-blank", { action: "rename", name: " " }),
+  ).toMatchObject({ ok: false, error: { code: "INVALID_REQUEST" } });
 });
 
 test("rebinds circuit reads and writes after an already-used Claim opens another Project", async ({

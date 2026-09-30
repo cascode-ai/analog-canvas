@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AgentSessionClient } from "@icm/agent-client";
 import { FakeAgentHttp } from "../../../packages/agent-client/src/test-support/fake-relay.js";
-import { exportFile, importFile } from "./file-operations.js";
+import { exportFile, importFile, openGalleryEntry } from "./file-operations.js";
 
 const directories: string[] = [];
 
@@ -181,5 +181,107 @@ describe("MCP file operations", () => {
     ]);
     expect((await client.status()).documentIds).toEqual(["imported-document"]);
     expect(http.claims).toHaveLength(1);
+  });
+
+  it("opens a Gallery entry as a working copy in one call, with no local file", async () => {
+    const projectCode = '{"schemaVersion":1,"name":"Telescopic"}';
+    let open = false;
+    const http = new FakeAgentHttp({
+      projects: (request) =>
+        request.operation === "read-gallery-entry"
+          ? {
+              apiVersion: "3.0",
+              requestId: request.requestId,
+              operation: "read-gallery-entry",
+              ok: true,
+              entry: {
+                id: "296p9s5vn2",
+                name: "Telescopic op amp",
+                author: "",
+                description: "",
+                createdAt: "",
+                schemaVersion: 1,
+                tags: [],
+              },
+              projectCode,
+              netlist: null,
+            }
+          : {
+              apiVersion: "3.0",
+              requestId: request.requestId,
+              operation: "workspace",
+              ok: true,
+              result: {
+                action: "list",
+                activeWorkspaceId: "tab-1",
+                projects: ["tab-1", ...(open ? ["tab-2"] : [])].map(
+                  (workspaceId) => ({
+                    workspaceId,
+                    projectId: workspaceId,
+                    name: "Project",
+                    cloudProjectId: null,
+                    dirty: false,
+                    structureRevision: 0,
+                    cells: [],
+                  }),
+                ),
+              },
+            },
+      files: (request) => {
+        if (request.operation === "open") open = true;
+        return request.operation === "stage"
+          ? {
+              apiVersion: "3.0",
+              requestId: request.requestId,
+              operation: "stage",
+              ok: true,
+              candidate: {
+                candidateId: "candidate-1",
+                kind: "project",
+                expiresAt: "2026-09-30T00:00:00.000Z",
+                projectName: "Telescopic op amp",
+                documentCount: 1,
+                instanceCount: 8,
+                documents: [],
+                diagnostics: [],
+              },
+            }
+          : {
+              apiVersion: "3.0",
+              requestId: request.requestId,
+              operation: "open",
+              ok: true,
+            };
+      },
+    });
+    const client = new AgentSessionClient({ http });
+    await client.connect("session-1.code");
+    expect(await openGalleryEntry(client, "296p9s5vn2", true)).toEqual({
+      ok: true,
+      galleryEntryId: "296p9s5vn2",
+      name: "Telescopic op amp",
+      workspaceId: "tab-2",
+      activeWorkspaceId: "tab-1",
+      background: true,
+    });
+    // The Project Code went from the Gallery read to the stage in memory.
+    const [stage, opened] = http.fileCalls;
+    expect(stage).toMatchObject({ operation: "stage", kind: "project" });
+    if (stage?.operation !== "stage") throw new Error("not staged");
+    expect(Buffer.from(stage.files[0]!.data, "base64").toString("utf8")).toBe(
+      projectCode,
+    );
+    expect(stage.files[0]!.sha256).toBe(
+      createHash("sha256").update(projectCode).digest("hex"),
+    );
+    expect(opened).toMatchObject({
+      operation: "open",
+      candidateId: "candidate-1",
+      background: true,
+    });
+    expect(http.projectCalls[0]).toMatchObject({
+      operation: "read-gallery-entry",
+      netlistFormat: null,
+    });
   });
 });

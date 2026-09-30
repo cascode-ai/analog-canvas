@@ -46,7 +46,7 @@ import {
   searchSnapshot,
   type SearchKind,
 } from "./results.js";
-import { exportFile, importFile } from "./file-operations.js";
+import { exportFile, importFile, openGalleryEntry } from "./file-operations.js";
 import { compactSchema } from "./compact-schema.js";
 import { waitForSimulation } from "./simulation-wait.js";
 import {
@@ -143,6 +143,15 @@ const GalleryCircuitsArgs = z.discriminatedUnion("action", [
     netlistFormat: z.enum(["spice", "spectre"]).nullable().optional(),
     namingProfile: z.enum(["native", "cadence-bang"]).optional(),
     portCase: z.enum(["lower", "upper"]).optional(),
+    render: z
+      .enum(["svg", "png"])
+      .optional()
+      .describe("Also return the top Cell's figure as an image."),
+  }),
+  z.strictObject({
+    action: z.literal("open"),
+    galleryEntryId: z.string().min(1),
+    background: z.boolean().optional(),
   }),
   z.strictObject({
     action: z.literal("read-many"),
@@ -661,6 +670,12 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
           ...(parsed.limit === undefined ? {} : { limit: parsed.limit }),
         });
       }
+      if (parsed.action === "open")
+        return openGalleryEntry(
+          session.client,
+          parsed.galleryEntryId,
+          parsed.background === true,
+        );
       const common = {
         apiVersion: AGENT_API_VERSION,
         requestId: crypto.randomUUID(),
@@ -677,6 +692,7 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
             ...common,
             operation: "read-gallery-entry",
             galleryEntryId: parsed.galleryEntryId,
+            ...(parsed.render ? { render: parsed.render } : {}),
           })
         : session.client.projectResource({
             ...common,
