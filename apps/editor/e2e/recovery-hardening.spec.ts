@@ -4,7 +4,6 @@ import type { Page } from "@playwright/test";
 import { WORKING_COPY_STORAGE_KEY } from "../src/document/recovery-coordinator";
 import {
   chooseComponent,
-  openMenu,
   readRecoveryRecords,
   recoveryProjectTexts,
 } from "./editor-fixtures.js";
@@ -40,7 +39,14 @@ async function restoreThroughDialog(
   page: Page,
   cardText: string,
 ): Promise<void> {
-  const fileMenu = await openMenu(page, "File");
+  const fileMenu = await page
+    .locator("summary")
+    .filter({ hasText: "File" })
+    .filter({ hasText: /^File$/u })
+    .locator("..");
+  if ((await fileMenu.getAttribute("open")) === null) {
+    await fileMenu.locator("summary").click();
+  }
   await fileMenu.getByRole("button", { name: "Recover Unsaved Work…" }).click();
   const dialog = page.getByRole("dialog", { name: "Recover recent work" });
   await expect(dialog).toBeVisible();

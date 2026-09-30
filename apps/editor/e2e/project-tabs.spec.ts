@@ -703,21 +703,14 @@ test("Project menu keeps long names out of the header and switches checked proje
   await name.fill(longName);
   await name.press("Enter");
   await expect(menu).toBeHidden();
-  // The header's menu is named for the project, cut short with an
-  // ellipsis; the whole name stays in its title and in the menu.
   await expect(toggle).toHaveAttribute("title", longName);
+  await expect(toggle).not.toContainText(longName);
   for (const width of [1360, 720]) {
     await page.setViewportSize({ width, height: 900 });
     const brand = (await page.locator(".gallery-home-link").boundingBox())!;
     const trigger = (await toggle.boundingBox())!;
     expect(trigger.x).toBeGreaterThanOrEqual(brand.x + brand.width);
-    expect(trigger.width).toBeLessThanOrEqual(Math.min(288, width * 0.34) + 1);
-    const title = toggle.locator(".project-menu-title");
-    expect(
-      await title.evaluate(
-        (element) => element.scrollWidth > element.clientWidth,
-      ),
-    ).toBe(true);
+    expect(trigger.width).toBeLessThan(120);
     await toggle.click();
     await expect(name).toHaveValue(longName);
     const bounds = (await menu.boundingBox())!;

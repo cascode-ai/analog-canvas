@@ -62,24 +62,16 @@ export async function awaitRecoveryStoreReady(page: Page): Promise<void> {
   });
 }
 
-/**
- * Open one group of editor commands (File, Edit, Hierarchy, Netlist). They
- * are groups inside the header's one menu, named for the project.
- */
 export async function openMenu(page: Page, name: string): Promise<Locator> {
-  const menu = page.getByTestId("project-menu");
-  if ((await menu.getAttribute("open")) === null)
-    await page.getByTestId("project-menu-toggle").click();
-  return menu.getByRole("group", { name, exact: true });
-}
-
-/** Open the Cell Manager from the header's menu. */
-export async function openCellManager(page: Page): Promise<void> {
-  await (
-    await openMenu(page, "Hierarchy")
-  )
-    .getByTestId("hierarchy-entry")
-    .click();
+  const summary =
+    name === "Netlist"
+      ? page.locator('summary[aria-label="Netlist"]')
+      : page.locator("summary", { hasText: name }).filter({
+          hasText: new RegExp(`^${name}$`, "u"),
+        });
+  const details = summary.locator("..");
+  if ((await details.getAttribute("open")) === null) await summary.click();
+  return details;
 }
 
 export async function clickCommand(

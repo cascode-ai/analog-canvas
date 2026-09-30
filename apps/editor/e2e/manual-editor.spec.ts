@@ -23,7 +23,6 @@ import {
   openMenu,
   readRecoveryRecords,
   recoveryProjectTexts,
-  openCellManager,
 } from "./editor-fixtures.js";
 import {
   placeComponent,
@@ -5247,10 +5246,16 @@ test("keeps the production command surface compact and publishes PWA metadata", 
   page,
 }) => {
   await page.goto("/editor");
-  // The command row holds actions only; every menu of commands is a group
-  // in the header's one menu, named for the project.
   const toolbar = page.getByRole("navigation", { name: "Editor commands" });
-  await expect(toolbar.locator("summary")).toHaveCount(0);
+  for (const label of ["File", "Edit"]) {
+    await expect(toolbar.locator("summary", { hasText: label })).toBeVisible();
+  }
+  await expect(
+    toolbar.locator("summary").filter({ hasText: /^Run$/u }),
+  ).toHaveCount(0);
+  const netlistSummary = toolbar.locator('summary[aria-label="Netlist"]');
+  await expect(netlistSummary).toContainText("Netlist");
+  await expect(toolbar.getByTestId("copy-netlist")).toBeHidden();
   await expect(toolbar.getByTestId("open-analog-simulation")).toBeVisible();
   await expect(toolbar.getByTestId("open-agent")).toBeVisible();
   await expect(toolbar.getByTestId("publish-gallery-button")).toBeVisible();
@@ -5266,15 +5271,12 @@ test("keeps the production command surface compact and publishes PWA metadata", 
   const resting = await fill();
   await publish.hover();
   expect(await fill()).toBe(resting);
-  await expect(page.getByTestId("copy-netlist")).toBeHidden();
   await expect(page.getByTestId("check-and-save")).toBeHidden();
-  const netlist = await openMenu(page, "Netlist");
-  await expect(netlist.getByTestId("copy-netlist")).toBeVisible();
-  for (const group of ["File", "Edit", "Hierarchy"])
-    await expect(await openMenu(page, group)).toBeVisible();
-  await expect(page.getByTestId("check-and-save")).toBeVisible();
-  await page.getByTestId("project-menu-toggle").click();
-  await expect(page.getByTestId("copy-netlist")).toBeHidden();
+  await netlistSummary.click();
+  await expect(toolbar.getByTestId("copy-netlist")).toBeVisible();
+  await expect(page.getByTestId("open-analog-simulation")).toBeVisible();
+  await expect(page.getByTestId("check-and-save")).toBeHidden();
+  await netlistSummary.click();
   await clickNetlistWorkflowCommand(page, "open-analog-simulation");
   await expect(
     page.getByRole("region", { name: "Analog simulation" }),
@@ -5342,7 +5344,7 @@ test("does not expose destructive Cell reset actions in Manager", async ({
 }) => {
   await page.goto("/editor");
   await placeComponent(page, "resistor", { x: 320, y: 240 });
-  await openCellManager(page);
+  await page.getByTestId("hierarchy-entry").click();
   const manager = page.getByRole("dialog", { name: "Cell Manager" });
   for (const name of [
     "Reset Cell",
@@ -5449,20 +5451,18 @@ test("dismisses a command menu on outside click or Escape", async ({
   page,
 }) => {
   await page.goto("/editor");
-  // The File commands are a group in the header's one menu.
-  const menu = page.getByTestId("project-menu");
-  await openMenu(page, "File");
-  await expect(menu).toHaveAttribute("open", "");
+  const fileMenu = await openMenu(page, "File");
+  await expect(fileMenu).toHaveAttribute("open", "");
 
   // A blank canvas click dismisses the menu without navigating away.
   await page
     .getByTestId("schematic-canvas")
     .click({ position: { x: 400, y: 300 } });
-  await expect(menu).not.toHaveAttribute("open", "");
+  await expect(fileMenu).not.toHaveAttribute("open", "");
 
   await openMenu(page, "File");
   await page.keyboard.press("Escape");
-  await expect(menu).not.toHaveAttribute("open", "");
+  await expect(fileMenu).not.toHaveAttribute("open", "");
 });
 
 test("selecting an object does not change canvas width", async ({ page }) => {

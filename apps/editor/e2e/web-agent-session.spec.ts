@@ -15,7 +15,6 @@ import {
   readComponentPropertyCode,
   setComponentParameter,
   placeText,
-  openCellManager,
 } from "./editor-fixtures.js";
 
 // The live-host cases open relay sockets and one test starts a sibling Vite
@@ -1960,7 +1959,7 @@ test("keeps one Project session through Cell switches and preserves an acknowled
   await expect(panel.getByTestId("agent-status")).toHaveText("Connected");
   await panel.getByRole("button", { name: "Close Agent dialog" }).click();
 
-  await openCellManager(page);
+  await page.getByTestId("hierarchy-entry").click();
   let manager = page.getByRole("dialog", { name: "Cell Manager" });
   await manager.getByRole("button", { name: "New Cell" }).click();
   const cellEditor = page.getByRole("dialog", { name: "New Cell" });
@@ -1971,13 +1970,13 @@ test("keeps one Project session through Cell switches and preserves an acknowled
     .innerText();
   expect(childDocumentId).not.toBe(topDocumentId);
 
-  await openCellManager(page);
+  await page.getByTestId("hierarchy-entry").click();
   manager = page.getByRole("dialog", { name: "Cell Manager" });
   await manager
     .locator(".cell-manager-list-item")
     .filter({ hasText: /Top/u })
     .dblclick();
-  await openCellManager(page);
+  await page.getByTestId("hierarchy-entry").click();
   manager = page.getByRole("dialog", { name: "Cell Manager" });
   await manager
     .locator(".cell-manager-list-item")
@@ -2001,7 +2000,7 @@ test("keeps one Project session through Cell switches and preserves an acknowled
     }),
   ).toMatchObject({ ok: true, revision: 0 });
 
-  await openCellManager(page);
+  await page.getByTestId("hierarchy-entry").click();
   manager = page.getByRole("dialog", { name: "Cell Manager" });
   await manager
     .locator(".cell-manager-list-item")

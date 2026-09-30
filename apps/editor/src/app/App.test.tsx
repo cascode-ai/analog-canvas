@@ -114,27 +114,12 @@ describe("editor shell", () => {
     expect(markup).toContain('data-testid="hierarchy-entry"');
     expect(markup).not.toContain('data-testid="edit-manage-cells"');
     expect(markup).not.toContain('data-testid="cell-command-menu"');
-    expect(markup).toContain(">Cell Manager…</button>");
+    expect(markup).toContain(">Hierarchy</button>");
     expect(markup).toContain("Project name");
     expect(markup).toContain("Current Cell");
     expect(markup).toContain("Edit Device Data…");
-    // One header menu, named for the project, holds every command group;
-    // the command row keeps only actions.
-    const projectMenuStart = markup.indexOf('data-testid="project-menu"');
-    const projectMenu = markup.slice(
-      projectMenuStart,
-      markup.indexOf("</details>", projectMenuStart),
-    );
-    for (const group of ["File", "Edit", "Hierarchy", "Netlist"])
-      expect(projectMenu).toContain(`role="group" aria-label="${group}"`);
-    const commandRow = markup.slice(
-      markup.indexOf('aria-label="Editor commands"'),
-      markup.indexOf("</nav>"),
-    );
-    expect(commandRow).not.toContain("<summary");
-    expect(commandRow).toContain('data-testid="publish-gallery-button"');
     const netlistStart = markup.indexOf('aria-label="Netlist"');
-    const netlistEnd = markup.indexOf("</div>", netlistStart);
+    const netlistEnd = markup.indexOf("</details>", netlistStart);
     const netlistMenu = markup.slice(netlistStart, netlistEnd);
     expect(netlistStart).toBeGreaterThan(-1);
     expect(netlistMenu).toContain("Copy Netlist");
@@ -215,9 +200,7 @@ describe("editor shell", () => {
     expect(markup).toContain('data-testid="editor-report-bug"');
     expect(markup).toContain("Report bug");
     expect(markup).toContain('data-testid="editor-repository-link"');
-    expect(markup).toContain("GitHub repository</a>");
-    // Report bug, GitHub and the credit share one ⋯ beside the account.
-    expect(markup).toContain('data-testid="app-more-menu"');
+    expect(markup).toContain('aria-label="GitHub repository"');
     expect(markup).toContain(
       'href="https://github.com/cascode-ai/analog-canvas"',
     );

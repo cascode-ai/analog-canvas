@@ -134,11 +134,7 @@ for (const { width, height } of [
       ),
     ).toBe(true);
 
-    // The File commands are a group in the header's one menu, which fits the
-    // window and scrolls within it.
-    const popover = page
-      .getByTestId("project-menu")
-      .locator(".project-menu-popover");
+    const popover = fileMenu.locator(".file-command-popover");
     const bounds = await popover.boundingBox();
     expect(bounds).not.toBeNull();
     expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(height - 6);
@@ -150,9 +146,7 @@ for (const { width, height } of [
       name: "Export",
       exact: true,
     });
-    await importTrigger.scrollIntoViewIfNeeded();
     await expect(importTrigger).toBeInViewport();
-    await exportTrigger.scrollIntoViewIfNeeded();
     await expect(exportTrigger).toBeInViewport();
     await importTrigger.click();
     const importOption = fileMenu.getByText("SPICE / SCS…");
@@ -171,7 +165,6 @@ for (const { width, height } of [
       width - 6,
     );
 
-    await list.scrollIntoViewIfNeeded();
     await list.hover();
     await page.mouse.wheel(0, 1200);
     await expect
@@ -192,7 +185,6 @@ for (const { width, height } of [
     const keep = fileMenu.getByRole("button", { name: "Keep it" });
     await expect(keep).toBeInViewport();
     await keep.click();
-    await exportTrigger.scrollIntoViewIfNeeded();
     await expect(exportTrigger).toBeInViewport();
   });
 }
@@ -204,9 +196,7 @@ test("File menu falls back to one scroll area in a short viewport", async ({
   await mockFullCloudProjectList(page);
   await page.goto("/editor");
   const fileMenu = await openMenu(page, "File");
-  const popover = page
-    .getByTestId("project-menu")
-    .locator(".project-menu-popover");
+  const popover = fileMenu.locator(".file-command-popover");
   await expect
     .poll(() =>
       popover.evaluate(

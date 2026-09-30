@@ -57,11 +57,6 @@ export interface FileCommandMenuProps {
   onExportRaster: (format: "png" | "pdf") => void;
   onRevert: () => void;
   onOpenRecovery: () => void;
-  /**
-   * Drawn as the File group inside another menu (the header's project
-   * menu), which refreshes the lists when it opens, not as a menu of its own.
-   */
-  embedded?: boolean;
 }
 
 function CommandSubmenu({
@@ -82,9 +77,7 @@ function CommandSubmenu({
   const trigger = useRef<HTMLButtonElement>(null);
   const options = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
-    const menu = options.current?.closest<HTMLElement>(
-      ".file-command-popover, .project-menu-popover",
-    );
+    const menu = options.current?.closest<HTMLElement>(".file-command-popover");
     if (!open || !menu || getComputedStyle(menu).overflowY !== "auto") return;
     const bottom = options.current!.getBoundingClientRect().bottom;
     menu.scrollTop += Math.max(0, bottom - menu.getBoundingClientRect().bottom);
@@ -163,7 +156,6 @@ export function FileCommandMenu({
   onExportRaster,
   onRevert,
   onOpenRecovery,
-  embedded = false,
 }: FileCommandMenuProps) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [openSubmenu, setOpenSubmenu] = useState<"import" | "export" | null>(
@@ -192,217 +184,6 @@ export function FileCommandMenu({
     event.preventDefault();
     event.currentTarget.querySelector("input")?.click();
   };
-  const commands = (
-    <>
-      <button type="button" onClick={onNewProject}>
-        New Project
-      </button>
-      <button
-        type="button"
-        data-testid="save-cloud-project"
-        onClick={onSave}
-        disabled={nativeFiles?.busy}
-      >
-        {cloudEnabled || nativeFiles ? "Save" : "Export Project File…"}
-      </button>
-      {nativeFiles && NativeFileCommands ? (
-        <NativeFileCommands {...nativeFiles} />
-      ) : null}
-      {cloudEnabled ? (
-        <>
-          <button
-            type="button"
-            data-testid="check-and-save"
-            disabled={!checkAndSave.enabled}
-            onClick={checkAndSave.execute}
-            title="Check ERC and visual issues, and save this Cloud Project"
-          >
-            Check and Save
-          </button>
-          <span className="command-group-label" id="file-cloud-projects-label">
-            Cloud Projects ({cloudProjects.length}/{CLOUD_PROJECT_LIMIT})
-          </span>
-          <div
-            ref={cloudProjectList}
-            className="cloud-project-list"
-            role="region"
-            aria-labelledby="file-cloud-projects-label"
-            tabIndex={cloudProjects.length ? 0 : undefined}
-            data-testid="file-cloud-project-list"
-          >
-            {cloudProjects.map((project) => (
-              <div className="cloud-project-command" key={project.id}>
-                <button
-                  type="button"
-                  className="cloud-project-open"
-                  data-testid={`cloud-project-${project.id}`}
-                  title={`Open revision ${project.revision}`}
-                  disabled={project.id === activeCloudProjectId}
-                  onClick={() => onOpenCloudProject(project)}
-                >
-                  <span className="cloud-project-name">{project.name}</span>
-                  <time
-                    className="cloud-project-time"
-                    dateTime={project.updatedAt}
-                  >
-                    {new Date(project.updatedAt).toLocaleString(undefined, {
-                      dateStyle: "short",
-                      timeStyle: "short",
-                    })}
-                  </time>
-                </button>
-                <Suspense fallback={<button disabled>Delete</button>}>
-                  <InlineConfirm
-                    aria-label={`Delete Cloud Project ${project.name}`}
-                    title="Delete this Cloud Project"
-                    disabled={project.id === activeCloudProjectId}
-                    open={deletingId === project.id}
-                    onOpenChange={(open) => {
-                      if (open) setOpenSubmenu(null);
-                      setDeletingId((current) =>
-                        open
-                          ? project.id
-                          : current === project.id
-                            ? null
-                            : current,
-                      );
-                    }}
-                    onConfirm={() => onDeleteCloudProject(project)}
-                  >
-                    Delete
-                  </InlineConfirm>
-                </Suspense>
-              </div>
-            ))}
-          </div>
-        </>
-      ) : null}
-      <div>
-        <CommandSubmenu
-          id="file-import-options"
-          title="Import"
-          open={openSubmenu === "import"}
-          onToggle={() => {
-            setDeletingId(null);
-            setOpenSubmenu((current) =>
-              current === "import" ? null : "import",
-            );
-          }}
-          onClose={() => setOpenSubmenu(null)}
-        >
-          <label
-            className="file-import"
-            tabIndex={0}
-            onKeyDown={activateFileLabel}
-          >
-            Project File…
-            <input
-              ref={projectInputRef}
-              data-testid="project-file"
-              type="file"
-              accept=".json,.icproj.json,application/json"
-              onChange={(event) =>
-                onImportProject(event.currentTarget.files?.[0] ?? null)
-              }
-            />
-          </label>
-          <label
-            className="file-import"
-            tabIndex={0}
-            onKeyDown={activateFileLabel}
-          >
-            SPICE / SCS…
-            <input
-              data-testid="spice-files"
-              type="file"
-              accept=".spi,.cir,.sp,.scs,.inc,.lib"
-              multiple
-              onChange={(event) => onImportSpice(event.currentTarget.files)}
-            />
-          </label>
-          <label
-            className="file-import"
-            tabIndex={0}
-            onKeyDown={activateFileLabel}
-          >
-            Cadence SPICE (`!` globals)…
-            <input
-              data-testid="cadence-spice-files"
-              type="file"
-              accept=".spi,.cir,.sp,.scs,.inc,.lib"
-              multiple
-              onChange={(event) =>
-                onImportSpice(event.currentTarget.files, "cadence-bang")
-              }
-            />
-          </label>
-        </CommandSubmenu>
-      </div>
-      <div>
-        <CommandSubmenu
-          id="file-export-options"
-          title="Export"
-          open={openSubmenu === "export"}
-          onToggle={() => {
-            setDeletingId(null);
-            setOpenSubmenu((current) =>
-              current === "export" ? null : "export",
-            );
-          }}
-          onClose={() => setOpenSubmenu(null)}
-        >
-          <button
-            type="button"
-            aria-label="Export Project File…"
-            onClick={onExportProject}
-          >
-            Project File…
-          </button>
-          <button type="button" aria-label="Export SVG" onClick={onExportSvg}>
-            Drawing as SVG
-          </button>
-          <button
-            type="button"
-            aria-label="Export PNG"
-            onClick={() => onExportRaster("png")}
-          >
-            Drawing as PNG
-          </button>
-          <button
-            type="button"
-            aria-label="Export PDF"
-            onClick={() => onExportRaster("pdf")}
-          >
-            Drawing as PDF
-          </button>
-        </CommandSubmenu>
-      </div>
-      {canRevert ? (
-        <button type="button" onClick={onRevert}>
-          Revert to Last Saved
-        </button>
-      ) : null}
-      {hasRecoverySessions ? (
-        <button type="button" onClick={onOpenRecovery}>
-          Recover Unsaved Work…
-        </button>
-      ) : null}
-    </>
-  );
-  if (embedded)
-    return (
-      <div
-        className="command-section"
-        role="group"
-        aria-label="File"
-        data-inline-confirm-menu
-      >
-        <span className="command-section-title" aria-hidden="true">
-          File
-        </span>
-        {commands}
-      </div>
-    );
   return (
     <details
       className="command-menu"
@@ -418,7 +199,202 @@ export function FileCommandMenu({
         className="command-popover file-command-popover"
         data-inline-confirm-menu
       >
-        {commands}
+        <button type="button" onClick={onNewProject}>
+          New Project
+        </button>
+        <button
+          type="button"
+          data-testid="save-cloud-project"
+          onClick={onSave}
+          disabled={nativeFiles?.busy}
+        >
+          {cloudEnabled || nativeFiles ? "Save" : "Export Project File…"}
+        </button>
+        {nativeFiles && NativeFileCommands ? (
+          <NativeFileCommands {...nativeFiles} />
+        ) : null}
+        {cloudEnabled ? (
+          <>
+            <button
+              type="button"
+              data-testid="check-and-save"
+              disabled={!checkAndSave.enabled}
+              onClick={checkAndSave.execute}
+              title="Check ERC and visual issues, and save this Cloud Project"
+            >
+              Check and Save
+            </button>
+            <span
+              className="command-group-label"
+              id="file-cloud-projects-label"
+            >
+              Cloud Projects ({cloudProjects.length}/{CLOUD_PROJECT_LIMIT})
+            </span>
+            <div
+              ref={cloudProjectList}
+              className="cloud-project-list"
+              role="region"
+              aria-labelledby="file-cloud-projects-label"
+              tabIndex={cloudProjects.length ? 0 : undefined}
+              data-testid="file-cloud-project-list"
+            >
+              {cloudProjects.map((project) => (
+                <div className="cloud-project-command" key={project.id}>
+                  <button
+                    type="button"
+                    className="cloud-project-open"
+                    data-testid={`cloud-project-${project.id}`}
+                    title={`Open revision ${project.revision}`}
+                    disabled={project.id === activeCloudProjectId}
+                    onClick={() => onOpenCloudProject(project)}
+                  >
+                    <span className="cloud-project-name">{project.name}</span>
+                    <time
+                      className="cloud-project-time"
+                      dateTime={project.updatedAt}
+                    >
+                      {new Date(project.updatedAt).toLocaleString(undefined, {
+                        dateStyle: "short",
+                        timeStyle: "short",
+                      })}
+                    </time>
+                  </button>
+                  <Suspense fallback={<button disabled>Delete</button>}>
+                    <InlineConfirm
+                      aria-label={`Delete Cloud Project ${project.name}`}
+                      title="Delete this Cloud Project"
+                      disabled={project.id === activeCloudProjectId}
+                      open={deletingId === project.id}
+                      onOpenChange={(open) => {
+                        if (open) setOpenSubmenu(null);
+                        setDeletingId((current) =>
+                          open
+                            ? project.id
+                            : current === project.id
+                              ? null
+                              : current,
+                        );
+                      }}
+                      onConfirm={() => onDeleteCloudProject(project)}
+                    >
+                      Delete
+                    </InlineConfirm>
+                  </Suspense>
+                </div>
+              ))}
+            </div>
+          </>
+        ) : null}
+        <div>
+          <CommandSubmenu
+            id="file-import-options"
+            title="Import"
+            open={openSubmenu === "import"}
+            onToggle={() => {
+              setDeletingId(null);
+              setOpenSubmenu((current) =>
+                current === "import" ? null : "import",
+              );
+            }}
+            onClose={() => setOpenSubmenu(null)}
+          >
+            <label
+              className="file-import"
+              tabIndex={0}
+              onKeyDown={activateFileLabel}
+            >
+              Project File…
+              <input
+                ref={projectInputRef}
+                data-testid="project-file"
+                type="file"
+                accept=".json,.icproj.json,application/json"
+                onChange={(event) =>
+                  onImportProject(event.currentTarget.files?.[0] ?? null)
+                }
+              />
+            </label>
+            <label
+              className="file-import"
+              tabIndex={0}
+              onKeyDown={activateFileLabel}
+            >
+              SPICE / SCS…
+              <input
+                data-testid="spice-files"
+                type="file"
+                accept=".spi,.cir,.sp,.scs,.inc,.lib"
+                multiple
+                onChange={(event) => onImportSpice(event.currentTarget.files)}
+              />
+            </label>
+            <label
+              className="file-import"
+              tabIndex={0}
+              onKeyDown={activateFileLabel}
+            >
+              Cadence SPICE (`!` globals)…
+              <input
+                data-testid="cadence-spice-files"
+                type="file"
+                accept=".spi,.cir,.sp,.scs,.inc,.lib"
+                multiple
+                onChange={(event) =>
+                  onImportSpice(event.currentTarget.files, "cadence-bang")
+                }
+              />
+            </label>
+          </CommandSubmenu>
+        </div>
+        <div>
+          <CommandSubmenu
+            id="file-export-options"
+            title="Export"
+            open={openSubmenu === "export"}
+            onToggle={() => {
+              setDeletingId(null);
+              setOpenSubmenu((current) =>
+                current === "export" ? null : "export",
+              );
+            }}
+            onClose={() => setOpenSubmenu(null)}
+          >
+            <button
+              type="button"
+              aria-label="Export Project File…"
+              onClick={onExportProject}
+            >
+              Project File…
+            </button>
+            <button type="button" aria-label="Export SVG" onClick={onExportSvg}>
+              Drawing as SVG
+            </button>
+            <button
+              type="button"
+              aria-label="Export PNG"
+              onClick={() => onExportRaster("png")}
+            >
+              Drawing as PNG
+            </button>
+            <button
+              type="button"
+              aria-label="Export PDF"
+              onClick={() => onExportRaster("pdf")}
+            >
+              Drawing as PDF
+            </button>
+          </CommandSubmenu>
+        </div>
+        {canRevert ? (
+          <button type="button" onClick={onRevert}>
+            Revert to Last Saved
+          </button>
+        ) : null}
+        {hasRecoverySessions ? (
+          <button type="button" onClick={onOpenRecovery}>
+            Recover Unsaved Work…
+          </button>
+        ) : null}
       </div>
     </details>
   );

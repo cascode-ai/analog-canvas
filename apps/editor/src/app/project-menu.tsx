@@ -1,6 +1,4 @@
-import { useRef, type KeyboardEvent, type ReactNode } from "react";
-
-import { dismissOpenCommandMenus } from "./editor-runtime-helpers";
+import { useRef, type KeyboardEvent } from "react";
 
 export interface ProjectMenuProps {
   name: string;
@@ -17,15 +15,9 @@ export interface ProjectMenuProps {
     busy: boolean;
     onSelect(id: string): void;
   };
-  /**
-   * The editor's commands, one labelled group each (File, Edit, Hierarchy,
-   * Netlist): the header keeps one menu instead of a row of them.
-   */
-  children?: ReactNode;
-  onOpen?(): void;
 }
 
-/** The project's name as the header's one menu; its details and commands live inside. */
+/** Fixed-size header entrance; full names and publication context live inside. */
 export function ProjectMenu({
   name,
   nameDraft,
@@ -36,8 +28,6 @@ export function ProjectMenu({
   onNameCommit,
   onNameCancel,
   projects,
-  children,
-  onOpen,
 }: ProjectMenuProps) {
   const menu = useRef<HTMLDetailsElement>(null);
   const cancelNameOnBlur = useRef(false);
@@ -75,12 +65,13 @@ export function ProjectMenu({
       onKeyDown={(event) => {
         if (event.key === "Escape") close();
       }}
-      onToggle={(event) => {
-        if (event.currentTarget.open) onOpen?.();
-      }}
     >
-      <summary title={name} data-testid="project-menu-toggle">
-        <span className="project-menu-title">{name}</span>
+      <summary
+        aria-label="Project"
+        title={name}
+        data-testid="project-menu-toggle"
+      >
+        Project
         {dirty ? (
           <span
             className="project-unsaved-indicator"
@@ -184,20 +175,6 @@ export function ProjectMenu({
               </div>
             ) : null}
           </dl>
-        ) : null}
-        {children ? (
-          <div
-            className="project-menu-commands"
-            onClick={(event) => {
-              // A command done closes the menu, as the old menus did; a
-              // submenu or an inline confirmation keeps it open itself.
-              const target = event.target;
-              if (target instanceof Element && target.closest("button"))
-                dismissOpenCommandMenus();
-            }}
-          >
-            {children}
-          </div>
         ) : null}
       </div>
     </details>
