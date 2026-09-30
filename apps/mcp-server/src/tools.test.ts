@@ -511,7 +511,13 @@ describe("mcp tool surface", () => {
       parseText(await callTool("project_code", { action: "read" }, session)),
     ).toMatchObject({ ok: true, projectCode: "{}" });
     expect(
-      parseText(await callTool("netlist_code", { action: "read" }, session)),
+      parseText(
+        await callTool(
+          "netlist_code",
+          { action: "read", documentId: "cell-bgr" },
+          session,
+        ),
+      ),
     ).toMatchObject({ ok: true, netlist: { text: ".end\n" } });
     expect(
       projectResource.mock.calls.map(([request]) => request.operation),
@@ -521,6 +527,10 @@ describe("mcp tool surface", () => {
       "read-project-code",
       "read-netlist",
     ]);
+    expect(projectResource.mock.calls.at(-1)?.[0]).toMatchObject({
+      operation: "read-netlist",
+      documentId: "cell-bgr",
+    });
   });
 
   it("get_context returns the compact context document", async () => {

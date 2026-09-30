@@ -175,6 +175,7 @@ const NetlistCodeArgs = z.discriminatedUnion("action", [
     format: z.enum(["spice", "spectre"]).optional(),
     namingProfile: z.enum(["native", "cadence-bang"]).optional(),
     portCase: z.enum(["lower", "upper"]).optional(),
+    documentId: z.string().min(1).optional(),
     rootDocumentId: z.string().min(1).optional(),
   }),
   z.strictObject({
@@ -184,6 +185,7 @@ const NetlistCodeArgs = z.discriminatedUnion("action", [
     format: z.enum(["spice", "spectre"]).optional(),
     namingProfile: z.enum(["native", "cadence-bang"]).optional(),
     portCase: z.enum(["lower", "upper"]).optional(),
+    documentId: z.string().min(1).optional(),
     rootDocumentId: z.string().min(1).optional(),
   }),
 ]);
@@ -747,8 +749,8 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
             ? { namingProfile: parsed.namingProfile }
             : {}),
           ...(parsed.portCase ? { portCase: parsed.portCase } : {}),
-          ...(parsed.rootDocumentId
-            ? { rootDocumentId: parsed.rootDocumentId }
+          ...((parsed.documentId ?? parsed.rootDocumentId)
+            ? { documentId: parsed.documentId ?? parsed.rootDocumentId }
             : {}),
         });
       }
@@ -767,8 +769,8 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
           ? { namingProfile: parsed.namingProfile }
           : {}),
         ...(parsed.portCase ? { portCase: parsed.portCase } : {}),
-        ...(parsed.rootDocumentId
-          ? { rootDocumentId: parsed.rootDocumentId }
+        ...((parsed.documentId ?? parsed.rootDocumentId)
+          ? { documentId: parsed.documentId ?? parsed.rootDocumentId }
           : {}),
       });
     },

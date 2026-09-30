@@ -425,11 +425,12 @@ describe("BrowserAgentProjectHost", () => {
       apiVersion: AGENT_API_VERSION,
       requestId: "netlist-read",
       operation: "read-netlist",
+      documentId: document.id,
       format: "spice",
     });
     expect(read).toMatchObject({
       ok: true,
-      netlist: { format: "spice", status: "ready" },
+      netlist: { documentId: document.id, format: "spice", status: "ready" },
     });
     if (
       !read.ok ||
@@ -439,6 +440,13 @@ describe("BrowserAgentProjectHost", () => {
       throw new Error("unexpected netlist result");
     }
     expect(read.netlist.text).toContain(".subckt dut Vb1");
+    expect(read.cells).toEqual([
+      expect.objectContaining({
+        documentId: document.id,
+        status: "ready",
+        text: expect.stringContaining(".subckt dut Vb1"),
+      }),
+    ]);
     await expect(
       host.handle({
         apiVersion: AGENT_API_VERSION,

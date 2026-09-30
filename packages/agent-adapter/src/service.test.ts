@@ -2,7 +2,11 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { executeTransaction, SchematicEditSchema } from "@icm/edit-engine";
-import { createEmptyDocument, createSimulationFolder } from "@icm/model";
+import {
+  createEmptyDocument,
+  createEmptyProject,
+  createSimulationFolder,
+} from "@icm/model";
 import { parseProject } from "@icm/project-protocol";
 import type { CircuitProject } from "@icm/model";
 import {
@@ -26,6 +30,7 @@ import {
   agentEditCategory,
   createAgentCircuitService,
 } from "./service.js";
+import { agentProjectDiagnostics } from "./diagnostics.js";
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
 const allPermissions: AgentPermissions = {
@@ -113,6 +118,40 @@ function serviceFixture(
 }
 
 describe("current Agent Circuit API service", () => {
+  it("includes Cell-scoped export blockers in diagnostics", () => {
+    const project = createEmptyProject("project", "Missing model", "dut");
+    const document = project.documents[0]!;
+    document.instances.push({
+      id: "Q1",
+      symbolId: "npn",
+      reference: "Q1",
+      placement: null,
+      netlist: { parameters: {} },
+    });
+    for (const pinName of ["C", "B", "E", "S"])
+      document.noConnects.push({
+        id: `nc-${pinName}`,
+        endpoint: { kind: "terminal", instanceId: "Q1", pinName },
+      });
+
+    const diagnostics = agentProjectDiagnostics(
+      project,
+      resolver,
+      document.id,
+      document.revision,
+    );
+    expect(diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "MISSING_MODEL_TARGET",
+          domain: "spice",
+          severity: "error",
+          primary: expect.objectContaining({ documentId: document.id }),
+        }),
+      ]),
+    );
+  });
+
   it.each(["vcvs", "vccs", "cccs", "ccvs"])(
     "roundtrips %s controls through transactions and both Snapshot projections",
     (symbolId) => {

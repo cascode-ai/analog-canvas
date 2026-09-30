@@ -125,6 +125,8 @@ export const AgentProjectResourceRequestSchema = z.discriminatedUnion(
       format: NetlistFormatSchema.optional(),
       namingProfile: NetlistNamingProfileSchema.optional(),
       portCase: NetlistPortCaseSchema.optional(),
+      /** Public Cell-scoped spelling; rootDocumentId remains wire-compatible. */
+      documentId: StableIdSchema.optional(),
       rootDocumentId: StableIdSchema.optional(),
     }),
     ProjectRequestBaseSchema.extend({
@@ -134,6 +136,7 @@ export const AgentProjectResourceRequestSchema = z.discriminatedUnion(
       format: NetlistFormatSchema.optional(),
       namingProfile: NetlistNamingProfileSchema.optional(),
       portCase: NetlistPortCaseSchema.optional(),
+      documentId: StableIdSchema.optional(),
       rootDocumentId: StableIdSchema.optional(),
     }),
   ],
@@ -179,11 +182,22 @@ export const AgentNetlistDiagnosticSchema = z.strictObject({
 });
 
 export const AgentNetlistReadSchema = z.strictObject({
+  documentId: StableIdSchema.optional(),
   format: NetlistFormatSchema,
   status: z.enum(["ready", "blocked"]),
   text: z.string().nullable(),
   diagnostics: z.array(AgentNetlistDiagnosticSchema),
 });
+
+/** One independently requested Cell export. */
+export const AgentNetlistCellReadSchema = z.strictObject({
+  documentId: StableIdSchema,
+  format: NetlistFormatSchema,
+  status: z.enum(["ready", "blocked"]),
+  text: z.string().nullable(),
+  diagnostics: z.array(AgentNetlistDiagnosticSchema),
+});
+export type AgentNetlistCellRead = z.infer<typeof AgentNetlistCellReadSchema>;
 
 /** A drawing as the formal exporter writes it, carried inline. */
 export const AgentGalleryFigureSchema = z.strictObject({
@@ -316,6 +330,7 @@ export const AgentProjectResourceResponseSchema = z.union([
     ok: z.literal(true),
     structureRevision: z.number().int().nonnegative(),
     netlist: AgentNetlistReadSchema,
+    cells: z.array(AgentNetlistCellReadSchema),
   }),
   ProjectResponseBaseSchema.extend({
     operation: z.literal("replace-netlist"),
