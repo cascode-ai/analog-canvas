@@ -460,6 +460,14 @@ body {
 }
 
 @media (max-width: 900px) {
+  .gallery-chrome .gallery-home-link h1 {
+    display: none;
+  }
+
+  .gallery-chrome .app-brand {
+    min-width: 0;
+  }
+
   .tokenzhang-link-label {
     display: none;
   }

@@ -3575,6 +3575,10 @@ test("a signed-in owner renames the display name and signs out", async ({
   });
 
   await page.goto("/");
+  await expect(page.getByTestId("account-name")).toHaveText("tz");
+  await expect(page.getByTestId("account-owner")).toBeHidden();
+  await page.locator(".account-more > summary").click();
+  await expect(page.getByTestId("account-menu-name")).toHaveText("tz");
   await expect(page.getByTestId("account-owner")).toHaveText("Owner");
   await page.getByTestId("account-name").click();
   await page.getByTestId("account-rename-input").fill("Token Zhang");
@@ -3582,7 +3586,6 @@ test("a signed-in owner renames the display name and signs out", async ({
   await expect(page.getByTestId("account-name")).toHaveText("Token Zhang");
   expect(renames).toEqual(["Token Zhang"]);
 
-  await page.locator(".account-more > summary").click();
   const accountPopover = page.locator(".account-popover");
   await expect(accountPopover).toHaveCSS("position", "absolute");
   await expect(accountPopover).toHaveCSS("display", "grid");

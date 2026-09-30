@@ -221,6 +221,19 @@
     0 12px 32px rgb(15 15 15 / 12%);
 }
 
+.account-menu-identity {
+  display: grid;
+  gap: 4px;
+  padding: 6px 8px 8px;
+  border-bottom: 1px solid var(--icm-border);
+}
+
+.account-menu-identity strong {
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  font-weight: 650;
+}
+
 .review-shell {
   /* Same scroll-inside-the-shell rule as .gallery-shell: the app root is
      overflow: hidden, so these pages own their scrolling. */

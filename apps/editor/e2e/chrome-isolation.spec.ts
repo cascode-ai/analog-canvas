@@ -116,3 +116,46 @@ test("keeps Gallery Library Netlist and Project Code together on the left at ful
     await expect(palette).toBeHidden();
   }
 });
+
+test("compacts the editor header at half width and keeps the account role in its menu", async ({
+  page,
+}) => {
+  await page.route("**/api/auth/providers", (route) =>
+    route.fulfill({ json: { github: true, google: false, email: false } }),
+  );
+  await page.route("**/api/auth/me", (route) =>
+    route.fulfill({
+      json: {
+        user: {
+          id: "owner-1",
+          displayName: "A Very Long Display Name",
+          email: "owner@example.com",
+          provider: "github",
+          role: "user",
+          isAdmin: true,
+        },
+      },
+    }),
+  );
+  await page.setViewportSize({ width: 720, height: 900 });
+  await page.goto("/editor");
+
+  await expect(
+    page.getByRole("heading", { name: "Analog Canvas" }),
+  ).toBeHidden();
+  await expect(page.getByTestId("header-gallery-link")).toBeVisible();
+  await expect(page.getByTestId("account-name")).toBeVisible();
+  await expect(page.getByTestId("account-owner")).toBeHidden();
+
+  const actions = await page.locator(".app-chrome-actions").boundingBox();
+  expect(actions).not.toBeNull();
+  expect(
+    (actions?.x ?? Number.POSITIVE_INFINITY) + (actions?.width ?? 0),
+  ).toBeLessThanOrEqual(720);
+
+  await page.locator(".account-more > summary").click();
+  await expect(page.getByTestId("account-menu-name")).toHaveText(
+    "A Very Long Display Name",
+  );
+  await expect(page.getByTestId("account-owner")).toHaveText("Owner");
+});

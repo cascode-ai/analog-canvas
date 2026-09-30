@@ -1503,7 +1503,7 @@
   }
 
   .app-brand {
-    min-width: 9rem;
+    min-width: 0;
   }
 
   /* Half-width windows keep the grid toggle as a round icon button; its
@@ -1516,6 +1516,35 @@
     justify-content: center;
     width: 28px;
     padding: 0;
+  }
+}
+
+/* Half-screen editor chrome keeps the product mark and Gallery switch, then
+   lets the command row use the space immediately beside them. Support links
+   and the credit are secondary at this width; the account name stays visible
+   while its role and full identity live behind the ellipsis menu. */
+@media (max-width: 900px) {
+  .app-chrome-main {
+    gap: var(--icm-space-2);
+    padding-inline: var(--icm-space-2);
+  }
+
+  .app-chrome-main .app-brand {
+    gap: var(--icm-space-1);
+  }
+
+  .app-chrome-main .gallery-home-link h1 {
+    display: none;
+  }
+
+  .app-chrome-main .app-command-surface {
+    margin-left: 0;
+  }
+
+  .app-chrome-main .app-chrome-actions .tokenzhang-credit,
+  .app-chrome-main .app-chrome-actions .app-repository-link,
+  .app-chrome-main .app-chrome-actions .bug-report-link {
+    display: none;
   }
 }
 
@@ -1660,6 +1689,19 @@
   color: var(--icm-accent);
   font-size: var(--icm-font-xs);
   font-weight: 700;
+}
+
+.app-chrome-actions .account-menu-identity {
+  display: grid;
+  gap: 4px;
+  padding: 6px 8px 8px;
+  border-bottom: 1px solid var(--icm-border);
+}
+
+.app-chrome-actions .account-menu-identity strong {
+  overflow-wrap: anywhere;
+  font-size: var(--icm-font-sm);
+  font-weight: 650;
 }
 
 .app-chrome-actions .account-rename-input {
