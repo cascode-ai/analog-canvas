@@ -592,10 +592,14 @@
   padding: 14px 30px;
   border: 0;
   border-radius: 999px;
+  --gallery-unlock-gradient: linear-gradient(
+    120deg,
+    #2563eb 0%,
+    #7c3aed 55%,
+    #db2777 100%
+  );
   color: #fff;
-  background: linear-gradient(120deg, #2563eb 0%, #7c3aed 55%, #db2777 100%);
-  background-size: 180% 100%;
-  background-position: 0% 50%;
+  background: var(--gallery-unlock-gradient) 0% 50% / 180% 100%;
   box-shadow:
     0 12px 28px -12px rgb(124 58 237 / 60%),
     0 2px 6px rgb(15 23 42 / 12%);
@@ -610,8 +614,10 @@
     transform 200ms ease;
 }
 
-.gallery-unlock:hover {
-  background-position: 100% 50%;
+/* Outranks the app-wide button:hover:not(:disabled), whose background
+   shorthand would otherwise clear the gradient to a grey fill. */
+.gallery-unlock:hover:not(:disabled) {
+  background: var(--gallery-unlock-gradient) 100% 50% / 180% 100%;
   box-shadow:
     0 16px 34px -12px rgb(124 58 237 / 70%),
     0 3px 8px rgb(15 23 42 / 14%);

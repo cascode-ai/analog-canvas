@@ -2006,6 +2006,14 @@ test("a signed-out visitor sees the newest circuits and is asked to sign in for 
   // The invitation opens the header's sign-in choices.
   const unlock = page.getByTestId("gallery-unlock");
   await expect(unlock).toHaveText("Sign in to unlock the gallery");
+  // Its gradient stays under the pointer; the app-wide button hover once
+  // turned it grey under the white label.
+  await unlock.hover();
+  await expect
+    .poll(() =>
+      unlock.evaluate((element) => getComputedStyle(element).backgroundImage),
+    )
+    .toContain("linear-gradient");
   await expect(page.getByTestId("account-signin")).toBeVisible();
   await expect(page.getByTestId("signin-github")).toBeHidden();
   await unlock.click();

@@ -295,6 +295,7 @@ export function executeTransaction(
           draft,
           changedObjectIds,
           deferNetPrune,
+          ...(resolver ? { resolver } : {}),
         });
         connectivityChanged ||= outcome.connectivityChanged ?? false;
         geometryChanged ||= outcome.geometryChanged;

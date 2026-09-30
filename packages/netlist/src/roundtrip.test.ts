@@ -4,7 +4,11 @@ import {
   deriveStableId,
 } from "@icm/model";
 import type { CircuitProject } from "@icm/model";
-import { importSpiceSources } from "@icm/spice";
+import {
+  compareCircuitIR,
+  compileSpiceSources,
+  importSpiceSources,
+} from "@icm/spice";
 import { describe, expect, it } from "vitest";
 
 import type { DesignNetlistIR } from "./ir.js";
@@ -327,6 +331,68 @@ describe("structural SPICE round trip", () => {
     expect(normalizedSemantics(reanalysis.ir!)).toEqual(
       normalizedSemantics(analysis.ir!),
     );
+  });
+
+  it("re-imports its own M-card export of a SKY130 MOS bound by model name", async () => {
+    // As the Gallery entry's netlist reads: no .model card for either part.
+    const source = [
+      "SKY130 M-card round trip",
+      ".subckt amp D G S B VDD",
+      "M1 D G S B sky130_fd_pr__nfet_01v8 l=150n m=1 nf=1 w=1u",
+      "M2 D G VDD VDD sky130_fd_pr__pfet_01v8 l=150n m=1 nf=1 w=2u",
+      ".ends amp",
+      ".end",
+      "",
+    ].join("\n");
+    const imported = await importSpiceSources(
+      [{ path: "m-card.spi", bytes: new TextEncoder().encode(source) }],
+      "m-card.spi",
+    );
+    expect(imported.successful, JSON.stringify(imported.diagnostics)).toBe(
+      true,
+    );
+    const analysis = analyzeDesignNetlist(imported.project!, {
+      format: "spice",
+    });
+    expect(analysis.diagnostics).toEqual([]);
+    const printed = printSpiceNetlist(analysis.ir!);
+    expect(printed).toContain(
+      "M1 D G S B sky130_fd_pr__nfet_01v8 l=150n m=1 nf=1 w=1u",
+    );
+    expect(printed).toContain(
+      "M2 D G VDD VDD sky130_fd_pr__pfet_01v8 l=150n m=1 nf=1 w=2u",
+    );
+
+    const reparsed = await importSpiceSources(
+      [
+        {
+          path: "m-card-reexport.spi",
+          bytes: new TextEncoder().encode(printed),
+        },
+      ],
+      "m-card-reexport.spi",
+    );
+    expect(reparsed.successful).toBe(true);
+    const reanalysis = analyzeDesignNetlist(reparsed.project!, {
+      format: "spice",
+    });
+    expect(normalizedSemantics(reanalysis.ir!)).toEqual(
+      normalizedSemantics(analysis.ir!),
+    );
+    // What `verify` with expectedNetlist does: the file it came from is equal.
+    const compile = (text: string) =>
+      compileSpiceSources(
+        [{ path: "comparison.cir", bytes: new TextEncoder().encode(text) }],
+        "comparison.cir",
+      );
+    const [actual, expected] = await Promise.all([
+      compile(printed),
+      compile(source),
+    ]);
+    expect(compareCircuitIR(actual.ir!, expected.ir!, "amp")).toMatchObject({
+      status: "equal",
+      differences: [],
+    });
   });
 
   it("keeps Cadence bang spelling separate from global electrical identity", async () => {

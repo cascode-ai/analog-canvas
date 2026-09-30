@@ -1,4 +1,6 @@
 import { createRoutePath } from "@icm/model";
+import { resolveDocumentLogicalNets, resolveVisualAnchor } from "@icm/derived";
+import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 
 import { createEmptyDocument, createEmptyProject } from "@icm/model";
@@ -335,6 +337,108 @@ describe("Cell reset lifecycle planner", () => {
     ]);
     expect(history.document.routes).toEqual([]);
   });
+
+  it.each(["clear-drawing", "reset-placement"] as const)(
+    "%s keeps a wire's Net label where it was drawn and removes the wire's marker",
+    (intent) => {
+      const { project, child } = fixture();
+      // A wire whose geometry resolves: from P1's pin to a Junction beside it.
+      child.junctions.push({
+        id: "junction-in",
+        netId: "net-in",
+        position: { x: 60, y: 0 },
+        role: "route-anchor",
+      });
+      const wire = createRoutePath({
+        id: "route-labelled",
+        netId: "net-in",
+        start: { kind: "terminal", instanceId: "P1", pinName: "P" },
+        end: { kind: "junction", junctionId: "junction-in" },
+        bends: [],
+        modes: ["manual"],
+      });
+      child.routes.push(wire);
+      const onWire = {
+        kind: "route" as const,
+        routeId: wire.id,
+        legId: wire.legs[0]!.id,
+        t: 0.5,
+        normalOffset: -10,
+        direction: "forward" as const,
+        orientation: "horizontal" as const,
+        fallbackPosition: { x: 1, y: 2 },
+      };
+      child.annotations.push(
+        {
+          id: "label-in",
+          kind: "net-label",
+          binding: { kind: "net-name", netId: "net-in" },
+          netId: "net-in",
+          anchor: onWire,
+          alignment: "middle",
+          rotation: 0,
+          locked: false,
+        },
+        {
+          id: "marker-in",
+          kind: "route-marker",
+          markerKind: "current",
+          content: { runs: [{ kind: "text", value: "I" }] },
+          anchor: onWire,
+          alignment: "middle",
+          rotation: 0,
+          locked: false,
+        },
+      );
+      child.connectivityEvidence.push({
+        id: "claim-label",
+        kind: "name-claim",
+        netId: "net-in",
+        name: "IN",
+        owner: { kind: "net-label", annotationId: "label-in" },
+        scope: "local",
+      });
+      const plan = planCellReset(project, child.id, intent);
+      expect(plan.affectedObjectIds).toEqual(
+        expect.arrayContaining(["label-in", "marker-in"]),
+      );
+      expect(plan.summary).toContain(
+        "; keep 1 wire label where drawn, now free; remove 1 wire marker",
+      );
+
+      const resolver = new InMemorySymbolResolver(builtInSymbols);
+      const drawnAt = resolveVisualAnchor(child, resolver, onWire).position;
+      const history = new DocumentHistory(child, { symbolResolver: resolver });
+      const result = history.transact({
+        transactionId: `reset-${intent}`,
+        documentId: child.id,
+        expectedRevision: child.revision,
+        actor: { kind: "agent", id: "test" },
+        edits: [...plan.edits],
+      });
+      // Before, both resets left the label on a removed wire: INVALID_RESULT.
+      expect(result.ok).toBe(true);
+      expect(result.ok && result.diff.changedObjectIds).toEqual(
+        expect.arrayContaining(["label-in", "marker-in"]),
+      );
+      expect(
+        history.document.annotations.find((item) => item.id === "label-in")
+          ?.anchor,
+      ).toEqual({
+        kind: "free",
+        position: { x: Math.round(drawnAt.x), y: Math.round(drawnAt.y) },
+      });
+      expect(drawnAt).not.toEqual(onWire.fallbackPosition);
+      expect(
+        history.document.annotations.some((item) => item.id === "marker-in"),
+      ).toBe(false);
+      // The circuit keeps its name.
+      expect(
+        resolveDocumentLogicalNets(history.document).byBaseNetId.get("net-in")
+          ?.name,
+      ).toBe("IN");
+    },
+  );
 
   it("clears drawing geometry without deleting logical objects", () => {
     const { project, child } = fixture();

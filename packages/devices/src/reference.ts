@@ -17,6 +17,8 @@ export interface ReferenceIssue {
   readonly instanceId: string;
   readonly reference?: string;
   readonly otherInstanceId?: string;
+  /** The prefix a wrong-prefix Reference should start with. */
+  readonly expectedPrefix?: string;
 }
 
 export interface ReferenceIndex {
@@ -126,6 +128,7 @@ export function createReferenceIndex(
         code: "WRONG_REFERENCE_PREFIX",
         instanceId: instance.id,
         reference,
+        expectedPrefix: policy.prefix,
       });
     }
     const suffix = suffixForPrefix(reference, policy.prefix);

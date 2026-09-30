@@ -41,7 +41,7 @@ function referencePolicyFailure(
     case "MISSING_REFERENCE":
       return "This component requires an Instance Reference";
     case "WRONG_REFERENCE_PREFIX":
-      return `Reference ${issue.reference} does not match this component prefix`;
+      return `Reference ${issue.reference} does not match this component prefix ${issue.expectedPrefix}`;
     case "DUPLICATE_REFERENCE":
       return `Reference ${issue.reference} is already used by ${issue.otherInstanceId}. Use display alias to show the same text without renaming the device.`;
   }

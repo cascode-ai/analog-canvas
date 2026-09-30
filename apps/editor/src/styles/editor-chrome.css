@@ -1406,7 +1406,9 @@
   font-weight: 600;
 }
 
-.app-action-primary:hover {
+/* Outranks the app-wide button:hover:not(:disabled), which would turn the
+   filled button grey under its white label. */
+.app-action-primary:hover:not(:disabled) {
   border-color: var(--icm-accent);
   background: var(--icm-accent);
   filter: brightness(0.93);

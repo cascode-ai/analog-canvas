@@ -46,7 +46,15 @@ import {
   projectCellInterface,
   foldNetName,
   type CircuitProject,
+  type Instance,
+  type SchematicDocument,
 } from "@icm/model";
+import {
+  createReferenceIndex,
+  nextReference,
+  referenceIssuesForInstance,
+  referencePolicyForInstance,
+} from "@icm/devices";
 import {
   displayableInstanceValue,
   resolveDocumentStyleProfile,
@@ -104,6 +112,45 @@ export interface BrowserAgentPlanningContext {
     symbolId: string,
     name: string,
   ): string | undefined;
+}
+
+/**
+ * A part the Agent places is named as a GUI placement names it. A missing
+ * Reference takes the next free one. One the netlist would refuse, with
+ * another prefix or a name already in use, is rejected with a free name
+ * instead of leaving the netlist blocked. `placed` holds the earlier parts
+ * of the same batch.
+ */
+function namedPlacement(
+  project: CircuitProject,
+  document: SchematicDocument,
+  placed: readonly Instance[],
+  instance: Instance,
+  actionIndex: number,
+): Instance {
+  const policy = referencePolicyForInstance(instance, project);
+  if (policy.kind === "none") return instance;
+  const cell = { ...document, instances: [...document.instances, ...placed] };
+  const free = nextReference(createReferenceIndex(cell, project), policy)!;
+  if (!instance.reference) return { ...instance, reference: free };
+  const issue = referenceIssuesForInstance(
+    createReferenceIndex(
+      { ...cell, instances: [...cell.instances, instance] },
+      project,
+    ),
+    instance.id,
+  )[0];
+  if (!issue) return instance;
+  const parts =
+    instance.netlist?.binding?.kind === "subcircuit"
+      ? "Cell instances"
+      : `${instance.symbolId} parts`;
+  throw new AgentCommandPlanningError(
+    actionIndex,
+    issue.code === "DUPLICATE_REFERENCE"
+      ? `${instance.reference} already names ${issue.otherInstanceId}; ${free} is free. Nothing was placed.`
+      : `${parts} use the ${policy.prefix} prefix, so ${instance.reference} would block the netlist; ${free} is free. Nothing was placed.`,
+  );
 }
 
 /** No second geometry/model/clipboard implementation: plan exactly as the GUI does. */
@@ -358,6 +405,7 @@ export function planBrowserAgentCommand(
       // Pins, which carry the interface into a Project transaction.
       const starts: number[] = [];
       const pins: boolean[] = [];
+      const placed: Instance[] = [];
       for (const [index, source] of command.instances.entries()) {
         starts.push(edits.length);
         pins.push(
@@ -470,6 +518,8 @@ export function planBrowserAgentCommand(
           changesInterface = true;
           continue;
         }
+        instance = namedPlacement(project, document, placed, instance, index);
+        placed.push(instance);
         const power = proposedStandalonePowerConnection(document, instance);
         if (power.rejected) throw new Error(power.rejected);
         edits.push({ kind: "add_instance", instance }, ...power.edits);
@@ -578,11 +628,21 @@ export function planBrowserAgentCommand(
       );
       if (!child?.netlist)
         throw new Error("Cell needs a formal interface before placement");
-      const instance = createHierarchyInstance(
+      // Named as the GUI names a Cell instance: X and the next free number,
+      // never the Instance ID, which would block the netlist.
+      const { reference: _id, ...unnamed } = createHierarchyInstance(
         command.instanceId,
         child,
         command.placement,
-        command.reference,
+      );
+      const instance = namedPlacement(
+        project,
+        document,
+        [],
+        command.reference
+          ? { ...unnamed, reference: command.reference }
+          : unnamed,
+        0,
       );
       if (command.pinAnchor)
         instance.placement = pinAnchoredPlacement(

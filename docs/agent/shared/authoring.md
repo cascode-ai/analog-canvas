@@ -33,6 +33,11 @@ targets to avoid full-Snapshot name resolution. Names remain supported when usef
   `set-port-direction` addresses one
   terminal or every declaration of a projected Port; `set-vdd-mode` explicitly
   switches VDD between Cell Pin and Global. Do not substitute a bare `add_instance`.
+- Parts are named as the GUI names them. A device's `reference` starts with
+  its prefix (R, C, M, …), and a `place-cell` instance's with X. Leave it out
+  and the next free name is taken (`X1`, `X2`, …). A name with another prefix,
+  or one already in use, is rejected with a free name, because it would block
+  the netlist; nothing is placed.
 - For exact pin placement, `place-component` accepts `pinAnchor:{pinName,position}`
   instead of origin `position`; rotation/mirror still apply. It uses the shared
   routing landing (including variants and fine-pitch pins), not artwork contact,
@@ -157,6 +162,11 @@ do not perform GUI drag-to-connect snapping. `terminalConnectivityChanged` in
 ordinary transaction receipts compares document-local terminal equivalence;
 it does not assert unchanged parameters, bulk or hierarchy. Omitted means unknown.
 Use reset-placement only for intentional redraw, with its documented effects.
+`clear-drawing` and `reset-placement` both remove every wire. A Net or supply
+label drawn on a wire stays where it was drawn, now free, so the netlist keeps
+its name; a current or voltage marker drawn on a wire goes with the wire. A
+supply rail's own label stays as well: it carries the supply's name and, for a
+local rail, the Cell's supply Pin. The receipt lists every label it moved.
 `delete` uses the GUI selection-deletion planner, including owned displays and
 formal interface declarations. `delete-selection` deletes multiple explicit
 object IDs in one transaction. They are nested in `selection`, one list per

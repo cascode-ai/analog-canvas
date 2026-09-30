@@ -54,3 +54,63 @@ it("imports SKY130's drain-extended devices as the Extended Devices DMOS", async
     "B",
   ]);
 });
+
+it("imports a SKY130 MOS written as a plain M card, which has no .model card", async () => {
+  // This product's own export of a MOS bound to the model by name.
+  const text = [
+    "* plain M cards",
+    ".subckt top d g s b vdd",
+    "M1 d g s b sky130_fd_pr__nfet_01v8 l=150n m=1 nf=1 w=1u",
+    "M2 d g vdd vdd sky130_fd_pr__pfet_01v8 l=150n m=1 nf=1 w=2u",
+    ".ends top",
+    ".end",
+    "",
+  ].join("\n");
+  const result = await importSpiceSources([input("m.spi", text)], "m.spi");
+  // Before: "the approved Razavi catalog has no symbol" for both.
+  expect(result.diagnostics.filter((d) => d.severity === "error")).toEqual([]);
+  const top = result.project!.documents.find((d) => d.name === "top")!;
+  expect(
+    top.instances
+      .filter((instance) => instance.reference?.startsWith("M"))
+      .map((instance) => [
+        instance.reference,
+        instance.symbolId,
+        instance.netlist?.binding,
+      ]),
+  ).toEqual([
+    [
+      "M1",
+      "nmos",
+      expect.objectContaining({
+        kind: "model",
+        name: "sky130_fd_pr__nfet_01v8",
+      }),
+    ],
+    [
+      "M2",
+      "pmos",
+      expect.objectContaining({
+        kind: "model",
+        name: "sky130_fd_pr__pfet_01v8",
+      }),
+    ],
+  ]);
+});
+
+it("says which .model card a device of unknown type needs", async () => {
+  const text = [
+    ".subckt top d g s b",
+    "M1 d g s b mystery w=1u l=1u",
+    ".ends top",
+    ".end",
+    "",
+  ].join("\n");
+  const result = await importSpiceSources([input("m.spi", text)], "m.spi");
+  expect(
+    result.diagnostics.find((d) => d.code === "SPICE_IMPORT_UNSUPPORTED_SYMBOL")
+      ?.message,
+  ).toBe(
+    'M1 uses model mystery, which no .model card declares, so its device type is unknown. Add ".model mystery nmos" or ".model mystery pmos".',
+  );
+});

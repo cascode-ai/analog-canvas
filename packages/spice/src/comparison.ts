@@ -48,7 +48,15 @@ export function compareCircuitIR(
   ] as const) {
     if (
       ir.unresolvedStatements.length ||
-      ir.preservedStatements.length ||
+      // A title line and .end say nothing about the circuit; nearly every
+      // file has them, and they made every comparison inconclusive.
+      ir.preservedStatements.some(
+        (statement) =>
+          !(
+            statement.kind === "directive" &&
+            (statement.name === "title" || statement.name === "end")
+          ),
+      ) ||
       ir.parameters.length ||
       ir.models.length
     )

@@ -2224,15 +2224,20 @@ function extractCell(
       ? [issue.otherInstanceId, issue.instanceId]
       : [issue.instanceId];
     switch (issue.code) {
-      case "WRONG_REFERENCE_PREFIX":
+      case "WRONG_REFERENCE_PREFIX": {
+        const policy = referenceIndex.policyByInstanceId.get(issue.instanceId);
+        const free = policy
+          ? nextReference(referenceIndex, policy, { reservedReferences })
+          : undefined;
         diagnostic(
           diagnostics,
           document.id,
           "WRONG_REFERENCE_PREFIX",
-          `Reference ${issue.reference} does not match ${issue.instanceId}'s component prefix`,
+          `Reference ${issue.reference} does not match ${issue.instanceId}'s component prefix ${issue.expectedPrefix}${free ? `; ${free} is free` : ""}`,
           otherInstanceIds,
         );
         break;
+      }
       case "DUPLICATE_REFERENCE":
         if (
           !issue.reference ||

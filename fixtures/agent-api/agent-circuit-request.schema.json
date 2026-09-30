@@ -14725,6 +14725,7 @@
               "$ref": "#/$defs/__schema1"
             },
             "reference": {
+              "description": "X and a number; omit it for the next free one, as the GUI names a Cell instance.",
               "$ref": "#/$defs/__schema400"
             },
             "placement": {
