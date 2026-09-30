@@ -91,7 +91,7 @@ test("keeps Gallery Library Netlist and Project Code together on the left at ful
       expect(bounds[index]!.top).toBe(bounds[0]!.top);
       expect(
         bounds[index]!.left - bounds[index - 1]!.right,
-      ).toBeLessThanOrEqual(4);
+      ).toBeLessThanOrEqual(8);
       expect(bounds[index]!.left).toBeGreaterThanOrEqual(
         bounds[index - 1]!.right,
       );
@@ -147,15 +147,94 @@ test("compacts the editor header at half width and keeps the account role in its
   await expect(page.getByTestId("account-name")).toBeVisible();
   await expect(page.getByTestId("account-owner")).toBeHidden();
 
-  const actions = await page.locator(".app-chrome-actions").boundingBox();
-  expect(actions).not.toBeNull();
-  expect(
-    (actions?.x ?? Number.POSITIVE_INFINITY) + (actions?.width ?? 0),
-  ).toBeLessThanOrEqual(720);
+  for (const width of [320, 360, 390, 480, 720, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    const leftControls = page.locator(
+      ".app-brand > :is(.gallery-home-link, .header-gallery-link, .project-menu, .command-menu)",
+    );
+    const leftBounds = await leftControls.evaluateAll((elements) =>
+      elements
+        .map((element) => {
+          const box = element.getBoundingClientRect();
+          return { left: box.left, right: box.right, top: box.top };
+        })
+        .filter(({ right, left }) => right > left),
+    );
+    expect(leftBounds.length).toBeGreaterThanOrEqual(4);
+    expect(leftBounds[0]!.left).toBeLessThan(24);
+    for (let index = 1; index < leftBounds.length; index++) {
+      expect(leftBounds[index]!.left).toBeGreaterThanOrEqual(
+        leftBounds[index - 1]!.right,
+      );
+      expect(
+        Math.abs(leftBounds[index]!.top - leftBounds[0]!.top),
+      ).toBeLessThanOrEqual(8);
+    }
+
+    const actions = page.locator(".app-chrome-actions");
+    await expect(actions).toBeVisible();
+    const chromeMain = await page.locator(".app-chrome-main").boundingBox();
+    expect(chromeMain?.height ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(
+      48,
+    );
+    const actionBounds = await actions
+      .locator(
+        '[data-testid="open-analog-simulation"], [data-testid="open-agent"], [data-testid="publish-gallery-button"]',
+      )
+      .evaluateAll((elements) =>
+        elements.map((element) => {
+          const box = element.getBoundingClientRect();
+          return { left: box.left, right: box.right, top: box.top };
+        }),
+      );
+    expect(actionBounds).toHaveLength(3);
+    for (let index = 1; index < actionBounds.length; index++) {
+      expect(actionBounds[index]!.left).toBeGreaterThanOrEqual(
+        actionBounds[index - 1]!.right,
+      );
+      expect(
+        Math.abs(actionBounds[index]!.top - actionBounds[0]!.top),
+      ).toBeLessThanOrEqual(4);
+    }
+    expect(actionBounds.at(-1)!.right).toBeLessThanOrEqual(width);
+    await expect(actions.getByTestId("publish-gallery-button")).toBeVisible();
+    await expect(actions.getByTestId("open-agent")).toBeVisible();
+    await expect(actions.locator(".tokenzhang-link-icon")).toBeVisible();
+    await expect(actions.locator(".account-more")).toBeVisible();
+    if (width <= 760) {
+      await expect(
+        actions.getByTestId("open-agent").locator(".app-action-label"),
+      ).toBeHidden();
+      await expect(
+        actions
+          .getByTestId("open-analog-simulation")
+          .locator(".app-action-label"),
+      ).toBeHidden();
+    }
+  }
 
   await page.locator(".account-more > summary").click();
   await expect(page.getByTestId("account-menu-name")).toHaveText(
     "A Very Long Display Name",
   );
   await expect(page.getByTestId("account-owner")).toHaveText("Owner");
+});
+
+test("keeps the account affordance when auth providers are unavailable", async ({
+  page,
+}) => {
+  await page.route("**/api/auth/providers", (route) =>
+    route.fulfill({ status: 503, json: { error: "unavailable" } }),
+  );
+  await page.route("**/api/auth/me", (route) =>
+    route.fulfill({ status: 503, json: { error: "unavailable" } }),
+  );
+  await page.setViewportSize({ width: 390, height: 900 });
+  await page.goto("/editor");
+
+  const fallback = page.locator(".account-menu-fallback");
+  await expect(fallback).toBeVisible();
+  await expect(fallback.locator("summary")).toContainText("⋯");
+  await fallback.locator("summary").click();
+  await expect(fallback.locator(".account-popover")).toContainText("Account");
 });

@@ -16,6 +16,18 @@ function toolLabel(
   return tool.charAt(0).toUpperCase() + tool.slice(1);
 }
 
+function toolTitle(
+  tool: EditorTool,
+  vddRailMode: boolean,
+  pendingSymbolId: string | null,
+): string {
+  if (vddRailMode) return "Drawing a power rail on the canvas";
+  if (pendingSymbolId) return `Placing ${pendingSymbolId} on the canvas`;
+  if (tool === "pointer") return "Select objects on the canvas";
+  if (tool === "construction-line") return "Draw a construction line";
+  return `Active tool: ${toolLabel(tool, false, null)}`;
+}
+
 function wireRoutingModeLabel(mode: WireRoutingMode): string {
   if (mode === "orthogonal") return "Orthogonal";
   if (mode === "octilinear") return "45°";
@@ -42,7 +54,7 @@ function issuesBadge(issues: {
             : issues.checkStatus === "checking"
               ? "Checking…"
               : "Not checked",
-      title: "Open Issues — use Check and Save to check",
+      title: "No check has run — open Issues and choose Check and Save",
     };
   }
   const plural = (count: number, noun: string) =>
@@ -154,7 +166,12 @@ export function EditorStatusbar({
             </button>
           </span>
         ) : null}
-        <span className="statusbar-tool" data-testid="statusbar-tool">
+        <span
+          className="statusbar-tool"
+          data-testid="statusbar-tool"
+          title={toolTitle(tool, vddRailMode, pendingSymbolId)}
+          aria-label={toolTitle(tool, vddRailMode, pendingSymbolId)}
+        >
           {toolLabel(tool, vddRailMode, pendingSymbolId)}
         </span>
         {selectionFilterSummary ? (

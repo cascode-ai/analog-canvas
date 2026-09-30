@@ -920,6 +920,9 @@ test("the site lands on the full-screen gallery feed", async ({ page }) => {
   const brandMark = brand.locator(".app-brand-mark");
   await expect(brandMark).toBeVisible();
   await expect(brandMark).toHaveCSS("background-image", /icon\.svg\?v=nmos-4/);
+  const editorSwitch = page.getByTestId("gallery-editor-switch");
+  await expect(editorSwitch).toHaveText("Editor");
+  await expect(editorSwitch).toHaveAttribute("href", "/editor");
   await expect(page.locator('link[rel="icon"]')).toHaveAttribute(
     "href",
     "/icon.svg?v=nmos-4",

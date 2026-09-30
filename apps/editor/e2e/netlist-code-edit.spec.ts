@@ -272,7 +272,7 @@ test("explicit inspectors yield to Netlist for a replacement while ordinary edit
   );
   await page.getByTestId("netlist-panel-toggle").click();
   await expect(page.getByLabel("Netlist code", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: /Open Issues/u }).click();
+  await page.getByTestId("statusbar-issues").click();
   await expect(
     page.getByRole("region", { name: "Project diagnostics" }),
   ).toBeVisible();

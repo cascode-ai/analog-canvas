@@ -134,12 +134,14 @@ describe("editor shell", () => {
       expect(menu("circuit-menu")).toContain(
         `role="group" aria-label="${group}"`,
       );
-    const commandRow = markup.slice(
-      markup.indexOf('aria-label="Editor commands"'),
-      markup.indexOf("</nav>"),
+    const actionRowStart = markup.indexOf('class="app-chrome-actions"');
+    const actionRowEnd = markup.indexOf(
+      '<div class="toolbar-row',
+      actionRowStart,
     );
-    expect(commandRow).not.toContain("<summary");
-    expect(commandRow).toContain('data-testid="publish-gallery-button"');
+    const actionRow = markup.slice(actionRowStart, actionRowEnd);
+    expect(actionRow).toContain('data-testid="publish-gallery-button"');
+    expect(actionRow).toContain('class="account-signin account-menu-fallback"');
     const netlistStart = markup.indexOf('aria-label="Netlist"');
     const netlistEnd = markup.indexOf("</div>", netlistStart);
     const netlistMenu = markup.slice(netlistStart, netlistEnd);
@@ -251,7 +253,7 @@ describe("editor shell", () => {
     // Agent connects directly from the command row; no one-item menu or
     // connection panel appears before the user clicks it.
     expect(markup).toContain('data-testid="open-agent" title="Connect Agent"');
-    expect(markup).toContain(">Agent</button>");
+    expect(markup).toContain('class="app-action-label">Agent</span>');
     expect(markup).not.toContain("<summary>Agent</summary>");
     expect(markup).not.toContain('data-testid="connect-agent-panel"');
   });

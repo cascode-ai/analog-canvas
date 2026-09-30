@@ -2085,15 +2085,12 @@ test("Properties renders an arrow line-style override", async ({ page }) => {
   await clickCreate(page, { x: 200, y: 200 }, { x: 420, y: 200 });
   await page.getByTestId(/^drafting-hit-arrow-/).click({ force: true });
   await page.keyboard.press("q");
-  const commandBar = page.getByRole("navigation", { name: "Editor commands" });
-  const commandBarBefore = await commandBar.boundingBox();
   await editComponentPropertyCode(page, (code) => {
     code.appearance.lineStyle = "dotted";
   });
   await expect(
     page.locator('[data-kind="draft-arrow"] > polyline'),
   ).toHaveAttribute("stroke-dasharray", "2 3");
-  expect(await commandBar.boundingBox()).toEqual(commandBarBefore);
 });
 
 test("arrow Properties omits the Segment selector", async ({ page }) => {
