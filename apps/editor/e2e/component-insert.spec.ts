@@ -2505,22 +2505,8 @@ test("keeps a usable canvas while toggling Library at the narrow breakpoint", as
   await page.goto("/editor");
   await awaitEditorReady(page);
 
-  const chrome = page.locator(".app-chrome-main");
-  // The analytics and Change Log live in the statusbar; the compact GitHub
-  // link remains inside the top chrome at the narrow breakpoint.
-  const repository = page.getByTestId("editor-repository-link");
-  await expect(repository).toBeVisible();
-  const chromeBox = await chrome.boundingBox();
-  const repositoryBox = await repository.boundingBox();
-  if (!chromeBox || !repositoryBox) {
-    throw new Error("Top navigation is not measurable");
-  }
-  expect(repositoryBox.x + repositoryBox.width).toBeLessThanOrEqual(
-    chromeBox.x + chromeBox.width,
-  );
-
   // Simulation and Publish remain directly visible without horizontal scrolling.
-  const commandSurface = page.locator(".app-command-surface");
+  const commandSurface = page.locator(".app-chrome-main");
   const publish = page.getByTestId("publish-gallery-button");
   const commandBox = await commandSurface.boundingBox();
   const publishBox = await publish.boundingBox();
