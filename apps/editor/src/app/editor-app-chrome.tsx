@@ -429,6 +429,7 @@ export function EditorAppChrome({
               className="app-action"
               data-testid="open-agent"
               title={agentAction.label}
+              aria-label="Agent"
               onClick={() => {
                 dismissOpenCommandMenus();
                 agentAction.execute();
