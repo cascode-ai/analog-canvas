@@ -5254,6 +5254,18 @@ test("keeps the production command surface compact and publishes PWA metadata", 
   await expect(toolbar.getByTestId("open-analog-simulation")).toBeVisible();
   await expect(toolbar.getByTestId("open-agent")).toBeVisible();
   await expect(toolbar.getByTestId("publish-gallery-button")).toBeVisible();
+  // Publish keeps its fill under the pointer; the app-wide button hover once
+  // turned it grey under the white label.
+  const publish = toolbar.getByTestId("publish-gallery-button");
+  // Read the settled colour: a running transition still reports its start.
+  const fill = () =>
+    publish.evaluate((element) => {
+      for (const animation of element.getAnimations()) animation.finish();
+      return getComputedStyle(element).backgroundColor;
+    });
+  const resting = await fill();
+  await publish.hover();
+  expect(await fill()).toBe(resting);
   await expect(page.getByTestId("copy-netlist")).toBeHidden();
   await expect(page.getByTestId("check-and-save")).toBeHidden();
   const netlist = await openMenu(page, "Netlist");
