@@ -1,4 +1,10 @@
-import { compileSpiceSources, compareCircuitIR } from "@icm/spice";
+import {
+  compileSpiceSources,
+  compareCircuitIR,
+  DETAIL_DIFFERENCE_KINDS,
+  TOPOLOGY_DIFFERENCE_KINDS,
+  type StructuralComparisonOptions,
+} from "@icm/spice";
 import { AGENT_API_VERSION } from "@icm/agent-adapter";
 import type { AgentSessionClient } from "@icm/agent-client";
 
@@ -6,7 +12,11 @@ import type { AgentSessionClient } from "@icm/agent-client";
 export async function compareExpectedNetlist(
   client: AgentSessionClient,
   documentId: string,
-  expected: { text: string; cell?: string | undefined },
+  expected: {
+    text: string;
+    cell?: string | undefined;
+    compare?: StructuralComparisonOptions | undefined;
+  },
   details = false,
 ) {
   const exported = await client.projectResource({
@@ -66,17 +76,18 @@ export async function compareExpectedNetlist(
     reference.ir,
     actualRoot,
     expectedRoot,
+    expected.compare,
   );
   const counts = Object.fromEntries(
-    ["interface", "device", "target", "parameter", "connection", "scope"].map(
-      (kind) => [
-        kind,
-        result.differences.filter((d) => d.kind === kind).length,
-      ],
-    ),
+    [...TOPOLOGY_DIFFERENCE_KINDS, ...DETAIL_DIFFERENCE_KINDS].map((kind) => [
+      kind,
+      result.differences.filter((d) => d.kind === kind).length,
+    ]),
   );
   return {
+    summary: result.summary,
     status: result.status,
+    topology: result.topology,
     counts,
     reasons: result.reasons,
     comparedCells: result.comparedCells,

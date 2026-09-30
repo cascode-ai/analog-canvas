@@ -54,11 +54,13 @@ is complete when its connectivity is shown to match, not when it looks right.
    names.
 2. After drawing, run `verify` with `expectedNetlist` and `details:true`. Done
    means `status: "equal"`, or every remaining difference explained to the
-   person.
-3. Two differences are expected and harmless:
-   - the order of the subcircuit ports, since a figure does not fix it;
-   - defaults the exporter writes, such as `nf=1 m=1`.
-   Match them in the reference, or name them in the report.
+   person. `topology: "equal"` already says the wiring matches.
+3. Two differences can be harmless; the summary names them apart from topology:
+   - `port-order`: a figure does not fix the order of the subcircuit ports;
+   - `binding`: the reference binds a device as a model card (`M1`) and the
+     drawing as a subcircuit call (`XM1`), or the reverse.
+   Skip them with `compare:{portOrder:false,bindings:false}`, or name them in
+   the report.
 4. Then `render`, or export a PNG, for the visual review.
 
 For example, a two-transistor current mirror copied from a figure:

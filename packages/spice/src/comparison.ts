@@ -1,19 +1,155 @@
+import {
+  reviewedExternalBindingForMaster,
+  type ReviewedExternalDeviceBinding,
+} from "@icm/devices";
+
 import { canonicalSpiceNumber } from "./expression.js";
 import type { CircuitCellIR, CircuitIR } from "./ir.js";
 
+/** Kinds that change which devices exist or what they are wired to. */
+export const TOPOLOGY_DIFFERENCE_KINDS = [
+  "interface",
+  "device",
+  "target",
+  "declaration",
+  "connection",
+  "scope",
+] as const;
+/** Kinds that leave the wiring alone. */
+export const DETAIL_DIFFERENCE_KINDS = [
+  "port-order",
+  "binding",
+  "parameter",
+] as const;
+
 export interface StructuralDifference {
   kind:
-    "interface" | "device" | "target" | "parameter" | "connection" | "scope";
+    | (typeof TOPOLOGY_DIFFERENCE_KINDS)[number]
+    | (typeof DETAIL_DIFFERENCE_KINDS)[number];
   cell: string;
   object: string;
   expected: unknown;
   actual: unknown;
 }
+/** Checks besides topology; each is on unless set to false. */
+export interface StructuralComparisonOptions {
+  /** Port order, not only the port set. A figure does not fix it. */
+  portOrder?: boolean | undefined;
+  /** Literal device parameters. */
+  parameters?: boolean | undefined;
+  /** One device bound to the same name another way: model card or call. */
+  bindings?: boolean | undefined;
+  /** Off, .model bodies, .param and preserved statements are ignored
+   * instead of making the result inconclusive. */
+  declarations?: boolean | undefined;
+}
 export interface StructuralComparison {
   status: "equal" | "different" | "inconclusive";
+  /** Devices and what they are wired to, alone. */
+  topology: "equal" | "different" | "inconclusive";
+  /** One line: the topology verdict, then the other differences by kind. */
+  summary: string;
   differences: StructuralDifference[];
   reasons: string[];
   comparedCells: number;
+}
+
+type Instance = CircuitCellIR["instances"][number];
+
+const PLAIN_NUMBER = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/iu;
+
+/** The reviewed wrapper a card names, as a model card or a subcircuit call. */
+function reviewedBinding(
+  instance: Instance,
+): ReviewedExternalDeviceBinding | undefined {
+  const { target } = instance;
+  const binding =
+    target.kind === "model"
+      ? reviewedExternalBindingForMaster(target.modelName)
+      : target.kind === "external-subcircuit"
+        ? reviewedExternalBindingForMaster(target.masterName)
+        : undefined;
+  return binding?.terminals.length === instance.terminals.length
+    ? binding
+    : undefined;
+}
+
+/** Exact decimal identity of a literal in SI units; null when it is none. */
+function literal(instance: Instance, key: string, raw: string): string | null {
+  const name = key.split("#")[0]!.toLowerCase();
+  // A reviewed SKY130 wrapper takes geometry as plain micrometres; a model
+  // card naming the same device takes metres.
+  const micrometres =
+    instance.target.kind === "external-subcircuit" &&
+    reviewedBinding(instance)?.parameters.find(
+      (parameter) => parameter.name.toLowerCase() === name,
+    )?.targetUnit === "micrometre";
+  return canonicalSpiceNumber(
+    micrometres && PLAIN_NUMBER.test(raw.trim()) ? `${raw.trim()}u` : raw,
+  );
+}
+
+/** What an absent parameter means: a reviewed wrapper's count defaults, and
+ * SPICE's parallel multiplier of 1. */
+function absentLiteral(instance: Instance, key: string): string | null {
+  const name = key.split("#")[0]!.toLowerCase();
+  const declared = reviewedBinding(instance)?.parameters.find(
+    (parameter) =>
+      parameter.name.toLowerCase() === name &&
+      parameter.targetUnit === undefined,
+  )?.targetDefaultValue;
+  if (declared !== undefined) return canonicalSpiceNumber(declared);
+  return name === "m" ? canonicalSpiceNumber("1") : null;
+}
+
+function targetName(instance: Instance): string | undefined {
+  const { target } = instance;
+  switch (target.kind) {
+    case "model":
+      return target.modelName.toLowerCase();
+    case "subcircuit":
+      return target.cellName.toLowerCase();
+    case "external-subcircuit":
+      return target.masterName.toLowerCase();
+    default:
+      return undefined;
+  }
+}
+
+/** A .model card that only declares its type: `.model nch nmos`. */
+function declaresTypeOnly(model: CircuitIR["models"][number]): boolean {
+  return model.rawParameters.replace(/[()\s]/gu, "") === "";
+}
+
+function summarize(comparison: Omit<StructuralComparison, "summary">): string {
+  if (comparison.status === "equal") return "equal";
+  const phrase = (kinds: readonly StructuralDifference["kind"][]) => {
+    const counts = kinds
+      .map(
+        (kind) =>
+          [
+            kind === "binding" ? "binding-style" : kind,
+            comparison.differences.filter((d) => d.kind === kind).length,
+          ] as const,
+      )
+      .filter(([, count]) => count > 0);
+    const total = counts.reduce((sum, [, count]) => sum + count, 0);
+    return total
+      ? `${counts.map(([kind, count]) => `${count} ${kind}`).join(", ")} ${total === 1 ? "difference" : "differences"}`
+      : "";
+  };
+  const topology = phrase(TOPOLOGY_DIFFERENCE_KINDS);
+  const details = phrase(DETAIL_DIFFERENCE_KINDS);
+  const unchecked = comparison.reasons.length;
+  return [
+    `topology ${comparison.topology}${topology ? `: ${topology}` : ""}`,
+    details,
+    unchecked
+      ? `${unchecked} ${unchecked === 1 ? "item needs" : "items need"} manual comparison`
+      : "",
+  ]
+    .filter(Boolean)
+    .join("; ");
 }
 
 /** Reference/pin-identity comparison, not a simulator or graph isomorphism.
@@ -25,9 +161,17 @@ export function compareCircuitIR(
   expected: CircuitIR,
   actualRoot: string,
   expectedRoot = actualRoot,
+  options: StructuralComparisonOptions = {},
 ): StructuralComparison {
   const differences: StructuralDifference[] = [];
   const reasons = new Set<string>();
+  // Uncertainty about which devices exist or how they connect; unchecked
+  // parameter values leave the topology verdict alone.
+  let topologyUnchecked = false;
+  const structural = (reason: string) => {
+    reasons.add(reason);
+    topologyUnchecked = true;
+  };
   let comparedCells = 0;
   const lower = (s: string) => s.toLowerCase();
   const same = (a: unknown, b: unknown) =>
@@ -46,29 +190,51 @@ export function compareCircuitIR(
     ["actual", actual],
     ["expected", expected],
   ] as const) {
-    if (
-      ir.unresolvedStatements.length ||
-      // A title line and .end say nothing about the circuit; nearly every
-      // file has them, and they made every comparison inconclusive.
-      ir.preservedStatements.some(
-        (statement) =>
-          !(
-            statement.kind === "directive" &&
-            (statement.name === "title" || statement.name === "end")
-          ),
-      ) ||
+    if (ir.unresolvedStatements.length)
+      structural(`${label}: unparsed statements need manual comparison`);
+    if (options.declarations === false) continue;
+    // A title line and .end say nothing about the circuit; nearly every
+    // file has them, and they made every comparison inconclusive.
+    const preserved = ir.preservedStatements.some(
+      (statement) =>
+        !(
+          statement.kind === "directive" &&
+          (statement.name === "title" || statement.name === "end")
+        ),
+    );
+    // Conditionals and includes can add devices; bodies and .param cannot.
+    if (preserved)
+      structural(
+        `${label}: declarations, model bodies or preserved statements need manual comparison`,
+      );
+    else if (
       ir.parameters.length ||
-      ir.models.length
+      ir.models.some((model) => !declaresTypeOnly(model))
     )
       reasons.add(
         `${label}: declarations, model bodies or preserved statements need manual comparison`,
+      );
+  }
+  // A model both sides declare must be the same kind of device.
+  const actualModels = new Map(
+    actual.models.map((model) => [lower(model.name), lower(model.modelType)]),
+  );
+  for (const model of expected.models) {
+    const type = actualModels.get(lower(model.name));
+    if (type !== undefined)
+      difference(
+        "declaration",
+        expectedRoot,
+        `model ${lower(model.name)}`,
+        type,
+        lower(model.modelType),
       );
   }
   const seen = new Set<string>();
   const pair = (an: string, en: string, ancestors: Set<string>) => {
     const key = JSON.stringify([lower(an), lower(en)]);
     if (ancestors.has(key)) {
-      reasons.add("Recursive hierarchy is unsupported");
+      structural("Recursive hierarchy is unsupported");
       return;
     }
     if (seen.has(key)) return;
@@ -76,24 +242,107 @@ export function compareCircuitIR(
     const a = actual.cells.find((c) => lower(c.name) === lower(an));
     const e = expected.cells.find((c) => lower(c.name) === lower(en));
     if (!a || !e) {
-      reasons.add(`Missing comparison Cell: ${!a ? an : en}`);
+      structural(`Missing comparison Cell: ${!a ? an : en}`);
       return;
     }
     if (++comparedCells > 128) {
-      reasons.add("Comparison exceeds 128 Cells");
+      structural("Comparison exceeds 128 Cells");
       return;
     }
-    if (a.parameters.length || e.parameters.length)
+    if (
+      options.parameters !== false &&
+      (a.parameters.length || e.parameters.length)
+    )
       reasons.add(`${en}: parameterized hierarchy needs manual comparison`);
-    // Formal names identify endpoints; order remains part of the exported ABI.
-    difference(
-      "interface",
-      en,
-      "ports",
-      a.ports.map((p) => lower(p.name)),
-      e.ports.map((p) => lower(p.name)),
+    // Formal names identify endpoints; order is the exported ABI, which a
+    // figure does not fix, so it is its own kind.
+    const actualPorts = a.ports.map((p) => lower(p.name));
+    const expectedPorts = e.ports.map((p) => lower(p.name));
+    if (!same(actualPorts.toSorted(), expectedPorts.toSorted()))
+      difference("interface", en, "ports", actualPorts, expectedPorts);
+    else if (options.portOrder !== false)
+      difference("port-order", en, "ports", actualPorts, expectedPorts);
+    const devicesOf = (cell: CircuitCellIR) => {
+      const devices = new Map<string, Instance>();
+      for (const instance of cell.instances) {
+        const name = lower(instance.name);
+        if (devices.has(name))
+          structural(`${cell.name}: duplicate Reference ${name}`);
+        devices.set(name, instance);
+      }
+      return devices;
+    };
+    const actualDevices = devicesOf(a);
+    const expectedDevices = devicesOf(e);
+    // Devices pair by card name, then by Instance reference: an export writes
+    // a Reference bound to a subcircuit as a call, so XM1 is M1 bound another
+    // way, not a second device. A reference shared by several leftovers stays
+    // unpaired rather than guessed.
+    const partner = new Map<string, string>();
+    for (const name of actualDevices.keys())
+      if (expectedDevices.has(name)) partner.set(name, name);
+    const referenceOf = (name: string, instance: Instance) =>
+      (instance.target.kind === "subcircuit" ||
+        instance.target.kind === "external-subcircuit") &&
+      name.length > 1 &&
+      name.startsWith("x")
+        ? name.slice(1)
+        : name;
+    const leftovers = (devices: Map<string, Instance>, paired: Set<string>) => {
+      const byReference = new Map<string, string[]>();
+      for (const [name, instance] of devices) {
+        if (paired.has(name)) continue;
+        const reference = referenceOf(name, instance);
+        byReference.set(reference, [
+          ...(byReference.get(reference) ?? []),
+          name,
+        ]);
+      }
+      return byReference;
+    };
+    const expectedLeftovers = leftovers(
+      expectedDevices,
+      new Set(partner.values()),
     );
-    const project = (cell: CircuitCellIR) => {
+    for (const [reference, names] of leftovers(
+      actualDevices,
+      new Set(partner.keys()),
+    )) {
+      const partners = expectedLeftovers.get(reference);
+      if (names.length === 1 && partners?.length === 1)
+        partner.set(names[0]!, partners[0]!);
+    }
+    // A call to a Cell both sides define with the same port names reaches
+    // them by name, so a reordered Cell does not rewire its callers.
+    const pinNames = new Map<Instance, string[]>();
+    for (const [actualName, expectedName] of partner) {
+      const ai = actualDevices.get(actualName)!;
+      const ei = expectedDevices.get(expectedName)!;
+      if (ai.target.kind !== "subcircuit" || ei.target.kind !== "subcircuit")
+        continue;
+      const actualCell = ai.target.cellName;
+      const expectedCell = ei.target.cellName;
+      const ac = actual.cells.find((c) => lower(c.name) === lower(actualCell));
+      const ec = expected.cells.find(
+        (c) => lower(c.name) === lower(expectedCell),
+      );
+      const aNames = ac?.ports.map((p) => lower(p.name)) ?? [];
+      const eNames = ec?.ports.map((p) => lower(p.name)) ?? [];
+      if (
+        ac &&
+        ec &&
+        new Set(aNames).size === aNames.length &&
+        same(aNames.toSorted(), eNames.toSorted())
+      ) {
+        pinNames.set(ai, aNames);
+        pinNames.set(ei, eNames);
+      }
+    }
+    const project = (
+      cell: CircuitCellIR,
+      devices: Map<string, Instance>,
+      nameOf: (name: string) => string,
+    ) => {
       const nodes = new Map<string, string[]>();
       const endpoints = new Map<string, string>();
       const add = (endpoint: string, netId: string) => {
@@ -102,21 +351,24 @@ export function compareCircuitIR(
         nodes.set(netId, list);
         endpoints.set(endpoint, netId);
       };
-      const devices = new Map<string, CircuitCellIR["instances"][number]>();
-      for (const instance of cell.instances) {
-        const name = lower(instance.name);
-        if (devices.has(name))
-          reasons.add(`${cell.name}: duplicate Reference ${name}`);
-        devices.set(name, instance);
+      const named = new Map<string, Instance>();
+      for (const [name, instance] of devices) {
+        const canonical = nameOf(name);
+        named.set(canonical, instance);
+        const pins = pinNames.get(instance);
         for (const pin of instance.terminals)
-          add(`${name}:${pin.position}`, pin.netId);
+          add(
+            `${canonical}:${pins?.[pin.position] ?? pin.position}`,
+            pin.netId,
+          );
       }
       for (const p of cell.ports) add(`port:${lower(p.name)}`, p.netId);
-      return { devices, endpoints, nodes };
+      return { devices: named, endpoints, nodes };
     };
-    const ap = project(a),
-      ep = project(e);
-    const target = (instance: CircuitCellIR["instances"][number]) => {
+    // A paired device goes by the reference's name on both sides.
+    const ap = project(a, actualDevices, (name) => partner.get(name) ?? name),
+      ep = project(e, expectedDevices, (name) => name);
+    const target = (instance: Instance) => {
       const t = instance.target;
       switch (t.kind) {
         case "primitive":
@@ -128,7 +380,7 @@ export function compareCircuitIR(
         case "external-subcircuit":
           return [t.kind, lower(t.masterName)];
         default:
-          reasons.add(`${en}/${instance.name}: opaque device`);
+          structural(`${en}/${instance.name}: opaque device`);
           return [t.kind, lower(t.sourceName)];
       }
     };
@@ -139,21 +391,33 @@ export function compareCircuitIR(
         difference("device", en, ref, Boolean(ai), Boolean(ei));
         continue;
       }
-      difference("target", en, ref, target(ai), target(ei));
+      const actualTarget = target(ai);
+      const expectedTarget = target(ei);
+      if (!same(actualTarget, expectedTarget)) {
+        const name = targetName(ai);
+        // The same model or subcircuit name, bound as a card or a call.
+        if (name !== undefined && name === targetName(ei)) {
+          if (options.bindings !== false)
+            difference("binding", en, ref, ai.target.kind, ei.target.kind);
+        } else difference("target", en, ref, actualTarget, expectedTarget);
+      }
       if (ai.target.kind === "subcircuit" && ei.target.kind === "subcircuit")
         pair(
           ai.target.cellName,
           ei.target.cellName,
           new Set([...ancestors, key]),
         );
+      if (options.parameters === false) continue;
       for (const param of new Set([
         ...Object.keys(ai.parameters),
         ...Object.keys(ei.parameters),
       ])) {
         const av = ai.parameters[param]?.rawText,
           ev = ei.parameters[param]?.rawText;
-        const avn = av === undefined ? null : canonicalSpiceNumber(av);
-        const evn = ev === undefined ? null : canonicalSpiceNumber(ev);
+        const avn =
+          av === undefined ? absentLiteral(ai, param) : literal(ai, param, av);
+        const evn =
+          ev === undefined ? absentLiteral(ei, param) : literal(ei, param, ev);
         if (
           (av !== undefined && avn === null) ||
           (ev !== undefined && evn === null)
@@ -200,15 +464,24 @@ export function compareCircuitIR(
     }
   };
   pair(actualRoot, expectedRoot, new Set());
+  const topologyDiffers = differences.some((d) =>
+    (TOPOLOGY_DIFFERENCE_KINDS as readonly string[]).includes(d.kind),
+  );
   // Known differences may be useful even when other parts were uncheckable.
-  return {
+  const comparison = {
     status: reasons.size
       ? "inconclusive"
       : differences.length
         ? "different"
         : "equal",
+    topology: topologyUnchecked
+      ? "inconclusive"
+      : topologyDiffers
+        ? "different"
+        : "equal",
     differences,
     reasons: [...reasons],
     comparedCells,
-  };
+  } satisfies Omit<StructuralComparison, "summary">;
+  return { ...comparison, summary: summarize(comparison) };
 }

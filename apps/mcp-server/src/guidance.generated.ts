@@ -61,7 +61,7 @@ export const agentToolHelp = {
   advanced_transact:
     "Full transactions: exactly one of edits, structureEdits, wireIntent, semanticIntent, command. Client supplies IDs/revisions; reconcile stale conflicts. Contracts optional.",
   verify:
-    "Fresh Snapshot and diagnostic counts for milestones, not every edit. Optional expectedNetlist compares structural SPICE through the existing export; details adds bounded differences. Expressions/unsupported declarations are inconclusive, never electrical acceptance.",
+    "Fresh Snapshot and diagnostic counts for milestones, not every edit. Optional expectedNetlist compares structural SPICE through the existing export: summary and topology first, then port-order, binding and parameter differences; compare:{portOrder:false,...} skips one. details adds bounded differences. Expressions/model bodies are inconclusive, never electrical acceptance.",
   render:
     "Render the current document to SVG and return it as an image content block (image/svg+xml) plus a compact text summary (revision, sha256, byteLength).",
   simulation_folder:

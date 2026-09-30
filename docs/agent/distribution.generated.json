@@ -25,7 +25,7 @@
     },
     {
       "source": "docs/agent/workflow.md",
-      "sha256": "7feadce3d75170a884ca56387673ed2fb8fe80b05ae0d4da5d8aaad7fbe44798"
+      "sha256": "aab36306505ad16a5e172dff424366b8435d7a57f2f5bc0d391bbc5ba78333f3"
     },
     {
       "source": "docs/agent/tool-behavior.md",
@@ -93,7 +93,7 @@
     },
     {
       "source": "docs/agent/mcp/tools.md",
-      "sha256": "5639e5b1219f40f4b11c4d6a3bc06b200c222e93d3be316ac235b363ab7f1c5e"
+      "sha256": "3d555681be6d11662d6e98f01e05ce97d7cddb642fc978684f7e26c77e023d79"
     },
     {
       "source": "docs/agent/mcp/simulation.md",
@@ -113,7 +113,7 @@
     },
     {
       "source": "docs/agent/mcp/tool-help.json",
-      "sha256": "4adcdecfeebc0e7500dec4539607a4b0be358a22dd6ba564d65601512e0841ce"
+      "sha256": "d4f3c17a98f88109642f29693d9ca9fcb374d823578d3c7e6dd8bed48a34073b"
     },
     {
       "source": "docs/agent/http-kit/api-help.json",
@@ -621,7 +621,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/circuit-style-knowledge.md"
       ],
-      "sha256": "125ed7000aa3fd25aac5cd63cf409d085ba7b499e29bf7631a3e9bc1d3ab6008"
+      "sha256": "12f1d948682d7b0a3db28ed6150814ac930d7ae98a1c50b5a4eb116b721b505f"
     },
     {
       "file": "packages/agent-adapter/src/agent-docs.generated.ts",
@@ -650,7 +650,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/circuit-style-knowledge.md"
       ],
-      "sha256": "6f59fe6c73cc0fc22d33008beeb6c5e16da1a403bbdebefce6db21c9008e93a7"
+      "sha256": "a1507d38c6619c3a70dc2495187966d43c1183c224e2f3c252ee704681b08c23"
     },
     {
       "file": "packages/agent-adapter/src/agent-api-help.generated.ts",
@@ -667,7 +667,7 @@
         "docs/agent/mcp/instructions.md",
         "docs/agent/mcp/tool-help.json"
       ],
-      "sha256": "e4835270c2325d5d16943f0a5980e2627c1cc072c9c233676a5c0eb8968cb5d2"
+      "sha256": "56f7a0fae8b115ec45aea7a9cadd2f840c3ac5d52e256acba28b04cc5e26018f"
     },
     {
       "file": "apps/editor/src/agent/connection-guidance.generated.ts",

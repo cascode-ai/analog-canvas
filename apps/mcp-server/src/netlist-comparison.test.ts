@@ -52,4 +52,43 @@ describe("optional expected-netlist verification", () => {
     });
     expect(bad.status).toBe("inconclusive");
   });
+
+  it("says first whether the wiring matches, and skips the checks asked to be skipped", async () => {
+    const client = new AgentSessionClient({ http: new FakeAgentHttp() });
+    // A redraw with the reviewed SKY130 target, in its own port order.
+    vi.spyOn(client, "projectResource").mockResolvedValue({
+      apiVersion: "3.0",
+      requestId: "verify",
+      operation: "read-netlist",
+      ok: true,
+      structureRevision: 9,
+      netlist: {
+        format: "spice",
+        status: "ready",
+        text: ".subckt pair OUT IN VSS\nXM1 OUT IN VSS VSS sky130_fd_pr__nfet_01v8 l=0.15 w=1\n.ends pair",
+        diagnostics: [],
+      },
+    });
+    // The Gallery's netlist binds the same transistor to the model by name.
+    const text =
+      ".subckt pair IN OUT VSS\nM1 OUT IN VSS VSS sky130_fd_pr__nfet_01v8 l=150n w=1u\n.ends pair";
+    const result = await compareExpectedNetlist(client, "cell-id", { text });
+    expect(Object.keys(result).slice(0, 3)).toEqual([
+      "summary",
+      "status",
+      "topology",
+    ]);
+    expect(result).toMatchObject({
+      summary: "topology equal; 1 port-order, 1 binding-style differences",
+      status: "different",
+      topology: "equal",
+      counts: { "port-order": 1, binding: 1, device: 0, connection: 0 },
+    });
+    expect(
+      await compareExpectedNetlist(client, "cell-id", {
+        text,
+        compare: { portOrder: false, bindings: false },
+      }),
+    ).toMatchObject({ summary: "equal", status: "equal" });
+  });
 });

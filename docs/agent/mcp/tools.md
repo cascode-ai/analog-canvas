@@ -226,17 +226,39 @@ For a read-only milestone, `verify` optionally accepts
 `expectedNetlist:{text:"<structural SPICE>",cell:"<reference root>"}` and
 `details:true`. Omit it to retain the ordinary Snapshot-only check. Comparison
 reads the existing structural netlist, pairs unique device References and pin
-positions, and compares formal port order, targets, literal parameters, scope
-and endpoint membership; internal auto Net names do not matter. It recursively
-checks matched child definitions, without flattening or guessing renamed devices.
+positions, and compares formal ports, targets, literal parameters, scope and
+endpoint membership; internal auto Net names do not matter. It recursively
+checks matched child definitions, and reaches a child Cell with the same port
+names on both sides by name, so a reordered Cell does not rewire its callers.
+It never flattens or guesses renamed devices.
+
+Devices pair by card name first, then by Instance reference: an export writes a
+Reference bound to a subcircuit as a call, so `XM1` pairs with `M1`. When both
+bind the same model or subcircuit name, one as a card and one as a call, that
+is a `binding` difference, not a missing and an extra device.
+
+The result starts with a one-line `summary`, such as
+`topology equal; 1 port-order, 8 binding-style differences`, then `status`
+and `topology`. `topology` covers devices, targets, port sets, scopes and
+connections alone; `port-order`, `binding` and `parameter` differences leave it
+`equal`. `expectedNetlist.compare` skips checks besides topology:
+`{portOrder:false}` compares the port set only, `{bindings:false}` accepts
+either binding style, `{parameters:false}` skips values, and
+`{declarations:false}` ignores `.model` bodies, `.param` and preserved
+statements instead of reporting `inconclusive`.
+
 Literal parameters compare exact decimal values after SPICE unit scaling, not
-floating-point approximations or a tolerance. Parameter differences preserve
-the original literal strings (or null for an absent value). A literal exceeding
-4096 characters is uncheckable and yields `inconclusive`, not guessed equality.
-Counts are default; details includes at most 200 differences with an explicit
-truncation flag. A difference may affect several endpoint memberships.
-Parameterized hierarchy, expressions, model bodies, unresolved or preserved
-statements yield `inconclusive`, possibly alongside known differences.
+floating-point approximations or a tolerance. A reviewed SKY130 subcircuit call
+takes W and L as plain micrometres (`l=0.15` is `150n`); a model card takes
+metres. An absent `m` is 1, and an absent reviewed count such as `nf` is its
+default. Parameter differences preserve the original literal strings (or null
+for an absent value). A literal exceeding 4096 characters is uncheckable and
+yields `inconclusive`, not guessed equality. Counts are default; details
+includes at most 200 differences with an explicit truncation flag. A difference
+may affect several endpoint memberships. Parameterized hierarchy, expressions,
+model bodies, unresolved or preserved statements yield `inconclusive`, possibly
+alongside known differences; a `.model` card that only declares its type, such
+as `.model nch nmos`, is compared, not uncheckable.
 SPICE has no Port direction metadata: this comparison does not test directions,
 library model internals or simulated performance. Snapshot diagnostics and the
 subsequent structural export are separate reads, not an atomic revision snapshot.

@@ -336,6 +336,17 @@ const VerifyArgs = DocumentArgs.extend({
         .min(1)
         .optional()
         .describe("Reference root Cell if more than one is present."),
+      compare: z
+        .strictObject({
+          portOrder: z.boolean().optional(),
+          parameters: z.boolean().optional(),
+          bindings: z.boolean().optional(),
+          declarations: z.boolean().optional(),
+        })
+        .optional()
+        .describe(
+          "Checks besides topology, each on unless false; topology is always compared.",
+        ),
     })
     .optional(),
   details: z
