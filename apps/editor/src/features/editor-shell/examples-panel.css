@@ -61,7 +61,7 @@
    sign in on top. No Gallery circuit is shown or fetched. */
 .examples-panel-sign-in {
   position: relative;
-  min-height: 320px;
+  min-height: 480px;
   padding: 0 var(--icm-space-2);
   overflow: hidden;
 }
@@ -72,6 +72,9 @@
   gap: var(--icm-space-2);
   pointer-events: none;
   user-select: none;
+  opacity: 0.72;
+  filter: blur(10px);
+  transform: scale(1.03);
   -webkit-mask-image: linear-gradient(
     to bottom,
     rgb(0 0 0 / 100%),
@@ -83,14 +86,19 @@
 .examples-panel-sign-in-tile {
   height: 132px;
   border-radius: var(--icm-radius-md);
-  background: color-mix(in srgb, var(--icm-text-muted) 22%, transparent);
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--icm-text-muted) 32%, transparent),
+    color-mix(in srgb, var(--icm-text-muted) 18%, transparent)
+  );
 }
 
 .examples-panel-sign-in-card {
   position: absolute;
-  top: 48px;
+  top: 50%;
   left: 50%;
-  transform: translateX(-50%);
+  z-index: 1;
+  transform: translate(-50%, -50%);
   box-sizing: border-box;
   width: min(260px, calc(100% - 24px));
   padding: var(--icm-space-4) var(--icm-space-3);

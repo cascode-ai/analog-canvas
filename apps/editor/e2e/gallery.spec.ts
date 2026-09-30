@@ -2002,7 +2002,28 @@ test("signed out, the editor's Gallery panel is grey with a way to sign in", asy
   await expect(locked).toContainText(
     "Sign in to insert circuits from the Gallery.",
   );
-  await expect(locked.locator(".examples-panel-sign-in-tile")).toHaveCount(6);
+  await expect(locked.locator(".examples-panel-sign-in-tile")).toHaveCount(12);
+  await expect(locked.locator(".examples-panel-sign-in-veil")).toHaveCSS(
+    "pointer-events",
+    "none",
+  );
+  await expect(locked.locator(".examples-panel-sign-in-veil")).toHaveCSS(
+    "filter",
+    "blur(10px)",
+  );
+  const panelBox = await locked.boundingBox();
+  const cardBox = await locked
+    .locator(".examples-panel-sign-in-card")
+    .boundingBox();
+  expect(panelBox).not.toBeNull();
+  expect(cardBox).not.toBeNull();
+  expect(
+    Math.abs(
+      (cardBox?.y ?? 0) +
+        (cardBox?.height ?? 0) / 2 -
+        ((panelBox?.y ?? 0) + (panelBox?.height ?? 0) / 2),
+    ),
+  ).toBeLessThanOrEqual(1);
   await expect(panel.locator('[data-testid^="gallery-example-"]')).toHaveCount(
     0,
   );
