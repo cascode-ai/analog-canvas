@@ -134,6 +134,81 @@ function connectDrainAndSource(project: CircuitProject): void {
 }
 
 describe("ERC engine", () => {
+  it("names a wire that ends in the open, but not a rail's end or a labelled end", () => {
+    const project = emptyProject();
+    const document = project.documents[0]!;
+    document.nets.push({ id: "net", terminals: [] });
+    for (const [id, x] of [
+      ["A", 0],
+      ["B", 100],
+      ["C", 200],
+      ["D", 300],
+      ["E", 400],
+      ["F", 500],
+    ] as const)
+      document.junctions.push({
+        id,
+        netId: "net",
+        position: { x, y: 0 },
+        role: "route-anchor",
+      });
+    const wire = (
+      id: string,
+      from: string,
+      to: string,
+      presentation?: "power-rail",
+    ) =>
+      createRoutePath({
+        id,
+        netId: "net",
+        start: { kind: "junction", junctionId: from },
+        end: { kind: "junction", junctionId: to },
+        bends: [],
+        modes: ["manual"],
+        ...(presentation ? { presentation } : {}),
+      });
+    document.routes.push(
+      wire("open", "A", "B"),
+      wire("rail", "C", "D", "power-rail"),
+      wire("named", "E", "F"),
+    );
+    document.annotations.push({
+      id: "label",
+      kind: "net-label",
+      binding: { kind: "net-name", netId: "net" },
+      netId: "net",
+      anchor: {
+        kind: "route",
+        routeId: "named",
+        legId: document.routes.find((route) => route.id === "named")!.legs[0]!
+          .id,
+        t: 0.5,
+        normalOffset: -10,
+        direction: "forward",
+        orientation: "horizontal",
+        fallbackPosition: { x: 450, y: -10 },
+      },
+      alignment: "start",
+      rotation: 0,
+      locked: false,
+    });
+    const dangling = run(project).filter(
+      (diagnostic) => diagnostic.code === "ERC_DANGLING_WIRE",
+    );
+    // Both open ends of the plain wire. The rail and the wire carrying a
+    // label stay silent.
+    expect(dangling.map((item) => item.parameters)).toEqual([
+      { routeId: "open", junctionId: "A" },
+      { routeId: "open", junctionId: "B" },
+    ]);
+    expect(dangling[0]).toMatchObject({
+      severity: "warning",
+      gateEligible: false,
+      message:
+        "Wire open ends in the open at Junction A: no pin, other wire or label is there",
+    });
+  });
+
   it("says how many Instances the Cell holds but the sheet does not draw", () => {
     const project = emptyProject();
     const document = project.documents[0]!;

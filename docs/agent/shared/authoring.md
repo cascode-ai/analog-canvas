@@ -175,8 +175,11 @@ object type, and a list left out is empty:
 The lists are `instanceIds`, `routeIds`, `junctionIds`, `annotationIds`,
 `draftingIds` and `noConnectIds`. Unknown or wrongly
 classified IDs reject the entire Agent selection; free text created by
-`annotate` belongs in `draftingIds`, not `annotationIds`. Selecting every object clears a Cell, while
-unselected wires remain dangling. Reset modes retain their existing meanings
+`annotate` belongs in `draftingIds`, not `annotationIds`. Selecting every object clears a Cell.
+Deleting a part also deletes the wires that only reached it, through plain
+bends, up to where two wires still meet or another pin is. Wires that still
+join two remaining endpoints, and wires carrying a label, stay. A wire left
+ending in the open is reported as `ERC_DANGLING_WIRE`. Reset modes retain their existing meanings
 and must not be used as a synonym for deleting the entire Cell.
 To remove a formal Cell Pin use `remove-cell-terminal` or selection deletion;
 disconnecting its `P` alone would leave an invalid declared interface.

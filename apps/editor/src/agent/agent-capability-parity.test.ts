@@ -1462,7 +1462,11 @@ describe("MCP → API → shared editor parity", () => {
     expect(
       controller.document.instances.some((i) => i.reference === "R1"),
     ).toBe(false);
-    expect(controller.document.routes).toHaveLength(before.routes.length);
+    // The wire joined R1 to the Port and nothing else, so it goes with R1
+    // instead of hanging off the Port as a stub.
+    expect(before.routes).toHaveLength(1);
+    expect(controller.document.routes).toEqual([]);
+    expect(controller.document.junctions).toEqual([]);
     expect(
       controller.document.annotations.some(
         (a) =>

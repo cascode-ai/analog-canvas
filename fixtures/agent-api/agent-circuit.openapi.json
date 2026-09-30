@@ -15600,7 +15600,7 @@
                   "selection"
                 ],
                 "additionalProperties": false,
-                "description": "Explicit selection. Includes owned displays and formal interface declarations; unselected wires remain dangling, as in the GUI. Select all object IDs for complete Cell deletion."
+                "description": "Explicit selection. Includes owned displays and formal interface declarations, and, as in the GUI, the wires that only reached a deleted part. Select all object IDs for complete Cell deletion."
               },
               {
                 "type": "object",

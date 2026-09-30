@@ -1,4 +1,4 @@
-import { projectCellInterface } from "@icm/model";
+import { projectCellInterface, routeEnd } from "@icm/model";
 import type { CircuitProject } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
@@ -567,6 +567,7 @@ export function runErcChecks(
       resolver,
       diagnostics,
     );
+    reportDanglingWires(document, diagnostics);
   }
 
   // A child interface can be shared by several parent instances. Preserve the
@@ -667,6 +668,69 @@ export function runErcChecks(
       a.code.localeCompare(b.code, "en") ||
       a.primary.objectId.localeCompare(b.primary.objectId, "en"),
   );
+}
+
+/**
+ * A wire that ends in the open: at a Junction only that one wire reaches, with
+ * no pin, other wire or label there. It is usually what is left of a deleted
+ * part or a cut, and it connects nothing. A Power Rail's ends and a wire whose
+ * end or run carries a label are drawn that way on purpose and stay silent.
+ */
+function reportDanglingWires(
+  document: CircuitProject["documents"][number],
+  diagnostics: ErcDiagnostic[],
+): void {
+  const routesByJunction = new Map<
+    string,
+    CircuitProject["documents"][number]["routes"]
+  >();
+  for (const route of document.routes)
+    for (const endpoint of [route.start, routeEnd(route)])
+      if (endpoint.kind === "junction")
+        routesByJunction.set(endpoint.junctionId, [
+          ...(routesByJunction.get(endpoint.junctionId) ?? []),
+          route,
+        ]);
+  const labelledObjects = new Set(
+    document.annotations.flatMap((annotation) =>
+      annotation.anchor.kind === "object"
+        ? [annotation.anchor.objectId]
+        : annotation.anchor.kind === "route"
+          ? [annotation.anchor.routeId]
+          : [],
+    ),
+  );
+  for (const evidence of document.connectivityEvidence)
+    if (
+      evidence.kind === "name-claim" &&
+      evidence.owner.kind === "power-marker"
+    )
+      labelledObjects.add(evidence.owner.objectId);
+  for (const junction of [...document.junctions].sort((a, b) =>
+    a.id.localeCompare(b.id, "en"),
+  )) {
+    const routes = routesByJunction.get(junction.id) ?? [];
+    if (routes.length !== 1) continue;
+    const route = routes[0]!;
+    if (
+      route.presentation === "power-rail" ||
+      labelledObjects.has(junction.id) ||
+      labelledObjects.has(route.id)
+    )
+      continue;
+    diagnostics.push({
+      id: `erc:dangling-wire:${document.id}:${junction.id}`,
+      domain: "erc",
+      code: "ERC_DANGLING_WIRE",
+      severity: "warning",
+      confidence: "high",
+      gateEligible: false,
+      message: `Wire ${route.id} ends in the open at Junction ${junction.id}: no pin, other wire or label is there`,
+      primary: directObjectLocator(document.id, "junction", junction.id),
+      related: [directObjectLocator(document.id, "route", route.id)],
+      parameters: { routeId: route.id, junctionId: junction.id },
+    });
+  }
 }
 
 /**
