@@ -974,7 +974,7 @@ export function createAgentCircuitService(
             );
           }
           const result = host
-            ? host.dispatchProjectTransaction!(transaction)
+            ? host.dispatchProjectTransaction!(transaction, document.id)
             : executeProjectTransaction(project, transaction);
           if (!result.ok) {
             return fail(

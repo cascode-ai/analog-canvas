@@ -125,6 +125,35 @@ describe("Project working-copy history", () => {
     expect(controller.canUndo).toBe(false);
   });
 
+  it("records a background structural transaction against its target, not the viewed Cell", () => {
+    const controller = setup();
+    const foreground = controller.activeDocumentId;
+    const result = controller.dispatchProjectTransaction(
+      {
+        transactionId: "background",
+        projectId: controller.project.id,
+        expectedStructureRevision: controller.project.structureRevision,
+        actor: { kind: "agent", id: "test" },
+        edits: [{ kind: "rename_project", name: "Background edit" }],
+      },
+      undefined,
+      "child",
+    );
+    expect(result.ok).toBe(true);
+    expect(agentHistory(controller, "child", "undo")).toMatchObject({
+      ok: true,
+      applied: true,
+    });
+    expect(controller.project.name).toBe("Original");
+    expect(controller.activeDocumentId).toBe(foreground);
+    expect(agentHistory(controller, "child", "redo")).toMatchObject({
+      ok: true,
+      applied: true,
+    });
+    expect(controller.project.name).toBe("Background edit");
+    expect(controller.activeDocumentId).toBe(foreground);
+  });
+
   it("preserves high-water revisions when deleted Cells are restored", () => {
     const controller = setup();
     controller.openDocument("child");

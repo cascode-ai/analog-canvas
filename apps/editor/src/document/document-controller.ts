@@ -242,6 +242,7 @@ export class EditorDocumentController {
   commitProjectStructure(
     nextProject: CircuitProject,
     activeDocumentId = this.activeDocumentIdValue,
+    historyDocumentId = activeDocumentId,
   ): SchematicDocument {
     const before = this.projectValue;
     const parsed = this.shareDocuments(
@@ -266,17 +267,22 @@ export class EditorDocumentController {
     this.projectValue = parsed;
     this.activeDocumentIdValue = activeDocumentId;
     this.resolverValue = resolver;
-    this.record(before, activeDocumentId, true);
+    this.record(before, historyDocumentId, true);
     return this.document;
   }
 
   dispatchProjectTransaction(
     request: ProjectTransaction,
     activeDocumentId = this.activeDocumentIdValue,
+    historyDocumentId = activeDocumentId,
   ): ProjectTransactionResult {
     const result = executeProjectTransaction(this.projectValue, request);
     if (result.ok && result.applied)
-      this.commitProjectStructure(result.project, activeDocumentId);
+      this.commitProjectStructure(
+        result.project,
+        activeDocumentId,
+        historyDocumentId,
+      );
     return result;
   }
 

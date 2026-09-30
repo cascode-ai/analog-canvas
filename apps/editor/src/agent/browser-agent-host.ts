@@ -112,6 +112,7 @@ export class BrowserAgentHost implements AgentOperationHost {
 
   dispatchProjectTransaction(
     request: ProjectTransaction,
+    documentId?: string,
   ): ProjectTransactionResult {
     if (
       !this.isAvailable() ||
@@ -123,7 +124,11 @@ export class BrowserAgentHost implements AgentOperationHost {
         "The Agent session is bound to a Project that has been replaced",
       );
     }
-    const result = this.controller.dispatchProjectTransaction(request);
+    const result = this.controller.dispatchProjectTransaction(
+      request,
+      undefined,
+      documentId,
+    );
     if (result.ok && result.applied) this.onTransactionCommitted?.();
     return result;
   }
