@@ -199,6 +199,75 @@ describe("routing Edit Engine", () => {
     });
   });
 
+  it("explains an unknown pin and maps an exported subcircuit name", () => {
+    const document = createEmptyDocument("agent-pin-error", "Agent pin error");
+    document.instances.push({
+      id: "opamp-1",
+      symbolId: "opamp",
+      placement: {
+        position: { x: 100, y: 100 },
+        rotation: 0,
+        mirror: "none",
+      },
+      reference: "X1",
+    });
+    document.junctions.push({
+      id: "J1",
+      netId: "net-1",
+      position: { x: 200, y: 100 },
+      role: "route-anchor",
+    });
+
+    const planned = proposeWireIntent(document, resolver, {
+      id: "agent-pin-error-wire",
+      from: {
+        kind: "endpoint",
+        endpoint: { kind: "terminal", instanceId: "opamp-1", pinName: "VIP" },
+      },
+      to: {
+        kind: "endpoint",
+        endpoint: { kind: "junction", junctionId: "J1" },
+      },
+    });
+
+    expect(planned).toBe(
+      'X1 (Operational Amplifier) has no pin "VIP"; pins: IN+, IN-, OUT (exported as VIP; use IN+)',
+    );
+  });
+
+  it("distinguishes an unknown instance from a pin without a landing", () => {
+    const document = createEmptyDocument(
+      "agent-pin-error-kinds",
+      "Agent pin error kinds",
+    );
+    const missingInstance = proposeWireIntent(document, resolver, {
+      id: "agent-missing-instance",
+      from: {
+        kind: "endpoint",
+        endpoint: { kind: "terminal", instanceId: "missing", pinName: "1" },
+      },
+      to: {
+        kind: "endpoint",
+        endpoint: { kind: "junction", junctionId: "missing-junction" },
+      },
+    });
+    expect(missingInstance).toBe("Instance missing does not exist");
+
+    document.instances.push({ id: "R1", symbolId: "resistor" });
+    const missingLanding = proposeWireIntent(document, resolver, {
+      id: "agent-missing-landing",
+      from: {
+        kind: "endpoint",
+        endpoint: { kind: "terminal", instanceId: "R1", pinName: "1" },
+      },
+      to: {
+        kind: "endpoint",
+        endpoint: { kind: "junction", junctionId: "missing-junction" },
+      },
+    });
+    expect(missingLanding).toBe("R1.1 has no grid landing");
+  });
+
   it("rejects a Junction move that would leave an incident Route geometry stale", () => {
     const document = createEmptyDocument("junction-integrity", "Junction");
     document.nets.push({ id: "n1", terminals: [] });
