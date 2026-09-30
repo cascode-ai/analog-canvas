@@ -197,6 +197,41 @@ describe("routing deletion planner", () => {
     },
   );
 
+  it("keeps a wire that runs on to another part's pin, open where the part was", () => {
+    const document = tappedWireDocument();
+    // Take the tap away: R1 and R2 are joined straight, pin to pin.
+    document.routes = document.routes.filter((route) => route.id === "top");
+    document.routes[0] = createRoutePath({
+      id: "top",
+      netId: "net",
+      start: { kind: "terminal", instanceId: "R1", pinName: "2" },
+      end: { kind: "terminal", instanceId: "R2", pinName: "1" },
+      bends: [],
+      modes: ["manual"],
+    });
+    document.junctions = [];
+    document.instances = document.instances.filter((item) => item.id !== "R3");
+    document.nets[0]!.terminals = document.nets[0]!.terminals.filter(
+      (terminal) => terminal.instanceId !== "R3",
+    );
+    const result = gateRoutingOperationPlan(
+      document,
+      planRoutingDeletion(
+        document,
+        resolver,
+        { instanceIds: ["R2"], routeIds: [], junctionIds: [] },
+        1,
+      ),
+      { symbolResolver: resolver },
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // A replacement set down where R2 was lands on the open end.
+    expect(
+      result.evaluated.finalDocument.routes.map((route) => route.id),
+    ).toEqual(["top"]);
+  });
+
   it("keeps a labelled stub: the label gives it a meaning of its own", () => {
     const document = tappedWireDocument();
     document.annotations.push({

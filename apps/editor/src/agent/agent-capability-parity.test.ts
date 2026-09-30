@@ -1462,11 +1462,9 @@ describe("MCP → API → shared editor parity", () => {
     expect(
       controller.document.instances.some((i) => i.reference === "R1"),
     ).toBe(false);
-    // The wire joined R1 to the Port and nothing else, so it goes with R1
-    // instead of hanging off the Port as a stub.
-    expect(before.routes).toHaveLength(1);
-    expect(controller.document.routes).toEqual([]);
-    expect(controller.document.junctions).toEqual([]);
+    // The wire runs on to the Port's pin, so it stays with an open end where
+    // R1 was, as in the GUI: a replacement set down there reconnects.
+    expect(controller.document.routes).toHaveLength(before.routes.length);
     expect(
       controller.document.annotations.some(
         (a) =>

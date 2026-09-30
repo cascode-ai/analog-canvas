@@ -163,11 +163,11 @@ recognize such a network, so both are placed by hand.
   and `DVDD` retain their connections. Ground remains node `0`, not a VSS Pin.
 - Right-click an endpoint for the distinct **Disconnect endpoint** and
   **Delete connection** actions.
-- `Delete` on a connected component removes it together with the wires that
-  only reached it, through plain bends, up to where two wires still meet or
-  another pin is. A wire that still joins two other parts stays. So does a wire
-  with a Net label on it. A wire that ends in the open anywhere is flagged in
-  Issues.
+- `Delete` on a connected component removes it with any wire that only tapped
+  it into other wiring: a stub from its pin to a junction on another wire, or to
+  nowhere. A wire that runs on to another part's pin stays, open where the pin
+  was, so a replacement set down there reconnects. A wire carrying a Net label
+  stays too. Any wire left ending in the open is flagged in Issues.
 - Select an instance to edit its displayed name. Select a wire Route to add an
   electrical Net label; assigning the same name to another Net explicitly
   connects those Nets. Press `T` or choose **Text** for a non-electrical note: move its translucent
