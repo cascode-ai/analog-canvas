@@ -192,6 +192,69 @@ test("Properties renames the electrical identity explicitly; restore is an in-pl
   expect(saved.documents[0].instances[0].reference).toBe("R7");
 });
 
+test("restyling a formatted Reference never renames it; only its name field does", async ({
+  page,
+}) => {
+  await placeResistor(page);
+  await page.getByTestId("hit-R1").click();
+  await page.keyboard.press("q");
+  await editComponentPropertyCode(page, (code) => {
+    code.netlistName = "R12_a";
+  });
+  await expectComponentCodeField(page, "netlistName", "R12_a");
+  // R12 over a: the underscore starts the subscript and is not drawn.
+  await expect(visual(page)).toHaveText("R12a");
+
+  // Typography only: the whole label bold, through the canvas editor.
+  await page.getByTestId("annotation-hit-instance-label-R1").dblclick();
+  const editor = page.getByRole("textbox", { name: "Canvas text editor" });
+  await editor.press("ControlOrMeta+a");
+  await page.getByRole("button", { name: "Bold", exact: true }).click();
+  await page.getByRole("button", { name: "Apply text changes" }).click();
+  await expect(page.getByTestId("canvas-text-editor")).toHaveCount(0);
+  await expect(visual(page)).toHaveText("R12a");
+
+  // Reopened, Properties still name R12_a, and so does the saved file.
+  await page.getByTestId("hit-R1").click();
+  const code = page.getByLabel("Editable Canvas property code");
+  await page.keyboard.press("q");
+  await expect(code).toBeHidden();
+  await page.keyboard.press("q");
+  await expect(code).toBeVisible();
+  await expectComponentCodeField(page, "netlistName", "R12_a");
+  const saved = await projectFile(page);
+  expect(saved.documents[0].instances[0].reference).toBe("R12_a");
+  expect(
+    saved.documents[0].annotations.find(
+      (annotation: { id: string }) => annotation.id === "instance-label-R1",
+    ),
+  ).toMatchObject({
+    binding: { kind: "instance-reference", instanceId: "R1" },
+    formatOverride: expect.anything(),
+  });
+
+  // The exported drawing shows R12 over a, not the spelling R12_a.
+  const svg = (await downloadBytes(page, "File", "Export SVG")).toString(
+    "utf8",
+  );
+  const label =
+    /<text data-object-id="instance-label-R1"[^>]*>([\s\S]*?)<\/text>/u.exec(
+      svg,
+    )?.[1] ?? "";
+  expect(label).toMatch(/data-text-run="subscript"[^>]*>(?:<tspan[^>]*>)*a</u);
+  expect(label.replace(/<[^>]+>/gu, "")).toBe("R12a");
+
+  // Only the name field renames, and the restyled label follows.
+  await editComponentPropertyCode(page, (code) => {
+    code.netlistName = "R12_b";
+  });
+  await expectComponentCodeField(page, "netlistName", "R12_b");
+  await expect(visual(page)).toHaveText("R12b");
+  expect((await projectFile(page)).documents[0].instances[0].reference).toBe(
+    "R12_b",
+  );
+});
+
 for (const symbolId of ["current-source", "opamp"]) {
   test(`${symbolId} name can be dragged far away and still follows its component after reopen`, async ({
     page,
