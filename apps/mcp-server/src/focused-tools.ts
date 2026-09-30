@@ -80,7 +80,14 @@ export const FOCUSED_TOOLS = [
   {
     name: "circuit_transform",
     source: "apply_actions",
-    operations: ["move", "rotate", "mirror", "arrange", "detach-move"],
+    operations: [
+      "move",
+      "rotate",
+      "mirror",
+      "arrange",
+      "detach-move",
+      "extend-power-rail",
+    ],
   },
   {
     name: "circuit_selection",

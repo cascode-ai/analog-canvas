@@ -75,15 +75,15 @@ recognize such a network, so both are placed by hand.
   uses a different font size or line thickness in its style settings. To make a
   selected copy follow the destination's style, choose **Use this drawing's
   style** under **Copied style** in Properties.
-- The header keeps one menu, named for the project, beside the site logo, and
-  three actions on the right: **Simulate**, **Agent** and **Publish**. Open the
-  project's name to edit the full circuit name, inspect the current Cell and
-  Gallery contributor/notes, or choose an open project; the current project is
-  checked. Enter commits a name; Escape cancels it. Below them are the editor's
-  commands by group: **File**, **Edit**, **Hierarchy** (the Cell Manager) and
-  **Netlist**. A long name is cut short in the header and shown whole in the
-  menu. **Report bug**, the GitHub repository and the credit are under **⋯**
-  beside your account.
+- The header has three menus beside the site logo, **File**, **Edit** and
+  **Circuit**, and three actions: **Simulate**, **Agent** and **Publish**.
+  **File** starts with the project itself: edit the full circuit name, inspect
+  the current Cell and Gallery contributor/notes, or choose an open project;
+  the current project is checked. Enter commits a name; Escape cancels it. The
+  file commands follow. **Circuit** holds **Hierarchy** (the Cell Manager) and
+  **Netlist**. A long name never widens the header: it is the tooltip of
+  **File** and shown whole inside it. **Report bug**, the GitHub repository and
+  the credit stay in view beside your account.
 - The compact project tab bar opens several independent circuits in one editor.
   Use **+** for a new project, **Open file in new tab** for a local file, or
   **Open Shelf project in tab** for a saved draft. Tabs keep separate cameras,
@@ -163,8 +163,11 @@ recognize such a network, so both are placed by hand.
   and `DVDD` retain their connections. Ground remains node `0`, not a VSS Pin.
 - Right-click an endpoint for the distinct **Disconnect endpoint** and
   **Delete connection** actions.
-- `Delete` on a connected component now removes the component while preserving
-  its wires as dangling Junction endpoints at the former pin positions.
+- `Delete` on a connected component removes it with any wire that only tapped
+  it into other wiring: a stub from its pin to a junction on another wire, or to
+  nowhere. A wire that runs on to another part's pin stays, open where the pin
+  was, so a replacement set down there reconnects. A wire carrying a Net label
+  stays too. Any wire left ending in the open is flagged in Issues.
 - Select an instance to edit its displayed name. Select a wire Route to add an
   electrical Net label; assigning the same name to another Net explicitly
   connects those Nets. Press `T` or choose **Text** for a non-electrical note: move its translucent

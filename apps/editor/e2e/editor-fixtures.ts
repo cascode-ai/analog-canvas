@@ -63,13 +63,19 @@ export async function awaitRecoveryStoreReady(page: Page): Promise<void> {
 }
 
 /**
- * Open one group of editor commands (File, Edit, Hierarchy, Netlist). They
- * are groups inside the header's one menu, named for the project.
+ * Open one group of editor commands. The header has three menus: File (the
+ * project and its file commands), Edit, and Circuit (Hierarchy and Netlist).
  */
 export async function openMenu(page: Page, name: string): Promise<Locator> {
-  const menu = page.getByTestId("project-menu");
+  const menuTestId =
+    name === "File"
+      ? "project-menu"
+      : name === "Edit"
+        ? "edit-menu"
+        : "circuit-menu";
+  const menu = page.getByTestId(menuTestId);
   if ((await menu.getAttribute("open")) === null)
-    await page.getByTestId("project-menu-toggle").click();
+    await menu.locator(":scope > summary").click();
   return menu.getByRole("group", { name, exact: true });
 }
 

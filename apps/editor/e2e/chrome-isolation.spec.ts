@@ -25,7 +25,7 @@ test("keeps editor chrome typography from suppressing SVG italics", async ({
   ).not.toBe("none");
 });
 
-test("links GitHub from the upper chrome's ⋯ and Change Log from the statusbar", async ({
+test("links GitHub from the upper chrome and Change Log from the statusbar", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -33,14 +33,8 @@ test("links GitHub from the upper chrome's ⋯ and Change Log from the statusbar
   await expect(page.getByRole("button", { name: "About" })).toHaveCount(0);
   await expect(page.getByRole("dialog", { name: "Help" })).toHaveCount(0);
 
-  // What the header says about the site sits behind one ⋯, beside the
-  // account, and names each link.
   const repositoryLink = page.getByTestId("editor-repository-link");
-  await expect(repositoryLink).toBeHidden();
-  await page.getByTestId("app-more-menu").locator("summary").click();
   await expect(repositoryLink).toBeVisible();
-  await expect(repositoryLink).toHaveText("GitHub repository");
-  await expect(page.getByTestId("editor-report-bug")).toBeVisible();
   await expect(repositoryLink).toHaveAttribute(
     "href",
     "https://github.com/cascode-ai/analog-canvas",

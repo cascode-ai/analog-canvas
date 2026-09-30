@@ -1318,11 +1318,15 @@
   vertical-align: middle;
 }
 
-/* The header's one menu is named for the project; every editor command is a
-   group inside it, below the project's details. */
+/* Three menus: File (with the project's details), Edit and Circuit. */
 .project-menu > summary {
   max-width: min(18rem, 34vw);
-  font-weight: 600;
+}
+
+.header-menu-popover {
+  display: grid;
+  gap: 10px;
+  min-width: 15rem;
 }
 
 .project-menu-title {
@@ -1414,74 +1418,30 @@
   filter: brightness(0.93);
 }
 
-/* What the header says about the site rather than the drawing: one ⋯. */
-.app-more-menu > summary {
-  justify-content: center;
-  width: var(--icm-control-h);
-  padding: 0;
-  color: var(--icm-text-muted);
-}
-
-.app-more-menu > summary::after {
+/* The site links stay in view, compact: Report bug is its icon. */
+.app-chrome-actions .bug-report-label {
   display: none;
 }
 
-.app-more-menu > summary svg {
-  width: 16px;
-  height: 16px;
-}
-
-.app-more-popover {
-  right: 0;
-  left: auto;
-  min-width: 13rem;
-}
-
-.app-chrome-actions .app-more-popover .bug-report-link,
-.app-chrome-actions .app-more-popover .app-repository-link {
-  display: flex;
-  justify-content: flex-start;
-  gap: 8px;
-  width: 100%;
-  height: auto;
-  min-height: 32px;
-  padding: 0 10px;
-  border: 0;
-  border-radius: 6px;
-  color: var(--icm-text);
-  font-size: var(--icm-font-md);
-  font-weight: 500;
-  text-decoration: none;
-}
-
-.app-more-popover .bug-report-link:hover,
-.app-more-popover .app-repository-link:hover {
-  background: var(--icm-surface-hover);
-}
-
-.app-chrome-actions .app-more-popover .bug-report-label,
-.app-chrome-actions .app-more-popover .tokenzhang-link-label {
-  display: inline;
-}
-
-.app-more-popover .app-repository-link svg {
-  width: 16px;
-  height: 16px;
-}
-
-.app-more-popover .tokenzhang-credit {
-  margin-top: 4px;
-  padding: 8px 10px 4px;
-  border-top: 1px solid var(--icm-border);
-}
-
-.app-more-note {
-  padding: 6px 10px;
-  color: var(--icm-text-muted);
-  font-size: var(--icm-font-sm);
+.app-chrome-actions .bug-report-link {
+  width: var(--icm-control-h);
+  padding: 0;
+  justify-content: center;
 }
 
 @media (max-width: 1100px) {
+  /* Collapsed chrome keeps just the Z mark; the wording returns with
+     room. */
+  .app-chrome-actions .tokenzhang-credit-kicker,
+  .app-chrome-actions .tokenzhang-link-label {
+    display: none;
+  }
+
+  .app-chrome-actions .tokenzhang-link-icon {
+    width: 16px;
+    height: 16px;
+  }
+
   .app-brand-copy h1 {
     font-size: var(--icm-font-md);
   }

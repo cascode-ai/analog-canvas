@@ -206,8 +206,9 @@ export function createEditorFileCommands({
         setImportReport(nextImportReport);
         setImportReviewOpen(true);
         setSelectionOpen(true);
+        const documents = importedProject.documents.length;
         setStatus(
-          `Imported ${importedProject.documents.length} Documents and ${instanceCount} structural instances`,
+          `Imported ${documents} ${documents === 1 ? "Document" : "Documents"} and ${instanceCount} structural ${instanceCount === 1 ? "instance" : "instances"}`,
         );
       });
     } catch (error) {

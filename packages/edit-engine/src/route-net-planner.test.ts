@@ -1,5 +1,15 @@
-import { createEmptyDocument, type SchematicDocument } from "@icm/model";
-import { deriveVisibleConnectivity } from "@icm/derived";
+import {
+  createEmptyDocument,
+  createEmptyProject,
+  type SchematicDocument,
+} from "@icm/model";
+import {
+  buildProjectConnectivityIndex,
+  deriveVisibleConnectivity,
+  diagnoseVisualQuality,
+  resolveRouteGeometry,
+  runErcChecks,
+} from "@icm/derived";
 import {
   builtInSymbols,
   InMemorySymbolResolver,
@@ -43,6 +53,29 @@ function apply(document: SchematicDocument, edits: SchematicEdit[]) {
   });
   expect(result.ok, JSON.stringify(result)).toBe(true);
   return history;
+}
+/** Pins and Junctions that sit on another Net's wire: they read as joined. */
+function falseContacts(
+  document: SchematicDocument,
+  symbols: typeof resolver = resolver,
+) {
+  const project = createEmptyProject("route-net", "Route Net");
+  project.documents = [document];
+  project.topDocumentId = document.id;
+  return [
+    ...runErcChecks(
+      project,
+      buildProjectConnectivityIndex(project, symbols),
+      symbols,
+    )
+      .filter((diagnostic) => diagnostic.code === "ERC_TOUCHING_NOT_CONNECTED")
+      .map((diagnostic) => diagnostic.message),
+    ...diagnoseVisualQuality(document, symbols)
+      .filter(
+        (diagnostic) => diagnostic.code === "VISUAL_TERMINAL_ON_FOREIGN_ROUTE",
+      )
+      .map((diagnostic) => diagnostic.message),
+  ];
 }
 describe("route-net", () => {
   it("does not bypass an ambiguous foreign wire at a reused trunk-end pin", () => {
@@ -218,6 +251,172 @@ describe("route-net", () => {
       deriveVisibleConnectivity(next, resolver)[0]!.components,
     ).toHaveLength(1);
     expect(planRouteNet(next, resolver, input, 64).edits).toEqual([]);
+  });
+
+  it("goes around another Net's pin on the way, so no Net looks shorted to another", () => {
+    const { document, pins } = fixture();
+    // φ1 joins R0.1 and R2.1; R1.1, between them on one line, is φ2's.
+    const phi1 = apply(
+      document,
+      planRouteNet(
+        document,
+        resolver,
+        { target: { kind: "pins", pins: [pins[0]!, pins[2]!] } },
+        64,
+      ).edits,
+    ).document;
+    expect(falseContacts(phi1)).toEqual([]);
+    const phi2 = apply(
+      phi1,
+      planRouteNet(
+        phi1,
+        resolver,
+        { target: { kind: "pins", pins: [pins[1]!, pins[3]!] } },
+        64,
+      ).edits,
+    ).document;
+    expect(phi2.nets).toHaveLength(2);
+    expect(phi2.nets.map((net) => net.terminals.length)).toEqual([2, 2]);
+    // No pin and no Junction dot of one Net lands on the other's wire.
+    expect(falseContacts(phi2)).toEqual([]);
+  });
+
+  it("leaves a pin around its own part rather than through it", () => {
+    const document = createEmptyDocument("doc", "Bandgap");
+    document.instances = [
+      {
+        id: "Q1",
+        reference: "Q1",
+        symbolId: "pnp",
+        placement: {
+          position: { x: 200, y: 200 },
+          rotation: 0,
+          mirror: "none",
+        },
+      },
+    ];
+    const next = apply(
+      document,
+      planRouteNet(
+        document,
+        resolver,
+        {
+          target: {
+            kind: "pins",
+            pins: [
+              { instanceId: "Q1", pinName: "B" },
+              { instanceId: "Q1", pinName: "C" },
+            ],
+          },
+        },
+        64,
+      ).edits,
+    ).document;
+    // The base (west, at x=170) and the collector (south, at y=220) bound
+    // the transistor; the wire must stay out of what lies between.
+    const points = resolveRouteGeometry(
+      next,
+      resolver,
+      next.routes[0]!,
+    )!.centerline;
+    for (const [index, to] of points.slice(1).entries()) {
+      const from = points[index]!;
+      const middle = { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 };
+      expect(
+        middle.x > 170 && middle.x < 200 && middle.y > 180 && middle.y < 220,
+        JSON.stringify(points),
+      ).toBe(false);
+    }
+    expect(
+      diagnoseVisualQuality(next, resolver).filter(
+        (diagnostic) => diagnostic.code === "VISUAL_WIRE_THROUGH_SYMBOL",
+      ),
+    ).toEqual([]);
+  });
+
+  it("refuses a Net whose pin already sits on another Net's wire, naming it", () => {
+    const { document, pins } = fixture();
+    const foreign = planWireBatch(
+      document,
+      resolver,
+      [
+        {
+          id: "foreign",
+          from: { kind: "free", point: { x: -20, y: 80 } },
+          to: { kind: "free", point: { x: 20, y: 80 } },
+        },
+      ],
+      64,
+    );
+    if (typeof foreign === "string") throw new Error(foreign);
+    const current = apply(document, foreign.edits).document;
+    const before = structuredClone(current);
+    expect(() =>
+      planRouteNet(
+        current,
+        resolver,
+        { target: { kind: "pins", pins: [pins[0]!, pins[2]!] } },
+        64,
+      ),
+    ).toThrow(
+      /^route-net: R0\.1 sits on Route foreign-route of a different Net \(.+\); move that wire off the pin first$/,
+    );
+    expect(current).toEqual(before);
+  });
+
+  it("routes every Net of an imported OTA's default placement without a false contact", async () => {
+    const source = [
+      "* five-transistor OTA",
+      ".subckt ota5t vinp vinn vout vb VDD VSS",
+      "M1 n1 vinp tail VSS nch W=1u L=1u",
+      "M2 vout vinn tail VSS nch W=1u L=1u",
+      "M3 n1 n1 VDD VDD pch W=2u L=1u",
+      "M4 vout n1 VDD VDD pch W=2u L=1u",
+      "M5 tail vb VSS VSS nch W=1u L=1u",
+      ".ends ota5t",
+      ".model nch nmos",
+      ".model pch pmos",
+      ".end",
+      "",
+    ].join("\n");
+    const { project } = await importSpiceSources(
+      [{ path: "ota.cir", bytes: new TextEncoder().encode(source) }],
+      "ota.cir",
+    );
+    const projectResolver = createProjectSymbolResolver(
+      project!,
+      builtInSymbols,
+    );
+    let document = project!.documents.find(
+      (item) => item.sourceBinding?.cellName === "ota5t",
+    )!;
+    expect(falseContacts(document, projectResolver)).toEqual([]);
+    for (const net of document.importReference!.nets) {
+      const plan = planRouteNet(
+        document,
+        projectResolver,
+        { target: { kind: "import-net", sourceNetId: net.id } },
+        64,
+      );
+      const history = new DocumentHistory(document, {
+        symbolResolver: projectResolver,
+      });
+      const result = history.transact({
+        transactionId: `route-${net.id}`,
+        documentId: document.id,
+        expectedRevision: document.revision,
+        actor: { kind: "agent", id: "test" },
+        edits: plan.edits,
+      });
+      expect(result.ok, JSON.stringify(result)).toBe(true);
+      document = history.document;
+      expect(falseContacts(document, projectResolver), net.name).toEqual([]);
+    }
+    expect(
+      diagnoseVisualQuality(document, projectResolver).filter(
+        (diagnostic) => diagnostic.code === "VISUAL_WIRE_THROUGH_SYMBOL",
+      ),
+    ).toEqual([]);
   });
 
   it("reports missing or unplaced pins instead of claiming partial completion", () => {

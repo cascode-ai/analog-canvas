@@ -2506,16 +2506,16 @@ test("keeps a usable canvas while toggling Library at the narrow breakpoint", as
   await awaitEditorReady(page);
 
   const chrome = page.locator(".app-chrome-main");
-  // The analytics and Change Log live in the statusbar; the ⋯ that holds
-  // the GitHub link stays inside the top chrome at the narrow breakpoint.
-  const more = page.getByTestId("app-more-menu");
-  await expect(more).toBeVisible();
+  // The analytics and Change Log live in the statusbar; the compact GitHub
+  // link remains inside the top chrome at the narrow breakpoint.
+  const repository = page.getByTestId("editor-repository-link");
+  await expect(repository).toBeVisible();
   const chromeBox = await chrome.boundingBox();
-  const moreBox = await more.boundingBox();
-  if (!chromeBox || !moreBox) {
+  const repositoryBox = await repository.boundingBox();
+  if (!chromeBox || !repositoryBox) {
     throw new Error("Top navigation is not measurable");
   }
-  expect(moreBox.x + moreBox.width).toBeLessThanOrEqual(
+  expect(repositoryBox.x + repositoryBox.width).toBeLessThanOrEqual(
     chromeBox.x + chromeBox.width,
   );
 

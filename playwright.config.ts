@@ -16,6 +16,11 @@ export default defineConfig({
   // lets CI shards balance cases instead of assigning the entire suite to one
   // shard based on the three large spec files.
   fullyParallel: true,
+  // The per-test budget catches a hung test, not a slow machine. The longest
+  // editor flows take 10-14 s alone and two to three times that while other
+  // workers load the same machine, which failed them at the old 30 s default.
+  // Speed itself is measured by performance.spec.ts.
+  timeout: 60_000,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 1 : 0,
   reporter: "line",

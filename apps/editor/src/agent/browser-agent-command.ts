@@ -34,6 +34,7 @@ import {
   planElectricalMarkerRename,
   proposedStandalonePowerConnection,
   powerConnectionForSymbol,
+  proposePowerRailSpan,
   type SchematicEdit,
   type TransformOperation,
   type RoutingOperationPlan,
@@ -63,6 +64,7 @@ import {
   resolveDocumentLogicalNets,
   resolveAnnotationName,
   magneticDisplayParameters,
+  derivePowerRailComponent,
 } from "@icm/derived";
 import {
   builtInSymbols,
@@ -332,6 +334,56 @@ export function planBrowserAgentCommand(
         ([, net]) =>
           foldNetName(net.name ?? "") === foldNetName(command.name ?? "VDD"),
       );
+      // A rail of the same supply on the same line, overlapping or touching
+      // this one, grows to cover both instead of doubling up with a second
+      // label.
+      const supplyNetId = command.netId ?? named?.[0];
+      const supply = supplyNetId
+        ? logical.byBaseNetId.get(supplyNetId)
+        : undefined;
+      const along = (point: { x: number; y: number }) =>
+        command.start.y === command.end.y ? point.x : point.y;
+      const across = (point: { x: number; y: number }) =>
+        command.start.y === command.end.y ? point.y : point.x;
+      for (const route of document.routes) {
+        if (
+          route.presentation !== "power-rail" ||
+          !supply?.baseNetIds.includes(route.netId)
+        )
+          continue;
+        const component = derivePowerRailComponent(document, route.id);
+        if (!component || component.endpointJunctionIds.length !== 2) continue;
+        const ends = component.endpointJunctionIds.map((id) =>
+          document.junctions.find((junction) => junction.id === id)!,
+        );
+        // Both ends on the new rail's line: the same axis and the same line.
+        if (ends.some((end) => across(end.position) !== across(command.start)))
+          continue;
+        const span = [...ends.map((end) => along(end.position))].sort(
+          (left, right) => left - right,
+        );
+        const asked = [along(command.start), along(command.end)].sort(
+          (left, right) => left - right,
+        );
+        if (asked[1]! < span[0]! || asked[0]! > span[1]!) continue;
+        const low = Math.min(span[0]!, asked[0]!);
+        const high = Math.max(span[1]!, asked[1]!);
+        const point = (value: number) =>
+          command.start.y === command.end.y
+            ? { x: value, y: command.start.y }
+            : { x: command.start.x, y: value };
+        return {
+          edits: [
+            ...proposePowerRailSpan(
+              document,
+              resolver,
+              route.id,
+              point(low),
+              point(high),
+            ).edits,
+          ],
+        };
+      }
       // GUI contact capture is intentional for its gesture. Agent geometry alone
       // is not permission to join other pins: explicit wiring remains explicit.
       const plan = planVddRailEdits(document, {
@@ -347,6 +399,18 @@ export function planBrowserAgentCommand(
       if (!plan.ok) throw new Error(plan.message);
       return { edits: [...plan.edits] };
     }
+    case "extend-power-rail":
+      return {
+        edits: [
+          ...proposePowerRailSpan(
+            document,
+            resolver,
+            command.routeId,
+            command.start,
+            command.end,
+          ).edits,
+        ],
+      };
     case "batch": {
       // Plan each command against the preceding private result. Only the final
       // ordinary Project transaction reaches the live controller/history.

@@ -1,6 +1,8 @@
 import {
   AGENT_API_VERSION,
+  base64EncodeBytes,
   type AgentGalleryEntryRead,
+  type AgentGalleryFigure,
   type AgentGalleryEntrySummary,
   type AgentNetlistRead,
   type AgentProjectResourceRequest,
@@ -11,9 +13,11 @@ import type {
   ProjectTransactionResult,
 } from "@icm/edit-engine";
 import { planProjectCellImport } from "@icm/edit-engine";
+import { createBrowserFormalExportSource } from "@icm/exporters";
 import type { CircuitProject } from "@icm/model";
 import { createDesignNetlistExport } from "@icm/netlist";
 import { parseProject } from "@icm/project-protocol";
+import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 
 import {
   listCloudProjects,
@@ -26,6 +30,7 @@ import {
 import { GALLERY_SIGN_IN_REQUIRED, loadGalleryFeed } from "../gallery-client";
 import { planNetlistCodeEdit } from "../features/netlist-export/netlist-code-edit";
 import { importChunk } from "../components/chunk-import";
+import { prepareDocumentFormulaArtifacts } from "../features/text-editing/formula-artifacts";
 
 export interface BrowserAgentProjectHostOptions {
   loadProjectCode?: () => Promise<
@@ -390,12 +395,28 @@ export class BrowserAgentProjectHost {
       tags: [],
       ...payload.entry,
     });
+    let figure: AgentGalleryFigure | undefined;
+    if (request.render) {
+      try {
+        figure = await this.galleryFigure(project, request.render);
+      } catch (error) {
+        return this.error(
+          request,
+          "GALLERY_RENDER_FAILED",
+          error instanceof Error
+            ? error.message
+            : "The figure could not be drawn",
+          "retry",
+        );
+      }
+    }
     return {
       apiVersion: AGENT_API_VERSION,
       requestId: request.requestId,
       operation: request.operation,
       ok: true,
       entry,
+      ...(figure ? { figure } : {}),
       projectCode: payload.projectText,
       netlist:
         request.netlistFormat === null
@@ -405,6 +426,52 @@ export class BrowserAgentProjectHost {
               namingProfile: request.namingProfile,
               portCase: request.portCase,
             }),
+    };
+  }
+
+  /** The top Cell, drawn by the same formal exporter as a file export. */
+  private async galleryFigure(
+    project: CircuitProject,
+    render: "svg" | "png",
+  ): Promise<AgentGalleryFigure> {
+    const document =
+      project.documents.find((item) => item.id === project.topDocumentId) ??
+      project.documents[0]!;
+    const prepared = await prepareDocumentFormulaArtifacts(document);
+    let source: Awaited<ReturnType<typeof createBrowserFormalExportSource>>;
+    try {
+      source = await createBrowserFormalExportSource(
+        document,
+        createProjectSymbolResolver(project, builtInSymbols),
+        { title: project.name },
+      );
+    } finally {
+      prepared.release();
+    }
+    const bytes =
+      render === "svg"
+        ? new TextEncoder().encode(source.svg)
+        : (
+            await (
+              await importChunk(
+                "PNG export",
+                () => import("@icm/exporters/browser-raster"),
+              )
+            ).rasterizeFormalSvgInBrowser(source)
+          ).bytes;
+    const digest = await crypto.subtle.digest(
+      "SHA-256",
+      new Uint8Array(bytes).buffer,
+    );
+    return {
+      documentId: document.id,
+      mediaType: render === "svg" ? "image/svg+xml" : "image/png",
+      encoding: "base64",
+      data: base64EncodeBytes(bytes),
+      byteLength: bytes.byteLength,
+      sha256: [...new Uint8Array(digest)]
+        .map((byte) => byte.toString(16).padStart(2, "0"))
+        .join(""),
     };
   }
 

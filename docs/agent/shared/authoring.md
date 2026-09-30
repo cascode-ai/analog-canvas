@@ -65,6 +65,15 @@ targets to avoid full-Snapshot name resolution. Names remain supported when usef
   the default PMOS bulk; geometry alone does not connect nearby pins in Agent
   placement. The complete typed `add_power_rail` remains available. Ground and
   power markers are not named devices.
+- A rail grows, it is not doubled. `add-power-rail` along the line of an
+  existing rail of the same supply, overlapping or touching it, extends that
+  rail to cover both spans, with one label. `extend-power-rail`
+  `{routeId,start,end}` sets a straight rail's two ends on its own line:
+  - taps stay where they are;
+  - the label goes with its end;
+  - no pin is joined;
+  - a span that would drop a tap, or move an end that carries a tap, is
+    refused with the tap's ID.
 - Set electrical values before their display. MOS sizes are physical quantities:
   `w:"10u", l:"1u"`, not `10/1` assuming micrometres. Use
   `set-instance-display` for Reference/Value/parameters, not detached text.
@@ -145,11 +154,22 @@ current Net ID/name, one member pin, an explicit list of pins to join, or a
 frozen import-reference `sourceNetId`. An import ID is not a current Net ID.
 It reuses the visible connectivity/MST and atomic wire planners, skipping already
 connected components. Optional `trunk:{start,end}` specifies one straight
-horizontal/vertical trunk; otherwise follow the shared guide tree. This is not
-an obstacle autorouter: conflicting taps or excess expanded edits reject the
-whole operation. Ordinary crossings without a Junction remain legal. It does
-not move devices, infer bulk wiring or override import-reference shorts/scope
-conflicts; place missing devices and fix those facts first.
+horizontal/vertical trunk; otherwise follow the shared guide tree. A wire never
+passes over another Net's pin, through a part (its own included) or along its
+drawn leads, or onto another Net's wire, since each would read as a connection
+the netlist does not have. Each guide wire takes the cheapest of a few simple
+paths that avoids them: the plain L, a short lead out of a pin, or a detour
+along a free row or column. When none does, or a pin already sits on another
+Net's wire, the whole operation is refused and the message names the pin, part
+or Route in the way; move parts apart or give a trunk. A trunk and its branches
+are checked the same way and refused, not bent. This is not a general
+autorouter: conflicting taps or excess expanded edits also reject the whole
+operation. Ordinary crossings without a Junction remain legal. It does not move
+devices, infer bulk wiring or override import-reference shorts/scope conflicts;
+place missing devices and fix those facts first. A structural SPICE import lays
+its Cell Pins around the devices, each lead facing them: supplies (`VDD`,
+`VCC` and the like) above, grounds (`VSS`, `GND`, `0`) below, outputs (`out`,
+`vout`, or a Net only drains and collectors drive) right, the rest left.
 Several `route-net` actions can share one atomic command batch; each resolves
 against the preceding private result. The total expanded edit limit still
 applies, and any invalid later target leaves the whole batch unapplied.
@@ -175,8 +195,13 @@ object type, and a list left out is empty:
 The lists are `instanceIds`, `routeIds`, `junctionIds`, `annotationIds`,
 `draftingIds` and `noConnectIds`. Unknown or wrongly
 classified IDs reject the entire Agent selection; free text created by
-`annotate` belongs in `draftingIds`, not `annotationIds`. Selecting every object clears a Cell, while
-unselected wires remain dangling. Reset modes retain their existing meanings
+`annotate` belongs in `draftingIds`, not `annotationIds`. Selecting every object clears a Cell.
+Deleting a part also deletes a wire that only tapped it into other wiring, a
+stub from its pin to a junction on another wire or to nowhere, through plain
+bends. A wire that runs on to another part's pin stays, open where the part was,
+so a replacement placed there reconnects. Wires carrying a label stay too. A
+wire left ending in the open is reported as `ERC_DANGLING_WIRE`, with its
+Route and Junction IDs. Reset modes retain their existing meanings
 and must not be used as a synonym for deleting the entire Cell.
 To remove a formal Cell Pin use `remove-cell-terminal` or selection deletion;
 disconnecting its `P` alone would leave an invalid declared interface.

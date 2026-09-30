@@ -734,7 +734,7 @@ test("visual clipboard reports denied access and empty selection without downloa
       exact: true,
     }),
   ).toHaveCount(0);
-  await page.getByTestId("project-menu-toggle").click();
+  await page.keyboard.press("Escape");
   await placeComponent(page, "resistor", { x: 300, y: 220 });
   const downloads: string[] = [];
   page.on("download", (download) =>

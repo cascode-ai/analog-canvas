@@ -598,6 +598,27 @@
   line-height: var(--icm-line-tight);
 }
 
+/* The Agent session's final minute: the one action that keeps it, in view. */
+.statusbar-agent-expiring {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 4px 2px 8px;
+  border-radius: 999px;
+  color: var(--icm-text);
+  background: var(--icm-surface-muted);
+  font-size: var(--icm-font-xs);
+  font-weight: 600;
+  line-height: var(--icm-line-tight);
+}
+
+.statusbar-agent-expiring button {
+  padding: 1px 8px;
+  border-radius: 999px;
+  font: inherit;
+}
+
 /* Persistent findings entry point. Same chip language as the tool label; the
    severity recolors it, and the zero state stays quiet but clickable. */
 .statusbar-issues {

@@ -6191,6 +6191,61 @@ function WorkspaceEditor({
           project: { id, name, revision, updatedAt, schemaVersion },
         });
       }
+      if (request.action === "new") {
+        // A blank working copy, as the tab strip's + opens one.
+        const open = new Set(entries.map((item) => item.id));
+        const blank = createEmptyProject(
+          createId("project"),
+          request.name?.trim() || "New Circuit",
+          createId("document"),
+        );
+        const applied = request.background
+          ? projectTabs.openBackground(() => createTabSession(blank))
+          : await projectTabs.open(() => createTabSession(blank));
+        const workspaceId = projectTabs
+          .entries()
+          .find((item) => !open.has(item.id))?.id;
+        return applied && workspaceId
+          ? success({ action: "new", applied: true, workspaceId })
+          : fail(
+              "WORKSPACE_BUSY",
+              "Finish the current edit before opening a Project",
+            );
+      }
+      if (request.action === "rename") {
+        const name = request.name.trim();
+        const workspaceId =
+          request.workspaceId ?? targetWorkspaceId ?? projectTabs.activeId;
+        const target = entries.find((item) => item.id === workspaceId);
+        if (!target)
+          return fail("WORKSPACE_NOT_FOUND", "Working copy is no longer open");
+        if (!name)
+          return fail("INVALID_REQUEST", "A Project name cannot be blank");
+        const controller = target.session.controller;
+        if (controller.project.name === name)
+          return success({ action: "rename", applied: false, workspaceId });
+        if (workspaceId === projectTabs.activeId) {
+          // The Project menu's own rename: one undoable Project edit.
+          renameProject(name);
+          if (editorDocumentController.project.name !== name)
+            return fail("RENAME_REJECTED", "The Project name was not changed");
+        } else {
+          const result = controller.dispatchProjectTransaction({
+            transactionId: `agent-rename-project-${envelope.requestId}`,
+            projectId: controller.project.id,
+            expectedStructureRevision: controller.project.structureRevision,
+            actor: { kind: "agent", id: "workspace" },
+            edits: [{ kind: "rename_project", name }],
+          });
+          if (!result.ok || !result.applied)
+            return fail("RENAME_REJECTED", "The Project name was not changed");
+          target.session.dirty = true;
+          if (target.session.file.persistenceState === "clean")
+            target.session.file.persistenceState = "dirty";
+          projectTabs.changed();
+        }
+        return success({ action: "rename", applied: true, workspaceId });
+      }
       const source = entries.find((e) => e.id === request.sourceWorkspaceId)
         ?.session.controller;
       const target = entries.find((e) => e.id === request.targetWorkspaceId);
@@ -9579,6 +9634,13 @@ function WorkspaceEditor({
         wireRoutingMode={wireRoutingMode}
         wireCornerOrder={wireCornerOrder}
         recoveryLabel={isDirtyWork() ? recoveryStateLabel(recoveryState) : null}
+        agentExpiring={
+          agentSession.expiringSoon &&
+          agentSession.status !== "expired" &&
+          agentSession.status !== "revoked"
+            ? { onKeep: agentSession.keepConnected }
+            : null
+        }
         zoomPercent={zoomPercent}
         shortcutHintsVisible={shortcutHintsVisible}
         onToggleShortcutHints={() =>

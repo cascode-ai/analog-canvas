@@ -51,6 +51,16 @@ const expectedClearanceLabels = {
   "ota-library/document-ota-5t-testbench": libraryTbClearanceLabels,
   "ota-library/document-ota-5t-testbench-sin": libraryTbClearanceLabels,
 };
+// The reviewed common-source drawing has two wires ending in the open, which
+// ERC_DANGLING_WIRE names: a stub from the supply's minus pin, and the dashed
+// bulk wire from XM1. Pinned by owner, not by count, so a new open end still
+// fails; the reviewed geometry is not changed here.
+const expectedOpenWireEnds = {
+  "common-source/cell-common-source": [
+    "wire-52:junction-lifecycle-18-1",
+    "route-ui-5:junction-ui-4",
+  ],
+};
 
 // The full-library case stays an acceptance obligation during migration. Do not
 // filter unfinished model-backed folders out of it to obtain a green result.
@@ -129,10 +139,24 @@ test.each([
               diagnostic.parameters.conflictingObjectCount,
             ).toBeGreaterThan(0);
           }
+          const openWireEnds = inspection.document.diagnostics.filter(
+            (diagnostic) => diagnostic.code === "ERC_DANGLING_WIRE",
+          );
+          expect(
+            openWireEnds
+              .map(
+                ({ parameters }) =>
+                  `${parameters.routeId}:${parameters.junctionId}`,
+              )
+              .sort(),
+          ).toEqual(
+            [...(expectedOpenWireEnds[`${item.id}/${doc.id}`] ?? [])].sort(),
+          );
           const drawingDiagnostics = inspection.document.diagnostics.filter(
             (diagnostic) =>
               diagnostic.code !== "IMPORT_REFERENCE_UNAVAILABLE" &&
-              diagnostic.code !== "VISUAL_LABEL_CLEARANCE",
+              diagnostic.code !== "VISUAL_LABEL_CLEARANCE" &&
+              diagnostic.code !== "ERC_DANGLING_WIRE",
           );
           if (item.id !== "ota-library") {
             expect(drawingDiagnostics).toEqual([]);

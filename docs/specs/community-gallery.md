@@ -92,15 +92,29 @@ asks the AuthDO once.
   circuit names, authors, descriptions and tags without changing the tag list.
   Narrow mobile layouts keep that search visible while collapsing the filters
   and tag groups behind a Search & filters button. An empty tag selection result
-  does not substitute unfiltered examples.
+  does not substitute unfiltered examples. With `q` the tag counts are those of
+  the circuits the search finds.
 - `GET /api/gallery/authors` — non-empty public bylines with their currently
   visible circuit counts, ranked by count and then author name. This endpoint
   remains the unfiltered public ranking. The clickable wall count instead uses
   the `authors` aggregate returned by `GET /api/gallery`: the same author,
   tags, netlist, liked and authorized Needs attention filters as its cards,
-  counted before pagination. Text search derives contributors from matching
-  loaded cards and marks incomplete counts “so far”. Empty results show no
-  contributors. Selecting an author retains the other active filters.
+  counted before pagination. Empty results show no contributors. Selecting an
+  author retains the other active filters.
+- `GET /api/gallery?q=<words>` — the server searches every public circuit's
+  name, byline, description and tags, never its Project Code or preview, with
+  the rule the browser uses (`apps/editor/src/gallery-search.ts`):
+  case-insensitive containment, else each word within one small Latin-letter
+  edit of a word (`stgae` finds `stage`; words under four letters must match
+  exactly). The search narrows the wall before its cursor, total, contributors
+  and filter counts, so an older match comes back on the first page, and the
+  response echoes it as `search`. The wall and the Editor's Gallery panel send
+  the same query a quarter second after typing pauses; until an echoed answer
+  arrives they narrow what they have loaded by the same rule, and they read no
+  older pages for words the server has not been asked yet. A server that
+  answers without `search` did not search, and the page walk with counts
+  marked “so far” remains the fallback. Signed out, a search reads only the
+  newest wall, so it cannot enumerate the Gallery.
 - `GET /api/gallery/<id>` — one public entry with its canonical
   `projectText`.
 - `GET /api/gallery/<id>/preview.svg?v=<previewRevision>&render=formula-label-v5` — the

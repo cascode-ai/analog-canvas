@@ -208,7 +208,7 @@ remain their only removal paths.
 The editor persistence lifecycle is the single source of unsaved truth. A
 successful persistent edit marks it dirty; only an acknowledged Cloud Save of
 the current content marks it clean. Selection, view, export, download, and
-panel changes do not. The unsaved marks on the Project menu and a Project tab,
+panel changes do not. The unsaved marks on the File menu and a Project tab,
 and a tab's close question, also treat a Gallery publication of exactly the
 current content as saved: the Gallery keeps that content and its history. The
 next edit brings them back; an exported file never clears them. While dirty, and only while dirty, the editor registers

@@ -39,25 +39,31 @@ describe("SPICE elaboration and Project import", () => {
     expect(instances.every((instance) => instance.placement !== null)).toBe(
       true,
     );
-    // Cell Pins take the top row; devices start a grid beneath them.
+    // Each Cell Pin waits on its side of the devices, facing them: the
+    // supply above, ground below, the input left and the output right.
     const child = imported.project!.documents.find(
       (document) => document.sourceBinding?.cellName === "amp",
     )!;
-    const ports = child.instances.filter(
-      (instance) => instance.symbolId === "port",
-    );
     const devices = child.instances.filter(
       (instance) => instance.symbolId !== "port",
     );
-    expect(new Set(ports.map((port) => port.placement!.position.y)).size).toBe(
-      1,
-    );
-    expect(
-      devices.every(
-        (device) =>
-          device.placement!.position.y > ports[0]!.placement!.position.y,
-      ),
-    ).toBe(true);
+    const xs = devices.map((device) => device.placement!.position.x);
+    const ys = devices.map((device) => device.placement!.position.y);
+    const pin = (name: string) =>
+      child.instances.find(
+        (instance) =>
+          instance.id ===
+          child.netlist!.terminals.find((terminal) => terminal.name === name)!
+            .interfaceInstanceIds[0],
+      )!.placement!;
+    expect(pin("vdd").rotation).toBe(90);
+    expect(pin("vdd").position.y).toBeLessThan(Math.min(...ys));
+    expect(pin("0").rotation).toBe(270);
+    expect(pin("0").position.y).toBeGreaterThan(Math.max(...ys));
+    expect(pin("in").rotation).toBe(0);
+    expect(pin("in").position.x).toBeLessThan(Math.min(...xs));
+    expect(pin("out").rotation).toBe(180);
+    expect(pin("out").position.x).toBeGreaterThan(Math.max(...xs));
     // Positions land on the Document grid, so the schema accepts them.
     expect(
       child.instances.every(

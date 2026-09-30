@@ -41,7 +41,36 @@ selected transport's retry rules. Interpret structured results using
 | Local parameter change | Accepted change and current value; simulation only if electrical validation was requested |
 | Placement, labels or routing | Changed geometry/connectivity plus a formal render of the affected area |
 | Whole schematic or hierarchy | Complete changed-Document review and affected parent contexts |
+| Drawing from a reference (figure, paper, netlist) | `verify` with `expectedNetlist` at `status: "equal"`, or every remaining difference explained, then a render for visual review |
 | Simulation | Completed run, captured input identity and retrieved requested results; see the simulation guide |
+
+### Drawing from a reference
+
+A drawing that copies a textbook or paper figure, a Gallery entry or a netlist
+is complete when its connectivity is shown to match, not when it looks right.
+
+1. Before placing anything, write the reference as structural SPICE: MOS in
+   `D G S B` order, the named ports, and a name for every node the figure
+   names.
+2. After drawing, run `verify` with `expectedNetlist` and `details:true`. Done
+   means `status: "equal"`, or every remaining difference explained to the
+   person. `topology: "equal"` already says the wiring matches.
+3. Two differences can be harmless; the summary names them apart from topology:
+   - `port-order`: a figure does not fix the order of the subcircuit ports;
+   - `binding`: the reference binds a device as a model card (`M1`) and the
+     drawing as a subcircuit call (`XM1`), or the reverse.
+   Skip them with `compare:{portOrder:false,bindings:false}`, or name them in
+   the report.
+4. Then `render`, or export a PNG, for the visual review.
+
+For example, a two-transistor current mirror copied from a figure:
+
+```spice
+.subckt mirror iref iout vss
+M1 iref iref vss vss nmos
+M2 iout iref vss vss nmos
+.ends mirror
+```
 
 For visual changes, use [style guidance](circuit-style-knowledge.md) and
 [diagnostic policy](shared/diagnostics.md). Do not mechanically clear observations

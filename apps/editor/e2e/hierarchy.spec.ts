@@ -1086,11 +1086,11 @@ test("keeps Hierarchy discoverable and restores the operation row on demand", as
   await page.setViewportSize({ width: 420, height: 700 });
   await page.goto("/editor");
 
-  // Even this narrow, the header's one menu is in view and holds the Cell
-  // Manager under Hierarchy.
-  const toggle = page.getByTestId("project-menu-toggle");
+  // Even this narrow, the header's Circuit menu is in view and holds the
+  // Cell Manager under Hierarchy.
+  const toggle = page.getByTestId("circuit-menu").locator(":scope > summary");
   const toolbar = page.locator('.toolbar-row[aria-label="Document hierarchy"]');
-  await expect(toggle).toBeVisible({ timeout: 15_000 });
+  await expect(toggle).toBeInViewport({ timeout: 15_000 });
   const entry = (await openMenu(page, "Hierarchy")).getByTestId(
     "hierarchy-entry",
   );

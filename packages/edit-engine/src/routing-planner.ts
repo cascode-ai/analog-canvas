@@ -1278,6 +1278,99 @@ export function proposePowerRailEndpointResize(
 }
 
 /**
+ * Set both visual ends of one straight Power Rail: the rail grows or shrinks
+ * along its own line, every tap Junction stays where it is, and the label,
+ * anchored to its end, goes with that end. Planned as the GUI's end drag is,
+ * without pin contact capture: geometry alone joins no pin.
+ */
+export function proposePowerRailSpan(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  routeId: string,
+  from: Point,
+  to: Point,
+): RouteEditPlan {
+  const component = derivePowerRailComponent(document, routeId);
+  if (!component || component.endpointJunctionIds.length !== 2) {
+    throw new Error("Power rail must have exactly two editable ends");
+  }
+  const ends = component.endpointJunctionIds.map((junctionId) =>
+    document.junctions.find((junction) => junction.id === junctionId)!,
+  );
+  const horizontal =
+    ends[0]!.position.y === ends[1]!.position.y &&
+    ends[0]!.position.x !== ends[1]!.position.x;
+  const vertical =
+    ends[0]!.position.x === ends[1]!.position.x &&
+    ends[0]!.position.y !== ends[1]!.position.y;
+  if (!horizontal && !vertical) {
+    throw new Error("Power rail must be straight and axis-aligned");
+  }
+  const along = (point: Point) => (horizontal ? point.x : point.y);
+  const across = (point: Point) => (horizontal ? point.y : point.x);
+  const line = across(ends[0]!.position);
+  if (across(from) !== line || across(to) !== line) {
+    throw new Error(
+      `A Power Rail keeps its line: both ends need ${horizontal ? "y" : "x"} = ${line}`,
+    );
+  }
+  const [low, high] = [from, to].sort(
+    (left, right) => along(left) - along(right),
+  );
+  if (along(low!) === along(high!)) {
+    throw new Error("Power rail must retain a non-zero length");
+  }
+  ends.sort((left, right) => along(left.position) - along(right.position));
+  const railIds = new Set(component.routeIds);
+  const tapped = (junctionId: string) =>
+    document.routes.some(
+      (route) =>
+        !railIds.has(route.id) &&
+        [route.start, routeEnd(route)].some(
+          (end) => end.kind === "junction" && end.junctionId === junctionId,
+        ),
+    );
+  for (const junctionId of component.junctionIds) {
+    if (component.endpointJunctionIds.includes(junctionId)) continue;
+    const tap = document.junctions.find(
+      (junction) => junction.id === junctionId,
+    )!;
+    if (along(tap.position) < along(low!) || along(tap.position) > along(high!))
+      throw new Error(
+        `Tap ${tap.id} at ${along(tap.position)} would fall off the rail; keep the span over every tap`,
+      );
+  }
+  const moves: JunctionMoveProposal[] = [];
+  for (const [end, target] of [
+    [ends[0]!, low!],
+    [ends[1]!, high!],
+  ] as const) {
+    if (end.position.x === target.x && end.position.y === target.y) continue;
+    if (tapped(end.id))
+      throw new Error(
+        `Rail end ${end.id} carries a tap, which would move with it; re-tap that wire, or change only the other end`,
+      );
+    moves.push({ junctionId: end.id, position: { x: target.x, y: target.y } });
+  }
+  if (moves.length === 0) return { routeId, edits: [] };
+  const proposal = proposeJunctionGroupTranslation(document, resolver, moves);
+  return {
+    routeId,
+    preview: {
+      routes: proposal.routes,
+      junctions: proposal.junctions,
+    },
+    edits: [
+      ...proposal.junctions.map((move): SchematicEdit => ({
+        kind: "move_junction",
+        ...move,
+      })),
+      ...routeEdits(document, proposal.routes),
+    ],
+  };
+}
+
+/**
  * Collect the closure for deleting visual route geometry. Ordinary Wire
  * deletion deliberately preserves Net membership. A `bulk-dashed` route is
  * different: it is the visible representation of an explicit MOS B binding,

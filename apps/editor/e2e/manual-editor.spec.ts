@@ -5268,13 +5268,18 @@ test("keeps the production command surface compact and publishes PWA metadata", 
   expect(await fill()).toBe(resting);
   await expect(page.getByTestId("copy-netlist")).toBeHidden();
   await expect(page.getByTestId("check-and-save")).toBeHidden();
+  // Three header menus, one open at a time: File, Edit, and Circuit
+  // (Hierarchy and Netlist).
   const netlist = await openMenu(page, "Netlist");
   await expect(netlist.getByTestId("copy-netlist")).toBeVisible();
-  for (const group of ["File", "Edit", "Hierarchy"])
-    await expect(await openMenu(page, group)).toBeVisible();
-  await expect(page.getByTestId("check-and-save")).toBeVisible();
-  await page.getByTestId("project-menu-toggle").click();
+  const file = await openMenu(page, "File");
+  await expect(file.getByTestId("check-and-save")).toBeVisible();
   await expect(page.getByTestId("copy-netlist")).toBeHidden();
+  for (const group of ["Edit", "Hierarchy"])
+    await expect(await openMenu(page, group)).toBeVisible();
+  await expect(page.getByTestId("check-and-save")).toBeHidden();
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("circuit-menu")).not.toHaveAttribute("open");
   await clickNetlistWorkflowCommand(page, "open-analog-simulation");
   await expect(
     page.getByRole("region", { name: "Analog simulation" }),

@@ -3,6 +3,8 @@ import { useRef, type KeyboardEvent, type ReactNode } from "react";
 import { dismissOpenCommandMenus } from "./editor-runtime-helpers";
 
 export interface ProjectMenuProps {
+  /** The menu's name in the header; the project's name is its tooltip. */
+  label?: string;
   name: string;
   nameDraft: string | null;
   documentName: string;
@@ -17,16 +19,14 @@ export interface ProjectMenuProps {
     busy: boolean;
     onSelect(id: string): void;
   };
-  /**
-   * The editor's commands, one labelled group each (File, Edit, Hierarchy,
-   * Netlist): the header keeps one menu instead of a row of them.
-   */
+  /** Commands below the project's details: the header's File group. */
   children?: ReactNode;
   onOpen?(): void;
 }
 
-/** The project's name as the header's one menu; its details and commands live inside. */
+/** The header's File menu: the project's details above its file commands. */
 export function ProjectMenu({
+  label,
   name,
   nameDraft,
   documentName,
@@ -70,6 +70,7 @@ export function ProjectMenu({
   return (
     <details
       className="command-menu project-menu"
+      name="editor-command-menu"
       data-testid="project-menu"
       ref={menu}
       onKeyDown={(event) => {
@@ -80,7 +81,7 @@ export function ProjectMenu({
       }}
     >
       <summary title={name} data-testid="project-menu-toggle">
-        <span className="project-menu-title">{name}</span>
+        <span className="project-menu-title">{label ?? name}</span>
         {dirty ? (
           <span
             className="project-unsaved-indicator"

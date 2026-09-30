@@ -397,9 +397,7 @@ export function FileCommandMenu({
         aria-label="File"
         data-inline-confirm-menu
       >
-        <span className="command-section-title" aria-hidden="true">
-          File
-        </span>
+        {/* The File menu's own summary names these commands. */}
         {commands}
       </div>
     );

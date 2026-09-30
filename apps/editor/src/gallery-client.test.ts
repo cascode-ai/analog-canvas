@@ -2,7 +2,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   announceGalleryChange,
+  galleryCountLabel,
   galleryPreviewUrl,
+  loadGalleryFeed,
   loadGalleryTagSummary,
   primeGalleryPreview,
   subscribeGalleryRefresh,
@@ -75,6 +77,47 @@ it("requests tag counts for the same netlist scope as the Gallery wall", async (
   expect(fetchLike).toHaveBeenLastCalledWith("/api/gallery/tags", {
     credentials: "same-origin",
   });
+});
+
+it("asks the server to search, and counts tags for the same search", async () => {
+  const fetchLike = vi
+    .fn<typeof fetch>()
+    .mockImplementation(async () =>
+      Response.json({ entries: [], nextCursor: null, total: 3 }),
+    );
+  // One query builder for the wall and the Editor panel: the words go to the
+  // server, trimmed, beside every other filter and the cursor.
+  await loadGalleryFeed(fetchLike, {
+    q: "  three stage ",
+    tags: ["ota"],
+    cursor: "c-1",
+  });
+  expect(fetchLike).toHaveBeenLastCalledWith(
+    "/api/gallery?q=three+stage&tags=ota&cursor=c-1",
+    { credentials: "same-origin" },
+  );
+  // The page carries the search the server says it applied, and only that.
+  fetchLike.mockImplementationOnce(async () =>
+    Response.json({ entries: [], nextCursor: null, total: 0, search: "zzz" }),
+  );
+  expect(await loadGalleryFeed(fetchLike, { q: "zzz" })).toMatchObject({
+    search: "zzz",
+  });
+  expect(await loadGalleryFeed(fetchLike, { q: "zzz" })).not.toHaveProperty(
+    "search",
+  );
+  await loadGalleryFeed(fetchLike, { q: "   " });
+  expect(fetchLike).toHaveBeenLastCalledWith("/api/gallery", {
+    credentials: "same-origin",
+  });
+  await loadGalleryTagSummary(fetchLike, { q: "stage", netlistable: true });
+  expect(fetchLike).toHaveBeenLastCalledWith(
+    "/api/gallery/tags?q=stage&netlistable=1",
+    { credentials: "same-origin" },
+  );
+  // A server answer is a count of matches, not "so far".
+  expect(galleryCountLabel(3, { searched: true })).toBe("3 matching circuits");
+  expect(galleryCountLabel(1, { searched: true })).toBe("1 matching circuit");
 });
 
 describe("Gallery preview caching", () => {

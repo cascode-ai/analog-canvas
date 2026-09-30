@@ -22,6 +22,12 @@ export interface AgentSessionLimits {
   tokenTtlMs: number;
   /** Sliding inactivity timeout; every credential also requires a live session. */
   sessionTtlMs: number;
+  /**
+   * How long after the last Agent operation or edit a person merely present
+   * in the paired editor keeps renewing the session, so a forgotten open tab
+   * still expires. Absent in older persisted limits.
+   */
+  presenceCapMs?: number;
   /** Hard request-body ceiling before any forward. */
   maxRequestBytes: number;
   /** Hard browser relay envelope ceiling (request or response). */
@@ -39,6 +45,9 @@ export const DEFAULT_AGENT_SESSION_LIMITS: AgentSessionLimits = {
   claimTtlMs: 30 * 60 * 1000,
   tokenTtlMs: 8 * 60 * 60 * 1000,
   sessionTtlMs: 30 * 60 * 1000,
+  // The bearer lifetime: presence alone never outlives what an Agent that
+  // stopped working could still use.
+  presenceCapMs: 8 * 60 * 60 * 1000,
   // Project Code may occupy the full 2 MB product limit; leave room for the
   // typed request envelope instead of making the largest valid Project
   // impossible to replace through the Project Resource.
@@ -133,6 +142,8 @@ interface SessionInternals {
   scopes: AgentSessionScope[];
   status: AgentSessionStatus;
   expiresAt: number;
+  /** The last Agent operation, edit or explicit keep-alive; not presence. */
+  activityAt: number;
   claim: ClaimRecord | null;
   token: TokenRecord | null;
   connector: ConnectorRecord | null;
@@ -167,6 +178,8 @@ export interface PersistedAgentSessionState {
   scopes: AgentSessionScope[];
   status: AgentSessionStatus;
   expiresAt: number;
+  /** Optional for sessions persisted before presence renewal. */
+  activityAt?: number;
   claim: ClaimRecord | null;
   token: TokenRecord | null;
   /** Optional for backward-compatible restore of pre-M4 Durable Object state. */
@@ -236,6 +249,7 @@ export class AgentSessionMachine {
         scopes: [...options.scopes],
         status: "active",
         expiresAt,
+        activityAt: options.now,
         claim: {
           codeVerifier: secretVerifier(claimCode),
           expiresAt: claimExpiresAt,
@@ -322,6 +336,9 @@ export class AgentSessionMachine {
         scopes: [...state.scopes],
         status: state.status,
         expiresAt: Math.min(state.expiresAt, now + limits.sessionTtlMs),
+        // Before presence, the idle deadline was always the last activity
+        // plus the idle window.
+        activityAt: state.activityAt ?? state.expiresAt - limits.sessionTtlMs,
         claim: state.claim ? { ...state.claim } : null,
         token: state.token
           ? { ...state.token, scopes: [...state.token.scopes] }
@@ -355,6 +372,7 @@ export class AgentSessionMachine {
       scopes: this.scopes,
       status: this.internals.status,
       expiresAt: this.internals.expiresAt,
+      activityAt: this.internals.activityAt,
       claim: this.internals.claim ? { ...this.internals.claim } : null,
       token: this.internals.token
         ? { ...this.internals.token, scopes: [...this.internals.token.scopes] }
@@ -378,6 +396,24 @@ export class AgentSessionMachine {
 
   /** Only admitted operations or authenticated human edits count as activity. */
   recordActivity(now: number): boolean {
+    if (!this.extendIdleDeadline(now)) return false;
+    this.internals.activityAt = Math.max(this.internals.activityAt, now);
+    return true;
+  }
+
+  /**
+   * A person present in the paired editor, reading or reviewing: renews the
+   * idle deadline as activity does, but only within the presence cap after
+   * the last real activity, so a forgotten open tab still expires.
+   */
+  recordPresence(now: number): boolean {
+    const cap =
+      this.limits.presenceCapMs ?? DEFAULT_AGENT_SESSION_LIMITS.presenceCapMs!;
+    if (now - this.internals.activityAt >= cap) return false;
+    return this.extendIdleDeadline(now);
+  }
+
+  private extendIdleDeadline(now: number): boolean {
     if (this.lifecycleCode(now)) return false;
     this.internals.expiresAt = Math.max(
       this.internals.expiresAt,

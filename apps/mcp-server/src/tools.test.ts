@@ -1266,4 +1266,58 @@ describe("mcp tool surface", () => {
       ),
     );
   });
+
+  it("a Gallery read with render returns the figure as an image block", async () => {
+    const data = Buffer.from("png bytes").toString("base64");
+    const { session, http } = await toolSession(
+      new FakeAgentHttp({
+        projects: (request) => ({
+          apiVersion: "3.0",
+          requestId: request.requestId,
+          operation: "read-gallery-entry",
+          ok: true,
+          entry: {
+            id: "296p9s5vn2",
+            name: "Telescopic op amp",
+            author: "",
+            description: "",
+            createdAt: "",
+            schemaVersion: 1,
+            tags: [],
+          },
+          projectCode: "{}",
+          netlist: null,
+          figure: {
+            documentId: "document-top",
+            mediaType: "image/png",
+            encoding: "base64",
+            data,
+            byteLength: 9,
+            sha256: "0".repeat(64),
+          },
+        }),
+      }),
+    );
+    await callTool("connect", { claimCode: "session-1.code" }, session);
+    const result = await callTool(
+      "gallery_circuits",
+      { action: "read", galleryEntryId: "296p9s5vn2", render: "png" },
+      session,
+    );
+    expect(http.projectCalls.at(-1)).toMatchObject({
+      operation: "read-gallery-entry",
+      render: "png",
+    });
+    const [summary, image] = result.content as [
+      { type: string; text: string },
+      { type: string; data?: string; mimeType?: string },
+    ];
+    // The text keeps the entry and the figure's identity, not its bytes.
+    expect(JSON.parse(summary.text)).toMatchObject({
+      entry: { id: "296p9s5vn2" },
+      figure: { documentId: "document-top", mediaType: "image/png" },
+    });
+    expect(summary.text).not.toContain(data);
+    expect(image).toEqual({ type: "image", data, mimeType: "image/png" });
+  });
 });

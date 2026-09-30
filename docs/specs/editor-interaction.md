@@ -62,10 +62,16 @@ that declaration.
 Caller reconciliation compares the formal name projection before and after:
 it does nothing while the old-name group survives and never merges caller
 Nets when a declaration joins an existing name.
-Ordinary Delete reuses the normal instance/route deletion proposal: it retains
-wire geometry by replacing affected terminal endpoints with Junctions, then
-removes electrical memberships, NoConnects, owned labels, layout references,
-and the Instance in one transaction. The formal-terminal and caller projection
+Ordinary Delete reuses the normal instance/route deletion proposal. A wire run
+that only tapped the deleted part into other wiring goes with it. The run is
+followed from the deleted pin through bends that join nothing else, and it goes
+when it ends where other wires meet, at another deleted pin, or in the open. A
+run that reaches another part's pin stays, open at the former pin, so a
+replacement part set down there reconnects. Runs carrying a label or reaching a
+labelled point stay, and so do Power Rails. Retained wire geometry replaces
+affected terminal endpoints with Junctions. The same transaction then removes electrical memberships,
+NoConnects, owned labels, layout references and the Instance. A wire that ends
+in the open is reported as `ERC_DANGLING_WIRE`. The formal-terminal and caller projection
 is appended only by the Project transaction.
 
 ## Component property code

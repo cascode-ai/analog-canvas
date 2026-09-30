@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { TilePreview } from "./tile-preview";
 import "../styles/gallery-entry.css";
 
@@ -7,7 +7,6 @@ import {
   galleryCountLabel,
   galleryAuthorsOf,
   removeGalleryAuthorEntry,
-  galleryEntryMatchesQuery,
   galleryFeedQueryKey,
   galleryPreviewUrl,
   loadGalleryAuthors,
@@ -28,6 +27,7 @@ import {
   type GalleryLandingPreload,
   withLoadedTail,
 } from "../gallery-client";
+import { galleryEntryMatchesQuery } from "../gallery-search";
 import {
   GALLERY_FILTERS_KEY,
   createDefaultGalleryFilters,
@@ -55,8 +55,8 @@ import {
 // The wall and the canvas-side panel share one data layer, so a search that
 // finds a circuit here finds it there too. These re-exports keep every
 // existing importer of this module working unchanged.
+export { galleryEntryMatchesQuery } from "../gallery-search";
 export {
-  galleryEntryMatchesQuery,
   loadGalleryAuthors,
   loadGalleryFeed,
   loadGalleryTags,
@@ -253,6 +253,7 @@ function GallerySearchProgress({
 export function GalleryCountPanel({
   total,
   filtered = false,
+  searched = false,
   search = null,
   authors = [],
   partial = false,
@@ -260,12 +261,13 @@ export function GalleryCountPanel({
 }: {
   total: number | null;
   filtered?: boolean;
+  searched?: boolean;
   search?: { visible: number; settled: boolean } | null;
   authors?: GalleryAuthorOption[];
   partial?: boolean;
   onSelectAuthor?: (option: GalleryAuthorOption) => void;
 }) {
-  const label = galleryCountLabel(total, { filtered, search });
+  const label = galleryCountLabel(total, { filtered, search, searched });
   const rootRef = useRef<HTMLDetailsElement | null>(null);
   if (label === null) return null;
   return (
@@ -442,6 +444,40 @@ export function GalleryFeed({
   function updateFilters(patch: Partial<GalleryFilterState>): void {
     setFilters((previous) => ({ ...previous, ...patch }));
   }
+  // The server answers a search over the whole Gallery. Typing waits a
+  // moment before asking it, and the wall narrows what it has meanwhile.
+  const [serverSearch, setServerSearch] = useState(() => searchQuery.trim());
+  useEffect(() => {
+    const next = searchQuery.trim();
+    if (next === serverSearch) return;
+    const handle = window.setTimeout(() => setServerSearch(next), 250);
+    return () => window.clearTimeout(handle);
+  }, [searchQuery, serverSearch]);
+  // One query for the first page, every later page and the landing preload.
+  const feedQuery = useMemo<GalleryFeedQuery>(
+    () => ({
+      author,
+      ownerUserId,
+      tags: selectedTags,
+      netlistable: netlistableOnly,
+      liked: likedOnly,
+      attention: attentionOnly,
+      attentionKind,
+      parts: selectedParts,
+      ...(serverSearch ? { q: serverSearch } : {}),
+    }),
+    [
+      author,
+      ownerUserId,
+      selectedTags,
+      netlistableOnly,
+      likedOnly,
+      attentionOnly,
+      attentionKind,
+      selectedParts,
+      serverSearch,
+    ],
+  );
   const [duplicateReport, setDuplicateReport] =
     useState<GalleryDuplicateReport | null>(null);
   const [viewerId, setViewerId] = useState<string | null>(null);
@@ -461,6 +497,7 @@ export function GalleryFeed({
   // combination show as loading rather than as stale numbers.
   const [tagCountsScope, setTagCountsScope] = useState<string | null>(null);
   const tagScope = galleryTagScope({
+    q: serverSearch,
     netlistable: netlistableOnly,
     liked: likedOnly,
     attention: attentionOnly,
@@ -530,6 +567,7 @@ export function GalleryFeed({
   useEffect(() => {
     let cancelled = false;
     const scope = galleryTagScope({
+      q: serverSearch,
       netlistable: netlistableOnly,
       liked: likedOnly,
       attention: attentionOnly,
@@ -543,6 +581,7 @@ export function GalleryFeed({
       (preload.tagsScope ?? "") === scope
         ? preload.tags
         : loadGalleryTagSummary(fetch, {
+            q: serverSearch,
             netlistable: netlistableOnly,
             liked: likedOnly,
             attention: attentionOnly,
@@ -567,6 +606,7 @@ export function GalleryFeed({
     preload,
     refreshSignal,
     tagCountsRefresh,
+    serverSearch,
     netlistableOnly,
     likedOnly,
     attentionOnly,
@@ -694,16 +734,7 @@ export function GalleryFeed({
     const generation = ++feedGenerationRef.current;
     firstPageLoadingRef.current = true;
     loadingMoreRef.current = false;
-    const queryKey = [
-      author ?? "",
-      ownerUserId ?? "",
-      selectedTags.join(","),
-      netlistableOnly ? "netlist" : "",
-      likedOnly ? "liked" : "",
-      attentionOnly ? "attention" : "",
-      attentionOnly ? (attentionKind ?? "") : "",
-      selectedParts.join(","),
-    ].join("\u0000");
+    const queryKey = galleryFeedQueryKey(feedQuery);
     const changingQuery = loadedQueryRef.current !== queryKey;
     if (changingQuery) {
       setState({
@@ -719,28 +750,10 @@ export function GalleryFeed({
         refreshSignal,
         loadedQueryRef.current,
         preload.feedQuery,
-        {
-          author,
-          ownerUserId,
-          tags: selectedTags,
-          netlistable: netlistableOnly,
-          liked: likedOnly,
-          attention: attentionOnly,
-          attentionKind,
-          parts: selectedParts,
-        },
+        feedQuery,
       )
         ? preload.feed
-        : loadGalleryFeed(fetch, {
-            author,
-            ownerUserId,
-            tags: selectedTags,
-            netlistable: netlistableOnly,
-            liked: likedOnly,
-            attention: attentionOnly,
-            attentionKind,
-            parts: selectedParts,
-          });
+        : loadGalleryFeed(fetch, feedQuery);
     void request.then((page) => {
       if (cancelled || generation !== feedGenerationRef.current) return;
       firstPageLoadingRef.current = false;
@@ -754,6 +767,9 @@ export function GalleryFeed({
         });
       } else if (page) {
         loadedQueryRef.current = queryKey;
+        // Only a server that says it searched has answered the search; any
+        // other page is narrowed here, by the same rule, as it loads.
+        const search = page.search ?? "";
         // The same wall refreshed (the window came back into focus, another
         // tab published) keeps the older pages it had loaded.
         setState((previous) =>
@@ -767,8 +783,9 @@ export function GalleryFeed({
                   },
                   page,
                 ),
+                search,
               }
-            : { status: "ready", ...page },
+            : { status: "ready", ...page, search },
         );
       } else if (changingQuery) {
         loadedQueryRef.current = queryKey;
@@ -783,18 +800,7 @@ export function GalleryFeed({
     return () => {
       cancelled = true;
     };
-  }, [
-    author,
-    ownerUserId,
-    selectedTags,
-    netlistableOnly,
-    likedOnly,
-    attentionOnly,
-    attentionKind,
-    selectedParts,
-    preload,
-    refreshSignal,
-  ]);
+  }, [feedQuery, preload, refreshSignal]);
 
   // Appends the page after `cursor` unless a page is already on its way, and
   // says whether it started one. The sentinel calls it as the wall's end comes
@@ -803,19 +809,12 @@ export function GalleryFeed({
   loadPageAfterRef.current = (cursor: string): boolean => {
     if (firstPageLoadingRef.current) return false;
     if (loadingMoreRef.current) return false;
+    // Words the server has not been asked yet: it will answer them over the
+    // whole Gallery, so reading older pages for them now is wasted.
+    if (searchQuery.trim() !== serverSearch) return false;
     loadingMoreRef.current = true;
     const generation = feedGenerationRef.current;
-    void loadGalleryFeed(fetch, {
-      author,
-      ownerUserId,
-      tags: selectedTags,
-      netlistable: netlistableOnly,
-      liked: likedOnly,
-      attention: attentionOnly,
-      attentionKind,
-      parts: selectedParts,
-      cursor,
-    }).then((page) => {
+    void loadGalleryFeed(fetch, { ...feedQuery, cursor }).then((page) => {
       if (generation !== feedGenerationRef.current) return;
       loadingMoreRef.current = false;
       if (page === GALLERY_SIGN_IN_REQUIRED) {
@@ -867,17 +866,7 @@ export function GalleryFeed({
     });
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [
-    nextCursor,
-    author,
-    ownerUserId,
-    selectedTags,
-    netlistableOnly,
-    likedOnly,
-    attentionOnly,
-    attentionKind,
-    selectedParts,
-  ]);
+  }, [nextCursor, feedQuery]);
 
   function selectAuthor(
     nextAuthor: string | null,
@@ -1002,7 +991,8 @@ export function GalleryFeed({
     localhostExamplesEnabled() &&
     state.status !== "loading" &&
     entries.length === 0 &&
-    !galleryFiltersNarrowQuery(filters);
+    !galleryFiltersNarrowQuery(filters) &&
+    !searchQuery.trim();
 
   useEffect(() => {
     if (!needsBundledFallback || bundledFallback.status !== "idle") return;
@@ -1022,6 +1012,12 @@ export function GalleryFeed({
   }, [needsBundledFallback]);
 
   const normalizedSearchQuery = searchQuery.trim().toLowerCase();
+  // Once the server has answered this search, its totals, tags and
+  // contributors are the search's and nothing older is left to read; until
+  // then the wall narrows what it has loaded, by the same rule.
+  const searchAnswered =
+    Boolean(normalizedSearchQuery) && state.search === searchQuery.trim();
+  const searchingLoaded = Boolean(normalizedSearchQuery) && !searchAnswered;
   const visibleEntries = normalizedSearchQuery
     ? entries.filter((entry) =>
         galleryEntryMatchesQuery(entry, normalizedSearchQuery),
@@ -1141,11 +1137,11 @@ export function GalleryFeed({
         window.removeEventListener(type, readerScroll, { capture: true });
     };
   }, [linkedId]);
-  const localAuthors = Boolean(normalizedSearchQuery) || !state.authors;
+  const localAuthors = searchingLoaded || !state.authors;
   const authors = localAuthors
     ? galleryAuthorsOf(visibleEntries)
     : state.authors!;
-  const localQuickCounts = normalizedSearchQuery || !state.filterCounts;
+  const localQuickCounts = searchingLoaded || !state.filterCounts;
   const quickCounts = localQuickCounts
     ? {
         attention: visibleEntries.filter(
@@ -1274,8 +1270,9 @@ export function GalleryFeed({
             authors={authors}
             partial={localAuthors && state.nextCursor !== null}
             onSelectAuthor={selectContributor}
+            searched={searchAnswered}
             search={
-              normalizedSearchQuery
+              searchingLoaded
                 ? {
                     visible: visibleEntries.length,
                     settled:
@@ -1468,7 +1465,7 @@ export function GalleryFeed({
               </p>
             ) : (
               <section className="gallery-wall">
-                {normalizedSearchQuery && state.status === "ready" ? (
+                {searchingLoaded && state.status === "ready" ? (
                   <GallerySearchProgress
                     checked={entries.length}
                     total={state.total}
@@ -1796,8 +1793,8 @@ export function GalleryFeed({
                   in view, so the pending state resolves itself. */}
                 {normalizedSearchQuery &&
                 visibleEntries.length === 0 &&
-                entries.length > 0 ? (
-                  state.nextCursor !== null ? (
+                (searchAnswered || entries.length > 0) ? (
+                  searchingLoaded && state.nextCursor !== null ? (
                     <p
                       className="gallery-status"
                       data-testid="gallery-search-pending"

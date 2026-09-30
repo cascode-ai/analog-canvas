@@ -86,6 +86,7 @@ export function EditorStatusbar({
   gridVisible,
   issues,
   selectionFilterSummary,
+  agentExpiring = null,
   onOpenSelectionFilter,
   onToggleWireOptions,
   onWireRoutingModeChange,
@@ -112,6 +113,8 @@ export function EditorStatusbar({
   /** Whether the canvas paints its background grid dots. */
   gridVisible: boolean;
   selectionFilterSummary: string | null;
+  /** The Agent session's final minute, with the one action that keeps it. */
+  agentExpiring?: { onKeep: () => void } | null;
   issues?: {
     errorCount: number;
     warningCount: number;
@@ -135,6 +138,22 @@ export function EditorStatusbar({
         <p className="editor-status" data-testid="status" aria-live="polite">
           {status}
         </p>
+        {agentExpiring ? (
+          <span
+            className="statusbar-agent-expiring"
+            role="status"
+            data-testid="agent-expiring"
+          >
+            Agent connection ends in 1 minute
+            <button
+              type="button"
+              data-testid="agent-keep-connected"
+              onClick={agentExpiring.onKeep}
+            >
+              Keep connected
+            </button>
+          </span>
+        ) : null}
         <span className="statusbar-tool" data-testid="statusbar-tool">
           {toolLabel(tool, vddRailMode, pendingSymbolId)}
         </span>

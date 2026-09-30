@@ -359,7 +359,13 @@ reaching the pin while the netlist sees the pin on another Net or on nothing,
 and a copy of the drawing, which joins the pins it lands together, reads
 differently. It judges terminals only: two
 Routes crossing is the ordinary case the model already names, and a pin the
-author declared `NoConnect` has been answered for. `ERC_INSTANCE_NOT_DRAWN`
+author declared `NoConnect` has been answered for. `ERC_DANGLING_WIRE` names a
+wire end at a Junction no other wire, pin or label reaches. A Power Rail's ends
+and a labelled wire are exempt. `ERC_LABEL_REFERENCE_MISMATCH` names a part
+whose name label reads another part's name while that part shows something
+else, as with swapped labels: the drawing then misnames devices the netlist
+calls by Reference. A display alias naming no part, or naming a part that shows
+the same name, is deliberate and stays silent. `ERC_INSTANCE_NOT_DRAWN`
 counts the Instances a Cell holds that the sheet does not draw: they keep their
 reference, their Net terminals and their netlist cards while nothing on the
 sheet shows them, so the warning names them and the Placement Tray — which

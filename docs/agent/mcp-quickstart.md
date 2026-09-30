@@ -41,7 +41,9 @@ prerequisite for calling a tool.
   reconcile before repeating a mutation. Never restart a run just to fetch results.
 
 Sessions renew on Agent operations and manual edits, with a 30-minute idle
-deadline. Keep the editor open. Closing connection details does not disconnect.
+deadline; a person present in the open editor also renews it, for up to 8 hours
+after the last operation or edit. Keep the editor open. Closing connection
+details does not disconnect.
 Read [session rules](shared/session.md) when investigating lifecycle behavior.
 HTTP fallback requires the user's explicit choice; it is not MCP acceptance.
 

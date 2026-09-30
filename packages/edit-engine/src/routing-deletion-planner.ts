@@ -66,6 +66,85 @@ function expandSelectedPowerRailLabels(
 }
 
 /**
+ * A wire that only tapped a deleted part into other wiring goes with it.
+ *
+ * From each deleted pin the walk follows the wire through bends that join
+ * nothing else. It takes the whole run when the run ends where other wires
+ * meet, at another deleted pin, or in the open: nothing else is left for it to
+ * connect. A run that reaches another part's pin stays, with an open end at
+ * the former pin, where a replacement part set down reconnects. So does a run
+ * that carries a label or reaches a labelled point, and a Power Rail. Wires
+ * that still join two remaining endpoints are never touched.
+ */
+function withWiresLeftDangling(
+  document: SchematicDocument,
+  seed: RoutingDeletionSeed,
+): RoutingDeletionSeed {
+  const deleted = new Set(seed.instanceIds);
+  if (deleted.size === 0) return seed;
+  const labelled = new Set<string>();
+  for (const annotation of document.annotations) {
+    if (annotation.anchor.kind === "object")
+      labelled.add(annotation.anchor.objectId);
+    if (annotation.anchor.kind === "route")
+      labelled.add(annotation.anchor.routeId);
+  }
+  for (const evidence of document.connectivityEvidence)
+    if (
+      evidence.kind === "name-claim" &&
+      evidence.owner.kind === "power-marker"
+    )
+      labelled.add(evidence.owner.objectId);
+  type Route = SchematicDocument["routes"][number];
+  type End = Route["start"];
+  const same = (left: End, right: End) =>
+    left.kind === "terminal"
+      ? right.kind === "terminal" &&
+        left.instanceId === right.instanceId &&
+        left.pinName === right.pinName
+      : right.kind === "junction" && left.junctionId === right.junctionId;
+  const farEnd = (route: Route, near: End): End =>
+    same(route.start, near) ? routeEnd(route) : route.start;
+  const meeting = (junctionId: string) =>
+    document.routes.filter((route) =>
+      [route.start, routeEnd(route)].some(
+        (end) => end.kind === "junction" && end.junctionId === junctionId,
+      ),
+    );
+  const kept = (route: Route) =>
+    labelled.has(route.id) || route.presentation === "power-rail";
+  // The run from a deleted pin, or null when it stays.
+  const tap = (first: Route, pin: End): Route[] | null => {
+    const run: Route[] = [];
+    let route = first;
+    let near = pin;
+    for (;;) {
+      if (kept(route) || run.includes(route)) return null;
+      run.push(route);
+      const far = farEnd(route, near);
+      if (far.kind === "terminal")
+        return deleted.has(far.instanceId) ? run : null;
+      if (labelled.has(far.junctionId)) return null;
+      const others = meeting(far.junctionId).filter(
+        (other) => !run.includes(other),
+      );
+      // In the open, or where other wires meet: the run only tapped the part.
+      if (others.length !== 1) return run;
+      route = others[0]!;
+      near = far;
+    }
+  };
+  const removed = new Set(seed.routeIds);
+  for (const route of document.routes)
+    for (const end of [route.start, routeEnd(route)])
+      if (end.kind === "terminal" && deleted.has(end.instanceId))
+        for (const taken of tap(route, end) ?? []) removed.add(taken.id);
+  return removed.size === seed.routeIds.length
+    ? seed
+    : { ...seed, routeIds: [...removed] };
+}
+
+/**
  * Plan one graph deletion. Route selection dominates incidental marquee
  * Junction dots; Junction-only selection owns its incident arms. Instance,
  * Route, attachment, layout-reference and drafting cleanup are committed as
@@ -77,7 +156,10 @@ export function planRoutingDeletion(
   seed: RoutingDeletionSeed,
   sequence: number,
 ): RoutingOperationPlan {
-  const expandedSeed = expandSelectedPowerRailLabels(document, seed);
+  const expandedSeed = withWiresLeftDangling(
+    document,
+    expandSelectedPowerRailLabels(document, seed),
+  );
   const affected = deriveRoutingAffectedClosure(document, expandedSeed);
   const selectedInstances = new Set(affected.instances);
   const routeDeletion = proposeVisualRouteDeletion(

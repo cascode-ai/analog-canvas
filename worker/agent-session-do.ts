@@ -1371,6 +1371,31 @@ export class AgentSessionDO {
         allowedOrigin,
       );
     }
+    // A person in the paired editor. Presence renews the idle deadline
+    // within its cap; "Keep connected" is an explicit choice and renews as
+    // Pause and Resume do. Neither changes what the Agent sees but the
+    // renewed deadline.
+    if (body?.action === "presence" || body?.action === "keep-alive") {
+      // Presence needs the paired editor still attached to the session.
+      const attached = (
+        this.state.getWebSockets?.(EDITOR_SOCKET_TAG) ?? []
+      ).some((socket) => socket.readyState === WebSocket.OPEN);
+      const renewed =
+        body.action === "presence"
+          ? attached && machine.recordPresence(Date.now())
+          : machine.recordActivity(Date.now());
+      await this.persist();
+      return jsonResponse(
+        {
+          ok: true,
+          renewed,
+          status: machine.statusAt(Date.now()),
+          expiresAt: new Date(machine.expiresAt).toISOString(),
+        },
+        200,
+        allowedOrigin,
+      );
+    }
     if (body?.action === "pause") machine.pause();
     else if (body?.action === "resume") machine.resume();
     else if (body?.action === "revoke") machine.revoke();

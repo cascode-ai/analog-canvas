@@ -23,6 +23,7 @@ import {
   openMenu,
 } from "./editor-fixtures.js";
 import { CLOUD_PROJECT_LIMIT } from "../src/features/editor-shell/cloud-projects";
+import { galleryEntryMatchesQuery } from "../src/gallery-search";
 
 const ENTRY = {
   id: "g-ring",
@@ -1393,6 +1394,8 @@ test("a View in Gallery link shows its circuit at once, centres it and rings it"
 test("a tab returning to a Gallery link shows the current entry unless its copy was changed", async ({
   page,
 }) => {
+  // Seven full page loads, the editor five times: slow by design.
+  test.slow();
   const id = "g-return";
   const name = "Return Visit";
   let stored = galleryResistorProject("1k", 1);
@@ -5017,6 +5020,9 @@ test("a search keeps what it found when the window comes back into focus", async
       });
     }
     firstPages += 1;
+    if (url.searchParams.get("q") === "bandgap") searchedPages += 1;
+    // A server without search: it answers the words with the whole wall, so
+    // the wall keeps narrowing what it loads.
     return route.fulfill({
       json: {
         entries: firstPage,
@@ -5025,8 +5031,11 @@ test("a search keeps what it found when the window comes back into focus", async
       },
     });
   });
+  let searchedPages = 0;
   await page.goto("/");
   await page.getByTestId("gallery-search").fill("bandgap");
+  // The words go to the server once typing pauses.
+  await expect.poll(() => searchedPages).toBe(1);
   const progress = page.getByTestId("gallery-search-progress");
   await expect(progress).toHaveText("Searched all 31 circuits · 2 matches");
   await expect(page.getByTestId("gallery-tile-bandgap-old")).toBeVisible();
@@ -5040,6 +5049,111 @@ test("a search keeps what it found when the window comes back into focus", async
   });
   await expect(page.getByTestId("gallery-tile-bandgap-new")).toBeVisible();
   await expect(progress).toHaveText("Searched all 31 circuits · 2 matches");
+});
+
+test("a search the server answers finds an older circuit at once and counts only matches", async ({
+  page,
+}) => {
+  const at = (index: number) =>
+    new Date(Date.UTC(2026, 8, 20, 0, 0, 60 - index)).toISOString();
+  // Thirty newer clocks fill the first page; the only bandgap is older.
+  const wall = [
+    ...Array.from({ length: 30 }, (_, index) => ({
+      ...ENTRY,
+      id: `clock-${index}`,
+      name: `Clock ${index}`,
+      description: "",
+      tags: ["clock"],
+      createdAt: at(index),
+    })),
+    {
+      ...ENTRY,
+      id: "bandgap-old",
+      name: "Bandgap core",
+      author: "Lin",
+      description: "",
+      tags: ["reference"],
+      createdAt: at(40),
+    },
+  ];
+  const requests: string[] = [];
+  await page.route("**/api/gallery**", (route) => {
+    const url = new URL(route.request().url());
+    const q = url.searchParams.get("q");
+    if (url.pathname === "/api/gallery/tags") {
+      requests.push(`tags ${url.search}`);
+      const counted = wall.filter(
+        (entry) => !q || galleryEntryMatchesQuery(entry, q),
+      );
+      const tags = [...new Set(counted.flatMap((entry) => entry.tags))];
+      return route.fulfill({
+        json: {
+          tags: tags.map((tag) => ({
+            tag,
+            count: counted.filter((entry) => entry.tags.includes(tag)).length,
+          })),
+          groups: [],
+        },
+      });
+    }
+    if (url.pathname.endsWith("/preview.svg"))
+      return route.fulfill({
+        contentType: "image/svg+xml",
+        body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 6"/>',
+      });
+    if (url.pathname !== "/api/gallery") return route.fallback();
+    requests.push(`feed ${url.search}`);
+    // The server searches every circuit before it pages, and says so.
+    if (q) {
+      const found = wall.filter((entry) => galleryEntryMatchesQuery(entry, q));
+      return route.fulfill({
+        json: {
+          entries: found,
+          total: found.length,
+          nextCursor: null,
+          search: q,
+        },
+      });
+    }
+    const older = url.searchParams.has("cursor");
+    return route.fulfill({
+      json: {
+        entries: older ? wall.slice(30) : wall.slice(0, 30),
+        total: wall.length,
+        nextCursor: older ? null : "older",
+      },
+    });
+  });
+  await page.goto("/");
+  await expect(page.getByTestId("gallery-tile-clock-0")).toBeVisible();
+  requests.length = 0;
+  // A transposed letter still finds it, as the browser's own rule does.
+  const search = page.getByTestId("gallery-search");
+  await search.fill("bandgpa");
+  await expect(page.getByTestId("gallery-tile-bandgap-old")).toBeVisible();
+  await expect(page.getByTestId("gallery-tile-clock-0")).toHaveCount(0);
+  await expect(page.getByTestId("gallery-count-panel")).toHaveText(
+    "1 matching circuit",
+  );
+  await expect(page.getByTestId("gallery-search-progress")).toHaveCount(0);
+  // No older page was read to find it, and the tag counts are the search's.
+  expect(requests.filter((request) => request.includes("cursor"))).toEqual([]);
+  expect(requests).toContain("feed ?q=bandgpa");
+  await expect.poll(() => requests.includes("tags ?q=bandgpa")).toBe(true);
+  await expect(page.getByTestId("gallery-tag-option-reference")).toContainText(
+    "1",
+  );
+  // Nothing found is the answer at once, not "still searching".
+  await search.fill("zzz");
+  await expect(page.getByTestId("gallery-search-empty")).toHaveText(
+    "No circuits match “zzz”.",
+  );
+  await expect(page.getByTestId("gallery-search-pending")).toHaveCount(0);
+  await expect(page.getByTestId("gallery-count-panel")).toHaveText(
+    "0 matching circuits",
+  );
+  await search.fill("");
+  await expect(page.getByTestId("gallery-tile-clock-0")).toBeVisible();
 });
 
 test("administrators narrow Needs attention to one reason", async ({

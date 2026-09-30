@@ -441,8 +441,9 @@ function importInstance(
  * A schematic never holds a device its sheet does not draw, so an import lands
  * every Instance on the canvas instead of staging invisible content behind a
  * later placement step. The shelf is deliberately a legible starting grid, not
- * an analog auto-layout: Cell Pins take the top row and devices fill a square
- * block beneath them, in source order.
+ * an analog auto-layout: devices fill a square block in source order, and each
+ * Cell Pin waits on its side of it, facing the circuit. Pins on one line
+ * facing one way made every wire between them read as a short.
  */
 const DOCUMENT_GRID = 10;
 const SHELF_MARGIN = 80;
@@ -450,37 +451,105 @@ const SHELF_PITCH_X = 180;
 const SHELF_PITCH_Y = 140;
 const SHELF_MAX_COLUMNS = 8;
 
+type CellPinSide = "top" | "bottom" | "left" | "right";
+
+const SUPPLY_NAME = /^(?:[ad]?vdd|vcc|vpwr|vpos|vplus|pwr)/iu;
+const GROUND_NAME = /^(?:[ad]?vss|[ad]?gnd|vee|vgnd|vneg|ground)|^0$/iu;
+const OUTPUT_NAME = /^(?:v?o(?:ut)?[pn+-]?|q|qb|qn|y|z)$|^v?out/iu;
+
+/** Supplies above, grounds below, outputs right and everything else left. A
+ * name says it first; otherwise a Net only drains and collectors drive is an
+ * output. */
+function cellPinSide(
+  name: string,
+  netId: string,
+  nets: readonly Net[],
+  instances: readonly Instance[],
+): CellPinSide {
+  if (SUPPLY_NAME.test(name)) return "top";
+  if (GROUND_NAME.test(name)) return "bottom";
+  if (OUTPUT_NAME.test(name)) return "right";
+  let drives = 0;
+  let senses = 0;
+  for (const terminal of nets.find((net) => net.id === netId)?.terminals ??
+    []) {
+    const instance = instances.find(
+      (candidate) => candidate.id === terminal.instanceId,
+    );
+    if (!instance) continue;
+    const deviceClass = deviceDescriptor(instance.symbolId)?.deviceClass;
+    const pin = terminal.pinName.toUpperCase();
+    if (
+      (deviceClass === "mos" && pin === "D") ||
+      (deviceClass === "bjt" && pin === "C") ||
+      pin === "OUT"
+    )
+      drives += 1;
+    else if (
+      (deviceClass === "mos" && pin === "G") ||
+      (deviceClass === "bjt" && pin === "B") ||
+      pin === "IN+" ||
+      pin === "IN-"
+    )
+      senses += 1;
+  }
+  return drives > 0 && senses === 0 ? "right" : "left";
+}
+
 function withShelfPlacements(
   instances: readonly Instance[],
   grid: number,
+  sides: ReadonlyMap<string, CellPinSide>,
 ): Instance[] {
   const margin = snapUpToGrid(SHELF_MARGIN, grid);
   const pitchX = snapUpToGrid(SHELF_PITCH_X, grid);
   const pitchY = snapUpToGrid(SHELF_PITCH_Y, grid);
+  const pinPitch = snapUpToGrid(SHELF_PITCH_Y / 2, grid);
   const ports = instances.filter((instance) => instance.symbolId === "port");
+  const sideOf = (instance: Instance) => sides.get(instance.id) ?? "left";
+  const has = (side: CellPinSide) =>
+    ports.some((port) => sideOf(port) === side);
+  const deviceCount = instances.length - ports.length;
   const columns = Math.min(
     SHELF_MAX_COLUMNS,
-    Math.max(1, Math.ceil(Math.sqrt(instances.length - ports.length))),
+    Math.max(1, Math.ceil(Math.sqrt(deviceCount))),
   );
-  const deviceTop = ports.length > 0 ? margin + pitchY : margin;
-  let portIndex = 0;
+  const rows = Math.max(1, Math.ceil(deviceCount / columns));
+  const left = has("left") ? margin + pitchX : margin;
+  const top = has("top") ? margin + pitchY : margin;
+  const right = left + (columns - 1) * pitchX;
+  const bottom = top + (rows - 1) * pitchY;
+  // Rotation turns the Cell Pin's lead, drawn facing east, toward the devices.
+  const faces = { top: 90, bottom: 270, left: 0, right: 180 } as const;
+  const next = { top: 0, bottom: 0, left: 0, right: 0 };
   let deviceIndex = 0;
   return instances.map((instance) => {
     if (instance.placement !== null) return instance;
     let position;
+    let rotation: 0 | 90 | 180 | 270 = 0;
     if (instance.symbolId === "port") {
-      position = { x: margin + portIndex * pitchX, y: margin };
-      portIndex += 1;
+      const side = sideOf(instance);
+      const index = next[side]++;
+      rotation = faces[side];
+      position =
+        side === "top"
+          ? { x: left + index * pitchX, y: margin }
+          : side === "bottom"
+            ? { x: left + index * pitchX, y: bottom + pitchY }
+            : {
+                x: side === "left" ? margin : right + pitchX,
+                y: top + index * pinPitch,
+              };
     } else {
       position = {
-        x: margin + (deviceIndex % columns) * pitchX,
-        y: deviceTop + Math.floor(deviceIndex / columns) * pitchY,
+        x: left + (deviceIndex % columns) * pitchX,
+        y: top + Math.floor(deviceIndex / columns) * pitchY,
       };
       deviceIndex += 1;
     }
     return {
       ...instance,
-      placement: { position, rotation: 0 as const, mirror: "none" as const },
+      placement: { position, rotation, mirror: "none" as const },
     };
   });
 }
@@ -677,7 +746,16 @@ function importDocument(
         defaultValue: parameter.rawText,
       })),
     },
-    instances: withShelfPlacements(instances, DOCUMENT_GRID),
+    instances: withShelfPlacements(
+      instances,
+      DOCUMENT_GRID,
+      new Map(
+        formalTerminals.map((terminal) => [
+          terminal.interfaceInstanceIds[0]!,
+          cellPinSide(terminal.name, terminal.netId, nets, instances),
+        ]),
+      ),
+    ),
     nets,
     ...(mosBulkDefaults ? { mosBulkDefaults } : {}),
     connectivityEvidence: cell.nets.flatMap((net) => {

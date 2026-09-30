@@ -18,6 +18,21 @@ async function placeComponent(
   await page.keyboard.press("Escape");
 }
 
+/**
+ * The check found nothing but the loose wires' open ends. They are drawn
+ * ending in empty space, and ERC names each such end; nothing else, and
+ * nothing ambiguous, is left to report.
+ */
+async function expectOnlyOpenWireEnds(page: Page, ends: number) {
+  await expect(page.getByTestId("statusbar-issues")).toHaveText(
+    `${ends} warnings`,
+  );
+  await page.getByTestId("statusbar-issues").click();
+  await expect(
+    page.getByTestId("project-diagnostics").getByText(/ends in the open/u),
+  ).toHaveCount(ends);
+}
+
 async function instanceIds(page: Page): Promise<string[]> {
   return page
     .locator('[data-canvas-hit-kind="instance"]')
@@ -501,9 +516,8 @@ test("dragging a wire's end onto another wire joins them into one net", async ({
   await expect(page.locator('[data-canvas-hit-kind="route"]')).toHaveCount(2);
   await expect(page.getByTestId("statusbar-issues")).toHaveText("Not checked");
   await clickNetlistWorkflowCommand(page, "check-and-save");
-  await expect(page.getByTestId("statusbar-issues")).toHaveText(
-    "No issues found",
-  );
+  // Only the four open ends of the two loose wires.
+  await expect(page.getByTestId("statusbar-issues")).toHaveText("4 warnings");
   // Return to the drawing surface before measuring this pixel-exact drag.
   await page.getByTestId("selection-shelf").click();
   await expect(page.getByTestId("selection-shelf")).toHaveAttribute(
@@ -560,9 +574,8 @@ test("dragging a wire's end onto another wire joins them into one net", async ({
     "Check out of date",
   );
   await clickNetlistWorkflowCommand(page, "check-and-save");
-  await expect(page.getByTestId("statusbar-issues")).toHaveText(
-    "No issues found",
-  );
+  // The landed end is joined; the other three stay open.
+  await expectOnlyOpenWireEnds(page, 3);
 });
 
 test("dragging a wire segment onto a capacitor pin connects and dots it", async ({
@@ -997,9 +1010,8 @@ test("a power rail drawn across the tops of wires connects to them", async ({
   await expect(page.locator('[data-canvas-hit-kind="route"]')).toHaveCount(5);
   await page.keyboard.press("Escape");
   await clickNetlistWorkflowCommand(page, "check-and-save");
-  await expect(page.getByTestId("statusbar-issues")).toHaveText(
-    "No issues found",
-  );
+  // The rail joined both tops; only the wires' lower ends stay open.
+  await expectOnlyOpenWireEnds(page, 2);
 });
 
 test("a component dragged onto a wire lands and connects", async ({ page }) => {
@@ -1044,9 +1056,8 @@ test("a component dragged onto a wire lands and connects", async ({ page }) => {
   // pieces meeting at it.
   await expect(page.locator('[data-canvas-hit-kind="route"]')).toHaveCount(2);
   await clickNetlistWorkflowCommand(page, "check-and-save");
-  await expect(page.getByTestId("statusbar-issues")).toHaveText(
-    "No issues found",
-  );
+  // The pin joined the wire; only its two far ends stay open.
+  await expectOnlyOpenWireEnds(page, 2);
 });
 
 test("the preview draws the wire the release commits, contacts and all", async ({

@@ -21,6 +21,7 @@ import {
   type SchematicDocument,
 } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
+import { createRouteClearance } from "./route-clearance.js";
 import type { WireIntent } from "./routing-planner.js";
 import { planWireBatch } from "./wire-batch-planner.js";
 
@@ -32,7 +33,10 @@ export type RouteNetTarget =
   | { kind: "import-net"; sourceNetId: string };
 
 /** Bounded convenience over existing visible-connectivity, MST and wire planners.
- * Not an obstacle autorouter; no edits reach the live Document until all succeed. */
+ * Not a general autorouter: each wire takes the cheapest of a few simple paths
+ * that passes over no other Net's pin or wire and through no part, and the Net
+ * is refused, naming the obstacle, when none does. No edits reach the live
+ * Document until all succeed. */
 export function planRouteNet(
   document: SchematicDocument,
   resolver: SymbolResolver,
@@ -197,6 +201,25 @@ export function planRouteNet(
     );
   const id = (part: string) =>
     deriveStableId("route-net", document.id, String(document.revision), part);
+  // A generated wire over another Net's pin, through a part or onto another
+  // Net's wire would read as a connection the netlist does not have.
+  const clearance = createRouteClearance(document, resolver, context, {
+    logicalIds: new Set(
+      components.flatMap((component) =>
+        component.netId
+          ? [
+              context.logicalNetResolution.byBaseNetId.get(component.netId)
+                ?.id ?? component.netId,
+            ]
+          : [],
+      ),
+    ),
+    endpointKeys: new Set(
+      components.flatMap((component) =>
+        component.nodes.map((node) => node.key),
+      ),
+    ),
+  });
   let wires: WireIntent[];
   if (input.trunk) {
     const { start, end } = input.trunk;
@@ -238,6 +261,11 @@ export function planRouteNet(
     const first = at(start);
     const last = at(end, first?.component.id);
     const attached = new Set([first?.component.id, last?.component.id]);
+    const trunkConflict = clearance.conflict(
+      [start, end],
+      [first?.node.endpoint, last?.node.endpoint],
+    );
+    if (trunkConflict) throw new Error(`route-net: the trunk ${trunkConflict}`);
     wires = [
       {
         id: id("trunk"),
@@ -261,27 +289,43 @@ export function planRouteNet(
             a.projected.distanceSquared - b.projected.distanceSquared ||
             a.node.key.localeCompare(b.node.key, "en"),
         )[0]!;
+      const tap = snapGridPoint(
+        best.projected.point,
+        electricalConnectionGrid(document.presentation.grid),
+      );
+      // The branch is drawn horizontal first, as an unconstrained wire is.
+      const from = best.node.point;
+      const branchConflict = clearance.conflict(
+        from.x === tap.x || from.y === tap.y
+          ? [from, tap]
+          : [from, { x: tap.x, y: from.y }, tap],
+        [best.node.endpoint, undefined],
+      );
+      if (branchConflict)
+        throw new Error(
+          `route-net: the branch from ${best.node.key} ${branchConflict}`,
+        );
       wires.push({
         id: id(component.id),
         from: { kind: "endpoint", endpoint: best.node.endpoint },
-        to: {
-          kind: "wire-at",
-          point: snapGridPoint(
-            best.projected.point,
-            electricalConnectionGrid(document.presentation.grid),
-          ),
-        },
+        to: { kind: "wire-at", point: tap },
       });
     }
   } else {
     wires = deriveRoutingGuidance({
       netId: components[0]!.netId ?? "unbound",
       components,
-    }).map((guide) => ({
-      id: id(guide.id),
-      from: { kind: "endpoint", endpoint: guide.from },
-      to: { kind: "endpoint", endpoint: guide.to },
-    }));
+    }).map((guide) => {
+      const path = clearance.path(guide.from, guide.to);
+      if (typeof path === "string") throw new Error(`route-net: ${path}`);
+      return {
+        id: id(guide.id),
+        from: { kind: "endpoint", endpoint: guide.from },
+        to: { kind: "endpoint", endpoint: guide.to },
+        ...(path.waypoints.length ? { waypoints: path.waypoints } : {}),
+        cornerOrder: path.cornerOrder,
+      };
+    });
   }
   const plan = planWireBatch(document, resolver, wires, maxEdits);
   if (typeof plan === "string") throw new Error(`route-net: ${plan}`);

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 
 import { AGENT_API_VERSION } from "@icm/agent-adapter";
@@ -6,6 +7,18 @@ import { createEmptyProject, type CircuitProject } from "@icm/model";
 import { serializeProject } from "@icm/project-protocol";
 
 import { BrowserAgentProjectHost } from "./browser-agent-project-host";
+
+// Measuring a figure's crop needs a real browser layout; everything around
+// it, the same formal SVG included, runs as it does in the Editor.
+vi.mock("@icm/exporters", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@icm/exporters")>();
+  return {
+    ...actual,
+    createBrowserFormalExportSource: async (
+      ...args: Parameters<typeof actual.createFormalExportSource>
+    ) => actual.createFormalExportSource(...args),
+  };
+});
 
 describe("BrowserAgentProjectHost", () => {
   it("reports deferred feature failures without blaming deployments, committing or disabling other resources", async () => {
@@ -266,6 +279,63 @@ describe("BrowserAgentProjectHost", () => {
       ],
       remainingEntryIds: [],
     });
+  });
+
+  it("draws a Gallery entry's top Cell with the file exporter when asked", async () => {
+    const destination = createEmptyProject("destination", "Destination");
+    const galleryProject = createEmptyProject("gallery-project", "Gallery RC");
+    galleryProject.documents[0]!.instances.push({
+      id: "R1",
+      reference: "R1",
+      symbolId: "resistor",
+      placement: { position: { x: 100, y: 100 }, rotation: 0, mirror: "none" },
+    });
+    const host = new BrowserAgentProjectHost({
+      getProjectSessionId: () => "session",
+      getProject: () => destination,
+      getActiveDocumentId: () => destination.topDocumentId,
+      commitProjectStructure: () => undefined,
+      dispatchProjectTransaction: () => {
+        throw new Error("must not dispatch");
+      },
+      fetch: (async () =>
+        Response.json({
+          entry: { id: "entry-1", name: "Gallery RC" },
+          projectText: serializeProject(galleryProject),
+        })) as unknown as typeof fetch,
+    });
+    const read = await host.handle({
+      apiVersion: AGENT_API_VERSION,
+      requestId: "gallery-figure",
+      operation: "read-gallery-entry",
+      galleryEntryId: "entry-1",
+      netlistFormat: null,
+      render: "svg",
+    });
+    if (!read.ok || read.operation !== "read-gallery-entry" || !read.figure)
+      throw new Error(JSON.stringify(read));
+    expect(read.figure).toMatchObject({
+      documentId: galleryProject.topDocumentId,
+      mediaType: "image/svg+xml",
+      encoding: "base64",
+    });
+    const bytes = Buffer.from(read.figure.data, "base64");
+    expect(read.figure.byteLength).toBe(bytes.byteLength);
+    expect(read.figure.sha256).toBe(
+      createHash("sha256").update(bytes).digest("hex"),
+    );
+    const svg = bytes.toString("utf8");
+    expect(svg).toMatch(/^<svg/u);
+    expect(svg).toContain('data-object-id="R1"');
+    // Without render, a read carries no figure.
+    const plain = await host.handle({
+      apiVersion: AGENT_API_VERSION,
+      requestId: "gallery-plain",
+      operation: "read-gallery-entry",
+      galleryEntryId: "entry-1",
+      netlistFormat: null,
+    });
+    expect(plain).not.toHaveProperty("figure");
   });
 
   it("reads and atomically replaces complete Project Code with revision protection", async () => {

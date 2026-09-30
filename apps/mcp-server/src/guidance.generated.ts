@@ -19,7 +19,7 @@ export const agentToolHelp = {
   circuit_wire:
     "Connect/disconnect in an atomic batch; via gives interior points. Explicit instance IDs avoid a full-Snapshot name lookup; server routing/validation is unchanged. Artwork contact is not connectivity.",
   circuit_transform:
-    "Move/rotate/mirror individual targets, arrange or detach-move instances using one supported action batch. Preserves original planner boundaries and topology semantics. For mixed action families use apply_actions.",
+    "Move/rotate/mirror individual targets, arrange or detach-move instances, or extend a Power Rail using one supported action batch. Preserves original planner boundaries and topology semantics. For mixed action families use apply_actions.",
   circuit_selection:
     "Translate/rotate/mirror/copy/align a selection. Uses original selection IDs, topology rules and atomic planner. For individual targets use circuit_transform; for mixed families use apply_actions.",
   circuit_text:
@@ -35,9 +35,9 @@ export const agentToolHelp = {
   connection_status:
     "Report runtime version, API origin and session observations. refresh:false is local-only. Attached means a browser socket exists, not verified execution readiness; unknown means the relay was not checked successfully.",
   project_cells:
-    "Cloud Cell discovery/import; workspace list/bind-workspace/activate/open/save/copy. Bind an open workspace to work without selecting the human's tab; open supports background:true. Live tabs include unsaved work; Cloud reads saved versions. Copy reuses GUI transactions and dependencies. Details: analog-canvas://reference/mcp-tools.",
+    "Cloud Cell discovery/import; workspace list/bind-workspace/activate/open/save/new/rename/copy. Bind an open workspace to work without selecting the human's tab; open and new support background:true; rename names a copy's Project. Live tabs include unsaved work; Cloud reads saved versions. Copy reuses GUI transactions and dependencies. Details: analog-canvas://reference/mcp-tools.",
   gallery_circuits:
-    "Page through every public Gallery circuit, then read one or up to 12 entries' complete Project Code and generated SPICE/Spectre netlist. Follow nextCursor until null and any remainingEntryIds until empty; pass netlistFormat:null when only Project Code is needed.",
+    "Page through every public Gallery circuit, then read one or up to 12 entries' complete Project Code and generated SPICE/Spectre netlist. Follow nextCursor until null and any remainingEntryIds until empty; pass netlistFormat:null when only Project Code is needed. read with render:svg|png adds the figure; open makes a working copy in one call.",
   project_code:
     "Read or atomically replace the open Project's complete canonical Project Code. Replacement uses the live Project structure revision and the same validated, undoable commit path as the Editor's Project Code panel.",
   netlist_code:
@@ -61,7 +61,7 @@ export const agentToolHelp = {
   advanced_transact:
     "Full transactions: exactly one of edits, structureEdits, wireIntent, semanticIntent, command. Client supplies IDs/revisions; reconcile stale conflicts. Contracts optional.",
   verify:
-    "Fresh Snapshot and diagnostic counts for milestones, not every edit. Optional expectedNetlist compares structural SPICE through the existing export; details adds bounded differences. Expressions/unsupported declarations are inconclusive, never electrical acceptance.",
+    "Fresh Snapshot and diagnostic counts for milestones, not every edit. Optional expectedNetlist compares structural SPICE through the existing export: summary and topology first, then port-order, binding and parameter differences; compare:{portOrder:false,...} skips one. details adds bounded differences. Expressions/model bodies are inconclusive, never electrical acceptance.",
   render:
     "Render the current document to SVG and return it as an image content block (image/svg+xml) plus a compact text summary (revision, sha256, byteLength).",
   simulation_folder:

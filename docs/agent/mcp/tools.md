@@ -18,7 +18,7 @@ Focused circuit tools retain the `{documentId?, actions:[...]}` call envelope:
 | -------------------- | ----------------------------------------------------------------- |
 | `circuit_place`      | Built-in symbol, Cell and existing-instance placement; power rail |
 | `circuit_wire`       | Connect and disconnect                                            |
-| `circuit_transform`  | Individual move/rotate/mirror, arrange and detach-move            |
+| `circuit_transform`  | Individual move/rotate/mirror, arrange, detach-move and rail span |
 | `circuit_selection`  | Selection transform, copy and align                               |
 | `circuit_text`       | Labels, annotations, text changes and annotation movement         |
 | `circuit_properties` | References, parameters, model selection and display flags         |
@@ -105,9 +105,13 @@ library-compatibility failures are recoverable and do not revoke the session.
 `project_cells` with `action:"workspace"` exposes `request.action`:
 `list` live Project tabs and Cell revisions; `activate` a tab; `open` a saved
 Cloud Project (use `background:true` to leave the human's tab selected);
-`save` (or `asNew:true`); `copy` a selection or whole Cell into
+`save` (or `asNew:true`); `new` a blank working copy, as the tab strip's **+**
+opens one, with an optional `name` and `background:true`; `rename` a working
+copy's Project (`name`, and `workspaceId`, defaulting to the bound copy) so
+`list` tells copies apart; `copy` a selection or whole Cell into
 an explicit live target and offset. Copy follows the same atomic, undoable GUI
-planner including dependencies. Live tab contents include unsaved work; the
+planner including dependencies. `new` and `rename` answer with the
+`workspaceId` they acted on. Live tab contents include unsaved work; the
 existing Cloud list/inspect/import actions read saved versions.
 
 To work on another open Project without selecting its tab, call `project_cells`
@@ -124,8 +128,11 @@ entry's complete canonical Project Code and, by default, its generated SPICE
 netlist. `read-many` accepts up to 12 listed IDs and reads them concurrently;
 continue any returned `remainingEntryIds` when the response-size guard stops a
 batch early. Select Spectre explicitly or pass `netlistFormat:null` when only
-the Project Code is needed. This reads the same public Gallery records as the
-UI; it does not copy them into the active Project.
+the Project Code is needed. `read` with `render:"svg"` or `"png"` also returns
+the top Cell's figure as an image, drawn by the same exporter as `export_file`.
+`open` opens an entry as a new working copy in one call (`background:true`
+leaves the human's tab selected) and returns its `workspaceId`; no local file
+is involved. Reading copies nothing into the active Project.
 
 Use `project_code` to read or replace the complete open Project. A replacement
 is parsed and committed through the same revision-guarded, undoable Project
@@ -226,17 +233,39 @@ For a read-only milestone, `verify` optionally accepts
 `expectedNetlist:{text:"<structural SPICE>",cell:"<reference root>"}` and
 `details:true`. Omit it to retain the ordinary Snapshot-only check. Comparison
 reads the existing structural netlist, pairs unique device References and pin
-positions, and compares formal port order, targets, literal parameters, scope
-and endpoint membership; internal auto Net names do not matter. It recursively
-checks matched child definitions, without flattening or guessing renamed devices.
+positions, and compares formal ports, targets, literal parameters, scope and
+endpoint membership; internal auto Net names do not matter. It recursively
+checks matched child definitions, and reaches a child Cell with the same port
+names on both sides by name, so a reordered Cell does not rewire its callers.
+It never flattens or guesses renamed devices.
+
+Devices pair by card name first, then by Instance reference: an export writes a
+Reference bound to a subcircuit as a call, so `XM1` pairs with `M1`. When both
+bind the same model or subcircuit name, one as a card and one as a call, that
+is a `binding` difference, not a missing and an extra device.
+
+The result starts with a one-line `summary`, such as
+`topology equal; 1 port-order, 8 binding-style differences`, then `status`
+and `topology`. `topology` covers devices, targets, port sets, scopes and
+connections alone; `port-order`, `binding` and `parameter` differences leave it
+`equal`. `expectedNetlist.compare` skips checks besides topology:
+`{portOrder:false}` compares the port set only, `{bindings:false}` accepts
+either binding style, `{parameters:false}` skips values, and
+`{declarations:false}` ignores `.model` bodies, `.param` and preserved
+statements instead of reporting `inconclusive`.
+
 Literal parameters compare exact decimal values after SPICE unit scaling, not
-floating-point approximations or a tolerance. Parameter differences preserve
-the original literal strings (or null for an absent value). A literal exceeding
-4096 characters is uncheckable and yields `inconclusive`, not guessed equality.
-Counts are default; details includes at most 200 differences with an explicit
-truncation flag. A difference may affect several endpoint memberships.
-Parameterized hierarchy, expressions, model bodies, unresolved or preserved
-statements yield `inconclusive`, possibly alongside known differences.
+floating-point approximations or a tolerance. A reviewed SKY130 subcircuit call
+takes W and L as plain micrometres (`l=0.15` is `150n`); a model card takes
+metres. An absent `m` is 1, and an absent reviewed count such as `nf` is its
+default. Parameter differences preserve the original literal strings (or null
+for an absent value). A literal exceeding 4096 characters is uncheckable and
+yields `inconclusive`, not guessed equality. Counts are default; details
+includes at most 200 differences with an explicit truncation flag. A difference
+may affect several endpoint memberships. Parameterized hierarchy, expressions,
+model bodies, unresolved or preserved statements yield `inconclusive`, possibly
+alongside known differences; a `.model` card that only declares its type, such
+as `.model nch nmos`, is compared, not uncheckable.
 SPICE has no Port direction metadata: this comparison does not test directions,
 library model internals or simulated performance. Snapshot diagnostics and the
 subsequent structural export are separate reads, not an atomic revision snapshot.

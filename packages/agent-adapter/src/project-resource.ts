@@ -15,6 +15,7 @@ const ProjectTextSchema = z.string().max(2_200_000);
 const NetlistFormatSchema = z.enum(["spice", "spectre"]);
 const NetlistNamingProfileSchema = z.enum(["native", "cadence-bang"]);
 const NetlistPortCaseSchema = z.enum(["lower", "upper"]);
+const ProjectNameSchema = z.string().min(1).max(256);
 
 export const AgentWorkspaceActionSchema = z.discriminatedUnion("action", [
   z.strictObject({ action: z.literal("list") }),
@@ -28,6 +29,18 @@ export const AgentWorkspaceActionSchema = z.discriminatedUnion("action", [
     background: z.boolean().optional(),
   }),
   z.strictObject({ action: z.literal("save"), asNew: z.boolean().optional() }),
+  // A blank working copy, as the tab strip's + opens one.
+  z.strictObject({
+    action: z.literal("new"),
+    name: ProjectNameSchema.optional(),
+    background: z.boolean().optional(),
+  }),
+  // The Project's own name; Cells keep theirs. Defaults to the bound copy.
+  z.strictObject({
+    action: z.literal("rename"),
+    name: ProjectNameSchema,
+    workspaceId: StableIdSchema.optional(),
+  }),
   z.strictObject({
     action: z.literal("copy"),
     sourceWorkspaceId: StableIdSchema,
@@ -89,6 +102,8 @@ export const AgentProjectResourceRequestSchema = z.discriminatedUnion(
       netlistFormat: NetlistFormatSchema.nullable().optional(),
       namingProfile: NetlistNamingProfileSchema.optional(),
       portCase: NetlistPortCaseSchema.optional(),
+      // The top Cell's figure, drawn by the same exporter as a file export.
+      render: z.enum(["svg", "png"]).optional(),
     }),
     ProjectRequestBaseSchema.extend({
       operation: z.literal("read-gallery-entries"),
@@ -170,6 +185,17 @@ export const AgentNetlistReadSchema = z.strictObject({
   diagnostics: z.array(AgentNetlistDiagnosticSchema),
 });
 
+/** A drawing as the formal exporter writes it, carried inline. */
+export const AgentGalleryFigureSchema = z.strictObject({
+  documentId: StableIdSchema,
+  mediaType: z.enum(["image/svg+xml", "image/png"]),
+  encoding: z.literal("base64"),
+  data: z.string().min(4),
+  byteLength: z.number().int().positive(),
+  sha256: z.string().regex(/^[0-9a-f]{64}$/u),
+});
+export type AgentGalleryFigure = z.infer<typeof AgentGalleryFigureSchema>;
+
 export const AgentGalleryEntryReadSchema = z.strictObject({
   entry: AgentGalleryEntrySummarySchema,
   projectCode: ProjectTextSchema,
@@ -208,7 +234,7 @@ export const AgentProjectResourceResponseSchema = z.union([
         ),
       }),
       z.strictObject({
-        action: z.enum(["open", "activate"]),
+        action: z.enum(["open", "activate", "new", "rename"]),
         applied: z.boolean(),
         workspaceId: StableIdSchema.optional(),
       }),
@@ -264,6 +290,7 @@ export const AgentProjectResourceResponseSchema = z.union([
     operation: z.literal("read-gallery-entry"),
     ok: z.literal(true),
     ...AgentGalleryEntryReadSchema.shape,
+    figure: AgentGalleryFigureSchema.optional(),
   }),
   ProjectResponseBaseSchema.extend({
     operation: z.literal("read-gallery-entries"),

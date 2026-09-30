@@ -41,6 +41,42 @@ describe("editor statusbar", () => {
     expect(markup).not.toContain('aria-label="Annotation grid"');
     expect(markup).not.toContain('aria-label="Draw angle"');
     expect(markup).not.toContain('aria-label="Scroll wheel"');
+    // No Agent warning unless its session is in its final minute.
+    expect(markup).not.toContain('data-testid="agent-expiring"');
+  });
+
+  it("offers Keep connected in an Agent session's final minute", () => {
+    const markup = renderToStaticMarkup(
+      <EditorStatusbar
+        status="Ready"
+        tool="pointer"
+        vddRailMode={false}
+        pendingSymbolId={null}
+        wireOptionsOpen={false}
+        wireRoutingMode="orthogonal"
+        wireCornerOrder="auto"
+        recoveryLabel={null}
+        zoomPercent={100}
+        shortcutHintsVisible={false}
+        onToggleShortcutHints={vi.fn()}
+        gridVisible
+        onToggleGrid={vi.fn()}
+        selectionFilterSummary={null}
+        agentExpiring={{ onKeep: vi.fn() }}
+        onOpenSelectionFilter={vi.fn()}
+        onToggleWireOptions={vi.fn()}
+        onWireRoutingModeChange={vi.fn()}
+        onWireCornerOrderChange={vi.fn()}
+        onOpenAnalytics={vi.fn()}
+        onZoomOut={vi.fn()}
+        onZoomIn={vi.fn()}
+        onFitView={vi.fn()}
+      />,
+    );
+    expect(markup).toContain('data-testid="agent-expiring"');
+    expect(markup).toContain("Agent connection ends in 1 minute");
+    expect(markup).toContain('data-testid="agent-keep-connected"');
+    expect(markup).toContain(">Keep connected</button>");
   });
 
   it.each([

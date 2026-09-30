@@ -4,7 +4,6 @@ import "./examples-panel.css";
 import type { LibraryProjectExample } from "../../examples/library-examples";
 import {
   galleryCountLabel,
-  galleryEntryMatchesQuery,
   galleryPreviewUrl,
   GALLERY_SIGN_IN_REQUIRED,
   loadGalleryFeed,
@@ -12,6 +11,7 @@ import {
   subscribeGalleryRefresh,
   type GalleryFeedEntry,
 } from "../../gallery-client";
+import { galleryEntryMatchesQuery } from "../../gallery-search";
 
 const ExamplesPanelTags = lazy(() =>
   import("./examples-panel-tags").then((module) => ({
@@ -45,6 +45,8 @@ interface FeedState {
   entries: GalleryFeedEntry[];
   nextCursor: string | null;
   total: number | null;
+  /** The search the server answered for these entries; "" for none. */
+  search?: string;
 }
 
 const EMPTY_FEED: FeedState = {
@@ -76,13 +78,21 @@ export interface GalleryPanelView {
  * assumed.
  */
 export function deriveGalleryPanelView(
-  feed: Pick<FeedState, "status" | "entries" | "nextCursor" | "total">,
+  feed: Pick<
+    FeedState,
+    "status" | "entries" | "nextCursor" | "total" | "search"
+  >,
   options: { searchQuery: string; selectedTags?: readonly string[] },
 ): GalleryPanelView {
   const normalizedQuery = options.searchQuery.trim().toLowerCase();
-  const showGallery = feed.status === "ready" && feed.entries.length > 0;
   const selectedTags = options.selectedTags ?? [];
-  const filtering = !!normalizedQuery || selectedTags.length > 0;
+  // The server answered this search over the whole Gallery: its total is
+  // the matches and nothing older is left to read.
+  const answered =
+    !!normalizedQuery && feed.search === options.searchQuery.trim();
+  const showGallery =
+    feed.status === "ready" && (feed.entries.length > 0 || answered);
+  const filtering = (!!normalizedQuery && !answered) || selectedTags.length > 0;
   const visibleEntries = feed.entries.filter(
     (entry) =>
       (!normalizedQuery || galleryEntryMatchesQuery(entry, normalizedQuery)) &&
@@ -95,14 +105,15 @@ export function deriveGalleryPanelView(
     visibleEntries,
     countLabel: showGallery
       ? galleryCountLabel(feed.total, {
+          searched: answered && !selectedTags.length,
           search: filtering
             ? { visible: visibleEntries.length, settled: exhausted }
             : null,
         })
       : null,
     emptyMessage:
-      showGallery && filtering && visibleEntries.length === 0
-        ? exhausted
+      showGallery && (filtering || answered) && visibleEntries.length === 0
+        ? exhausted || (answered && !selectedTags.length)
           ? selectedTags.length
             ? "No circuits match these filters."
             : `No circuits match “${options.searchQuery.trim()}”.`
@@ -130,6 +141,16 @@ export function ExamplesPanel({
   const fetcher = fetchImpl ?? fetch;
   const [feed, setFeed] = useState<FeedState>(EMPTY_FEED);
   const [searchQuery, setSearchQuery] = useState("");
+  const searchTextRef = useRef("");
+  searchTextRef.current = searchQuery.trim();
+  // The same server search as the Gallery wall, asked a moment after typing.
+  const [serverSearch, setServerSearch] = useState("");
+  useEffect(() => {
+    const next = searchQuery.trim();
+    if (next === serverSearch) return;
+    const handle = window.setTimeout(() => setServerSearch(next), 250);
+    return () => window.clearTimeout(handle);
+  }, [searchQuery, serverSearch]);
   const [refreshSignal, setRefreshSignal] = useState(0);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const loadGenerationRef = useRef(0);
@@ -143,13 +164,14 @@ export function ExamplesPanel({
     });
   }, [open]);
 
-  // The first page of the current Gallery. Text search is local over loaded
-  // entries, so opening the dock or a Gallery refresh is the only restart.
+  // The first page of the current Gallery, or of the circuits a search
+  // finds: the server searches the whole Gallery before it pages.
   useEffect(() => {
     if (!open) return;
     const generation = ++loadGenerationRef.current;
     setFeed(EMPTY_FEED);
-    void loadGalleryFeed(fetcher).then((page) => {
+    const query = serverSearch ? { q: serverSearch } : {};
+    void loadGalleryFeed(fetcher, query).then((page) => {
       if (generation !== loadGenerationRef.current) return;
       setFeed(
         page === GALLERY_SIGN_IN_REQUIRED
@@ -161,10 +183,12 @@ export function ExamplesPanel({
                 entries: page.entries,
                 nextCursor: page.nextCursor,
                 total: page.total,
+                // Only a server that says it searched has answered it.
+                search: page.search ?? "",
               },
       );
     });
-  }, [open, fetcher, refreshSignal]);
+  }, [open, fetcher, refreshSignal, serverSearch]);
 
   // More pages arrive as the sentinel comes into view. A filtered list stays
   // short, so the sentinel keeps showing and the feed keeps arriving until it
@@ -177,9 +201,14 @@ export function ExamplesPanel({
     const observer = new IntersectionObserver((entries) => {
       if (!entries.some((entry) => entry.isIntersecting)) return;
       if (loadingMoreRef.current) return;
+      // Words the server has not been asked yet: it answers them whole.
+      if (searchTextRef.current !== serverSearch) return;
       loadingMoreRef.current = true;
       const generation = loadGenerationRef.current;
-      void loadGalleryFeed(fetcher, { cursor })
+      void loadGalleryFeed(fetcher, {
+        ...(serverSearch ? { q: serverSearch } : {}),
+        cursor,
+      })
         .then((page) => {
           if (
             page === null ||
@@ -200,7 +229,7 @@ export function ExamplesPanel({
     });
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [open, fetcher, feed.nextCursor]);
+  }, [open, fetcher, feed.nextCursor, serverSearch]);
 
   const { showGallery, visibleEntries, countLabel, emptyMessage } =
     deriveGalleryPanelView(feed, { searchQuery, selectedTags });
