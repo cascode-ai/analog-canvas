@@ -112,6 +112,10 @@ export function isSimulationInputRevision(
 export interface SimulationDiagnostic {
   severity: "error" | "warning" | "info";
   text: string;
+  /** ngspice source location supplied on a following continuation line. */
+  location?: { file: string; line: number };
+  /** Number of identical lines collapsed into this diagnostic. */
+  count?: number;
   /**
    * True when the line reports that ngspice DROPPED something — a device it
    * could not parse, a model it could not find. These matter more than their

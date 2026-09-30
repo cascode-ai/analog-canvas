@@ -10,6 +10,10 @@ const SimulationDiagnosticSchema = z.strictObject({
   severity: z.enum(["error", "warning", "info"]),
   /** ngspice's own line, unedited. */
   text: z.string(),
+  location: z
+    .strictObject({ file: z.string(), line: z.number().int().positive() })
+    .optional(),
+  count: z.number().int().positive().optional(),
   /** True when ngspice reported DROPPING part of the deck it was given. */
   droppedInput: z.boolean().optional(),
 });

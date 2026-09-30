@@ -6,7 +6,6 @@ import type { SimulationDiagnostic, SimulationOutcome } from "./contract.js";
 const DROPPED_INPUT_PATTERNS = [
   /is not a valid .* line, ignored/iu,
   /could not find a valid modelname/iu,
-  /unknown subckt/iu,
   /ignored\s*!?$/iu,
 ];
 
@@ -18,7 +17,37 @@ const ERROR_PATTERNS = [
   /no convergence/iu,
   /iteration limit reached/iu,
   /fatal/iu,
+  /too (?:few|many) parameters for subcircuit/iu,
+  /unknown (?:subckt|model|device)/iu,
+  /can't find model/iu,
 ];
+
+const LOCATION_PATTERN = /^in line no\.\s*(\d+)\s+from file\s+(.+)$/iu;
+const GENERIC_FAILURE_PATTERN =
+  /^(?:simulation interrupted|error:\s*incomplete or empty netlist)/iu;
+const CONSTANTS_PLOT_PATTERN = /constants plot/iu;
+
+function diagnosticKey(diagnostic: SimulationDiagnostic): string {
+  return JSON.stringify([
+    diagnostic.severity,
+    diagnostic.text,
+    diagnostic.location ?? null,
+  ]);
+}
+
+function appendDiagnostic(
+  diagnostics: SimulationDiagnostic[],
+  diagnostic: SimulationDiagnostic,
+): void {
+  const previous = diagnostics.find(
+    (candidate) => diagnosticKey(candidate) === diagnosticKey(diagnostic),
+  );
+  if (previous) {
+    previous.count = (previous.count ?? 1) + 1;
+    return;
+  }
+  diagnostics.push(diagnostic);
+}
 
 /**
  * Read ngspice's output into diagnostics.
@@ -32,20 +61,60 @@ const ERROR_PATTERNS = [
  */
 export function readNgspiceDiagnostics(output: string): SimulationDiagnostic[] {
   const diagnostics: SimulationDiagnostic[] = [];
-  for (const raw of output.split(/\r?\n/u)) {
+  const lines = output.split(/\r?\n/u);
+  for (const raw of lines) {
     const text = raw.trim();
     if (text.length === 0) continue;
+    const location = text.match(LOCATION_PATTERN);
+    if (location) {
+      const previous = diagnostics[diagnostics.length - 1];
+      if (previous && previous.location === undefined) {
+        previous.location = {
+          line: Number(location[1]),
+          file: location[2]!.trim(),
+        };
+        continue;
+      }
+    }
     const dropped = DROPPED_INPUT_PATTERNS.some((pattern) =>
       pattern.test(text),
     );
     const isError = ERROR_PATTERNS.some((pattern) => pattern.test(text));
     const isWarning = /^\s*warning/iu.test(text);
     if (!dropped && !isError && !isWarning) continue;
-    diagnostics.push({
+    appendDiagnostic(diagnostics, {
       severity: isError ? "error" : isWarning ? "warning" : "info",
       text,
       ...(dropped ? { droppedInput: true } : {}),
     });
+  }
+  const genericFailure = diagnostics.some((diagnostic) =>
+    GENERIC_FAILURE_PATTERN.test(diagnostic.text),
+  );
+  const hasSpecificCause = diagnostics.some(
+    (diagnostic) =>
+      !GENERIC_FAILURE_PATTERN.test(diagnostic.text) &&
+      diagnostic.severity === "error",
+  );
+  if (genericFailure && !hasSpecificCause) {
+    const interruptedIndex = lines.findIndex((line) =>
+      /simulation interrupted/iu.test(line),
+    );
+    if (interruptedIndex > 0) {
+      const context = lines
+        .slice(Math.max(0, interruptedIndex - 3), interruptedIndex)
+        .map((line) => line.trim())
+        .filter(
+          (line) =>
+            line.length > 0 &&
+            !diagnostics.some((diagnostic) => diagnostic.text === line),
+        );
+      for (const line of context)
+        appendDiagnostic(diagnostics, {
+          severity: "info",
+          text: "ngspice context: " + line,
+        });
+    }
   }
   return diagnostics;
 }
@@ -64,8 +133,18 @@ export function readNgspiceDiagnostics(output: string): SimulationDiagnostic[] {
  */
 export function describeExitStatus(
   exitCode: number | null,
+  options: { hasData?: boolean } = {},
 ): SimulationDiagnostic | null {
   if (exitCode === null || exitCode === 0) return null;
+  if (options.hasData === false) {
+    return {
+      severity: "error",
+      text:
+        "The simulator exited with code " +
+        exitCode +
+        " before producing structured results.",
+    };
+  }
   return {
     severity: "warning",
     text:
@@ -230,7 +309,18 @@ export function evaluateSimulationRun(
     }
   }
 
-  const exitStatus = describeExitStatus(observation.exitCode);
+  if (
+    data === undefined &&
+    diagnostics.some((diagnostic) => diagnostic.severity === "error")
+  ) {
+    for (let index = diagnostics.length - 1; index >= 0; index--) {
+      if (CONSTANTS_PLOT_PATTERN.test(diagnostics[index]!.text))
+        diagnostics.splice(index, 1);
+    }
+  }
+  const exitStatus = describeExitStatus(observation.exitCode, {
+    hasData: data !== undefined,
+  });
   if (exitStatus) diagnostics.push(exitStatus);
 
   const outcome = classifySimulationOutcome(diagnostics, {

@@ -69,6 +69,17 @@ v(out) = 5.000000e-01
 Note: Simulation executed from .control section
 `;
 
+const ROOT_CAUSE_OUTPUT = `
+Error: Too few parameters for subcircuit type "scint" (instance: xxdut)
+in line no. 14 from file ./testbench.spice
+Error: unknown subckt: xxdut vdd vss vin vout phi1 phi2 sc
+in line no. 1 from file ./testbench.spice
+singular matrix: check node vg#branch
+singular matrix: check node vg#branch
+Simulation interrupted due to error!
+Error: incomplete or empty netlist
+`;
+
 describe("ngspice output reading", () => {
   it("never calls a run clean when ngspice discarded part of the deck", () => {
     const diagnostics = readNgspiceDiagnostics(DROPPED_RESISTOR_OUTPUT);
@@ -113,6 +124,45 @@ describe("ngspice output reading", () => {
         timeoutMs: 30_000,
       }),
     ).toEqual({ status: "completed" });
+  });
+
+  it("keeps subcircuit causes and their source locations", () => {
+    const diagnostics = readNgspiceDiagnostics(ROOT_CAUSE_OUTPUT);
+    expect(diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          severity: "error",
+          text: expect.stringContaining("Too few parameters for subcircuit"),
+          location: { file: "./testbench.spice", line: 14 },
+        }),
+        expect.objectContaining({
+          severity: "error",
+          text: expect.stringContaining("unknown subckt"),
+          location: { file: "./testbench.spice", line: 1 },
+        }),
+        expect.objectContaining({
+          text: "singular matrix: check node vg#branch",
+          count: 2,
+        }),
+      ]),
+    );
+  });
+
+  it("adds context and a plain no-result exit error for unexplained failures", () => {
+    const diagnostics = readNgspiceDiagnostics(
+      "Circuit: * bad deck\n" +
+        "Simulation interrupted due to error!\n" +
+        "Error: incomplete or empty netlist\n",
+    );
+    expect(
+      diagnostics.some((diagnostic) =>
+        diagnostic.text.includes("ngspice context: Circuit: * bad deck"),
+      ),
+    ).toBe(true);
+    expect(describeExitStatus(1, { hasData: false })).toEqual({
+      severity: "error",
+      text: expect.stringContaining("before producing structured results"),
+    });
   });
 
   /**
