@@ -100,6 +100,10 @@ describe("selection context actions", () => {
     expect(markup).toContain("4 selected");
     expect(markup).toContain('aria-label="Editable Canvas property code"');
     expect(markup).toContain("Empty values keep");
+    // One name for them all is written where the name reads “as is”.
+    expect(markup).toContain(
+      "A name written in place of “as is” names them all",
+    );
     expect(markup).not.toContain("Canvas labels");
     expect(markup).not.toContain("Visual annotation");
   });

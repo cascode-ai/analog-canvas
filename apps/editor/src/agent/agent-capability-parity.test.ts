@@ -11,6 +11,17 @@ import { callTool, type ToolSessionState } from "../../../mcp-server/src/tools";
 import { EditorDocumentController } from "../document/document-controller";
 import { BrowserAgentHost } from "./browser-agent-host";
 import { planBrowserAgentCommand } from "./browser-agent-command";
+import type { CircuitProject } from "@icm/model";
+import { initialComponentParameterValues } from "../features/component-insert/component-parameters";
+import { placedInstanceNetlist } from "../features/component-insert/placed-instance-netlist";
+import { createDefaultNetlistExportPreferences } from "../features/netlist-export/netlist-export-preferences";
+import {
+  inferNetlistProcess,
+  instanceModelTarget,
+  placementModelTarget,
+  processTargetForShortName,
+} from "../features/netlist-export/netlist-process";
+import { executeProjectTransaction } from "@icm/edit-engine";
 
 it("gives Agent-placed comparators the same isolated model as GUI placement", async () => {
   const { client, controller } = await folder();
@@ -608,6 +619,217 @@ it("keeps the first supply default in a placement batch and preserves it in late
     controller.document.nets.find((n) =>
       n.terminals.some((p) => p.instanceId === ground.id),
     )!.id,
+  );
+});
+
+it("places a part with the catalog defaults and the Process model a GUI placement gets", async () => {
+  const { controller } = await folder();
+  const preferences = createDefaultNetlistExportPreferences();
+  expect(preferences.selected).toBe("sky130");
+  const context = {
+    processModelTarget: (project: CircuitProject, symbolId: string) =>
+      placementModelTarget(project, preferences, symbolId),
+  };
+  const at = (x: number) => ({
+    position: { x, y: 100 },
+    rotation: 0 as const,
+    mirror: "none" as const,
+  });
+  const plan = planBrowserAgentCommand(
+    controller.project,
+    controller.document.id,
+    controller.resolver,
+    {
+      kind: "place-components",
+      instances: [
+        { id: "M1", symbolId: "nmos", reference: "M1", placement: at(100) },
+        { id: "R1", symbolId: "resistor", reference: "R1", placement: at(300) },
+        {
+          id: "R2",
+          symbolId: "resistor",
+          reference: "R2",
+          placement: at(500),
+          netlist: { parameters: { value: "4.7k" } },
+        },
+      ],
+    },
+    Number.POSITIVE_INFINITY,
+    context,
+  );
+  if (!("edits" in plan)) throw new Error("Expected document edits");
+  const placed = new Map(
+    plan.edits.flatMap((edit) =>
+      edit.kind === "add_instance"
+        ? [[edit.instance.id, edit.instance.netlist] as const]
+        : [],
+    ),
+  );
+  // What the library or the shapes panel places in this Project.
+  const gui = (symbolId: string) =>
+    placedInstanceNetlist(
+      symbolId,
+      initialComponentParameterValues(symbolId),
+      context.processModelTarget(controller.project, symbolId),
+    );
+  expect(placed.get("M1")).toEqual(gui("nmos"));
+  expect(placed.get("R1")).toEqual(gui("resistor"));
+  expect(placed.get("M1")?.parameters).toMatchObject({ w: "1u", l: "150n" });
+  expect(context.processModelTarget(controller.project, "nmos")).toBe(
+    "sky130_fd_pr__nfet_01v8",
+  );
+  expect(placed.get("M1")?.binding).toBeDefined();
+  expect(placed.get("R1")?.parameters).toEqual({ value: "1k" });
+  // A value the Agent gives still wins over the default.
+  expect(placed.get("R2")?.parameters).toEqual({ value: "4.7k" });
+  // Without the editor's Process, the defaults still land.
+  const bare = planBrowserAgentCommand(
+    controller.project,
+    controller.document.id,
+    controller.resolver,
+    {
+      kind: "place-components",
+      instances: [
+        { id: "R1", symbolId: "resistor", reference: "R1", placement: at(300) },
+      ],
+    },
+  );
+  if (!("edits" in bare)) throw new Error("Expected document edits");
+  expect(
+    bare.edits.flatMap((edit) =>
+      edit.kind === "add_instance" ? [edit.instance.netlist?.parameters] : [],
+    ),
+  ).toEqual([{ value: "1k" }]);
+});
+
+it("reads a SKY130 short device name as its reviewed target in a SKY130 Project", async () => {
+  const { controller } = await folder();
+  const preferences = createDefaultNetlistExportPreferences();
+  const context = {
+    processModelTarget: (project: CircuitProject, symbolId: string) =>
+      placementModelTarget(project, preferences, symbolId),
+    processTargetForShortName: (
+      project: CircuitProject,
+      symbolId: string,
+      name: string,
+    ) => processTargetForShortName(project, preferences, symbolId, name),
+  };
+  const placed = planBrowserAgentCommand(
+    controller.project,
+    controller.document.id,
+    controller.resolver,
+    {
+      kind: "place-components",
+      instances: [
+        {
+          id: "M1",
+          symbolId: "nmos",
+          reference: "M1",
+          placement: {
+            position: { x: 100, y: 100 },
+            rotation: 0,
+            mirror: "none",
+          },
+        },
+      ],
+    },
+    Number.POSITIVE_INFINITY,
+    context,
+  );
+  if (!("edits" in placed)) throw new Error("Expected document edits");
+  expect(controller.transact([...placed.edits]).ok).toBe(true);
+  // nfet_01v8_lvt is how the Netlist panel lists sky130_fd_pr__nfet_01v8_lvt.
+  const plan = planBrowserAgentCommand(
+    controller.project,
+    controller.document.id,
+    controller.resolver,
+    { kind: "set-model", instanceId: "M1", model: "nfet_01v8_lvt" },
+    Number.POSITIVE_INFINITY,
+    context,
+  );
+  if (!("structureEdits" in plan)) throw new Error("Expected a model plan");
+  const result = executeProjectTransaction(controller.project, {
+    transactionId: "set-model",
+    projectId: controller.project.id,
+    expectedStructureRevision: controller.project.structureRevision,
+    actor: { kind: "agent", id: "test" },
+    edits: [...plan.structureEdits],
+  });
+  if (!result.ok) throw new Error(result.error.message);
+  const m1 = result.project.documents[0]!.instances.find(
+    (instance) => instance.id === "M1",
+  )!;
+  expect(instanceModelTarget(result.project, m1)).toBe(
+    "sky130_fd_pr__nfet_01v8_lvt",
+  );
+  // The Project stays in SKY130 rather than turning Custom.
+  expect(inferNetlistProcess(result.project, "sky130")).toBe("sky130");
+  // Outside SKY130 a name is taken as written: it may be the author's model.
+  const empty = createEmptyProject("abstract", "Abstract");
+  expect(
+    processTargetForShortName(
+      empty,
+      { ...preferences, selected: "abstract" },
+      "nmos",
+      "nfet_01v8",
+    ),
+  ).toBeUndefined();
+  expect(
+    processTargetForShortName(empty, preferences, "nmos", "nfet_01v8"),
+  ).toBe("sky130_fd_pr__nfet_01v8");
+  expect(
+    processTargetForShortName(empty, preferences, "nmos", "pfet_01v8"),
+  ).toBeUndefined();
+});
+
+it("says how far a placement batch over the edit limit expands and how much of it fits", async () => {
+  const { client, controller } = await folder();
+  const actions = [
+    ...Array.from({ length: 20 }, (_, index) => ({
+      kind: "place-component" as const,
+      symbol: "nmos",
+      reference: `M${index + 1}`,
+      position: { x: (index % 5) * 100, y: Math.floor(index / 5) * 100 },
+      parameters: { w: "1u", l: "150n" },
+    })),
+    {
+      kind: "place-component" as const,
+      symbol: "vdd-port",
+      position: { x: 0, y: -100 },
+    },
+    {
+      kind: "place-component" as const,
+      symbol: "ground",
+      position: { x: 0, y: 500 },
+    },
+  ];
+  const before = controller.document.revision;
+  const rejected = await client.applyActions(actions);
+  expect(rejected).toMatchObject({ ok: false, code: "LIMIT_EXCEEDED" });
+  expect(controller.document.revision).toBe(before);
+  const limit = rejected.diagnostics?.[0]?.parameters as
+    | {
+        expandedEdits: number;
+        maxTransactionEdits: number;
+        fittingPlacements: number;
+      }
+    | undefined;
+  expect(limit?.maxTransactionEdits).toBe(64);
+  expect(limit?.expandedEdits).toBeGreaterThan(64);
+  expect(rejected.message).toContain(
+    `22 placements expand to ${limit?.expandedEdits} edits, and one transaction takes at most 64. The first ${limit?.fittingPlacements} fit`,
+  );
+  // Split there, both calls succeed: the count is exact, not a guess.
+  const fitting = limit!.fittingPlacements;
+  expect(fitting).toBeGreaterThan(10);
+  const first = await client.applyActions(actions.slice(0, fitting));
+  expect(first.ok, first.message).toBe(true);
+  const rest = await client.applyActions(actions.slice(fitting));
+  expect(rest.ok, rest.message).toBe(true);
+  expect(controller.document.instances).toHaveLength(22);
+  // One more placement in the first call would not have fitted.
+  const { client: again } = await folder();
+  expect(await again.applyActions(actions.slice(0, fitting + 1))).toMatchObject(
+    { ok: false, code: "LIMIT_EXCEEDED" },
   );
 });
 

@@ -480,6 +480,16 @@ export const AgentSnapshotInstanceSchema = z.strictObject({
   signalFlowParameters: SignalFlowParametersSchema.optional(),
   id: StableIdSchema,
   reference: z.string().min(1).nullable(),
+  cellTerminal: z
+    .strictObject({
+      id: StableIdSchema,
+      name: z.string().min(1),
+      direction: z.enum(["input", "output", "inout", "passive"]),
+    })
+    .optional()
+    .describe(
+      "A Cell Pin marker's formal terminal. Such a marker has no Reference; this is its name.",
+    ),
   masterName: z.string().min(1).nullable(),
   symbolId: StableIdSchema,
   symbolVariantId: StableIdSchema.nullable(),

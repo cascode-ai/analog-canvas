@@ -15,6 +15,8 @@ rejection. Read the full Snapshot only when the task needs broad context.
 For new endpoints, MCP uses `inspect` target `pins` with `instanceIds` (up to 64);
 HTTP uses Snapshot projection `pins`. It returns selected instances, resolved
 pin geometry, Net IDs and bulk facts without full topology/diagnostic output.
+A Cell Pin marker (`port`, `port-filled`, `vdd-port`) has `reference: null`;
+its name is its terminal's, in `cellTerminal: {id, name, direction}`.
 Use returned endpoints and stable Route/leg IDs; a crossing is not a connection.
 In MCP wiring, use `instance:{kind:"instance",id:"<returned-id>"}` for pin
 targets to avoid full-Snapshot name resolution. Names remain supported when useful.
@@ -68,9 +70,16 @@ targets to avoid full-Snapshot name resolution. Names remain supported when usef
   explicit RichText to restyle it. Fractions/formulas need explicit RichText
   for a structural replacement, not a lossy plain-text projection.
   Transformer parameter keys are `k/lp/ls`; T-Coil keys are `k/l1/l2/cb`.
-- Use `set-model` with the product's reviewed target. SKY130 MOS targets reuse
-  the GUI binding path, preserve terminal mapping and export the required `X`
-  subcircuit invocation. Raw bindings remain available for custom definitions.
+- Use `set-model` with the product's reviewed target, the full library name
+  such as `sky130_fd_pr__nfet_01v8`. In a SKY130 Project the short name the
+  Netlist panel shows (`nfet_01v8`) means the same device. SKY130 MOS targets
+  reuse the GUI binding path, preserve terminal mapping and export the
+  required `X` subcircuit invocation. Any other name is a raw model binding,
+  for custom definitions; it leaves the Project's Process as Custom.
+- `place-component` without `parameters` places a part as the GUI library
+  does: each parameter's catalog default, and for a transistor the model of
+  the Process the Netlist panel shows. Given `parameters` win, and only a
+  value given is shown in a Value label.
 - Three-terminal MOS artwork still has an electrical B pin. Read `mosBulk` and
   `mosBulkDefaults`; ordinary devices reuse defaults. Use dedicated bulk edits
   for overrides. Hidden bulk needs no decorative wire; four-pin presentation
@@ -114,6 +123,12 @@ the same model and exporter; no alternate electrical protocol is needed.
 
 Multiple placements, wires, labels, model assignments and annotation moves have
 existing atomic batch paths. Failure commits nothing; success has one undo.
+One transaction takes at most 64 expanded edits. A placed part expands to about
+three (the part and its name and value labels) and a Cell Pin to about five, so
+one `circuit_place` call fits about 20 parts. A placement batch over the limit
+commits nothing and fails with `LIMIT_EXCEEDED`; its diagnostic gives
+`expandedEdits`, `maxTransactionEdits` and `fittingPlacements`, the number of
+leading placements that fit in one call.
 Display flags, Port directions, VDD mode and terminal removal can share the
 existing command batch. Pure Document presentation batches do not advance the
 Project structure revision. Failures identify the originating action where known.
@@ -143,8 +158,12 @@ ordinary transaction receipts compares document-local terminal equivalence;
 it does not assert unchanged parameters, bulk or hierarchy. Omitted means unknown.
 Use reset-placement only for intentional redraw, with its documented effects.
 `delete` uses the GUI selection-deletion planner, including owned displays and
-formal interface declarations. `delete-selection` accepts multiple explicit
-object IDs (including `noConnectIds`) in one transaction. Unknown or wrongly
+formal interface declarations. `delete-selection` deletes multiple explicit
+object IDs in one transaction. They are nested in `selection`, one list per
+object type, and a list left out is empty:
+`{"kind":"delete-selection","selection":{"instanceIds":["M1"],"routeIds":["route-3"]}}`.
+The lists are `instanceIds`, `routeIds`, `junctionIds`, `annotationIds`,
+`draftingIds` and `noConnectIds`. Unknown or wrongly
 classified IDs reject the entire Agent selection; free text created by
 `annotate` belongs in `draftingIds`, not `annotationIds`. Selecting every object clears a Cell, while
 unselected wires remain dangling. Reset modes retain their existing meanings

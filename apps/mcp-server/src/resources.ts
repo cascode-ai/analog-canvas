@@ -64,18 +64,22 @@ export function readResourceContent(uri: string): McpResourceContent {
     const catalog = JSON.parse(
       readResourceContent("analog-canvas://catalog/builtins").text,
     );
-    if (
-      ids.length > 64 ||
-      ids.some(
-        (id) =>
-          !catalog.symbols.some(
-            (symbol: { symbolId: string }) => symbol.symbolId === id,
-          ),
-      )
-    )
+    if (ids.length > 64)
+      throw new RpcMethodError(-32602, "Select at most 64 symbol IDs");
+    const unknown = ids.filter(
+      (id) =>
+        !catalog.symbols.some(
+          (symbol: { symbolId: string }) => symbol.symbolId === id,
+        ),
+    );
+    if (unknown.length > 0)
       throw new RpcMethodError(
         -32602,
-        "Unknown symbol ID; inspect the full catalog to discover symbols",
+        // The caller's own selector, named back so it can be corrected.
+        `Unknown symbol ID ${unknown
+          .slice(0, 8)
+          .map((id) => JSON.stringify(id.slice(0, 64)))
+          .join(", ")}; inspect the full catalog to discover symbols`,
       );
     return {
       uri,

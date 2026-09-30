@@ -18,12 +18,16 @@ import {
 import { InstanceCodePanel } from "../features/properties/instance-code-panel";
 import { NetlistCodePanel } from "../features/netlist-export/netlist-code-panel";
 import { NetlistProfileCode } from "../features/netlist-export/netlist-profile-code";
-import { useNetlistExportPreferences } from "../features/netlist-export/netlist-export-preferences";
 import {
+  useNetlistExportPreferences,
+  type NetlistExportPreferences,
+} from "../features/netlist-export/netlist-export-preferences";
+import {
+  placementModelTarget,
   planNetlistProcess,
   prepareNetlistExample,
+  processTargetForShortName,
 } from "../features/netlist-export/netlist-process";
-import { netlistDeviceFamily } from "../features/netlist-export/netlist-process-presets";
 import {
   DEFAULT_ARROW_PRESET,
   type ArrowPreset,
@@ -316,6 +320,7 @@ import { createEditorCommandRouter } from "../commands/editor-command";
 import { createEditorTransactionCommands } from "./editor-transaction-commands";
 import { recoveryStateLabel } from "../components/recovery-banners";
 import { BrowserAgentHost } from "../agent/browser-agent-host";
+import type { BrowserAgentPlanningContext } from "../agent/browser-agent-command";
 import { BrowserAgentFileHost } from "../agent/browser-agent-file-host";
 import { BrowserAgentSimulationHost } from "../agent/browser-agent-simulation-host";
 import { BrowserAgentProjectHost } from "../agent/browser-agent-project-host";
@@ -849,6 +854,31 @@ function WorkspaceEditor({
     code: "SEMANTIC_CONTROL_UNAVAILABLE",
     message: "The editor is still initializing semantic controls",
   }));
+  // An Agent places a transistor in the Process a person placing it would
+  // get; the preferences are read when it plans, not when the host is made.
+  const netlistPreferencesRef = useRef<NetlistExportPreferences | null>(null);
+  const agentPlanning = useMemo<BrowserAgentPlanningContext>(
+    () => ({
+      processModelTarget: (source, symbolId) =>
+        netlistPreferencesRef.current
+          ? placementModelTarget(
+              source,
+              netlistPreferencesRef.current,
+              symbolId,
+            )
+          : undefined,
+      processTargetForShortName: (source, symbolId, name) =>
+        netlistPreferencesRef.current
+          ? processTargetForShortName(
+              source,
+              netlistPreferencesRef.current,
+              symbolId,
+              name,
+            )
+          : undefined,
+    }),
+    [],
+  );
   const browserAgentHost = useMemo(
     () =>
       new BrowserAgentHost(
@@ -861,6 +891,8 @@ function WorkspaceEditor({
           void flushRecovery();
         },
         (request) => agentSemanticIntentRef.current(request),
+        undefined,
+        agentPlanning,
       ),
     [editorDocumentController, projectSessionId],
   );
@@ -1000,6 +1032,7 @@ function WorkspaceEditor({
     "native" | "cadence-bang"
   >("native");
   const netlistPreferences = useNetlistExportPreferences();
+  netlistPreferencesRef.current = netlistPreferences.preferences;
   const [netlistEntry, setNetlistEntry] = useState<{
     sessionId: string;
     documentId: string;
@@ -3210,14 +3243,8 @@ function WorkspaceEditor({
     transactProject: (transactionId, edits) =>
       commitStructure(transactionId, edits),
     // A device drawn while working in a process is that process's device.
-    processModelTarget: (symbolId) => {
-      const family = netlistDeviceFamily(symbolId);
-      if (family !== "nmos" && family !== "pmos") return undefined;
-      return (
-        netlistPreferences.preferences.profiles[netlistPreferences.selected]
-          .devices[family].target || undefined
-      );
-    },
+    processModelTarget: (symbolId) =>
+      placementModelTarget(project, netlistPreferences.preferences, symbolId),
     selectOnly,
     cancelAllTransientInteraction,
     cancelCanvasDrag: () => canvasDragSessionRef.current?.cancel(),
@@ -5696,8 +5723,20 @@ function WorkspaceEditor({
       setRestoringWorkspace(false);
     }
   }, [restoredTabs.error]);
+  // New Circuit's blank tab joins the ones brought back and is the open one
+  // from the first paint: the circuit drawn last is never shown in its place,
+  // and a file opened at once lands in the blank tab, not over that circuit.
+  const [initialTabs] = useState(() => {
+    if (!restoredTabs.value || !restoredNewLink.current)
+      return restoredTabs.value;
+    const id = createId("tab");
+    return {
+      activeId: id,
+      tabs: [...restoredTabs.value.tabs, { id, session: createTabSession() }],
+    };
+  });
   const projectTabs = useProjectTabs<TabSession>({
-    initial: restoredTabs.value,
+    initial: initialTabs,
     persist: persistTabs,
     capture: captureTabSession,
     restore: restoreTabSession,
@@ -5840,8 +5879,8 @@ function WorkspaceEditor({
     if (restoringWorkspace || !restoredNewLink.current) return;
     restoredNewLink.current = false;
     forgetNewProjectRequest();
-    void projectTabs.open(() => createTabSession());
-    setStatus("Created a new Project");
+    // Tabs that could not be restored leave their message standing.
+    if (restoredTabs.value) setStatus("Created a new Project");
   }, [restoringWorkspace]);
   useEffect(() => {
     // A new circuit this window opened fresh is simply the working one now.
@@ -6229,6 +6268,7 @@ function WorkspaceEditor({
       committed,
       undefined,
       available,
+      agentPlanning,
     );
     const existing = agentProjectResources.current
       .get(controller)

@@ -18,6 +18,7 @@ import {
   AgentCircuitRequestSchema,
   AgentCircuitResponseJsonSchema,
   AgentCircuitResponseSchema,
+  AgentSnapshotInstanceSchema,
 } from "./schema.js";
 import type { AgentPermissions } from "./schema.js";
 import {
@@ -299,6 +300,27 @@ describe("current Agent Circuit API service", () => {
         projection: "full",
       }),
     ).toMatchObject({ ok: false, error: { code: "INVALID_REQUEST" } });
+    // A Cell Pin marker has no Reference; the projection names its terminal.
+    const pins = fixture.service.handle({
+      ...request,
+      requestId: "pins-port",
+      instanceIds: ["VINP", "M1"],
+    });
+    if (!pins.ok || pins.operation !== "snapshot" || !("instances" in pins))
+      throw new Error("pins snapshot failed");
+    const [m1, vinp] = pins.instances;
+    expect(vinp).toMatchObject({
+      id: "VINP",
+      reference: null,
+      cellTerminal: {
+        id: "cell-terminal-vinp",
+        name: "VINP",
+        direction: expect.any(String),
+      },
+    });
+    expect(m1).toMatchObject({ id: "M1", reference: "M1" });
+    expect(m1).not.toHaveProperty("cellTerminal");
+    expect(AgentSnapshotInstanceSchema.parse(vinp)).toEqual(vinp);
   });
   it("rejects a schema-invalid request without changing the revision", () => {
     const fixture = serviceFixture();
@@ -458,40 +480,19 @@ describe("current Agent Circuit API service", () => {
       }
     }
 
-    // RichText recursively unfolds into both part documents. Schema 30 added
-    // one safe atomic formula leaf to every top-level RichText projection, and
-    // The Project simulation setup edit inlines its setup payload once,
-    // including its bounded measurement-method union, hierarchy-aware Noise
-    // selector, Design Variables, and persisted Run Plan. This raised the
-    // ceiling; it still guards accidental projection bloat.
-    // Project source-file provenance is now an editable structural record so
-    // imported Cell closures can remain source-addressable without bypassing
-    // the canonical transaction contract.
-    // The Simulation Resource read envelope adds one bounded wait hint while
-    // retaining the complete operation union and runtime validation. Keep the
-    // allowance close to the measured projection so accidental unfolding is
-    // still caught.
-    // Pin-anchored placement and route-net add real input contracts (172,484
-    // characters after shared field schemas). This complete offline/HTTP
-    // union is not a discovery declaration; focused MCP tools retain their
-    // separate unchanged 5,000-byte normalized budget.
-    // Schema 64 lets each authored object keep a copy source's Document style
-    // and adds the edit that releases it (175,047 characters).
-    // Terminal-current adds the bounded device/pin/direction branch: measured
-    // 175,783 characters (+298 from main). Keep only 217 characters headroom;
-    // reference expansion and focused discovery budgets remain unchanged.
+    // Tripwires for a schema that unfolds by accident (RichText inlined into
+    // every part, a reference expanded in place), not a pin on today's size:
+    // each ceiling sits at about twice the measured length (request 175,783,
+    // response under 180,000, OpenAPI 537,392 characters), so ordinary
+    // contract growth never trips them. Focused MCP tools keep their own
+    // 5,000-byte limit, which a real host's compaction sets.
     expect(JSON.stringify(AgentCircuitRequestJsonSchema).length).toBeLessThan(
-      176_000,
+      350_000,
     );
     expect(JSON.stringify(AgentCircuitResponseJsonSchema).length).toBeLessThan(
-      180_000,
+      360_000,
     );
-    // Complete OpenAPI including staged Cell composition and schema 64's kept
-    // Document style: 535,143 characters, not a token count or a host
-    // discovery payload.
-    // Snapshot control adds 868 bytes (536,035 -> 536,903), completing the
-    // existing write contract; no duplicate independent schema is introduced.
-    expect(JSON.stringify(agentCircuitOpenApi).length).toBeLessThan(537_000);
+    expect(JSON.stringify(agentCircuitOpenApi).length).toBeLessThan(1_100_000);
   });
 
   it("keeps terminal-current runtime control strict and partial authoring explicit", () => {

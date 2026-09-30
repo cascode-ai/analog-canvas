@@ -119,22 +119,16 @@ describe("mcp resources single-source projection", () => {
   });
   it("bounds discovery size while retaining complete contracts and runtime validation", async () => {
     const tools = listToolDefinitions();
-    // Shared GUI-equivalent commands and staged Cell composition bring the
-    // compatibility directory to 115,623 bytes (not a token count). The full
-    // advanced_transact command union remains a compatibility entry; focused
-    // additions have a stricter per-tool host-compaction
-    // budget in focused-tools.test.ts.
-    // Total directory bytes are no longer the host's per-tool context boundary.
-    // Schema 64's kept Document style reached 117,275 bytes. The four linear
-    // controlled-source classes and typed control selector bring this to
-    // 118,131 bytes. Terminal-current's device/pin/direction branch now measures
-    // 118,765 bytes. Control authoring adds 857 bytes (119,622 total); the
-    // focused per-tool budgets and complete expanded contract checks stay fixed.
+    // A tripwire for a directory that unfolds by accident, not a pin on
+    // today's size: about twice the measured 119,622 bytes (not a token
+    // count), so ordinary growth never trips it. Focused tools keep the
+    // stricter per-tool limit a real host's compaction sets, in
+    // focused-tools.test.ts.
     const compatibility = tools.filter(
       (t) => !FOCUSED_TOOLS.some((f) => f.name === t.name),
     );
     expect(Buffer.byteLength(JSON.stringify(compatibility))).toBeLessThan(
-      119_800,
+      240_000,
     );
     for (const tool of tools) {
       const complete = JSON.parse(

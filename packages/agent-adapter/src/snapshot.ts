@@ -410,9 +410,22 @@ export function selectAgentInstances(
         ? target.slice("model:".length)
         : null;
       const mosBulk = resolveMosBulkConnection(document, instance);
+      // A Cell Pin marker carries no Reference: its name is its terminal's.
+      const cellTerminal = document.netlist?.terminals.find((terminal) =>
+        terminal.interfaceInstanceIds.includes(instance.id),
+      );
       return {
         id: instance.id,
         reference: instance.reference ?? null,
+        ...(cellTerminal
+          ? {
+              cellTerminal: {
+                id: cellTerminal.id,
+                name: cellTerminal.name,
+                direction: cellTerminal.direction,
+              },
+            }
+          : {}),
         masterName: instanceMasterName(options, instance),
         symbolId: instance.symbolId,
         symbolVariantId: instance.symbolVariantId ?? null,

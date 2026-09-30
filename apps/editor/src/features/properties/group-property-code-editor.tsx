@@ -194,10 +194,12 @@ export function GroupPropertyCodeEditor({
         />
       </Suspense>
       <small className="group-property-hint">
-        Names and the parameters every selected component has list each one by
-        its Reference; other settings do where components differ. Edit an entry
-        to change that one, or enter a single value to apply it to all. Empty
-        values keep each component’s current setting.
+        A name written in place of “as is” names them all: the component
+        selected first carries it, the others show it as a display alias. The
+        parameters every selected component has list each one by its Reference;
+        other settings do where components differ. Edit an entry to change that
+        one, or enter a single value to apply it to all. Empty values keep each
+        component’s current setting.
         {context.parameters === null
           ? " The selected components share no parameters."
           : context.perComponentParameters?.length

@@ -16,6 +16,7 @@ import { deriveStableId, type CircuitProject, type Instance } from "@icm/model";
 import {
   NETLIST_DEVICE_TARGET_OPTIONS,
   NETLIST_HIGH_VOLTAGE_TARGETS,
+  NETLIST_QUICK_TARGET_FAMILIES,
   netlistDeviceFamily,
   type NetlistExportProfile,
   type NetlistProfileId,
@@ -101,6 +102,63 @@ export function inferNetlistProcess(
       ),
     ) ?? "custom"
   );
+}
+
+/**
+ * The model a transistor placed now takes: the one named by the Process the
+ * Netlist panel shows — the Process the Project's transistors already use,
+ * else the one chosen in this browser. A device drawn while working in a
+ * process is that process's device, whether a person or an Agent places it.
+ */
+export function placementModelTarget(
+  project: CircuitProject,
+  preferences: {
+    selected: NetlistProfileId;
+    profiles: Record<NetlistProfileId, NetlistExportProfile>;
+  },
+  symbolId: string,
+): string | undefined {
+  const family = netlistDeviceFamily(symbolId);
+  if (family !== "nmos" && family !== "pmos") return undefined;
+  const process =
+    preferences.selected === "custom"
+      ? "custom"
+      : inferNetlistProcess(project, preferences.selected);
+  return preferences.profiles[process].devices[family].target || undefined;
+}
+
+/**
+ * The full target a short device name stands for in the Process the Netlist
+ * panel shows. The panel lists SKY130's devices without their library
+ * prefix, so in a SKY130 Project `nfet_01v8` means `sky130_fd_pr__nfet_01v8`.
+ * Undefined unless the name is exactly such a short name for this part; in
+ * another Process a name is taken as written, since it may name a model of
+ * the author's own.
+ */
+export function processTargetForShortName(
+  project: CircuitProject,
+  preferences: {
+    selected: NetlistProfileId;
+    profiles: Record<NetlistProfileId, NetlistExportProfile>;
+  },
+  symbolId: string,
+  name: string,
+): string | undefined {
+  const family = netlistDeviceFamily(symbolId);
+  const process =
+    preferences.selected === "custom"
+      ? "custom"
+      : inferNetlistProcess(project, preferences.selected);
+  if (
+    process !== "sky130" ||
+    !family ||
+    !(NETLIST_QUICK_TARGET_FAMILIES as readonly string[]).includes(family)
+  )
+    return undefined;
+  const full = `sky130_fd_pr__${name.trim()}`.toLowerCase();
+  return NETLIST_DEVICE_TARGET_OPTIONS.sky130[
+    family as NetlistQuickTargetFamily
+  ].find((target) => target !== "" && target.toLowerCase() === full);
 }
 
 /** One undoable authoring transaction. Exporters continue to read only Project facts. */

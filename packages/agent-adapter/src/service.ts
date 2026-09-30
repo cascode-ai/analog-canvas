@@ -796,19 +796,26 @@ export function createAgentCircuitService(
               };
             }
           } catch (error) {
+            const code =
+              error instanceof AgentCommandPlanningError && error.detail
+                ? error.detail.code
+                : "EDIT_PRECONDITION";
             return fail(
               "transact",
-              "EDIT_PRECONDITION",
+              code,
               error instanceof Error ? error.message : String(error),
               document.revision,
               error instanceof AgentCommandPlanningError
                 ? [
                     {
-                      code: "EDIT_PRECONDITION",
+                      code,
                       severity: "error",
                       message: error.message,
                       path: ["actions", error.actionIndex],
-                      parameters: { actionIndex: error.actionIndex },
+                      parameters: {
+                        ...error.detail?.parameters,
+                        actionIndex: error.actionIndex,
+                      },
                     },
                   ]
                 : [],
