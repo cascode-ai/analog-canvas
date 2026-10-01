@@ -244,20 +244,24 @@ describe("bundled Library Project examples", () => {
     );
     for (const format of ["spice", "spectre"] as const) {
       const exported = createDesignNetlistExport(project, { format });
-      // This visual example never drew a positive supply. The old exporter
-      // silently invented a global VDD; the authored drawing must now be
-      // given a VDD Net (or an explicit per-Block binding) before export.
-      expect(exported.status).toBe("blocked");
-      expect(
-        exported.diagnostics
-          .filter((item) => item.code === "MISSING_BLOCK_SUPPLY")
-          .map((item) => item.objectIds[0]),
-      ).toEqual(["X7", "X8"]);
+      // This visual example never drew a supply. The old exporter silently
+      // invented a global VDD. Its ideal amplifiers never read one (#1253),
+      // so their supply ports go to node 0 and it exports as drawn.
+      expect(exported.status, JSON.stringify(exported.diagnostics)).toBe(
+        "ready",
+      );
       expect(
         exported.diagnostics.some(
-          (item) => item.code === "DECLARED_BLOCK_SUPPLY",
+          (item) =>
+            item.code === "MISSING_BLOCK_SUPPLY" ||
+            item.code === "DECLARED_BLOCK_SUPPLY",
         ),
       ).toBe(false);
+      if (exported.status !== "ready") continue;
+      // The drawn ground still serves as VSS; only the undrawn VDD is 0.
+      expect(exported.file.text).not.toMatch(/^\.global/imu);
+      expect(exported.file.text).toMatch(/^X1 \(?0 VSS Vin Vout net0\)? /mu);
+      expect(exported.file.text).toMatch(/^X2 \(?0 VSS net0 Vout\)? /mu);
     }
   });
 
