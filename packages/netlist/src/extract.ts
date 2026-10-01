@@ -2622,6 +2622,56 @@ function analyzeDesign(
       }
     }
   }
+  // A subcircuit descriptor is only a call contract. Logic symbols and other
+  // manually mapped blocks may expose a target without providing any emitted
+  // definition. Keep the export truthful: a ready netlist must either reach a
+  // Cell, an explicitly declared external master, or one of the generated
+  // built-in models below.
+  const availableSubcircuits = new Set([
+    ...cells.map((cell) => cell.name.toLowerCase()),
+    ...project.externalSubcircuitDefinitions.map((definition) =>
+      definition.name.toLowerCase(),
+    ),
+    ...Array.from(magneticSubcircuits.keys(), (name) => name.toLowerCase()),
+    // The historical comparator target is an intentionally unresolved
+    // external contract; only the new icm_ideal_comparator has a generated
+    // native body.
+    "comparator",
+    ...(resolvedOptions.format === "spice" ? [IDEAL_COMPARATOR_TARGET] : []),
+  ]);
+  for (const cell of cells) {
+    for (const instance of cell.instances) {
+      if (instance.invocationKind !== "subcircuit" || !instance.target)
+        continue;
+      const sourceInstance = documentsById
+        .get(cell.id)
+        ?.instances.find((candidate) => candidate.id === instance.id);
+      const descriptor = sourceInstance
+        ? subcircuitDescriptor(sourceInstance.symbolId, project)
+        : undefined;
+      // An explicitly retargeted unresolved subcircuit is an intentional
+      // external contract. Diagnose only the descriptor's default target,
+      // where the registry promises a built-in model that must be emitted.
+      if (
+        !descriptor ||
+        descriptor.target.toLowerCase() !== instance.target.toLowerCase()
+      )
+        continue;
+      const target = instance.target.toLowerCase();
+      if (availableSubcircuits.has(target)) continue;
+      if (idealAnalogBlockCell(instance.target, resolvedOptions.format)) {
+        availableSubcircuits.add(target);
+        continue;
+      }
+      diagnostic(
+        diagnostics,
+        cell.id,
+        "UNDEFINED_SUBCIRCUIT_TARGET",
+        `Subcircuit target ${instance.target} used by ${instance.reference} has no emitted definition or external model; bind one before exporting`,
+        [instance.id],
+      );
+    }
+  }
   diagnostics.sort(
     (left, right) =>
       left.documentId.localeCompare(right.documentId) ||

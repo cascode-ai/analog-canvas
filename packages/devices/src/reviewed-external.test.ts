@@ -104,6 +104,12 @@ describe("reviewed external device bindings", () => {
     ).toBeUndefined();
   });
 
+  it("offers the reviewed varactor to the variable-capacitor symbol", () => {
+    expect(reviewedExternalModelSuggestions("variable-capacitor")).toContain(
+      "sky130_fd_pr__cap_var_lvt",
+    );
+  });
+
   it("draws SKY130's drain-extended devices as DMOS", () => {
     expect(reviewedExternalModelSuggestions("ndmos")).toEqual([
       "sky130_fd_pr__nfet_g5v0d16v0",

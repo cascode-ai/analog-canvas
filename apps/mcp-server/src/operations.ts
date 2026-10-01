@@ -70,6 +70,21 @@ import {
  */
 type ToolSessionState = OperationSession;
 
+function normalizeDiscriminator(
+  value: unknown,
+  from: "action" | "operation",
+  to: "action" | "operation",
+) {
+  if (!value || typeof value !== "object") return value;
+  const args = value as { request?: unknown };
+  if (!args.request || typeof args.request !== "object") return value;
+  const request = args.request as Record<string, unknown>;
+  if (typeof request[from] !== "string" || request[to] !== undefined)
+    return value;
+  const { [from]: discriminator, ...rest } = request;
+  return { ...args, request: { ...rest, [to]: discriminator } };
+}
+
 const ConnectArgs = z.strictObject({
   claimCode: z
     .string()
@@ -102,7 +117,11 @@ const SimulationArgs = z
   .superRefine((value, context) => {
     if (
       value.waitMs &&
-      !["run", "start", "read"].includes(value.request.operation)
+      !["run", "start", "read"].includes(
+        (value.request as { operation?: string }).operation ??
+          (value.request as { action?: string }).action ??
+          "",
+      )
     )
       context.addIssue({
         code: "custom",
@@ -175,6 +194,7 @@ const NetlistCodeArgs = z.discriminatedUnion("action", [
     format: z.enum(["spice", "spectre"]).optional(),
     namingProfile: z.enum(["native", "cadence-bang"]).optional(),
     portCase: z.enum(["lower", "upper"]).optional(),
+    documentId: z.string().min(1).optional(),
     rootDocumentId: z.string().min(1).optional(),
   }),
   z.strictObject({
@@ -184,6 +204,7 @@ const NetlistCodeArgs = z.discriminatedUnion("action", [
     format: z.enum(["spice", "spectre"]).optional(),
     namingProfile: z.enum(["native", "cadence-bang"]).optional(),
     portCase: z.enum(["lower", "upper"]).optional(),
+    documentId: z.string().min(1).optional(),
     rootDocumentId: z.string().min(1).optional(),
   }),
 ]);
@@ -747,8 +768,8 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
             ? { namingProfile: parsed.namingProfile }
             : {}),
           ...(parsed.portCase ? { portCase: parsed.portCase } : {}),
-          ...(parsed.rootDocumentId
-            ? { rootDocumentId: parsed.rootDocumentId }
+          ...((parsed.documentId ?? parsed.rootDocumentId)
+            ? { documentId: parsed.documentId ?? parsed.rootDocumentId }
             : {}),
         });
       }
@@ -767,8 +788,8 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
           ? { namingProfile: parsed.namingProfile }
           : {}),
         ...(parsed.portCase ? { portCase: parsed.portCase } : {}),
-        ...(parsed.rootDocumentId
-          ? { rootDocumentId: parsed.rootDocumentId }
+        ...((parsed.documentId ?? parsed.rootDocumentId)
+          ? { documentId: parsed.documentId ?? parsed.rootDocumentId }
           : {}),
       });
     },
@@ -780,12 +801,10 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
       inputSchema: jsonSchemaOf(SimulationArgs),
     },
     handle: async (args, session) => {
-      const {
-        request,
-        requestId,
-        waitMs = 0,
-        detail = "summary",
-      } = SimulationArgs.parse(args);
+      const parsed = SimulationArgs.parse(
+        normalizeDiscriminator(args, "action", "operation"),
+      );
+      const { request, requestId, waitMs = 0, detail = "summary" } = parsed;
       const effectiveRequestId = requestId ?? crypto.randomUUID();
       let runId = "runId" in request ? request.runId : undefined;
       let waiting = false;
@@ -888,8 +907,11 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
       inputSchema: jsonSchemaOf(SimulationFilesArgs),
     },
     handle: async (args, session) => {
+      const parsed = SimulationFilesArgs.parse(
+        normalizeDiscriminator(args, "operation", "action"),
+      );
       const { request, requestId, outputPath, basePath, detail, refresh } =
-        SimulationFilesArgs.parse(args);
+        parsed;
       if (request.action === "workspace") {
         // status() is a cached local observation, not a network lease refresh.
         const status = await session.client.status();

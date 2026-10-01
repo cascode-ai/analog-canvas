@@ -11,6 +11,8 @@ import {
   type ArtifactRef,
   type Prepared,
   type SimulationBatch,
+  type SimulationBatchPoint,
+  type SimulationBatchSignal,
   type SimulationOperation,
 } from "./contract.js";
 import { SimulationFiles } from "./files.js";
@@ -50,6 +52,7 @@ type InternalRun = {
   retryEvidence?: (() => Promise<void>) | undefined;
   retryResult?: (() => Promise<void>) | undefined;
   savingEvidence?: Promise<void> | undefined;
+  retainResultData?: boolean;
 };
 type StoredPrepared = {
   view: Prepared;
@@ -61,12 +64,14 @@ type BatchPrepareItem = {
   id: string;
   folderId: string;
   label?: string;
+  point?: SimulationBatchPoint[];
   source: PrepareSource;
 };
 type InternalBatch = {
   view: SimulationBatch;
   cancelled: boolean;
   done: Promise<void>;
+  signalValues: Map<string, SimulationBatchSignal[]>;
 };
 const TTL = 15 * 60_000;
 const MAX_READ_WAIT_MS = 20_000;
@@ -621,15 +626,22 @@ export class SimulationService {
     type Variant = NonNullable<
       Extract<PrepareSource, { kind: "project-folder" }>["variant"]
     >;
-    let variants: Array<{ label: string[]; variant: Variant }> = [
-      { label: [], variant: { parameters: [] } },
-    ];
+    let variants: Array<{
+      label: string[];
+      point: SimulationBatchPoint[];
+      variant: Variant;
+    }> = [{ label: [], variant: { parameters: [] }, point: [] }];
     for (const axis of op.axes) {
       variants = variants.flatMap((existing) =>
         axis.values.map((value) => {
+          const axisIndex = op.axes.indexOf(axis);
           if (axis.kind === "corner") {
             return {
               label: [...existing.label, `corner=${value}`],
+              point: [
+                ...existing.point,
+                { axis: axisIndex, kind: axis.kind, value: value as string },
+              ],
               variant: {
                 ...existing.variant,
                 environment: {
@@ -642,6 +654,10 @@ export class SimulationService {
           if (axis.kind === "temperature") {
             return {
               label: [...existing.label, `temp=${value}C`],
+              point: [
+                ...existing.point,
+                { axis: axisIndex, kind: axis.kind, value: value as number },
+              ],
               variant: {
                 ...existing.variant,
                 environment: {
@@ -657,6 +673,15 @@ export class SimulationService {
                 ...existing.label,
                 `${variableNames.get(axis.variableId) ?? axis.variableId}=${value}`,
               ],
+              point: [
+                ...existing.point,
+                {
+                  axis: axisIndex,
+                  kind: axis.kind,
+                  variableId: axis.variableId,
+                  value: value as string,
+                },
+              ],
               variant: {
                 ...existing.variant,
                 variables: [
@@ -666,10 +691,27 @@ export class SimulationService {
               },
             };
           }
+          const reference = this.getProject()
+            .documents.find((document) => document.id === axis.documentId)
+            ?.instances.find(
+              (instance) => instance.id === axis.instanceId,
+            )?.reference;
           return {
             label: [
               ...existing.label,
-              `${axis.instanceId}.${axis.parameter}=${value}`,
+              `${reference ?? axis.instanceId}.${axis.parameter}=${value}`,
+            ],
+            point: [
+              ...existing.point,
+              {
+                axis: axisIndex,
+                kind: axis.kind,
+                documentId: axis.documentId,
+                instanceId: axis.instanceId,
+                ...(reference ? { reference } : {}),
+                parameter: axis.parameter,
+                value: value as string,
+              },
             ],
             variant: {
               ...existing.variant,
@@ -688,10 +730,11 @@ export class SimulationService {
       );
     }
     return this.prepareBatchItems(
-      variants.map(({ label, variant }, index) => ({
+      variants.map(({ label, variant, point }, index) => ({
         id: `sweep-${index + 1}`,
         folderId: op.folderId,
         label: label.join(", "),
+        point,
         source: {
           kind: "project-folder" as const,
           folderId: op.folderId,
@@ -740,6 +783,7 @@ export class SimulationService {
         id: item.id,
         folderId: item.folderId,
         ...(item.label ? { label: item.label } : {}),
+        ...(item.point ? { point: structuredClone(item.point) } : {}),
         prepared: structuredClone(reply.prepared),
         state: "prepared",
       });
@@ -756,6 +800,7 @@ export class SimulationService {
       view,
       cancelled: false,
       done: Promise.resolve(),
+      signalValues: new Map(),
     });
     return { ok: true, batch: structuredClone(view) };
   }
@@ -867,6 +912,7 @@ export class SimulationService {
         item.state = "lost";
         continue;
       }
+      this.populateBatchItem(item, run, batch);
       item.error = run.view.error;
       item.state =
         run.view.state === "cancelled"
@@ -876,6 +922,10 @@ export class SimulationService {
             : run.view.error
               ? "failed"
               : "finished";
+      if (!run.view.error) {
+        run.view = releaseRunData(run.view);
+        run.retryEvidence = undefined;
+      }
     }
     if (epoch !== this.epoch) return;
     batch.view.state = batch.cancelled
@@ -884,6 +934,92 @@ export class SimulationService {
         ? "failed"
         : "finished";
     batch.view.expiresAt = null;
+  }
+
+  private populateBatchItem(
+    item: SimulationBatch["items"][number],
+    run: InternalRun,
+    batch: InternalBatch,
+  ) {
+    const result = run.view.result;
+    const catalog = run.view.catalog;
+    if (result) {
+      item.outcome = structuredClone(result.outcome);
+      const diagnostics = result.diagnostics;
+      item.diagnostics = {
+        total: diagnostics.length,
+        errors: diagnostics.filter((d) => d.severity === "error").length,
+        warnings: diagnostics.filter((d) => d.severity === "warning").length,
+      };
+      batch.signalValues.set(item.id, this.batchSignalSummaries(result));
+    }
+    if (catalog) {
+      item.execution = catalog.execution;
+      item.collection = catalog.collection;
+      item.datasetCount = catalog.datasets.length;
+    }
+    item.outputDiagnostics = run.view.outputData?.diagnostics.length ?? 0;
+  }
+
+  private batchSignalSummaries(result: NonNullable<Run["result"]>) {
+    const summaries: SimulationBatchSignal[] = [];
+    for (const [analysisIndex, analysis] of (
+      result.data?.analyses ?? []
+    ).entries()) {
+      const sourceProbes = (analysis.probes ?? []) as Array<{
+        name: string;
+        unit: string | null;
+        value?: number | number[];
+        real?: number[];
+      }>;
+      const probes =
+        analysis.analysis === "ac"
+          ? sourceProbes.map((probe) => ({
+              name: probe.name,
+              unit: probe.unit,
+              values: probe.real ?? [],
+            }))
+          : analysis.analysis === "op"
+            ? sourceProbes.map((probe) => ({
+                name: probe.name,
+                unit: probe.unit,
+                values: [probe.value as number],
+              }))
+            : sourceProbes.map((probe) => ({
+                name: probe.name,
+                unit: probe.unit,
+                values: probe.value as number[],
+              }));
+      const candidates = [
+        ...probes,
+        ...(analysis.scalars ?? []).map((scalar) => ({
+          name: scalar.name,
+          unit: scalar.unit,
+          values: [scalar.value],
+        })),
+      ];
+      for (const candidate of candidates) {
+        const finite = candidate.values.filter(Number.isFinite);
+        const value = finite.at(-1);
+        if (value === undefined) continue;
+        summaries.push({
+          status: "available",
+          signal: candidate.name,
+          analysisIndex,
+          analysis: analysis.analysis,
+          unit: candidate.unit,
+          value,
+          aggregation: analysis.analysis === "op" ? "op" : "final",
+          ...(analysis.analysis === "op"
+            ? {}
+            : {
+                minimum: Math.min(...finite),
+                maximum: Math.max(...finite),
+              }),
+        });
+      }
+    }
+    return summaries;
   }
   private async accessBatch(
     op: Extract<
@@ -924,6 +1060,24 @@ export class SimulationService {
       } else {
         batch.view.state = "cancelled";
         batch.view.expiresAt = null;
+      }
+    }
+    if (op.operation === "read-batch" && op.signals?.length) {
+      for (const item of batch.view.items) {
+        const available = batch.signalValues.get(item.id) ?? [];
+        item.signals = op.signals.map((signal) => {
+          const found = available.find((entry) => entry.signal === signal);
+          return (
+            found ?? {
+              status: "unavailable" as const,
+              signal,
+              reason:
+                item.state === "finished"
+                  ? "The requested signal was not collected"
+                  : "The run has not produced a result yet",
+            }
+          );
+        });
       }
     }
     return { ok: true, batch: structuredClone(batch.view) };
@@ -1164,6 +1318,7 @@ export class SimulationService {
       token: crypto.randomUUID(),
       done: Promise.resolve(),
       source: prepared.source,
+      ...(owningBatchId ? { retainResultData: true } : {}),
       ...(prepared.inputArtifacts
         ? { inputArtifacts: prepared.inputArtifacts }
         : {}),
@@ -1514,7 +1669,7 @@ export class SimulationService {
     run.view.state = terminalState;
     // Do not retain full numeric arrays in memory after complete artifact
     // publication. On publication failure, preserve any otherwise unsaved data.
-    if (!run.view.error) {
+    if (!run.view.error && !run.retainResultData) {
       run.view = releaseRunData(run.view);
       run.retryEvidence = undefined;
     }

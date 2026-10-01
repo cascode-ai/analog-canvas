@@ -48,7 +48,7 @@ describe("host-facing inline schemas", () => {
     expect(create.properties.dut.properties).toMatchObject({
       name: {
         type: "string",
-        description: expect.stringContaining("not the instance name XDUT"),
+        description: expect.stringContaining("exported subcircuit name"),
       },
       ports: {
         type: "array",

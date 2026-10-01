@@ -381,6 +381,15 @@ const relay = createServer(async (request, response) => {
               text: comparisonNetlist,
               diagnostics: [],
             },
+            cells: [
+              {
+                documentId: "main",
+                format: "spice",
+                status: "ready",
+                text: comparisonNetlist,
+                diagnostics: [],
+              },
+            ],
           })
         : json({
             apiVersion: "3.0",

@@ -18,6 +18,8 @@
     "start": "node dist/main.js"
   },
   "dependencies": {
+    "@icm/netlist": "workspace:*",
+    "@icm/project-protocol": "workspace:*",
     "@icm/spice": "workspace:*",
     "@icm/simulation-service": "workspace:*",
     "@icm/model": "workspace:*",

@@ -195,6 +195,12 @@ importers:
       "@icm/model":
         specifier: workspace:*
         version: link:../../packages/model
+      "@icm/netlist":
+        specifier: workspace:*
+        version: link:../../packages/netlist
+      "@icm/project-protocol":
+        specifier: workspace:*
+        version: link:../../packages/project-protocol
       "@icm/simulation-service":
         specifier: workspace:*
         version: link:../../packages/simulation-service
@@ -216,6 +222,9 @@ importers:
       "@icm/model":
         specifier: workspace:*
         version: link:../model
+      "@icm/netlist":
+        specifier: workspace:*
+        version: link:../netlist
       "@icm/project-protocol":
         specifier: workspace:*
         version: link:../project-protocol
@@ -237,6 +246,9 @@ importers:
       "@icm/agent-adapter":
         specifier: workspace:*
         version: link:../agent-adapter
+      "@icm/devices":
+        specifier: workspace:*
+        version: link:../devices
       "@icm/model":
         specifier: workspace:*
         version: link:../model

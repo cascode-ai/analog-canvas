@@ -139,9 +139,12 @@ is parsed and committed through the same revision-guarded, undoable Project
 Code path as the Editor panel, so adding, updating or removing Cells and
 objects has one source of truth. Use `netlist_code` to read generated SPICE or
 Spectre and to replace the text-editable device names, model targets and
-parameter values. Topology, ports and connectivity remain Project Code or
-structured-edit operations; the Netlist tool does not maintain a second
-netlist-import interpretation of the circuit.
+parameter values. Pass `documentId` to scope a read or replacement to a Cell;
+the read response keeps the requested export in `netlist` and also reports each
+Cell independently in `cells`, so an unrelated Cell cannot hide an available
+netlist. `rootDocumentId` remains accepted for compatibility. Topology, ports
+and connectivity remain Project Code or structured-edit operations; the Netlist
+tool does not maintain a second netlist-import interpretation of the circuit.
 
 Colors use existing `set_instance_style_override`, `set_route_style_override`,
 `set_presentation_style` and annotation `textColor` edits. Full inspection

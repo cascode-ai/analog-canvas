@@ -3,6 +3,7 @@ import {
   deviceDescriptor,
   referenceIssuesForInstance,
   reviewedExternalBindingForMaster,
+  reviewedExternalBindingSupportsSymbol,
   resolveReviewedExternalBinding,
 } from "@icm/devices";
 import { resolveDocumentLogicalNets } from "@icm/derived";
@@ -257,7 +258,9 @@ export function planNetlistProcess(
       const drawn = drawnSymbolId(project, original);
       const fits = (master: string) => {
         const binding = reviewedExternalBindingForMaster(master);
-        return !binding || binding.symbolId === drawn;
+        return (
+          !binding || reviewedExternalBindingSupportsSymbol(binding, drawn)
+        );
       };
       const highVoltage =
         !fits(rule.target) &&

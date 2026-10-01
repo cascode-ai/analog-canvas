@@ -23,6 +23,30 @@ import {
 import { executeProjectTransaction } from "./project-transaction.js";
 
 describe("hierarchy domain planners", () => {
+  it("accepts the reviewed SKY130 varactor on a variable-capacitor", () => {
+    const project = createEmptyProject("varactor", "Varactor");
+    const document = project.documents[0]!;
+    document.instances.push({
+      id: "CV1",
+      reference: "CV1",
+      symbolId: "variable-capacitor",
+      placement: null,
+      netlist: {
+        binding: { kind: "primitive", deviceClass: "capacitor" },
+        parameters: { value: "500f" },
+      },
+    });
+
+    expect(() =>
+      planSetDeviceModelTarget(
+        project,
+        document.id,
+        "CV1",
+        "sky130_fd_pr__cap_var_lvt",
+      ),
+    ).not.toThrow();
+  });
+
   function railProject(scope: "local" | "global" = "global") {
     const project = createEmptyProject("rail-mode", "Rail mode");
     const document = project.documents[0]!;

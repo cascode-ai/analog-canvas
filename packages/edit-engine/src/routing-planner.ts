@@ -20,6 +20,7 @@ import {
   strongerMode,
   type SegmentMode,
 } from "./route-geometry-edit.js";
+import { subcircuitDescriptor } from "@icm/devices";
 import {
   proposeGroupMove,
   proposeGroupReflection,
@@ -2238,14 +2239,64 @@ function endpointWireSource(
   endpoint: RouteEndpoint,
 ): WireSource | string {
   const connection = resolveEndpointConnection(document, resolver, endpoint);
-  if (!connection)
-    return `Wire endpoint is unresolved or has no grid landing: ${JSON.stringify(endpoint)}`;
+  if (!connection) {
+    const reason = endpointConnectionFailure(document, resolver, endpoint);
+    return (
+      reason ??
+      `Wire endpoint is unresolved or has no grid landing: ${JSON.stringify(endpoint)}`
+    );
+  }
   return {
     endpoint,
     connection,
     netId: endpointNetId(document, endpoint),
     preludeEdits: [],
   };
+}
+
+function endpointConnectionFailure(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  endpoint: RouteEndpoint,
+): string | null {
+  if (endpoint.kind === "junction") {
+    return document.junctions.some(
+      (junction) => junction.id === endpoint.junctionId,
+    )
+      ? null
+      : `Junction ${endpoint.junctionId} does not exist`;
+  }
+
+  const instance = document.instances.find(
+    (candidate) => candidate.id === endpoint.instanceId,
+  );
+  if (!instance) return `Instance ${endpoint.instanceId} does not exist`;
+  const symbol = resolver.resolve(instance.symbolId, instance.symbolVariantId);
+  if (!symbol) {
+    return `Instance ${instance.reference ?? instance.id} uses unknown symbol ${instance.symbolId}`;
+  }
+
+  const pinNames = [
+    ...symbol.definition.pins.map((pin) => pin.name),
+    ...(symbol.variant?.auxiliaryPins?.map((pin) => pin.name) ?? []),
+  ].filter((pinName, index, pins) => pins.indexOf(pinName) === index);
+  if (!pinNames.includes(endpoint.pinName)) {
+    const descriptor = subcircuitDescriptor(instance.symbolId);
+    const exportedPort = descriptor?.ports.find(
+      (port) => "pinName" in port && port.name === endpoint.pinName,
+    );
+    const alias =
+      exportedPort && "pinName" in exportedPort
+        ? ` (exported as ${exportedPort.name}; use ${exportedPort.pinName})`
+        : "";
+    const label = instance.reference
+      ? `${instance.reference} (${symbol.definition.name})`
+      : `${instance.id} (${symbol.definition.name})`;
+    return `${label} has no pin "${endpoint.pinName}"; pins: ${pinNames.join(", ")}${alias}`;
+  }
+
+  const label = instance.reference ?? instance.id;
+  return `${label}.${endpoint.pinName} has no grid landing`;
 }
 
 /**

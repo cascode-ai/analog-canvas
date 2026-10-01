@@ -5,6 +5,38 @@ import {
   type ContractTool,
 } from "./tool-contracts.js";
 
+function normalizeFocusedArgs(args: unknown, source: string) {
+  if (!args || typeof args !== "object") return args;
+  const value = args as { request?: unknown };
+  if (!value.request || typeof value.request !== "object") return args;
+  const request = value.request as Record<string, unknown>;
+  const from = source === "simulation_files" ? "operation" : "action";
+  const to = from === "action" ? "operation" : "action";
+  if (typeof request[from] !== "string" || request[to] !== undefined)
+    return args;
+  const { [from]: discriminator, ...rest } = request;
+  return { ...value, request: { ...rest, [to]: discriminator } };
+}
+
+export function canonicalSimulationSchema(schema: Record<string, unknown>) {
+  const copy = structuredClone(schema) as Record<string, any>;
+  const request = copy.properties?.request;
+  const key = request?.oneOf ? "oneOf" : request?.anyOf ? "anyOf" : undefined;
+  if (!key) return copy;
+  request[key] = request[key].map((branch: Record<string, any>) => {
+    if (!branch.properties?.action) return branch;
+    const { action, ...properties } = branch.properties;
+    return {
+      ...branch,
+      properties: { ...properties, operation: action },
+      required: (branch.required ?? []).map((name: string) =>
+        name === "action" ? "operation" : name,
+      ),
+    };
+  });
+  return copy;
+}
+
 /** A routing map, not a second parameter contract or an execution engine. */
 export const FOCUSED_TOOLS = [
   {
@@ -130,22 +162,35 @@ export function focusedTools<S>(
     const original = originals.find((tool) => tool.definition.name === source);
     if (!original) throw new Error(`Missing canonical tool ${source}`);
     const allowed = new Set<string>(operations);
-    const inputSchema = selectToolSchema(
+    const selectedSchema = selectToolSchema(
       original.definition.inputSchema,
       operations,
     );
+    const inputSchema =
+      source === "simulation_files"
+        ? canonicalSimulationSchema(selectedSchema)
+        : selectedSchema;
     return {
       definition: { name, description: help(name), inputSchema },
       async handle(args: unknown, session: S) {
         const selected = selectedArgumentOperations(inputSchema, args);
-        if (selected.some((operation) => !allowed.has(operation)))
+        const invalid = selected.find((operation) => !allowed.has(operation));
+        if (invalid) {
+          const owner = FOCUSED_TOOLS.find(
+            (candidate) =>
+              candidate.name !== name &&
+              (candidate.operations as readonly string[]).includes(invalid),
+          )?.name;
           throw new ContractQueryError(
             "INVALID_TOOL_OPERATION",
-            `Use ${source} or the matching focused tool for this operation.`,
+            owner
+              ? `${invalid} is served by ${owner}.`
+              : `Use ${source} or the matching focused tool for this operation.`,
           );
+        }
         // Parse and execute with the exact original handler: revision guards,
         // idempotency, atomic planning, offline workspaces and errors stay shared.
-        return original.handle(args, session);
+        return original.handle(normalizeFocusedArgs(args, source), session);
       },
     };
   });

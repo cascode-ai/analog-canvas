@@ -154,7 +154,15 @@ points target only the selected Profile model library, and ambiguous native
 declarations are rejected before execution. Nominal values come from source;
 point projections do not mutate the Project. Both become an ordinary sequential
 batch consumed by `start-batch`, `read-batch`, `cancel-batch` and per-run
-`read`/`export`. Reuse start request identity after an uncertain response.
+`read`/`export`. `read-batch` returns each item's execution/collection outcome,
+dataset count, diagnostic counts and structured `point` axis values. Supply
+`signals:["v(vref)"]` to the same read: completed items include the matching
+OP value, or the final/minimum/maximum summary for a sweep signal, so a batch
+table does not require one catalog/download call per item. Parameter points use
+the Instance Reference in labels and retain the raw ID in `point`; clients
+should use `point` rather than parsing labels. Simulation sibling tools accept
+either `request.action` or `request.operation` as a compatibility alias.
+Reuse start request identity after an uncertain response.
 
 Read `error.code`, `stage`, `recovery` and located diagnostics. Follow
 [response semantics](../response-semantics.md) for retries and conflicts; an

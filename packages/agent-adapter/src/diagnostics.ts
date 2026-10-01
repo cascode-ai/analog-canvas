@@ -3,6 +3,7 @@ import {
   diagnoseVisualQuality,
   diagnoseLabelClearance,
 } from "@icm/derived";
+import { createDesignNetlistExport } from "@icm/netlist";
 import type { Diagnostic, ObjectLocator } from "@icm/derived";
 import type { CircuitProject, SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
@@ -77,6 +78,36 @@ export function agentProjectDiagnostics(
         revision,
       })),
     );
+  if (document) {
+    const exportResult = createDesignNetlistExport(project, {
+      format: "spice",
+      rootDocumentId: documentId,
+    });
+    diagnostics.push(
+      ...exportResult.diagnostics.map((item) => {
+        const { sourceRef: _sourceRef, ...primary } = item.primary;
+        return {
+          code: item.code,
+          domain: "spice" as const,
+          severity: item.severity,
+          category: "structural" as const,
+          confidence: "high" as const,
+          gateEligible: true,
+          message: item.message,
+          objectIds: [...item.objectIds],
+          primary: {
+            ...primary,
+            hierarchyPath: primary.hierarchyPath.map((frame) => ({ ...frame })),
+          },
+          revision,
+          parameters: {
+            documentId: item.documentId,
+            ...(item.parameter ? { parameter: item.parameter } : {}),
+          },
+        };
+      }),
+    );
+  }
   return diagnostics;
 }
 

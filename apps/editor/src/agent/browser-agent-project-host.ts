@@ -4,6 +4,7 @@ import {
   type AgentGalleryEntryRead,
   type AgentGalleryFigure,
   type AgentGalleryEntrySummary,
+  type AgentNetlistCellRead,
   type AgentNetlistRead,
   type AgentProjectResourceRequest,
   type AgentProjectResourceResponse,
@@ -209,13 +210,20 @@ export class BrowserAgentProjectHost {
     }
     if (request.operation === "read-netlist") {
       const project = this.options.getProject();
+      const rootDocumentId = request.documentId ?? request.rootDocumentId;
       return {
         apiVersion: AGENT_API_VERSION,
         requestId: request.requestId,
         operation: request.operation,
         ok: true,
         structureRevision: project.structureRevision,
-        netlist: this.readNetlist(project, request),
+        netlist: this.readNetlist(project, {
+          ...request,
+          ...(rootDocumentId ? { rootDocumentId } : {}),
+        }),
+        cells: project.documents.map((document) =>
+          this.readNetlistCell(project, document.id, request),
+        ),
       };
     }
     if (request.operation === "replace-netlist") {
@@ -567,14 +575,13 @@ export class BrowserAgentProjectHost {
     if (project.structureRevision !== request.expectedStructureRevision) {
       return this.stale(request, project.structureRevision);
     }
+    const rootDocumentId = request.documentId ?? request.rootDocumentId;
     const baseline = createDesignNetlistExport(project, {
       format: request.format ?? "spice",
       namingProfile: request.namingProfile ?? "native",
       ...(request.portCase ? { portCase: request.portCase } : {}),
       includeLocations: true,
-      ...(request.rootDocumentId
-        ? { rootDocumentId: request.rootDocumentId }
-        : {}),
+      ...(rootDocumentId ? { rootDocumentId } : {}),
     });
     if (baseline.status !== "ready") {
       return this.error(
@@ -648,6 +655,7 @@ export class BrowserAgentProjectHost {
         : {}),
     });
     return {
+      documentId: options.rootDocumentId ?? project.topDocumentId,
       format,
       status: result.status,
       text: result.status === "ready" ? result.file.text : null,
@@ -660,6 +668,22 @@ export class BrowserAgentProjectHost {
         }),
       ),
     };
+  }
+
+  private readNetlistCell(
+    project: CircuitProject,
+    documentId: string,
+    options: {
+      format?: "spice" | "spectre" | undefined;
+      namingProfile?: "native" | "cadence-bang" | undefined;
+      portCase?: "lower" | "upper" | undefined;
+    },
+  ): AgentNetlistCellRead {
+    const netlist = this.readNetlist(project, {
+      ...options,
+      rootDocumentId: documentId,
+    });
+    return { ...netlist, documentId };
   }
 
   private gallerySummary(entry: {

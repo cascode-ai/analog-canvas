@@ -146,6 +146,54 @@ function checkedJunctionTransform(
   return gated.edits;
 }
 
+function projectStructureEditCount(
+  edits: readonly ProjectStructureEdit[],
+): number {
+  return edits.reduce(
+    (count, edit) =>
+      count + 1 + (edit.kind === "transact_document" ? edit.edits.length : 0),
+    0,
+  );
+}
+
+function assertDeleteSelectionFits(
+  actionIndex: number,
+  expandedEdits: number,
+  maxTransactionEdits: number,
+  selection: AgentAuthoringCommand & { kind: "delete-selection" },
+): void {
+  if (
+    !Number.isFinite(maxTransactionEdits) ||
+    expandedEdits <= maxTransactionEdits
+  )
+    return;
+  const selected = selection.selection;
+  const counts = {
+    selectedInstances: selected.instanceIds.length,
+    selectedRoutes: selected.routeIds.length,
+    selectedJunctions: selected.junctionIds.length,
+    selectedAnnotations: selected.annotationIds.length,
+    selectedDrafting: selected.draftingIds.length,
+    selectedNoConnects: selected.noConnectIds.length,
+  };
+  const classes = [
+    `instances=${counts.selectedInstances}`,
+    `routes=${counts.selectedRoutes}`,
+    `junctions=${counts.selectedJunctions}`,
+    `annotations=${counts.selectedAnnotations}`,
+    `drafting=${counts.selectedDrafting}`,
+    `no-connects=${counts.selectedNoConnects}`,
+  ].join(", ");
+  throw new AgentCommandPlanningError(
+    actionIndex,
+    `Delete selection expands to ${expandedEdits} edits, exceeding the transaction limit of ${maxTransactionEdits}. Split the selection by object class (${classes}) and retry; nothing was deleted.`,
+    {
+      code: "LIMIT_EXCEEDED",
+      parameters: { expandedEdits, maxTransactionEdits, ...counts },
+    },
+  );
+}
+
 /**
  * A part the Agent places is named as a GUI placement names it. A missing
  * Reference takes the next free one. One the netlist would refuse, with
@@ -267,19 +315,31 @@ export function planBrowserAgentCommand(
         command.selection,
         sequence,
       );
-      if (selected.terminalIds.length)
-        return {
-          structureEdits: planRemoveCellTerminals(
-            project,
-            documentId,
-            selected.terminalIds,
-            [...selected.routing.edits],
-          ),
-        };
+      if (selected.terminalIds.length) {
+        const structureEdits = planRemoveCellTerminals(
+          project,
+          documentId,
+          selected.terminalIds,
+          [...selected.routing.edits],
+        );
+        assertDeleteSelectionFits(
+          0,
+          projectStructureEditCount(structureEdits),
+          maxTransactionEdits,
+          command,
+        );
+        return { structureEdits };
+      }
       const gate = gateRoutingOperationPlan(document, selected.routing, {
         symbolResolver: resolver,
       });
       if (!gate.ok) throw new Error(gate.message);
+      assertDeleteSelectionFits(
+        0,
+        gate.edits.length,
+        maxTransactionEdits,
+        command,
+      );
       return { edits: [...gate.edits] };
     }
     case "set-port-direction": {
