@@ -1,6 +1,7 @@
 import {
   AgentSchematicEditSchema,
   AgentWireIntentSchema,
+  isBatchableAuthoringCommand,
   type AgentSessionSnapshot,
 } from "@icm/agent-adapter";
 import { agentRazaviAuthoringCatalog } from "@icm/agent-adapter/kit";
@@ -44,6 +45,8 @@ export interface CompiledTransaction {
   edits?: SchematicEdit[];
   /** Input action index for each compiled primitive edit, in the same order. */
   editActionIndices?: number[];
+  /** Every input action this transaction carries, ascending. */
+  actionIndices?: number[];
   wireIntent?: WireIntent;
   actionKinds: string[];
 }
@@ -54,6 +57,115 @@ export interface CompileContext {
   allocateId: (prefix: string) => string;
   /** Maximum edits per single transaction (from capabilities limits). */
   maxEditsPerTransaction?: number;
+}
+
+/** One call's share of an action list that compiles to several transactions. */
+export interface ActionCall {
+  actionIndices: number[];
+  actionKinds: string[];
+  sends:
+    | "command"
+    | "commands"
+    | "edit batch"
+    | "placement batch"
+    | "delete batch"
+    | "wires"
+    | "focus";
+}
+
+/**
+ * How to send an action list that compiles to several transactions: one call
+ * per transaction, except that neighbouring wires, and neighbouring commands
+ * that batch, still share a call. The order is the input order, and it
+ * matters: a later call may build on what an earlier one made.
+ */
+export function splitIntoCalls(
+  compiled: readonly CompiledTransaction[],
+): ActionCall[] {
+  const calls: ActionCall[] = [];
+  let joined = 0;
+  for (const transaction of compiled) {
+    const kinds = transaction.actionKinds;
+    const sends: ActionCall["sends"] =
+      transaction.form === "wire-intent"
+        ? "wires"
+        : transaction.form === "semantic"
+          ? "focus"
+          : transaction.form === "edits"
+            ? "edit batch"
+            : transaction.command?.kind === "place-components" &&
+                kinds.every((kind) => kind === "place-component")
+              ? "placement batch"
+              : transaction.command?.kind === "delete-selection" &&
+                  kinds.every((kind) => kind === "delete")
+                ? "delete batch"
+                : transaction.command &&
+                    isBatchableAuthoringCommand(transaction.command)
+                  ? "commands"
+                  : "command";
+    const last = calls.at(-1);
+    if (
+      last &&
+      last.sends === sends &&
+      (sends === "wires" || sends === "commands") &&
+      joined < 64
+    ) {
+      last.actionIndices.push(...(transaction.actionIndices ?? []));
+      for (const kind of kinds)
+        if (!last.actionKinds.includes(kind)) last.actionKinds.push(kind);
+      joined += 1;
+      continue;
+    }
+    calls.push({
+      actionIndices: [...(transaction.actionIndices ?? [])],
+      actionKinds: [...new Set(kinds)],
+      sends,
+    });
+    joined = 1;
+  }
+  return calls;
+}
+
+/** "actions[0]", "actions[1..7]", "actions[2, 4..5]". */
+function actionRange(indices: readonly number[]): string {
+  const parts: string[] = [];
+  for (let start = 0; start < indices.length;) {
+    let end = start;
+    while (end + 1 < indices.length && indices[end + 1] === indices[end]! + 1)
+      end += 1;
+    parts.push(
+      end === start
+        ? `${indices[start]}`
+        : `${indices[start]}..${indices[end]}`,
+    );
+    start = end + 1;
+  }
+  return `actions[${parts.join(", ")}]`;
+}
+
+/** The refusal message for a list that needs several calls. */
+export function describeCallSplit(calls: readonly ActionCall[]): string {
+  const sends: Record<ActionCall["sends"], string> = {
+    command: "a command of its own",
+    commands: "commands that share one call",
+    "edit batch": "one edit batch",
+    "placement batch": "one placement batch",
+    "delete batch": "one delete batch",
+    wires: "wires that share one call",
+    focus: "a focus operation",
+  };
+  return (
+    `These actions need ${calls.length} calls; one call sends one ` +
+    `transaction. Send them in this order, each group in its own call: ` +
+    calls
+      .map(
+        (call) =>
+          `${actionRange(call.actionIndices)} (${call.actionKinds.join(", ")}) ` +
+          `as ${sends[call.sends]}`,
+      )
+      .join("; ") +
+    ". Nothing was changed."
+  );
 }
 
 export class ActionCompileError extends Error {
@@ -420,7 +532,9 @@ export function compileActions(
     });
   };
 
+  const createdBy = new Map<CompiledTransaction, number>();
   parsed.data.forEach((action, index) => {
+    const before = transactions.length;
     switch (action.kind) {
       case "set-model":
       case "route-net":
@@ -769,10 +883,17 @@ export function compileActions(
         compileDelete(index, action, document, pushEdit);
         break;
     }
+    // Edit batches record their actions edit by edit; every other form is
+    // created by exactly one action.
+    for (const transaction of transactions.slice(before))
+      if (transaction.form !== "edits") createdBy.set(transaction, index);
   });
 
   return transactions
     .map((transaction): CompiledTransaction => {
+      const actionIndices = transaction.editActionIndices
+        ? [...new Set(transaction.editActionIndices)]
+        : [createdBy.get(transaction)!];
       if (
         transaction.form === "edits" &&
         transaction.actionKinds.every((kind) => kind === "delete") &&
@@ -804,6 +925,7 @@ export function compileActions(
           form: "command",
           command: { kind: "delete-selection", selection },
           actionKinds: transaction.actionKinds,
+          actionIndices,
         };
       }
       if (
@@ -846,9 +968,10 @@ export function compileActions(
           ...(transaction.editActionIndices
             ? { editActionIndices: transaction.editActionIndices }
             : {}),
+          actionIndices,
         };
       }
-      return transaction;
+      return { ...transaction, actionIndices };
     })
     .filter(
       (transaction) =>

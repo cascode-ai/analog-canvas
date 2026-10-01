@@ -156,37 +156,91 @@ function projectStructureEditCount(
   );
 }
 
+type DeleteSelection = (AgentAuthoringCommand & {
+  kind: "delete-selection";
+})["selection"];
+
+/** Selection fields in the order a fitting prefix takes them. */
+const DELETE_SELECTION_CLASSES = [
+  ["instanceIds", "Instances", "instance", "instances"],
+  ["routeIds", "Routes", "route", "routes"],
+  ["junctionIds", "Junctions", "junction", "junctions"],
+  ["annotationIds", "Annotations", "annotation", "annotations"],
+  ["draftingIds", "Drafting", "drafting object", "drafting objects"],
+  ["noConnectIds", "NoConnects", "no-connect", "no-connects"],
+] as const;
+
 function assertDeleteSelectionFits(
   actionIndex: number,
   expandedEdits: number,
   maxTransactionEdits: number,
-  selection: AgentAuthoringCommand & { kind: "delete-selection" },
+  selection: DeleteSelection,
+  expansionOf: (selection: DeleteSelection) => number,
 ): void {
   if (
     !Number.isFinite(maxTransactionEdits) ||
     expandedEdits <= maxTransactionEdits
   )
     return;
-  const selected = selection.selection;
-  const counts = {
-    selectedInstances: selected.instanceIds.length,
-    selectedRoutes: selected.routeIds.length,
-    selectedJunctions: selected.junctionIds.length,
-    selectedAnnotations: selected.annotationIds.length,
-    selectedDrafting: selected.draftingIds.length,
-    selectedNoConnects: selected.noConnectIds.length,
+  // A prefix of the selection, in class order, is a selection of its own.
+  // Each probe plans exactly as the deletion would. The search keeps `low`
+  // fitting and `high` not, so its answer fits even where a larger selection
+  // happens to plan to fewer edits.
+  const ordered = DELETE_SELECTION_CLASSES.flatMap(([field]) =>
+    selection[field].map((id) => [field, id] as const),
+  );
+  const prefix = (count: number): DeleteSelection => {
+    const part: DeleteSelection = {
+      instanceIds: [],
+      routeIds: [],
+      junctionIds: [],
+      annotationIds: [],
+      draftingIds: [],
+      noConnectIds: [],
+    };
+    for (const [field, id] of ordered.slice(0, count)) part[field].push(id);
+    return part;
   };
-  const classes = [
-    `instances=${counts.selectedInstances}`,
-    `routes=${counts.selectedRoutes}`,
-    `junctions=${counts.selectedJunctions}`,
-    `annotations=${counts.selectedAnnotations}`,
-    `drafting=${counts.selectedDrafting}`,
-    `no-connects=${counts.selectedNoConnects}`,
-  ].join(", ");
+  const fits = (count: number): boolean => {
+    try {
+      return expansionOf(prefix(count)) <= maxTransactionEdits;
+    } catch {
+      return false;
+    }
+  };
+  let low = 0;
+  let high = ordered.length;
+  while (high - low > 1) {
+    const middle = Math.floor((low + high) / 2);
+    if (fits(middle)) low = middle;
+    else high = middle;
+  }
+  const fitting = prefix(low);
+  const counts = Object.fromEntries(
+    DELETE_SELECTION_CLASSES.flatMap(([field, name]) => [
+      [`selected${name}`, selection[field].length],
+      [`fitting${name}`, fitting[field].length],
+    ]),
+  );
+  const fittingText = DELETE_SELECTION_CLASSES.flatMap(
+    ([field, , one, many]) => {
+      const count = fitting[field].length;
+      if (count === 0) return [];
+      const noun = count === 1 ? one : many;
+      return [
+        count === selection[field].length
+          ? `all ${count} ${noun}`
+          : `the first ${count} ${noun}`,
+      ];
+    },
+  ).join(" and ");
   throw new AgentCommandPlanningError(
     actionIndex,
-    `Delete selection expands to ${expandedEdits} edits, exceeding the transaction limit of ${maxTransactionEdits}. Split the selection by object class (${classes}) and retry; nothing was deleted.`,
+    `Delete selection expands to ${expandedEdits} edits, and one transaction takes at most ${maxTransactionEdits}. ` +
+      (low === 0
+        ? "Not even its first object fits alone; delete that object's wires first. "
+        : `${fittingText[0]!.toUpperCase()}${fittingText.slice(1)} fit: delete them in one call, then refresh and delete what remains (deleting a part also deletes wires that only tapped it). `) +
+      "Nothing was deleted.",
     {
       code: "LIMIT_EXCEEDED",
       parameters: { expandedEdits, maxTransactionEdits, ...counts },
@@ -309,38 +363,42 @@ export function planBrowserAgentCommand(
               `selection.${field}: ${id} ${actual ? `belongs in ${actual}` : "does not exist"}; no objects were deleted`,
             );
         }
-      const selected = planCellSelectionDeletion(
-        document,
-        resolver,
-        command.selection,
-        sequence,
-      );
-      if (selected.terminalIds.length) {
-        const structureEdits = planRemoveCellTerminals(
-          project,
-          documentId,
-          selected.terminalIds,
-          [...selected.routing.edits],
+      const planDeletion = (
+        selection: DeleteSelection,
+      ): { size: number; plan: AgentCommandPlan } => {
+        const selected = planCellSelectionDeletion(
+          document,
+          resolver,
+          selection,
+          sequence,
         );
-        assertDeleteSelectionFits(
-          0,
-          projectStructureEditCount(structureEdits),
-          maxTransactionEdits,
-          command,
-        );
-        return { structureEdits };
-      }
-      const gate = gateRoutingOperationPlan(document, selected.routing, {
-        symbolResolver: resolver,
-      });
-      if (!gate.ok) throw new Error(gate.message);
+        if (selected.terminalIds.length) {
+          const structureEdits = planRemoveCellTerminals(
+            project,
+            documentId,
+            selected.terminalIds,
+            [...selected.routing.edits],
+          );
+          return {
+            size: projectStructureEditCount(structureEdits),
+            plan: { structureEdits },
+          };
+        }
+        const gate = gateRoutingOperationPlan(document, selected.routing, {
+          symbolResolver: resolver,
+        });
+        if (!gate.ok) throw new Error(gate.message);
+        return { size: gate.edits.length, plan: { edits: [...gate.edits] } };
+      };
+      const planned = planDeletion(command.selection);
       assertDeleteSelectionFits(
         0,
-        gate.edits.length,
+        planned.size,
         maxTransactionEdits,
-        command,
+        command.selection,
+        (selection) => planDeletion(selection).size,
       );
-      return { edits: [...gate.edits] };
+      return planned.plan;
     }
     case "set-port-direction": {
       if (command.target.kind === "terminal")

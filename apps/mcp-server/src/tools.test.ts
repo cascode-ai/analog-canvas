@@ -1159,6 +1159,7 @@ describe("mcp tool surface", () => {
     const value = parseText(result) as {
       ok: boolean;
       code: string;
+      message: string;
       transactions: number;
     };
     expect(result.isError).toBe(true);
@@ -1166,7 +1167,18 @@ describe("mcp tool surface", () => {
       ok: false,
       code: "ACTION_BATCH_NOT_ATOMIC",
       transactions: 2,
+      calls: [
+        {
+          actionIndices: [0],
+          actionKinds: ["place-component"],
+          sends: "placement batch",
+        },
+        { actionIndices: [1], actionKinds: ["connect"], sends: "wires" },
+      ],
     });
+    expect(value.message).toContain(
+      "actions[0] (place-component) as one placement batch; actions[1] (connect) as wires",
+    );
     expect(transacts).toEqual([]);
   });
 

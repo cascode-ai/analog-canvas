@@ -142,12 +142,22 @@ three (the part and its name and value labels) and a Cell Pin to about five, so
 one `circuit_place` call fits about 20 parts. A placement batch over the limit
 commits nothing and fails with `LIMIT_EXCEEDED`; its diagnostic gives
 `expandedEdits`, `maxTransactionEdits` and `fittingPlacements`, the number of
-leading placements that fit in one call.
+leading placements that fit in one call. An over-limit `delete-selection`
+gives the same two counts, the selected count per class
+(`selectedInstances`, `selectedRoutes`, …) and the leading part that fits,
+taken in class order (`fittingInstances`, `fittingRoutes`, …). Delete that
+part, then refresh and delete what remains, since deleting a part also deletes
+wires that only tapped it. Any other command over the limit names itself and
+its `expandedEdits`.
 Display flags, Port directions, VDD mode and terminal removal can share the
 existing command batch. Pure Document presentation batches do not advance the
 Project structure revision. Failures identify the originating action where known.
 Keep unrelated command forms separate rather than assuming arbitrary mixtures
-are atomic. Both ordinary and full typed editing remain available.
+are atomic. A list that would need several transactions commits nothing and
+fails with `ACTION_BATCH_NOT_ATOMIC`; its `calls` list says which action
+indexes go in which call, in order (a power rail, for example, is a command of
+its own, apart from a placement batch). Both ordinary and full typed editing
+remain available.
 
 `route-net` (in `apply_actions`, native `command`) fills missing visible connections for a
 current Net ID/name, one member pin, an explicit list of pins to join, or a

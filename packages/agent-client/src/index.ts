@@ -44,6 +44,9 @@ export {
 export {
   ActionCompileError,
   compileActions,
+  describeCallSplit,
+  splitIntoCalls,
+  type ActionCall,
   type CompiledTransaction,
   type CompileContext,
   type SchematicEdit,

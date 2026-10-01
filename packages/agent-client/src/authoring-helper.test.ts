@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   ActionCompileError,
   compileActions,
+  describeCallSplit,
   directConnectIntent,
+  splitIntoCalls,
   type CompiledTransaction,
 } from "./authoring-helper.js";
 import { testSnapshot } from "./test-support/snapshot-fixture.js";
@@ -69,6 +71,59 @@ function expectCompileError(
     expect((error as Error).message).toContain(fragment);
   }
 }
+
+it("says which actions go in which call when a list needs several (#1269)", () => {
+  const place = (reference: string, x: number) => ({
+    kind: "place-component",
+    symbol: "resistor",
+    reference,
+    position: { x, y: 300 },
+  });
+  const calls = splitIntoCalls(
+    compile([
+      {
+        kind: "add-power-rail",
+        start: { x: 0, y: -200 },
+        end: { x: 400, y: -200 },
+        name: "VDD",
+      },
+      place("R7", 0),
+      place("R8", 100),
+      place("R9", 200),
+      { kind: "set-model", instanceId: "instance-1", model: "nch" },
+      { kind: "set-model", instanceId: "instance-2", model: "rpoly" },
+      {
+        kind: "connect",
+        from: { kind: "pin", instance: "M1", pin: "G" },
+        to: { kind: "net", net: "Vout" },
+      },
+      {
+        kind: "move",
+        target: { kind: "instance", id: "instance-1" },
+        position: { x: 300, y: 100 },
+      },
+    ]),
+  );
+  expect(calls).toEqual([
+    { actionIndices: [0], actionKinds: ["add-power-rail"], sends: "command" },
+    {
+      actionIndices: [1, 2, 3],
+      actionKinds: ["place-component"],
+      sends: "placement batch",
+    },
+    { actionIndices: [4, 5], actionKinds: ["set-model"], sends: "commands" },
+    { actionIndices: [6], actionKinds: ["connect"], sends: "wires" },
+    { actionIndices: [7], actionKinds: ["move"], sends: "edit batch" },
+  ]);
+  expect(describeCallSplit(calls)).toBe(
+    "These actions need 5 calls; one call sends one transaction. Send them " +
+      "in this order, each group in its own call: actions[0] (add-power-rail) " +
+      "as a command of its own; actions[1..3] (place-component) as one " +
+      "placement batch; actions[4..5] (set-model) as commands that share one " +
+      "call; actions[6] (connect) as wires that share one call; actions[7] " +
+      "(move) as one edit batch. Nothing was changed.",
+  );
+});
 
 describe("authoring helper compilation", () => {
   it.each(["vcvs", "vccs", "cccs", "ccvs"])(
@@ -291,7 +346,12 @@ describe("authoring helper compilation", () => {
       target: { kind: "member", instanceId: "instance-1", pinName: "G" },
     };
     expect(compile([command])).toEqual([
-      { form: "command", command, actionKinds: ["route-net"] },
+      {
+        form: "command",
+        command,
+        actionKinds: ["route-net"],
+        actionIndices: [0],
+      },
     ]);
   });
   it("forwards pin anchors to the shared server planner and requires one position form", () => {
@@ -745,6 +805,7 @@ describe("authoring helper compilation", () => {
       {
         form: "command",
         actionKinds: ["move"],
+        actionIndices: [0],
         command: {
           kind: "move-junction",
           junctionId: "junction-1",
