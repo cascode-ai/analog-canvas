@@ -7,14 +7,32 @@ export const ANALYTICS_PERSISTENCE_IDENTITY = {
   durableObjectClass: "AnalyticsDO",
   objectName: "global",
   visitorCookie: "canvas_vid",
-  sessionCookie: "canvas_sid",
   routes: ["/api/track", "/api/stats", "/api/analytics"],
 } as const;
 
+/** Remembers that a browser asked not to be counted. */
+export const ANALYTICS_OPT_OUT_COOKIE = "canvas_optout";
+
+/**
+ * The 30-minute source cookie the analytics once set. A visit's source now
+ * stays with the day's visit on the server, and a request that still
+ * carries the cookie gets it back expired.
+ */
+export const RETIRED_ANALYTICS_COOKIES = ["canvas_sid"] as const;
+
 const VISITOR_COOKIE = ANALYTICS_PERSISTENCE_IDENTITY.visitorCookie;
-const SESSION_COOKIE = ANALYTICS_PERSISTENCE_IDENTITY.sessionCookie;
-const VISITOR_COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
-const SESSION_COOKIE_MAX_AGE = 30 * 60;
+/**
+ * One year from the first visit and never renewed: within the 13 months
+ * audience-measurement rules allow a counting cookie.
+ */
+export const VISITOR_COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
+/** Thirteen months, the longest those rules allow. */
+export const OPT_OUT_COOKIE_MAX_AGE = 60 * 60 * 24 * 396;
+/**
+ * A visitor id unseen this long can never come back: its cookie, never
+ * renewed, has expired. It is deleted, and the total keeps counting it.
+ */
+const VISITOR_ID_RETENTION_DAYS = 366;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const RETAINED_DAYS = 400;
 const DURABLE_OBJECT_NAME = ANALYTICS_PERSISTENCE_IDENTITY.objectName;
@@ -88,6 +106,13 @@ type DailyViewsRow = { day: number; views: number };
 type DailyVisitorsRow = { day: number; visitors: number };
 type PointRow = { lat: number; lng: number; count: number };
 
+const META = {
+  /** Every visitor ever counted; deleting a dead id leaves it unchanged. */
+  visitorTotal: "visitor_total",
+  /** The day finished days were last turned into counts. */
+  rolledUpDay: "rolled_up_day",
+} as const;
+
 export class AnalyticsDO {
   private readonly sql: SqlStorage;
 
@@ -147,10 +172,73 @@ export class AnalyticsDO {
       "INSERT OR IGNORE INTO analytics_meta(key, value) VALUES ('breakdown_started_at', ?)",
       new Date().toISOString(),
     );
+    // Finished days keep only their visitor count; their hashes go.
+    this.sql.exec(`
+      CREATE TABLE IF NOT EXISTS daily_visitor_counts (
+        day INTEGER PRIMARY KEY,
+        visitors INTEGER NOT NULL
+      )
+    `);
+    try {
+      // Additive: each visitor's first source of the day.
+      this.sql.exec("ALTER TABLE daily_visitors ADD COLUMN source TEXT");
+    } catch {
+      // Column already present.
+    }
+    // The total was the size of `visitors`. Dead ids are now deleted from
+    // it, so the total becomes a counter, starting from that size once.
+    this.sql.exec(
+      `INSERT OR IGNORE INTO analytics_meta(key, value)
+       SELECT ?, CAST(COUNT(*) AS TEXT) FROM visitors`,
+      META.visitorTotal,
+    );
+  }
+
+  /**
+   * Once a day, on its first request: turn the finished days' hashes into
+   * counts and delete the ids whose cookies have expired.
+   */
+  private rollUpFinishedDays(today: number): void {
+    if (this.meta(META.rolledUpDay) === String(today)) return;
+    this.state.storage.transactionSync(() => {
+      this.sql.exec(
+        `INSERT INTO daily_visitor_counts(day, visitors)
+         SELECT day, COUNT(*) FROM daily_visitors WHERE day < ? GROUP BY day
+         ON CONFLICT(day) DO UPDATE SET visitors = visitors + excluded.visitors`,
+        today,
+      );
+      this.sql.exec("DELETE FROM daily_visitors WHERE day < ?", today);
+      this.sql.exec(
+        "DELETE FROM visitors WHERE last_seen_day < ?",
+        today - VISITOR_ID_RETENTION_DAYS,
+      );
+      this.setMeta(META.rolledUpDay, String(today));
+    });
+  }
+
+  private meta(key: string): string | null {
+    return (
+      this.sql
+        .exec<{
+          value: string;
+        }>("SELECT value FROM analytics_meta WHERE key = ?", key)
+        .toArray()[0]?.value ?? null
+    );
+  }
+
+  private setMeta(key: string, value: string): void {
+    this.sql.exec(
+      `INSERT INTO analytics_meta(key, value) VALUES (?, ?)
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+      key,
+      value,
+    );
   }
 
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
+    // The day's first request, counted or not, retires the finished days.
+    this.rollUpFinishedDays(utcDay(Date.now()));
     if (request.method === "POST" && url.pathname === "/hit") {
       const event = (await request
         .json()
@@ -183,21 +271,29 @@ export class AnalyticsDO {
         )
         .toArray()[0];
       const uvDelta = knownVisitor ? 0 : 1;
+      const seenToday = this.sql
+        .exec<{ source: string | null }>(
+          "SELECT source FROM daily_visitors WHERE day = ? AND visitor_hash = ?",
+          today,
+          event.visitorHash,
+        )
+        .toArray()[0];
+      // A visitor keeps the day's first source, as the retired session
+      // cookie kept it for half an hour.
+      const source = seenToday?.source ?? event.source;
 
       this.sql.exec(
         `INSERT INTO daily_views(day, views) VALUES (?, 1)
          ON CONFLICT(day) DO UPDATE SET views = views + 1`,
         today,
       );
-      this.sql.exec(
-        "INSERT OR IGNORE INTO daily_visitors(day, visitor_hash) VALUES (?, ?)",
-        today,
-        event.visitorHash,
-      );
-      this.sql.exec(
-        "DELETE FROM daily_visitors WHERE day < ?",
-        today - (RETAINED_DAYS - 1),
-      );
+      if (!seenToday)
+        this.sql.exec(
+          "INSERT INTO daily_visitors(day, visitor_hash, source) VALUES (?, ?, ?)",
+          today,
+          event.visitorHash,
+          event.source,
+        );
       this.sql.exec(
         `INSERT INTO visitors(visitor_hash, last_seen_day) VALUES (?, ?)
          ON CONFLICT(visitor_hash) DO UPDATE SET last_seen_day = excluded.last_seen_day
@@ -205,9 +301,15 @@ export class AnalyticsDO {
         event.visitorHash,
         today,
       );
+      if (!knownVisitor)
+        this.sql.exec(
+          `UPDATE analytics_meta SET value = CAST(value AS INTEGER) + 1
+           WHERE key = ?`,
+          META.visitorTotal,
+        );
 
       this.upsertBreakdown(BREAKDOWN_TABLES.countries, event.country, uvDelta);
-      this.upsertBreakdown(BREAKDOWN_TABLES.sources, event.source, uvDelta);
+      this.upsertBreakdown(BREAKDOWN_TABLES.sources, source, uvDelta);
       this.upsertBreakdown(BREAKDOWN_TABLES.pages, event.path, uvDelta);
 
       if (event.lat != null && event.lng != null) {
@@ -298,10 +400,7 @@ export class AnalyticsDO {
         "SELECT COALESCE(SUM(views), 0) AS pv FROM daily_views",
       )
       .one();
-    const uv = this.sql
-      .exec<{ uv: number }>("SELECT COUNT(*) AS uv FROM visitors")
-      .one();
-    return { pv: Number(pv.pv), uv: Number(uv.uv) };
+    return { pv: Number(pv.pv), uv: Number(this.meta(META.visitorTotal)) };
   }
 
   private readAnalyticsSummary(): AnalyticsSummary {
@@ -313,10 +412,16 @@ export class AnalyticsDO {
         firstDay,
       )
       .toArray();
+    // Finished days are counts; today still has its hashes.
     const visitors = this.sql
       .exec<DailyVisitorsRow>(
-        `SELECT day, COUNT(*) AS visitors FROM daily_visitors
-         WHERE day >= ? GROUP BY day ORDER BY day`,
+        `SELECT day, SUM(visitors) AS visitors FROM (
+           SELECT day, visitors FROM daily_visitor_counts WHERE day >= ?
+           UNION ALL
+           SELECT day, COUNT(*) AS visitors FROM daily_visitors
+           WHERE day >= ? GROUP BY day
+         ) GROUP BY day ORDER BY day`,
+        firstDay,
         firstDay,
       )
       .toArray();
@@ -442,8 +547,8 @@ export function readVisitorId(header: string | null): string | null {
   return value && /^[0-9a-f-]{36}$/i.test(value) ? value : null;
 }
 
-export function readSessionSource(header: string | null): string | null {
-  return readCookieValue(header, SESSION_COOKIE);
+export function hasOptedOut(header: string | null): boolean {
+  return readCookieValue(header, ANALYTICS_OPT_OUT_COOKIE) === "1";
 }
 
 function cookie(
@@ -467,8 +572,29 @@ export function visitorCookie(visitorId: string, secure: boolean): string {
   return cookie(VISITOR_COOKIE, visitorId, VISITOR_COOKIE_MAX_AGE, secure);
 }
 
-export function sessionCookie(source: string, secure: boolean): string {
-  return cookie(SESSION_COOKIE, source, SESSION_COOKIE_MAX_AGE, secure);
+/** Remove the visitor id; the browser is no longer counted. */
+export function visitorCookieExpiry(secure: boolean): string {
+  return cookie(VISITOR_COOKIE, "", 0, secure);
+}
+
+/** Remember, or forget, that this browser asked not to be counted. */
+export function optOutCookie(optedOut: boolean, secure: boolean): string {
+  return optedOut
+    ? cookie(ANALYTICS_OPT_OUT_COOKIE, "1", OPT_OUT_COOKIE_MAX_AGE, secure)
+    : cookie(ANALYTICS_OPT_OUT_COOKIE, "", 0, secure);
+}
+
+/** Expire each retired analytics cookie the request still carries. */
+export function retiredCookieExpiries(
+  header: string | null,
+  secure: boolean,
+): string[] {
+  const present = new Set(
+    (header ?? "").split(";").map((part) => part.trim().split("=")[0]),
+  );
+  return RETIRED_ANALYTICS_COOKIES.filter((name) => present.has(name)).map(
+    (name) => cookie(name, "", 0, secure),
+  );
 }
 
 export async function recordPageView(
