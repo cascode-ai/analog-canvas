@@ -97,6 +97,29 @@ describe("bundled Library Project examples", () => {
     }
   });
 
+  it("ships no Example whose drawing and Nets disagree", () => {
+    // Issue #1275: an Example's two drawn tail nodes were stored as ground,
+    // which shorted its tail current sources.
+    const disagreements = new Set([
+      "ERC_SHORTED_DEVICE",
+      "ERC_NET_JOINED_ONLY_IN_DATA",
+      "ERC_TOUCHING_NOT_CONNECTED",
+    ]);
+    for (const example of libraryProjectExamples) {
+      const resolver = projectResolver(example.project);
+      expect(
+        runErcChecks(
+          example.project,
+          buildProjectConnectivityIndex(example.project, resolver),
+          resolver,
+        )
+          .filter((diagnostic) => disagreements.has(diagnostic.code))
+          .map((diagnostic) => diagnostic.message),
+        example.id,
+      ).toEqual([]);
+    }
+  });
+
   it("ships no Example with unresolved MOS bulk semantics", () => {
     for (const example of libraryProjectExamples) {
       const resolver = projectResolver(example.project);

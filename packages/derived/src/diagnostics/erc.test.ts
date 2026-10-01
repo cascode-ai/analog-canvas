@@ -206,6 +206,103 @@ describe("ERC engine", () => {
     );
   });
 
+  it("reports a drawn part of a Net that only the data joins to the rest", () => {
+    // Issue #1275: two drawn tail nodes were stored in the ground Net.
+    const project = emptyProject();
+    const document = project.documents[0]!;
+    document.nets.push({
+      id: "gnd",
+      terminals: [{ instanceId: "G1", pinName: "0" }],
+    });
+    document.instances.push({
+      id: "G1",
+      symbolId: "ground",
+      placement: { position: { x: 300, y: 10 }, rotation: 0, mirror: "none" },
+    });
+    for (const [id, x, y] of [
+      ["a1", 0, 0],
+      ["a2", 100, 0],
+      ["b2", 400, 0],
+      ["c1", 350, -50],
+      ["c2", 350, 0],
+      ["d1", 0, 100],
+      ["d2", 100, 100],
+    ] as const)
+      document.junctions.push({
+        id,
+        netId: "gnd",
+        position: { x, y },
+        role: "route-anchor",
+      });
+    const wire = (
+      id: string,
+      from: { kind: "junction"; junctionId: string } | ReturnType<typeof pin>,
+      to: string,
+    ) =>
+      createRoutePath({
+        id,
+        netId: "gnd",
+        start: from,
+        end: { kind: "junction", junctionId: to },
+        bends: [],
+        modes: ["manual"],
+      });
+    const junction = (junctionId: string) => ({
+      kind: "junction" as const,
+      junctionId,
+    });
+    const pin = () => ({
+      kind: "terminal" as const,
+      instanceId: "G1",
+      pinName: "0",
+    });
+    document.routes.push(
+      // Drawn on its own, with nothing naming it: only the data joins it.
+      wire("tail", junction("a1"), "a2"),
+      // The ground marker names this part.
+      wire("ground", pin(), "b2"),
+      // Ends on the ground wire: drawn together with it.
+      wire("stub", junction("c1"), "c2"),
+      // A label names this part.
+      wire("labelled", junction("d1"), "d2"),
+    );
+    document.annotations.push({
+      id: "label",
+      kind: "net-label",
+      binding: { kind: "net-name", netId: "gnd" },
+      netId: "gnd",
+      anchor: {
+        kind: "route",
+        routeId: "labelled",
+        legId: document.routes.find((route) => route.id === "labelled")!
+          .legs[0]!.id,
+        t: 0.5,
+        normalOffset: -10,
+        direction: "forward",
+        orientation: "horizontal",
+        fallbackPosition: { x: 50, y: 90 },
+      },
+      alignment: "start",
+      rotation: 0,
+      locked: false,
+    });
+
+    const findings = run(project).filter(
+      (diagnostic) => diagnostic.code === "ERC_NET_JOINED_ONLY_IN_DATA",
+    );
+
+    expect(findings).toEqual([
+      expect.objectContaining({
+        severity: "warning",
+        gateEligible: false,
+        primary: expect.objectContaining({ kind: "route", objectId: "tail" }),
+        message: expect.stringContaining(
+          "is joined to the rest of it only in the data",
+        ),
+      }),
+    ]);
+  });
+
   it("names a wire that ends in the open, but not a rail's end or a labelled end", () => {
     const project = emptyProject();
     const document = project.documents[0]!;

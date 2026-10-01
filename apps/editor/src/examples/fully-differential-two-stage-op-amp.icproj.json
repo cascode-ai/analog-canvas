@@ -1221,7 +1221,7 @@
         },
         {
           "id": "junction-ui-58",
-          "netId": "net-contact-gnd1",
+          "netId": "net-tail-1",
           "position": {
             "x": 410,
             "y": 390
@@ -1230,10 +1230,10 @@
         },
         {
           "id": "junction-ui-60",
-          "netId": "net-contact-gnd1",
+          "netId": "net-tail-2",
           "position": {
             "x": 270,
-            "y": 410
+            "y": 400
           },
           "role": "branch"
         }
@@ -1283,14 +1283,6 @@
           "id": "net-contact-gnd1",
           "terminals": [
             {
-              "instanceId": "M5",
-              "pinName": "S"
-            },
-            {
-              "instanceId": "M6",
-              "pinName": "S"
-            },
-            {
               "instanceId": "GND3",
               "pinName": "0"
             },
@@ -1305,22 +1297,6 @@
             {
               "instanceId": "C2",
               "pinName": "2"
-            },
-            {
-              "instanceId": "I2",
-              "pinName": "+"
-            },
-            {
-              "instanceId": "M7",
-              "pinName": "S"
-            },
-            {
-              "instanceId": "I1",
-              "pinName": "+"
-            },
-            {
-              "instanceId": "M8",
-              "pinName": "S"
             },
             {
               "instanceId": "GND1",
@@ -1353,6 +1329,40 @@
             {
               "instanceId": "M8",
               "pinName": "B"
+            }
+          ]
+        },
+        {
+          "id": "net-tail-1",
+          "terminals": [
+            {
+              "instanceId": "M6",
+              "pinName": "S"
+            },
+            {
+              "instanceId": "M7",
+              "pinName": "S"
+            },
+            {
+              "instanceId": "I1",
+              "pinName": "+"
+            }
+          ]
+        },
+        {
+          "id": "net-tail-2",
+          "terminals": [
+            {
+              "instanceId": "M5",
+              "pinName": "S"
+            },
+            {
+              "instanceId": "M8",
+              "pinName": "S"
+            },
+            {
+              "instanceId": "I2",
+              "pinName": "+"
             }
           ]
         },
@@ -2335,7 +2345,7 @@
               }
             }
           ],
-          "netId": "net-contact-gnd1",
+          "netId": "net-tail-2",
           "start": {
             "instanceId": "M5",
             "kind": "terminal",
@@ -2358,7 +2368,7 @@
               }
             }
           ],
-          "netId": "net-contact-gnd1",
+          "netId": "net-tail-2",
           "start": {
             "junctionId": "junction-ui-60",
             "kind": "junction"
@@ -2391,7 +2401,7 @@
               }
             }
           ],
-          "netId": "net-contact-gnd1",
+          "netId": "net-tail-1",
           "start": {
             "instanceId": "M6",
             "kind": "terminal",
@@ -2426,7 +2436,7 @@
               }
             }
           ],
-          "netId": "net-contact-gnd1",
+          "netId": "net-tail-1",
           "start": {
             "junctionId": "junction-ui-58",
             "kind": "junction"
@@ -2448,7 +2458,7 @@
               }
             }
           ],
-          "netId": "net-contact-gnd1",
+          "netId": "net-tail-1",
           "start": {
             "junctionId": "junction-ui-58",
             "kind": "junction"
@@ -2465,7 +2475,7 @@
                 "kind": "bend",
                 "position": {
                   "x": 560,
-                  "y": 410
+                  "y": 400
                 }
               }
             },
@@ -2482,7 +2492,7 @@
               }
             }
           ],
-          "netId": "net-contact-gnd1",
+          "netId": "net-tail-2",
           "start": {
             "junctionId": "junction-ui-60",
             "kind": "junction"
