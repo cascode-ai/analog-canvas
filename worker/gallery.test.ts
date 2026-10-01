@@ -818,6 +818,122 @@ async function submitOne(
   return payload.id;
 }
 
+describe("account deletion", () => {
+  it("removes the account's circuits, likes and Cloud Projects, and nobody else's", async () => {
+    const state = sqliteState();
+    const durable = new GalleryDO(state);
+    const sql = state.storage.sql;
+    const at = "2026-10-01T00:00:00.000Z";
+    for (const [id, owner, status] of [
+      ["alice-public", "alice", "public"],
+      ["alice-recycled", "alice", "recycled"],
+      ["bob-public", "bob", "public"],
+    ])
+      sql.exec(
+        `INSERT INTO gallery_entries
+         (id, name, author, description, created_at, schema_version, status,
+          owner_user_id, submitter_email, project_text, svg_text)
+         VALUES (?, ?, ?, '', ?, ?, ?, ?, ?, ?, '<svg/>')`,
+        id,
+        id,
+        owner,
+        at,
+        CURRENT_PROJECT_FILE_VERSION,
+        status,
+        owner,
+        `${owner}@example.com`,
+        projectText(id),
+      );
+    for (const [id, entry] of [
+      ["alice-v1", "alice-public"],
+      ["bob-v1", "bob-public"],
+    ])
+      sql.exec(
+        `INSERT INTO gallery_entry_versions
+         (id, entry_id, version_no, name, author, description,
+          schema_version, project_text, svg_text, created_at)
+         VALUES (?, ?, 1, ?, 'x', '', ?, ?, '<svg/>', ?)`,
+        id,
+        entry,
+        id,
+        CURRENT_PROJECT_FILE_VERSION,
+        projectText(id),
+        at,
+      );
+    for (const [entry, user] of [
+      ["bob-public", "alice"],
+      ["alice-public", "bob"],
+      ["bob-public", "carol"],
+    ])
+      sql.exec(
+        "INSERT INTO gallery_likes(entry_id, user_id, liked_at) VALUES (?, ?, ?)",
+        entry,
+        user,
+        at,
+      );
+    for (const [id, user] of [
+      ["alice-project", "alice"],
+      ["bob-project", "bob"],
+    ]) {
+      sql.exec(
+        `INSERT INTO cloud_projects
+         (id, user_id, name, created_at, updated_at, revision,
+          schema_version, project_text)
+         VALUES (?, ?, ?, ?, ?, 2, ?, ?)`,
+        id,
+        user,
+        id,
+        at,
+        at,
+        CURRENT_PROJECT_FILE_VERSION,
+        projectText(id),
+      );
+      sql.exec(
+        `INSERT INTO cloud_project_versions
+         (id, project_id, revision, name, saved_at, schema_version, project_text)
+         VALUES (?, ?, 1, ?, ?, ?, ?)`,
+        `${id}-r1`,
+        id,
+        id,
+        at,
+        CURRENT_PROJECT_FILE_VERSION,
+        projectText(id),
+      );
+    }
+    const call = (body: unknown) =>
+      durable.fetch(
+        new Request("https://gallery/delete-account", {
+          method: "POST",
+          body: JSON.stringify(body),
+        }),
+      );
+
+    expect((await call({})).status).toBe(400);
+    const deleted = await call({ userId: "alice" });
+    expect(await deleted.json()).toEqual({
+      entries: 2,
+      likes: 1,
+      projects: 1,
+    });
+    const ids = (query: string) =>
+      sql
+        .exec<{ id: string }>(query)
+        .toArray()
+        .map((row) => row.id);
+    expect(ids("SELECT id FROM gallery_entries")).toEqual(["bob-public"]);
+    expect(ids("SELECT id FROM gallery_entry_versions")).toEqual(["bob-v1"]);
+    expect(
+      ids(
+        "SELECT entry_id || ':' || user_id AS id FROM gallery_likes ORDER BY id",
+      ),
+    ).toEqual(["bob-public:carol"]);
+    expect(ids("SELECT id FROM cloud_projects")).toEqual(["bob-project"]);
+    expect(ids("SELECT id FROM cloud_project_versions")).toEqual([
+      "bob-project-r1",
+    ]);
+  });
+});
+
 describe("gallery data migrations", () => {
   it("backfills intrinsic preview dimensions for existing entries once", () => {
     const state = sqliteState();

@@ -187,6 +187,51 @@ async function renameAccount(
   }
 }
 
+export type DeleteAccountResult =
+  | {
+      ok: true;
+      deleted: {
+        circuits: number;
+        likes: number;
+        projects: number;
+        components: number;
+      };
+    }
+  | { ok: false; message: string };
+
+/** Deletes the signed-in account and everything the site keeps for it. */
+export async function deleteAccount(
+  fetchLike: typeof fetch = fetch,
+): Promise<DeleteAccountResult> {
+  try {
+    const response = await fetchLike("/api/auth/account/delete", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ confirm: "delete-account" }),
+    });
+    if (response.ok) {
+      const payload = (await response.json()) as {
+        deleted: Extract<DeleteAccountResult, { ok: true }>["deleted"];
+      };
+      return { ok: true, deleted: payload.deleted };
+    }
+    if (response.status === 401)
+      return { ok: false, message: "You are signed out. Sign in again." };
+    return {
+      ok: false,
+      message:
+        "Could not delete the account. You are still signed in; try again in a moment.",
+    };
+  } catch {
+    return {
+      ok: false,
+      message:
+        "Could not reach the site. You are still signed in; try again in a moment.",
+    };
+  }
+}
+
 async function signOut(fetchLike: typeof fetch = fetch): Promise<void> {
   try {
     await fetchLike("/api/auth/logout", {
@@ -208,6 +253,8 @@ export interface AccountMenuViewProps {
   onEmailVerify: (email: string, code: string) => Promise<EmailCodeResult>;
   onRename: (displayName: string) => void;
   onSignOut: () => void;
+  /** Deletes the account; the view reports the outcome before reloading. */
+  onDeleteAccount: () => Promise<DeleteAccountResult>;
 }
 
 /** Self-loading account area shared by Gallery and Editor chrome. */
@@ -273,6 +320,11 @@ export function AccountMenu({
             setState({ providers: state.providers, user: null });
             cacheSessionUser(fetch, null);
           });
+        }}
+        onDeleteAccount={async () => {
+          const result = await deleteAccount();
+          if (result.ok) cacheSessionUser(fetch, null);
+          return result;
         }}
       />
     </Suspense>

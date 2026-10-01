@@ -63,7 +63,7 @@ function harness() {
       }),
     },
   };
-  return (
+  const route = (
     method = "GET",
     suffix = "",
     body?: unknown,
@@ -78,6 +78,7 @@ function harness() {
       }),
       env,
     ) as Promise<Response>;
+  return Object.assign(route, { durable });
 }
 function definition(name = "Custom resistor") {
   return {
@@ -118,6 +119,31 @@ describe("public component library", () => {
     expect((await (await route("GET", "/component-1")).json()).entry).toEqual(
       saved.entry,
     );
+  });
+  it("removes every component an account shared when the account is deleted", async () => {
+    const route = harness();
+    for (const [id, user] of [
+      ["component-1", "alice"],
+      ["component-2", "alice"],
+      ["component-3", "bob"],
+    ] as const)
+      await route(
+        "PUT",
+        `/${id}`,
+        { definition: definition(), revision: 0 },
+        user,
+      );
+    const removed = await route.durable.fetch(
+      new Request("https://components/delete-author", {
+        method: "POST",
+        body: JSON.stringify({ userId: "alice" }),
+      }),
+    );
+    expect(await removed.json()).toEqual({ deleted: 2 });
+    const left = (await (await route()).json()).entries as {
+      authorId: string;
+    }[];
+    expect(left.map((entry) => entry.authorId)).toEqual(["bob"]);
   });
   it("protects author ownership and detects stale concurrent edits", async () => {
     const route = harness();

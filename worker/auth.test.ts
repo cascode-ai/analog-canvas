@@ -388,6 +388,94 @@ describe("emailed sign-in code", () => {
     expect((await me(auth, cookie))?.displayName).toBe("maker");
   });
 
+  it("deletes the signed-in account with its Gallery and component data", async () => {
+    const calls: { url: string; body: unknown }[] = [];
+    const namespace = (reply: Record<string, number>) => ({
+      getByName: () => ({
+        fetch: async (input: Request | string, init?: RequestInit) => {
+          calls.push({
+            url: String(input),
+            body: JSON.parse(String(init?.body)),
+          });
+          return Response.json(reply);
+        },
+      }),
+    });
+    const auth = harness({
+      RESEND_API_KEY: "rk",
+      GALLERY: namespace({ entries: 2, likes: 3, projects: 1 }),
+      COMPONENT_LIBRARY: namespace({ deleted: 1 }),
+    });
+    const cookie = await emailSignIn(auth, "leaving@example.com");
+    const otherCookie = await emailSignIn(auth, "staying@example.com");
+    const leaving = await me(auth, cookie);
+
+    expect(
+      (await auth.call("/api/auth/account/delete", { method: "POST" })).status,
+    ).toBe(401);
+    // Deleting needs the dialog's explicit confirmation.
+    const unconfirmed = await auth.call("/api/auth/account/delete", {
+      method: "POST",
+      cookie,
+      body: JSON.stringify({}),
+    });
+    expect(unconfirmed.status).toBe(400);
+    expect(calls).toEqual([]);
+
+    const deleted = await auth.call("/api/auth/account/delete", {
+      method: "POST",
+      cookie,
+      body: JSON.stringify({ confirm: "delete-account" }),
+    });
+    expect(deleted.status).toBe(200);
+    expect(await deleted.json()).toEqual({
+      deleted: { circuits: 2, likes: 3, projects: 1, components: 1 },
+    });
+    expect(deleted.headers.get("set-cookie")).toMatch(
+      /^icm_session=; Path=\/; HttpOnly; SameSite=Lax; Max-Age=0/u,
+    );
+    expect(calls).toEqual([
+      {
+        url: "https://gallery/delete-account",
+        body: { userId: leaving!.id },
+      },
+      {
+        url: "https://components/delete-author",
+        body: { userId: leaving!.id },
+      },
+    ]);
+    expect(await me(auth, cookie)).toBeNull();
+    expect((await me(auth, otherCookie))?.email).toBe("staying@example.com");
+    // Signing in again starts a new, empty account.
+    const returning = await me(
+      auth,
+      await emailSignIn(auth, "leaving@example.com"),
+    );
+    expect(returning?.id).not.toBe(leaving!.id);
+  });
+
+  it("keeps the account when the Gallery cannot delete its data", async () => {
+    const auth = harness({
+      RESEND_API_KEY: "rk",
+      GALLERY: {
+        getByName: () => ({
+          fetch: async () =>
+            Response.json({ error: "unavailable" }, { status: 503 }),
+        }),
+      },
+    });
+    const cookie = await emailSignIn(auth, "leaving@example.com");
+    const failed = await auth.call("/api/auth/account/delete", {
+      method: "POST",
+      cookie,
+      body: JSON.stringify({ confirm: "delete-account" }),
+    });
+    expect(failed.status).toBe(503);
+    expect(await failed.json()).toEqual({ error: "gallery-delete-failed" });
+    // Still signed in, so trying again works once the Gallery is back.
+    expect((await me(auth, cookie))?.email).toBe("leaving@example.com");
+  });
+
   it("unions the primary and additive administrator email secrets", async () => {
     const auth = harness({
       RESEND_API_KEY: "rk",

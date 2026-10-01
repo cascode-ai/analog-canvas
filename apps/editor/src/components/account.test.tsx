@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import {
+  deleteAccount,
   fetchSessionUser,
   requestEmailCode,
   verifyEmailCode,
@@ -24,6 +25,7 @@ function markupFor(
       onEmailVerify: async () => ({ ok: true }) as const,
       onRename: () => undefined,
       onSignOut: () => undefined,
+      onDeleteAccount: async () => ({ ok: false, message: "unused" }) as const,
     }),
   );
 }
@@ -55,6 +57,54 @@ describe("AccountMenuView", () => {
     expect(markup).toContain('class="account-provider-logo"');
     expect(markup).toContain("Email me a code");
     expect(markup).not.toMatch(/Email me a link/u);
+    // Before signing in, the panel says where to read what it keeps.
+    expect(markup).toContain('href="/privacy" data-testid="signin-privacy"');
+  });
+
+  it("offers the privacy notice and account deletion to a signed-in member", () => {
+    const markup = markupFor({
+      providers: { github: true, google: false, email: true },
+      user: {
+        id: "u1",
+        displayName: "Ada",
+        email: "ada@example.com",
+        provider: "email",
+        role: "user",
+        isAdmin: false,
+      },
+    });
+    expect(markup).toContain('href="/privacy" data-testid="account-privacy"');
+    expect(markup).toContain(
+      'data-testid="account-delete" aria-haspopup="dialog">Delete account…</button>',
+    );
+  });
+
+  it("reads each answer the server gives to an account deletion", async () => {
+    const reply =
+      (status: number, body: unknown = {}): typeof fetch =>
+      async () =>
+        Response.json(body, { status });
+    const deleted = { circuits: 2, likes: 0, projects: 1, components: 0 };
+    expect(await deleteAccount(reply(200, { deleted }))).toEqual({
+      ok: true,
+      deleted,
+    });
+    expect(await deleteAccount(reply(401))).toEqual({
+      ok: false,
+      message: "You are signed out. Sign in again.",
+    });
+    expect(await deleteAccount(reply(503))).toMatchObject({
+      ok: false,
+      message: expect.stringContaining("You are still signed in"),
+    });
+    expect(
+      await deleteAccount(async () => {
+        throw new TypeError("offline");
+      }),
+    ).toMatchObject({
+      ok: false,
+      message: expect.stringContaining("Could not reach the site"),
+    });
   });
 
   it("asks for a code and reads each answer the server gives", async () => {

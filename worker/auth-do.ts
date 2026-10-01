@@ -61,6 +61,8 @@ export type AuthEnv = {
   AUTH: AuthNamespaceLike;
   /** Present in the deployed Worker; omitted only by isolated Auth tests. */
   GALLERY?: GalleryBylineNamespaceLike;
+  /** The shared component library, which account deletion also clears. */
+  COMPONENT_LIBRARY?: GalleryBylineNamespaceLike;
   GH_OAUTH_CLIENT_ID?: string;
   GH_OAUTH_CLIENT_SECRET?: string;
   GOOGLE_CLIENT_ID?: string;
@@ -384,6 +386,9 @@ export class AuthDO {
     }
     if (route === "profile" && method === "POST") {
       return this.renameProfile(request);
+    }
+    if (route === "account/delete" && method === "POST") {
+      return this.deleteAccount(request, url);
     }
     if (route === "users/role" && method === "POST") {
       return this.setRole(request);
@@ -712,6 +717,8 @@ export class AuthDO {
     const now = this.now();
     const day = now.toISOString().slice(0, 10);
     const emailHash = await sha256(`login:${email}`);
+    // The limit is per day; earlier days' counts serve no purpose.
+    this.sql.exec("DELETE FROM login_rates WHERE day < ?", day);
     const used =
       this.sql
         .exec<{ count: number }>(
@@ -912,6 +919,80 @@ export class AuthDO {
       user.id,
     );
     return noStoreJson({ user: { ...user, displayName } });
+  }
+
+  /**
+   * Delete the signed-in account and everything kept for it. The Gallery
+   * (published circuits, likes, Cloud Projects) and the shared component
+   * library go first and the account last: if a step fails, the person is
+   * still signed in to try again, and every step is safe to repeat.
+   */
+  private async deleteAccount(request: Request, url: URL): Promise<Response> {
+    if (!sameOrigin(request)) {
+      return Response.json({ error: "forbidden" }, { status: 403 });
+    }
+    const user = await this.sessionUser(request);
+    if (!user) {
+      return Response.json({ error: "unauthorized" }, { status: 401 });
+    }
+    const body = (await request.json().catch(() => null)) as {
+      confirm?: unknown;
+    } | null;
+    if (body?.confirm !== "delete-account") {
+      return noStoreJson({ error: "confirmation-required" }, 400);
+    }
+    const deleted = { circuits: 0, likes: 0, projects: 0, components: 0 };
+    const call = async (
+      namespace: GalleryBylineNamespaceLike | undefined,
+      name: string,
+      target: string,
+    ): Promise<Record<string, number> | null> => {
+      if (!namespace) return {};
+      try {
+        const response = await namespace.getByName(name).fetch(target, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ userId: user.id }),
+        });
+        return response.ok
+          ? ((await response.json()) as Record<string, number>)
+          : null;
+      } catch {
+        return null;
+      }
+    };
+    const gallery = await call(
+      this.env.GALLERY,
+      "gallery",
+      "https://gallery/delete-account",
+    );
+    if (!gallery) return noStoreJson({ error: "gallery-delete-failed" }, 503);
+    deleted.circuits = gallery.entries ?? 0;
+    deleted.likes = gallery.likes ?? 0;
+    deleted.projects = gallery.projects ?? 0;
+    const components = await call(
+      this.env.COMPONENT_LIBRARY,
+      "components",
+      "https://components/delete-author",
+    );
+    if (!components)
+      return noStoreJson({ error: "components-delete-failed" }, 503);
+    deleted.components = components.deleted ?? 0;
+    this.sql.exec("DELETE FROM sessions WHERE user_id = ?", user.id);
+    if (user.email) {
+      this.sql.exec("DELETE FROM login_codes WHERE email = ?", user.email);
+      this.sql.exec(
+        "DELETE FROM login_rates WHERE email_hash = ?",
+        await sha256(`login:${user.email}`),
+      );
+    }
+    this.sql.exec("DELETE FROM users WHERE id = ?", user.id);
+    const response = noStoreJson({ deleted });
+    response.headers.append(
+      "Set-Cookie",
+      sessionCookie("", url.protocol === "https:", 0),
+    );
+    return response;
   }
 
   /**

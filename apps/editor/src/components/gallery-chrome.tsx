@@ -1,6 +1,6 @@
 import { AccountMenu } from "./account";
 import { BugReportLink } from "./bug-report-link";
-import { SITE_REPOSITORY_URL } from "./site-resource-links";
+import { SITE_PRIVACY_PATH, SITE_REPOSITORY_URL } from "./site-resource-links";
 
 /**
  * The one gallery site header, shared by the feed and every gallery
@@ -82,6 +82,14 @@ export function GalleryChrome({
             {visitStats.pv.toLocaleString()} views
           </a>
         ) : null}
+        {/* Beside the count it explains: what the site counts and keeps. */}
+        <a
+          className="analytics-link gallery-privacy-link"
+          href={SITE_PRIVACY_PATH}
+          data-testid="gallery-privacy-link"
+        >
+          Privacy
+        </a>
       </div>
       <nav className="gallery-actions">
         <AccountMenu />

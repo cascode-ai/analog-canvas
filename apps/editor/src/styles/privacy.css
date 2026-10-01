@@ -1,0 +1,114 @@
+/* /privacy: a readable single-column notice inside the Gallery page shell. */
+.privacy-document {
+  max-width: 46rem;
+  padding-top: 20px;
+  color: var(--icm-text);
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.privacy-document h1 {
+  margin: 0;
+  font-size: 26px;
+  line-height: 1.25;
+}
+
+.privacy-document h2 {
+  margin: 28px 0 8px;
+  font-size: 17px;
+  line-height: 1.3;
+}
+
+.privacy-document p,
+.privacy-document ul {
+  margin: 0 0 12px;
+}
+
+.privacy-document ul {
+  padding-left: 1.25rem;
+}
+
+.privacy-document li + li {
+  margin-top: 6px;
+}
+
+.privacy-document a {
+  color: var(--icm-accent);
+}
+
+.privacy-updated {
+  color: var(--icm-text-muted);
+  font-size: 13px;
+}
+
+.privacy-table-scroll {
+  max-width: 100%;
+  margin: 0 0 12px;
+  overflow-x: auto;
+}
+
+.privacy-cookies {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.privacy-cookies th,
+.privacy-cookies td {
+  padding: 7px 10px 7px 0;
+  border-bottom: 1px solid var(--icm-border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.privacy-cookies th {
+  color: var(--icm-text-muted);
+  font-weight: 600;
+}
+
+.privacy-cookies code {
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.privacy-document code {
+  font-size: 13px;
+}
+
+/* "Stop counting me": the one control on the page. */
+.privacy-choice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--icm-border);
+  border-radius: 8px;
+  background: var(--icm-surface-muted);
+}
+
+.privacy-choice button {
+  height: var(--icm-control-h);
+  padding: 0 12px;
+  border: 1px solid var(--icm-border-strong);
+  border-radius: var(--icm-radius-sm);
+  color: var(--icm-text);
+  background: var(--icm-surface);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.privacy-choice button:hover:not(:disabled) {
+  background: var(--icm-surface-hover);
+}
+
+.privacy-choice button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.privacy-choice [role="alert"] {
+  color: #b3261e;
+}

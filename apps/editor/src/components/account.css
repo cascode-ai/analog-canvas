@@ -122,3 +122,119 @@
   color: var(--icm-text-muted);
   font-size: 12px;
 }
+
+.account-signin-privacy {
+  color: var(--icm-text-muted);
+  font-size: 12px;
+  text-decoration: none;
+}
+
+.account-signin-privacy:hover {
+  color: var(--icm-accent);
+  text-decoration: underline;
+}
+
+/* The one destructive account action: quiet red, last in the menu. */
+.account-delete-open {
+  padding: 6px 10px;
+  border: 1px solid transparent;
+  border-radius: var(--icm-radius-sm);
+  color: #b3261e;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.account-delete-open:hover {
+  background: rgb(179 38 30 / 8%);
+}
+
+/* Portalled to the body, so no header stacking or overflow can clip it. */
+.account-delete-backdrop {
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 1.25rem;
+  background: rgb(55 53 47 / 28%);
+  backdrop-filter: blur(4px);
+}
+
+.account-delete-dialog {
+  box-sizing: border-box;
+  width: min(30rem, 100%);
+  padding: 1.15rem 1.25rem 1rem;
+  border: 1px solid var(--icm-border);
+  border-radius: 12px;
+  color: var(--icm-text);
+  background: var(--icm-surface);
+  box-shadow: 0 16px 36px rgb(15 15 15 / 16%);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.account-delete-dialog h2 {
+  margin: 0 0 0.6rem;
+  font-size: 15px;
+  line-height: 1.3;
+}
+
+.account-delete-dialog p,
+.account-delete-dialog ul {
+  margin: 0 0 0.6rem;
+}
+
+.account-delete-dialog ul {
+  padding-left: 1.2rem;
+}
+
+.account-delete-hint {
+  color: var(--icm-text-muted);
+}
+
+.account-delete-error {
+  color: #b3261e;
+}
+
+.account-delete-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.9rem;
+}
+
+.account-delete-actions button {
+  height: var(--icm-control-h);
+  padding: 0 0.85rem;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
+  color: var(--icm-text);
+  background: var(--icm-surface);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.account-delete-actions button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.account-delete-actions .account-delete-confirm {
+  border-color: #b3261e;
+  color: #fff;
+  background: #b3261e;
+  font-weight: 600;
+}
+
+.account-delete-actions .account-delete-done {
+  border-color: var(--icm-accent);
+  color: #fff;
+  background: var(--icm-accent);
+  font-weight: 600;
+}

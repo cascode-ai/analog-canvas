@@ -128,6 +128,14 @@ export function mountWebEditor() {
     ),
   );
 
+  const PrivacyPage = lazy(
+    guardedRouteChunk(() =>
+      import("../components/privacy-page").then((module) => ({
+        default: module.PrivacyPage,
+      })),
+    ),
+  );
+
   /** `/` is the gallery, `/editor` the editor, `/g/<id>` one gallery entry. */
   function galleryEntryIdOf(path: string): string | null {
     const match = /^\/g\/([A-Za-z0-9-]{1,64})\/?$/.exec(path);
@@ -169,6 +177,16 @@ export function mountWebEditor() {
           }
         >
           <Moderation />
+        </Suspense>
+      );
+    }
+    // Readable signed out: it says what the site keeps before anyone signs in.
+    if (/^\/privacy\/?$/.test(path)) {
+      return (
+        <Suspense
+          fallback={<div className="analytics-loading">Loading privacy…</div>}
+        >
+          <PrivacyPage />
         </Suspense>
       );
     }

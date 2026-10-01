@@ -73,6 +73,19 @@ export class ComponentLibraryDO {
         nextCursor: rows.length > limit ? rows[limit - 1]!.id : null,
       });
     }
+    if (operation === "delete-author") {
+      // Deleting an account takes the components its author shared.
+      const authorId = String(body.userId);
+      return this.state.storage.transactionSync(() => {
+        const ids = this.sql
+          .exec<{
+            id: string;
+          }>("SELECT id FROM components WHERE author_id = ?", authorId)
+          .toArray();
+        this.sql.exec("DELETE FROM components WHERE author_id = ?", authorId);
+        return Response.json({ deleted: ids.length });
+      });
+    }
     const id = String(body.id);
     if (operation === "get") {
       const row = this.sql

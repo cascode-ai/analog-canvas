@@ -1,7 +1,143 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import type { AccountMenuViewProps } from "./account";
+import { createPortal } from "react-dom";
+import type {
+  AccountMenuViewProps,
+  DeleteAccountResult,
+  SessionUser,
+} from "./account";
 import { GitHubMark, GoogleMark } from "./provider-marks";
 import { OPEN_SIGN_IN_EVENT, takeSignInRequest } from "./sign-in-request";
+import { SITE_PRIVACY_PATH } from "./site-resource-links";
+
+type Deleted = Extract<DeleteAccountResult, { ok: true }>["deleted"];
+
+function plural(count: number, one: string, many = `${one}s`): string {
+  return `${count} ${count === 1 ? one : many}`;
+}
+
+/**
+ * Deleting an account says exactly what goes, and that it cannot come back.
+ * Afterwards it says what went, and the page starts over signed out.
+ */
+function AccountDeleteDialog({
+  user,
+  onDelete,
+  onClose,
+}: {
+  user: SessionUser;
+  onDelete: () => Promise<DeleteAccountResult>;
+  onClose: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [deleted, setDeleted] = useState<Deleted | null>(null);
+  const cancel = useRef<HTMLButtonElement | null>(null);
+  const done = useRef<HTMLButtonElement | null>(null);
+  useEffect(() => {
+    (deleted ? done : cancel).current?.focus();
+  }, [deleted]);
+  const finish = () => window.location.reload();
+  const confirm = async () => {
+    setBusy(true);
+    setError(null);
+    const result = await onDelete();
+    setBusy(false);
+    if (result.ok) setDeleted(result.deleted);
+    else setError(result.message);
+  };
+  return createPortal(
+    <div
+      className="account-delete-backdrop"
+      onPointerDown={(event) => {
+        if (event.target === event.currentTarget && !busy && !deleted)
+          onClose();
+      }}
+    >
+      <section
+        className="account-delete-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="account-delete-title"
+        data-testid="account-delete-dialog"
+        onKeyDown={(event) => {
+          if (event.key !== "Escape" || busy) return;
+          event.preventDefault();
+          if (deleted) finish();
+          else onClose();
+        }}
+      >
+        {deleted ? (
+          <>
+            <h2 id="account-delete-title">Account deleted</h2>
+            <p>
+              Your account and everything kept for it are gone:{" "}
+              {plural(deleted.circuits, "published circuit")},{" "}
+              {plural(deleted.projects, "Cloud Project")},{" "}
+              {plural(deleted.components, "shared component")} and{" "}
+              {plural(deleted.likes, "like")}.
+            </p>
+            <div className="account-delete-actions">
+              <button
+                type="button"
+                ref={done}
+                className="account-delete-done"
+                onClick={finish}
+              >
+                OK
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <h2 id="account-delete-title">Delete your account?</h2>
+            <p>
+              This permanently deletes <strong>{user.displayName}</strong>
+              {user.email ? ` (${user.email})` : ""} and everything the site
+              keeps for it:
+            </p>
+            <ul>
+              <li>your Cloud Projects and their saved versions;</li>
+              <li>
+                the circuits you published to the Gallery, with their history;
+              </li>
+              <li>the components you shared;</li>
+              <li>your likes, your display name and your sign-in.</li>
+            </ul>
+            <p className="account-delete-hint">
+              It cannot be undone, so export anything you want to keep first.
+              Drawings kept only in this browser stay.
+            </p>
+            {error ? (
+              <p className="account-delete-error" role="alert">
+                {error}
+              </p>
+            ) : null}
+            <div className="account-delete-actions">
+              <button
+                type="button"
+                ref={cancel}
+                onClick={onClose}
+                disabled={busy}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="account-delete-confirm"
+                data-testid="account-delete-confirm"
+                onClick={() => void confirm()}
+                disabled={busy}
+              >
+                {busy ? "Deleting…" : "Delete account"}
+              </button>
+            </div>
+          </>
+        )}
+      </section>
+    </div>,
+    document.body,
+  );
+}
 
 /** Presentational account area; all effects live in `AccountMenu`. */
 export default function AccountMenuView({
@@ -12,6 +148,7 @@ export default function AccountMenuView({
   onEmailVerify,
   onRename,
   onSignOut,
+  onDeleteAccount,
 }: AccountMenuViewProps) {
   const [email, setEmail] = useState("");
   // Signing in by email is two steps: the address, then the emailed code,
@@ -22,7 +159,9 @@ export default function AccountMenuView({
   const [message, setMessage] = useState<string | null>(null);
   const [renaming, setRenaming] = useState(false);
   const [draftName, setDraftName] = useState("");
+  const [deletingAccount, setDeletingAccount] = useState(false);
   const signIn = useRef<HTMLDetailsElement | null>(null);
+  const more = useRef<HTMLDetailsElement | null>(null);
   const { providers, user } = state;
 
   // An invitation to sign in anywhere on the page opens these choices, also
@@ -111,7 +250,7 @@ export default function AccountMenuView({
         {/* One disclosure instead of a row of links: at half-screen width the
             badge, Review, My submissions, and Sign out each wrapped onto two
             lines and the header became unreadable. */}
-        <details className="account-more">
+        <details className="account-more" ref={more}>
           <summary aria-label="Account menu">
             <span aria-hidden="true">⋯</span>
           </summary>
@@ -151,6 +290,13 @@ export default function AccountMenuView({
                 My submissions
               </a>
             ) : null}
+            <a
+              className="account-link"
+              href={SITE_PRIVACY_PATH}
+              data-testid="account-privacy"
+            >
+              Privacy and cookies
+            </a>
             <button
               type="button"
               className="account-signout"
@@ -159,8 +305,27 @@ export default function AccountMenuView({
             >
               Sign out
             </button>
+            <button
+              type="button"
+              className="account-delete-open"
+              data-testid="account-delete"
+              aria-haspopup="dialog"
+              onClick={() => {
+                if (more.current) more.current.open = false;
+                setDeletingAccount(true);
+              }}
+            >
+              Delete account…
+            </button>
           </div>
         </details>
+        {deletingAccount ? (
+          <AccountDeleteDialog
+            user={user}
+            onDelete={onDeleteAccount}
+            onClose={() => setDeletingAccount(false)}
+          />
+        ) : null}
       </div>
     );
   }
@@ -279,6 +444,13 @@ export default function AccountMenuView({
             {notes}
           </p>
         ) : null}
+        <a
+          className="account-signin-privacy"
+          href={SITE_PRIVACY_PATH}
+          data-testid="signin-privacy"
+        >
+          What signing in keeps: Privacy and cookies
+        </a>
       </div>
     </details>
   );

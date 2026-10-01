@@ -398,6 +398,15 @@ unsaved recovery copy is found on a later start, a small banner offers
 available through **File / Recover Local Work…**; recovery never silently
 replaces the current Project.
 
+**Privacy** (beside the visitor count, in the status bar, and in the account
+menu) opens the site's notice: what it keeps, for how long, and who else
+handles it. Returning visitors are counted with one cookie of the site's own;
+**Stop counting me** on that page, Do Not Track or Global Privacy Control
+refuses it. **Delete account…** in the
+account menu deletes your account with your Cloud Projects, published circuits,
+shared components and likes; it cannot be undone, so export anything you want
+to keep first. Drawings kept only in your browser are not affected.
+
 Returning from Gallery reopens the last active Cloud Project for this browser
 tab. The tab stores only that Cloud Project id; the editor fetches the formal
 Project again rather than treating browser state as Save. A newer unsaved

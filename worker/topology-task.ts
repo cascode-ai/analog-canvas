@@ -32,7 +32,9 @@ interface Job {
   report: GalleryTopologyMatchReport;
 }
 const RETENTION = 7 * 24 * 60 * 60_000;
-const COOKIE = "icm_topology_session";
+/** Ties a signed-out browser to its duplicate check; the privacy notice lists it. */
+export const TOPOLOGY_SESSION_COOKIE = "icm_topology_session";
+const COOKIE = TOPOLOGY_SESSION_COOKIE;
 const MAX_SOURCE_BYTES = 2 * 1024 * 1024;
 const RESULT_BYTES = 8 * 1024 * 1024;
 const RESULT_LIMIT = 20;
