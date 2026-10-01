@@ -15,7 +15,14 @@ import { findRouteSegmentsAtPoint } from "../route-query.js";
 import { directObjectLocator, type ObjectLocator } from "../object-locator.js";
 import type { Diagnostic, DiagnosticSeverity } from "./diagnostic.js";
 import { findExternalMasterCollisions } from "../master-names.js";
-import { deviceDescriptor, validateDeviceParameters } from "@icm/devices";
+import {
+  deviceDescriptor,
+  instanceParameterContract,
+  validateDeviceParameters,
+} from "@icm/devices";
+import type { RoutedComponent } from "../connectivity.js";
+import { endpointKey } from "../endpoint.js";
+import { supplyMarkerForSymbol } from "../supply-marker.js";
 
 /**
  * Electrical checks share endpoint assessment and the Diagnostic envelope.
@@ -227,14 +234,17 @@ export function runErcChecks(
           parameters: { instanceId: instance.id, symbolId: instance.symbolId },
         });
       } else {
-        const descriptor = deviceDescriptor(instance.symbolId, project);
-        if (descriptor && instance.netlist?.parameters) {
-          const allowed = descriptor.parameters.map(
+        // The parameters the Instance's model owns, as export reads them: a
+        // reviewed SKY130 binding owns its w/l/mult, not the built-in value.
+        const contract = instanceParameterContract(project, instance);
+        if (contract && instance.netlist?.parameters) {
+          const allowed = contract.definitions.map(
             (parameter) => parameter.name,
           );
           for (const issue of validateDeviceParameters(
-            descriptor,
+            { parameters: contract.definitions },
             instance.netlist.parameters,
+            { open: contract.open },
           )) {
             const allowedText = allowed.length ? allowed.join(", ") : "(none)";
             const message =
@@ -618,6 +628,12 @@ export function runErcChecks(
     reportDanglingWires(document, diagnostics);
     reportLabelsNamingAnotherPart(document, diagnostics);
     reportShortedTwoPinParts(document, logicalNets, resolver, diagnostics);
+    reportNetPiecesJoinedOnlyInData(
+      document,
+      docIndex,
+      logicalNets,
+      diagnostics,
+    );
   }
 
   // A child interface can be shared by several parent instances. Preserve the
@@ -863,6 +879,144 @@ function reportShortedTwoPinParts(
       ),
       parameters: { instanceId: instance.id, netId: first },
     });
+  }
+}
+
+/**
+ * A drawn piece of a Net that nothing on the sheet joins to the rest: no wire
+ * reaches the other pieces, and the piece carries no name of its own (a label,
+ * a supply marker, a Cell Pin or a net marker) that would join it by name.
+ * Only the stored membership holds it in the Net, so the drawing and the
+ * netlist disagree: a bundled example once exported its two drawn tail nodes
+ * as ground this way (#1275). Pieces that touch on the sheet (a wire end or
+ * pin lying on another piece's wire) look joined and count as one. Pins
+ * drawn on no wire at all are ERC_UNCONNECTED_PIN's, and imported topology
+ * the editor already shows with routing guides is left alone.
+ */
+function reportNetPiecesJoinedOnlyInData(
+  document: CircuitProject["documents"][number],
+  docIndex: ReturnType<ProjectConnectivityIndex["documents"]["get"]>,
+  logicalNets: ReturnType<typeof resolveDocumentLogicalNets>,
+  diagnostics: ErcDiagnostic[],
+): void {
+  if (!docIndex || document.routes.length === 0) return;
+  const namingInstanceIds = new Set<string>([
+    ...(document.netlist?.terminals.flatMap(
+      (terminal) => terminal.interfaceInstanceIds,
+    ) ?? []),
+    ...document.connectivityEvidence.flatMap((evidence) =>
+      evidence.kind === "name-claim" && evidence.owner.kind === "power-marker"
+        ? [evidence.owner.objectId]
+        : [],
+    ),
+    ...document.instances
+      .filter(
+        (instance) =>
+          supplyMarkerForSymbol(instance.symbolId) !== undefined ||
+          deviceDescriptor(instance.symbolId)?.deviceClass === "net-marker",
+      )
+      .map((instance) => instance.id),
+  ]);
+  const railRouteIds = new Set(
+    document.routes
+      .filter((route) => route.presentation === "power-rail")
+      .map((route) => route.id),
+  );
+  const references = new Map(
+    document.instances.map((instance) => [
+      instance.id,
+      instance.reference ?? instance.id,
+    ]),
+  );
+  for (const record of docIndex.logicalNets.values()) {
+    if (record.routingGuidance.length > 0) continue;
+    const pieces = record.routedComponents;
+    if (pieces.length < 2) continue;
+    // Where the Net's labels sit: the Route or endpoint each one names.
+    const labelled = new Set<string>();
+    for (const baseNetId of record.baseNetIds)
+      for (const binding of docIndex.netLabelBindingsByNetId.get(baseNetId) ??
+        []) {
+        if (binding.routeId) labelled.add(`route:${binding.routeId}`);
+        labelled.add(endpointKey(binding.endpoint));
+      }
+    const named = (piece: RoutedComponent): boolean =>
+      piece.routes.some(
+        (routeId) =>
+          railRouteIds.has(routeId) || labelled.has(`route:${routeId}`),
+      ) ||
+      piece.nodes.some(
+        (node) =>
+          labelled.has(node.key) ||
+          (node.endpoint.kind === "terminal" &&
+            namingInstanceIds.has(node.endpoint.instanceId)),
+      );
+    // Pieces that touch on the sheet are drawn together.
+    const group = pieces.map((_, index) => index);
+    const root = (index: number): number => {
+      while (group[index] !== index) index = group[index]!;
+      return index;
+    };
+    const pieceOfRoute = new Map<string, number>();
+    const pieceOfNode = new Map<string, number>();
+    pieces.forEach((piece, index) => {
+      for (const routeId of piece.routes) pieceOfRoute.set(routeId, index);
+      for (const node of piece.nodes) pieceOfNode.set(node.key, index);
+    });
+    for (const baseNetId of record.baseNetIds)
+      for (const contact of docIndex.contactsByNetId.get(baseNetId) ?? []) {
+        const touched = [
+          ...contact.endpoints.map((endpoint) =>
+            pieceOfNode.get(endpointKey(endpoint)),
+          ),
+          ...contact.incidents.map((incident) =>
+            incident.kind === "route"
+              ? pieceOfRoute.get(incident.objectId)
+              : undefined,
+          ),
+        ].filter((index): index is number => index !== undefined);
+        for (const index of touched.slice(1)) {
+          const [left, right] = [root(touched[0]!), root(index)];
+          if (left !== right)
+            group[Math.max(left, right)] = Math.min(left, right);
+        }
+      }
+    const groups = new Map<number, RoutedComponent[]>();
+    pieces.forEach((piece, index) =>
+      groups.set(root(index), [...(groups.get(root(index)) ?? []), piece]),
+    );
+    if (groups.size < 2) continue;
+    const name = logicalNets.byId.get(record.netId)?.name;
+    for (const drawn of groups.values()) {
+      if (drawn.some(named)) continue;
+      const piece = drawn.find((candidate) => candidate.routes.length > 0);
+      if (!piece) continue;
+      const pins = drawn.flatMap((member) =>
+        member.nodes.flatMap((node) =>
+          node.endpoint.kind === "terminal" ? [node.endpoint] : [],
+        ),
+      );
+      const pinText = pins
+        .map(
+          (pin) =>
+            `${references.get(pin.instanceId) ?? pin.instanceId}.${pin.pinName}`,
+        )
+        .join(", ");
+      diagnostics.push({
+        id: `erc:net-joined-only-in-data:${document.id}:${piece.id}`,
+        domain: "erc",
+        code: "ERC_NET_JOINED_ONLY_IN_DATA",
+        severity: "warning",
+        confidence: "high",
+        gateEligible: false,
+        message: `A drawn part of Net ${name ?? record.netId}${pinText ? ` (${pinText})` : ""} is joined to the rest of it only in the data: no wire or name on the sheet joins them. Draw the connection, name that part, or give it its own Net`,
+        primary: directObjectLocator(document.id, "route", piece.routes[0]!),
+        related: pins.map((pin) =>
+          terminalLocator(document.id, pin.instanceId, pin.pinName),
+        ),
+        parameters: { netId: record.netId, pieceId: piece.id },
+      });
+    }
   }
 }
 

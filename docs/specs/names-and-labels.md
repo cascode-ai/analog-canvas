@@ -152,6 +152,12 @@ as are the variant forms (`ς`, `ϕ`, `ϑ` …) and the micro and ohm signs
 keyboards type for `μ` and `Ω`. The drawing and the stored name keep the letter. Two names that
 become the same once written out, such as `φ1` and `phi1`, are refused rather
 than merged. Parameter names are not rewritten, because values refer to them.
+Hand-written ngspice simulation source follows the same rule when it runs,
+and gives any other non-ASCII character `u` and its code point in hex:
+`输入` runs as `u8f93u5165`, `né` as `nu00e9`. ngspice would otherwise read
+each such byte as `_`, merging `输入` and `输出` into one node. The source text
+keeps what was written, and two names that would run under one spelling
+are refused.
 
 ### Examples
 

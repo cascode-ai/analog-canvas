@@ -375,7 +375,15 @@ calls by Reference. A display alias naming no part, or naming a part that shows
 the same name, is deliberate and stays silent. `ERC_SHORTED_DEVICE` warns
 about a part with two visible pins that are both on one Logical Net: the part
 does nothing, whatever the drawing shows. A part with more pins may tie them
-together on purpose, as a dummy transistor does, and is not judged. `ERC_INSTANCE_NOT_DRAWN`
+together on purpose, as a dummy transistor does, and is not judged.
+`ERC_NET_JOINED_ONLY_IN_DATA` warns about a drawn part of a Net that nothing on
+the sheet joins to the rest of it: no wire reaches the other parts, and the
+part carries no name of its own (a label, a supply marker, a Cell Pin or a net
+marker). Only the stored membership holds it in the Net, so the drawing and the
+netlist disagree, as when a drawn tail node is stored as ground. Parts that
+touch (a wire end or pin lying on another part's wire) count as drawn together;
+a pin on no wire at all is `ERC_UNCONNECTED_PIN`'s; imported topology shown
+with routing guides is left alone. `ERC_INSTANCE_NOT_DRAWN`
 counts the Instances a Cell holds that the sheet does not draw: they keep their
 reference, their Net terminals and their netlist cards while nothing on the
 sheet shows them, so the warning names them and the Placement Tray — which

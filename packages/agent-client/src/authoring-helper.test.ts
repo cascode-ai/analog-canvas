@@ -813,6 +813,52 @@ describe("authoring helper compilation", () => {
     );
   });
 
+  it("checks a resistor bound to a reviewed SKY130 model against that model", () => {
+    // Issue #1274: the SKY130 resistor takes w, l and mult, not value.
+    const snapshot = testSnapshot();
+    snapshot.project.externalSubcircuitDefinitions = [
+      {
+        id: "def-res",
+        name: "sky130_fd_pr__res_high_po",
+        terminals: ["R0", "R1", "B"].map((name) => ({ name })),
+        formalParameters: [],
+      },
+    ] as never;
+    const resistor = snapshot.document.instances.find(
+      (instance) => instance.reference === "R1",
+    )!;
+    resistor.netlist = {
+      binding: { kind: "external-subcircuit", definitionId: "def-res" },
+      parameters: {},
+    } as never;
+    const [transaction] = compile(
+      [
+        {
+          kind: "set-property",
+          target: { kind: "instance", reference: "R1" },
+          set: { w: "2", l: "6", mult: "1" },
+        },
+      ],
+      snapshot,
+    );
+    expect(transaction?.edits?.[0]).toMatchObject({
+      kind: "patch_instance_netlist_parameters",
+      set: { w: "2", l: "6", mult: "1" },
+    });
+    expect(() =>
+      compile(
+        [
+          {
+            kind: "set-property",
+            target: { kind: "instance", reference: "R1" },
+            set: { value: "1k" },
+          },
+        ],
+        snapshot,
+      ),
+    ).toThrow("allowed parameters: w, l, mult");
+  });
+
   it("compiles add-label with a derived position from net geometry", () => {
     const [transaction] = compile([
       {

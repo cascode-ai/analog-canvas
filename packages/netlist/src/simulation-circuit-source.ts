@@ -4,7 +4,7 @@ import type {
   SimulationSourceInput,
 } from "@icm/model";
 import {
-  deviceDescriptor,
+  instanceParameterContract,
   parameterExpressionBody,
   reviewedExternalDeviceBindings,
   sky130MicrometresToProjectLength,
@@ -95,13 +95,8 @@ export function generateCircuitSource(
         .find((d) => d.id === cell.id)
         ?.instances.find((i) => i.id === card.id);
       if (!instance?.netlist) continue;
-      const reviewed = reviewedExternalDeviceBindings.find(
-        (item) => item.id === card.reviewedExternalBindingId,
-      );
       const definitions =
-        reviewed?.parameters ??
-        deviceDescriptor(instance.symbolId)?.parameters ??
-        [];
+        instanceParameterContract(project, instance)?.definitions ?? [];
       for (const definition of definitions) {
         if (
           definition.editor === "select" ||
@@ -177,18 +172,21 @@ export function generateCircuitSource(
       const originalName = Object.keys(instance.netlist.parameters).find(
         (name) => name.toLowerCase() === span.parameter.toLowerCase(),
       );
-      const reviewed = reviewedExternalDeviceBindings.find(
-        (item) => item.id === generated.reviewedExternalBindingId,
+      const descriptor = instanceParameterContract(
+        project,
+        instance,
+      )?.definitions.find(
+        (p) => p.name.toLowerCase() === span.parameter.toLowerCase(),
       );
-      const descriptor = (
-        reviewed?.parameters ?? deviceDescriptor(instance.symbolId)?.parameters
-      )?.find((p) => p.name.toLowerCase() === span.parameter.toLowerCase());
       if (
         !descriptor ||
         descriptor.editor === "select" ||
         descriptor.authoringVisibility === "compatibility"
       )
         return [];
+      const reviewed = reviewedExternalDeviceBindings.find(
+        (item) => item.id === generated.reviewedExternalBindingId,
+      );
       const conversion =
         reviewed?.parameters.find((p) => p.name === descriptor.name)
           ?.targetUnit === "micrometre"

@@ -2633,10 +2633,10 @@ function analyzeDesign(
       definition.name.toLowerCase(),
     ),
     ...Array.from(magneticSubcircuits.keys(), (name) => name.toLowerCase()),
-    // The historical comparator target is an intentionally unresolved
-    // external contract; only the new icm_ideal_comparator has a generated
-    // native body.
-    "comparator",
+    // Only icm_ideal_comparator has a generated body. A comparator placed
+    // today is bound to it; one with no binding (an older drawing) falls
+    // back to the bare target `comparator`, which nothing defines unless
+    // the Project declares an external definition of that name.
     ...(resolvedOptions.format === "spice" ? [IDEAL_COMPARATOR_TARGET] : []),
   ]);
   for (const cell of cells) {
@@ -2667,7 +2667,9 @@ function analyzeDesign(
         diagnostics,
         cell.id,
         "UNDEFINED_SUBCIRCUIT_TARGET",
-        `Subcircuit target ${instance.target} used by ${instance.reference} has no emitted definition or external model; bind one before exporting`,
+        target === "comparator"
+          ? `Comparator ${instance.reference} has no model: nothing defines the subcircuit comparator. Replace it from the Library (a placed comparator uses the built-in ideal comparator) or add an external definition named comparator before exporting`
+          : `Subcircuit target ${instance.target} used by ${instance.reference} has no emitted definition or external model; bind one before exporting`,
         [instance.id],
       );
     }

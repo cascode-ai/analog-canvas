@@ -87,6 +87,51 @@ describe("source simulation compiler", () => {
     );
   });
 
+  it("runs other non-ASCII authored names under distinct ASCII spellings", () => {
+    // Issue #1260: ngspice reads each non-ASCII byte as "_", so 输入 and 输出
+    // both became ______ and merged into one node.
+    const compiled = compileNgspiceSourceSimulation(
+      project(),
+      raw(
+        "V1 a 0 1\nR1 a 输入 1k\nR2 输入 0 3k\nR3 a 输出 3k\nR4 输出 0 1k\nR5 a né 1k\nR6 nè 0 1k\n.op\n.end\n",
+      ),
+    );
+    expect(compiled.ok).toBe(true);
+    if (!compiled.ok) return;
+    const text = compiled.files.find((file) => file.path === "run.cir")?.text;
+    expect(text).toContain("R1 a u8f93u5165 1k");
+    expect(text).toContain("R4 u8f93u51fa 0 1k");
+    expect(text).toContain("R5 a nu00e9 1k");
+    expect(text).toContain("R6 nu00e8 0 1k");
+    expect(compiled.warnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "SIMULATION_NON_ASCII_NAME",
+          message: "Authored name 输入 is prepared as u8f93u5165 for ngspice",
+        }),
+      ]),
+    );
+  });
+
+  it("refuses an authored name that runs under another name's spelling", () => {
+    const compiled = compileNgspiceSourceSimulation(
+      project(),
+      raw("V1 a 0 1\nR1 a 输入 1k\nR2 U8F93U5165 0 1k\n.op\n.end\n"),
+    );
+    expect(compiled.ok).toBe(false);
+    if (compiled.ok) return;
+    expect(compiled.diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "SIMULATION_NON_ASCII_NAME_COLLISION",
+          message: expect.stringContaining(
+            "Authored names 输入 and U8F93U5165 both run as",
+          ),
+        }),
+      ]),
+    );
+  });
+
   it("warns about one authored non-ASCII name and suggests its ASCII spelling", () => {
     const compiled = compileNgspiceSourceSimulation(
       project(),

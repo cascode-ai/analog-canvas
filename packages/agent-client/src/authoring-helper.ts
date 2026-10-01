@@ -4,7 +4,10 @@ import {
   type AgentSessionSnapshot,
 } from "@icm/agent-adapter";
 import { agentRazaviAuthoringCatalog } from "@icm/agent-adapter/kit";
-import { deviceDescriptor, validateDeviceParameters } from "@icm/devices";
+import {
+  instanceParameterContract,
+  validateDeviceParameters,
+} from "@icm/devices";
 import {
   createDraftText,
   flattenRichText,
@@ -612,8 +615,9 @@ export function compileActions(
         validateActionParameters(
           index,
           action.kind,
-          instance.symbolId,
+          instance,
           action.set,
+          context.snapshot.project.externalSubcircuitDefinitions,
         );
         pushEdit(index, action.kind, {
           kind: "patch_instance_netlist_parameters",
@@ -875,7 +879,7 @@ function compilePlaceComponent(
   validateActionParameters(
     index,
     action.kind,
-    action.symbol,
+    { symbolId: action.symbol },
     action.parameters,
   );
   const variant = action.variant ?? catalogSymbol.defaultVariantId ?? undefined;
@@ -907,18 +911,31 @@ function compilePlaceComponent(
 function validateActionParameters(
   index: number,
   kind: string,
-  symbolId: string,
+  owner: Parameters<typeof instanceParameterContract>[1],
   parameters: Readonly<Record<string, string>> | undefined,
+  externalSubcircuitDefinitions?: Parameters<
+    typeof instanceParameterContract
+  >[0]["externalSubcircuitDefinitions"],
 ): void {
   if (!parameters) return;
-  const descriptor = deviceDescriptor(symbolId);
-  // Custom, imported and PDK symbols deliberately remain a human-fact
-  // boundary. Their parameter contracts are unavailable to this client.
-  if (!descriptor) return;
-  const issues = validateDeviceParameters(descriptor, parameters);
+  // The parameters the part's model owns, as export reads them: a part bound
+  // to a reviewed SKY130 model takes that model's (a resistor's w, l, mult).
+  // Custom and imported symbols outside the registry deliberately remain a
+  // human-fact boundary; their contracts are unavailable to this client.
+  const contract = instanceParameterContract(
+    externalSubcircuitDefinitions ? { externalSubcircuitDefinitions } : {},
+    owner,
+  );
+  if (!contract) return;
+  const symbolId = owner.symbolId;
+  const issues = validateDeviceParameters(
+    { parameters: contract.definitions },
+    parameters,
+    { open: contract.open },
+  );
   if (!issues.length) return;
   const issue = issues[0]!;
-  const allowed = descriptor.parameters.map((parameter) => parameter.name);
+  const allowed = contract.definitions.map((parameter) => parameter.name);
   const allowedText = allowed.length ? allowed.join(", ") : "(none)";
   const message =
     issue.kind === "unknown"
