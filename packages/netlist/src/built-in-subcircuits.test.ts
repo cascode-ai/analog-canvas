@@ -104,6 +104,70 @@ describe("built-in Analog Block subcircuits", () => {
     );
   });
 
+  describe("comparator models", () => {
+    const comparatorPins = [
+      ["IN+", "plus"],
+      ["IN-", "minus"],
+      ["OUT", "out"],
+    ] as const;
+
+    it("blocks an older comparator with no model instead of calling an undefined subcircuit", () => {
+      // Issue #1255: an unbound comparator exported `X1 … comparator` as ready.
+      const result = createDesignNetlistExport(
+        analogBlockProject(["comparator"], comparatorPins, false),
+      );
+      expect(result.status).toBe("blocked");
+      expect(result.diagnostics).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            code: "UNDEFINED_SUBCIRCUIT_TARGET",
+            message: expect.stringContaining(
+              "Replace it from the Library (a placed comparator uses the built-in ideal comparator)",
+            ),
+          }),
+        ]),
+      );
+    });
+
+    it("exports a comparator bound to the built-in ideal comparator", () => {
+      const project = analogBlockProject(["comparator"], comparatorPins);
+      const block = project.documents[0]!.instances.find(
+        (instance) => instance.symbolId === "comparator",
+      )!;
+      block.netlist = {
+        binding: {
+          kind: "unresolved-subcircuit",
+          name: "icm_ideal_comparator",
+        },
+        parameters: { vhigh: "1", vlow: "0", vtransition: "1m" },
+      };
+      const result = createDesignNetlistExport(project);
+      expect(result.status).toBe("ready");
+      if (result.status !== "ready") return;
+      expect(result.file.text).toContain(".subckt icm_ideal_comparator");
+    });
+
+    it("accepts an older comparator when the Project defines comparator", () => {
+      const project = analogBlockProject(["comparator"], comparatorPins, false);
+      project.externalSubcircuitDefinitions = [
+        {
+          id: "own-comparator",
+          name: "comparator",
+          terminals: ["VDD", "VSS", "VIP", "VIN", "VOUT"].map((name) => ({
+            name,
+          })),
+          formalParameters: [],
+        },
+      ] as never;
+      const result = createDesignNetlistExport(project);
+      expect(
+        result.diagnostics.filter(
+          (d) => d.code === "UNDEFINED_SUBCIRCUIT_TARGET",
+        ),
+      ).toEqual([]);
+    });
+  });
+
   it.each([
     {
       symbolId: "opamp",
@@ -638,13 +702,24 @@ describe("built-in Analog Block subcircuits", () => {
       card: "X1 VDD VSS positive_input negative_input output_node differential_transconductance",
     },
   ])("exports the $symbolId contract", ({ symbolId, connections, card }) => {
-    const result = createDesignNetlistExport(
-      analogBlockProject([symbolId], connections),
-      {
-        format: "spice",
-        portCase: "upper",
-      },
-    );
+    const project = analogBlockProject([symbolId], connections);
+    // The bare comparator target is a contract with a definition the Project
+    // supplies; nothing built in defines it (#1255).
+    if (card.endsWith(" comparator"))
+      project.externalSubcircuitDefinitions = [
+        {
+          id: "own-comparator",
+          name: "comparator",
+          terminals: ["VDD", "VSS", "VIP", "VIN", "VOUT"].map((name) => ({
+            name,
+          })),
+          formalParameters: [],
+        },
+      ] as never;
+    const result = createDesignNetlistExport(project, {
+      format: "spice",
+      portCase: "upper",
+    });
 
     expect(result.status).toBe("ready");
     if (result.status !== "ready") return;
