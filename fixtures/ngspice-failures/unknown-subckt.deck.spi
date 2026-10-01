@@ -1,0 +1,9 @@
+* unknown subcircuit
+VDD vdd 0 1.8
+XDUT vdd 0 vin vout phi1 phi2 sc
+.control
+op
+set filetype=ascii
+write unknown-subckt.raw
+.endc
+.end

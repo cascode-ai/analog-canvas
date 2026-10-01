@@ -1,0 +1,21 @@
+
+Note: No compatibility mode selected!
+
+
+Circuit: * transient that runs away
+
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+Operating point simulation skipped by 'uic',
+  now using transient initial conditions.
+doAnalyses: TRAN:  Timestep too small; time = 9.78316e-12, timestep = 1.25e-24: trouble with node "n"
+
+
+tran simulation(s) aborted
+Error: incomplete or empty netlist
+       or no ".plot", ".print", or ".fourier" lines in batch mode;
+no simulations run!
+
+No. of Data Rows : 73
+ASCII raw file "aborted-transient.raw"
