@@ -92,8 +92,14 @@ targets to avoid full-Snapshot name resolution. Names remain supported when usef
   for custom definitions; it leaves the Project's Process as Custom.
 - `place-component` without `parameters` places a part as the GUI library
   does: each parameter's catalog default, and for a transistor the model of
-  the Process the Netlist panel shows. Given `parameters` win, and only a
-  value given is shown in a Value label.
+  the Process the Netlist panel shows. A BJT in a SKY130 Project arrives as
+  the reviewed SKY130 wrapper, keeping its `m`. Given `parameters` win, and
+  only a value given is shown in a Value label.
+- `place-component` and `set-property` refuse a parameter the part does not
+  take (naming the one it most likely meant), a value outside a choice list,
+  and a quantity that is neither a SPICE number (`1k`, `2.5n`, `9kΩ`) nor an
+  expression in braces (`{vdd/2}`). Write micro as `u`. The same checks run
+  on stored values, as Cell diagnostics.
 - Three-terminal MOS artwork still has an electrical B pin. Read `mosBulk` and
   `mosBulkDefaults`; ordinary devices reuse defaults. Use dedicated bulk edits
   for overrides. Hidden bulk needs no decorative wire; four-pin presentation

@@ -1109,27 +1109,35 @@ function validateActionParameters(
         issue.name +
         '" for ' +
         symbolId +
+        (issue.suggestion ? '; did you mean "' + issue.suggestion + '"?' : "") +
         "; allowed parameters: " +
         allowedText
-      : issue.kind === "duplicate"
+      : issue.kind === "number"
         ? 'Parameter "' +
           issue.name +
-          '" duplicates "' +
-          issue.previousName +
-          '" under case folding'
-        : issue.kind === "select"
+          '" must be a SPICE number such as 1k or 2.5n, or an expression in braces such as {vdd/2}; received "' +
+          issue.value +
+          '"' +
+          (/[µμ]/u.test(issue.value) ? " (SPICE writes micro as u)" : "")
+        : issue.kind === "duplicate"
           ? 'Parameter "' +
             issue.name +
-            '" must be one of: ' +
-            issue.allowed.join(", ") +
-            '; received "' +
-            issue.value +
-            '"'
-          : 'Parameter "' +
-            issue.name +
-            '" must be a finite decimal number; received "' +
-            issue.value +
-            '"';
+            '" duplicates "' +
+            issue.previousName +
+            '" under case folding'
+          : issue.kind === "select"
+            ? 'Parameter "' +
+              issue.name +
+              '" must be one of: ' +
+              issue.allowed.join(", ") +
+              '; received "' +
+              issue.value +
+              '"'
+            : 'Parameter "' +
+              issue.name +
+              '" must be a finite decimal number; received "' +
+              issue.value +
+              '"';
   throw new ActionCompileError(index, kind, message);
 }
 

@@ -574,6 +574,57 @@ describe("authoring helper compilation", () => {
     );
   });
 
+  it("refuses a quantity that is not a number and names a misspelled key (#1268)", () => {
+    // Exported as SIN(0 12 banana 0 0 0), it failed only inside ngspice.
+    expectCompileError(
+      [
+        {
+          kind: "place-component",
+          symbol: "voltage-source",
+          reference: "V2",
+          position: { x: 600, y: 300 },
+          parameters: { waveform: "sin", frequency: "banana" },
+        },
+      ],
+      'Parameter "frequency" must be a SPICE number such as 1k or 2.5n, or an expression in braces such as {vdd/2}; received "banana"',
+    );
+    expectCompileError(
+      [
+        {
+          kind: "place-component",
+          symbol: "capacitor",
+          reference: "C2",
+          position: { x: 600, y: 300 },
+          parameters: { value: "1µ" },
+        },
+      ],
+      "(SPICE writes micro as u)",
+    );
+    expectCompileError(
+      [
+        {
+          kind: "place-component",
+          symbol: "voltage-source",
+          reference: "V2",
+          position: { x: 600, y: 300 },
+          parameters: { freq: "2k" },
+        },
+      ],
+      'Unknown parameter "freq" for voltage-source; did you mean "frequency"?',
+    );
+    expect(
+      compile([
+        {
+          kind: "place-component",
+          symbol: "voltage-source",
+          reference: "V2",
+          position: { x: 600, y: 300 },
+          parameters: { waveform: "sin", frequency: "{f0*2}", amplitude: "12" },
+        },
+      ]),
+    ).toHaveLength(1);
+  });
+
   it("rejects vdd and unknown symbols at the human-fact boundary", () => {
     expectCompileError(
       [
