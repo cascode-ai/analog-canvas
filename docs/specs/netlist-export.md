@@ -173,11 +173,27 @@ exports complete and simulates in ngspice without anyone drawing transistors.
 - A flip-flop takes D on the rising edge of CK. RST, where the Symbol has it,
   is active high and clears it.
 
+The signal-flow and converter blocks have bodies too
+([amplifiers and adder](../../packages/netlist/src/ideal-analog-block-models.ts),
+[multiplier and converters](../../packages/netlist/src/ideal-signal-block-models.ts)):
+
+- The adder is two stacked unity E-sources, V(Y) = V(A) + V(B) from ground.
+  It is linear, so SPICE and Spectre both print it.
+- The multiplier is V(Y) = gain·V(A)·V(B) from ground. `gain` defaults to 1/V
+  and is edited in Properties.
+- The ADC and the DAC each map their input onto 2^`bits` levels between VSS
+  and VDD, without a clock. The output is VSS + LSB·code, the code being the
+  input's whole number of LSBs clamped to 0 … 2^bits − 1. One analog pin
+  carries the code as that voltage, so an ADC into a DAC reproduces the
+  quantized input. `bits` defaults to 8 and is edited in Properties.
+
 An authored Cell or a declared external definition with the same name replaces
-the body. The adder, the multiplier, and any logic in a Spectre export still
-need a definition supplied. Without one, the export is blocked with
-`UNDEFINED_SUBCIRCUIT_TARGET`, which names the block
-([models](../../packages/netlist/src/ideal-logic-gate-models.ts)).
+any body. The logic, multiplier and converter bodies are ngspice B-sources, so
+a Spectre export writes their calls without a body and warns,
+`SPECTRE_MODEL_NOT_INCLUDED`, that the reader's libraries must define them: a
+PDK standard cell or a Verilog-A model, for example. The comparator keeps its
+own `IDEAL_COMPARATOR_SPICE_ONLY` rule
+([logic models](../../packages/netlist/src/ideal-logic-gate-models.ts)).
 
 [DeviceDescriptor](../../packages/devices/src/contract.ts) owns canonical pin
 order, invocation policy, parameter metadata and supported dialects. The

@@ -1,4 +1,7 @@
-/** Authoring defaults shared with the ideal E/G-source subcircuit models. */
+/**
+ * Authoring defaults shared with the ideal subcircuit models: the E/G-source
+ * amplifiers, and the ngspice bodies of the multiplier and the converters.
+ */
 const parameters = {
   opamp: {
     name: "gain",
@@ -34,6 +37,27 @@ const parameters = {
     defaultValue: "1m",
     unitHint: "S",
     help: "Ideal transconductance driven by the differential input voltage.",
+  },
+  multiplier: {
+    name: "gain",
+    label: "Gain",
+    defaultValue: "1",
+    unitHint: "1/V",
+    help: "Ideal product V(Y) = gain·V(A)·V(B), from ground; output is not rail-limited.",
+  },
+  adc: {
+    name: "bits",
+    label: "Resolution",
+    defaultValue: "8",
+    unitHint: "bits",
+    help: "Ideal quantizer: the input maps onto 2^bits levels between VSS and VDD, without a clock.",
+  },
+  dac: {
+    name: "bits",
+    label: "Resolution",
+    defaultValue: "8",
+    unitHint: "bits",
+    help: "Ideal quantizer: the input code, as a voltage between VSS and VDD, maps onto 2^bits output levels.",
   },
 } as const;
 

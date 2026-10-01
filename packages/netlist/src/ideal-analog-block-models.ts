@@ -9,7 +9,8 @@ type IdealBlockTarget =
   | "opamp_differential"
   | "voltage_amplifier"
   | "transconductance"
-  | "differential_transconductance";
+  | "differential_transconductance"
+  | "adder";
 
 const MODELS: Record<
   IdealBlockTarget,
@@ -37,6 +38,11 @@ const MODELS: Record<
   differential_transconductance: {
     symbolId: "differential-transconductance",
     ports: ["VDD", "VSS", "VIP", "VIN", "VOUT"],
+  },
+  // The signal-flow summing node: linear, so SPICE and Spectre share it.
+  adder: {
+    symbolId: "adder",
+    ports: ["VDD", "VSS", "A", "B", "Y"],
   },
 };
 
@@ -81,8 +87,9 @@ export function idealAnalogBlockCell(
   if (!Object.hasOwn(MODELS, target)) return null;
   const name = target as IdealBlockTarget;
   const model = MODELS[name];
-  const parameter = idealAnalogBlockParameter(name);
-  if (!parameter)
+  // The adder has no setting: Y is A + B.
+  const parameter = name === "adder" ? null : idealAnalogBlockParameter(name);
+  if (name !== "adder" && !parameter)
     throw new Error(`Ideal analog model has no parameter: ${name}`);
   const descriptor = subcircuitDescriptor(model.symbolId);
   if (
@@ -121,7 +128,13 @@ export function idealAnalogBlockCell(
           ? [e("ECORE", ["VOUT", "0", "VIN", "0"])]
           : name === "transconductance"
             ? [g(["0", "VOUT", "VIN", "0"])]
-            : [g(["0", "VOUT", "VIP", "VIN"])];
+            : name === "adder"
+              ? // Two unity sources stacked through nsum: V(Y) = V(A) + V(B).
+                [
+                  e("ESUMA", ["Y", "nsum", "A", "0"], "1"),
+                  e("ESUMB", ["nsum", "0", "B", "0"], "1"),
+                ]
+              : [g(["0", "VOUT", "VIP", "VIN"])];
 
   return {
     id: deriveStableId("netlist-ideal-block-cell", name),
@@ -131,14 +144,25 @@ export function idealAnalogBlockCell(
       name: port,
       netName: port,
     })),
-    nets: model.ports.map((port, index) => ({
-      id: deriveStableId("netlist-ideal-block-net", name, String(index)),
-      name: port,
-      scope: "local",
-    })),
-    formalParameters: [
-      { name: parameter.name, defaultValue: parameter.defaultValue },
+    nets: [
+      ...model.ports.map((port, index) => ({
+        id: deriveStableId("netlist-ideal-block-net", name, String(index)),
+        name: port,
+        scope: "local" as const,
+      })),
+      ...(name === "adder"
+        ? [
+            {
+              id: deriveStableId("netlist-ideal-block-net", name, "nsum"),
+              name: "nsum",
+              scope: "local" as const,
+            },
+          ]
+        : []),
     ],
+    formalParameters: parameter
+      ? [{ name: parameter.name, defaultValue: parameter.defaultValue }]
+      : [],
     instances,
   };
 }
