@@ -3,6 +3,7 @@ import {
   fractionGeometry,
   fractionPartBaselines,
   fractionPartScale,
+  schematicTextAdvanceEm,
 } from "@icm/derived";
 import { flattenRichText } from "@icm/model";
 import type { RichTextDocument, RichTextRun } from "@icm/model";
@@ -68,7 +69,14 @@ function renderRuns(
 ): string {
   let output = "";
   let lineOpen = false;
-  for (const run of runs) {
+  for (let index = 0; index < runs.length; index += 1) {
+    const run = runs[index]!;
+    const next = runs[index + 1];
+    if (isScriptSpan(run) && isScriptSpan(next) && run.style !== next.style) {
+      output += renderScriptStack(run, next, ctx, state);
+      index += 1;
+      continue;
+    }
     if (run.kind === "line-break") {
       if (lineOpen) output += "</tspan>";
       const dy =
@@ -167,10 +175,54 @@ function renderInlineFraction(
   return `<tspan data-text-run="fraction"${fractionDy}><tspan data-text-run="numerator" font-size="${number(partFontSize)}px" dx="${number(numeratorDx * partFontSize)}" dy="${number(-parts.numeratorRiseEm * partFontSize)}">${numerator}</tspan><tspan data-text-run="denominator" font-size="${number(partFontSize)}px" dx="${number(denominatorDx * partFontSize)}" dy="${number((parts.numeratorRiseEm + parts.denominatorDropEm) * partFontSize)}">${denominator}</tspan><tspan data-text-run="fraction-reset" dx="${number(resetDx * ctx.fontSize)}" dy="${number(-parts.denominatorDropEm * partFontSize)}">&#8203;</tspan></tspan>`;
 }
 
+type ScriptSpan = Extract<RichTextRun, { kind: "span" }> & {
+  style: "subscript" | "superscript";
+};
+
+function isScriptSpan(run: RichTextRun | undefined): run is ScriptSpan {
+  return (
+    run?.kind === "span" &&
+    (run.style === "subscript" || run.style === "superscript")
+  );
+}
+
+/**
+ * A subscript and a superscript side by side share one attachment column,
+ * as measurement lays them out: `V` with `in` below and `+` above, not `+`
+ * and then `in` further along. SVG text flows, so the narrower script is
+ * drawn first and the wider one starts back over it, by the narrower one's
+ * advance in the schematic font's own widths; the line then continues
+ * after the wider script.
+ */
+function renderScriptStack(
+  first: ScriptSpan,
+  second: ScriptSpan,
+  ctx: RenderContext,
+  state: RenderState,
+): string {
+  const typography = ctx.profile.typography;
+  const scriptFontSize = ctx.fontSize * typography.subscriptScale;
+  const advance = (script: ScriptSpan): number =>
+    scriptFontSize *
+    schematicTextAdvanceEm(
+      flattenRichText({ runs: script.children }),
+      ctx.bold ? "bold" : "plain",
+    );
+  const [narrow, wide] =
+    advance(first) <= advance(second) ? [first, second] : [second, first];
+  const gap = scriptFontSize * typography.subscriptHorizontalGapEm;
+  return (
+    renderSpan(narrow, ctx, state, gap) +
+    renderSpan(wide, ctx, state, -advance(narrow))
+  );
+}
+
 function renderSpan(
   node: Extract<RichTextRun, { kind: "span" }>,
   ctx: RenderContext,
   state: RenderState,
+  /** Where a script starts, when a script stack places it. */
+  scriptDx?: number,
 ): string {
   if (
     node.style === "italic" ||
@@ -201,9 +253,10 @@ function renderSpan(
   const dy = targetOffset - state.currentBaselineOffset;
   state.currentBaselineOffset = targetOffset;
   const dx =
-    node.style === "subscript"
+    scriptDx ??
+    (node.style === "subscript"
       ? scriptFontSize * typography.subscriptHorizontalGapEm
-      : 0;
+      : 0);
   // Scripts in the Razavi profile are upright by default. They retain the
   // surrounding weight so a bold math base has a bold upright subscript; an
   // explicit nested italic span remains an intentional user override.

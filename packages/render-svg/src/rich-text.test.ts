@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { renderRichTextDocument } from "./rich-text.js";
-import { razaviTextbookProfile } from "@icm/derived";
+import { razaviTextbookProfile, schematicTextAdvanceEm } from "@icm/derived";
 
 describe("renderRichTextDocument", () => {
   it("renders a plain text run escaped", () => {
@@ -106,11 +106,38 @@ describe("renderRichTextDocument", () => {
     // Resolve relative typography before export so Office-class SVG
     // importers do not need to implement baseline-shift or percentage sizes.
     expect(svg).toContain('font-size="15.2px"');
-    expect(svg).toContain('dx="0.6992" dy="6.688"');
-    expect(svg).toContain('dy="-13.376"');
     expect(svg).not.toContain("baseline-shift");
     expect(svg).not.toContain('font-size="76%"');
   });
+
+  it.each([
+    ["subscript", "superscript"],
+    ["superscript", "subscript"],
+  ] as const)(
+    "stacks a %s and a %s in one column after the base",
+    (first, second) => {
+      const script = (style: "subscript" | "superscript") => ({
+        kind: "span" as const,
+        style,
+        children: [
+          { kind: "text" as const, value: style === "subscript" ? "in" : "+" },
+        ],
+      });
+      const svg = renderRichTextDocument(
+        { runs: [{ kind: "text", value: "V" }, script(first), script(second)] },
+        razaviTextbookProfile,
+        { fontSize: 20 },
+      );
+      // V with `in` below and `+` above, not `+` and then `in` further on.
+      // The narrower `+` is drawn first, one gap after the base, and `in`
+      // starts back over it, so the line continues after the wider script.
+      const plus = 15.2 * schematicTextAdvanceEm("+", "plain");
+      expect(svg).toBe(
+        `V<tspan data-text-run="superscript" dx="0.6992" dy="-6.688" font-size="15.2px" style="font-style:normal;font-weight:400">+</tspan>` +
+          `<tspan data-text-run="subscript" dx="${Number((-plus).toFixed(6))}" dy="13.376" font-size="15.2px" style="font-style:normal;font-weight:400">in</tspan>`,
+      );
+    },
+  );
 
   it("keeps a script upright when it occurs inside bold italic text", () => {
     const svg = renderRichTextDocument(
