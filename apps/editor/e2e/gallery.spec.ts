@@ -21,6 +21,7 @@ import {
   downloadBytes,
   parseSavedProject,
   openMenu,
+  openProjectProperties,
 } from "./editor-fixtures.js";
 import { CLOUD_PROJECT_LIMIT } from "../src/features/editor-shell/cloud-projects";
 import { galleryEntryMatchesQuery } from "../src/gallery-search";
@@ -3440,16 +3441,18 @@ test("a gallery tile opens its circuit in the editor", async ({ page }) => {
   await expect(page.getByTestId("status")).toContainText(
     `Opened gallery circuit: ${ENTRY.name}`,
   );
-  // Variable-length names and contributor notes are read inside Project.
-  await expect(page.getByTestId("project-name-input")).toBeHidden();
-  await page.getByTestId("project-menu-toggle").click();
-  await expect(page.getByTestId("project-name-input")).toHaveValue(ENTRY.name);
-  const galleryInformation = page.getByTestId("gallery-entry-popover");
-  await expect(galleryInformation).toBeVisible();
+  // Variable-length names and contributor notes are read in File →
+  // Project Properties.
+  const galleryInformation = await openProjectProperties(page);
+  await expect(
+    galleryInformation.getByRole("textbox", { name: "Project name" }),
+  ).toHaveValue(ENTRY.name);
   await expect(galleryInformation).toContainText("Contributor");
   await expect(galleryInformation).toContainText(ENTRY.author);
   await expect(galleryInformation).toContainText("Notes");
   await expect(galleryInformation).toContainText(ENTRY.description);
+  await page.keyboard.press("Escape");
+  await expect(galleryInformation).toBeHidden();
 
   // The brand mark is the single way back; a second toolbar link said the
   // same thing twice.

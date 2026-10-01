@@ -77,13 +77,16 @@ recognize such a network, so both are placed by hand.
   style** under **Copied style** in Properties.
 - The header has three menus beside the site logo, **File**, **Edit** and
   **Circuit**, and three actions: **Simulate**, **Agent** and **Publish**.
-  **File** starts with the project itself: edit the full circuit name, inspect
-  the current Cell and Gallery contributor/notes, or choose an open project;
-  the current project is checked. Enter commits a name; Escape cancels it. The
-  file commands follow. **Circuit** holds **Hierarchy** (the Cell Manager) and
-  **Netlist**. A long name never widens the header: it is the tooltip of
-  **File** and shown whole inside it. **Report bug**, the GitHub repository and
-  the credit stay in view beside your account.
+  **File** holds the file commands only. **New Project** replaces the circuit
+  in the current tab with a blank one, asking first if it has unsaved work.
+  **File → Project Properties…** shows the full circuit name, the current Cell
+  and any Gallery contributor and notes. Edit the name there: Enter or **OK**
+  applies it as one undoable edit, and Escape or **Cancel** leaves it. The open
+  projects are the tabs below the header. **Circuit** holds **Hierarchy** (the
+  Cell Manager) and **Netlist**. A long name never widens the header: it is
+  the tooltip of **File** and shown whole in its tab and in Project
+  Properties. **Report bug**, the GitHub repository and the credit stay in
+  view beside your account.
 - The compact project tab bar opens several independent circuits in one editor.
   Use **+** for a new project, **Open file in new tab** for a local file, or
   **Open Shelf project in tab** for a saved draft. Tabs keep separate cameras,

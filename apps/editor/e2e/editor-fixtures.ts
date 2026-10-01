@@ -108,6 +108,23 @@ export async function clickCommand(
   await details.getByRole("button", { name: button, exact: true }).click();
 }
 
+/** Open File → Project Properties…, where the project's name is edited. */
+export async function openProjectProperties(page: Page): Promise<Locator> {
+  await clickCommand(page, "File", "Project Properties…");
+  const dialog = page.getByRole("dialog", { name: "Project Properties" });
+  await expect(dialog).toBeVisible();
+  return dialog;
+}
+
+/** Rename the open project through Project Properties, as a reader would. */
+export async function renameProject(page: Page, name: string): Promise<void> {
+  const dialog = await openProjectProperties(page);
+  const field = dialog.getByRole("textbox", { name: "Project name" });
+  await field.fill(name);
+  await field.press("Enter");
+  await expect(dialog).toBeHidden();
+}
+
 /** Run one workflow command from the Netlist menu. */
 export async function clickNetlistWorkflowCommand(
   page: Page,

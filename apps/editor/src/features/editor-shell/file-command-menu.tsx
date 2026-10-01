@@ -57,9 +57,11 @@ export interface FileCommandMenuProps {
   onExportRaster: (format: "png" | "pdf") => void;
   onRevert: () => void;
   onOpenRecovery: () => void;
+  /** Opens Project Properties: the project's name and details. */
+  onOpenProperties?: () => void;
   /**
-   * Drawn as the File group inside another menu (the header's project
-   * menu), which refreshes the lists when it opens, not as a menu of its own.
+   * Drawn as the File group inside another menu (the header's File menu),
+   * which refreshes the lists when it opens, not as a menu of its own.
    */
   embedded?: boolean;
 }
@@ -163,6 +165,7 @@ export function FileCommandMenu({
   onExportRaster,
   onRevert,
   onOpenRecovery,
+  onOpenProperties,
   embedded = false,
 }: FileCommandMenuProps) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -385,6 +388,11 @@ export function FileCommandMenu({
       {hasRecoverySessions ? (
         <button type="button" onClick={onOpenRecovery}>
           Recover Unsaved Work…
+        </button>
+      ) : null}
+      {onOpenProperties ? (
+        <button type="button" aria-haspopup="dialog" onClick={onOpenProperties}>
+          Project Properties…
         </button>
       ) : null}
     </>

@@ -12,6 +12,7 @@ import {
   LazyConnectAgentPanel,
   LazyInsertComponentDialog,
   LazyNetlistPreflightDialog,
+  LazyProjectPropertiesDialog,
   LazyProjectSearchDialog,
   LazyPublishGalleryDialog,
   LazyRecentRecoveryDialog,
@@ -25,6 +26,7 @@ export interface EditorDialogLayerProps {
   recoveryAvailable: ComponentProps<typeof RecoveryAvailableBanner> | null;
   recentRecovery: ComponentProps<typeof LazyRecentRecoveryDialog> | null;
   replaceGuard: ComponentProps<typeof LazyReplaceGuardDialog> | null;
+  projectProperties: ComponentProps<typeof LazyProjectPropertiesDialog> | null;
   search: ComponentProps<typeof LazyProjectSearchDialog> | null;
   insertComponent: ComponentProps<typeof LazyInsertComponentDialog> | null;
   cellManager: ComponentProps<typeof LazyCellManagerDialog> | null;
@@ -46,6 +48,7 @@ export function EditorDialogLayer({
   recoveryAvailable,
   recentRecovery,
   replaceGuard,
+  projectProperties,
   search,
   insertComponent,
   cellManager,
@@ -69,6 +72,9 @@ export function EditorDialogLayer({
           <LazyRecentRecoveryDialog {...recentRecovery} />
         ) : null}
         {replaceGuard ? <LazyReplaceGuardDialog {...replaceGuard} /> : null}
+        {projectProperties ? (
+          <LazyProjectPropertiesDialog {...projectProperties} />
+        ) : null}
         {search ? <LazyProjectSearchDialog {...search} /> : null}
         {insertComponent ? (
           <LazyInsertComponentDialog {...insertComponent} />
