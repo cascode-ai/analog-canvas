@@ -2046,11 +2046,15 @@ test("a remembered narrowing loads the wall with its one early request", async (
   let firstListAsked = Number.POSITIVE_INFINITY;
   let wallCodeArrived = Number.POSITIVE_INFINITY;
   // The wall's own code arrives late, as on a slow first visit.
-  await page.route("**/src/components/gallery-feed.tsx*", async (route) => {
-    await new Promise((resolve) => setTimeout(resolve, 800));
-    wallCodeArrived = Date.now();
-    await route.continue();
-  });
+  // The dev server serves the module, the built editor its chunk.
+  await page.route(
+    "**/{src/components/gallery-feed.tsx,assets/gallery-feed-*.js}*",
+    async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      wallCodeArrived = Date.now();
+      await route.continue();
+    },
+  );
   await page.route(galleryListUrl, (route) => {
     firstListAsked = Math.min(firstListAsked, Date.now());
     lists.push(new URL(route.request().url()).search);

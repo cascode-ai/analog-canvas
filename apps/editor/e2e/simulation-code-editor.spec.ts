@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+import { harnessModuleUrl, harnessPagePreamble } from "./helpers/harness-url";
+
 test("native postprocessor Helper inserts editable report source and preserves undo/save", async ({
   page,
 }) => {
@@ -218,12 +220,10 @@ test.beforeEach(async ({ page }) => {
     route.fulfill({
       contentType: "text/html",
       body: `<!doctype html><html><body><script type="module">
-        import RefreshRuntime from "/@react-refresh";
-        RefreshRuntime.injectIntoGlobalHook(window);
-        window.$RefreshReg$ = () => {};
-        window.$RefreshSig$ = () => (type) => type;
-        window.__vite_plugin_react_preamble_installed__ = true;
-        const { mountSimulationCodeHarness } = await import("/e2e/helpers/simulation-code-harness.tsx");
+        ${harnessPagePreamble}
+        const { mountSimulationCodeHarness } = await import(${JSON.stringify(
+          harnessModuleUrl("simulation-code-harness"),
+        )});
         mountSimulationCodeHarness();
       </script></body></html>`,
     }),

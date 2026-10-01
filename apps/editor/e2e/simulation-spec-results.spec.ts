@@ -1,12 +1,13 @@
 import { test, expect } from "@playwright/test";
 
+import { harnessModuleUrl } from "./helpers/harness-url";
+
 test("Specs retain captured judgments and source navigation at narrow and maximized widths", async ({
   page,
 }) => {
   await page.goto("/editor");
   await expect(page.getByTestId("schematic-canvas")).toBeVisible();
-  await page.evaluate(async () => {
-    const harnessPath = "/e2e/helpers/simulation-output-harness.tsx";
+  await page.evaluate(async (harnessPath) => {
     const { mountSimulationOutputHarness } = await import(harnessPath);
     const host = document.createElement("div");
     host.id = "spec-regression";
@@ -61,7 +62,7 @@ test("Specs retain captured judgments and source navigation at narrow and maximi
         ),
       },
     });
-  });
+  }, harnessModuleUrl("simulation-output-harness"));
   const table = page
     .getByRole("region", { name: "Acceptance and issues" })
     .getByRole("table");

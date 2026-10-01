@@ -125,6 +125,20 @@ the boundary has moved.
 - Use `pnpm test:local <test-paths>` for affected unit contracts and
   `pnpm test:e2e:local <spec-paths> [--grep <pattern>]` for affected
   browser behavior. Both commands cap local concurrency.
+  - `test:e2e:local` first builds the workspace packages the specs' Node side
+    loads (a second or two when nothing changed), so a stale `dist/` cannot
+    fail specs far from the cause.
+  - The server serves the editor built for tests
+    (`scripts/build-e2e-editor.mjs`, about a second, rebuilt at each start).
+    A page loads a few chunks instead of hundreds of modules compiled on
+    first request: about 20% faster, and no cold first loads timing out.
+    `ICM_E2E_SERVER=dev` serves the source instead. A spec that imports a
+    module into the page names it in `e2e/helpers/page-modules.ts` and
+    loads it through `harnessModuleUrl`.
+  - `ICM_E2E_BASE_URL=<url>` runs specs against a running editor without
+    starting one. For a live check after a deploy, point it at the site and
+    `--grep` editor-only cases: anything a case does reaches that server.
+  - `pnpm e2e:slowest` reads the last local run's case durations.
 - **Run the Gallery census for copying, labels, and netlists.** Tests use tidy
   fixtures, and defects have shipped that only drawings in the Community
   Gallery reach: identities chained by old copies, a supply Pin whose label
@@ -228,26 +242,30 @@ Before a non-document change is merged or pushed to `main`:
    locally when actual risk cannot be represented by the browser map, when it
    calls for pre-push full evidence, or when remote CI is unavailable.
 
-   The default local check before the pull request is short. The merge queue
-   already runs `ci:static`, the complete unit suite and `release:verify` on
-   the merged candidate, so they are not repeated locally.
-   - Typecheck (`pnpm typecheck`) and formatting (`pnpm format:check`).
-   - The unit tests of the touched areas, then one `pnpm test:local` for the
-     whole suite, which takes about 2.5 minutes and catches a cross-module
-     break before it costs a queue cycle.
-   - The browser specs the queue maps to the change
-     (`node scripts/ci-plan.mjs --base <base-ref>` prints them), plus the
-     specs of the areas the change touches.
+   The default local check before the pull request is one command,
+   `pnpm verify:pr -- --base <base-ref>`. It stops at the first failure and
+   ends with each step's time:
+   - typecheck, and Prettier on the changed files it formats;
+   - every unit test that imports a changed file (`vitest related`). A leaf
+     change runs a few tests and a core package most of the suite, so the
+     run neither guesses the touched areas (a guess once missed a stale
+     example test in another package) nor runs the whole suite every time;
+   - the browser specs the queue maps to the change
+     (`node scripts/ci-plan.mjs --base <base-ref>` prints them), with 4
+     workers.
 
-   Add `pnpm build` and `pnpm release:verify:built` locally only when the
-   change touches rendering, export, symbols or packaging, where goldens and
-   the bundle budget can move. Run every browser spec locally
-   (`pnpm test:e2e:local --workers=4`, about 12 minutes) only for a change
-   that ripples through the whole editor: connectivity, the Edit Engine,
-   netlist extraction, the Project model or its schema. A derived diagnostic,
-   a Gallery feature or a UI fix does not need it, even when the plan names
-   `full-delivery`. If a queue check then fails, repair it and queue again,
-   rather than going back to running everything locally.
+   The merge queue already runs `ci:static`, the complete unit suite,
+   `release:verify` and the mapped specs on the merged candidate, so they are
+   not repeated locally. Add `pnpm build` and `pnpm release:verify:built`
+   locally only when the change touches rendering, export, symbols or
+   packaging, where goldens and the bundle budget can move. Do not run every
+   browser spec locally, whatever the change or the plan's `full-delivery`
+   says: about 740 cases take some 16 minutes with 4 workers, and the local
+   full runs of 2026-09-27 to 10-01 found nothing the mapped specs missed.
+   Add the spec of an area the queue does not map, if you edited one. If a
+   queue check then fails, repair it and queue again, rather than going back
+   to running everything locally.
+
 4. Push a review branch, open the pull request and run `gh pr merge <number>`
    right away. On the pull request itself CI only plans the change scope and
    checks the Test-Impact trailers; its two required checks are skipped, which
@@ -258,7 +276,8 @@ Before a non-document change is merged or pushed to `main`:
    only the mapped affected specs, or a small insertion/runtime fallback for
    an unmapped product path. A branch needs a manual update only when it
    conflicts with `main`, not merely because `main` moved. CI has no full browser audit and runs nothing on a
-   schedule; `pnpm test:e2e` runs every spec locally when a change needs it.
+   schedule. `pnpm test:e2e` runs every spec, for auditing the browser map
+   itself, not for validating a change.
 5. If a queue check fails, the pull request leaves the queue. Keep the target
    active: inspect its log, repair the reported cause, push, and queue it
    again. A successful `git push` is not a
