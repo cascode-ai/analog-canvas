@@ -53,7 +53,7 @@ const FolderArgs = z.discriminatedUnion("action", [
           .array(SpiceIdentifier)
           .optional()
           .describe(
-            "Optional testbench node names in the exported subcircuit's exact order; the count must match the Cell interface. Names must be ASCII SPICE identifiers.",
+            "Optional testbench node names in the exported subcircuit's exact order; the count must match the Cell interface, and a name that is one of the Cell's ports must be at that port's position. Names must be ASCII SPICE identifiers.",
           ),
       })
       .optional(),
@@ -369,6 +369,22 @@ export const simulationAuthoringTools: readonly Entry[] = [
             return failure(
               "SIMULATION_DUT_PORT_COUNT_MISMATCH",
               `dut.ports must contain ${resolved.ports.length} names in the exported order`,
+            );
+          // The testbench connects dut.ports to the Cell by position. A name
+          // that is one of the Cell's ports must therefore sit where that
+          // port is; any other name is just the testbench node's name.
+          const misplaced = (parsed.dut?.ports ?? []).flatMap((name, index) => {
+            const at = resolved.ports.findIndex(
+              (port) => port.toLowerCase() === name.toLowerCase(),
+            );
+            return at >= 0 && at !== index
+              ? [`${name} is at position ${index + 1}, the Cell's ${at + 1}`]
+              : [];
+          });
+          if (misplaced.length)
+            return failure(
+              "SIMULATION_DUT_PORT_ORDER_MISMATCH",
+              `dut.ports must follow the exported order ${resolved.ports.join(" ")}: ${misplaced.join("; ")}`,
             );
           dut = {
             ...resolved,

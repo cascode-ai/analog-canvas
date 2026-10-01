@@ -20,7 +20,8 @@ import otaProject from "../../../netlists/native-ota-library/legacy-source.icpro
 
 const dutDocumentId = "document-ota-5t";
 const dutName = "ota_5t";
-const dutPorts = ["VDD", "VSS", "IN", "OUT", "IBIAS", "VOUT"];
+// The OTA Cell's exported order: the testbench connects by position.
+const dutPorts = ["VDD", "VSS", "IBIAS", "VINN", "VINP", "VOUT"];
 
 async function toolSession(
   http: FakeAgentHttp = new FakeAgentHttp(),
@@ -751,6 +752,52 @@ describe("mcp tool surface", () => {
         },
       ],
     });
+    // Issue #1259: the Cell's own port names in another order would wire
+    // the testbench to the wrong pins by position.
+    const swapped = [dutPorts[1]!, dutPorts[0]!, ...dutPorts.slice(2)];
+    expect(
+      parseText(
+        await callTool(
+          "simulation_folder",
+          {
+            action: "create",
+            folderId: "dut-swapped",
+            name: "DUT swapped",
+            profileId: "test",
+            rootDocumentId: dutDocumentId,
+            dut: { name: dutName, ports: swapped },
+          },
+          session,
+        ),
+      ),
+    ).toMatchObject({
+      ok: false,
+      error: {
+        code: "SIMULATION_DUT_PORT_ORDER_MISMATCH",
+        message: expect.stringContaining(
+          `${dutPorts[1]} is at position 1, the Cell's 2`,
+        ),
+      },
+    });
+    expect(writes).toHaveLength(4);
+    // Names that are not the Cell's ports are the testbench's own nodes.
+    const aliases = ["vdd_tb", ...dutPorts.slice(1)];
+    expect(
+      parseText(
+        await callTool(
+          "simulation_folder",
+          {
+            action: "create",
+            folderId: "dut-alias",
+            name: "DUT alias",
+            profileId: "test",
+            rootDocumentId: dutDocumentId,
+            dut: { name: dutName, ports: aliases },
+          },
+          session,
+        ),
+      ),
+    ).toMatchObject({ ok: true, dut: { ports: aliases } });
     expect(
       parseText(
         await callTool(
