@@ -77,9 +77,12 @@ export function localAgentRelay(): Plugin {
 
   return {
     name: "local-agent-relay",
-    apply: (_config, env) => env.command === "serve" && !env.isPreview,
+    // Also under `vite preview`, which browser tests use to serve the built
+    // editor: the relay is the same either way.
+    apply: "serve",
     config() {
-      return { server: { proxy: { "/api/agent/": agentProxy } } };
+      const proxy = { "/api/agent/": agentProxy };
+      return { server: { proxy }, preview: { proxy } };
     },
     async closeBundle() {
       closing = true;

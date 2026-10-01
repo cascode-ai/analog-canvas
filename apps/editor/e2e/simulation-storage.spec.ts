@@ -2,6 +2,12 @@ import { expect, test } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { parseProject } from "@icm/project-protocol";
 
+import { harnessModuleUrl } from "./helpers/harness-url";
+
+const archiveUrl = harnessModuleUrl("browser-simulation-archive-store");
+const artifactUrl = harnessModuleUrl("browser-simulation-artifact-store");
+const lockUrl = harnessModuleUrl("browser-simulation-storage-lock");
+
 test("Run history can reveal browser results from other folders without changing the selected folder", async ({
   page,
 }) => {
@@ -19,10 +25,8 @@ test("Run history can reveal browser results from other folders without changing
     buffer: Buffer.from(JSON.stringify(project)),
   });
   await page.evaluate(
-    async ({ projectId, folderId }) => {
-      const archivePath =
-        "/src/features/simulation/browser-simulation-archive-store.ts";
-      const { createBrowserSimulationArchiveStore } = await import(archivePath);
+    async ({ projectId, folderId, archiveUrl }) => {
+      const { createBrowserSimulationArchiveStore } = await import(archiveUrl);
       const store = createBrowserSimulationArchiveStore();
       for (const [id, owner] of [
         ["current", folderId],
@@ -66,7 +70,7 @@ test("Run history can reveal browser results from other folders without changing
       }
       store.close();
     },
-    { projectId: project.id, folderId },
+    { projectId: project.id, folderId, archiveUrl },
   );
   await page.getByTestId("open-analog-simulation").click();
   await page.locator(".simulation-run-history > summary").click();
@@ -81,60 +85,67 @@ test("Project evidence lifetime defers reclamation until the next idle startup",
   page,
 }) => {
   await page.goto("/editor");
-  const result = await page.evaluate(async () => {
-    const artifactPath =
-      "/src/features/simulation/browser-simulation-artifact-store.ts";
-    const archivePath =
-      "/src/features/simulation/browser-simulation-archive-store.ts";
-    const { createBrowserSimulationArtifactStore } = await import(artifactPath);
-    const { createBrowserSimulationArchiveStore } = await import(archivePath);
-    const projectId = "cleanup-browser-proof";
-    const active = createBrowserSimulationArtifactStore(projectId, indexedDB, {
-      retainSession: true,
-    });
-    const archives = createBrowserSimulationArchiveStore();
-    const ref = {
-      id: "kept",
-      name: "result.raw",
-      mediaType: "text/plain",
-      byteLength: 4,
-      sha256: "a".repeat(64),
-    };
-    await active.put(ref, "data");
-    await active.put({ ...ref, id: "orphan" }, "data");
-    await active.saveCatalog({
-      catalog: {
-        schemaVersion: 1,
-        runId: "kept-run",
-        preparedId: "prepared",
-        inputRevision: "rev",
-        execution: "completed",
-        collection: "complete",
-        files: [ref],
-        datasets: [],
-      },
-      storedAt: 1,
-    });
-    const deferred = await archives.cleanup(projectId);
-    const before = (await active.get("orphan"))?.text;
-    active.releaseSession();
-    // First access in the new lifetime performs cleanup before acquiring its lease.
-    const fresh = createBrowserSimulationArtifactStore(projectId, indexedDB, {
-      retainSession: true,
-    });
-    const orphan = await fresh.get("orphan");
-    const kept = (await fresh.get("kept"))?.text;
-    const catalogs = await fresh.catalogs();
-    fresh.releaseSession();
-    archives.close();
-    return {
-      deferred,
-      before,
-      orphan,
-      kept,
-      runIds: catalogs.map((entry: any) => entry.catalog.runId),
-    };
-  });
+  const result = await page.evaluate(
+    async (urls) => {
+      const { createBrowserSimulationArtifactStore } = await import(
+        urls.artifact
+      );
+      const { createBrowserSimulationArchiveStore } = await import(
+        urls.archive
+      );
+      const projectId = "cleanup-browser-proof";
+      const active = createBrowserSimulationArtifactStore(
+        projectId,
+        indexedDB,
+        {
+          retainSession: true,
+        },
+      );
+      const archives = createBrowserSimulationArchiveStore();
+      const ref = {
+        id: "kept",
+        name: "result.raw",
+        mediaType: "text/plain",
+        byteLength: 4,
+        sha256: "a".repeat(64),
+      };
+      await active.put(ref, "data");
+      await active.put({ ...ref, id: "orphan" }, "data");
+      await active.saveCatalog({
+        catalog: {
+          schemaVersion: 1,
+          runId: "kept-run",
+          preparedId: "prepared",
+          inputRevision: "rev",
+          execution: "completed",
+          collection: "complete",
+          files: [ref],
+          datasets: [],
+        },
+        storedAt: 1,
+      });
+      const deferred = await archives.cleanup(projectId);
+      const before = (await active.get("orphan"))?.text;
+      active.releaseSession();
+      // First access in the new lifetime performs cleanup before acquiring its lease.
+      const fresh = createBrowserSimulationArtifactStore(projectId, indexedDB, {
+        retainSession: true,
+      });
+      const orphan = await fresh.get("orphan");
+      const kept = (await fresh.get("kept"))?.text;
+      const catalogs = await fresh.catalogs();
+      fresh.releaseSession();
+      archives.close();
+      return {
+        deferred,
+        before,
+        orphan,
+        kept,
+        runIds: catalogs.map((entry: any) => entry.catalog.runId),
+      };
+    },
+    { artifact: artifactUrl, archive: archiveUrl },
+  );
   expect(result).toEqual({
     deferred: { ok: true, value: { deferred: true, files: 0, bytes: 0 } },
     before: "data",
@@ -151,32 +162,27 @@ test("Project evidence lifetime protects across tabs and releases on page close"
   await page.goto("/editor");
   const peer = await context.newPage();
   await peer.goto("/editor");
-  await page.evaluate(async () => {
-    const path = "/src/features/simulation/browser-simulation-storage-lock.ts";
+  await page.evaluate(async (path) => {
     const { ProjectEvidenceLease } = await import(path);
     const lease = new ProjectEvidenceLease("storage-lifetime-proof");
     (window as any).evidenceLease = lease;
     await lease.acquire();
     await lease.acquire(); // one consumer must not accidentally retain twice
-  });
+  }, lockUrl);
   const attempt = () =>
-    peer.evaluate(async () => {
-      const path =
-        "/src/features/simulation/browser-simulation-storage-lock.ts";
+    peer.evaluate(async (path) => {
       const { withExclusiveEvidence } = await import(path);
       return withExclusiveEvidence(
         "storage-lifetime-proof",
         async () => "reclaimed",
       );
-    });
+    }, lockUrl);
   expect(await attempt()).toEqual({ available: false });
   expect(
-    await peer.evaluate(async () => {
-      const path =
-        "/src/features/simulation/browser-simulation-storage-lock.ts";
+    await peer.evaluate(async (path) => {
       const { withExclusiveEvidence } = await import(path);
       return withExclusiveEvidence("different-project", async () => "isolated");
-    }),
+    }, lockUrl),
   ).toEqual({ available: true, value: "isolated" });
   await page.evaluate(() => (window as any).evidenceLease.release());
   await expect.poll(attempt).toEqual({ available: true, value: "reclaimed" });

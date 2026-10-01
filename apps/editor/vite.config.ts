@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { readFile, writeFile } from "node:fs/promises";
+import { resolve } from "node:path";
 
 import react from "@vitejs/plugin-react";
 import { defineConfig, type Plugin } from "vite";
@@ -27,13 +28,18 @@ function isolateDevDependencyCache(): Plugin {
   };
 }
 
-function versionStaticServiceWorker() {
+function versionStaticServiceWorker(): Plugin {
+  // The browser-test build writes elsewhere (build:e2e), so follow outDir.
+  let outDir = "";
   return {
     name: "version-static-service-worker",
-    apply: "build" as const,
+    apply: "build",
+    configResolved(config) {
+      outDir = resolve(config.root, config.build.outDir);
+    },
     async writeBundle() {
-      const indexPath = new URL("./dist/index.html", import.meta.url);
-      const workerPath = new URL("./dist/sw.js", import.meta.url);
+      const indexPath = resolve(outDir, "index.html");
+      const workerPath = resolve(outDir, "sw.js");
       const index = await readFile(indexPath);
       const buildId = createHash("sha256")
         .update(index)

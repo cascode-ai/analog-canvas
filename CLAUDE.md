@@ -40,6 +40,8 @@ pnpm test                         # all unit/module tests
 pnpm test:e2e                     # all Playwright specs
 
 pnpm test:impact -- --base <base-ref>   # validates the commits' Test-Impact trailer
+pnpm verify:pr -- --base <base-ref>     # the local check before a PR: typecheck, format, vitest related, mapped browser specs
+pnpm e2e:slowest                        # where the last local browser run's time went
 
 # Gates
 pnpm ci:static       # format, docs, references, component/Razavi/Agent catalog drift, MCP distribution, typecheck
@@ -52,9 +54,9 @@ pnpm gate:full                          # conservative full-delivery path (ci:ch
 pnpm gallery:census -- --base <base-ref> # local only: every Gallery drawing through copy, labels, netlist vs the base (AGENTS.md says when)
 ```
 
-Unit tests sit beside their implementation under one root `vitest.config.ts`: `*.test.ts(x)` in `apps/`, `packages/`, and `worker/`, and `*.test.mjs` in `scripts/` and `containers/` (exception: `packages/agent-routing/test/`). Workspace packages have no test scripts of their own. Playwright specs live in `apps/editor/e2e/`; the config auto-starts a Vite server on `127.0.0.1:4173` (`ICM_E2E_PORT`), reuses a running one unless `CI` or `ICM_E2E_ISOLATED=1` is set, and drives system Chrome locally (`PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` overrides).
+Unit tests sit beside their implementation under one root `vitest.config.ts`: `*.test.ts(x)` in `apps/`, `packages/`, and `worker/`, and `*.test.mjs` in `scripts/` and `containers/` (exception: `packages/agent-routing/test/`). Workspace packages have no test scripts of their own. Playwright specs live in `apps/editor/e2e/`; the config auto-starts a server for the editor built for tests (`scripts/build-e2e-editor.mjs`; `ICM_E2E_SERVER=dev` serves source instead) on `127.0.0.1:4173` (`ICM_E2E_PORT`), reuses a running one unless `CI` or `ICM_E2E_ISOLATED=1` is set, targets a running editor instead with `ICM_E2E_BASE_URL`, and drives system Chrome locally (`PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` overrides). `test:e2e:local` builds the editor's workspace dependencies first, as `ci:e2e` does.
 
-CI (`.github/workflows/ci.yml`) plans validation from the changed paths (`scripts/ci-plan.mjs`, `config/validation-gates.json`). The two required checks are `Core contracts` (`ci:static`, `ci:unit`, `release:verify`) and `Browser tests` (only the specs mapped to the changed paths, or a small fallback). They run once, in the merge queue: on a pull request CI only plans the scope and checks Test-Impact, and the required checks are skipped (GitHub counts that as passing), so `gh pr merge <number>` queues it at once and the queue tests the candidate merged with current `main`. Branches are not updated by hand just because `main` moved. CI has no full browser audit and runs nothing on a schedule; `pnpm test:e2e` runs every spec locally.
+CI (`.github/workflows/ci.yml`) plans validation from the changed paths (`scripts/ci-plan.mjs`, `config/validation-gates.json`). The two required checks are `Core contracts` (`ci:static`, `ci:unit`, `release:verify`) and `Browser tests` (only the specs mapped to the changed paths, or a small fallback). They run once, in the merge queue: on a pull request CI only plans the scope and checks Test-Impact, and the required checks are skipped (GitHub counts that as passing), so `gh pr merge <number>` queues it at once and the queue tests the candidate merged with current `main`. Branches are not updated by hand just because `main` moved. CI has no full browser audit and runs nothing on a schedule; `pnpm test:e2e` runs every spec, for auditing the browser map, not for validating a change.
 
 ### Generated artifacts
 
@@ -82,12 +84,13 @@ Regeneration order when symbol data changes:
 - **Before editing tracked files**: run `git status --short --branch` and audit dirty paths by ownership (unrelated dirty files don't block; overlapping or unclear ones do). Know the target's goal, owned paths, and shared contracts; `plan/` is the untracked scratch area.
 - **Test impact**: a commit that changes implementation code — `.ts/.tsx/.js/.mjs` under `apps/*/src/`, `packages/*/src/`, `worker/`, or `scripts/` — carries a `Test-Impact:` trailer: `tests-updated`, or `no-test-change — <evidence>`. `pnpm test:impact -- --base <ref>` cross-checks the claim against the diff and CI runs the same check.
 - **Validation is risk-proportional**: run the smallest deterministic checks that cover the change (documentation-only → `pnpm docs:check`); full suites only when breadth, risk, or policy justifies them. Every target closes with `git diff --check`, `git status --short --branch`, and a commit message that stands alone: what changed, why, the validation and chosen gates, and the trailer.
-- **Mainline delivery gate**: follow the selected gates and the required `Core contracts` and `Browser tests` checks in [AGENTS.md](AGENTS.md); [deployment](docs/deployment.md) owns Production release and recovery. The local check before a pull request is short:
-  - typecheck and format;
-  - unit tests of the touched areas, then one `pnpm test:local`;
-  - the browser specs `scripts/ci-plan.mjs` maps to the change.
+- **Mainline delivery gate**: follow the selected gates and the required `Core contracts` and `Browser tests` checks in [AGENTS.md](AGENTS.md); [deployment](docs/deployment.md) owns Production release and recovery. The local check before a pull request is one command, `pnpm verify:pr -- --base <base-ref>`:
+  - typecheck, and Prettier on the changed files;
+  - every unit test that imports a changed file (`vitest related`);
+  - the browser specs `scripts/ci-plan.mjs` maps to the change, on the built editor with 4 workers.
 
-  The merge queue owns `ci:static`, the full unit suite and `release:verify`. Run build and release verification locally only for rendering, export, symbol or packaging changes, and every browser spec (4 workers) only for connectivity, Edit Engine, netlist or Project-model changes.
+  The merge queue owns `ci:static`, the full unit suite, `release:verify` and the mapped specs. Run build and release verification locally only for rendering, export, symbol or packaging changes. Never run every browser spec locally: the full local runs found nothing the mapped specs missed.
+
 - **Circuit assets**: one circuit per `netlists/<name>/` directory; `.subckt` interfaces and instance pin order are shared contracts (check every caller before changing); never claim electrical correctness from syntax inspection alone; never silently replace vendor/foundry model data with illustrative values.
 - Commit subjects use conventional scopes: `feat(editor):`, `fix(netlist):`, `docs(specs):`, `test(editor):`.
 

@@ -107,6 +107,10 @@ describe("drawn magnetic devices", () => {
       text.indexOf(".subckt dut"),
     );
     expect(text.split(".subckt tcoil").length).toBe(2);
+    // Spectre names the coupling through a mutual_inductor instance.
+    const spectre = exported(tcoil(), "spectre");
+    expect(spectre).toContain("X1 (a b tap) tcoil l1=1n l2=2n k=0.5 cb=10f");
+    expect(spectre).toContain("K12 mutual_inductor coupling=k ind1=L1 ind2=L2");
   });
 
   it("writes a transformer from the dotted + pins, in SPICE and Spectre", () => {

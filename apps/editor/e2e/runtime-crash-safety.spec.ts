@@ -6,6 +6,9 @@ import {
   openCellManager,
 } from "./editor-fixtures.js";
 
+/** The App module as the dev server serves it, or its chunk in the built editor. */
+const APP_CHUNK = "**/{src/app/App.tsx,assets/App-*.js}*";
+
 // These cases deliberately break and reload the shared editor origin. Keep
 // them in one worker so cache cleanup and failed chunk requests cannot race.
 test.describe.configure({ mode: "default" });
@@ -51,7 +54,7 @@ test("a repeated route chunk failure is not misreported as an old build", async 
 }) => {
   // #529 named the App chunk from the current deployment. Aborting its route
   // reproduces a transient dynamic-import failure rather than a retired 404.
-  await page.route("**/src/app/App.tsx*", (route) => route.abort());
+  await page.route(APP_CHUNK, (route) => route.abort());
   await page.goto("/editor");
 
   // The loader retries one navigation. The second failure reaches a neutral,
@@ -87,7 +90,7 @@ test("the recovery button gets a stuck page back into the editor", async ({
   // A retired chunk: the shape that genuinely means "this document can no
   // longer boot", as distinct from the transient failure above.
   let chunkRetired = true;
-  await page.route("**/src/app/App.tsx*", (route) => {
+  await page.route(APP_CHUNK, (route) => {
     if (chunkRetired) return route.fulfill({ status: 404, body: "" });
     return route.continue();
   });

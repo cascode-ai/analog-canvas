@@ -61,6 +61,53 @@ describe("implicit schematic MOS body supplies", () => {
     },
   );
 
+  it.each(["spice", "spectre"] as const)(
+    "adds only the default supplies to authored ports, keeping their case, in %s",
+    (format) => {
+      // Two gates on Cell Pins Vin and Vin2; D and S shared; no bulk drawn.
+      const project = pair();
+      const document = project.documents[0]!;
+      document.nets = document.nets.filter((net) => net.id !== "G");
+      for (const [index, id] of ["M1", "M2"].entries()) {
+        const portId = `P${index}`;
+        const netId = `gate-${index}`;
+        document.instances.push({
+          id: portId,
+          symbolId: "port",
+          placement: null,
+        });
+        document.nets.push({
+          id: netId,
+          terminals: [
+            { instanceId: id, pinName: "G" },
+            { instanceId: portId, pinName: "P" },
+          ],
+        });
+        document.netlist!.terminals.push({
+          id: `input-${index}`,
+          name: index ? "Vin2" : "Vin",
+          netId,
+          direction: "input",
+          interfaceInstanceIds: [portId],
+        });
+      }
+      const before = structuredClone(project);
+      const result = createDesignNetlistExport(project, { format });
+      expect(result.status, JSON.stringify(result.diagnostics)).toBe("ready");
+      if (result.status !== "ready") return;
+      expect(result.file.text).toContain(
+        format === "spice"
+          ? ".subckt dut VDD VSS Vin Vin2\n"
+          : "subckt dut (VDD VSS Vin Vin2)\n",
+      );
+      expect(result.file.text).toMatch(/M1 \(?\S+ Vin \S+ VSS\)? NMOS/u);
+      expect(result.file.text).toMatch(/M2 \(?\S+ Vin2 \S+ VSS\)? NMOS/u);
+      expect(result.file.text).not.toMatch(/global/iu);
+      // The drawing gains no bulk terminal.
+      expect(project).toEqual(before);
+    },
+  );
+
   it("defaults a PMOS to VDD while keeping NoConnect and explicit body overrides", () => {
     const project = pair("pmos");
     let result = createDesignNetlistExport(project);

@@ -11,7 +11,13 @@
   ],
   "pathGroups": {
     "documentation": ["**/*.md", "docs/**"],
-    "source": ["apps/**", "packages/**", "worker/**", "scripts/**"],
+    "source": [
+      "apps/**",
+      "packages/**",
+      "worker/**",
+      "scripts/**",
+      "fixtures/**"
+    ],
     "editorInteraction": [
       "apps/editor/src/app/**",
       "apps/editor/src/canvas/**",

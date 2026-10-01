@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
   mkdirSync,
   mkdtempSync,
@@ -173,6 +174,36 @@ describe("mcp-release-bump --stamp", () => {
     );
     expect(run(root, ["--stamp", "--build-dir", buildDir]).output).toMatch(
       /was not built/su,
+    );
+  });
+
+  it("stamps a downloaded workflow artifact off the build platform once its tarball checks out", () => {
+    // 2026-10-01: the Linux artifact was downloaded on macOS and its digest
+    // copied by hand, because --stamp refused to run there.
+    const otherPlatform = process.platform === "linux" ? "darwin" : "linux";
+    const { root, configPath } = fixture({
+      buildPlatform: otherPlatform,
+      sha256: "",
+    });
+    const asset = "analog-canvas-mcp-server-0.15.6.tgz";
+    const bytes = Buffer.from("packed on the declared platform");
+    const digest = createHash("sha256").update(bytes).digest("hex");
+    const artifact = writeBuild(root, asset, digest);
+    writeFileSync(join(artifact, asset), bytes);
+    const { code, output } = run(root, ["--from-ci-artifact", artifact]);
+    expect(code, output).toBe(0);
+    expect(JSON.parse(readFileSync(configPath, "utf8")).release.sha256).toBe(
+      digest,
+    );
+
+    // A tarball that does not hash to its sums is refused, whatever the sums say.
+    writeFileSync(join(artifact, asset), Buffer.from("something else"));
+    const { root: other } = fixture({
+      buildPlatform: otherPlatform,
+      sha256: "",
+    });
+    expect(run(other, ["--from-ci-artifact", artifact]).output).toMatch(
+      /hashes to [a-f0-9]{64}, not the/su,
     );
   });
 
