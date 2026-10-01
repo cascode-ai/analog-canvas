@@ -21,7 +21,7 @@ Focused circuit tools retain the `{documentId?, actions:[...]}` call envelope:
 | `circuit_transform`  | Individual move/rotate/mirror, arrange, detach-move and rail span |
 | `circuit_selection`  | Selection transform, copy and align                               |
 | `circuit_text`       | Labels, annotations, text changes and annotation movement         |
-| `circuit_properties` | References, parameters, model selection and display flags         |
+| `circuit_properties` | References, parameters, model selection, display flags and block supplies |
 
 Each is a projection and forwarding entry, not a separate edit engine. Existing
 batch compatibility and transaction boundaries still apply; membership in one

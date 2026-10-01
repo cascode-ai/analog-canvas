@@ -5,7 +5,9 @@ import {
 } from "@icm/agent-adapter";
 import { agentRazaviAuthoringCatalog } from "@icm/agent-adapter/kit";
 import {
+  deviceDescriptor,
   instanceParameterContract,
+  subcircuitDescriptor,
   validateDeviceParameters,
 } from "@icm/devices";
 import {
@@ -633,6 +635,40 @@ export function compileActions(
         };
         for (const key of action.unset ?? []) delete parameters[key];
         instance.netlist = { ...instance.netlist, parameters };
+        break;
+      }
+      case "set-block-supply": {
+        // Fixes MISSING_BLOCK_SUPPLY in one action, through the same
+        // property-only terminal the Properties panel binds.
+        const instance = resolveInstance(
+          document,
+          index,
+          action.kind,
+          action.target,
+        );
+        // A built-in block names its supplies, and a built-in primitive has
+        // none; the edit engine checks a user component's terminal itself.
+        const descriptor = subcircuitDescriptor(instance.symbolId);
+        if (
+          descriptor
+            ? !descriptor.ports.some((port) => port.supply === action.supply)
+            : deviceDescriptor(instance.symbolId) !== undefined
+        )
+          throw new ActionCompileError(
+            index,
+            action.kind,
+            `instance "${instance.reference ?? instance.id}" has no ${action.supply} supply to choose`,
+          );
+        const net =
+          action.net === null
+            ? null
+            : resolveNet(document, index, action.kind, action.net);
+        pushEdit(index, action.kind, {
+          kind: "set_property_terminal_net",
+          instanceId: instance.id,
+          pinName: action.supply,
+          netId: net?.id ?? null,
+        });
         break;
       }
       case "set-source-control": {

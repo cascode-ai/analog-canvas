@@ -424,8 +424,18 @@ Port or a wired supply marker), the same classification used for MOS bodies
 ([connectivity](connectivity-and-routing.md)). A same-named ordinary signal
 is not sufficient evidence. If no candidate exists or several compete,
 `MISSING_BLOCK_SUPPLY` blocks export until the author selects a Net or draws
-one unique supply. Export never silently declares `.global VDD VSS` or adds
-Cell Pins for the Block.
+one unique supply. An Agent makes the same choice with `circuit_properties`
+`set-block-supply {target, supply, net}`; `net: null` returns to Auto.
+
+Some built-in bodies never read their supplies: the ideal amplifiers and the
+adder in either format, and the multiplier in SPICE. When such a Block has
+neither a selected nor a drawn supply, the unused port is tied to node `0`
+and nothing blocks. A textbook switched-capacitor integrator therefore exports
+without a supply drawn. An authored Cell or a declared external definition of
+the same name replaces the body and may use its supplies, so the rule above
+applies to it again, as it does to every Block whose body uses VDD and VSS.
+Export never silently declares `.global VDD VSS` or adds Cell Pins for the
+Block.
 
 Persisted reviewed physical R/C bindings emit their declared terminals and raw
 geometry; an ideal value is never reinterpreted as physical geometry during

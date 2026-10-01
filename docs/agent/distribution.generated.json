@@ -93,7 +93,7 @@
     },
     {
       "source": "docs/agent/mcp/tools.md",
-      "sha256": "b4190fe5e3fe43816026756d87c9942f76a6fad3dafad211a2850d1cb47d037b"
+      "sha256": "2968f3adbe980f1e78b7af3e4876fc1d30ae9d9614ed5f5704a2ecc6e04ba74c"
     },
     {
       "source": "docs/agent/mcp/simulation.md",
@@ -113,7 +113,7 @@
     },
     {
       "source": "docs/agent/mcp/tool-help.json",
-      "sha256": "38e71b30c29bc98b31a9b2db1b60a06108d6422af2901d38f124c2380881bced"
+      "sha256": "eead5d57c817dab56eba3215b06e7626e99b966bb3b1e419425592331cc55b29"
     },
     {
       "source": "docs/agent/http-kit/api-help.json",
@@ -621,7 +621,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/circuit-style-knowledge.md"
       ],
-      "sha256": "30bafaddc82fa409fad9f2d2717c11f406acfb8f3fec34ff21e81d9c9b39b94f"
+      "sha256": "5682c86c011a96864c8494e4706a134969302581c80b7bd6ef5a883c574bf93f"
     },
     {
       "file": "packages/agent-adapter/src/agent-docs.generated.ts",
@@ -667,7 +667,7 @@
         "docs/agent/mcp/instructions.md",
         "docs/agent/mcp/tool-help.json"
       ],
-      "sha256": "5e360c826c75c8f14bb85df7bdfc94dcddf56b00e2e82c351420ec4c56c78fab"
+      "sha256": "b9f4b09d32ce3e7080f2e95a8b85d214cc3e2059f04dc0b02564adff928d7ff8"
     },
     {
       "file": "apps/editor/src/agent/connection-guidance.generated.ts",

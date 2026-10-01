@@ -813,6 +813,65 @@ describe("authoring helper compilation", () => {
     );
   });
 
+  it("compiles set-block-supply into the block's property-only supply terminal", () => {
+    // Issue #1253: MISSING_BLOCK_SUPPLY needs one focused action, not an
+    // advanced typed edit.
+    const snapshot = testSnapshot();
+    snapshot.document.instances.push({
+      ...structuredClone(snapshot.document.instances[1]!),
+      id: "instance-inverter",
+      reference: "X1",
+      symbolId: "inverter",
+    });
+    const target = { kind: "instance", reference: "X1" };
+    const [chosen] = compile(
+      [
+        {
+          kind: "set-block-supply",
+          target,
+          supply: "VDD",
+          net: { kind: "net", name: "VDD" },
+        },
+      ],
+      snapshot,
+    );
+    expect(chosen?.edits?.[0]).toEqual({
+      kind: "set_property_terminal_net",
+      instanceId: "instance-inverter",
+      pinName: "VDD",
+      netId: "net-vdd",
+    });
+    const [auto] = compile(
+      [{ kind: "set-block-supply", target, supply: "VSS", net: null }],
+      snapshot,
+    );
+    expect(auto?.edits?.[0]).toEqual({
+      kind: "set_property_terminal_net",
+      instanceId: "instance-inverter",
+      pinName: "VSS",
+      netId: null,
+    });
+    expectCompileError(
+      [
+        {
+          kind: "set-block-supply",
+          target: { kind: "instance", reference: "M1" },
+          supply: "VDD",
+          net: null,
+        },
+      ],
+      'instance "M1" has no VDD supply to choose',
+    );
+    expect(
+      AuthoringActionSchema.safeParse({
+        kind: "set-block-supply",
+        target,
+        supply: "VCC",
+        net: null,
+      }).success,
+    ).toBe(false);
+  });
+
   it("checks a resistor bound to a reviewed SKY130 model against that model", () => {
     // Issue #1274: the SKY130 resistor takes w, l and mult, not value.
     const snapshot = testSnapshot();
