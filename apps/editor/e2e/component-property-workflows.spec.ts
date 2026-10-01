@@ -2425,6 +2425,10 @@ test("common item fields start with type and name and preserve reference binding
     "color",
   ]);
   await setComponentCodeField(page, "name", "RL");
+  // The code editor takes typed text a frame later, and its draft and the
+  // Canvas change together. On a busy machine an export sent straight away
+  // can win that frame and save R1.
+  await expectComponentCodeField(page, "name", "RL");
   const saved = parseSavedProject(
     (await downloadBytes(page, "File", "Export Project File…")).toString(
       "utf8",
