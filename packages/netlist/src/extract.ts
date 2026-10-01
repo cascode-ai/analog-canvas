@@ -66,6 +66,12 @@ import { normalizeIndependentSource } from "./source-waveform.js";
 import { withImplicitMosSupplies } from "./implicit-mos-supplies.js";
 import { idealAnalogBlockCell } from "./ideal-analog-block-models.js";
 import { isIdealLogicTarget } from "./ideal-logic-gate-models.js";
+import { isIdealSignalTarget } from "./ideal-signal-block-models.js";
+
+/** A target with a generated ngspice body: logic, multiplier, converters. */
+function isBehaviouralTarget(target: string): boolean {
+  return isIdealLogicTarget(target) || isIdealSignalTarget(target);
+}
 
 const IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/u;
 const MAX_CELLS = 1024;
@@ -2650,6 +2656,25 @@ function analyzeDesign(
       const descriptor = sourceInstance
         ? subcircuitDescriptor(sourceInstance.symbolId, project)
         : undefined;
+      const target = instance.target.toLowerCase();
+      // A block whose body is SPICE only still exports to Spectre: the call
+      // is written, and a warning says the reader's libraries must define
+      // it. (The comparator keeps its own IDEAL_COMPARATOR_SPICE_ONLY rule.)
+      if (
+        resolvedOptions.format === "spectre" &&
+        isBehaviouralTarget(instance.target) &&
+        !availableSubcircuits.has(target)
+      ) {
+        diagnostic(
+          diagnostics,
+          cell.id,
+          "SPECTRE_MODEL_NOT_INCLUDED",
+          `${instance.reference} calls ${instance.target}, which this Spectre export does not define: bind it to a cell from your libraries, a PDK standard cell or a Verilog-A model for example. A SPICE export includes an ideal ${instance.target}`,
+          [instance.id],
+          "warning",
+        );
+        continue;
+      }
       // An explicitly retargeted unresolved subcircuit is an intentional
       // external contract. Diagnose only the descriptor's default target,
       // where the registry promises a built-in model that must be emitted.
@@ -2658,16 +2683,16 @@ function analyzeDesign(
         descriptor.target.toLowerCase() !== instance.target.toLowerCase()
       )
         continue;
-      const target = instance.target.toLowerCase();
       if (availableSubcircuits.has(target)) continue;
       if (idealAnalogBlockCell(instance.target, resolvedOptions.format)) {
         availableSubcircuits.add(target);
         continue;
       }
-      // A placed logic gate or flip-flop gets a generated ideal body.
+      // A placed logic gate, flip-flop, multiplier or converter gets a
+      // generated ideal body.
       if (
         resolvedOptions.format === "spice" &&
-        isIdealLogicTarget(instance.target)
+        isBehaviouralTarget(instance.target)
       ) {
         availableSubcircuits.add(target);
         continue;
@@ -2784,9 +2809,10 @@ function analyzeDesign(
     });
   for (const model of idealCells)
     externalMasters.delete(`builtin:${model.name.toLowerCase()}`);
-  // Each logic gate kind in use is printed once, unless an authored Cell or
-  // a declared external definition already owns its name.
-  const idealLogicGates =
+  // Each generated body in use (logic, multiplier, converters) is printed
+  // once, unless an authored Cell or a declared external definition already
+  // owns its name.
+  const behaviouralBodies =
     resolvedOptions.format === "spice"
       ? [
           ...new Set(
@@ -2794,7 +2820,7 @@ function analyzeDesign(
               cell.instances.flatMap((instance) =>
                 instance.invocationKind === "subcircuit" &&
                 instance.target &&
-                isIdealLogicTarget(instance.target) &&
+                isBehaviouralTarget(instance.target) &&
                 !occupiedNames.has(instance.target.toLowerCase())
                   ? [instance.target]
                   : [],
@@ -2803,7 +2829,7 @@ function analyzeDesign(
           ),
         ].sort(compareText)
       : [];
-  for (const target of idealLogicGates)
+  for (const target of behaviouralBodies)
     externalMasters.delete(`builtin:${target.toLowerCase()}`);
   return {
     ir: {
@@ -2816,7 +2842,7 @@ function analyzeDesign(
       )
         ? { idealComparator: true as const }
         : {}),
-      ...(idealLogicGates.length > 0 ? { idealLogicGates } : {}),
+      ...(behaviouralBodies.length > 0 ? { behaviouralBodies } : {}),
       globals,
       externalMasters: [...externalMasters.values()].sort((left, right) =>
         compareText(left.name, right.name),

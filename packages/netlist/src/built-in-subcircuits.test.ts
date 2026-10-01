@@ -104,15 +104,21 @@ describe("built-in Analog Block subcircuits", () => {
     expect(text).toMatch(/^X2 \S+ \S+ a1 b1 y1 nand_gate$/mu);
     expect(result.externalMasterCount).toBe(0);
 
-    // The bodies are ngspice behavioural sources; Spectre still needs one
-    // bound, and says which.
+    // The bodies are ngspice behavioural sources. Spectre writes the call
+    // and warns that the reader's libraries must define the gate.
     const spectre = createDesignNetlistExport(project, { format: "spectre" });
-    expect(spectre.status).toBe("blocked");
+    expect(spectre.status).toBe("ready");
+    if (spectre.status !== "ready") return;
+    expect(spectre.file.text).not.toContain("subckt nand_gate");
+    expect(spectre.file.text).toMatch(/^X1 \(.*\) nand_gate$/mu);
     expect(spectre.diagnostics).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          code: "UNDEFINED_SUBCIRCUIT_TARGET",
-          message: expect.stringContaining("nand_gate"),
+          code: "SPECTRE_MODEL_NOT_INCLUDED",
+          severity: "warning",
+          message: expect.stringContaining(
+            "X1 calls nand_gate, which this Spectre export does not define",
+          ),
         }),
       ]),
     );
