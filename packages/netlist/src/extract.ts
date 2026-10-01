@@ -65,6 +65,7 @@ import {
 import { normalizeIndependentSource } from "./source-waveform.js";
 import { withImplicitMosSupplies } from "./implicit-mos-supplies.js";
 import { idealAnalogBlockCell } from "./ideal-analog-block-models.js";
+import { isIdealLogicTarget } from "./ideal-logic-gate-models.js";
 
 const IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/u;
 const MAX_CELLS = 1024;
@@ -2663,6 +2664,14 @@ function analyzeDesign(
         availableSubcircuits.add(target);
         continue;
       }
+      // A placed logic gate or flip-flop gets a generated ideal body.
+      if (
+        resolvedOptions.format === "spice" &&
+        isIdealLogicTarget(instance.target)
+      ) {
+        availableSubcircuits.add(target);
+        continue;
+      }
       diagnostic(
         diagnostics,
         cell.id,
@@ -2775,6 +2784,27 @@ function analyzeDesign(
     });
   for (const model of idealCells)
     externalMasters.delete(`builtin:${model.name.toLowerCase()}`);
+  // Each logic gate kind in use is printed once, unless an authored Cell or
+  // a declared external definition already owns its name.
+  const idealLogicGates =
+    resolvedOptions.format === "spice"
+      ? [
+          ...new Set(
+            cells.flatMap((cell) =>
+              cell.instances.flatMap((instance) =>
+                instance.invocationKind === "subcircuit" &&
+                instance.target &&
+                isIdealLogicTarget(instance.target) &&
+                !occupiedNames.has(instance.target.toLowerCase())
+                  ? [instance.target]
+                  : [],
+              ),
+            ),
+          ),
+        ].sort(compareText)
+      : [];
+  for (const target of idealLogicGates)
+    externalMasters.delete(`builtin:${target.toLowerCase()}`);
   return {
     ir: {
       topCellId: resolvedOptions.rootDocumentId,
@@ -2786,6 +2816,7 @@ function analyzeDesign(
       )
         ? { idealComparator: true as const }
         : {}),
+      ...(idealLogicGates.length > 0 ? { idealLogicGates } : {}),
       globals,
       externalMasters: [...externalMasters.values()].sort((left, right) =>
         compareText(left.name, right.name),

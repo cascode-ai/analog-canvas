@@ -115,11 +115,9 @@ describe("editor shell", () => {
     expect(markup).not.toContain('data-testid="edit-manage-cells"');
     expect(markup).not.toContain('data-testid="cell-command-menu"');
     expect(markup).toContain(">Cell Manager…</button>");
-    expect(markup).toContain("Project name");
-    expect(markup).toContain("Current Cell");
     expect(markup).toContain("Edit Device Data…");
-    // Three header menus: File (the project and its file commands), Edit,
-    // and Circuit (Hierarchy and Netlist); the command row keeps actions.
+    // Three header menus: File (the file commands), Edit, and Circuit
+    // (Hierarchy and Netlist); the command row keeps actions.
     const menu = (testId: string) => {
       const start = markup.indexOf(`data-testid="${testId}"`);
       expect(start).toBeGreaterThan(-1);
@@ -129,6 +127,17 @@ describe("editor shell", () => {
       '<span class="project-menu-title">File</span>',
     );
     expect(menu("project-menu")).toContain('role="group" aria-label="File"');
+    // File says New Project once. The project's name and details live in
+    // Project Properties…, and the open projects are the tabs; the name is
+    // only the menu's tooltip.
+    const file = menu("project-menu");
+    const fileCommands = file.slice(file.indexOf("project-menu-popover"));
+    expect(file).toContain('title="Smoke Project"');
+    expect(fileCommands.split(">New Project<")).toHaveLength(2);
+    expect(fileCommands).toContain(">Project Properties…</button>");
+    expect(fileCommands).not.toContain("Smoke Project");
+    expect(fileCommands).not.toContain("Project name");
+    expect(fileCommands).not.toContain("Open projects");
     expect(menu("edit-menu")).toContain('role="group" aria-label="Edit"');
     for (const group of ["Hierarchy", "Netlist"])
       expect(menu("circuit-menu")).toContain(

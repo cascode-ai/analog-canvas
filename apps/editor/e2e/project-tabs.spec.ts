@@ -4,6 +4,7 @@ import {
   chooseComponent,
   downloadBytes,
   openMenu,
+  openProjectProperties,
   parseSavedProject,
 } from "./editor-fixtures";
 import { createEmptyProject, type CircuitProject } from "@icm/model";
@@ -685,27 +686,39 @@ for (const modifier of ["Control", "Meta", "plain"]) {
   });
 }
 
-test("Project menu keeps long names out of the header and switches checked projects", async ({
+test("File holds commands only and Project Properties renames without widening the header", async ({
   page,
 }) => {
   await page.goto("/editor?new=1");
   await insert(page, "resistor", 260, 220);
   const toggle = page.getByTestId("project-menu-toggle");
-  const menu = page.getByRole("region", {
-    name: "Project details",
-    exact: true,
-  });
+  const fileMenu = await openMenu(page, "File");
+  // One New Project and no second list of the tabs: the tabs choose the
+  // project, and the name is edited in Project Properties.
+  await expect(
+    fileMenu.getByRole("button", { name: "New Project" }),
+  ).toHaveCount(1);
+  const file = page.getByTestId("project-menu");
+  await expect(file.getByRole("menuitemradio")).toHaveCount(0);
+  await expect(file.getByRole("textbox")).toHaveCount(0);
+  await page.keyboard.press("Escape");
+
   const longName =
     "Voltage regulator with a very long circuit name for temperature and supply characterization";
-  await expect(menu).toBeHidden();
-  await toggle.click();
-  const name = page.getByTestId("project-name-input");
+  const dialog = await openProjectProperties(page);
+  const name = dialog.getByRole("textbox", { name: "Project name" });
+  await expect(name).toBeFocused();
+  await expect(name).toHaveValue("New Circuit");
+  await expect(dialog).toContainText("Current Cell");
   await name.fill(longName);
   await name.press("Enter");
-  await expect(menu).toBeHidden();
-  // The header's File menu keeps its short name: the whole project name is
-  // its tooltip and sits in the menu, so a long name never widens the
-  // header.
+  await expect(dialog).toBeHidden();
+  await expect(page.getByTestId("project-name")).toHaveText(longName);
+  // The tab shows the name. The header's File menu keeps its short label
+  // with the whole name as its tooltip, so a long name never widens it.
+  await expect(page.getByRole("tab", { selected: true })).toContainText(
+    longName,
+  );
   await expect(toggle).toHaveAttribute("title", longName);
   await expect(toggle.locator(".project-menu-title")).toHaveText("File");
   for (const width of [1360, 720]) {
@@ -714,36 +727,42 @@ test("Project menu keeps long names out of the header and switches checked proje
     const trigger = (await toggle.boundingBox())!;
     expect(trigger.x).toBeGreaterThanOrEqual(brand.x + brand.width);
     expect(trigger.width).toBeLessThanOrEqual(96);
-    await toggle.click();
+    await openProjectProperties(page);
     await expect(name).toHaveValue(longName);
-    const bounds = (await menu.boundingBox())!;
+    const bounds = (await dialog.boundingBox())!;
     expect(bounds.x).toBeGreaterThanOrEqual(0);
     expect(bounds.x + bounds.width).toBeLessThanOrEqual(width);
-    await page.screenshot({ path: `plan/project-menu-${width}.png` });
+    await page.screenshot({ path: `plan/project-properties-${width}.png` });
     await page.keyboard.press("Escape");
-    await expect(menu).toBeHidden();
+    await expect(dialog).toBeHidden();
   }
+  // Escape and Cancel leave the name as it was, and a blank name cannot be
+  // applied.
+  await openProjectProperties(page);
+  await name.fill("Uncommitted rename");
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+  await openProjectProperties(page);
+  await name.fill("Cancelled rename");
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+  await expect(dialog).toBeHidden();
+  await openProjectProperties(page);
+  await name.fill("  ");
+  await expect(dialog.getByRole("button", { name: "OK" })).toBeDisabled();
+  await page.keyboard.press("Escape");
+  await expect(toggle).toHaveAttribute("title", longName);
+  // A rename is an ordinary edit: one Undo restores the old name.
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect(page.getByTestId("project-name")).toHaveText("New Circuit");
+
+  // Projects are switched with the tabs.
   await page
     .getByRole("button", { name: "New project tab", exact: true })
     .click();
   await insert(page, "capacitor", 340, 260);
-  await toggle.click();
-  const current = menu.getByRole("menuitemradio", { checked: true });
-  await expect(current).toContainText("New Circuit");
-  const first = menu.getByRole("menuitemradio").filter({ hasText: longName });
-  await first.focus();
-  await page.keyboard.press("ArrowDown");
-  await expect(current).toBeFocused();
-  await first.click();
-  await expect(menu).toBeHidden();
+  await page.getByRole("tab").first().click();
   await expect(page.getByTestId("hit-R1")).toHaveCount(1);
   await expect(page.getByTestId("hit-C1")).toHaveCount(0);
-  await toggle.click();
-  await expect(first).toHaveAttribute("aria-checked", "true");
-  await name.fill("Uncommitted rename");
-  await name.press("Escape");
-  await expect(menu).toBeHidden();
-  await expect(toggle).toHaveAttribute("title", longName);
 });
 
 for (const kind of ["port", "net"] as const) {

@@ -1047,7 +1047,7 @@ function WorkspaceEditor({
       ? netlistEntry.documentId
       : undefined;
   const [documentSettingsOpen, setDocumentSettingsOpen] = useState(false);
-  const [projectNameDraft, setProjectNameDraft] = useState<string | null>(null);
+  const [projectPropertiesOpen, setProjectPropertiesOpen] = useState(false);
   const [publishGalleryOpen, setPublishGalleryOpen] = useState(false);
   const [publishedNotice, setPublishedNotice] =
     useState<GalleryPublishedNoticeState | null>(null);
@@ -1453,6 +1453,8 @@ function WorkspaceEditor({
       setImportReport(null);
       setImportReviewOpen(false);
       setGalleryEntryContext(null);
+      // Its name draft belongs to the outgoing Project.
+      setProjectPropertiesOpen(false);
       const nextDocument = replaceProject(nextProject);
       documentViewBoxes.current = new Map();
       setDocumentStack([]);
@@ -4549,11 +4551,6 @@ function WorkspaceEditor({
     );
   }
 
-  function commitProjectName(): void {
-    setProjectNameDraft(null);
-    renameProject(projectNameDraft);
-  }
-
   function approveAgentFileCandidate(): void {
     if (!agentFileCandidate) return;
     const meta = agentFileCandidate;
@@ -5049,6 +5046,15 @@ function WorkspaceEditor({
   useLayoutEffect(() => {
     function onKeyDown(event: KeyboardEvent): void {
       if (versionHistoryOpen) return;
+      // Project Properties is modal: its name field owns typing and Enter.
+      // This router sees Escape first, so it closes the dialog here.
+      if (projectPropertiesOpen) {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          setProjectPropertiesOpen(false);
+        }
+        return;
+      }
       if (
         event.target instanceof Element &&
         (event.target.closest(".gallery-topology-comparison") ||
@@ -5523,7 +5529,7 @@ function WorkspaceEditor({
     setAgentFileCandidate(null);
     setImportReport(null);
     setImportReviewOpen(false);
-    setProjectNameDraft(null);
+    setProjectPropertiesOpen(false);
     setCanvasContextMenu(null);
     setNetlistFocusedInstance(null);
     setHighlightedNetOrigin(null);
@@ -5773,7 +5779,7 @@ function WorkspaceEditor({
         componentEditor ||
         documentSettingsOpen ||
         versionHistoryOpen ||
-        projectNameDraft !== null ||
+        projectPropertiesOpen ||
         textEditing ||
         codeDraftDirty
       ) {
@@ -5952,7 +5958,7 @@ function WorkspaceEditor({
       return { status: "failed", message: "Local storage is unavailable" };
     if (id === projectTabs.activeId) {
       if (
-        projectNameDraft !== null ||
+        projectPropertiesOpen ||
         textEditing ||
         componentEditor ||
         documentSettingsOpen ||
@@ -5988,7 +5994,7 @@ function WorkspaceEditor({
       nativeOperation.current ||
       nativeWorkspaceSaving.current,
     pendingEdits:
-      projectNameDraft !== null ||
+      projectPropertiesOpen ||
       !!textEditing ||
       !!componentEditor ||
       documentSettingsOpen ||
@@ -6481,14 +6487,6 @@ function WorkspaceEditor({
         communityEnabled={capabilities.community}
         externalLinksEnabled={capabilities.externalLinks}
         identityEnabled={identity !== null}
-        projectChoices={{
-          tabs: projectTabs.tabs,
-          activeId: projectTabs.activeId,
-          busy: projectTabs.busy,
-          onSelect: (id) => {
-            void projectTabs.select(id);
-          },
-        }}
         projectTabs={
           <>
             <ProjectTabs
@@ -6563,14 +6561,8 @@ function WorkspaceEditor({
           : {})}
         simulationState={analogSimulationState}
         projectName={project.name}
-        galleryEntryMetadata={galleryEntryContext}
         projectSchemaVersion={project.schemaVersion}
-        projectNameDraft={projectNameDraft}
         hasUnsavedWork={hasUnsavedChanges()}
-        documentName={document.name}
-        onProjectNameDraftChange={setProjectNameDraft}
-        onProjectNameCommit={commitProjectName}
-        onProjectNameCancel={() => setProjectNameDraft(null)}
         onOpenGallery={() => {
           void guardDirtyReplacement("Go to Gallery", async () => {
             const snapshot = await captureAuthoredProject();
@@ -6654,6 +6646,7 @@ function WorkspaceEditor({
           onExportRaster: (format) => void exportRaster(format),
           onRevert: revertToSavedProjectBaseline,
           onOpenRecovery: openRecoveryDialog,
+          onOpenProperties: () => setProjectPropertiesOpen(true),
         }}
         searchOpen={searchOpen}
         selectionFilterOpen={selectionFilterOpen}
@@ -6834,7 +6827,9 @@ function WorkspaceEditor({
             revision: document.revision,
             sourceStatus: document.sourceStatus,
             documentCount: project.documents.length,
+            projectName: project.name,
             activeDocumentId: document.id,
+            activeDocumentName: document.name,
             activeInstanceCount: document.instances.length,
             instanceCount: projectInstanceCount,
             netCount: document.nets.length,
@@ -6917,6 +6912,17 @@ function WorkspaceEditor({
                 onCancel: cancelReplaceGuard,
                 onSaveAndContinue: saveAndContinueReplaceGuard,
                 onDiscard: confirmReplaceGuard,
+              }
+            : null
+        }
+        projectProperties={
+          projectPropertiesOpen
+            ? {
+                name: project.name,
+                documentName: document.name,
+                publication: galleryEntryContext,
+                onRename: renameProject,
+                onClose: () => setProjectPropertiesOpen(false),
               }
             : null
         }

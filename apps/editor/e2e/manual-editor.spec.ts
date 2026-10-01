@@ -24,6 +24,7 @@ import {
   readRecoveryRecords,
   recoveryProjectTexts,
   openCellManager,
+  renameProject,
 } from "./editor-fixtures.js";
 import {
   placeComponent,
@@ -5040,9 +5041,7 @@ test("edits the complete Project Code with one undo boundary and protects a stal
   edited.documents[0]!.name = "Edited Main";
   await projectCode.fill(JSON.stringify(edited, null, 2));
   await projectCode.press("ControlOrMeta+Enter");
-  await expect(page.getByTestId("project-name-input")).toHaveValue(
-    "Edited Project",
-  );
+  await expect(page.getByTestId("project-name")).toHaveText("Edited Project");
   await expect(page.getByTestId("active-document-name")).toHaveText(
     "Edited Main",
   );
@@ -5051,9 +5050,7 @@ test("edits the complete Project Code with one undo boundary and protects a stal
   );
 
   await page.getByTestId("draw-tool-undo").click();
-  await expect(page.getByTestId("project-name-input")).toHaveValue(
-    original.name,
-  );
+  await expect(page.getByTestId("project-name")).toHaveText(original.name);
   await expect(page.getByTestId("active-document-name")).toHaveText(
     original.documents[0]!.name,
   );
@@ -5066,10 +5063,7 @@ test("edits the complete Project Code with one undo boundary and protects a stal
   const staleDraft = structuredClone(original);
   staleDraft.name = "Draft Project";
   await projectCode.fill(JSON.stringify(staleDraft, null, 2));
-  await page.getByTestId("project-menu-toggle").click();
-  const projectName = page.getByTestId("project-name-input");
-  await projectName.fill("Canvas changed");
-  await projectName.press("Enter");
+  await renameProject(page, "Canvas changed");
   await expect(page.getByRole("alert")).toContainText("live Project changed");
   await expect(apply).toBeDisabled();
   await reload.click();

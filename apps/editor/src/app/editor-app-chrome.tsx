@@ -1,7 +1,7 @@
 import { type ReactNode, type ComponentProps, type MouseEvent } from "react";
 
 import { BugReportLink } from "../components/bug-report-link";
-import { ProjectMenu, type ProjectMenuProps } from "./project-menu";
+import { ProjectMenu } from "./project-menu";
 import { AccountMenu } from "../components/account";
 import { DrawingToolbar } from "../features/editor-shell/drawing-toolbar";
 import { EditorTestTelemetry } from "../features/editor-shell/editor-test-telemetry";
@@ -38,19 +38,9 @@ export interface EditorAppChromeProps {
   identityEnabled?: boolean;
   externalLinksEnabled?: boolean;
   projectTabs?: ReactNode;
-  projectChoices?: ProjectMenuProps["projects"];
   projectName: string;
-  galleryEntryMetadata: {
-    author: string;
-    description: string;
-  } | null;
   projectSchemaVersion: number;
-  projectNameDraft: string | null;
   hasUnsavedWork: boolean;
-  documentName: string;
-  onProjectNameDraftChange: (value: string) => void;
-  onProjectNameCommit: () => void;
-  onProjectNameCancel: () => void;
   onOpenGallery: () => void;
   fileCommands: ComponentProps<typeof FileCommandMenu>;
   searchOpen: boolean;
@@ -91,16 +81,9 @@ export function EditorAppChrome({
   communityEnabled = true,
   externalLinksEnabled = true,
   projectTabs,
-  projectChoices,
   projectName,
-  galleryEntryMetadata,
   projectSchemaVersion,
-  projectNameDraft,
   hasUnsavedWork,
-  documentName,
-  onProjectNameDraftChange,
-  onProjectNameCommit,
-  onProjectNameCancel,
   onOpenGallery,
   fileCommands,
   searchOpen,
@@ -203,19 +186,13 @@ export function EditorAppChrome({
               <span>Gallery</span>
             </a>
           ) : null}
-          {/* Three menus. File holds the project itself (its name, the
-              open projects) and the file commands. */}
+          {/* Three menus. File holds the file commands; the project's name
+              and details are in its Project Properties…, and the open
+              projects are the tabs. */}
           <ProjectMenu
             label="File"
             name={projectName}
-            nameDraft={projectNameDraft}
-            documentName={documentName}
             dirty={hasUnsavedWork}
-            publication={galleryEntryMetadata}
-            onNameChange={onProjectNameDraftChange}
-            onNameCommit={onProjectNameCommit}
-            onNameCancel={onProjectNameCancel}
-            {...(projectChoices ? { projects: projectChoices } : {})}
             onOpen={() => {
               fileCommands.nativeFiles?.refresh();
               if (fileCommands.cloudEnabled !== false)

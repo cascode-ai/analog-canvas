@@ -77,13 +77,16 @@ recognize such a network, so both are placed by hand.
   style** under **Copied style** in Properties.
 - The header has three menus beside the site logo, **File**, **Edit** and
   **Circuit**, and three actions: **Simulate**, **Agent** and **Publish**.
-  **File** starts with the project itself: edit the full circuit name, inspect
-  the current Cell and Gallery contributor/notes, or choose an open project;
-  the current project is checked. Enter commits a name; Escape cancels it. The
-  file commands follow. **Circuit** holds **Hierarchy** (the Cell Manager) and
-  **Netlist**. A long name never widens the header: it is the tooltip of
-  **File** and shown whole inside it. **Report bug**, the GitHub repository and
-  the credit stay in view beside your account.
+  **File** holds the file commands only. **New Project** replaces the circuit
+  in the current tab with a blank one, asking first if it has unsaved work.
+  **File → Project Properties…** shows the full circuit name, the current Cell
+  and any Gallery contributor and notes. Edit the name there: Enter or **OK**
+  applies it as one undoable edit, and Escape or **Cancel** leaves it. The open
+  projects are the tabs below the header. **Circuit** holds **Hierarchy** (the
+  Cell Manager) and **Netlist**. A long name never widens the header: it is
+  the tooltip of **File** and shown whole in its tab and in Project
+  Properties. **Report bug**, the GitHub repository and the credit stay in
+  view beside your account.
 - The compact project tab bar opens several independent circuits in one editor.
   Use **+** for a new project, **Open file in new tab** for a local file, or
   **Open Shelf project in tab** for a saved draft. Tabs keep separate cameras,
@@ -394,6 +397,15 @@ unsaved recovery copy is found on a later start, a small banner offers
 **Restore**, **Download backup**, or **Ignore**. The same copies remain
 available through **File / Recover Local Work…**; recovery never silently
 replaces the current Project.
+
+**Privacy** (beside the visitor count, in the status bar, and in the account
+menu) opens the site's notice: what it keeps, for how long, and who else
+handles it. Returning visitors are counted with one cookie of the site's own;
+**Stop counting me** on that page, Do Not Track or Global Privacy Control
+refuses it. **Delete account…** in the
+account menu deletes your account with your Cloud Projects, published circuits,
+shared components and likes; it cannot be undone, so export anything you want
+to keep first. Drawings kept only in your browser are not affected.
 
 Returning from Gallery reopens the last active Cloud Project for this browser
 tab. The tab stores only that Cloud Project id; the editor fetches the formal

@@ -35,9 +35,14 @@ describe("FileCommandMenu", () => {
         onExportRaster={vi.fn()}
         onRevert={vi.fn()}
         onOpenRecovery={vi.fn()}
+        onOpenProperties={vi.fn()}
       />,
     );
 
+    expect(markup.split(">New Project<")).toHaveLength(2);
+    expect(markup).toContain(
+      'aria-haspopup="dialog">Project Properties…</button>',
+    );
     expect(markup).not.toContain("Save as Cloud Copy");
     expect(markup).toContain(`Cloud Projects (1/${CLOUD_PROJECT_LIMIT})`);
     expect(markup).toContain('data-testid="file-cloud-project-list"');

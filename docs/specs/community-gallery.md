@@ -460,6 +460,17 @@ database stores only SHA-256 hashes of session tokens and sign-in codes.
 - `POST /api/auth/profile` — rename the caller's display name (trimmed,
   1–40 chars). `POST /api/auth/logout` ends the session. Both are
   same-origin gated like submissions.
+- `POST /api/auth/account/delete` with `{confirm: "delete-account"}` —
+  delete the signed-in account (account menu → **Delete account…**),
+  same-origin gated. `GalleryDO` deletes the circuits the account
+  published, in every status, with their versions and likes; then the
+  account's likes on other circuits; then its Cloud Projects and their
+  revisions. `ComponentLibraryDO` deletes the components it shared. Last,
+  `AuthDO` deletes the account's sessions, sign-in codes, daily code
+  counters and the account row, and clears the session cookie. A failing
+  step answers 503 and leaves the account signed in. Every step is
+  idempotent, so retrying finishes the deletion. The reply counts what
+  went: `{deleted: {circuits, likes, projects, components}}`.
 - OAuth `state` is double-submitted through a short-lived HttpOnly cookie
   and compared on the callback; failures redirect to `/?auth=failed`.
 
@@ -569,6 +580,11 @@ identity is not public:
 
 What a visitor sees is the byline — the account's display name — which
 the account holder controls from the account menu.
+
+Deleting the account removes its entries with everything else the site
+keeps for it ([Accounts and sessions](#accounts-and-sessions)). The public
+notice at `/privacy` describes this to readers, with the cookies, the
+retention periods and the outside services; it is readable signed out.
 
 ## Current-cell duplicate tasks
 

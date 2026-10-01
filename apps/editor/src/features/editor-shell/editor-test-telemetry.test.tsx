@@ -12,7 +12,9 @@ describe("editor test telemetry", () => {
           revision: 7,
           sourceStatus: "modified",
           documentCount: 3,
+          projectName: "Bandgap",
           activeDocumentId: "cell-main",
+          activeDocumentName: "Main",
           activeInstanceCount: 4,
           instanceCount: 9,
           netCount: 5,
@@ -30,6 +32,10 @@ describe("editor test telemetry", () => {
     );
     expect(markup).toContain('data-testid="editor-test-telemetry" hidden=""');
     expect(markup).toContain('data-testid="revision">7</output>');
+    expect(markup).toContain('data-testid="project-name">Bandgap</output>');
+    expect(markup).toContain(
+      'data-testid="active-document-name">Main</output>',
+    );
     expect(markup).toContain(
       'data-testid="selected-internal-route-count">2</output>',
     );

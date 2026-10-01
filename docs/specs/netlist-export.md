@@ -157,10 +157,27 @@ transconductance is 1m siemens; these are raw instance overrides named `gain`
 or `gm`, not a foundry model. Outputs may exceed supply rails. The logic
 Symbols — gates, buffer, inverter, adder, multiplier and the
 D flip-flops — are Blocks on that same contract: the drawing says what the
-block is and which nodes it meets, and the model behind the master name is
-the reader's to supply. Their ports follow the Symbol's own pins, a clock or
-reset counting as an input and a complement as an output, and they declare
-the same fixed supplies so every Block writes a card of the same shape.
+block is and which nodes it meets. Their ports follow the Symbol's own pins, a
+clock or reset counting as an input and a complement as an output, and they
+declare the same fixed supplies so every Block writes a card of the same shape.
+
+In SPICE, the gates, buffer, inverter and D flip-flops have built-in ideal
+bodies. Each body is printed once, ahead of the Cells, so a drawing with logic
+exports complete and simulates in ngspice without anyone drawing transistors.
+
+- An input is high above half its block's supply, V(VDD,VSS)/2. Its level
+  comes from a smooth `tanh` step `vt` wide (10 mV).
+- An output swings from VSS to VDD through a one-pole delay `td` (10 ps). The
+  delay keeps gates fed back on themselves, such as latches and ring
+  oscillators, well defined.
+- A flip-flop takes D on the rising edge of CK. RST, where the Symbol has it,
+  is active high and clears it.
+
+An authored Cell or a declared external definition with the same name replaces
+the body. The adder, the multiplier, and any logic in a Spectre export still
+need a definition supplied. Without one, the export is blocked with
+`UNDEFINED_SUBCIRCUIT_TARGET`, which names the block
+([models](../../packages/netlist/src/ideal-logic-gate-models.ts)).
 
 [DeviceDescriptor](../../packages/devices/src/contract.ts) owns canonical pin
 order, invocation policy, parameter metadata and supported dialects. The

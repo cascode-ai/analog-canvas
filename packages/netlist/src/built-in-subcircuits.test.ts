@@ -80,21 +80,35 @@ function analogBlockProject(
 }
 
 describe("built-in Analog Block subcircuits", () => {
-  it("blocks logic subcircuits whose targets have no emitted definition", () => {
-    const result = createDesignNetlistExport(
-      analogBlockProject(
-        ["nand-gate"],
-        [
-          ["VDD", "vdd"],
-          ["VSS", "vss"],
-          ["A", "a"],
-          ["B", "b"],
-          ["Y", "y"],
-        ],
-      ),
+  it("exports a logic gate with its generated ideal body", () => {
+    // Issue #1255 asked for a body or a blocking diagnostic; a placed gate
+    // now gets the body, so nobody has to draw its transistors.
+    const project = analogBlockProject(
+      ["nand-gate", "nand-gate"],
+      [
+        ["VDD", "vdd"],
+        ["VSS", "vss"],
+        ["A", "a"],
+        ["B", "b"],
+        ["Y", "y"],
+      ],
     );
-    expect(result.status).toBe("blocked");
-    expect(result.diagnostics).toEqual(
+    const result = createDesignNetlistExport(project);
+    expect(result.status).toBe("ready");
+    if (result.status !== "ready") return;
+    const text = result.file.text;
+    expect(
+      text.split(".subckt nand_gate VDD VSS A B Y params: vt=10m td=10p"),
+    ).toHaveLength(2);
+    expect(text).toMatch(/^X1 \S+ \S+ a b y nand_gate$/mu);
+    expect(text).toMatch(/^X2 \S+ \S+ a1 b1 y1 nand_gate$/mu);
+    expect(result.externalMasterCount).toBe(0);
+
+    // The bodies are ngspice behavioural sources; Spectre still needs one
+    // bound, and says which.
+    const spectre = createDesignNetlistExport(project, { format: "spectre" });
+    expect(spectre.status).toBe("blocked");
+    expect(spectre.diagnostics).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           code: "UNDEFINED_SUBCIRCUIT_TARGET",
@@ -345,6 +359,38 @@ describe("built-in Analog Block subcircuits", () => {
     expect(generated.match(/\.subckt opamp\b/gu)).toHaveLength(1);
   });
 
+  it("includes a logic gate's ideal body in an ngspice simulation", () => {
+    const project = analogBlockProject(
+      ["d-flip-flop", "d-flip-flop"],
+      [
+        ["D", "d"],
+        ["CK", "ck"],
+        ["Q", "q"],
+        ["QBAR", "qb"],
+      ],
+    );
+    const folder = createSimulationFolder({
+      id: "logic-probe",
+      name: "Logic probe",
+      profileId: "local",
+      documentId: project.documents[0]!.id,
+    });
+    folder.input.files.find((file) => file.path === folder.input.entry)!.text =
+      "Logic probe\n.include circuit.spice\n.control\nop\n.endc\n.end\n";
+    const compiled = compileNgspiceSourceSimulation(project, folder);
+    expect(
+      compiled.ok,
+      JSON.stringify(compiled.ok ? [] : compiled.diagnostics),
+    ).toBe(true);
+    if (!compiled.ok) return;
+    const generated = compiled.files.find(
+      (file) => file.path === "circuit.spice",
+    )!.text;
+    // Two flip-flops, one body.
+    expect(generated.match(/\.subckt d_flip_flop\b/gu)).toHaveLength(1);
+    expect(generated).toMatch(/^X2 \S+ \S+ d1 ck1 q1 qb1 d_flip_flop$/mu);
+  });
+
   it.each(["ngspice", "vacask"] as const)(
     "opens an editable %s circuit with a generated ideal-model Cell",
     (engine) => {
@@ -393,14 +439,10 @@ describe("built-in Analog Block subcircuits", () => {
         ],
       );
       const result = createDesignNetlistExport(project);
-      expect(result.status).toBe("blocked");
-      expect(result.diagnostics).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            code: "UNDEFINED_SUBCIRCUIT_TARGET",
-            message: expect.stringContaining(`${family}_gate_4`),
-          }),
-        ]),
+      expect(result.status).toBe("ready");
+      if (result.status !== "ready") return;
+      expect(result.file.text).toContain(
+        `.subckt ${family}_gate_4 VDD VSS A B C D Y params: vt=10m td=10p`,
       );
       const authoring = analyzeDesignNetlistForAuthoring(project);
       const instance = authoring.ir?.cells

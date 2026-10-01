@@ -18,6 +18,7 @@ import {
   clickNetlistWorkflowCommand,
   downloadBytes,
   openMenu,
+  openProjectProperties,
   recoveryProjectTexts,
 } from "./editor-fixtures.js";
 
@@ -944,8 +945,9 @@ test("the circuit name drives Cloud Save and portable export", async ({
 }) => {
   const cloud = await mockCloudProjects(page);
   await page.goto("/editor");
-  await page.getByTestId("project-menu-toggle").click();
-  const name = page.getByTestId("project-name-input");
+  const name = (await openProjectProperties(page)).getByRole("textbox", {
+    name: "Project name",
+  });
   await expect(name).toHaveAttribute("autocomplete", "off");
   await name.fill("Bandgap Reference");
   await name.press("Enter");

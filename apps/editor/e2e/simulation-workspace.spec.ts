@@ -27,6 +27,7 @@ import {
   readRecoveryRecords,
   openCellManager,
   openMenu,
+  renameProject,
 } from "./editor-fixtures.js";
 import { ota, profile, editSimulationFile } from "./simulation-e2e-fixtures.js";
 
@@ -175,11 +176,7 @@ test("simulation examples confirm whole-Project replacement and protect existing
     mimeType: "application/json",
     buffer: Buffer.from(JSON.stringify(project)),
   });
-  await page.getByTestId("project-menu-toggle").click();
-  await page
-    .getByRole("textbox", { name: "Project name" })
-    .fill("My unsaved circuit");
-  await page.getByRole("textbox", { name: "Project name" }).press("Enter");
+  await renameProject(page, "My unsaved circuit");
   await page.getByTestId("open-analog-simulation").click();
   const panel = page.getByRole("region", { name: "Analog simulation" });
   const cards = panel.getByRole("group", { name: "Simulation examples" });

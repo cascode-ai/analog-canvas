@@ -25,19 +25,26 @@ page only says where each one stands.
 ## Not started from the urgent list
 
 - **#1249**: the SKY130 default MOS still writes a plain model card.
-- **#1268**: Agent parameter writes are not validated.
-- **#1255**: logic blocks export undefined subcircuits while the netlist
-  reads "ready".
-- **#1260**: non-ASCII names merge Nets in ngspice.
+- **#1268**: Agent parameter writes are not validated. The 2026-10-01 Agent
+  interface fixes covered part of it; the issue stays open.
 - The flaky browser test "Shelf cards duplicate, rename, export and keep
   account favorites without entering the canvas" (`gallery.spec.ts`), seen
   timing out once at four workers.
 
+## Done since (2026-10-01)
+
+- **#1255** (bare comparators export a missing subcircuit), **#1260**
+  (non-ASCII names merging Nets in ngspice), **#1259** (DUT port order),
+  **#1274** and **#1275** are fixed and live.
+- MCP 0.17.36 is published, and Production advertises it.
+- File holds commands only; the project's name moved to File → Project
+  Properties…. Sub- and superscripts stack in one column.
+
 ## Next batch
 
-- **#1227**, together with publishing the MCP package (0.17.36).
+- **#1227**: per-hop timing for Agent calls.
 - The P1 list: #1257, #1265, #1264, #1269, #1252, #1261, #1262, #1251,
-  #1253, #1263, #1259, #1256, #1254.
+  #1253, #1263, #1256, #1254.
 
 ## Waiting for a decision or details
 

@@ -1,17 +1,21 @@
 import {
   ANALYTICS_PERSISTENCE_IDENTITY,
+  hasOptedOut,
+  optOutCookie,
   queryAnalyticsSummary,
   queryVisitStats,
-  readSessionSource,
   readVisitorId,
   recordPageView,
-  sessionCookie,
+  retiredCookieExpiries,
   visitorCookie,
+  visitorCookieExpiry,
   type DurableObjectNamespaceLike,
 } from "./worker";
 
 const [TRACK_ROUTE, STATS_ROUTE, ANALYTICS_ROUTE] =
   ANALYTICS_PERSISTENCE_IDENTITY.routes;
+/** GET reads, POST `{optOut}` sets, whether this browser is counted. */
+export const OPT_OUT_ROUTE = `${TRACK_ROUTE}/opt-out`;
 
 export type AnalyticsRouteEnv = {
   ANALYTICS: DurableObjectNamespaceLike;
@@ -80,6 +84,9 @@ export async function routeAnalyticsRequest(
   if (url.pathname === TRACK_ROUTE && request.method === "POST") {
     return trackPageView(request, env);
   }
+  if (url.pathname === OPT_OUT_ROUTE) {
+    return optOut(request);
+  }
   if (url.pathname === STATS_ROUTE && request.method === "GET") {
     return stats(env);
   }
@@ -95,7 +102,14 @@ async function trackPageView(
 ): Promise<Response> {
   const noContent = () => new Response(null, { status: 204 });
   if (!isSameOriginTrackRequest(request)) return noContent();
-  if (request.headers.get("DNT") === "1") return noContent();
+  // A browser asking not to be tracked, by Do Not Track, Global Privacy
+  // Control or this site's own opt-out, is not counted and gets no cookie.
+  if (
+    request.headers.get("DNT") === "1" ||
+    request.headers.get("Sec-GPC") === "1" ||
+    hasOptedOut(request.headers.get("Cookie"))
+  )
+    return noContent();
   const userAgent = request.headers.get("User-Agent") ?? "";
   if (!userAgent || BOT_UA.test(userAgent)) return noContent();
 
@@ -110,20 +124,22 @@ async function trackPageView(
   const cookieHeader = request.headers.get("Cookie");
   const existing = readVisitorId(cookieHeader);
   const visitorId = existing ?? crypto.randomUUID();
-  const previousSource = normalizedSessionSource(
-    readSessionSource(cookieHeader),
+  // The analytics object keeps a visitor's first source of the day.
+  const source = normalizeAcquisitionSource(
+    payload?.r,
+    payload?.s,
+    new URL(request.url),
   );
-  const source =
-    previousSource ??
-    normalizeAcquisitionSource(payload?.r, payload?.s, new URL(request.url));
   const cf = (request as Request & { cf?: RequestCf }).cf ?? {};
   const rawCountry =
     typeof cf.country === "string" ? cf.country.toUpperCase() : "";
   const country = /^[A-Z0-9]{2}$/.test(rawCountry) ? rawCountry : "XX";
   const secure = request.url.startsWith("https://");
   const headers = new Headers({ "cache-control": "no-store" });
+  // Set once, never renewed: the id lasts a year from the first visit.
   if (!existing) headers.append("Set-Cookie", visitorCookie(visitorId, secure));
-  headers.append("Set-Cookie", sessionCookie(source, secure));
+  for (const expiry of retiredCookieExpiries(cookieHeader, secure))
+    headers.append("Set-Cookie", expiry);
 
   try {
     const result = await recordPageView(env.ANALYTICS, visitorId, {
@@ -137,6 +153,30 @@ async function trackPageView(
   } catch {
     return new Response(null, { status: 204, headers });
   }
+}
+
+/**
+ * The privacy notice's "Stop counting me": opting out removes the visitor
+ * id and remembers the choice for 13 months; opting back in forgets it.
+ */
+async function optOut(request: Request): Promise<Response> {
+  const cookieHeader = request.headers.get("Cookie");
+  const headers = new Headers({ "cache-control": "no-store" });
+  if (request.method === "GET")
+    return Response.json({ optedOut: hasOptedOut(cookieHeader) }, { headers });
+  if (request.method !== "POST")
+    return Response.json({ error: "method-not-allowed" }, { status: 405 });
+  if (!isSameOriginTrackRequest(request))
+    return Response.json({ error: "forbidden" }, { status: 403 });
+  const body = (await request.json().catch(() => null)) as {
+    optOut?: unknown;
+  } | null;
+  if (typeof body?.optOut !== "boolean")
+    return Response.json({ error: "invalid-request" }, { status: 400 });
+  const secure = request.url.startsWith("https://");
+  headers.append("Set-Cookie", optOutCookie(body.optOut, secure));
+  if (body.optOut) headers.append("Set-Cookie", visitorCookieExpiry(secure));
+  return Response.json({ optedOut: body.optOut }, { headers });
 }
 
 async function stats(env: AnalyticsRouteEnv): Promise<Response> {
@@ -213,21 +253,6 @@ export function normalizeAcquisitionSource(
   } catch {
     return "direct-or-unknown";
   }
-}
-
-function normalizedSessionSource(value: string | null): string | null {
-  if (!value) return null;
-  if (
-    value === "direct-or-unknown" ||
-    value === "campaign:other" ||
-    value === "ref:other" ||
-    Object.values(CAMPAIGN_SOURCES).includes(value) ||
-    REFERRER_CATEGORIES.some(([source]) => source === value) ||
-    /^ref:[a-z0-9.-]{1,100}$/.test(value)
-  ) {
-    return value;
-  }
-  return null;
 }
 
 function isSameOriginTrackRequest(request: Request): boolean {

@@ -1260,90 +1260,10 @@
   top: calc(var(--icm-menubar-h) + 4px);
   left: 12px;
   box-sizing: border-box;
-  width: min(24rem, calc(100vw - 24px));
+  width: min(22rem, calc(100vw - 24px));
   min-width: 0;
   max-height: calc(100dvh - var(--icm-menubar-h) - 16px);
   overflow: auto;
-  gap: 14px;
-  padding: 14px;
-}
-
-.project-menu-name {
-  display: grid;
-  gap: 6px;
-}
-
-.project-menu-name > span,
-.project-menu-heading,
-.project-menu-metadata dt {
-  color: var(--icm-text-muted);
-  font-size: var(--icm-font-xs);
-  font-weight: 500;
-}
-
-.project-menu-name input {
-  box-sizing: border-box;
-  width: 100%;
-  min-width: 0;
-  padding: 7px 9px;
-  font-size: var(--icm-font-md);
-}
-
-.project-menu-metadata {
-  display: grid;
-  gap: 10px;
-  margin: 0;
-}
-
-.project-menu-metadata > div {
-  display: grid;
-  grid-template-columns: 5rem minmax(0, 1fr);
-  gap: 8px;
-  align-items: baseline;
-}
-
-.project-menu-metadata dd {
-  margin: 0;
-  font-size: var(--icm-font-sm);
-  overflow-wrap: anywhere;
-  white-space: pre-wrap;
-}
-
-.project-menu-projects {
-  display: grid;
-  gap: 6px;
-}
-
-.project-menu-projects button {
-  padding-block: 7px;
-  align-items: baseline;
-}
-
-.project-menu-projects button[aria-checked="true"] {
-  color: var(--icm-accent);
-  background: var(--icm-surface-hover);
-}
-
-.project-menu-check {
-  width: 1em;
-  flex: 0 0 auto;
-}
-
-.project-menu-option-name {
-  min-width: 0;
-  white-space: normal;
-  overflow-wrap: anywhere;
-}
-
-.project-menu-dirty {
-  margin-left: auto;
-  color: var(--icm-accent);
-  font-size: 0.6rem;
-}
-
-.project-menu-publication {
-  padding-top: 12px;
-  border-top: 1px solid var(--icm-border);
 }
 
 .project-unsaved-indicator {
@@ -1352,7 +1272,7 @@
   vertical-align: middle;
 }
 
-/* Three menus: File (with the project's details), Edit and Circuit. */
+/* Three menus: File, Edit and Circuit. */
 .project-menu > summary {
   max-width: min(18rem, 34vw);
 }
@@ -1367,13 +1287,6 @@
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.project-menu-commands {
-  display: grid;
-  gap: 12px;
-  padding-top: 12px;
-  border-top: 1px solid var(--icm-border);
 }
 
 .command-section {

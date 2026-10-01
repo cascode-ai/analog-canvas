@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
 
+/** Where the privacy notice reads and sets "Stop counting me". */
+export const ANALYTICS_OPT_OUT_PATH = "/api/track/opt-out";
+
 export type VisitStats = {
   pv: number;
   uv: number;
@@ -29,7 +32,13 @@ export function useVisitStats(path: string): VisitStats | null {
         // Analytics must never interfere with application startup.
       });
 
-    if (navigator.doNotTrack === "1") return;
+    // Do Not Track and Global Privacy Control both mean: do not count me.
+    if (
+      navigator.doNotTrack === "1" ||
+      (navigator as Navigator & { globalPrivacyControl?: boolean })
+        .globalPrivacyControl === true
+    )
+      return;
     let referrerOrigin = "";
     try {
       const referrer = new URL(document.referrer);

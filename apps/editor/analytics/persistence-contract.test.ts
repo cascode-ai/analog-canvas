@@ -3,7 +3,12 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { AnalyticsDO as EntrypointAnalyticsDO } from "../../../worker/index";
-import { ANALYTICS_PERSISTENCE_IDENTITY, AnalyticsDO } from "./worker";
+import {
+  ANALYTICS_OPT_OUT_COOKIE,
+  ANALYTICS_PERSISTENCE_IDENTITY,
+  AnalyticsDO,
+  RETIRED_ANALYTICS_COOKIES,
+} from "./worker";
 
 type WranglerConfig = {
   name: string;
@@ -51,15 +56,19 @@ describe("analytics persistence identity", () => {
     });
   });
 
-  it("locks the object, cookies, routes, and Worker entrypoint export", () => {
+  it("locks the object, the visitor cookie, routes, and Worker entrypoint export", () => {
     expect(ANALYTICS_PERSISTENCE_IDENTITY).toEqual({
       binding: "ANALYTICS",
       durableObjectClass: "AnalyticsDO",
       objectName: "global",
       visitorCookie: "canvas_vid",
-      sessionCookie: "canvas_sid",
       routes: ["/api/track", "/api/stats", "/api/analytics"],
     });
     expect(EntrypointAnalyticsDO).toBe(AnalyticsDO);
+  });
+
+  it("names the opt-out cookie and the retired source cookie", () => {
+    expect(ANALYTICS_OPT_OUT_COOKIE).toBe("canvas_optout");
+    expect(RETIRED_ANALYTICS_COOKIES).toEqual(["canvas_sid"]);
   });
 });

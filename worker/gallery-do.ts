@@ -855,6 +855,8 @@ export class GalleryDO {
         return this.recycleDuplicates(body);
       case "delete":
         return this.delete(String(body.id), body.requireRecycled !== false);
+      case "delete-account":
+        return this.deleteAccount(String(body.userId ?? ""));
       case "recycled":
         return this.recycled();
       case "rejected":
@@ -3053,6 +3055,46 @@ export class GalleryDO {
       this.hardDeleteEntryRows(id);
     });
     return Response.json({ id, deleted: true });
+  }
+
+  /**
+   * Deleting an account takes everything the Gallery keeps for it: the
+   * circuits it published, in any state, with their history and likes; its
+   * likes on other circuits; and its Cloud Projects with their revisions.
+   */
+  private deleteAccount(userId: string): Response {
+    if (!userId)
+      return Response.json({ error: "missing-user" }, { status: 400 });
+    return this.state.storage.transactionSync(() => {
+      const entries = this.sql
+        .exec<{
+          id: string;
+        }>("SELECT id FROM gallery_entries WHERE owner_user_id = ?", userId)
+        .toArray();
+      for (const { id } of entries) this.hardDeleteEntryRows(id);
+      const likes = this.sql
+        .exec<{
+          id: string;
+        }>("SELECT entry_id AS id FROM gallery_likes WHERE user_id = ?", userId)
+        .toArray();
+      this.sql.exec("DELETE FROM gallery_likes WHERE user_id = ?", userId);
+      const projects = this.sql
+        .exec<{
+          id: string;
+        }>("SELECT id FROM cloud_projects WHERE user_id = ?", userId)
+        .toArray();
+      for (const { id } of projects)
+        this.sql.exec(
+          "DELETE FROM cloud_project_versions WHERE project_id = ?",
+          id,
+        );
+      this.sql.exec("DELETE FROM cloud_projects WHERE user_id = ?", userId);
+      return Response.json({
+        entries: entries.length,
+        likes: likes.length,
+        projects: projects.length,
+      });
+    });
   }
 
   /** Remove one entry and everything hanging off it. Callers own the transaction. */

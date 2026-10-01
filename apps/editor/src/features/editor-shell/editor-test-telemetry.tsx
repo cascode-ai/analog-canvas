@@ -4,7 +4,9 @@ export interface EditorTestTelemetrySnapshot {
   revision: number;
   sourceStatus: string;
   documentCount: number;
+  projectName: string;
   activeDocumentId: string;
+  activeDocumentName: string;
   activeInstanceCount: number;
   instanceCount: number;
   netCount: number;
@@ -25,7 +27,9 @@ const telemetryFields: readonly [keyof EditorTestTelemetrySnapshot, string][] =
     ["revision", "revision"],
     ["sourceStatus", "source-status"],
     ["documentCount", "document-count"],
+    ["projectName", "project-name"],
     ["activeDocumentId", "active-document-id"],
+    ["activeDocumentName", "active-document-name"],
     ["activeInstanceCount", "active-instance-count"],
     ["instanceCount", "instance-count"],
     ["netCount", "net-count"],
