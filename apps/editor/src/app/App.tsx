@@ -24,6 +24,7 @@ import {
 } from "../features/netlist-export/netlist-export-preferences";
 import {
   placementModelTarget,
+  placementProcessFill,
   planNetlistProcess,
   prepareNetlistExample,
   processTargetForShortName,
@@ -880,6 +881,15 @@ function WorkspaceEditor({
               name,
             )
           : undefined,
+      processFill: (source, documentId, edits) =>
+        netlistPreferencesRef.current
+          ? placementProcessFill(
+              source,
+              netlistPreferencesRef.current,
+              documentId,
+              edits,
+            )
+          : undefined,
     }),
     [],
   );
@@ -1715,7 +1725,7 @@ function WorkspaceEditor({
     request: CellInterfaceConfirmation;
     snapshot: typeof project;
   } | null>(null);
-  const { commitStructure, transact, transactConnectivity } =
+  const { commitStructure, transact, gateConnectivity, transactConnectivity } =
     createEditorTransactionCommands({
       project,
       document,
@@ -3246,11 +3256,19 @@ function WorkspaceEditor({
     visibleEndpoints,
     transact,
     transactConnectivity,
+    gateConnectivity,
     transactProject: (transactionId, edits) =>
       commitStructure(transactionId, edits),
     // A device drawn while working in a process is that process's device.
     processModelTarget: (symbolId) =>
       placementModelTarget(project, netlistPreferences.preferences, symbolId),
+    processFill: (edits) =>
+      placementProcessFill(
+        project,
+        netlistPreferences.preferences,
+        document.id,
+        edits,
+      ),
     selectOnly,
     cancelAllTransientInteraction,
     cancelCanvasDrag: () => canvasDragSessionRef.current?.cancel(),

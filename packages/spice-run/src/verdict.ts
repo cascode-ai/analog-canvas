@@ -20,12 +20,23 @@ const ERROR_PATTERNS = [
   /too (?:few|many) parameters for subcircuit/iu,
   /unknown (?:subckt|model|device)/iu,
   /can't find model/iu,
+  // An analysis that gave up part-way: "doAnalyses: TRAN:  Timestep too
+  // small; time = …" and then "tran simulation(s) aborted". Neither starts
+  // with "Error", and the rawfile may still hold the points before it.
+  /timestep too small/iu,
+  /simulation\(s\) aborted/iu,
 ];
 
 const LOCATION_PATTERN = /^in line no\.\s*(\d+)\s+from file\s+(.+)$/iu;
 const GENERIC_FAILURE_PATTERN =
   /^(?:simulation interrupted|error:\s*incomplete or empty netlist)/iu;
-const CONSTANTS_PLOT_PATTERN = /constants plot/iu;
+/**
+ * ngspice's batch-mode epilogue after any failure. It blames the netlist even
+ * when the netlist was complete, so it is dropped once a real cause is known.
+ */
+const EMPTY_NETLIST_PATTERN = /^error:\s*incomplete or empty netlist/iu;
+/** result-data's notice for ngspice's `Plotname: constants`. */
+const CONSTANTS_PLOT_PATTERN = /"constants" plot/iu;
 
 function diagnosticKey(diagnostic: SimulationDiagnostic): string {
   return JSON.stringify([
@@ -96,6 +107,12 @@ export function readNgspiceDiagnostics(output: string): SimulationDiagnostic[] {
       !GENERIC_FAILURE_PATTERN.test(diagnostic.text) &&
       diagnostic.severity === "error",
   );
+  if (hasSpecificCause) {
+    const emptyNetlist = diagnostics.findIndex((diagnostic) =>
+      EMPTY_NETLIST_PATTERN.test(diagnostic.text),
+    );
+    if (emptyNetlist >= 0) diagnostics.splice(emptyNetlist, 1);
+  }
   if (genericFailure && !hasSpecificCause) {
     const interruptedIndex = lines.findIndex((line) =>
       /simulation interrupted/iu.test(line),
@@ -130,10 +147,14 @@ export function readNgspiceDiagnostics(output: string): SimulationDiagnostic[] {
  *
  * It is still worth reporting. A caller that ignored it entirely would hide
  * the one clue available when a run goes wrong in a way nothing printed.
+ *
+ * The benefit of the doubt is only for a run that looks complete. With no
+ * data, or with data and an error already reported (a transient that gave up
+ * part-way), the status is stated plainly.
  */
 export function describeExitStatus(
   exitCode: number | null,
-  options: { hasData?: boolean } = {},
+  options: { hasData?: boolean; afterErrors?: boolean } = {},
 ): SimulationDiagnostic | null {
   if (exitCode === null || exitCode === 0) return null;
   if (options.hasData === false) {
@@ -143,6 +164,14 @@ export function describeExitStatus(
         "The simulator exited with code " +
         exitCode +
         " before producing structured results.",
+    };
+  }
+  if (options.afterErrors === true) {
+    return {
+      severity: "warning",
+      text:
+        `The simulator exited with code ${exitCode} after the errors above. ` +
+        `The results below hold only what it computed before it stopped.`,
     };
   }
   return {
@@ -309,9 +338,16 @@ export function evaluateSimulationRun(
     }
   }
 
+  // ngspice's built-in constants are all a `write` finds when the analysis
+  // failed before making a plot. Once something else explains the failure,
+  // saying this release cannot read them only distracts from the cause.
   if (
     data === undefined &&
-    diagnostics.some((diagnostic) => diagnostic.severity === "error")
+    diagnostics.some(
+      (diagnostic) =>
+        diagnostic.severity === "error" &&
+        !CONSTANTS_PLOT_PATTERN.test(diagnostic.text),
+    )
   ) {
     for (let index = diagnostics.length - 1; index >= 0; index--) {
       if (CONSTANTS_PLOT_PATTERN.test(diagnostics[index]!.text))
@@ -320,6 +356,9 @@ export function evaluateSimulationRun(
   }
   const exitStatus = describeExitStatus(observation.exitCode, {
     hasData: data !== undefined,
+    afterErrors: diagnostics.some(
+      (diagnostic) => diagnostic.severity === "error",
+    ),
   });
   if (exitStatus) diagnostics.push(exitStatus);
 

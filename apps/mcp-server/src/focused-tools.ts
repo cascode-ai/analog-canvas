@@ -144,6 +144,7 @@ export const FOCUSED_TOOLS = [
     operations: [
       "set-reference",
       "set-property",
+      "set-block-supply",
       "set-source-control",
       "set-model",
       "set-instance-display",

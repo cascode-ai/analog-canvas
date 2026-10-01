@@ -4,21 +4,27 @@ import {
   createSimulationFolder,
   type CircuitProject,
 } from "@icm/model";
-import { executeProjectTransaction } from "@icm/edit-engine";
+import {
+  executeProjectTransaction,
+  type ProjectStructureEdit,
+} from "@icm/edit-engine";
 import {
   createDesignNetlistExport,
   compileNgspiceSourceSimulation,
 } from "@icm/netlist";
 import { createLibraryExampleProject } from "../../examples/library-examples";
+import { createDefaultNetlistExportPreferences } from "./netlist-export-preferences";
 import {
   createNetlistExportProfile,
   setNetlistDefaultTarget,
+  type NetlistProfileId,
 } from "./netlist-process-presets";
 import {
   planNetlistProcess,
   inferNetlistProcess,
   instanceModelTarget,
   netlistProcessPendingInstances,
+  placementProcessFill,
 } from "./netlist-process";
 
 function apply(
@@ -229,6 +235,95 @@ describe("what the process still owes a circuit", () => {
       authored.netlist?.binding?.kind === "model" &&
         authored.netlist.binding.name,
     ).toBe("NMOS");
+  });
+});
+
+describe("a part placed into a Process (#1251)", () => {
+  const preferences = (selected: NetlistProfileId) => ({
+    ...createDefaultNetlistExportPreferences(),
+    selected,
+  });
+  const place = (symbolId: string, parameters: Record<string, string> = {}) =>
+    ({
+      kind: "add_instance",
+      instance: {
+        id: "Q1",
+        symbolId,
+        reference: symbolId === "resistor" ? "R1" : "Q1",
+        placement: { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+        netlist: { parameters },
+      },
+    }) as const;
+  const commit = (project: CircuitProject, edits: ProjectStructureEdit[]) => {
+    const result = executeProjectTransaction(project, {
+      transactionId: "place",
+      projectId: project.id,
+      expectedStructureRevision: project.structureRevision,
+      actor: { kind: "human", id: "test" },
+      edits,
+    });
+    if (!result.ok) throw new Error(result.error.message);
+    return result.project;
+  };
+
+  it("binds a SKY130 BJT to its reviewed subcircuit in the placing transaction", () => {
+    const project = createEmptyProject("bjt", "BJT");
+    const placement = place("pnp", { m: "8" });
+    const fill = placementProcessFill(
+      project,
+      preferences("sky130"),
+      project.topDocumentId,
+      [placement],
+    );
+    expect(fill?.map((edit) => edit.kind)).toEqual([
+      "upsert_external_subcircuit_definition",
+      "transact_document",
+    ]);
+    const placed = commit(project, fill!);
+    const [q1] = placed.documents[0]!.instances;
+    expect(instanceModelTarget(placed, q1!)).toBe(
+      "sky130_fd_pr__pnp_05v5_W0p68L0p68",
+    );
+    expect(q1!.netlist?.parameters).toEqual({ m: "8" });
+    // The second one reuses the definition the first one brought.
+    const again = placementProcessFill(
+      placed,
+      preferences("sky130"),
+      placed.topDocumentId,
+      [
+        {
+          ...placement,
+          instance: { ...placement.instance, id: "Q2", reference: "Q2" },
+        },
+      ],
+    );
+    expect(again?.map((edit) => edit.kind)).toEqual(["transact_document"]);
+  });
+
+  it("gives a BJT the Process's plain model where it names one, and nothing where not", () => {
+    const project = createEmptyProject("bjt", "BJT");
+    const id = project.topDocumentId;
+    const abstract = commit(
+      project,
+      placementProcessFill(project, preferences("abstract"), id, [
+        place("pnp"),
+      ]) ?? [],
+    );
+    expect(abstract.documents[0]!.instances[0]!.netlist?.binding).toEqual({
+      kind: "model",
+      deviceClass: "bjt",
+      name: "PNP",
+    });
+    // TSMC 28 names no PNP; the part keeps its missing-model finding.
+    expect(
+      placementProcessFill(project, preferences("tsmc28"), id, [place("pnp")]),
+    ).toBeUndefined();
+    // A part that needs no model is placed exactly as before.
+    expect(
+      placementProcessFill(project, preferences("sky130"), id, [
+        place("resistor", { value: "1k" }),
+      ]),
+    ).toBeUndefined();
   });
 });
 

@@ -249,12 +249,14 @@ export function runErcChecks(
             const allowedText = allowed.length ? allowed.join(", ") : "(none)";
             const message =
               issue.kind === "unknown"
-                ? `Instance ${instance.reference ?? instance.id} sets unknown parameter ${issue.name}; allowed parameters: ${allowedText}`
+                ? `Instance ${instance.reference ?? instance.id} sets unknown parameter ${issue.name}${issue.suggestion ? ` (did you mean ${issue.suggestion}?)` : ""}; allowed parameters: ${allowedText}`
                 : issue.kind === "duplicate"
                   ? `Instance ${instance.reference ?? instance.id} repeats parameter ${issue.name} as ${issue.previousName} under case folding`
                   : issue.kind === "select"
                     ? `Instance ${instance.reference ?? instance.id} parameter ${issue.name} must be one of: ${issue.allowed.join(", ")}`
-                    : `Instance ${instance.reference ?? instance.id} parameter ${issue.name} must be a finite decimal number`;
+                    : issue.kind === "number"
+                      ? `Instance ${instance.reference ?? instance.id} parameter ${issue.name} is "${issue.value}", which is neither a SPICE number nor an expression in braces`
+                      : `Instance ${instance.reference ?? instance.id} parameter ${issue.name} must be a finite decimal number`;
             diagnostics.push({
               id: `erc:device-parameter:${document.id}:${instance.id}:${issue.kind}:${issue.name}`,
               domain: "erc",

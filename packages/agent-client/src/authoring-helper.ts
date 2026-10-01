@@ -1,11 +1,14 @@
 import {
   AgentSchematicEditSchema,
   AgentWireIntentSchema,
+  isBatchableAuthoringCommand,
   type AgentSessionSnapshot,
 } from "@icm/agent-adapter";
 import { agentRazaviAuthoringCatalog } from "@icm/agent-adapter/kit";
 import {
+  deviceDescriptor,
   instanceParameterContract,
+  subcircuitDescriptor,
   validateDeviceParameters,
 } from "@icm/devices";
 import {
@@ -42,6 +45,8 @@ export interface CompiledTransaction {
   edits?: SchematicEdit[];
   /** Input action index for each compiled primitive edit, in the same order. */
   editActionIndices?: number[];
+  /** Every input action this transaction carries, ascending. */
+  actionIndices?: number[];
   wireIntent?: WireIntent;
   actionKinds: string[];
 }
@@ -52,6 +57,115 @@ export interface CompileContext {
   allocateId: (prefix: string) => string;
   /** Maximum edits per single transaction (from capabilities limits). */
   maxEditsPerTransaction?: number;
+}
+
+/** One call's share of an action list that compiles to several transactions. */
+export interface ActionCall {
+  actionIndices: number[];
+  actionKinds: string[];
+  sends:
+    | "command"
+    | "commands"
+    | "edit batch"
+    | "placement batch"
+    | "delete batch"
+    | "wires"
+    | "focus";
+}
+
+/**
+ * How to send an action list that compiles to several transactions: one call
+ * per transaction, except that neighbouring wires, and neighbouring commands
+ * that batch, still share a call. The order is the input order, and it
+ * matters: a later call may build on what an earlier one made.
+ */
+export function splitIntoCalls(
+  compiled: readonly CompiledTransaction[],
+): ActionCall[] {
+  const calls: ActionCall[] = [];
+  let joined = 0;
+  for (const transaction of compiled) {
+    const kinds = transaction.actionKinds;
+    const sends: ActionCall["sends"] =
+      transaction.form === "wire-intent"
+        ? "wires"
+        : transaction.form === "semantic"
+          ? "focus"
+          : transaction.form === "edits"
+            ? "edit batch"
+            : transaction.command?.kind === "place-components" &&
+                kinds.every((kind) => kind === "place-component")
+              ? "placement batch"
+              : transaction.command?.kind === "delete-selection" &&
+                  kinds.every((kind) => kind === "delete")
+                ? "delete batch"
+                : transaction.command &&
+                    isBatchableAuthoringCommand(transaction.command)
+                  ? "commands"
+                  : "command";
+    const last = calls.at(-1);
+    if (
+      last &&
+      last.sends === sends &&
+      (sends === "wires" || sends === "commands") &&
+      joined < 64
+    ) {
+      last.actionIndices.push(...(transaction.actionIndices ?? []));
+      for (const kind of kinds)
+        if (!last.actionKinds.includes(kind)) last.actionKinds.push(kind);
+      joined += 1;
+      continue;
+    }
+    calls.push({
+      actionIndices: [...(transaction.actionIndices ?? [])],
+      actionKinds: [...new Set(kinds)],
+      sends,
+    });
+    joined = 1;
+  }
+  return calls;
+}
+
+/** "actions[0]", "actions[1..7]", "actions[2, 4..5]". */
+function actionRange(indices: readonly number[]): string {
+  const parts: string[] = [];
+  for (let start = 0; start < indices.length;) {
+    let end = start;
+    while (end + 1 < indices.length && indices[end + 1] === indices[end]! + 1)
+      end += 1;
+    parts.push(
+      end === start
+        ? `${indices[start]}`
+        : `${indices[start]}..${indices[end]}`,
+    );
+    start = end + 1;
+  }
+  return `actions[${parts.join(", ")}]`;
+}
+
+/** The refusal message for a list that needs several calls. */
+export function describeCallSplit(calls: readonly ActionCall[]): string {
+  const sends: Record<ActionCall["sends"], string> = {
+    command: "a command of its own",
+    commands: "commands that share one call",
+    "edit batch": "one edit batch",
+    "placement batch": "one placement batch",
+    "delete batch": "one delete batch",
+    wires: "wires that share one call",
+    focus: "a focus operation",
+  };
+  return (
+    `These actions need ${calls.length} calls; one call sends one ` +
+    `transaction. Send them in this order, each group in its own call: ` +
+    calls
+      .map(
+        (call) =>
+          `${actionRange(call.actionIndices)} (${call.actionKinds.join(", ")}) ` +
+          `as ${sends[call.sends]}`,
+      )
+      .join("; ") +
+    ". Nothing was changed."
+  );
 }
 
 export class ActionCompileError extends Error {
@@ -246,12 +360,19 @@ function requirePin(
   pin: string,
 ): void {
   if (!instance.pins.some((candidate) => candidate.name === pin)) {
+    // Netlists name a block's ports, not its pins: an op-amp's IN+ is VIP
+    // in `.subckt opamp VDD VSS VIP VIN VOUT`, so VIP is a natural mistake.
+    const port = subcircuitDescriptor(instance.symbolId)?.ports.find(
+      (candidate) => candidate.name === pin && candidate.pinName,
+    );
     throw new ActionCompileError(
       index,
       kind,
       `instance "${instance.reference ?? instance.id}" has no pin "${pin}"; snapshot pins: ${instance.pins
         .map((candidate) => candidate.name)
-        .join(", ")}`,
+        .join(
+          ", ",
+        )}${port?.pinName ? ` (${pin} is the exported port name; use pin "${port.pinName}")` : ""}`,
     );
   }
 }
@@ -411,7 +532,9 @@ export function compileActions(
     });
   };
 
+  const createdBy = new Map<CompiledTransaction, number>();
   parsed.data.forEach((action, index) => {
+    const before = transactions.length;
     switch (action.kind) {
       case "set-model":
       case "route-net":
@@ -635,6 +758,40 @@ export function compileActions(
         instance.netlist = { ...instance.netlist, parameters };
         break;
       }
+      case "set-block-supply": {
+        // Fixes MISSING_BLOCK_SUPPLY in one action, through the same
+        // property-only terminal the Properties panel binds.
+        const instance = resolveInstance(
+          document,
+          index,
+          action.kind,
+          action.target,
+        );
+        // A built-in block names its supplies, and a built-in primitive has
+        // none; the edit engine checks a user component's terminal itself.
+        const descriptor = subcircuitDescriptor(instance.symbolId);
+        if (
+          descriptor
+            ? !descriptor.ports.some((port) => port.supply === action.supply)
+            : deviceDescriptor(instance.symbolId) !== undefined
+        )
+          throw new ActionCompileError(
+            index,
+            action.kind,
+            `instance "${instance.reference ?? instance.id}" has no ${action.supply} supply to choose`,
+          );
+        const net =
+          action.net === null
+            ? null
+            : resolveNet(document, index, action.kind, action.net);
+        pushEdit(index, action.kind, {
+          kind: "set_property_terminal_net",
+          instanceId: instance.id,
+          pinName: action.supply,
+          netId: net?.id ?? null,
+        });
+        break;
+      }
       case "set-source-control": {
         const instance = resolveInstance(
           document,
@@ -726,10 +883,17 @@ export function compileActions(
         compileDelete(index, action, document, pushEdit);
         break;
     }
+    // Edit batches record their actions edit by edit; every other form is
+    // created by exactly one action.
+    for (const transaction of transactions.slice(before))
+      if (transaction.form !== "edits") createdBy.set(transaction, index);
   });
 
   return transactions
     .map((transaction): CompiledTransaction => {
+      const actionIndices = transaction.editActionIndices
+        ? [...new Set(transaction.editActionIndices)]
+        : [createdBy.get(transaction)!];
       if (
         transaction.form === "edits" &&
         transaction.actionKinds.every((kind) => kind === "delete") &&
@@ -761,6 +925,7 @@ export function compileActions(
           form: "command",
           command: { kind: "delete-selection", selection },
           actionKinds: transaction.actionKinds,
+          actionIndices,
         };
       }
       if (
@@ -803,9 +968,10 @@ export function compileActions(
           ...(transaction.editActionIndices
             ? { editActionIndices: transaction.editActionIndices }
             : {}),
+          actionIndices,
         };
       }
-      return transaction;
+      return { ...transaction, actionIndices };
     })
     .filter(
       (transaction) =>
@@ -943,27 +1109,35 @@ function validateActionParameters(
         issue.name +
         '" for ' +
         symbolId +
+        (issue.suggestion ? '; did you mean "' + issue.suggestion + '"?' : "") +
         "; allowed parameters: " +
         allowedText
-      : issue.kind === "duplicate"
+      : issue.kind === "number"
         ? 'Parameter "' +
           issue.name +
-          '" duplicates "' +
-          issue.previousName +
-          '" under case folding'
-        : issue.kind === "select"
+          '" must be a SPICE number such as 1k or 2.5n, or an expression in braces such as {vdd/2}; received "' +
+          issue.value +
+          '"' +
+          (/[µμ]/u.test(issue.value) ? " (SPICE writes micro as u)" : "")
+        : issue.kind === "duplicate"
           ? 'Parameter "' +
             issue.name +
-            '" must be one of: ' +
-            issue.allowed.join(", ") +
-            '; received "' +
-            issue.value +
-            '"'
-          : 'Parameter "' +
-            issue.name +
-            '" must be a finite decimal number; received "' +
-            issue.value +
-            '"';
+            '" duplicates "' +
+            issue.previousName +
+            '" under case folding'
+          : issue.kind === "select"
+            ? 'Parameter "' +
+              issue.name +
+              '" must be one of: ' +
+              issue.allowed.join(", ") +
+              '; received "' +
+              issue.value +
+              '"'
+            : 'Parameter "' +
+              issue.name +
+              '" must be a finite decimal number; received "' +
+              issue.value +
+              '"';
   throw new ActionCompileError(index, kind, message);
 }
 

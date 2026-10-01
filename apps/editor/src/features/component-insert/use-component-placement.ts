@@ -82,6 +82,19 @@ export interface UseComponentPlacementOptions {
       expectedElectricalEffect?: ExpectedElectricalEffect;
     },
   ) => TransactionResult | null;
+  /** The routing gate transactConnectivity runs, without committing. */
+  gateConnectivity: (
+    intent: RoutingOperationIntent,
+    edits: readonly SchematicEdit[],
+    options?: { expectedElectricalEffect?: ExpectedElectricalEffect },
+  ) => readonly SchematicEdit[] | null;
+  /**
+   * The placement as one Project transaction with what the Process gives
+   * its new parts (a BJT's reviewed subcircuit), or undefined if nothing.
+   */
+  processFill: (
+    edits: readonly SchematicEdit[],
+  ) => ProjectStructureEdit[] | undefined;
   transactProject: (
     transactionId: string,
     edits: ProjectStructureEdit[],
@@ -210,14 +223,20 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
         annotation,
       })),
     ];
-    const committed = Boolean(
-      options.transactConnectivity("connect", placementEdits, {
-        preserveInteraction: true,
-        ...(contact.expectedElectricalEffect
-          ? { expectedElectricalEffect: contact.expectedElectricalEffect }
-          : {}),
-      })?.ok,
+    const gated = options.gateConnectivity(
+      "connect",
+      placementEdits,
+      contact.expectedElectricalEffect
+        ? { expectedElectricalEffect: contact.expectedElectricalEffect }
+        : {},
     );
+    if (!gated) return;
+    // A part the Process maps to a reviewed subcircuit arrives bound to it,
+    // its definition in the same transaction, as the Agent's parts do.
+    const filled = options.processFill(gated);
+    const committed = filled
+      ? options.transactProject("place-component", filled)
+      : options.transact([...gated], { preserveInteraction: true }).ok;
     if (!committed) return;
     options.selectOnly("instance", [id]);
     options.setComponentPreviewPoint(position);

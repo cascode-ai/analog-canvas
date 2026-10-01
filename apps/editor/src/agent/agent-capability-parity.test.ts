@@ -15,7 +15,10 @@ import { FakeAgentHttp } from "../../../../packages/agent-client/src/test-suppor
 import { callTool, type ToolSessionState } from "../../../mcp-server/src/tools";
 import { EditorDocumentController } from "../document/document-controller";
 import { BrowserAgentHost } from "./browser-agent-host";
-import { planBrowserAgentCommand } from "./browser-agent-command";
+import {
+  planBrowserAgentCommand,
+  type BrowserAgentPlanningContext,
+} from "./browser-agent-command";
 import type { CircuitProject } from "@icm/model";
 import { initialComponentParameterValues } from "../features/component-insert/component-parameters";
 import { placedInstanceNetlist } from "../features/component-insert/placed-instance-netlist";
@@ -24,8 +27,10 @@ import {
   inferNetlistProcess,
   instanceModelTarget,
   placementModelTarget,
+  placementProcessFill,
   processTargetForShortName,
 } from "../features/netlist-export/netlist-process";
+import { createDesignNetlistExport } from "@icm/netlist";
 import { executeProjectTransaction } from "@icm/edit-engine";
 import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
 
@@ -821,6 +826,114 @@ it("places a part with the catalog defaults and the Process model a GUI placemen
   ).toEqual([{ value: "1k" }]);
 });
 
+it("places a BJT in a SKY130 Project bound to its reviewed subcircuit, count kept (#1251)", async () => {
+  const preferences = createDefaultNetlistExportPreferences();
+  const { client, controller } = await folder(undefined, {
+    processModelTarget: (project, symbolId) =>
+      placementModelTarget(project, preferences, symbolId),
+    processFill: (project, documentId, edits) =>
+      placementProcessFill(project, preferences, documentId, edits),
+  });
+  const before = controller.document.revision;
+  const placed = await client.applyActions([
+    {
+      kind: "place-component",
+      symbol: "pnp",
+      reference: "Q1",
+      position: { x: 0, y: 0 },
+      parameters: { m: "8" },
+    },
+    {
+      kind: "place-component",
+      symbol: "npn",
+      reference: "Q2",
+      position: { x: 400, y: 0 },
+    },
+    {
+      kind: "place-component",
+      symbol: "resistor",
+      reference: "R1",
+      position: { x: 800, y: 0 },
+    },
+  ]);
+  expect(placed.ok, placed.message).toBe(true);
+  // One transaction, so one undo takes it all back.
+  expect(controller.document.revision).toBe(before + 1);
+  const instance = (reference: string) =>
+    controller.document.instances.find((item) => item.reference === reference)!;
+  const target = (reference: string) =>
+    instanceModelTarget(controller.project, instance(reference));
+  expect(target("Q1")).toBe("sky130_fd_pr__pnp_05v5_W0p68L0p68");
+  expect(instance("Q1").netlist).toMatchObject({
+    binding: { kind: "external-subcircuit" },
+    parameters: { m: "8" },
+  });
+  expect(target("Q2")).toBe("sky130_fd_pr__npn_05v5_W1p00L1p00");
+  expect(instance("Q2").netlist?.parameters).toEqual({ m: "1" });
+  // The NPN's substrate terminal goes to ground, as the Process binds it.
+  expect(
+    controller.document.nets.some((net) =>
+      net.terminals.some(
+        (terminal) =>
+          terminal.instanceId === instance("Q2").id && terminal.pinName === "S",
+      ),
+    ),
+  ).toBe(true);
+  // A part the Process gives no subcircuit is placed exactly as before.
+  expect(instance("R1").netlist).toEqual(
+    placedInstanceNetlist(
+      "resistor",
+      initialComponentParameterValues("resistor"),
+    ),
+  );
+  // Give every drawn pin a Net of its own, so the netlist can be read.
+  const wired = structuredClone(controller.project);
+  for (const [reference, pins] of [
+    ["Q1", ["C", "B", "E"]],
+    ["Q2", ["C", "B", "E"]],
+    ["R1", ["1", "2"]],
+  ] as const)
+    for (const pinName of pins)
+      wired.documents[0]!.nets.push({
+        id: `net-${reference}-${pinName}`,
+        terminals: [{ instanceId: instance(reference).id, pinName }],
+      });
+  const exported = createDesignNetlistExport(wired, { format: "spice" });
+  const text =
+    exported.status === "ready"
+      ? exported.file.text
+      : JSON.stringify(exported.diagnostics);
+  expect(text).toMatch(
+    /^XQ1 \S+ \S+ \S+ sky130_fd_pr__pnp_05v5_W0p68L0p68 m=8$/mu,
+  );
+  expect(text).toMatch(
+    /^XQ2 \S+ \S+ \S+ VSS sky130_fd_pr__npn_05v5_W1p00L1p00 m=1$/mu,
+  );
+  expect(text).not.toContain("MISSING_MODEL_TARGET");
+});
+
+it("reports a Cell's unbound BJT in the Cell's own diagnostics (#1251)", async () => {
+  // No Process in hand, so nothing binds it.
+  const { client, tool } = await folder();
+  const placed = await client.applyActions([
+    {
+      kind: "place-component",
+      symbol: "pnp",
+      reference: "Q1",
+      position: { x: 0, y: 0 },
+    },
+  ]);
+  expect(placed.ok, placed.message).toBe(true);
+  const diagnostics = await tool("inspect", {
+    target: { kind: "diagnostics" },
+    detail: "full",
+    refresh: true,
+  });
+  expect(JSON.stringify(diagnostics)).toContain("MISSING_MODEL_TARGET");
+  const verified = await tool("verify", {});
+  expect(verified.errors).toBeGreaterThan(0);
+});
+
 it("reads a SKY130 short device name as its reviewed target in a SKY130 Project", async () => {
   const { controller } = await folder();
   const preferences = createDefaultNetlistExportPreferences();
@@ -976,13 +1089,12 @@ it("explains how to split an over-limit delete selection", async () => {
     },
   ]);
   expect(rejected).toMatchObject({ ok: false, code: "LIMIT_EXCEEDED" });
-  expect(rejected.message).toContain("Split the selection by object class");
-  expect(rejected.message).toContain("junctions=70");
   const limit = rejected.diagnostics?.[0]?.parameters as
     | {
         expandedEdits: number;
         maxTransactionEdits: number;
         selectedJunctions: number;
+        fittingJunctions: number;
       }
     | undefined;
   expect(limit).toMatchObject({
@@ -990,7 +1102,141 @@ it("explains how to split an over-limit delete selection", async () => {
     selectedJunctions: 70,
   });
   expect(limit?.expandedEdits).toBeGreaterThan(64);
+  expect(rejected.message).toContain(
+    `The first ${limit?.fittingJunctions} junctions fit: delete them in one call`,
+  );
   expect(controller.document.junctions).toHaveLength(70);
+});
+
+it("names the part of an over-limit delete that fits, and both calls succeed", async () => {
+  // #1269: the Agent split 14 parts, 16 wires and 12 junctions by trial.
+  const { client, controller, tool } = await folder();
+  const placements = Array.from({ length: 12 }, (_, i) =>
+    ["RL", "RR"].map((side, column) => ({
+      kind: "place-component",
+      symbol: "resistor",
+      reference: `${side}${i}`,
+      position: { x: column * 400, y: i * 200 },
+      rotation: 270,
+    })),
+  ).flat();
+  for (let offset = 0; offset < placements.length; offset += 12) {
+    const placed = await tool("circuit_place", {
+      actions: placements.slice(offset, offset + 12),
+    });
+    expect(placed.ok, JSON.stringify(placed)).toBe(true);
+  }
+  const wired = await tool("circuit_wire", {
+    actions: Array.from({ length: 12 }, (_, i) => ({
+      kind: "connect",
+      from: { kind: "pin", instance: `RL${i}`, pin: "2" },
+      to: { kind: "pin", instance: `RR${i}`, pin: "1" },
+    })),
+  });
+  expect(wired.ok, JSON.stringify(wired)).toBe(true);
+  const selection = {
+    instanceIds: controller.document.instances.map((item) => item.id),
+    routeIds: controller.document.routes.map((item) => item.id),
+    junctionIds: controller.document.junctions.map((item) => item.id),
+  };
+  const ordered = [
+    ...selection.instanceIds.map((id) => ["instanceIds", id] as const),
+    ...selection.routeIds.map((id) => ["routeIds", id] as const),
+    ...selection.junctionIds.map((id) => ["junctionIds", id] as const),
+  ];
+  const leading = (count: number) => {
+    const part = {
+      instanceIds: [] as string[],
+      routeIds: [] as string[],
+      junctionIds: [] as string[],
+    };
+    for (const [field, id] of ordered.slice(0, count)) part[field].push(id);
+    return part;
+  };
+  const before = controller.document.revision;
+  const rejected = await client.applyActions([
+    { kind: "delete-selection", selection },
+  ]);
+  expect(rejected).toMatchObject({ ok: false, code: "LIMIT_EXCEEDED" });
+  expect(controller.document.revision).toBe(before);
+  const limit = rejected.diagnostics?.[0]?.parameters as Record<string, number>;
+  expect(limit).toMatchObject({
+    maxTransactionEdits: 64,
+    selectedInstances: 24,
+    selectedRoutes: 12,
+  });
+  expect(limit.expandedEdits).toBeGreaterThan(64);
+  const fitting =
+    limit.fittingInstances! + limit.fittingRoutes! + limit.fittingJunctions!;
+  expect(limit.fittingInstances).toBeGreaterThan(0);
+  expect(rejected.message).toMatch(
+    /^actions\[0\]: Delete selection expands to \d+ edits, and one transaction takes at most 64\. (All|The first) \d+ instances.* fit: delete them in one call, then refresh and delete what remains/u,
+  );
+  // The count is exact: one more object does not fit, the named part does.
+  expect(
+    await client.applyActions(
+      [{ kind: "delete-selection", selection: leading(fitting + 1) }],
+      { dryRunOnly: true },
+    ),
+  ).toMatchObject({ ok: false, code: "LIMIT_EXCEEDED" });
+  const first = await client.applyActions([
+    { kind: "delete-selection", selection: leading(fitting) },
+  ]);
+  expect(first.ok, first.message).toBe(true);
+  // Refresh, as the message says: the rest of the selection, as it now is.
+  const remaining = {
+    instanceIds: selection.instanceIds.filter((id) =>
+      controller.document.instances.some((item) => item.id === id),
+    ),
+    routeIds: selection.routeIds.filter((id) =>
+      controller.document.routes.some((item) => item.id === id),
+    ),
+    junctionIds: selection.junctionIds.filter((id) =>
+      controller.document.junctions.some((item) => item.id === id),
+    ),
+  };
+  const rest = await client.applyActions([
+    { kind: "delete-selection", selection: remaining },
+  ]);
+  expect(rest.ok, rest.message).toBe(true);
+  expect(controller.document.instances).toHaveLength(0);
+  expect(controller.document.routes).toHaveLength(0);
+});
+
+it("names the command and what it expanded to when it exceeds the edit limit", async () => {
+  const { client, controller, tool } = await folder();
+  // One move edit per part: 72 parts take more than one transaction.
+  const placements = Array.from({ length: 72 }, (_, i) => ({
+    kind: "place-component",
+    symbol: "resistor",
+    reference: `R${i + 1}`,
+    position: { x: (i % 9) * 100, y: Math.floor(i / 9) * 200 },
+  }));
+  for (let offset = 0; offset < placements.length; offset += 12) {
+    const placed = await tool("circuit_place", {
+      actions: placements.slice(offset, offset + 12),
+    });
+    expect(placed.ok, JSON.stringify(placed)).toBe(true);
+  }
+  const before = structuredClone(controller.document);
+  const rejected = await client.applyActions([
+    {
+      kind: "transform",
+      selection: {
+        instanceIds: controller.document.instances.map((item) => item.id),
+      },
+      transform: { kind: "translate", delta: { x: 0, y: 2000 } },
+    },
+  ]);
+  expect(rejected).toMatchObject({ ok: false, code: "LIMIT_EXCEEDED" });
+  const limit = rejected.diagnostics?.[0]?.parameters as
+    { expandedEdits: number; maxTransactionEdits: number } | undefined;
+  expect(limit?.maxTransactionEdits).toBe(64);
+  expect(limit?.expandedEdits).toBeGreaterThan(64);
+  expect(rejected.message).toBe(
+    `transform expands to ${limit?.expandedEdits} edits, and one transaction takes at most 64. Act on fewer objects per call. Nothing was changed.`,
+  );
+  expect(controller.document).toEqual(before);
 });
 
 it("defaults a native VDD name and rejects unused or non-Port direction targets", async () => {
@@ -1507,13 +1753,22 @@ it("batches different display preferences once without advancing structure revis
   );
 });
 
-async function folder(project = createEmptyProject("project-1", "Parity")) {
+async function folder(
+  project = createEmptyProject("project-1", "Parity"),
+  planning: BrowserAgentPlanningContext = {},
+) {
   project.documents[0]!.id = "main";
   project.topDocumentId = "main";
   const controller = new EditorDocumentController(project);
   const service = createAgentCircuitService({
     agentId: "test",
-    host: new BrowserAgentHost(controller),
+    host: new BrowserAgentHost(
+      controller,
+      undefined,
+      undefined,
+      undefined,
+      planning,
+    ),
     permissions: {
       snapshot: true,
       render: true,

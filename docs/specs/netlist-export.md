@@ -368,7 +368,13 @@ device templates for Abstract, SKY130, TSMC 28, TSMC 180 and Custom.
 The editor works in SKY130 until told otherwise, and a native device placed
 while a process is selected is bound to that process's model as part of the
 placement, so a drawn circuit exports as that process rather than with missing
-model fields.
+model fields. A transistor takes its model when it is made. Any other part that
+needs a model, a BJT or a diode, takes what applying the process would give
+it, in the same transaction: SKY130's PNP and NPN arrive as their reviewed `X`
+wrappers with the definition, and the NPN with its substrate bound as the
+process binds it. The Agent and the GUI place through the same plan. A
+reviewed BJT wrapper takes the instance multiplier `m`, kept through every
+model change; ngspice scales the X call by it.
 Format is an output preference; names always keep their authored case. Process/device selection is an
 undoable Project transaction that writes ordinary typed bindings and parameters
 before any consumer extracts the circuit. Creating a bundled example applies
@@ -424,8 +430,18 @@ Port or a wired supply marker), the same classification used for MOS bodies
 ([connectivity](connectivity-and-routing.md)). A same-named ordinary signal
 is not sufficient evidence. If no candidate exists or several compete,
 `MISSING_BLOCK_SUPPLY` blocks export until the author selects a Net or draws
-one unique supply. Export never silently declares `.global VDD VSS` or adds
-Cell Pins for the Block.
+one unique supply. An Agent makes the same choice with `circuit_properties`
+`set-block-supply {target, supply, net}`; `net: null` returns to Auto.
+
+Some built-in bodies never read their supplies: the ideal amplifiers and the
+adder in either format, and the multiplier in SPICE. When such a Block has
+neither a selected nor a drawn supply, the unused port is tied to node `0`
+and nothing blocks. A textbook switched-capacitor integrator therefore exports
+without a supply drawn. An authored Cell or a declared external definition of
+the same name replaces the body and may use its supplies, so the rule above
+applies to it again, as it does to every Block whose body uses VDD and VSS.
+Export never silently declares `.global VDD VSS` or adds Cell Pins for the
+Block.
 
 Persisted reviewed physical R/C bindings emit their declared terminals and raw
 geometry; an ideal value is never reinterpreted as physical geometry during

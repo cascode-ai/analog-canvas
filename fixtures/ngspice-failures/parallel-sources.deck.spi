@@ -1,0 +1,10 @@
+* two ideal sources in parallel
+V1 vg 0 1
+V2 vg 0 2
+R1 vg 0 1k
+.control
+op
+set filetype=ascii
+write parallel-sources.raw
+.endc
+.end

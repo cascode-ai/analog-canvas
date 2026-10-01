@@ -1097,6 +1097,8 @@ describe("ERC engine", () => {
             dc: "1",
             waveform: "triangle",
             madeUp: "1",
+            freq: "2k",
+            frequency: "banana",
           },
         },
       },
@@ -1112,6 +1114,18 @@ describe("ERC engine", () => {
           code: "ERC_UNKNOWN_DEVICE_PARAMETER",
           primary: expect.objectContaining({ objectId: "V1" }),
           message: expect.stringContaining("allowed parameters"),
+        }),
+        // #1268: a stored value an Agent once wrote, from before the check.
+        expect.objectContaining({
+          code: "ERC_UNKNOWN_DEVICE_PARAMETER",
+          message: expect.stringContaining(
+            "unknown parameter freq (did you mean frequency?)",
+          ),
+        }),
+        expect.objectContaining({
+          code: "ERC_INVALID_DEVICE_PARAMETER",
+          message:
+            'Instance V1 parameter frequency is "banana", which is neither a SPICE number nor an expression in braces',
         }),
       ]),
     );

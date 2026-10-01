@@ -1,0 +1,9 @@
+* transient that runs away
+B1 0 n I=exp(V(n)*100)*1e-3
+C1 n 0 1p
+.control
+tran 1p 1n uic
+set filetype=ascii
+write aborted-transient.raw
+.endc
+.end

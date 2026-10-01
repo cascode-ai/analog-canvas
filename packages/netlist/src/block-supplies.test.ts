@@ -1,0 +1,177 @@
+import { execFileSync, spawnSync } from "node:child_process";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { describe, expect, it } from "vitest";
+
+import { subcircuitDescriptor } from "@icm/devices";
+import { createEmptyProject, type CircuitProject } from "@icm/model";
+
+import { createDesignNetlistExport } from "./export.js";
+
+/**
+ * One Cell holding one block with no supply drawn: each signal pin is a Cell
+ * port named after the block's port, and VDD/VSS meet nothing.
+ */
+function unpoweredBlock(symbolId: string): CircuitProject {
+  const project = createEmptyProject(`unpowered-${symbolId}`, symbolId, "dut");
+  const document = project.documents[0]!;
+  document.netlist!.name = "dut";
+  const descriptor = subcircuitDescriptor(symbolId)!;
+  document.instances.push({
+    id: "block",
+    symbolId,
+    reference: "X1",
+    placement: null,
+    netlist: {
+      binding: { kind: "unresolved-subcircuit", name: descriptor.target },
+      parameters: {},
+    },
+  });
+  for (const port of descriptor.ports.filter((item) => !item.supply)) {
+    const id = `port-${port.name}`;
+    document.instances.push({ id, symbolId: "port", placement: null });
+    document.nets.push({
+      id: port.name,
+      terminals: [
+        { instanceId: id, pinName: "P" },
+        { instanceId: "block", pinName: port.pinName ?? port.name },
+      ],
+    });
+    document.netlist!.terminals.push({
+      id: `terminal-${port.name}`,
+      name: port.name,
+      netId: port.name,
+      direction: "inout",
+      interfaceInstanceIds: [id],
+    });
+  }
+  return project;
+}
+
+describe("blocks whose body never reads its supplies", () => {
+  it.each([
+    ["opamp", "X1 0 0 VIP VIN VOUT opamp", "X1 (0 0 VIP VIN VOUT) opamp"],
+    [
+      "opamp-differential",
+      "X1 0 0 VIP VIN VOP VON opamp_differential",
+      "X1 (0 0 VIP VIN VOP VON) opamp_differential",
+    ],
+    ["adder", "X1 0 0 A B Y adder", "X1 (0 0 A B Y) adder"],
+  ] as const)(
+    "export a %s with no supply drawn, its unused supplies on ground",
+    (symbolId, spiceCard, spectreCard) => {
+      // A textbook switched-capacitor integrator draws an op-amp and no
+      // supply, and its ideal body never reads one (#1253).
+      for (const [format, card] of [
+        ["spice", spiceCard],
+        ["spectre", spectreCard],
+      ] as const) {
+        const result = createDesignNetlistExport(unpoweredBlock(symbolId), {
+          format,
+        });
+        expect(result.status, format).toBe("ready");
+        if (result.status !== "ready") continue;
+        expect(result.file.text).toContain(card);
+        expect(result.file.text).not.toMatch(/\.global|^global/mu);
+        expect(
+          result.diagnostics.filter(
+            (item) => item.code === "MISSING_BLOCK_SUPPLY",
+          ),
+        ).toEqual([]);
+      }
+    },
+  );
+
+  it("export a multiplier unpowered in SPICE, where its body is built in", () => {
+    const spice = createDesignNetlistExport(unpoweredBlock("multiplier"));
+    expect(spice.status).toBe("ready");
+    if (spice.status === "ready")
+      expect(spice.file.text).toContain("X1 0 0 A B Y multiplier");
+    // In Spectre the reader's own multiplier is called, which may use its
+    // supplies, so they are still asked for.
+    const spectre = createDesignNetlistExport(unpoweredBlock("multiplier"), {
+      format: "spectre",
+    });
+    expect(spectre.status).toBe("blocked");
+    expect(spectre.diagnostics.map((item) => item.code)).toContain(
+      "MISSING_BLOCK_SUPPLY",
+    );
+  });
+
+  it("still ask for supplies when the Project defines its own op-amp", () => {
+    // A transistor-level `opamp` Cell or external model may use VDD/VSS.
+    const project = unpoweredBlock("opamp");
+    project.externalSubcircuitDefinitions = [
+      {
+        id: "own-opamp",
+        name: "opamp",
+        terminals: ["VDD", "VSS", "VIP", "VIN", "VOUT"].map((name) => ({
+          id: `own-${name}`,
+          name,
+          direction: "inout" as const,
+        })),
+        formalParameters: [],
+        source: { kind: "declaration-only" },
+      },
+    ] as unknown as CircuitProject["externalSubcircuitDefinitions"];
+    const result = createDesignNetlistExport(project);
+    expect(result.status).toBe("blocked");
+    expect(
+      result.diagnostics.filter((item) => item.code === "MISSING_BLOCK_SUPPLY"),
+    ).toHaveLength(2);
+  });
+
+  it("still ask for supplies for a block whose body uses them", () => {
+    for (const symbolId of ["inverter", "adc"]) {
+      const result = createDesignNetlistExport(unpoweredBlock(symbolId));
+      expect(result.status, symbolId).toBe("blocked");
+      expect(
+        result.diagnostics.filter(
+          (item) => item.code === "MISSING_BLOCK_SUPPLY",
+        ),
+      ).toHaveLength(2);
+    }
+  });
+});
+
+function ngspiceOnPath(): boolean {
+  return spawnSync("ngspice", ["--version"], { encoding: "utf8" }).status === 0;
+}
+
+/** Skips cleanly where ngspice is absent; the hosted gate never skips. */
+describe.skipIf(!ngspiceOnPath())(
+  "an unpowered ideal op-amp under ngspice",
+  () => {
+    it("amplifies with its supplies on ground", () => {
+      const result = createDesignNetlistExport(unpoweredBlock("opamp"));
+      if (result.status !== "ready") throw new Error("opamp blocked");
+      const deck = [
+        "* unpowered ideal op-amp",
+        result.file.text.replace(/^\.end\s*$/mu, ""),
+        "VP vip 0 1u",
+        "VN vin 0 0",
+        "XD vip vin vout dut",
+        ".op",
+        ".control",
+        "run",
+        "print v(vout)",
+        ".endc",
+        ".end",
+      ].join("\n");
+      const directory = mkdtempSync(join(tmpdir(), "icm-unpowered-"));
+      try {
+        writeFileSync(join(directory, "deck.cir"), deck, "utf8");
+        const output = execFileSync("ngspice", ["-b", "deck.cir"], {
+          cwd: directory,
+          encoding: "utf8",
+        });
+        // Open-loop gain 1e6 times 1 µV.
+        const vout = Number(/v\(vout\)\s*=\s*(\S+)/u.exec(output)?.[1]);
+        expect(vout).toBeCloseTo(1, 6);
+      } finally {
+        rmSync(directory, { recursive: true, force: true });
+      }
+    });
+  },
+);

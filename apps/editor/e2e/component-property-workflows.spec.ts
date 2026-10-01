@@ -1934,7 +1934,14 @@ test("keeps the exact SKY130 PNP on its three-terminal model interface", async (
     name: "Properties",
   });
 
+  // Placed in a SKY130 Project, it arrives as the Process's PNP (#1251).
+  await expectComponentCodeField(
+    page,
+    "netlistTarget",
+    "sky130_fd_pr__pnp_05v5_W0p68L0p68",
+  );
   await expect(properties.getByLabel("Substrate Net")).toHaveCount(0);
+  await setComponentCodeField(page, "netlistTarget", "");
   await setComponentCodeField(
     page,
     "netlistTarget",
@@ -1966,6 +1973,15 @@ test("derives NPN substrate from its exact Model", async ({ page }) => {
     name: "Properties",
   });
 
+  // Placed in a SKY130 Project, it arrives as the Process's NPN, substrate
+  // and all (#1251); without that Model there is no substrate to bind.
+  await expectComponentCodeField(
+    page,
+    "netlistTarget",
+    "sky130_fd_pr__npn_05v5_W1p00L1p00",
+  );
+  await expect(properties.getByLabel("Substrate Net")).toBeVisible();
+  await setComponentCodeField(page, "netlistTarget", "");
   await expect(properties.getByLabel("Substrate Net")).toHaveCount(0);
   await setComponentCodeField(
     page,

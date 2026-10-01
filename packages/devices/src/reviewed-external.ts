@@ -446,7 +446,10 @@ export const reviewedExternalDeviceBindings: readonly ReviewedExternalDeviceBind
       deviceClass: "bjt",
       // This wrapper exposes C/B/E only; its internal Q card ties substrate to C.
       terminals: bjtCanvasTerminals(),
-      parameters: [],
+      // The emitter area is fixed inside; parallel devices are the X-line
+      // multiplier, which ngspice 46 scales exactly (m=8 carries 8x the
+      // current of m=1). A bandgap's 1:8 ratio is this count.
+      parameters: [count("m", "M", "ngspice X-line parallel multiplier", 0)],
     },
     {
       id: "sky130-npn-05v5-w1p00l1p00",
@@ -456,7 +459,7 @@ export const reviewedExternalDeviceBindings: readonly ReviewedExternalDeviceBind
       symbolId: "npn",
       deviceClass: "bjt",
       terminals: bjtTerminalsWithSubstrate(),
-      parameters: [],
+      parameters: [count("m", "M", "ngspice X-line parallel multiplier", 0)],
     },
   ];
 

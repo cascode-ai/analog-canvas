@@ -54,7 +54,10 @@ import {
 import {
   ActionCompileError,
   compileActions,
+  describeCallSplit,
   directConnectIntent,
+  splitIntoCalls,
+  type ActionCall,
   type CompiledTransaction,
 } from "./authoring-helper.js";
 import { AuthoringActionSchema } from "./authoring-actions.js";
@@ -147,6 +150,8 @@ export interface ApplyActionsReport {
   actionKind?: string;
   revision?: number;
   transactions?: number;
+  /** ACTION_BATCH_NOT_ATOMIC: the calls to send instead, in order. */
+  calls?: ActionCall[];
   changedObjectIds?: string[];
   errors?: number;
   warnings?: number;
@@ -1499,16 +1504,18 @@ export class AgentSessionClient {
         dryRun: options.dryRunOnly ?? false,
       };
     }
-    if (compiled.length !== 1)
+    if (compiled.length !== 1) {
+      const calls = splitIntoCalls(compiled);
       return {
         ok: false,
         stage: "compile",
         code: "ACTION_BATCH_NOT_ATOMIC",
-        message:
-          "Split work into one edit batch, wire, command, or focus operation per call.",
+        message: describeCallSplit(calls),
         revision: entry.revision,
         transactions: compiled.length,
+        calls,
       };
+    }
     const transaction = compiled[0]!;
     const payload =
       transaction.form === "edits"

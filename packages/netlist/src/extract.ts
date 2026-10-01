@@ -1112,6 +1112,32 @@ function extractExternalSubcircuitInstance(
   };
 }
 
+/**
+ * The built-in bodies that never read VDD or VSS: the ideal amplifiers and
+ * the adder in either format, and the multiplier in SPICE. An authored Cell
+ * or a declared external definition of the same name replaces the body, and
+ * may well use its supplies.
+ */
+function bodyIgnoresSupplies(
+  target: string,
+  project: CircuitProject,
+  cellNames: Iterable<string>,
+  format: NetlistFormat,
+): boolean {
+  const folded = target.toLowerCase();
+  if (
+    [...cellNames].some((name) => name.toLowerCase() === folded) ||
+    project.externalSubcircuitDefinitions.some(
+      (definition) => definition.name.toLowerCase() === folded,
+    )
+  )
+    return false;
+  return (
+    idealAnalogBlockCell(target, format) !== null ||
+    (format === "spice" && target === "multiplier")
+  );
+}
+
 function extractBuiltInSubcircuitInstance(
   document: SchematicDocument,
   instance: Instance,
@@ -1120,6 +1146,8 @@ function extractBuiltInSubcircuitInstance(
   context: CellNetContext,
   options: ResolvedDesignNetlistAnalysisOptions,
   diagnostics: NetlistDiagnostic[],
+  /** The body never reads VDD/VSS, so an undrawn supply is tied to ground. */
+  supplyFree = false,
 ): DesignNetlistInstance | null {
   const netlist = instance.netlist;
   const binding = netlist?.binding;
@@ -1268,6 +1296,9 @@ function extractBuiltInSubcircuitInstance(
       );
       const drawnName = drawn ? context.nameByNetId.get(drawn.id) : undefined;
       if (drawnName) return [{ pinName: port.name, netName: drawnName }];
+      // An ideal op-amp in a figure without supplies, such as a textbook
+      // switched-capacitor integrator: the port is in the call but unused.
+      if (supplyFree) return [{ pinName: port.name, netName: "0" }];
       diagnostic(
         diagnostics,
         document.id,
@@ -2319,6 +2350,14 @@ function extractCell(
           context,
           options,
           diagnostics,
+          bodyIgnoresSupplies(
+            binding?.kind === "unresolved-subcircuit"
+              ? binding.name
+              : builtInSubcircuit.target,
+            project,
+            cellNameByDocumentId.values(),
+            options.format,
+          ),
         )
       : binding?.kind === "subcircuit"
         ? extractHierarchyInstance(

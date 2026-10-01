@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   ActionCompileError,
   compileActions,
+  describeCallSplit,
   directConnectIntent,
+  splitIntoCalls,
   type CompiledTransaction,
 } from "./authoring-helper.js";
 import { testSnapshot } from "./test-support/snapshot-fixture.js";
@@ -56,15 +58,72 @@ function compile(
   });
 }
 
-function expectCompileError(actions: unknown[], fragment: string): void {
+function expectCompileError(
+  actions: unknown[],
+  fragment: string,
+  snapshot?: AgentSessionSnapshot,
+): void {
   try {
-    compile(actions);
+    compile(actions, snapshot);
     expect.unreachable("expected ActionCompileError");
   } catch (error) {
     expect(error).toBeInstanceOf(ActionCompileError);
     expect((error as Error).message).toContain(fragment);
   }
 }
+
+it("says which actions go in which call when a list needs several (#1269)", () => {
+  const place = (reference: string, x: number) => ({
+    kind: "place-component",
+    symbol: "resistor",
+    reference,
+    position: { x, y: 300 },
+  });
+  const calls = splitIntoCalls(
+    compile([
+      {
+        kind: "add-power-rail",
+        start: { x: 0, y: -200 },
+        end: { x: 400, y: -200 },
+        name: "VDD",
+      },
+      place("R7", 0),
+      place("R8", 100),
+      place("R9", 200),
+      { kind: "set-model", instanceId: "instance-1", model: "nch" },
+      { kind: "set-model", instanceId: "instance-2", model: "rpoly" },
+      {
+        kind: "connect",
+        from: { kind: "pin", instance: "M1", pin: "G" },
+        to: { kind: "net", net: "Vout" },
+      },
+      {
+        kind: "move",
+        target: { kind: "instance", id: "instance-1" },
+        position: { x: 300, y: 100 },
+      },
+    ]),
+  );
+  expect(calls).toEqual([
+    { actionIndices: [0], actionKinds: ["add-power-rail"], sends: "command" },
+    {
+      actionIndices: [1, 2, 3],
+      actionKinds: ["place-component"],
+      sends: "placement batch",
+    },
+    { actionIndices: [4, 5], actionKinds: ["set-model"], sends: "commands" },
+    { actionIndices: [6], actionKinds: ["connect"], sends: "wires" },
+    { actionIndices: [7], actionKinds: ["move"], sends: "edit batch" },
+  ]);
+  expect(describeCallSplit(calls)).toBe(
+    "These actions need 5 calls; one call sends one transaction. Send them " +
+      "in this order, each group in its own call: actions[0] (add-power-rail) " +
+      "as a command of its own; actions[1..3] (place-component) as one " +
+      "placement batch; actions[4..5] (set-model) as commands that share one " +
+      "call; actions[6] (connect) as wires that share one call; actions[7] " +
+      "(move) as one edit batch. Nothing was changed.",
+  );
+});
 
 describe("authoring helper compilation", () => {
   it.each(["vcvs", "vccs", "cccs", "ccvs"])(
@@ -287,7 +346,12 @@ describe("authoring helper compilation", () => {
       target: { kind: "member", instanceId: "instance-1", pinName: "G" },
     };
     expect(compile([command])).toEqual([
-      { form: "command", command, actionKinds: ["route-net"] },
+      {
+        form: "command",
+        command,
+        actionKinds: ["route-net"],
+        actionIndices: [0],
+      },
     ]);
   });
   it("forwards pin anchors to the shared server planner and requires one position form", () => {
@@ -508,6 +572,57 @@ describe("authoring helper compilation", () => {
       ],
       "finite decimal number",
     );
+  });
+
+  it("refuses a quantity that is not a number and names a misspelled key (#1268)", () => {
+    // Exported as SIN(0 12 banana 0 0 0), it failed only inside ngspice.
+    expectCompileError(
+      [
+        {
+          kind: "place-component",
+          symbol: "voltage-source",
+          reference: "V2",
+          position: { x: 600, y: 300 },
+          parameters: { waveform: "sin", frequency: "banana" },
+        },
+      ],
+      'Parameter "frequency" must be a SPICE number such as 1k or 2.5n, or an expression in braces such as {vdd/2}; received "banana"',
+    );
+    expectCompileError(
+      [
+        {
+          kind: "place-component",
+          symbol: "capacitor",
+          reference: "C2",
+          position: { x: 600, y: 300 },
+          parameters: { value: "1µ" },
+        },
+      ],
+      "(SPICE writes micro as u)",
+    );
+    expectCompileError(
+      [
+        {
+          kind: "place-component",
+          symbol: "voltage-source",
+          reference: "V2",
+          position: { x: 600, y: 300 },
+          parameters: { freq: "2k" },
+        },
+      ],
+      'Unknown parameter "freq" for voltage-source; did you mean "frequency"?',
+    );
+    expect(
+      compile([
+        {
+          kind: "place-component",
+          symbol: "voltage-source",
+          reference: "V2",
+          position: { x: 600, y: 300 },
+          parameters: { waveform: "sin", frequency: "{f0*2}", amplitude: "12" },
+        },
+      ]),
+    ).toHaveLength(1);
   });
 
   it("rejects vdd and unknown symbols at the human-fact boundary", () => {
@@ -741,6 +856,7 @@ describe("authoring helper compilation", () => {
       {
         form: "command",
         actionKinds: ["move"],
+        actionIndices: [0],
         command: {
           kind: "move-junction",
           junctionId: "junction-1",
@@ -811,6 +927,92 @@ describe("authoring helper compilation", () => {
       ],
       "finite decimal number",
     );
+  });
+
+  it("names the pin to use when connect gives a block's exported port name", () => {
+    // Issue #1264: netlists call an op-amp's IN+ VIP, so an Agent writes VIP.
+    const snapshot = testSnapshot();
+    snapshot.document.instances.push({
+      ...structuredClone(snapshot.document.instances[1]!),
+      id: "instance-opamp",
+      reference: "X1",
+      symbolId: "opamp",
+      pins: ["IN-", "IN+", "OUT"].map((name) => ({
+        ...structuredClone(snapshot.document.instances[1]!.pins[0]!),
+        name,
+        netId: null,
+      })),
+    });
+    expectCompileError(
+      [
+        {
+          kind: "connect",
+          from: { kind: "pin", instance: "X1", pin: "VIP" },
+          to: { kind: "point", x: 400, y: 200 },
+        },
+      ],
+      'snapshot pins: IN-, IN+, OUT (VIP is the exported port name; use pin "IN+")',
+      snapshot,
+    );
+  });
+
+  it("compiles set-block-supply into the block's property-only supply terminal", () => {
+    // Issue #1253: MISSING_BLOCK_SUPPLY needs one focused action, not an
+    // advanced typed edit.
+    const snapshot = testSnapshot();
+    snapshot.document.instances.push({
+      ...structuredClone(snapshot.document.instances[1]!),
+      id: "instance-inverter",
+      reference: "X1",
+      symbolId: "inverter",
+    });
+    const target = { kind: "instance", reference: "X1" };
+    const [chosen] = compile(
+      [
+        {
+          kind: "set-block-supply",
+          target,
+          supply: "VDD",
+          net: { kind: "net", name: "VDD" },
+        },
+      ],
+      snapshot,
+    );
+    expect(chosen?.edits?.[0]).toEqual({
+      kind: "set_property_terminal_net",
+      instanceId: "instance-inverter",
+      pinName: "VDD",
+      netId: "net-vdd",
+    });
+    const [auto] = compile(
+      [{ kind: "set-block-supply", target, supply: "VSS", net: null }],
+      snapshot,
+    );
+    expect(auto?.edits?.[0]).toEqual({
+      kind: "set_property_terminal_net",
+      instanceId: "instance-inverter",
+      pinName: "VSS",
+      netId: null,
+    });
+    expectCompileError(
+      [
+        {
+          kind: "set-block-supply",
+          target: { kind: "instance", reference: "M1" },
+          supply: "VDD",
+          net: null,
+        },
+      ],
+      'instance "M1" has no VDD supply to choose',
+    );
+    expect(
+      AuthoringActionSchema.safeParse({
+        kind: "set-block-supply",
+        target,
+        supply: "VCC",
+        net: null,
+      }).success,
+    ).toBe(false);
   });
 
   it("checks a resistor bound to a reviewed SKY130 model against that model", () => {

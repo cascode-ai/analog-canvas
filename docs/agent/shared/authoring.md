@@ -92,8 +92,14 @@ targets to avoid full-Snapshot name resolution. Names remain supported when usef
   for custom definitions; it leaves the Project's Process as Custom.
 - `place-component` without `parameters` places a part as the GUI library
   does: each parameter's catalog default, and for a transistor the model of
-  the Process the Netlist panel shows. Given `parameters` win, and only a
-  value given is shown in a Value label.
+  the Process the Netlist panel shows. A BJT in a SKY130 Project arrives as
+  the reviewed SKY130 wrapper, keeping its `m`. Given `parameters` win, and
+  only a value given is shown in a Value label.
+- `place-component` and `set-property` refuse a parameter the part does not
+  take (naming the one it most likely meant), a value outside a choice list,
+  and a quantity that is neither a SPICE number (`1k`, `2.5n`, `9kΩ`) nor an
+  expression in braces (`{vdd/2}`). Write micro as `u`. The same checks run
+  on stored values, as Cell diagnostics.
 - Three-terminal MOS artwork still has an electrical B pin. Read `mosBulk` and
   `mosBulkDefaults`; ordinary devices reuse defaults. Use dedicated bulk edits
   for overrides. Hidden bulk needs no decorative wire; four-pin presentation
@@ -142,12 +148,22 @@ three (the part and its name and value labels) and a Cell Pin to about five, so
 one `circuit_place` call fits about 20 parts. A placement batch over the limit
 commits nothing and fails with `LIMIT_EXCEEDED`; its diagnostic gives
 `expandedEdits`, `maxTransactionEdits` and `fittingPlacements`, the number of
-leading placements that fit in one call.
+leading placements that fit in one call. An over-limit `delete-selection`
+gives the same two counts, the selected count per class
+(`selectedInstances`, `selectedRoutes`, …) and the leading part that fits,
+taken in class order (`fittingInstances`, `fittingRoutes`, …). Delete that
+part, then refresh and delete what remains, since deleting a part also deletes
+wires that only tapped it. Any other command over the limit names itself and
+its `expandedEdits`.
 Display flags, Port directions, VDD mode and terminal removal can share the
 existing command batch. Pure Document presentation batches do not advance the
 Project structure revision. Failures identify the originating action where known.
 Keep unrelated command forms separate rather than assuming arbitrary mixtures
-are atomic. Both ordinary and full typed editing remain available.
+are atomic. A list that would need several transactions commits nothing and
+fails with `ACTION_BATCH_NOT_ATOMIC`; its `calls` list says which action
+indexes go in which call, in order (a power rail, for example, is a command of
+its own, apart from a placement batch). Both ordinary and full typed editing
+remain available.
 
 `route-net` (in `apply_actions`, native `command`) fills missing visible connections for a
 current Net ID/name, one member pin, an explicit list of pins to join, or a

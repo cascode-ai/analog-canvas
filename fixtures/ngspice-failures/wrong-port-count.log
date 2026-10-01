@@ -1,0 +1,12 @@
+Too few parameters for subcircuit type "scint" (instance: xxdut)
+    Simulation interrupted due to error!
+
+Error: incomplete or empty netlist
+       or no ".plot", ".print", or ".fourier" lines in batch mode;
+no simulations run!
+
+Note: No compatibility mode selected!
+
+
+Circuit: * wrong port count
+

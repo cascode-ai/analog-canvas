@@ -12,6 +12,11 @@ import { analyzeDesignNetlistForAuthoring } from "./extract.js";
 import { compileNgspiceSourceSimulation } from "./simulation-source-ngspice.js";
 import { generateCircuitSource } from "./simulation-circuit-source.js";
 
+const inverterNets = [
+  ["A", "in_node"],
+  ["Y", "out_node"],
+] as const;
+
 const differentialNets = [
   ["IN+", "plus_node"],
   ["IN-", "minus_node"],
@@ -518,10 +523,8 @@ describe("built-in Analog Block subcircuits", () => {
       );
 
   it("blocks an undrawn block supply rather than declaring a global", () => {
-    const project = analogBlockProject(
-      ["opamp-differential"],
-      differentialNets,
-    );
+    // An inverter's body switches at V(VDD,VSS)/2: it needs both supplies.
+    const project = analogBlockProject(["inverter"], inverterNets);
     const document = project.documents[0]!;
     document.netlist!.terminals = [];
     document.instances = document.instances.filter(
@@ -614,10 +617,8 @@ describe("built-in Analog Block subcircuits", () => {
   });
 
   it("does not turn one missing supply into a global when the other is drawn", () => {
-    const project = analogBlockProject(
-      ["opamp-differential"],
-      differentialNets,
-    );
+    // An inverter's body switches at V(VDD,VSS)/2: it needs both supplies.
+    const project = analogBlockProject(["inverter"], inverterNets);
     const document = project.documents[0]!;
     document.netlist!.terminals = [];
     document.instances = document.instances.filter(
@@ -648,10 +649,8 @@ describe("built-in Analog Block subcircuits", () => {
   });
 
   it("does not mistake a same-named signal for an automatic supply", () => {
-    const project = analogBlockProject(
-      ["opamp-differential"],
-      differentialNets,
-    );
+    // An inverter's body switches at V(VDD,VSS)/2: it needs both supplies.
+    const project = analogBlockProject(["inverter"], inverterNets);
     const document = project.documents[0]!;
     document.netlist!.terminals = [];
     document.instances = document.instances.filter(
@@ -662,7 +661,7 @@ describe("built-in Analog Block subcircuits", () => {
     );
     document.connectivityEvidence = document.connectivityEvidence.map(
       (evidence) =>
-        evidence.kind === "net-name-hint" && evidence.netId === "block-1-IN+"
+        evidence.kind === "net-name-hint" && evidence.netId === "block-1-A"
           ? { ...evidence, sourceName: "VDD" }
           : evidence,
     );
@@ -677,10 +676,8 @@ describe("built-in Analog Block subcircuits", () => {
   });
 
   it("requires explicit selection when two positive supplies are drawn", () => {
-    const project = analogBlockProject(
-      ["opamp-differential"],
-      differentialNets,
-    );
+    // An inverter's body switches at V(VDD,VSS)/2: it needs both supplies.
+    const project = analogBlockProject(["inverter"], inverterNets);
     const document = project.documents[0]!;
     document.instances.push({
       id: "VDDA",
@@ -718,7 +715,7 @@ describe("built-in Analog Block subcircuits", () => {
     expect(explicit.status).toBe("ready");
     if (explicit.status !== "ready") return;
     expect(explicit.file.text).toContain(
-      "X1 VDDA VSS plus_node minus_node positive_out negative_out opamp_differential",
+      "X1 VDDA VSS in_node out_node inverter",
     );
   });
 

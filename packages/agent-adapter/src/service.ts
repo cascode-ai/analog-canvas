@@ -722,6 +722,34 @@ export function createAgentCircuitService(
 
       if (request.operation === "transact") {
         let commandSourceActions: readonly number[] | undefined;
+        // Planning replaces the command with its edits; an over-limit
+        // refusal still names the command and what it expanded to.
+        const plannedCommand = request.command?.kind;
+        const overLimit = (expandedEdits: number) => {
+          const max = limits.maxTransactionEdits;
+          const message =
+            plannedCommand === undefined
+              ? `A transaction may contain at most ${max} edits; this one has ${expandedEdits}. Nothing was changed.`
+              : `${plannedCommand} expands to ${expandedEdits} edits, and one transaction takes at most ${max}. ` +
+                (plannedCommand === "copy"
+                  ? "Copy fewer objects per call, keeping parts that share a wire together: a wire is copied only with both of its ends. "
+                  : "Act on fewer objects per call. ") +
+                "Nothing was changed.";
+          return fail(
+            "transact",
+            "LIMIT_EXCEEDED",
+            message,
+            document.revision,
+            [
+              {
+                code: "LIMIT_EXCEEDED",
+                severity: "error",
+                message,
+                parameters: { expandedEdits, maxTransactionEdits: max },
+              },
+            ],
+          );
+        };
         const placedInstanceIds =
           request.command?.kind === "place-components"
             ? request.command.instances.map((instance) => instance.id)
@@ -931,11 +959,8 @@ export function createAgentCircuitService(
             request.structureEdits.length + nestedEdits.length >
             limits.maxTransactionEdits
           ) {
-            return fail(
-              "transact",
-              "LIMIT_EXCEEDED",
-              `A transaction may contain at most ${limits.maxTransactionEdits} edits`,
-              document.revision,
+            return overLimit(
+              request.structureEdits.length + nestedEdits.length,
             );
           }
           for (const edit of nestedEdits) {
@@ -1120,12 +1145,7 @@ export function createAgentCircuitService(
         }
         const edits = request.edits ?? plannedWire?.edits ?? [];
         if (edits.length > limits.maxTransactionEdits) {
-          return fail(
-            "transact",
-            "LIMIT_EXCEEDED",
-            `A transaction may contain at most ${limits.maxTransactionEdits} edits`,
-            document.revision,
-          );
+          return overLimit(edits.length);
         }
         for (const edit of edits) {
           const category = agentEditCategory(edit.kind);

@@ -1,0 +1,13 @@
+Error: unknown subckt: xdut vdd 0 vin vout phi1 phi2 sc
+    in line no. 3 from file unknown-subckt.deck.spi
+    Simulation interrupted due to error!
+
+Error: incomplete or empty netlist
+       or no ".plot", ".print", or ".fourier" lines in batch mode;
+no simulations run!
+
+Note: No compatibility mode selected!
+
+
+Circuit: * unknown subcircuit
+

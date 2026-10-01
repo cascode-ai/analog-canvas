@@ -229,6 +229,16 @@ export const AuthoringActionSchema = z.discriminatedUnion("kind", [
     set: z.record(z.string().min(1), z.string().min(1).max(1024)).optional(),
     unset: z.array(z.string().min(1)).max(64).optional(),
   }),
+  z
+    .strictObject({
+      kind: z.literal("set-block-supply"),
+      target: InstanceRefSchema,
+      supply: z.enum(["VDD", "VSS"]),
+      net: NetRefSchema.nullable(),
+    })
+    .describe(
+      "Choose the Net a block's VDD or VSS uses, as Properties does. net:null returns it to Auto (the Cell's one drawn supply).",
+    ),
   z.strictObject({
     kind: z.literal("add-label"),
     target: NetRefSchema,

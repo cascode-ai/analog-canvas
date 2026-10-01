@@ -25,7 +25,7 @@ export const agentToolHelp = {
   circuit_text:
     "Edit native labels or independent drafting text. Device placement already creates bound Reference/Value displays: reuse them, do not imitate them with annotate. annotate uses GUI text defaults; edit-text strings preserve existing formatting, explicit RichText replaces it. Bound labels retain their semantic owner. Same atomic planner; unfamiliar fields are available from describe_tool.",
   circuit_properties:
-    "Set references, parameters, models, display flags or set-source-control with the original planner. control uses stable Net IDs or device instanceId/pinName/direction, null clears it; preserves parameters/binding and visual Annotation. Read control from Snapshot. Keep physical units such as 10u. Mixed families use apply_actions.",
+    "Set references, parameters, models, display flags, a block's VDD/VSS Net (set-block-supply; net null returns to Auto, fixes MISSING_BLOCK_SUPPLY) or set-source-control with the original planner. control uses stable Net IDs or device instanceId/pinName/direction, null clears it; preserves parameters/binding and visual Annotation. Read control from Snapshot. Keep physical units such as 10u. Mixed families use apply_actions.",
   describe_tool:
     "Offline exact contracts from the same tool registry. Omit selectors for a lightweight directory. tool + operations selects one or several action/operation branches with their call envelope; field queries an argument JSON Pointer (* for array items). editKind reads a canonical low-level edit, not a high-level action. Reuse contracts within the same version; never a prerequisite or permission gate.",
   connect:

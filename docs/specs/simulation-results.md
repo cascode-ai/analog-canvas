@@ -185,7 +185,16 @@ and hosted checks:
   output; arbitrary non-empty stderr is not evidence;
 - a non-zero exit code remains diagnostic rather than decisive when all
   requested results arrived, because supported ngspice builds disagree about
-  the exit status of otherwise identical completed control-block runs.
+  the exit status of otherwise identical completed control-block runs;
+- ngspice's own lines name the cause. A subcircuit call with the wrong pin
+  count, an unknown subcircuit or model, a singular matrix and an analysis
+  that gave up (`Timestep too small`, `simulation(s) aborted`) are errors; a
+  following `in line no. N from file F` becomes that diagnostic's location;
+  identical lines collapse into one with a count. Once a cause is known, the
+  batch epilogue `incomplete or empty netlist` and a rawfile holding only
+  ngspice's constants are not reported, and a non-zero exit after errors or
+  without data is stated plainly rather than excused. The captured ngspice 46
+  failures in `fixtures/ngspice-failures/` pin these rules.
 
 Electrical qualification may additionally require a named environment, probes,
 and numeric tolerances. It does not reclassify the underlying run.
