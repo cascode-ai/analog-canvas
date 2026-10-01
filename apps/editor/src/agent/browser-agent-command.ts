@@ -115,6 +115,15 @@ export interface BrowserAgentPlanningContext {
     symbolId: string,
     name: string,
   ): string | undefined;
+  /**
+   * The placement as one Project transaction with what the Process gives its
+   * new parts (a BJT's reviewed subcircuit), as a GUI placement gets it.
+   */
+  processFill?(
+    project: CircuitProject,
+    documentId: string,
+    edits: readonly SchematicEdit[],
+  ): ProjectStructureEdit[] | undefined;
 }
 
 /** Check the committed geometry, not just the presence of move edits. */
@@ -812,6 +821,10 @@ export function planBrowserAgentCommand(
           },
         );
       }
+      // A BJT the Process maps to a reviewed subcircuit arrives bound to it,
+      // with its definition, exactly as a GUI placement does.
+      const filled = context.processFill?.(project, documentId, edits);
+      if (filled) return { structureEdits: filled };
       // Keep mixed device/Port batches atomic, including the interface facts.
       return changesInterface
         ? {

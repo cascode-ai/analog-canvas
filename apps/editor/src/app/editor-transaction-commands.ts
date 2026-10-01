@@ -183,11 +183,12 @@ export function createEditorTransactionCommands({
     return result;
   };
 
-  const transactConnectivity = (
+  /** The routing gate alone: the edits it would commit, or null after saying why not. */
+  const gateConnectivity = (
     intent: RoutingOperationIntent,
     edits: readonly SchematicEdit[],
     options: ConnectivityTransactionOptions = {},
-  ): EditTransactionResult | null => {
+  ): readonly SchematicEdit[] | null => {
     const proposal = createRoutingOperationPlan(document, {
       intent,
       edits,
@@ -217,13 +218,23 @@ export function createEditorTransactionCommands({
       setStatus(plainRoutingRefusal(raw));
       return null;
     }
-    return transact([...gate.edits], options);
+    return gate.edits;
+  };
+
+  const transactConnectivity = (
+    intent: RoutingOperationIntent,
+    edits: readonly SchematicEdit[],
+    options: ConnectivityTransactionOptions = {},
+  ): EditTransactionResult | null => {
+    const gated = gateConnectivity(intent, edits, options);
+    return gated ? transact([...gated], options) : null;
   };
 
   return {
     commitStructure,
     transactStructure,
     transact,
+    gateConnectivity,
     transactConnectivity,
   };
 }

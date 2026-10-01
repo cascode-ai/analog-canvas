@@ -1390,6 +1390,65 @@ describe("reviewed external MOS model targets", () => {
     }
   });
 
+  it("keeps a BJT's parallel count through its SKY130 wrapper and back (#1251)", () => {
+    // A bandgap's 1:8 emitter ratio is this count; dropping it silently
+    // describes a different circuit.
+    const project = createEmptyProject("project", "Project");
+    project.documents[0]!.instances.push(
+      {
+        id: "Q2",
+        symbolId: "pnp",
+        placement: null,
+        reference: "Q2",
+        netlist: { parameters: { m: "8" } },
+      },
+      {
+        id: "Q3",
+        symbolId: "npn",
+        placement: null,
+        reference: "Q3",
+        netlist: {
+          binding: { kind: "model", deviceClass: "bjt", name: "generic_npn" },
+          parameters: {},
+        },
+      },
+    );
+    const bind = (
+      source: typeof project,
+      instanceId: string,
+      model: string,
+    ) => {
+      const result = executeProjectTransaction(source, {
+        transactionId: `bind-${instanceId}-${model}`,
+        projectId: source.id,
+        expectedStructureRevision: source.structureRevision,
+        actor: { kind: "human", id: "test" },
+        edits: planSetDeviceModelTarget(
+          source,
+          source.topDocumentId,
+          instanceId,
+          model,
+        ),
+      });
+      if (!result.ok) throw new Error(result.error.message);
+      return result.project;
+    };
+    const parameters = (source: typeof project, id: string) =>
+      source.documents[0]!.instances.find((instance) => instance.id === id)!
+        .netlist!.parameters;
+    const external = bind(
+      bind(project, "Q2", "sky130_fd_pr__pnp_05v5_W0p68L0p68"),
+      "Q3",
+      "sky130_fd_pr__npn_05v5_W1p00L1p00",
+    );
+    expect(parameters(external, "Q2")).toEqual({ m: "8" });
+    // A device given no count takes the one it means.
+    expect(parameters(external, "Q3")).toEqual({ m: "1" });
+    expect(parameters(bind(external, "Q2", "generic_pnp"), "Q2")).toEqual({
+      m: "8",
+    });
+  });
+
   it("switches the ordinary PNP between a primitive model and its exact SKY130 wrapper", () => {
     const project = createEmptyProject("project", "Project");
     project.documents[0]!.instances.push({

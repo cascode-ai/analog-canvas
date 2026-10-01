@@ -15,7 +15,10 @@ import { FakeAgentHttp } from "../../../../packages/agent-client/src/test-suppor
 import { callTool, type ToolSessionState } from "../../../mcp-server/src/tools";
 import { EditorDocumentController } from "../document/document-controller";
 import { BrowserAgentHost } from "./browser-agent-host";
-import { planBrowserAgentCommand } from "./browser-agent-command";
+import {
+  planBrowserAgentCommand,
+  type BrowserAgentPlanningContext,
+} from "./browser-agent-command";
 import type { CircuitProject } from "@icm/model";
 import { initialComponentParameterValues } from "../features/component-insert/component-parameters";
 import { placedInstanceNetlist } from "../features/component-insert/placed-instance-netlist";
@@ -24,8 +27,10 @@ import {
   inferNetlistProcess,
   instanceModelTarget,
   placementModelTarget,
+  placementProcessFill,
   processTargetForShortName,
 } from "../features/netlist-export/netlist-process";
+import { createDesignNetlistExport } from "@icm/netlist";
 import { executeProjectTransaction } from "@icm/edit-engine";
 import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
 
@@ -819,6 +824,114 @@ it("places a part with the catalog defaults and the Process model a GUI placemen
       edit.kind === "add_instance" ? [edit.instance.netlist?.parameters] : [],
     ),
   ).toEqual([{ value: "1k" }]);
+});
+
+it("places a BJT in a SKY130 Project bound to its reviewed subcircuit, count kept (#1251)", async () => {
+  const preferences = createDefaultNetlistExportPreferences();
+  const { client, controller } = await folder(undefined, {
+    processModelTarget: (project, symbolId) =>
+      placementModelTarget(project, preferences, symbolId),
+    processFill: (project, documentId, edits) =>
+      placementProcessFill(project, preferences, documentId, edits),
+  });
+  const before = controller.document.revision;
+  const placed = await client.applyActions([
+    {
+      kind: "place-component",
+      symbol: "pnp",
+      reference: "Q1",
+      position: { x: 0, y: 0 },
+      parameters: { m: "8" },
+    },
+    {
+      kind: "place-component",
+      symbol: "npn",
+      reference: "Q2",
+      position: { x: 400, y: 0 },
+    },
+    {
+      kind: "place-component",
+      symbol: "resistor",
+      reference: "R1",
+      position: { x: 800, y: 0 },
+    },
+  ]);
+  expect(placed.ok, placed.message).toBe(true);
+  // One transaction, so one undo takes it all back.
+  expect(controller.document.revision).toBe(before + 1);
+  const instance = (reference: string) =>
+    controller.document.instances.find((item) => item.reference === reference)!;
+  const target = (reference: string) =>
+    instanceModelTarget(controller.project, instance(reference));
+  expect(target("Q1")).toBe("sky130_fd_pr__pnp_05v5_W0p68L0p68");
+  expect(instance("Q1").netlist).toMatchObject({
+    binding: { kind: "external-subcircuit" },
+    parameters: { m: "8" },
+  });
+  expect(target("Q2")).toBe("sky130_fd_pr__npn_05v5_W1p00L1p00");
+  expect(instance("Q2").netlist?.parameters).toEqual({ m: "1" });
+  // The NPN's substrate terminal goes to ground, as the Process binds it.
+  expect(
+    controller.document.nets.some((net) =>
+      net.terminals.some(
+        (terminal) =>
+          terminal.instanceId === instance("Q2").id && terminal.pinName === "S",
+      ),
+    ),
+  ).toBe(true);
+  // A part the Process gives no subcircuit is placed exactly as before.
+  expect(instance("R1").netlist).toEqual(
+    placedInstanceNetlist(
+      "resistor",
+      initialComponentParameterValues("resistor"),
+    ),
+  );
+  // Give every drawn pin a Net of its own, so the netlist can be read.
+  const wired = structuredClone(controller.project);
+  for (const [reference, pins] of [
+    ["Q1", ["C", "B", "E"]],
+    ["Q2", ["C", "B", "E"]],
+    ["R1", ["1", "2"]],
+  ] as const)
+    for (const pinName of pins)
+      wired.documents[0]!.nets.push({
+        id: `net-${reference}-${pinName}`,
+        terminals: [{ instanceId: instance(reference).id, pinName }],
+      });
+  const exported = createDesignNetlistExport(wired, { format: "spice" });
+  const text =
+    exported.status === "ready"
+      ? exported.file.text
+      : JSON.stringify(exported.diagnostics);
+  expect(text).toMatch(
+    /^XQ1 \S+ \S+ \S+ sky130_fd_pr__pnp_05v5_W0p68L0p68 m=8$/mu,
+  );
+  expect(text).toMatch(
+    /^XQ2 \S+ \S+ \S+ VSS sky130_fd_pr__npn_05v5_W1p00L1p00 m=1$/mu,
+  );
+  expect(text).not.toContain("MISSING_MODEL_TARGET");
+});
+
+it("reports a Cell's unbound BJT in the Cell's own diagnostics (#1251)", async () => {
+  // No Process in hand, so nothing binds it.
+  const { client, tool } = await folder();
+  const placed = await client.applyActions([
+    {
+      kind: "place-component",
+      symbol: "pnp",
+      reference: "Q1",
+      position: { x: 0, y: 0 },
+    },
+  ]);
+  expect(placed.ok, placed.message).toBe(true);
+  const diagnostics = await tool("inspect", {
+    target: { kind: "diagnostics" },
+    detail: "full",
+    refresh: true,
+  });
+  expect(JSON.stringify(diagnostics)).toContain("MISSING_MODEL_TARGET");
+  const verified = await tool("verify", {});
+  expect(verified.errors).toBeGreaterThan(0);
 });
 
 it("reads a SKY130 short device name as its reviewed target in a SKY130 Project", async () => {
@@ -1640,13 +1753,22 @@ it("batches different display preferences once without advancing structure revis
   );
 });
 
-async function folder(project = createEmptyProject("project-1", "Parity")) {
+async function folder(
+  project = createEmptyProject("project-1", "Parity"),
+  planning: BrowserAgentPlanningContext = {},
+) {
   project.documents[0]!.id = "main";
   project.topDocumentId = "main";
   const controller = new EditorDocumentController(project);
   const service = createAgentCircuitService({
     agentId: "test",
-    host: new BrowserAgentHost(controller),
+    host: new BrowserAgentHost(
+      controller,
+      undefined,
+      undefined,
+      undefined,
+      planning,
+    ),
     permissions: {
       snapshot: true,
       render: true,

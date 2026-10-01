@@ -129,6 +129,90 @@ export function placementModelTarget(
 }
 
 /**
+ * What the Process gives the parts a placement adds, committed with the
+ * placement as one Project transaction.
+ *
+ * A transistor takes its model when it is made (`placementModelTarget`).
+ * Every other part that needs a model, a BJT or a diode, takes here what
+ * "Apply process" would give it. SKY130's PNP and NPN are reviewed
+ * subcircuits called on X lines, so they need a definition, and the NPN a
+ * substrate terminal, that no Document edit can add. Undefined when the
+ * placement adds no such part, or the Process names nothing for it: the
+ * placement then commits exactly as before.
+ */
+export function placementProcessFill(
+  project: CircuitProject,
+  preferences: {
+    selected: NetlistProfileId;
+    profiles: Record<NetlistProfileId, NetlistExportProfile>;
+  },
+  documentId: string,
+  placementEdits: readonly SchematicEdit[],
+): ProjectStructureEdit[] | undefined {
+  const document = project.documents.find((item) => item.id === documentId);
+  const pending = new Set(
+    placementEdits.flatMap((edit) =>
+      edit.kind === "add_instance" &&
+      !edit.instance.netlist?.binding &&
+      deviceDescriptor(edit.instance.symbolId)?.targetPolicy ===
+        "required-model"
+        ? [edit.instance.id]
+        : [],
+    ),
+  );
+  if (!document || pending.size === 0) return undefined;
+  const placement: ProjectStructureEdit = {
+    kind: "transact_document",
+    documentId,
+    expectedRevision: document.revision,
+    edits: [...placementEdits],
+  };
+  const placed = executeProjectTransaction(project, {
+    transactionId: "plan-placement-process",
+    projectId: project.id,
+    expectedStructureRevision: project.structureRevision,
+    actor: { kind: "human", id: "netlist-process" },
+    edits: [placement],
+  });
+  if (!placed.ok) return undefined;
+  const process =
+    preferences.selected === "custom"
+      ? "custom"
+      : inferNetlistProcess(project, preferences.selected);
+  let fill: ProjectStructureEdit[];
+  try {
+    fill = planNetlistProcess(placed.project, preferences.profiles[process], {
+      onlyMissing: true,
+      instanceIds: pending,
+    });
+  } catch {
+    // The part then keeps its missing-model finding, as before.
+    return undefined;
+  }
+  const fillEdits = fill.flatMap((edit) =>
+    edit.kind === "transact_document" && edit.documentId === documentId
+      ? edit.edits
+      : [],
+  );
+  const binds = fillEdits.some(
+    (edit) =>
+      (edit.kind === "bulk_patch_instance_netlist" &&
+        edit.assignments.some(
+          (assignment) =>
+            pending.has(assignment.instanceId) && assignment.binding,
+        )) ||
+      (edit.kind === "set_instance_netlist" &&
+        pending.has(edit.instanceId) &&
+        edit.netlist.binding),
+  );
+  if (!binds) return undefined;
+  return [
+    ...fill.filter((edit) => edit.kind !== "transact_document"),
+    { ...placement, edits: [...placementEdits, ...fillEdits] },
+  ];
+}
+
+/**
  * The full target a short device name stands for in the Process the Netlist
  * panel shows. The panel lists SKY130's devices without their library
  * prefix, so in a SKY130 Project `nfet_01v8` means `sky130_fd_pr__nfet_01v8`.
@@ -166,7 +250,12 @@ export function processTargetForShortName(
 export function planNetlistProcess(
   project: CircuitProject,
   profile: NetlistExportProfile,
-  options: { onlyMissing?: boolean; family?: NetlistDeviceFamily } = {},
+  options: {
+    onlyMissing?: boolean;
+    family?: NetlistDeviceFamily;
+    /** Only these Instances, as a fresh placement fills its own parts. */
+    instanceIds?: ReadonlySet<string>;
+  } = {},
 ): ProjectStructureEdit[] {
   let working = project;
   const definitions = new Map<
@@ -226,7 +315,8 @@ export function planNetlistProcess(
         !descriptor ||
         !original.reference ||
         referenceIssuesForInstance(references, original.id).length ||
-        (options.family && family !== options.family)
+        (options.family && family !== options.family) ||
+        (options.instanceIds && !options.instanceIds.has(original.id))
       )
         continue;
       // A device drawn with no netlist record at all (by an Agent, or before
