@@ -2,11 +2,22 @@ import { spellGreekLetters, type SourceSpan } from "@icm/model";
 import type { SimulationSourceDiagnostic } from "./simulation-source-graph.js";
 import type { SimulationSourceGraph } from "./simulation-source-graph.js";
 
-/** ngspice's fallback for bytes it cannot read as an ASCII identifier. */
-function ngspiceIdentifier(name: string): string {
-  return Array.from(new TextEncoder().encode(name), (byte) =>
-    byte < 0x80 ? String.fromCharCode(byte) : "_",
-  ).join("");
+/**
+ * The ASCII spelling ngspice runs authored text under. Greek letters are
+ * written as their names, as Canvas netlists write them (`φ1` is `phi1`).
+ * Any other character outside ASCII becomes `u` and its code point in hex
+ * (`输入` is `u8f93u5165`, `né` is `nu00e9`). ngspice itself reads every such
+ * byte as `_`, so two different names of equal byte length (`输入`, `输出`)
+ * would merge into one node.
+ */
+export function spellNgspiceAuthoredText(text: string): string {
+  let spelled = "";
+  for (const character of spellGreekLetters(text)) {
+    const code = character.codePointAt(0)!;
+    spelled +=
+      code < 0x80 ? character : `u${code.toString(16).padStart(4, "0")}`;
+  }
+  return spelled;
 }
 
 function identifierTokens(text: string): string[] {
@@ -98,9 +109,10 @@ export interface NgspiceAuthoredNamePreparation {
 }
 
 /**
- * Apply the same Greek spelling used by generated Canvas netlists to authored
- * ngspice source. Project bytes remain untouched; callers apply these
- * execution-only replacements before parsing run variants.
+ * Give every non-ASCII name in authored ngspice source its ASCII spelling
+ * (see `spellNgspiceAuthoredText`). Project bytes remain untouched; callers
+ * apply these execution-only replacements before parsing run variants. Two
+ * names that would still run under one spelling are refused.
  */
 export function prepareNgspiceAuthoredNames(
   graph: SimulationSourceGraph,
@@ -123,7 +135,8 @@ export function prepareNgspiceAuthoredNames(
         );
         const sourceRef = located.sourceRef;
         if (located.index >= 0) searchOffset = located.index + token.length;
-        const canonical = spellGreekLetters(token);
+        const canonical = spellNgspiceAuthoredText(token);
+        // ngspice folds case, so `PHI1` and `phi1` are one node too.
         const key = canonical.toLowerCase();
         const prior = seen.get(key);
         if (
@@ -139,7 +152,7 @@ export function prepareNgspiceAuthoredNames(
               severity: "error",
               path,
               sourceRef,
-              message: `Authored names ${prior.name} and ${token} both export as ${canonical}; rename one before running`,
+              message: `Authored names ${prior.name} and ${token} both run as ${canonical} in ngspice; rename one before running`,
               related: [
                 {
                   message: `The other authored name is ${prior.name}`,
@@ -166,24 +179,15 @@ export function prepareNgspiceAuthoredNames(
         }
         if (warned.has(token)) continue;
         warned.add(token);
-        const actual = ngspiceIdentifier(token);
         diagnostics.push({
           code: "SIMULATION_NON_ASCII_NAME",
           severity: "info",
           path,
           sourceRef,
-          message:
-            canonical !== token
-              ? `Authored name ${token} is prepared as ${canonical} for ngspice`
-              : `Authored name ${token} cannot be spelled as ASCII and would become ${actual} in ngspice`,
+          message: `Authored name ${token} is prepared as ${canonical} for ngspice`,
         });
       }
     }
   }
   return { diagnostics, replacements };
-}
-
-/** Shared projection for native output/vector expressions. */
-export function spellNgspiceAuthoredText(text: string): string {
-  return spellGreekLetters(text);
 }
