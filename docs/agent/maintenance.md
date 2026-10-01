@@ -47,7 +47,10 @@ Build on Linux with the Node/npm version pinned by `mcp-release.yml`, then run
 Alternatively, dispatch **Publish MCP** on the candidate branch with
 `package_only=true`: it builds and stamps on Linux before validation and
 uploads the archive, `SHA256SUMS.txt`, and `mcp-bootstrap-release.json`.
-Record that candidate digest in the source declaration before delivery.
+Record that candidate digest in the source declaration before delivery:
+download the artifact (`gh run download <run> --dir <dir>`) and run
+`pnpm mcp:release:bump -- --from-ci-artifact <dir>/mcp-candidate-<sha>`,
+which works on any platform once the tarball hashes to its sums.
 Candidate mode does not publish a release. Normal publication verifies the
 committed digest and never restamps it.
 

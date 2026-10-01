@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
@@ -18,18 +19,25 @@ Bump or stamp the MCP distribution declared in config/agent-mcp-distribution.jso
       into release.sha256. Refuses to run off the declared build platform:
       npm pack metadata is part of the immutable tarball digest.
 
+  node scripts/mcp-release-bump.mjs --from-ci-artifact <dir>
+      Stamps from a package the release workflow built on the declared
+      platform (package_only), downloaded with \`gh run download\`. Runs on any
+      platform, after checking the tarball hashes to its SHA256SUMS entry.
+
 Options:
   --version <semver>       Bump mode.
   --stamp                  Stamp mode.
   --config <path>          Distribution declaration (default config/agent-mcp-distribution.json).
   --workspace-package <p>  Workspace package to keep in sync (default apps/mcp-server/package.json).
   --build-dir <dir>        Packaging output holding SHA256SUMS.txt (default output/mcp).
+  --from-ci-artifact <dir> Stamp mode, from a downloaded workflow artifact.
 `;
 
 function parseArgs(argv) {
   const options = {
     version: undefined,
     stamp: false,
+    ciArtifact: false,
     config: resolve(
       import.meta.dirname,
       "../config/agent-mcp-distribution.json",
@@ -50,7 +58,11 @@ function parseArgs(argv) {
       options.workspacePackage = resolve(argv[(index += 1)]);
     else if (arg === "--build-dir")
       options.buildDir = resolve(argv[(index += 1)]);
-    else throw new Error(`Unknown argument: ${arg}\n${usage}`);
+    else if (arg === "--from-ci-artifact") {
+      options.stamp = true;
+      options.ciArtifact = true;
+      options.buildDir = resolve(argv[(index += 1)]);
+    } else throw new Error(`Unknown argument: ${arg}\n${usage}`);
   }
   const modes = [options.version !== undefined, options.stamp].filter(
     Boolean,
@@ -122,7 +134,10 @@ async function bumpVersion(options) {
 
 async function stampDigest(options) {
   const distribution = JSON.parse(await readFile(options.config, "utf8"));
-  if (process.platform !== distribution.release.buildPlatform)
+  if (
+    !options.ciArtifact &&
+    process.platform !== distribution.release.buildPlatform
+  )
     throw new Error(
       `The declared digest comes from a ${distribution.release.buildPlatform} build ` +
         `(npm pack metadata is part of the tarball digest); received ${process.platform}. ` +
@@ -150,6 +165,21 @@ async function stampDigest(options) {
     );
   if (!SHA256_PATTERN.test(entry.digest))
     throw new Error(`SHA256SUMS.txt digest is not sha256 hex: ${entry.digest}`);
+  if (options.ciArtifact) {
+    // Off the build platform, the tarball itself vouches for the digest.
+    const tarball = await readFile(resolve(options.buildDir, entry.name)).catch(
+      () => {
+        throw new Error(
+          `The artifact holds no ${entry.name}; download the whole workflow artifact.`,
+        );
+      },
+    );
+    const actual = createHash("sha256").update(tarball).digest("hex");
+    if (actual !== entry.digest)
+      throw new Error(
+        `${entry.name} hashes to ${actual}, not the ${entry.digest} its SHA256SUMS.txt names.`,
+      );
+  }
   const previousDigest = distribution.release.sha256;
   distribution.release.sha256 = entry.digest;
   await writeJson(options.config, distribution);
