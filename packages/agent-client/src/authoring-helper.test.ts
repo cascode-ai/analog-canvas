@@ -56,9 +56,13 @@ function compile(
   });
 }
 
-function expectCompileError(actions: unknown[], fragment: string): void {
+function expectCompileError(
+  actions: unknown[],
+  fragment: string,
+  snapshot?: AgentSessionSnapshot,
+): void {
   try {
-    compile(actions);
+    compile(actions, snapshot);
     expect.unreachable("expected ActionCompileError");
   } catch (error) {
     expect(error).toBeInstanceOf(ActionCompileError);
@@ -810,6 +814,33 @@ describe("authoring helper compilation", () => {
         },
       ],
       "finite decimal number",
+    );
+  });
+
+  it("names the pin to use when connect gives a block's exported port name", () => {
+    // Issue #1264: netlists call an op-amp's IN+ VIP, so an Agent writes VIP.
+    const snapshot = testSnapshot();
+    snapshot.document.instances.push({
+      ...structuredClone(snapshot.document.instances[1]!),
+      id: "instance-opamp",
+      reference: "X1",
+      symbolId: "opamp",
+      pins: ["IN-", "IN+", "OUT"].map((name) => ({
+        ...structuredClone(snapshot.document.instances[1]!.pins[0]!),
+        name,
+        netId: null,
+      })),
+    });
+    expectCompileError(
+      [
+        {
+          kind: "connect",
+          from: { kind: "pin", instance: "X1", pin: "VIP" },
+          to: { kind: "point", x: 400, y: 200 },
+        },
+      ],
+      'snapshot pins: IN-, IN+, OUT (VIP is the exported port name; use pin "IN+")',
+      snapshot,
     );
   });
 

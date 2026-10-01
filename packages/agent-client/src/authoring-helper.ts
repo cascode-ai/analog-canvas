@@ -248,12 +248,19 @@ function requirePin(
   pin: string,
 ): void {
   if (!instance.pins.some((candidate) => candidate.name === pin)) {
+    // Netlists name a block's ports, not its pins: an op-amp's IN+ is VIP
+    // in `.subckt opamp VDD VSS VIP VIN VOUT`, so VIP is a natural mistake.
+    const port = subcircuitDescriptor(instance.symbolId)?.ports.find(
+      (candidate) => candidate.name === pin && candidate.pinName,
+    );
     throw new ActionCompileError(
       index,
       kind,
       `instance "${instance.reference ?? instance.id}" has no pin "${pin}"; snapshot pins: ${instance.pins
         .map((candidate) => candidate.name)
-        .join(", ")}`,
+        .join(
+          ", ",
+        )}${port?.pinName ? ` (${pin} is the exported port name; use pin "${port.pinName}")` : ""}`,
     );
   }
 }
