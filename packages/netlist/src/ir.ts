@@ -110,6 +110,8 @@ export interface DesignNetlistIR {
   cells: DesignNetlistCell[];
   /** A signal-only, supply-independent ideal comparator body is printed once. */
   idealComparator?: true;
+  /** Logic gate and flip-flop targets whose ideal bodies are printed once each. */
+  idealLogicGates?: string[];
   externalMasters?: DesignNetlistExternalMaster[];
   /** Coupled-winding subcircuits the file defines for drawn magnetic devices. */
   magneticSubcircuits?: DesignNetlistMagneticSubcircuit[];

@@ -6,6 +6,7 @@ import type {
   DesignNetlistParameter,
 } from "./ir.js";
 import { IDEAL_COMPARATOR_TARGET } from "@icm/devices";
+import { spiceIdealLogicSubcircuit } from "./ideal-logic-gate-models.js";
 import type { NetlistFormat } from "./net-name-codec.js";
 import { normalizeIndependentSource } from "./source-waveform.js";
 import { signedControlGain } from "./controlled-current.js";
@@ -400,6 +401,10 @@ function renderSpice(
     append("");
     append(...spiceIdealComparatorSubcircuit());
   }
+  for (const target of ir.idealLogicGates ?? []) {
+    append("");
+    append(...spiceIdealLogicSubcircuit(target));
+  }
   for (const subcircuit of ir.magneticSubcircuits ?? []) {
     append("");
     append(...spiceMagneticSubcircuit(subcircuit));
@@ -653,6 +658,7 @@ export function locateDesignNetlist(
       ...(cell.models ?? []).map((model) => model.name),
       ...(ir.magneticSubcircuits ?? []).map((subcircuit) => subcircuit.name),
       ...(ir.idealComparator ? [IDEAL_COMPARATOR_TARGET] : []),
+      ...(ir.idealLogicGates ?? []),
     ]);
     for (const instance of cell.instances) {
       const original = card(instance);
