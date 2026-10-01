@@ -140,8 +140,10 @@ asks the AuthDO once.
   in the editor is called Gallery: the blue entry beside the wordmark, which
   leaves for `/` through the editor's guard for unsaved work, as the wordmark
   does. The toolbar's Insert (G) opens the Insert from Gallery panel, which
-  reads the same gallery list, inserts entries through the same path as
-  `/g/<id>`, and links to the Gallery itself ("Open Gallery ↗", a new tab). While the gallery is empty or
+  reads the same gallery list and inserts entries through the same path as
+  `/g/<id>`. The panel has no heading or link of its own: it starts with its
+  search, count and circuit cards, and the header's Gallery entry is the way
+  to the Gallery itself. While the gallery is empty or
   unreachable, the feed and the panel both fall back to the bundled
   Library examples, so neither surface is ever blank. The landing feed loads
   its renderer, symbol catalogue, and bundled Projects only after the remote
