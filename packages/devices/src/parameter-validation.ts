@@ -25,16 +25,19 @@ export type DeviceParameterIssue =
 const DECIMAL = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/u;
 
 /**
- * Validate the authored parameter slots owned by a built-in device.
+ * Validate the authored parameter slots owned by a device's model.
  *
  * Values remain strings because they are passed to the selected simulator, but
  * editor metadata still defines which names and scalar forms the GUI accepts.
  * The returned issues are deliberately data-only so clients and diagnostics can
- * present the same failure without mutating a document.
+ * present the same failure without mutating a document. An `open` model (an
+ * unreviewed external or hierarchical subcircuit) takes names beyond its known
+ * slots, so only the known ones are checked; see `instanceParameterContract`.
  */
 export function validateDeviceParameters(
-  descriptor: DeviceDescriptor,
+  descriptor: Pick<DeviceDescriptor, "parameters">,
   parameters: Readonly<Record<string, string>>,
+  options: { open?: boolean } = {},
 ): readonly DeviceParameterIssue[] {
   const definitions = new Map(
     descriptor.parameters.map((parameter) => [
@@ -54,7 +57,7 @@ export function validateDeviceParameters(
     seen.set(folded, name);
     const definition = definitions.get(folded);
     if (!definition) {
-      issues.push({ kind: "unknown", name });
+      if (!options.open) issues.push({ kind: "unknown", name });
       continue;
     }
     if (definition.editor === "select") {

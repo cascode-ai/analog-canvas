@@ -1020,6 +1020,52 @@ describe("ERC engine", () => {
     );
   });
 
+  it("checks a part bound to a reviewed SKY130 model against that model's parameters", () => {
+    // Issue #1274: a SKY130 resistor carries w, l and mult, not value.
+    const project = emptyProject();
+    project.externalSubcircuitDefinitions = [
+      {
+        id: "def-res",
+        name: "sky130_fd_pr__res_high_po",
+        terminals: ["R0", "R1", "B"].map((name) => ({ name })),
+        formalParameters: [],
+      },
+      {
+        id: "def-own",
+        name: "my_trim",
+        terminals: ["A", "B"].map((name) => ({ name })),
+        formalParameters: [],
+      },
+    ] as never;
+    const part = (id: string, definitionId: string, parameters: object) => ({
+      id,
+      symbolId: "resistor",
+      placement: {
+        position: { x: 0, y: 0 },
+        rotation: 0 as const,
+        mirror: "none" as const,
+      },
+      reference: id,
+      netlist: {
+        binding: { kind: "external-subcircuit" as const, definitionId },
+        parameters: parameters as Record<string, string>,
+      },
+    });
+    project.documents[0]!.instances = [
+      part("XRA", "def-res", { w: "1", l: "5.5", mult: "1" }),
+      part("XRB", "def-res", { w: "1", wdith: "2" }),
+      part("XRC", "def-own", { trim: "3", value: "1k" }),
+    ];
+
+    const parameterFindings = run(project)
+      .filter((d) => d.code.endsWith("_DEVICE_PARAMETER"))
+      .map((d) => d.message);
+
+    expect(parameterFindings).toEqual([
+      "Instance XRB sets unknown parameter wdith; allowed parameters: w, l, mult",
+    ]);
+  });
+
   it("uses only typed binding evidence for missing and unsupported model ERC", () => {
     const project = emptyProject();
     const document = project.documents[0]!;

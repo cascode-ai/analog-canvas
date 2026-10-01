@@ -15,7 +15,10 @@ import { findRouteSegmentsAtPoint } from "../route-query.js";
 import { directObjectLocator, type ObjectLocator } from "../object-locator.js";
 import type { Diagnostic, DiagnosticSeverity } from "./diagnostic.js";
 import { findExternalMasterCollisions } from "../master-names.js";
-import { deviceDescriptor, validateDeviceParameters } from "@icm/devices";
+import {
+  instanceParameterContract,
+  validateDeviceParameters,
+} from "@icm/devices";
 
 /**
  * Electrical checks share endpoint assessment and the Diagnostic envelope.
@@ -227,14 +230,17 @@ export function runErcChecks(
           parameters: { instanceId: instance.id, symbolId: instance.symbolId },
         });
       } else {
-        const descriptor = deviceDescriptor(instance.symbolId, project);
-        if (descriptor && instance.netlist?.parameters) {
-          const allowed = descriptor.parameters.map(
+        // The parameters the Instance's model owns, as export reads them: a
+        // reviewed SKY130 binding owns its w/l/mult, not the built-in value.
+        const contract = instanceParameterContract(project, instance);
+        if (contract && instance.netlist?.parameters) {
+          const allowed = contract.definitions.map(
             (parameter) => parameter.name,
           );
           for (const issue of validateDeviceParameters(
-            descriptor,
+            { parameters: contract.definitions },
             instance.netlist.parameters,
+            { open: contract.open },
           )) {
             const allowedText = allowed.length ? allowed.join(", ") : "(none)";
             const message =
