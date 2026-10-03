@@ -163,8 +163,12 @@ function applyPortCase(ir: DesignNetlistIR, portCase: NetlistPortCase): void {
  * comparator target as a signal-only ngspice subcircuit.
  * 10 refuses built-in subcircuit targets without an emitted or external
  * definition, including the reviewed logic-symbol set.
+ * 11 writes ideal bodies for the logic gates and flip-flops, the adder,
+ * multiplier and converters, and ties the unused supplies of an ideal block
+ * that never reads them to node 0, so circuits drawn with them now extract.
+ * Version 10 had marked those circuits "no netlist" while they still failed.
  */
-export const NETLIST_MARK_RULE_VERSION = 10;
+export const NETLIST_MARK_RULE_VERSION = 11;
 
 export function designExtractsNetlist(
   project: CircuitProject,
