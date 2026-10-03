@@ -14,12 +14,13 @@ const changed = [
   "apps/mcp-server/src/resources.generated.ts",
   "scripts/verify-pr.mjs",
   "docs/agent/shared/authoring.md",
+  "docs/agent/distribution.generated.json",
   "config/validation-gates.json",
   "fixtures/ngspice-failures/parallel-sources.log",
 ];
 
 describe("verify:pr selection", () => {
-  it("formats code, JSON and YAML, not Markdown or logs", () => {
+  it("formats code, JSON and YAML, not Markdown, logs or docs/", () => {
     expect(formattedPaths(changed)).toEqual([
       "packages/netlist/src/extract.ts",
       "packages/netlist/src/extract.test.ts",
