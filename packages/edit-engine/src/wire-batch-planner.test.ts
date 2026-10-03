@@ -1,5 +1,6 @@
 import { createEmptyDocument, type SchematicDocument } from "@icm/model";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
+import { resolveRouteGeometry } from "@icm/derived";
 import { describe, expect, it } from "vitest";
 import { DocumentHistory } from "./history.js";
 import { planWireBatch } from "./wire-batch-planner.js";
@@ -163,5 +164,95 @@ describe("wire batch replay", () => {
     expect(planWireBatch(d, resolver, intents, 512)).toMatch(/Wire 2:/);
     expect(planWireBatch(d, resolver, intents, 1)).toMatch(/exceeding/);
     expect(d).toEqual(before);
+  });
+});
+
+describe("via points on a pin-to-pin connect (#1265)", () => {
+  const X = 2400;
+  function twoResistors() {
+    const document = createEmptyDocument("doc", "Detours");
+    for (const [id, x] of [
+      ["instance-ra", X],
+      ["instance-rb", X + 100],
+    ] as const)
+      document.instances.push({
+        id,
+        symbolId: "resistor",
+        reference: id === "instance-ra" ? "R1" : "R2",
+        placement: { position: { x, y: 0 }, rotation: 0, mirror: "none" },
+        netlist: { parameters: { value: "1k" } },
+      });
+    return history(document);
+  }
+  const pin = (instanceId: string, pinName: string) => ({
+    kind: "endpoint" as const,
+    endpoint: { kind: "terminal" as const, instanceId, pinName },
+  });
+  const centerline = (h: DocumentHistory) =>
+    h.document.routes.map((route) =>
+      resolveRouteGeometry(h.document, resolver, route)!.centerline.map(
+        ({ x, y }) => `${x},${y}`,
+      ),
+    );
+  const below = [
+    { x: X, y: 60 },
+    { x: X + 100, y: 60 },
+  ];
+
+  it("follows the detour from either end, in one call or a batch", () => {
+    for (const batch of [false, true]) {
+      const forward = twoResistors();
+      const intent = wire(
+        "w",
+        pin("instance-ra", "2"),
+        pin("instance-rb", "2"),
+        below,
+      );
+      commit(forward, [intent]);
+      expect(centerline(forward)).toEqual([
+        ["2400,20", "2400,60", "2500,60", "2500,20"],
+      ]);
+      // The same points, listed against the direction: the same detour, not
+      // a straight line between the pins.
+      const backward = twoResistors();
+      const plan = planWireBatch(
+        backward.document,
+        resolver,
+        batch
+          ? [wire("w", pin("instance-rb", "2"), pin("instance-ra", "2"), below)]
+          : wire("w", pin("instance-rb", "2"), pin("instance-ra", "2"), below),
+        512,
+      );
+      if (typeof plan === "string") throw new Error(plan);
+      expect(
+        backward.transact({
+          transactionId: "t",
+          documentId: backward.document.id,
+          expectedRevision: backward.document.revision,
+          actor: { kind: "agent", id: "test" },
+          edits: plan.edits,
+        }).ok,
+      ).toBe(true);
+      expect(centerline(backward)).toEqual([
+        ["2500,20", "2500,60", "2400,60", "2400,20"],
+      ]);
+    }
+  });
+
+  it("refuses via points no order can follow, instead of committing another path", () => {
+    const h = twoResistors();
+    const before = structuredClone(h.document);
+    const plan = planWireBatch(
+      h.document,
+      resolver,
+      wire("w", pin("instance-ra", "2"), pin("instance-rb", "2"), [
+        { x: X + 50, y: 60 },
+        { x: X, y: 60 },
+        { x: X + 100, y: 60 },
+      ]),
+      512,
+    );
+    expect(plan).toMatch(/folds back on itself/);
+    expect(h.document).toEqual(before);
   });
 });
