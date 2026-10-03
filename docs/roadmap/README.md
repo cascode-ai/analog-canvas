@@ -24,8 +24,8 @@ do not recreate an already implemented subsystem.
 
 ## Issue handoff
 
-[Open issues after the 2026-09-30 batch](open-issues-2026-09-30.md) lists what
-that batch left partly done, the urgent issues not yet started, the next batch,
+[Open issues after the 2026-10-03 batch](open-issues-2026-10-03.md) lists what
+is left partly done, what is deferred to the simulation batch, the next work,
 and the questions waiting for a decision.
 
 ## Desktop fork integration
