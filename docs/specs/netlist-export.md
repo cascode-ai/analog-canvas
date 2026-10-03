@@ -368,13 +368,22 @@ device templates for Abstract, SKY130, TSMC 28, TSMC 180 and Custom.
 The editor works in SKY130 until told otherwise, and a native device placed
 while a process is selected is bound to that process's model as part of the
 placement, so a drawn circuit exports as that process rather than with missing
-model fields. A transistor takes its model when it is made. Any other part that
-needs a model, a BJT or a diode, takes what applying the process would give
-it, in the same transaction: SKY130's PNP and NPN arrive as their reviewed `X`
-wrappers with the definition, and the NPN with its substrate bound as the
-process binds it. The Agent and the GUI place through the same plan. A
-reviewed BJT wrapper takes the instance multiplier `m`, kept through every
-model change; ngspice scales the X call by it.
+model fields. A transistor whose process names a plain model takes it when it
+is made. Any other part that needs a model takes what applying the process
+would give it, in the same transaction: SKY130's transistors, PNP and NPN arrive
+as their reviewed `X` wrappers with the definition, and the NPN with its
+substrate bound as the process binds it. The Agent and the GUI place through
+the same plan. A reviewed BJT wrapper takes the instance multiplier `m`, kept
+through every model change; ngspice scales the X call by it.
+
+SPICE import reads an `M` card that names a reviewed SKY130 transistor, with no
+`.model` card of that name in the deck, as that reviewed `X` wrapper: the
+SKY130 library defines the name as a subcircuit, so its simulation profile
+cannot run the `M` card. Its W and L are already in metres. A deck that does
+declare the `.model` keeps a model binding. A model binding that still names
+a reviewed device, as older placements and imports wrote, exports as written
+with the warning `REVIEWED_DEVICE_AS_MODEL_CARD`; choosing the model again or
+applying the process binds the `X` call.
 Format is an output preference; names always keep their authored case. Process/device selection is an
 undoable Project transaction that writes ordinary typed bindings and parameters
 before any consumer extracts the circuit. Creating a bundled example applies

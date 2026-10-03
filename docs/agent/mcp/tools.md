@@ -82,8 +82,15 @@ transforms use canonical `upsert_drafting_object` geometry rather than silently
 partially transforming a mixed selection.
 
 `connect` supports `via`, `routingMode:orthogonal/octilinear/free` and
-`cornerOrder`. A `route-segment` target uses the Route's stable `legId`
-and a `point`; the server owns splitting and Junction creation.
+`cornerOrder`. The wire passes through every `via` point: points listed
+from `to` back to `from` are followed in that reverse order, and points no
+order can follow without doubling back are refused with a reason rather than
+committed as another path. Between two endpoints the wire also keeps clear of
+other Nets' pins and wires and of parts' bodies: without `via` it detours,
+with `via` that would meet one it is refused with the obstacle named. A
+transaction that would put a Junction on another Net's wire is refused too.
+A `route-segment` target uses the Route's stable `legId` and a `point`; the
+server owns splitting and Junction creation.
 Name Nets through labels/markers, never raw Base-Net fields.
 
 `advanced_transact` is the full transaction escape hatch for typed edits not

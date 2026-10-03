@@ -179,7 +179,11 @@ intent: a symbol-local minimum body size and unique `terminalId`-keyed visual
 side/offset placement. It is not electrical terminal data, parent-instance
 geometry, or persisted artwork. The Symbol resolver derives the block and all
 pin anchors. Each placement must reference one existing formal terminal and no
-two explicit placements may occupy the same side/offset slot.
+two explicit placements may occupy the same side/offset slot. A supply Cell Pin
+(a VDD Power port, or a Port named like VDD/VCC or VSS/GND) added to a Cell
+that no parent has placed yet gets an explicit placement on the top or bottom
+edge, in the same transaction, as the textbook draws it; a Cell already placed
+somewhere keeps the automatic layout its drawings were made with.
 
 ## Core invariants
 

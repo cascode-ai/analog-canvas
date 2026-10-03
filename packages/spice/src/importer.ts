@@ -65,6 +65,8 @@ interface ImportSymbolMapping {
   symbolId: string;
   pinNames?: readonly string[];
   registryId?: string;
+  /** A reviewed subcircuit an M card names, imported as the X call it is. */
+  reviewedMaster?: string;
 }
 
 function explicitSymbolOverride(
@@ -126,6 +128,12 @@ function importedNetlistBinding(
     return {
       kind: "external-subcircuit",
       definitionId: externalDefinitionId(instance.target.masterName),
+    };
+  }
+  if (mapping.reviewedMaster) {
+    return {
+      kind: "external-subcircuit",
+      definitionId: externalDefinitionId(mapping.reviewedMaster),
     };
   }
   const deviceClass = netlistDeviceClass(mapping.symbolId);
@@ -195,9 +203,12 @@ function symbolFor(
       return { symbolId: "nmos", pinNames: ["D", "G", "S", "B"] };
     if (instance.terminals.length === 4 && modelType === "pmos")
       return { symbolId: "pmos", pinNames: ["D", "G", "S", "B"] };
-    // A reviewed SKY130 MOS written as a plain M card, as this product
-    // exports a MOS bound to the model by name, has no .model card. The
-    // reviewed table still says which transistor it is.
+    // A reviewed SKY130 MOS written as a plain M card, as this product once
+    // exported a MOS bound to the model by name, has no .model card. The
+    // reviewed table says which transistor it is, and that it is a
+    // subcircuit: it imports as the X call the SKY130 simulation profile
+    // runs, not as a model card of that name (#1249). Its W and L are
+    // already in metres.
     const reviewed =
       modelType === undefined && instance.terminals.length === 4
         ? reviewedExternalBindingForMaster(instance.target.modelName)
@@ -208,7 +219,12 @@ function symbolFor(
         (symbolId) => symbolId === reviewed.symbolId,
       )
     )
-      return { symbolId: reviewed.symbolId, pinNames: ["D", "G", "S", "B"] };
+      return {
+        symbolId: reviewed.symbolId,
+        pinNames: ["D", "G", "S", "B"],
+        registryId: reviewed.id,
+        reviewedMaster: reviewed.masterName,
+      };
     return null;
   }
   if (instance.target.kind === "opaque") {

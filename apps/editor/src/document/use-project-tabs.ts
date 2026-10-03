@@ -179,6 +179,43 @@ export function useProjectTabs<Session>(options: {
       persistenceRef.current(false);
       return true;
     },
+    /**
+     * Bring a closed window's tabs into this one (#1250). They follow the
+     * open tabs, the one that was active there becomes active, a tab for an
+     * already open Cloud Project is not doubled, and an untouched blank
+     * placeholder gives way to them.
+     */
+    adopt: (
+      incoming: {
+        session: Session;
+        cloudId: string | null;
+        active: boolean;
+      }[],
+      replaceActive: boolean,
+    ) =>
+      transition(() => {
+        const added = incoming
+          .filter(
+            ({ cloudId }) =>
+              !cloudId ||
+              !liveIds.current.some((id) => describe(id).cloudId === cloudId),
+          )
+          .map(({ session, active: wasActive }) => {
+            const id = createId("tab");
+            sessions.current.set(id, session);
+            return { id, wasActive };
+          });
+        if (!added.length) return;
+        const outgoing = active.current;
+        const next = [
+          ...liveIds.current.filter((id) => !replaceActive || id !== outgoing),
+          ...added.map(({ id }) => id),
+        ];
+        liveIds.current = next;
+        setIds(next);
+        activate((added.find(({ wasActive }) => wasActive) ?? added[0]!).id);
+        if (replaceActive) sessions.current.delete(outgoing);
+      }),
     close: async (id: string, createEmpty: () => Session) => {
       if (transitioning.current) return;
       // The tab strip owns the inline user decision before invoking close.

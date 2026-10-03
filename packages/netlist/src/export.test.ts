@@ -705,6 +705,35 @@ describe("netlist extractability", () => {
     return project;
   }
 
+  it("warns when a model card names a reviewed SKY130 subcircuit, and still exports it (#1249)", () => {
+    const project = oneTransistor({ body: true });
+    const instance = project.documents[0]!.instances[0]!;
+    instance.netlist = {
+      binding: {
+        kind: "model",
+        deviceClass: "mos",
+        name: "sky130_fd_pr__nfet_01v8",
+      },
+      parameters: { w: "1u", l: "150n" },
+    };
+    const findings = (source: typeof project) =>
+      analyzeDesignNetlist(source).diagnostics.filter(
+        (item) => item.code !== "GENERATED_NET_NAME",
+      );
+    expect(findings(project)).toEqual([
+      expect.objectContaining({
+        code: "REVIEWED_DEVICE_AS_MODEL_CARD",
+        severity: "warning",
+        objectIds: ["M1"],
+        message: expect.stringContaining("call it as XM1"),
+      }),
+    ]);
+    // Older drawings keep exporting exactly as they did.
+    expect(designExtractsNetlist(project)).toBe(true);
+    // A model of the author's own raises nothing.
+    expect(findings(oneTransistor({ body: true }))).toEqual([]);
+  });
+
   it("blocks a drawing whose process fields are missing", () => {
     const project = oneTransistor({ body: true });
     project.documents[0]!.instances[0]!.netlist = { parameters: {} };

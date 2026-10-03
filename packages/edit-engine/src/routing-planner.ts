@@ -2383,17 +2383,68 @@ export function proposeWireIntent(
   if (typeof from === "string") return from;
   const to = source(intent.to, "to");
   if (typeof to === "string") return to;
-  return proposeWireCommit(
+  const draft: WireDraftOptions = {
+    ...(intent.routingMode ? { routingMode: intent.routingMode } : {}),
+    ...(intent.cornerOrder ? { cornerOrder: intent.cornerOrder } : {}),
+  };
+  const waypoints = followedWaypointOrder(
     from,
     to,
     intent.waypoints ?? [],
+    draft,
+  );
+  if (typeof waypoints === "string") return waypoints;
+  return proposeWireCommit(
+    from,
+    to,
+    waypoints,
     {
       routeId: `${intent.id}-route`,
       newNetId,
     },
-    {
-      ...(intent.routingMode ? { routingMode: intent.routingMode } : {}),
-      ...(intent.cornerOrder ? { cornerOrder: intent.cornerOrder } : {}),
-    },
+    draft,
   );
+}
+
+/**
+ * The order of the requested via points the routed wire passes through
+ * (#1265). Drafting cancels a leg that doubles back, which is right for a
+ * hand-drawn wire, but via points listed against the direction from→to make
+ * every leg double back, and the requested detour silently became a straight
+ * line between the pins. Points listed in reverse are the same detour, so they
+ * are followed in that order; points no order can follow are refused with a
+ * reason, never committed as some other path.
+ */
+function followedWaypointOrder(
+  from: WireSource,
+  to: WireSource,
+  waypoints: readonly Point[],
+  draft: WireDraftOptions,
+): readonly Point[] | string {
+  if (!waypoints.length) return waypoints;
+  const mode = draft.routingMode ?? "orthogonal";
+  const follows = (order: readonly Point[]) => {
+    const { points } = compileWireDraft(
+      from,
+      to,
+      order.map((point) => ({
+        point,
+        routingMode: mode,
+        ...(draft.cornerOrder ? { cornerOrder: draft.cornerOrder } : {}),
+      })),
+      mode,
+      draft.cornerOrder ?? "auto",
+    );
+    return waypoints.every((point) =>
+      points.some(
+        (end, index) =>
+          index > 0 && pointOnSegment(point, points[index - 1]!, end),
+      ),
+    );
+  };
+  if (follows(waypoints)) return waypoints;
+  const reversed = [...waypoints].reverse();
+  if (follows(reversed)) return reversed;
+  const at = (point: Point) => `(${point.x},${point.y})`;
+  return `The requested path folds back on itself: via ${waypoints.map(at).join(" → ")} from ${at(from.connection.gridLanding)} to ${at(to.connection.gridLanding)} doubles back, so the wire would not pass through them. List via points in order from "from" to "to", one turn per point.`;
 }

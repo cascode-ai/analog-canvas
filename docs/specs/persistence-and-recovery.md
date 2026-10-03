@@ -117,6 +117,19 @@ earlier snapshots intact and report the need to export; clearing browser data
 can remove this origin-local state. Cloud Save and portable backups remain
 separate durability choices.
 
+A window whose browser tab closed leaves its workspace stored. A fresh window
+with no workspace of its own and no explicit open request (a Gallery or Cloud
+link, an example, New Circuit) offers the newest workspace a closed window
+left, non-modally: "Reopen tabs" or "Not now". Each open window holds a Web
+Lock named after its identity for its page's lifetime, so an open window's
+tabs are never offered; without Web Locks nothing is offered. A workspace is
+offered only when a tab holds unsaved work or stands for a Cloud Project,
+Gallery entry or file, never for an untouched New Circuit. Reopened tabs join
+the window's tabs (a Cloud Project already open is not doubled), and an
+untouched blank placeholder gives way to them. The closed window's record is
+removed only after this window's own saved workspace holds every reopened
+tab. "Not now" keeps the record; another fresh window offers it again.
+
 ## Cloud Project and Save semantics
 
 The private Cloud Project API owns one current revision per stable resource:

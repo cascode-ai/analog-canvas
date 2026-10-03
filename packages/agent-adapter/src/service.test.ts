@@ -5,6 +5,7 @@ import { executeTransaction, SchematicEditSchema } from "@icm/edit-engine";
 import {
   createEmptyDocument,
   createEmptyProject,
+  createRoutePath,
   createSimulationFolder,
 } from "@icm/model";
 import { parseProject } from "@icm/project-protocol";
@@ -30,7 +31,10 @@ import {
   agentEditCategory,
   createAgentCircuitService,
 } from "./service.js";
-import { agentProjectDiagnostics } from "./diagnostics.js";
+import {
+  addedAmbiguousJunctions,
+  agentProjectDiagnostics,
+} from "./diagnostics.js";
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
 const allPermissions: AgentPermissions = {
@@ -1320,5 +1324,89 @@ describe("current Agent Circuit API service", () => {
     expect(formalSvg).not.toMatch(/agent-diagnostics|editor-overlay/u);
     expect(diagnosticSvg).toContain('data-layer="agent-diagnostics"');
     expect(diagnostics.artifact.sha256).toMatch(/^[a-f0-9]{64}$/u);
+  });
+});
+
+describe("ambiguous Junctions are refused, not committed (#1257)", () => {
+  /** Net A's wire from (0,0) to (100,0); Net B owns nothing yet. */
+  function wireOfNetA() {
+    const document = createEmptyDocument("doc", "Ambiguity");
+    document.nets.push(
+      { id: "net-a", terminals: [] },
+      { id: "net-b", terminals: [] },
+    );
+    document.junctions.push(
+      { id: "a1", netId: "net-a", position: { x: 0, y: 0 } },
+      { id: "a2", netId: "net-a", position: { x: 100, y: 0 } },
+    );
+    document.routes.push(
+      createRoutePath({
+        id: "route-a",
+        netId: "net-a",
+        start: { kind: "junction", junctionId: "a1" },
+        end: { kind: "junction", junctionId: "a2" },
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+    return document;
+  }
+
+  it("finds a Junction a change puts on another Net's wire, and only a new one", () => {
+    const before = wireOfNetA();
+    const after = structuredClone(before);
+    after.junctions.push({
+      id: "b1",
+      netId: "net-b",
+      position: { x: 50, y: 0 },
+    });
+    expect(addedAmbiguousJunctions(before, after, resolver)).toEqual([
+      expect.objectContaining({
+        code: "VISUAL_AMBIGUOUS_JUNCTION",
+        point: { x: 50, y: 0 },
+      }),
+    ]);
+    // One that was already there is not the change's doing.
+    expect(addedAmbiguousJunctions(after, after, resolver)).toEqual([]);
+  });
+
+  it("still lets a wire end on another wire, which joins the two", () => {
+    let document = createEmptyDocument("doc", "Join");
+    const service = createAgentCircuitService({
+      agentId: "agent-test",
+      resolver,
+      permissions: allPermissions,
+      store: {
+        getDocument: () => document,
+        commitDocument: (next) => {
+          document = next;
+        },
+      },
+    });
+    const wire = (
+      id: string,
+      from: { x: number; y: number },
+      to: { x: number; y: number },
+    ) =>
+      service.handle({
+        apiVersion: "3.0",
+        operation: "transact",
+        requestId: id,
+        transactionId: id,
+        documentId: document.id,
+        expectedRevision: document.revision,
+        wireIntent: {
+          id,
+          from: { kind: "free", point: from },
+          to: { kind: "free", point: to },
+        },
+      });
+    expect(wire("w1", { x: 0, y: 0 }, { x: 100, y: 0 })).toMatchObject({
+      ok: true,
+    });
+    expect(wire("w2", { x: 50, y: -50 }, { x: 50, y: 0 })).toMatchObject({
+      ok: true,
+    });
+    expect(new Set(document.junctions.map((item) => item.netId)).size).toBe(1);
   });
 });

@@ -24,8 +24,10 @@ import {
   type SchematicDocument,
 } from "@icm/model";
 import {
+  NETLIST_MARK_RULE_VERSION,
   compareElectricalGraphs,
   createDesignNetlistExport,
+  designExtractsNetlist,
   projectElectricalGraph,
 } from "@icm/netlist";
 import { parseProject } from "@icm/project-protocol";
@@ -56,6 +58,8 @@ interface CensusEntry {
   /** "ok", or what went wrong. The comparison reads only these. */
   checks: Record<string, string>;
   netlistHash?: string;
+  /** The Gallery's netlist mark for the drawing (designExtractsNetlist). */
+  netlistMark?: boolean;
   /** Name and value labels that followed their part through a quarter turn. */
   labelsFollowing?: string[];
   markerCopies?: number;
@@ -465,6 +469,11 @@ function censusEntry(row: {
     const codes = [...new Set(result.diagnostics.map((item) => item.code))];
     return `blocked: ${codes.sort().join(", ")}`;
   });
+  try {
+    entry.netlistMark = designExtractsNetlist(project);
+  } catch {
+    // The netlist check above already reports what failed.
+  }
 
   // Every supply marker on its own, as a copied VDD or ground usually travels.
   const markers = document.instances.filter(
@@ -635,6 +644,7 @@ it("puts every Gallery drawing through the census", () => {
         format: "analog-canvas/gallery-census",
         version: 1,
         commit: process.env.ICM_GALLERY_CENSUS_COMMIT ?? null,
+        netlistMarkRuleVersion: NETLIST_MARK_RULE_VERSION,
         backup,
         statuses,
         generatedAt: new Date().toISOString(),

@@ -302,6 +302,14 @@ test("dialog closes with Escape and keeps focus labels", async ({ page }) => {
   ).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(dialog).toBeHidden();
+
+  // #1250: a click on the dialog's text moves focus off its controls; Esc
+  // still closes it.
+  await clickCommand(page, "File", "Recover Unsaved Work…");
+  await expect(dialog).toBeVisible();
+  await dialog.getByText("These copies live only in this browser").click();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
 });
 
 test("storage failure offers a backup without acknowledging Cloud Save", async ({

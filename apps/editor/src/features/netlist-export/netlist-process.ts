@@ -110,6 +110,11 @@ export function inferNetlistProcess(
  * Netlist panel shows — the Process the Project's transistors already use,
  * else the one chosen in this browser. A device drawn while working in a
  * process is that process's device, whether a person or an Agent places it.
+ *
+ * Undefined for a reviewed device such as SKY130's transistors (#1249): it
+ * is a subcircuit called on an X line, so a model card of that name is one
+ * the SKY130 simulation profile cannot run. The placement's process fill
+ * (`placementProcessFill`) binds it instead, with its definition.
  */
 export function placementModelTarget(
   project: CircuitProject,
@@ -125,18 +130,55 @@ export function placementModelTarget(
     preferences.selected === "custom"
       ? "custom"
       : inferNetlistProcess(project, preferences.selected);
-  return preferences.profiles[process].devices[family].target || undefined;
+  const target = preferences.profiles[process].devices[family].target;
+  return target && !reviewedExternalBindingForMaster(target)
+    ? target
+    : undefined;
+}
+
+/**
+ * The device a part placed now becomes under the Process the Netlist panel
+ * shows, as "Apply process" chooses it: the family's target, or the
+ * high-voltage device a drain-extended part takes when the family's does not
+ * fit it. Undefined when the Process names nothing for the part.
+ */
+export function processPlacementTarget(
+  project: CircuitProject,
+  preferences: {
+    selected: NetlistProfileId;
+    profiles: Record<NetlistProfileId, NetlistExportProfile>;
+  },
+  symbolId: string,
+): string | undefined {
+  const family = netlistDeviceFamily(symbolId);
+  if (!family) return undefined;
+  const process =
+    preferences.selected === "custom"
+      ? "custom"
+      : inferNetlistProcess(project, preferences.selected);
+  const profile = preferences.profiles[process];
+  const target = profile.devices[family].target;
+  if (!target) return undefined;
+  const reviewed = reviewedExternalBindingForMaster(target);
+  if (
+    reviewed &&
+    !reviewedExternalBindingSupportsSymbol(reviewed, symbolId) &&
+    (symbolId === "ndmos" || symbolId === "pdmos")
+  )
+    return NETLIST_HIGH_VOLTAGE_TARGETS[profile.id]?.[symbolId];
+  return target;
 }
 
 /**
  * What the Process gives the parts a placement adds, committed with the
  * placement as one Project transaction.
  *
- * A transistor takes its model when it is made (`placementModelTarget`).
- * Every other part that needs a model, a BJT or a diode, takes here what
- * "Apply process" would give it. SKY130's PNP and NPN are reviewed
- * subcircuits called on X lines, so they need a definition, and the NPN a
- * substrate terminal, that no Document edit can add. Undefined when the
+ * A transistor whose Process names a plain model takes it when it is made
+ * (`placementModelTarget`). Every other part that needs a model takes here
+ * what "Apply process" would give it: a BJT, a diode, and a transistor the
+ * Process maps to a reviewed device. SKY130's transistors, PNP and NPN are
+ * reviewed subcircuits called on X lines, so they need a definition, and the
+ * NPN a substrate terminal, that no Document edit can add. Undefined when the
  * placement adds no such part, or the Process names nothing for it: the
  * placement then commits exactly as before.
  */

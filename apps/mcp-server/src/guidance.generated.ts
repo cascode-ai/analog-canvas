@@ -17,7 +17,7 @@ export const agentToolHelp = {
   circuit_place:
     "Place built-in symbols, child Cells or existing instances and add power rails. place-component accepts electrical control for controlled sources, separate from Annotation. actions is one atomic batch; obtain symbol IDs and resolved pins from catalog/inspect. Same planner and permissions as apply_actions.",
   circuit_wire:
-    "Connect/disconnect in an atomic batch; via gives interior points. Explicit instance IDs avoid a full-Snapshot name lookup; server routing/validation is unchanged. Artwork contact is not connectivity.",
+    "Connect/disconnect in an atomic batch; via gives interior points, all passed through (in either listed order) or refused. Explicit instance IDs avoid a full-Snapshot name lookup; server routing/validation is unchanged. Artwork contact is not connectivity.",
   circuit_transform:
     "Move/rotate/mirror individual targets, arrange or detach-move instances, or extend a Power Rail using one supported action batch. Preserves original planner boundaries and topology semantics. For mixed action families use apply_actions.",
   circuit_selection:

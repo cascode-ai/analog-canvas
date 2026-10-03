@@ -4,6 +4,7 @@ import { createDesignNetlistExport } from "@icm/netlist";
 
 import { createEmptyDocument, createEmptyProject } from "@icm/model";
 import type { Annotation, RichTextDocument } from "@icm/model";
+import { createHierarchicalBlockSymbol } from "@icm/symbols";
 
 import {
   createExternalSubcircuitInstance,
@@ -129,6 +130,14 @@ describe("hierarchy domain planners", () => {
           expect(document.annotations[0]!.binding?.kind).toBe(
             "cell-terminal-name",
           );
+          // A Cell no parent has placed draws its supply on top (#1257).
+          expect(document.presentation.cellSymbol?.pinPlacements).toEqual([
+            {
+              terminalId: document.netlist!.terminals[0]!.id,
+              side: "north",
+              offset: 0,
+            },
+          ]);
         } else {
           expect(document.netlist!.terminals).toEqual([]);
           expect(document.connectivityEvidence).toEqual([
@@ -562,6 +571,95 @@ describe("hierarchy domain planners", () => {
         ],
       },
     });
+  });
+
+  it("puts a new Cell's supply pins on the block's top and bottom, and leaves a placed Cell's layout alone (#1257)", () => {
+    const pinOf = (
+      source: ReturnType<typeof createEmptyProject>,
+      id: string,
+      symbolId: string,
+      name: string,
+      x: number,
+    ) =>
+      planCreateCellPin(source, source.topDocumentId, {
+        instance: {
+          id,
+          symbolId,
+          placement: {
+            position: { x, y: 20 },
+            rotation: 0 as const,
+            mirror: "none" as const,
+          },
+        },
+        connectionEdits: [
+          {
+            kind: "connect_endpoints",
+            from: { kind: "terminal", instanceId: id, pinName: "P" },
+            to: { kind: "terminal", instanceId: id, pinName: "P" },
+            newNetId: `net-${id}`,
+          },
+        ],
+        terminal: {
+          id: `terminal-${id}`,
+          name,
+          netId: `net-${id}`,
+          direction: symbolId === "vdd-port" ? "inout" : "input",
+          interfaceInstanceIds: [id],
+        },
+      });
+    const add = (
+      source: ReturnType<typeof createEmptyProject>,
+      ...pin: [string, string, string, number]
+    ) => {
+      const result = executeProjectTransaction(source, {
+        transactionId: `add-${pin[0]}`,
+        projectId: source.id,
+        expectedStructureRevision: source.structureRevision,
+        actor: { kind: "human", id: "test" },
+        edits: pinOf(source, ...pin),
+      });
+      if (!result.ok) throw new Error(result.error.message);
+      return result.project;
+    };
+    let project = createEmptyProject("project", "Stage");
+    project = add(project, "P1", "vdd-port", "VDD", 0);
+    project = add(project, "P2", "port", "VSS", 40);
+    project = add(project, "P3", "port", "IN", 80);
+    project = add(project, "P4", "port", "VDDA", 120);
+    const cell = project.documents[0]!;
+    expect(cell.presentation.cellSymbol?.pinPlacements).toEqual([
+      { terminalId: "terminal-P1", side: "north", offset: 0 },
+      { terminalId: "terminal-P2", side: "south", offset: 0 },
+      { terminalId: "terminal-P4", side: "north", offset: 20 },
+    ]);
+    // The generated block draws them there: VDD above the body, VSS below.
+    const symbol = createHierarchicalBlockSymbol(cell)!;
+    const y = (name: string) =>
+      symbol.pins.find((pin) => pin.name === name)!.at.y;
+    expect(y("VDD")).toBeLessThan(y("IN"));
+    expect(y("VSS")).toBeGreaterThan(y("IN"));
+
+    // Once a parent has placed the Cell, a new supply pin takes the old
+    // automatic slot, so drawings made with the symbol do not move.
+    const parent = createEmptyDocument("parent", "Top");
+    parent.instances.push({
+      id: "X1",
+      symbolId: "hierarchical-stage",
+      reference: "X1",
+      placement: null,
+      netlist: {
+        binding: { kind: "subcircuit", childDocumentId: cell.id },
+        parameters: {},
+      },
+    });
+    const placed = { ...project, documents: [...project.documents, parent] };
+    expect(
+      pinOf(placed, "P5", "port", "VCC", 160)
+        .flatMap((edit) =>
+          edit.kind === "transact_document" ? edit.edits : [],
+        )
+        .some((edit) => edit.kind === "set_cell_symbol_presentation"),
+    ).toBe(false);
   });
 
   it("creates a repeated Cell Pin name as an independent interface", () => {

@@ -2,7 +2,9 @@ import { describe, expect, it, vi, afterEach } from "vitest";
 import { IDBFactory } from "fake-indexeddb";
 import {
   createProjectWorkspaceStore,
+  holdWorkspaceWindow,
   journalProjectWorkspace,
+  openWorkspaceWindows,
   type ProjectWorkspace,
 } from "./project-workspace";
 
@@ -38,6 +40,76 @@ describe("browser project workspace", () => {
     ).toEqual(workspace());
     expect(await reopened.read("new-window", "/editor")).toBeNull();
     reopened.close();
+  });
+  it("finds the newest workspace another window left and forgets it once taken over (#1250)", async () => {
+    const factory = new IDBFactory();
+    const store = createProjectWorkspaceStore(factory);
+    await store.write(workspace("old", 1));
+    await store.write(workspace("open-elsewhere", 9));
+    await store.write(workspace("newest-closed", 5));
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = factory.open("analog-canvas-workspaces", 1);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    // A damaged record never hides a readable one.
+    await new Promise<void>((resolve) => {
+      const write = db.transaction("windows", "readwrite");
+      write.objectStore("windows").put({ windowId: "broken", version: 1 });
+      write.oncomplete = () => resolve();
+    });
+    db.close();
+
+    const open = new Set(["open-elsewhere"]);
+    const skip = (record: ProjectWorkspace) => open.has(record.windowId);
+    expect((await store.latestElsewhere("fresh", skip))?.windowId).toBe(
+      "newest-closed",
+    );
+    // A window's own record is never offered back to it.
+    expect((await store.latestElsewhere("newest-closed", skip))?.windowId).toBe(
+      "old",
+    );
+
+    await store.remove("newest-closed");
+    expect(
+      await store.read("newest-closed", "/editor", { allowRouteChange: true }),
+    ).toBeNull();
+    expect((await store.latestElsewhere("fresh", skip))?.windowId).toBe("old");
+    store.close();
+  });
+  it("tells open windows by the lock each one holds for its lifetime", async () => {
+    const granted = new Set<string>();
+    const locks = {
+      request: vi.fn(
+        async (
+          name: string,
+          _options: LockOptions,
+          callback: (lock: Lock | null) => unknown,
+        ) => {
+          const free = !granted.has(name);
+          if (free) granted.add(name);
+          // A held lock's callback never settles while its page lives.
+          void callback(free ? ({ name, mode: "exclusive" } as Lock) : null);
+        },
+      ),
+      query: vi.fn(async () => ({
+        held: [...granted, "someone-else"].map((name) => ({ name })),
+        pending: [],
+      })),
+    } as unknown as Pick<LockManager, "request" | "query">;
+    holdWorkspaceWindow("first", locks);
+    holdWorkspaceWindow("first", locks); // a duplicated browser tab
+    holdWorkspaceWindow("second", locks);
+    await Promise.resolve();
+    expect(await openWorkspaceWindows(locks)).toEqual(
+      new Set(["first", "second"]),
+    );
+    // Without Web Locks no window is known closed.
+    expect(await openWorkspaceWindows(null)).toBeNull();
+    const failing = {
+      query: () => Promise.reject(new Error("blocked")),
+    } as unknown as Pick<LockManager, "request" | "query">;
+    expect(await openWorkspaceWindows(failing)).toBeNull();
   });
   it("an immediate-refresh journal wins only when newer and for the same window", async () => {
     const memory = new Map();

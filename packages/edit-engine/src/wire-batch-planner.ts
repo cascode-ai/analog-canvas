@@ -1,4 +1,6 @@
 import {
+  deriveNetConnectivityContext,
+  endpointKey,
   pointOnSegment,
   resolveEndpointConnection,
   resolveRouteGeometry,
@@ -6,11 +8,74 @@ import {
 import { routeEnd, type SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 import { executeTransaction, type SchematicEdit } from "./transaction.js";
-import { proposeWireIntent } from "./routing-planner.js";
+import { proposeWireIntent, type WireIntent } from "./routing-planner.js";
 import { createContactPlanningDraft } from "./contact-planning-draft.js";
+import { createRouteClearance } from "./route-clearance.js";
 import { resolveWireIntentTarget } from "./wire-intent-target.js";
 
-/** Plan on private evolving state, then dispatch the combined edits once. */
+/**
+ * A wire between two endpoints that keeps clear of what it must not touch
+ * (#1257): another Net's pin, a part's body or drawing, another Net's wire.
+ * Any of those would read as a connection the netlist does not have. The
+ * planner's own path is kept when it is clear. Otherwise a wire with no
+ * via points takes the cheapest clear path, and one with via points, which
+ * the caller chose, is refused with what it would meet.
+ */
+function keepClear(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  intent: WireIntent,
+): WireIntent | string {
+  if (intent.from.kind !== "endpoint" || intent.to.kind !== "endpoint")
+    return intent;
+  const planned = proposeWireIntent(document, resolver, intent);
+  if (typeof planned === "string") return intent;
+  const path = planned.edits.find((edit) => edit.kind === "set_route_path");
+  if (!path) return intent;
+  const points = resolveRouteGeometry(
+    document,
+    resolver,
+    path.route,
+  )?.centerline;
+  if (!points) return intent;
+  const context = deriveNetConnectivityContext(document, resolver);
+  const ends = [intent.from.endpoint, intent.to.endpoint];
+  const ownNets = ends.flatMap((endpoint) => {
+    const netId =
+      endpoint.kind === "junction"
+        ? document.junctions.find((item) => item.id === endpoint.junctionId)
+            ?.netId
+        : document.nets.find((net) =>
+            net.terminals.some(
+              (terminal) =>
+                terminal.instanceId === endpoint.instanceId &&
+                terminal.pinName === endpoint.pinName,
+            ),
+          )?.id;
+    return netId
+      ? [context.logicalNetResolution.byBaseNetId.get(netId)?.id ?? netId]
+      : [];
+  });
+  const clearance = createRouteClearance(document, resolver, context, {
+    logicalIds: new Set(ownNets),
+    endpointKeys: new Set(ends.map(endpointKey)),
+  });
+  const problem = clearance.conflict(points, ends);
+  if (!problem) return intent;
+  if (intent.waypoints?.length)
+    return `the requested path ${problem}, so it would read as connected there; give via points that keep clear of it`;
+  const clear = clearance.path(ends[0]!, ends[1]!);
+  if (typeof clear === "string") return clear;
+  return {
+    ...intent,
+    waypoints: clear.waypoints,
+    cornerOrder: clear.cornerOrder,
+  };
+}
+
+/** Plan on private evolving state, then dispatch the combined edits once.
+ * `keepClear` (the Agent's connect) routes each wire between two endpoints
+ * clear of foreign pins, bodies and wires; route-net clears its own. */
 export function planWireBatch(
   document: SchematicDocument,
   resolver: SymbolResolver,
@@ -18,9 +83,15 @@ export function planWireBatch(
     | Parameters<typeof proposeWireIntent>[2]
     | Parameters<typeof proposeWireIntent>[2][],
   limit: number,
+  options: { keepClear?: boolean } = {},
 ): { edits: SchematicEdit[] } | string {
-  if (!Array.isArray(input))
-    return proposeWireIntent(document, resolver, input);
+  if (!Array.isArray(input)) {
+    const intent = options.keepClear
+      ? keepClear(document, resolver, input)
+      : input;
+    if (typeof intent === "string") return intent;
+    return proposeWireIntent(document, resolver, intent);
+  }
   const draft = createContactPlanningDraft(document, resolver);
   const working = draft.document;
   const edits = draft.edits;
@@ -171,11 +242,12 @@ export function planWireBatch(
     const selectedTo = resolveAnchor(to, selectedFrom);
     if (typeof selectedTo === "string")
       return `Wire ${index + 1}: ${selectedTo}`;
-    const planned = proposeWireIntent(working, resolver, {
-      ...intent,
-      from: selectedFrom,
-      to: selectedTo,
-    });
+    const selected = { ...intent, from: selectedFrom, to: selectedTo };
+    const cleared = options.keepClear
+      ? keepClear(working, resolver, selected)
+      : selected;
+    if (typeof cleared === "string") return `Wire ${index + 1}: ${cleared}`;
+    const planned = proposeWireIntent(working, resolver, cleared);
     if (typeof planned === "string") return `Wire ${index + 1}: ${planned}`;
     // Match the final transaction's pre-finalization state. Normalizing each
     // private step would invent Net/Route identities absent during replay.

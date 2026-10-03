@@ -6,6 +6,7 @@ import { ChunkLoadBanner } from "../components/chunk-load-fallback";
 import {
   RecoveryAvailableBanner,
   RecoveryFailureBanner,
+  WorkspaceReopenBanner,
 } from "../components/recovery-banners";
 import {
   LazyCellManagerDialog,
@@ -24,6 +25,7 @@ export interface EditorDialogLayerProps {
   chunkLoadFailure: ComponentProps<typeof ChunkLoadBanner> | null;
   recoveryFailure: ComponentProps<typeof RecoveryFailureBanner> | null;
   recoveryAvailable: ComponentProps<typeof RecoveryAvailableBanner> | null;
+  workspaceReopen: ComponentProps<typeof WorkspaceReopenBanner> | null;
   recentRecovery: ComponentProps<typeof LazyRecentRecoveryDialog> | null;
   replaceGuard: ComponentProps<typeof LazyReplaceGuardDialog> | null;
   projectProperties: ComponentProps<typeof LazyProjectPropertiesDialog> | null;
@@ -46,6 +48,7 @@ export function EditorDialogLayer({
   chunkLoadFailure,
   recoveryFailure,
   recoveryAvailable,
+  workspaceReopen,
   recentRecovery,
   replaceGuard,
   projectProperties,
@@ -67,6 +70,8 @@ export function EditorDialogLayer({
         ) : null}
         {recoveryAvailable ? (
           <RecoveryAvailableBanner {...recoveryAvailable} />
+        ) : workspaceReopen ? (
+          <WorkspaceReopenBanner {...workspaceReopen} />
         ) : null}
         {recentRecovery ? (
           <LazyRecentRecoveryDialog {...recentRecovery} />
