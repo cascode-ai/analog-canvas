@@ -19,6 +19,11 @@ each one stands. It replaces the 2026-09-30 list.
 - The Gallery census blocks on netlist marks that change without a
   `NETLIST_MARK_RULE_VERSION` bump.
 - **#1262** and **#1252** were closed; both were done on 2026-10-01.
+- Later the same day: IHP SG13G2 as a process (front-end: drawing and
+  netlists), browser checks before a pull request limited to the cases a
+  change edits, a census that runs only the checks a change needs and
+  reuses its base, and unit tests that share modules (about 2.5 minutes to
+  about half a minute).
 
 ## Deferred to the simulation batch (owner, 2026-10-03)
 
@@ -50,6 +55,16 @@ each one stands. It replaces the 2026-09-30 list.
   have to be split.
 - The flaky browser case "Shelf cards duplicate, rename, export and keep
   account favorites without entering the canvas" (`gallery.spec.ts`).
+- The flaky browser case "Gallery navigation uses the replacement decision
+  without a second browser prompt" (`project-file.spec.ts`): under four
+  workers on a loaded machine R1 came back after Continue without saving and
+  a return to `/editor`. It passes alone; why the tabs are normally gone on
+  return is not yet traced.
+- Browser case trimming awaits the owner's choice: 36 parameterized tests
+  expand to 114 of the 711 cases; keeping one or two variants of each would
+  drop about 40 (about a minute of a full run at four workers).
+- IHP SG13G2 simulation: its MOS (PSP103) and resistor (r3_cmc) models need
+  OSDI modules built with OpenVAF; hosted simulation has no SG13G2 profile.
 
 ## Waiting for a decision or details
 

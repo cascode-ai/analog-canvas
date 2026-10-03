@@ -516,7 +516,7 @@ Click the top **Netlist** copy button to put the netlist on the clipboard and
 open its live code in the right sidebar. That panel's **Format** (SPICE or SCS)
 and **Process** selectors are independent. The editor starts in SKY130, and a
 transistor you draw is bound to the selected process as you place it. Choose
-Abstract, SKY130, TSMC 28, TSMC 180 or Custom, then optionally choose
+Abstract, SKY130, IHP SG13G2, TSMC 28, TSMC 180 or Custom, then optionally choose
 NMOS/PMOS/R/C/L targets below the code. Process changes update the circuit and
 can be undone; existing values are retained. Unbound native devices use the
 cached template's defaults when the panel opens. **Default** restores the
@@ -552,7 +552,7 @@ and **Redo** undo or restore the complete batch.
 
 **Netlist / Configuration…** opens one raw JSON document in the right sidebar.
 Copy, paste, or replace the whole configuration. Set `selected` to `abstract`,
-`sky130`, `tsmc28`, `tsmc180`, or `custom`; edit the corresponding entry under
+`sky130`, `sg13g2`, `tsmc28`, `tsmc180`, or `custom`; edit the corresponding entry under
 `profiles`. Valid edits apply immediately and are remembered in this browser.
 Invalid JSON pauses copying until corrected. The circuit itself is unchanged.
 
@@ -565,6 +565,14 @@ Invalid JSON pauses copying until corrected. The circuit itself is unchanged.
   are not converted into geometry. Set `library.path` and `library.section`
   for your installed PDK. SCS exports stay in Spectre syntax and reference that
   configured path with a native `include` declaration.
+- `sg13g2`: IHP SG13G2 (IHP-Open-PDK) devices called as its xschem symbols
+  write them: `sg13_lv_nmos`/`sg13_lv_pmos` (1.2 V, or `sg13_hv_*` at 3.3 V)
+  with `w`, `l`, `ng`, `m` in metres, the SiGe HBTs `npn13G2`, `npn13G2l` and
+  `npn13G2v` with `le`, `we` and the emitter count `Nx`, and `pnpMPA`. R and C
+  are ideal by default; set `rsil`, `rppd` or `rhigh`, or `cap_cmim` or
+  `cap_rfcmim`, for physical ones. HBT, resistor and RF-MIM substrates default
+  to `0`. Include the PDK's ngspice model libraries yourself, with the OSDI
+  modules its MOS and resistors need.
 - `tsmc28` / `tsmc180`: TSMC reference MOS names (`nch_ulvt_mac`/`pch_ulvt_mac`
   with `multi`, or `nch`/`pch` with `m`) and ideal R/C/L. Point `library.path`
   at your installed PDK.

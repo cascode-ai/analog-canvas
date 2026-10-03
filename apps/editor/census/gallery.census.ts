@@ -50,6 +50,24 @@ import { createSelectionTransformController } from "../src/features/selection/se
 
 const OK = "ok";
 
+/**
+ * What a census can check, in groups a change selects (`--checks`):
+ * extraction with the Gallery's netlist mark, copying and placement with
+ * supply markers, and a quarter turn and mirror with the labels that follow.
+ */
+const CHECK_GROUPS = ["netlist", "copy", "transform"] as const;
+type CheckGroup = (typeof CHECK_GROUPS)[number];
+const requestedGroups = (process.env.ICM_GALLERY_CENSUS_CHECKS ?? "")
+  .split(",")
+  .filter(Boolean);
+for (const group of requestedGroups)
+  if (!(CHECK_GROUPS as readonly string[]).includes(group))
+    throw new Error(`Unknown census check group: ${group}`);
+const checkGroups: readonly CheckGroup[] = requestedGroups.length
+  ? CHECK_GROUPS.filter((group) => requestedGroups.includes(group))
+  : CHECK_GROUPS;
+const runs = (group: CheckGroup) => checkGroups.includes(group);
+
 type Selection = Parameters<typeof encodeCircuitClipboard>[2];
 
 interface CensusEntry {
@@ -457,6 +475,13 @@ function censusEntry(row: {
   )!;
   const resolver = createProjectSymbolResolver(project, builtInSymbols);
 
+  if (runs("netlist")) netlistChecks(entry, project);
+  if (runs("copy")) copyChecks(entry, project, document);
+  if (runs("transform")) transformChecks(entry, project, document, resolver);
+  return entry;
+}
+
+function netlistChecks(entry: CensusEntry, project: CircuitProject): void {
   entry.checks.netlist = attempt(() => {
     const result = createDesignNetlistExport(project, { format: "spice" });
     if (result.status === "ready") {
@@ -474,7 +499,13 @@ function censusEntry(row: {
   } catch {
     // The netlist check above already reports what failed.
   }
+}
 
+function copyChecks(
+  entry: CensusEntry,
+  project: CircuitProject,
+  document: SchematicDocument,
+): void {
   // Every supply marker on its own, as a copied VDD or ground usually travels.
   const markers = document.instances.filter(
     (instance) =>
@@ -547,7 +578,14 @@ function censusEntry(row: {
           : OK;
       })
     : "not reached";
+}
 
+function transformChecks(
+  entry: CensusEntry,
+  project: CircuitProject,
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+): void {
   entry.checks.turn = attempt(() => {
     const turned = quarterTurn(document, resolver, 1);
     entry.labelsFollowing = labelsAtDefault(turned, resolver).sort();
@@ -599,7 +637,6 @@ function censusEntry(row: {
       ? OK
       : "a second mirror does not restore the drawing";
   });
-  return entry;
 }
 
 it("puts every Gallery drawing through the census", () => {
@@ -644,6 +681,12 @@ it("puts every Gallery drawing through the census", () => {
         format: "analog-canvas/gallery-census",
         version: 1,
         commit: process.env.ICM_GALLERY_CENSUS_COMMIT ?? null,
+        // What a later census may reuse this report for: the same tree,
+        // snapshot, harness and statuses, all drawings, these checks.
+        tree: process.env.ICM_GALLERY_CENSUS_TREE || null,
+        harness: process.env.ICM_GALLERY_CENSUS_HARNESS || null,
+        checkGroups,
+        complete: !only?.length && !(limit > 0),
         netlistMarkRuleVersion: NETLIST_MARK_RULE_VERSION,
         backup,
         statuses,

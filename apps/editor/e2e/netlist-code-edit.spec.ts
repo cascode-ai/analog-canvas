@@ -8,6 +8,7 @@ import { createEmptyProject, semanticTextDocument } from "@icm/model";
 import { serializeProject } from "@icm/project-protocol";
 import {
   awaitEditorReady,
+  chooseComponent,
   clickCommand,
   editComponentPropertyCode,
   editDocumentStyleCode,
@@ -133,6 +134,31 @@ test("selects an export entry independently of saved Top and edits only that Cel
   await entry.selectOption("");
   await expect(code).toContainText("10k");
   await expect(code).not.toContainText("30k");
+});
+
+test("IHP SG13G2: parts placed in the process export as the PDK's own X calls", async ({
+  page,
+}) => {
+  await page.goto("/editor?new=1");
+  await awaitEditorReady(page);
+  await page
+    .getByLabel("Netlist process", { exact: true })
+    .selectOption({ label: "IHP SG13G2" });
+  // Placed from Insert, so the Netlist panel stays open beside the canvas.
+  for (const [symbol, x] of [
+    ["nmos", 300],
+    ["npn", 460],
+  ] as const) {
+    await chooseComponent(page, symbol);
+    await page
+      .getByTestId("schematic-canvas")
+      .click({ position: { x, y: 240 } });
+    await page.keyboard.press("Escape");
+  }
+  const code = page.getByLabel("Netlist code", { exact: true });
+  await expect(code).toContainText(/XM1 .*sg13_lv_nmos w=\S+ l=\S+ ng=1 m=1/u);
+  await expect(code).toContainText(/XQ1 .*npn13G2 le=900n we=70n Nx=1/u);
+  await expect(code).not.toContainText("sky130");
 });
 
 test("restores process and device choices, applies defaults and keeps edit/undo consistent", async ({

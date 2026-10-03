@@ -26,7 +26,20 @@ export type ReviewedExternalBindingId =
   | "sky130-ind-05-125"
   | "sky130-ind-05-220"
   | "sky130-pnp-05v5-w0p68l0p68"
-  | "sky130-npn-05v5-w1p00l1p00";
+  | "sky130-npn-05v5-w1p00l1p00"
+  | "sg13g2-lv-nmos"
+  | "sg13g2-lv-pmos"
+  | "sg13g2-hv-nmos"
+  | "sg13g2-hv-pmos"
+  | "sg13g2-npn13g2"
+  | "sg13g2-npn13g2l"
+  | "sg13g2-npn13g2v"
+  | "sg13g2-pnpmpa"
+  | "sg13g2-rsil"
+  | "sg13g2-rppd"
+  | "sg13g2-rhigh"
+  | "sg13g2-cap-cmim"
+  | "sg13g2-cap-rfcmim";
 
 export interface ReviewedExternalTerminalBinding {
   /** Public target terminal spelling and order from the external wrapper. */
@@ -46,7 +59,7 @@ export interface ReviewedExternalParameterBinding extends DeviceParameterDefinit
 
 export interface ReviewedExternalDeviceBinding {
   readonly id: ReviewedExternalBindingId;
-  readonly libraryId: "sky130_fd_pr";
+  readonly libraryId: "sky130_fd_pr" | "sg13g2_pr";
   readonly masterName: string;
   readonly invocationKind: "external-subcircuit";
   readonly symbolId:
@@ -326,6 +339,178 @@ const bjtTerminalsWithSubstrate =
     },
   ];
 
+/*
+ * IHP SG13G2 (IHP-Open-PDK, ihp-sg13g2/libs.tech, checked at 5e6d592e of
+ * 2026-09-01): every device is a subcircuit called on an X line, as the
+ * PDK's own xschem symbols write it. Its geometry is in metres, the Project's
+ * own unit, so values pass through unconverted (no `targetUnit`). Terminal
+ * spelling and order follow each `.subckt` line of the ngspice models;
+ * defaults and parameter order follow the xschem symbol templates.
+ */
+const sg13Length = (
+  name: string,
+  label: string,
+  defaultValue: string,
+  help: string,
+  displayRole: "width" | "length" | "none",
+  spiceOrder: number,
+  unitHint = "m",
+): ReviewedExternalParameterBinding => ({
+  name,
+  label,
+  required: true,
+  editor: "text",
+  unitHint,
+  placeholder: defaultValue,
+  defaultValue,
+  help,
+  displayRole,
+  targetDefaultValue: defaultValue,
+  spiceOrder,
+});
+
+const sg13Count = (
+  name: string,
+  label: string,
+  help: string,
+  spiceOrder: number,
+  displayRole: "finger-count" | "multiplier" | "none" = "multiplier",
+  defaultValue = "1",
+): ReviewedExternalParameterBinding => ({
+  name,
+  label,
+  required: false,
+  editor: "decimal",
+  placeholder: defaultValue,
+  defaultValue,
+  help,
+  displayRole,
+  targetDefaultValue: defaultValue,
+  spiceOrder,
+});
+
+const sg13Canvas = (
+  names: readonly string[],
+): ReviewedExternalTerminalBinding[] =>
+  names.map((name) => ({
+    targetName: name,
+    pinName: name.toUpperCase(),
+    interaction: "canvas" as const,
+  }));
+
+const sg13Substrate = (pinName: string): ReviewedExternalTerminalBinding => ({
+  targetName: "bn",
+  pinName,
+  interaction: "property",
+  role: "substrate",
+});
+
+/** `.subckt sg13_{lv,hv}_{n,p}mos d g s b`: w l ng m (the PSP103 core). */
+const sg13MosBinding = (
+  id: ReviewedExternalBindingId,
+  masterName: string,
+  symbolId: "nmos" | "pmos",
+  width: string,
+  length: string,
+): ReviewedExternalDeviceBinding => ({
+  id,
+  libraryId: "sg13g2_pr",
+  masterName,
+  invocationKind: "external-subcircuit",
+  symbolId,
+  deviceClass: "mos",
+  terminals: sg13Canvas(["d", "g", "s", "b"]),
+  parameters: [
+    sg13Length("w", "W", width, "Width in metres", "width", 0),
+    sg13Length("l", "L", length, "Length in metres", "length", 1),
+    sg13Count("ng", "NG", "Gate finger count", 2, "finger-count"),
+    sg13Count("m", "M", "Parallel device count", 3),
+  ],
+});
+
+/** `.subckt npn13G2* c b e bn`: the SiGe HBTs (VBIC), substrate as a
+ * property terminal, with the emitter geometry xschem writes. */
+const sg13NpnBinding = (
+  id: ReviewedExternalBindingId,
+  masterName: string,
+  emitterLength: string,
+  emitterWidth: string,
+): ReviewedExternalDeviceBinding => ({
+  id,
+  libraryId: "sg13g2_pr",
+  masterName,
+  invocationKind: "external-subcircuit",
+  symbolId: "npn",
+  deviceClass: "bjt",
+  terminals: [...sg13Canvas(["c", "b", "e"]), sg13Substrate("S")],
+  parameters: [
+    sg13Length(
+      "le",
+      "LE",
+      emitterLength,
+      "Emitter length in metres",
+      "none",
+      0,
+    ),
+    sg13Length("we", "WE", emitterWidth, "Emitter width in metres", "none", 1),
+    sg13Count("Nx", "NX", "Emitter count, 1 to 10", 2),
+  ],
+});
+
+/** `.subckt rsil|rppd|rhigh 1 2 bn`: w l (b bends) m. */
+const sg13ResistorBinding = (
+  id: ReviewedExternalBindingId,
+  masterName: string,
+  length: string,
+  bends: boolean,
+): ReviewedExternalDeviceBinding => ({
+  id,
+  libraryId: "sg13g2_pr",
+  masterName,
+  invocationKind: "external-subcircuit",
+  symbolId: "resistor",
+  deviceClass: "resistor",
+  terminals: [
+    { targetName: "1", pinName: "1", interaction: "canvas" },
+    { targetName: "2", pinName: "2", interaction: "canvas" },
+    sg13Substrate("B"),
+  ],
+  parameters: [
+    sg13Length("w", "W", "500n", "Width in metres", "width", 0),
+    sg13Length("l", "L", length, "Length in metres", "length", 1),
+    ...(bends ? [sg13Count("b", "B", "Number of bends", 2, "none", "0")] : []),
+    sg13Count("m", "M", "Parallel resistor count", 3),
+  ],
+});
+
+/** `.subckt cap_cmim PLUS MINUS` and `cap_rfcmim PLUS MINUS bn`. */
+const sg13MimBinding = (
+  id: ReviewedExternalBindingId,
+  masterName: string,
+  side: string,
+  feed?: string,
+): ReviewedExternalDeviceBinding => ({
+  id,
+  libraryId: "sg13g2_pr",
+  masterName,
+  invocationKind: "external-subcircuit",
+  symbolId: "capacitor",
+  deviceClass: "capacitor",
+  terminals: [
+    { targetName: "PLUS", pinName: "1", interaction: "canvas" },
+    { targetName: "MINUS", pinName: "2", interaction: "canvas" },
+    ...(feed ? [sg13Substrate("B")] : []),
+  ],
+  parameters: [
+    sg13Length("w", "W", side, "Width in metres", "width", 0),
+    sg13Length("l", "L", side, "Length in metres", "length", 1),
+    ...(feed
+      ? [sg13Length("wfeed", "WFEED", feed, "Feed width in metres", "none", 2)]
+      : []),
+    sg13Count("m", "M", "Parallel capacitor count", 3),
+  ],
+});
+
 export const reviewedExternalDeviceBindings: readonly ReviewedExternalDeviceBinding[] =
   [
     sky130MosBinding(
@@ -461,6 +646,42 @@ export const reviewedExternalDeviceBindings: readonly ReviewedExternalDeviceBind
       terminals: bjtTerminalsWithSubstrate(),
       parameters: [count("m", "M", "ngspice X-line parallel multiplier", 0)],
     },
+    sg13MosBinding("sg13g2-lv-nmos", "sg13_lv_nmos", "nmos", "150n", "130n"),
+    sg13MosBinding("sg13g2-lv-pmos", "sg13_lv_pmos", "pmos", "150n", "130n"),
+    sg13MosBinding("sg13g2-hv-nmos", "sg13_hv_nmos", "nmos", "300n", "450n"),
+    sg13MosBinding("sg13g2-hv-pmos", "sg13_hv_pmos", "pmos", "300n", "400n"),
+    sg13NpnBinding("sg13g2-npn13g2", "npn13G2", "900n", "70n"),
+    sg13NpnBinding("sg13g2-npn13g2l", "npn13G2l", "1u", "70n"),
+    sg13NpnBinding("sg13g2-npn13g2v", "npn13G2v", "1u", "120n"),
+    {
+      // `.subckt pnpMPA c b e`; xschem writes its area and perimeter from a
+      // 0.7 um by 2 um emitter.
+      id: "sg13g2-pnpmpa",
+      libraryId: "sg13g2_pr",
+      masterName: "pnpMPA",
+      invocationKind: "external-subcircuit",
+      symbolId: "pnp",
+      deviceClass: "bjt",
+      terminals: sg13Canvas(["c", "b", "e"]),
+      parameters: [
+        sg13Length(
+          "a",
+          "A",
+          "1.4p",
+          "Emitter area in square metres",
+          "none",
+          0,
+          "m²",
+        ),
+        sg13Length("p", "P", "5.4u", "Emitter perimeter in metres", "none", 1),
+        sg13Count("m", "M", "Parallel device count", 2),
+      ],
+    },
+    sg13ResistorBinding("sg13g2-rsil", "rsil", "500n", false),
+    sg13ResistorBinding("sg13g2-rppd", "rppd", "500n", true),
+    sg13ResistorBinding("sg13g2-rhigh", "rhigh", "960n", true),
+    sg13MimBinding("sg13g2-cap-cmim", "cap_cmim", "7u"),
+    sg13MimBinding("sg13g2-cap-rfcmim", "cap_rfcmim", "10u", "5u"),
   ];
 
 export function reviewedExternalBindingForMaster(
@@ -497,12 +718,16 @@ export function resolveReviewedExternalBinding(
     : undefined;
 }
 
+/** Reviewed masters a part may take, from one PDK library or all of them. */
 export function reviewedExternalModelSuggestions(
   symbolId: string,
+  libraryId?: ReviewedExternalDeviceBinding["libraryId"],
 ): readonly string[] {
   return reviewedExternalDeviceBindings
-    .filter((binding) =>
-      reviewedExternalBindingSupportsSymbol(binding, symbolId),
+    .filter(
+      (binding) =>
+        reviewedExternalBindingSupportsSymbol(binding, symbolId) &&
+        (!libraryId || binding.libraryId === libraryId),
     )
     .map((binding) => binding.masterName);
 }

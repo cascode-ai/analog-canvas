@@ -333,6 +333,60 @@ describe("structural SPICE round trip", () => {
     );
   });
 
+  it("imports an IHP SG13G2 xschem netlist as its reviewed devices and writes it back the same", async () => {
+    // Device lines as IHP-Open-PDK's xschem symbols write them.
+    const lines = [
+      "XM1 vout vin vss vss sg13_lv_nmos w=2u l=0.13u ng=1 m=1",
+      "XM2 vout vin vdd vdd sg13_lv_pmos w=4u l=0.13u ng=2 m=1",
+      "XQ1 vdd vin vout vss npn13G2 le=900e-9 we=70.0n Nx=4",
+      "XQ2 vss vss vout pnpMPA a=1.4e-12 p=5.4e-06 m=1",
+      "XR1 vout vss vss rsil w=0.5e-6 l=5e-6 m=1",
+      "XC1 vout vss cap_cmim w=7.0e-6 l=7.0e-6 m=1",
+    ];
+    const source = [
+      "IHP SG13G2 round trip",
+      ".subckt amp vin vout vdd vss",
+      ...lines,
+      ".ends amp",
+      ".end",
+      "",
+    ].join("\n");
+    const imported = await importSpiceSources(
+      [{ path: "sg13g2.spi", bytes: new TextEncoder().encode(source) }],
+      "sg13g2.spi",
+    );
+    expect(imported.successful, JSON.stringify(imported.diagnostics)).toBe(
+      true,
+    );
+    const project = imported.project!;
+    const instance = (reference: string) =>
+      project.documents
+        .flatMap((document) => document.instances)
+        .find((candidate) => candidate.reference === reference)!;
+    for (const [reference, symbolId] of [
+      ["XM1", "nmos"],
+      ["XM2", "pmos"],
+      ["XQ1", "npn"],
+      ["XQ2", "pnp"],
+      ["XR1", "resistor"],
+      ["XC1", "capacitor"],
+    ] as const)
+      expect(instance(reference), reference).toMatchObject({
+        symbolId,
+        netlist: { binding: { kind: "external-subcircuit" } },
+      });
+    // Geometry stays in the metres it was written in.
+    expect(instance("XM1").netlist?.parameters).toMatchObject({
+      w: "2u",
+      l: "0.13u",
+    });
+
+    const analysis = analyzeDesignNetlist(project, { format: "spice" });
+    expect(analysis.diagnostics).toEqual([]);
+    const printed = printSpiceNetlist(analysis.ir!);
+    for (const line of lines) expect(printed).toContain(line);
+  });
+
   it("re-imports its own M-card export of a SKY130 MOS as the X call the SKY130 profile runs (#1249)", async () => {
     // As the Gallery entry's netlist reads: no .model card for either part.
     const source = [

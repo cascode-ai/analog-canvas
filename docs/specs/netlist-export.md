@@ -364,7 +364,7 @@ external-subcircuit remains an `X` call everywhere and an authored primitive MOS
 remains an `M` card everywhere.
 
 Netlist configuration stores `format`, the selected process and editable
-device templates for Abstract, SKY130, TSMC 28, TSMC 180 and Custom.
+device templates for Abstract, SKY130, IHP SG13G2, TSMC 28, TSMC 180 and Custom.
 The editor works in SKY130 until told otherwise, and a native device placed
 while a process is selected is bound to that process's model as part of the
 placement, so a drawn circuit exports as that process rather than with missing
@@ -375,6 +375,15 @@ as their reviewed `X` wrappers with the definition, and the NPN with its
 substrate bound as the process binds it. The Agent and the GUI place through
 the same plan. A reviewed BJT wrapper takes the instance multiplier `m`, kept
 through every model change; ngspice scales the X call by it.
+
+IHP SG13G2 binds reviewed devices the way IHP-Open-PDK's own xschem symbols
+call them: `sg13_lv_nmos`/`sg13_lv_pmos` and the 3.3 V `sg13_hv_*` (`d g s b`;
+`w l ng m`), the HBTs `npn13G2`, `npn13G2l`, `npn13G2v` (`c b e bn`, substrate
+`bn` as a property terminal; `le we Nx`), `pnpMPA` (`c b e`; `a p m`), the
+resistors `rsil`, `rppd`, `rhigh` (`1 2 bn`; `w l [b] m`) and the MIM capacitors
+`cap_cmim` and `cap_rfcmim`. Its geometry is in metres, as the Project stores
+it, so nothing is converted. Model suggestions in Properties follow the
+Project's process library.
 
 SPICE import reads an `M` card that names a reviewed SKY130 transistor, with no
 `.model` card of that name in the deck, as that reviewed `X` wrapper: the

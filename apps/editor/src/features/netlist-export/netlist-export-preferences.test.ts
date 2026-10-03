@@ -49,6 +49,23 @@ describe("netlist authoring preferences", () => {
     expect(restored.profiles.tsmc180.devices.pmos.target).toBe("pch");
   });
 
+  it("adds the IHP SG13G2 template to preferences saved before it existed", () => {
+    const saved = createDefaultNetlistExportPreferences();
+    const { sg13g2: _added, ...older } = saved.profiles;
+    const restored = readNetlistExportPreferences(
+      JSON.stringify({ ...saved, selected: "sky130", profiles: older }),
+    );
+    expect(restored.selected).toBe("sky130");
+    expect(restored.profiles.sg13g2.devices.nmos.target).toBe("sg13_lv_nmos");
+    expect(restored.profiles.sg13g2.devices.npn.target).toBe("npn13G2");
+    expect(restored.profiles.sg13g2.devices.nmos.parameters).toMatchObject({
+      l: "130n",
+    });
+    expect(restored.profiles.sg13g2.devices.nmos.parameters).not.toHaveProperty(
+      "nf",
+    );
+  });
+
   it("does not accept a case override in new configuration code", () => {
     expect(() =>
       parseNetlistExportPreferences(

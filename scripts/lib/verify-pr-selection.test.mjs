@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import {
   censusPaths,
+  browserSpecPaths,
+  censusChecks,
+  changedBrowserCases,
+  changedLines,
   formattedPaths,
+  testStartLines,
   unitSourcePaths,
 } from "./verify-pr-selection.mjs";
 
@@ -46,5 +51,49 @@ describe("verify:pr selection", () => {
       "packages/netlist/src/extract.ts",
       "apps/editor/src/features/component-insert/use-component-placement.ts",
     ]);
+  });
+
+  it("asks the census only for the checks the change touches", () => {
+    expect(censusChecks(changed)).toEqual(["copy", "netlist"]);
+    expect(
+      censusChecks([
+        "packages/derived/src/instance-label-placement.ts",
+        "packages/netlist/src/extract.test.ts",
+      ]),
+    ).toEqual(["transform"]);
+    expect(censusChecks(["apps/editor/src/app/App.tsx"])).toEqual([]);
+  });
+
+  it("runs only the browser cases a change adds or edits", () => {
+    expect(browserSpecPaths(changed)).toEqual([
+      "apps/editor/e2e/gallery.spec.ts",
+    ]);
+    const spec = [
+      'import { test } from "@playwright/test";', // 1
+      "function helper() {}", // 2
+      'test("first", async () => {', // 3
+      '  test.skip(process.env.CI !== undefined, "local only");', // 4
+      "  test.slow();", // 5
+      "});", // 6
+      'test.describe("group", () => {', // 7
+      "  test(`second ${1}`, async () => {", // 8
+      "    helper();", // 9
+      "  });", // 10
+      "});", // 11
+    ].join("\n");
+    expect(testStartLines(spec)).toEqual([3, 8]);
+    expect(changedLines("@@ -4,0 +5,2 @@\n+a\n+b\n@@ -9 +11 @@\n")).toEqual([
+      5, 6, 11,
+    ]);
+    expect(changedLines("@@ -20,3 +19,0 @@\n")).toEqual([19]);
+    const file = "apps/editor/e2e/example.spec.ts";
+    expect(changedBrowserCases(file, spec, [4, 5])).toEqual([`${file}:3`]);
+    expect(changedBrowserCases(file, spec, [9, 5])).toEqual([
+      `${file}:3`,
+      `${file}:8`,
+    ]);
+    // A change the tests share runs the whole file.
+    expect(changedBrowserCases(file, spec, [2, 9])).toEqual([file]);
+    expect(changedBrowserCases(file, spec, [])).toEqual([]);
   });
 });

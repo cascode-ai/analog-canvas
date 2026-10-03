@@ -32,6 +32,7 @@ import {
   placementModelTarget,
   placementProcessFill,
   processPlacementTarget,
+  processReviewedLibrary,
   planNetlistProcess,
   prepareNetlistExample,
   processTargetForShortName,
@@ -8847,6 +8848,10 @@ function WorkspaceEditor({
                                       : "",
                                 suggestions: reviewedExternalModelSuggestions(
                                   selectedPropertyDevice?.symbolId ?? "",
+                                  processReviewedLibrary(
+                                    project,
+                                    netlistPreferences.preferences,
+                                  ),
                                 ),
                                 externalSubcircuit: Boolean(
                                   selectedReviewedExternalBinding,

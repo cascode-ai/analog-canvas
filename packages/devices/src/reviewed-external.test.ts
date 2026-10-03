@@ -207,4 +207,85 @@ describe("reviewed external device bindings", () => {
       ["m", "1", "1"],
     ]);
   });
+
+  it("binds IHP SG13G2 devices with the interfaces of the PDK's own ngspice models", () => {
+    // `.subckt` lines and xschem parameter order of IHP-Open-PDK
+    // ihp-sg13g2/libs.tech (5e6d592e, 2026-09-01).
+    const pdk: Record<string, [string, string[], string[]]> = {
+      sg13_lv_nmos: ["nmos", ["d", "g", "s", "b"], ["w", "l", "ng", "m"]],
+      sg13_lv_pmos: ["pmos", ["d", "g", "s", "b"], ["w", "l", "ng", "m"]],
+      sg13_hv_nmos: ["nmos", ["d", "g", "s", "b"], ["w", "l", "ng", "m"]],
+      sg13_hv_pmos: ["pmos", ["d", "g", "s", "b"], ["w", "l", "ng", "m"]],
+      npn13G2: ["npn", ["c", "b", "e", "bn"], ["le", "we", "Nx"]],
+      npn13G2l: ["npn", ["c", "b", "e", "bn"], ["le", "we", "Nx"]],
+      npn13G2v: ["npn", ["c", "b", "e", "bn"], ["le", "we", "Nx"]],
+      pnpMPA: ["pnp", ["c", "b", "e"], ["a", "p", "m"]],
+      rsil: ["resistor", ["1", "2", "bn"], ["w", "l", "m"]],
+      rppd: ["resistor", ["1", "2", "bn"], ["w", "l", "b", "m"]],
+      rhigh: ["resistor", ["1", "2", "bn"], ["w", "l", "b", "m"]],
+      cap_cmim: ["capacitor", ["PLUS", "MINUS"], ["w", "l", "m"]],
+      cap_rfcmim: [
+        "capacitor",
+        ["PLUS", "MINUS", "bn"],
+        ["w", "l", "wfeed", "m"],
+      ],
+    };
+    for (const [master, [symbolId, terminals, parameters]] of Object.entries(
+      pdk,
+    )) {
+      const binding = resolveReviewedExternalBinding(master, terminals);
+      expect(binding, master).toMatchObject({
+        libraryId: "sg13g2_pr",
+        symbolId,
+        invocationKind: "external-subcircuit",
+      });
+      expect(
+        binding!.parameters
+          .toSorted((left, right) => left.spiceOrder - right.spiceOrder)
+          .map((parameter) => parameter.name),
+        master,
+      ).toEqual(parameters);
+      // Metres in the Project and in the PDK: nothing is converted.
+      expect(
+        binding!.parameters.every((parameter) => !parameter.targetUnit),
+        master,
+      ).toBe(true);
+      // The substrate is a property terminal, never a drawn pin.
+      for (const terminal of binding!.terminals.filter(
+        (item) => item.targetName === "bn",
+      ))
+        expect(terminal).toMatchObject({
+          interaction: "property",
+          role: "substrate",
+        });
+    }
+    expect(
+      reviewedExternalBindingForMaster("sg13_lv_nmos")!.terminals.map(
+        (terminal) => terminal.pinName,
+      ),
+    ).toEqual(["D", "G", "S", "B"]);
+    expect(
+      reviewedExternalBindingForMaster("npn13G2")!.parameters.map((item) => [
+        item.name,
+        item.defaultValue,
+      ]),
+    ).toEqual([
+      ["le", "900n"],
+      ["we", "70n"],
+      ["Nx", "1"],
+    ]);
+  });
+
+  it("suggests the models of one PDK library when asked", () => {
+    expect(reviewedExternalModelSuggestions("nmos", "sg13g2_pr")).toEqual([
+      "sg13_lv_nmos",
+      "sg13_hv_nmos",
+    ]);
+    expect(
+      reviewedExternalModelSuggestions("nmos", "sky130_fd_pr"),
+    ).not.toContain("sg13_lv_nmos");
+    expect(reviewedExternalModelSuggestions("nmos")).toEqual(
+      expect.arrayContaining(["sky130_fd_pr__nfet_01v8", "sg13_lv_nmos"]),
+    );
+  });
 });

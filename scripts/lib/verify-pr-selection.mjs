@@ -36,3 +36,77 @@ export function censusPaths(paths) {
       (path.startsWith("packages/netlist/src/") && !/\.test\.ts$/u.test(path)),
   );
 }
+
+/**
+ * The census check groups a change needs, by what it touches: copying and
+ * placement (`copy`, which includes supply markers), instance labels
+ * (`transform`, a quarter turn and a mirror the labels must follow) and
+ * netlist extraction (`netlist`, with the Gallery's netlist mark).
+ */
+export function censusChecks(paths) {
+  const checks = new Set();
+  for (const path of censusPaths(paths)) {
+    if (path.startsWith("packages/netlist/src/")) checks.add("netlist");
+    else if (path.startsWith("apps/editor/src/features/")) checks.add("copy");
+    else checks.add("transform");
+  }
+  return [...checks].sort();
+}
+
+/** Spec files under the editor's Playwright directory. */
+export function browserSpecPaths(paths) {
+  return paths.filter((path) =>
+    /^apps\/editor\/e2e\/.+\.spec\.ts$/u.test(path),
+  );
+}
+
+/**
+ * Line numbers, in the new file, that a unified diff with `-U0` touches. A
+ * pure deletion counts as the line it followed.
+ */
+export function changedLines(diffText) {
+  const lines = [];
+  for (const match of diffText.matchAll(
+    /^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/gmu,
+  )) {
+    const start = Number(match[1]);
+    const count = match[2] === undefined ? 1 : Number(match[2]);
+    if (count === 0) lines.push(Math.max(start, 1));
+    else
+      for (let line = start; line < start + count; line += 1) lines.push(line);
+  }
+  return lines;
+}
+
+/**
+ * Where a Playwright spec declares its tests: a `test(` whose first argument
+ * is the title, so a `test.skip(condition, …)` or `test.slow()` inside a body
+ * does not count, nor does `test.describe(`.
+ */
+export function testStartLines(source) {
+  return source
+    .split("\n")
+    .flatMap((text, index) =>
+      /^\s*test(?:\.(?:only|skip|fixme|fail))?\(\s*["'`]/u.test(text)
+        ? [index + 1]
+        : [],
+    );
+}
+
+/**
+ * The browser cases a change touches in one spec file, as Playwright
+ * `file:line` arguments: each test a changed line falls in, counted from its
+ * `test(` to the next one. A change above the first test, such as an import
+ * or a helper the tests share, runs the whole file.
+ */
+export function changedBrowserCases(file, source, lines) {
+  if (!lines.length) return [];
+  const starts = testStartLines(source);
+  if (!starts.length || lines.some((line) => line < starts[0])) return [file];
+  const touched = new Set(
+    lines.map((line) => starts.findLast((start) => start <= line)),
+  );
+  return [...touched]
+    .sort((left, right) => left - right)
+    .map((line) => `${file}:${line}`);
+}

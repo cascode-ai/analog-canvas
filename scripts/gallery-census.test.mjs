@@ -10,6 +10,7 @@ import {
   formatComparison,
   newestSnapshot,
   parseArguments,
+  reusableReport,
   summarizeReport,
 } from "./gallery-census.mjs";
 
@@ -67,6 +68,53 @@ describe("gallery census", () => {
     expect(() => parseArguments(["--status", "draft"])).toThrow("--status");
     expect(() => parseArguments(["--backup"])).toThrow("needs a value");
     expect(() => parseArguments(["--everything"])).toThrow("Unknown option");
+    expect(parseArguments(["--checks", "netlist,copy"]).checks).toEqual([
+      "netlist",
+      "copy",
+    ]);
+    expect(parseArguments([]).checks).toEqual([]);
+    expect(() => parseArguments(["--checks", "labels"])).toThrow("--checks");
+  });
+
+  it("reuses a full report of the same tree, snapshot and harness that ran the checks asked for", () => {
+    const saved = {
+      tree: "tree-1",
+      harness: "harness-1",
+      backup: "/snapshot/gallery.sqlite",
+      statuses: ["public"],
+      complete: true,
+      checkGroups: ["netlist", "copy"],
+      path: "plan/gallery-census-abc.json",
+    };
+    const wanted = {
+      tree: "tree-1",
+      harness: "harness-1",
+      backup: "/snapshot/gallery.sqlite",
+      status: "public",
+      checks: ["netlist"],
+    };
+    expect(reusableReport([saved], wanted)).toBe(saved);
+    for (const miss of [
+      { tree: "tree-2" },
+      { harness: "harness-2" },
+      { backup: "/older/gallery.sqlite" },
+      { status: "all" },
+      // A report without the transform group cannot stand in for it.
+      { checks: ["netlist", "transform"] },
+      // Every group, when none is named.
+      { checks: [] },
+      // A dirty checkout or harness has no identity to match.
+      { tree: null },
+      { harness: null },
+    ])
+      expect(reusableReport([saved], { ...wanted, ...miss })).toBeNull();
+    expect(reusableReport([{ ...saved, complete: false }], wanted)).toBeNull();
+    expect(
+      reusableReport(
+        [{ ...saved, checkGroups: ["netlist", "copy", "transform"] }],
+        { ...wanted, checks: [] },
+      ),
+    ).toMatchObject({ tree: "tree-1" });
   });
 
   it("blocks on drawings that newly fail, changed netlists and labels that stopped following", () => {
