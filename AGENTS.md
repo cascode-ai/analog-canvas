@@ -252,21 +252,24 @@ Before a non-document change is merged or pushed to `main`:
      change runs a few tests and a core package most of the suite, so the
      run neither guesses the touched areas (a guess once missed a stale
      example test in another package) nor runs the whole suite every time;
-   - the browser specs the queue maps to the change
-     (`node scripts/ci-plan.mjs --base <base-ref>` prints them), with 4
-     workers.
+   - the browser cases the change adds or edits, by `file:line`, with 4
+     workers. A change above a spec file's first test, which its tests share,
+     runs that file.
 
    The merge queue already runs `ci:static`, the complete unit suite,
-   `release:verify` and the mapped specs on the merged candidate, so they are
-   not repeated locally. Add `pnpm build` and `pnpm release:verify:built`
-   locally only when the change touches rendering, export, symbols or
-   packaging, where goldens and the bundle budget can move. Do not run every
-   browser spec locally, whatever the change or the plan's `full-delivery`
-   says: about 740 cases take some 16 minutes with 4 workers, and the local
-   full runs of 2026-09-27 to 10-01 found nothing the mapped specs missed.
-   Add the spec of an area the queue does not map, if you edited one. If a
-   queue check then fails, repair it and queue again, rather than going back
-   to running everything locally.
+   `release:verify` and the specs it maps to the change on the merged
+   candidate, so they are not repeated locally: on 2026-10-03 the queue ran a
+   21-file browser map in about six minutes, against 23 minutes for the same
+   specs locally. `node scripts/ci-plan.mjs --base <base-ref>` prints the
+   map; `pnpm verify:pr -- --mapped` runs it locally when a queue failure
+   would cost more than the local run, which is rare. Add `pnpm build` and
+   `pnpm release:verify:built` locally only when the change touches
+   rendering, export, symbols or packaging, where goldens and the bundle
+   budget can move. Do not run every browser spec locally, whatever the
+   change or the plan's `full-delivery` says: the local full runs of
+   2026-09-27 to 10-01 found nothing the mapped specs missed. If a queue
+   check then fails, repair it and queue again, rather than going back to
+   running more locally.
 
 4. Push a review branch, open the pull request and run `gh pr merge <number>`
    right away. On the pull request itself CI only plans the change scope and
