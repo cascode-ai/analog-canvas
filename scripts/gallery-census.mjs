@@ -28,9 +28,12 @@ export const DEFAULT_SNAPSHOT_DIRECTORY = join(
 
 const CENSUS_CONFIG = "apps/editor/census/vitest.config.ts";
 const HARNESS_FILES = [CENSUS_CONFIG, "apps/editor/census/gallery.census.ts"];
+/** The check groups of apps/editor/census/gallery.census.ts. */
+export const CHECK_GROUPS = ["netlist", "copy", "transform"];
 
 const USAGE = `Usage:
   pnpm gallery:census [--base REF | --ref REF] [--backup PATH]
+                      [--checks netlist,copy,transform]
                       [--status public|all] [--only ID,ID] [--limit N]
                       [--out PATH]
   pnpm gallery:census --compare BASE.json HEAD.json
@@ -41,10 +44,17 @@ on this checkout; --ref REF runs it on REF instead, in a temporary worktree
 with this checkout's harness. --base REF runs both and compares them, as
 --compare does for two saved reports: a drawing that newly fails, a netlist
 whose text changed, or a label that stopped following its part is reported,
-and the exit status is 1.`;
+and the exit status is 1.
+
+--checks runs only those groups (verify:pr names the ones a change needs):
+netlist (extraction and the Gallery netlist mark), copy (copying, placement,
+supply markers), transform (a quarter turn and a mirror). A full report of
+the same tree, snapshot and harness already in plan/ is reused instead of
+running the census again; after a squash merge, the batch's own report is
+the next batch's base.`;
 
 export function parseArguments(argv) {
-  const options = { status: "public", only: [], limit: 0 };
+  const options = { status: "public", only: [], limit: 0, checks: [] };
   for (let index = 0; index < argv.length; index += 1) {
     const flag = argv[index];
     const value = () => {
@@ -63,6 +73,8 @@ export function parseArguments(argv) {
     else if (flag === "--only")
       options.only = value().split(",").filter(Boolean);
     else if (flag === "--limit") options.limit = Number(value());
+    else if (flag === "--checks")
+      options.checks = value().split(",").filter(Boolean);
     else if (flag === "--compare") {
       options.compare = [value(), value()];
     } else if (flag === "--help" || flag === "-h") options.help = true;
@@ -74,7 +86,33 @@ export function parseArguments(argv) {
     throw new Error(`--limit is a whole number\n\n${USAGE}`);
   if (options.base && options.ref)
     throw new Error(`--base and --ref do not combine\n\n${USAGE}`);
+  for (const check of options.checks)
+    if (!CHECK_GROUPS.includes(check))
+      throw new Error(
+        `--checks takes ${CHECK_GROUPS.join(", ")}, not ${check}\n\n${USAGE}`,
+      );
   return options;
+}
+
+/**
+ * A report that may stand in for a new run: same tree, snapshot, harness
+ * and statuses, every drawing, and at least the requested check groups.
+ */
+export function reusableReport(reports, wanted) {
+  if (!wanted.tree || !wanted.harness) return null;
+  const groups = wanted.checks.length ? wanted.checks : CHECK_GROUPS;
+  return (
+    reports.find(
+      (report) =>
+        report.tree === wanted.tree &&
+        report.harness === wanted.harness &&
+        report.backup === wanted.backup &&
+        report.complete === true &&
+        JSON.stringify(report.statuses) ===
+          JSON.stringify(wanted.status.split(",")) &&
+        groups.every((group) => report.checkGroups?.includes(group)),
+    ) ?? null
+  );
 }
 
 /** The newest `gallery-<capture time>-<run>/gallery.sqlite` downloaded. */
@@ -253,7 +291,37 @@ function commitLabel(cwd, ref = "HEAD") {
     : sha;
 }
 
-function runCensus(cwd, options, out, commit) {
+/** The tree a ref holds, or, for the checkout, null while it is dirty. */
+function treeOf(cwd, ref) {
+  if (!ref && git(cwd, "status", "--porcelain")) return null;
+  return git(cwd, "rev-parse", `${ref ?? "HEAD"}^{tree}`);
+}
+
+/** The harness the census runs, by the commit that last changed it; null
+ * while it has uncommitted changes, so no report is reused across them. */
+function harnessOf(root) {
+  if (git(root, "status", "--porcelain", "--", ...HARNESS_FILES)) return null;
+  return git(root, "log", "-1", "--format=%H", "--", ...HARNESS_FILES) || null;
+}
+
+function savedReports(root) {
+  const directory = join(root, "plan");
+  if (!existsSync(directory)) return [];
+  return readdirSync(directory)
+    .filter((name) => /^gallery-census-.*\.json$/u.test(name))
+    .flatMap((name) => {
+      try {
+        const report = JSON.parse(readFileSync(join(directory, name), "utf8"));
+        return report.format === "analog-canvas/gallery-census"
+          ? [{ ...report, path: join(directory, name) }]
+          : [];
+      } catch {
+        return [];
+      }
+    });
+}
+
+function runCensus(cwd, options, out, commit, identity = {}) {
   const result = spawnSync(
     "pnpm",
     ["exec", "vitest", "run", "--config", CENSUS_CONFIG],
@@ -268,6 +336,9 @@ function runCensus(cwd, options, out, commit) {
         ICM_GALLERY_CENSUS_ONLY: options.only.join(","),
         ICM_GALLERY_CENSUS_LIMIT: String(options.limit),
         ICM_GALLERY_CENSUS_COMMIT: commit,
+        ICM_GALLERY_CENSUS_CHECKS: options.checks.join(","),
+        ICM_GALLERY_CENSUS_TREE: identity.tree ?? "",
+        ICM_GALLERY_CENSUS_HARNESS: identity.harness ?? "",
       },
     },
   );
@@ -283,6 +354,17 @@ function reportPath(root, commit, out) {
 /** The census on another commit, in a worktree that is removed after. */
 function runCensusAt(root, options, ref, out) {
   const commit = commitLabel(root, ref);
+  const identity = { tree: treeOf(root, ref), harness: harnessOf(root) };
+  const saved = reusableReport(savedReports(root), {
+    ...identity,
+    backup: options.backup,
+    status: options.status,
+    checks: options.checks,
+  });
+  if (saved && !options.only.length && !options.limit) {
+    console.log(`Reusing ${saved.path} for ${ref} (same tree and snapshot)`);
+    return saved;
+  }
   const directory = join(
     mkdtempSync(join(tmpdir(), "gallery-census-")),
     "checkout",
@@ -301,7 +383,13 @@ function runCensusAt(root, options, ref, out) {
     );
     if (install.status !== 0)
       throw new Error(`Dependencies did not install for ${ref}`);
-    return runCensus(directory, options, reportPath(root, commit, out), commit);
+    return runCensus(
+      directory,
+      options,
+      reportPath(root, commit, out),
+      commit,
+      identity,
+    );
   } finally {
     git(root, "worktree", "remove", "--force", directory);
     rmSync(dirname(directory), { recursive: true, force: true });
@@ -335,15 +423,26 @@ function main(argv) {
     ? commitLabel(root, options.ref)
     : commitLabel(root);
   const out = reportPath(root, commit, options.out);
+  const headIdentity = { tree: treeOf(root), harness: harnessOf(root) };
+  const savedHead =
+    !options.ref && !options.only.length && !options.limit
+      ? reusableReport(savedReports(root), {
+          ...headIdentity,
+          backup: options.backup,
+          status: options.status,
+          checks: options.checks,
+        })
+      : null;
+  if (savedHead) console.log(`Reusing ${savedHead.path} for this checkout`);
   const head = options.ref
     ? runCensusAt(root, options, options.ref, options.out)
-    : runCensus(root, options, out, commit);
+    : (savedHead ?? runCensus(root, options, out, commit, headIdentity));
   console.log(summarizeReport(head));
-  console.log(`Report: ${out}`);
+  console.log(`Report: ${head.path ?? out}`);
   if (!options.base) return 0;
   const base = runCensusAt(root, options, options.base);
   console.log(summarizeReport(base));
-  console.log(`Report: ${reportPath(root, base.commit)}`);
+  console.log(`Report: ${base.path ?? reportPath(root, base.commit)}`);
   const findings = compareReports(base, head);
   console.log(`\nCompared with ${options.base} (${base.commit}):`);
   console.log(formatComparison(findings));
