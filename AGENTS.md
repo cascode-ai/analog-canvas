@@ -152,8 +152,10 @@ the boundary has moved.
   acceptance or delivery. It uses the newest private snapshot
   (`node scripts/gallery-private-snapshot.mjs --cached` downloads one) and
   exits non-zero when a drawing newly fails a check, a netlist's text
-  changes, or a label stops following its part. Fix each finding, or explain
-  it in the commit. A real-data defect it finds also gets a small synthetic
+  changes, a label stops following its part, or a drawing's Gallery netlist
+  mark changes while `NETLIST_MARK_RULE_VERSION` stays the same (stored marks
+  are asked again only when it moves). Fix each finding, or explain it in the
+  commit. A real-data defect it finds also gets a small synthetic
   test in the ordinary suite. The census reads user drawings: it never runs
   in CI, and its reports stay in the untracked `plan/`.
 - Use `pnpm verify:branch` when a completed branch crosses enough workspace

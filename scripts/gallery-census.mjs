@@ -101,6 +101,14 @@ export function compareReports(base, head) {
     labelsStoppedFollowing: [],
     missing: [...before.keys()].filter((id) => !after.has(id)),
     added: [],
+    marksChanged: [],
+    // Stored Gallery marks are asked again only when the rule version
+    // moves (packages/netlist/src/export.ts), so a changed answer under the
+    // same version would leave stale marks on the wall (#1284).
+    markRuleBumped:
+      base.netlistMarkRuleVersion !== undefined &&
+      head.netlistMarkRuleVersion !== undefined &&
+      base.netlistMarkRuleVersion !== head.netlistMarkRuleVersion,
   };
   for (const entry of head.entries) {
     const previous = before.get(entry.id);
@@ -128,6 +136,17 @@ export function compareReports(base, head) {
       previous.netlistHash !== entry.netlistHash
     )
       findings.netlistChanged.push({ id: entry.id, name: entry.name });
+    if (
+      typeof previous.netlistMark === "boolean" &&
+      typeof entry.netlistMark === "boolean" &&
+      previous.netlistMark !== entry.netlistMark
+    )
+      findings.marksChanged.push({
+        id: entry.id,
+        name: entry.name,
+        before: previous.netlistMark,
+        after: entry.netlistMark,
+      });
     if (previous.labelsFollowing && entry.labelsFollowing) {
       const following = new Set(entry.labelsFollowing);
       const stopped = previous.labelsFollowing.filter(
@@ -146,14 +165,16 @@ export function compareReports(base, head) {
 
 /**
  * The findings a reviewer must explain or fix before delivery: a drawing
- * that newly fails a check, a netlist whose text changed, or a label that no
- * longer follows its part when the part turns.
+ * that newly fails a check, a netlist whose text changed, a label that no
+ * longer follows its part when the part turns, or a netlist mark that
+ * changed while NETLIST_MARK_RULE_VERSION stayed the same.
  */
 export function blockingFindings(findings) {
   return (
     findings.newlyFailing.length +
     findings.netlistChanged.length +
-    findings.labelsStoppedFollowing.length
+    findings.labelsStoppedFollowing.length +
+    (findings.markRuleBumped ? 0 : (findings.marksChanged?.length ?? 0))
   );
 }
 
@@ -178,6 +199,14 @@ export function formatComparison(findings, limit = 12) {
     "Labels that stopped following their part",
     findings.labelsStoppedFollowing,
     (item) => `${item.id}: ${item.labels.join(", ")}`,
+  );
+  list(
+    findings.markRuleBumped
+      ? "Netlist marks changed (the rule version moved, so stored marks are asked again)"
+      : "Netlist marks changed without a NETLIST_MARK_RULE_VERSION bump (packages/netlist/src/export.ts)",
+    findings.marksChanged ?? [],
+    (item) =>
+      `${item.id} (${item.name}): ${item.before ? "netlist" : "no netlist"} → ${item.after ? "netlist" : "no netlist"}`,
   );
   list("Newly passing", findings.newlyPassing, change);
   list("Failing differently", findings.changed, change);

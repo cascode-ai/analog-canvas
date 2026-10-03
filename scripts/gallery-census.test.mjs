@@ -153,6 +153,30 @@ describe("gallery census", () => {
     );
   });
 
+  it("blocks on a netlist mark that changed while the mark rule version did not (#1284)", () => {
+    const marked = (version, mark) => ({
+      ...report([
+        { id: "a", name: "A", checks: { netlist: "ok" }, netlistMark: mark },
+        { id: "b", name: "B", checks: { netlist: "ok" }, netlistMark: true },
+      ]),
+      netlistMarkRuleVersion: version,
+    });
+    const stale = compareReports(marked(11, false), marked(11, true));
+    expect(stale.marksChanged).toEqual([
+      { id: "a", name: "A", before: false, after: true },
+    ]);
+    expect(blockingFindings(stale)).toBe(1);
+    expect(formatComparison(stale)).toContain(
+      "Netlist marks changed without a NETLIST_MARK_RULE_VERSION bump",
+    );
+    // With the version moved, the Gallery asks every stored mark again.
+    const bumped = compareReports(marked(11, false), marked(12, true));
+    expect(blockingFindings(bumped)).toBe(0);
+    expect(formatComparison(bumped)).toContain("the rule version moved");
+    // Reports from before marks were recorded compare as before.
+    expect(blockingFindings(compareReports(report([]), report([])))).toBe(0);
+  });
+
   it("summarizes each check with its most common failures", () => {
     const summary = summarizeReport(
       report([
