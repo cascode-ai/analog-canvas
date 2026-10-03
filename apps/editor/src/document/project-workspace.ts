@@ -26,6 +26,50 @@ export function workspaceWindowId(): string {
   return identity;
 }
 
+const WINDOW_LOCK_PREFIX = "analog-canvas-window:";
+type WindowLocks = Pick<LockManager, "request" | "query">;
+function browserLocks(): WindowLocks | null {
+  return (typeof navigator === "undefined" ? null : navigator.locks) ?? null;
+}
+
+/**
+ * Holds a lock named after this window until its page goes away, so a fresh
+ * window can tell the workspaces of open windows from the ones a closed
+ * window left behind (#1250). A second page sharing the window id (a
+ * duplicated browser tab) leaves the lock with the first.
+ */
+export function holdWorkspaceWindow(
+  id: string,
+  locks: WindowLocks | null = browserLocks(),
+): void {
+  if (!locks) return;
+  void locks
+    .request(WINDOW_LOCK_PREFIX + id, { ifAvailable: true }, (lock) =>
+      lock ? new Promise<void>(() => {}) : undefined,
+    )
+    .catch(() => {});
+}
+
+/** Ids of the windows whose page is open, or null when the browser cannot
+ * tell; then no window counts as closed and nothing is offered. */
+export async function openWorkspaceWindows(
+  locks: WindowLocks | null = browserLocks(),
+): Promise<ReadonlySet<string> | null> {
+  if (!locks) return null;
+  try {
+    const { held = [], pending = [] } = await locks.query();
+    return new Set(
+      [...held, ...pending].flatMap(({ name }) =>
+        name?.startsWith(WINDOW_LOCK_PREFIX)
+          ? [name.slice(WINDOW_LOCK_PREFIX.length)]
+          : [],
+      ),
+    );
+  } catch {
+    return null;
+  }
+}
+
 function decode(
   value: unknown,
   id: string,
@@ -97,6 +141,53 @@ export function createProjectWorkspaceStore(factory: IDBFactory = indexedDB) {
       return journal && (!record || journal.savedAt > record.savedAt)
         ? journal
         : record;
+    },
+    /**
+     * The newest workspace another window left behind, which a fresh window
+     * offers to reopen (#1250). Records `skip` accepts (a window still open,
+     * or one with nothing worth reopening) are passed over, and an
+     * unreadable record never hides a readable one.
+     */
+    async latestElsewhere(
+      id: string,
+      skip: (record: ProjectWorkspace) => boolean = () => false,
+    ): Promise<ProjectWorkspace | null> {
+      const db = await open();
+      const stored = await new Promise<unknown[]>((resolve, reject) => {
+        const request = db.transaction(STORE).objectStore(STORE).getAll();
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+      let newest: ProjectWorkspace | null = null;
+      for (const value of stored) {
+        const windowId = (value as ProjectWorkspace | null)?.windowId;
+        if (typeof windowId !== "string" || windowId === id) continue;
+        let record: ProjectWorkspace | null;
+        try {
+          record = decode(value, windowId, "", true);
+        } catch {
+          continue;
+        }
+        if (!record || skip(record)) continue;
+        if (!newest || record.savedAt > newest.savedAt) newest = record;
+      }
+      return newest;
+    },
+    /**
+     * Forget a closed window's workspace once this window has taken its tabs
+     * over and saved them under its own record, so no other window offers
+     * the same tabs again (#1250).
+     */
+    async remove(windowId: string): Promise<void> {
+      const db = await open();
+      await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction(STORE, "readwrite");
+        tx.objectStore(STORE).delete(windowId);
+        tx.oncomplete = () => resolve();
+        tx.onabort = () =>
+          reject(tx.error ?? new Error("Workspace removal aborted"));
+        tx.onerror = () => reject(tx.error);
+      });
     },
     async write(record: ProjectWorkspace): Promise<void> {
       const db = await open();

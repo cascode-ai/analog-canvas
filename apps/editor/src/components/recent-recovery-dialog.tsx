@@ -106,6 +106,17 @@ export function RecentRecoveryDialog({
     const frame = requestAnimationFrame(() => closeRef.current?.focus());
     return () => cancelAnimationFrame(frame);
   }, []);
+  // Esc closes it wherever focus is: a click on its text leaves focus on the
+  // page, where the dialog's own key handler never hears the key (#1250).
+  useEffect(() => {
+    const close = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      event.preventDefault();
+      onClose();
+    };
+    window.addEventListener("keydown", close);
+    return () => window.removeEventListener("keydown", close);
+  }, [onClose]);
 
   return (
     <div
@@ -119,12 +130,6 @@ export function RecentRecoveryDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby="recent-recovery-title"
-        onKeyDown={(event) => {
-          if (event.key === "Escape") {
-            event.preventDefault();
-            onClose();
-          }
-        }}
       >
         <header className="help-dialog-header">
           <div>

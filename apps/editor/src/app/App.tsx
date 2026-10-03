@@ -6,10 +6,16 @@ import type {
 } from "../hosts/native-project-store";
 import {
   createProjectWorkspaceStore,
+  holdWorkspaceWindow,
   journalProjectWorkspace,
+  openWorkspaceWindows,
   workspaceWindowId,
   type ProjectWorkspace,
 } from "../document/project-workspace";
+import {
+  findWorkspaceReopenOffer,
+  type WorkspaceReopenSummary,
+} from "../document/workspace-reopen";
 import { resolveAnnotationName } from "@icm/derived";
 import {
   branchGalleryVersion,
@@ -538,9 +544,12 @@ export function App(props: AppProps) {
     if (boot) return;
     let mounted = true;
     void Promise.resolve()
-      .then(() =>
-        browserWorkspaceStore().read(
-          workspaceWindowId(),
+      .then(() => {
+        const windowId = workspaceWindowId();
+        // Marks this window open, so a fresh window never offers its tabs.
+        holdWorkspaceWindow(windowId);
+        return browserWorkspaceStore().read(
+          windowId,
           window.location.pathname + window.location.search,
           {
             // An open request brings this window's tabs back and opens its
@@ -551,8 +560,8 @@ export function App(props: AppProps) {
               new URLSearchParams(window.location.search).has("project") ||
               new URLSearchParams(window.location.search).get("new") === "1",
           },
-        ),
-      )
+        );
+      })
       .then((workspace) => {
         if (mounted) setBoot({ workspace });
       })
@@ -5630,49 +5639,54 @@ function WorkspaceEditor({
     activeDocumentId: string;
     cellViews: [string, GridRect][];
   };
+  /** A tab as a window saved it, ready to show again: after a refresh, or
+   * when a fresh window reopens the tabs a closed one left (#1250). */
+  function tabSessionFromPortable(saved: PortableTab): TabSession {
+    const controller = new EditorDocumentController(
+      parseProject(saved.projectText),
+    );
+    if (!controller.openDocument(saved.activeDocumentId))
+      throw new Error("Missing active Cell");
+    if (
+      !saved.file ||
+      !saved.recovery ||
+      !saved.view ||
+      !Array.isArray(saved.stack) ||
+      !saved.selection
+    )
+      throw new Error("Incomplete tab session");
+    if (saved.file.savedBaseline)
+      saved.file.savedBaseline.project = parseProject(
+        serializeProject(saved.file.savedBaseline.project),
+      );
+    const session: TabSession = {
+      ...saved,
+      // Cloud publication metadata may change while the page is closed.
+      // Keep the local draft, but resolve its current link before publishing.
+      publication: saved.file.cloudBinding ? null : saved.publication,
+      controller,
+      cellViews: new Map(saved.cellViews),
+      fit: false,
+      netlistEntry: saved.netlistEntry
+        ? { ...saved.netlistEntry, sessionId: controller.projectSessionId }
+        : null,
+      file: {
+        ...saved.file,
+        persistenceState:
+          saved.file.persistenceState === "saving"
+            ? "dirty"
+            : saved.file.persistenceState,
+      },
+    };
+    return session;
+  }
   const [restoredTabs] = useState(() => {
     if (!restoredWorkspace) return { value: null, error: null };
     try {
-      const tabs = restoredWorkspace.tabs.map((tab) => {
-        const saved = tab.session as PortableTab;
-        const controller = new EditorDocumentController(
-          parseProject(saved.projectText),
-        );
-        if (!controller.openDocument(saved.activeDocumentId))
-          throw new Error("Missing active Cell");
-        if (
-          !saved.file ||
-          !saved.recovery ||
-          !saved.view ||
-          !Array.isArray(saved.stack) ||
-          !saved.selection
-        )
-          throw new Error("Incomplete tab session");
-        if (saved.file.savedBaseline)
-          saved.file.savedBaseline.project = parseProject(
-            serializeProject(saved.file.savedBaseline.project),
-          );
-        const session: TabSession = {
-          ...saved,
-          // Cloud publication metadata may change while the page is closed.
-          // Keep the local draft, but resolve its current link before publishing.
-          publication: saved.file.cloudBinding ? null : saved.publication,
-          controller,
-          cellViews: new Map(saved.cellViews),
-          fit: false,
-          netlistEntry: saved.netlistEntry
-            ? { ...saved.netlistEntry, sessionId: controller.projectSessionId }
-            : null,
-          file: {
-            ...saved.file,
-            persistenceState:
-              saved.file.persistenceState === "saving"
-                ? "dirty"
-                : saved.file.persistenceState,
-          },
-        };
-        return { id: tab.id, session };
-      });
+      const tabs = restoredWorkspace.tabs.map((tab) => ({
+        id: tab.id,
+        session: tabSessionFromPortable(tab.session as PortableTab),
+      }));
       return {
         value: { activeId: restoredWorkspace.activeId, tabs },
         error: null,
@@ -5689,6 +5703,28 @@ function WorkspaceEditor({
   const workspaceLastRecord = useRef<ProjectWorkspace | null>(null);
   const workspaceSaveQueue = useRef(Promise.resolve());
   const workspaceFailure = useRef(false);
+  // The closed window whose tabs this one reopened (#1250). Its record goes
+  // once this window's own saved record holds every one of those tabs, so
+  // no other window offers them again and nothing is lost on the way.
+  const reopenedWorkspace = useRef<{
+    windowId: string;
+    workingCopyIds: string[];
+  } | null>(null);
+  function releaseReopenedWorkspace(record: ProjectWorkspace): Promise<void> {
+    const reopened = reopenedWorkspace.current;
+    if (!reopened) return Promise.resolve();
+    const held = new Set(
+      record.tabs.map(
+        ({ session }) => (session as PortableTab).recovery.workingCopyId,
+      ),
+    );
+    if (!reopened.workingCopyIds.every((id) => held.has(id)))
+      return Promise.resolve();
+    reopenedWorkspace.current = null;
+    return browserWorkspaceStore()
+      .remove(reopened.windowId)
+      .catch(() => {});
+  }
   function persistTabs(
     workspace: {
       activeId: string;
@@ -5731,15 +5767,18 @@ function WorkspaceEditor({
         workspaceLastRecord.current = record;
         workspaceSaveQueue.current = workspaceSaveQueue.current
           .then(() => browserWorkspaceStore().write(record))
-          .catch(() => {
-            workspaceLastText.current = "";
-            if (!workspaceFailure.current) {
-              workspaceFailure.current = true;
-              setStatus(
-                "Project tabs could not be saved in this browser. Export your work before leaving; earlier copies are retained.",
-              );
-            }
-          });
+          .then(
+            () => releaseReopenedWorkspace(record),
+            () => {
+              workspaceLastText.current = "";
+              if (!workspaceFailure.current) {
+                workspaceFailure.current = true;
+                setStatus(
+                  "Project tabs could not be saved in this browser. Export your work before leaving; earlier copies are retained.",
+                );
+              }
+            },
+          );
       }
       if (final && workspaceLastRecord.current)
         journalProjectWorkspace(workspaceLastRecord.current);
@@ -5830,6 +5869,101 @@ function WorkspaceEditor({
   });
   openWorkingCopyIdsRef.current = () =>
     projectTabs.entries().map(({ session }) => session.recovery.workingCopyId);
+  const [workspaceReopen, setWorkspaceReopen] = useState<{
+    record: ProjectWorkspace;
+    summary: WorkspaceReopenSummary;
+  } | null>(null);
+  // A fresh window with no tabs of its own offers the newest tabs a closed
+  // window left (#1250). An explicit open request (a link, New Circuit)
+  // already says what to show.
+  useEffect(() => {
+    if (
+      restoredWorkspace ||
+      initialProject ||
+      workspaceError ||
+      hasExplicitBootTarget
+    )
+      return;
+    let live = true;
+    void openWorkspaceWindows()
+      .then((open) =>
+        findWorkspaceReopenOffer(
+          browserWorkspaceStore(),
+          workspaceWindowId(),
+          open,
+        ),
+      )
+      .then((offer) => {
+        if (live) setWorkspaceReopen(offer);
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, []);
+  async function reopenClosedWindowTabs(): Promise<void> {
+    const offer = workspaceReopen;
+    if (!offer) return;
+    const openCloudIds = new Set(
+      projectTabs
+        .entries()
+        .flatMap(({ session }) =>
+          session.file.cloudBinding ? [session.file.cloudBinding.id] : [],
+        ),
+    );
+    let incoming: {
+      session: TabSession;
+      cloudId: string | null;
+      active: boolean;
+    }[];
+    try {
+      incoming = offer.record.tabs
+        .map((tab) => {
+          const saved = tab.session as PortableTab;
+          return {
+            session: tabSessionFromPortable(saved),
+            cloudId: saved.file.cloudBinding?.id ?? null,
+            active: tab.id === offer.record.activeId,
+          };
+        })
+        .filter(({ cloudId }) => !cloudId || !openCloudIds.has(cloudId));
+    } catch {
+      setWorkspaceReopen(null);
+      setStatus(
+        "Those tabs could not be reopened. Their recovery copies are kept: File → Recover Unsaved Work…",
+      );
+      return;
+    }
+    if (!incoming.length) {
+      // Every one of them is open here already.
+      setWorkspaceReopen(null);
+      void browserWorkspaceStore()
+        .remove(offer.record.windowId)
+        .catch(() => {});
+      return;
+    }
+    // An untouched blank circuit is only a placeholder: the tabs take its
+    // place. Anything drawn in it stays as a tab of its own.
+    const placeholder =
+      projectTabs.tabs.length === 1 &&
+      project.id === preparedInitialProject.id &&
+      !isDirtyWork() &&
+      !hasUnsafeWork() &&
+      !codeDraftDirty;
+    if (!(await projectTabs.adopt(incoming, placeholder))) return;
+    reopenedWorkspace.current = {
+      windowId: offer.record.windowId,
+      workingCopyIds: incoming.map(
+        ({ session }) => session.recovery.workingCopyId,
+      ),
+    };
+    setWorkspaceReopen(null);
+    setStatus(
+      incoming.length === 1
+        ? "Reopened 1 tab from your last window"
+        : `Reopened ${incoming.length} tabs from your last window`,
+    );
+  }
   useEffect(() => {
     // Runs once the next tab's Project is the one rendered, so the copy is
     // prepared against, and placed into, that Project.
@@ -6905,6 +7039,16 @@ function WorkspaceEditor({
                     "latest",
                   ),
                 onDismiss: dismissStartupRecovery,
+              }
+            : null
+        }
+        workspaceReopen={
+          workspaceReopen
+            ? {
+                names: workspaceReopen.summary.names,
+                savedAt: workspaceReopen.summary.savedAt,
+                onReopen: () => void reopenClosedWindowTabs(),
+                onDismiss: () => setWorkspaceReopen(null),
               }
             : null
         }

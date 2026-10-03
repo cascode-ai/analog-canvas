@@ -95,6 +95,8 @@ recognize such a network, so both are placed by hand.
   Apply or discard pending code edits before switching. Closing an unsaved tab
   asks first. Refresh restores this browser window's tabs, unsaved circuits,
   active tab and views, but not Undo stacks or unfinished text-field edits.
+  After you close the browser tab, opening the editor in a new one offers
+  **Reopen tabs** for the tabs it left.
   This browser-local workspace is not a Cloud backup: save or export work you
   need to keep. Agent connections are scoped to their paired workspace; other
   tabs remain independent.

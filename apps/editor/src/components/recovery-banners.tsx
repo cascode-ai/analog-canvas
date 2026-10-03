@@ -117,6 +117,59 @@ export function RecoveryAvailableBanner({
   );
 }
 
+export interface WorkspaceReopenBannerProps {
+  names: string[];
+  savedAt: number;
+  onReopen(): void;
+  onDismiss(): void;
+}
+
+/**
+ * Non-modal offer in a fresh browser tab to bring back the tabs a closed
+ * editor window left (#1250). Not now leaves them stored; another fresh
+ * window offers them again.
+ */
+export function WorkspaceReopenBanner({
+  names,
+  savedAt,
+  onReopen,
+  onDismiss,
+}: WorkspaceReopenBannerProps) {
+  const ref = useRecoveryBannerPosition();
+  const shown = names.slice(0, 3).join(", ");
+  const more = names.length > 3 ? ` and ${names.length - 3} more` : "";
+  return (
+    <aside
+      ref={ref}
+      className="recovery-banner"
+      data-testid="workspace-reopen-banner"
+      aria-label="Reopen tabs from your last window"
+    >
+      <p>
+        Your last editor window had{" "}
+        {names.length === 1 ? "1 tab" : `${names.length} tabs`} open:{" "}
+        <strong>
+          {shown}
+          {more}
+        </strong>
+        , saved{" "}
+        <time dateTime={new Date(savedAt).toISOString()}>
+          {new Date(savedAt).toLocaleString()}
+        </time>
+        .
+      </p>
+      <div className="recovery-banner-actions">
+        <button type="button" onClick={onReopen}>
+          Reopen tabs
+        </button>
+        <button type="button" onClick={onDismiss}>
+          Not now
+        </button>
+      </div>
+    </aside>
+  );
+}
+
 /** Concise statusbar label derived from coordinator recovery state. */
 export function recoveryStateLabel(state: RecoveryState): string | null {
   switch (state) {

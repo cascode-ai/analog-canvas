@@ -537,6 +537,75 @@ test("refresh restores every unsaved tab and active view without crossing browse
   await other.close();
 });
 
+/** How many tabs this window's saved workspace holds (null: none saved). */
+async function savedTabCount(page: Page): Promise<number | null> {
+  return page.evaluate(
+    () =>
+      new Promise<number | null>((resolve, reject) => {
+        const windowId = sessionStorage.getItem("icm.workspace-window.v1");
+        const request = indexedDB.open("analog-canvas-workspaces", 1);
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => {
+          const read = request.result
+            .transaction("windows")
+            .objectStore("windows")
+            .get(windowId ?? "");
+          read.onsuccess = () => {
+            request.result.close();
+            resolve(read.result ? read.result.tabs.length : null);
+          };
+          read.onerror = () => reject(read.error);
+        };
+      }),
+  );
+}
+
+test("a fresh browser tab offers the tabs a closed window left, and reopens them once (#1250)", async ({
+  page,
+  context,
+}) => {
+  test.slow();
+  await page.goto("/editor?new=1");
+  await insert(page, "resistor", 240, 250);
+  await page
+    .getByRole("button", { name: "New project tab", exact: true })
+    .click();
+  await insert(page, "capacitor", 270, 250);
+  await expect.poll(() => savedTabCount(page)).toBe(2);
+  const banner = (target: Page) =>
+    target.getByTestId("workspace-reopen-banner");
+
+  // While that window is open, its tabs are its own.
+  const beside = await context.newPage();
+  await beside.goto("/editor");
+  await awaitEditorReady(beside);
+  await beside.waitForTimeout(300);
+  await expect(banner(beside)).toHaveCount(0);
+  await beside.close();
+
+  await page.close();
+  const fresh = await context.newPage();
+  await fresh.goto("/editor");
+  await expect(banner(fresh)).toContainText("2 tabs open");
+  await banner(fresh).getByRole("button", { name: "Reopen tabs" }).click();
+  await expect(banner(fresh)).toHaveCount(0);
+  // The untouched blank circuit gave way to the two reopened tabs.
+  await expect(fresh.getByRole("tab")).toHaveCount(2);
+  for (let index = 0; index < 2; index++) {
+    await fresh.getByRole("tab").nth(index).click();
+    await expect(fresh.getByTestId("active-instance-count")).toHaveText("1");
+  }
+  await expect.poll(() => savedTabCount(fresh)).toBe(2);
+
+  // Taken over, they are offered to no other window.
+  const later = await context.newPage();
+  await later.goto("/editor");
+  await awaitEditorReady(later);
+  await later.waitForTimeout(300);
+  await expect(banner(later)).toHaveCount(0);
+  await later.close();
+});
+
 test("New Circuit opens a blank tab beside the circuit this window drew, and a refresh adds none", async ({
   page,
 }) => {
