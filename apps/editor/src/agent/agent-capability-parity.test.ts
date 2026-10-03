@@ -799,10 +799,20 @@ it("places a part with the catalog defaults and the Process model a GUI placemen
   expect(placed.get("M1")).toEqual(gui("nmos"));
   expect(placed.get("R1")).toEqual(gui("resistor"));
   expect(placed.get("M1")?.parameters).toMatchObject({ w: "1u", l: "150n" });
+  // SKY130's transistor is a reviewed subcircuit: the placement's process
+  // fill binds it with its definition, never a model card of that name
+  // (#1249). A Process that names a plain model gives it at once.
   expect(context.processModelTarget(controller.project, "nmos")).toBe(
-    "sky130_fd_pr__nfet_01v8",
+    undefined,
   );
-  expect(placed.get("M1")?.binding).toBeDefined();
+  expect(placed.get("M1")?.binding).toBeUndefined();
+  expect(
+    placementModelTarget(
+      controller.project,
+      { ...preferences, selected: "abstract" },
+      "nmos",
+    ),
+  ).toBe("NMOS");
   expect(placed.get("R1")?.parameters).toEqual({ value: "1k" });
   // A value the Agent gives still wins over the default.
   expect(placed.get("R2")?.parameters).toEqual({ value: "4.7k" });
@@ -910,6 +920,70 @@ it("places a BJT in a SKY130 Project bound to its reviewed subcircuit, count kep
     /^XQ2 \S+ \S+ \S+ VSS sky130_fd_pr__npn_05v5_W1p00L1p00 m=1$/mu,
   );
   expect(text).not.toContain("MISSING_MODEL_TARGET");
+});
+
+it("places SKY130 transistors as their reviewed subcircuits, as a GUI placement and Apply process do (#1249)", async () => {
+  const preferences = createDefaultNetlistExportPreferences();
+  const { client, controller } = await folder(undefined, {
+    processModelTarget: (project, symbolId) =>
+      placementModelTarget(project, preferences, symbolId),
+    processFill: (project, documentId, edits) =>
+      placementProcessFill(project, preferences, documentId, edits),
+  });
+  const before = controller.document.revision;
+  const placed = await client.applyActions([
+    {
+      kind: "place-component",
+      symbol: "nmos",
+      reference: "M1",
+      position: { x: 0, y: 0 },
+    },
+    {
+      kind: "place-component",
+      symbol: "pmos",
+      reference: "M2",
+      position: { x: 400, y: 0 },
+      parameters: { w: "2u", m: "4" },
+    },
+  ]);
+  expect(placed.ok, placed.message).toBe(true);
+  expect(controller.document.revision).toBe(before + 1);
+  const instance = (reference: string) =>
+    controller.document.instances.find((item) => item.reference === reference)!;
+  expect(instanceModelTarget(controller.project, instance("M1"))).toBe(
+    "sky130_fd_pr__nfet_01v8",
+  );
+  expect(instanceModelTarget(controller.project, instance("M2"))).toBe(
+    "sky130_fd_pr__pfet_01v8",
+  );
+  expect(instance("M1").netlist?.binding?.kind).toBe("external-subcircuit");
+  // The catalog geometry and what the Agent gives stay, in metres.
+  expect(instance("M2").netlist?.parameters).toMatchObject({
+    w: "2u",
+    l: "150n",
+    m: "4",
+  });
+  const wired = structuredClone(controller.project);
+  for (const reference of ["M1", "M2"])
+    for (const pinName of ["D", "G", "S", "B"])
+      wired.documents[0]!.nets.push({
+        id: `net-${reference}-${pinName}`,
+        terminals: [{ instanceId: instance(reference).id, pinName }],
+      });
+  const exported = createDesignNetlistExport(wired, { format: "spice" });
+  const text =
+    exported.status === "ready"
+      ? exported.file.text
+      : JSON.stringify(exported.diagnostics);
+  // X lines in micrometres, which the SKY130 simulation profile runs; no
+  // M card names the subcircuit as a model.
+  expect(text).toMatch(
+    /^XM1 \S+ \S+ \S+ \S+ sky130_fd_pr__nfet_01v8 .*\bl=0\.15\b.*\bw=1\b/mu,
+  );
+  expect(text).toMatch(
+    /^XM2 \S+ \S+ \S+ \S+ sky130_fd_pr__pfet_01v8 .*\bw=2\b.*\bm=4\b/mu,
+  );
+  expect(text).not.toMatch(/^M\S* .*sky130_fd_pr__/mu);
 });
 
 it("reports a Cell's unbound BJT in the Cell's own diagnostics (#1251)", async () => {

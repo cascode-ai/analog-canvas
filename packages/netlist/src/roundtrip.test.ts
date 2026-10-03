@@ -333,7 +333,7 @@ describe("structural SPICE round trip", () => {
     );
   });
 
-  it("re-imports its own M-card export of a SKY130 MOS bound by model name", async () => {
+  it("re-imports its own M-card export of a SKY130 MOS as the X call the SKY130 profile runs (#1249)", async () => {
     // As the Gallery entry's netlist reads: no .model card for either part.
     const source = [
       "SKY130 M-card round trip",
@@ -356,12 +356,15 @@ describe("structural SPICE round trip", () => {
     });
     expect(analysis.diagnostics).toEqual([]);
     const printed = printSpiceNetlist(analysis.ir!);
+    // The SKY130 library defines both names as subcircuits: the M cards come
+    // back as the reviewed X calls, in micrometres.
     expect(printed).toContain(
-      "M1 D G S B sky130_fd_pr__nfet_01v8 l=150n m=1 nf=1 w=1u",
+      "XM1 D G S B sky130_fd_pr__nfet_01v8 l=0.15 w=1 nf=1 m=1",
     );
     expect(printed).toContain(
-      "M2 D G VDD VDD sky130_fd_pr__pfet_01v8 l=150n m=1 nf=1 w=2u",
+      "XM2 D G VDD VDD sky130_fd_pr__pfet_01v8 l=0.15 w=2 nf=1 m=1",
     );
+    expect(printed).not.toMatch(/^M\S* /mu);
 
     const reparsed = await importSpiceSources(
       [
@@ -379,7 +382,9 @@ describe("structural SPICE round trip", () => {
     expect(normalizedSemantics(reanalysis.ir!)).toEqual(
       normalizedSemantics(analysis.ir!),
     );
-    // What `verify` with expectedNetlist does: the file it came from is equal.
+    // What `verify` with expectedNetlist does: against the M-card file it
+    // came from, the topology is equal; the only differences are the two
+    // devices' binding style, a card there and a call here.
     const compile = (text: string) =>
       compileSpiceSources(
         [{ path: "comparison.cir", bytes: new TextEncoder().encode(text) }],
@@ -389,10 +394,19 @@ describe("structural SPICE round trip", () => {
       compile(printed),
       compile(source),
     ]);
-    expect(compareCircuitIR(actual.ir!, expected.ir!, "amp")).toMatchObject({
-      status: "equal",
-      differences: [],
-    });
+    const comparison = compareCircuitIR(actual.ir!, expected.ir!, "amp");
+    expect(comparison.topology).toBe("equal");
+    expect(
+      comparison.differences.map(({ kind, object }) => [kind, object]),
+    ).toEqual([
+      ["binding", "m1"],
+      ["binding", "m2"],
+    ]);
+    expect(
+      compareCircuitIR(actual.ir!, expected.ir!, "amp", undefined, {
+        bindings: false,
+      }).status,
+    ).toBe("equal");
   });
 
   it("keeps Cadence bang spelling separate from global electrical identity", async () => {

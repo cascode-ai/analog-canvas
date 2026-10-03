@@ -55,7 +55,7 @@ it("imports SKY130's drain-extended devices as the Extended Devices DMOS", async
   ]);
 });
 
-it("imports a SKY130 MOS written as a plain M card, which has no .model card", async () => {
+it("imports a SKY130 MOS written as a plain M card, which has no .model card, as the X call it is (#1249)", async () => {
   // This product's own export of a MOS bound to the model by name.
   const text = [
     "* plain M cards",
@@ -79,23 +79,58 @@ it("imports a SKY130 MOS written as a plain M card, which has no .model card", a
         instance.netlist?.binding,
       ]),
   ).toEqual([
-    [
-      "M1",
-      "nmos",
-      expect.objectContaining({
-        kind: "model",
-        name: "sky130_fd_pr__nfet_01v8",
-      }),
-    ],
-    [
-      "M2",
-      "pmos",
-      expect.objectContaining({
-        kind: "model",
-        name: "sky130_fd_pr__pfet_01v8",
-      }),
-    ],
+    ["M1", "nmos", expect.objectContaining({ kind: "external-subcircuit" })],
+    ["M2", "pmos", expect.objectContaining({ kind: "external-subcircuit" })],
   ]);
+  // The SKY130 library defines these as subcircuits, so a model card of
+  // that name is one its simulation profile cannot run: they bind the
+  // reviewed devices, in the terminal order those declare.
+  const definitions = result.project!.externalSubcircuitDefinitions;
+  for (const [reference, master] of [
+    ["M1", "sky130_fd_pr__nfet_01v8"],
+    ["M2", "sky130_fd_pr__pfet_01v8"],
+  ] as const) {
+    const instance = top.instances.find(
+      (item) => item.reference === reference,
+    )!;
+    const binding = instance.netlist!.binding!;
+    const definition = definitions.find(
+      (item) =>
+        binding.kind === "external-subcircuit" &&
+        item.id === binding.definitionId,
+    )!;
+    expect(definition).toMatchObject({
+      name: master,
+      interfaceStatus: "declared",
+    });
+    expect(definition.terminals.map((terminal) => terminal.name)).toEqual([
+      "D",
+      "G",
+      "S",
+      "B",
+    ]);
+    expect(instance.importProvenance?.status).toBe("resolved");
+  }
+  // W and L of an M card are already in metres, as the devices store them.
+  expect(
+    top.instances.find((item) => item.reference === "M2")!.netlist!.parameters,
+  ).toMatchObject({ w: "2u", l: "150n", m: "1", nf: "1" });
+});
+
+it("keeps an M card a model card when the deck declares that .model", async () => {
+  const text = [
+    ".model sky130_fd_pr__nfet_01v8 nmos level=1",
+    ".subckt top d g s b",
+    "M1 d g s b sky130_fd_pr__nfet_01v8 l=150n w=1u",
+    ".ends top",
+    ".end",
+    "",
+  ].join("\n");
+  const result = await importSpiceSources([input("m.spi", text)], "m.spi");
+  const top = result.project!.documents.find((d) => d.name === "top")!;
+  expect(
+    top.instances.find((item) => item.reference === "M1")!.netlist!.binding,
+  ).toMatchObject({ kind: "model", name: "sky130_fd_pr__nfet_01v8" });
 });
 
 it("says which .model card a device of unknown type needs", async () => {
