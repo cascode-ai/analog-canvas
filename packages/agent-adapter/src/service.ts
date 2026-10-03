@@ -16,6 +16,7 @@ import {
 
 import { base64EncodeUtf8, utf8ByteLength } from "./platform.js";
 import {
+  addedAmbiguousJunctions,
   agentDiagnosticIdentity,
   agentProjectDiagnostics,
   agentVisualDiagnostics,
@@ -1133,6 +1134,7 @@ export function createAgentCircuitService(
               resolver,
               request.wireIntent,
               limits.maxTransactionEdits,
+              { keepClear: true },
             )
           : null;
         if (typeof plannedWire === "string") {
@@ -1165,6 +1167,46 @@ export function createAgentCircuitService(
               document.revision,
             );
           }
+        }
+        // Ambiguous intersections are rejected, not guessed (#1257). A
+        // transaction that would leave a Junction on an unrelated Route,
+        // where none sat before, is refused before it reaches the Document;
+        // a dry run reports the same refusal.
+        if (
+          edits.some((edit) => {
+            const category = agentEditCategory(edit.kind);
+            return category === "geometry" || category === "connectivity";
+          })
+        ) {
+          const preview = executeTransaction(
+            document,
+            {
+              transactionId: `${request.transactionId}-ambiguity`,
+              documentId: request.documentId,
+              expectedRevision: request.expectedRevision,
+              actor: { kind: "agent", id: options.agentId },
+              dryRun: true,
+              edits,
+            },
+            { symbolResolver: resolver },
+          );
+          const added = preview.ok
+            ? addedAmbiguousJunctions(document, preview.document, resolver)
+            : [];
+          if (added.length)
+            return fail(
+              "transact",
+              "EDIT_PRECONDITION",
+              `This would put a Junction on a Route of another Net at ${added
+                .map((item) =>
+                  item.point ? `(${item.point.x},${item.point.y})` : "?",
+                )
+                .join(
+                  ", ",
+                )}, so the two Nets would read as joined (VISUAL_AMBIGUOUS_JUNCTION). Route the wire to meet its own Net elsewhere, or move the other wire first.`,
+              document.revision,
+              added,
+            );
         }
         const result = host
           ? host.dispatchTransaction({

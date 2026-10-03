@@ -1,9 +1,14 @@
 import { createEmptyDocument, type SchematicDocument } from "@icm/model";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
-import { resolveRouteGeometry } from "@icm/derived";
+import {
+  deriveNetConnectivityContext,
+  endpointKey,
+  resolveRouteGeometry,
+} from "@icm/derived";
 import { describe, expect, it } from "vitest";
 import { DocumentHistory } from "./history.js";
 import { planWireBatch } from "./wire-batch-planner.js";
+import { createRouteClearance } from "./route-clearance.js";
 import type { WireIntent } from "./routing-planner.js";
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
@@ -254,5 +259,114 @@ describe("via points on a pin-to-pin connect (#1265)", () => {
     );
     expect(plan).toMatch(/folds back on itself/);
     expect(h.document).toEqual(before);
+  });
+});
+
+describe("an Agent connect keeps clear of parts and other Nets (#1257)", () => {
+  const resistor = (
+    id: string,
+    x: number,
+    y: number,
+    rotation: 0 | 90 = 0,
+  ) => ({
+    id,
+    symbolId: "resistor",
+    reference: id,
+    placement: { position: { x, y }, rotation, mirror: "none" as const },
+    netlist: { parameters: { value: "1k" } },
+  });
+  const pin = (instanceId: string, pinName: string) => ({
+    kind: "endpoint" as const,
+    endpoint: { kind: "terminal" as const, instanceId, pinName },
+  });
+  const ends = [pin("R1", "2").endpoint, pin("R2", "1").endpoint];
+  function parts(obstacle?: { x: number; y: number; rotation: 0 | 90 }) {
+    const document = createEmptyDocument("doc", "Clearance");
+    document.instances.push(resistor("R1", 0, 0), resistor("R2", 200, 100));
+    if (obstacle)
+      document.instances.push(
+        resistor("R3", obstacle.x, obstacle.y, obstacle.rotation),
+      );
+    return history(document);
+  }
+  const committedPath = (
+    h: DocumentHistory,
+    options: { keepClear?: boolean },
+    waypoints?: { x: number; y: number }[],
+  ) => {
+    const plan = planWireBatch(
+      h.document,
+      resolver,
+      wire("w", pin("R1", "2"), pin("R2", "1"), waypoints),
+      512,
+      options,
+    );
+    if (typeof plan === "string") return plan;
+    const result = h.transact({
+      transactionId: "t",
+      documentId: h.document.id,
+      expectedRevision: h.document.revision,
+      actor: { kind: "agent", id: "test" },
+      edits: plan.edits,
+    });
+    if (!result.ok) throw new Error(JSON.stringify(result));
+    return resolveRouteGeometry(h.document, resolver, h.document.routes[0]!)!
+      .centerline;
+  };
+  /** What the committed wire would read as touching, its own Net aside. */
+  const conflict = (
+    h: DocumentHistory,
+    points: readonly { x: number; y: number }[],
+  ) => {
+    const context = deriveNetConnectivityContext(h.document, resolver);
+    const own = h.document.routes.map(
+      (route) =>
+        context.logicalNetResolution.byBaseNetId.get(route.netId)?.id ??
+        route.netId,
+    );
+    return createRouteClearance(h.document, resolver, context, {
+      logicalIds: new Set(own),
+      endpointKeys: new Set(ends.map(endpointKey)),
+    }).conflict(points, ends);
+  };
+
+  it("detours around a part its own path would cross, and refuses via points through it", () => {
+    // Where the planner's own path runs, a part is then put in its way.
+    const free = committedPath(parts(), {});
+    if (typeof free === "string") throw new Error(free);
+    const legs = free.slice(1).map((to, index) => [free[index]!, to] as const);
+    const [a, b] = legs.sort(
+      ([p, q], [r, s]) =>
+        Math.abs(s.x - r.x) +
+        Math.abs(s.y - r.y) -
+        (Math.abs(q.x - p.x) + Math.abs(q.y - p.y)),
+    )[0]!;
+    const middle = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    // Across the leg, so the wire would pass through its body.
+    const obstacle = {
+      ...middle,
+      rotation: a.y === b.y ? (0 as const) : (90 as const),
+    };
+
+    const crossing = parts(obstacle);
+    const before = committedPath(crossing, {});
+    if (typeof before === "string") throw new Error(before);
+    expect(conflict(crossing, before)).toMatch(/passes through R3/);
+
+    const h = parts(obstacle);
+    const cleared = committedPath(h, { keepClear: true });
+    if (typeof cleared === "string") throw new Error(cleared);
+    expect(conflict(h, cleared)).toBeNull();
+    expect(cleared).not.toEqual(before);
+
+    // A path the caller chose through the part is refused, not committed.
+    const chosen = parts(obstacle);
+    const refused = committedPath(
+      chosen,
+      { keepClear: true },
+      before.slice(1, -1),
+    );
+    expect(refused).toMatch(/passes through R3/);
+    expect(chosen.document.routes).toEqual([]);
   });
 });

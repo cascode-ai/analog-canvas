@@ -765,6 +765,70 @@ export function planPlaceExternalSubcircuitInstance(
   ];
 }
 
+/** The textbook edge for a supply terminal: VDD-like on top, ground-like
+ * below. Undefined for a signal. */
+function supplyEdge(
+  name: string,
+  vddPower: boolean,
+): "north" | "south" | undefined {
+  if (vddPower || /^(?:v(?:dd|cc|pp|pwr)|avdd|dvdd)\w*$/iu.test(name))
+    return "north";
+  if (/^(?:v(?:ss|ee)|gnd|vgnd|avss|dvss|agnd|dgnd)\w*$/iu.test(name))
+    return "south";
+  return undefined;
+}
+
+/**
+ * A supply terminal added to a Cell no parent has placed yet goes on the
+ * block's top or bottom edge, where the textbook draws it and where its
+ * supply wire need not cross the body (#1257). The edit follows the
+ * terminal's own addition. A Cell already placed somewhere keeps the layout
+ * its drawings were made with, so existing symbols never move.
+ */
+function supplyEdgePlacement(
+  project: CircuitProject,
+  document: SchematicDocument,
+  terminals: readonly { id: string; name: string; vddPower: boolean }[],
+): DocumentEdits {
+  const placed = project.documents.some((parent) =>
+    parent.instances.some((instance) => {
+      const binding = instance.netlist?.binding;
+      return (
+        binding?.kind === "subcircuit" &&
+        binding.childDocumentId === document.id
+      );
+    }),
+  );
+  if (placed) return [];
+  const current = document.presentation.cellSymbol;
+  const placements = [...(current?.pinPlacements ?? [])];
+  for (const terminal of terminals) {
+    const side = supplyEdge(terminal.name, terminal.vddPower);
+    if (!side) continue;
+    const taken = new Set(
+      placements
+        .filter((placement) => placement.side === side)
+        .map((placement) => placement.offset),
+    );
+    let offset = 0;
+    for (let step = 1; taken.has(offset); step += 1)
+      offset = (step % 2 ? 1 : -1) * Math.ceil(step / 2) * 20;
+    placements.push({ terminalId: terminal.id, side, offset });
+  }
+  if (placements.length === (current?.pinPlacements?.length ?? 0)) return [];
+  return [
+    {
+      kind: "set_cell_symbol_presentation",
+      presentation: {
+        ...(current?.minimumBodySize
+          ? { minimumBodySize: current.minimumBodySize }
+          : {}),
+        pinPlacements: placements,
+      },
+    },
+  ];
+}
+
 export function planCreateCellPin(
   project: CircuitProject,
   documentId: string,
@@ -800,6 +864,12 @@ export function planCreateCellPin(
       { kind: "add_instance", instance: input.instance },
       ...input.connectionEdits,
       { kind: "add_cell_terminal", terminal: input.terminal },
+      ...supplyEdgePlacement(project, document, [
+        {
+          ...input.terminal,
+          vddPower: input.instance.symbolId === "vdd-port",
+        },
+      ]),
       ...(input.annotation
         ? [
             {
@@ -1099,6 +1169,7 @@ export function planSetVddConnectionMode(
       evidenceId: claim.id,
     })),
   ];
+  const addedTerminalIds: string[] = [];
   for (const markerId of markerIds) {
     const existingTerminal = terminalByMarkerId.get(markerId);
     if (railLabels.has(markerId)) {
@@ -1143,6 +1214,7 @@ export function planSetVddConnectionMode(
             : {}),
         },
       });
+      addedTerminalIds.push(terminalId);
     }
     for (const annotation of annotationsForMarker(markerId)) {
       edits.push({
@@ -1155,6 +1227,14 @@ export function planSetVddConnectionMode(
       });
     }
   }
+  // The markers of one Net form one Cell Pin; the first new one stands for
+  // it on the block, on top, when no marker of it had a terminal before.
+  if (addedTerminalIds.length === markerIds.size && addedTerminalIds[0])
+    edits.push(
+      ...supplyEdgePlacement(project, document, [
+        { id: addedTerminalIds[0], name, vddPower: true },
+      ]),
+    );
   return [transactDocument(project, documentId, edits)];
 }
 

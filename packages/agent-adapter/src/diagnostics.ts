@@ -111,6 +111,26 @@ export function agentProjectDiagnostics(
   return diagnostics;
 }
 
+/**
+ * The ambiguous Junctions a change adds (#1257): VISUAL_AMBIGUOUS_JUNCTION
+ * findings at points where none sat before. Compared by point, so a Route
+ * renamed by a split does not make an existing finding look new.
+ */
+export function addedAmbiguousJunctions(
+  before: SchematicDocument,
+  after: SchematicDocument,
+  resolver: SymbolResolver,
+): AgentDiagnostic[] {
+  const ambiguous = (document: SchematicDocument) =>
+    agentVisualDiagnostics(document, resolver).filter(
+      (item) => item.code === "VISUAL_AMBIGUOUS_JUNCTION",
+    );
+  const at = (item: AgentDiagnostic) =>
+    item.point ? `${item.point.x},${item.point.y}` : "";
+  const existing = new Set(ambiguous(before).map(at));
+  return ambiguous(after).filter((item) => !existing.has(at(item)));
+}
+
 export function agentDiagnosticIdentity(diagnostic: AgentDiagnostic): string {
   return JSON.stringify({
     domain: diagnostic.domain ?? null,
