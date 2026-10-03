@@ -38,7 +38,7 @@ export function reviewedSky130MosModelSuggestions(
   symbolId: string,
 ): readonly string[] {
   if (symbolId !== "nmos" && symbolId !== "pmos") return [];
-  return reviewedExternalModelSuggestions(symbolId);
+  return reviewedExternalModelSuggestions(symbolId, "sky130_fd_pr");
 }
 
 export function resolvePdkSymbolMapping(

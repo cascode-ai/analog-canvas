@@ -24,8 +24,10 @@ import {
   inferNetlistProcess,
   instanceModelTarget,
   netlistProcessPendingInstances,
+  placementModelTarget,
   placementProcessFill,
   processPlacementTarget,
+  processReviewedLibrary,
 } from "./netlist-process";
 
 function apply(
@@ -311,6 +313,73 @@ describe("a part placed into a Process (#1251)", () => {
     expect(target("sky130", "ndmos")).toBe("sky130_fd_pr__nfet_g5v0d16v0");
     expect(target("abstract", "nmos")).toBe("NMOS");
     expect(target("sky130", "resistor")).toBeUndefined();
+  });
+
+  it("places IHP SG13G2 transistors and HBTs as the PDK's own X calls", () => {
+    const sg13g2 = preferences("sg13g2");
+    let project = createEmptyProject("ihp", "IHP");
+    const id = project.topDocumentId;
+    // A transistor takes no model card: its placement fill binds it.
+    expect(placementModelTarget(project, sg13g2, "nmos")).toBeUndefined();
+    const add = (
+      instanceId: string,
+      symbolId: string,
+      x: number,
+      parameters: Record<string, string>,
+    ) =>
+      ({
+        kind: "add_instance",
+        instance: {
+          id: instanceId,
+          symbolId,
+          reference: instanceId,
+          placement: { position: { x, y: 0 }, rotation: 0, mirror: "none" },
+          netlist: { parameters },
+        },
+      }) as const;
+    const parts = [
+      add("M1", "nmos", 0, { w: "1u", l: "130n", nf: "1", m: "1" }),
+      add("Q2", "npn", 200, { Nx: "2" }),
+    ];
+    const fill = placementProcessFill(project, sg13g2, id, parts);
+    project = commit(project, fill!);
+    const instance = (reference: string) =>
+      project.documents[0]!.instances.find(
+        (item) => item.reference === reference,
+      )!;
+    expect(instanceModelTarget(project, instance("M1"))).toBe("sg13_lv_nmos");
+    expect(instanceModelTarget(project, instance("Q2"))).toBe("npn13G2");
+    // Finger count is ng in SG13G2; the drawn values stay, in metres.
+    expect(instance("M1").netlist?.parameters).toEqual({
+      w: "1u",
+      l: "130n",
+      ng: "1",
+      m: "1",
+    });
+    expect(inferNetlistProcess(project, "sky130")).toBe("sg13g2");
+    expect(processReviewedLibrary(project, sg13g2)).toBe("sg13g2_pr");
+
+    const wired = structuredClone(project);
+    for (const [reference, pins] of [
+      ["M1", ["D", "G", "S", "B"]],
+      ["Q2", ["C", "B", "E"]],
+    ] as const)
+      for (const pinName of pins)
+        wired.documents[0]!.nets.push({
+          id: `net-${reference}-${pinName}`,
+          terminals: [{ instanceId: instance(reference).id, pinName }],
+        });
+    const exported = createDesignNetlistExport(wired, { format: "spice" });
+    const text =
+      exported.status === "ready"
+        ? exported.file.text
+        : JSON.stringify(exported.diagnostics);
+    // As IHP's xschem symbols write them: `XM1 d g s b sg13_lv_nmos w l ng m`
+    // and `XQ1 c b e bn npn13G2 le we Nx`, with the substrate on ground.
+    expect(text).toMatch(
+      /^XM1 \S+ \S+ \S+ \S+ sg13_lv_nmos w=1u l=130n ng=1 m=1$/mu,
+    );
+    expect(text).toMatch(/^XQ2 \S+ \S+ \S+ \S+ npn13G2 le=900n we=70n Nx=2$/mu);
   });
 
   it("gives a BJT the Process's plain model where it names one, and nothing where not", () => {

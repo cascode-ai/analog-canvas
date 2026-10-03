@@ -5,6 +5,7 @@ import {
 export const NETLIST_PROFILE_IDS = [
   "abstract",
   "sky130",
+  "sg13g2",
   "tsmc28",
   "tsmc180",
   "custom",
@@ -13,6 +14,7 @@ export type NetlistProfileId = (typeof NETLIST_PROFILE_IDS)[number];
 export const NETLIST_PROFILE_LABELS = {
   abstract: "Abstract",
   sky130: "SKY130",
+  sg13g2: "IHP SG13G2",
   tsmc28: "TSMC 28",
   tsmc180: "TSMC 180",
   custom: "Custom",
@@ -64,6 +66,18 @@ const SKY130_QUICK_TARGETS = {
   },
 } as const;
 
+/** IHP SG13G2's core (1.2 V) and thick-oxide (3.3 V) MOS, poly resistors
+ * and MIM capacitors, as IHP-Open-PDK's ngspice models name them. */
+const SG13G2_QUICK_TARGETS = {
+  sg13g2: {
+    nmos: ["sg13_lv_nmos", "sg13_hv_nmos"],
+    pmos: ["sg13_lv_pmos", "sg13_hv_pmos"],
+    resistor: ["", "rsil", "rppd", "rhigh"],
+    capacitor: ["", "cap_cmim", "cap_rfcmim"],
+    inductor: [""],
+  },
+} as const;
+
 export const NETLIST_DEVICE_TARGET_OPTIONS: Readonly<
   Record<
     NetlistProfileId,
@@ -78,6 +92,7 @@ export const NETLIST_DEVICE_TARGET_OPTIONS: Readonly<
     inductor: [""],
   },
   ...SKY130_QUICK_TARGETS,
+  ...SG13G2_QUICK_TARGETS,
   tsmc28: {
     nmos: [
       "nch_ulvt_mac",
@@ -117,6 +132,7 @@ export const NETLIST_DEVICE_TARGET_OPTIONS: Readonly<
       "sky130_fd_pr__nfet_20v0",
       "sky130_fd_pr__nfet_20v0_nvt",
       "sky130_fd_pr__nfet_20v0_zvt",
+      ...SG13G2_QUICK_TARGETS.sg13g2.nmos,
       "nch_ulvt_mac",
       "nch_lvt_mac",
       "nch_mac",
@@ -133,6 +149,7 @@ export const NETLIST_DEVICE_TARGET_OPTIONS: Readonly<
       "sky130_fd_pr__pfet_g5v0d10v5",
       "sky130_fd_pr__pfet_g5v0d16v0",
       "sky130_fd_pr__pfet_20v0",
+      ...SG13G2_QUICK_TARGETS.sg13g2.pmos,
       "pch_ulvt_mac",
       "pch_lvt_mac",
       "pch_mac",
@@ -140,8 +157,14 @@ export const NETLIST_DEVICE_TARGET_OPTIONS: Readonly<
       "pch_18_mac",
       "pch",
     ],
-    resistor: [...SKY130_QUICK_TARGETS.sky130.resistor],
-    capacitor: [...SKY130_QUICK_TARGETS.sky130.capacitor],
+    resistor: [
+      ...SKY130_QUICK_TARGETS.sky130.resistor,
+      ...SG13G2_QUICK_TARGETS.sg13g2.resistor.slice(1),
+    ],
+    capacitor: [
+      ...SKY130_QUICK_TARGETS.sky130.capacitor,
+      ...SG13G2_QUICK_TARGETS.sg13g2.capacitor.slice(1),
+    ],
     inductor: [...SKY130_QUICK_TARGETS.sky130.inductor],
   },
 };
@@ -184,6 +207,12 @@ const SKY130_TARGETS: Partial<Record<NetlistDeviceFamily, string>> = {
   pmos: "sky130_fd_pr__pfet_01v8",
   npn: "sky130_fd_pr__npn_05v5_W1p00L1p00",
   pnp: "sky130_fd_pr__pnp_05v5_W0p68L0p68",
+};
+const SG13G2_TARGETS: Partial<Record<NetlistDeviceFamily, string>> = {
+  nmos: "sg13_lv_nmos",
+  pmos: "sg13_lv_pmos",
+  npn: "npn13G2",
+  pnp: "pnpMPA",
 };
 const TSMC28_TARGETS: Partial<Record<NetlistDeviceFamily, string>> = {
   nmos: "nch_ulvt_mac",
@@ -233,11 +262,13 @@ export function createNetlistExportProfile(
   const foundryTargets =
     id === "sky130"
       ? SKY130_TARGETS
-      : id === "tsmc28"
-        ? TSMC28_TARGETS
-        : id === "tsmc180"
-          ? TSMC180_TARGETS
-          : undefined;
+      : id === "sg13g2"
+        ? SG13G2_TARGETS
+        : id === "tsmc28"
+          ? TSMC28_TARGETS
+          : id === "tsmc180"
+            ? TSMC180_TARGETS
+            : undefined;
   const devices = Object.fromEntries(
     NETLIST_DEVICE_FAMILIES.map((family) => {
       const parameters = Object.fromEntries(
@@ -257,6 +288,10 @@ export function createNetlistExportProfile(
           parameters.multi = "1";
         } else if (id === "tsmc180") {
           parameters.l = "180n";
+        } else if (id === "sg13g2") {
+          // The core devices' minimum length; SG13G2 counts fingers as ng.
+          parameters.l = "130n";
+          delete parameters.nf;
         }
       }
       if (family === "voltage-source") parameters.dc = "1.8";

@@ -59,7 +59,7 @@ function migrateStoredNetlistExportPreferences(raw: string): string {
   >;
   // v1 shipped Abstract, SKY130, and Custom. Add new foundry templates
   // without discarding any edited legacy profile or its selected preset.
-  for (const id of ["tsmc28", "tsmc180"] as const) {
+  for (const id of ["tsmc28", "tsmc180", "sg13g2"] as const) {
     profiles[id] ??= createNetlistExportProfile(id);
   }
   const moved =
