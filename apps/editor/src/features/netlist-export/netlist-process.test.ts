@@ -25,6 +25,7 @@ import {
   instanceModelTarget,
   netlistProcessPendingInstances,
   placementProcessFill,
+  processPlacementTarget,
 } from "./netlist-process";
 
 function apply(
@@ -298,6 +299,18 @@ describe("a part placed into a Process (#1251)", () => {
       ],
     );
     expect(again?.map((edit) => edit.kind)).toEqual(["transact_document"]);
+  });
+
+  it("names the device a placed part becomes, as Apply process chooses it", () => {
+    const project = createEmptyProject("targets", "Targets");
+    const target = (selected: NetlistProfileId, symbolId: string) =>
+      processPlacementTarget(project, preferences(selected), symbolId);
+    expect(target("sky130", "nmos")).toBe("sky130_fd_pr__nfet_01v8");
+    expect(target("sky130", "pnp")).toBe("sky130_fd_pr__pnp_05v5_W0p68L0p68");
+    // A drain-extended part takes the high-voltage device.
+    expect(target("sky130", "ndmos")).toBe("sky130_fd_pr__nfet_g5v0d16v0");
+    expect(target("abstract", "nmos")).toBe("NMOS");
+    expect(target("sky130", "resistor")).toBeUndefined();
   });
 
   it("gives a BJT the Process's plain model where it names one, and nothing where not", () => {

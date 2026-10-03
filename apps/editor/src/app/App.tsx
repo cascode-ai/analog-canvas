@@ -31,6 +31,7 @@ import {
 import {
   placementModelTarget,
   placementProcessFill,
+  processPlacementTarget,
   planNetlistProcess,
   prepareNetlistExample,
   processTargetForShortName,
@@ -119,6 +120,7 @@ import {
 } from "@icm/model";
 import {
   resolveReviewedExternalBinding,
+  reviewedExternalBindingForMaster,
   reviewedExternalModelSuggestions,
   deviceDescriptor,
   subcircuitDescriptor,
@@ -3239,6 +3241,29 @@ function WorkspaceEditor({
           : [];
       }),
     [project.externalSubcircuitDefinitions, resolver],
+  );
+  // The device the library's own tile already places in this Process
+  // (SKY130's default transistors and BJTs, which arrive bound) gets no
+  // second tile in Insert; other reviewed devices keep theirs.
+  const insertDialogExternalCandidates = useMemo(
+    () =>
+      externalSubcircuitInsertCandidates.filter(({ masterName, symbol }) => {
+        const reviewed = reviewedExternalBindingForMaster(masterName);
+        return !(
+          reviewed &&
+          reviewed.symbolId === symbol.id &&
+          processPlacementTarget(
+            project,
+            netlistPreferences.preferences,
+            symbol.id,
+          )?.toLowerCase() === masterName.toLowerCase()
+        );
+      }),
+    [
+      externalSubcircuitInsertCandidates,
+      project,
+      netlistPreferences.preferences,
+    ],
   );
   const pendingPlacementSymbol = pendingSymbolId
     ? (resolver.resolve(pendingSymbolId)?.definition ??
@@ -7107,7 +7132,7 @@ function WorkspaceEditor({
                 styleProfileId: document.presentation.styleProfileId,
                 recentSymbolIds,
                 cells: cellInsertCandidates,
-                externalDefinitions: externalSubcircuitInsertCandidates,
+                externalDefinitions: insertDialogExternalCandidates,
                 scope: insertScope,
                 initialSelectionId: insertInitialSelectionId,
                 onApply: (request) =>
