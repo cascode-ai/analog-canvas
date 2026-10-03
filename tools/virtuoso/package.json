@@ -1,0 +1,15 @@
+{
+  "name": "@icm/virtuoso-tool",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "node scripts/test.mjs",
+    "cli": "node dist/cli/main.js"
+  },
+  "dependencies": {
+    "@icm/virtuoso-import": "workspace:*"
+  }
+}

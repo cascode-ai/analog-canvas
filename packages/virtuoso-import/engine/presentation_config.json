@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "caseSensitive": false,
+  "powerNets": [
+    "VDD",
+    "VDD!",
+    "VCC",
+    "VCC!",
+    "AVDD",
+    "DVDD",
+    "PVDD",
+    "VDDIO",
+    "VDDA",
+    "VDDD"
+  ],
+  "groundNets": [
+    "GND",
+    "GND!",
+    "VSS",
+    "VSS!",
+    "AGND",
+    "DGND",
+    "PGND",
+    "AVSS",
+    "DVSS",
+    "VSSA",
+    "VSSD",
+    "0"
+  ],
+  "bulkVisibility": "hide-power-ground",
+  "plainLabels": false,
+  "showInstanceNames": true,
+  "decorateOpenEnds": true,
+  "boxStubLength": 40
+}

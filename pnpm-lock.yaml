@@ -484,6 +484,36 @@ importers:
         specifier: workspace:*
         version: link:../model
 
+  packages/virtuoso-import:
+    dependencies:
+      "@icm/derived":
+        specifier: workspace:*
+        version: link:../derived
+      "@icm/edit-engine":
+        specifier: workspace:*
+        version: link:../edit-engine
+      "@icm/model":
+        specifier: workspace:*
+        version: link:../model
+      "@icm/project-protocol":
+        specifier: workspace:*
+        version: link:../project-protocol
+      "@icm/render-svg":
+        specifier: workspace:*
+        version: link:../render-svg
+      "@icm/symbols":
+        specifier: workspace:*
+        version: link:../symbols
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
+
+  tools/virtuoso:
+    dependencies:
+      "@icm/virtuoso-import":
+        specifier: workspace:*
+        version: link:../../packages/virtuoso-import
+
 packages:
   "@arnog/colors@0.5.0":
     resolution:

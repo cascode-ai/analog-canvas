@@ -1,0 +1,376 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "format": {
+      "type": "string",
+      "const": "virtuoso-canvas.mapping-proposal"
+    },
+    "version": {
+      "type": "number",
+      "const": 1
+    },
+    "id": {
+      "type": "string"
+    },
+    "inventory": {
+      "type": "object",
+      "properties": {
+        "format": {
+          "type": "string",
+          "const": "virtuoso-canvas.inventory"
+        },
+        "version": {
+          "type": "number",
+          "const": 1
+        },
+        "snapshotDigest": {
+          "type": "string"
+        },
+        "source": {
+          "type": "object",
+          "properties": {
+            "library": {
+              "type": "string",
+              "minLength": 1
+            },
+            "cell": {
+              "type": "string",
+              "minLength": 1
+            },
+            "view": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": ["library", "cell", "view"],
+          "additionalProperties": false
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "master": {
+                "type": "object",
+                "properties": {
+                  "library": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "cell": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "view": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": ["library", "cell", "view"],
+                "additionalProperties": false
+              },
+              "signature": {
+                "type": "string"
+              },
+              "pinNames": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "parameterNames": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "componentNames": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "modelNames": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "termOrders": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "simulator": {
+                      "type": "string"
+                    },
+                    "pins": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": ["simulator", "pins"],
+                  "additionalProperties": false
+                }
+              },
+              "instances": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "parameters": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "type": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "value": {
+                            "$ref": "#/$defs/__schema0"
+                          }
+                        },
+                        "required": ["name", "type", "value"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "symbolId": {
+                      "type": "string"
+                    },
+                    "pinNames": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "view": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["id", "parameters", "symbolId"],
+                  "additionalProperties": false
+                }
+              },
+              "evidenceStatus": {
+                "type": "string",
+                "enum": ["available", "unavailable"]
+              },
+              "warnings": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "objectId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["code", "message"],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "id",
+              "master",
+              "signature",
+              "pinNames",
+              "parameterNames",
+              "componentNames",
+              "modelNames",
+              "termOrders",
+              "instances",
+              "evidenceStatus",
+              "warnings"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "objectId": {
+                "type": "string"
+              }
+            },
+            "required": ["code", "message"],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "format",
+        "version",
+        "snapshotDigest",
+        "source",
+        "items",
+        "warnings"
+      ],
+      "additionalProperties": false
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "itemId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["confirmed", "needs-review", "unknown"]
+          },
+          "candidates": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "mapping": {
+                  "type": "object",
+                  "properties": {
+                    "symbol": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "pins": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "additionalProperties": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "parameters": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "additionalProperties": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    }
+                  },
+                  "required": ["symbol", "pins", "parameters"],
+                  "additionalProperties": false
+                },
+                "origin": {
+                  "type": "string",
+                  "enum": ["personal", "builtin", "heuristic"]
+                },
+                "confidence": {
+                  "type": "string",
+                  "enum": ["reviewed", "exact-rule", "structural-hint"]
+                },
+                "reasons": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": ["id", "mapping", "origin", "confidence", "reasons"],
+              "additionalProperties": false
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                },
+                "objectId": {
+                  "type": "string"
+                }
+              },
+              "required": ["code", "message"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["itemId", "status", "candidates", "warnings"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["format", "version", "id", "inventory", "items"],
+  "additionalProperties": false,
+  "$defs": {
+    "__schema0": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/__schema0"
+          }
+        },
+        {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/__schema0"
+          }
+        }
+      ]
+    }
+  }
+}

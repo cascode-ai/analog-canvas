@@ -1,0 +1,120 @@
+{
+  "version": 1,
+  "devices": {
+    "tsmcN28/nch_mac": {
+      "symbol": "nmos",
+      "pins": { "D": "D", "G": "G", "S": "S", "B": "B" },
+      "parameters": { "w": "w", "l": "l", "nf": "nf", "m": "m" }
+    },
+    "tsmcN28/pch_mac": {
+      "symbol": "pmos",
+      "pins": { "D": "D", "G": "G", "S": "S", "B": "B" },
+      "parameters": { "w": "w", "l": "l", "nf": "nf", "m": "m" }
+    },
+    "tsmcN28/npn": {
+      "symbol": "npn",
+      "pins": { "C": "C", "B": "B", "E": "E" },
+      "parameters": {}
+    },
+    "tsmcN28/cfmom_2t": {
+      "symbol": "capacitor",
+      "pins": { "PLUS": "1", "MINUS": "2" },
+      "parameters": { "c": "c", "m": "m" }
+    },
+    "analogLib/vdc": {
+      "symbol": "voltage-source",
+      "pins": { "PLUS": "+", "MINUS": "-" },
+      "parameters": { "vdc": "dc" }
+    },
+    "analogLib/vsin": {
+      "symbol": "voltage-source",
+      "pins": { "PLUS": "+", "MINUS": "-" },
+      "parameters": {}
+    },
+    "analogLib/vpulse": {
+      "symbol": "pulse-voltage-source",
+      "pins": { "PLUS": "+", "MINUS": "-" },
+      "parameters": {}
+    },
+    "analogLib/gnd": {
+      "symbol": "ground",
+      "pins": { "gnd!": "0" },
+      "parameters": {}
+    },
+    "analogLib/switch": {
+      "symbol": "voltage-controlled-switch",
+      "pins": { "N+": "P", "N-": "N", "NC+": "CP", "NC-": "CN" },
+      "parameters": {}
+    },
+    "basic/ipin": {
+      "symbol": "port",
+      "pins": { "ipin": "P" },
+      "parameters": {}
+    },
+    "basic/opin": {
+      "symbol": "port",
+      "pins": { "opin": "P" },
+      "parameters": {}
+    },
+    "tsmcN40/nch_mac": {
+      "symbol": "nmos",
+      "pins": { "D": "D", "G": "G", "S": "S", "B": "B" },
+      "parameters": { "w": "w", "l": "l", "m": "m", "nf": "nf" }
+    },
+    "tsmcN40/pch_mac": {
+      "symbol": "pmos",
+      "pins": { "D": "D", "G": "G", "S": "S", "B": "B" },
+      "parameters": { "w": "w", "l": "l", "m": "m", "nf": "nf" }
+    },
+    "tsmc18/nmos2v": {
+      "symbol": "nmos",
+      "pins": { "D": "D", "G": "G", "S": "S", "B": "B" },
+      "parameters": { "w": "w", "l": "l" }
+    },
+    "tsmc18/pmos2v": {
+      "symbol": "pmos",
+      "pins": { "D": "D", "G": "G", "S": "S", "B": "B" },
+      "parameters": { "w": "w", "l": "l" }
+    },
+    "smic18mmrf/n18": {
+      "symbol": "nmos",
+      "pins": { "D": "D", "G": "G", "S": "S", "B": "B" },
+      "parameters": { "w": "w", "l": "l" }
+    },
+    "smic18mmrf/p18": {
+      "symbol": "pmos",
+      "pins": { "D": "D", "G": "G", "S": "S", "B": "B" },
+      "parameters": { "w": "w", "l": "l" }
+    },
+    "gpdk045/nmos1v": {
+      "symbol": "nmos",
+      "pins": { "D": "D", "G": "G", "S": "S", "B": "B" },
+      "parameters": { "w": "w", "l": "l" }
+    },
+    "gpdk045/pmos1v": {
+      "symbol": "pmos",
+      "pins": { "D": "D", "G": "G", "S": "S", "B": "B" },
+      "parameters": { "w": "w", "l": "l" }
+    },
+    "analogLib/res": {
+      "symbol": "resistor",
+      "pins": { "PLUS": "1", "MINUS": "2" },
+      "parameters": { "r": "r" }
+    },
+    "analogLib/cap": {
+      "symbol": "capacitor",
+      "pins": { "PLUS": "1", "MINUS": "2" },
+      "parameters": { "c": "c" }
+    },
+    "analogLib/idc": {
+      "symbol": "current-source",
+      "pins": { "PLUS": "+", "MINUS": "-" },
+      "parameters": { "idc": "dc" }
+    },
+    "basic/iopin": {
+      "symbol": "port",
+      "pins": { "iopin": "P" },
+      "parameters": {}
+    }
+  }
+}

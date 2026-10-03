@@ -1,0 +1,34 @@
+{
+  "name": "@icm/virtuoso-import",
+  "version": "0.0.0",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./core": {
+      "types": "./dist/core/index.d.ts",
+      "default": "./dist/core/index.js"
+    },
+    "./canvas-adapter": {
+      "types": "./dist/adapter/index.d.ts",
+      "default": "./dist/adapter/index.js"
+    },
+    ".": {
+      "development": "./index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@icm/derived": "workspace:*",
+    "@icm/edit-engine": "workspace:*",
+    "@icm/model": "workspace:*",
+    "@icm/project-protocol": "workspace:*",
+    "@icm/render-svg": "workspace:*",
+    "@icm/symbols": "workspace:*",
+    "zod": "4.4.3"
+  }
+}
