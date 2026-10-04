@@ -639,14 +639,34 @@ export function annotationHitBox(
     // Passing no geometry leaves `resolveAnnotationPresentation` to derive it,
     // which is what it did before; a caller that holds the Document's geometry
     // passes it so a per-Annotation hit box does not re-resolve every Route.
-    return resolveAnnotationPresentation(
+    const { bounds, inkBounds: ink } = resolveAnnotationPresentation(
       document,
       resolver,
       annotation,
       styleProfile,
       routingGeometry,
       logicalNets,
-    ).bounds;
+    );
+    // A Net label stands just clear of its wire (#1300). Across its text the
+    // box reaches only a unit past its ink, so the wire beside it still takes
+    // a click there; along the text it keeps the full box.
+    if (annotation.kind !== "net-label") return bounds;
+    const turn = ((annotation.rotation % 180) + 180) % 180;
+    if (turn === 0)
+      return {
+        x: bounds.x,
+        y: ink.y - 1,
+        width: bounds.width,
+        height: ink.height + 2,
+      };
+    if (turn === 90)
+      return {
+        x: ink.x - 1,
+        y: bounds.y,
+        width: ink.width + 2,
+        height: bounds.height,
+      };
+    return bounds;
   }
   const anchor = annotationAnchor(
     document,

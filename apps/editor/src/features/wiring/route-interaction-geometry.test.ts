@@ -107,6 +107,48 @@ describe("route interaction geometry", () => {
     },
   );
 
+  it("leaves the wire under a close Net label clickable (#1300)", () => {
+    const document = looseRouteDocument();
+    const record = routeRecord(document);
+    const profile = resolveSchematicStyleProfile(
+      document.presentation.styleProfileId,
+    );
+    const label = {
+      id: "label",
+      kind: "net-label" as const,
+      netId: "net-1",
+      content: { runs: [{ kind: "text" as const, value: "F" }] },
+      anchor: {
+        kind: "route" as const,
+        routeId: "route-1",
+        legId: record.geometry.segments[0]!.address.legId,
+        t: 0.5,
+        direction: "forward" as const,
+        // Capitals stand 4 units over the wire at y = 0.
+        normalOffset: -4,
+        orientation: "follow" as const,
+        fallbackPosition: { x: 50, y: -4 },
+      },
+      alignment: "middle" as const,
+      rotation: 0 as const,
+      locked: false,
+    };
+    document.annotations.push(label);
+    const box = annotationHitBox(document, resolver, label, [record], profile);
+    const { bounds } = resolveAnnotationPresentation(
+      document,
+      resolver,
+      label,
+      profile,
+    );
+    // The font box reached across the wire; the hit box stops above it but
+    // keeps the text's full width and cap height.
+    expect(bounds.y + bounds.height).toBeGreaterThan(0);
+    expect(box.y + box.height).toBeLessThan(0);
+    expect(box.y).toBeLessThan(-4 - 10);
+    expect([box.x, box.width]).toEqual([bounds.x, bounds.width]);
+  });
+
   it("recognizes a free route backed by two loose route anchors", () => {
     const document = looseRouteDocument();
     expect(looseRouteAnchorIds(document, document.routes[0]!)).toEqual([
