@@ -12,6 +12,7 @@ import {
   instanceLabelRowOffset,
   objectStyleProfile,
   resolveDocumentStyleProfile,
+  uniformRowDefaultInstanceLabelPlacement,
 } from "@icm/derived";
 import { referenceDeviceLetter } from "@icm/devices";
 import type { SchematicEdit } from "@icm/edit-engine";
@@ -78,6 +79,7 @@ export function arrangeInstanceLabels(
     const current = context.measure(original).position;
     const defaults = [
       defaultInstanceLabelPlacement,
+      uniformRowDefaultInstanceLabelPlacement,
       previousDefaultInstanceLabelPlacement,
       legacyDefaultInstanceLabelPlacement,
     ].map((place) =>

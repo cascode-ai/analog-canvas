@@ -1,7 +1,9 @@
 import { expect, it } from "vitest";
 import { createEmptyDocument, createRoutePath } from "@icm/model";
+import type { RichTextDocument } from "@icm/model";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 import { defaultInstanceLabelPlacement } from "./instance-label-placement.js";
+import { displayableInstanceValue } from "./instance-value.js";
 import { diagnoseLabelClearance } from "./label-clearance.js";
 import { resolveDocumentStyleProfile } from "./style-profile.js";
 import { diagnoseVisualQuality } from "./visual.js";
@@ -138,4 +140,92 @@ it("does not report a default label against its own part", () => {
       (d) => d.code === "VISUAL_LABEL_OVERLAP",
     ),
   ).toEqual([]);
+});
+
+/** Default reference and value annotations for one part, as the editor creates them. */
+function placeDefaultLabels(
+  doc: ReturnType<typeof createEmptyDocument>,
+  instance: ReturnType<typeof createEmptyDocument>["instances"][number],
+  reference: RichTextDocument,
+): void {
+  doc.instances.push(instance);
+  const resolved = resolver.resolve(instance.symbolId)!;
+  const profile = resolveDocumentStyleProfile(doc.presentation);
+  const value = displayableInstanceValue(instance);
+  if (value.kind !== "displayable") throw new Error(value.reason);
+  const at = instance.placement!.position;
+  for (const slot of ["reference", "value"] as const) {
+    const placement = defaultInstanceLabelPlacement(
+      instance,
+      resolved,
+      profile,
+      doc.presentation.grid,
+      slot,
+    )!;
+    doc.annotations.push({
+      id: `${instance.id}-${slot}`,
+      kind: slot === "reference" ? "instance-label" : "instance-value",
+      content: slot === "reference" ? reference : value.content,
+      anchor: {
+        kind: "object",
+        objectId: instance.id,
+        localOffset: {
+          x: placement.position.x - at.x,
+          y: placement.position.y - at.y,
+        },
+        fallbackPosition: placement.position,
+      },
+      alignment: placement.alignment,
+      rotation: 0,
+      locked: false,
+    });
+  }
+}
+
+/** A designator drawn as a letter with a subscript, such as M₂. */
+function subscripted(letter: string, index: string): RichTextDocument {
+  return {
+    runs: [
+      { kind: "text", value: letter },
+      {
+        kind: "span",
+        style: "subscript",
+        children: [{ kind: "text", value: index }],
+      },
+    ],
+  };
+}
+
+it("keeps a MOS W/L fraction clear of its own subscripted reference (#1299)", () => {
+  const doc = createEmptyDocument("d", "MOS");
+  const orientations = [
+    [0, "none"],
+    [0, "horizontal"],
+    [90, "none"],
+    [180, "none"],
+    [270, "none"],
+    [180, "horizontal"],
+  ] as const;
+  for (const [index, [rotation, mirror]] of orientations.entries())
+    for (const [row, symbolId] of (["nmos", "pmos"] as const).entries())
+      placeDefaultLabels(
+        doc,
+        {
+          id: `${symbolId}${index}`,
+          symbolId,
+          placement: {
+            position: { x: 100 + index * 200, y: 100 + row * 300 },
+            rotation,
+            mirror,
+          },
+          netlist: { parameters: { w: "10u", l: "150n" } },
+        },
+        subscripted("M", "2"),
+      );
+  expect(
+    diagnoseVisualQuality(doc, resolver).filter(
+      (d) => d.code === "VISUAL_LABEL_OVERLAP",
+    ),
+  ).toEqual([]);
+  expect(diagnoseLabelClearance(doc, resolver)).toEqual([]);
 });
