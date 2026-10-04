@@ -243,6 +243,11 @@ elevated risk but never grants permission to discard.
 A successful replacement seeds the incoming Project's own working-copy
 identity. **Continue without saving** is an explicit discard: it deletes the
 outgoing working copy's recovery records before the replacement proceeds.
+When the decision leaves the editor page (the Gallery or Analytics link), the
+window's saved tabs drop the edits too, so returning never brings them back:
+a Project with a saved version returns to it, any other tab closes (the last
+one gives way to a blank circuit), and the saved tabs are written before the
+page leaves.
 Every other successful replacement retains the outgoing Project in recent
 recovery.
 

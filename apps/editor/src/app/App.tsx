@@ -1416,6 +1416,7 @@ function WorkspaceEditor({
     dismissStartupRecovery,
     createNewProject,
     revertToSavedProjectBaseline,
+    restoreSavedProjectBaseline,
     openRecoveryDialog,
     restoreRecoverySession,
     downloadRecoveryBackup,
@@ -5895,6 +5896,22 @@ function WorkspaceEditor({
   });
   openWorkingCopyIdsRef.current = () =>
     projectTabs.entries().map(({ session }) => session.recovery.workingCopyId);
+  /**
+   * Continue without saving on the way out of the editor (#1288): the
+   * window's saved tabs must not bring the dropped edits back. A Project
+   * with a saved version returns to it; any other tab closes, the last one
+   * giving way to a blank circuit. The page shows what is kept, and the
+   * saved tabs hold it, before the page leaves.
+   */
+  async function dropDiscardedWork(): Promise<void> {
+    // Rendered at once, so the tabs saved next capture what is kept.
+    flushSync(() => {
+      if (!restoreSavedProjectBaseline())
+        projectTabs.discard(projectTabs.activeId, () => createTabSession());
+    });
+    projectTabs.changed();
+    await workspaceSaveQueue.current;
+  }
   const [workspaceReopen, setWorkspaceReopen] = useState<{
     record: ProjectWorkspace;
     summary: WorkspaceReopenSummary;
@@ -6742,14 +6759,17 @@ function WorkspaceEditor({
         projectSchemaVersion={project.schemaVersion}
         hasUnsavedWork={hasUnsavedChanges()}
         onOpenGallery={() => {
-          void guardDirtyReplacement("Go to Gallery", async () => {
-            const snapshot = await captureAuthoredProject();
-            if (!snapshot) return;
-            stageRecovery(snapshot, {
-              unsavedAtSnapshot: isDirtyWork() || snapshot !== project,
-              cloudBinding,
-            });
-            await flushRecovery();
+          void guardDirtyReplacement("Go to Gallery", async (discarded) => {
+            if (discarded) await dropDiscardedWork();
+            else {
+              const snapshot = await captureAuthoredProject();
+              if (!snapshot) return;
+              stageRecovery(snapshot, {
+                unsavedAtSnapshot: isDirtyWork() || snapshot !== project,
+                cloudBinding,
+              });
+              await flushRecovery();
+            }
             allowNextBrowserUnload();
             window.location.assign("/");
           });
@@ -9885,7 +9905,8 @@ function WorkspaceEditor({
           chooseWireShape({ cornerOrder })
         }
         onOpenAnalytics={() => {
-          void guardDirtyReplacement("Open Analytics", () => {
+          void guardDirtyReplacement("Open Analytics", async (discarded) => {
+            if (discarded) await dropDiscardedWork();
             allowNextBrowserUnload();
             window.location.assign("/analytics");
           });

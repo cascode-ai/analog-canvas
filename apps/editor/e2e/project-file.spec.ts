@@ -519,22 +519,35 @@ test("paired refresh and Gallery return preserve the saved Cloud binding", async
   ).toMatchObject({ editor: "attached" });
 });
 
-test("Gallery navigation uses the replacement decision without a second browser prompt", async ({
+test("Continue without saving to the Gallery drops the edits without a second browser prompt", async ({
   page,
 }) => {
-  await page.goto("/editor");
-  // The guard protects meaningful drawings: three authored objects.
-  for (const x of [300, 380, 460]) {
-    await chooseComponent(page, "resistor");
-    await page
-      .getByTestId("schematic-canvas")
-      .click({ position: { x, y: 230 } });
-    await page.keyboard.press("Escape");
-  }
-  await page.getByRole("link", { name: "Back to the gallery" }).click();
+  const cloud = await mockCloudProjects(page);
+  const canvas = page.getByTestId("schematic-canvas");
+  const placeResistors = async (xs: number[]) => {
+    for (const x of xs) {
+      await chooseComponent(page, "resistor");
+      await canvas.click({ position: { x, y: 230 } });
+      await page.keyboard.press("Escape");
+    }
+  };
   const guard = page.getByRole("dialog", {
     name: "Unsaved changes",
   });
+  // Back in the same window, its saved tabs are restored before anything
+  // is counted.
+  const returnToEditor = async () => {
+    await page.goto("/editor");
+    await expect(page.getByTestId("status")).toContainText(
+      "Switched to New Circuit",
+      { timeout: 15_000 },
+    );
+  };
+
+  await page.goto("/editor");
+  // The guard protects meaningful drawings: three authored objects.
+  await placeResistors([300, 380, 460]);
+  await page.getByRole("link", { name: "Back to the gallery" }).click();
   await expect(guard).toBeVisible();
   await guard.getByRole("button", { name: "Stay" }).click();
   await expect(page).toHaveURL(/\/editor/u);
@@ -543,6 +556,22 @@ test("Gallery navigation uses the replacement decision without a second browser 
   await guard.getByRole("button", { name: "Continue without saving" }).click();
   // A second, browser-owned prompt would have kept the page here.
   await expect(page).toHaveURL(/\/$/u);
+  // A drawing never saved leaves the window's tabs (#1288).
+  await returnToEditor();
+  await expect(page.getByTestId("active-instance-count")).toHaveText("0");
+
+  // A Cloud Project returns to its saved version.
+  await placeResistors([300]);
+  await page.keyboard.press("Control+s");
+  await expect.poll(() => cloud.stored()?.revision).toBe(1);
+  await expect(page.getByTestId("project-unsaved-indicator")).toHaveCount(0);
+  await placeResistors([380, 460]);
+  await page.getByRole("link", { name: "Back to the gallery" }).click();
+  await guard.getByRole("button", { name: "Continue without saving" }).click();
+  await expect(page).toHaveURL(/\/$/u);
+  await returnToEditor();
+  await expect(page.getByTestId("active-instance-count")).toHaveText("1");
+  await expect(page.getByTestId("project-unsaved-indicator")).toHaveCount(0);
 });
 
 test("File deletion stays inline, bounded and retryable without native dialogs", async ({

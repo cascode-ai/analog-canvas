@@ -74,7 +74,8 @@ export type PersistenceState =
 
 interface ReplaceGuardState {
   intent: string;
-  perform: () => void | Promise<void>;
+  /** `discarded` is true after Continue without saving. */
+  perform: (discarded: boolean) => void | Promise<void>;
 }
 
 export interface ReplaceProjectOptions {
@@ -566,7 +567,7 @@ export function useProjectFileLifecycle({
 
   async function guardDirtyReplacement(
     intent: string,
-    perform: () => void | Promise<void>,
+    perform: (discarded: boolean) => void | Promise<void>,
   ): Promise<void> {
     if (nativeProjectStore && nativeSaveCoordinator.isSaving()) {
       setStatus(
@@ -579,7 +580,7 @@ export function useProjectFileLifecycle({
       : liveProjectRef.current;
     if (!snapshot) return;
     if (!hasUnsafeWork()) {
-      await perform();
+      await perform(false);
       return;
     }
     recovery.stage(snapshot, { unsavedAtSnapshot: true, cloudBinding });
@@ -604,7 +605,7 @@ export function useProjectFileLifecycle({
       recovery.cancelPending();
       await recovery.deleteSession(recovery.workingCopyId);
       setReplaceGuard(null);
-      await guard.perform();
+      await guard.perform(true);
       setReplaceGuardSaving(false);
     })();
   }
@@ -628,7 +629,7 @@ export function useProjectFileLifecycle({
             nativeSavedTokenRef.current
         ) {
           setReplaceGuard(null);
-          await guard.perform();
+          await guard.perform(false);
         }
         setReplaceGuardSaving(false);
         return;
@@ -638,7 +639,7 @@ export function useProjectFileLifecycle({
         await exportProjectFile();
         if (liveSessionRef.current === guardSessionId && !hasUnsafeWork()) {
           setReplaceGuard(null);
-          await guard.perform();
+          await guard.perform(false);
         }
         setReplaceGuardSaving(false);
         return;
@@ -646,7 +647,7 @@ export function useProjectFileLifecycle({
       const outcome = await saveProjectToCloud();
       if (outcome.status === "saved") {
         setReplaceGuard(null);
-        await guard.perform();
+        await guard.perform(false);
       }
       setReplaceGuardSaving(false);
     })();
@@ -664,22 +665,26 @@ export function useProjectFileLifecycle({
     });
   }
 
-  function revertToSavedProjectBaseline(): void {
+  /** Puts the last saved version of this Project back, without asking;
+   * null when it has none. */
+  function restoreSavedProjectBaseline(): SchematicDocument | null {
     const baseline = savedProjectBaseline;
-    if (!baseline || !isDirtyWork()) return;
+    if (!baseline) return null;
+    return replaceActiveProject(baseline.project, baseline.viewBox, {
+      source: "cloud-project",
+      persistenceState: "clean",
+      cloudBinding,
+      savedBaseline: baseline,
+      nativeBinding: nativeBindingRef.current,
+    });
+  }
+
+  function revertToSavedProjectBaseline(): void {
+    if (!savedProjectBaseline || !isDirtyWork()) return;
     void guardDirtyReplacement("Revert to the last saved Project", () => {
-      const restored = replaceActiveProject(
-        baseline.project,
-        baseline.viewBox,
-        {
-          source: "cloud-project",
-          persistenceState: "clean",
-          cloudBinding,
-          savedBaseline: baseline,
-          nativeBinding: nativeBindingRef.current,
-        },
-      );
-      setStatus(`Reverted to saved Project revision ${restored.revision}`);
+      const restored = restoreSavedProjectBaseline();
+      if (restored)
+        setStatus(`Reverted to saved Project revision ${restored.revision}`);
     });
   }
 
@@ -1123,6 +1128,7 @@ export function useProjectFileLifecycle({
       ),
     createNewProject,
     revertToSavedProjectBaseline,
+    restoreSavedProjectBaseline,
     openRecoveryDialog,
     restoreRecoverySession,
     downloadRecoveryBackup,
