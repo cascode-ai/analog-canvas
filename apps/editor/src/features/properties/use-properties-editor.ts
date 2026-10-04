@@ -219,11 +219,6 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
     commitAfterNaming: boolean;
     /** Set once R turns the label; until then it takes its wire's look. */
     direction?: NetLabelDirection;
-    /**
-     * A pasted label's Net name. Its styled text need not spell it: BFT with
-     * a subscript h<7> is `BFT_h<7>`.
-     */
-    name?: string;
   } | null>(null);
   const [instancePropertyDraft, setInstancePropertyDraft] =
     useState<InstancePropertyDraft>(EMPTY_INSTANCE_PROPERTY_DRAFT);
@@ -856,37 +851,6 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
     options.setStatus("Format the Net Label, then Apply to place it");
   };
 
-  /**
-   * A pasted Net Label goes where the Net Label tool puts one: its name and
-   * look are already written, so it starts on the pointer, ready for a wire.
-   */
-  const beginNetLabelPlacing = (
-    label: {
-      name: string;
-      formatOverride?: RichTextDocument;
-      sizeScale: number;
-      alignment: "start" | "middle" | "end";
-    },
-    position: Point,
-    target: NetLabelPlacementTarget | null,
-  ): void => {
-    setNetLabelPlacement({
-      phase: "placing",
-      name: label.name,
-      content:
-        label.formatOverride ??
-        labelTextDocument(label.name, options.document.presentation),
-      sizeScale: label.sizeScale,
-      alignment: label.alignment,
-      position,
-      target,
-      commitAfterNaming: false,
-    });
-    options.setStatus(
-      `Place Net Label ${label.name} on a wire · R turns it · Esc cancels`,
-    );
-  };
-
   const preparedNetLabelPlacement = (
     placement: NonNullable<typeof netLabelPlacement>,
   ): {
@@ -894,20 +858,6 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
     content: RichTextDocument;
     formatOverride?: RichTextDocument;
   } => {
-    if (placement.name !== undefined) {
-      // A pasted label is its source again: the same name, the same look.
-      const semantic = labelTextDocument(
-        placement.name,
-        options.document.presentation,
-      );
-      return JSON.stringify(placement.content) === JSON.stringify(semantic)
-        ? { name: placement.name, content: placement.content }
-        : {
-            name: placement.name,
-            content: placement.content,
-            formatOverride: placement.content,
-          };
-    }
     // The Net's name is the characters typed; styling them (a subscript,
     // an overbar) is the label's look and never inserts an underscore.
     const plainText = flattenRichText(placement.content);
@@ -1459,7 +1409,6 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
     ),
     netLabelDraft,
     netLabelPlacement,
-    beginNetLabelPlacing,
     placeNetLabel,
     removeAdditionalParameter,
     updateInstancePropertyDraft,

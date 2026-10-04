@@ -150,10 +150,7 @@ import type {
   AgentProjectResourceRequest,
   AgentProjectResourceResponse,
 } from "@icm/agent-adapter";
-import {
-  clipboardPlacementAnchor,
-  loneNetLabel,
-} from "../features/clipboard/clipboard";
+import { clipboardPlacementAnchor } from "../features/clipboard/clipboard";
 import { useCircuitClipboard } from "../features/clipboard/use-circuit-clipboard";
 import {
   copyPlacementAnchors,
@@ -2838,7 +2835,6 @@ function WorkspaceEditor({
     clearTextEditing,
     deleteTextEditing,
     netLabelPlacement,
-    beginNetLabelPlacing,
     placeNetLabel,
     textEditing,
     updateTextEditing,
@@ -4286,30 +4282,6 @@ function WorkspaceEditor({
     const anchor = clipboardPlacementAnchor(clipboard);
     if (!anchor) throw new Error("Copied objects have no placeable origin");
     cancelAllTransientInteraction();
-    const lone = loneNetLabel(clipboard);
-    if (lone) {
-      const svg = snapGuideLayerRef.current?.ownerSVGElement ?? undefined;
-      const pointer = lastCanvasPointRef.current;
-      const position = pointer
-        ? {
-            x: snapCoordinate(pointer.x, document.presentation.grid),
-            y: snapCoordinate(pointer.y, document.presentation.grid),
-          }
-        : anchor;
-      beginNetLabelPlacing(
-        {
-          name: lone.name,
-          ...(lone.label.formatOverride
-            ? { formatOverride: lone.label.formatOverride }
-            : {}),
-          sizeScale: lone.label.sizeScale ?? 1,
-          alignment: lone.label.alignment,
-        },
-        position,
-        resolveNetLabelPlacementTarget(position, svg),
-      );
-      return;
-    }
     beginCopyPlacementInteraction(clipboard, anchor, orientation);
     seedCopyPreviewFromPointer();
     setStatus(

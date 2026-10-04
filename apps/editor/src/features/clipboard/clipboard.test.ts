@@ -29,7 +29,6 @@ import {
   orientClipboard,
   copySelection,
   captureDocumentComposition,
-  loneNetLabel,
   proposePaste,
 } from "./clipboard";
 
@@ -2479,68 +2478,6 @@ describe("captureDocumentComposition", () => {
       }),
     ]);
     expect(result.document.junctions).toEqual([]);
-  });
-
-  it("hands a copy of one Net Label alone to the Net Label tool", () => {
-    const project = createEmptyProject("project", "Project");
-    const document = project.documents[0]!;
-    for (const [id, x] of [
-      ["R1", 100],
-      ["R2", 240],
-    ] as const)
-      document.instances.push({
-        id,
-        symbolId: "resistor",
-        placement: { position: { x, y: 100 }, rotation: 0, mirror: "none" },
-        reference: id,
-        netlist: { parameters: {} },
-      });
-    document.nets.push({
-      id: "net-signal",
-      terminals: [
-        { instanceId: "R1", pinName: "2" },
-        { instanceId: "R2", pinName: "1" },
-      ],
-    });
-    document.connectivityEvidence.push({
-      id: "claim-signal",
-      kind: "name-claim",
-      netId: "net-signal",
-      name: "BFT_h<7>",
-      scope: "local",
-      owner: { kind: "net-label", annotationId: "label-signal" },
-    });
-    document.annotations.push({
-      id: "label-signal",
-      kind: "net-label",
-      binding: { kind: "net-name", netId: "net-signal" },
-      netId: "net-signal",
-      anchor: { kind: "free", position: { x: 170, y: 80 } },
-      alignment: "start",
-      rotation: 0,
-      locked: false,
-    });
-    const copy = (instanceIds: string[]) =>
-      captureProjectCopy(project, document, {
-        instanceIds,
-        draftingIds: [],
-        routeIds: [],
-        junctionIds: [],
-        annotationIds: ["label-signal"],
-      })!;
-
-    expect(loneNetLabel(copy([]))).toMatchObject({
-      name: "BFT_h<7>",
-      label: { kind: "net-label", alignment: "start" },
-    });
-    // With anything else it is an ordinary copy.
-    expect(loneNetLabel(copy(["R1"]))).toBeNull();
-    // A global label declares more than the tool places.
-    document.connectivityEvidence[0] = {
-      ...document.connectivityEvidence[0]!,
-      scope: "global",
-    } as (typeof document.connectivityEvidence)[number];
-    expect(loneNetLabel(copy([]))).toBeNull();
   });
 
   it("keeps standalone drafting geometry and its layout group", () => {

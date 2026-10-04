@@ -694,11 +694,7 @@ component does not automatically carry its unselected dangling wires. Explicitly
 selected wires can travel alone: unselected terminal endpoints become local free
 wire ends, without bringing the external devices. Route markers remap both Route
 and Leg identity. External visual anchors on copied drafting resolve to free
-positions; bound component labels require their component. A copy that is one
-local Net Label and nothing else is placed as the Net Label tool places one:
-with its name and look, it follows the pointer and goes onto the wire it is
-dropped on, naming that wire's Net. Pasted beside a wire as free text, it
-would name nothing while looking as if it named the wire. A copied MOS body
+positions; bound component labels require their component. A copied MOS body
 stays on the Net its source body used, whether it joined that Net or followed
 the Cell default or supply marker to it, whenever that Net travels with the
 copy; a body whose Net stays behind takes the target Cell's body default, as a
