@@ -792,7 +792,8 @@ export function executeTransaction(
       // static terminals and Junctions.
       if (
         contact.endpoint.kind === "terminal"
-          ? transformedInstanceIds.has(contact.endpoint.instanceId)
+          ? transformedInstanceIds.has(contact.endpoint.instanceId) ||
+            context.pinsMovedInstanceIds?.has(contact.endpoint.instanceId)
           : movedJunctionIds.has(contact.endpoint.junctionId)
       ) {
         continue;

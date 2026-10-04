@@ -34,70 +34,54 @@ function routeConflict(
 }
 
 /**
- * Wires a part's pin change stretches onto what they must not touch are drawn
- * clear of it instead (#1309). Swapping an op-amp's inputs exchanges where its
- * two input pins sit, and the follow stretches each wire straight to its
- * pin's new place: two wires coming down one column then lie on one line, and
- * the drawing shows the inputs shorted. Each such wire takes the cheapest path
- * clear of other Nets' pins and wires and of the parts, the path the Agent's
- * connect takes. A wire that was already in conflict before the change is
- * left as it was drawn, and one with no clear path keeps its stretch, where
- * ERC_OVERLAPPING_NETS still reports it. Returns the set_route_path edits to
- * send in the same transaction as `edits`.
+ * set_route_path edits that redraw each of `routeIds` along the cheapest
+ * clear path when a change left it meeting what it must not (another Net's
+ * pin or wire, or a part) while it met none of that `before` the change. The
+ * path is the one the Agent's connect takes; the wire keeps its ends, Net and
+ * style. A wire with no clear path keeps the change's geometry. `preview`
+ * applies the change with the given extra edits and returns the Document, or
+ * null when it is rejected; each wire is redrawn on the previous result.
  */
-export function planPinChangeRouteClearance(
-  document: SchematicDocument,
+export function redrawStretchedRoutesClear(
+  before: { document: SchematicDocument; resolver: SymbolResolver },
   resolver: SymbolResolver,
-  edits: readonly SchematicEdit[],
+  routeIds: readonly string[],
+  preview: (extra: readonly SchematicEdit[]) => SchematicDocument | null,
 ): SchematicEdit[] {
-  const changed = new Set(
-    edits.flatMap((edit) =>
-      edit.kind === "set_instance_symbol" ||
-      edit.kind === "set_instance_signal_flow_parameters"
-        ? [edit.instanceId]
-        : [],
-    ),
-  );
-  if (changed.size === 0) return [];
-  const authored = new Set(
-    edits.flatMap((edit) =>
-      edit.kind === "set_route_path" ? [edit.route.id] : [],
-    ),
-  );
-  const preview = (extra: readonly SchematicEdit[]) =>
-    executeTransaction(
-      document,
-      {
-        transactionId: "pin-change-route-clearance",
-        documentId: document.id,
-        expectedRevision: document.revision,
-        actor: { kind: "human", id: "pin-change-route-clearance" },
-        edits: [...edits, ...extra],
-      },
-      { symbolResolver: resolver },
-    );
-  let result = preview([]);
-  if (!result.ok) return [];
+  let working = preview([]);
+  if (!working) return [];
   const extra: SchematicEdit[] = [];
-  const candidates = result.document.routes
-    .filter(
-      (route) =>
-        !authored.has(route.id) &&
-        [route.start, routeEnd(route)].some(
-          (endpoint) =>
-            endpoint.kind === "terminal" && changed.has(endpoint.instanceId),
-        ),
-    )
-    .map((route) => route.id)
-    .sort((left, right) => left.localeCompare(right, "en"));
-  for (const routeId of candidates) {
-    const before = document.routes.find((route) => route.id === routeId);
-    if (before && routeConflict(document, resolver, before)?.reason) continue;
-    const working = result.document;
+  // Wires still to be looked at are no obstacles yet: two pins that traded
+  // places each sit on the other's stretched wire, and neither could leave.
+  const pending = new Set(routeIds);
+  for (const routeId of [...routeIds].sort((left, right) =>
+    left.localeCompare(right, "en"),
+  )) {
     const route = working.routes.find((candidate) => candidate.id === routeId);
-    if (!route) continue;
-    const found = routeConflict(working, resolver, route);
-    if (!found?.reason) continue;
+    const earlier = before.document.routes.find(
+      (candidate) => candidate.id === routeId,
+    );
+    const unchanged =
+      !route ||
+      (earlier &&
+        routeConflict(before.document, before.resolver, earlier)?.reason) ||
+      !routeConflict(working, resolver, route)?.reason;
+    if (unchanged) {
+      pending.delete(routeId);
+      continue;
+    }
+    const found = routeConflict(
+      {
+        ...working,
+        routes: working.routes.filter(
+          (candidate) => candidate.id === routeId || !pending.has(candidate.id),
+        ),
+      },
+      resolver,
+      route,
+    );
+    pending.delete(routeId);
+    if (!found) continue;
     const clear = found.clearance.path(found.ends[0], found.ends[1]);
     if (typeof clear === "string") continue;
     const from = resolveEndpointConnection(
@@ -139,9 +123,70 @@ export function planPinChangeRouteClearance(
       },
     };
     const next = preview([...extra, edit]);
-    if (!next.ok) continue;
+    if (!next) continue;
     extra.push(edit);
-    result = next;
+    working = next;
   }
   return extra;
+}
+
+/**
+ * Wires a part's pin change stretches onto what they must not touch are drawn
+ * clear of it instead (#1309). Swapping an op-amp's inputs exchanges where its
+ * two input pins sit, and the follow stretches each wire straight to its
+ * pin's new place: two wires coming down one column then lie on one line, and
+ * the drawing shows the inputs shorted. Each wire at a part whose symbol or
+ * Signal Flow changes is redrawn by redrawStretchedRoutesClear unless `edits`
+ * draws it itself; ERC_OVERLAPPING_NETS still reports a wire that has no
+ * clear path. Returns the edits to send in the same transaction as `edits`.
+ */
+export function planPinChangeRouteClearance(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  edits: readonly SchematicEdit[],
+): SchematicEdit[] {
+  const changed = new Set(
+    edits.flatMap((edit) =>
+      edit.kind === "set_instance_symbol" ||
+      edit.kind === "set_instance_signal_flow_parameters"
+        ? [edit.instanceId]
+        : [],
+    ),
+  );
+  if (changed.size === 0) return [];
+  const authored = new Set(
+    edits.flatMap((edit) =>
+      edit.kind === "set_route_path" ? [edit.route.id] : [],
+    ),
+  );
+  const routeIds = document.routes
+    .filter(
+      (route) =>
+        !authored.has(route.id) &&
+        [route.start, routeEnd(route)].some(
+          (endpoint) =>
+            endpoint.kind === "terminal" && changed.has(endpoint.instanceId),
+        ),
+    )
+    .map((route) => route.id);
+  if (routeIds.length === 0) return [];
+  return redrawStretchedRoutesClear(
+    { document, resolver },
+    resolver,
+    routeIds,
+    (extra) => {
+      const result = executeTransaction(
+        document,
+        {
+          transactionId: "pin-change-route-clearance",
+          documentId: document.id,
+          expectedRevision: document.revision,
+          actor: { kind: "human", id: "pin-change-route-clearance" },
+          edits: [...edits, ...extra],
+        },
+        { symbolResolver: resolver },
+      );
+      return result.ok ? result.document : null;
+    },
+  );
 }
