@@ -98,6 +98,35 @@ export function isSchematicAnnotationVisible(
   );
 }
 
+/** Descent of g, j, p, q and y below the baseline, in em of the label font. */
+const DESCENDER_EM = 0.24;
+
+/**
+ * How far a label's ink reaches below its baseline, in em of its font: a
+ * subscript's or a fraction's figures, a descender (g, p, y), or nothing.
+ */
+export function labelInkDescentEm(
+  content: RichTextDocument,
+  typography: SchematicStyleProfile["typography"],
+): number {
+  let subscript = false;
+  let descender = false;
+  const visit = (runs: RichTextDocument["runs"]): void => {
+    for (const run of runs) {
+      if (run.kind === "text") {
+        if (/[gjpqy]/u.test(run.value)) descender = true;
+      } else if (run.kind === "span") {
+        if (run.style === "subscript") subscript = true;
+        visit(run.children);
+      } else if (run.kind === "fraction") subscript = true;
+    }
+  };
+  visit(content.runs);
+  if (subscript)
+    return typography.subscriptScale * typography.subscriptBaselineShiftEm;
+  return descender ? DESCENDER_EM : 0;
+}
+
 export function resolveAnnotationPresentation(
   document: SchematicDocument,
   resolver: SymbolResolver,
@@ -174,6 +203,14 @@ export function resolveAnnotationPresentation(
           annotation.rotation,
         );
   const capHeight = fontSize * LABEL_CAP_HEIGHT_EM;
+  // A Net Label stands as close over its wire as its own text allows
+  // (#1300), so its ink reaches only as low as that text does. A part's
+  // labels keep the subscript row their placement rules reserve.
+  const descentEm =
+    annotation.kind === "net-label"
+      ? labelInkDescentEm(text, styleProfile.typography)
+      : styleProfile.typography.subscriptScale *
+        styleProfile.typography.subscriptBaselineShiftEm;
   const unrotatedInk = formula
     ? unrotatedBounds
     : {
@@ -183,9 +220,7 @@ export function resolveAnnotationPresentation(
         height:
           capHeight +
           fractionExtraAscent +
-          fontSize *
-            styleProfile.typography.subscriptScale *
-            styleProfile.typography.subscriptBaselineShiftEm +
+          fontSize * descentEm +
           Math.max(0, textLayout.height - fontSize * 1.35),
       };
   return {

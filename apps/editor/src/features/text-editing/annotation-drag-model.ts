@@ -56,6 +56,48 @@ export function annotationDragPosition(
   return resolveVisualAnchor(document, resolver, annotation.anchor).position;
 }
 
+/** How far from its own wire a dropped Net Label still stands on it. */
+export const NET_LABEL_KEEP_ON_WIRE = 20;
+
+/**
+ * Where on its own Route a Net Label dropped at `position` stands: the
+ * segment its point projects onto within the segment's length, and the
+ * signed distance across it, if that is at most NET_LABEL_KEEP_ON_WIRE.
+ * The projection is the exact inverse of how a Route anchor resolves, so
+ * the label draws where it was dropped.
+ */
+function netLabelOnItsWire(
+  routeGeometryRecords: AnnotationDragGeometryContext["routeGeometryRecords"],
+  routeId: string,
+  position: Point,
+): { legId: string; t: number; normalOffset: number } | null {
+  const record = routeGeometryRecords.find(({ route }) => route.id === routeId);
+  if (!record) return null;
+  let best: { legId: string; t: number; normalOffset: number } | null = null;
+  // An anchor addresses a leg by its first segment, as resolveRouteAttachment
+  // reads it back.
+  const seen = new Set<string>();
+  for (const { address, from, to } of record.geometry.segments) {
+    if (seen.has(address.legId)) continue;
+    seen.add(address.legId);
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    const lengthSquared = dx * dx + dy * dy;
+    if (lengthSquared === 0) continue;
+    const t =
+      ((position.x - from.x) * dx + (position.y - from.y) * dy) / lengthSquared;
+    if (t < 0 || t > 1) continue;
+    const length = Math.sqrt(lengthSquared);
+    const normalOffset =
+      (position.x - from.x) * (-dy / length) +
+      (position.y - from.y) * (dx / length);
+    if (Math.abs(normalOffset) > NET_LABEL_KEEP_ON_WIRE) continue;
+    if (!best || Math.abs(normalOffset) < Math.abs(best.normalOffset))
+      best = { legId: address.legId, t, normalOffset };
+  }
+  return best;
+}
+
 /** Resolve the persisted annotation produced by one completed drag gesture. */
 export function draggedAnnotationAtPosition(
   context: AnnotationDragGeometryContext,
@@ -85,6 +127,24 @@ export function draggedAnnotationAtPosition(
     return { ...annotation, anchor };
   }
   if (annotation.kind === "net-label" && annotation.anchor.kind === "route") {
+    const position = snapGridPoint(candidate, context.annotationGrid);
+    // Dropped beside its own wire, the label stays on it: closer or further,
+    // along it, or across to the other side, it keeps following that wire
+    // (#1300).
+    const kept = netLabelOnItsWire(
+      routeGeometryRecords,
+      annotation.anchor.routeId,
+      position,
+    );
+    if (kept)
+      return {
+        ...annotation,
+        anchor: {
+          ...annotation.anchor,
+          ...kept,
+          fallbackPosition: position,
+        },
+      };
     // The Route anchor identifies the electrical owner at creation time, but
     // it cannot represent an arbitrary text position: it only stores distance
     // along one segment and an offset normal to it. Dragging beyond either end
@@ -93,10 +153,7 @@ export function draggedAnnotationAtPosition(
     // visual anchor without changing which Net it names.
     return {
       ...annotation,
-      anchor: {
-        kind: "free",
-        position: snapGridPoint(candidate, context.annotationGrid),
-      },
+      anchor: { kind: "free", position },
     };
   }
 

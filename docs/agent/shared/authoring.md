@@ -242,7 +242,11 @@ standard side/alignment; existing explicit label moves retain their semantics.
 The focused `circuit_text` action `move-annotation` sets an absolute position;
 the legacy `apply_actions` annotation `move` uses the same semantics, while
 `transform` supports translation. These preserve ownership and electrical
-binding. Use explicit annotation edits for rotation/anchor changes. Search uses
+binding. A Net label moved beside its own wire, along a segment and within 20
+units of it, stays attached to that wire where it was put and follows it;
+moved further it becomes free and still names its Net. New Net labels stand
+just above a horizontal wire, as close as their text allows. Use explicit
+annotation edits for rotation/anchor changes. Search uses
 resolved display text, including bound Net and device labels. `edit-text` on a
 bound Pin, Reference, Net, or Value label restyles the same visible characters;
 change the owning terminal, name claim, Reference, or parameter to change them.

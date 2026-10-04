@@ -10,6 +10,8 @@ import {
   defaultInstanceLabelPlacement,
   hasDifferentialInputs,
   instanceLabelRowOffset,
+  instanceValueRowOffset,
+  uniformRowDefaultInstanceLabelPlacement,
   previousDefaultInstanceLabelPlacement,
   previousInstanceLabelRowOffset,
   instanceLabelInkBounds,
@@ -430,7 +432,34 @@ describe("instance label placement", () => {
     );
     expect(value.alignment).toBe("end");
     expect(value.position.x).toBe(reference.position.x);
-    expect(value.position.y - reference.position.y).toBe(20);
+    expect(value.position.y - reference.position.y).toBe(
+      instanceValueRowOffset("nmos", profile, 10),
+    );
+  });
+
+  it("drops a stacked W/L value far enough to clear the reference's subscript (#1299)", () => {
+    // The numerator of 10u/150n rises 19 units above its baseline and M₂'s
+    // subscript hangs 5 below its own, so one 20-unit text row overlapped.
+    expect(instanceValueRowOffset("nmos", profile, 10)).toBe(30);
+    expect(instanceValueRowOffset("pmos", profile, 5)).toBe(30);
+    // Plain values keep one text row.
+    expect(instanceValueRowOffset("resistor", profile, 10)).toBe(
+      instanceLabelRowOffset(profile, 10),
+    );
+    // Where the rule until 2026-10-05 put a MOS value still counts as default.
+    const resolved = resolver.resolve("nmos")!;
+    const instance = placedInstance("nmos");
+    expect(
+      uniformRowDefaultInstanceLabelPlacement(
+        instance,
+        resolved,
+        profile,
+        10,
+        "value",
+      )!.position.y -
+        defaultInstanceLabelPlacement(instance, resolved, profile, 10)!.position
+          .y,
+    ).toBe(20);
   });
 });
 

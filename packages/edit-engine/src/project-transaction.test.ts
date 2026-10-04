@@ -9,6 +9,14 @@ import { describe, expect, it } from "vitest";
 
 import { createEmptyDocument, createEmptyProject } from "@icm/model";
 import {
+  buildProjectConnectivityIndex,
+  diagnoseVisualQuality,
+  resolveEndpointPoint,
+  runErcChecks,
+} from "@icm/derived";
+import {
+  builtInSymbols,
+  createProjectSymbolResolver,
   externalSubcircuitSymbolId,
   hierarchicalSymbolId,
   projectCellSymbolTerminals,
@@ -2048,5 +2056,108 @@ describe("Project structural transaction", () => {
     expect(incompatible.project.documents[0]!.instances[0]!.symbolId).toBe(
       externalSubcircuitSymbolId(definition.id),
     );
+  });
+});
+
+describe("a Cell symbol's pins change sides (#1316)", () => {
+  /** A child with pins A and B, placed once; each pin has a wire out to an
+   * open end 50 units beyond it. */
+  function wiredCaller() {
+    const project = createEmptyProject("project", "Project");
+    const child = createEmptyDocument("document-child", "Child");
+    addCellPin(child, {
+      instanceId: "PA",
+      terminalId: "terminal-a",
+      name: "A",
+      netId: "net-a",
+    });
+    addCellPin(child, {
+      instanceId: "PB",
+      terminalId: "terminal-b",
+      name: "B",
+      netId: "net-b",
+    });
+    child.presentation.cellSymbol = {
+      pinPlacements: [
+        { terminalId: "terminal-a", side: "west", offset: -20 },
+        { terminalId: "terminal-b", side: "east", offset: 0 },
+      ],
+    };
+    project.documents.push(child);
+    const parent = project.documents[0]!;
+    parent.instances.push(hierarchyInstance("X1", "Child", child.id));
+    const resolver = createProjectSymbolResolver(project, builtInSymbols);
+    for (const [pinName, dx] of [
+      ["A", -50],
+      ["B", 50],
+    ] as const) {
+      const pin = resolveEndpointPoint(parent, resolver, {
+        kind: "terminal",
+        instanceId: "X1",
+        pinName,
+      })!;
+      parent.nets.push({
+        id: `net-parent-${pinName}`,
+        terminals: [{ instanceId: "X1", pinName }],
+      });
+      parent.junctions.push({
+        id: `open-${pinName}`,
+        netId: `net-parent-${pinName}`,
+        position: { x: pin.x + dx, y: pin.y },
+      });
+      parent.routes.push(
+        createRoutePath({
+          id: `wire-${pinName}`,
+          netId: `net-parent-${pinName}`,
+          start: { kind: "terminal", instanceId: "X1", pinName },
+          end: { kind: "junction", junctionId: `open-${pinName}` },
+          bends: [],
+          modes: ["manual"],
+        }),
+      );
+    }
+    return { project, child };
+  }
+
+  it("keeps every caller pin on its own Net, though a pin lands on another's wire", () => {
+    const { project, child } = wiredCaller();
+    const before = structuredClone(project.documents[0]!.nets);
+    // B takes A's old place on the west side, A goes east.
+    const result = executeProjectTransaction(project, {
+      transactionId: "swap-sides",
+      projectId: project.id,
+      expectedStructureRevision: project.structureRevision,
+      actor: { kind: "human", id: "human-local" },
+      edits: planSetCellSymbolPresentation(project, child.id, {
+        pinPlacements: [
+          { terminalId: "terminal-b", side: "west", offset: -20 },
+          { terminalId: "terminal-a", side: "east", offset: -20 },
+        ],
+      }),
+    });
+    if (!result.ok) throw new Error(result.error.message);
+    const parent = result.project.documents[0]!;
+    expect(parent.nets).toEqual(before);
+    expect(parent.routes.map((route) => route.netId)).toEqual([
+      "net-parent-A",
+      "net-parent-B",
+    ]);
+    // A's wire, stretched to the east side, is drawn around the block and
+    // off B's new pin rather than through them.
+    const resolver = createProjectSymbolResolver(
+      result.project,
+      builtInSymbols,
+    );
+    const findings = [
+      ...runErcChecks(
+        result.project,
+        buildProjectConnectivityIndex(result.project, resolver),
+        resolver,
+      ).map((item) => item.code),
+      ...diagnoseVisualQuality(parent, resolver).map((item) => item.code),
+    ];
+    expect(findings).not.toContain("ERC_TOUCHING_NOT_CONNECTED");
+    expect(findings).not.toContain("ERC_OVERLAPPING_NETS");
+    expect(findings).not.toContain("VISUAL_WIRE_THROUGH_SYMBOL");
   });
 });

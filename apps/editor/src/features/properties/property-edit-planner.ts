@@ -1,8 +1,9 @@
 import type { ResolvedRouteGeometry } from "@icm/derived";
 import {
   isNearVerticalSegment,
-  NET_LABEL_BASELINE_ABOVE_WIRE,
   NET_LABEL_WIRE_GAP,
+  netLabelAttachmentForText,
+  netLabelBaselineForName,
   netLabelStandardOffset,
   resolveAnnotationName,
   resolveNetLabelBinding,
@@ -169,8 +170,16 @@ export function createPropertyEditPlanner({
     const from = geometry.centerline[segment]!;
     const to = geometry.centerline[segment + 1] ?? from;
     // A new label takes the wire's standard side: above a horizontal wire,
-    // right of a vertical one, whichever way the wire was drawn.
+    // right of a vertical one, whichever way the wire was drawn. Upright
+    // over a horizontal wire it stands as close as what it reads allows: a
+    // subscript a grid step up, plain text just above the wire (#1300).
     const vertical = isNearVerticalSegment(from, to);
+    const baseline = netLabelBaselineForName(
+      name,
+      carriedFormat,
+      document.presentation,
+      presentation?.sizeScale ?? existingLabel?.sizeScale ?? 1,
+    );
     const requestedPosition = presentation?.position ??
       (existingLabel
         ? existingLabel.anchor.kind === "free"
@@ -178,10 +187,22 @@ export function createPropertyEditPlanner({
           : existingLabel.anchor.fallbackPosition
         : undefined) ?? {
         x: (from.x + to.x) / 2 + (vertical ? NET_LABEL_WIRE_GAP : 0),
-        y: (from.y + to.y) / 2 - (vertical ? 0 : NET_LABEL_BASELINE_ABOVE_WIRE),
+        y: (from.y + to.y) / 2 - (vertical ? 0 : baseline),
       };
-    const position = presentation?.routeAttachment
-      ? requestedPosition
+    // The L workflow's preview stands at the full grid step until the name
+    // is known; once it is, an upright label on a horizontal wire takes its
+    // text's own height above it.
+    const placed = presentation?.routeAttachment
+      ? netLabelAttachmentForText(
+          presentation.routeAttachment,
+          requestedPosition,
+          presentation.rotation ?? 0,
+          baseline,
+          geometry,
+        )
+      : null;
+    const position = placed
+      ? placed.position
       : snapGridPoint(requestedPosition, document.presentation.grid);
     const previousAnchor =
       existingLabel?.anchor.kind === "route" &&
@@ -196,10 +217,10 @@ export function createPropertyEditPlanner({
         kind: "net-label",
         binding: { kind: "net-name", netId: targetNetId },
         netId: targetNetId,
-        anchor: presentation?.routeAttachment
+        anchor: placed
           ? {
               kind: "route",
-              ...presentation.routeAttachment,
+              ...placed.attachment,
               orientation: "follow",
               fallbackPosition: position,
             }
@@ -212,7 +233,7 @@ export function createPropertyEditPlanner({
                   routeId: route.id,
                   legId: route.legs[segment]!.id,
                   t: 0.5,
-                  normalOffset: netLabelStandardOffset(from, to),
+                  normalOffset: netLabelStandardOffset(from, to, baseline),
                   direction: "forward",
                   orientation: "follow",
                   fallbackPosition: position,

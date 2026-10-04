@@ -13,6 +13,7 @@ become blockers merely because their severity says warning.
 | Symbol/label overlap | Compare visible strokes/text in the render; compact placement can be intentional |
 | Wire through symbol | Check actual strokes and endpoints; bounding-box overlap alone is not proof of a bad wire |
 | Route overlap | Same-Net collinear spans may be an intentional shared trunk; remove only redundant/confusing geometry |
+| Overlapping Nets (`ERC_OVERLAPPING_NETS`) | Two Nets drawn along one line read as shorted; reroute one wire off the named span, never add a Junction or merge the Nets |
 | Terminal departure | Inspect for hooks or reversal; deliberate bends are not automatically wrong |
 | Short segment / outside page | Review readability and intended bounds, not just a threshold |
 | Flightline | Route/label the intended relation or disclose a deliberately incomplete view |

@@ -102,6 +102,8 @@ describe("copied Net Label attachment", () => {
     (scope) => {
       const { project, document, clipboard, target } = fixture(scope);
       const before = structuredClone(project);
+      // The name it claims gives the text it stands over its new wire by.
+      expect(standaloneCopiedNetLabel(clipboard)?.name).toBe("IN_1_bar");
       const plan = planProjectCopyPlacement(
         project,
         document,

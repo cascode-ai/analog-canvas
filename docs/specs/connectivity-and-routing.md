@@ -368,7 +368,9 @@ differently. It judges terminals only: two
 Routes crossing is the ordinary case the model already names, and a pin the
 author declared `NoConnect` has been answered for. `ERC_DANGLING_WIRE` names a
 wire end at a Junction no other wire, pin or label reaches. A Power Rail's ends
-and a labelled wire are exempt. `ERC_LABEL_REFERENCE_MISMATCH` names a part
+and a labelled wire are exempt, and so is an end with a free Net or power label
+of its own Net within four grid steps: a label moved off its wire still names
+the stub it stands at. `ERC_LABEL_REFERENCE_MISMATCH` names a part
 whose name label reads another part's name while that part shows something
 else, as with swapped labels: the drawing then misnames devices the netlist
 calls by Reference. A display alias naming no part, or naming a part that shows
@@ -383,7 +385,14 @@ marker). Only the stored membership holds it in the Net, so the drawing and the
 netlist disagree, as when a drawn tail node is stored as ground. Parts that
 touch (a wire end or pin lying on another part's wire) count as drawn together;
 a pin on no wire at all is `ERC_UNCONNECTED_PIN`'s; imported topology shown
-with routing guides is left alone. `ERC_INSTANCE_NOT_DRAWN`
+with routing guides is left alone. `ERC_OVERLAPPING_NETS` is an error for
+two wires of different Logical Nets drawn along one line over a common span:
+the sheet shows one continuous wire, the Nets joined, while the netlist keeps
+them apart. A stretch after a move, a mirror or a pin change can leave wires
+so; a pin change planned in Properties, such as swapped inputs, redraws a
+wire it would stretch onto another Net clear of it instead. A crossing, wires
+meeting end to end and a shared trunk of one Net are not overlaps. Each pair
+of wires is named once, with the span. `ERC_INSTANCE_NOT_DRAWN`
 counts the Instances a Cell holds that the sheet does not draw: they keep their
 reference, their Net terminals and their netlist cards while nothing on the
 sheet shows them, so the warning names them and the Placement Tray — which

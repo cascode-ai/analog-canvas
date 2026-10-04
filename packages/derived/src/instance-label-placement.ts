@@ -1,3 +1,4 @@
+import { deviceDescriptor } from "@icm/devices";
 import { transformPoint } from "@icm/model";
 import type { Point, Rect, SchematicDocument } from "@icm/model";
 import type { ResolvedSymbol } from "@icm/symbols";
@@ -6,6 +7,7 @@ import { getRazaviCatalogEntry } from "@icm/symbols";
 import type { SchematicStyleProfile } from "./style-profile.js";
 import { visibleSymbolInkBounds } from "./visual.js";
 import { magneticDisplayParameters } from "./instance-value.js";
+import { fractionGeometry, fractionPartScale } from "./rich-text-layout.js";
 
 export interface InstanceLabelPlacement {
   readonly position: Point;
@@ -41,7 +43,50 @@ export function previousInstanceLabelRowOffset(
   return Math.ceil((profile.typography.instanceFontSize * 1.35) / grid) * grid;
 }
 
-type InstanceLabelRowRule = typeof instanceLabelRowOffset;
+/** Whether a part's value is drawn as a stacked W/L fraction, as a MOS's is. */
+function valueIsStackedFraction(symbolId: string): boolean {
+  return (deviceDescriptor(symbolId)?.parameters ?? []).some(
+    (parameter) =>
+      parameter.displayRole === "width" || parameter.displayRole === "length",
+  );
+}
+
+/**
+ * Row distance between a part's reference and its value. A stacked W/L
+ * fraction reaches a numerator above its baseline and a denominator below
+ * it, so at one text row its numerator ran into the reference's subscript
+ * (M₂ over 10u, #1299). Its row keeps the label gap on both sides: under a
+ * reference, between the numerator's capitals and the subscript; over one,
+ * between the denominator and the reference's capitals. Every other value
+ * keeps one text row (instanceLabelRowOffset).
+ */
+export function instanceValueRowOffset(
+  symbolId: string,
+  profile: SchematicStyleProfile,
+  grid: number,
+): number {
+  const row = instanceLabelRowOffset(profile, grid);
+  if (!valueIsStackedFraction(symbolId)) return row;
+  const { gap, capHeight, subscriptDrop } = instanceLabelMetrics(profile);
+  const part =
+    profile.typography.instanceFontSize *
+    fractionPartScale(profile.typography.subscriptScale);
+  const numeratorTop =
+    part *
+    (fractionGeometry.numeratorBaselineRiseEm + fractionGeometry.capHeightEm);
+  const denominatorBottom = part * fractionGeometry.denominatorBaselineDropEm;
+  const needed = Math.max(
+    numeratorTop + subscriptDrop + gap,
+    denominatorBottom + capHeight + gap,
+  );
+  return Math.max(row, Math.ceil(needed / grid) * grid);
+}
+
+type InstanceLabelRowRule = (
+  profile: SchematicStyleProfile,
+  grid: number,
+  symbolId: string,
+) => number;
 
 const SIDE_LABEL_SYMBOLS = new Set([
   "resistor",
@@ -745,6 +790,33 @@ export function defaultInstanceLabelPlacement(
 ): InstanceLabelPlacement | null {
   return defaultPlacementWith(
     placeUprightInstanceLabel,
+    (rowProfile, rowGrid, symbolId) =>
+      instanceValueRowOffset(symbolId, rowProfile, rowGrid),
+    instance,
+    resolved,
+    profile,
+    grid,
+    slot,
+    sizeScale,
+  );
+}
+
+/**
+ * Where the rule until 2026-10-05 put an untouched value: the current sides
+ * and one text row under the reference for every part, a stacked W/L
+ * fraction included (#1299). Such a value still counts as untouched, so an
+ * orientation edit moves it to the current row.
+ */
+export function uniformRowDefaultInstanceLabelPlacement(
+  instance: SchematicDocument["instances"][number],
+  resolved: ResolvedSymbol,
+  profile: SchematicStyleProfile,
+  grid: number,
+  slot: InstanceLabelSlot = "reference",
+  sizeScale = 1,
+): InstanceLabelPlacement | null {
+  return defaultPlacementWith(
+    placeUprightInstanceLabel,
     instanceLabelRowOffset,
     instance,
     resolved,
@@ -826,7 +898,8 @@ function defaultPlacementWith(
   const compactSideGap = grid;
   // The value slot is the second upright row under the reference on the same
   // side; see instanceLabelRowOffset.
-  const rowOffset = slot === "value" ? rows(profile, grid) : 0;
+  const rowOffset =
+    slot === "value" ? rows(profile, grid, instance.symbolId) : 0;
 
   if (instance.symbolId === "port" || instance.symbolId === "port-filled") {
     return portLabelPlacement(instance, resolved, profile, grid, rowOffset);
@@ -1018,7 +1091,7 @@ function parameterPlacementWith(
       partBounds,
       partSide,
       instanceLabelMetrics(profile),
-      (anchor.rows ?? 0) * rows(profile, grid),
+      (anchor.rows ?? 0) * rows(profile, grid, instance.symbolId),
     );
   return legacyDefaultInstanceParameterLabelPlacement(
     instance,

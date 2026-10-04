@@ -65,6 +65,8 @@ import {
   resolveAnnotationName,
   magneticDisplayParameters,
   derivePowerRailComponent,
+  netLabelAttachmentForText,
+  netLabelBaselineForName,
 } from "@icm/derived";
 import {
   builtInSymbols,
@@ -1130,12 +1132,33 @@ export function planBrowserAgentCommand(
               Number.POSITIVE_INFINITY,
             )
           : null;
-      const anchor = createdPlacement
+      // A new label stands as close over its wire as its text allows, as
+      // one placed with the Net Label tool does (#1300).
+      const createdGeometry = createdPlacement
+        ? records.find(({ route }) => route.id === createdPlacement.routeId)
+            ?.geometry
+        : undefined;
+      const created =
+        createdPlacement && createdGeometry
+          ? netLabelAttachmentForText(
+              createdPlacement.routeAttachment,
+              createdPlacement.labelPosition,
+              createdPlacement.rotation ?? 0,
+              netLabelBaselineForName(name, labelFormat, document.presentation),
+              createdGeometry,
+            )
+          : createdPlacement
+            ? {
+                attachment: createdPlacement.routeAttachment,
+                position: createdPlacement.labelPosition,
+              }
+            : null;
+      const anchor = created
         ? {
             kind: "route" as const,
-            ...createdPlacement.routeAttachment,
+            ...created.attachment,
             orientation: "horizontal" as const,
-            fallbackPosition: createdPlacement.labelPosition,
+            fallbackPosition: created.position,
           }
         : attached
           ? {

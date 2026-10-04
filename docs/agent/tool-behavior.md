@@ -59,8 +59,11 @@ creates the required splits and Junctions. Use returned endpoint/Net identities,
 not a pixel intersection, to decide whether a connection exists.
 
 Moving an instance translates its attached annotations and can stretch connected
-Routes. Inspect returned `resolvedRoutes`; movement does not promise a finished
-global layout. Group movement must preserve the intended boundary connections.
+Routes. Wiring that hangs only from the moved parts, such as an open stub from
+a pin with its bends, open Junctions and Net labels, travels with them whole;
+wires to parts that stay stretch. Inspect returned `resolvedRoutes`; movement
+does not promise a finished global layout. Group movement must preserve the
+intended boundary connections.
 
 Formal render shows persisted presentation, without selection, grid or diagnostic
 overlays. Diagnostic render is a separate inspection mode. Interpret findings
