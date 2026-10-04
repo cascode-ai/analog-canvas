@@ -385,7 +385,14 @@ marker). Only the stored membership holds it in the Net, so the drawing and the
 netlist disagree, as when a drawn tail node is stored as ground. Parts that
 touch (a wire end or pin lying on another part's wire) count as drawn together;
 a pin on no wire at all is `ERC_UNCONNECTED_PIN`'s; imported topology shown
-with routing guides is left alone. `ERC_INSTANCE_NOT_DRAWN`
+with routing guides is left alone. `ERC_OVERLAPPING_NETS` is an error for
+two wires of different Logical Nets drawn along one line over a common span:
+the sheet shows one continuous wire, the Nets joined, while the netlist keeps
+them apart. A stretch after a move, a mirror or a pin change can leave wires
+so; a pin change planned in Properties, such as swapped inputs, redraws a
+wire it would stretch onto another Net clear of it instead. A crossing, wires
+meeting end to end and a shared trunk of one Net are not overlaps. Each pair
+of wires is named once, with the span. `ERC_INSTANCE_NOT_DRAWN`
 counts the Instances a Cell holds that the sheet does not draw: they keep their
 reference, their Net terminals and their netlist cards while nothing on the
 sheet shows them, so the warning names them and the Placement Tray — which

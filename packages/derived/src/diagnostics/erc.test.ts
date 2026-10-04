@@ -1344,3 +1344,94 @@ describe("ERC engine", () => {
     expect(codes(project)).not.toContain("ERC_ILLEGAL_PIN_NAME");
   });
 });
+
+describe("wires of different Nets on one line (#1309)", () => {
+  /** Two loose wires: `a` along x = 200 from y = -60 to 10, and `b` drawn
+   * through `points`, on a Net of its own unless `sameNet`. */
+  function wires(points: { x: number; y: number }[], sameNet = false) {
+    const project = emptyProject();
+    const document = project.documents[0]!;
+    const add = (id: string, path: { x: number; y: number }[]) => {
+      const netId = sameNet ? "n-a" : `n-${id}`;
+      if (!document.nets.some((net) => net.id === netId))
+        document.nets.push({ id: netId, terminals: [] });
+      document.junctions.push(
+        { id: `${id}-start`, netId, position: path[0]! },
+        { id: `${id}-end`, netId, position: path.at(-1)! },
+      );
+      document.routes.push(
+        createRoutePath({
+          id,
+          netId,
+          start: { kind: "junction", junctionId: `${id}-start` },
+          end: { kind: "junction", junctionId: `${id}-end` },
+          bends: path.slice(1, -1),
+          modes: path.slice(1).map(() => "manual" as const),
+        }),
+      );
+    };
+    add("a", [
+      { x: 200, y: -60 },
+      { x: 200, y: 10 },
+    ]);
+    add("b", points);
+    return project;
+  }
+  const overlaps = (project: CircuitProject) =>
+    run(project).filter((item) => item.code === "ERC_OVERLAPPING_NETS");
+
+  it("reports two Nets drawn over a common span, naming both wires", () => {
+    // Swapped op-amp inputs: b comes up the same column to y = -10.
+    const found = overlaps(
+      wires([
+        { x: 200, y: 100 },
+        { x: 200, y: -10 },
+        { x: 220, y: -10 },
+      ]),
+    );
+    expect(found).toHaveLength(1);
+    expect(found[0]).toMatchObject({
+      severity: "error",
+      primary: expect.objectContaining({ objectId: "a" }),
+      parameters: {
+        routeId: "a",
+        otherRouteId: "b",
+        fromX: 200,
+        fromY: -10,
+        toX: 200,
+        toY: 10,
+      },
+    });
+    expect(found[0]!.related[0]).toMatchObject({ objectId: "b" });
+  });
+
+  it("stays quiet for a crossing, wires meeting end to end, and one Net", () => {
+    expect(
+      overlaps(
+        wires([
+          { x: 150, y: 0 },
+          { x: 250, y: 0 },
+        ]),
+      ),
+    ).toEqual([]);
+    expect(
+      overlaps(
+        wires([
+          { x: 200, y: 10 },
+          { x: 200, y: 60 },
+        ]),
+      ),
+    ).toEqual([]);
+    expect(
+      overlaps(
+        wires(
+          [
+            { x: 200, y: 100 },
+            { x: 200, y: -10 },
+          ],
+          true,
+        ),
+      ),
+    ).toEqual([]);
+  });
+});

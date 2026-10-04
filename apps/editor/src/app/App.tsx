@@ -88,6 +88,7 @@ import {
   planSetVddConnectionMode,
   planRenameCellTerminal,
   planAngledWireRepairs,
+  planPinChangeRouteClearance,
   gateRoutingOperationPlan,
   type ProjectStructureEdit,
   type SchematicEdit,
@@ -8673,6 +8674,15 @@ function WorkspaceEditor({
                                 selectedInstance,
                                 selectedFormalTerminal ? nonNameValues : value,
                               );
+                            // Swapped inputs and other pin changes draw the
+                            // wires they stretch clear of other Nets (#1309).
+                            edits.push(
+                              ...planPinChangeRouteClearance(
+                                document,
+                                resolver,
+                                edits,
+                              ),
+                            );
                             if (
                               !selectedInstance.placement &&
                               value.placement

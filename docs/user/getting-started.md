@@ -136,7 +136,8 @@ recognize such a network, so both are placed by hand.
   differential amplifiers also expose `appearance.outputsSwapped`. Edit these
   booleans or use their inline switches to exchange the +/− positions
   independently. Connections follow their named pins, and internal marks stay
-  intact. **Defaults** resets both swaps to `false`.
+  intact; a wire that would land on another Net's wire on its way to the moved
+  pin is redrawn around it. **Defaults** resets both swaps to `false`.
   These controls are visual only and are absent from selected, copied, and
   saved JSON. Fixed colors display as
   `[R, G, B]` (0–255); hex input also works. Type `"auto"` directly to inherit
