@@ -1,6 +1,7 @@
 import {
   createEmptyProject,
   createRoutePath,
+  type Annotation,
   type CircuitProject,
 } from "@icm/model";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
@@ -376,6 +377,49 @@ describe("ERC engine", () => {
       message:
         "Wire open ends in the open at Junction A: no pin, other wire or label is there",
     });
+  });
+
+  it("counts a Net Label dragged off its stub as that stub's label (#1300)", () => {
+    const project = emptyProject();
+    const document = project.documents[0]!;
+    document.nets.push({ id: "net", terminals: [] });
+    document.junctions.push(
+      { id: "A", netId: "net", position: { x: 0, y: 0 } },
+      { id: "B", netId: "net", position: { x: 40, y: 0 } },
+    );
+    document.routes.push(
+      createRoutePath({
+        id: "stub",
+        netId: "net",
+        start: { kind: "junction", junctionId: "A" },
+        end: { kind: "junction", junctionId: "B" },
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+    const label: Annotation = {
+      id: "b0",
+      kind: "net-label",
+      binding: { kind: "net-name", netId: "net" },
+      netId: "net",
+      anchor: { kind: "free", position: { x: 20, y: -3 } },
+      alignment: "middle",
+      rotation: 0,
+      locked: false,
+    };
+    document.annotations.push(label);
+    const dangling = () =>
+      run(project)
+        .filter((diagnostic) => diagnostic.code === "ERC_DANGLING_WIRE")
+        .map((item) => item.parameters);
+    // Standing just above the stub, it names both of the stub's open ends.
+    expect(dangling()).toEqual([]);
+    // Far away it names the Net but not this wire.
+    label.anchor = { kind: "free", position: { x: 300, y: 200 } };
+    expect(dangling()).toEqual([
+      { routeId: "stub", junctionId: "A" },
+      { routeId: "stub", junctionId: "B" },
+    ]);
   });
 
   it("says how many Instances the Cell holds but the sheet does not draw", () => {

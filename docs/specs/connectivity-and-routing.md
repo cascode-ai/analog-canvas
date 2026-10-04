@@ -368,7 +368,9 @@ differently. It judges terminals only: two
 Routes crossing is the ordinary case the model already names, and a pin the
 author declared `NoConnect` has been answered for. `ERC_DANGLING_WIRE` names a
 wire end at a Junction no other wire, pin or label reaches. A Power Rail's ends
-and a labelled wire are exempt. `ERC_LABEL_REFERENCE_MISMATCH` names a part
+and a labelled wire are exempt, and so is an end with a free Net or power label
+of its own Net within four grid steps: a label moved off its wire still names
+the stub it stands at. `ERC_LABEL_REFERENCE_MISMATCH` names a part
 whose name label reads another part's name while that part shows something
 else, as with swapped labels: the drawing then misnames devices the netlist
 calls by Reference. A display alias naming no part, or naming a part that shows

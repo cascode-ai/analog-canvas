@@ -5,6 +5,7 @@ import {
   endpointKey,
   isNearVerticalSegment,
   measureRichTextDocument,
+  netLabelAttachmentForText,
   netLabelLook,
   netLabelStandardOffset,
   type NetLabelDirection,
@@ -388,6 +389,35 @@ export function netLabelPlacementTargetAtPoint(
       : isNearVerticalSegment(segment.from, segment.to)
         ? { alignment: "start" as const }
         : {}),
+  };
+}
+
+/**
+ * A Net Label placement target re-seated for the text the label carries
+ * (#1300): an upright label over a horizontal wire stands as close as its
+ * ink allows, so the preview shows where the label commits.
+ */
+export function netLabelPlacementTargetForText(
+  routeGeometryRecords: readonly RouteGeometryRecord[],
+  target: NetLabelPlacementTarget,
+  rotation: number,
+  baselineAboveWire: number,
+): NetLabelPlacementTarget {
+  const geometry = routeGeometryRecords.find(
+    ({ route }) => route.id === target.routeId,
+  )?.geometry;
+  if (!geometry) return target;
+  const placed = netLabelAttachmentForText(
+    target.routeAttachment,
+    target.labelPosition,
+    rotation,
+    baselineAboveWire,
+    geometry,
+  );
+  return {
+    ...target,
+    routeAttachment: placed.attachment,
+    labelPosition: placed.position,
   };
 }
 

@@ -6,7 +6,11 @@ import {
 import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 import { expect, it } from "vitest";
 import { planBrowserAgentCommand } from "./browser-agent-command.js";
-import { resolveRouteGeometry } from "@icm/derived";
+import {
+  netLabelAttachmentForText,
+  netLabelBaselineForName,
+  resolveRouteGeometry,
+} from "@icm/derived";
 import { netLabelPlacementTargetAtPoint } from "../features/wiring/route-interaction-geometry";
 
 it.each([
@@ -52,9 +56,18 @@ it.each([
   if (label?.kind !== "upsert_schematic_annotation")
     throw new Error("Expected label");
   expect(label.annotation.alignment).toBe(gui.alignment ?? "middle");
+  // The Net Label tool commits its preview re-seated for the text it
+  // carries (#1300); the Agent's label lands where that commit does.
+  const committed = netLabelAttachmentForText(
+    gui.routeAttachment,
+    gui.labelPosition,
+    0,
+    netLabelBaselineForName("OUT", undefined, doc.presentation),
+    resolveRouteGeometry(doc, resolver, route)!,
+  );
   expect(label.annotation.anchor).toMatchObject({
-    ...gui.routeAttachment,
-    fallbackPosition: gui.labelPosition,
+    ...committed.attachment,
+    fallbackPosition: committed.position,
   });
 });
 

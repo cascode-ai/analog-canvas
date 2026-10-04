@@ -1052,6 +1052,22 @@ function reportDanglingWires(
       evidence.owner.kind === "power-marker"
     )
       labelledObjects.add(evidence.owner.objectId);
+  // A Net Label dragged off its wire keeps naming the stub it stands at
+  // (#1300): a free label of the open end's Net within a few grid steps of
+  // it counts as that wire's label.
+  const reach = document.presentation.grid * 4;
+  const freeLabels = document.annotations.flatMap((annotation) => {
+    if (
+      (annotation.kind !== "net-label" && annotation.kind !== "power-label") ||
+      annotation.anchor.kind !== "free"
+    )
+      return [];
+    const netId =
+      annotation.binding?.kind === "net-name"
+        ? annotation.binding.netId
+        : annotation.netId;
+    return netId ? [{ netId, position: annotation.anchor.position }] : [];
+  });
   for (const junction of [...document.junctions].sort((a, b) =>
     a.id.localeCompare(b.id, "en"),
   )) {
@@ -1061,7 +1077,15 @@ function reportDanglingWires(
     if (
       route.presentation === "power-rail" ||
       labelledObjects.has(junction.id) ||
-      labelledObjects.has(route.id)
+      labelledObjects.has(route.id) ||
+      freeLabels.some(
+        (label) =>
+          label.netId === junction.netId &&
+          Math.hypot(
+            label.position.x - junction.position.x,
+            label.position.y - junction.position.y,
+          ) <= reach,
+      )
     )
       continue;
     diagnostics.push({

@@ -6,6 +6,12 @@ import type { SchematicClipboard } from "./clipboard";
 /** Only a label copied on its own can acquire a destination wire's Net. */
 export function standaloneCopiedNetLabel(clipboard: SchematicClipboard) {
   const label = clipboard.annotations[0];
+  const claim = clipboard.connectivityEvidence.find(
+    (evidence) =>
+      evidence.kind === "name-claim" &&
+      evidence.owner.kind === "net-label" &&
+      evidence.owner.annotationId === label?.id,
+  );
   if (
     clipboard.intent !== "clone-selection" ||
     clipboard.annotations.length !== 1 ||
@@ -17,15 +23,10 @@ export function standaloneCopiedNetLabel(clipboard: SchematicClipboard) {
     clipboard.noConnects.length ||
     label?.kind !== "net-label" ||
     label.binding?.kind !== "net-name" ||
-    !clipboard.connectivityEvidence.some(
-      (evidence) =>
-        evidence.kind === "name-claim" &&
-        evidence.owner.kind === "net-label" &&
-        evidence.owner.annotationId === label.id,
-    )
+    claim?.kind !== "name-claim"
   )
     return null;
-  return { annotation: label, netId: label.binding.netId };
+  return { annotation: label, netId: label.binding.netId, name: claim.name };
 }
 
 /** Attach the already copied label, retaining its complete authored look. */

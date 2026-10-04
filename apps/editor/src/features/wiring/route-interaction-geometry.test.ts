@@ -18,6 +18,7 @@ import {
   dragNetLabelAttachmentAtPoint,
   closestNetConductorPoint,
   netLabelPlacementTargetAtPoint,
+  netLabelPlacementTargetForText,
   dragRouteAttachmentAtPoint,
   effectiveRouteAttachment,
   looseRouteAnchorIds,
@@ -218,6 +219,31 @@ describe("route interaction geometry", () => {
       routeId: "route-1",
       conductorPoint: { x: 70, y: 0 },
     });
+  });
+
+  it("previews a Net Label as close over its wire as its text lets it commit (#1300)", () => {
+    const document = looseRouteDocument();
+    const record = routeRecord(document);
+    const target = netLabelPlacementTargetAtPoint(
+      [record],
+      { x: 70, y: 6 },
+      7,
+    )!;
+    // Capitals stand 4 units up; seating the seated target again (as the
+    // commit does) leaves it where the preview showed it.
+    const seated = netLabelPlacementTargetForText([record], target, 0, 4);
+    expect(seated).toMatchObject({
+      routeAttachment: { t: 0.7, normalOffset: -4 },
+      conductorPoint: { x: 70, y: 0 },
+      labelPosition: { x: 70, y: -4 },
+    });
+    expect(netLabelPlacementTargetForText([record], seated, 0, 4)).toEqual(
+      seated,
+    );
+    // A label turned to run along the wire's normal keeps its look.
+    expect(netLabelPlacementTargetForText([record], target, 270, 4)).toEqual(
+      target,
+    );
   });
 
   it("puts a Net Label above a horizontal wire and right of a vertical one, however drawn", () => {

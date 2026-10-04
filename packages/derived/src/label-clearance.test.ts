@@ -263,3 +263,47 @@ it("does not report an inductor's default labels against its own coil (#1299)", 
     [["l0-reference", "l0"]],
   );
 });
+
+it("lets a Net Label stand as close over its wire as its text allows (#1300)", () => {
+  const doc = createEmptyDocument("d", "Close label");
+  doc.nets.push({ id: "n", terminals: [] });
+  doc.junctions.push(
+    { id: "a", netId: "n", position: { x: 100, y: 200 } },
+    { id: "b", netId: "n", position: { x: 300, y: 200 } },
+  );
+  doc.routes.push(
+    createRoutePath({
+      id: "w",
+      netId: "n",
+      start: { kind: "junction", junctionId: "a" },
+      end: { kind: "junction", junctionId: "b" },
+      bends: [],
+      modes: ["manual"],
+    }),
+  );
+  const label = (content: RichTextDocument, baselineAboveWire: number) => ({
+    id: "label",
+    kind: "net-label" as const,
+    content,
+    anchor: {
+      kind: "free" as const,
+      position: { x: 200, y: 200 - baselineAboveWire },
+    },
+    alignment: "middle" as const,
+    rotation: 0 as const,
+    locked: false,
+  });
+  const plain = (value: string): RichTextDocument => ({
+    runs: [{ kind: "text", value }],
+  });
+  // Capitals 4 units up and a descender 8 up stand clear of the wire...
+  doc.annotations = [label(plain("B0"), 4)];
+  expect(diagnoseLabelClearance(doc, resolver)).toEqual([]);
+  doc.annotations = [label(plain("top"), 8)];
+  expect(diagnoseLabelClearance(doc, resolver)).toEqual([]);
+  // ...where a subscript's figures at 4, or that descender at 2, reach it.
+  doc.annotations = [label(subscripted("V", "out"), 4)];
+  expect(diagnoseLabelClearance(doc, resolver)).toHaveLength(1);
+  doc.annotations = [label(plain("top"), 2)];
+  expect(diagnoseLabelClearance(doc, resolver)).toHaveLength(1);
+});
