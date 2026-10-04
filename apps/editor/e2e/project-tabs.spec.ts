@@ -834,6 +834,188 @@ test("File holds commands only and Project Properties renames without widening t
   await expect(page.getByTestId("hit-C1")).toHaveCount(0);
 });
 
+for (const method of ["C", "C across Projects", "Ctrl+C/V across Projects"]) {
+  test(`attaches a copied Net Label to a wire with its exact look using ${method}`, async ({
+    page,
+    context,
+  }) => {
+    const { createRoutePath } = await import("@icm/model");
+    const { resolveDocumentLogicalNets } = await import("@icm/derived");
+    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    const project = createEmptyProject("label-landing", "Label landing");
+    const document = project.documents[0]!;
+    for (const [id, y] of [
+      ["source", 100],
+      ["target", 300],
+    ] as const) {
+      document.nets.push({ id, terminals: [] });
+      document.junctions.push(
+        {
+          id: `${id}-a`,
+          netId: id,
+          position: { x: 100, y },
+          role: "route-anchor",
+        },
+        {
+          id: `${id}-b`,
+          netId: id,
+          position: { x: 300, y },
+          role: "route-anchor",
+        },
+      );
+      document.routes.push(
+        createRoutePath({
+          id: `${id}-wire`,
+          netId: id,
+          start: { kind: "junction", junctionId: `${id}-a` },
+          end: { kind: "junction", junctionId: `${id}-b` },
+          bends: [],
+          modes: ["manual"],
+        }),
+      );
+    }
+    document.annotations.push({
+      id: "source-label",
+      kind: "net-label",
+      netId: "source",
+      binding: { kind: "net-name", netId: "source" },
+      anchor: { kind: "free", position: { x: 200, y: 80 } },
+      alignment: "end",
+      rotation: 0,
+      locked: false,
+      textColor: "#be123c",
+      sizeScale: 1.25,
+      formatOverride: {
+        runs: [
+          {
+            kind: "span",
+            style: "overbar",
+            children: [
+              { kind: "text", value: "IN" },
+              {
+                kind: "span",
+                style: "subscript",
+                children: [{ kind: "text", value: "1" }],
+              },
+            ],
+          },
+        ],
+      },
+    });
+    document.connectivityEvidence.push({
+      id: "source-name",
+      kind: "name-claim",
+      netId: "source",
+      name: "IN_1_bar",
+      scope: "local",
+      owner: { kind: "net-label", annotationId: "source-label" },
+    });
+    const sourceLabel = structuredClone(document.annotations[0]!);
+    const open = async (value: CircuitProject) => {
+      await page.getByTestId("project-file").setInputFiles({
+        name: `${value.id}.icproj.json`,
+        mimeType: "application/json",
+        buffer: Buffer.from(JSON.stringify(value)),
+      });
+      await awaitEditorReady(page);
+    };
+    await page.goto("/editor?new=1");
+    await open(project);
+    const crossProject = method !== "C";
+    if (crossProject) {
+      await page
+        .getByRole("button", { name: "New project tab", exact: true })
+        .click();
+      const destination = structuredClone(project);
+      destination.id = "destination";
+      destination.documents[0]!.annotations = [];
+      destination.documents[0]!.connectivityEvidence = [];
+      await open(destination);
+      await page.getByRole("tab").first().click();
+    }
+    await page.getByTestId("annotation-hit-source-label").click();
+    const systemPaste = method === "Ctrl+C/V across Projects";
+    await page.keyboard.press(systemPaste ? "Control+c" : "c");
+    if (crossProject) await page.getByRole("tab").nth(1).click();
+    const canvas = page.getByTestId("schematic-canvas");
+    if (systemPaste) {
+      await canvas.focus();
+      await page.keyboard.press("Control+v");
+    }
+    const wirePoint = await canvas.evaluate((element) => {
+      const matrix = (element as SVGSVGElement).getScreenCTM()!;
+      const point = new DOMPoint(200, 300).matrixTransform(matrix);
+      return { x: point.x, y: point.y };
+    });
+    // Screen-space distance, independent of the fitted camera's zoom.
+    await page.mouse.move(wirePoint.x, wirePoint.y - 6);
+    const ghost = page.getByTestId("copy-placement-preview");
+    await expect(ghost).toBeVisible();
+    await expect(ghost.locator('[data-text-decoration="overbar"]')).toHaveCount(
+      1,
+    );
+    await expect(ghost.locator('[data-text-run="subscript"]')).toHaveCount(1);
+    await page.mouse.click(wirePoint.x, wirePoint.y - 6);
+    await page.keyboard.press("Escape");
+    const initialCount = crossProject ? 0 : 1;
+    const labels = page.locator(
+      '[data-layer="annotations"] [data-kind="net-label"]',
+    );
+    await expect(labels).toHaveCount(initialCount + 1);
+    const pasted = (await saved(page)).documents[0]!;
+    const attached = pasted.annotations.find(
+      (item) => item.netId === "target",
+    )!;
+    expect(attached).toMatchObject({
+      netId: "target",
+      binding: { kind: "net-name", netId: "target" },
+      anchor: {
+        kind: "route",
+        routeId: "target-wire",
+        fallbackPosition: { x: 200, y: 290 },
+      },
+      alignment: sourceLabel.alignment,
+      rotation: sourceLabel.rotation,
+      textColor: sourceLabel.textColor,
+      sizeScale: sourceLabel.sizeScale,
+      formatOverride: sourceLabel.formatOverride,
+    });
+    expect(pasted.nets).toHaveLength(2);
+    const targetName = (doc: typeof pasted) =>
+      resolveDocumentLogicalNets(doc).groups.find((group) =>
+        group.baseNetIds.includes("target"),
+      )?.name;
+    expect(targetName(pasted)).toBe("IN_1_bar");
+    await canvas.focus();
+    await page.keyboard.press("ControlOrMeta+z");
+    await expect(labels).toHaveCount(initialCount);
+    expect(targetName((await saved(page)).documents[0]!)).not.toBe("IN_1_bar");
+    await canvas.focus();
+    await page.keyboard.press("ControlOrMeta+Shift+z");
+    await expect(labels).toHaveCount(initialCount + 1);
+    expect(targetName((await saved(page)).documents[0]!)).toBe("IN_1_bar");
+
+    // Just outside the same 12 px capture radius: keep the ordinary free copy.
+    await canvas.focus();
+    await page.keyboard.press("v");
+    await page.mouse.move(wirePoint.x, wirePoint.y - 24);
+    await expect(ghost).toBeVisible();
+    await page.mouse.click(wirePoint.x, wirePoint.y - 24);
+    await page.keyboard.press("Escape");
+    await expect(labels).toHaveCount(initialCount + 2);
+    const free = (await saved(page)).documents[0]!.annotations.find(
+      (item) =>
+        item.id !== attached.id && (crossProject || item.id !== "source-label"),
+    )!;
+    expect(free).toMatchObject({
+      anchor: { kind: "free" },
+      textColor: sourceLabel.textColor,
+      sizeScale: sourceLabel.sizeScale,
+      formatOverride: sourceLabel.formatOverride,
+    });
+  });
+}
+
 for (const kind of ["port", "net"] as const) {
   test(`copies a styled ${kind} with identical name and overbar using C, Ctrl+C/V and project tabs`, async ({
     page,

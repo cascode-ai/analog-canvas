@@ -46,6 +46,11 @@ import {
 } from "./clipboard";
 
 import { planInsertedInstanceConnections } from "../component-insert/placement-connectivity";
+import type { NetLabelPlacementTarget } from "../wiring/route-interaction-geometry";
+import {
+  copiedNetLabelAttachmentEdits,
+  standaloneCopiedNetLabel,
+} from "./copied-net-label";
 
 /**
  * A copy draws exactly like its source. Each copied object keeps the Document
@@ -904,6 +909,7 @@ export function planProjectCopyPlacement(
   clipboard: SchematicClipboard,
   offset: Point,
   sequence: number,
+  netLabelTarget?: NetLabelPlacementTarget,
 ) {
   const prepared = prepareProjectCopy(project, document, clipboard);
   const proposal = proposePaste(
@@ -944,8 +950,32 @@ export function planProjectCopyPlacement(
       ],
     },
   ];
+  let objectMapping = proposal.idRemap;
   if (clipboard.intent === "clone-selection") {
     let projected = gate.evaluated.finalDocument;
+    const copiedLabel = standaloneCopiedNetLabel(prepared.clipboard);
+    if (copiedLabel && netLabelTarget) {
+      // Like an inserted part's contact, attachment follows the isolated copy
+      // inside the same Project transaction. Moving the name claim also prunes
+      // the copy's now-unused Base Net; other pasted geometry stays isolated.
+      edits.push({
+        kind: "transact_document",
+        documentId: document.id,
+        expectedRevision: projected.revision,
+        edits: copiedNetLabelAttachmentEdits(
+          projected,
+          proposal.idRemap.annotations[copiedLabel.annotation.id]!,
+          netLabelTarget,
+        ),
+      });
+      const route = document.routes.find(
+        (item) => item.id === netLabelTarget.routeId,
+      )!;
+      objectMapping = {
+        ...objectMapping,
+        nets: { ...objectMapping.nets, [copiedLabel.netId]: route.netId },
+      };
+    }
     for (const id of proposal.instanceIds) {
       const instance = projected.instances.find(
         (candidate) => candidate.id === id,
@@ -991,7 +1021,7 @@ export function planProjectCopyPlacement(
     edits,
     instanceIds: proposal.instanceIds,
     mapping: {
-      objects: { ...proposal.idRemap },
+      objects: { ...objectMapping },
       ...prepared.dependencyMapping,
     },
     baseProject: prepared.baseProject,
