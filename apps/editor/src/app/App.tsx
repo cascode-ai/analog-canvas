@@ -151,6 +151,7 @@ import type {
   AgentProjectResourceResponse,
 } from "@icm/agent-adapter";
 import { clipboardPlacementAnchor } from "../features/clipboard/clipboard";
+import { standaloneCopiedNetLabel } from "../features/clipboard/copied-net-label";
 import { useCircuitClipboard } from "../features/clipboard/use-circuit-clipboard";
 import {
   copyPlacementAnchors,
@@ -4735,8 +4736,21 @@ function WorkspaceEditor({
   function resolvePendingPlacementPoint(
     point: Point,
     svg: SVGSVGElement,
-  ): { point: Point; guides: readonly SnapGuideLine[] } {
+  ): {
+    point: Point;
+    guides: readonly SnapGuideLine[];
+    netLabelTarget?: NetLabelPlacementTarget;
+  } {
     if (copyPlacement) {
+      const netLabelTarget = standaloneCopiedNetLabel(copyPlacement.clipboard)
+        ? resolveNetLabelPlacementTarget(point, svg)
+        : null;
+      if (netLabelTarget)
+        return {
+          point: netLabelTarget.labelPosition,
+          guides: [],
+          netLabelTarget,
+        };
       return snapPendingCopyPlacement({
         movingAnchors: copyPreviewState.anchors,
         sceneSnapTargetIndex,
@@ -5561,7 +5575,13 @@ function WorkspaceEditor({
       vddRailMode,
       snapPlacementPoint: (point, svg) =>
         resolvePendingPlacementPoint(point, svg).point,
-      commitCopyPlacement: commitCopyPlacementFromSelection,
+      commitCopyPlacement: (point, svg) => {
+        const placement = resolvePendingPlacementPoint(point, svg);
+        commitCopyPlacementFromSelection(
+          placement.point,
+          placement.netLabelTarget,
+        );
+      },
       commitPendingPlacement: commitPendingPlacementAtFromHook,
       clearComponentPreview: () => setComponentPreviewPoint(null),
       clearVddRailPreview: () => setVddRailPreviewPoint(null),

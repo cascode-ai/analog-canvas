@@ -9,6 +9,7 @@ import {
   orientClipboard,
 } from "../clipboard/clipboard";
 import type { SchematicClipboard } from "../clipboard/clipboard";
+import type { NetLabelPlacementTarget } from "../wiring/route-interaction-geometry";
 import {
   captureProjectCopy,
   prepareProjectCopy,
@@ -1566,7 +1567,10 @@ export function useSelectionInteraction(
     );
   };
 
-  const commitCopyPlacement = (point: Point): void => {
+  const commitCopyPlacement = (
+    point: Point,
+    netLabelTarget?: NetLabelPlacementTarget,
+  ): void => {
     const interaction = options.getInteractionState();
     if (interaction.kind !== "copy-placement") return;
     const copyPlacement = interaction.copy;
@@ -1598,6 +1602,7 @@ export function useSelectionInteraction(
           y: point.y - copyPlacement.anchor.y,
         },
         copyPlacement.sequence,
+        netLabelTarget,
       );
       result = options.transactCopy(proposal);
     } catch (error) {

@@ -72,7 +72,7 @@ interface CanvasEventHandlerDependencies {
     pendingComponentPlacement: boolean;
     vddRailMode: boolean;
     snapPlacementPoint: (point: Point, svg: SVGSVGElement) => Point;
-    commitCopyPlacement: (point: Point) => void;
+    commitCopyPlacement: (point: Point, canvas: SVGSVGElement) => void;
     commitPendingPlacement: (point: Point) => void;
     clearComponentPreview: () => void;
     clearVddRailPreview: () => void;
@@ -266,15 +266,13 @@ export function createEditorCanvasEventHandlers({
         event.preventDefault();
         event.stopPropagation();
         commitCopyPlacement(
-          snapPlacementPoint(
-            pointFromClient(
-              event.clientX,
-              event.clientY,
-              event.currentTarget,
-              false,
-            ),
+          pointFromClient(
+            event.clientX,
+            event.clientY,
             event.currentTarget,
+            false,
           ),
+          event.currentTarget,
         );
         return;
       }

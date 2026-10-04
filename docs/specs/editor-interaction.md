@@ -673,6 +673,12 @@ all copy paths (C, Ctrl/Cmd+C/V, project tabs, and Gallery insertion), including
 when the destination already has the same name. No `_copy` suffix is added.
 Copied electrical labels retain their RichText, overbars, subscripts, typography,
 color and host-relative offsets; moving a copy changes its position only.
+A Net Label copied on its own keeps the ordinary copy preview. Dropping it
+within the Net Label tool's wire capture radius attaches it to that wire at
+the tool's standard offset and names the wire's Net, preserving the label's
+look and scope. Outside that radius it remains a free label, including in
+another Project tab. Copy and attachment are one undoable edit. A label
+copied with other objects keeps the copied group's connectivity.
 A component label reads as it did in the source. Text that spells the
 component's Reference follows the copy's Reference in the same look; any other
 text, such as `I_SS1` on `I1`, stays exactly as the author wrote it. A component
