@@ -96,6 +96,9 @@ export function createRouteClearance(
   own: {
     logicalIds: ReadonlySet<string>;
     endpointKeys: ReadonlySet<string>;
+    /** Points of other Nets a path must not touch although no wire of
+     * `document` reaches them, such as the ends of wires left out of it. */
+    blockedPoints?: readonly Point[];
   },
 ): RouteClearance {
   const logical = context.logicalNetResolution;
@@ -311,6 +314,9 @@ export function createRouteClearance(
         if (segments.some(([a, b]) => pointOnSegment(point, a, b)))
           return `touches ${text} at ${format(point)}`;
     }
+    for (const point of own.blockedPoints ?? [])
+      if (segments.some(([a, b]) => pointOnSegment(point, a, b)))
+        return `touches another Net's wire end at ${format(point)}`;
     return null;
   };
 

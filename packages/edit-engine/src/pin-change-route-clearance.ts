@@ -5,7 +5,7 @@ import {
   resolveRouteGeometry,
 } from "@icm/derived";
 import { createRoutePath, routeEnd } from "@icm/model";
-import type { RouteBranch, SchematicDocument } from "@icm/model";
+import type { Point, RouteBranch, SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
 import type { SchematicEdit } from "./edit-schema.js";
@@ -18,6 +18,7 @@ function routeConflict(
   document: SchematicDocument,
   resolver: SymbolResolver,
   route: RouteBranch,
+  blockedPoints: readonly Point[] = [],
 ) {
   const points = resolveRouteGeometry(document, resolver, route)?.centerline;
   if (!points) return null;
@@ -29,8 +30,25 @@ function routeConflict(
         route.netId,
     ]),
     endpointKeys: new Set(ends.map(endpointKey)),
+    blockedPoints,
   });
   return { clearance, context, ends, reason: clearance.conflict(points, ends) };
+}
+
+/** Who belongs to which Net: the electrical fact a redraw must not touch. */
+function membership(document: SchematicDocument): string {
+  return JSON.stringify([
+    document.nets
+      .map((net) => [
+        net.id,
+        net.terminals
+          .map((terminal) => `${terminal.instanceId}.${terminal.pinName}`)
+          .sort(),
+      ])
+      .sort(),
+    document.routes.map((route) => [route.id, route.netId]).sort(),
+    document.junctions.map((junction) => [junction.id, junction.netId]).sort(),
+  ]);
 }
 
 /**
@@ -70,6 +88,21 @@ export function redrawStretchedRoutesClear(
       pending.delete(routeId);
       continue;
     }
+    // Their open ends stay where they are, so those still block a path.
+    const ownNet = route.netId;
+    const blockedPoints = working.routes.flatMap((candidate) =>
+      candidate.id !== routeId &&
+      pending.has(candidate.id) &&
+      candidate.netId !== ownNet
+        ? [candidate.start, routeEnd(candidate)].flatMap((endpoint) =>
+            endpoint.kind === "junction"
+              ? working!.junctions
+                  .filter((junction) => junction.id === endpoint.junctionId)
+                  .map((junction) => junction.position)
+              : [],
+          )
+        : [],
+    );
     const found = routeConflict(
       {
         ...working,
@@ -79,6 +112,7 @@ export function redrawStretchedRoutesClear(
       },
       resolver,
       route,
+      blockedPoints,
     );
     pending.delete(routeId);
     if (!found) continue;
@@ -123,7 +157,9 @@ export function redrawStretchedRoutesClear(
       },
     };
     const next = preview([...extra, edit]);
-    if (!next) continue;
+    // A redraw changes where a wire runs, never what it joins: one that
+    // brought a wire onto another Net's open end would merge the two.
+    if (!next || membership(next) !== membership(working)) continue;
     extra.push(edit);
     working = next;
   }

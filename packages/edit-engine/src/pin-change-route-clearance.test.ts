@@ -105,6 +105,62 @@ describe("swapping a wired op-amp's inputs (#1309)", () => {
     }
   });
 
+  it("never brings a redrawn wire onto another Net's open end", () => {
+    // Each pin of a differential amplifier runs straight out to an open end
+    // 20 apart; after the swap a clear path for one input could pass the
+    // other input's end, which would join the two Nets.
+    const project = createEmptyProject("diff", "Diff", "doc");
+    const document = project.documents[0]!;
+    document.instances.push({
+      id: "X1",
+      symbolId: "opamp-differential-lettered",
+      placement: { position: { x: 360, y: 230 }, rotation: 0, mirror: "none" },
+      signalFlowParameters: { formula: "G" },
+    });
+    for (const [pinName, x, y] of [
+      ["IN+", 180, 240],
+      ["IN-", 180, 220],
+      ["OUT+", 520, 240],
+      ["OUT-", 520, 220],
+    ] as const) {
+      document.nets.push({
+        id: `net-${pinName}`,
+        terminals: [{ instanceId: "X1", pinName }],
+      });
+      document.junctions.push({
+        id: `end-${pinName}`,
+        netId: `net-${pinName}`,
+        position: { x, y },
+      });
+      document.routes.push(
+        createRoutePath({
+          id: `wire-${pinName}`,
+          netId: `net-${pinName}`,
+          start: { kind: "terminal", instanceId: "X1", pinName },
+          end: { kind: "junction", junctionId: `end-${pinName}` },
+          bends: [],
+          modes: ["manual"],
+        }),
+      );
+    }
+    for (const symbolId of [
+      "opamp-differential-lettered-inputs-swapped",
+      "opamp-differential-crossed-lettered",
+    ]) {
+      const change: SchematicEdit[] = [
+        { kind: "set_instance_symbol", instanceId: "X1", symbolId },
+      ];
+      const after = committed(document, [
+        ...change,
+        ...planPinChangeRouteClearance(document, resolver, change),
+      ]);
+      expect(after.nets).toEqual(document.nets);
+      expect(after.routes.map((route) => route.netId)).toEqual(
+        document.routes.map((route) => route.netId),
+      );
+    }
+  });
+
   it("plans nothing for a change that moves no pin", () => {
     const document = fedOpamp().documents[0]!;
     expect(
