@@ -229,3 +229,37 @@ it("keeps a MOS W/L fraction clear of its own subscripted reference (#1299)", ()
   ).toEqual([]);
   expect(diagnoseLabelClearance(doc, resolver)).toEqual([]);
 });
+
+it("does not report an inductor's default labels against its own coil (#1299)", () => {
+  // The coil is one path without declared bounds. Its labels keep their gap
+  // from the path's drawn hull, so the check has to measure that hull rather
+  // than the Symbol's padded viewBox.
+  const doc = createEmptyDocument("d", "Inductors");
+  for (const [index, rotation] of ([0, 90, 180, 270] as const).entries())
+    placeDefaultLabels(
+      doc,
+      {
+        id: `l${index}`,
+        symbolId: "inductor",
+        placement: {
+          position: { x: 100 + index * 200, y: 100 },
+          rotation,
+          mirror: "none",
+        },
+        netlist: { parameters: { value: "10u" } },
+      },
+      subscripted("L", "A"),
+    );
+  expect(diagnoseLabelClearance(doc, resolver)).toEqual([]);
+  // A label actually drawn over the coil is still reported.
+  const label = doc.annotations.find((a) => a.id === "l0-reference")!;
+  if (label.anchor.kind !== "object") throw new Error("object anchor");
+  label.anchor = {
+    ...label.anchor,
+    localOffset: { x: -5, y: 5 },
+    fallbackPosition: { x: 95, y: 105 },
+  };
+  expect(diagnoseLabelClearance(doc, resolver).map((d) => d.objectIds)).toEqual(
+    [["l0-reference", "l0"]],
+  );
+});

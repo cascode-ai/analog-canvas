@@ -1,3 +1,4 @@
+import { transformPoint } from "@icm/model";
 import type { Annotation, Point, Rect, SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 import {
@@ -5,6 +6,7 @@ import {
   resolveAnnotationPresentation,
   type AnnotationPresentation,
 } from "./annotation-presentation.js";
+import { instanceLabelInkBounds } from "./instance-label-placement.js";
 import { resolveDocumentLogicalNets } from "./logical-net.js";
 import { resolveDocumentRoutingGeometry } from "./resolved-route-geometry.js";
 import {
@@ -12,7 +14,53 @@ import {
   buildDocumentSpatialIndex,
 } from "./spatial-index.js";
 import { resolveDocumentStyleProfile } from "./style-profile.js";
-import { visibleInstanceBounds, type VisualDiagnostic } from "./visual.js";
+import type { VisualDiagnostic } from "./visual.js";
+
+/**
+ * Each placed part's drawn extent as a label sees it: the ink the default
+ * placement keeps its gap from (instanceLabelInkBounds), padded by one unit.
+ * visibleInstanceBounds falls back to the whole viewBox when a path declares
+ * no bounds, which put an inductor's coil 4 units wider than its loops and
+ * reported its own default labels as drawn over it (#1299).
+ */
+function labelObstacleBounds(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+): Array<{ id: string; bounds: Rect }> {
+  const padding = 1;
+  return document.instances.flatMap((instance) => {
+    if (!instance.placement) return [];
+    const resolved = resolver.resolve(
+      instance.symbolId,
+      instance.symbolVariantId,
+    );
+    if (!resolved) return [];
+    const ink = instanceLabelInkBounds(resolved, instance.signalFlowParameters);
+    const corners = [
+      { x: ink.x - padding, y: ink.y - padding },
+      { x: ink.x + ink.width + padding, y: ink.y - padding },
+      { x: ink.x - padding, y: ink.y + ink.height + padding },
+      { x: ink.x + ink.width + padding, y: ink.y + ink.height + padding },
+    ].map((point) =>
+      transformPoint(point, instance.placement!.position, instance.placement!),
+    );
+    const xs = corners.map((point) => point.x);
+    const ys = corners.map((point) => point.y);
+    const x = Math.min(...xs);
+    const y = Math.min(...ys);
+    return [
+      {
+        id: instance.id,
+        bounds: {
+          x,
+          y,
+          width: Math.max(...xs) - x,
+          height: Math.max(...ys) - y,
+        },
+      },
+    ];
+  });
+}
 
 /** One bounded read model shared by optional arrangement and Agent observations. */
 export function createLabelClearanceContext(
@@ -45,7 +93,7 @@ export function createLabelClearanceContext(
   // Drawn extents, capitals to subscripts, as VISUAL_LABEL_OVERLAP measures:
   // a line box's extra ascent reached into a label's own part.
   const labels = new Map(visible.map((a) => [a.id, measure(a).inkBounds]));
-  const symbols = visibleInstanceBounds(document, resolver);
+  const symbols = labelObstacleBounds(document, resolver);
   const symbolIndex = buildBoundsSpatialIndex(
     symbols.map((s) => ({ bounds: s.bounds, value: s })),
     grid * 8,
