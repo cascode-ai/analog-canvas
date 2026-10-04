@@ -712,11 +712,9 @@ test("a black-box part exposes its generated Reference", async ({ page }) => {
   await expect(code).toContainText(/"netlistName": "X1"/u);
 });
 
-for (const [symbolId, key, defaultValue] of [
-  ["opamp", "gain", "1e6"],
-  ["voltage-amplifier", "gain", "1"],
-  ["transconductance", "gm", "1m"],
-] as const)
+// The Properties path is the same for every ideal block; the blocks'
+// defaults are pinned by the device and netlist unit tests.
+for (const [symbolId, key, defaultValue] of [["opamp", "gain", "1e6"]] as const)
   test(`${symbolId} exposes its ideal model parameter in Properties JSON`, async ({
     page,
   }) => {

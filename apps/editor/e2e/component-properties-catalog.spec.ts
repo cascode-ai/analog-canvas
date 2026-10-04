@@ -13,19 +13,16 @@ import {
 import { openSelectionShelf } from "./manual-editor-fixtures.js";
 
 // Full catalog projection/parse coverage lives in component-property-catalog.test.ts.
-// These exercise distinct UI capabilities through placement, selection and Q:
-// passive, model, waveform, variant, internal mark, formula, electrical marker,
-// expanded-library device and independent magnetic parameter display.
+// These open the Properties surface through placement, selection and Q: one
+// plain part, plus each part whose surface has a branch of its own (a legacy
+// clock read from a file, the VDD Power connection, a controlled source's
+// control pair, an Analog Block's supply selectors). Every other part reaches
+// the same surface through the same path.
 const componentSymbolIds = [
   "resistor",
-  "nmos",
   "pulse-voltage-source",
-  "ideal-switch",
   "voltage-amplifier",
-  "discrete-time-integrator",
   "vdd-port",
-  "ndmos",
-  "xfmr",
   "vccs",
 ];
 
@@ -108,11 +105,11 @@ for (const symbolId of componentSymbolIds) {
   });
 }
 
+// A voltage-controlled and a current-controlled source: the two ways a
+// controlled source names what it senses.
 for (const [symbolId, formula, parameter, netlistName] of [
   ["vcvs", "A_{v}v_{1}", "gain", "E1"],
-  ["vccs", "g_{m}v_{1}", "gm", "G1"],
   ["cccs", "βi_{1}", "gain", "F1"],
-  ["ccvs", "R_{m}i_{1}", "rm", "H1"],
 ] as const) {
   test(`${symbolId} Visual Annotation edits without crashing or changing electrical identity`, async ({
     page,
