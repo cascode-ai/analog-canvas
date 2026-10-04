@@ -107,7 +107,10 @@ Name Nets through labels/markers, never raw Base-Net fields.
 covered by common actions, not a separate permission tier. It uses the same
 validation and revision guards. Its listed schema/help describes the exclusive
 payload forms; the Helper supplies IDs and Document/Project revisions.
-Nested `transact_document` entries use their target Document revisions.
+Nested `transact_document` entries use their target Document revisions; one
+left without `expectedRevision` takes that Document's current revision. A
+payload the schema refuses names the field, such as
+`structureEdits[0].edits[1].kind`.
 The complete `analog-canvas://contract/advanced-edits` resource is the HTTP
 request envelope for offline tooling, not the MCP tool's argument schema.
 Do not load it merely to perform one edit.
