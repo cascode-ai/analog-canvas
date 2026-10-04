@@ -11,23 +11,10 @@ import { testSnapshot } from "./test-support/snapshot-fixture.js";
 import type { AgentSessionSnapshot } from "@icm/agent-adapter";
 import { AuthoringActionSchema } from "./authoring-actions.js";
 import { z } from "zod";
-import {
-  createDraftText,
-  defaultDraftTextDocument,
-  flattenRichText,
-} from "@icm/model";
+import { defaultDraftTextDocument } from "@icm/model";
 
 let idCounter = 0;
 const allocateId = (prefix: string) => `${prefix}-alloc-${(idCounter += 1)}`;
-const textGeometry = {
-  kind: "text" as const,
-  position: { x: 0, y: 0 },
-  textPosition: { x: 0, y: 0 },
-  rotation: 0 as const,
-  polarityLines: [],
-  bounds: { x: 0, y: 0, width: 100, height: 30 },
-  diagnostics: [],
-};
 
 it("requires exactly one move coordinate mode and restricts pin anchors to Instances", () => {
   const target = { kind: "instance", id: "M1" };
@@ -113,7 +100,7 @@ it("says which actions go in which call when a list needs several (#1269)", () =
     },
     { actionIndices: [4, 5], actionKinds: ["set-model"], sends: "commands" },
     { actionIndices: [6], actionKinds: ["connect"], sends: "wires" },
-    { actionIndices: [7], actionKinds: ["move"], sends: "edit batch" },
+    { actionIndices: [7], actionKinds: ["move"], sends: "commands" },
   ]);
   expect(describeCallSplit(calls)).toBe(
     "These actions need 5 calls; one call sends one transaction. Send them " +
@@ -121,7 +108,7 @@ it("says which actions go in which call when a list needs several (#1269)", () =
       "as a command of its own; actions[1..3] (place-component) as one " +
       "placement batch; actions[4..5] (set-model) as commands that share one " +
       "call; actions[6] (connect) as wires that share one call; actions[7] " +
-      "(move) as one edit batch. Nothing was changed.",
+      "(move) as commands that share one call. Nothing was changed.",
   );
 });
 
@@ -167,7 +154,7 @@ describe("authoring helper compilation", () => {
     },
   );
 
-  it("changes and clears control without losing binding or same-batch parameters", () => {
+  it("sends parameter and control changes for the editor to plan in order", () => {
     const snapshot = testSnapshot();
     const source = snapshot.document.instances[0]!;
     source.symbolId = "cccs";
@@ -183,98 +170,53 @@ describe("authoring helper compilation", () => {
       pinName: "1",
       direction: "into",
     };
+    const target = { kind: "instance", id: source.id };
     const transactions = compile(
       [
         {
           kind: "set-property",
-          target: { kind: "instance", id: source.id },
+          target,
           set: { gain: "3" },
           unset: ["obsolete"],
         },
-        {
-          kind: "set-source-control",
-          target: { kind: "instance", id: source.id },
-          control,
-        },
-        {
-          kind: "set-source-control",
-          target: { kind: "instance", id: source.id },
-          control: null,
-        },
+        { kind: "set-source-control", target, control },
+        { kind: "set-source-control", target, control: null },
       ],
       snapshot,
     );
-    expect(transactions[0]!.edits!.slice(1)).toEqual([
+    // The editor plans each on the result of the one before, in one batch.
+    expect(transactions.map((transaction) => transaction.command)).toEqual([
       {
-        kind: "set_instance_netlist",
+        kind: "set-properties",
         instanceId: source.id,
-        netlist: {
-          binding: source.netlist.binding,
-          parameters: { gain: "3" },
-          control,
-        },
+        parameters: { set: { gain: "3" }, unset: ["obsolete"] },
       },
-      {
-        kind: "set_instance_netlist",
-        instanceId: source.id,
-        netlist: { binding: source.netlist.binding, parameters: { gain: "3" } },
-      },
+      { kind: "set-properties", instanceId: source.id, control },
+      { kind: "set-properties", instanceId: source.id, control: null },
     ]);
     expect(snapshot).toEqual(before);
     expect(
       AuthoringActionSchema.safeParse({
         kind: "set-source-control",
-        target: { kind: "instance", id: source.id },
+        target,
         control: { ...control, direction: "sideways" },
       }).success,
     ).toBe(false);
   });
-  it("uses native text insertion defaults and preserves explicit formatting", () => {
+  it("sends annotate with its text as written, for the Text tool's defaults", () => {
     for (const content of ["Design note", defaultDraftTextDocument("Vx")]) {
-      const action = {
-        kind: "annotate",
-        text: content,
+      const [transaction] = compile([
+        { kind: "annotate", text: content, position: { x: 10, y: 20 } },
+      ]);
+      expect(transaction?.command).toEqual({
+        kind: "add-text",
+        id: expect.stringMatching(/^text-alloc-/u),
         position: { x: 10, y: 20 },
-      };
-      const edit = compile([action])[0]!.edits![0]!;
-      if (edit.kind !== "upsert_drafting_object") return expect.unreachable();
-      expect(edit.object).toEqual(
-        createDraftText({
-          id: edit.object.id,
-          position: action.position,
-          content,
-        }),
-      );
+        text: content,
+      });
     }
   });
-  it("keeps GUI-authored bold/italic spans and explicit unbold when replacing text", () => {
-    const snapshot = testSnapshot();
-    const content = defaultDraftTextDocument("Bias branch");
-    const object = {
-      ...createDraftText({ id: "note", position: { x: 17, y: 21 }, content }),
-      styleOverride: { weight: "normal" as const, sizeScale: 1.5 },
-    };
-    snapshot.document.drafting = {
-      objects: [{ object, resolvedGeometry: textGeometry, diagnostics: [] }],
-    };
-    const action = {
-      kind: "edit-text",
-      target: { kind: "drafting", id: "note" },
-      text: "Input branch",
-    };
-    const edit = compile([action], snapshot)[0]!.edits![0]!;
-    expect(edit).toMatchObject({
-      object: { ...object, content: defaultDraftTextDocument("Input branch") },
-    });
-    expect(compile([{ ...action, text: "Bias branch" }], snapshot)).toEqual([]);
-    const explicit = { runs: [{ kind: "text" as const, value: "Plain" }] };
-    const restyled = compile([{ ...action, text: explicit }], snapshot)[0]!
-      .edits![0]!;
-    expect(restyled).toMatchObject({
-      object: { content: explicit, styleOverride: object.styleOverride },
-    });
-  });
-  it("does not erase a bound label's default look for a same-text string", () => {
+  it("sends edit-text on a part's label for the editor's text commit", () => {
     const snapshot = testSnapshot();
     snapshot.document.annotations.push({
       id: "ref",
@@ -297,48 +239,12 @@ describe("authoring helper compilation", () => {
           },
         ],
         snapshot,
-      ),
-    ).toEqual([]);
-  });
-  it("requires explicit RichText for a structural formula replacement", () => {
-    const snapshot = testSnapshot();
-    const content = {
-      runs: [
-        {
-          kind: "fraction" as const,
-          numerator: { runs: [{ kind: "text" as const, value: "a" }] },
-          denominator: { runs: [{ kind: "text" as const, value: "b" }] },
-        },
-      ],
-    };
-    snapshot.document.drafting = {
-      objects: [
-        {
-          object: createDraftText({
-            id: "formula",
-            position: { x: 0, y: 0 },
-            content,
-          }),
-          resolvedGeometry: textGeometry,
-          diagnostics: [],
-        },
-      ],
-    };
-    const action = {
-      kind: "edit-text",
-      target: { kind: "drafting", id: "formula" },
-      text: "c/d",
-    };
-    expect(() => compile([action], snapshot)).toThrow("explicit RichText");
-    expect(
-      compile([{ ...action, text: flattenRichText(content) }], snapshot),
-    ).toEqual([]);
-    expect(
-      compile(
-        [{ ...action, text: { runs: [{ kind: "text", value: "c/d" }] } }],
-        snapshot,
-      ),
-    ).toHaveLength(1);
+      )[0]?.command,
+    ).toEqual({
+      kind: "set-text",
+      target: { kind: "annotation", id: "ref" },
+      text: "M1",
+    });
   });
   it("does not drop route-net when a caller uses the Snapshot-backed compiler", () => {
     const command = {
@@ -473,9 +379,10 @@ describe("authoring helper compilation", () => {
       endpoint: { kind: "terminal", instanceId: "instance-1", pinName: "G" },
     });
     const [cut] = compile([{ kind: "disconnect", target: pin }], snapshot);
-    expect(cut?.edits?.[0]).toMatchObject({
-      kind: "disconnect_endpoint",
-      endpoint: { instanceId: "instance-1" },
+    expect(cut?.command).toEqual({
+      kind: "disconnect-pin",
+      instanceId: "instance-1",
+      pinName: "G",
     });
   });
   it("leaves an unnamed device's Reference to the editor, as a GUI insert does (#1256)", () => {
@@ -589,14 +496,12 @@ describe("authoring helper compilation", () => {
       ],
       snapshot,
     );
-    // A new formula drops the old one's look, as the Properties formula does.
-    expect(change?.edits).toEqual([
-      {
-        kind: "set_instance_signal_flow_parameters",
-        instanceId: "block-1",
-        parameters: { formula: "1/(1-z^-1)", coefficient: "b" },
-      },
-    ]);
+    // The editor drops the old formula's look, as the Properties formula does.
+    expect(change?.command).toEqual({
+      kind: "set-properties",
+      instanceId: "block-1",
+      signalFlow: { formula: "1/(1-z^-1)", coefficient: "b" },
+    });
     expect(
       compile(
         [
@@ -607,26 +512,12 @@ describe("authoring helper compilation", () => {
           },
         ],
         snapshot,
-      )[0]?.edits,
-    ).toEqual([
-      {
-        kind: "set_instance_signal_flow_parameters",
-        instanceId: "block-1",
-        parameters: null,
-      },
-    ]);
-    // Its text is not a netlist parameter, and the error says where it is.
-    expectCompileError(
-      [
-        {
-          kind: "set-property",
-          target: { kind: "instance", id: "block-1" },
-          set: { formula: "x" },
-        },
-      ],
-      "use set-signal-flow",
-      snapshot,
-    );
+      )[0]?.command,
+    ).toEqual({
+      kind: "set-properties",
+      instanceId: "block-1",
+      signalFlow: { formula: null },
+    });
   });
   it("compiles place-component into catalog-validated native placement", () => {
     const [transaction] = compile([
@@ -916,22 +807,29 @@ describe("authoring helper compilation", () => {
     );
   });
 
-  it("compiles disconnect for pins and routes", () => {
-    const [transaction] = compile([
+  it("sends disconnect as Disconnect endpoint, and a wire's as its deletion", () => {
+    const transactions = compile([
       { kind: "disconnect", target: { kind: "pin", instance: "R1", pin: "2" } },
       { kind: "disconnect", target: { kind: "route", route: "route-1" } },
     ]);
-    expect(transaction?.edits?.[0]).toMatchObject({
-      kind: "disconnect_endpoint",
-    });
-    expect(transaction?.edits?.[1]).toMatchObject({
-      kind: "cut_connection",
-      routeId: "route-1",
-    });
+    expect(transactions.map((transaction) => transaction.command)).toEqual([
+      { kind: "disconnect-pin", instanceId: "instance-2", pinName: "2" },
+      {
+        kind: "delete-selection",
+        selection: {
+          instanceIds: [],
+          routeIds: ["route-1"],
+          junctionIds: [],
+          annotationIds: [],
+          draftingIds: [],
+          noConnectIds: [],
+        },
+      },
+    ]);
   });
 
-  it("compiles move, rotate, and mirror for instances", () => {
-    const [transaction] = compile([
+  it("sends move, rotate, and mirror for the editor to plan", () => {
+    const transactions = compile([
       {
         kind: "move",
         target: { kind: "instance", reference: "M1" },
@@ -948,17 +846,22 @@ describe("authoring helper compilation", () => {
         mirror: "horizontal",
       },
     ]);
-    expect(transaction?.edits).toEqual([
+    // The editor plans each as its Properties placement fields do.
+    expect(transactions.map((transaction) => transaction.command)).toEqual([
       {
-        kind: "move_instance",
+        kind: "set-properties",
         instanceId: "instance-1",
-        position: { x: 10, y: 20 },
+        placement: { position: { x: 10, y: 20 } },
       },
-      { kind: "rotate_instance", instanceId: "instance-2", rotation: 90 },
       {
-        kind: "mirror_instance",
+        kind: "set-properties",
+        instanceId: "instance-2",
+        placement: { rotation: 90 },
+      },
+      {
+        kind: "set-properties",
         instanceId: "instance-1",
-        mirror: "horizontal",
+        placement: { mirror: "horizontal" },
       },
     ]);
   });
@@ -985,7 +888,7 @@ describe("authoring helper compilation", () => {
     ]);
   });
 
-  it("compiles set-reference as a typed reference edit", () => {
+  it("sends set-reference as a Properties rename", () => {
     const [transaction] = compile([
       {
         kind: "set-reference",
@@ -993,15 +896,16 @@ describe("authoring helper compilation", () => {
         reference: "MN0",
       },
     ]);
-    const edit = transaction?.edits?.[0];
-    expect(edit).toEqual({
-      kind: "set_instance_reference",
+    expect(transaction?.command).toEqual({
+      kind: "set-properties",
       instanceId: "instance-1",
       reference: "MN0",
     });
   });
 
-  it("compiles set-property and rejects spice.* keys", () => {
+  it("sends set-property for the editor to check and plan", () => {
+    // The editor refuses spice.* keys and names the model's own parameters
+    // (property-command.test.ts); the client only resolves the part.
     const [transaction] = compile([
       {
         kind: "set-property",
@@ -1010,42 +914,11 @@ describe("authoring helper compilation", () => {
         unset: ["note"],
       },
     ]);
-    expect(transaction?.edits?.[0]).toEqual({
-      kind: "patch_instance_netlist_parameters",
+    expect(transaction?.command).toEqual({
+      kind: "set-properties",
       instanceId: "instance-1",
-      set: { w: "4u" },
-      unset: ["note"],
+      parameters: { set: { w: "4u" }, unset: ["note"] },
     });
-    expectCompileError(
-      [
-        {
-          kind: "set-property",
-          target: { kind: "instance", reference: "M1" },
-          set: { "spice.model": "nch" },
-        },
-      ],
-      "spice.*",
-    );
-    expectCompileError(
-      [
-        {
-          kind: "set-property",
-          target: { kind: "instance", reference: "M1" },
-          set: { madeUp: "1" },
-        },
-      ],
-      "Unknown parameter",
-    );
-    expectCompileError(
-      [
-        {
-          kind: "set-property",
-          target: { kind: "instance", reference: "M1" },
-          set: { nf: "two" },
-        },
-      ],
-      "finite decimal number",
-    );
   });
 
   it("names the pin to use when connect gives a block's exported port name", () => {
@@ -1075,7 +948,7 @@ describe("authoring helper compilation", () => {
     );
   });
 
-  it("compiles set-block-supply into the block's property-only supply terminal", () => {
+  it("sends set-block-supply as the Properties supply choice", () => {
     // Issue #1253: MISSING_BLOCK_SUPPLY needs one focused action, not an
     // advanced typed edit.
     const snapshot = testSnapshot();
@@ -1097,33 +970,20 @@ describe("authoring helper compilation", () => {
       ],
       snapshot,
     );
-    expect(chosen?.edits?.[0]).toEqual({
-      kind: "set_property_terminal_net",
+    expect(chosen?.command).toEqual({
+      kind: "set-properties",
       instanceId: "instance-inverter",
-      pinName: "VDD",
-      netId: "net-vdd",
+      supplies: { VDD: "net-vdd" },
     });
     const [auto] = compile(
       [{ kind: "set-block-supply", target, supply: "VSS", net: null }],
       snapshot,
     );
-    expect(auto?.edits?.[0]).toEqual({
-      kind: "set_property_terminal_net",
+    expect(auto?.command).toEqual({
+      kind: "set-properties",
       instanceId: "instance-inverter",
-      pinName: "VSS",
-      netId: null,
+      supplies: { VSS: null },
     });
-    expectCompileError(
-      [
-        {
-          kind: "set-block-supply",
-          target: { kind: "instance", reference: "M1" },
-          supply: "VDD",
-          net: null,
-        },
-      ],
-      'instance "M1" has no VDD supply to choose',
-    );
     expect(
       AuthoringActionSchema.safeParse({
         kind: "set-block-supply",
@@ -1132,52 +992,6 @@ describe("authoring helper compilation", () => {
         net: null,
       }).success,
     ).toBe(false);
-  });
-
-  it("checks a resistor bound to a reviewed SKY130 model against that model", () => {
-    // Issue #1274: the SKY130 resistor takes w, l and mult, not value.
-    const snapshot = testSnapshot();
-    snapshot.project.externalSubcircuitDefinitions = [
-      {
-        id: "def-res",
-        name: "sky130_fd_pr__res_high_po",
-        terminals: ["R0", "R1", "B"].map((name) => ({ name })),
-        formalParameters: [],
-      },
-    ] as never;
-    const resistor = snapshot.document.instances.find(
-      (instance) => instance.reference === "R1",
-    )!;
-    resistor.netlist = {
-      binding: { kind: "external-subcircuit", definitionId: "def-res" },
-      parameters: {},
-    } as never;
-    const [transaction] = compile(
-      [
-        {
-          kind: "set-property",
-          target: { kind: "instance", reference: "R1" },
-          set: { w: "2", l: "6", mult: "1" },
-        },
-      ],
-      snapshot,
-    );
-    expect(transaction?.edits?.[0]).toMatchObject({
-      kind: "patch_instance_netlist_parameters",
-      set: { w: "2", l: "6", mult: "1" },
-    });
-    expect(() =>
-      compile(
-        [
-          {
-            kind: "set-property",
-            target: { kind: "instance", reference: "R1" },
-            set: { value: "1k" },
-          },
-        ],
-        snapshot,
-      ),
-    ).toThrow("allowed parameters: w, l, mult");
   });
 
   it("compiles add-label with a derived position from net geometry", () => {
@@ -1211,18 +1025,15 @@ describe("authoring helper compilation", () => {
     });
   });
 
-  it("compiles annotate into a drafting text object and edit-text onto it", () => {
+  it("sends annotate as add-text and a Net label's edit-text as set-net-label", () => {
     const [annotated] = compile([
       { kind: "annotate", text: "Bias branch", position: { x: 50, y: 400 } },
     ]);
-    const edit = annotated?.edits?.[0];
-    expect(edit?.kind).toBe("upsert_drafting_object");
-    if (edit?.kind === "upsert_drafting_object") {
-      expect(edit.object.kind).toBe("text");
-      const text = edit.object as { content: { runs: { value?: string }[] } };
-      expect(text.content.runs[0]?.value).toBe("Bias branch");
-    }
-
+    expect(annotated?.command).toMatchObject({
+      kind: "add-text",
+      position: { x: 50, y: 400 },
+      text: "Bias branch",
+    });
     const [edited] = compile([
       {
         kind: "edit-text",
@@ -1237,71 +1048,7 @@ describe("authoring helper compilation", () => {
     });
   });
 
-  it("restyles bound Cell Pin and Value labels without adding literal content", () => {
-    const snapshot = testSnapshot();
-    snapshot.document.annotations.push(
-      {
-        id: "pin-name",
-        kind: "instance-label",
-        binding: { kind: "cell-terminal-name", terminalId: "pin-1" },
-        resolvedText: "VBP",
-        anchor: { kind: "free", position: { x: 0, y: 0 } },
-        alignment: "start",
-        rotation: 0,
-        locked: false,
-      },
-      {
-        id: "value-name",
-        kind: "instance-value",
-        binding: { kind: "instance-value", instanceId: "instance-1" },
-        resolvedText: "RL",
-        anchor: { kind: "free", position: { x: 0, y: 0 } },
-        alignment: "start",
-        rotation: 0,
-        locked: false,
-      },
-    );
-    const styled = (head: string, tail: string) => ({
-      runs: [
-        { kind: "text" as const, value: head },
-        {
-          kind: "span" as const,
-          style: "subscript" as const,
-          children: [{ kind: "text" as const, value: tail }],
-        },
-      ],
-    });
-    for (const [id, text] of [
-      ["pin-name", styled("V", "BP")],
-      ["value-name", styled("R", "L")],
-    ] as const) {
-      const [transaction] = compile(
-        [{ kind: "edit-text", target: { kind: "annotation", id }, text }],
-        snapshot,
-      );
-      expect(transaction?.edits?.[0]).toMatchObject({
-        kind: "upsert_schematic_annotation",
-        annotation: { id, formatOverride: text },
-      });
-      if (transaction?.edits?.[0]?.kind === "upsert_schematic_annotation") {
-        expect(transaction.edits[0].annotation.content).toBeUndefined();
-      }
-    }
-    expect(() =>
-      compile(
-        [
-          {
-            kind: "edit-text",
-            target: { kind: "annotation", id: "pin-name" },
-            text: "CHANGED",
-          },
-        ],
-        snapshot,
-      ),
-    ).toThrow("bound labels can only be restyled");
-  });
-
-  it("preserves structured RichText instead of flattening it", () => {
+  it("sends structured RichText as it is, never flattened", () => {
     const content = {
       runs: [
         { kind: "text" as const, value: "V" },
@@ -1315,18 +1062,13 @@ describe("authoring helper compilation", () => {
     const [annotated] = compile([
       { kind: "annotate", text: content, position: { x: 50, y: 400 } },
     ]);
-    const edit = annotated?.edits?.[0];
-    if (
-      edit?.kind === "upsert_drafting_object" &&
-      edit.object.kind === "text"
-    ) {
-      expect(edit.object.content).toEqual(content);
-    } else {
-      expect.unreachable("expected drafting text edit");
-    }
+    expect(annotated?.command).toMatchObject({
+      kind: "add-text",
+      text: content,
+    });
   });
 
-  it("compiles arrange into align_instances with resolved ids", () => {
+  it("sends arrange with resolved ids", () => {
     const [transaction] = compile([
       {
         kind: "arrange",
@@ -1338,8 +1080,8 @@ describe("authoring helper compilation", () => {
         coordinate: 240,
       },
     ]);
-    expect(transaction?.edits?.[0]).toEqual({
-      kind: "align_instances",
+    expect(transaction?.command).toEqual({
+      kind: "arrange-instances",
       instanceIds: ["instance-1", "instance-2"],
       axis: "x",
       coordinate: 240,
@@ -1366,7 +1108,7 @@ describe("authoring helper compilation", () => {
     );
   });
 
-  it("groups consecutive edits and keeps wire intents as separate transactions", () => {
+  it("sends each change as a command and keeps wire intents as separate transactions", () => {
     const transactions = compile([
       {
         kind: "move",
@@ -1390,12 +1132,15 @@ describe("authoring helper compilation", () => {
       },
     ]);
     expect(transactions.map((t) => t.form)).toEqual([
-      "edits",
+      "command",
+      "command",
       "wire-intent",
-      "edits",
+      "command",
     ]);
-    expect(transactions[0]?.edits?.length).toBe(2);
-    expect(transactions[2]?.edits?.length).toBe(1);
+    // Consecutive commands share one call and one undo, as a batch.
+    expect(
+      splitIntoCalls(transactions).map((call) => call.actionIndices),
+    ).toEqual([[0, 1], [2], [3]]);
   });
 
   it("rejects malformed action batches with the failing index", () => {
@@ -1526,46 +1271,31 @@ describe("placing by pins and by symmetry (#1112)", () => {
       "exactly one axis",
     );
   });
-
-  it("names the nearest landing when a pin cannot land where asked", () => {
-    expectCompileError(
-      [
-        {
-          kind: "move",
-          target: { kind: "instance", reference: "M1" },
-          pinAnchor: { pinName: "D", position: { x: 310, y: 200 } },
-        },
-      ],
-      "nearest reachable landing is (320, 200)",
-    );
-  });
 });
 
 describe("one mirror vocabulary (#1231)", () => {
   const m1 = { kind: "instance", reference: "M1" };
-  it("reflects a part from where it is, as the selection transform does", () => {
-    const [both] = compile([
-      { kind: "mirror", target: m1, axis: "y" },
-      { kind: "mirror", target: m1, axis: "x" },
-      { kind: "mirror", target: m1, axis: "y" },
-    ]);
-    expect(
-      both?.edits?.map((edit) => (edit as { mirror?: string }).mirror),
-    ).toEqual(["horizontal", "both", "vertical"]);
+  it("sends a reflection, a mirror state or an orientation for the editor to plan", () => {
+    const sends = (action: Record<string, unknown>) =>
+      compile([{ target: m1, ...action }])[0]?.command;
+    expect(sends({ kind: "mirror", axis: "y" })).toEqual({
+      kind: "set-properties",
+      instanceId: "instance-1",
+      placement: { reflect: "y" },
+    });
     // A state is still accepted, and set-orientation is the place for one.
+    expect(sends({ kind: "mirror", mirror: "vertical" })).toEqual({
+      kind: "set-properties",
+      instanceId: "instance-1",
+      placement: { mirror: "vertical" },
+    });
     expect(
-      compile([{ kind: "mirror", target: m1, mirror: "vertical" }])[0]?.edits,
-    ).toEqual([
-      { kind: "mirror_instance", instanceId: "instance-1", mirror: "vertical" },
-    ]);
-    expect(
-      compile([
-        { kind: "set-orientation", target: m1, rotation: 90, mirror: "none" },
-      ])[0]?.edits,
-    ).toEqual([
-      { kind: "rotate_instance", instanceId: "instance-1", rotation: 90 },
-      { kind: "mirror_instance", instanceId: "instance-1", mirror: "none" },
-    ]);
+      sends({ kind: "set-orientation", rotation: 90, mirror: "none" }),
+    ).toEqual({
+      kind: "set-properties",
+      instanceId: "instance-1",
+      placement: { rotation: 90, mirror: "none" },
+    });
     expectCompileError(
       [{ kind: "mirror", target: m1, axis: "y", mirror: "none" }],
       "not both",

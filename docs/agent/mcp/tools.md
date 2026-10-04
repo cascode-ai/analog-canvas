@@ -255,27 +255,33 @@ For example, a formula annotation:
 
 ### How each focused action is planned
 
-No verb is implemented twice: each action becomes exactly one transaction form,
-planned once.
+No verb is implemented twice. Each action becomes exactly one transaction
+form, planned once in the editor by the code the GUI runs; the client only
+resolves names and shapes arguments.
 
-| Tool                 | Action                                       | Sent as                                   | Planned by                                                            |
-| -------------------- | -------------------------------------------- | ----------------------------------------- | --------------------------------------------------------------------- |
-| `circuit_place`      | `place-component`                            | `place-components` command                | GUI insertion: catalog defaults, Process model, naming, default labels |
-|                      | `place-cell`, `place-existing`               | command (several `place-cell` batch)      | GUI Cell and tray placement                                            |
-|                      | `add-power-rail`                             | command                                   | GUI power rail planner                                                 |
-| `circuit_wire`       | `connect`                                    | wire intent                               | GUI routing planner                                                    |
-|                      | `disconnect`                                 | typed edits                               | Edit Engine                                                            |
-| `circuit_transform`  | `move`                                       | `move_instance`, or a move command        | Edit Engine; GUI tray, annotation and Junction planners                |
-|                      | `rotate`, `mirror`, `set-orientation`        | `rotate_instance` / `mirror_instance`     | Edit Engine (labels follow as in the GUI)                              |
-|                      | `arrange`                                    | typed edits                               | Edit Engine                                                            |
-|                      | `detach-move`, `extend-power-rail`           | command                                   | GUI move and rail planners                                             |
-| `circuit_selection`  | `transform`, `copy`, `align`                 | command                                   | GUI selection transform, copy and alignment                            |
-| `circuit_text`       | `add-label`, Net Label `edit-text`, `set-net-label` | `set-net-label` command            | GUI Net Label planner                                                  |
-|                      | `edit-text`, `annotate`                      | typed annotation edits                    | Edit Engine                                                            |
-|                      | `move-annotation`, `arrange-labels`          | command                                   | GUI annotation and label planners                                      |
-| `circuit_properties` | `set-reference`, `set-property`, `set-signal-flow`, `set-block-supply`, `set-source-control` | typed edits | Edit Engine, checked against the device contract |
-|                      | `set-model`                                  | command                                   | GUI Process-aware model planner                                        |
-|                      | `set-instance-display`, `set-display-alias`  | command                                   | GUI display and display-alias planners                                 |
+| Tool                 | Action                                              | Sent as                              | Planned by                                                                  |
+| -------------------- | --------------------------------------------------- | ------------------------------------ | --------------------------------------------------------------------------- |
+| `circuit_place`      | `place-component`                                   | `place-components` command           | GUI insertion: catalog defaults, Process model, naming, default labels      |
+|                      | `place-cell`, `place-existing`                      | command (several `place-cell` batch) | GUI Cell and tray placement                                                 |
+|                      | `add-power-rail`                                    | command                              | GUI power rail planner                                                      |
+| `circuit_wire`       | `connect`                                           | wire intent                          | GUI routing planner                                                         |
+|                      | `disconnect`                                        | `disconnect-pin` command; a wire's is `delete-selection` | GUI pin menu: Delete connection where wires end on the pin, Disconnect endpoint where none does; GUI deletion |
+| `circuit_transform`  | `move`                                              | `set-properties` command, or a move command | Properties position field: a moved part joins a pin it lands on, as a drag does; GUI tray, annotation and Junction planners |
+|                      | `rotate`, `mirror`, `set-orientation`               | `set-properties` command             | Properties rotation and mirror fields                                       |
+|                      | `arrange`                                           | `arrange-instances` command          | Origins on one coordinate; the GUI's own Align is `circuit_selection` `align` |
+|                      | `detach-move`, `extend-power-rail`                  | command                              | GUI move and rail planners                                                  |
+| `circuit_selection`  | `transform`, `copy`, `align`                        | command                              | GUI selection transform, copy and alignment                                 |
+| `circuit_text`       | `add-label`, Net Label `edit-text`, `set-net-label` | `set-net-label` command              | GUI Net Label planner                                                       |
+|                      | `edit-text`                                         | `set-text` command                   | GUI text commit: a name label renames its part, a value label sets its value; the same characters in a new look only restyle |
+|                      | `annotate`                                          | `add-text` command                   | GUI Text tool                                                               |
+|                      | `move-annotation`, `arrange-labels`                 | command                              | GUI annotation and label planners                                           |
+| `circuit_properties` | `set-reference`, `set-property`, `set-signal-flow`, `set-block-supply`, `set-source-control` | `set-properties` command | Apply in Properties, after an Agent-only check of parameter names against the model |
+|                      | `set-model`                                         | command                              | GUI Process-aware model planner                                             |
+|                      | `set-instance-display`, `set-display-alias`         | command                              | GUI display and display-alias planners                                      |
+
+Commands in one call that can share a transaction go as one batch, planned in
+order on a private copy, so a later action sees the earlier ones. An
+`undo` or `redo` goes alone.
 
 ## Verify and recover
 

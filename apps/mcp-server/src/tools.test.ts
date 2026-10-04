@@ -41,7 +41,7 @@ function parseText(result: {
 }
 
 describe("mcp tool surface", () => {
-  it("circuit_properties forwards terminal control with the source's existing parameters", async () => {
+  it("circuit_properties sends terminal control for the editor to plan as Properties does", async () => {
     const { session, http } = await toolSession();
     await callTool("connect", { claimCode: "session-1.code" }, session);
     const snapshot = testSnapshot();
@@ -87,15 +87,8 @@ describe("mcp tool surface", () => {
         .filter(({ request }) => request.operation === "transact")
         .map(({ request }) => request),
     ).toMatchObject([
-      {
-        edits: [
-          {
-            kind: "set_instance_netlist",
-            instanceId: source.id,
-            netlist: { parameters: { gain: "4" }, control },
-          },
-        ],
-      },
+      // The editor plans it as Properties does, keeping the parameters.
+      { command: { kind: "set-properties", instanceId: source.id, control } },
     ]);
   });
   it("reads context, diagnostics and folder names through lightweight server projections", async () => {
