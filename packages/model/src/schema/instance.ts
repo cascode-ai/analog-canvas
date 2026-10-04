@@ -161,44 +161,73 @@ export const MosBulkBindingSchema = z.strictObject({
   origin: z.enum(["cell-default", "instance-override", "supply-default"]),
   netId: StableIdSchema,
 });
-export const InstanceSchema = z
-  .strictObject({
-    id: StableIdSchema,
-    symbolId: StableIdSchema,
-    symbolVariantId: StableIdSchema.optional(),
-    sourceRef: SourceSpanSchema.optional(),
-    importProvenance: InstanceImportProvenanceSchema.optional(),
-    // Present only for an editor-materialized implicit body connection.
-    // Cross-Document composition converts a source Cell policy into an
-    // instance-override so the copied body does not inherit target defaults.
-    // Explicit SPICE/user B connections need no parallel metadata.
-    mosBulkBinding: MosBulkBindingSchema.optional(),
-    placement: PlacementSchema.nullable(),
-    /**
-     * The sole authored Instance reference. It is the ordinary canvas
-     * designator and, for an emitting Instance, the emitted SPICE/Spectre
-     * reference. Its prefix is the ngspice invocation designator; it is never
-     * an object identity or a master/model name.
-     */
-    reference: NetlistIdentifierSchema.optional(),
-    netlist: InstanceNetlistDataSchema.optional(),
-    /**
-     * Optional per-instance color override. When absent, the instance renders
-     * with document profile defaults (backward compatible). Current authoring
-     * writes `foreground`; historical `background` paint stays readable until
-     * the next appearance edit retires it.
-     */
-    styleOverride: InstanceStyleOverrideSchema.optional(),
-    /** The Document style this Instance keeps from a copy's source drawing. */
-    documentStyle: ObjectDocumentStyleSchema.optional(),
-    /**
-     * Optional schematic-only Signal Flow metadata. It is presentation/dataflow
-     * intent only and is intentionally independent from emitted netlist
-     * parameters.
-     */
-    signalFlowParameters: SignalFlowParametersSchema.optional(),
-  })
-  .superRefine((instance, context) => {
+const InstanceObjectSchema = z.strictObject({
+  id: StableIdSchema,
+  symbolId: StableIdSchema,
+  symbolVariantId: StableIdSchema.optional(),
+  sourceRef: SourceSpanSchema.optional(),
+  importProvenance: InstanceImportProvenanceSchema.optional(),
+  // Present only for an editor-materialized implicit body connection.
+  // Cross-Document composition converts a source Cell policy into an
+  // instance-override so the copied body does not inherit target defaults.
+  // Explicit SPICE/user B connections need no parallel metadata.
+  mosBulkBinding: MosBulkBindingSchema.optional(),
+  placement: PlacementSchema.nullable(),
+  /**
+   * The sole authored Instance reference. It is the ordinary canvas
+   * designator and, for an emitting Instance, the emitted SPICE/Spectre
+   * reference. Its prefix is the ngspice invocation designator; it is never
+   * an object identity or a master/model name.
+   */
+  reference: NetlistIdentifierSchema.optional(),
+  netlist: InstanceNetlistDataSchema.optional(),
+  /**
+   * Optional per-instance color override. When absent, the instance renders
+   * with document profile defaults (backward compatible). Current authoring
+   * writes `foreground`; historical `background` paint stays readable until
+   * the next appearance edit retires it.
+   */
+  styleOverride: InstanceStyleOverrideSchema.optional(),
+  /** The Document style this Instance keeps from a copy's source drawing. */
+  documentStyle: ObjectDocumentStyleSchema.optional(),
+  /**
+   * Optional schematic-only Signal Flow metadata. It is presentation/dataflow
+   * intent only and is intentionally independent from emitted netlist
+   * parameters.
+   */
+  signalFlowParameters: SignalFlowParametersSchema.optional(),
+});
+
+function checkImportedTerminals(
+  instance: z.infer<typeof InstanceObjectSchema>,
+  context: z.RefinementCtx,
+): void {
+  const terminals = instance.importProvenance?.terminalMapping;
+  if (!terminals) return;
+  const positions = new Set<number>();
+  const pinNames = new Set<string>();
+  for (const [index, terminal] of terminals.entries()) {
+    if (positions.has(terminal.sourcePosition)) {
+      context.addIssue({
+        code: "custom",
+        path: ["importProvenance", "terminalMapping", index, "sourcePosition"],
+        message: "Imported terminal source positions must be unique",
+      });
+    }
+    positions.add(terminal.sourcePosition);
+    if (pinNames.has(terminal.pinName)) {
+      context.addIssue({
+        code: "custom",
+        path: ["importProvenance", "terminalMapping", index, "pinName"],
+        message: "Imported terminal pin names must be unique",
+      });
+    }
+    pinNames.add(terminal.pinName);
+  }
+}
+
+export const InstanceSchema = InstanceObjectSchema.superRefine(
+  (instance, context) => {
     if (instance.netlist && !instance.reference) {
       context.addIssue({
         code: "custom",
@@ -206,34 +235,18 @@ export const InstanceSchema = z
         message: "An emitting Instance requires one authored reference",
       });
     }
-    const terminals = instance.importProvenance?.terminalMapping;
-    if (!terminals) return;
-    const positions = new Set<number>();
-    const pinNames = new Set<string>();
-    for (const [index, terminal] of terminals.entries()) {
-      if (positions.has(terminal.sourcePosition)) {
-        context.addIssue({
-          code: "custom",
-          path: [
-            "importProvenance",
-            "terminalMapping",
-            index,
-            "sourcePosition",
-          ],
-          message: "Imported terminal source positions must be unique",
-        });
-      }
-      positions.add(terminal.sourcePosition);
-      if (pinNames.has(terminal.pinName)) {
-        context.addIssue({
-          code: "custom",
-          path: ["importProvenance", "terminalMapping", index, "pinName"],
-          message: "Imported terminal pin names must be unique",
-        });
-      }
-      pinNames.add(terminal.pinName);
-    }
-  });
+    checkImportedTerminals(instance, context);
+  },
+);
+
+/**
+ * An Instance as a placement request names it, before the editor gives it
+ * a Reference: one left out takes the next free name, as a GUI insert does
+ * (#1256). Everything else is checked as for a stored Instance.
+ */
+export const InstancePlacementRequestSchema = InstanceObjectSchema.superRefine(
+  checkImportedTerminals,
+);
 /**
  * Persisted electrical supply identity. `conflict` is diagnostic state only;
  * new authoring may choose vdd, ground, or none but never create a

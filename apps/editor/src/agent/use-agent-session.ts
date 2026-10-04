@@ -86,6 +86,8 @@ function isCreatedSessionResponse(
 }
 
 type LiveSession = {
+  /** The last request was answered with this tab in the background. */
+  answeredHidden?: boolean;
   contextRevision: () => string;
   projectId: string;
   documentIds: () => string[];
@@ -151,6 +153,12 @@ export interface AgentSessionViewModel {
   /** The session's final minute: "Keep connected" renews it. */
   expiringSoon: boolean;
   error: string | null;
+  /**
+   * An Agent request was answered while this tab was in the background,
+   * where a browser may slow it down (#1227); cleared by one answered in
+   * front.
+   */
+  backgroundRequests: boolean;
 }
 
 /** How often a present person renews the session: well inside its window. */
@@ -315,6 +323,7 @@ export function useAgentSession(
       expiresAt: recovery?.expiresAt ?? null,
       expiringSoon: false,
       error: null,
+      backgroundRequests: false,
     };
   });
 
@@ -700,6 +709,21 @@ export function useAgentSession(
             if (!parsed.success || parsed.data.sessionId !== live.sessionId)
               return;
             transport.received();
+            // Reported with the reply, so the Agent sees where its time went
+            // and whether this tab was behind another (#1227).
+            const receivedAt = performance.now();
+            const hidden = globalThis.document?.visibilityState === "hidden";
+            if (hidden !== live.answeredHidden) {
+              live.answeredHidden = hidden;
+              update({ backgroundRequests: hidden });
+            }
+            const responseTiming = () => ({
+              workMs: Math.round(performance.now() - receivedAt),
+              visibility:
+                globalThis.document?.visibilityState === "hidden"
+                  ? ("hidden" as const)
+                  : ("visible" as const),
+            });
             const target = parsed.data.workspaceId
               ? (options.resolveWorkspace?.(parsed.data.workspaceId) ?? null)
               : {
@@ -830,6 +854,7 @@ export function useAgentSession(
                     messageId: crypto.randomUUID(),
                     requestId: parsed.data.requestId,
                     sentAt: new Date().toISOString(),
+                    timing: responseTiming(),
                     kind: "file-response",
                     payload,
                   }),
@@ -917,6 +942,7 @@ export function useAgentSession(
                     messageId: crypto.randomUUID(),
                     requestId: parsed.data.requestId,
                     sentAt: new Date().toISOString(),
+                    timing: responseTiming(),
                     kind: "simulation-response",
                     payload,
                   }),
@@ -998,6 +1024,7 @@ export function useAgentSession(
                     messageId: crypto.randomUUID(),
                     requestId: parsed.data.requestId,
                     sentAt: new Date().toISOString(),
+                    timing: responseTiming(),
                     kind: "project-response",
                     payload,
                   }),
@@ -1099,6 +1126,7 @@ export function useAgentSession(
                   messageId: crypto.randomUUID(),
                   requestId: parsed.data.requestId,
                   sentAt: new Date().toISOString(),
+                  timing: responseTiming(),
                   kind: "circuit-response",
                   payload,
                 }),

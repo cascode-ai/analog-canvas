@@ -9,6 +9,31 @@ export function inputContract(schema: z.ZodType): Record<string, unknown> {
   });
 }
 
+const contracts = new WeakMap<z.ZodType, Record<string, unknown>>();
+const objectContracts = new WeakMap<z.ZodType, Record<string, unknown>>();
+
+/**
+ * A tool's input contract as JSON Schema, converted on first read and kept.
+ * Converting every tool's contract when the server loaded cost each CLI
+ * call most of a second before its first request (#1227); listing tools and
+ * describe_tool read them, a call does not. `object` marks the top level as
+ * an object for hosts that require it.
+ */
+export function lazyContract(
+  schema: z.ZodType,
+  object = false,
+): Record<string, unknown> {
+  const cache = object ? objectContracts : contracts;
+  let built = cache.get(schema);
+  if (!built) {
+    built = object
+      ? { ...inputContract(schema), type: "object" }
+      : inputContract(schema);
+    cache.set(schema, built);
+  }
+  return built;
+}
+
 type Issue = z.core.$ZodIssue;
 function atPath(input: unknown, path: PropertyKey[]): unknown {
   return path.reduce<unknown>(

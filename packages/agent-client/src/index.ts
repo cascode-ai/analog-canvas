@@ -24,6 +24,7 @@ export type { AgentFailureCategory } from "./errors.js";
 export {
   AgentHttpClient,
   type AgentHttpClientOptions,
+  type AgentRequestTiming,
   type ClaimSuccess,
 } from "./http-client.js";
 export {

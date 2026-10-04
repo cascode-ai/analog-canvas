@@ -384,11 +384,13 @@ export class AgentHttpClient {
     }
     for (let attempt = 0; ; attempt += 1) {
       let response: Response;
+      const started = performance.now();
       try {
         response = await this.fetchImpl(joinUrl(this.baseUrl, path), {
           ...init,
           signal: AbortSignal.timeout(timeoutMs),
         });
+        this.noteTiming(path, started, response);
       } catch (error) {
         throw networkFailure(
           error instanceof Error ? error.message : "Network request failed",
@@ -452,4 +454,61 @@ export class AgentHttpClient {
   contextRevision: string | undefined;
   /** Optional explicit browser working copy; unset keeps active-tab semantics. */
   workspaceId: string | undefined;
+
+  /**
+   * Where each request's time went, newest last (#1227): the whole round
+   * trip, and for a request the editor answered, the relay's forward and
+   * the editor's own work, with its tab's visibility. Bounded.
+   */
+  readonly requestTimings: AgentRequestTiming[] = [];
+  private timingCount = 0;
+
+  /** A mark to read the timings of the requests made after it. */
+  timingMark(): number {
+    return this.timingCount;
+  }
+
+  timingsSince(mark: number): AgentRequestTiming[] {
+    const count = Math.min(this.timingCount - mark, this.requestTimings.length);
+    return count > 0 ? this.requestTimings.slice(-count) : [];
+  }
+
+  private noteTiming(path: string, started: number, response: Response) {
+    const header = (name: string) => {
+      const value = Number(response.headers.get(name));
+      return response.headers.has(name) && Number.isFinite(value)
+        ? value
+        : undefined;
+    };
+    const relayMs = header("x-agent-relay-ms");
+    const editorMs = header("x-agent-editor-ms");
+    const visibility = response.headers.get("x-agent-editor-visibility");
+    this.timingCount += 1;
+    this.requestTimings.push({
+      request: path.split("/").filter(Boolean).at(-1) ?? path,
+      startedAtMs: Math.round(started),
+      totalMs: Math.round(performance.now() - started),
+      ...(relayMs !== undefined ? { relayMs } : {}),
+      ...(editorMs !== undefined ? { editorMs } : {}),
+      ...(visibility === "visible" || visibility === "hidden"
+        ? { editorVisibility: visibility }
+        : {}),
+    });
+    if (this.requestTimings.length > 64) this.requestTimings.shift();
+  }
+}
+
+/** One request's time, hop by hop; see AgentHttpClient.requestTimings. */
+export interface AgentRequestTiming {
+  /** The request's last path segment: circuit, files, resume, … */
+  request: string;
+  /** When it started, in ms since this process started. */
+  startedAtMs: number;
+  /** Agent to Worker and back, as this process measured it. */
+  totalMs: number;
+  /** Worker to editor and back, for a request the editor answered. */
+  relayMs?: number;
+  /** The editor's own work, from receipt to reply. */
+  editorMs?: number;
+  editorVisibility?: "visible" | "hidden";
 }

@@ -51,6 +51,8 @@ export async function runHttpCommand(
   // Identical definitions, validation and AgentSessionClient to the MCP path.
   return entryResult(
     command,
-    await executeOperation(command, args, server.toolSession),
+    await executeOperation(command, args, server.toolSession, {
+      reportStartup: true,
+    }),
   );
 }

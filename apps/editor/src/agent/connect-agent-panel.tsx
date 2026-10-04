@@ -27,6 +27,8 @@ export interface ConnectAgentPanelProps {
   scopes: readonly AgentSessionScope[];
   expiresAt: number | null;
   error: string | null;
+  /** Agent requests were answered with this tab in the background. */
+  backgroundRequests?: boolean;
   now: number;
   onPause: () => void;
   onResume: () => void;
@@ -336,6 +338,15 @@ export function ConnectAgentPanel(props: ConnectAgentPanelProps): ReactNode {
         {props.error ? (
           <p className="agent-panel-error" role="alert">
             {props.error}
+          </p>
+        ) : null}
+        {props.backgroundRequests ? (
+          <p
+            className="agent-panel-notice"
+            data-testid="agent-background-notice"
+          >
+            Agent requests waited while this tab was in the background. Keep it
+            in front while an Agent works.
           </p>
         ) : null}
 

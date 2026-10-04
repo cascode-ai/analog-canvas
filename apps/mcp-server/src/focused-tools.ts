@@ -144,10 +144,12 @@ export const FOCUSED_TOOLS = [
     operations: [
       "set-reference",
       "set-property",
+      "set-signal-flow",
       "set-block-supply",
       "set-source-control",
       "set-model",
       "set-instance-display",
+      "set-display-alias",
     ],
   },
 ] as const;
@@ -163,18 +165,32 @@ export function focusedTools<S>(
     const original = originals.find((tool) => tool.definition.name === source);
     if (!original) throw new Error(`Missing canonical tool ${source}`);
     const allowed = new Set<string>(operations);
-    const selectedSchema = selectToolSchema(
-      original.definition.inputSchema,
-      operations,
-    );
-    const inputSchema =
-      source === "simulation_files"
-        ? canonicalSimulationSchema(selectedSchema)
-        : selectedSchema;
+    // Derived from the original's contract on first read, which is converted
+    // only then (#1227).
+    let derived: ContractTool["inputSchema"] | undefined;
+    const inputSchema = () => {
+      if (!derived) {
+        const selectedSchema = selectToolSchema(
+          original.definition.inputSchema,
+          operations,
+        );
+        derived =
+          source === "simulation_files"
+            ? canonicalSimulationSchema(selectedSchema)
+            : selectedSchema;
+      }
+      return derived;
+    };
     return {
-      definition: { name, description: help(name), inputSchema },
+      definition: {
+        name,
+        description: help(name),
+        get inputSchema() {
+          return inputSchema();
+        },
+      },
       async handle(args: unknown, session: S) {
-        const selected = selectedArgumentOperations(inputSchema, args);
+        const selected = selectedArgumentOperations(inputSchema(), args);
         const invalid = selected.find((operation) => !allowed.has(operation));
         if (invalid) {
           const owner = FOCUSED_TOOLS.find(

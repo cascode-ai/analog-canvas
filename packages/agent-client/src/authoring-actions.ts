@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { RichTextDocumentSchema, InstanceNetlistDataSchema } from "@icm/model";
+import {
+  RichTextDocumentSchema,
+  InstanceNetlistDataSchema,
+  SignalFlowParametersSchema,
+} from "@icm/model";
 import {
   AgentAuthoringCommandSchema,
   AgentSemanticIntentSchema,
@@ -133,34 +137,65 @@ export const AuthoringActionSchema = z.discriminatedUnion("kind", [
       kind: z.literal("place-component"),
       /** Reviewed built-in Razavi symbol ID from the authoring catalog. */
       symbol: z.string().min(1),
-      /** Required for devices/Ports; VDD defaults to VDD as a formal Port name. Omit for ground. */
-      reference: z.string().min(1).max(128).optional(),
+      reference: z
+        .string()
+        .min(1)
+        .max(128)
+        .optional()
+        .describe(
+          "A device's Reference, or a Port's name. Left out, a device takes the next free name, as a GUI insert does (the receipt's created objects name it); VDD defaults to VDD. Omit for ground.",
+        ),
       position: PointInputSchema.optional().describe(
-        "Instance origin; supply exactly one of position or pinAnchor.",
+        "Instance origin; supply exactly one of position, pinAnchor or mirrorOf.",
       ),
       pinAnchor: AgentPinAnchorSchema.optional().describe(
-        "Place by a named routing landing instead of the Instance origin; supply exactly one of pinAnchor or position.",
+        "Place by a named routing landing instead of the Instance origin; supply exactly one of position, pinAnchor or mirrorOf.",
       ),
+      mirrorOf: z
+        .object({
+          instance: z.string(),
+          x: z.number().optional(),
+          y: z.number().optional(),
+        })
+        .optional()
+        .describe(
+          "The mirror image of a placed part (Reference or ID) about the vertical line x, or the horizontal line y: its origin reflected and its mirror toggled, rotation kept, so a symmetric half needs no coordinate arithmetic. Replaces position/pinAnchor; rotation and mirror come from the part.",
+        ),
       rotation: RotationInputSchema.optional(),
       mirror: MirrorInputSchema.optional(),
       variant: z.string().min(1).optional(),
       parameters: z.record(z.string().min(1), z.string().min(1)).optional(),
-      control: InstanceNetlistDataSchema.shape.control.describe(
-        "Controlled-source electrical selection using stable Net or Instance/pin IDs from Snapshot; independent of visual Annotation.",
-      ),
+      // Checked against the control schema when the action compiles, which
+      // keeps this declaration inside a host's 5,000-byte tool budget.
+      control: z
+        .record(z.string(), z.unknown())
+        .optional()
+        .describe(
+          "Controlled-source electrical selection using stable Net or Instance/pin IDs from Snapshot, shaped as set-source-control's control; independent of visual Annotation.",
+        ),
       direction: z
         .enum(["input", "output", "inout", "passive"])
         .optional()
         .describe(
           "Cell interface markers only; VDD defaults to inout, ordinary Port to passive.",
         ),
+      // Keys, bounds and types are checked when the action compiles: the
+      // declaration stays inside a host's 5,000-byte tool budget.
+      signalFlow: z
+        .record(z.string(), z.union([z.string(), z.number()]))
+        .optional()
+        .describe(
+          "Blocks that draw a formula (catalog formula: true, e.g. integrator): {formula?, coefficient?, bodyWidth?, bodyHeight?}, sizes in multiples of 10. Schematic only; never netlist parameters.",
+        ),
     })
     .refine(
       (action) =>
-        (action.position === undefined) !== (action.pinAnchor === undefined),
+        [action.position, action.pinAnchor, action.mirrorOf].filter(
+          (value) => value !== undefined,
+        ).length === 1,
       {
         path: ["position"],
-        message: "Provide exactly one of position or pinAnchor",
+        message: "Provide exactly one of position, pinAnchor or mirrorOf",
       },
     ),
   z.strictObject({
@@ -223,6 +258,31 @@ export const AuthoringActionSchema = z.discriminatedUnion("kind", [
     target: InstanceRefSchema,
     reference: z.string().min(1).max(128),
   }),
+  z
+    .strictObject({
+      kind: z.literal("set-signal-flow"),
+      target: InstanceRefSchema,
+      formula: z.string().min(1).max(256).nullable().optional(),
+      coefficient: z.string().min(1).max(64).nullable().optional(),
+      bodyWidth: SignalFlowParametersSchema.shape.bodyWidth
+        .unwrap()
+        .nullable()
+        .optional(),
+      bodyHeight: SignalFlowParametersSchema.shape.bodyHeight
+        .unwrap()
+        .nullable()
+        .optional(),
+    })
+    .refine(
+      (action) =>
+        ["formula", "coefficient", "bodyWidth", "bodyHeight"].some(
+          (key) => key in action,
+        ),
+      { message: "Give formula, coefficient, bodyWidth or bodyHeight" },
+    )
+    .describe(
+      "A formula block's drawn formula, coefficient or minimum body size, as its Properties formula sets them; null clears one. Schematic only: never a netlist parameter (use set-property for those).",
+    ),
   z.strictObject({
     kind: z.literal("set-property"),
     target: InstanceRefSchema,

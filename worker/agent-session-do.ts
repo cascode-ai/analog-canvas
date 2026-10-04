@@ -391,6 +391,8 @@ export class AgentSessionDO {
     ) {
       const pending = this.pendingForwards.get(envelope.requestId);
       if (!pending || pending.socket !== socket) return;
+      if (envelope.timing)
+        this.editorTimings.set(envelope.requestId, envelope.timing);
       const response =
         envelope.kind === "circuit-response"
           ? AgentCircuitResponseSchema.safeParse(envelope.payload)
@@ -842,6 +844,7 @@ export class AgentSessionDO {
       const discovery =
         circuitRequest.operation === "snapshot" ||
         circuitRequest.operation === "capabilities";
+      const forwardStarted = Date.now();
       const result = await this.forwardToEditor(
         machine,
         circuitRequest,
@@ -860,7 +863,12 @@ export class AgentSessionDO {
         sessionId: machine.sessionId,
         requestId: circuitRequest.requestId,
       });
-      return jsonResponse(result, 200, allowedOrigin);
+      return jsonResponse(
+        result,
+        200,
+        allowedOrigin,
+        this.relayTiming(circuitRequest.requestId, forwardStarted),
+      );
     } catch (error) {
       const errorCode = error instanceof Error ? error.message : "";
       const code: AgentTransportErrorCode =
@@ -989,6 +997,7 @@ export class AgentSessionDO {
       requestId: fileRequest.requestId,
     });
     try {
+      const forwardStarted = Date.now();
       const result = await this.forwardToEditor(
         machine,
         fileRequest,
@@ -1010,7 +1019,12 @@ export class AgentSessionDO {
         sessionId: machine.sessionId,
         requestId: fileRequest.requestId,
       });
-      return jsonResponse(result, 200, allowedOrigin);
+      return jsonResponse(
+        result,
+        200,
+        allowedOrigin,
+        this.relayTiming(fileRequest.requestId, forwardStarted),
+      );
     } catch (error) {
       const value = error instanceof Error ? error.message : "";
       const code: AgentTransportErrorCode =
@@ -1133,6 +1147,7 @@ export class AgentSessionDO {
       requestId: simulationRequest.requestId,
     });
     try {
+      const forwardStarted = Date.now();
       const result = await this.forwardToEditor(
         machine,
         simulationRequest,
@@ -1152,7 +1167,12 @@ export class AgentSessionDO {
         sessionId: machine.sessionId,
         requestId: simulationRequest.requestId,
       });
-      return jsonResponse(result, 200, allowedOrigin);
+      return jsonResponse(
+        result,
+        200,
+        allowedOrigin,
+        this.relayTiming(simulationRequest.requestId, forwardStarted),
+      );
     } catch (error) {
       const value = error instanceof Error ? error.message : "";
       const code: AgentTransportErrorCode =
@@ -1269,6 +1289,7 @@ export class AgentSessionDO {
       requestId: projectRequest.requestId,
     });
     try {
+      const forwardStarted = Date.now();
       const result = await this.forwardToEditor(
         machine,
         projectRequest,
@@ -1284,7 +1305,12 @@ export class AgentSessionDO {
         sessionId: machine.sessionId,
         requestId: projectRequest.requestId,
       });
-      return jsonResponse(result, 200, allowedOrigin);
+      return jsonResponse(
+        result,
+        200,
+        allowedOrigin,
+        this.relayTiming(projectRequest.requestId, forwardStarted),
+      );
     } catch (error) {
       const value = error instanceof Error ? error.message : "";
       const code: AgentTransportErrorCode =
@@ -1463,6 +1489,34 @@ export class AgentSessionDO {
       status: 204,
       headers: relayHeaders(allowedOrigin),
     });
+  }
+
+  /** What the editor reported with each reply, until its request returns. */
+  private readonly editorTimings = new Map<
+    string,
+    { workMs: number; visibility: "visible" | "hidden" }
+  >();
+
+  /**
+   * Where a relayed request's time went, as response headers: the whole
+   * forward to the editor and back, the editor's own work, and whether its
+   * tab was in the background (#1227). The body's contract is unchanged.
+   */
+  private relayTiming(
+    requestId: string,
+    forwardStarted: number,
+  ): Record<string, string> {
+    const editor = this.editorTimings.get(requestId);
+    this.editorTimings.delete(requestId);
+    return {
+      "x-agent-relay-ms": String(Date.now() - forwardStarted),
+      ...(editor
+        ? {
+            "x-agent-editor-ms": String(editor.workMs),
+            "x-agent-editor-visibility": editor.visibility,
+          }
+        : {}),
+    };
   }
 
   private async forwardToEditor(

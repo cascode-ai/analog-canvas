@@ -83,7 +83,8 @@ export function relayHeaders(allowedOrigin: string | null): Headers {
   const headers = new Headers({
     "cache-control": "no-store",
     "content-type": "application/json; charset=utf-8",
-    "access-control-expose-headers": "x-agent-context",
+    "access-control-expose-headers":
+      "x-agent-context, x-agent-relay-ms, x-agent-editor-ms, x-agent-editor-visibility",
   });
   if (allowedOrigin !== null) {
     headers.set("access-control-allow-origin", allowedOrigin);
@@ -347,11 +348,12 @@ export function jsonResponse(
   body: unknown,
   status = 200,
   allowedOrigin: string | null = null,
+  extraHeaders: Readonly<Record<string, string>> = {},
 ): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: relayHeaders(allowedOrigin),
-  });
+  const headers = relayHeaders(allowedOrigin);
+  for (const [name, value] of Object.entries(extraHeaders))
+    headers.set(name, value);
+  return new Response(JSON.stringify(body), { status, headers });
 }
 
 export function errorBody(

@@ -1320,6 +1320,7 @@ describe("public Agent session routes", () => {
               requestId: request.requestId,
               sentAt: new Date().toISOString(),
               kind: "circuit-response",
+              timing: { workMs: 42, visibility: "hidden" },
               payload: {
                 apiVersion: "3.0",
                 requestId: request.requestId,
@@ -1404,6 +1405,12 @@ describe("public Agent session routes", () => {
     expect(snapshot?.status).toBe(200);
     expect(await snapshot!.json()).toMatchObject({ ok: false, revision: 3 });
     expect(sent).toBe(1);
+    // Where the time went, beside an unchanged body (#1227).
+    expect(snapshot!.headers.get("x-agent-editor-ms")).toBe("42");
+    expect(snapshot!.headers.get("x-agent-editor-visibility")).toBe("hidden");
+    expect(
+      Number(snapshot!.headers.get("x-agent-relay-ms")),
+    ).toBeGreaterThanOrEqual(0);
     expect(
       JSON.stringify([
         ...(storages.get(created.session.sessionId)?.values.values() ?? []),

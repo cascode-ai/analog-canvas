@@ -69,6 +69,10 @@ for (const entry of sourceCatalog.entries) {
     category: entry.category,
     defaultVariantId: definition.defaultVariantId ?? null,
     labelVisibility: definition.labelVisibility ?? "shown",
+    // The block draws an editable formula: place-component's signalFlow and
+    // set-signal-flow apply to it, as the Properties formula does in the GUI.
+    formula: Boolean(definition.formulaPresentation),
+    coefficient: Boolean(definition.formulaPresentation?.supportsCoefficient),
     pins: definition.pins.map((pin) => ({
       name: pin.name,
       role: pin.role,

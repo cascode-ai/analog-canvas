@@ -36,7 +36,11 @@ type AgentCapabilitiesResponse = z.infer<
 type AgentRenderResponse = z.infer<typeof AgentRenderResponseSchema>;
 type AgentTransactResponse = z.infer<typeof AgentTransactSuccessResponseSchema>;
 import { AgentSessionError } from "./errors.js";
-import { AgentHttpClient, type ClaimSuccess } from "./http-client.js";
+import {
+  AgentHttpClient,
+  type AgentRequestTiming,
+  type ClaimSuccess,
+} from "./http-client.js";
 import {
   type ConnectorStore,
   type StoredConnectorCredential,
@@ -176,6 +180,15 @@ function baseRequest(requestId: string): {
 export class AgentSessionClient {
   readonly connection: ConnectionTracker;
   private readonly http: AgentHttpClient;
+
+  /** See AgentHttpClient.requestTimings (#1227). */
+  timingMark(): number {
+    return this.http.timingMark();
+  }
+
+  timingsSince(mark: number): AgentRequestTiming[] {
+    return this.http.timingsSince(mark);
+  }
   private readonly cache = new SnapshotCache();
   /** Revisions are authority hints only; every write is still checked by the Editor. */
   private readonly knownRevisions = new Map<string, KnownRevision>();

@@ -3,7 +3,7 @@ import { z } from "zod";
 import { createSimulationStarter } from "@icm/netlist";
 import { parseProject } from "@icm/project-protocol";
 import { AGENT_API_VERSION } from "@icm/agent-adapter";
-import { inputContract } from "./input-contract.js";
+import { lazyContract } from "./input-contract.js";
 import {
   createSimulationFolder,
   readSimulationExperimentConfig,
@@ -144,9 +144,8 @@ function tool<T extends z.ZodType>(
     definition: {
       name,
       description,
-      inputSchema: {
-        ...inputContract(schema),
-        type: "object",
+      get inputSchema() {
+        return lazyContract(schema, true);
       },
     },
     handle: async (args, session) => {
