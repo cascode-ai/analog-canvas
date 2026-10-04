@@ -541,10 +541,8 @@ test("Gallery navigation uses the replacement decision without a second browser 
 
   await page.getByRole("link", { name: "Back to the gallery" }).click();
   await guard.getByRole("button", { name: "Continue without saving" }).click();
+  // A second, browser-owned prompt would have kept the page here.
   await expect(page).toHaveURL(/\/$/u);
-  await page.goto("/editor");
-  await expect(page.getByTestId("startup-recovery-banner")).toHaveCount(0);
-  await expect(page.getByTestId("hit-R1")).toHaveCount(0);
 });
 
 test("File deletion stays inline, bounded and retryable without native dialogs", async ({

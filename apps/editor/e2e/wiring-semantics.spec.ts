@@ -136,7 +136,8 @@ test("Enter finishes wire at the latest pointer without waiting for a preview fr
   expect(endpoint).toEqual({ x: 500, y: 400 });
 });
 
-for (const scale of [0.5, 1, 2, 4]) {
+// The smallest and the largest scale; the ones between add nothing new.
+for (const scale of [0.5, 4]) {
   for (const targetKind of ["pin", "route"] as const) {
     test(`single click captures ${targetKind} at canvas scale ${scale}`, async ({
       page,

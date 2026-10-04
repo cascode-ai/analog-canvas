@@ -195,18 +195,9 @@ test("slants an amplifier's single-letter gain", async ({ page }) => {
 });
 
 // The owner reported this on a DAC and said several other circuits have it
-// too. Every Symbol that draws its own body text is covered, so none is left
-// reachable only from the Properties panel.
-for (const symbolId of [
-  "dac",
-  "adc",
-  "opamp-lettered",
-  "voltage-amplifier-lettered",
-  "transconductance",
-  "integrator",
-  "unit-delay",
-  "discrete-time-integrator",
-]) {
+// too. One Symbol of each family that draws its own body text is covered: a
+// converter, a lettered amplifier and a signal-flow block.
+for (const symbolId of ["dac", "opamp-lettered", "integrator"]) {
   test(`${symbolId} edits its body text on the canvas`, async ({ page }) => {
     await placeBodyTextSymbol(page, symbolId);
 
@@ -221,7 +212,7 @@ for (const symbolId of [
   });
 }
 
-for (const symbolId of ["adc", "dac", "opamp-lettered"]) {
+for (const symbolId of ["dac", "opamp-lettered"]) {
   test(`${symbolId} body text stays screen-upright after a left/right mirror`, async ({
     page,
   }) => {

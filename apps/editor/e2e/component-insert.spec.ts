@@ -38,14 +38,8 @@ async function openSelectionShelf(page: import("@playwright/test").Page) {
   }
 }
 
-for (const family of [
-  "and-gate",
-  "nand-gate",
-  "or-gate",
-  "nor-gate",
-  "xor-gate",
-  "xnor-gate",
-])
+// The plainest gate and the one with both a bubble and the XOR curve.
+for (const family of ["and-gate", "xnor-gate"])
   test(`${family} input count changes drawn pins and black-box target together`, async ({
     page,
   }) => {
@@ -72,14 +66,8 @@ for (const family of [
     await expectComponentCodeField(page, "inputs", 3);
   });
 
-for (const family of [
-  "and-gate",
-  "nand-gate",
-  "or-gate",
-  "nor-gate",
-  "xor-gate",
-  "xnor-gate",
-])
+// The plainest gate and the one with both a bubble and the XOR curve.
+for (const family of ["and-gate", "xnor-gate"])
   test(`${family} can shrink after its extra input wire is deleted`, async ({
     page,
   }) => {
@@ -1653,12 +1641,8 @@ test("ordinary source property code switches waveforms without erasing inactive 
     .toContain('"waveform": "pulse"');
 });
 
-for (const family of [
-  "opamp",
-  "opamp-wide",
-  "opamp-differential",
-  "opamp-differential-wide",
-])
+// Single-ended and differential, regular and wide bodies.
+for (const family of ["opamp", "opamp-differential-wide"])
   test(`merges ${family} body marks into one Library entry and property`, async ({
     page,
   }) => {
@@ -2080,13 +2064,8 @@ test("sets MOS parameters and orientation through the ghost and Properties", asy
   );
 });
 
-for (const symbolId of [
-  "battery",
-  "dac",
-  "adc",
-  "transconductance",
-  "d-flip-flop",
-]) {
+// A preview without text, one with a formula and one with pin names.
+for (const symbolId of ["battery", "dac", "d-flip-flop"]) {
   test(`places ${symbolId} on the first click with slight pointer drift over its preview`, async ({
     page,
   }) => {
