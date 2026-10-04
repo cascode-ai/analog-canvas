@@ -64,7 +64,10 @@ import {
   type NetlistNamingProfile,
 } from "./net-name-codec.js";
 import { normalizeIndependentSource } from "./source-waveform.js";
-import { withImplicitMosSupplies } from "./implicit-mos-supplies.js";
+import {
+  bodyIgnoresSupplies,
+  withImplicitMosSupplies,
+} from "./implicit-mos-supplies.js";
 import { idealAnalogBlockCell } from "./ideal-analog-block-models.js";
 import { isIdealLogicTarget } from "./ideal-logic-gate-models.js";
 import { isIdealSignalTarget } from "./ideal-signal-block-models.js";
@@ -225,6 +228,8 @@ function reachableDocuments(
 
 interface CellNetContext {
   nameByNetId: Map<string, string>;
+  /** A Net the drawing names, under a name this format cannot write. */
+  unwritableNameByNetId: Map<string, string>;
   nameByAuthoredName: Map<string, string>;
   netByTerminal: Map<string, ResolvedLogicalNet>;
   noConnectNameByTerminal: Map<string, string>;
@@ -496,6 +501,7 @@ function buildNetContext(
   }
 
   const nameByNetId = new Map<string, string>();
+  const unwritableNameByNetId = new Map<string, string>();
   let generatedIndex = 0;
   for (const logicalNet of logicalNets.groups) {
     const projectedName = projectedNames.get(logicalNet.id);
@@ -603,6 +609,8 @@ function buildNetContext(
         ...logicalNet.baseNetIds,
         ...logicalNet.evidenceIds,
       ]);
+      for (const netId of logicalNet.baseNetIds)
+        unwritableNameByNetId.set(netId, name);
       continue;
     }
     const priorLogicalId = occupiedNames.get(encoded.collisionKey);
@@ -725,6 +733,7 @@ function buildNetContext(
   const emittedNetNames = new Set<string>();
   return {
     nameByNetId,
+    unwritableNameByNetId,
     nameByAuthoredName: new Map(
       logicalNets.groups.flatMap((net) => {
         const name = nameByNetId.get(net.baseNetIds[0]!);
@@ -778,24 +787,36 @@ function terminalNetName(
   );
   if (noConnectName) return noConnectName;
   if (name) return name;
-  // Missing connectivity is an error, not permission to infer a supply from
-  // device polarity or a matching Net name elsewhere in the Cell.
-  if (!name) {
-    const body = pinName === "B" && mosBulkKind(instance);
+  // A pin on a Net named in a spelling the format cannot write is connected;
+  // saying otherwise sends the author looking for a wire that is there.
+  const unwritable = net
+    ? context.unwritableNameByNetId.get(net.id)
+    : undefined;
+  if (unwritable) {
     diagnostic(
       diagnostics,
       document.id,
       "MISSING_PIN_NET",
-      body
-        ? // The fourth node has two authored answers; name both so the
-          // report is actionable instead of only true.
-          `Required pin ${instance.reference ?? instance.id}.B has no body Net: connect B, or set this Cell's MOS body default`
-        : `Required pin ${instance.reference ?? instance.id}.${pinName} is not connected to an exportable Net`,
+      `Pin ${instance.reference ?? instance.id}.${pinName} is on Net ${unwritable}, a name the netlist cannot write; rename that Net`,
       [instance.id],
     );
     return null;
   }
-  return name;
+  // Missing connectivity is an error, not permission to infer a supply from
+  // device polarity or a matching Net name elsewhere in the Cell.
+  const body = pinName === "B" && mosBulkKind(instance);
+  diagnostic(
+    diagnostics,
+    document.id,
+    "MISSING_PIN_NET",
+    body
+      ? // The fourth node has two authored answers; name both so the
+        // report is actionable instead of only true.
+        `Required pin ${instance.reference ?? instance.id}.B has no body Net: connect B, or set this Cell's MOS body default`
+      : `Required pin ${instance.reference ?? instance.id}.${pinName} is not connected to an exportable Net`,
+    [instance.id],
+  );
+  return null;
 }
 
 function extractHierarchyInstance(
@@ -1111,32 +1132,6 @@ function extractExternalSubcircuitInstance(
     nodes,
     parameters: projectedParameters,
   };
-}
-
-/**
- * The built-in bodies that never read VDD or VSS: the ideal amplifiers and
- * the adder in either format, and the multiplier in SPICE. An authored Cell
- * or a declared external definition of the same name replaces the body, and
- * may well use its supplies.
- */
-function bodyIgnoresSupplies(
-  target: string,
-  project: CircuitProject,
-  cellNames: Iterable<string>,
-  format: NetlistFormat,
-): boolean {
-  const folded = target.toLowerCase();
-  if (
-    [...cellNames].some((name) => name.toLowerCase() === folded) ||
-    project.externalSubcircuitDefinitions.some(
-      (definition) => definition.name.toLowerCase() === folded,
-    )
-  )
-    return false;
-  return (
-    idealAnalogBlockCell(target, format) !== null ||
-    (format === "spice" && target === "multiplier")
-  );
 }
 
 function extractBuiltInSubcircuitInstance(

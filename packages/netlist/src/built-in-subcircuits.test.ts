@@ -522,8 +522,9 @@ describe("built-in Analog Block subcircuits", () => {
         },
       );
 
-  it("blocks an undrawn block supply rather than declaring a global", () => {
-    // An inverter's body switches at V(VDD,VSS)/2: it needs both supplies.
+  it("gives an undrawn block supply the default a MOS body takes, never a global", () => {
+    // An inverter's body switches at V(VDD,VSS)/2: it needs both supplies. A
+    // textbook logic figure draws none, as it draws no MOS body.
     const project = analogBlockProject(["inverter"], inverterNets);
     const document = project.documents[0]!;
     document.netlist!.terminals = [];
@@ -535,15 +536,12 @@ describe("built-in Analog Block subcircuits", () => {
     );
     const before = structuredClone(project);
     const result = createDesignNetlistExport(project);
-    expect(result.status).toBe("blocked");
-    expect(
-      result.diagnostics
-        .filter((diagnostic) => diagnostic.code === "MISSING_BLOCK_SUPPLY")
-        .map((diagnostic) => diagnostic.message),
-    ).toEqual([
-      expect.stringContaining("select one in Properties"),
-      expect.stringContaining("select one in Properties"),
-    ]);
+    expect(result.status).toBe("ready");
+    if (result.status !== "ready") return;
+    expect(result.file.text).toContain(".subckt dut VDD VSS\n");
+    expect(result.file.text).toContain("X1 VDD VSS in_node out_node inverter");
+    expect(result.file.text).not.toMatch(/\.global/u);
+    expect(result.diagnostics).toEqual([]);
     expect(project).toEqual(before);
   });
 
@@ -616,7 +614,7 @@ describe("built-in Analog Block subcircuits", () => {
     expect(project).toEqual(before);
   });
 
-  it("does not turn one missing supply into a global when the other is drawn", () => {
+  it("defaults only the supply the author did not draw, never as a global", () => {
     // An inverter's body switches at V(VDD,VSS)/2: it needs both supplies.
     const project = analogBlockProject(["inverter"], inverterNets);
     const document = project.documents[0]!;
@@ -638,17 +636,14 @@ describe("built-in Analog Block subcircuits", () => {
     });
 
     const result = createDesignNetlistExport(project);
-    expect(result.status).toBe("blocked");
-    expect(
-      result.diagnostics
-        .filter((diagnostic) => diagnostic.code === "MISSING_BLOCK_SUPPLY")
-        .map((diagnostic) => diagnostic.message),
-    ).toEqual([
-      "Analog Block X1 has no unambiguous VDD Net; select one in Properties or draw a unique positive supply",
-    ]);
+    expect(result.status).toBe("ready");
+    if (result.status !== "ready") return;
+    expect(result.file.text).toContain(".subckt dut VDD VSS\n");
+    expect(result.file.text).toContain("X1 VDD VSS in_node out_node inverter");
+    expect(result.file.text).not.toMatch(/\.global/u);
   });
 
-  it("does not mistake a same-named signal for an automatic supply", () => {
+  it("does not mistake a same-named signal for the supply", () => {
     // An inverter's body switches at V(VDD,VSS)/2: it needs both supplies.
     const project = analogBlockProject(["inverter"], inverterNets);
     const document = project.documents[0]!;
@@ -667,12 +662,13 @@ describe("built-in Analog Block subcircuits", () => {
     );
 
     const result = createDesignNetlistExport(project);
-    expect(result.status).toBe("blocked");
-    const missing = result.diagnostics.filter(
-      (diagnostic) => diagnostic.code === "MISSING_BLOCK_SUPPLY",
-    );
-    expect(missing).toHaveLength(2);
-    expect(missing[0]!.message).toContain("select one in Properties");
+    expect(result.status).toBe("ready");
+    if (result.status !== "ready") return;
+    // The input keeps its own node; the supply is the default one.
+    expect(result.file.text).toContain("X1 VDD VSS VDD__2 out_node inverter");
+    expect(result.diagnostics.map((item) => item.code)).toEqual([
+      "DISAMBIGUATED_SOURCE_NET_NAME",
+    ]);
   });
 
   it("requires explicit selection when two positive supplies are drawn", () => {

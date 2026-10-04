@@ -159,6 +159,16 @@ each such byte as `_`, merging `输入` and `输出` into one node. The source t
 keeps what was written, and two names that would run under one spelling
 are refused.
 
+In a Net or Pin name, the full-width letters, digits and punctuation an East
+Asian input method types (`：`, `＜`, `Ａ`) are written as the ASCII
+characters they stand for. A bus bit keeps its brackets in the drawing, in
+the stored name and in Spectre, which escapes them (`DATA\<3\>`). ngspice
+reads them in an element line, but its control language takes `<` and `>` as
+redirection and `[ ]` as an index, so SPICE writes each bracket as `_`:
+`DATA<3>` exports as `DATA_3_`, `BFT_h<7>` as `BFT_h_7_`. Two names that
+become one spelling, such as `DATA<3>` and `DATA_3_`, are refused like `φ1`
+and `phi1`.
+
 ### Examples
 
 | Name    | Label              | Drawn as                                    | Netlist |
@@ -169,6 +179,7 @@ are refused.
 | `M1`    | device             | M₁                                          | `M1`    |
 | `VBP`   | Bias Voltage Pin   | V_BP; turning the subscript off keeps `VBP` | `VBP`   |
 | `φ1`    | Net label          | φ1, or φ₁ with the 1 subscripted            | `phi1`  |
+| `D<3>`  | Net label          | D<3>                                        | `D_3_`  |
 | `Vout`  | Net label          | V_out                                       | `Vout`  |
 | `MTAIL` | device             | M_TAIL                                      | `MTAIL` |
 | `RL1`   | resistor           | R_L1                                        | `RL1`   |

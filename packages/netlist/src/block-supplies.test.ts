@@ -89,17 +89,18 @@ describe("blocks whose body never reads its supplies", () => {
     if (spice.status === "ready")
       expect(spice.file.text).toContain("X1 0 0 A B Y multiplier");
     // In Spectre the reader's own multiplier is called, which may use its
-    // supplies, so they are still asked for.
+    // supplies, so it gets the Cell's default ones, as a MOS body does.
     const spectre = createDesignNetlistExport(unpoweredBlock("multiplier"), {
       format: "spectre",
     });
-    expect(spectre.status).toBe("blocked");
-    expect(spectre.diagnostics.map((item) => item.code)).toContain(
-      "MISSING_BLOCK_SUPPLY",
-    );
+    expect(spectre.status).toBe("ready");
+    if (spectre.status === "ready") {
+      expect(spectre.file.text).toContain("subckt dut (VDD VSS A B Y)");
+      expect(spectre.file.text).toContain("X1 (VDD VSS A B Y) multiplier");
+    }
   });
 
-  it("still ask for supplies when the Project defines its own op-amp", () => {
+  it("power a Project's own op-amp from the Cell's default supplies", () => {
     // A transistor-level `opamp` Cell or external model may use VDD/VSS.
     const project = unpoweredBlock("opamp");
     project.externalSubcircuitDefinitions = [
@@ -116,21 +117,24 @@ describe("blocks whose body never reads its supplies", () => {
       },
     ] as unknown as CircuitProject["externalSubcircuitDefinitions"];
     const result = createDesignNetlistExport(project);
-    expect(result.status).toBe("blocked");
-    expect(
-      result.diagnostics.filter((item) => item.code === "MISSING_BLOCK_SUPPLY"),
-    ).toHaveLength(2);
+    expect(result.status).toBe("ready");
+    if (result.status !== "ready") return;
+    expect(result.file.text).toContain(".subckt dut VDD VSS VIP VIN VOUT");
+    expect(result.file.text).toContain("X1 VDD VSS VIP VIN VOUT opamp");
   });
 
-  it("still ask for supplies for a block whose body uses them", () => {
-    for (const symbolId of ["inverter", "adc"]) {
+  it("give a block whose body uses its supplies the Cell's default ones", () => {
+    // As an unconnected MOS body does: a new VDD pin and ground, no global.
+    for (const [symbolId, card] of [
+      ["inverter", "X1 VDD VSS A Y inverter"],
+      ["adc", "X1 VDD VSS VIN VOUT adc"],
+    ] as const) {
       const result = createDesignNetlistExport(unpoweredBlock(symbolId));
-      expect(result.status, symbolId).toBe("blocked");
-      expect(
-        result.diagnostics.filter(
-          (item) => item.code === "MISSING_BLOCK_SUPPLY",
-        ),
-      ).toHaveLength(2);
+      expect(result.status, symbolId).toBe("ready");
+      if (result.status !== "ready") continue;
+      expect(result.file.text).toContain(card);
+      expect(result.file.text).toMatch(/^\.subckt dut VDD VSS /mu);
+      expect(result.file.text).not.toMatch(/\.global/u);
     }
   });
 });

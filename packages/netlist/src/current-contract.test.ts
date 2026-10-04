@@ -1136,16 +1136,39 @@ describe("current formal cell interface", () => {
     const spice = analyzeDesignNetlist(project, { format: "spice" });
     const spectre = analyzeDesignNetlist(project, { format: "spectre" });
 
-    expect(spice.ir).toBeNull();
-    expect(spice.diagnostics).toContainEqual(
-      expect.objectContaining({ code: "UNREPRESENTABLE_NGSPICE_NET_NAME" }),
-    );
+    expect(spice.diagnostics).toEqual([]);
+    expect(spice.ir?.cells[0]?.nets).toContainEqual({
+      id: "net-bus",
+      name: "DATA_3_",
+      scope: "local",
+    });
     expect(spectre.diagnostics).toEqual([]);
     expect(spectre.ir?.cells[0]?.nets).toContainEqual({
       id: "net-bus",
       name: "DATA\\<3\\>",
       scope: "local",
     });
+  });
+
+  it("says a pin on a Net it cannot spell is on that Net, not unconnected", () => {
+    const project = resistorProject({ value: "1k" });
+    const document = project.documents[0]!;
+    const claim = document.connectivityEvidence.find(
+      (evidence) => evidence.kind === "name-claim" && evidence.name === "VIN",
+    )!;
+    if (claim.kind === "name-claim") claim.name = "V IN";
+
+    const result = analyzeDesignNetlist(project, { format: "spice" });
+
+    expect(result.ir).toBeNull();
+    expect(result.diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: "MISSING_PIN_NET",
+        message:
+          "Pin R1.1 is on Net V IN, a name the netlist cannot write; rename that Net",
+        objectIds: ["R1"],
+      }),
+    );
   });
 
   it("projects typed globals through the explicit Cadence bang profile", () => {
