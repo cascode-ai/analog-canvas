@@ -283,6 +283,24 @@ export class AgentSessionDO {
     if (request.method === "POST" && url.pathname === "/projects") {
       return this.projects(request, machine, allowedOrigin);
     }
+    if (request.method === "GET" && url.pathname === "/activity") {
+      const auth = machine.authorizeStatus(bearerToken(request), Date.now());
+      if (!auth.ok)
+        return jsonResponse(
+          errorBody(auth.code, errorMessage(auth.code)),
+          transportStatus(auth.code),
+          allowedOrigin,
+        );
+      return jsonResponse(
+        {
+          ok: true,
+          sessionId: machine.sessionId,
+          operations: [...this.recentOperations],
+        },
+        200,
+        allowedOrigin,
+      );
+    }
     if (request.method === "GET" && url.pathname === "/events") {
       return this.events(request, machine, allowedOrigin);
     }
@@ -867,7 +885,7 @@ export class AgentSessionDO {
         result,
         200,
         allowedOrigin,
-        this.relayTiming(circuitRequest.requestId, forwardStarted),
+        this.relayTiming(circuitRequest, "circuit", result, forwardStarted),
       );
     } catch (error) {
       const errorCode = error instanceof Error ? error.message : "";
@@ -1023,7 +1041,7 @@ export class AgentSessionDO {
         result,
         200,
         allowedOrigin,
-        this.relayTiming(fileRequest.requestId, forwardStarted),
+        this.relayTiming(fileRequest, "files", result, forwardStarted),
       );
     } catch (error) {
       const value = error instanceof Error ? error.message : "";
@@ -1171,7 +1189,12 @@ export class AgentSessionDO {
         result,
         200,
         allowedOrigin,
-        this.relayTiming(simulationRequest.requestId, forwardStarted),
+        this.relayTiming(
+          simulationRequest,
+          "simulation",
+          result,
+          forwardStarted,
+        ),
       );
     } catch (error) {
       const value = error instanceof Error ? error.message : "";
@@ -1309,7 +1332,7 @@ export class AgentSessionDO {
         result,
         200,
         allowedOrigin,
-        this.relayTiming(projectRequest.requestId, forwardStarted),
+        this.relayTiming(projectRequest, "projects", result, forwardStarted),
       );
     } catch (error) {
       const value = error instanceof Error ? error.message : "";
@@ -1491,6 +1514,23 @@ export class AgentSessionDO {
     });
   }
 
+  /**
+   * The session's last answered requests, oldest first, readable by any
+   * process holding its Agent token (GET /activity): one CLI process per
+   * call kept its own, always empty, list (#1227). Held while the relay is
+   * awake; bounded.
+   */
+  private readonly recentOperations: {
+    requestId: string;
+    resource: string;
+    operation: string;
+    at: string;
+    durationMs: number;
+    ok: boolean;
+    revision?: number;
+    editorVisibility?: "visible" | "hidden";
+  }[] = [];
+
   /** What the editor reported with each reply, until its request returns. */
   private readonly editorTimings = new Map<
     string,
@@ -1503,11 +1543,33 @@ export class AgentSessionDO {
    * tab was in the background (#1227). The body's contract is unchanged.
    */
   private relayTiming(
-    requestId: string,
+    request: { requestId: string; operation?: unknown; action?: unknown },
+    resource: string,
+    result: unknown,
     forwardStarted: number,
   ): Record<string, string> {
+    const requestId = request.requestId;
     const editor = this.editorTimings.get(requestId);
     this.editorTimings.delete(requestId);
+    const outcome = result as { ok?: unknown; revision?: unknown };
+    this.recentOperations.push({
+      requestId,
+      resource,
+      operation:
+        typeof request.operation === "string"
+          ? request.operation
+          : typeof request.action === "string"
+            ? request.action
+            : resource,
+      at: new Date(forwardStarted).toISOString(),
+      durationMs: Date.now() - forwardStarted,
+      ok: outcome?.ok !== false,
+      ...(typeof outcome?.revision === "number"
+        ? { revision: outcome.revision }
+        : {}),
+      ...(editor ? { editorVisibility: editor.visibility } : {}),
+    });
+    if (this.recentOperations.length > 32) this.recentOperations.shift();
     return {
       "x-agent-relay-ms": String(Date.now() - forwardStarted),
       ...(editor

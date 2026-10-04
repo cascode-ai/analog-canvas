@@ -38,6 +38,7 @@ type AgentTransactResponse = z.infer<typeof AgentTransactSuccessResponseSchema>;
 import { AgentSessionError } from "./errors.js";
 import {
   AgentHttpClient,
+  type AgentRelayOperation,
   type AgentRequestTiming,
   type ClaimSuccess,
 } from "./http-client.js";
@@ -1626,6 +1627,15 @@ export class AgentSessionClient {
 
   recentTransactions(): readonly ApplyActionsReport[] {
     return this.receipts.map((item) => structuredClone(item));
+  }
+
+  /**
+   * The session's last answered requests from the relay, whichever process
+   * made them (#1227): one CLI process per call never saw the others.
+   */
+  async relayActivity(): Promise<AgentRelayOperation[]> {
+    const session = await this.ensureSession();
+    return this.http.activity(session.sessionId, session.agentToken);
   }
 
   private readonly receipts: ApplyActionsReport[] = [];

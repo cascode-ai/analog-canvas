@@ -1411,6 +1411,35 @@ describe("public Agent session routes", () => {
     expect(
       Number(snapshot!.headers.get("x-agent-relay-ms")),
     ).toBeGreaterThanOrEqual(0);
+    // Any process holding the token reads the session's recent requests.
+    const activity = await routeAgentSessionRequest(
+      new Request(
+        `https://editor.example/api/agent/sessions/${created.session.sessionId}/activity`,
+        { headers: { authorization: `Bearer ${claim.agentToken}` } },
+      ),
+      env,
+    );
+    expect(activity?.status).toBe(200);
+    expect(await activity!.json()).toMatchObject({
+      ok: true,
+      operations: [
+        {
+          requestId: "snapshot-1",
+          resource: "circuit",
+          operation: "snapshot",
+          ok: false,
+          revision: 3,
+          editorVisibility: "hidden",
+        },
+      ],
+    });
+    const anonymous = await routeAgentSessionRequest(
+      new Request(
+        `https://editor.example/api/agent/sessions/${created.session.sessionId}/activity`,
+      ),
+      env,
+    );
+    expect(anonymous?.status).toBe(401);
     expect(
       JSON.stringify([
         ...(storages.get(created.session.sessionId)?.values.values() ?? []),

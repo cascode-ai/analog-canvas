@@ -626,12 +626,17 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
       const { refresh = true } = z
         .strictObject({ refresh: z.boolean().optional() })
         .parse(args);
+      // This process's last requests, hop by hop, before the status read.
+      const recent = session.client
+        .timingsSince(Math.max(0, session.client.timingMark() - 5))
+        .map(({ startedAtMs: _startedAtMs, ...request }) => request);
       return {
         ...(await session.client.status({ refresh })),
         runtime: {
           version: AGENT_MCP_VERSION,
           apiBaseUrl: session.client.apiBaseUrl,
         },
+        ...(recent.length ? { recentRequests: recent } : {}),
       };
     },
   },
@@ -1173,11 +1178,21 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
     },
     handle: async (args, session) => {
       const parsed = InspectArgs.parse(args);
-      if (parsed.target.kind === "activity")
+      if (parsed.target.kind === "activity") {
+        // The relay's record spans every process of the session; this
+        // process's receipts add the edits it made itself.
+        const relay = await session.client
+          .relayActivity()
+          .then((operations) => ({ operations }))
+          .catch((error: unknown) => ({
+            unavailable: error instanceof Error ? error.message : "unknown",
+          }));
         return {
+          session: relay,
           transactions: session.client.recentTransactions(),
           scope: "current-mcp-process",
         };
+      }
       if (parsed.target.kind === "trace")
         return session.client.traceNet(
           {

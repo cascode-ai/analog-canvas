@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 import { McpStdioServer } from "./protocol.js";
 import { assembleServer } from "./server.js";
+import { createInterface } from "node:readline";
 import {
   httpCommandFailureMessage,
   httpCommandReadsStdin,
+  runHttpBatch,
   runHttpCommand,
 } from "./http-cli.js";
 import { installMcp } from "./install.js";
@@ -21,7 +23,21 @@ if (process.argv[2] === "--install") {
     process.exitCode = 1;
   }
 } else {
-  if (process.argv[2] === "--http") {
+  if (process.argv[2] === "--http" && process.argv[3] === "batch") {
+    try {
+      const failed = await runHttpBatch(
+        {
+          toolSession: createOperationSession(undefined, { shortLived: true }),
+        },
+        createInterface({ input: process.stdin, crlfDelay: Infinity }),
+        (line) => process.stdout.write(`${line}\n`),
+      );
+      if (failed) process.exitCode = 1;
+    } catch (error) {
+      process.stderr.write(`${httpCommandFailureMessage(error)}\n`);
+      process.exitCode = 1;
+    }
+  } else if (process.argv[2] === "--http") {
     try {
       const command = process.argv[3] ?? "connection_status";
       let input = "";

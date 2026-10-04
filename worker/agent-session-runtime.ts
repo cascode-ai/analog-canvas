@@ -310,7 +310,7 @@ export async function routeAgentSessionRequest(
   }
 
   const match =
-    /^\/api\/agent\/sessions\/([^/]+)(?:\/(circuit|files|simulation|projects|events|editor|control|status|artifacts\/[a-zA-Z0-9_-]{1,128}))?$/u.exec(
+    /^\/api\/agent\/sessions\/([^/]+)(?:\/(circuit|files|simulation|projects|events|editor|control|status|activity|artifacts\/[a-zA-Z0-9_-]{1,128}))?$/u.exec(
       url.pathname,
     );
   if (!match) return jsonResponse({ error: "Not found" }, 404, allowedOrigin);

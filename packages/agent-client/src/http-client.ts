@@ -361,6 +361,26 @@ export class AgentHttpClient {
     return parsed.data;
   }
 
+  /** The session's last answered requests, kept by the relay (#1227). */
+  async activity(
+    sessionId: string,
+    agentToken: string,
+  ): Promise<AgentRelayOperation[]> {
+    const response = await this.send(
+      `/api/agent/sessions/${encodeURIComponent(sessionId)}/activity`,
+      { method: "GET", headers: { authorization: `Bearer ${agentToken}` } },
+      3_000,
+    );
+    const body = (await response.json().catch(() => null)) as {
+      ok?: unknown;
+      operations?: unknown;
+    } | null;
+    if (!response.ok) throw this.transportError(response.status, body);
+    if (body?.ok !== true || !Array.isArray(body.operations))
+      throw invalidResponseFailure("Session activity is not readable");
+    return body.operations as AgentRelayOperation[];
+  }
+
   private async send(
     path: string,
     init: RequestInit,
@@ -510,5 +530,17 @@ export interface AgentRequestTiming {
   relayMs?: number;
   /** The editor's own work, from receipt to reply. */
   editorMs?: number;
+  editorVisibility?: "visible" | "hidden";
+}
+
+/** One answered request in a session, as the relay records it (#1227). */
+export interface AgentRelayOperation {
+  requestId: string;
+  resource: string;
+  operation: string;
+  at: string;
+  durationMs: number;
+  ok: boolean;
+  revision?: number;
   editorVisibility?: "visible" | "hidden";
 }
