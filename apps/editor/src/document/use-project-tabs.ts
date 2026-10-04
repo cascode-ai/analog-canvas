@@ -1,6 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import { createId } from "@icm/model";
 
+/** The tab that takes over when `id` leaves: the one before it, else the
+ * next; undefined when no other tab remains. */
+export function tabAfterLeaving(
+  ids: readonly string[],
+  id: string,
+): string | undefined {
+  const remaining = ids.filter((candidate) => candidate !== id);
+  return remaining[Math.max(0, ids.indexOf(id) - 1)];
+}
+
 /** Only the active editor renders. Inactive tabs retain their actual controller
  * and history; changing tabs is never a Project replace or an undo operation. */
 export function useProjectTabs<Session>(options: {
@@ -227,8 +237,7 @@ export function useProjectTabs<Session>(options: {
       await transition(() => {
         const remaining = ids.filter((candidate) => candidate !== id);
         if (id === active.current) {
-          if (remaining.length)
-            activate(remaining[Math.max(0, ids.indexOf(id) - 1)]!);
+          if (remaining.length) activate(tabAfterLeaving(ids, id)!);
           else {
             const emptyId = createId("tab");
             sessions.current.set(emptyId, createEmpty());
@@ -239,6 +248,29 @@ export function useProjectTabs<Session>(options: {
         sessions.current.delete(id);
         setIds(remaining);
       });
+    },
+    /**
+     * Drop a tab whose edits the person chose not to keep (#1288). Unlike
+     * close, nothing of it is captured, prepared or staged first, so its
+     * content cannot come back with the window's saved tabs. The last tab
+     * gives way to `createEmpty`. False while another tab change runs.
+     */
+    discard: (id: string, createEmpty: () => Session) => {
+      if (transitioning.current) return false;
+      const before = liveIds.current;
+      const remaining = before.filter((candidate) => candidate !== id);
+      if (id === active.current) {
+        const next = tabAfterLeaving(before, id) ?? createId("tab");
+        if (!remaining.length) {
+          sessions.current.set(next, createEmpty());
+          remaining.push(next);
+        }
+        activate(next);
+      }
+      sessions.current.delete(id);
+      liveIds.current = remaining;
+      setIds(remaining);
+      return true;
     },
   };
 }
