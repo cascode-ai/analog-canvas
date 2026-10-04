@@ -18,15 +18,25 @@ Focused circuit tools retain the `{documentId?, actions:[...]}` call envelope:
 | -------------------- | ----------------------------------------------------------------- |
 | `circuit_place`      | Built-in symbol, Cell and existing-instance placement; power rail |
 | `circuit_wire`       | Connect and disconnect                                            |
-| `circuit_transform`  | Individual move/rotate/mirror, arrange, detach-move and rail span |
+| `circuit_transform`  | Individual move/rotate/mirror/set-orientation, arrange, detach-move and rail span |
 | `circuit_selection`  | Selection transform, copy and align                               |
 | `circuit_text`       | Labels, annotations, text changes and annotation movement         |
-| `circuit_properties` | References, parameters, model selection, display flags and block supplies |
+| `circuit_properties` | References, parameters, formulas, model selection, display flags and aliases, block supplies |
 
 Each is a projection and forwarding entry, not a separate edit engine. Existing
-batch compatibility and transaction boundaries still apply; membership in one
-tool does not make every combination atomic or supported. `apply_actions`
+transaction boundaries still apply: actions of one focused tool that cannot
+share one transaction (an edit batch beside a command) are sent as consecutive
+calls in the order the compiler names, and the result says so under `split`
+(each call's actions, outcome and revision). Each call is atomic; the first
+that fails stops the rest, and the calls before it stay applied. `apply_actions`
+refuses such a mix instead (`ACTION_BATCH_NOT_ATOMIC`, naming the calls) and
 retains all actions, including mixed families, Cell structure, reset and history.
+A refusal names the action it refused: `actions[i] (kind): …`, with
+`actionIndex` and `actionKind`.
+
+Simulation tools take their arguments flat (`{action, …}`) or in `request`,
+whichever the call uses. `detail` goes where its value belongs: `summary` or
+`full` shapes the response, `text` or `mapped` a source file's projection.
 `advanced_transact` retains full editing authority. Neither is hidden dynamically.
 The focused text declaration keeps common fields and plain strings directly
 callable; recursive RichText details remain in its exact operation/field contract.
@@ -167,9 +177,33 @@ changes; the electrical parameter remains authoritative.
 
 `connect`/`disconnect` pin targets accept an Instance Reference string or
 `instance:{kind:"instance",id:"…"}`; use the latter for imported formal Cell Pins.
-`place-component` requires a Reference for devices, but omit it for `ground`
-and `vdd-port`. For `port` and `port-filled`, `reference` supplies the new
-Cell terminal's name, with passive direction by default. Placement creates its
+`place-component` may omit a device's Reference: the editor takes the next free
+one, as a GUI insert does (R1, X1), and a block that emits nothing gets none;
+read the name from the receipt's created objects or Snapshot. Omit it for
+`ground` and `vdd-port`. For `port` and `port-filled`, `reference` supplies the new
+Cell terminal's name, with passive direction by default. Without `parameters`
+or `control` the editor fills the netlist as the GUI does, with catalog defaults
+and the Process's model.
+A formula block (catalog `formula: true`: integrator, unit delay, discrete-time
+integrator, transconductance) takes `signalFlow:{formula?, coefficient?,
+bodyWidth?, bodyHeight?}` on `place-component`, and `set-signal-flow` changes
+them later (`null` clears one; a new formula drops the old formula's look, as
+the Properties formula does). These are drawing text, never netlist parameters:
+`set-property` on a part without netlist parameters names `set-signal-flow`.
+`set-display-alias {instanceId, text}` draws a part's name label as other text
+while its Reference (or Pin name) stays in the netlist, as the Properties
+display alias does: an op-amp stays `X1` and shows `A1`; `text:null` shows its
+own name again. It survives Project Code and Copy as the label's text. A
+rejected Reference prefix names the alias that would draw it.
+For a symmetric layout, `mirrorOf:{instance, x}` (or `y`) places the mirror
+image of a placed part about that vertical (horizontal) line: origin reflected,
+mirror toggled, rotation kept, so the drawing reflects exactly; an axis whose
+image is off the grid is refused. `move` by `pinAnchor` names the nearest
+reachable landing when a pin cannot land where asked, and `place-existing`
+with a `pinAnchor` needs no `placement`. `mirror` with `axis` reflects a part
+in place as the selection `transform` does (`y` flips it left-right, `x`
+top-bottom); `set-orientation` sets an absolute rotation and mirror.
+Several `place-cell` actions share one call and one Undo, named in turn. Placement creates its
 owned Port, Net and bound terminal-name display atomically; use the returned
 Instance ID for subsequent wiring. To place an imported Instance, use `place-existing` with
 `instanceId` and `placement` (or `move` from the tray); default labels use the GUI planner.
@@ -191,6 +225,19 @@ new labels to their Net's routed geometry when available.
 text together. Deleting the label removes its owned claim, not the physical wires.
 
 `connection_status` probes the current session; closing a panel is not a disconnect.
+
+Every result that reached the relay carries `timing`: the whole call, and for
+each request its round trip, the relay's forward to the editor (`relayMs`), the
+editor's own work (`editorMs`) and its tab's visibility; a one-shot CLI process
+adds `startupMs`, its time before the first request, which a busy machine
+stretches. An editor tab in the background, or a forward over 5 s, adds
+`timing.warning` `EDITOR_BACKGROUND` with the fix, and the Agent panel says
+requests waited in the background. `connection_status` lists this process's
+last requests the same way, and `inspect {target:{kind:"activity"}}` returns
+the session's last 32 requests from any process, as the relay recorded them.
+`analog-canvas-mcp --http batch` runs one call per JSON line
+(`{"tool": "...", "args": {...}}`), each as it arrives, on one session (one
+connector resume, one Snapshot cache), and answers each with one line.
 HTTP 429 retries are bounded and honor `Retry-After` using the identical request
 body and IDs. A longer server wait is returned to the caller instead of retried early.
 
@@ -205,6 +252,30 @@ For example, a formula annotation:
   }
 }
 ```
+
+### How each focused action is planned
+
+No verb is implemented twice: each action becomes exactly one transaction form,
+planned once.
+
+| Tool                 | Action                                       | Sent as                                   | Planned by                                                            |
+| -------------------- | -------------------------------------------- | ----------------------------------------- | --------------------------------------------------------------------- |
+| `circuit_place`      | `place-component`                            | `place-components` command                | GUI insertion: catalog defaults, Process model, naming, default labels |
+|                      | `place-cell`, `place-existing`               | command (several `place-cell` batch)      | GUI Cell and tray placement                                            |
+|                      | `add-power-rail`                             | command                                   | GUI power rail planner                                                 |
+| `circuit_wire`       | `connect`                                    | wire intent                               | GUI routing planner                                                    |
+|                      | `disconnect`                                 | typed edits                               | Edit Engine                                                            |
+| `circuit_transform`  | `move`                                       | `move_instance`, or a move command        | Edit Engine; GUI tray, annotation and Junction planners                |
+|                      | `rotate`, `mirror`, `set-orientation`        | `rotate_instance` / `mirror_instance`     | Edit Engine (labels follow as in the GUI)                              |
+|                      | `arrange`                                    | typed edits                               | Edit Engine                                                            |
+|                      | `detach-move`, `extend-power-rail`           | command                                   | GUI move and rail planners                                             |
+| `circuit_selection`  | `transform`, `copy`, `align`                 | command                                   | GUI selection transform, copy and alignment                            |
+| `circuit_text`       | `add-label`, Net Label `edit-text`, `set-net-label` | `set-net-label` command            | GUI Net Label planner                                                  |
+|                      | `edit-text`, `annotate`                      | typed annotation edits                    | Edit Engine                                                            |
+|                      | `move-annotation`, `arrange-labels`          | command                                   | GUI annotation and label planners                                      |
+| `circuit_properties` | `set-reference`, `set-property`, `set-signal-flow`, `set-block-supply`, `set-source-control` | typed edits | Edit Engine, checked against the device contract |
+|                      | `set-model`                                  | command                                   | GUI Process-aware model planner                                        |
+|                      | `set-instance-display`, `set-display-alias`  | command                                   | GUI display and display-alias planners                                 |
 
 ## Verify and recover
 

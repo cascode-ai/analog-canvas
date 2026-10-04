@@ -749,6 +749,11 @@ export function compileActions(
           instanceId: instance.id,
           rotation: action.rotation,
         });
+        if (instance.orientation)
+          instance.orientation = {
+            ...instance.orientation,
+            rotation: action.rotation as Orientation["rotation"],
+          };
         break;
       }
       case "mirror": {
@@ -758,11 +763,32 @@ export function compileActions(
           action.kind,
           action.target,
         );
+        // A reflection from where the part is, one vocabulary with the
+        // selection transform (#1231); a state is still accepted.
+        let mirror = action.mirror;
+        if (action.axis) {
+          if (!instance.orientation)
+            throw new ActionCompileError(
+              index,
+              action.kind,
+              "reflect a placed part; place it first",
+            );
+          mirror = reflectOrientation(
+            instance.orientation,
+            action.axis === "y" ? "left-right" : "top-bottom",
+          ).mirror;
+        }
         pushEdit(index, action.kind, {
           kind: "mirror_instance",
           instanceId: instance.id,
-          mirror: action.mirror,
+          mirror,
         });
+        // A later reflection in this call starts from this one.
+        if (instance.orientation && mirror)
+          instance.orientation = {
+            ...instance.orientation,
+            mirror: mirror as Orientation["mirror"],
+          };
         break;
       }
       case "set-reference": {
@@ -955,6 +981,33 @@ export function compileActions(
       case "delete":
         compileDelete(index, action, document, pushEdit);
         break;
+      case "set-orientation": {
+        const instance = resolveInstance(
+          document,
+          index,
+          action.kind,
+          action.target,
+        );
+        if (action.rotation !== undefined)
+          pushEdit(index, action.kind, {
+            kind: "rotate_instance",
+            instanceId: instance.id,
+            rotation: action.rotation,
+          });
+        if (action.mirror !== undefined)
+          pushEdit(index, action.kind, {
+            kind: "mirror_instance",
+            instanceId: instance.id,
+            mirror: action.mirror,
+          });
+        if (instance.orientation)
+          instance.orientation = {
+            rotation: (action.rotation ??
+              instance.orientation.rotation) as Orientation["rotation"],
+            mirror: action.mirror ?? instance.orientation.mirror,
+          };
+        break;
+      }
       case "set-signal-flow": {
         const instance = resolveInstance(
           document,

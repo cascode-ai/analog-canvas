@@ -5,8 +5,53 @@ import {
   type ContractTool,
 } from "./tool-contracts.js";
 
+/** The response detail sits outside a request, a file's form inside it. */
+const RESPONSE_DETAIL = new Set(["summary", "full"]);
+const REQUEST_DETAIL = new Set(["text", "mapped"]);
+
+/**
+ * One envelope for every simulation tool (#1231): flat arguments, as
+ * simulation_folder takes them, are put in the request a request tool
+ * reads, and each `detail` goes where its value belongs — summary or full
+ * shapes the response, text or mapped a file's projection.
+ */
+function simulationEnvelope(args: Record<string, unknown>) {
+  let value = args;
+  if (
+    (!value.request || typeof value.request !== "object") &&
+    (typeof value.action === "string" || typeof value.operation === "string")
+  ) {
+    const { detail, ...request } = value;
+    value =
+      typeof detail === "string" && RESPONSE_DETAIL.has(detail)
+        ? { request, detail }
+        : { request: detail === undefined ? request : { ...request, detail } };
+  }
+  const request = value.request as Record<string, unknown> | undefined;
+  if (!request || typeof request !== "object") return value;
+  if (
+    typeof value.detail === "string" &&
+    REQUEST_DETAIL.has(value.detail) &&
+    request.detail === undefined
+  ) {
+    const { detail, ...rest } = value;
+    return { ...rest, request: { ...request, detail } };
+  }
+  if (
+    typeof request.detail === "string" &&
+    RESPONSE_DETAIL.has(request.detail) &&
+    value.detail === undefined
+  ) {
+    const { detail, ...inner } = request;
+    return { ...value, request: inner, detail };
+  }
+  return value;
+}
+
 function normalizeFocusedArgs(args: unknown, source: string) {
   if (!args || typeof args !== "object") return args;
+  if (source === "simulation_files" || source === "simulation")
+    args = simulationEnvelope(args as Record<string, unknown>);
   const value = args as { request?: unknown };
   if (!value.request || typeof value.request !== "object") return args;
   const request = value.request as Record<string, unknown>;
@@ -116,6 +161,7 @@ export const FOCUSED_TOOLS = [
       "move",
       "rotate",
       "mirror",
+      "set-orientation",
       "arrange",
       "detach-move",
       "extend-power-rail",
@@ -190,7 +236,12 @@ export function focusedTools<S>(
         },
       },
       async handle(args: unknown, session: S) {
-        const selected = selectedArgumentOperations(inputSchema(), args);
+        // What the call asks for is read after its envelope is settled, so
+        // flat arguments are held to this tool's operations too.
+        const selected = selectedArgumentOperations(
+          inputSchema(),
+          normalizeFocusedArgs(args, source),
+        );
         const invalid = selected.find((operation) => !allowed.has(operation));
         if (invalid) {
           const owner = FOCUSED_TOOLS.find(
@@ -207,8 +258,88 @@ export function focusedTools<S>(
         }
         // Parse and execute with the exact original handler: revision guards,
         // idempotency, atomic planning, offline workspaces and errors stay shared.
-        return original.handle(normalizeFocusedArgs(args, source), session);
+        const result = await original.handle(
+          normalizeFocusedArgs(args, source),
+          session,
+        );
+        const calls = notAtomicCalls(result);
+        return source === "apply_actions" && calls
+          ? splitCalls(args, calls, (part) =>
+              original.handle(normalizeFocusedArgs(part, source), session),
+            )
+          : result;
       },
     };
   });
+}
+
+/** The calls a refused mixed call names, when it was refused only for that. */
+function notAtomicCalls(
+  result: unknown,
+): { actionIndices: number[]; actionKinds: string[] }[] | undefined {
+  const report = result as {
+    ok?: unknown;
+    code?: unknown;
+    calls?: unknown;
+  } | null;
+  return report?.ok === false &&
+    report.code === "ACTION_BATCH_NOT_ATOMIC" &&
+    Array.isArray(report.calls) &&
+    report.calls.length > 1
+    ? (report.calls as { actionIndices: number[]; actionKinds: string[] }[])
+    : undefined;
+}
+
+/**
+ * A focused tool's actions that cannot share one transaction, sent as the
+ * calls the compiler names, in order (#1231): the tool advertised them
+ * together, so it splits them itself and says so. Each call is atomic; the
+ * first that fails stops the rest, and the calls before it stay applied.
+ */
+async function splitCalls(
+  args: unknown,
+  calls: readonly { actionIndices: number[]; actionKinds: string[] }[],
+  run: (args: unknown) => Promise<unknown>,
+): Promise<unknown> {
+  const actions = (args as { actions: unknown[] }).actions;
+  const done: {
+    actionIndices: number[];
+    actionKinds: string[];
+    report: any;
+  }[] = [];
+  for (const call of calls) {
+    const report = (await run({
+      ...(args as object),
+      actions: call.actionIndices.map((index) => actions[index]),
+    })) as any;
+    done.push({ ...call, report });
+    if (report?.ok === false) break;
+  }
+  const last = done.at(-1)!.report;
+  const applied = done.filter(({ report }) => report?.ok !== false).length;
+  return {
+    ...(typeof last === "object" && last !== null ? last : {}),
+    ok: applied === calls.length,
+    split: {
+      note:
+        applied === calls.length
+          ? `These actions cannot share one transaction, so they were sent as ${calls.length} calls in order; each call was atomic.`
+          : `These actions were sent as ${calls.length} calls in order; call ${applied + 1} failed and the rest were not sent. The ${applied} before it stay applied.`,
+      applied,
+      calls: done.map(({ actionIndices, actionKinds, report }) => ({
+        actionIndices,
+        actionKinds,
+        ok: report?.ok !== false,
+        ...(typeof report?.revision === "number"
+          ? { revision: report.revision }
+          : {}),
+        ...(report?.ok === false
+          ? {
+              ...(report.code ? { code: report.code } : {}),
+              ...(report.message ? { message: report.message } : {}),
+            }
+          : {}),
+      })),
+    },
+  };
 }

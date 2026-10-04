@@ -321,3 +321,131 @@ describe("focused tools", () => {
     expect(invalid.content[0]!.text).toContain("INVALID_TOOL_INPUT");
   });
 });
+
+describe("a focused tool splits actions that cannot share one call (#1231)", () => {
+  const alias = { kind: "set-display-alias", instanceId: "amp", text: "A1" };
+  const flow = {
+    kind: "set-signal-flow",
+    target: { kind: "instance", id: "block" },
+    coefficient: "a",
+  };
+  function properties(answer: (actions: unknown[]) => unknown) {
+    const calls: unknown[][] = [];
+    const originals = [
+      ...new Set(FOCUSED_TOOLS.map((entry) => entry.source)),
+    ].map((source) => ({
+      definition: {
+        name: source,
+        description: "canonical",
+        inputSchema: toolInputSchema(source)!,
+      },
+      handle: async (args: unknown) => {
+        const actions = (args as { actions: unknown[] }).actions;
+        calls.push(actions);
+        return actions.length > 1
+          ? {
+              ok: false,
+              code: "ACTION_BATCH_NOT_ATOMIC",
+              calls: [
+                { actionIndices: [0], actionKinds: ["set-signal-flow"] },
+                { actionIndices: [1], actionKinds: ["set-display-alias"] },
+              ],
+            }
+          : answer(actions);
+      },
+    }));
+    const tool = focusedTools(originals, () => "focused").find(
+      (entry) => entry.definition.name === "circuit_properties",
+    )!;
+    return { tool, calls };
+  }
+
+  it("sends them as the named calls in order and says so", async () => {
+    let revision = 4;
+    const { tool, calls } = properties(() => ({
+      ok: true,
+      revision: ++revision,
+    }));
+    const result = (await tool.handle({ actions: [flow, alias] }, {})) as any;
+    expect(calls).toEqual([[flow, alias], [flow], [alias]]);
+    expect(result).toMatchObject({
+      ok: true,
+      revision: 6,
+      split: {
+        applied: 2,
+        calls: [
+          { actionIndices: [0], ok: true, revision: 5 },
+          { actionIndices: [1], ok: true, revision: 6 },
+        ],
+      },
+    });
+  });
+
+  it("stops at a failed call and says which ones stay applied", async () => {
+    const { tool, calls } = properties((actions) =>
+      (actions[0] as { kind: string }).kind === "set-display-alias"
+        ? { ok: false, code: "EDIT_PRECONDITION", message: "no name" }
+        : { ok: true, revision: 5 },
+    );
+    const result = (await tool.handle({ actions: [flow, alias] }, {})) as any;
+    expect(calls).toHaveLength(3);
+    expect(result.ok).toBe(false);
+    expect(result.split.applied).toBe(1);
+    expect(result.split.note).toContain("call 2 failed");
+    expect(result.split.calls[1]).toMatchObject({
+      ok: false,
+      code: "EDIT_PRECONDITION",
+    });
+  });
+});
+
+describe("one envelope for simulation tools (#1231)", () => {
+  function sourceTool() {
+    const calls: unknown[] = [];
+    const originals = [
+      ...new Set(FOCUSED_TOOLS.map((entry) => entry.source)),
+    ].map((source) => ({
+      definition: {
+        name: source,
+        description: "canonical",
+        inputSchema: toolInputSchema(source)!,
+      },
+      handle: async (args: unknown) => {
+        calls.push(args);
+        return { ok: true };
+      },
+    }));
+    const tool = focusedTools(originals, () => "focused").find(
+      (entry) => entry.definition.name === "simulation_source",
+    )!;
+    return { tool, calls };
+  }
+
+  it("puts flat arguments in the request and each detail where it belongs", async () => {
+    const { tool, calls } = sourceTool();
+    await tool.handle({ action: "list" }, {});
+    await tool.handle({ action: "read", path: "tb.cir", detail: "text" }, {});
+    await tool.handle(
+      { request: { action: "read", path: "tb.cir", detail: "full" } },
+      {},
+    );
+    await tool.handle(
+      { request: { action: "read", path: "tb.cir" }, detail: "mapped" },
+      {},
+    );
+    expect(calls).toEqual([
+      { request: { action: "list" } },
+      { request: { action: "read", path: "tb.cir", detail: "text" } },
+      { request: { action: "read", path: "tb.cir" }, detail: "full" },
+      { request: { action: "read", path: "tb.cir", detail: "mapped" } },
+    ]);
+  });
+
+  it("still holds flat arguments to the tool's own operations", async () => {
+    const { tool, calls } = sourceTool();
+    await expect(tool.handle({ action: "update" }, {})).rejects.toMatchObject({
+      code: "INVALID_TOOL_OPERATION",
+    });
+    expect(calls).toEqual([]);
+  });
+});

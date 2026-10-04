@@ -1307,8 +1307,9 @@ it("names the command and what it expanded to when it exceeds the edit limit", a
     { expandedEdits: number; maxTransactionEdits: number } | undefined;
   expect(limit?.maxTransactionEdits).toBe(64);
   expect(limit?.expandedEdits).toBeGreaterThan(64);
+  // The refusal names the action it refused (#1231).
   expect(rejected.message).toBe(
-    `transform expands to ${limit?.expandedEdits} edits, and one transaction takes at most 64. Act on fewer objects per call. Nothing was changed.`,
+    `actions[0] (transform): transform expands to ${limit?.expandedEdits} edits, and one transaction takes at most 64. Act on fewer objects per call. Nothing was changed.`,
   );
   expect(controller.document).toEqual(before);
 });
@@ -3003,5 +3004,68 @@ describe("Agent placement and naming the GUI way (#1254, #1256)", () => {
     expect(label.binding).toBeUndefined();
     expect(flattenRichText(label.content!)).toBe("A1");
     expect(main().instances.find((i) => i.id === amp.id)!.reference).toBe("X1");
+  });
+});
+
+describe("every rejection names its action (#1231)", () => {
+  it("names the index and kind of a command the editor refuses", async () => {
+    const { client } = await folder();
+    const refused = await client.applyActions([
+      { kind: "set-display-alias", instanceId: "missing", text: "A1" },
+    ]);
+    expect(refused.ok).toBe(false);
+    expect(refused).toMatchObject({
+      actionIndex: 0,
+      actionKind: "set-display-alias",
+    });
+    expect(refused.message).toMatch(/^actions\[0\] \(set-display-alias\): /u);
+  });
+});
+
+describe("Cell instances in one call (#1231)", () => {
+  it("places several Cell instances atomically, named in turn", async () => {
+    const { client, controller } = await folder();
+    expect(
+      (
+        await client.applyActions([
+          { kind: "create-cell", id: "tb", name: "Testbench" },
+        ])
+      ).ok,
+    ).toBe(true);
+    const at = (x: number) => ({
+      position: { x, y: 100 },
+      rotation: 0 as const,
+      mirror: "none" as const,
+    });
+    const placed = await client.applyActions(
+      [
+        {
+          kind: "place-cell",
+          childDocumentId: "main",
+          instanceId: "c1",
+          placement: at(100),
+        },
+        {
+          kind: "place-cell",
+          childDocumentId: "main",
+          instanceId: "c2",
+          placement: at(300),
+        },
+        {
+          kind: "place-cell",
+          childDocumentId: "main",
+          instanceId: "c3",
+          placement: at(500),
+        },
+      ],
+      { documentId: "tb" },
+    );
+    expect(placed.ok, JSON.stringify(placed).slice(0, 400)).toBe(true);
+    expect(
+      controller.project.documents
+        .find((d) => d.id === "tb")!
+        .instances.map((instance) => instance.reference)
+        .sort(),
+    ).toEqual(["X1", "X2", "X3"]);
   });
 });

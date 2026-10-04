@@ -1540,3 +1540,35 @@ describe("placing by pins and by symmetry (#1112)", () => {
     );
   });
 });
+
+describe("one mirror vocabulary (#1231)", () => {
+  const m1 = { kind: "instance", reference: "M1" };
+  it("reflects a part from where it is, as the selection transform does", () => {
+    const [both] = compile([
+      { kind: "mirror", target: m1, axis: "y" },
+      { kind: "mirror", target: m1, axis: "x" },
+      { kind: "mirror", target: m1, axis: "y" },
+    ]);
+    expect(
+      both?.edits?.map((edit) => (edit as { mirror?: string }).mirror),
+    ).toEqual(["horizontal", "both", "vertical"]);
+    // A state is still accepted, and set-orientation is the place for one.
+    expect(
+      compile([{ kind: "mirror", target: m1, mirror: "vertical" }])[0]?.edits,
+    ).toEqual([
+      { kind: "mirror_instance", instanceId: "instance-1", mirror: "vertical" },
+    ]);
+    expect(
+      compile([
+        { kind: "set-orientation", target: m1, rotation: 90, mirror: "none" },
+      ])[0]?.edits,
+    ).toEqual([
+      { kind: "rotate_instance", instanceId: "instance-1", rotation: 90 },
+      { kind: "mirror_instance", instanceId: "instance-1", mirror: "none" },
+    ]);
+    expectCompileError(
+      [{ kind: "mirror", target: m1, axis: "y", mirror: "none" }],
+      "not both",
+    );
+  });
+});

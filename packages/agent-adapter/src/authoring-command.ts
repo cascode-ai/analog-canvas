@@ -69,6 +69,18 @@ const RouteNetCommandSchema = z.strictObject({
     ),
 });
 const BatchItemSchema = z.discriminatedUnion("kind", [
+  // Several Cell instances place in one call and one undo, as place-components
+  // places several built-in parts (#1231).
+  z.strictObject({
+    kind: z.literal("place-cell"),
+    childDocumentId: StableIdSchema,
+    instanceId: StableIdSchema,
+    reference: NameSchema.optional().describe(
+      "X and a number; omit it for the next free one, as the GUI names a Cell instance.",
+    ),
+    placement: PlacementSchema,
+    pinAnchor: OptionalPinAnchorSchema,
+  }),
   RouteNetCommandSchema,
   z
     .strictObject({
@@ -224,16 +236,6 @@ export const AgentAuthoringCommandSchema = z.discriminatedUnion("kind", [
     .describe(
       "Set a straight Power Rail's two ends on its own line. Taps and the one label stay; no pin is joined.",
     ),
-  z.strictObject({
-    kind: z.literal("place-cell"),
-    childDocumentId: StableIdSchema,
-    instanceId: StableIdSchema,
-    reference: NameSchema.optional().describe(
-      "X and a number; omit it for the next free one, as the GUI names a Cell instance.",
-    ),
-    placement: PlacementSchema,
-    pinAnchor: OptionalPinAnchorSchema,
-  }),
   z.strictObject({
     kind: z.literal("place-existing"),
     instanceId: StableIdSchema,

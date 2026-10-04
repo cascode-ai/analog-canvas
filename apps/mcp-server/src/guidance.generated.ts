@@ -15,17 +15,17 @@ export const agentToolHelp = {
   simulation_batch:
     "Prepare explicit batches or sweeps, then start/read/cancel the same batch. Uses the existing serialized executor and original request/revision checks. Use simulation_results for registered results and simulation_data for local files.",
   circuit_place:
-    "Place built-in symbols, child Cells or existing instances and add power rails. place-component accepts electrical control for controlled sources, separate from Annotation. actions is one atomic batch; obtain symbol IDs and resolved pins from catalog/inspect. Same planner and permissions as apply_actions.",
+    "Place built-in symbols, child Cells or existing instances and add power rails. place-component may omit reference: a device takes the next free name, as a GUI insert does (a Port still needs its name). signalFlow sets a formula block's formula/coefficient; mirrorOf places the mirror image of a placed part about x or y. Several place-cell actions share one call. place-component accepts electrical control for controlled sources, separate from Annotation. Obtain symbol IDs and resolved pins from catalog/inspect. Same planner and permissions as apply_actions; actions that cannot share one transaction are sent as consecutive calls and reported under split.",
   circuit_wire:
     "Connect/disconnect in an atomic batch; via gives interior points, all passed through (in either listed order) or refused. Explicit instance IDs avoid a full-Snapshot name lookup; server routing/validation is unchanged. Artwork contact is not connectivity.",
   circuit_transform:
-    "Move/rotate/mirror individual targets, arrange or detach-move instances, or extend a Power Rail using one supported action batch. Preserves original planner boundaries and topology semantics. For mixed action families use apply_actions.",
+    "Move/rotate/mirror individual targets, set an absolute orientation (set-orientation), arrange or detach-move instances, or extend a Power Rail. mirror axis reflects a part in place as the selection transform does (y left-right, x top-bottom); mirror's older absolute state is still accepted. Preserves original planner boundaries and topology semantics; actions that cannot share one transaction are sent as consecutive calls and reported under split.",
   circuit_selection:
     "Translate/rotate/mirror/copy/align a selection. Uses original selection IDs, topology rules and atomic planner. For individual targets use circuit_transform; for mixed families use apply_actions.",
   circuit_text:
     "Edit native labels or independent drafting text. Device placement already creates bound Reference/Value displays: reuse them, do not imitate them with annotate. annotate uses GUI text defaults; edit-text strings preserve existing formatting, explicit RichText replaces it. Bound labels retain their semantic owner. Same atomic planner; unfamiliar fields are available from describe_tool.",
   circuit_properties:
-    "Set references, parameters, models, display flags, a block's VDD/VSS Net (set-block-supply; net null returns to Auto, fixes MISSING_BLOCK_SUPPLY) or set-source-control with the original planner. control uses stable Net IDs or device instanceId/pinName/direction, null clears it; preserves parameters/binding and visual Annotation. Read control from Snapshot. Keep physical units such as 10u. Mixed families use apply_actions.",
+    "Set references, parameters, models, display flags, a formula block's formula/coefficient (set-signal-flow), a display alias that draws a part under another name while its Reference stays (set-display-alias; X1 drawn A1), a block's VDD/VSS Net (set-block-supply; net null returns to Auto, fixes MISSING_BLOCK_SUPPLY) or set-source-control with the original planner. control uses stable Net IDs or device instanceId/pinName/direction, null clears it; preserves parameters/binding and visual Annotation. Read control from Snapshot. Keep physical units such as 10u. Actions that cannot share one transaction are sent as consecutive calls and reported under split.",
   describe_tool:
     "Offline exact contracts from the same tool registry. Omit selectors for a lightweight directory. tool + operations selects one or several action/operation branches with their call envelope; field queries an argument JSON Pointer (* for array items). editKind reads a canonical low-level edit, not a high-level action. Reuse contracts within the same version; never a prerequisite or permission gate.",
   connect:
@@ -33,7 +33,7 @@ export const agentToolHelp = {
   disconnect:
     "Revoke the current browser Agent session and erase this MCP host's saved connector. A fresh editor claim code is required afterwards.",
   connection_status:
-    "Report runtime version, API origin and session observations. refresh:false is local-only. Attached means a browser socket exists, not verified execution readiness; unknown means the relay was not checked successfully.",
+    "Report runtime version, API origin and session observations. refresh:false is local-only. Attached means a browser socket exists, not verified execution readiness; unknown means the relay was not checked successfully. recentRequests shows this process's last requests hop by hop (relay forward, editor work, the tab's visibility).",
   project_cells:
     "Cloud Cell discovery/import; workspace list/bind-workspace/activate/open/save/new/rename/copy. Bind an open workspace to work without selecting the human's tab; open and new support background:true; rename names a copy's Project. Live tabs include unsaved work; Cloud reads saved versions. Copy reuses GUI transactions and dependencies. Details: analog-canvas://reference/mcp-tools.",
   gallery_circuits:
@@ -53,7 +53,7 @@ export const agentToolHelp = {
   get_context:
     "Read document identity/revision/counts with a lightweight request or clean cache. refresh:true reconciles external changes. Connect already returns context.",
   inspect:
-    "Read document/objects/nets/traces/activity. pins (instanceIds), geometry (objectIds) and diagnostics use targeted server projections; full Document facts remain available.",
+    "Read document/objects/nets/traces/activity (the session's last requests from any process, kept by the relay, beside this process's receipts). pins (instanceIds), geometry (objectIds) and diagnostics use targeted server projections; full Document facts remain available.",
   search:
     "Case-insensitive search, including LaTeX, over one authorized document or scope:project. Results include documentId. Reuses clean Snapshots by default and loads authorized Project documents concurrently.",
   apply_actions:

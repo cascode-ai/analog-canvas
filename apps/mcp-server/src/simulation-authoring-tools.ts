@@ -149,7 +149,9 @@ function tool<T extends z.ZodType>(
       },
     },
     handle: async (args, session) => {
-      const parsed = schema.safeParse(args);
+      // The request envelope the other simulation tools take is accepted
+      // here too, flattened (#1231).
+      const parsed = schema.safeParse(flattenedRequest(args));
       if (!parsed.success)
         return failure(
           "SIMULATION_HELPER_INPUT_INVALID",
@@ -218,14 +220,32 @@ async function save(
   documentId?: string,
   snapshot?: CachedSnapshot,
 ) {
-  return session.client.advancedTransact(
-    { structureEdits: [{ kind: "upsert_simulation_folder", folder }] },
-    {
-      ...(documentId ? { documentId } : {}),
-      expectedStructureRevision: revision,
-      ...(snapshot ? { snapshot } : {}),
-    },
+  return projectReceipt(
+    await session.client.advancedTransact(
+      { structureEdits: [{ kind: "upsert_simulation_folder", folder }] },
+      {
+        ...(documentId ? { documentId } : {}),
+        expectedStructureRevision: revision,
+        ...(snapshot ? { snapshot } : {}),
+      },
+    ),
   );
+}
+
+/**
+ * A Project-level change's receipt, without the open drawing's visual and
+ * netlist diagnostics: they say nothing about a simulation folder and made
+ * a folder's receipt mostly about the drawing (#1231). A refusal keeps its
+ * own diagnostics, which are about the change.
+ */
+function projectReceipt<T extends { ok: boolean }>(report: T): T {
+  if (!report.ok) return report;
+  const {
+    diagnostics: _diagnostics,
+    diagnosticDelta: _delta,
+    ...receipt
+  } = report as T & { diagnostics?: unknown; diagnosticDelta?: unknown };
+  return receipt as T;
 }
 
 function configFolder(
@@ -279,17 +299,19 @@ export const simulationAuthoringTools: readonly Entry[] = [
           "Experiment does not exist",
         );
       if (parsed.action === "remove")
-        return session.client.advancedTransact(
-          {
-            structureEdits: [
-              { kind: "remove_simulation_folder", folderId: parsed.folderId },
-            ],
-          },
-          {
-            ...(parsed.documentId ? { documentId: parsed.documentId } : {}),
-            expectedStructureRevision: project.structureRevision,
-            snapshot,
-          },
+        return projectReceipt(
+          await session.client.advancedTransact(
+            {
+              structureEdits: [
+                { kind: "remove_simulation_folder", folderId: parsed.folderId },
+              ],
+            },
+            {
+              ...(parsed.documentId ? { documentId: parsed.documentId } : {}),
+              expectedStructureRevision: project.structureRevision,
+              snapshot,
+            },
+          ),
         );
       let next: ProjectSimulationFolder;
       let dut: { name: string; ports: string[]; subckt: string } | undefined;
@@ -430,7 +452,6 @@ export const simulationAuthoringTools: readonly Entry[] = [
       );
       return result.ok
         ? {
-            ...result,
             folder: { id: next.id, name: next.name, entry: next.input.entry },
             ...(dut
               ? {
@@ -468,6 +489,7 @@ export const simulationAuthoringTools: readonly Entry[] = [
                 })),
               ],
             },
+            ...result,
           }
         : result;
     },
@@ -602,3 +624,12 @@ export const simulationAuthoringTools: readonly Entry[] = [
     },
   ),
 ];
+
+/** Arguments sent as {request: {...}} the way a request tool takes them. */
+function flattenedRequest(args: unknown): unknown {
+  if (!args || typeof args !== "object" || Array.isArray(args)) return args;
+  const { request, ...rest } = args as { request?: unknown };
+  return request && typeof request === "object" && !Array.isArray(request)
+    ? { ...rest, ...(request as object) }
+    : args;
+}

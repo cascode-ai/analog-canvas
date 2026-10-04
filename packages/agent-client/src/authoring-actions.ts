@@ -248,11 +248,40 @@ export const AuthoringActionSchema = z.discriminatedUnion("kind", [
     target: InstanceRefSchema,
     rotation: RotationInputSchema,
   }),
-  z.strictObject({
-    kind: z.literal("mirror"),
-    target: InstanceRefSchema,
-    mirror: MirrorInputSchema,
-  }),
+  z
+    .strictObject({
+      kind: z.literal("mirror"),
+      target: InstanceRefSchema,
+      axis: z
+        .enum(["x", "y"])
+        .optional()
+        .describe(
+          "Reflect the part in place, as circuit_selection's transform mirror does: y flips it left-right, x top-bottom; twice gives it back.",
+        ),
+      mirror: MirrorInputSchema.optional().describe(
+        "An absolute mirror state, kept for older calls; prefer axis, or set-orientation for a state.",
+      ),
+    })
+    .refine(
+      (action) => (action.axis === undefined) !== (action.mirror === undefined),
+      {
+        message: "Give axis (a reflection) or mirror (a state), not both",
+      },
+    ),
+  z
+    .strictObject({
+      kind: z.literal("set-orientation"),
+      target: InstanceRefSchema,
+      rotation: RotationInputSchema.optional(),
+      mirror: MirrorInputSchema.optional(),
+    })
+    .refine(
+      (action) => action.rotation !== undefined || action.mirror !== undefined,
+      { message: "Give rotation, mirror or both" },
+    )
+    .describe(
+      "Set a part's absolute orientation; rotate and mirror axis turn or reflect it from where it is.",
+    ),
   z.strictObject({
     kind: z.literal("set-reference"),
     target: InstanceRefSchema,
