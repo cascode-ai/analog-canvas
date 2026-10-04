@@ -163,9 +163,13 @@ recognize such a network, so both are placed by hand.
 - Netlist export and simulation use actual Bulk connections, including those
   established by placement defaults. Connect a missing Bulk or mark it NoConnect;
   no output path repairs it. Module interfaces and hierarchy calls retain
-  their authored Pins and order: no VDD/VSS interface is added automatically.
+  their authored Pins and order. A drawing that needs a supply it does not
+  draw — a MOS body left unconnected, or a logic gate, flip-flop or converter
+  whose model reads VDD and VSS — gets a `VDD` Pin and ground in the netlist,
+  never in the drawing; an exported module states ground as its `VSS` Pin.
   Explicitly Global supplies stay global, and separate supplies such as `AVDD`
-  and `DVDD` retain their connections. Ground remains node `0`, not a VSS Pin.
+  and `DVDD` retain their connections: when several compete, choose one in
+  Properties.
 - Right-click an endpoint for the distinct **Disconnect endpoint** and
   **Delete connection** actions.
 - `Delete` on a connected component removes it with any wire that only tapped

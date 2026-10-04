@@ -169,7 +169,9 @@ function applyPortCase(ir: DesignNetlistIR, portCase: NetlistPortCase): void {
  * Version 10 had marked those circuits "no netlist" while they still failed.
  * 12 writes a bus bit's brackets as `_` in SPICE (`D<3>` is `D_3_`) and reads
  * full-width characters as their ASCII forms, so a circuit naming Nets or
- * Pins with them now extracts.
+ * Pins with them now extracts; and a Block whose body reads its supplies, in a
+ * Cell that draws none, takes the default an unconnected MOS body takes, so a
+ * logic figure drawn without supplies now extracts.
  */
 export const NETLIST_MARK_RULE_VERSION = 12;
 

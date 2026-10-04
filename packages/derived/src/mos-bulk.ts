@@ -161,6 +161,31 @@ export function drawnSupplyNet(
   domain: SupplyDomain,
   logicalNets?: ResolvedDocumentLogicalNets,
 ): Net | undefined {
+  const drawn = drawnSupplyNets(document, domain, logicalNets);
+  return drawn.nets.length === 1 && !drawn.contradictory
+    ? drawn.nets[0]
+    : undefined;
+}
+
+/**
+ * Whether the author drew anything in a supply domain at all: one supply,
+ * several competing, or a marker on a Net of the other domain. A Cell that
+ * drew none takes the conventional default; one that drew several is asked.
+ */
+export function drawsSupply(
+  document: SchematicDocument,
+  domain: SupplyDomain,
+  logicalNets?: ResolvedDocumentLogicalNets,
+): boolean {
+  const drawn = drawnSupplyNets(document, domain, logicalNets);
+  return drawn.nets.length > 0 || drawn.contradictory;
+}
+
+function drawnSupplyNets(
+  document: SchematicDocument,
+  domain: SupplyDomain,
+  logicalNets?: ResolvedDocumentLogicalNets,
+): { nets: Net[]; contradictory: boolean } {
   const resolved = logicalNets ?? resolveDocumentLogicalNets(document);
   const candidates = new Map<string, Net>();
   let contradictory = false;
@@ -200,9 +225,7 @@ export function drawnSupplyNet(
     );
     if (net) addCandidate(net.id);
   }
-  return candidates.size === 1 && !contradictory
-    ? [...candidates.values()][0]
-    : undefined;
+  return { nets: [...candidates.values()], contradictory };
 }
 
 /**

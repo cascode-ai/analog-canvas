@@ -64,7 +64,10 @@ import {
   type NetlistNamingProfile,
 } from "./net-name-codec.js";
 import { normalizeIndependentSource } from "./source-waveform.js";
-import { withImplicitMosSupplies } from "./implicit-mos-supplies.js";
+import {
+  bodyIgnoresSupplies,
+  withImplicitMosSupplies,
+} from "./implicit-mos-supplies.js";
 import { idealAnalogBlockCell } from "./ideal-analog-block-models.js";
 import { isIdealLogicTarget } from "./ideal-logic-gate-models.js";
 import { isIdealSignalTarget } from "./ideal-signal-block-models.js";
@@ -1129,32 +1132,6 @@ function extractExternalSubcircuitInstance(
     nodes,
     parameters: projectedParameters,
   };
-}
-
-/**
- * The built-in bodies that never read VDD or VSS: the ideal amplifiers and
- * the adder in either format, and the multiplier in SPICE. An authored Cell
- * or a declared external definition of the same name replaces the body, and
- * may well use its supplies.
- */
-function bodyIgnoresSupplies(
-  target: string,
-  project: CircuitProject,
-  cellNames: Iterable<string>,
-  format: NetlistFormat,
-): boolean {
-  const folded = target.toLowerCase();
-  if (
-    [...cellNames].some((name) => name.toLowerCase() === folded) ||
-    project.externalSubcircuitDefinitions.some(
-      (definition) => definition.name.toLowerCase() === folded,
-    )
-  )
-    return false;
-  return (
-    idealAnalogBlockCell(target, format) !== null ||
-    (format === "spice" && target === "multiplier")
-  );
 }
 
 function extractBuiltInSubcircuitInstance(
