@@ -504,7 +504,9 @@ function pushRoutingQualityMetrics(
         ) {
           continue;
         }
-        if (segmentIntersectsRect(from, to, box)) {
+        if (
+          segmentIntersectsRect(from, to, insetRect(box, WIRE_THROUGH_INSET))
+        ) {
           diagnostics.push({
             code: "VISUAL_WIRE_THROUGH_SYMBOL",
             severity: "warning",
@@ -650,6 +652,24 @@ function candidateRoutesAtPoint(
     const route = routesById.get(segment.routeId);
     return route ? [route] : [];
   });
+}
+
+/**
+ * How far a wire must reach into a part's envelope to pass through it: the
+ * envelope's one-unit padding and half a unit more. A wire that only grazes
+ * the padding, leaving a pin along the part's edge or turning at its corner
+ * toward a gate, does not cross the part; four such wires in a StrongARM
+ * latch were reported as through M3 and M4.
+ */
+const WIRE_THROUGH_INSET = 1.5;
+
+function insetRect(box: Rect, inset: number): Rect {
+  return {
+    x: box.x + inset,
+    y: box.y + inset,
+    width: Math.max(0, box.width - 2 * inset),
+    height: Math.max(0, box.height - 2 * inset),
+  };
 }
 
 function segmentIntersectsRect(from: Point, to: Point, box: Rect): boolean {

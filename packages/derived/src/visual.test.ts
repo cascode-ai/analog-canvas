@@ -296,6 +296,76 @@ describe("visual quality diagnostics", () => {
       ),
     ).toEqual([]);
   });
+
+  it("reports a wire through a MOS, not one grazing its edge from a pin or toward its gate", () => {
+    // An NMOS at the origin: D (10,-20), G (-20,0), S (10,20).
+    const document = createEmptyDocument("doc", "MOS edges");
+    document.instances.push({
+      id: "M1",
+      symbolId: "nmos",
+      placement: { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+    });
+    const wire = (
+      id: string,
+      start: Parameters<typeof createRoutePath>[0]["start"],
+      bends: { x: number; y: number }[],
+      end: { x: number; y: number },
+    ) => {
+      document.nets.push({
+        id: `n-${id}`,
+        terminals:
+          start.kind === "terminal"
+            ? [{ instanceId: start.instanceId, pinName: start.pinName }]
+            : [],
+      });
+      const junctions = [
+        ...(start.kind === "junction" ? [start.junctionId] : []),
+        `${id}-end`,
+      ];
+      for (const junctionId of junctions)
+        document.junctions.push({
+          id: junctionId,
+          netId: `n-${id}`,
+          position: junctionId === `${id}-end` ? end : { x: -60, y: 0 },
+        });
+      document.routes.push(
+        createRoutePath({
+          id,
+          netId: `n-${id}`,
+          start,
+          end: { kind: "junction", junctionId: `${id}-end` },
+          bends,
+          modes: [...bends, end].map(() => "manual" as const),
+        }),
+      );
+    };
+    // From the source, a jog along the part's bottom edge, then away.
+    wire(
+      "source",
+      { kind: "terminal", instanceId: "M1", pinName: "S" },
+      [{ x: 0, y: 20 }],
+      { x: 0, y: 100 },
+    );
+    // Along the drain's level to the corner over the gate, then up.
+    wire(
+      "corner",
+      { kind: "terminal", instanceId: "M1", pinName: "G" },
+      [{ x: -20, y: -20 }],
+      { x: -100, y: -20 },
+    );
+    // A copy each time: findings are cached per Document object.
+    const through = () =>
+      diagnoseVisualQuality(structuredClone(document), resolver)
+        .filter((item) => item.code === "VISUAL_WIRE_THROUGH_SYMBOL")
+        .map((item) => item.objectIds[0]);
+    expect(through()).toEqual([]);
+    // Straight across the channel is still through the part.
+    wire("across", { kind: "junction", junctionId: "across-start" }, [], {
+      x: 40,
+      y: 0,
+    });
+    expect(through()).toEqual(["across"]);
+  });
 });
 
 describe("terminal-on-foreign-route exclusions", () => {
