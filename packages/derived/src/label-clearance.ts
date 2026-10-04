@@ -42,7 +42,9 @@ export function createLabelClearanceContext(
     }
     return measured;
   };
-  const labels = new Map(visible.map((a) => [a.id, measure(a).bounds]));
+  // Drawn extents, capitals to subscripts, as VISUAL_LABEL_OVERLAP measures:
+  // a line box's extra ascent reached into a label's own part.
+  const labels = new Map(visible.map((a) => [a.id, measure(a).inkBounds]));
   const symbols = visibleInstanceBounds(document, resolver);
   const symbolIndex = buildBoundsSpatialIndex(
     symbols.map((s) => ({ bounds: s.bounds, value: s })),
@@ -57,7 +59,7 @@ export function createLabelClearanceContext(
   // for each candidate, and ignore stale index entries for already moved text.
   const moved = new Map<string, Rect>();
   const conflicts = (annotation: Annotation) => {
-    const box = measure(annotation).bounds;
+    const box = measure(annotation).inkBounds;
     const ids = new Set<string>();
     for (const symbol of symbolIndex.queryBounds(box))
       if (overlap(box, symbol.bounds)) ids.add(symbol.id);
@@ -80,11 +82,13 @@ export function createLabelClearanceContext(
     symbols,
     measure,
     conflicts,
-    accept: (a: Annotation) => moved.set(a.id, measure(a).bounds),
+    accept: (a: Annotation) => moved.set(a.id, measure(a).inkBounds),
   };
 }
 
-/** Informational only; never part of GUI gestures or transaction acceptance. */
+/** Observations only; never part of GUI gestures or transaction acceptance.
+ * A label drawn over a wire or a part warns as label over label does
+ * (#1105); a label far from its owner is information. */
 export function diagnoseLabelClearance(
   document: SchematicDocument,
   resolver: SymbolResolver,
@@ -97,7 +101,7 @@ export function diagnoseLabelClearance(
     ...document.routes.map((r) => r.id),
   ]);
   return context.visible.flatMap((annotation) => {
-    const bounds = context.measure(annotation).bounds;
+    const bounds = context.measure(annotation).inkBounds;
     // Label/label overlap already has a clustered visual diagnostic.
     const conflicts = context
       .conflicts(annotation)
@@ -113,12 +117,12 @@ export function diagnoseLabelClearance(
     if (conflicts.length)
       diagnostics.push({
         code: "VISUAL_LABEL_CLEARANCE",
-        severity: "info",
+        severity: "warning",
         category: "observation",
         confidence: "low",
         gateEligible: false,
         message:
-          "Measured label bounds intersect Symbol ink bounds or a wire; visual review may be useful",
+          "Label text is drawn over a wire or a part's drawing; move the label or the wire",
         objectIds: [annotation.id, ...conflicts],
         bounds,
         parameters: { conflictingObjectCount: conflicts.length },

@@ -8,6 +8,7 @@ import {
   createLabelClearanceContext,
   defaultInstanceLabelPlacement,
   legacyDefaultInstanceLabelPlacement,
+  previousDefaultInstanceLabelPlacement,
   instanceLabelRowOffset,
   objectStyleProfile,
   resolveDocumentStyleProfile,
@@ -77,6 +78,7 @@ export function arrangeInstanceLabels(
     const current = context.measure(original).position;
     const defaults = [
       defaultInstanceLabelPlacement,
+      previousDefaultInstanceLabelPlacement,
       legacyDefaultInstanceLabelPlacement,
     ].map((place) =>
       place(instance, resolved, style, grid, slot, original.sizeScale ?? 1),

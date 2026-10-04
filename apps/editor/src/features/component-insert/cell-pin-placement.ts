@@ -1,5 +1,5 @@
 import { planCreateCellPin, type SchematicEdit } from "@icm/edit-engine";
-import type { CircuitProject, Instance } from "@icm/model";
+import type { CircuitProject, Instance, SchematicDocument } from "@icm/model";
 import {
   resolveDocumentStyleProfile,
   type SchematicStyleProfile,
@@ -49,7 +49,7 @@ export function planPlacedCellPin(
           },
         }
       : defaultInstanceDisplayAnnotations(
-          document,
+          withPrecedingDisplay(document, input.precedingEdits),
           input.instance,
           resolver,
           input.styleProfile ??
@@ -78,4 +78,28 @@ export function planPlacedCellPin(
     },
     ...(annotation ? { annotation } : {}),
   });
+}
+
+/**
+ * The Cell with the parts and labels earlier edits of the same batch add, so
+ * a Pin placed beside another in one call sees that Pin's name and keeps its
+ * own clear of it (#1105).
+ */
+function withPrecedingDisplay(
+  document: SchematicDocument,
+  edits: readonly SchematicEdit[] | undefined,
+): SchematicDocument {
+  if (!edits?.length) return document;
+  const instances = [...document.instances];
+  const annotations = [...document.annotations];
+  for (const edit of edits)
+    if (edit.kind === "add_instance") instances.push(edit.instance);
+    else if (edit.kind === "upsert_schematic_annotation") {
+      const index = annotations.findIndex(
+        (annotation) => annotation.id === edit.annotation.id,
+      );
+      if (index >= 0) annotations[index] = edit.annotation;
+      else annotations.push(edit.annotation);
+    }
+  return { ...document, instances, annotations };
 }

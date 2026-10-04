@@ -203,10 +203,11 @@ describe("route interaction geometry", () => {
         legId: document.routes[0]!.legs[0]!.id,
         t: 0.7,
         direction: "forward",
-        normalOffset: -8,
+        // A grid step above the wire, so a subscript still clears it.
+        normalOffset: -10,
       },
       conductorPoint: { x: 70, y: 0 },
-      labelPosition: { x: 70, y: -8 },
+      labelPosition: { x: 70, y: -10 },
     });
     expect(
       netLabelPlacementTargetAtPoint([record], { x: 70, y: 8 }, 7),
@@ -225,7 +226,7 @@ describe("route interaction geometry", () => {
         from: { x: 100, y: 0 },
         to: { x: 0, y: 0 },
         pointer: { x: 30, y: 4 },
-        label: { x: 30, y: -8 },
+        label: { x: 30, y: -10 },
         alignment: undefined,
       },
       {

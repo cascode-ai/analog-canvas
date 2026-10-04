@@ -261,7 +261,9 @@ function quarterTurn(
 
 /**
  * Name and value labels that sit where the current rule puts a label of
- * their own size, or of the default size, for their part.
+ * their own size, or of the default size, for their part. A value, or a
+ * Cell's name, may sit in the Reference's slot while no Reference is shown.
+ * A named parameter's value has a rule of its own (ruleLabelsAtDefault).
  */
 function labelsAtDefault(
   document: SchematicDocument,
@@ -273,7 +275,8 @@ function labelsAtDefault(
       annotation.anchor.kind !== "object" ||
       (annotation.kind !== "instance-label" &&
         annotation.kind !== "instance-value") ||
-      annotation.binding?.kind === "instance-value"
+      (annotation.binding?.kind === "instance-value" &&
+        annotation.binding.parameter)
     )
       return [];
     const anchor = annotation.anchor;
@@ -284,23 +287,29 @@ function labelsAtDefault(
       instance && resolver.resolve(instance.symbolId, instance.symbolVariantId);
     if (!instance?.placement || !resolved) return [];
     const placement = instance.placement;
+    const slots =
+      annotation.kind === "instance-value"
+        ? (["value", "reference"] as const)
+        : (["reference"] as const);
     const atDefault = [...new Set([annotation.sizeScale ?? 1, 1])].some(
-      (sizeScale) => {
-        const expected = defaultInstanceLabelPlacement(
-          instance,
-          resolved,
-          profile,
-          document.presentation.grid,
-          annotation.kind === "instance-value" ? "value" : "reference",
-          sizeScale,
-        );
-        return (
-          expected !== null &&
-          expected.alignment === annotation.alignment &&
-          expected.position.x === placement.position.x + anchor.localOffset.x &&
-          expected.position.y === placement.position.y + anchor.localOffset.y
-        );
-      },
+      (sizeScale) =>
+        slots.some((slot) => {
+          const expected = defaultInstanceLabelPlacement(
+            instance,
+            resolved,
+            profile,
+            document.presentation.grid,
+            slot,
+            sizeScale,
+          );
+          return (
+            expected !== null &&
+            expected.alignment === annotation.alignment &&
+            expected.position.x ===
+              placement.position.x + anchor.localOffset.x &&
+            expected.position.y === placement.position.y + anchor.localOffset.y
+          );
+        }),
     );
     return atDefault ? [annotation.id] : [];
   });

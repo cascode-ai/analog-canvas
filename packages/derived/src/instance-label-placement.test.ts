@@ -9,6 +9,9 @@ import { describe, expect, it } from "vitest";
 import {
   defaultInstanceLabelPlacement,
   hasDifferentialInputs,
+  instanceLabelRowOffset,
+  previousDefaultInstanceLabelPlacement,
+  previousInstanceLabelRowOffset,
   instanceLabelInkBounds,
   instanceLabelMetrics,
   isBjtSymbol,
@@ -335,7 +338,57 @@ describe("instance label placement", () => {
     const value = placedDefaultLabel("resistor", 0, "none", undefined, "value");
     expect(value.alignment).toBe(reference.alignment);
     expect(value.position.x).toBe(reference.position.x);
-    expect(value.position.y - reference.position.y).toBe(30);
+    expect(value.position.y - reference.position.y).toBe(20);
+  });
+
+  it("keeps the value next to its part: rows a little over one line apart (#1105)", () => {
+    // 1.2 em of the 15.1-unit label font, rounded up to the grid.
+    expect(instanceLabelRowOffset(profile, 10)).toBe(20);
+    expect(instanceLabelRowOffset(profile, 5)).toBe(20);
+    // A larger font keeps at least 1.2 em between the rows.
+    const large = {
+      ...profile,
+      typography: { ...profile.typography, instanceFontSize: 20 },
+    };
+    expect(instanceLabelRowOffset(large, 10)).toBe(30);
+    // A resistor turned a quarter shows its value under the Reference, not
+    // two rows down beside whatever is drawn there.
+    const reference = placedDefaultLabel("resistor", 90);
+    const value = placedDefaultLabel(
+      "resistor",
+      90,
+      "none",
+      undefined,
+      "value",
+    );
+    expect(reference.position).toEqual({ x: 100, y: 120 });
+    expect(value.position).toEqual({ x: 100, y: 140 });
+  });
+
+  it("recognizes where the previous rule stacked a value", () => {
+    expect(previousInstanceLabelRowOffset(profile, 10)).toBe(30);
+    const resolved = resolver.resolve("resistor")!;
+    const instance = {
+      id: "R1",
+      symbolId: "resistor",
+      placement: {
+        position: { x: 100, y: 100 },
+        rotation: 90 as const,
+        mirror: "none" as const,
+      },
+    };
+    const previous = previousDefaultInstanceLabelPlacement(
+      instance,
+      resolved,
+      profile,
+      10,
+      "value",
+    )!;
+    expect(previous.position).toEqual({ x: 100, y: 150 });
+    // The Reference's slot did not move.
+    expect(
+      previousDefaultInstanceLabelPlacement(instance, resolved, profile, 10),
+    ).toEqual(defaultInstanceLabelPlacement(instance, resolved, profile, 10));
   });
 
   it("keeps the value slot on the transformed side after rotation", () => {
@@ -349,7 +402,7 @@ describe("instance label placement", () => {
     );
     expect(value.alignment).toBe("middle");
     expect(value.position.x).toBe(reference.position.x);
-    expect(value.position.y - reference.position.y).toBe(30);
+    expect(value.position.y - reference.position.y).toBe(20);
   });
 
   it("stacks the value row away from the part when the label sits above it", () => {
@@ -363,7 +416,7 @@ describe("instance label placement", () => {
     );
     expect(reference.alignment).toBe("middle");
     expect(value.position.x).toBe(reference.position.x);
-    expect(reference.position.y - value.position.y).toBe(30);
+    expect(reference.position.y - value.position.y).toBe(20);
   });
 
   it("keeps a mirrored MOS value slot beside the mirrored channel side", () => {
@@ -377,7 +430,7 @@ describe("instance label placement", () => {
     );
     expect(value.alignment).toBe("end");
     expect(value.position.x).toBe(reference.position.x);
-    expect(value.position.y - reference.position.y).toBe(30);
+    expect(value.position.y - reference.position.y).toBe(20);
   });
 });
 

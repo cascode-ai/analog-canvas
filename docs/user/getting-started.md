@@ -175,7 +175,9 @@ recognize such a network, so both are placed by hand.
   stays too. Any wire left ending in the open is flagged in Issues.
 - Select an instance to edit its displayed name. Select a wire Route to add an
   electrical Net label; assigning the same name to another Net explicitly
-  connects those Nets. Press `T` or choose **Text** for a non-electrical note: move its translucent
+  connects those Nets. While placing a Net label (`L`), or with placed ones
+  selected, press `R` to turn it a quarter: its text runs right, down, left
+  or up from the wire, always clear of it. Press `T` or choose **Text** for a non-electrical note: move its translucent
   preview with the pointer, click to place it, then edit the text. `Esc` cancels
   placement. Label handles may be dragged near their owner, while plain text moves freely.
   Text notes and text inside drawn boxes default to **bold**. Use **B** to

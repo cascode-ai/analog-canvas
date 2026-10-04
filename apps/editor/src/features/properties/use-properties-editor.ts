@@ -4,6 +4,7 @@ import {
   labelTextDocument,
 } from "@icm/model";
 import { resolveAnnotationName } from "@icm/derived";
+import type { NetLabelDirection } from "@icm/derived";
 import { referenceDeviceLetter } from "@icm/devices";
 import { useEffect, useRef, useState } from "react";
 
@@ -165,6 +166,8 @@ export interface UsePropertiesEditorOptions {
     draft: string,
     presentation?: {
       alignment: "start" | "middle" | "end";
+      /** A label R turned upright reads bottom to top (270). */
+      rotation?: 0 | 270;
       sizeScale: number;
       formatOverride?: RichTextDocument;
       position?: Point;
@@ -214,6 +217,8 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
     position: Point;
     target: NetLabelPlacementTarget | null;
     commitAfterNaming: boolean;
+    /** Set once R turns the label; until then it takes its wire's look. */
+    direction?: NetLabelDirection;
   } | null>(null);
   const [instancePropertyDraft, setInstancePropertyDraft] =
     useState<InstancePropertyDraft>(EMPTY_INSTANCE_PROPERTY_DRAFT);
@@ -893,6 +898,7 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
     const existingLabel = options.netLabelForRoute(route);
     const edits = options.netLabelEditsForRoute(route, prepared.name, {
       alignment: target.alignment ?? placement.alignment,
+      ...(target.rotation ? { rotation: target.rotation } : {}),
       sizeScale: placement.sizeScale,
       ...(prepared.formatOverride
         ? { formatOverride: prepared.formatOverride }
@@ -950,6 +956,24 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
     setNetLabelPlacement((current) =>
       current?.phase === "placing" ? { ...current, position, target } : current,
     );
+  };
+
+  /** R while placing: the label turns a quarter, retargeted on its wire. */
+  const turnNetLabelPlacement = (
+    direction: NetLabelDirection,
+    target: NetLabelPlacementTarget | null,
+  ): void => {
+    setNetLabelPlacement((current) =>
+      current?.phase === "placing"
+        ? {
+            ...current,
+            direction,
+            target,
+            position: target?.labelPosition ?? current.position,
+          }
+        : current,
+    );
+    options.setStatus(`Net Label runs ${direction} · R turns it again`);
   };
 
   const placeNetLabel = (target: NetLabelPlacementTarget | null): void => {
@@ -1392,6 +1416,7 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
     updateNetLabelDraft,
     updateNetLabelPlacementText,
     updateNetLabelPlacementPosition,
+    turnNetLabelPlacement,
     setReferenceLabelsVisible,
     setValueLabelsVisible,
     showSelectedInstanceValue,

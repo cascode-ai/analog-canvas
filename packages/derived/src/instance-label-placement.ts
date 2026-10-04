@@ -18,15 +18,30 @@ export type InstanceLabelSide = "left" | "right" | "top" | "bottom";
 export type InstanceLabelSlot = "reference" | "value";
 
 /**
- * Vertical distance between the reference row and the value row, quantized to
- * whole grid multiples so snapping cannot pull the two rows into each other.
+ * Vertical distance between the reference row and the value row: the
+ * smallest whole grid multiple of at least 1.2 em, so a value stays next to
+ * its part (#1105) and snapping cannot pull the two rows into each other.
  */
 export function instanceLabelRowOffset(
   profile: SchematicStyleProfile,
   grid: number,
 ): number {
+  return Math.ceil((profile.typography.instanceFontSize * 1.2) / grid) * grid;
+}
+
+/**
+ * The row distance until 2026-10-04, 1.35 em rounded up to the grid (a whole
+ * extra grid step at the default size). Labels still there count as
+ * untouched, so they keep following their part.
+ */
+export function previousInstanceLabelRowOffset(
+  profile: SchematicStyleProfile,
+  grid: number,
+): number {
   return Math.ceil((profile.typography.instanceFontSize * 1.35) / grid) * grid;
 }
+
+type InstanceLabelRowRule = typeof instanceLabelRowOffset;
 
 const SIDE_LABEL_SYMBOLS = new Set([
   "resistor",
@@ -582,6 +597,40 @@ function portLabelPlacement(
    */
   verticalGap = grid / 2,
 ): InstanceLabelPlacement | null {
+  return (
+    portLabelSides(
+      instance,
+      resolved,
+      profile,
+      grid,
+      rowOffset,
+      verticalGap,
+    )?.[0] ?? null
+  );
+}
+
+/**
+ * Where a Cell Pin's name may go, best first: the side away from its wire,
+ * then the two sides across the Pin. A name that would collide on the first
+ * side takes the next one (#1105); the side toward the wire is never offered.
+ */
+export function portLabelCandidates(
+  instance: SchematicDocument["instances"][number],
+  resolved: ResolvedSymbol,
+  profile: SchematicStyleProfile,
+  grid: number,
+): InstanceLabelPlacement[] {
+  return portLabelSides(instance, resolved, profile, grid, 0, grid / 2) ?? [];
+}
+
+function portLabelSides(
+  instance: SchematicDocument["instances"][number],
+  resolved: ResolvedSymbol,
+  profile: SchematicStyleProfile,
+  grid: number,
+  rowOffset: number,
+  verticalGap: number,
+): InstanceLabelPlacement[] | null {
   const pin = resolved.definition.pins[0];
   const bounds = transformedBounds(
     visibleSymbolInkBounds(resolved, instance.signalFlowParameters),
@@ -599,40 +648,36 @@ function portLabelPlacement(
   const towardWireY = pinWorld.y - centreY;
   const fontSize = profile.typography.instanceFontSize;
   const gap = grid;
-  if (Math.abs(towardWireX) >= Math.abs(towardWireY)) {
-    const baseline = Math.round(centreY + fontSize * 0.35 + rowOffset);
-    return towardWireX > 0
-      ? {
-          position: { x: Math.round(bounds.x - gap), y: baseline },
-          alignment: "end",
-        }
-      : {
-          position: {
-            x: Math.round(bounds.x + bounds.width + gap),
-            y: baseline,
-          },
-          alignment: "start",
-        };
-  }
+  const baseline = Math.round(centreY + fontSize * 0.35 + rowOffset);
+  const left: InstanceLabelPlacement = {
+    position: { x: Math.round(bounds.x - gap), y: baseline },
+    alignment: "end",
+  };
+  const right: InstanceLabelPlacement = {
+    position: { x: Math.round(bounds.x + bounds.width + gap), y: baseline },
+    alignment: "start",
+  };
   const x = Math.round(centreX);
-  return towardWireY > 0
-    ? {
-        // Above: leave room for a subscript's descent under the baseline.
-        position: {
-          x,
-          y: Math.round(bounds.y - verticalGap - fontSize * 0.3 + rowOffset),
-        },
-        alignment: "middle",
-      }
-    : {
-        position: {
-          x,
-          y: Math.round(
-            bounds.y + bounds.height + verticalGap + fontSize * 0.7 + rowOffset,
-          ),
-        },
-        alignment: "middle",
-      };
+  // Above: leave room for a subscript's descent under the baseline.
+  const above: InstanceLabelPlacement = {
+    position: {
+      x,
+      y: Math.round(bounds.y - verticalGap - fontSize * 0.3 + rowOffset),
+    },
+    alignment: "middle",
+  };
+  const below: InstanceLabelPlacement = {
+    position: {
+      x,
+      y: Math.round(
+        bounds.y + bounds.height + verticalGap + fontSize * 0.7 + rowOffset,
+      ),
+    },
+    alignment: "middle",
+  };
+  if (Math.abs(towardWireX) >= Math.abs(towardWireY))
+    return towardWireX > 0 ? [left, above, below] : [right, above, below];
+  return towardWireY > 0 ? [above, right, left] : [below, right, left];
 }
 
 /**
@@ -700,6 +745,31 @@ export function defaultInstanceLabelPlacement(
 ): InstanceLabelPlacement | null {
   return defaultPlacementWith(
     placeUprightInstanceLabel,
+    instanceLabelRowOffset,
+    instance,
+    resolved,
+    profile,
+    grid,
+    slot,
+    sizeScale,
+  );
+}
+
+/**
+ * Where the rule from 2026-09-25 to 2026-10-04 put an untouched label: the
+ * current sides, with the wider row distance under the reference.
+ */
+export function previousDefaultInstanceLabelPlacement(
+  instance: SchematicDocument["instances"][number],
+  resolved: ResolvedSymbol,
+  profile: SchematicStyleProfile,
+  grid: number,
+  slot: InstanceLabelSlot = "reference",
+  sizeScale = 1,
+): InstanceLabelPlacement | null {
+  return defaultPlacementWith(
+    placeUprightInstanceLabel,
+    previousInstanceLabelRowOffset,
     instance,
     resolved,
     profile,
@@ -724,6 +794,7 @@ export function legacyDefaultInstanceLabelPlacement(
 ): InstanceLabelPlacement | null {
   return defaultPlacementWith(
     legacyPlaceUprightInstanceLabel,
+    previousInstanceLabelRowOffset,
     instance,
     resolved,
     profile,
@@ -735,6 +806,7 @@ export function legacyDefaultInstanceLabelPlacement(
 
 function defaultPlacementWith(
   place: typeof placeUprightInstanceLabel,
+  rows: InstanceLabelRowRule,
   instance: SchematicDocument["instances"][number],
   resolved: ResolvedSymbol,
   profile: SchematicStyleProfile,
@@ -754,8 +826,7 @@ function defaultPlacementWith(
   const compactSideGap = grid;
   // The value slot is the second upright row under the reference on the same
   // side; see instanceLabelRowOffset.
-  const rowOffset =
-    slot === "value" ? instanceLabelRowOffset(profile, grid) : 0;
+  const rowOffset = slot === "value" ? rows(profile, grid) : 0;
 
   if (instance.symbolId === "port" || instance.symbolId === "port-filled") {
     return portLabelPlacement(instance, resolved, profile, grid, rowOffset);
@@ -887,6 +958,43 @@ export function defaultInstanceParameterLabelPlacement(
   grid: number,
   parameter: string,
 ): InstanceLabelPlacement | null {
+  return parameterPlacementWith(
+    instanceLabelRowOffset,
+    instance,
+    resolved,
+    profile,
+    grid,
+    parameter,
+  );
+}
+
+/** Where the rule until 2026-10-04 put a parameter's value: the current
+ * parts and sides, rows apart by the wider row distance. */
+export function previousDefaultInstanceParameterLabelPlacement(
+  instance: SchematicDocument["instances"][number],
+  resolved: ResolvedSymbol,
+  profile: SchematicStyleProfile,
+  grid: number,
+  parameter: string,
+): InstanceLabelPlacement | null {
+  return parameterPlacementWith(
+    previousInstanceLabelRowOffset,
+    instance,
+    resolved,
+    profile,
+    grid,
+    parameter,
+  );
+}
+
+function parameterPlacementWith(
+  rows: InstanceLabelRowRule,
+  instance: SchematicDocument["instances"][number],
+  resolved: ResolvedSymbol,
+  profile: SchematicStyleProfile,
+  grid: number,
+  parameter: string,
+): InstanceLabelPlacement | null {
   const index = magneticDisplayParameters(instance.symbolId).findIndex(
     (candidate) => candidate.name === parameter,
   );
@@ -910,7 +1018,7 @@ export function defaultInstanceParameterLabelPlacement(
       partBounds,
       partSide,
       instanceLabelMetrics(profile),
-      (anchor.rows ?? 0) * instanceLabelRowOffset(profile, grid),
+      (anchor.rows ?? 0) * rows(profile, grid),
     );
   return legacyDefaultInstanceParameterLabelPlacement(
     instance,
@@ -948,7 +1056,7 @@ export function legacyDefaultInstanceParameterLabelPlacement(
       x: Math.ceil((bounds.x + bounds.width + grid) / grid) * grid,
       y:
         snap(bounds.y + bounds.height / 2) +
-        index * instanceLabelRowOffset(profile, grid),
+        index * previousInstanceLabelRowOffset(profile, grid),
     },
     alignment: "start",
   };

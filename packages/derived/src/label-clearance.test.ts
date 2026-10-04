@@ -1,7 +1,10 @@
 import { expect, it } from "vitest";
 import { createEmptyDocument, createRoutePath } from "@icm/model";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
+import { defaultInstanceLabelPlacement } from "./instance-label-placement.js";
 import { diagnoseLabelClearance } from "./label-clearance.js";
+import { resolveDocumentStyleProfile } from "./style-profile.js";
+import { diagnoseVisualQuality } from "./visual.js";
 const resolver = new InMemorySymbolResolver(builtInSymbols);
 it("reports wire intersection and owner distance as observations, ignores hidden labels, and does not repeat text overlap", () => {
   const doc = createEmptyDocument("d", "Checks");
@@ -45,9 +48,12 @@ it("reports wire intersection and owner distance as observations, ignores hidden
     "VISUAL_LABEL_OWNER_DISTANCE",
   ]);
   expect(checks[0]!.objectIds).toEqual(["far", "w"]);
-  expect(
-    checks.every((d) => d.gateEligible === false && d.severity === "info"),
-  ).toBe(true);
+  // Text over a wire warns, as text over text does (#1105); distance from
+  // the owner is information.
+  expect(checks.map((d) => [d.severity, d.gateEligible])).toEqual([
+    ["warning", false],
+    ["info", false],
+  ]);
   doc.annotations[0]!.visible = false;
   expect(diagnoseLabelClearance(doc, resolver)).toEqual([]);
 });
@@ -80,4 +86,56 @@ it("does not mistake a diagonal's bounding box for an actual crossing", () => {
   expect(diagnoseLabelClearance(doc, resolver)).toEqual([]);
   doc.annotations[0]!.anchor = { kind: "free", position: { x: 50, y: 60 } };
   expect(diagnoseLabelClearance(doc, resolver)).toHaveLength(1);
+});
+
+it("does not report a default label against its own part", () => {
+  // The line box's extra ascent reached into the part above it; the drawn
+  // capitals keep the placement gap (#1105).
+  const doc = createEmptyDocument("d", "Own part");
+  for (const [index, rotation] of ([0, 90, 180, 270] as const).entries()) {
+    const id = `r${index}`;
+    const at = { x: 100 + index * 200, y: 100 };
+    doc.instances.push({
+      id,
+      symbolId: "resistor",
+      placement: { position: at, rotation, mirror: "none" },
+    });
+    const resolved = resolver.resolve("resistor")!;
+    const profile = resolveDocumentStyleProfile(doc.presentation);
+    for (const slot of ["reference", "value"] as const) {
+      const placement = defaultInstanceLabelPlacement(
+        doc.instances.at(-1)!,
+        resolved,
+        profile,
+        doc.presentation.grid,
+        slot,
+      )!;
+      doc.annotations.push({
+        id: `${id}-${slot}`,
+        kind: slot === "reference" ? "instance-label" : "instance-value",
+        content: {
+          runs: [{ kind: "text", value: slot === "reference" ? "R1" : "1k" }],
+        },
+        anchor: {
+          kind: "object",
+          objectId: id,
+          localOffset: {
+            x: placement.position.x - at.x,
+            y: placement.position.y - at.y,
+          },
+          fallbackPosition: placement.position,
+        },
+        alignment: placement.alignment,
+        rotation: 0,
+        locked: false,
+      });
+    }
+  }
+  expect(diagnoseLabelClearance(doc, resolver)).toEqual([]);
+  // The two stacked rows do not read as overlapping text either.
+  expect(
+    diagnoseVisualQuality(doc, resolver).filter(
+      (d) => d.code === "VISUAL_LABEL_OVERLAP",
+    ),
+  ).toEqual([]);
 });

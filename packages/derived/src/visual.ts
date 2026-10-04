@@ -811,6 +811,9 @@ export function diagnoseVisualQuality(
     .map((annotation) => {
       return {
         id: annotation.id,
+        // What is drawn, capitals to subscripts: the line box's extra ascent
+        // and descent made two stacked rows, or a label and its part, read
+        // as overlapping when nothing touched (#1105).
         bounds: resolveAnnotationPresentation(
           document,
           resolver,
@@ -818,7 +821,7 @@ export function diagnoseVisualQuality(
           styleProfile,
           routingGeometry,
           options.logicalNetResolution,
-        ).bounds,
+        ).inkBounds,
       };
     });
   for (const cluster of overlappingClusters(annotationBounds)) {

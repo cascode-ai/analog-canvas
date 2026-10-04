@@ -24,11 +24,14 @@ const run = (directory, args = []) =>
   );
 
 // Agent-only measured-ink observations supplement (never replace) the reviewed
-// drawing diagnostics below. Pin their owners so new findings do not silently
-// pass merely because they are informational. No fixture geometry is changed.
+// drawing diagnostics below. Text over a wire or a part warns, as text over
+// text does (#1105); pin the owners so new findings do not pass unnoticed. No
+// fixture geometry is changed.
+// M1's Reference sits near a wire without touching it: the line box's extra
+// ascent counted it until labels were measured by their drawn ink.
 const otaClearanceLabels = [
   "instance-label-PIBIAS",
-  ...[1, 2, 3, 4, 5, 6].map((n) => `instance-label-M${n}`),
+  ...[2, 3, 4, 5, 6].map((n) => `instance-label-M${n}`),
 ];
 const libraryTbClearanceLabels = [
   "instance-label-XDUT",
@@ -128,7 +131,7 @@ test.each([
           for (const diagnostic of clearanceNotes) {
             expect(diagnostic).toMatchObject({
               category: "observation",
-              severity: "info",
+              severity: "warning",
               confidence: "low",
               gateEligible: false,
               parameters: {
