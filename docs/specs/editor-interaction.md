@@ -530,7 +530,11 @@ second copy protocol.
 
 The planner authors the resulting geometry for every planned Route in the
 same transaction. Engine instance-follow remains the safe single-instance
-fallback, not a second progressive planner for a group gesture. Marquee Route
+fallback, not a second progressive planner for a group gesture. It agrees with
+the closure on internal wiring: when parts only slide, a Route component whose
+pins all belong to parts sliding by the same offset (an open stub, with its
+bends, open Junctions and labels) travels with them whole, and only Routes
+reaching a part that stays, turns or slides differently stretch. Marquee Route
 selection tests actual polyline segments against the rectangle, rather than
 selecting a distant bend solely because its bounding box overlaps the gesture.
 

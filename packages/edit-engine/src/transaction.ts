@@ -1,6 +1,7 @@
 import { routeEnd, SchematicDocumentSchema } from "@icm/model";
 import type { SchematicDocument } from "@icm/model";
 import {
+  deriveInternalGroupSelection,
   endpointKey,
   logicalNetContractIssueKey,
   validateLogicalNetContract,
@@ -24,6 +25,7 @@ import {
 } from "./transaction-route-annotations.js";
 import {
   applyInstancesRouteFollow,
+  carryTranslatedRouteComponents,
   splitRoute,
 } from "./transaction-route-follow.js";
 import {
@@ -188,8 +190,8 @@ export function executeTransaction(
       "set_instance_signal_flow_parameters",
     ].includes(edit.kind),
   )
-    ? new Set(
-        document.routes.flatMap((route) =>
+    ? new Set([
+        ...document.routes.flatMap((route) =>
           [route.start, routeEnd(route)].some(
             (endpoint) =>
               endpoint.kind === "terminal" &&
@@ -198,7 +200,11 @@ export function executeTransaction(
             ? [route.id]
             : [],
         ),
-      )
+        // Wiring that may travel with the moved parts, Junction to Junction
+        // included (carryTranslatedRouteComponents).
+        ...deriveInternalGroupSelection(document, [...transformedInstanceIds])
+          .routeIds,
+      ])
     : undefined;
   const originalRouteStates = new Map(
     resolver
@@ -625,13 +631,23 @@ export function executeTransaction(
     // edits (for example a top-bottom screen reflection is mirror + rotate).
     // Follow Routes once from the transaction's original geometry to the
     // final placement, never through invalid intermediate orientations.
+    // Wiring hanging only from parts that slid by one offset goes with them
+    // whole first; the rest stretches.
+    const carriedRouteIds = carryTranslatedRouteComponents(
+      draft,
+      document,
+      transformedInstanceIds,
+      explicitlyAuthoredRouteIds,
+      movedJunctionIds,
+      changedObjectIds,
+    );
     const followedRouteIds = applyInstancesRouteFollow(
       draft,
       document,
       resolver,
       resolver,
       transformedInstanceIds,
-      explicitlyAuthoredRouteIds,
+      new Set([...explicitlyAuthoredRouteIds, ...carriedRouteIds]),
     );
     for (const routeId of followedRouteIds) {
       const collapsed = !draft.routes.some((route) => route.id === routeId);

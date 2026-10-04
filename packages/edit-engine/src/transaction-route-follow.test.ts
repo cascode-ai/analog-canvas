@@ -253,3 +253,167 @@ describe("Route follow after a canvas drag", () => {
     ]);
   });
 });
+
+/**
+ * Two resistors standing on their sides (pin 1 at x + 20, as in #1308), each
+ * with a stub from pin 1 to an open end at x = 60, and a wire from RA's pin 2
+ * to RB's pin 2. RA's stub bends once and carries the Net label `sig`.
+ */
+function stubFixture() {
+  const document = createEmptyDocument("stubs", "Stubs");
+  for (const [id, y] of [
+    ["RA", 0],
+    ["RB", 100],
+  ] as const) {
+    document.instances.push({
+      id,
+      symbolId: "resistor",
+      placement: { position: { x: 0, y }, rotation: 90, mirror: "none" },
+    });
+    document.nets.push({
+      id: `n-${id}`,
+      terminals: [{ instanceId: id, pinName: "1" }],
+    });
+    document.junctions.push({
+      id: `open-${id}`,
+      netId: `n-${id}`,
+      position: { x: 60, y: y - (id === "RA" ? 20 : 0) },
+    });
+    document.routes.push(
+      createRoutePath({
+        id: `stub-${id}`,
+        netId: `n-${id}`,
+        start: terminal(id, "1"),
+        end: { kind: "junction", junctionId: `open-${id}` },
+        bends:
+          id === "RA"
+            ? [
+                { x: 40, y: 0 },
+                { x: 40, y: -20 },
+              ]
+            : [],
+        modes: id === "RA" ? ["manual", "manual", "manual"] : ["manual"],
+      }),
+    );
+  }
+  document.nets.push({
+    id: "n-link",
+    terminals: [
+      { instanceId: "RA", pinName: "2" },
+      { instanceId: "RB", pinName: "2" },
+    ],
+  });
+  document.routes.push(
+    createRoutePath({
+      id: "link",
+      netId: "n-link",
+      start: terminal("RA", "2"),
+      end: terminal("RB", "2"),
+      bends: [
+        { x: -40, y: 0 },
+        { x: -40, y: 100 },
+      ],
+      modes: ["manual", "manual", "manual"],
+    }),
+  );
+  const stub = document.routes[0]!;
+  document.annotations.push({
+    id: "sig",
+    kind: "net-label",
+    netId: "n-RA",
+    content: { runs: [{ kind: "text", value: "sig" }] },
+    anchor: {
+      kind: "route",
+      routeId: stub.id,
+      legId: stub.legs[1]!.id,
+      t: 0.5,
+      direction: "forward",
+      normalOffset: 8,
+      orientation: "follow",
+      fallbackPosition: { x: 48, y: -10 },
+    },
+    alignment: "start",
+    rotation: 0,
+    locked: false,
+  });
+  return document;
+}
+
+function moved(
+  document: ReturnType<typeof stubFixture>,
+  edits: unknown[],
+): ReturnType<typeof stubFixture> {
+  const result = executeTransaction(
+    document,
+    transaction(document.id, document.revision, edits),
+    context,
+  );
+  if (!result.ok) throw new Error(result.error.message);
+  return result.document;
+}
+
+const shifted = (points: readonly Point[], dx: number, dy: number) =>
+  points.map((point) => ({ x: point.x + dx, y: point.y + dy }));
+
+describe("an open stub moves with its part (#1308)", () => {
+  it("carries a labelled and an unlabelled stub whole when a part slides", () => {
+    const document = stubFixture();
+    const stubA = centerline(document, "stub-RA");
+    const stubB = centerline(document, "stub-RB");
+    const after = moved(document, [
+      { kind: "move_instance", instanceId: "RA", position: { x: 60, y: 0 } },
+      { kind: "move_instance", instanceId: "RB", position: { x: 60, y: 100 } },
+    ]);
+    expect(centerline(after, "stub-RA")).toEqual(shifted(stubA, 60, 0));
+    expect(centerline(after, "stub-RB")).toEqual(shifted(stubB, 60, 0));
+    expect(after.junctions.map((junction) => junction.position)).toEqual([
+      { x: 120, y: -20 },
+      { x: 120, y: 100 },
+    ]);
+    // Both ends of the wire between them slid by the same offset too.
+    expect(centerline(after, "link")).toEqual(
+      shifted(centerline(document, "link"), 60, 0),
+    );
+    // The label keeps its place on its stub.
+    const label = after.annotations[0]!;
+    expect(label.anchor).toMatchObject({
+      routeId: "stub-RA",
+      legId:
+        document.annotations[0]!.anchor.kind === "route"
+          ? document.annotations[0]!.anchor.legId
+          : "",
+      t: 0.5,
+      normalOffset: 8,
+      fallbackPosition: { x: 108, y: -10 },
+    });
+  });
+
+  it("stretches what reaches a part that stays, or moves by another offset", () => {
+    const document = stubFixture();
+    const alone = moved(document, [
+      { kind: "move_instance", instanceId: "RA", position: { x: 60, y: 0 } },
+    ]);
+    // RA's own stub still goes with it ...
+    expect(alone.junctions[0]!.position).toEqual({ x: 120, y: -20 });
+    // ... while the wire to RB, which stayed, stretches from RA's new pin.
+    const link = centerline(alone, "link");
+    expect(link[0]).not.toEqual(centerline(document, "link")[0]);
+    expect(link.at(-1)).toEqual(centerline(document, "link").at(-1));
+    const apart = moved(document, [
+      { kind: "move_instance", instanceId: "RA", position: { x: 60, y: 0 } },
+      { kind: "move_instance", instanceId: "RB", position: { x: 0, y: 140 } },
+    ]);
+    expect(centerline(apart, "link")).not.toEqual(
+      shifted(centerline(document, "link"), 60, 0),
+    );
+    expect(apart.junctions[1]!.position).toEqual({ x: 60, y: 140 });
+  });
+
+  it("leaves the stub's open end where it is when the part turns", () => {
+    const document = stubFixture();
+    const turned = moved(document, [
+      { kind: "rotate_instance", instanceId: "RB", rotation: 270 },
+    ]);
+    expect(turned.junctions[1]!.position).toEqual({ x: 60, y: 100 });
+  });
+});
