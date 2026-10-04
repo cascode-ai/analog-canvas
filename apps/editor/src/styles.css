@@ -528,10 +528,11 @@ body {
   }
 
   .gallery-actions .account-name {
-    /* Wide enough for an ordinary two-part display name; the header still
-       holds one row at this width. Anything longer ellipsizes, which only
-       works because the chip stays out of the row's shared flex rule. */
-    max-width: 10rem;
+    /* Wide enough for an ordinary two-part display name beside its round
+       mark; the header still holds one row at this width. Anything longer
+       ellipsizes, which only works because the chip stays out of the row's
+       shared flex rule. */
+    max-width: 11.75rem;
   }
 }
 
@@ -547,7 +548,7 @@ body {
   }
 
   .gallery-actions .account-name {
-    max-width: 6.5rem;
+    max-width: 8.25rem;
   }
 }
 

@@ -200,7 +200,8 @@ test("compacts the editor header at half width and keeps the account role in its
     await expect(actions.getByTestId("publish-gallery-button")).toBeVisible();
     await expect(actions.getByTestId("open-agent")).toBeVisible();
     await expect(actions.locator(".tokenzhang-link-icon")).toBeVisible();
-    await expect(actions.locator(".account-more")).toBeVisible();
+    // The name, or at phone widths its round mark alone, opens the account.
+    await expect(actions.getByTestId("account-name")).toBeVisible();
     if (width <= 760) {
       await expect(
         actions.getByTestId("open-agent").locator(".app-action-label"),
@@ -213,11 +214,17 @@ test("compacts the editor header at half width and keeps the account role in its
     }
   }
 
-  await page.locator(".account-more > summary").click();
+  await page.getByTestId("account-name").click();
   await expect(page.getByTestId("account-menu-name")).toHaveText(
     "A Very Long Display Name",
   );
   await expect(page.getByTestId("account-owner")).toHaveText("Owner");
+  // Privacy lives in the status bar; deleting sits apart, below the menu.
+  const panel = page.getByTestId("account-panel");
+  await expect(panel.getByText("Privacy")).toHaveCount(0);
+  await expect(panel.getByTestId("account-delete")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(panel).toHaveCount(0);
 });
 
 test("keeps the account affordance when auth providers are unavailable", async ({

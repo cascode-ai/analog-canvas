@@ -9,7 +9,7 @@ import {
   verifyEmailCode,
   type AccountState,
 } from "./account";
-import AccountMenuView from "./account-menu-view";
+import AccountMenuView, { AccountPanelContent } from "./account-menu-view";
 
 function markupFor(
   state: AccountState,
@@ -26,6 +26,22 @@ function markupFor(
       onRename: () => undefined,
       onSignOut: () => undefined,
       onDeleteAccount: async () => ({ ok: false, message: "unused" }) as const,
+    }),
+  );
+}
+
+function panelFor(
+  user: NonNullable<AccountState["user"]>,
+  showGalleryLinks = true,
+): string {
+  return renderToStaticMarkup(
+    createElement(AccountPanelContent, {
+      user,
+      showGalleryLinks,
+      onRename: () => undefined,
+      onSignOut: () => undefined,
+      onClose: () => undefined,
+      onDelete: () => undefined,
     }),
   );
 }
@@ -61,7 +77,7 @@ describe("AccountMenuView", () => {
     expect(markup).toContain('href="/privacy" data-testid="signin-privacy"');
   });
 
-  it("offers the privacy notice and account deletion to a signed-in member", () => {
+  it("gives a signed-in member one account button, the name", () => {
     const markup = markupFor({
       providers: { github: true, google: false, email: true },
       user: {
@@ -73,10 +89,18 @@ describe("AccountMenuView", () => {
         isAdmin: false,
       },
     });
-    expect(markup).toContain('href="/privacy" data-testid="account-privacy"');
-    expect(markup).toContain(
-      'data-testid="account-delete" aria-haspopup="dialog">Delete account…</button>',
-    );
+    expect(markup).toContain('data-testid="account-name"');
+    expect(markup).toContain('data-initial="A"');
+    expect(markup).toContain('aria-haspopup="dialog"');
+    expect(markup).toContain('aria-expanded="false"');
+    // The menu, the privacy notice and deletion are not in the header.
+    for (const absent of [
+      "⋯",
+      'data-testid="account-privacy"',
+      'data-testid="account-delete"',
+      'data-testid="account-signout"',
+    ])
+      expect(markup).not.toContain(absent);
   });
 
   it("reads each answer the server gives to an account deletion", async () => {
@@ -146,42 +170,52 @@ describe("AccountMenuView", () => {
     ).toEqual({ ok: false, message: "Too many wrong codes — send a new one." });
   });
 
-  it("shows the signed-in identity with rename, badge, and sign out", () => {
-    const markup = markupFor({
-      providers: { github: true, google: true, email: true },
-      user: {
-        id: "u1",
-        displayName: "Token Zhang",
-        email: "owner@example.com",
-        provider: "github",
-        role: "user",
-        isAdmin: true,
-      },
+  it("opens a plain account menu, with deleting kept apart below it", () => {
+    const markup = panelFor({
+      id: "u1",
+      displayName: "Token Zhang",
+      email: "owner@example.com",
+      provider: "github",
+      role: "user",
+      isAdmin: true,
     });
-    expect(markup).toContain('data-testid="account-name"');
-    expect(markup).toContain("Token Zhang");
-    expect(markup).toContain('data-testid="account-owner"');
-    expect(markup).toContain('data-testid="account-signout"');
+    expect(markup).toContain(">Token Zhang</h2>");
+    expect(markup).toContain("Signed in with GitHub");
+    expect(markup).toContain("owner@example.com");
+    expect(markup).toContain('data-testid="account-owner">Owner</span>');
+    const menu = markup.slice(
+      markup.indexOf("account-panel-menu"),
+      markup.indexOf("account-panel-danger"),
+    );
+    for (const item of [
+      "account-rename",
+      "account-mine",
+      "account-moderation-link",
+      "account-signout",
+    ])
+      expect(menu).toContain(`data-testid="${item}"`);
+    expect(menu).not.toContain("account-delete");
+    expect(markup.slice(markup.indexOf("account-panel-danger"))).toContain(
+      'data-testid="account-delete"',
+    );
+    expect(markup).not.toContain("/privacy");
     expect(markup).not.toContain("account-signin");
   });
 
-  it("can reuse the account control without exposing Gallery-only links", () => {
-    const markup = markupFor(
+  it("can reuse the account panel without exposing Gallery-only links", () => {
+    const markup = panelFor(
       {
-        providers: { github: false, google: true, email: false },
-        user: {
-          id: "preview-user",
-          displayName: "Preview Tester",
-          email: "tester@example.com",
-          provider: "google",
-          role: "moderator",
-          isAdmin: false,
-        },
+        id: "preview-user",
+        displayName: "Preview Tester",
+        email: "tester@example.com",
+        provider: "google",
+        role: "moderator",
+        isAdmin: false,
       },
-      null,
       false,
     );
-
+    expect(markup).toContain("Signed in with Google");
+    expect(markup).toContain('data-testid="account-mod">Moderator</span>');
     expect(markup).toContain('data-testid="account-signout"');
     expect(markup).not.toContain('data-testid="account-mine"');
     expect(markup).not.toContain('data-testid="account-moderation-link"');

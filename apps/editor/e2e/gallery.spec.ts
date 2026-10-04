@@ -3587,19 +3587,25 @@ test("a signed-in owner renames the display name and signs out", async ({
   await page.goto("/");
   await expect(page.getByTestId("account-name")).toHaveText("tz");
   await expect(page.getByTestId("account-owner")).toBeHidden();
-  await page.locator(".account-more > summary").click();
+  // The name is the one account button: it opens the account panel.
+  await page.getByTestId("account-name").click();
+  const panel = page.getByTestId("account-panel");
+  // Its stylesheet loads on this route too: it sits over the page.
+  await expect(page.locator(".account-panel-backdrop")).toHaveCSS(
+    "position",
+    "fixed",
+  );
   await expect(page.getByTestId("account-menu-name")).toHaveText("tz");
   await expect(page.getByTestId("account-owner")).toHaveText("Owner");
-  await page.getByTestId("account-name").click();
+  await page.getByTestId("account-rename").click();
   await page.getByTestId("account-rename-input").fill("Token Zhang");
   await page.getByTestId("account-rename-input").press("Enter");
+  await expect(page.getByTestId("account-menu-name")).toHaveText("Token Zhang");
   await expect(page.getByTestId("account-name")).toHaveText("Token Zhang");
   expect(renames).toEqual(["Token Zhang"]);
 
-  const accountPopover = page.locator(".account-popover");
-  await expect(accountPopover).toHaveCSS("position", "absolute");
-  await expect(accountPopover).toHaveCSS("display", "grid");
   await page.getByTestId("account-signout").click();
+  await expect(panel).toHaveCount(0);
   await expect(page.getByTestId("account-signin")).toBeVisible();
   expect(loggedOut).toBe(1);
 });

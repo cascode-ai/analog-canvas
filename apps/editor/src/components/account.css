@@ -134,10 +134,229 @@
   text-decoration: underline;
 }
 
-/* The one destructive account action: quiet red, last in the menu. */
+/* The name in the header is the account's one button. Its round mark carries
+   the first letter, so a phone-width header can show the mark alone. */
+.account-name::before {
+  content: attr(data-initial);
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  margin-right: 7px;
+  border-radius: 50%;
+  color: var(--icm-accent);
+  background: var(--icm-accent-soft);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 20px;
+  vertical-align: middle;
+}
+
+/* The account panel opens under the header, at the right where the name is.
+   Portalled to the body, so no header stacking or overflow can clip it. */
+.account-panel-backdrop {
+  position: fixed;
+  z-index: 900;
+  inset: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  padding: 52px 12px 12px;
+  background: rgb(55 53 47 / 16%);
+}
+
+.account-panel {
+  box-sizing: border-box;
+  width: min(21rem, 100%);
+  max-height: calc(100vh - 64px);
+  overflow-y: auto;
+  border: 1px solid var(--icm-border);
+  border-radius: 12px;
+  color: var(--icm-text);
+  background: var(--icm-surface);
+  box-shadow: 0 16px 40px rgb(15 15 15 / 18%);
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.account-panel-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px 12px 14px 16px;
+  border-bottom: 1px solid var(--icm-border);
+}
+
+.account-panel-avatar {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  color: var(--icm-accent);
+  background: var(--icm-accent-soft);
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.account-panel-identity {
+  display: grid;
+  flex: 1 1 auto;
+  justify-items: start;
+  min-width: 0;
+  gap: 2px;
+}
+
+.account-panel-identity h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 650;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.account-panel-identity p {
+  margin: 0;
+  color: var(--icm-text-muted);
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+
+.account-panel-identity .account-owner-badge {
+  margin-top: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  color: var(--icm-accent);
+  background: var(--icm-accent-soft);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.account-panel-close {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--icm-text-muted);
+  background: transparent;
+  font: inherit;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.account-panel-close:hover {
+  color: var(--icm-text);
+  background: var(--icm-surface-hover);
+}
+
+/* A plain menu: rows of text, no boxes, a tint under the pointer. */
+.account-panel-menu {
+  display: grid;
+  padding: 6px;
+}
+
+.account-panel-item {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 38px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  color: var(--icm-text);
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.account-panel-item:hover,
+.account-panel-item:focus-visible {
+  outline: none;
+  background: var(--icm-surface-hover);
+}
+
+.account-panel-value {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--icm-text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-panel-rename {
+  display: grid;
+  gap: 8px;
+  padding: 8px 10px 10px;
+}
+
+.account-panel-rename label {
+  color: var(--icm-text-muted);
+  font-size: 12.5px;
+}
+
+.account-panel-rename .account-rename-input {
+  box-sizing: border-box;
+  width: 100%;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--icm-accent);
+  border-radius: 6px;
+  font: inherit;
+  font-size: 14px;
+}
+
+.account-panel-rename-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.account-panel-rename-actions button {
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--icm-border);
+  border-radius: 6px;
+  color: var(--icm-text);
+  background: var(--icm-surface);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.account-panel-rename-actions .account-panel-save {
+  border-color: var(--icm-accent);
+  color: #fff;
+  background: var(--icm-accent);
+  font-weight: 600;
+}
+
+.account-panel-rename-actions .account-panel-save:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* Deleting the account stays apart from the menu, and asks again. */
+.account-panel-danger {
+  padding: 8px 12px 12px;
+  border-top: 1px solid var(--icm-border);
+}
+
 .account-delete-open {
-  padding: 6px 10px;
-  border: 1px solid transparent;
+  padding: 6px 4px;
+  border: 0;
   border-radius: var(--icm-radius-sm);
   color: #b3261e;
   background: transparent;
@@ -149,7 +368,7 @@
 }
 
 .account-delete-open:hover {
-  background: rgb(179 38 30 / 8%);
+  text-decoration: underline;
 }
 
 /* Portalled to the body, so no header stacking or overflow can clip it. */

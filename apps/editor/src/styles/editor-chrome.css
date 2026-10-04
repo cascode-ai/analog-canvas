@@ -1480,9 +1480,7 @@
 }
 
 .app-chrome-actions .account-name,
-.app-chrome-actions .account-signout,
-.app-chrome-actions .account-signin > summary,
-.app-chrome-actions .account-link {
+.app-chrome-actions .account-signin > summary {
   box-sizing: border-box;
   display: inline-flex;
   align-items: center;
@@ -1500,9 +1498,7 @@
 }
 
 .app-chrome-actions .account-name:hover,
-.app-chrome-actions .account-signout:hover,
-.app-chrome-actions .account-signin > summary:hover,
-.app-chrome-actions .account-link:hover {
+.app-chrome-actions .account-signin > summary:hover {
   background: var(--icm-surface-hover);
 }
 
@@ -1574,12 +1570,16 @@
     padding-inline: 8px;
   }
 
-  .app-chrome-main .account-more > summary {
+  /* The round mark alone keeps the account one tap away. */
+  .app-chrome-actions .account-name {
+    max-width: none;
     padding-inline: 4px;
+    font-size: 0;
   }
 
-  .app-chrome-actions .account-name {
-    display: none;
+  .app-chrome-actions .account-name::before {
+    margin-right: 0;
+    font-size: 11px;
   }
 }
 
@@ -1606,25 +1606,15 @@
     width: 2rem;
   }
 
-  .app-chrome-actions .account-more > summary {
-    padding-inline: 2px;
-  }
-
   .app-chrome-actions .tokenzhang-link-icon {
     width: 14px;
     height: 14px;
   }
 }
 
-/* The account (or Sign in) widens the right side. Its role chip yields
-   first, then the long publish label and the name's width, so the actions
-   never run under the account. */
-@media (max-width: 1320px) {
-  .app-chrome-actions:has(.account-menu, .account-signin) .account-owner-badge {
-    display: none;
-  }
-}
-
+/* The account (or Sign in) widens the right side. The long publish label
+   yields first, then the name's width, so the actions never run under the
+   account. */
 @media (max-width: 1020px) {
   .app-chrome:has(.app-chrome-actions :is(.account-menu, .account-signin))
     .publish-label-long {
@@ -1636,28 +1626,16 @@
   }
 }
 
-.app-chrome-actions .account-signin,
-.app-chrome-actions .account-more {
+.app-chrome-actions .account-signin {
   position: relative;
 }
 
-.app-chrome-actions .account-signin > summary,
-.app-chrome-actions .account-more > summary {
+.app-chrome-actions .account-signin > summary {
   list-style: none;
 }
 
-.app-chrome-actions .account-signin > summary::-webkit-details-marker,
-.app-chrome-actions .account-more > summary::-webkit-details-marker {
+.app-chrome-actions .account-signin > summary::-webkit-details-marker {
   display: none;
-}
-
-.app-chrome-actions .account-more > summary {
-  display: inline-flex;
-  align-items: center;
-  min-height: var(--icm-control-h);
-  padding: 0 var(--icm-space-2);
-  border-radius: var(--icm-radius-sm);
-  cursor: pointer;
 }
 
 .app-chrome-actions .account-signin-panel,
@@ -1684,12 +1662,6 @@
   border-radius: 12px;
 }
 
-.app-chrome-actions .account-owner-badge {
-  color: var(--icm-accent);
-  font-size: var(--icm-font-xs);
-  font-weight: 700;
-}
-
 .app-chrome-actions .account-menu-identity {
   display: grid;
   gap: 4px;
@@ -1701,14 +1673,6 @@
   overflow-wrap: anywhere;
   font-size: var(--icm-font-sm);
   font-weight: 650;
-}
-
-.app-chrome-actions .account-rename-input {
-  width: 10rem;
-  min-height: var(--icm-control-h);
-  border: 1px solid var(--icm-accent);
-  border-radius: var(--icm-radius-sm);
-  font: inherit;
 }
 
 /* After a publish or an update: what reached the Gallery, and a way to it. */

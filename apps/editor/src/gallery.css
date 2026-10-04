@@ -70,9 +70,6 @@
   height: 15px;
 }
 
-.gallery-actions .account-owner-badge,
-.gallery-actions .account-link,
-.gallery-actions .account-signout,
 .gallery-actions .account-signin summary,
 .gallery-open-editor {
   display: inline-flex;
@@ -95,8 +92,7 @@
   gap: 8px;
 }
 
-.account-name,
-.account-signout {
+.account-name {
   padding: 6px 10px;
   border: 1px solid var(--icm-border);
   border-radius: var(--icm-radius-sm);
@@ -106,8 +102,7 @@
   cursor: pointer;
 }
 
-.account-name:hover,
-.account-signout:hover {
+.account-name:hover {
   background: var(--icm-surface-hover);
 }
 
@@ -124,7 +119,7 @@
   /* A flex item will not shrink below its content without this, which is how
      the chip ended up narrower than its own max-width and clipped anyway. */
   min-width: 0;
-  max-width: 14rem;
+  max-width: 15.75rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -135,30 +130,6 @@
   padding-top: 0;
   padding-bottom: 0;
   line-height: calc(var(--icm-control-h) - 2px);
-}
-
-.account-signout,
-.account-owner-badge {
-  white-space: nowrap;
-}
-
-.account-rename-input {
-  width: 12rem;
-  padding: 6px 10px;
-  border: 1px solid var(--icm-accent);
-  border-radius: var(--icm-radius-sm);
-  font-size: 13px;
-}
-
-.account-owner-badge {
-  padding: 3px 8px;
-  border-radius: 999px;
-  background: var(--icm-accent-soft);
-  color: var(--icm-accent);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
 }
 
 .account-signin summary {
@@ -209,32 +180,6 @@
 
 .account-link:hover {
   background: var(--icm-surface-hover);
-}
-
-/* Account actions collapse behind one disclosure so the Gallery header stays
-   readable at half-screen widths. The popover is complete in this route-level
-   stylesheet and no longer depends on the editor command-menu stylesheet. */
-.account-more {
-  position: relative;
-}
-
-.account-more > summary {
-  display: inline-flex;
-  gap: var(--icm-space-1);
-  align-items: center;
-  height: var(--icm-control-h);
-  padding: 0 var(--icm-space-2);
-  border-radius: var(--icm-radius-sm);
-  cursor: pointer;
-  list-style: none;
-}
-
-.account-more > summary::-webkit-details-marker {
-  display: none;
-}
-
-.account-more > summary:hover {
-  background: var(--icm-surface-hover, rgb(0 0 0 / 4%));
 }
 
 .account-popover {
