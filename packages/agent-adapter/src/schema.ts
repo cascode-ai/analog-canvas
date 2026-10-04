@@ -305,6 +305,10 @@ const TransactionPayloadShape = {
     .max(256)
     .optional(),
 };
+/** A Project structure edit, as advanced_transact's structureEdits take
+ * one; describe_tool reads each kind's contract from it (#1231). */
+export const AgentProjectStructureEditSchema = ProjectStructureEditSchema;
+
 function oneTransactionForm(
   request: {
     edits?: unknown;

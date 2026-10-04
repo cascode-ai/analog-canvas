@@ -35,7 +35,7 @@ export function httpCommandFailureMessage(error: unknown): string {
 
 /** No-argument commands must not wait for an open terminal/pipe to close. */
 export function httpCommandReadsStdin(command: string): boolean {
-  return command !== "list-tools";
+  return command !== "list-tools" && command !== "batch";
 }
 
 /** A local executable adapter, not a second server or network protocol. */
@@ -43,6 +43,7 @@ export async function runHttpCommand(
   server: { toolSession: OperationSession },
   command: string,
   input: string,
+  options: { reportStartup?: boolean } = {},
 ): Promise<unknown> {
   if (command === "list-tools") return listToolDefinitions();
   if (command === "resource") return readResourceContent(input.trim());
@@ -51,6 +52,58 @@ export async function runHttpCommand(
   // Identical definitions, validation and AgentSessionClient to the MCP path.
   return entryResult(
     command,
-    await executeOperation(command, args, server.toolSession),
+    await executeOperation(command, args, server.toolSession, {
+      reportStartup: options.reportStartup ?? true,
+    }),
   );
+}
+
+/**
+ * `--http batch`: one tool call per JSON line, `{"tool": "...", "args":
+ * {...}}`, each run as it arrives and answered by one result line, in
+ * order (#1227). The whole batch shares one session: one connector resume
+ * and one Snapshot cache, where one process per call paid both each time.
+ * Only the first result reports the process's startup. A line that fails
+ * does not stop the ones after it; the count of failed lines is returned.
+ */
+export async function runHttpBatch(
+  server: { toolSession: OperationSession },
+  lines: AsyncIterable<string>,
+  write: (line: string) => void,
+): Promise<number> {
+  let failed = 0;
+  let first = true;
+  for await (const line of lines) {
+    if (!line.trim()) continue;
+    let result: unknown;
+    try {
+      const entry = JSON.parse(line) as { tool?: unknown; args?: unknown };
+      if (typeof entry.tool !== "string" || entry.tool === "batch")
+        throw new Error('Each line is {"tool": "<tool name>", "args": {...}}');
+      result = await runHttpCommand(
+        server,
+        entry.tool,
+        JSON.stringify(entry.args ?? {}),
+        { reportStartup: first },
+      );
+      first = false;
+    } catch (error) {
+      result = {
+        ok: false,
+        error: {
+          code: "INVALID_BATCH_LINE",
+          message: httpCommandFailureMessage(error),
+        },
+      };
+    }
+    if (
+      typeof result === "object" &&
+      result !== null &&
+      (("isError" in result && result.isError) ||
+        ("ok" in result && result.ok === false))
+    )
+      failed += 1;
+    write(JSON.stringify(result));
+  }
+  return failed;
 }

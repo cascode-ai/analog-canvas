@@ -288,3 +288,69 @@ export function groupNamingStatus(
       : `${plan.holder} is now ${name}`
   }${aliases}`;
 }
+
+/**
+ * One part's name label showing `alias` while the part keeps its own name
+ * in the netlist, as the Properties display alias does: an op-amp stays X1
+ * and is drawn A1. Null, or the part's own name, names it again in its
+ * standard look. A hidden label is shown; a part with no label gets one
+ * (#1254, the Agent's set-display-alias).
+ */
+export function planDisplayAlias(input: {
+  document: SchematicDocument;
+  instanceId: string;
+  alias: string | null;
+  labelFor: GroupNamingInput["labelFor"];
+  newLabelFor: GroupNamingInput["newLabelFor"];
+}): { ok: true; edits: SchematicEdit[] } | { ok: false; message: string } {
+  const { document, instanceId } = input;
+  const [part] = namedParts(document, [instanceId]);
+  if (!part)
+    return {
+      ok: false,
+      message: `${instanceId} has no name to show an alias for; give it a reference first`,
+    };
+  const existing = input.labelFor(document, instanceId);
+  const label = existing ?? input.newLabelFor(document, instanceId);
+  if (!label) return { ok: false, message: `${part.name} has no name label` };
+  const { visible: _visible, ...shown } = label;
+  const alias = input.alias?.trim();
+  if (!alias || alias === part.name)
+    return existing?.binding && existing.visible !== false
+      ? { ok: true, edits: [] }
+      : {
+          ok: true,
+          edits: [
+            {
+              kind: "upsert_schematic_annotation",
+              annotation: boundLabel(shown, part, part.name),
+            },
+          ],
+        };
+  // Drawn as a name is: A1 reads A₁ like a Reference.
+  const look =
+    (part.terminalId
+      ? roleLabelFormat("voltage-node", alias)
+      : roleLabelFormat(
+          "device-reference",
+          alias,
+          part.deviceLetter && alias.startsWith(part.deviceLetter)
+            ? { deviceLetter: part.deviceLetter }
+            : {},
+        )) ?? labelTextDocument(alias, document.presentation);
+  const {
+    binding: _binding,
+    content: _content,
+    formatOverride: _format,
+    ...rest
+  } = shown;
+  return {
+    ok: true,
+    edits: [
+      {
+        kind: "upsert_schematic_annotation",
+        annotation: { ...rest, content: look },
+      },
+    ],
+  };
+}

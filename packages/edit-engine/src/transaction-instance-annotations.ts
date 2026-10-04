@@ -17,14 +17,17 @@ import {
   defaultInstanceLabelPlacement,
   legacyDefaultInstanceLabelPlacement,
   legacyPortLabelPlacement,
+  previousDefaultInstanceLabelPlacement,
   previousPortLabelPlacement,
   defaultInstanceParameterLabelPlacement,
   legacyDefaultInstanceParameterLabelPlacement,
+  previousDefaultInstanceParameterLabelPlacement,
   displayableInstanceParameter,
   defaultVddPowerLabelPlacement,
   displayableInstanceValue,
   inferInstanceLabelSide,
   instanceLabelRowOffset,
+  previousInstanceLabelRowOffset,
   objectStyleProfile,
   placeUprightInstanceLabel,
   resolveAnnotationPresentation,
@@ -321,9 +324,36 @@ export function isCanonicalInstanceLabel(
   oldPosition: Point,
   oldOrientation: Orientation,
 ): boolean {
+  return (
+    canonicalInstanceLabelRow(
+      annotation,
+      instance,
+      resolved,
+      document,
+      oldPosition,
+      oldOrientation,
+    ) !== null
+  );
+}
+
+/**
+ * The row an untouched instance label sits in, or null when a person moved
+ * it. 0 is the Reference's slot, which a value or a Cell's name also takes
+ * while no Reference is shown (#1105); otherwise it is the row distance of
+ * the rule that put the value there, so an orientation edit can strip it and
+ * re-place the label with the current one.
+ */
+export function canonicalInstanceLabelRow(
+  annotation: Annotation,
+  instance: SchematicDocument["instances"][number],
+  resolved: NonNullable<ReturnType<SymbolResolver["resolve"]>>,
+  document: SchematicDocument,
+  oldPosition: Point,
+  oldOrientation: Orientation,
+): number | null {
   const slot = instanceAnnotationSlot(annotation);
   if (!slot || annotation.anchor.kind !== "object") {
-    return false;
+    return null;
   }
   const anchor = annotation.anchor;
   const placement = { position: oldPosition, ...oldOrientation };
@@ -335,6 +365,7 @@ export function isCanonicalInstanceLabel(
     resolveDocumentStyleProfile(document.presentation),
     annotation,
   );
+  const grid = document.presentation.grid;
   const visiblePosition = {
     x: oldPosition.x + anchor.localOffset.x,
     y: oldPosition.y + anchor.localOffset.y,
@@ -347,23 +378,18 @@ export function isCanonicalInstanceLabel(
     anchor.fallbackPosition.x === candidate.position.x &&
     anchor.fallbackPosition.y === candidate.position.y;
   if (parameter)
-    return (
-      annotation.rotation === 0 &&
+    return annotation.rotation === 0 &&
       [
         defaultInstanceParameterLabelPlacement,
+        previousDefaultInstanceParameterLabelPlacement,
         legacyDefaultInstanceParameterLabelPlacement,
       ].some((rule) =>
         matches(
-          rule(
-            { ...instance, placement },
-            resolved,
-            profile,
-            document.presentation.grid,
-            parameter,
-          ),
+          rule({ ...instance, placement }, resolved, profile, grid, parameter),
         ),
       )
-    );
+      ? 0
+      : null;
   // An orientation edit re-places an untouched label at its own size, so it
   // is untouched where a rule puts a label of that size, or of the default
   // size it was placed at before a person resized it. Placements computed
@@ -371,6 +397,7 @@ export function isCanonicalInstanceLabel(
   const sizeScales = [...new Set([annotation.sizeScale ?? 1, 1])];
   const placedBy = (
     rule: typeof defaultInstanceLabelPlacement,
+    inSlot: "reference" | "value" = slot,
     symbol: NonNullable<ReturnType<SymbolResolver["resolve"]>> = resolved,
   ) =>
     sizeScales.some((sizeScale) =>
@@ -379,27 +406,42 @@ export function isCanonicalInstanceLabel(
           { ...instance, placement },
           symbol,
           profile,
-          document.presentation.grid,
-          slot,
+          grid,
+          inSlot,
           sizeScale,
         ),
       ),
     );
-  // A label the previous placement rule put down is just as untouched; the
-  // next orientation edit moves it with the current rule.
-  if (
+  if (slot === "value") {
+    if (placedBy(defaultInstanceLabelPlacement))
+      return instanceLabelRowOffset(profile, grid);
+    // A label an earlier rule put down is just as untouched; the next
+    // orientation edit moves it with the current rule.
+    if (
+      placedBy(previousDefaultInstanceLabelPlacement) ||
+      placedBy(legacyDefaultInstanceLabelPlacement)
+    )
+      return previousInstanceLabelRowOffset(profile, grid);
+    // A value, or a Cell's name, shown without a Reference sits in the
+    // Reference's slot.
+    if (
+      placedBy(defaultInstanceLabelPlacement, "reference") ||
+      placedBy(legacyDefaultInstanceLabelPlacement, "reference")
+    )
+      return 0;
+  } else if (
     placedBy(defaultInstanceLabelPlacement) ||
     placedBy(legacyDefaultInstanceLabelPlacement)
   )
-    return true;
+    return 0;
 
   // Projects saved before the reviewed Resistor path declared tight bounds
   // used its wider viewBox for the canonical label. Accept that one exact
   // machine-owned position during the next orientation edit, then re-project
   // it through the current placement rule. This stays Symbol-specific so a
   // nearby user-authored label is never absorbed by a general tolerance.
-  if (instance.symbolId !== "resistor") return false;
-  return placedBy(legacyDefaultInstanceLabelPlacement, {
+  if (instance.symbolId !== "resistor") return null;
+  return placedBy(legacyDefaultInstanceLabelPlacement, slot, {
     ...resolved,
     definition: {
       ...resolved.definition,
@@ -409,7 +451,11 @@ export function isCanonicalInstanceLabel(
         return withoutBounds;
       }),
     },
-  });
+  })
+    ? slot === "value"
+      ? previousInstanceLabelRowOffset(profile, grid)
+      : 0
+    : null;
 }
 
 /**
@@ -438,18 +484,18 @@ export function reflowCanonicalInstanceLabelsAfterPresentationChange(
     if (
       !slot ||
       annotation.anchor.kind !== "object" ||
-      annotation.anchor.objectId !== instanceId ||
-      !isCanonicalInstanceLabel(
-        annotation,
-        before,
-        resolved,
-        draft,
-        before.placement.position,
-        before.placement,
-      )
-    ) {
+      annotation.anchor.objectId !== instanceId
+    )
       continue;
-    }
+    const row = canonicalInstanceLabelRow(
+      annotation,
+      before,
+      resolved,
+      draft,
+      before.placement.position,
+      before.placement,
+    );
+    if (row === null) continue;
     const profile = objectStyleProfile(
       resolveDocumentStyleProfile(draft.presentation),
       annotation,
@@ -471,7 +517,7 @@ export function reflowCanonicalInstanceLabelsAfterPresentationChange(
           resolved,
           profile,
           draft.presentation.grid,
-          slot,
+          row === 0 ? "reference" : slot,
         );
     if (!next) continue;
     annotation.anchor = {
@@ -748,32 +794,31 @@ export function followAttachedAnnotations(
     let position = transformedAnchor;
     let transformedAlignment: "start" | "middle" | "end" | null = null;
     const slot = instanceAnnotationSlot(annotation);
-    if (
-      slot !== null &&
-      instance &&
-      resolved &&
-      isCanonicalInstanceLabel(
-        annotation,
-        instance,
-        resolved,
-        draft,
-        oldPosition,
-        oldOrientation,
-      )
-    ) {
+    const row =
+      slot !== null && instance && resolved
+        ? canonicalInstanceLabelRow(
+            annotation,
+            instance,
+            resolved,
+            draft,
+            oldPosition,
+            oldOrientation,
+          )
+        : null;
+    if (slot !== null && instance && resolved && row !== null) {
       const styleProfile = objectStyleProfile(
         resolveDocumentStyleProfile(draft.presentation),
         annotation,
       );
       // Upright rows stack along world y regardless of orientation, so the
-      // value slot's row offset is stripped from the recovered anchor in world
-      // space before side inference and re-added by the upright placer.
-      const rowOffset =
-        slot === "value"
-          ? instanceLabelRowOffset(styleProfile, draft.presentation.grid)
-          : 0;
-      const slotAnchor = rowOffset
-        ? { x: visiblePosition.x, y: visiblePosition.y - rowOffset }
+      // row the label was placed in is stripped from the recovered anchor in
+      // world space before side inference, and the upright placer adds the
+      // current row distance back.
+      const rowOffset = row
+        ? instanceLabelRowOffset(styleProfile, draft.presentation.grid)
+        : 0;
+      const slotAnchor = row
+        ? { x: visiblePosition.x, y: visiblePosition.y - row }
         : visiblePosition;
       const slotLocal = inverseTransformPoint(
         slotAnchor,

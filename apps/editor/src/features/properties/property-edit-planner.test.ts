@@ -281,7 +281,7 @@ describe("property edit planner", () => {
 
   it("puts a new label above a horizontal wire and right of a vertical one, however drawn", () => {
     for (const [start, end, normalOffset, alignment] of [
-      [{ x: 100, y: 0 }, { x: 0, y: 0 }, 8, "middle"],
+      [{ x: 100, y: 0 }, { x: 0, y: 0 }, 10, "middle"],
       [{ x: 0, y: 100 }, { x: 0, y: 0 }, 8, "start"],
       [{ x: 0, y: 0 }, { x: 0, y: 100 }, -8, "start"],
     ] as const) {

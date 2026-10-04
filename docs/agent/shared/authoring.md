@@ -34,10 +34,12 @@ targets to avoid full-Snapshot name resolution. Names remain supported when usef
   terminal or every declaration of a projected Port; `set-vdd-mode` explicitly
   switches VDD between Cell Pin and Global. Do not substitute a bare `add_instance`.
 - Parts are named as the GUI names them. A device's `reference` starts with
-  its prefix (R, C, M, …), and a `place-cell` instance's with X. Leave it out
-  and the next free name is taken (`X1`, `X2`, …). A name with another prefix,
-  or one already in use, is rejected with a free name, because it would block
-  the netlist; nothing is placed.
+  its prefix (R, C, M, …), and a `place-cell` instance's with X. Leave it out,
+  on `place-component` or `place-cell`, and the next free name is taken (`R1`,
+  `X1`, `X2`, …). A name with another prefix, or one already in use, is
+  rejected with a free name, because it would block the netlist; nothing is
+  placed. To draw another name, as textbooks label an op-amp A1, place it under
+  its own name and use `set-display-alias`.
 - For exact pin placement, `place-component` accepts `pinAnchor:{pinName,position}`
   instead of origin `position`; rotation/mirror still apply. It uses the shared
   routing landing (including variants and fine-pitch pins), not artwork contact,
@@ -46,10 +48,14 @@ targets to avoid full-Snapshot name resolution. Names remain supported when usef
   `place-existing` accept `pinAnchor` to override their placement origin.
   `move` also accepts `pinAnchor` instead
   of `position` for a placed Instance, preserving its rotation/mirror and using
-  the current resolved pin landing; tray Instances use `place-existing`. No
-  electrical connection is inferred. For one-shot symmetry use these placements
-  or the existing selection `transform` mirror with an explicit center; this
-  neither copies connectivity nor installs a persistent symmetry constraint.
+  the current resolved pin landing, and names the nearest reachable landing
+  when a pin cannot land where asked; tray Instances use `place-existing`
+  (with a `pinAnchor`, its `placement` may be left out). No electrical
+  connection is inferred. For a symmetric half, place each part with
+  `mirrorOf:{instance, x}` (or `y`): the mirror image of a placed part about
+  that line, exact, Ports and their names included. Or use the selection
+  `transform` mirror with an explicit center. Neither copies connectivity nor
+  installs a persistent symmetry constraint.
   For free drafting text, selection `transform` translation preserves fine
   offsets and formatting. Attached drafting objects follow a selected owner;
   moving one separately requires an explicit anchor edit. Locked targets reject

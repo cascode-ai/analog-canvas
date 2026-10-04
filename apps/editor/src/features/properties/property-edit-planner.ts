@@ -1,7 +1,9 @@
 import type { ResolvedRouteGeometry } from "@icm/derived";
 import {
   isNearVerticalSegment,
-  netLabelSideOffset,
+  NET_LABEL_BASELINE_ABOVE_WIRE,
+  NET_LABEL_WIRE_GAP,
+  netLabelStandardOffset,
   resolveAnnotationName,
   resolveNetLabelBinding,
 } from "@icm/derived";
@@ -81,6 +83,8 @@ export function createPropertyEditPlanner({
     rawName: string,
     presentation?: {
       alignment: "start" | "middle" | "end";
+      /** A label R turned upright reads bottom to top (270). */
+      rotation?: 0 | 270;
       sizeScale: number;
       formatOverride?: RichTextDocument;
       /** Explicit canvas placement from the Cadence-style L workflow. */
@@ -173,8 +177,8 @@ export function createPropertyEditPlanner({
           ? existingLabel.anchor.position
           : existingLabel.anchor.fallbackPosition
         : undefined) ?? {
-        x: (from.x + to.x) / 2 + (vertical ? 8 : 0),
-        y: (from.y + to.y) / 2 - (vertical ? 0 : 8),
+        x: (from.x + to.x) / 2 + (vertical ? NET_LABEL_WIRE_GAP : 0),
+        y: (from.y + to.y) / 2 - (vertical ? 0 : NET_LABEL_BASELINE_ABOVE_WIRE),
       };
     const position = presentation?.routeAttachment
       ? requestedPosition
@@ -208,7 +212,7 @@ export function createPropertyEditPlanner({
                   routeId: route.id,
                   legId: route.legs[segment]!.id,
                   t: 0.5,
-                  normalOffset: netLabelSideOffset(from, to, 8),
+                  normalOffset: netLabelStandardOffset(from, to),
                   direction: "forward",
                   orientation: "follow",
                   fallbackPosition: position,
@@ -217,7 +221,12 @@ export function createPropertyEditPlanner({
           presentation?.alignment ??
           existingLabel?.alignment ??
           (vertical ? "start" : "middle"),
-        rotation: 0,
+        // A rename keeps the way the label was turned; a placement brings its
+        // own.
+        rotation:
+          presentation !== undefined
+            ? (presentation.rotation ?? 0)
+            : (existingLabel?.rotation ?? 0),
         locked: false,
         ...(presentation?.sizeScale !== undefined
           ? { sizeScale: presentation.sizeScale }

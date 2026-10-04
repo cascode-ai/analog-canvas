@@ -25,15 +25,26 @@ const changed = [
 ];
 
 describe("verify:pr selection", () => {
-  it("formats code, JSON and YAML, not Markdown, logs or docs/", () => {
-    expect(formattedPaths(changed)).toEqual([
+  it("checks the files format:check reads, and no others", () => {
+    // config/, docs/, fixtures/ and worker/ are outside format:check's
+    // globs: generated artifacts there keep their generator's layout.
+    expect(
+      formattedPaths([
+        ...changed,
+        "fixtures/agent-api/agent-circuit.openapi.json",
+        "worker/agent-session-do.ts",
+        "references/manifest.json",
+        "package.json",
+      ]),
+    ).toEqual([
       "packages/netlist/src/extract.ts",
       "packages/netlist/src/extract.test.ts",
       "apps/editor/src/features/component-insert/use-component-placement.ts",
       "apps/editor/e2e/gallery.spec.ts",
       "apps/mcp-server/src/resources.generated.ts",
       "scripts/verify-pr.mjs",
-      "config/validation-gates.json",
+      "references/manifest.json",
+      "package.json",
     ]);
   });
 

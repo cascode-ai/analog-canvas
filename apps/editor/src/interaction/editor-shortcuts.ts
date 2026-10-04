@@ -17,6 +17,11 @@ export interface EditorShortcutContext {
   canRotate: boolean;
   canMirror: boolean;
   hasDraftingSelection: boolean;
+  /**
+   * R turns Net Labels: the one being placed, ahead of anything selected,
+   * or selected ones when no part is selected to turn.
+   */
+  netLabelTurn?: "placing" | "selection" | undefined;
   hasInspectableSelection: boolean;
   hasHighlightableNet: boolean;
   /** A Net highlight is showing; H must stay reachable to clear it. */
@@ -35,7 +40,7 @@ export type EditorShortcutIntent =
   | { kind: "block-browser-refresh" }
   | { kind: "block-browser-bookmark" }
   | { kind: "save" | "open" | "paste-selection" }
-  | { kind: "edit-net-label" | "toggle-display-settings" }
+  | { kind: "edit-net-label" | "toggle-display-settings" | "turn-net-labels" }
   | {
       kind: "toggle-panel";
       panel: "gallery" | "library" | "netlist";
@@ -330,12 +335,15 @@ export function resolveEditorShortcut(
           }
         : null;
     }
+    if (context.netLabelTurn === "placing") return { kind: "turn-net-labels" };
     if (context.canRotate) {
       return {
         kind: "run-command",
         command: { id: "transform.rotate", deltaDegrees: 90 },
       };
     }
+    if (context.netLabelTurn === "selection")
+      return { kind: "turn-net-labels" };
     if (context.hasDraftingSelection) {
       return { kind: "blocked-interaction-command", command: "Rotate" };
     }

@@ -451,6 +451,14 @@ import {
   resolveLabelTethers,
 } from "../features/wiring/label-tether";
 import type { NetLabelPlacementTarget } from "../features/wiring/route-interaction-geometry";
+import {
+  netLabelCapHeight,
+  netLabelDirection,
+  netLabelDirectionText,
+  nextNetLabelDirection,
+  turnedNetLabel,
+  type NetLabelDirection,
+} from "@icm/derived";
 import { useWireCanvasController } from "../features/wiring/use-wire-canvas-controller";
 import {
   EMPTY_WIRE_DRAFT_PREVIEW,
@@ -2832,6 +2840,7 @@ function WorkspaceEditor({
     updateTextEditing,
     updateNetLabelPlacementText,
     updateNetLabelPlacementPosition,
+    turnNetLabelPlacement,
   } = usePropertiesEditor({
     document,
     resolver,
@@ -4795,13 +4804,73 @@ function WorkspaceEditor({
     point: Point,
     svg?: SVGSVGElement,
     preferredRouteId?: string,
+    direction: NetLabelDirection | undefined = netLabelPlacement?.direction,
   ): NetLabelPlacementTarget | null {
     return netLabelPlacementTargetAtPoint(
       routeGeometryRecords,
       point,
       svg ? logicalRadiusForPixels(svg, NET_LABEL_SNAP_CAPTURE_RADIUS_PX) : 0,
       preferredRouteId,
+      direction
+        ? {
+            direction,
+            capHeight: netLabelCapHeight(
+              styleProfile,
+              netLabelPlacement?.sizeScale ?? 1,
+            ),
+          }
+        : undefined,
     );
+  }
+
+  /**
+   * R on a Net Label: while placing it, the preview turns a quarter on the
+   * wire it is over; once placed, every selected Net Label does. Each keeps
+   * its distance from its wire and never runs across it.
+   */
+  function turnNetLabels(): void {
+    if (netLabelPlacement?.phase === "placing") {
+      const direction = nextNetLabelDirection(
+        netLabelPlacement.direction ??
+          netLabelDirection({
+            rotation: netLabelPlacement.target?.rotation ?? 0,
+            alignment:
+              netLabelPlacement.target?.alignment ??
+              netLabelPlacement.alignment,
+          }),
+      );
+      const target = netLabelPlacement.target
+        ? resolveNetLabelPlacementTarget(
+            lastCanvasPointRef.current ?? netLabelPlacement.position,
+            undefined,
+            netLabelPlacement.target.routeId,
+            direction,
+          )
+        : null;
+      turnNetLabelPlacement(direction, target);
+      paintSnapGuides(netLabelSnapGuides(target));
+      return;
+    }
+    const geometryOf = (routeId: string) =>
+      routeGeometryRecords.find(({ route }) => route.id === routeId)?.geometry;
+    const turned = document.annotations.flatMap((annotation) => {
+      if (!visualSelection.annotationIds.includes(annotation.id)) return [];
+      if (annotation.locked) return [];
+      const next = turnedNetLabel(annotation, geometryOf, styleProfile);
+      return next ? [next] : [];
+    });
+    if (!turned.length) return;
+    if (
+      transact(
+        turned.map((annotation) => ({
+          kind: "upsert_schematic_annotation" as const,
+          annotation,
+        })),
+      ).ok
+    )
+      setStatus(
+        `Net Label${turned.length === 1 ? "" : "s"} runs ${netLabelDirection(turned[0]!)} · R turns again`,
+      );
   }
 
   function netLabelSnapGuides(
@@ -5224,6 +5293,17 @@ function WorkspaceEditor({
           direction: "left-right",
         }).enabled,
         hasDraftingSelection: Boolean(selectedDrafting),
+        netLabelTurn:
+          netLabelPlacement?.phase === "placing"
+            ? "placing"
+            : document.annotations.some(
+                  (annotation) =>
+                    annotation.kind === "net-label" &&
+                    !annotation.locked &&
+                    visualSelection.annotationIds.includes(annotation.id),
+                )
+              ? "selection"
+              : undefined,
         hasInspectableSelection,
         hasHighlightableNet: selectedHighlightNetId !== null,
         hasActiveNetHighlight: highlightedNetOrigin !== null,
@@ -5293,6 +5373,9 @@ function WorkspaceEditor({
         case "open":
           if (nativeProjectStore) void openNativeProject();
           else projectInputRef.current?.click();
+          return;
+        case "turn-net-labels":
+          turnNetLabels();
           return;
         case "edit-net-label":
           activateTool("pointer");
@@ -7468,6 +7551,7 @@ function WorkspaceEditor({
                 scopes: agentSession.scopes,
                 expiresAt: agentSession.expiresAt,
                 error: agentSession.error,
+                backgroundRequests: agentSession.backgroundRequests,
                 now: Date.now(),
                 onPause: agentSession.pause,
                 onResume: agentSession.resume,
@@ -9125,6 +9209,7 @@ function WorkspaceEditor({
                       scopes: agentSession.scopes,
                       expiresAt: agentSession.expiresAt,
                       error: agentSession.error,
+                      backgroundRequests: agentSession.backgroundRequests,
                       onPause: agentSession.pause,
                       onResume: agentSession.resume,
                       onReconnect: agentSession.reconnect,
@@ -9282,7 +9367,12 @@ function WorkspaceEditor({
           }}
           wiring={{
             viewBox,
-            netLabelPlacement,
+            netLabelPlacement: netLabelPlacement?.direction
+              ? {
+                  ...netLabelPlacement,
+                  look: netLabelDirectionText(netLabelPlacement.direction),
+                }
+              : netLabelPlacement,
             styleProfile,
             onNetLabelTextChange: updateNetLabelPlacementText,
             onNetLabelSubmit: commitNetLabelEditing,

@@ -14,7 +14,11 @@ import {
 import {
   createDraftText,
   flattenRichText,
+  InstancePlacementRequestSchema,
+  reflectOrientation,
   rewriteRichTextContent,
+  SignalFlowParametersSchema,
+  type Orientation,
   type RichTextDocument,
 } from "@icm/model";
 import { z } from "zod";
@@ -186,6 +190,7 @@ interface SnapshotInstance {
   symbolId: string;
   placed: boolean;
   position: { x: number; y: number } | undefined;
+  orientation: Orientation | undefined;
   pins: readonly {
     name: string;
     connection: {
@@ -198,9 +203,12 @@ interface SnapshotInstance {
     parameters: Record<string, string>;
     terminalMapping?: { sourcePosition: number; pinName: string }[];
   };
+  signalFlowParameters?: z.infer<typeof SignalFlowParametersSchema>;
 }
 
 interface ResolvedDocument {
+  /** The placement grid every Instance origin sits on. */
+  grid: number;
   cellTerminalInstanceIds: Set<string>;
   instances: SnapshotInstance[];
   nets: {
@@ -231,6 +239,7 @@ interface ResolvedDocument {
 function resolvedDocument(snapshot: AgentSessionSnapshot): ResolvedDocument {
   const document = snapshot.document;
   return {
+    grid: document.presentation.grid,
     cellTerminalInstanceIds: new Set(
       (document.cellInterface?.terminals ?? []).flatMap(
         (terminal) => terminal.interfaceInstanceIds,
@@ -242,10 +251,19 @@ function resolvedDocument(snapshot: AgentSessionSnapshot): ResolvedDocument {
       symbolId: instance.symbolId,
       placed: instance.placement !== null,
       position: instance.placement?.position,
+      orientation: instance.placement
+        ? {
+            rotation: instance.placement.rotation,
+            mirror: instance.placement.mirror,
+          }
+        : undefined,
       pins: instance.pins.map((pin) => ({
         name: pin.name,
         connection: pin.connection,
       })),
+      ...(instance.signalFlowParameters
+        ? { signalFlowParameters: instance.signalFlowParameters }
+        : {}),
       ...(instance.netlist
         ? {
             netlist: {
@@ -511,6 +529,26 @@ export function compileActions(
     slot.actionKinds.push(kind);
     slot.editActionIndices.push(index);
   };
+  /** A placement request: always repacked into place-components, where an
+   * omitted Reference takes the next free name. */
+  const pushPlacement = (index: number, kind: string, instance: unknown) => {
+    const validated = InstancePlacementRequestSchema.safeParse(instance);
+    if (!validated.success) {
+      const issue = validated.error.issues[0];
+      throw new ActionCompileError(
+        index,
+        kind,
+        `compiled placement failed contract validation: ${issue?.path.join(".")} ${issue?.message ?? ""}`.trim(),
+      );
+    }
+    const slot = openEdits(kind);
+    slot.edits.push({
+      kind: "add_instance",
+      instance: validated.data,
+    } as SchematicEdit);
+    slot.actionKinds.push(kind);
+    slot.editActionIndices.push(index);
+  };
   const pushWireIntent = (
     index: number,
     kind: string,
@@ -547,6 +585,7 @@ export function compileActions(
       case "batch":
       case "place-components":
       case "set-instance-display":
+      case "set-display-alias":
       case "arrange-labels":
       case "place-existing":
       case "place-cell":
@@ -560,6 +599,13 @@ export function compileActions(
       case "create-cell":
       case "rename-cell":
       case "delete-cell":
+      case "move-junction":
+      case "remove-cell-terminal":
+      case "rename-cell-terminal":
+      case "bind-cell-parameter":
+      case "rename-cell-parameter":
+      case "set-cell-parameter-default":
+      case "remove-cell-parameter":
         transactions.push({
           form: "command",
           command: action,
@@ -578,7 +624,13 @@ export function compileActions(
         pushEdit(index, action.kind, { kind: action.kind });
         break;
       case "place-component":
-        compilePlaceComponent(index, action, document, allocateId, pushEdit);
+        compilePlaceComponent(
+          index,
+          action,
+          document,
+          allocateId,
+          pushPlacement,
+        );
         break;
       case "connect":
         compileConnect(index, action, document, allocateId, pushWireIntent);
@@ -666,6 +718,17 @@ export function compileActions(
               x: instance.position.x + action.pinAnchor.position.x - landing.x,
               y: instance.position.y + action.pinAnchor.position.y - landing.y,
             };
+            const grid = document.grid;
+            const snapped = {
+              x: Math.round(position.x / grid) * grid,
+              y: Math.round(position.y / grid) * grid,
+            };
+            if (snapped.x !== position.x || snapped.y !== position.y)
+              throw new ActionCompileError(
+                index,
+                action.kind,
+                `Pin ${instance.reference ?? instance.id}.${action.pinAnchor.pinName} cannot land at (${action.pinAnchor.position.x}, ${action.pinAnchor.position.y}) on placement grid ${grid}; nearest reachable landing is (${landing.x + snapped.x - instance.position.x}, ${landing.y + snapped.y - instance.position.y})`,
+              );
           }
           pushEdit(index, action.kind, {
             kind: "move_instance",
@@ -686,6 +749,11 @@ export function compileActions(
           instanceId: instance.id,
           rotation: action.rotation,
         });
+        if (instance.orientation)
+          instance.orientation = {
+            ...instance.orientation,
+            rotation: action.rotation as Orientation["rotation"],
+          };
         break;
       }
       case "mirror": {
@@ -695,11 +763,32 @@ export function compileActions(
           action.kind,
           action.target,
         );
+        // A reflection from where the part is, one vocabulary with the
+        // selection transform (#1231); a state is still accepted.
+        let mirror = action.mirror;
+        if (action.axis) {
+          if (!instance.orientation)
+            throw new ActionCompileError(
+              index,
+              action.kind,
+              "reflect a placed part; place it first",
+            );
+          mirror = reflectOrientation(
+            instance.orientation,
+            action.axis === "y" ? "left-right" : "top-bottom",
+          ).mirror;
+        }
         pushEdit(index, action.kind, {
           kind: "mirror_instance",
           instanceId: instance.id,
-          mirror: action.mirror,
+          mirror,
         });
+        // A later reflection in this call starts from this one.
+        if (instance.orientation && mirror)
+          instance.orientation = {
+            ...instance.orientation,
+            mirror: mirror as Orientation["mirror"],
+          };
         break;
       }
       case "set-reference": {
@@ -723,6 +812,16 @@ export function compileActions(
           action.kind,
           action.target,
         );
+        if (!instance.netlist)
+          throw new ActionCompileError(
+            index,
+            action.kind,
+            `${instance.reference ?? instance.id} has no netlist parameters${
+              catalogEntry(instance.symbolId)?.formula
+                ? "; use set-signal-flow for its formula or coefficient"
+                : ""
+            }`,
+          );
         for (const key of [
           ...Object.keys(action.set ?? {}),
           ...(action.unset ?? []),
@@ -882,6 +981,64 @@ export function compileActions(
       case "delete":
         compileDelete(index, action, document, pushEdit);
         break;
+      case "set-orientation": {
+        const instance = resolveInstance(
+          document,
+          index,
+          action.kind,
+          action.target,
+        );
+        if (action.rotation !== undefined)
+          pushEdit(index, action.kind, {
+            kind: "rotate_instance",
+            instanceId: instance.id,
+            rotation: action.rotation,
+          });
+        if (action.mirror !== undefined)
+          pushEdit(index, action.kind, {
+            kind: "mirror_instance",
+            instanceId: instance.id,
+            mirror: action.mirror,
+          });
+        if (instance.orientation)
+          instance.orientation = {
+            rotation: (action.rotation ??
+              instance.orientation.rotation) as Orientation["rotation"],
+            mirror: action.mirror ?? instance.orientation.mirror,
+          };
+        break;
+      }
+      case "set-signal-flow": {
+        const instance = resolveInstance(
+          document,
+          index,
+          action.kind,
+          action.target,
+        );
+        const parameters = signalFlowChange(
+          index,
+          action.kind,
+          instance,
+          action,
+        );
+        pushEdit(index, action.kind, {
+          kind: "set_instance_signal_flow_parameters",
+          instanceId: instance.id,
+          parameters,
+        });
+        // A later action in this call sees the change.
+        if (parameters) instance.signalFlowParameters = parameters;
+        else delete instance.signalFlowParameters;
+        break;
+      }
+      default: {
+        // Every action compiles to something: a kind left out here was once
+        // dropped from a mixed call without a word.
+        const unhandled: never = action;
+        throw new Error(
+          `Action kind ${(unhandled as { kind: string }).kind} has no compiler`,
+        );
+      }
     }
     // Edit batches record their actions edit by edit; every other form is
     // created by exactly one action.
@@ -981,6 +1138,7 @@ export function compileActions(
 }
 
 type PushEdit = (index: number, kind: string, edit: unknown) => void;
+type PushPlacement = (index: number, kind: string, instance: unknown) => void;
 type PushWireIntent = (index: number, kind: string, intent: unknown) => void;
 type AllocateId = (prefix: string) => string;
 
@@ -989,7 +1147,7 @@ function compilePlaceComponent(
   action: ActionOfKind<"place-component">,
   document: ResolvedDocument,
   allocateId: AllocateId,
-  pushEdit: PushEdit,
+  pushPlacement: PushPlacement,
 ): void {
   if (action.symbol === "vdd") {
     throw new ActionCompileError(
@@ -1016,19 +1174,47 @@ function compilePlaceComponent(
       action.kind,
       "direction is only valid for Cell interface markers",
     );
+  // A device without a Reference takes the next free one in the editor, as
+  // a GUI insert does (#1256); a Port's reference is its name.
   if (
     powerMarker
       ? action.reference !== undefined
-      : !action.reference && action.symbol !== "vdd-port"
+      : !action.reference &&
+        (action.symbol === "port" || action.symbol === "port-filled")
   ) {
     throw new ActionCompileError(
       index,
       action.kind,
       powerMarker
         ? "Power markers use Net names; omit reference"
-        : "A device requires an Instance Reference",
+        : "A Port needs its name as reference",
     );
   }
+  if (action.signalFlow && !catalogSymbol.formula)
+    throw new ActionCompileError(
+      index,
+      action.kind,
+      `${action.symbol} draws no formula; signalFlow is for blocks with catalog formula: true`,
+    );
+  const signalFlow = action.signalFlow
+    ? SignalFlowParametersSchema.omit({ formulaFormat: true }).safeParse(
+        action.signalFlow,
+      )
+    : undefined;
+  if (signalFlow && !signalFlow.success) {
+    const issue = signalFlow.error.issues[0];
+    throw new ActionCompileError(
+      index,
+      action.kind,
+      `signalFlow.${issue?.path.join(".")}: ${issue?.message ?? "invalid"}`,
+    );
+  }
+  if (action.signalFlow?.coefficient && !catalogSymbol.coefficient)
+    throw new ActionCompileError(
+      index,
+      action.kind,
+      `${action.symbol} draws no coefficient`,
+    );
   if (
     !cellPin &&
     action.reference !== undefined &&
@@ -1049,29 +1235,149 @@ function compilePlaceComponent(
     action.parameters,
   );
   const variant = action.variant ?? catalogSymbol.defaultVariantId ?? undefined;
-  pushEdit(index, action.kind, {
-    kind: "add_instance",
-    instance: {
-      id: allocateId("instance"),
-      symbolId: action.symbol,
-      reference:
-        action.reference ?? (action.symbol === "vdd-port" ? "VDD" : undefined),
-      ...(variant ? { symbolVariantId: variant } : {}),
-      placement: {
-        position: action.position ?? { x: 0, y: 0 },
-        rotation: action.rotation ?? 0,
-        mirror: action.mirror ?? "none",
-      },
-      ...(!powerMarker
-        ? {
-            netlist: {
-              parameters: action.parameters ?? {},
-              ...(action.control ? { control: action.control } : {}),
-            },
-          }
-        : {}),
+  const reference =
+    action.reference ?? (action.symbol === "vdd-port" ? "VDD" : undefined);
+  const mirrored = action.mirrorOf
+    ? mirroredPlacement(index, action, document)
+    : undefined;
+  pushPlacement(index, action.kind, {
+    id: allocateId("instance"),
+    symbolId: action.symbol,
+    ...(reference ? { reference } : {}),
+    ...(variant ? { symbolVariantId: variant } : {}),
+    placement: mirrored ?? {
+      position: action.position ?? { x: 0, y: 0 },
+      rotation: action.rotation ?? 0,
+      mirror: action.mirror ?? "none",
     },
+    // Without parameters or control the editor fills the netlist, catalog
+    // defaults and the Process's model, exactly as a GUI insert, and leaves a
+    // block that emits nothing without one.
+    ...(!powerMarker && (action.parameters || action.control)
+      ? {
+          netlist: {
+            parameters: action.parameters ?? {},
+            ...(action.control ? { control: action.control } : {}),
+          },
+        }
+      : {}),
+    ...(signalFlow?.success ? { signalFlowParameters: signalFlow.data } : {}),
   });
+}
+
+/**
+ * Where a part goes as the mirror image of a placed one about a vertical
+ * (x) or horizontal (y) line: the origin reflected, the mirror toggled on
+ * that axis and the rotation kept, which reflects every drawn point exactly
+ * (#1112). An origin off the placement grid is refused with the half-grid
+ * rule rather than silently moved.
+ */
+function mirroredPlacement(
+  index: number,
+  action: ActionOfKind<"place-component">,
+  document: ResolvedDocument,
+): { position: { x: number; y: number }; rotation: number; mirror: string } {
+  const of = action.mirrorOf!;
+  if ((of.x === undefined) === (of.y === undefined))
+    throw new ActionCompileError(
+      index,
+      action.kind,
+      "mirrorOf takes exactly one axis: x (a vertical line) or y (a horizontal line)",
+    );
+  if (action.rotation !== undefined || action.mirror !== undefined)
+    throw new ActionCompileError(
+      index,
+      action.kind,
+      "mirrorOf takes rotation and mirror from the part it reflects; omit them",
+    );
+  const source =
+    document.instances.find((instance) => instance.reference === of.instance) ??
+    document.instances.find((instance) => instance.id === of.instance);
+  if (!source?.position || !source.orientation)
+    throw new ActionCompileError(
+      index,
+      action.kind,
+      source
+        ? `${of.instance} is not placed yet; place it before mirroring it`
+        : `no part ${of.instance} to mirror`,
+    );
+  const position =
+    of.x !== undefined
+      ? { x: 2 * of.x - source.position.x, y: source.position.y }
+      : { x: source.position.x, y: 2 * of.y! - source.position.y };
+  const grid = document.grid;
+  if (position.x % grid !== 0 || position.y % grid !== 0)
+    throw new ActionCompileError(
+      index,
+      action.kind,
+      `${of.instance} mirrored about ${of.x !== undefined ? `x = ${of.x}` : `y = ${of.y}`} lands at (${position.x}, ${position.y}), off placement grid ${grid}; use an axis on a multiple of ${grid / 2}`,
+    );
+  const orientation = reflectOrientation(
+    source.orientation,
+    of.x !== undefined ? "left-right" : "top-bottom",
+  );
+  return { position, ...orientation };
+}
+
+/** One catalog entry, or undefined for a part outside the reviewed catalog. */
+function catalogEntry(symbolId: string) {
+  return agentRazaviAuthoringCatalog.symbols.find(
+    (symbol) => symbol.symbolId === symbolId,
+  );
+}
+
+/**
+ * The signal-flow parameters set-signal-flow leaves: null clears a field,
+ * a value replaces it, and the formula's authored look goes with a new
+ * formula, as in the Properties formula. Null when nothing is left.
+ */
+function signalFlowChange(
+  index: number,
+  kind: string,
+  instance: SnapshotInstance,
+  action: Extract<AuthoringAction, { kind: "set-signal-flow" }>,
+): z.infer<typeof SignalFlowParametersSchema> | null {
+  const entry = catalogEntry(instance.symbolId);
+  if (!entry?.formula)
+    throw new ActionCompileError(
+      index,
+      kind,
+      `${instance.reference ?? instance.id} (${instance.symbolId}) draws no formula`,
+    );
+  if (action.coefficient && !entry.coefficient)
+    throw new ActionCompileError(
+      index,
+      kind,
+      `${instance.symbolId} draws no coefficient`,
+    );
+  const next: Record<string, unknown> = {
+    ...(instance.signalFlowParameters ?? {}),
+  };
+  for (const key of [
+    "formula",
+    "coefficient",
+    "bodyWidth",
+    "bodyHeight",
+  ] as const) {
+    if (!(key in action)) continue;
+    const value = action[key];
+    if (value === null || value === undefined) delete next[key];
+    else next[key] = value;
+  }
+  if (next.formula !== instance.signalFlowParameters?.formula)
+    delete next.formulaFormat;
+  if (!next.formula) delete next.formulaFormat;
+  if (
+    JSON.stringify(next) === JSON.stringify(instance.signalFlowParameters ?? {})
+  )
+    throw new ActionCompileError(
+      index,
+      kind,
+      "the block already shows this; nothing to change",
+    );
+  return Object.keys(next).length
+    ? (next as z.infer<typeof SignalFlowParametersSchema>)
+    : null;
 }
 
 function validateActionParameters(

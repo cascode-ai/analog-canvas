@@ -3,6 +3,7 @@ import { assembleServer } from "./server.js";
 import {
   httpCommandFailureMessage,
   httpCommandReadsStdin,
+  runHttpBatch,
   runHttpCommand,
 } from "./http-cli.js";
 import { executeOperation, operationDefinitions } from "./operations.js";
@@ -141,5 +142,49 @@ describe("HTTP executable adapter", () => {
       runHttpCommand(server, "circuit", JSON.stringify(input)),
     ).rejects.toThrow("test sentinel");
     expect(request).toHaveBeenCalledWith(input);
+  });
+});
+
+describe("--http batch (#1227)", () => {
+  async function* lines(...values: string[]) {
+    for (const value of values) yield value;
+  }
+  it("answers each JSON line in order on one session, and counts failures", async () => {
+    const server = assembleServer({
+      apiBaseUrl: "https://relay.test",
+      connectorPath: "unused.json",
+    });
+    const written: unknown[] = [];
+    const failed = await runHttpBatch(
+      server,
+      lines(
+        JSON.stringify({
+          tool: "describe_tool",
+          args: { tool: "circuit_place" },
+        }),
+        "",
+        "not json",
+        JSON.stringify({ tool: "batch" }),
+        JSON.stringify({
+          tool: "describe_tool",
+          args: { tool: "missing-tool" },
+        }),
+      ),
+      (line) => written.push(JSON.parse(line)),
+    );
+    expect(written).toHaveLength(4);
+    expect(written[0]).not.toMatchObject({ ok: false });
+    expect(written[1]).toMatchObject({
+      ok: false,
+      error: { code: "INVALID_BATCH_LINE" },
+    });
+    expect(written[2]).toMatchObject({
+      ok: false,
+      error: { code: "INVALID_BATCH_LINE" },
+    });
+    // A tool's own failure keeps its usual shape.
+    expect(written[3]).toMatchObject({ isError: true });
+    expect(failed).toBe(3);
+    expect(httpCommandReadsStdin("batch")).toBe(false);
   });
 });

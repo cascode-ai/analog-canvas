@@ -1,13 +1,23 @@
 /** Which changed paths each step of `pnpm verify:pr` looks at. */
 
 /** What `pnpm format:check` covers: code, JSON and YAML, not Markdown. */
+/**
+ * The files `format:check` reads, by the same globs as package.json, so the
+ * merge queue and this check agree. docs/, fixtures/ and worker/ are not
+ * among them: generated files there, such as the Agent API artifacts and the
+ * Agent distribution manifest, keep their generator's layout.
+ */
+const FORMAT_CHECKED = [
+  /^apps\/.+\.(?:ts|tsx|json|css|html)$/u,
+  /^packages\/.+\.(?:ts|tsx|json)$/u,
+  /^references\/.+\.json$/u,
+  /^scripts\/.+\.mjs$/u,
+  /^[^/]+\.(?:json|yaml)$/u,
+];
+
 export function formattedPaths(paths) {
-  // format:check never reads docs/, and generated files there, such as the
-  // Agent distribution manifest, keep their generator's layout.
-  return paths.filter(
-    (path) =>
-      !path.startsWith("docs/") &&
-      /\.(?:[cm]?[jt]sx?|json|jsonc|ya?ml|css)$/u.test(path),
+  return paths.filter((path) =>
+    FORMAT_CHECKED.some((pattern) => pattern.test(path)),
   );
 }
 

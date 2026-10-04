@@ -284,3 +284,11 @@
   display: flex;
   gap: 0.5rem;
 }
+
+/* Agent requests answered while this tab was in the background (#1227). */
+.agent-panel-notice {
+  margin: 0.5rem 0 0;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: var(--icm-text-muted);
+}

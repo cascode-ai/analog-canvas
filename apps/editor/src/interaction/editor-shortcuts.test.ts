@@ -558,3 +558,57 @@ describe("blank-circuit refresh", () => {
     ).toEqual({ kind: "block-browser-refresh" });
   });
 });
+
+describe("R on Net Labels", () => {
+  const r = {
+    key: "r",
+    ctrlKey: false,
+    metaKey: false,
+    altKey: false,
+    shiftKey: false,
+  };
+  const context = (
+    overrides: Partial<Parameters<typeof resolveEditorShortcut>[1]>,
+  ): Parameters<typeof resolveEditorShortcut>[1] => ({
+    isTyping: false,
+    hasUnsavedWork: false,
+    interactionMode: "idle",
+    canRotate: false,
+    canMirror: false,
+    hasDraftingSelection: false,
+    hasInspectableSelection: false,
+    hasHighlightableNet: false,
+    hasActiveNetHighlight: false,
+    wireReadyToFinish: false,
+    draftingReadyToFinish: false,
+    hasRemovableWireWaypoint: false,
+    propertiesOpen: false,
+    hasHierarchyEnterSelection: false,
+    canReturnToParent: false,
+    ...overrides,
+  });
+
+  it("turns the label being placed, even with a part selected", () => {
+    expect(
+      resolveEditorShortcut(
+        r,
+        context({ netLabelTurn: "placing", canRotate: true }),
+      ),
+    ).toEqual({ kind: "turn-net-labels" });
+  });
+
+  it("turns selected labels, and leaves R to a selected part", () => {
+    expect(
+      resolveEditorShortcut(r, context({ netLabelTurn: "selection" })),
+    ).toEqual({ kind: "turn-net-labels" });
+    expect(
+      resolveEditorShortcut(
+        r,
+        context({ netLabelTurn: "selection", canRotate: true }),
+      ),
+    ).toEqual({
+      kind: "run-command",
+      command: { id: "transform.rotate", deltaDegrees: 90 },
+    });
+  });
+});

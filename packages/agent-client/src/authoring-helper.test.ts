@@ -478,7 +478,7 @@ describe("authoring helper compilation", () => {
       endpoint: { instanceId: "instance-1" },
     });
   });
-  it("permits unnamed Ground but never an unnamed device or a marker Reference", () => {
+  it("leaves an unnamed device's Reference to the editor, as a GUI insert does (#1256)", () => {
     expect(
       compile([
         { kind: "place-component", symbol: "ground", position: { x: 0, y: 0 } },
@@ -487,15 +487,34 @@ describe("authoring helper compilation", () => {
       kind: "place-components",
       instances: [{ symbolId: "ground" }],
     });
+    // A device without a Reference or parameters: the editor names it and
+    // fills its catalog netlist.
+    const [unnamed] = compile([
+      {
+        kind: "place-component",
+        symbol: "d-flip-flop",
+        position: { x: 0, y: 0 },
+      },
+      {
+        kind: "place-component",
+        symbol: "resistor",
+        position: { x: 100, y: 0 },
+        parameters: { value: "2k" },
+      },
+    ]);
+    const instances = (
+      unnamed?.command as { instances: Record<string, unknown>[] }
+    ).instances;
+    expect(instances).toHaveLength(2);
+    expect(instances[0]).not.toHaveProperty("reference");
+    expect(instances[0]).not.toHaveProperty("netlist");
+    expect(instances[1]).not.toHaveProperty("reference");
+    expect(instances[1]).toMatchObject({
+      netlist: { parameters: { value: "2k" } },
+    });
     expectCompileError(
-      [
-        {
-          kind: "place-component",
-          symbol: "resistor",
-          position: { x: 0, y: 0 },
-        },
-      ],
-      "requires an Instance Reference",
+      [{ kind: "place-component", symbol: "port", position: { x: 0, y: 0 } }],
+      "Port needs its name",
     );
     expectCompileError(
       [
@@ -507,6 +526,106 @@ describe("authoring helper compilation", () => {
         },
       ],
       "omit reference",
+    );
+  });
+  it("places a formula block with its formula, and sets it later (#1256)", () => {
+    const [placed] = compile([
+      {
+        kind: "place-component",
+        symbol: "integrator",
+        position: { x: 0, y: 0 },
+        signalFlow: { formula: "1/(1-z^-1)", coefficient: "a_1" },
+      },
+    ]);
+    expect(
+      (placed?.command as { instances: Record<string, unknown>[] })
+        .instances[0],
+    ).toMatchObject({
+      signalFlowParameters: { formula: "1/(1-z^-1)", coefficient: "a_1" },
+    });
+    expectCompileError(
+      [
+        {
+          kind: "place-component",
+          symbol: "integrator",
+          position: { x: 0, y: 0 },
+          signalFlow: { formular: "x" },
+        },
+      ],
+      "signalFlow",
+    );
+    expectCompileError(
+      [
+        {
+          kind: "place-component",
+          symbol: "resistor",
+          position: { x: 0, y: 0 },
+          signalFlow: { formula: "R" },
+        },
+      ],
+      "draws no formula",
+    );
+    const snapshot = testSnapshot();
+    const block = structuredClone(snapshot.document.instances[0]!);
+    snapshot.document.instances.push({
+      ...block,
+      id: "block-1",
+      reference: null,
+      symbolId: "integrator",
+      netlist: undefined,
+      signalFlowParameters: {
+        formula: "1/s",
+        formulaFormat: { runs: [{ kind: "text", value: "1/s" }] },
+      },
+    } as never);
+    const [change] = compile(
+      [
+        {
+          kind: "set-signal-flow",
+          target: { kind: "instance", id: "block-1" },
+          formula: "1/(1-z^-1)",
+          coefficient: "b",
+        },
+      ],
+      snapshot,
+    );
+    // A new formula drops the old one's look, as the Properties formula does.
+    expect(change?.edits).toEqual([
+      {
+        kind: "set_instance_signal_flow_parameters",
+        instanceId: "block-1",
+        parameters: { formula: "1/(1-z^-1)", coefficient: "b" },
+      },
+    ]);
+    expect(
+      compile(
+        [
+          {
+            kind: "set-signal-flow",
+            target: { kind: "instance", id: "block-1" },
+            formula: null,
+          },
+        ],
+        snapshot,
+      )[0]?.edits,
+    ).toEqual([
+      {
+        kind: "set_instance_signal_flow_parameters",
+        instanceId: "block-1",
+        parameters: null,
+      },
+    ]);
+    // Its text is not a netlist parameter, and the error says where it is.
+    expectCompileError(
+      [
+        {
+          kind: "set-property",
+          target: { kind: "instance", id: "block-1" },
+          set: { formula: "x" },
+        },
+      ],
+      "use set-signal-flow",
+      snapshot,
     );
   });
   it("compiles place-component into catalog-validated native placement", () => {
@@ -1293,6 +1412,163 @@ describe("authoring helper compilation", () => {
         },
       ],
       "rotation",
+    );
+  });
+});
+
+describe("every action compiles in a mixed call", () => {
+  it("keeps Cell and Junction commands that sit beside other actions", () => {
+    // These seven passed alone but vanished from a mixed list, which then
+    // reported success for what was left.
+    const commands = [
+      { kind: "move-junction", junctionId: "J1", position: { x: 40, y: 40 } },
+      { kind: "remove-cell-terminal", terminalId: "T1" },
+      { kind: "rename-cell-terminal", terminalId: "T1", name: "VIN" },
+      {
+        kind: "bind-cell-parameter",
+        instanceId: "instance-1",
+        field: "w",
+        name: "W",
+      },
+      { kind: "rename-cell-parameter", oldName: "W", newName: "WN" },
+      { kind: "set-cell-parameter-default", name: "W", defaultValue: "1u" },
+      { kind: "remove-cell-parameter", name: "W" },
+    ];
+    for (const command of commands) {
+      expect(
+        AuthoringActionSchema.safeParse(command).success,
+        command.kind,
+      ).toBe(true);
+      const compiled = compile([
+        {
+          kind: "rotate",
+          target: { kind: "instance", reference: "M1" },
+          rotation: 90,
+        },
+        command,
+      ]);
+      expect(
+        compiled.some(
+          (transaction) =>
+            transaction.form === "command" &&
+            transaction.command?.kind === command.kind,
+        ),
+        command.kind,
+      ).toBe(true);
+    }
+  });
+});
+
+describe("placing by pins and by symmetry (#1112)", () => {
+  it("places the mirror image of a part about a vertical or horizontal line", () => {
+    // M1 sits at (300, 240), upright and unmirrored, on a 20 grid.
+    const [placed] = compile([
+      {
+        kind: "place-component",
+        symbol: "nmos",
+        reference: "M2",
+        mirrorOf: { instance: "M1", x: 400 },
+      },
+      {
+        kind: "place-component",
+        symbol: "nmos",
+        reference: "M3",
+        mirrorOf: { instance: "instance-1", y: 300 },
+      },
+    ]);
+    const [m2, m3] = (
+      placed?.command as { instances: { placement: unknown }[] }
+    ).instances;
+    expect(m2?.placement).toEqual({
+      position: { x: 500, y: 240 },
+      rotation: 0,
+      mirror: "horizontal",
+    });
+    expect(m3?.placement).toEqual({
+      position: { x: 300, y: 360 },
+      rotation: 0,
+      mirror: "vertical",
+    });
+  });
+
+  it("refuses an axis whose image is off the grid, a missing part, or two axes", () => {
+    expectCompileError(
+      [
+        {
+          kind: "place-component",
+          symbol: "nmos",
+          reference: "M2",
+          mirrorOf: { instance: "M1", x: 405 },
+        },
+      ],
+      "off placement grid 20",
+    );
+    expectCompileError(
+      [
+        {
+          kind: "place-component",
+          symbol: "nmos",
+          reference: "M2",
+          mirrorOf: { instance: "M9", x: 400 },
+        },
+      ],
+      "no part M9",
+    );
+    expectCompileError(
+      [
+        {
+          kind: "place-component",
+          symbol: "nmos",
+          reference: "M2",
+          mirrorOf: { instance: "M1", x: 400, y: 300 },
+        },
+      ],
+      "exactly one axis",
+    );
+  });
+
+  it("names the nearest landing when a pin cannot land where asked", () => {
+    expectCompileError(
+      [
+        {
+          kind: "move",
+          target: { kind: "instance", reference: "M1" },
+          pinAnchor: { pinName: "D", position: { x: 310, y: 200 } },
+        },
+      ],
+      "nearest reachable landing is (320, 200)",
+    );
+  });
+});
+
+describe("one mirror vocabulary (#1231)", () => {
+  const m1 = { kind: "instance", reference: "M1" };
+  it("reflects a part from where it is, as the selection transform does", () => {
+    const [both] = compile([
+      { kind: "mirror", target: m1, axis: "y" },
+      { kind: "mirror", target: m1, axis: "x" },
+      { kind: "mirror", target: m1, axis: "y" },
+    ]);
+    expect(
+      both?.edits?.map((edit) => (edit as { mirror?: string }).mirror),
+    ).toEqual(["horizontal", "both", "vertical"]);
+    // A state is still accepted, and set-orientation is the place for one.
+    expect(
+      compile([{ kind: "mirror", target: m1, mirror: "vertical" }])[0]?.edits,
+    ).toEqual([
+      { kind: "mirror_instance", instanceId: "instance-1", mirror: "vertical" },
+    ]);
+    expect(
+      compile([
+        { kind: "set-orientation", target: m1, rotation: 90, mirror: "none" },
+      ])[0]?.edits,
+    ).toEqual([
+      { kind: "rotate_instance", instanceId: "instance-1", rotation: 90 },
+      { kind: "mirror_instance", instanceId: "instance-1", mirror: "none" },
+    ]);
+    expectCompileError(
+      [{ kind: "mirror", target: m1, axis: "y", mirror: "none" }],
+      "not both",
     );
   });
 });

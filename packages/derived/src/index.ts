@@ -46,6 +46,7 @@ export * from "./submission-gates.js";
 export * from "./topology-hash.js";
 export * from "./visual.js";
 export * from "./label-clearance.js";
+export * from "./net-label-turn.js";
 export * from "./drawn-switch.js";
 export * from "./drawn-magnetic.js";
 export * from "./simulatability.js";

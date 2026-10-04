@@ -35,6 +35,7 @@ import {
   AuthoringActionSchema,
   changedObjectIds,
 } from "@icm/agent-client";
+import type { AgentRequestTiming } from "@icm/agent-client";
 import type { OperationSession } from "./operation-session.js";
 import type { ContractTool } from "./tool-contracts.js";
 import {
@@ -57,9 +58,9 @@ import {
 import { editContract } from "./edit-contracts.js";
 import { focusedTools } from "./focused-tools.js";
 import {
-  inputContract,
   inputIssues,
   inputIssueDetails,
+  lazyContract,
 } from "./input-contract.js";
 
 /**
@@ -512,8 +513,6 @@ interface ToolEntry {
   handle: (args: unknown, session: ToolSessionState) => Promise<unknown>;
 }
 
-const jsonSchemaOf = inputContract;
-
 export function operationError(error: unknown, input?: unknown): unknown {
   if (error instanceof ContractQueryError)
     return {
@@ -562,7 +561,9 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
     definition: {
       name: "describe_tool",
       description: agentToolHelp["describe_tool"],
-      inputSchema: jsonSchemaOf(DescribeToolArgs),
+      get inputSchema() {
+        return lazyContract(DescribeToolArgs);
+      },
     },
     handle: async (args) => {
       const query = DescribeToolArgs.parse(args);
@@ -579,7 +580,9 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
     definition: {
       name: "connect",
       description: agentToolHelp["connect"],
-      inputSchema: jsonSchemaOf(ConnectArgs),
+      get inputSchema() {
+        return lazyContract(ConnectArgs);
+      },
     },
     handle: async (args, session) => {
       const parsed = ConnectArgs.parse(args ?? {});
@@ -600,7 +603,9 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
     definition: {
       name: "disconnect",
       description: agentToolHelp["disconnect"],
-      inputSchema: jsonSchemaOf(z.strictObject({})),
+      get inputSchema() {
+        return lazyContract(z.strictObject({}));
+      },
     },
     handle: async (_args, session) => {
       await session.client.disconnect();
@@ -611,20 +616,27 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
     definition: {
       name: "connection_status",
       description: agentToolHelp["connection_status"],
-      inputSchema: jsonSchemaOf(
-        z.strictObject({ refresh: z.boolean().optional() }),
-      ),
+      get inputSchema() {
+        return lazyContract(
+          z.strictObject({ refresh: z.boolean().optional() }),
+        );
+      },
     },
     handle: async (args, session) => {
       const { refresh = true } = z
         .strictObject({ refresh: z.boolean().optional() })
         .parse(args);
+      // This process's last requests, hop by hop, before the status read.
+      const recent = session.client
+        .timingsSince(Math.max(0, session.client.timingMark() - 5))
+        .map(({ startedAtMs: _startedAtMs, ...request }) => request);
       return {
         ...(await session.client.status({ refresh })),
         runtime: {
           version: AGENT_MCP_VERSION,
           apiBaseUrl: session.client.apiBaseUrl,
         },
+        ...(recent.length ? { recentRequests: recent } : {}),
       };
     },
   },
@@ -632,7 +644,9 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
     definition: {
       name: "project_cells",
       description: agentToolHelp["project_cells"],
-      inputSchema: { ...jsonSchemaOf(ProjectCellsArgs), type: "object" },
+      get inputSchema() {
+        return lazyContract(ProjectCellsArgs, true);
+      },
     },
     handle: async (args, session) => {
       const parsed = ProjectCellsArgs.parse(args);
@@ -678,7 +692,9 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
     definition: {
       name: "gallery_circuits",
       description: agentToolHelp["gallery_circuits"],
-      inputSchema: { ...jsonSchemaOf(GalleryCircuitsArgs), type: "object" },
+      get inputSchema() {
+        return lazyContract(GalleryCircuitsArgs, true);
+      },
     },
     handle: async (args, session) => {
       const parsed = GalleryCircuitsArgs.parse(args);
@@ -726,7 +742,9 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
     definition: {
       name: "project_code",
       description: agentToolHelp["project_code"],
-      inputSchema: { ...jsonSchemaOf(ProjectCodeArgs), type: "object" },
+      get inputSchema() {
+        return lazyContract(ProjectCodeArgs, true);
+      },
     },
     handle: async (args, session) => {
       const parsed = ProjectCodeArgs.parse(args);
@@ -754,7 +772,9 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
     definition: {
       name: "netlist_code",
       description: agentToolHelp["netlist_code"],
-      inputSchema: { ...jsonSchemaOf(NetlistCodeArgs), type: "object" },
+      get inputSchema() {
+        return lazyContract(NetlistCodeArgs, true);
+      },
     },
     handle: async (args, session) => {
       const parsed = NetlistCodeArgs.parse(args);
@@ -798,7 +818,9 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
     definition: {
       name: "simulation",
       description: agentToolHelp["simulation"],
-      inputSchema: jsonSchemaOf(SimulationArgs),
+      get inputSchema() {
+        return lazyContract(SimulationArgs);
+      },
     },
     handle: async (args, session) => {
       const parsed = SimulationArgs.parse(
@@ -904,7 +926,9 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
     definition: {
       name: "simulation_files",
       description: agentToolHelp["simulation_files"],
-      inputSchema: jsonSchemaOf(SimulationFilesArgs),
+      get inputSchema() {
+        return lazyContract(SimulationFilesArgs);
+      },
     },
     handle: async (args, session) => {
       const parsed = SimulationFilesArgs.parse(
@@ -1046,7 +1070,9 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
     definition: {
       name: "export_file",
       description: agentToolHelp["export_file"],
-      inputSchema: jsonSchemaOf(ExportFileArgs),
+      get inputSchema() {
+        return lazyContract(ExportFileArgs);
+      },
     },
     handle: async (args, session) =>
       (() => {
@@ -1063,7 +1089,9 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
     definition: {
       name: "import_file",
       description: agentToolHelp["import_file"],
-      inputSchema: jsonSchemaOf(ImportFileArgs),
+      get inputSchema() {
+        return lazyContract(ImportFileArgs);
+      },
     },
     handle: async (args, session) => {
       const parsed = ImportFileArgs.parse(args);
@@ -1117,7 +1145,9 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
     definition: {
       name: "get_context",
       description: agentToolHelp["get_context"],
-      inputSchema: jsonSchemaOf(DocumentArgs),
+      get inputSchema() {
+        return lazyContract(DocumentArgs);
+      },
     },
     handle: async (args, session) => {
       const parsed = DocumentArgs.parse(args ?? {});
@@ -1142,15 +1172,27 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
     definition: {
       name: "inspect",
       description: agentToolHelp["inspect"],
-      inputSchema: jsonSchemaOf(InspectArgs),
+      get inputSchema() {
+        return lazyContract(InspectArgs);
+      },
     },
     handle: async (args, session) => {
       const parsed = InspectArgs.parse(args);
-      if (parsed.target.kind === "activity")
+      if (parsed.target.kind === "activity") {
+        // The relay's record spans every process of the session; this
+        // process's receipts add the edits it made itself.
+        const relay = await session.client
+          .relayActivity()
+          .then((operations) => ({ operations }))
+          .catch((error: unknown) => ({
+            unavailable: error instanceof Error ? error.message : "unknown",
+          }));
         return {
+          session: relay,
           transactions: session.client.recentTransactions(),
           scope: "current-mcp-process",
         };
+      }
       if (parsed.target.kind === "trace")
         return session.client.traceNet(
           {
@@ -1201,7 +1243,9 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
     definition: {
       name: "search",
       description: agentToolHelp["search"],
-      inputSchema: jsonSchemaOf(SearchArgs),
+      get inputSchema() {
+        return lazyContract(SearchArgs);
+      },
     },
     handle: async (args, session) => {
       const parsed = SearchArgs.parse(args);
@@ -1245,7 +1289,9 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
     definition: {
       name: "apply_actions",
       description: agentToolHelp["apply_actions"],
-      inputSchema: jsonSchemaOf(ApplyActionsArgs),
+      get inputSchema() {
+        return lazyContract(ApplyActionsArgs);
+      },
     },
     handle: async (args, session) => {
       const parsed = ApplyActionsArgs.parse(args);
@@ -1260,7 +1306,9 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
     definition: {
       name: "advanced_transact",
       description: agentToolHelp["advanced_transact"],
-      inputSchema: jsonSchemaOf(AdvancedTransactArgs),
+      get inputSchema() {
+        return lazyContract(AdvancedTransactArgs);
+      },
     },
     handle: async (args, session) => {
       const parsed = AdvancedTransactArgs.parse(args);
@@ -1282,7 +1330,9 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
     definition: {
       name: "verify",
       description: agentToolHelp["verify"],
-      inputSchema: jsonSchemaOf(VerifyArgs),
+      get inputSchema() {
+        return lazyContract(VerifyArgs);
+      },
     },
     handle: async (args, session) => {
       const client = session.client;
@@ -1316,7 +1366,9 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
     definition: {
       name: "render",
       description: agentToolHelp["render"],
-      inputSchema: jsonSchemaOf(RenderArgs),
+      get inputSchema() {
+        return lazyContract(RenderArgs);
+      },
     },
     handle: async (args, session) => {
       const parsed = RenderArgs.parse(args);
@@ -1376,14 +1428,73 @@ export async function executeOperation(
   name: string,
   args: unknown,
   session: OperationSession,
+  options: { reportStartup?: boolean } = {},
 ): Promise<unknown> {
   const tool = TOOLS.find((entry) => entry.definition.name === name);
   if (!tool)
     return { ok: false, error: { code: "UNKNOWN_TOOL", message: name } };
+  const started = performance.now();
+  // A session without a network client (offline discovery) has no hops.
+  const mark = session.client?.timingMark?.();
+  let result: unknown;
   try {
-    const result = await tool.handle(args ?? {}, session);
-    return result;
+    result = await tool.handle(args ?? {}, session);
   } catch (error) {
-    return operationError(error, args);
+    result = operationError(error, args);
   }
+  return withTiming(
+    result,
+    performance.now() - started,
+    mark === undefined ? [] : session.client.timingsSince(mark),
+    options.reportStartup === true,
+  );
+}
+
+/** A forward slower than this reads as an editor that is not answering. */
+const SLOW_EDITOR_MS = 5000;
+
+/**
+ * Where a call's time went (#1227): the whole call, each request hop by hop
+ * (relay forward, editor work and its tab's visibility), and for a one-shot
+ * CLI process its startup before the first request, which a CPU-starved
+ * host stretches. An editor in the background or slow to answer adds
+ * EDITOR_BACKGROUND with the fix.
+ */
+export function withTiming(
+  result: unknown,
+  totalMs: number,
+  requests: readonly AgentRequestTiming[],
+  reportStartup: boolean,
+): unknown {
+  if (
+    !requests.length ||
+    typeof result !== "object" ||
+    result === null ||
+    Array.isArray(result)
+  )
+    return result;
+  const hidden = requests.some(
+    (request) => request.editorVisibility === "hidden",
+  );
+  const slowest = Math.max(...requests.map((request) => request.relayMs ?? 0));
+  return {
+    ...result,
+    timing: {
+      totalMs: Math.round(totalMs),
+      ...(reportStartup ? { startupMs: requests[0]!.startedAtMs } : {}),
+      requests: requests.map(
+        ({ startedAtMs: _startedAtMs, ...request }) => request,
+      ),
+      ...(hidden || slowest > SLOW_EDITOR_MS
+        ? {
+            warning: {
+              code: "EDITOR_BACKGROUND",
+              message: hidden
+                ? "The Analog Canvas tab was in the background while it answered; bring it to the front for prompt replies."
+                : `The editor took ${Math.round(slowest / 1000)} s to answer; bring the Analog Canvas tab to the front, or check that its machine is not busy.`,
+            },
+          }
+        : {}),
+    },
+  };
 }

@@ -1,7 +1,9 @@
 import {
+  createLabelClearanceContext,
   defaultInstanceLabelPlacement,
   displayableInstanceValue,
   objectStyleProfile,
+  portLabelCandidates,
   resolveDocumentStyleProfile,
   type SchematicStyleProfile,
 } from "@icm/derived";
@@ -83,14 +85,23 @@ export function defaultInstanceDisplayAnnotations(
       const format = options.formalName
         ? roleLabelFormat("voltage-node", options.formalName)
         : undefined;
-      annotations.push({
-        ...terminalName,
-        binding: {
-          kind: "cell-terminal-name",
-          terminalId: options.formalTerminalId,
-        },
-        ...(format ? { formatOverride: format } : {}),
-      });
+      annotations.push(
+        clearPinName(
+          document,
+          instance,
+          resolver,
+          styleProfile,
+          {
+            ...terminalName,
+            binding: {
+              kind: "cell-terminal-name",
+              terminalId: options.formalTerminalId,
+            },
+            ...(format ? { formatOverride: format } : {}),
+          },
+          options.formalName,
+        ),
+      );
     }
     return annotations;
   }
@@ -301,4 +312,73 @@ function defaultMasterNameAnnotation(
       ? { documentStyle: structuredClone(instance.documentStyle) }
       : {}),
   };
+}
+
+/**
+ * A Cell Pin's name on the first side where it collides with nothing drawn,
+ * or the least crowded one: two Pins facing each other otherwise print their
+ * names into one another (#1105). The side toward the wire is never tried.
+ */
+function clearPinName(
+  document: SchematicDocument,
+  instance: Instance,
+  resolver: SymbolResolver,
+  styleProfile: SchematicStyleProfile,
+  name: Annotation,
+  formalName: string | undefined,
+): Annotation {
+  const resolved = resolver.resolve(
+    instance.symbolId,
+    instance.symbolVariantId,
+  );
+  if (
+    !resolved ||
+    !instance.placement ||
+    name.anchor.kind !== "object" ||
+    !document.annotations.some((annotation) => annotation.visible !== false)
+  )
+    return name;
+  const candidates = portLabelCandidates(
+    instance,
+    resolved,
+    objectStyleProfile(styleProfile, instance),
+    document.presentation.grid,
+  );
+  if (candidates.length < 2) return name;
+  // Measured with the text it will show: the terminal may not exist yet.
+  const context = createLabelClearanceContext(
+    document.instances.some((item) => item.id === instance.id)
+      ? document
+      : { ...document, instances: [...document.instances, instance] },
+    resolver,
+  );
+  const origin = instance.placement.position;
+  const at = (candidate: (typeof candidates)[number]): Annotation => ({
+    ...name,
+    alignment: candidate.alignment,
+    anchor: {
+      ...name.anchor,
+      localOffset: {
+        x: candidate.position.x - origin.x,
+        y: candidate.position.y - origin.y,
+      },
+      fallbackPosition: candidate.position,
+    } as typeof name.anchor,
+  });
+  let best = name;
+  let fewest = Infinity;
+  for (const candidate of candidates) {
+    const placed = at(candidate);
+    const { binding: _binding, ...unbound } = placed;
+    const conflicts = context.conflicts({
+      ...unbound,
+      content: placed.formatOverride ?? plainNameDocument(formalName ?? ""),
+    }).length;
+    if (conflicts < fewest) {
+      best = placed;
+      fewest = conflicts;
+    }
+    if (!conflicts) break;
+  }
+  return best;
 }

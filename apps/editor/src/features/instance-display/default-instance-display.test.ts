@@ -1,13 +1,16 @@
 import {
   resolveAnnotationName,
+  resolveAnnotationPresentation,
   resolveSchematicStyleProfile,
 } from "@icm/derived";
 import {
   controlledSourceExpressionSource,
   createEmptyDocument,
   flattenRichText,
+  plainNameDocument,
   roleLabelFormat,
 } from "@icm/model";
+import type { Annotation } from "@icm/model";
 import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 
@@ -625,5 +628,73 @@ describe("blocks that carry no designator", () => {
         }),
       ]);
     }
+  });
+});
+
+describe("Cell Pin names that would collide (#1105)", () => {
+  const style = resolveSchematicStyleProfile("razavi-textbook-v1");
+  const port = (id: string, x: number, mirror: "none" | "horizontal") => ({
+    id,
+    symbolId: "port",
+    placement: {
+      position: { x, y: 190 },
+      rotation: 0 as const,
+      mirror,
+    },
+  });
+  const named = (
+    document: ReturnType<typeof createEmptyDocument>,
+    instance: ReturnType<typeof port>,
+    name: string,
+  ) =>
+    defaultInstanceDisplayAnnotations(document, instance, resolver, style, {
+      formalTerminalId: `terminal-${instance.id}`,
+      formalName: name,
+    })[0]!;
+  /** Two output Pins facing each other, each name on its inner side. */
+  function facing() {
+    for (const [left, right] of [
+      ["none", "horizontal"],
+      ["horizontal", "none"],
+    ] as const) {
+      const document = createEmptyDocument("pins", "Pins");
+      const voutn = port("PN", 220, left);
+      const voutp = port("PP", 300, right);
+      const nameN = named(document, voutn, "Voutn");
+      const alone = named(document, voutp, "Voutp");
+      if (nameN.alignment === "start" && alone.alignment === "end")
+        return { document, voutn, voutp, nameN, alone };
+    }
+    throw new Error("no facing configuration");
+  }
+  const inkOf = (
+    document: ReturnType<typeof createEmptyDocument>,
+    annotation: Annotation,
+    name: string,
+  ) =>
+    resolveAnnotationPresentation(
+      document,
+      resolver,
+      { ...annotation, binding: undefined, content: plainNameDocument(name) },
+      style,
+    ).inkBounds;
+
+  it("puts the second Pin's name where the first one's is not", () => {
+    const { document, voutn, voutp, nameN, alone } = facing();
+    document.instances.push(voutn);
+    document.annotations.push(nameN);
+    const nameP = named(document, voutp, "Voutp");
+    expect(nameP.alignment).toBe("middle");
+    document.instances.push(voutp);
+    const a = inkOf(document, nameN, "Voutn");
+    const b = inkOf(document, nameP, "Voutp");
+    const overlaps =
+      a.x < b.x + b.width &&
+      b.x < a.x + a.width &&
+      a.y < b.y + b.height &&
+      b.y < a.y + a.height;
+    expect(overlaps).toBe(false);
+    // Alone, the name keeps its standard side, away from the wire.
+    expect(alone.alignment).toBe("end");
   });
 });

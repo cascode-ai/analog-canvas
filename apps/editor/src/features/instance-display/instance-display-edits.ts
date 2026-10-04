@@ -1,4 +1,9 @@
-import { resolveDocumentStyleProfile } from "@icm/derived";
+import {
+  defaultInstanceLabelPlacement,
+  objectStyleProfile,
+  resolveDocumentStyleProfile,
+} from "@icm/derived";
+import { canonicalInstanceLabelRow } from "@icm/edit-engine";
 import type { SchematicEdit } from "@icm/edit-engine";
 import type { Annotation, SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
@@ -28,6 +33,7 @@ export function instanceDisplayEdits(
   for (const id of new Set(instanceIds)) {
     const instance = document.instances.find((item) => item.id === id);
     if (!instance?.placement) continue;
+    const next = new Map<"reference" | "value", Annotation>();
     for (const field of ["reference", "value"] as const) {
       const visible =
         field === "reference" ? display.showReference : display.showValue;
@@ -85,11 +91,81 @@ export function instanceDisplayEdits(
         };
       }
       const { visible: _visible, ...rest } = annotation;
-      edits.push({
-        kind: "upsert_schematic_annotation",
-        annotation: visible ? rest : { ...rest, visible: false },
-      });
+      next.set(field, visible ? rest : { ...rest, visible: false });
     }
+    // A value, or a Cell's name, takes the Reference's slot while no
+    // Reference is shown and gives it back when one is (#1105), so it never
+    // hangs a row away from its part or prints over the Reference.
+    const value = next.get("value") ?? instanceValueAnnotation(document, id);
+    const reference =
+      next.get("reference") ?? instanceLabelAnnotationFor(document, id);
+    if (
+      next.size &&
+      value &&
+      value.visible !== false &&
+      (!reference || reference.kind === "instance-label")
+    ) {
+      const moved = valueInSlot(
+        document,
+        resolver,
+        instance,
+        value,
+        reference && reference.visible !== false ? "value" : "reference",
+      );
+      if (moved) next.set("value", moved);
+    }
+    for (const annotation of next.values())
+      edits.push({ kind: "upsert_schematic_annotation", annotation });
   }
   return edits;
+}
+
+/** The value label moved into `slot`, or null when it is there already or a
+ * person placed it (an authored position is never pulled back). */
+function valueInSlot(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  instance: SchematicDocument["instances"][number],
+  value: Annotation,
+  slot: "reference" | "value",
+): Annotation | null {
+  const resolved = resolver.resolve(
+    instance.symbolId,
+    instance.symbolVariantId,
+  );
+  if (!resolved || !instance.placement || value.anchor.kind !== "object")
+    return null;
+  const row = canonicalInstanceLabelRow(
+    value,
+    instance,
+    resolved,
+    document,
+    instance.placement.position,
+    instance.placement,
+  );
+  if (row === null || (row === 0) === (slot === "reference")) return null;
+  const placement = defaultInstanceLabelPlacement(
+    instance,
+    resolved,
+    objectStyleProfile(
+      resolveDocumentStyleProfile(document.presentation),
+      value,
+    ),
+    document.presentation.grid,
+    slot,
+    value.sizeScale ?? 1,
+  );
+  if (!placement) return null;
+  return {
+    ...value,
+    alignment: placement.alignment,
+    anchor: {
+      ...value.anchor,
+      localOffset: {
+        x: placement.position.x - instance.placement.position.x,
+        y: placement.position.y - instance.placement.position.y,
+      },
+      fallbackPosition: placement.position,
+    },
+  };
 }

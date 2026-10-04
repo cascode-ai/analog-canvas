@@ -5,7 +5,9 @@ import {
   endpointKey,
   isNearVerticalSegment,
   measureRichTextDocument,
-  netLabelSideOffset,
+  netLabelLook,
+  netLabelStandardOffset,
+  type NetLabelDirection,
   resolveDocumentLogicalNets,
   richTextMetrics,
   resolveAnnotationPresentation,
@@ -91,9 +93,12 @@ export interface NetLabelPlacementTarget {
   labelPosition: Point;
   /**
    * The alignment the wire asks for. A label right of a vertical wire starts
-   * at the wire: centred or ended there, it would cover the wire.
+   * at the wire: centred or ended there, it would cover the wire. A turned
+   * label (R) brings its own: start or end, from where it meets the wire.
    */
-  alignment?: "start";
+  alignment?: "start" | "end";
+  /** A turned label's text rotation: 270 reads bottom to top. */
+  rotation?: 0 | 270;
 }
 
 /** Nearest visible conductor point on one physical Net. */
@@ -325,6 +330,8 @@ export function netLabelPlacementTargetAtPoint(
   candidate: Point,
   captureTolerance: number,
   preferredRouteId?: string,
+  /** The way R has turned the label, and its capital height. */
+  turn?: { direction: NetLabelDirection; capHeight: number },
 ): NetLabelPlacementTarget | null {
   const attached = attachmentAtPoint(
     routeGeometryRecords,
@@ -351,14 +358,15 @@ export function netLabelPlacementTargetAtPoint(
   if (!record || !segment) return null;
   // The label takes its wire's standard side whichever way the wire was
   // drawn: above a horizontal segment, right of a vertical one. Following
-  // the drawing direction put it below or left, over the wire.
+  // the drawing direction put it below or left, over the wire. A turned
+  // label takes the side and offset its direction needs.
+  const look = turn
+    ? netLabelLook(turn.direction, segment.from, segment.to, turn.capHeight)
+    : null;
   const routeAttachment = {
     ...attached.routeAttachment,
-    normalOffset: netLabelSideOffset(
-      segment.from,
-      segment.to,
-      NET_LABEL_MIN_NORMAL_OFFSET,
-    ),
+    normalOffset:
+      look?.normalOffset ?? netLabelStandardOffset(segment.from, segment.to),
   };
   const placement = resolveRouteAttachment(record.geometry, routeAttachment);
   if (!placement) return null;
@@ -375,9 +383,11 @@ export function netLabelPlacementTargetAtPoint(
     routeAttachment,
     conductorPoint,
     labelPosition,
-    ...(isNearVerticalSegment(segment.from, segment.to)
-      ? { alignment: "start" as const }
-      : {}),
+    ...(look
+      ? { alignment: look.alignment, rotation: look.rotation }
+      : isNearVerticalSegment(segment.from, segment.to)
+        ? { alignment: "start" as const }
+        : {}),
   };
 }
 

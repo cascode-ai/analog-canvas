@@ -147,6 +147,18 @@ describe("on-demand tool contracts", () => {
     ).toBe("UNKNOWN_EDIT_CONTRACT");
   });
 
+  it("describes a Project structure edit too, as one for structureEdits (#1231)", async () => {
+    const response = text(
+      await callTool(
+        "describe_tool",
+        { editKind: "upsert_simulation_folder" },
+        {} as never,
+      ),
+    );
+    expect(response.inputSchema["x-transaction"].form).toBe("structureEdits");
+    expect(JSON.stringify(response.inputSchema)).toContain("folder");
+  });
+
   it("uses the same registry for parameterized resources and tool calls", async () => {
     const query = {
       tool: "simulation_files",

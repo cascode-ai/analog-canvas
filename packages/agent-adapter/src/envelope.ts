@@ -107,6 +107,17 @@ export const AgentSessionMessageSchema = z.strictObject({
   workspaceId: OpaqueIdSchema.max(256).optional(),
   kind: AgentSessionMessageKindSchema,
   payload: z.unknown(),
+  /**
+   * On a response: how long the editor worked on the request, from receipt
+   * to reply, and whether its tab was in the background. The relay passes
+   * both to the Agent with its own forwarding time (#1227).
+   */
+  timing: z
+    .strictObject({
+      workMs: z.number().int().nonnegative(),
+      visibility: z.enum(["visible", "hidden"]),
+    })
+    .optional(),
 });
 
 /** Authenticated browser liveness and current Project document roster. */

@@ -3139,7 +3139,7 @@ describe("Edit Transaction envelope", () => {
     // The two rows stay a fixed grid-quantized distance apart at every
     // orientation, so they can never overlap.
     expect(valueAnnotation.anchor.fallbackPosition.y).toBe(
-      label.anchor.fallbackPosition.y + 30,
+      label.anchor.fallbackPosition.y + 20,
     );
     expect(valueAnnotation.alignment).toBe(label.alignment);
   });

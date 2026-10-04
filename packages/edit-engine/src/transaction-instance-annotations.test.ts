@@ -17,6 +17,7 @@ import {
   defaultVddPowerLabelPlacement,
   instanceLabelInkBounds,
   instanceLabelMetrics,
+  previousDefaultInstanceLabelPlacement,
   previousPortLabelPlacement,
   resolveAnnotationPresentation,
   resolveDocumentStyleProfile,
@@ -664,5 +665,113 @@ describe("Cell Pin names placed by the previous rule", () => {
       },
       fallbackPosition: current.position,
     });
+  });
+});
+
+describe("value labels as a part turns (#1105)", () => {
+  const position = { x: 200, y: 200 };
+  function valueAt(
+    placement: { position: Point; alignment: Annotation["alignment"] },
+    rotation: 0 | 90 | 180 | 270,
+  ) {
+    const document = createEmptyDocument("values", "Values");
+    const instance = {
+      id: "R1",
+      symbolId: "resistor",
+      placement: { position, rotation, mirror: "none" as const },
+    };
+    document.instances.push(instance);
+    const annotation: Annotation = {
+      id: "value-r1",
+      kind: "instance-value",
+      binding: { kind: "instance-value", instanceId: "R1" },
+      anchor: {
+        kind: "object",
+        objectId: "R1",
+        localOffset: {
+          x: placement.position.x - position.x,
+          y: placement.position.y - position.y,
+        },
+        fallbackPosition: placement.position,
+      },
+      alignment: placement.alignment,
+      rotation: 0,
+      locked: false,
+    };
+    document.annotations.push(annotation);
+    return { document, instance, annotation };
+  }
+  function turn(
+    document: SchematicDocument,
+    from: 0 | 90 | 180 | 270,
+    to: 0 | 90 | 180 | 270,
+  ) {
+    document.instances[0]!.placement = {
+      position,
+      rotation: to,
+      mirror: "none",
+    };
+    followAttachedAnnotations(
+      document,
+      "R1",
+      position,
+      { rotation: from, mirror: "none" },
+      position,
+      { rotation: to, mirror: "none" },
+      new Set(),
+      resolver,
+    );
+  }
+  const resolved = resolver.resolve("resistor")!;
+  const profile = resolveDocumentStyleProfile(
+    createEmptyDocument("p", "P").presentation,
+  );
+  const rule = (rotation: 0 | 90 | 180 | 270, slot: "reference" | "value") =>
+    defaultInstanceLabelPlacement(
+      {
+        id: "R1",
+        symbolId: "resistor",
+        placement: { position, rotation, mirror: "none" },
+      },
+      resolved,
+      profile,
+      10,
+      slot,
+    )!;
+
+  it("moves a value the previous rule stacked a wide row down onto the current row", () => {
+    const previous = previousDefaultInstanceLabelPlacement(
+      {
+        id: "R1",
+        symbolId: "resistor",
+        placement: { position, rotation: 90, mirror: "none" },
+      },
+      resolved,
+      profile,
+      10,
+      "value",
+    )!;
+    const { document, annotation } = valueAt(previous, 90);
+    turn(document, 90, 0);
+    expect(annotation.anchor).toMatchObject({
+      fallbackPosition: rule(0, "value").position,
+    });
+    expect(annotation.alignment).toBe(rule(0, "value").alignment);
+  });
+
+  it("keeps a value shown without a Reference in the Reference's slot", () => {
+    const { document, annotation } = valueAt(rule(90, "reference"), 90);
+    for (const [from, to] of [
+      [90, 180],
+      [180, 270],
+      [270, 0],
+      [0, 90],
+    ] as const) {
+      turn(document, from, to);
+      expect(annotation.anchor).toMatchObject({
+        fallbackPosition: rule(to, "reference").position,
+      });
+      expect(annotation.alignment).toBe(rule(to, "reference").alignment);
+    }
   });
 });

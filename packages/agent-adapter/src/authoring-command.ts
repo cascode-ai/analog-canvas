@@ -4,7 +4,7 @@ import {
   StableIdSchema,
   RichTextDocumentSchema,
   PlacementSchema,
-  InstanceSchema,
+  InstancePlacementRequestSchema,
 } from "@icm/model";
 
 /** Small server-planned conveniences; results still commit as existing edits. */
@@ -69,6 +69,18 @@ const RouteNetCommandSchema = z.strictObject({
     ),
 });
 const BatchItemSchema = z.discriminatedUnion("kind", [
+  // Several Cell instances place in one call and one undo, as place-components
+  // places several built-in parts (#1231).
+  z.strictObject({
+    kind: z.literal("place-cell"),
+    childDocumentId: StableIdSchema,
+    instanceId: StableIdSchema,
+    reference: NameSchema.optional().describe(
+      "X and a number; omit it for the next free one, as the GUI names a Cell instance.",
+    ),
+    placement: PlacementSchema,
+    pinAnchor: OptionalPinAnchorSchema,
+  }),
   RouteNetCommandSchema,
   z
     .strictObject({
@@ -97,6 +109,15 @@ const BatchItemSchema = z.discriminatedUnion("kind", [
     kind: z.literal("remove-cell-terminal"),
     terminalId: StableIdSchema,
   }),
+  z
+    .strictObject({
+      kind: z.literal("set-display-alias"),
+      instanceId: StableIdSchema,
+      text: z.string().trim().min(1).max(128).nullable(),
+    })
+    .describe(
+      "Show text on a part's name label while the part keeps its own Reference (or Pin name) in the netlist, e.g. an op-amp X1 drawn A1; null shows its own name again. Survives Project Code and Copy as the label's text.",
+    ),
   z.strictObject({
     kind: z.literal("set-instance-display"),
     instanceIds: z.array(StableIdSchema).min(1).max(64),
@@ -175,7 +196,13 @@ export const AgentAuthoringCommandSchema = z.discriminatedUnion("kind", [
   }),
   z.strictObject({
     kind: z.literal("place-components"),
-    instances: z.array(InstanceSchema).min(1).max(64),
+    instances: z
+      .array(InstancePlacementRequestSchema)
+      .min(1)
+      .max(64)
+      .describe(
+        "A part without a reference takes the next free name, as a GUI insert does.",
+      ),
     pinAnchors: z
       .record(StableIdSchema, AgentPinAnchorSchema)
       .optional()
@@ -210,19 +237,11 @@ export const AgentAuthoringCommandSchema = z.discriminatedUnion("kind", [
       "Set a straight Power Rail's two ends on its own line. Taps and the one label stay; no pin is joined.",
     ),
   z.strictObject({
-    kind: z.literal("place-cell"),
-    childDocumentId: StableIdSchema,
-    instanceId: StableIdSchema,
-    reference: NameSchema.optional().describe(
-      "X and a number; omit it for the next free one, as the GUI names a Cell instance.",
-    ),
-    placement: PlacementSchema,
-    pinAnchor: OptionalPinAnchorSchema,
-  }),
-  z.strictObject({
     kind: z.literal("place-existing"),
     instanceId: StableIdSchema,
-    placement: PlacementSchema,
+    placement: PlacementSchema.optional().describe(
+      "Origin and orientation. With pinAnchor only the orientation is read; left out, the part goes upright and unmirrored.",
+    ),
     pinAnchor: OptionalPinAnchorSchema,
   }),
   z.strictObject({

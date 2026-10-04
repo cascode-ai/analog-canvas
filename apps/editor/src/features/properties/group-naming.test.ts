@@ -19,6 +19,7 @@ import { instanceLabelAnnotationFor } from "../instance-display/default-instance
 import { instanceDisplayEdits } from "../instance-display/instance-display-edits";
 import {
   groupNamingStatus,
+  planDisplayAlias,
   planGroupNaming,
   shownPartName,
 } from "./group-naming";
@@ -318,5 +319,116 @@ describe("one name for several selected parts", () => {
     const joined = name(source, ["pin-2", "pin-1"], "IN");
     expect(joined).toMatchObject({ ok: true, holder: "IN", aliases: ["OUT"] });
     expect(joined.ok && joined.structure).toEqual([]);
+  });
+});
+
+describe("one part's display alias (#1254)", () => {
+  function opampDocument(): SchematicDocument {
+    const document = createEmptyProject("alias", "Alias").documents[0]!;
+    document.instances.push({
+      id: "amp",
+      reference: "X1",
+      symbolId: "opamp",
+      placement: {
+        position: { x: 200, y: 200 },
+        rotation: 0,
+        mirror: "none",
+      },
+    } as SchematicDocument["instances"][number]);
+    return document;
+  }
+  const labels = {
+    labelFor: instanceLabelAnnotationFor,
+    newLabelFor: (document: SchematicDocument, instanceId: string) =>
+      instanceDisplayEdits(document, resolver, [instanceId], {
+        showReference: true,
+      }).flatMap((edit) =>
+        edit.kind === "upsert_schematic_annotation" &&
+        edit.annotation.kind === "instance-label"
+          ? [edit.annotation]
+          : [],
+      )[0],
+  };
+  const apply = (document: SchematicDocument, edits: SchematicEdit[]) => {
+    const result = executeTransaction(
+      document,
+      {
+        transactionId: "alias",
+        documentId: document.id,
+        expectedRevision: document.revision,
+        actor: { kind: "agent", id: "test" },
+        edits,
+      },
+      { symbolResolver: resolver },
+    );
+    if (!result.ok) throw new Error(result.diagnostics[0]?.message);
+    return result.document;
+  };
+
+  it("draws an op-amp X1 as A1 and keeps X1 in the netlist", () => {
+    let document = opampDocument();
+    const plan = planDisplayAlias({
+      document,
+      instanceId: "amp",
+      alias: "A1",
+      ...labels,
+    });
+    if (!plan.ok) throw new Error(plan.message);
+    document = apply(document, plan.edits);
+    const shown = instanceLabelAnnotationFor(document, "amp")!;
+    expect(shown.binding).toBeUndefined();
+    expect(flattenRichText(resolveAnnotationText(document, shown))).toBe("A1");
+    expect(shown.content).toEqual(roleLabelFormat("device-reference", "A1"));
+    expect(document.instances[0]!.reference).toBe("X1");
+
+    // Null names it again, bound to its Reference in its standard look.
+    const back = planDisplayAlias({
+      document,
+      instanceId: "amp",
+      alias: null,
+      ...labels,
+    });
+    if (!back.ok) throw new Error(back.message);
+    document = apply(document, back.edits);
+    const named = instanceLabelAnnotationFor(document, "amp")!;
+    expect(named.binding).toEqual({
+      kind: "instance-reference",
+      instanceId: "amp",
+    });
+    expect(flattenRichText(resolveAnnotationText(document, named))).toBe("X1");
+  });
+
+  it("shows a hidden label with the alias, and refuses a part with no name", () => {
+    let document = opampDocument();
+    const shown = planDisplayAlias({
+      document,
+      instanceId: "amp",
+      alias: null,
+      ...labels,
+    });
+    if (!shown.ok) throw new Error(shown.message);
+    document = apply(document, shown.edits);
+    const label = instanceLabelAnnotationFor(document, "amp")!;
+    document = apply(document, [
+      {
+        kind: "upsert_schematic_annotation",
+        annotation: { ...label, visible: false },
+      },
+    ]);
+    const plan = planDisplayAlias({
+      document,
+      instanceId: "amp",
+      alias: "A2",
+      ...labels,
+    });
+    if (!plan.ok) throw new Error(plan.message);
+    const [edit] = plan.edits;
+    expect(
+      edit?.kind === "upsert_schematic_annotation" && edit.annotation.visible,
+    ).not.toBe(false);
+    document.instances[0]!.reference = undefined;
+    expect(
+      planDisplayAlias({ document, instanceId: "amp", alias: "A1", ...labels }),
+    ).toMatchObject({ ok: false });
   });
 });

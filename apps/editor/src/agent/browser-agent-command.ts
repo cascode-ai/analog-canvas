@@ -87,9 +87,11 @@ import {
 import { createSelectionTransformController } from "../features/selection/selection-transform-controller";
 import {
   defaultInstanceDisplayAnnotations,
+  instanceLabelAnnotationFor,
   missingDefaultInstanceDisplayAnnotations,
 } from "../features/instance-display/default-instance-display";
 import { instanceDisplayEdits } from "../features/instance-display/instance-display-edits";
+import { planDisplayAlias } from "../features/properties/group-naming";
 import { arrangeInstanceLabels } from "../features/instance-display/arrange-instance-labels";
 import { instanceParameterVisibilityEdits } from "../features/instance-display/instance-parameter-display";
 import {
@@ -292,7 +294,7 @@ function namedPlacement(
     actionIndex,
     issue.code === "DUPLICATE_REFERENCE"
       ? `${instance.reference} already names ${issue.otherInstanceId}; ${free} is free. Nothing was placed.`
-      : `${parts} use the ${policy.prefix} prefix, so ${instance.reference} would block the netlist; ${free} is free. Nothing was placed.`,
+      : `${parts} use the ${policy.prefix} prefix, so ${instance.reference} would block the netlist; ${free} is free, and set-display-alias draws it as ${instance.reference}. Nothing was placed.`,
   );
 }
 
@@ -839,6 +841,25 @@ export function planBrowserAgentCommand(
           }
         : { edits };
     }
+    case "set-display-alias": {
+      const plan = planDisplayAlias({
+        document,
+        instanceId: command.instanceId,
+        alias: command.text,
+        labelFor: instanceLabelAnnotationFor,
+        newLabelFor: (current, instanceId) =>
+          instanceDisplayEdits(current, resolver, [instanceId], {
+            showReference: true,
+          }).flatMap((edit) =>
+            edit.kind === "upsert_schematic_annotation" &&
+            edit.annotation.kind === "instance-label"
+              ? [edit.annotation]
+              : [],
+          )[0],
+      });
+      if (!plan.ok) throw new Error(plan.message);
+      return { edits: plan.edits };
+    }
     case "set-instance-display": {
       const edits = instanceDisplayEdits(
         document,
@@ -925,14 +946,24 @@ export function planBrowserAgentCommand(
       );
       if (!instance || instance.placement)
         throw new Error("place-existing requires an unplaced Instance");
+      // A pin anchor needs only the orientation (#1112).
       const placement = command.pinAnchor
         ? pinAnchoredPlacement(
             document,
             resolver,
-            { ...instance, placement: command.placement },
+            {
+              ...instance,
+              placement: command.placement ?? {
+                position: { x: 0, y: 0 },
+                rotation: 0,
+                mirror: "none",
+              },
+            },
             command.pinAnchor,
           )
         : command.placement;
+      if (!placement)
+        throw new Error("place-existing needs a placement or a pinAnchor");
       const annotations = missingDefaultInstanceDisplayAnnotations(
         document,
         { ...instance, placement },

@@ -1307,8 +1307,9 @@ it("names the command and what it expanded to when it exceeds the edit limit", a
     { expandedEdits: number; maxTransactionEdits: number } | undefined;
   expect(limit?.maxTransactionEdits).toBe(64);
   expect(limit?.expandedEdits).toBeGreaterThan(64);
+  // The refusal names the action it refused (#1231).
   expect(rejected.message).toBe(
-    `transform expands to ${limit?.expandedEdits} edits, and one transaction takes at most 64. Act on fewer objects per call. Nothing was changed.`,
+    `actions[0] (transform): transform expands to ${limit?.expandedEdits} edits, and one transaction takes at most 64. Act on fewer objects per call. Nothing was changed.`,
   );
   expect(controller.document).toEqual(before);
 });
@@ -2557,7 +2558,8 @@ describe("MCP → API → shared editor parity", () => {
     const wrong = await placeCell("inv-i1", "I1");
     expect(wrong.ok).toBe(false);
     expect(wrong.message).toContain(
-      "Cell instances use the X prefix, so I1 would block the netlist; X1 is free. Nothing was placed.",
+      // The fix names the alias that still draws the name asked for (#1254).
+      "Cell instances use the X prefix, so I1 would block the netlist; X1 is free, and set-display-alias draws it as I1. Nothing was placed.",
     );
     expect(tb()).toHaveLength(0);
 
@@ -2580,7 +2582,7 @@ describe("MCP → API → shared editor parity", () => {
     ]);
     expect(device.ok).toBe(false);
     expect(device.message).toContain(
-      "resistor parts use the R prefix, so C1 would block the netlist; R1 is free.",
+      "resistor parts use the R prefix, so C1 would block the netlist; R1 is free, and set-display-alias draws it as C1.",
     );
   });
 
@@ -2945,5 +2947,125 @@ describe("MCP → API → shared editor parity", () => {
     expect(deleted.ok, deleted.message).toBe(true);
     expect((await client.status()).documentIds).toEqual(["main"]);
     expect((await client.refreshSnapshot()).documentId).toBe("main");
+  });
+});
+
+describe("Agent placement and naming the GUI way (#1254, #1256)", () => {
+  it("names unnamed parts, places a formula block, and draws an op-amp X1 as A1", async () => {
+    const { client, controller } = await folder();
+    const main = () =>
+      controller.project.documents.find((d) => d.id === "main")!;
+    const placed = await client.applyActions([
+      {
+        kind: "place-component",
+        symbol: "resistor",
+        position: { x: 100, y: 100 },
+      },
+      {
+        kind: "place-component",
+        symbol: "opamp",
+        position: { x: 300, y: 100 },
+      },
+      {
+        kind: "place-component",
+        symbol: "integrator",
+        position: { x: 500, y: 100 },
+        signalFlow: { formula: "1/(1-z^-1)" },
+      },
+    ]);
+    expect(placed.ok).toBe(true);
+    const resistor = main().instances.find((i) => i.symbolId === "resistor")!;
+    const amp = main().instances.find((i) => i.symbolId === "opamp")!;
+    const block = main().instances.find((i) => i.symbolId === "integrator")!;
+    expect(resistor.reference).toBe("R1");
+    expect(amp.reference).toBe("X1");
+    expect(block.signalFlowParameters).toEqual({ formula: "1/(1-z^-1)" });
+
+    for (const action of [
+      {
+        kind: "set-signal-flow",
+        target: { kind: "instance", id: block.id },
+        coefficient: "a",
+      },
+      { kind: "set-display-alias", instanceId: amp.id, text: "A1" },
+    ]) {
+      const changed = await client.applyActions([action]);
+      expect(changed.ok, JSON.stringify(changed).slice(0, 800)).toBe(true);
+    }
+    expect(
+      main().instances.find((i) => i.id === block.id)!.signalFlowParameters,
+    ).toEqual({ formula: "1/(1-z^-1)", coefficient: "a" });
+    const label = main().annotations.find(
+      (a) =>
+        a.kind === "instance-label" &&
+        a.anchor.kind === "object" &&
+        a.anchor.objectId === amp.id,
+    )!;
+    expect(label.binding).toBeUndefined();
+    expect(flattenRichText(label.content!)).toBe("A1");
+    expect(main().instances.find((i) => i.id === amp.id)!.reference).toBe("X1");
+  });
+});
+
+describe("every rejection names its action (#1231)", () => {
+  it("names the index and kind of a command the editor refuses", async () => {
+    const { client } = await folder();
+    const refused = await client.applyActions([
+      { kind: "set-display-alias", instanceId: "missing", text: "A1" },
+    ]);
+    expect(refused.ok).toBe(false);
+    expect(refused).toMatchObject({
+      actionIndex: 0,
+      actionKind: "set-display-alias",
+    });
+    expect(refused.message).toMatch(/^actions\[0\] \(set-display-alias\): /u);
+  });
+});
+
+describe("Cell instances in one call (#1231)", () => {
+  it("places several Cell instances atomically, named in turn", async () => {
+    const { client, controller } = await folder();
+    expect(
+      (
+        await client.applyActions([
+          { kind: "create-cell", id: "tb", name: "Testbench" },
+        ])
+      ).ok,
+    ).toBe(true);
+    const at = (x: number) => ({
+      position: { x, y: 100 },
+      rotation: 0 as const,
+      mirror: "none" as const,
+    });
+    const placed = await client.applyActions(
+      [
+        {
+          kind: "place-cell",
+          childDocumentId: "main",
+          instanceId: "c1",
+          placement: at(100),
+        },
+        {
+          kind: "place-cell",
+          childDocumentId: "main",
+          instanceId: "c2",
+          placement: at(300),
+        },
+        {
+          kind: "place-cell",
+          childDocumentId: "main",
+          instanceId: "c3",
+          placement: at(500),
+        },
+      ],
+      { documentId: "tb" },
+    );
+    expect(placed.ok, JSON.stringify(placed).slice(0, 400)).toBe(true);
+    expect(
+      controller.project.documents
+        .find((d) => d.id === "tb")!
+        .instances.map((instance) => instance.reference)
+        .sort(),
+    ).toEqual(["X1", "X2", "X3"]);
   });
 });

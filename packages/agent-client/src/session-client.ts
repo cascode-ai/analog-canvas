@@ -36,7 +36,12 @@ type AgentCapabilitiesResponse = z.infer<
 type AgentRenderResponse = z.infer<typeof AgentRenderResponseSchema>;
 type AgentTransactResponse = z.infer<typeof AgentTransactSuccessResponseSchema>;
 import { AgentSessionError } from "./errors.js";
-import { AgentHttpClient, type ClaimSuccess } from "./http-client.js";
+import {
+  AgentHttpClient,
+  type AgentRelayOperation,
+  type AgentRequestTiming,
+  type ClaimSuccess,
+} from "./http-client.js";
 import {
   type ConnectorStore,
   type StoredConnectorCredential,
@@ -176,6 +181,15 @@ function baseRequest(requestId: string): {
 export class AgentSessionClient {
   readonly connection: ConnectionTracker;
   private readonly http: AgentHttpClient;
+
+  /** See AgentHttpClient.requestTimings (#1227). */
+  timingMark(): number {
+    return this.http.timingMark();
+  }
+
+  timingsSince(mark: number): AgentRequestTiming[] {
+    return this.http.timingsSince(mark);
+  }
   private readonly cache = new SnapshotCache();
   /** Revisions are authority hints only; every write is still checked by the Editor. */
   private readonly knownRevisions = new Map<string, KnownRevision>();
@@ -1371,13 +1385,17 @@ export class AgentSessionClient {
         ),
       );
       if (wires.every((wire) => wire !== undefined)) {
-        return this.submitTransaction(
-          await this.revisionFor(options.documentId),
-          { wireIntent: wires.length === 1 ? wires[0] : wires },
-          {
-            dryRun: options.dryRunOnly ?? false,
-            diagnosticDeltaDetail: options.diagnosticDeltaDetail ?? "full",
-          },
+        return namingAction(
+          direct,
+          await this.submitTransaction(
+            await this.revisionFor(options.documentId),
+            { wireIntent: wires.length === 1 ? wires[0] : wires },
+            {
+              dryRun: options.dryRunOnly ?? false,
+              diagnosticDeltaDetail: options.diagnosticDeltaDetail ?? "full",
+            },
+          ),
+          () => (direct.length === 1 ? 0 : undefined),
         );
       }
     }
@@ -1397,10 +1415,14 @@ export class AgentSessionClient {
             : action.kind === "undo" || action.kind === "redo"
               ? { edits: [{ kind: action.kind }] }
               : { command: command.data };
-        return this.submitTransaction(revision, payload, {
-          diagnosticDeltaDetail: options.diagnosticDeltaDetail ?? "full",
-          dryRun: options.dryRunOnly ?? false,
-        });
+        return namingAction(
+          direct,
+          await this.submitTransaction(revision, payload, {
+            diagnosticDeltaDetail: options.diagnosticDeltaDetail ?? "full",
+            dryRun: options.dryRunOnly ?? false,
+          }),
+          () => 0,
+        );
       }
     }
     if (
@@ -1409,13 +1431,23 @@ export class AgentSessionClient {
       direct.every(isBatchableAuthoringCommand)
     ) {
       const revision = await this.revisionFor(options.documentId);
-      return this.submitTransaction(
-        revision,
-        { command: { kind: "batch", commands: direct } },
-        {
-          dryRun: options.dryRunOnly ?? false,
-          diagnosticDeltaDetail: options.diagnosticDeltaDetail ?? "full",
-        },
+      // The batch's items are these actions, in order.
+      return namingAction(
+        direct,
+        await this.submitTransaction(
+          revision,
+          { command: { kind: "batch", commands: direct } },
+          {
+            dryRun: options.dryRunOnly ?? false,
+            diagnosticDeltaDetail: options.diagnosticDeltaDetail ?? "full",
+          },
+        ),
+        (report) =>
+          report.diagnostics?.flatMap((diagnostic) =>
+            typeof diagnostic.parameters?.actionIndex === "number"
+              ? [diagnostic.parameters.actionIndex]
+              : [],
+          )[0],
       );
     }
     const entry = await this.snapshot(options.documentId);
@@ -1544,6 +1576,13 @@ export class AgentSessionClient {
         ? [diagnostic.parameters.instanceIndex]
         : [],
     )[0];
+    // The editor names a command's failing item; a batch of commands
+    // joins several actions, one command is one action (#1231).
+    const itemIndex = report.diagnostics?.flatMap((diagnostic) =>
+      typeof diagnostic.parameters?.actionIndex === "number"
+        ? [diagnostic.parameters.actionIndex]
+        : [],
+    )[0];
     const actionIndex =
       transaction.form === "edits"
         ? editIndex === undefined
@@ -1552,14 +1591,18 @@ export class AgentSessionClient {
         : transaction.command?.kind === "place-components" &&
             instanceIndex !== undefined
           ? transaction.editActionIndices?.[instanceIndex]
-          : undefined;
+          : transaction.command?.kind === "batch" && itemIndex !== undefined
+            ? transaction.actionIndices?.[itemIndex]
+            : transaction.actionIndices?.length === 1
+              ? transaction.actionIndices[0]
+              : undefined;
     if (actionIndex === undefined) return report;
     const actionKind = direct[actionIndex]?.kind;
     return {
       ...report,
       actionIndex,
       ...(actionKind ? { actionKind } : {}),
-      message: `actions[${actionIndex}]${actionKind ? ` (${actionKind})` : ""}: ${report.message ?? "transaction rejected"}`,
+      message: `actions[${actionIndex}]${actionKind ? ` (${actionKind})` : ""}: ${(report.message ?? "transaction rejected").replace(/^actions\[\d+\]: /u, "")}`,
     };
   }
 
@@ -1613,6 +1656,15 @@ export class AgentSessionClient {
 
   recentTransactions(): readonly ApplyActionsReport[] {
     return this.receipts.map((item) => structuredClone(item));
+  }
+
+  /**
+   * The session's last answered requests from the relay, whichever process
+   * made them (#1227): one CLI process per call never saw the others.
+   */
+  async relayActivity(): Promise<AgentRelayOperation[]> {
+    const session = await this.ensureSession();
+    return this.http.activity(session.sessionId, session.agentToken);
   }
 
   private readonly receipts: ApplyActionsReport[] = [];
@@ -2192,4 +2244,26 @@ export class AgentSessionClient {
     }
     return documentId;
   }
+}
+
+/**
+ * A refused report that names the action it refused, by index and kind
+ * (#1231), when `indexOf` can tell which one it was.
+ */
+function namingAction(
+  actions: readonly { kind: string }[],
+  report: ApplyActionsReport,
+  indexOf: (report: ApplyActionsReport) => number | undefined,
+): ApplyActionsReport {
+  if (report.ok || report.actionIndex !== undefined) return report;
+  const actionIndex = indexOf(report);
+  const actionKind =
+    actionIndex === undefined ? undefined : actions[actionIndex]?.kind;
+  if (actionIndex === undefined || !actionKind) return report;
+  return {
+    ...report,
+    actionIndex,
+    actionKind,
+    message: `actions[${actionIndex}] (${actionKind}): ${(report.message ?? "transaction rejected").replace(/^actions\[\d+\]: /u, "")}`,
+  };
 }

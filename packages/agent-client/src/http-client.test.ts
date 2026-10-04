@@ -496,3 +496,50 @@ describe("agent http client", () => {
     expect(response.ok && response.operation === "snapshot").toBe(true);
   });
 });
+
+describe("where a request's time went (#1227)", () => {
+  it("records each hop the relay reports, and only the requests after a mark", async () => {
+    const body = snapshotResponse("snapshot-1");
+    let call = 0;
+    const http = new AgentHttpClient({
+      baseUrl: BASE,
+      fetch: async () => {
+        call += 1;
+        return new Response(JSON.stringify(body), {
+          status: 200,
+          headers: {
+            "content-type": "application/json",
+            ...(call === 2
+              ? {
+                  "x-agent-relay-ms": "830",
+                  "x-agent-editor-ms": "120",
+                  "x-agent-editor-visibility": "hidden",
+                }
+              : {}),
+          },
+        });
+      },
+    });
+    const request = {
+      apiVersion: "3.0" as const,
+      requestId: "snapshot-1",
+      operation: "snapshot" as const,
+      documentId: "main",
+    };
+    await http.circuit("s", "t", request);
+    const mark = http.timingMark();
+    await http.circuit("s", "t", request);
+    const [timing, ...rest] = http.timingsSince(mark);
+    expect(rest).toEqual([]);
+    expect(timing).toMatchObject({
+      request: "circuit",
+      relayMs: 830,
+      editorMs: 120,
+      editorVisibility: "hidden",
+    });
+    expect(timing!.totalMs).toBeGreaterThanOrEqual(0);
+    expect(timing!.startedAtMs).toBeGreaterThan(0);
+    // A response without the relay's headers records the round trip alone.
+    expect(http.requestTimings[0]).not.toHaveProperty("relayMs");
+  });
+});

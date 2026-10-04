@@ -18,8 +18,13 @@ export interface NetLabelPlacementState {
   sizeScale: number;
   alignment: "start" | "middle" | "end";
   position: Point;
-  /** The wire the label will attach to, when that wire asks for an alignment. */
-  target?: { alignment?: "start" | "middle" | "end" } | null;
+  /** The wire the label will attach to, when that wire asks for a look. */
+  target?: {
+    alignment?: "start" | "middle" | "end";
+    rotation?: 0 | 270;
+  } | null;
+  /** How R has turned the label, for the preview away from any wire. */
+  look?: { alignment: "start" | "end"; rotation: 0 | 270 };
 }
 
 export interface EditorWiringOverlayProps {
@@ -113,6 +118,11 @@ export function EditorWiringOverlay({
 }: EditorWiringOverlayProps) {
   const previewFontSize =
     styleProfile.typography.netFontSize * (netLabelPlacement?.sizeScale ?? 1);
+  // Turned as the committed label will be: the wire's look, else R's.
+  const previewRotation =
+    netLabelPlacement?.target?.rotation ??
+    netLabelPlacement?.look?.rotation ??
+    0;
   return (
     <>
       {netLabelPlacement?.phase === "placing" ? (
@@ -122,7 +132,14 @@ export function EditorWiringOverlay({
             x={netLabelPlacement.position.x}
             y={netLabelPlacement.position.y}
             textAnchor={
-              netLabelPlacement.target?.alignment ?? netLabelPlacement.alignment
+              netLabelPlacement.target?.alignment ??
+              netLabelPlacement.look?.alignment ??
+              netLabelPlacement.alignment
+            }
+            transform={
+              previewRotation
+                ? `rotate(${previewRotation} ${netLabelPlacement.position.x} ${netLabelPlacement.position.y})`
+                : undefined
             }
             fontSize={previewFontSize}
             dangerouslySetInnerHTML={{

@@ -252,6 +252,10 @@ describe("mcp tool surface", () => {
           subckt: expect.stringContaining(`.subckt ${dutName}`),
         },
       });
+      // The receipt is about the folder, not the open drawing (#1231).
+      expect(Object.keys(created as object)[0]).toBe("folder");
+      expect(created).not.toHaveProperty("diagnostics");
+      expect(created).not.toHaveProperty("diagnosticDelta");
       expect(snapshots).toBe(1);
       expect(writes).toEqual([
         expect.objectContaining({

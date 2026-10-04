@@ -13,6 +13,8 @@ export const agentRazaviAuthoringCatalog = {
       category: "logic",
       defaultVariantId: null,
       labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
       pins: [
         {
           name: "A",
@@ -41,6 +43,8 @@ export const agentRazaviAuthoringCatalog = {
       category: "source",
       defaultVariantId: null,
       labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
       pins: [
         {
           name: "+",
@@ -63,6 +67,8 @@ export const agentRazaviAuthoringCatalog = {
       category: "logic",
       defaultVariantId: null,
       labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
       pins: [
         {
           name: "A",
@@ -85,6 +91,8 @@ export const agentRazaviAuthoringCatalog = {
       category: "passive",
       defaultVariantId: null,
       labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
       pins: [
         {
           name: "1",
@@ -107,6 +115,8 @@ export const agentRazaviAuthoringCatalog = {
       category: "switch",
       defaultVariantId: null,
       labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
       pins: [
         {
           name: "1",
@@ -129,6 +139,8 @@ export const agentRazaviAuthoringCatalog = {
       category: "analog-block",
       defaultVariantId: null,
       labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
       pins: [
         {
           name: "IN+",
@@ -157,6 +169,8 @@ export const agentRazaviAuthoringCatalog = {
       category: "source",
       defaultVariantId: null,
       labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
       pins: [
         {
           name: "+",
@@ -179,6 +193,8 @@ export const agentRazaviAuthoringCatalog = {
       category: "source",
       defaultVariantId: null,
       labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
       pins: [
         {
           name: "+",
@@ -201,6 +217,8 @@ export const agentRazaviAuthoringCatalog = {
       category: "source",
       defaultVariantId: null,
       labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
       pins: [
         {
           name: "+",
@@ -223,6 +241,8 @@ export const agentRazaviAuthoringCatalog = {
       category: "logic",
       defaultVariantId: null,
       labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
       pins: [
         {
           name: "D",
@@ -257,6 +277,8 @@ export const agentRazaviAuthoringCatalog = {
       category: "logic",
       defaultVariantId: null,
       labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
       pins: [
         {
           name: "D",
@@ -297,6 +319,8 @@ export const agentRazaviAuthoringCatalog = {
       category: "logic",
       defaultVariantId: null,
       labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
       pins: [
         {
           name: "D",
@@ -325,6 +349,8 @@ export const agentRazaviAuthoringCatalog = {
       category: "logic",
       defaultVariantId: null,
       labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
       pins: [
         {
           name: "A",
@@ -347,6 +373,8 @@ export const agentRazaviAuthoringCatalog = {
       category: "signal-flow",
       defaultVariantId: null,
       labelVisibility: "hidden",
+      formula: false,
+      coefficient: false,
       pins: [
         {
           name: "A",
@@ -375,6 +403,8 @@ export const agentRazaviAuthoringCatalog = {
       category: "signal-flow",
       defaultVariantId: null,
       labelVisibility: "hidden",
+      formula: false,
+      coefficient: false,
       pins: [
         {
           name: "A",
@@ -403,6 +433,8 @@ export const agentRazaviAuthoringCatalog = {
       category: "analog-block",
       defaultVariantId: null,
       labelVisibility: "hidden",
+      formula: true,
+      coefficient: true,
       pins: [
         {
           name: "A",
@@ -425,6 +457,8 @@ export const agentRazaviAuthoringCatalog = {
       category: "signal-flow",
       defaultVariantId: null,
       labelVisibility: "hidden",
+      formula: true,
+      coefficient: true,
       pins: [
         {
           name: "A",
@@ -447,6 +481,8 @@ export const agentRazaviAuthoringCatalog = {
       category: "signal-flow",
       defaultVariantId: null,
       labelVisibility: "hidden",
+      formula: true,
+      coefficient: true,
       pins: [
         {
           name: "A",
@@ -469,6 +505,8 @@ export const agentRazaviAuthoringCatalog = {
       category: "signal-flow",
       defaultVariantId: null,
       labelVisibility: "hidden",
+      formula: true,
+      coefficient: true,
       pins: [
         {
           name: "A",
@@ -491,6 +529,8 @@ export const agentRazaviAuthoringCatalog = {
       category: "signal-flow",
       defaultVariantId: null,
       labelVisibility: "hidden",
+      formula: false,
+      coefficient: false,
       pins: [
         {
           name: "A",
@@ -513,6 +553,8 @@ export const agentRazaviAuthoringCatalog = {
       category: "passive",
       defaultVariantId: null,
       labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
       pins: [
         {
           name: "A",
@@ -535,6 +577,8 @@ export const agentRazaviAuthoringCatalog = {
       category: "switch",
       defaultVariantId: null,
       labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
       pins: [
         {
           name: "P",
@@ -563,6 +607,8 @@ export const agentRazaviAuthoringCatalog = {
       category: "power",
       defaultVariantId: null,
       labelVisibility: "hidden",
+      formula: false,
+      coefficient: false,
       pins: [
         {
           name: "0",
@@ -579,6 +625,8 @@ export const agentRazaviAuthoringCatalog = {
       category: "switch",
       defaultVariantId: null,
       labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
       pins: [
         {
           name: "1",
@@ -601,6 +649,8 @@ export const agentRazaviAuthoringCatalog = {
       category: "passive",
       defaultVariantId: null,
       labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
       pins: [
         {
           name: "1",
@@ -623,6 +673,8 @@ export const agentRazaviAuthoringCatalog = {
       category: "passive",
       defaultVariantId: null,
       labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
       pins: [
         {
           name: "1",
@@ -645,6 +697,8 @@ export const agentRazaviAuthoringCatalog = {
       category: "passive",
       defaultVariantId: null,
       labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
       pins: [
         {
           name: "1",
@@ -673,6 +727,8 @@ export const agentRazaviAuthoringCatalog = {
       category: "passive",
       defaultVariantId: null,
       labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
       pins: [
         {
           name: "P-",
@@ -707,6 +763,8 @@ export const agentRazaviAuthoringCatalog = {
       category: "logic",
       defaultVariantId: null,
       labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
       pins: [
         {
           name: "A",
@@ -729,6 +787,8 @@ export const agentRazaviAuthoringCatalog = {
       category: "logic",
       defaultVariantId: null,
       labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
       pins: [
         {
           name: "A",
@@ -757,6 +817,8 @@ export const agentRazaviAuthoringCatalog = {
       category: "transistor",
       defaultVariantId: "textbook-3terminal",
       labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
       pins: [
         {
           name: "D",
@@ -796,6 +858,8 @@ export const agentRazaviAuthoringCatalog = {
       category: "logic",
       defaultVariantId: null,
       labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
       pins: [
         {
           name: "A",
@@ -824,6 +888,8 @@ export const agentRazaviAuthoringCatalog = {
       category: "transistor",
       defaultVariantId: null,
       labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
       pins: [
         {
           name: "C",
@@ -852,6 +918,8 @@ export const agentRazaviAuthoringCatalog = {
       category: "analog-block",
       defaultVariantId: null,
       labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
       pins: [
         {
           name: "IN+",
@@ -880,6 +948,8 @@ export const agentRazaviAuthoringCatalog = {
       category: "analog-block",
       defaultVariantId: null,
       labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
       pins: [
         {
           name: "IN+",
@@ -908,6 +978,8 @@ export const agentRazaviAuthoringCatalog = {
       category: "analog-block",
       defaultVariantId: null,
       labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
       pins: [
         {
           name: "IN+",
@@ -942,6 +1014,8 @@ export const agentRazaviAuthoringCatalog = {
       category: "analog-block",
       defaultVariantId: null,
       labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
       pins: [
         {
           name: "IN+",
@@ -976,6 +1050,8 @@ export const agentRazaviAuthoringCatalog = {
       category: "logic",
       defaultVariantId: null,
       labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
       pins: [
         {
           name: "A",
@@ -1004,6 +1080,8 @@ export const agentRazaviAuthoringCatalog = {
       category: "transistor",
       defaultVariantId: "textbook-3terminal",
       labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
       pins: [
         {
           name: "D",
@@ -1043,6 +1121,8 @@ export const agentRazaviAuthoringCatalog = {
       category: "transistor",
       defaultVariantId: null,
       labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
       pins: [
         {
           name: "C",
@@ -1071,6 +1151,8 @@ export const agentRazaviAuthoringCatalog = {
       category: "interface",
       defaultVariantId: null,
       labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
       pins: [
         {
           name: "P",
@@ -1087,6 +1169,8 @@ export const agentRazaviAuthoringCatalog = {
       category: "interface",
       defaultVariantId: null,
       labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
       pins: [
         {
           name: "P",
@@ -1103,6 +1187,8 @@ export const agentRazaviAuthoringCatalog = {
       category: "passive",
       defaultVariantId: null,
       labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
       pins: [
         {
           name: "1",
@@ -1125,6 +1211,8 @@ export const agentRazaviAuthoringCatalog = {
       category: "passive",
       defaultVariantId: null,
       labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
       pins: [
         {
           name: "P1",
@@ -1147,6 +1235,8 @@ export const agentRazaviAuthoringCatalog = {
       category: "passive",
       defaultVariantId: null,
       labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
       pins: [
         {
           name: "P1",
@@ -1169,6 +1259,8 @@ export const agentRazaviAuthoringCatalog = {
       category: "passive",
       defaultVariantId: null,
       labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
       pins: [
         {
           name: "P1",
@@ -1191,6 +1283,8 @@ export const agentRazaviAuthoringCatalog = {
       category: "power",
       defaultVariantId: null,
       labelVisibility: "hidden",
+      formula: false,
+      coefficient: false,
       pins: [
         {
           name: "P",
@@ -1207,6 +1301,8 @@ export const agentRazaviAuthoringCatalog = {
       category: "analog-block",
       defaultVariantId: null,
       labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
       pins: [
         {
           name: "IN",
@@ -1229,6 +1325,8 @@ export const agentRazaviAuthoringCatalog = {
       category: "source",
       defaultVariantId: null,
       labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
       pins: [
         {
           name: "+",
@@ -1251,6 +1349,8 @@ export const agentRazaviAuthoringCatalog = {
       category: "source",
       defaultVariantId: null,
       labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
       pins: [
         {
           name: "+",
@@ -1273,6 +1373,8 @@ export const agentRazaviAuthoringCatalog = {
       category: "source",
       defaultVariantId: null,
       labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
       pins: [
         {
           name: "+",
@@ -1295,6 +1397,8 @@ export const agentRazaviAuthoringCatalog = {
       category: "source",
       defaultVariantId: null,
       labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
       pins: [
         {
           name: "+",
@@ -1317,6 +1421,8 @@ export const agentRazaviAuthoringCatalog = {
       category: "logic",
       defaultVariantId: null,
       labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
       pins: [
         {
           name: "A",
@@ -1345,6 +1451,8 @@ export const agentRazaviAuthoringCatalog = {
       category: "logic",
       defaultVariantId: null,
       labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
       pins: [
         {
           name: "A",
@@ -1373,6 +1481,8 @@ export const agentRazaviAuthoringCatalog = {
       category: "passive",
       defaultVariantId: null,
       labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
       pins: [
         {
           name: "A",
