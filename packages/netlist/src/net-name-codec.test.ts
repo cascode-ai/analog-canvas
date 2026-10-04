@@ -14,9 +14,39 @@ describe("Net name codecs", () => {
       token: "bias.p",
       collisionKey: "bias.p",
     });
-    expect(encodeNetName("DATA<3>", "local", "spice")).toMatchObject({
+    expect(encodeNetName("bias p", "local", "spice")).toMatchObject({
       ok: false,
       code: "UNREPRESENTABLE_NGSPICE_NET_NAME",
+    });
+  });
+
+  it("writes an ngspice bus bit with underscores, which its control language reads", () => {
+    expect(encodeNetName("DATA<3>", "local", "spice")).toEqual({
+      ok: true,
+      token: "DATA_3_",
+      collisionKey: "data_3_",
+    });
+    expect(encodeNetName("BFT_h<7>", "local", "spice")).toMatchObject({
+      token: "BFT_h_7_",
+    });
+    expect(encodeNetName("D[0]", "local", "spice")).toMatchObject({
+      token: "D_0_",
+    });
+  });
+
+  it("reads full-width characters as the ASCII they stand for", () => {
+    expect(encodeNetName("BFT<3：0>", "local", "spice")).toMatchObject({
+      ok: true,
+      token: "BFT_3:0_",
+    });
+    expect(encodeNetName("ＶＩＮ（１）", "local", "spectre")).toMatchObject({
+      ok: false,
+      code: "UNREPRESENTABLE_SPECTRE_NET_NAME",
+      message: expect.stringContaining("VIN(1)"),
+    });
+    expect(encodeNetName("ＢＩＴ＜３＞", "local", "spectre")).toMatchObject({
+      ok: true,
+      token: "BIT\\<3\\>",
     });
   });
 

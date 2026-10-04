@@ -459,6 +459,39 @@ export function orientClipboard(
  * pointer. Prefer an instance origin because it is also the point designers
  * intuitively grab when duplicating a component group.
  */
+/**
+ * A copy that is one Net Label and nothing else. It is placed as the Net Label
+ * tool places one, on the wire it is dropped on: pasted as it was, beside a
+ * wire, it would name nothing while looking as if it named that wire.
+ */
+export function loneNetLabel(
+  clipboard: SchematicClipboard,
+): { name: string; label: Annotation } | null {
+  if (
+    clipboard.intent !== "clone-selection" ||
+    clipboard.instances.length ||
+    clipboard.routes.length ||
+    clipboard.junctions.length ||
+    clipboard.draftingObjects.length ||
+    clipboard.cellTerminals.length ||
+    clipboard.annotations.length !== 1
+  )
+    return null;
+  const label = clipboard.annotations[0]!;
+  if (label.kind !== "net-label") return null;
+  const claim = clipboard.connectivityEvidence.find(
+    (evidence) =>
+      evidence.kind === "name-claim" &&
+      evidence.owner.kind === "net-label" &&
+      evidence.owner.annotationId === label.id,
+  );
+  // A global label is a declaration the Net Label tool does not make; it
+  // pastes as itself.
+  if (claim?.kind !== "name-claim" || claim.scope === "global") return null;
+  const name = claim.name.trim();
+  return name ? { name, label } : null;
+}
+
 export function clipboardPlacementAnchor(
   clipboard: SchematicClipboard,
 ): Point | null {

@@ -9,6 +9,13 @@ export type EncodedNetName =
   | { ok: false; code: string; message: string };
 
 const NGSPICE_TOKEN = /^[A-Za-z0-9_!+./:$-]+$/u;
+/**
+ * ngspice reads a bracketed bit in an element line, but its control language
+ * takes `<` and `>` as redirection and `[ ]` as an index, so `print
+ * v(DATA<3>)` never reaches the node. A bus bit writes each bracket as `_`:
+ * `DATA<3>` is `DATA_3_`.
+ */
+const NGSPICE_BUS_BRACKET = /[<>[\]]/gu;
 const SPECTRE_PLAIN_TOKEN = /^[A-Za-z0-9_!]+$/u;
 const SPECTRE_ESCAPABLE = new Set([
   "+",
@@ -46,14 +53,25 @@ function profileSpelling(
 }
 
 function encodeNgspice(name: string): EncodedNetName {
-  if (!NGSPICE_TOKEN.test(name)) {
+  const token = name.replace(NGSPICE_BUS_BRACKET, "_");
+  if (!NGSPICE_TOKEN.test(token)) {
     return {
       ok: false,
       code: "UNREPRESENTABLE_NGSPICE_NET_NAME",
       message: `Net name ${name} contains characters that ngspice cannot safely read as one node token`,
     };
   }
-  return { ok: true, token: name, collisionKey: name.toLowerCase() };
+  return { ok: true, token, collisionKey: token.toLowerCase() };
+}
+
+/**
+ * The full-width letters, digits and punctuation an East Asian input method
+ * types (`：`, `＜`, `Ａ`) are the ASCII characters they stand for.
+ */
+function asciiFullWidth(name: string): string {
+  return name.replace(/[！-～]/gu, (character) =>
+    String.fromCharCode(character.charCodeAt(0) - 0xfee0),
+  );
 }
 
 function encodeSpectre(name: string): EncodedNetName {
@@ -86,8 +104,9 @@ function encodeSpectre(name: string): EncodedNetName {
 
 /**
  * Pure dialect projection for one semantic Net name and scope. A Greek letter
- * is written as its standard name (`φ1` is `phi1`), so collisions are judged
- * on what the netlist actually says.
+ * is written as its standard name (`φ1` is `phi1`), a full-width character as
+ * its ASCII form, and an ngspice bus bit with underscores, so collisions are
+ * judged on what the netlist actually says.
  */
 export function encodeNetName(
   name: string,
@@ -96,7 +115,7 @@ export function encodeNetName(
   profile: NetlistNamingProfile = "native",
 ): EncodedNetName {
   const spelling = profileSpelling(
-    spellGreekLetters(name.trim()),
+    spellGreekLetters(asciiFullWidth(name.trim())),
     scope,
     profile,
   );

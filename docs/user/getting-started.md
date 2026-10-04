@@ -177,7 +177,10 @@ recognize such a network, so both are placed by hand.
   electrical Net label; assigning the same name to another Net explicitly
   connects those Nets. While placing a Net label (`L`), or with placed ones
   selected, press `R` to turn it a quarter: its text runs right, down, left
-  or up from the wire, always clear of it. Press `T` or choose **Text** for a non-electrical note: move its translucent
+  or up from the wire, always clear of it. A copied Net label pastes the same
+  way: it follows the pointer and goes onto the wire you click, so the copy
+  names that wire rather than floating beside it.
+  Press `T` or choose **Text** for a non-electrical note: move its translucent
   preview with the pointer, click to place it, then edit the text. `Esc` cancels
   placement. Label handles may be dragged near their owner, while plain text moves freely.
   Text notes and text inside drawn boxes default to **bold**. Use **B** to

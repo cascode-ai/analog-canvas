@@ -167,8 +167,11 @@ function applyPortCase(ir: DesignNetlistIR, portCase: NetlistPortCase): void {
  * multiplier and converters, and ties the unused supplies of an ideal block
  * that never reads them to node 0, so circuits drawn with them now extract.
  * Version 10 had marked those circuits "no netlist" while they still failed.
+ * 12 writes a bus bit's brackets as `_` in SPICE (`D<3>` is `D_3_`) and reads
+ * full-width characters as their ASCII forms, so a circuit naming Nets or
+ * Pins with them now extracts.
  */
-export const NETLIST_MARK_RULE_VERSION = 11;
+export const NETLIST_MARK_RULE_VERSION = 12;
 
 export function designExtractsNetlist(
   project: CircuitProject,
