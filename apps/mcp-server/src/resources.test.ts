@@ -168,7 +168,10 @@ describe("mcp resources single-source projection", () => {
     expect(response.content[0]?.text).toContain(
       "SIMULATION_HELPER_INPUT_INVALID",
     );
-  });
+    // Compacting and walking every tool's complete contract takes about a
+    // second alone; beside the full suite on a CI runner it took 5.06 s, past
+    // the default 5 s (2026-10-05).
+  }, 20_000);
   it("returns a complete compact annotation contract with identical expanded semantics", () => {
     const kind = "upsert_schematic_annotation";
     const original = z.toJSONSchema(
