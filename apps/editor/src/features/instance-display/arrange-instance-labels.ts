@@ -1,6 +1,7 @@
 import {
   canonicalPortTextDocument,
   isRoleLabelFormat,
+  routeEndpoints,
   type Annotation,
   type Rect,
   type SchematicDocument,
@@ -199,11 +200,77 @@ export function arrangeInstanceLabels(
         ? instanceValueRowOffset(instance.symbolId, styleOf(label), grid)
         : 0;
     const covers = (a: Annotation, b: Annotation) => overlap(box(a), box(b));
-    /** Conflicts of one label, counting its own siblings as disqualifying. */
-    const score = (candidate: Annotation, siblings: readonly Annotation[]) =>
-      siblings.some((sibling) => covers(candidate, sibling))
-        ? Number.POSITIVE_INFINITY
-        : context.conflicts(candidate).filter((id) => !groupIds.has(id)).length;
+    const owner = context.symbols.find((s) => s.id === instance.id)?.bounds;
+    const ownWires = document.routes
+      .filter((route) =>
+        routeEndpoints(route).some(
+          (end) => end.kind === "terminal" && end.instanceId === instance.id,
+        ),
+      )
+      .map((route) => route.id);
+    /**
+     * Wires between a label and its part, other than those drawn across the
+     * label, which count already. Above a VDD rail, a PMOS's W/L met
+     * nothing, but the rail cut it off from its transistor below. Each counts
+     * half a conflict, as does a wire between a part's own labels: worse
+     * than a clear place, better than text struck through by a wire.
+     */
+    const cutOff = (ink: Rect) => {
+      if (!owner) return 0;
+      const centre = { x: ink.x + ink.width / 2, y: ink.y + ink.height / 2 };
+      const nearest = {
+        x: Math.min(Math.max(centre.x, owner.x), owner.x + owner.width),
+        y: Math.min(Math.max(centre.y, owner.y), owner.y + owner.height),
+      };
+      const across = context.wiresAt(ink);
+      return (
+        context.crossings(centre, nearest).filter((id) => !across.includes(id))
+          .length / 2
+      );
+    };
+    /**
+     * Wires that pass between a part's own labels and cross none of them.
+     * A wire just above a resistor's Reference row let its labels slide to
+     * either side of it, the name above the wire and the value below. The
+     * part's own wires may: a transistor's name above its gate lead and its
+     * W/L below still read as one.
+     */
+    const between = (boxes: readonly Rect[]) => {
+      if (boxes.length < 2) return 0;
+      const across = new Set([
+        ...boxes.flatMap((b) => context.wiresAt(b)),
+        ...ownWires,
+      ]);
+      const x = Math.min(...boxes.map((b) => b.x));
+      const y = Math.min(...boxes.map((b) => b.y));
+      return (
+        context
+          .wiresAt({
+            x,
+            y,
+            width: Math.max(...boxes.map((b) => b.x + b.width)) - x,
+            height: Math.max(...boxes.map((b) => b.y + b.height)) - y,
+          })
+          .filter((id) => !across.has(id)).length / 2
+      );
+    };
+    /**
+     * Conflicts of one label, counting its own siblings as disqualifying.
+     * Text drawn over another label counts twice: a name nudged from just
+     * beside a Pin's name to on top of it had cleared a wire for it.
+     */
+    const score = (candidate: Annotation, siblings: readonly Annotation[]) => {
+      if (siblings.some((sibling) => covers(candidate, sibling)))
+        return Number.POSITIVE_INFINITY;
+      const ink = box(candidate);
+      const others = (ids: readonly string[]) =>
+        ids.filter((id) => !groupIds.has(id)).length;
+      return (
+        others(context.conflicts(candidate)) +
+        others(context.overlapsAt(ink, candidate.id)) +
+        cutOff(ink)
+      );
+    };
     /**
      * Conflicts of an arrangement, the Reference's before the value's: a part
      * is named by its Reference, so no clear value is worth drawing the name
@@ -221,7 +288,7 @@ export function arrangeInstanceLabels(
             ? { name: sum.name + conflicts, value: sum.value }
             : { name: sum.name, value: sum.value + conflicts };
         },
-        { name: 0, value: 0 },
+        { name: 0, value: between(arrangement.map(box)) },
       );
     const better = (
       left: { name: number; value: number },
@@ -231,6 +298,70 @@ export function arrangeInstanceLabels(
       (left.name === right.name && left.value < right.value);
     const clear = (conflicts: { name: number; value: number }) =>
       conflicts.name === 0 && conflicts.value === 0;
+    /**
+     * The group moved along its side to the clear place nearest where it
+     * stands, a little off what bounds that place when there is room, or
+     * null. At least half of the shorter of the group and the part stay side
+     * by side, so the labels never pass to a neighbour.
+     */
+    const slideClear = (
+      arrangement: readonly Annotation[],
+      owner: Rect,
+    ): Annotation[] | null => {
+      // Top and bottom labels are centred on the part; side labels start or
+      // end beside it.
+      const along = arrangement[0]!.alignment === "middle" ? "x" : "y";
+      const extent = along === "x" ? "width" : "height";
+      const boxes = arrangement.map(box);
+      const low = Math.min(...boxes.map((b) => b[along]));
+      const high = Math.max(...boxes.map((b) => b[along] + b[extent]));
+      const keep = Math.min(high - low, owner[extent]) / 2;
+      const first = Math.ceil(owner[along] + keep - high);
+      const last = Math.floor(owner[along] + owner[extent] - keep - low);
+      const clearBy = (shift: number) => {
+        const moved = boxes.map((b) => ({ ...b, [along]: b[along] + shift }));
+        return (
+          moved.every(
+            (b, index) =>
+              !context
+                .conflictsAt(b, arrangement[index]!.id)
+                .some((id) => !groupIds.has(id)) && !cutOff(b),
+          ) && !between(moved)
+        );
+      };
+      let shift: number | undefined;
+      for (let step = 1; step <= Math.max(-first, last); step++) {
+        for (const candidate of [-step, step]) {
+          if (candidate < first || candidate > last || !clearBy(candidate))
+            continue;
+          // Up to two more units the same way, off what stopped the group,
+          // but no nearer to what bounds the place on its far side.
+          const direction = Math.sign(candidate);
+          let room = 0;
+          while (
+            room < 4 &&
+            candidate + direction * (room + 1) >= first &&
+            candidate + direction * (room + 1) <= last &&
+            clearBy(candidate + direction * (room + 1))
+          )
+            room += 1;
+          shift = candidate + direction * Math.min(2, Math.floor(room / 2));
+          break;
+        }
+        if (shift !== undefined) break;
+      }
+      if (shift === undefined) return null;
+      return arrangement.map((annotation, index) => {
+        const position = context.measure(annotation).position;
+        return at(group[index]!, {
+          position: {
+            x: position.x + (along === "x" ? shift : 0),
+            y: position.y + (along === "y" ? shift : 0),
+          },
+          alignment: annotation.alignment,
+        });
+      });
+    };
 
     // The default rows first, then the same rows on each other side.
     const preferred = group.map((label) =>
@@ -248,6 +379,7 @@ export function arrangeInstanceLabels(
     );
     let chosen = preferred;
     let best = total(preferred);
+    const sides: Annotation[][] = [];
     if (options.avoidCollisions !== false && !clear(best) && !fixed.length)
       for (const side of LOCAL_SIDES) {
         const arrangement: Annotation[] = [];
@@ -266,12 +398,30 @@ export function arrangeInstanceLabels(
           arrangement.push(at(label, placement));
         }
         if (arrangement.length !== group.length) continue;
+        sides.push(arrangement);
         const candidate = total(arrangement);
         if (better(candidate, best)) {
           chosen = arrangement;
           best = candidate;
         }
         if (clear(best)) break;
+      }
+
+    // A side crowded at the part's middle may have room further along it.
+    // Between two rows of transistors, a part's Reference and W/L fit beside
+    // it a little above its middle, clear of both rows' wiring. In a Miller
+    // op amp's tight input pair, no side was clear at its middle, so the
+    // labels went above the part, and its W/L stood beside the transistor
+    // above, read as that one's. The group slides along each side in turn,
+    // as far as it stays beside the part.
+    if (!clear(best) && sides.length && owner)
+      for (const arrangement of [preferred, ...sides]) {
+        const slid = slideClear(arrangement, owner);
+        if (slid) {
+          chosen = slid;
+          best = total(slid);
+          break;
+        }
       }
 
     // A label still in conflict tries a few nearby positions; it never
