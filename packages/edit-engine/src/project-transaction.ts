@@ -31,7 +31,10 @@ import {
 } from "./edit-schema.js";
 import { executeTransaction } from "./transaction.js";
 import { planInstanceSymbolGeometryRouteFollow } from "./transaction-route-follow.js";
-import { redrawStretchedRoutesClear } from "./stretched-route-clearance.js";
+import {
+  projectDrawnGeometry,
+  redrawStretchedRoutesClear,
+} from "./stretched-route-clearance.js";
 import type {
   AppliedTransaction,
   EditDiagnostic,
@@ -865,6 +868,11 @@ export function executeProjectTransaction(
             const preview = follow(withRedrawn(extra));
             return preview.ok ? preview.document : null;
           },
+          // Judged as stretched, as a typed move is: an SRAM block's blb
+          // moved to its east side found its clear path down its own bit
+          // line, and normalization merged the two wires, so the redraw was
+          // refused for changing which wires there are.
+          (extra) => projectDrawnGeometry(parent, withRedrawn(extra)),
         ),
       );
       const routeResult = follow(routeEdits);
