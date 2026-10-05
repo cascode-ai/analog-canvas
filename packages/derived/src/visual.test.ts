@@ -1,4 +1,9 @@
-import { createEmptyDocument, createRoutePath } from "@icm/model";
+import {
+  createEmptyDocument,
+  createRoutePath,
+  type Point,
+  type RouteEndpoint,
+} from "@icm/model";
 import {
   InMemorySymbolResolver,
   builtInSymbols,
@@ -332,6 +337,100 @@ describe("visual quality diagnostics", () => {
     expect(wired({ x: 60, y: 10 })).toMatchObject([
       { objectIds: ["w", "X1"], severity: "info" },
     ]);
+  });
+
+  it("reports a wire leaving a pin backward or from the side of a lone ground, not a bend at a lead's end", () => {
+    // R1 stands at the origin, pin 1 at (0,-20) pointing up; GND at (100,0)
+    // has its one pin at (100,-10), pointing up; PMOS M1 at (200,0) has its
+    // source at (210,-20), pointing up, on the edge of its drawing.
+    type End = { instanceId: string; pinName: string } | Point;
+    const findings = (...wires: (readonly [End, End])[]) => {
+      const document = createEmptyDocument("doc", "Departures");
+      document.instances.push(
+        {
+          id: "R1",
+          symbolId: "resistor",
+          placement: { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+        },
+        {
+          id: "GND",
+          symbolId: "ground",
+          placement: {
+            position: { x: 100, y: 0 },
+            rotation: 0,
+            mirror: "none",
+          },
+        },
+        {
+          id: "M1",
+          symbolId: "pmos",
+          placement: {
+            position: { x: 200, y: 0 },
+            rotation: 0,
+            mirror: "none",
+          },
+        },
+      );
+      const terminals = new Map<
+        string,
+        { instanceId: string; pinName: string }
+      >();
+      const endpoint = (end: End, id: string): RouteEndpoint => {
+        if ("instanceId" in end) {
+          terminals.set(`${end.instanceId}.${end.pinName}`, end);
+          return { kind: "terminal", ...end };
+        }
+        document.junctions.push({ id, netId: "n", position: end });
+        return { kind: "junction", junctionId: id };
+      };
+      wires.forEach(([from, to], index) =>
+        document.routes.push(
+          createRoutePath({
+            id: `w${index}`,
+            netId: "n",
+            start: endpoint(from, `j${index}a`),
+            end: endpoint(to, `j${index}b`),
+            bends: [],
+            modes: ["manual"],
+          }),
+        ),
+      );
+      document.nets.push({ id: "n", terminals: [...terminals.values()] });
+      return diagnoseVisualQuality(document, resolver)
+        .filter(
+          (item) =>
+            item.code === "VISUAL_TERMINAL_DEPARTURE" ||
+            item.code === "VISUAL_WIRE_THROUGH_SYMBOL",
+        )
+        .map((item) => item.message);
+    };
+    const r1 = { instanceId: "R1", pinName: "1" };
+    const ground = { instanceId: "GND", pinName: "0" };
+
+    // A bend at the end of a part's lead is drafting.
+    expect(findings([r1, { x: 40, y: -20 }])).toEqual([]);
+    // Back across the part is named once, as such; back along a lead on the
+    // drawing's edge is a backward departure.
+    expect(findings([r1, { x: 0, y: 40 }])).toEqual([
+      "Route w0 runs back across its own part R1",
+    ]);
+    expect(
+      findings([
+        { instanceId: "M1", pinName: "S" },
+        { x: 210, y: -10 },
+      ]),
+    ).toEqual(["Route w0 leaves M1.S backward, against the pin's direction"]);
+    // A ground hanging off the side of a wire, at either end of its Route.
+    expect(findings([ground, { x: 140, y: -10 }])).toEqual([
+      "Route w0 leaves GND.0 from the side",
+    ]);
+    expect(findings([{ x: 140, y: -10 }, ground])).toEqual([
+      "Route w0 leaves GND.0 from the side",
+    ]);
+    // Under a rail that runs on past it, the ground is a tap.
+    expect(
+      findings([ground, { x: 140, y: -10 }], [ground, { x: 60, y: -10 }]),
+    ).toEqual([]);
   });
 
   it("reports a wire through a MOS, not one grazing its edge from a pin or toward its gate", () => {
