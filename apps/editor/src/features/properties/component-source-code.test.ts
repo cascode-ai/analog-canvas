@@ -33,6 +33,47 @@ function claimNet(
 }
 
 describe("component source code", () => {
+  it("retains a resolved PDK wrapper when another part blocks the Cell", async () => {
+    const { createLibraryExampleProject } =
+      await import("../../examples/library-examples");
+    const { planNetlistProcess } =
+      await import("../netlist-export/netlist-process");
+    const { createNetlistExportProfile } =
+      await import("../netlist-export/netlist-process-presets");
+    const { executeProjectTransaction } = await import("@icm/edit-engine");
+    const project = createLibraryExampleProject("common-source-amplifier")!;
+    const changed = executeProjectTransaction(project, {
+      transactionId: "pdk",
+      projectId: project.id,
+      expectedStructureRevision: project.structureRevision,
+      actor: { kind: "human", id: "test" },
+      edits: planNetlistProcess(project, createNetlistExportProfile("sky130")),
+    });
+    if (!changed.ok) throw Error(changed.error.message);
+    const document = changed.project.documents[0]!;
+    const mos = document.instances.find((i) => i.symbolId === "nmos")!;
+    const before = componentSourceCode(
+      changed.project,
+      document.id,
+      mos.id,
+      resolver,
+    );
+    expect(before.exact).toBe(true);
+    document.instances.push({
+      id: "unfinished",
+      reference: "Rbroken",
+      symbolId: "resistor",
+      placement: null,
+    });
+    const after = componentSourceCode(
+      changed.project,
+      document.id,
+      mos.id,
+      resolver,
+    );
+    expect(after.code).toBe(before.code);
+    expect(after.exact).toBe(false);
+  });
   it.each([
     ["vcvs", "E1", "gain", "1", "<unconnected:CTRL+> <unconnected:CTRL->"],
     ["vccs", "G1", "gm", "1m", "<unconnected:CTRL+> <unconnected:CTRL->"],

@@ -1,4 +1,10 @@
 import { builtInModelDefaults, subcircuitDescriptor } from "@icm/devices";
+import {
+  voltage,
+  printSpiceBehavioralModel,
+  type BehavioralElement,
+  type BehavioralModel,
+} from "./behavioral-model.js";
 
 /**
  * Ideal ngspice bodies for the multiplier and the two converters. They are
@@ -18,21 +24,26 @@ import { builtInModelDefaults, subcircuitDescriptor } from "@icm/devices";
 type SignalModel = {
   symbolId: string;
   ports: readonly string[];
-  body: readonly string[];
+  body: readonly BehavioralElement[];
 };
 
 /** Full scale, kept off zero while the supplies settle. */
 const RANGE = "max(V(VDD,VSS),1u)";
 const LEVELS = "pow(2,bits)";
 const quantizer = [
-  `BQ VOUT VSS V={${RANGE}/${LEVELS}*min(max(floor(V(VIN,VSS)*${LEVELS}/${RANGE}),0),${LEVELS}-1)}`,
+  voltage(
+    "BQ",
+    "VOUT",
+    "VSS",
+    `${RANGE}/${LEVELS}*min(max(floor(V(VIN,VSS)*${LEVELS}/${RANGE}),0),${LEVELS}-1)`,
+  ),
 ];
 
 const MODELS: Readonly<Record<string, SignalModel>> = {
   multiplier: {
     symbolId: "multiplier",
     ports: ["VDD", "VSS", "A", "B", "Y"],
-    body: ["BY Y 0 V={gain*V(A)*V(B)}"],
+    body: [voltage("BY", "Y", "0", "gain*V(A)*V(B)")],
   },
   adc: {
     symbolId: "adc",
@@ -50,7 +61,7 @@ const MODELS: Readonly<Record<string, SignalModel>> = {
 export const IDEAL_SIGNAL_TARGETS: readonly string[] = Object.keys(MODELS);
 
 /** The `.subckt` text of one block, ready for an ngspice file. */
-export function spiceIdealSignalSubcircuit(target: string): string[] {
+export function idealSignalModel(target: string): BehavioralModel {
   const model = MODELS[target];
   if (!model) throw new Error(`No ideal signal model: ${target}`);
   const descriptor = subcircuitDescriptor(model.symbolId);
@@ -61,16 +72,20 @@ export function spiceIdealSignalSubcircuit(target: string): string[] {
       model.ports.join(",")
   )
     throw new Error(`Ideal signal model interface drifted: ${target}`);
-  return [
-    target === "multiplier"
-      ? "* Ideal multiplier: V(Y) = gain*V(A)*V(B) from ground"
-      : `* Ideal ${target.toUpperCase()}: 2^bits levels between VSS and VDD, no clock`,
-    `.subckt ${target} ${model.ports.join(" ")} params: ${Object.entries(
-      builtInModelDefaults(target),
-    )
-      .map(([name, value]) => `${name}=${value}`)
-      .join(" ")}`,
-    ...model.body,
-    `.ends ${target}`,
-  ];
+  return {
+    name: target,
+    ports: model.ports,
+    comment:
+      target === "multiplier"
+        ? "Ideal multiplier: V(Y) = gain*V(A)*V(B) from ground"
+        : `Ideal ${target.toUpperCase()}: 2^bits levels between VSS and VDD, no clock`,
+    parameters: Object.entries(builtInModelDefaults(target)).map(
+      ([name, defaultValue]) => ({ name, defaultValue }),
+    ),
+    elements: model.body,
+  };
+}
+
+export function spiceIdealSignalSubcircuit(target: string): string[] {
+  return printSpiceBehavioralModel(idealSignalModel(target));
 }

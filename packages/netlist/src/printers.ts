@@ -5,7 +5,12 @@ import type {
   DesignNetlistMagneticSubcircuit,
   DesignNetlistParameter,
 } from "./ir.js";
-import { generatedBehavioralModel } from "./generated-models.js";
+import {
+  generatedBehavioralModel,
+  generatedBehavioralDefinition,
+} from "./generated-models.js";
+import { printSpectreBehavioralModel } from "./behavioral-model.js";
+import { switchBehavioralDefinition } from "./ideal-switch-model.js";
 import type { NetlistFormat } from "./net-name-codec.js";
 import { normalizeIndependentSource } from "./source-waveform.js";
 import { signedControlGain } from "./controlled-current.js";
@@ -541,6 +546,12 @@ function spectreCell(
         .join(" ")}`,
     );
   }
+  for (const model of cell.models ?? []) {
+    if (model.type === "SW")
+      lines.push(
+        ...printSpectreBehavioralModel(switchBehavioralDefinition(model)),
+      );
+  }
   let offset = lines.join("\n").length + 1;
   for (const instance of cell.instances) {
     const line = spectreInstance(instance);
@@ -569,8 +580,14 @@ function renderSpectre(
   const globals = ir.globals.filter((name) => name !== "0");
   if (globals.length) lines.push(`global ${globals.join(" ")}`);
   for (const definition of ir.generatedDefinitions ?? [])
-    if (definition.kind === "magnetic")
-      lines.push("", ...spectreMagneticSubcircuit(definition));
+    lines.push(
+      "",
+      ...(definition.kind === "magnetic"
+        ? spectreMagneticSubcircuit(definition)
+        : printSpectreBehavioralModel(
+            generatedBehavioralDefinition(definition.name),
+          )),
+    );
   let length = lines.join("\n").length;
   for (const cell of ir.cells) {
     const offset = length + 2;

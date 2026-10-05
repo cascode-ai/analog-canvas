@@ -79,12 +79,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir compat-build
-          gh release download vacask-preview-assets-20260916 --dir compat-build --pattern vacask-candidate-source.tgz
-          echo 'e848a12c364af0a6d954f6f4da60250c9110b5d95dc533de05a464cbbacd4352  compat-build/vacask-candidate-source.tgz' | sha256sum -c -
+          gh release download vacask-preview-assets-20260916-compat2 --dir compat-build --pattern vacask-candidate-source.tgz --pattern native-compose-config.json
+          echo '57ecedbe7820d7d3527780f656f5fef0b7c35284c33ff62617b0298b0571fb2f  compat-build/vacask-candidate-source.tgz' | sha256sum -c -
+          echo 'a77bf2cf1056a8e0e8db7b12142d347656ee2ad3c11b085b5989a0586e0d850c  compat-build/native-compose-config.json' | sha256sum -c -
           mkdir compat-build/context
           tar -xzf compat-build/vacask-candidate-source.tgz -C compat-build/context
           git clone --depth 1 --branch _0.3.4 https://codeberg.org/arpadbuermen/VACASK.git compat-build/source
           test "$(git -C compat-build/source rev-parse HEAD)" = c1a1c84f1b2b9aa71c0cddf06e555441434db7b7
+          cp -R containers/vacask/patches compat-build/patches
       - name: Build simulator without pidfd dependency (no deployment)
         uses: docker/build-push-action@v6
         with:
@@ -94,6 +96,31 @@ jobs:
           outputs: type=local,dest=compat-artifact
           cache-from: type=gha,scope=vacask-compat
           cache-to: type=gha,mode=max,scope=vacask-compat
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.16.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Qualify actual hard-switch edges and unchanged generated model families
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm --filter @icm/netlist... build
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libgomp1 libfftw3-double3 libklu2 libopenblas0-pthread libtomlplusplus3t64
+          chmod 755 compat-artifact/vacask compat-build/context/vacask/bin/openvaf-r
+          export VACASK_BIN="$PWD/compat-artifact/vacask"
+          export SIM_MODULE_PATH="$PWD/compat-build/context/modules"
+          export PATH="$PWD/compat-build/context/vacask/bin:$PATH"
+          pnpm test:local packages/netlist/src/model-contract-acceptance.test.ts
+      - name: Stage existing Production inputs with only the qualified simulator replaced
+        run: |
+          node scripts/package-vacask-image.mjs --simulator-build compat-build/context compat-artifact compat-build/native-compose-config.json compat-artifact/native-compose-config.json
+          docker build --platform linux/amd64 -f containers/vacask/Dockerfile -t icm-vacask-qualified compat-build/context
+          docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges --memory 1g --cpus 1 --pids-limit 128 --tmpfs /var/lib/vacask:rw,exec,nosuid,nodev,size=268435456,uid=10001,gid=10001,mode=0700 --tmpfs /tmp:rw,noexec,nosuid,nodev,size=67108864 --mount type=bind,source="$PWD/compat-artifact/native-compose-config.json",target=/proof/config.json,readonly --entrypoint node icm-vacask-qualified --input-type=module -e 'import {readFile} from "node:fs/promises"; import {startVacaskService} from "/opt/harness/vacask-harness.mjs"; const config=JSON.parse(await readFile("/proof/config.json","utf8")); const service=await startVacaskService(config); try {const runtime=await service.ready; console.log(JSON.stringify(runtime.environment));} finally {await service.stop();}'
+          tar -czf compat-artifact/vacask-candidate-source.tgz -C compat-build/context .
+          docker image inspect icm-vacask-qualified --format '{{.Id}}'
       - uses: actions/upload-artifact@v4
         with:
           name: vacask-compat-${{ github.sha }}

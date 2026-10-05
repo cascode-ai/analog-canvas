@@ -17,6 +17,16 @@ packages use a dated snapshot, and `/opt/os-packages.txt` records installed
 versions. These are build inputs, not a promise of bit-identical image rebuilds.
 Record the actual image digest and existing runtime environment fingerprint.
 
+For a bounded simulator-only upgrade, the existing packager also accepts
+`--simulator-build <staged-context> <build-artifact> <baseline-config> <new-config>`.
+Use it only on an exclusive staged copy, after actual numerical qualification.
+It checks the baseline binary, pinned upstream revision, reviewed patch and
+build artifact, then changes only the simulator and its environment identity.
+Model/compiler/harness/Python inputs and executor limits stay unchanged. Strict
+image boot must match the produced lock before deployment. The manual
+`vacask-compat-build` job performs this sequence and includes corresponding
+upstream source and patch; see [hard switches](patches/README.md).
+
 `<repaired-build>` is the directory emitted by `vacask-bsim4-build.mjs`, containing
 `modules/`, `bsim4v8.va` and `build.json`. Packaging verifies the corresponding
 source, original source, compiler and module against the build record. The image

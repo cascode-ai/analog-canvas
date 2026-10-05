@@ -73,6 +73,10 @@ function nativeRun(files: readonly { path: string; text: string }[]) {
   const dir = mkdtempSync(join(tmpdir(), "icm-model-native-"));
   for (const f of files) writeFileSync(join(dir, f.path), f.text);
   const wslDirectory = `/mnt/${dir[0]!.toLowerCase()}${dir.slice(2).replaceAll("\\", "/")}`;
+  const startup = process.env.VACASK_WSL_BIN
+    ? process.env.VACASK_WSL_STARTUP
+    : process.env.VACASK_STARTUP;
+  const args = [...(startup ? ["--tomlfile", startup] : []), "run.sim"];
   const run = spawnSync(
     process.env.VACASK_WSL_BIN ? "wsl.exe" : process.env.VACASK_BIN!,
     process.env.VACASK_WSL_BIN
@@ -87,9 +91,9 @@ function nativeRun(files: readonly { path: string; text: string }[]) {
             ? [`LD_LIBRARY_PATH=${process.env.VACASK_WSL_LIBS}`]
             : []),
           process.env.VACASK_WSL_BIN,
-          "run.sim",
+          ...args,
         ]
-      : ["run.sim"],
+      : args,
     {
       cwd: dir,
       encoding: "utf8",
@@ -484,6 +488,91 @@ describe("shared built-in model acceptance", () => {
       expect(read("off.raw", "out").real[0]).toBeCloseTo(0, 6);
       expect(read("on.raw", "out").real[0]).toBeCloseTo(1000 / 1001, 6);
       expect(read("time.raw", "out").real.every(Number.isFinite)).toBe(true);
+    },
+    60000,
+  );
+
+  it
+    .skipIf(!process.env.VACASK_BIN && !process.env.VACASK_WSL_BIN)
+    .each(
+      [
+        "ideal-switch",
+        "closed-switch",
+        "simple-switch",
+        "externally-controlled-switch",
+      ].flatMap((symbol) =>
+        [false, true].map((reactive) => ({ symbol, reactive })),
+      ),
+    )(
+    "executes hard $symbol edges with reactive=$reactive and preserves the RC state",
+    ({ symbol, reactive }) => {
+      const { ir } = deviceFixture(
+        symbol,
+        "S1",
+        symbol === "externally-controlled-switch"
+          ? [
+              ["P", "in"],
+              ["N", "out"],
+              ["CTRL", "clk"],
+            ]
+          : [
+              ["1", "in"],
+              ["2", "out"],
+            ],
+      );
+      const control = symbol === "externally-controlled-switch" ? "clk" : "S1";
+      const printed = printVacaskWithLocations(ir, true);
+      expect(printed.ok).toBe(true);
+      if (!printed.ok) return;
+      const read = nativeRun([
+        { path: "circuit.sim", text: printed.text },
+        {
+          path: "run.sim",
+          text: `Hard switch\ninclude "circuit.sim"\nload "resistor.osdi"\nload "capacitor.osdi"\nmodel vs vsource\nmodel rr resistor\nmodel cc capacitor\nvin (in 0) vs dc=1\nvclock (${control} 0) vs type="pulse" val0=0 val1=1 delay=1n rise=1n fall=1n width=5n period=10n\nrload (out 0) rr r=1000\n${reactive ? "cload (out 0) cc c=100p\n" : ""}control\nabort always\noptions rawfile="ascii" vntol=1e-10 abstol=1e-15 reltol=1e-6\nsave default\nanalysis time tran stop=35n step=0.1n\nendc\n`,
+        },
+      ]);
+      const times = read("time.raw", "time").real;
+      const output = read("time.raw", "out").real;
+      const controls = read("time.raw", control).real;
+      expect(times.at(-1)).toBeCloseTo(35e-9, 18);
+      expect(times.length).toBeGreaterThan(50);
+      expect(output.every(Number.isFinite)).toBe(true);
+      const off = 1000 / (1000 + 1e12);
+      const on = 1000 / 1001;
+      if (!reactive) {
+        for (const [i, value] of output.entries())
+          expect(value).toBeCloseTo(controls[i]! > 0.5 ? on : off, 7);
+        // Both directions must have actual accepted event points, not a DC-only run.
+        for (const edge of [1.5, 7.5, 11.5, 17.5, 21.5, 27.5, 31.5])
+          expect(
+            Math.min(...times.map((t) => Math.abs(t - edge * 1e-9))),
+          ).toBeLessThan(1e-16);
+      } else {
+        // Independent analytic solution of the piecewise linear RC circuit.
+        // Charge remains continuous; only conductance changes at the hard edge.
+        const edges = [1.5, 7.5, 11.5, 17.5, 21.5, 27.5, 31.5].map(
+          (t) => t * 1e-9,
+        );
+        const expected = (time: number) => {
+          let value = off;
+          let previous = 0;
+          let closed = false;
+          for (const boundary of [...edges, time]) {
+            const end = Math.min(boundary, time);
+            const resistance = closed ? 1 : 1e12;
+            const steady = closed ? on : off;
+            const tau = 100e-12 / (1 / resistance + 1 / 1000);
+            value =
+              steady + (value - steady) * Math.exp(-(end - previous) / tau);
+            if (end === time) break;
+            previous = end;
+            closed = !closed;
+          }
+          return value;
+        };
+        for (const [i, value] of output.entries())
+          expect(Math.abs(value - expected(times[i]!))).toBeLessThan(5e-5);
+      }
     },
     60000,
   );

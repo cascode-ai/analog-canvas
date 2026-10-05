@@ -18,6 +18,7 @@ import {
   createNetlistExportProfile,
   setNetlistDefaultTarget,
   type NetlistProfileId,
+  NETLIST_PROFILE_IDS,
 } from "./netlist-process-presets";
 import {
   planNetlistProcess,
@@ -410,6 +411,30 @@ describe("a part placed into a Process (#1251)", () => {
 });
 
 describe("persisted netlist process authoring", () => {
+  it.each(NETLIST_PROFILE_IDS)(
+    "keeps both copy syntaxes available under %s without a simulator profile",
+    (process) => {
+      const project = apply(
+        createLibraryExampleProject("common-source-amplifier")!,
+        createNetlistExportProfile(process),
+      );
+      const before = structuredClone(project);
+      for (const format of ["spice", "spectre"] as const) {
+        const result = createDesignNetlistExport(project, {
+          format,
+          includeLocations: true,
+        });
+        expect(result.status, JSON.stringify(result.diagnostics)).toBe("ready");
+        if (result.status !== "ready") continue;
+        expect(result.file.text).toContain(
+          createNetlistExportProfile(process).devices.nmos.target,
+        );
+        expect(result.locations.instances.length).toBeGreaterThan(0);
+        expect(result.file.text).not.toContain("TODO");
+      }
+      expect(project).toEqual(before);
+    },
+  );
   it("keeps AC-only sources free of a preset DC offset and honors custom missing-value defaults", () => {
     const project = createEmptyProject("source", "Source");
     project.documents[0]!.instances.push({

@@ -1,9 +1,14 @@
 import { parseSavedProject } from "./editor-fixtures";
 import { expect, test } from "@playwright/test";
+import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { inflateSync } from "node:zlib";
 import { createEmptyProject } from "@icm/model";
 import { serializeProject } from "@icm/project-protocol";
+import {
+  NETLIST_PROFILE_IDS,
+  createNetlistExportProfile,
+} from "../src/features/netlist-export/netlist-process-presets.js";
 import {
   awaitEditorReady,
   clickCommand,
@@ -506,6 +511,63 @@ test("copies structural SPICE and Spectre netlists while exposing instance autho
   );
   await expect(properties.getByText(/^Model:/u)).toHaveCount(0);
 });
+
+for (const process of NETLIST_PROFILE_IDS) {
+  test(`copies both syntaxes from the right panel in ${process} without simulation configuration`, async ({
+    page,
+  }) => {
+    const project = parseSavedProject(
+      readFileSync(
+        new URL(
+          "../src/examples/common-source-amplifier.icproj.json",
+          import.meta.url,
+        ),
+        "utf8",
+      ),
+    );
+    project.simulationFolders = [];
+    await page.goto("/editor");
+    await page.getByTestId("project-file").setInputFiles({
+      name: "copy-matrix.icproj.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(serializeProject(project)),
+    });
+    await expect(page.getByTestId("status")).toContainText("Opened");
+    if (
+      (await page
+        .getByTestId("netlist-panel-toggle")
+        .getAttribute("aria-pressed")) !== "true"
+    )
+      await page.getByTestId("netlist-panel-toggle").click();
+    const panel = page.getByRole("region", {
+      name: "Live netlist",
+      exact: true,
+    });
+    // Select another process first so this covers a real authoring transaction.
+    await panel
+      .getByLabel("Netlist process")
+      .selectOption(process === "abstract" ? "sky130" : "abstract");
+    await panel.getByLabel("Netlist process").selectOption(process);
+    for (const format of ["spice", "spectre"] as const) {
+      const copied = await copyNetlistText(page, format);
+      expect(copied).toContain(
+        createNetlistExportProfile(process).devices.nmos.target,
+      );
+      expect(copied).not.toContain("Draft:");
+      await page.evaluate(() => navigator.clipboard.writeText("untouched"));
+      await page.getByTestId("copy-netlist-panel").click();
+      await expect
+        .poll(async () =>
+          (await page.evaluate(() => navigator.clipboard.readText())).replace(
+            /\r\n?/gu,
+            "\n",
+          ),
+        )
+        .toBe(copied);
+      await expect(panel.getByLabel("Netlist process")).toHaveValue(process);
+    }
+  });
+}
 
 test("shows and copies a live MOS netlist with explicitly connected bulk terminals", async ({
   page,

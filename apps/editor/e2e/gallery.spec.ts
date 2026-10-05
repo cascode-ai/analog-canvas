@@ -3135,8 +3135,11 @@ test("contributors cover filtered pages while text search follows only matching 
     { author: "Bob", count: 1 },
   ];
   await page.route(galleryListUrl, (route) => {
-    if (new URL(route.request().url()).searchParams.has("cursor")) {
-      pending = route;
+    const url = new URL(route.request().url());
+    if (url.searchParams.has("cursor")) {
+      // Search invalidates the old feed's cursor request. Wait for the new
+      // query's page, not the earlier sentinel request that can race the debounce.
+      if (url.searchParams.get("q") === "Bob") pending = route;
       return;
     }
     return route.fulfill({
