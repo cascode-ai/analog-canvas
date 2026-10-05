@@ -276,8 +276,12 @@ export function planMoveRouteClearance(
     previewEdits(document, resolver, edits, "move-route-clearance"),
     // Judged as stretched: the comparator's IN− wire, slid down along the
     // resistor under its tap, merged there with the resistor's own wire, and
-    // what was left ran from the resistor's lower pin.
-    (extra) => projectDrawnGeometry(document, [...edits, ...extra]),
+    // what was left ran from the resistor's lower pin. An alignment stretches
+    // its wires inside the transaction, with no edit to project, so it is
+    // judged as the transaction leaves it.
+    edits.some((edit) => edit.kind === "align_instances")
+      ? undefined
+      : (extra) => projectDrawnGeometry(document, [...edits, ...extra]),
   );
 }
 

@@ -29,6 +29,7 @@ import {
   planRemoveCellTerminal,
   planRemoveCellTerminals,
   planSetCellSymbolPins,
+  planMoveRouteClearance,
   planCellSelectionDeletion,
   gateRoutingOperationPlan,
   createRoutingOperationPlan,
@@ -335,16 +336,27 @@ export function planBrowserAgentCommand(
           throw new Error(`Instance not found: ${instanceId}`);
       if (new Set(command.instanceIds).size !== command.instanceIds.length)
         throw new Error("instances must be distinct");
+      const edits: SchematicEdit[] = [
+        {
+          kind: "align_instances",
+          instanceIds: [...command.instanceIds],
+          axis: command.axis,
+          ...(command.coordinate !== undefined
+            ? { coordinate: command.coordinate }
+            : {}),
+        },
+      ];
+      // Lined up by coordinates, as a typed move is: its stretched wires are
+      // drawn clear of what they would cross (#1344).
       return {
         edits: [
-          {
-            kind: "align_instances",
-            instanceIds: [...command.instanceIds],
-            axis: command.axis,
-            ...(command.coordinate !== undefined
-              ? { coordinate: command.coordinate }
-              : {}),
-          },
+          ...edits,
+          ...planMoveRouteClearance(
+            document,
+            resolver,
+            command.instanceIds,
+            edits,
+          ),
         ],
       };
     }

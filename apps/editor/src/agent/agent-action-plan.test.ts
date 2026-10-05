@@ -656,6 +656,65 @@ describe("the editor plans an Agent's action list", () => {
     },
   );
 
+  it("draws the wires an arrange stretches clear of the parts they would cross (#1344)", async () => {
+    // R2 is lined up 80 lower with R4. The stretch drops its wire from R1
+    // with a crossbar halfway down, straight through R3.
+    const { controller, client } = await editor();
+    const apply = async (actions: unknown[]) => {
+      const report = await client.applyActions(actions);
+      expect(report.ok, report.message).toBe(true);
+    };
+    await apply(
+      [
+        ["R1", 0, 0],
+        ["R2", 100, 0],
+        ["R3", 50, 60],
+        ["R4", 200, 80],
+      ].map(([reference, x, y]) => ({
+        kind: "place-component",
+        symbol: "resistor",
+        reference,
+        position: { x, y },
+      })),
+    );
+    await apply([
+      { kind: "connect", from: pin("R1", "2"), to: pin("R2", "2") },
+    ]);
+    const netOf = (reference: string, pinName: string) => {
+      const instance = controller.document.instances.find(
+        (item) => item.reference === reference,
+      )!;
+      return controller.document.nets.find((net) =>
+        net.terminals.some(
+          (terminal) =>
+            terminal.instanceId === instance.id && terminal.pinName === pinName,
+        ),
+      )?.id;
+    };
+    expect(netOf("R2", "2")).toBe(netOf("R1", "2"));
+
+    await apply([
+      {
+        kind: "arrange",
+        instances: [
+          { kind: "instance", reference: "R2" },
+          { kind: "instance", reference: "R4" },
+        ],
+        axis: "y",
+        coordinate: 80,
+      },
+    ]);
+
+    expect(netOf("R2", "2")).toBe(netOf("R1", "2"));
+    expect(netOf("R3", "1")).toBeUndefined();
+    expect(
+      diagnoseVisualQuality(
+        controller.document,
+        new InMemorySymbolResolver(builtInSymbols),
+      ).map((finding) => finding.code),
+    ).not.toContain("VISUAL_WIRE_THROUGH_SYMBOL");
+  });
+
   it("leaves the Document alone for a list that changes nothing", async () => {
     const { controller, client, instance } = await editor();
     expect((await client.applyActions([place("resistor", "R1", 100)])).ok).toBe(
