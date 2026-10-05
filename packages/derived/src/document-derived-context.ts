@@ -1,3 +1,4 @@
+import { registerDocumentCache } from "./document-caches.js";
 import { routeEnd } from "@icm/model";
 import type { SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
@@ -71,10 +72,9 @@ interface CachedDocumentDerivedContext {
   readonly context: DocumentDerivedContext;
 }
 
-const contextCache = new WeakMap<
-  SchematicDocument,
-  CachedDocumentDerivedContext
->();
+const contextCache = registerDocumentCache(
+  new WeakMap<SchematicDocument, CachedDocumentDerivedContext>(),
+);
 
 function groupedBy<T>(
   values: readonly T[],

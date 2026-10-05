@@ -630,3 +630,75 @@ describe("an Agent connect to an open point on another part's pin", () => {
     );
   });
 });
+
+describe("a batch of Agent connects keeps clear of the wires before it", () => {
+  it("routes each wire clear of the earlier wires of the same batch", () => {
+    // Two blocks wired pin to pin in one call: the batch's planning draft
+    // changed in place under a cached view, so each wire was kept clear of
+    // committed wiring only, and two Nets ran along one line with no dot.
+    const document = createEmptyDocument("parallel", "Parallel blocks");
+    for (const [id, x] of [
+      ["A", 0],
+      ["B", 260],
+    ] as const)
+      document.instances.push({
+        id,
+        symbolId: "comparator",
+        reference: id,
+        netlist: { parameters: {} },
+        placement: { position: { x, y: 0 }, rotation: 0, mirror: "none" },
+      });
+    const h = history(document);
+    const terminal = (instanceId: string, pinName: string) => ({
+      kind: "endpoint" as const,
+      endpoint: { kind: "terminal" as const, instanceId, pinName },
+    });
+    const plan = planWireBatch(
+      h.document,
+      resolver,
+      ["IN-", "IN+", "OUT"].map((pin) =>
+        wire(pin, terminal("A", pin), terminal("B", pin)),
+      ),
+      512,
+      { keepClear: true },
+    );
+    if (typeof plan === "string") throw new Error(plan);
+    const result = h.transact({
+      transactionId: "parallel",
+      documentId: h.document.id,
+      expectedRevision: h.document.revision,
+      actor: { kind: "agent", id: "test" },
+      edits: plan.edits,
+    });
+    expect(result.ok, JSON.stringify(result)).toBe(true);
+    const lines = h.document.routes.map((route) => ({
+      netId: route.netId,
+      points: resolveRouteGeometry(h.document, resolver, route)!.centerline,
+    }));
+    expect(lines).toHaveLength(3);
+    const onLine = (
+      point: { x: number; y: number },
+      a: { x: number; y: number },
+      b: { x: number; y: number },
+    ) =>
+      (a.x === b.x &&
+        point.x === a.x &&
+        point.y >= Math.min(a.y, b.y) &&
+        point.y <= Math.max(a.y, b.y)) ||
+      (a.y === b.y &&
+        point.y === a.y &&
+        point.x >= Math.min(a.x, b.x) &&
+        point.x <= Math.max(a.x, b.x));
+    for (const line of lines)
+      for (const other of lines)
+        if (line.netId !== other.netId)
+          expect(
+            line.points.some((point) =>
+              other.points
+                .slice(1)
+                .some((to, index) => onLine(point, other.points[index]!, to)),
+            ),
+            `${line.netId} meets ${other.netId}`,
+          ).toBe(false);
+  });
+});

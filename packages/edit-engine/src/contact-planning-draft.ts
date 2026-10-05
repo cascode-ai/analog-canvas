@@ -1,3 +1,4 @@
+import { forgetDerivedDocument } from "@icm/derived";
 import type { RouteEndpoint, SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 import type { SchematicEdit } from "./edit-schema.js";
@@ -46,6 +47,9 @@ export function createContactPlanningDraft(
     else if (edit.kind === "clear_mos_bulk_default")
       applyMosBulkEdit(edit, context);
     else throw new Error(`Unexpected contact edit: ${edit.kind}`);
+    // The draft keeps its revision while it changes, so what was derived
+    // from it before this edit is stale.
+    forgetDerivedDocument(draft);
     edits.push(edit);
   };
   return {

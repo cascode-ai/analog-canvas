@@ -54,3 +54,4 @@ export * from "./arrow-artwork.js";
 export * from "./master-names.js";
 
 export { ConnectionGraph } from "./connection-graph.js";
+export { forgetDerivedDocument } from "./document-caches.js";
