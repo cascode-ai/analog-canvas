@@ -742,6 +742,34 @@ describe("opt-in label arrangement", () => {
       [],
     );
   });
+  it("moves a part's name off a free drawing note (#1323)", () => {
+    // A φ2 note written on a switch's default name read as one smudge.
+    const { doc, instance } = fixture();
+    const reference = doc.annotations.find(
+      (a) => a.binding?.kind === "instance-reference",
+    )!;
+    const before = createLabelClearanceContext(doc, resolver);
+    const at = before.measure(reference).position;
+    doc.drafting!.objects.push({
+      id: "note",
+      kind: "text",
+      locked: false,
+      zIndex: 0,
+      anchor: { kind: "free", position: { x: at.x + 4, y: at.y } },
+      content: { runs: [{ kind: "text", value: "phi2" }] },
+      alignment: "start",
+      rotation: 0,
+    });
+    expect(
+      createLabelClearanceContext(doc, resolver).conflicts(reference),
+    ).toContain("note");
+
+    apply(doc, arrangeInstanceLabels(doc, resolver, [instance.id], {}));
+
+    const after = createLabelClearanceContext(doc, resolver);
+    const moved = doc.annotations.find((a) => a.id === reference.id)!;
+    expect(after.conflicts(moved)).toEqual([]);
+  });
   it("keeps a word's space between a part's labels and another label on their line", () => {
     // A resistor's "2k" two units after an input Port's name read "v_inn2k".
     const { doc, instance } = fixture();

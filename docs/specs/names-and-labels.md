@@ -240,8 +240,9 @@ Batch operations are explicit and distinct:
   then the part's other sides, then the same rows slid along each side to
   the clear place nearest where they stood, while at least half of the
   group stays beside the part. A place is clear when the labels meet no
-  wire, part or other label, keep a word's space from another label on
-  their line and a little space between lines, and no wire runs between a
+  wire, part, other label or free drawing text, keep a word's space from
+  another label or text on their line and a little space between lines,
+  and no wire runs between a
   label and its part or between the Reference and the value, other than
   the part's own wires. Where nothing is clear, text drawn over a wire, a
   part or other text counts for more than a label too close to text or cut

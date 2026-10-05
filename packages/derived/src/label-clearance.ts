@@ -7,6 +7,7 @@ import {
   type AnnotationPresentation,
 } from "./annotation-presentation.js";
 import { instanceLabelInkBounds } from "./instance-label-placement.js";
+import { resolveDraftingObjectGeometry } from "./drafting-geometry.js";
 import { resolveDocumentLogicalNets } from "./logical-net.js";
 import { resolveDocumentRoutingGeometry } from "./resolved-route-geometry.js";
 import { intersectSegments } from "./segment-geometry.js";
@@ -99,6 +100,15 @@ export function createLabelClearanceContext(
   // Drawn extents, capitals to subscripts, as VISUAL_LABEL_OVERLAP measures:
   // a line box's extra ascent reached into a label's own part.
   const labels = new Map(visible.map((a) => [a.id, measure(a).inkBounds]));
+  // Free drawing text is in the way too: a switch's name arranged onto a φ2
+  // note read as one smudge with it (#1323). Its box is the text's line box.
+  for (const object of document.drafting?.objects ?? [])
+    if (object.kind === "text")
+      labels.set(
+        object.id,
+        resolveDraftingObjectGeometry(document, resolver, object, routing)
+          .bounds,
+      );
   const symbols = labelObstacleBounds(document, resolver);
   const symbolIndex = buildBoundsSpatialIndex(
     symbols.map((s) => ({ bounds: s.bounds, value: s })),
