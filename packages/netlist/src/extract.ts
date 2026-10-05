@@ -51,6 +51,7 @@ import {
   subcircuitDescriptor,
   type BuiltInSubcircuitDescriptor,
   type DeviceDescriptor,
+  type ReviewedExternalDeviceBinding,
 } from "@icm/devices";
 import { parseSpiceNumber } from "@icm/spice";
 
@@ -1107,6 +1108,15 @@ function extractExternalSubcircuitInstance(
       netName: netName ?? `<unconnected:${terminal.targetName}>`,
     };
   });
+  if (reviewed)
+    reportSubstrateTerminals(
+      document,
+      instance,
+      reviewed,
+      nodes,
+      context,
+      diagnostics,
+    );
   const parameters = Object.entries(netlist.parameters);
   const projectedParameters = reviewed
     ? [
@@ -1158,6 +1168,51 @@ function extractExternalSubcircuitInstance(
     nodes,
     parameters: projectedParameters,
   };
+}
+
+/** A Net named as a Cell's ground or negative rail: VSS, AVSS, GND, VEE, SUB. */
+const LOWEST_SUPPLY_NAME = /^[ad]?(?:vss|gnd|vee|v?sub)[a-z0-9_]*$/iu;
+
+/**
+ * A terminal the PDK ties to the p-substrate belongs on ground or the lowest
+ * supply (#1314). A SKY130 vertical PNP's collector is the substrate: drawn
+ * as a current-mirror load, it exported ready, verified clean, and a run put
+ * the mirror's output at 0.93 V where the textbook mirror sits near
+ * VDD - V_EB. The same holds for a substrate property terminal bound to a
+ * signal Net.
+ */
+function reportSubstrateTerminals(
+  document: SchematicDocument,
+  instance: Instance,
+  reviewed: ReviewedExternalDeviceBinding,
+  nodes: readonly { pinName: string; netName: string }[],
+  context: CellNetContext,
+  diagnostics: NetlistDiagnostic[],
+): void {
+  const ground = context.nameByAuthoredName.get(foldNetName("0")) ?? "0";
+  for (const terminal of reviewed.terminals) {
+    if (terminal.role !== "substrate") continue;
+    const node = nodes.find((item) => item.pinName === terminal.targetName);
+    if (
+      !node ||
+      node.netName.startsWith("<unconnected:") ||
+      node.netName === ground ||
+      node.netName === "0" ||
+      LOWEST_SUPPLY_NAME.test(node.netName)
+    )
+      continue;
+    const reference = instance.reference ?? instance.id;
+    diagnostic(
+      diagnostics,
+      document.id,
+      "PDK_SUBSTRATE_TERMINAL",
+      reviewed.symbolId === "pnp" && terminal.pinName === "C"
+        ? `${reference}'s collector is the p-substrate of ${reviewed.masterName} and belongs on ground or the lowest supply; it is on ${node.netName}. Use it as a diode, or with its collector grounded`
+        : `${reference}.${terminal.pinName} is the p-substrate of ${reviewed.masterName} and belongs on ground or the lowest supply; it is on ${node.netName}`,
+      [instance.id],
+      "warning",
+    );
+  }
 }
 
 function extractBuiltInSubcircuitInstance(

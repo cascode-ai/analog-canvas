@@ -48,6 +48,11 @@ export interface ReviewedExternalTerminalBinding {
   readonly pinName: string;
   /** Property terminals have no Symbol pin and cannot be routed on canvas. */
   readonly interaction: "canvas" | "property";
+  /**
+   * `substrate`: the PDK ties this terminal to the p-substrate, which belongs
+   * on ground or the lowest supply; the export warns otherwise
+   * (PDK_SUBSTRATE_TERMINAL). `floating`: may be left unconnected.
+   */
   readonly role?: "substrate" | "floating";
 }
 
@@ -633,8 +638,14 @@ export const reviewedExternalDeviceBindings: readonly ReviewedExternalDeviceBind
       invocationKind: "external-subcircuit",
       symbolId: "pnp",
       deviceClass: "bjt",
-      // This wrapper exposes C/B/E only; its internal Q card ties substrate to C.
-      terminals: bjtCanvasTerminals(),
+      // This wrapper exposes C/B/E only; its internal Q card ties substrate to
+      // C. The vertical PNP's collector is the p-substrate, so C carries the
+      // substrate role and belongs on ground (#1314).
+      terminals: bjtCanvasTerminals().map((terminal) =>
+        terminal.pinName === "C"
+          ? { ...terminal, role: "substrate" as const }
+          : terminal,
+      ),
       // The emitter area is fixed inside; parallel devices are the X-line
       // multiplier, which ngspice 46 scales exactly (m=8 carries 8x the
       // current of m=1). A bandgap's 1:8 ratio is this count.

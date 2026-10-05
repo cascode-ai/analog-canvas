@@ -465,6 +465,17 @@ substrate bound as the process binds it. The Agent and the GUI place through
 the same plan. A reviewed BJT wrapper takes the instance multiplier `m`, kept
 through every model change; ngspice scales the X call by it.
 
+A terminal a reviewed wrapper ties to the p-substrate belongs on ground or the
+Cell's lowest supply: the SKY130 vertical PNP's collector, and the substrate
+property terminals of the NPN, poly resistors, varactor and inductors. One on
+another Net exports with the warning `PDK_SUBSTRATE_TERMINAL` (#1314): "Q3's
+collector is the p-substrate of sky130_fd_pr__pnp_05v5_W0p68L0p68 and belongs
+on ground or the lowest supply; it is on mir. Use it as a diode, or with its
+collector grounded". A PNP mirror load drawn with it exported ready and
+simulated its output at 0.93 V, where the textbook mirror sits near
+VDD − V_EB. Ground is the Cell's ground node, and the lowest supply a Net named
+like one (`VSS`, `AVSS`, `GND`, `VEE`, `SUB`, `VSUB`, any case).
+
 IHP SG13G2 binds reviewed devices the way IHP-Open-PDK's own xschem symbols
 call them: `sg13_lv_nmos`/`sg13_lv_pmos` and the 3.3 V `sg13_hv_*` (`d g s b`;
 `w l ng m`), the HBTs `npn13G2`, `npn13G2l`, `npn13G2v` (`c b e bn`, substrate

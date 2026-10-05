@@ -32,7 +32,9 @@ the editor never derives it from an ideal scalar value.
 The ordinary PNP symbol similarly offers the exact fixed
 `sky130_fd_pr__pnp_05v5_W0p68L0p68` wrapper. It keeps the visible C/B/E pins,
 prints a three-node external X call, and relies on that wrapper's internal
-substrate-to-collector connection. The exact
+substrate-to-collector connection. Its collector is therefore the substrate
+and belongs on ground, as in a bandgap; drawn elsewhere, as a mirror load, the
+export warns `PDK_SUBSTRATE_TERMINAL`. The exact
 `sky130_fd_pr__npn_05v5_W1p00L1p00` interface instead exposes its real fourth S
 terminal as a `Substrate Net` property and is structural only in the hosted
 Profile. Clearing its `netlistTarget`, or choosing an ordinary model name,
