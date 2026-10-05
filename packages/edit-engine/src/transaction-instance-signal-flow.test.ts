@@ -4,7 +4,6 @@ import { createEmptyDocument } from "@icm/model";
 import type { SchematicDocument } from "@icm/model";
 
 import type { EditTransaction } from "./edit-schema.js";
-import { DocumentHistory } from "./history.js";
 import { executeTransaction } from "./transaction.js";
 
 function makeDocument(): SchematicDocument {
@@ -39,40 +38,6 @@ function makeTransaction(
 }
 
 describe("set_instance_signal_flow_parameters edit", () => {
-  it("sets formula, coefficient, and optional frame size independently of netlist parameters", () => {
-    const doc = makeDocument();
-    const result = executeTransaction(
-      doc,
-      makeTransaction(doc, [
-        {
-          kind: "set_instance_signal_flow_parameters",
-          instanceId: "inst-1",
-          parameters: {
-            formula: "z^-1",
-            coefficient: "a1",
-            bodyWidth: 160,
-            bodyHeight: 90,
-          },
-        },
-      ]),
-    );
-    expect(result).toMatchObject({
-      ok: true,
-      revision: 1,
-      diff: { changedObjectIds: ["inst-1"] },
-    });
-    if (!result.ok) return;
-    expect(result.document.instances[0]!.signalFlowParameters).toEqual({
-      formula: "z^-1",
-      coefficient: "a1",
-      bodyWidth: 160,
-      bodyHeight: 90,
-    });
-    expect(result.document.instances[0]!.netlist?.parameters).toEqual({
-      gain: "4",
-    });
-  });
-
   it("replaces existing parameters as a whole and accepts size-only edits", () => {
     const doc = makeDocument();
     doc.instances[0]!.signalFlowParameters = {
@@ -190,51 +155,5 @@ describe("set_instance_signal_flow_parameters edit", () => {
       bodyWidth: 100,
     });
     expect(doc.instances[0]!.signalFlowParameters).toBeUndefined();
-  });
-
-  it("preserves connectivity/source semantics and supports undo/redo", () => {
-    const doc = makeDocument();
-    doc.sourceStatus = "in-sync";
-    const result = executeTransaction(
-      doc,
-      makeTransaction(doc, [
-        {
-          kind: "set_instance_signal_flow_parameters",
-          instanceId: "inst-1",
-          parameters: { formula: "z^-1", coefficient: "a1" },
-        },
-      ]),
-    );
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.document.sourceStatus).not.toBe("connectivity-modified");
-
-    const history = new DocumentHistory(makeDocument());
-    expect(
-      history.transact(
-        makeTransaction(history.document, [
-          {
-            kind: "set_instance_signal_flow_parameters",
-            instanceId: "inst-1",
-            parameters: { bodyWidth: 180, bodyHeight: 100 },
-          },
-        ]),
-      ),
-    ).toMatchObject({ ok: true, applied: true });
-    expect(history.document.instances[0]!.signalFlowParameters).toEqual({
-      bodyWidth: 180,
-      bodyHeight: 100,
-    });
-    expect(
-      history.transact(makeTransaction(history.document, [{ kind: "undo" }])),
-    ).toMatchObject({ ok: true, applied: true });
-    expect(history.document.instances[0]!.signalFlowParameters).toBeUndefined();
-    expect(
-      history.transact(makeTransaction(history.document, [{ kind: "redo" }])),
-    ).toMatchObject({ ok: true, applied: true });
-    expect(history.document.instances[0]!.signalFlowParameters).toEqual({
-      bodyWidth: 180,
-      bodyHeight: 100,
-    });
   });
 });

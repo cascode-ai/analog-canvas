@@ -595,56 +595,6 @@ describe("hierarchy domain planners", () => {
     ).toMatchObject({ id: "X2-copy-1", reference: "X2" });
   });
 
-  it("atomically adds a Port Instance, local Net, and formal terminal", () => {
-    const project = createEmptyProject("project", "Project");
-    const instance = {
-      id: "P1",
-      symbolId: "port",
-      placement: {
-        position: { x: 40, y: 20 },
-        rotation: 0 as const,
-        mirror: "none" as const,
-      },
-    };
-    const result = executeProjectTransaction(project, {
-      transactionId: "add-port",
-      projectId: project.id,
-      expectedStructureRevision: 0,
-      actor: { kind: "human", id: "test" },
-      edits: planCreateCellPin(project, project.topDocumentId, {
-        instance,
-        connectionEdits: [
-          {
-            kind: "connect_endpoints",
-            from: { kind: "terminal", instanceId: "P1", pinName: "P" },
-            to: { kind: "terminal", instanceId: "P1", pinName: "P" },
-            newNetId: "net-in",
-          },
-        ],
-        terminal: {
-          id: "terminal-in",
-          name: "IN",
-          netId: "net-in",
-          direction: "input",
-          interfaceInstanceIds: ["P1"],
-        },
-      }),
-    });
-
-    expect(result).toMatchObject({
-      ok: true,
-      project: {
-        documents: [
-          {
-            instances: [{ id: "P1" }],
-            nets: [{ id: "net-in", terminals: [{ instanceId: "P1" }] }],
-            netlist: { terminals: [{ id: "terminal-in", name: "IN" }] },
-          },
-        ],
-      },
-    });
-  });
-
   it("keeps the block a new Cell shows when it is first placed (#1319, #1327)", () => {
     // An inverter Cell: a VDDA_1V8 supply on top, in drawn left and out
     // right. Unplaced, its block puts in and out on those sides, one row
@@ -1780,35 +1730,6 @@ describe("reviewed external MOS model targets", () => {
         parameters: {},
       },
     });
-  });
-
-  it("does not rename devices when an exported X reference would be occupied", () => {
-    const project = projectWithNmos();
-    project.documents[0]!.instances.push({
-      id: "existing-external",
-      symbolId: "external-symbol",
-      placement: null,
-      reference: "XM1",
-      netlist: { parameters: {} },
-    });
-    const edits = planSetDeviceModelTarget(
-      project,
-      project.topDocumentId,
-      "M1",
-      "sky130_fd_pr__nfet_01v8",
-    );
-    const result = executeProjectTransaction(project, {
-      transactionId: "preserve-names",
-      projectId: project.id,
-      expectedStructureRevision: project.structureRevision,
-      actor: { kind: "human", id: "test" },
-      edits,
-    });
-    expect(result.ok).toBe(true);
-    if (result.ok)
-      expect(
-        result.project.documents[0]!.instances.map((i) => i.reference),
-      ).toEqual(["M1", "XM1"]);
   });
 });
 

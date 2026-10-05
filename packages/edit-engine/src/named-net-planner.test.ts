@@ -45,6 +45,16 @@ describe("named Net planner", () => {
       { id: "net-a", terminals: [] },
       { id: "net-source", terminals: [] },
     );
+    // net-a already carries the name: naming net-source Bias too must not
+    // merge the two Base Nets.
+    document.connectivityEvidence.push({
+      id: "claim-a",
+      kind: "name-claim",
+      netId: "net-a",
+      name: "Bias",
+      owner: { kind: "net-label", annotationId: "label-a" },
+      scope: "local",
+    });
     const plan = planEnsureNamedNet(document, {
       candidateNetId: "net-source",
       name: "Bias",

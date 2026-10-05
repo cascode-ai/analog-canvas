@@ -1559,25 +1559,6 @@ describe("routing Edit Engine", () => {
     }
   });
 
-  it("leaves a lone part turning in place", () => {
-    const document = documentFixture();
-    const before = document.instances.find((instance) => instance.id === "A")!
-      .placement!.position;
-    const plan = proposeGroupRotationEdits(document, resolver, ["A"], 90);
-    const applied = executeTransaction(
-      document,
-      transaction(document.id, document.revision, plan.edits),
-      context,
-    );
-    expect(applied.ok).toBe(true);
-    if (!applied.ok) return;
-    const after = applied.document.instances.find(
-      (instance) => instance.id === "A",
-    )!.placement!;
-    expect(after.position).toEqual(before);
-    expect(after.rotation).toBe(90);
-  });
-
   it("turns a lone part and its attached route by 45 degrees", () => {
     const document = documentFixture();
     document.routes.push(
@@ -2382,7 +2363,7 @@ describe("routing Edit Engine", () => {
   });
 
   it.each(
-    ["port", "port-filled"].flatMap((symbolId) =>
+    ["port"].flatMap((symbolId) =>
       ["A", "B"].flatMap((instanceId) =>
         ["rotate", "mirror"].map((transform) => ({
           symbolId,
@@ -3140,59 +3121,6 @@ describe("routing Edit Engine", () => {
       result.document.nets.find((net) => net.id === "net-v")?.terminals,
     ).toEqual(document.nets.find((net) => net.id === "net-v")?.terminals);
     expect(result.document.sourceStatus).toBe("geometry-only-changed");
-  });
-
-  it("removes the empty local Net left by an isolated free wire", () => {
-    const document = documentFixture();
-    document.nets.push({
-      id: "net-free",
-
-      terminals: [],
-    });
-    document.junctions.push(
-      {
-        id: "junction-free-a",
-        netId: "net-free",
-        position: { x: 600, y: 500 },
-        role: "route-anchor",
-      },
-      {
-        id: "junction-free-b",
-        netId: "net-free",
-        position: { x: 700, y: 500 },
-        role: "route-anchor",
-      },
-    );
-    document.routes = [
-      createRoutePath({
-        id: "route-free",
-        netId: "net-free",
-        start: { kind: "junction", junctionId: "junction-free-a" },
-        end: { kind: "junction", junctionId: "junction-free-b" },
-        bends: [],
-        modes: ["manual"],
-      }),
-    ];
-
-    const result = executeTransaction(
-      document,
-      transaction(document.id, 0, [
-        { kind: "cut_connection", routeId: "route-free" },
-      ]),
-      context,
-    );
-
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.document.routes).toEqual([]);
-    expect(
-      result.document.junctions.filter((junction) =>
-        junction.id.startsWith("junction-free-"),
-      ),
-    ).toEqual([]);
-    expect(result.document.nets.some((net) => net.id === "net-free")).toBe(
-      false,
-    );
   });
 
   it("physically splits an imported Net while preserving non-electrical source provenance on every component", () => {

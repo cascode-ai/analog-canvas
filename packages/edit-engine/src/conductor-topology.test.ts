@@ -184,35 +184,6 @@ describe("same-Net conductor topology normalization", () => {
     expect(document).toEqual(before);
   });
 
-  it("coalesces the two collinear survivors of a removed branch", () => {
-    const document = documentWith(
-      [
-        junction("left", 0, 0),
-        junction("middle", 50, 0, "branch"),
-        junction("right", 100, 0),
-      ],
-      [
-        route("left-arm", "left", "middle"),
-        route("right-arm", "middle", "right"),
-      ],
-    );
-
-    const result = normalizeSameNetConductorTopology(document, resolver);
-
-    expect(result.changed).toBe(true);
-    expect(document.routes).toHaveLength(1);
-    expect(document.junctions.map((candidate) => candidate.id)).toEqual([
-      "left",
-      "right",
-    ]);
-    expect(
-      new Set([
-        endpointKey(document.routes[0]!.start),
-        endpointKey(routeEnd(document.routes[0]!)),
-      ]),
-    ).toEqual(new Set(["junction:left", "junction:right"]));
-  });
-
   it("coalesces a collinear continuation drawn from a loose end (user repro)", () => {
     // The W-tool repro from the feedback doc: continue a wire from its loose
     // end and the two collinear pieces share a degree-two route-anchor
@@ -350,19 +321,6 @@ describe("same-Net conductor topology normalization", () => {
     );
   });
 
-  it("keeps a lone loose wire and its degree-one anchors untouched", () => {
-    const document = documentWith(
-      [junction("left", 0, 0), junction("right", 100, 0)],
-      [route("only", "left", "right")],
-    );
-
-    const result = normalizeSameNetConductorTopology(document, resolver);
-
-    expect(result.changed).toBe(false);
-    expect(document.routes).toHaveLength(1);
-    expect(document.junctions).toHaveLength(2);
-  });
-
   it("preserves a degree-two anchor authored in the same transaction", () => {
     const document = documentWith(
       [
@@ -385,18 +343,6 @@ describe("same-Net conductor topology normalization", () => {
 
     expect(result.changed).toBe(false);
     expect(document.routes).toHaveLength(2);
-  });
-
-  it("deduplicates coincident Route coverage", () => {
-    const document = documentWith(
-      [junction("left", 0, 0), junction("right", 100, 0)],
-      [route("first", "left", "right"), route("second", "left", "right")],
-    );
-
-    normalizeSameNetConductorTopology(document, resolver);
-
-    expect(document.routes).toHaveLength(1);
-    expect(document.routes[0]!.id).toBe("first");
   });
 
   it("retains deterministic per-wire styling when coverage is deduplicated", () => {

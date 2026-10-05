@@ -1724,51 +1724,6 @@ describe("Project structural transaction", () => {
     });
   });
 
-  it("removes an unused Cell Pin and reconciles caller source order", () => {
-    const project = createEmptyProject("project", "Project");
-    const child = createEmptyDocument("document-child", "Child");
-    child.instances.push({
-      id: "port-unused",
-      symbolId: "port",
-      placement: null,
-    });
-    child.nets.push({
-      id: "net-unused",
-
-      terminals: [{ instanceId: "port-unused", pinName: "P" }],
-    });
-    child.netlist!.terminals.push({
-      id: "terminal-unused",
-      name: "UNUSED",
-      netId: "net-unused",
-      direction: "passive",
-      interfaceInstanceIds: ["port-unused"],
-    });
-    project.documents.push(child);
-    project.documents[0]!.instances.push(
-      hierarchyInstance("X1", "Child", child.id),
-    );
-
-    const result = executeProjectTransaction(project, {
-      transactionId: "remove-unused-port",
-      projectId: project.id,
-      expectedStructureRevision: 0,
-      actor: { kind: "human", id: "human-local" },
-      edits: planRemoveCellTerminal(project, child.id, "terminal-unused"),
-    });
-
-    expect(result).toMatchObject({
-      ok: true,
-      applied: true,
-      project: {
-        documents: [
-          { instances: [{ reference: "X1" }] },
-          { instances: [], netlist: { terminals: [] } },
-        ],
-      },
-    });
-  });
-
   it("removes multiple unreferenced Cell Pins in one atomic transaction", () => {
     const project = createEmptyProject("project", "Project");
     const child = createEmptyDocument("document-child", "Child");

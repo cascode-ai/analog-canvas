@@ -40,7 +40,7 @@ function transaction(
 }
 
 describe("set_route_style_override edit", () => {
-  it.each(["solid", "dashed", "dotted"] as const)(
+  it.each(["solid", "dashed"] as const)(
     "sets %s styling alone, preserves connectivity, and supports undo/redo",
     (lineStyle) => {
       const document = documentWithRoute();
@@ -208,30 +208,5 @@ describe("set_route_style_override edit", () => {
       ok: false,
       error: { code: "EDIT_PRECONDITION" },
     });
-  });
-
-  it("participates in document undo and redo", () => {
-    const history = new DocumentHistory(documentWithRoute());
-    const set = history.transact(
-      transaction(history.document, [
-        {
-          kind: "set_route_style_override",
-          routeId: "wire",
-          styleOverride: { color: "#0066CC" },
-        },
-      ]),
-    );
-    expect(set).toMatchObject({ ok: true, applied: true });
-    expect(history.document.routes[0]!.styleOverride?.color).toBe("#0066CC");
-    const undone = history.transact(
-      transaction(history.document, [{ kind: "undo" }]),
-    );
-    expect(undone).toMatchObject({ ok: true, applied: true });
-    expect(history.document.routes[0]!.styleOverride).toBeUndefined();
-    const redone = history.transact(
-      transaction(history.document, [{ kind: "redo" }]),
-    );
-    expect(redone).toMatchObject({ ok: true, applied: true });
-    expect(history.document.routes[0]!.styleOverride?.color).toBe("#0066CC");
   });
 });

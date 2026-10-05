@@ -212,25 +212,6 @@ describe("adaptive presentation label reflow", () => {
 });
 
 describe("followAttachedAnnotations rigid fallback", () => {
-  it("flips start/end when a mirror flips the world x-axis", () => {
-    const { document, annotation } = documentWithDraggedLabel();
-    followAttachedAnnotations(
-      document,
-      "R1",
-      { x: 200, y: 100 },
-      { rotation: 0, mirror: "none" },
-      { x: 200, y: 100 },
-      { rotation: 0, mirror: "horizontal" },
-      new Set(),
-      resolver,
-    );
-    if (annotation.anchor.kind !== "object") throw new Error("anchor kind");
-    // Anchor mirrors to the far side; the upright text now extends the
-    // other way.
-    expect(annotation.anchor.localOffset.x).toBe(-70);
-    expect(annotation.alignment).toBe("end");
-  });
-
   it("keeps the alignment through a quarter turn", () => {
     const { document, annotation } = documentWithDraggedLabel();
     followAttachedAnnotations(

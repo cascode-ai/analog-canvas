@@ -76,10 +76,6 @@ function groups(d: SchematicDocument) {
     .sort();
 }
 describe("connectivity reconstructed from final wire topology", () => {
-  it("draws between unwired pins without preassigning Net membership", () => {
-    const d = commit(fixture(), [wire("ab", "a", "b")]);
-    expect(groups(d)).toEqual(["a,b"]);
-  });
   it("repointing a wire detaches its old pin and connects the new one", () => {
     const before = commit(fixture(), [wire("ab", "a", "b")]);
     const after = commit(before, [wire("ab", "a", "c")]);

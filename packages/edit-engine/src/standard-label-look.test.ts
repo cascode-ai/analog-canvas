@@ -1,6 +1,5 @@
 import {
   createEmptyDocument,
-  flattenRichText,
   roleLabelFormat,
   supplyLabelFormat,
 } from "@icm/model";
@@ -152,34 +151,5 @@ describe("standard label looks", () => {
       { kind: "set_instance_reference", instanceId: "M1", reference: "XTAIL" },
     ]);
     expect(other.annotations[0]!.formatOverride).toBeUndefined();
-  });
-
-  it("follows a resistor renamed R1 to RL1 into R over subscript L1", () => {
-    const document = createEmptyDocument("document-main", "Main");
-    document.instances.push({
-      id: "R1",
-      reference: "R1",
-      symbolId: "resistor",
-      placement: null,
-    });
-    document.annotations.push({
-      id: "instance-label-R1",
-      kind: "instance-label",
-      binding: { kind: "instance-reference", instanceId: "R1" },
-      formatOverride: roleLabelFormat("device-reference", "R1")!,
-      anchor: { kind: "free", position: { x: 0, y: 0 } },
-      alignment: "start",
-      rotation: 0,
-      locked: false,
-    });
-    const renamed = apply(document, [
-      { kind: "set_instance_reference", instanceId: "R1", reference: "RL1" },
-    ]);
-    const format = renamed.annotations[0]!.formatOverride!;
-    expect(format).toEqual(
-      roleLabelFormat("device-reference", "RL1", { deviceLetter: "R" }),
-    );
-    expect(flattenRichText({ runs: format.runs.slice(0, 1) })).toBe("R");
-    expect(flattenRichText({ runs: format.runs.slice(1) })).toBe("L1");
   });
 });

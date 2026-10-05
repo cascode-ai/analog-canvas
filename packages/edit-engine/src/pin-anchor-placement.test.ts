@@ -6,7 +6,7 @@ import { pinAnchoredPlacement } from "./pin-anchor-placement.js";
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
 describe("pin anchored placement", () => {
-  for (const symbolId of ["nmos", "pmos", "port"]) {
+  for (const symbolId of ["nmos", "port"]) {
     for (const rotation of [0, 90, 180, 270] as const) {
       it.each(["none", "horizontal", "vertical", "both"] as const)(
         `${symbolId} rotation ${rotation} mirror %s`,

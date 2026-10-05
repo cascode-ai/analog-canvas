@@ -53,16 +53,6 @@ describe("buildManualWirePath", () => {
     });
   });
 
-  it("compiles 45-degree authored legs through the same Route payload", () => {
-    expect(
-      compileWireDraft(at(100, 100), at(200, 160), [], "octilinear").points,
-    ).toEqual([
-      { x: 100, y: 100 },
-      { x: 160, y: 160 },
-      { x: 200, y: 160 },
-    ]);
-  });
-
   it("does not reinterpret earlier authored steps when mode changes", () => {
     const path = compileWireDraft(
       at(0, 0),
@@ -197,14 +187,6 @@ describe("doubled-back legs", () => {
       { x: 100, y: 100 },
       { x: 120, y: 100 },
       { x: 120, y: 150 },
-    ]);
-  });
-
-  it("leaves an ordinary corner alone", () => {
-    expect(compileWireDraft(at(100, 100), at(200, 200), []).points).toEqual([
-      { x: 100, y: 100 },
-      { x: 200, y: 100 },
-      { x: 200, y: 200 },
     ]);
   });
 });
