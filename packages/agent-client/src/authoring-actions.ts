@@ -114,8 +114,68 @@ const TextInputSchema = z.union([
   RichTextDocumentSchema,
 ]);
 
+/**
+ * Three native commands take the form the other actions use (#1301). A
+ * place-cell may leave out its Instance ID and orientation, as place-component
+ * does: the Helper makes the ID and turns it upright. set-model and
+ * set-display-alias take a `target`, as set-property does, besides their
+ * native `instanceId`. Each is sent as its native command.
+ */
+type NativeAction = (typeof AgentAuthoringCommandSchema.options)[number];
+type FriendlierKind = "place-cell" | "set-model" | "set-display-alias";
+const nativeAction = <K extends FriendlierKind>(kind: K) =>
+  AgentAuthoringCommandSchema.options.find(
+    (option) => option.shape.kind.value === kind,
+  ) as Extract<NativeAction, { shape: { kind: { value: K } } }>;
+const NativePlaceCell = nativeAction("place-cell");
+const NativeSetModel = nativeAction("set-model");
+const NativeSetDisplayAlias = nativeAction("set-display-alias");
+const oneInstance = (
+  action: { instanceId?: string | undefined; target?: unknown },
+  context: z.RefinementCtx,
+) => {
+  if ((action.instanceId === undefined) === (action.target === undefined))
+    context.addIssue({
+      code: "custom",
+      message: "Provide exactly one of instanceId or target",
+    });
+};
+const PlaceCellActionSchema = NativePlaceCell.extend({
+  instanceId: NativePlaceCell.shape.instanceId
+    .optional()
+    .describe("Omit for a generated ID, as place-component makes one."),
+  placement: NativePlaceCell.shape.placement.extend({
+    rotation: NativePlaceCell.shape.placement.shape.rotation.optional(),
+    mirror: NativePlaceCell.shape.placement.shape.mirror.optional(),
+  }),
+});
+const SetModelActionSchema = NativeSetModel.extend({
+  instanceId: NativeSetModel.shape.instanceId.optional(),
+  target: InstanceRefSchema.optional(),
+}).superRefine(oneInstance);
+const SetDisplayAliasActionSchema = NativeSetDisplayAlias.extend({
+  instanceId: NativeSetDisplayAlias.shape.instanceId.optional(),
+  target: InstanceRefSchema.optional(),
+}).superRefine(oneInstance);
+const friendlierKinds = new Set<string>([
+  "place-cell",
+  "set-model",
+  "set-display-alias",
+]);
+const otherNativeActions = AgentAuthoringCommandSchema.options.filter(
+  (
+    option,
+  ): option is Exclude<
+    NativeAction,
+    { shape: { kind: { value: FriendlierKind } } }
+  > => !friendlierKinds.has(option.shape.kind.value),
+);
+
 export const AuthoringActionSchema = z.discriminatedUnion("kind", [
-  ...AgentAuthoringCommandSchema.options,
+  PlaceCellActionSchema,
+  SetModelActionSchema,
+  SetDisplayAliasActionSchema,
+  ...otherNativeActions,
   z.strictObject({
     kind: z.literal("focus"),
     intent: AgentSemanticIntentSchema,

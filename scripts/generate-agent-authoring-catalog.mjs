@@ -32,24 +32,21 @@ if (
 }
 
 const symbols = [];
-// These reviewed product-semantic sources deliberately reuse independent-source
-// artwork. They are not claimed as direct textbook extractions. Keep unrelated
-// house assets outside this bounded authoring addition.
-const controlledSources = new Set(["vcvs", "vccs", "cccs", "ccvs"]);
 for (const entry of sourceCatalog.entries) {
-  // This is the reviewed, palette-visible product boundary. Manual-only and
-  // provisional assets remain unavailable without an explicit human fact.
+  // This is the reviewed, palette-visible product boundary: an Agent places
+  // what a person can pick from the palette. That includes the house entries
+  // drawn for primitives the textbook never drew (the controlled sources, the
+  // plain and SPDT switches, the voltage-controlled switch, Diff gm, ADC and
+  // DAC, #1303); their provenance claims no textbook authority. Manual-only
+  // and provisional assets remain unavailable without an explicit human fact.
+  if (entry.reviewStatus !== "reviewed" || entry.palette !== true) continue;
   if (
-    entry.reviewStatus !== "reviewed" ||
-    entry.palette !== true ||
-    (entry.visualAuthority?.kind !== "razavi-reference-v1" &&
-      !(
-        controlledSources.has(entry.symbolId) &&
-        entry.provenance === "house" &&
-        entry.houseReason
-      ))
+    entry.visualAuthority?.kind !== "razavi-reference-v1" &&
+    !(entry.provenance === "house" && entry.houseReason)
   ) {
-    continue;
+    fail(
+      `palette entry claims neither Razavi nor house provenance: ${entry.symbolId}`,
+    );
   }
   const assetPath = resolve(assetRoot, entry.assetPath);
   if (!assetPath.startsWith(`${assetRoot}${sep}`)) {

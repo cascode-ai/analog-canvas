@@ -61,6 +61,7 @@ import {
   compileActions,
   describeCallSplit,
   directConnectIntent,
+  nativeForm,
   splitIntoCalls,
   type ActionCall,
   type CompiledTransaction,
@@ -1372,7 +1373,11 @@ export class AgentSessionClient {
         actionKind: "schema",
       };
     }
-    const direct = parsed.data;
+    // A friendlier place-cell, set-model or set-display-alias goes native
+    // here when it needs no Snapshot to (#1301).
+    const direct = parsed.data.map((action) =>
+      nativeForm(action, (prefix) => `${prefix}-${crypto.randomUUID()}`),
+    );
     if (
       direct.length > 0 &&
       direct.length <= 64 &&
@@ -1428,7 +1433,11 @@ export class AgentSessionClient {
     if (
       direct.length > 1 &&
       direct.length <= 64 &&
-      direct.every(isBatchableAuthoringCommand)
+      direct.every(
+        (action) =>
+          isBatchableAuthoringCommand(action) &&
+          AgentAuthoringCommandSchema.safeParse(action).success,
+      )
     ) {
       const revision = await this.revisionFor(options.documentId);
       // The batch's items are these actions, in order.

@@ -1,4 +1,5 @@
 import {
+  AgentAuthoringCommandSchema,
   AgentSchematicEditSchema,
   AgentWireIntentSchema,
   isBatchableAuthoringCommand,
@@ -446,6 +447,39 @@ function resolveByIdOrName<T extends NamedId>(
  * allocates IDs; it never invents electrical facts. Anything the mapped typed
  * edit cannot express is a hard error pointing at the advanced path.
  */
+/**
+ * The native form of a place-cell, set-model or set-display-alias written in
+ * the friendlier form, where reaching it needs no Snapshot (#1301): a Cell
+ * instance named and turned upright, a target given by ID. A target given by
+ * Reference is left for compileActions to resolve.
+ */
+export function nativeForm(
+  action: AuthoringAction,
+  allocateId: (prefix: string) => string,
+): AuthoringAction {
+  switch (action.kind) {
+    case "place-cell":
+      return {
+        ...action,
+        instanceId: action.instanceId ?? allocateId("instance"),
+        placement: {
+          ...action.placement,
+          rotation: action.placement.rotation ?? 0,
+          mirror: action.placement.mirror ?? "none",
+        },
+      };
+    case "set-model":
+    case "set-display-alias": {
+      if (action.instanceId !== undefined || action.target?.id === undefined)
+        return action;
+      const { target, ...rest } = action;
+      return { ...rest, instanceId: target.id };
+    }
+    default:
+      return action;
+  }
+}
+
 export function compileActions(
   actions: readonly unknown[],
   context: CompileContext,
@@ -574,7 +608,6 @@ export function compileActions(
   parsed.data.forEach((action, index) => {
     const before = transactions.length;
     switch (action.kind) {
-      case "set-model":
       case "route-net":
       case "set-port-direction":
       case "set-vdd-mode":
@@ -585,10 +618,8 @@ export function compileActions(
       case "batch":
       case "place-components":
       case "set-instance-display":
-      case "set-display-alias":
       case "arrange-labels":
       case "place-existing":
-      case "place-cell":
       case "set-net-label":
       case "transform":
       case "copy":
@@ -612,6 +643,29 @@ export function compileActions(
           actionKinds: [action.kind],
         });
         break;
+      case "place-cell":
+      case "set-model":
+      case "set-display-alias": {
+        let native = nativeForm(action, allocateId);
+        if (
+          (native.kind === "set-model" ||
+            native.kind === "set-display-alias") &&
+          native.instanceId === undefined
+        ) {
+          const { target, ...rest } = native;
+          native = {
+            ...rest,
+            instanceId: resolveInstance(document, index, action.kind, target!)
+              .id,
+          };
+        }
+        transactions.push({
+          form: "command",
+          command: AgentAuthoringCommandSchema.parse(native),
+          actionKinds: [action.kind],
+        });
+        break;
+      }
       case "focus":
         transactions.push({
           form: "semantic",

@@ -523,7 +523,7 @@ function pushRoutingQualityMetrics(
             confidence: "low",
             gateEligible: false,
             message: ownPin
-              ? `Route ${route.id} runs back across its own part ${instanceId}`
+              ? `Route ${route.id} runs back across its own part ${partName(document, instanceId)}`
               : `Route ${route.id} passes through instance ${instanceId}`,
             objectIds: [route.id, instanceId],
             bounds: box,
@@ -665,8 +665,8 @@ function pushRoutingQualityMetrics(
         confidence: "low",
         gateEligible: false,
         message: backward
-          ? `Route ${route.id} leaves ${endpoint.instanceId}.${endpoint.pinName} backward, against the pin's direction`
-          : `Route ${route.id} leaves ${endpoint.instanceId}.${endpoint.pinName} from the side`,
+          ? `Route ${route.id} leaves ${partName(document, endpoint.instanceId)}.${endpoint.pinName} backward, against the pin's direction`
+          : `Route ${route.id} leaves ${partName(document, endpoint.instanceId)}.${endpoint.pinName} from the side`,
         objectIds: [route.id],
         point: at,
         parameters: {
@@ -678,6 +678,20 @@ function pushRoutingQualityMetrics(
       });
     }
   }
+}
+
+/** The name an author knows a part by: its Reference, the name of the Cell
+ * Pin it marks, or, for an unnamed marker such as a ground, its symbol. */
+function partName(document: SchematicDocument, instanceId: string): string {
+  const instance = document.instances.find((item) => item.id === instanceId);
+  return (
+    instance?.reference ??
+    document.netlist?.terminals.find((terminal) =>
+      terminal.interfaceInstanceIds.includes(instanceId),
+    )?.name ??
+    instance?.symbolId ??
+    instanceId
+  );
 }
 
 function candidateRoutesAtPoint(

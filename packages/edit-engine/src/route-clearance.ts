@@ -23,6 +23,11 @@ type CornerOrder = "horizontal-first" | "vertical-first";
 export interface ClearPath {
   waypoints: Point[];
   cornerOrder: CornerOrder;
+  /** The path drawn, from landing to landing, and what it cost to choose it:
+   * length, two grid steps a bend, one for leaving or reaching a pin
+   * against its direction. Set by `path`. */
+  points?: Point[];
+  cost?: number;
 }
 
 export interface RouteClearance {
@@ -614,7 +619,8 @@ export function createRouteClearance(
     let reason: string | null = null;
     for (const entry of scored) {
       const found = conflict(entry.points, [fromEnd, toEnd]);
-      if (found === null) return entry.candidate;
+      if (found === null)
+        return { ...entry.candidate, points: entry.points, cost: entry.cost };
       reason ??= found;
     }
     // Textbooks draw a bias line that cannot cross the drawing as a short
