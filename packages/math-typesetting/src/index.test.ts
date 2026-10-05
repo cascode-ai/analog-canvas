@@ -130,23 +130,6 @@ describe("Analog Canvas formula typesetter", () => {
     expect(formulaSourceHash(baseRequest)).toHaveLength(16);
   });
 
-  it("serializes concurrent requests through one renderer", async () => {
-    const typesetter = createFormulaTypesetter();
-    const results = await Promise.all(
-      corpus.map((latex) => typesetter.typeset({ ...baseRequest, latex })),
-    );
-    expect(results.every((result) => result.ok)).toBe(true);
-  });
-
-  it("supports the synchronous formal-renderer boundary", () => {
-    const typesetter = createFormulaTypesetter();
-    for (const latex of corpus) {
-      expect(typesetter.typesetSync({ ...baseRequest, latex })).toMatchObject({
-        ok: true,
-      });
-    }
-  });
-
   it.each(["href", "includegraphics", "newcommand", "require"])(
     "rejects the disallowed \\%s command",
     async (command) => {

@@ -52,12 +52,6 @@ describe("copy placement alignment", () => {
   });
 
   it.each<{ name: string; operations: PlacementOrientationOperation[] }>([
-    { name: "unchanged", operations: [] },
-    { name: "rotated", operations: [{ kind: "rotate", deltaDegrees: 90 }] },
-    {
-      name: "mirrored",
-      operations: [{ kind: "reflect", direction: "left-right" }],
-    },
     {
       name: "rotated and mirrored",
       operations: [

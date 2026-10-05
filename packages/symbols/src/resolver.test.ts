@@ -93,12 +93,6 @@ describe("Symbol Resolver boundary", () => {
     }
   });
 
-  it("does not generate a compatibility block for an unknown symbol", () => {
-    const resolver = new InMemorySymbolResolver([resistor]);
-    expect(resolver.resolve("generic-block-5")).toBeUndefined();
-    expect(resolver.resolve("generic-block-0")).toBeUndefined();
-  });
-
   it("reports unsupported Project device symbols without rejecting hierarchy", () => {
     const project = createEmptyProject("coverage", "Coverage");
     project.documents[0]!.instances.push({

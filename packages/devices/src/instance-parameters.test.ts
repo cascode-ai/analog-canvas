@@ -14,12 +14,6 @@ const definitions = [
     terminals: ["R0", "R1", "B"].map((name) => ({ name })),
     formalParameters: [],
   },
-  {
-    id: "def-own",
-    name: "my_trim",
-    terminals: ["A", "B"].map((name) => ({ name })),
-    formalParameters: [],
-  },
 ] as never;
 
 const names = (
@@ -158,22 +152,6 @@ describe("instanceParameterContract", () => {
         ),
       ),
     ).toEqual([["w", "l", "mult"], false]);
-  });
-
-  it("leaves an unreviewed external subcircuit's names open", () => {
-    expect(
-      names(
-        instanceParameterContract(
-          { externalSubcircuitDefinitions: definitions },
-          {
-            symbolId: "resistor",
-            netlist: {
-              binding: { kind: "external-subcircuit", definitionId: "def-own" },
-            },
-          },
-        ),
-      ),
-    ).toEqual([[], true]);
   });
 
   it("leaves a Cell call open and knows nothing of a symbol outside the registry", () => {

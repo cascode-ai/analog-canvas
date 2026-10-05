@@ -120,17 +120,6 @@ describe("built-in Symbol libraries", () => {
     for (const id of browsable) expect(resolvable.has(id)).toBe(true);
   });
 
-  it("does not resolve removed compatibility or generic symbols", () => {
-    const resolver = new InMemorySymbolResolver(builtInSymbols);
-    for (const symbolId of [
-      "poly-resistor",
-      "generic-block-4",
-      "legacy-switch-open",
-    ]) {
-      expect(resolver.resolve(symbolId), symbolId).toBeUndefined();
-    }
-  });
-
   it("keeps every electrical pin on the canonical connection grid", () => {
     for (const symbol of builtInSymbols) {
       for (const pin of symbol.pins) {

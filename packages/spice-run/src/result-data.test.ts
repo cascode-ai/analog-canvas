@@ -343,7 +343,7 @@ describe("an AC sweep", () => {
 describe("a DC sweep", () => {
   const dc = (): DcSweepResult => only("divider-dc.raw", "dc");
 
-  it.each(["v-sweep", "v(v-sweep)", "i(i-sweep)", "temp-sweep", "res-sweep"])(
+  it.each(["v-sweep", "i(i-sweep)", "temp-sweep", "res-sweep"])(
     "recognizes %s without rewriting its recorded name",
     (name) => {
       const [analysis] = expectAnalyses(

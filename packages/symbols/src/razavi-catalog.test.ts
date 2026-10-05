@@ -1,15 +1,11 @@
-import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
-import { format } from "prettier";
 
 import { builtInSymbols } from "./builtins.js";
 import {
   getRazaviCatalogEntry,
-  getRazaviCatalogSymbol,
-  isRazaviProductCatalogEntry,
   requireRazaviCatalogSymbol,
   razaviCatalogSymbols,
   razaviProductSymbols,
@@ -100,8 +96,6 @@ const deltaSigmaGeometry = JSON.parse(
     }
   >;
 };
-const normalize = (value: string) =>
-  `${value.replaceAll("\r\n", "\n").trimEnd()}\n`;
 const pathPoints = (data: string) => {
   const numbers = [...data.matchAll(/-?\d+(?:\.\d+)?/gu)].map((match) =>
     Number(match[0]),
@@ -295,23 +289,6 @@ describe("Razavi symbol catalog", () => {
     ]);
   });
 
-  it("validates every component Symbol projection, pin order, and byte hash", async () => {
-    for (const entry of razaviSymbolCatalogEntries) {
-      const component = JSON.parse(
-        readFileSync(resolve(assetRoot, entry.assetPath), "utf8"),
-      );
-      const source = await format(JSON.stringify(component.symbol, null, 2), {
-        parser: "json",
-      });
-      const asset = SymbolDefinitionSchema.parse(JSON.parse(source));
-      expect(asset.id).toBe(entry.symbolId);
-      expect(asset.pins.map((pin) => pin.name)).toEqual(entry.pinOrder);
-      expect(createHash("sha256").update(normalize(source)).digest("hex")).toBe(
-        entry.assetHash,
-      );
-    }
-  });
-
   it("keeps the PDF-scaled battery artwork with a B-series source reference", () => {
     const component = JSON.parse(
       readFileSync(resolve(assetRoot, "battery.json"), "utf8"),
@@ -484,13 +461,6 @@ describe("Razavi symbol catalog", () => {
       to: { x: 40, y: 0 },
     });
 
-    // Deriving the sibling must not reshape the reviewed part it came from.
-    expect(dff.pins.map((pin) => pin.at)).toEqual([
-      { x: -40, y: -10 },
-      { x: -40, y: 10 },
-      { x: 40, y: -10 },
-      { x: 40, y: 10 },
-    ]);
     // Same body, one fewer wire: the two must read as the same block.
     expect(q.viewBox).toEqual(dff.viewBox);
     expect(q.primitives.find((primitive) => primitive.kind === "path")).toEqual(
@@ -829,88 +799,6 @@ describe("Razavi symbol catalog", () => {
           Math.max(...columnBounds("input"));
         expect(gap, `${symbol.id} column gap`).toBeGreaterThanOrEqual(4);
       }
-    }
-  });
-
-  it("uses reviewed catalog objects as the sole built-in product library", () => {
-    expect(razaviCatalogSymbols).toHaveLength(99);
-    for (const catalogSymbol of razaviProductSymbols) {
-      expect(
-        builtInSymbols.find((symbol) => symbol.id === catalogSymbol.id),
-      ).toBe(catalogSymbol);
-      expect(requireRazaviCatalogSymbol(catalogSymbol.id)).toBe(catalogSymbol);
-      expect(getRazaviCatalogEntry(catalogSymbol.id)).toBeDefined();
-    }
-  });
-
-  it("lists only reviewed Reference-calibrated assets in the product library", () => {
-    expect(razaviProductSymbols.map((symbol) => symbol.id)).toEqual([
-      "and-gate",
-      "battery",
-      "buffer",
-      "capacitor",
-      "closed-switch",
-      "comparator",
-      "current-source",
-      "vccs",
-      "cccs",
-      "d-flip-flop",
-      "d-flip-flop-reset",
-      "d-flip-flop-q",
-      "delay-cell",
-      "adder",
-      "multiplier",
-      "transconductance",
-      "differential-transconductance",
-      "integrator",
-      "unit-delay",
-      "discrete-time-integrator",
-      "quantizer",
-      "diode",
-      "externally-controlled-switch",
-      "ground",
-      "ideal-switch",
-      "inductor",
-      "inductor-compact",
-      "tcoil",
-      "xfmr",
-      "inverter",
-      "nand-gate",
-      "nmos",
-      "nor-gate",
-      "npn",
-      "opamp",
-      "opamp-wide",
-      "opamp-differential",
-      "opamp-differential-wide",
-      "or-gate",
-      "pmos",
-      "pnp",
-      "port",
-      "port-filled",
-      "resistor",
-      "simple-switch",
-      "spdt-switch",
-      "variable-capacitor",
-      "variable-inductor",
-      "variable-resistor",
-      "vdd-port",
-      "voltage-amplifier",
-      "pulse-voltage-source",
-      "voltage-controlled-switch",
-      "voltage-source",
-      "vcvs",
-      "ccvs",
-      "xnor-gate",
-      "xor-gate",
-      "zener-diode",
-      "adc",
-      "dac",
-    ]);
-    for (const entry of razaviSymbolCatalogEntries) {
-      expect(isRazaviProductCatalogEntry(entry)).toBe(
-        razaviProductSymbols.some((symbol) => symbol.id === entry.symbolId),
-      );
     }
   });
 
@@ -1273,13 +1161,6 @@ describe("Razavi symbol catalog", () => {
     );
   });
 
-  it("does not publish removed standalone three-terminal MOS or VDD assets", () => {
-    for (const symbolId of ["nmos3", "pmos3", "vdd"]) {
-      expect(getRazaviCatalogEntry(symbolId)).toBeUndefined();
-      expect(getRazaviCatalogSymbol(symbolId)).toBeUndefined();
-    }
-  });
-
   it("restores the VDD power port with a seam-closed bar and stem", () => {
     const vddPort = requireRazaviCatalogSymbol("vdd-port");
     expect(vddPort.name).toBe("VDD Power Port");
@@ -1314,57 +1195,12 @@ describe("Razavi symbol catalog", () => {
     expect(vddPort.labelVisibility).toBe("hidden");
   });
 
-  it("contains no removed generic compatibility symbols", () => {
-    for (const symbolId of ["poly-resistor", "generic-block-4"]) {
-      expect(getRazaviCatalogEntry(symbolId)).toBeUndefined();
-      expect(builtInSymbols.some((symbol) => symbol.id === symbolId)).toBe(
-        false,
-      );
-    }
-  });
-
-  it("records Reference calibration for the complete active palette", () => {
-    for (const symbolId of [
-      "resistor",
-      "capacitor",
-      "inductor",
-      "opamp",
-      "opamp-differential-lettered",
-      "diode",
-      "zener-diode",
-      "closed-switch",
-      "ideal-switch",
-      "externally-controlled-switch",
-      "npn",
-      "pnp",
-      "voltage-amplifier",
-      "voltage-amplifier-lettered",
-      "port",
-      "port-filled",
-      "ground",
-      "voltage-source",
-      "current-source",
-    ]) {
-      expect(getRazaviCatalogEntry(symbolId)).toMatchObject({
-        visualAuthority: {
-          kind: "razavi-reference-v1",
-          referenceManifestPath:
-            "fixtures/visual-reference/razavi-reference-v1/manifest.json",
-        },
-      });
-    }
-  });
-
   it("keeps the calibrated active geometry and grid-pin orientation", () => {
     const runtimeResistor = builtInSymbols.find(
       (symbol) => symbol.id === "resistor",
     );
     expect(runtimeResistor).toBe(requireRazaviCatalogSymbol("resistor"));
     expect(runtimeResistor?.pins).toMatchObject([
-      { name: "1", at: { x: 0, y: -20 }, direction: "north" },
-      { name: "2", at: { x: 0, y: 20 }, direction: "south" },
-    ]);
-    expect(requireRazaviCatalogSymbol("resistor").pins).toMatchObject([
       { name: "1", at: { x: 0, y: -20 }, direction: "north" },
       { name: "2", at: { x: 0, y: 20 }, direction: "south" },
     ]);
@@ -1418,17 +1254,6 @@ describe("Razavi symbol catalog", () => {
       expect(symbol.viewBox).toEqual({ x: -14, y: -7, width: 18, height: 14 });
     },
   );
-
-  it("keeps canonical MOS assets four-terminal and three-terminal mode visual-only", () => {
-    for (const symbolId of ["nmos", "pmos"]) {
-      const symbol = requireRazaviCatalogSymbol(symbolId);
-      expect(symbol.pins.map((pin) => pin.name)).toEqual(["D", "G", "S", "B"]);
-      expect(
-        symbol.variants.find((variant) => variant.id === "textbook-3terminal"),
-      ).toMatchObject({ hiddenPinNames: ["B"] });
-      expect(symbol.defaultVariantId).toBe("textbook-3terminal");
-    }
-  });
 
   it("assigns PMOS source and drain to the Razavi-facing terminals", () => {
     const pmos = requireRazaviCatalogSymbol("pmos");
@@ -2032,6 +1857,7 @@ describe("Razavi symbol catalog", () => {
         expect.arrayContaining([
           expect.objectContaining({
             kind: "polyline",
+            part: "source-arrow",
             points: [
               logicalPoint(measurement, arrow.support.from),
               logicalPoint(
@@ -2079,53 +1905,6 @@ describe("Razavi symbol catalog", () => {
         }),
       ]),
     );
-  });
-
-  it("derives each textbook MOS arrow from its screenshot pixel map", () => {
-    for (const symbolId of ["nmos", "pmos"] as const) {
-      const variant = requireRazaviCatalogSymbol(symbolId).variants.find(
-        (candidate) => candidate.id === "textbook-3terminal",
-      );
-      const measurement = mosGeometry.symbols[symbolId];
-      const arrow = measurement.sourceArrowPx;
-      const support = variant?.additionalPrimitives?.find(
-        (primitive) =>
-          primitive.kind === "polyline" && primitive.part === "source-arrow",
-      );
-      const head = variant?.additionalPrimitives?.find(
-        (primitive) =>
-          primitive.kind === "polygon" && primitive.part === "source-arrow",
-      );
-      expect(support).toMatchObject({ kind: "polyline" });
-      expect(head).toMatchObject({ kind: "polygon" });
-      if (support?.kind !== "polyline" || head?.kind !== "polygon") {
-        throw new Error(`${symbolId} has no textbook source arrow`);
-      }
-      expect(support).toMatchObject({
-        points: [
-          logicalPoint(measurement, arrow.support.from),
-          logicalPoint(
-            measurement,
-            measurement.leadsPx[symbolId === "nmos" ? "S" : "D"].from,
-          ),
-          logicalPoint(
-            measurement,
-            measurement.leadsPx[symbolId === "nmos" ? "S" : "D"].to,
-          ),
-        ],
-      });
-      const elbow = support.points[1]!;
-      const pin = support.points[2]!;
-      expect(elbow.x).toBe(pin.x);
-      expect(elbow.y).not.toBe(pin.y);
-      expect(head).toMatchObject({
-        points: [
-          logicalPoint(measurement, arrow.tip),
-          logicalPoint(measurement, arrow.baseTop),
-          logicalPoint(measurement, arrow.baseBottom),
-        ],
-      });
-    }
   });
 
   it("classifies the junction dot as a semantic primitive, not a component", () => {

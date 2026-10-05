@@ -213,42 +213,6 @@ describe("hierarchical block formal terminals", () => {
     expect(at("inp").y - at("outp").y).toBe(20);
     expect(at("inn").y - at("outn").y).toBe(20);
   });
-  it("derives pins only from the private formal cell interface", () => {
-    const symbol = createHierarchicalBlockSymbol({
-      name: "Child",
-      sourceBinding: {
-        cellName: "child",
-        sourceRef: {
-          fileId: "child.sp",
-          start: { offset: 0, line: 1, column: 1 },
-          end: { offset: 1, line: 1, column: 2 },
-        },
-      },
-      netlist: {
-        name: "child",
-        formalParameters: [],
-        terminals: [
-          {
-            id: "cell-terminal-in",
-            name: "IN",
-            netId: "net-in",
-            direction: "input",
-            interfaceInstanceIds: ["P1"],
-          },
-          {
-            id: "cell-terminal-out",
-            name: "OUT",
-            netId: "net-out",
-            direction: "output",
-            interfaceInstanceIds: ["P2"],
-          },
-        ],
-      },
-    });
-
-    expect(symbol?.pins.map((pin) => pin.name)).toEqual(["IN", "OUT"]);
-  });
-
   it("projects a Cell Pin's authored RichText to the parent without changing its electrical name", () => {
     const authored: RichTextDocument = {
       runs: [

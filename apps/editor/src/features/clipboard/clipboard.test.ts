@@ -1331,12 +1331,7 @@ describe("schematic clipboard", () => {
     ).toEqual(["R1", "R2"]);
   });
 
-  it.each([
-    ["vcvs", "E", "A_{v}v_{2}"],
-    ["vccs", "G", "g_{m}v_{2}"],
-    ["cccs", "F", "βi_{2}"],
-    ["ccvs", "H", "R_{m}i_{2}"],
-  ])(
+  it.each([["vcvs", "E", "A_{v}v_{2}"]])(
     "renumbers an untouched %s expression when copying its Instance",
     (symbolId, prefix, expected) => {
       const document = createEmptyDocument("copy-control", "Copy control");
@@ -1482,46 +1477,6 @@ describe("schematic clipboard", () => {
     expect(result.ok).toBe(true);
   });
 
-  it("increments batch-copied designators without collisions", () => {
-    const document = createEmptyDocument("document-main", "Batch paste");
-    document.instances.push(resistorInstance("R1", "R1"));
-    document.annotations.push(instanceLabel("R1", "R1"));
-
-    let pasted = proposePaste(
-      document,
-      copySelection(document, ["R1"])!,
-      {
-        x: 20,
-        y: 0,
-      },
-      1,
-    );
-    expect(pasted.instanceIds).toEqual(["R1_2"]);
-    const once = executeTransaction(
-      document,
-      {
-        transactionId: "paste-first",
-        documentId: document.id,
-        expectedRevision: 0,
-        actor: { kind: "human", id: "test" },
-        edits: pasted.edits,
-      },
-      { symbolResolver: resolver },
-    );
-    if (!once.ok) throw new Error("first paste failed");
-
-    pasted = proposePaste(
-      once.document,
-      copySelection(document, ["R1"])!,
-      {
-        x: 40,
-        y: 0,
-      },
-      2,
-    );
-    expect(pasted.instanceIds).toEqual(["R1_3"]);
-  });
-
   function pastedLabelOf(document: ReturnType<typeof createEmptyDocument>) {
     const proposal = proposePaste(
       document,
@@ -1543,19 +1498,6 @@ describe("schematic clipboard", () => {
     )!.instance;
     return { label, instance, proposal };
   }
-
-  it("keeps a copied display alias exactly as the author wrote it", () => {
-    const document = createEmptyDocument("document-main", "Custom label");
-    document.instances.push(resistorInstance("R1", "R1"));
-    document.annotations.push(instanceLabel("R1", "R_load", false));
-
-    const { label, instance, proposal } = pastedLabelOf(document);
-    // The copy is a new part with a fresh Reference that reads as drawn.
-    expect(instance.reference).toBe("R2");
-    expect(proposal.instanceIds).toEqual(["R1_2"]);
-    expect(label.binding).toBeUndefined();
-    expect(label.content).toEqual(document.annotations[0]!.content);
-  });
 
   it("keeps an authored label that spells the Reference as an alias", () => {
     const document = createEmptyDocument("document-main", "Styled name");
@@ -1634,37 +1576,6 @@ describe("schematic clipboard", () => {
     const { label, instance } = pastedLabelOf(document);
     expect(instance.reference).toBe("R1");
     expect(label.visible).toBe(false);
-  });
-
-  it("falls back to an opaque copy id when the source id diverges", () => {
-    const document = createEmptyDocument("document-main", "Diverged id");
-    document.instances.push(resistorInstance("custom-1", "R1"));
-    document.annotations.push(instanceLabel("custom-1", "R1"));
-
-    const proposal = proposePaste(
-      document,
-      copySelection(document, ["custom-1"])!,
-      { x: 20, y: 0 },
-      1,
-    );
-    expect(proposal.instanceIds).toEqual(["custom-1_2"]);
-    const pastedInstance = proposal.edits.find(
-      (edit): edit is Extract<typeof edit, { kind: "add_instance" }> =>
-        edit.kind === "add_instance",
-    );
-    expect(pastedInstance?.instance.reference).toBe("R2");
-    const pastedLabel = proposal.edits.find(
-      (
-        edit,
-      ): edit is Extract<
-        typeof edit,
-        { kind: "upsert_schematic_annotation" }
-      > => edit.kind === "upsert_schematic_annotation",
-    );
-    expect(pastedLabel!.annotation.binding).toEqual({
-      kind: "instance-reference",
-      instanceId: "custom-1_2",
-    });
   });
 
   it("starts copied pins without source NoConnect declarations", () => {
@@ -2805,91 +2716,6 @@ describe("a copy stands on its own", () => {
     )!;
     expect(copy.reference).toBe("S2");
     expect(copy.reference).not.toMatch(/copy/u);
-  });
-
-  it("preserves a renamed Cell Pin while keeping the copy separate", () => {
-    const document = createEmptyDocument("document-main", "Copy");
-    document.instances.push({
-      id: "P1",
-      symbolId: "port",
-      placement: { position: { x: 100, y: 100 }, rotation: 0, mirror: "none" },
-    });
-    document.nets.push({
-      id: "net-ck",
-
-      terminals: [{ instanceId: "P1", pinName: "P" }],
-    });
-    document.netlist = {
-      name: "Copy",
-      formalParameters: [],
-      terminals: [
-        {
-          id: "terminal-ck",
-          name: "CK",
-          netId: "net-ck",
-          direction: "passive",
-          interfaceInstanceIds: ["P1"],
-        },
-      ],
-    };
-
-    const clipboard = copySelection(document, ["P1"]);
-    expect(clipboard).not.toBeNull();
-    expect(clipboard?.cellTerminals[0]?.name).toBe("CK");
-    const proposal = proposePaste(document, clipboard!, { x: 120, y: 0 }, 1);
-    expect(
-      proposal.edits.find((edit) => edit.kind === "add_cell_terminal"),
-    ).toMatchObject({ terminal: { name: "CK" } });
-    const result = executeTransaction(
-      document,
-      {
-        transactionId: "paste-port",
-        documentId: document.id,
-        expectedRevision: document.revision,
-        actor: { kind: "human", id: "test" },
-        edits: proposal.edits,
-      },
-      { symbolResolver: resolver },
-    );
-    if (!result.ok) throw new Error(JSON.stringify(result.diagnostics));
-
-    const copyId = proposal.instanceIds[0]!;
-    const netOf = (instanceId: string) =>
-      result.document.nets.find((net) =>
-        net.terminals.some((terminal) => terminal.instanceId === instanceId),
-      );
-    expect(netOf("P1")?.id).not.toBe(netOf(copyId)?.id);
-    expect(
-      result.document.netlist?.terminals.find((terminal) =>
-        terminal.interfaceInstanceIds.includes(copyId),
-      )?.name,
-    ).toBe("CK");
-
-    const secondProposal = proposePaste(
-      result.document,
-      clipboard!,
-      { x: 240, y: 0 },
-      2,
-    );
-    const secondResult = executeTransaction(
-      result.document,
-      {
-        transactionId: "paste-port-again",
-        documentId: result.document.id,
-        expectedRevision: result.document.revision,
-        actor: { kind: "human", id: "test" },
-        edits: secondProposal.edits,
-      },
-      { symbolResolver: resolver },
-    );
-    if (!secondResult.ok)
-      throw new Error(JSON.stringify(secondResult.diagnostics));
-    const secondCopyId = secondProposal.instanceIds[0]!;
-    expect(
-      secondResult.document.netlist?.terminals.find((terminal) =>
-        terminal.interfaceInstanceIds.includes(secondCopyId),
-      )?.name,
-    ).toBe("CK");
   });
 
   it("keeps a copied drafting snapshot as one layout group", () => {

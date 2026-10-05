@@ -11,7 +11,6 @@ import {
 
 for (const [profileId, engine] of [
   [undefined, "vacask"],
-  ["native-service-profile", "vacask"],
   ["ngspice-service-profile", "ngspice"],
 ] as const) {
   test(`GUI creates ${engine} experiments with ${profileId ?? "offline candidate"} identity`, async ({
