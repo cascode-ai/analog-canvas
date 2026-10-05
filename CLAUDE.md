@@ -127,7 +127,6 @@ Dependencies flow strictly downward and pnpm's topological order is the only bui
 - `@icm/edit-engine` — **the sole mutation boundary**: typed schematic edits, dry-run/commit transactions, revision checks, undo history, and planners (routing, power/named nets, references, hierarchy). Both the GUI and the Agent go through it.
 - `@icm/render-svg` — persisted document → formal SVG scene, including rich-text and formula layout.
 - `@icm/exporters` — SVG/PNG/PDF artifacts; browser entries (`./browser`, `./browser-raster`, `./browser-pdf`) plus Node-only `./node` (resvg, pdf-lib).
-- `@icm/timing-simulation` — deterministic digital event simulation (clock, gates, flip-flops; four-state values; integer picoseconds). Its editor UI is experimental and hidden in Cloudflare production builds.
 - `@icm/simulation-service` — shared preparation, managed run lifecycle, measurements and Spec results, outputs, and File artifacts (`./contract`, `./files`).
 - `@icm/agent-adapter` — Agent API 3.0 surface: the Circuit endpoint's four operations (capabilities/snapshot/transact/render) plus the File, Simulation, and Project resources; envelopes, zod+OpenAPI schemas, session state, browser-safe host; `./loopback` and the HTTP Agent Kit payload `./kit`.
 - `@icm/agent-client` — Node-only Agent-side client: HTTP/session clients, credential store, snapshot cache.

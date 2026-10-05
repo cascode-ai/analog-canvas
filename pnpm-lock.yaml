@@ -140,9 +140,6 @@ importers:
       "@icm/symbols":
         specifier: workspace:*
         version: link:../../packages/symbols
-      "@icm/timing-simulation":
-        specifier: workspace:*
-        version: link:../../packages/timing-simulation
       "@lezer/json":
         specifier: 1.0.3
         version: 1.0.3
@@ -477,15 +474,6 @@ importers:
       zod:
         specifier: 4.4.3
         version: 4.4.3
-
-  packages/timing-simulation:
-    dependencies:
-      "@icm/derived":
-        specifier: workspace:*
-        version: link:../derived
-      "@icm/model":
-        specifier: workspace:*
-        version: link:../model
 
 packages:
   "@arnog/colors@0.5.0":
