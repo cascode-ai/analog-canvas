@@ -211,10 +211,13 @@ cross the drawing, such as a cascode bias line reaching both halves of an
 amplifier, name it at each end instead: `connect` the pin to an open
 `{kind:"point"}` a grid step or two out, then `add-label` with the Net's name
 and the pin as its target, `{kind:"pin",instance:"M4",pin:"G"}`, which puts the
-label on that stub; Nets of one name in a Cell are one Net. A name too wide to
-sit clear over the stub stands at its open end, reading outward; where that
-end is crowded too, the label stays on the stub and `VISUAL_LABEL_CLEARANCE`
-says so, so move the parts apart. A trunk and its branches
+label on that stub; Nets of one name in a Cell are one Net. A name that is not
+clear halfway along the stub stands at its open end, reading outward from a
+horizontal stub and beside a vertical one; where that end is crowded too, the
+label stays on the stub and `VISUAL_LABEL_CLEARANCE` says so, so move the
+parts apart. To tie a MOS body to its source, connect B to the source wire a
+step or two below the device (`{kind:"wire-at"}`), which taps it with a dot;
+a wire to the S pin itself has to detour around the device's own lead. A trunk and its branches
 are checked the same way and refused, not bent. This is not a general
 autorouter: conflicting taps or excess expanded edits also reject the whole
 operation. Ordinary crossings without a Junction remain legal. It does not move
