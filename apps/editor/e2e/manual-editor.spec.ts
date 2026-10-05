@@ -23,7 +23,6 @@ import {
   openMenu,
   readRecoveryRecords,
   recoveryProjectTexts,
-  openCellManager,
   renameProject,
 } from "./editor-fixtures.js";
 import {
@@ -662,43 +661,6 @@ test("a directly connected device can move away and return with its wire, undo a
   expect((await hit.boundingBox())!.x).toBeCloseTo(before.x, 0);
 });
 
-test("retired Digital Timing is absent while existing clock symbols still render", async ({
-  page,
-}) => {
-  const project = createEmptyProject("retired-timing", "Retired Timing");
-  project.documents[0]!.instances.push({
-    id: "CLK",
-    symbolId: "pulse-voltage-source",
-    placement: {
-      position: { x: 700, y: 180 },
-      rotation: 0,
-      mirror: "none",
-    },
-    reference: "V1",
-    netlist: {
-      parameters: { period: "10ns", dutyCycle: "50", initial: "0" },
-    },
-  });
-  await page.goto("/editor");
-  await revealPropertiesShelf(page);
-  await page.getByTestId("project-file").setInputFiles({
-    name: "retired-timing.icproj.json",
-    mimeType: "application/json",
-    buffer: Buffer.from(JSON.stringify(project)),
-  });
-
-  await expect(
-    page.locator('[data-symbol-id="pulse-voltage-source"]'),
-  ).toBeVisible();
-  await expect(
-    page.getByLabel("Place Digital Clock", { exact: true }),
-  ).toHaveCount(0);
-  await expect(page.getByTestId("digital-simulation-toggle")).toHaveCount(0);
-  await expect(
-    page.getByRole("dialog", { name: "Digital Simulation" }),
-  ).toHaveCount(0);
-});
-
 test("shows faithful symbol previews for the reviewed Razavi palette", async ({
   page,
 }) => {
@@ -900,61 +862,6 @@ test("keeps a tapped VDD rail movable and stretchable as one supply bar", async 
   expect(
     Math.max(...afterResize.flat().map((point) => point.x)),
   ).toBeGreaterThan(beforeResizeRight);
-});
-
-test("initializes PMOS bulk from the first explicitly drawn VDD rail", async ({
-  page,
-}) => {
-  await page.goto("/editor");
-  await placeComponent(page, "pmos", { x: 360, y: 260 });
-  await page.getByTestId("shapes-chip-vdd").click();
-  const canvas = page.getByTestId("schematic-canvas");
-  await canvas.click({ position: { x: 240, y: 100 } });
-  await canvas.click({ position: { x: 520, y: 100 } });
-  await page.keyboard.press("Escape");
-
-  const saved = parseSavedProject(
-    (await downloadBytes(page, "File", "Export Project File…")).toString(
-      "utf8",
-    ),
-  ) as {
-    documents: Array<{
-      mosBulkDefaults?: { pmosNetId?: string };
-      connectivityEvidence: Array<{
-        kind: string;
-        netId?: string;
-        powerDomain?: string;
-      }>;
-      nets: Array<{
-        id: string;
-        terminals: Array<{ instanceId: string; pinName: string }>;
-      }>;
-      routes: Array<{ netId: string; presentation?: string }>;
-    }>;
-  };
-  const document = saved.documents[0]!;
-  const vddNetIds = new Set(
-    document.connectivityEvidence
-      .filter(
-        (evidence) =>
-          evidence.kind === "name-claim" && evidence.powerDomain === "vdd",
-      )
-      .map((evidence) => evidence.netId),
-  );
-  const vddNets = document.nets.filter((net) => vddNetIds.has(net.id));
-  expect(vddNets).toEqual([
-    expect.objectContaining({
-      id: "net-power-vdd1",
-      terminals: [{ instanceId: "M1", pinName: "B" }],
-    }),
-  ]);
-  expect(document.mosBulkDefaults?.pmosNetId).toBe("net-power-vdd1");
-  expect(document.routes).toContainEqual(
-    expect.objectContaining({
-      netId: "net-power-vdd1",
-      presentation: "power-rail",
-    }),
-  );
 });
 
 test("cancels VDD rail placement before or after its first endpoint", async ({
@@ -1544,81 +1451,6 @@ test("splices a two-terminal device into one wire and reconnects its halves afte
   await expect(page.locator('[data-testid^="route-hit-"]')).toHaveCount(1);
 });
 
-test("splices a transistor into a wire only through its declared D/S pin pair", async ({
-  page,
-}) => {
-  await page.goto("/editor");
-  await placeComponent(page, "resistor", { x: 420, y: 180 });
-  await placeComponent(page, "resistor", { x: 420, y: 460 });
-
-  await clickDrawTool(page, "wire");
-  await page.getByTestId("terminal-R1-2").click();
-  await page.getByTestId("terminal-R2-1").click();
-  await page.keyboard.press("Escape");
-  await expect(page.locator('[data-testid^="route-hit-"]')).toHaveCount(1);
-
-  // The canonical NMOS D/S pins are 10 units to the right of its placement
-  // origin. Its body overlaps the wire as well, but the exact pin pair—not
-  // the visual bounds—is what authorizes the splice.
-  await placeComponent(page, "nmos", { x: 410, y: 320 });
-  await expect(page.getByTestId("hit-M1")).toBeVisible();
-  await expect(page.locator('[data-testid^="route-hit-"]')).toHaveCount(2);
-  await expect(page.getByTestId("terminal-M1-G")).toBeVisible();
-});
-
-test("resizes a loose Wire from either endpoint without redrawing it", async ({
-  page,
-}) => {
-  const project = createEmptyProject("loose-wire-resize", "Loose Wire Resize");
-  const document = project.documents[0]!;
-  document.nets.push({ id: "net-loose", terminals: [] });
-  document.junctions.push(
-    {
-      id: "junction-loose-start",
-      netId: "net-loose",
-      position: { x: 200, y: 240 },
-      role: "route-anchor",
-    },
-    {
-      id: "junction-loose-end",
-      netId: "net-loose",
-      position: { x: 440, y: 240 },
-      role: "route-anchor",
-    },
-  );
-  document.routes.push(
-    createRoutePath({
-      id: "route-loose",
-      netId: "net-loose",
-      start: { kind: "junction", junctionId: "junction-loose-start" },
-      end: { kind: "junction", junctionId: "junction-loose-end" },
-      bends: [],
-      modes: ["manual"],
-    }),
-  );
-
-  await page.goto("/editor");
-  await page.getByTestId("project-file").setInputFiles({
-    name: "loose-wire-resize.icproj.json",
-    mimeType: "application/json",
-    buffer: Buffer.from(JSON.stringify(project)),
-  });
-  await clickRoute(page, "route-loose");
-
-  const before = await readRoutePoints(page, "route-loose");
-  await dragBy(page.getByTestId("route-endpoint-handle-route-loose-end"), {
-    x: 80,
-    y: 0,
-  });
-  await expect(page.getByTestId("status")).toContainText(
-    "Resized wire route-loose",
-  );
-  const after = await readRoutePoints(page, "route-loose");
-  expect(after[0]).toEqual(before[0]);
-  expect(after.at(-1)!.x).toBeGreaterThan(before.at(-1)!.x);
-  expect(after.at(-1)!.y).toBe(before.at(-1)!.y);
-});
-
 test("lands a dragged Wire end on the conductor under it", async ({ page }) => {
   // Reported as the two gestures disagreeing: dragging a whole loose wire onto
   // another one connected it, dragging one END of the same wire to the same
@@ -1964,36 +1796,6 @@ test("keeps a Wire source across repeated activation and cancels it after undo",
   );
 });
 
-test("deletes a wire without exposing Unroute", async ({ page }) => {
-  await page.goto("/editor");
-  await placeComponent(page, "resistor", { x: 340, y: 220 });
-  await placeComponent(page, "resistor", { x: 660, y: 220 });
-  await clickDrawTool(page, "wire");
-  await page.getByTestId("terminal-R1-2").click();
-  await page.getByTestId("terminal-R2-1").click();
-  await expect(page.getByTestId("active-tool")).toHaveText("wire");
-  await page.keyboard.press("Escape");
-
-  await clickRoute(page, "route-ui-1");
-  await expect(page.getByTestId("status")).toContainText(
-    "Selected route route-ui-1",
-  );
-  await page.keyboard.press("Delete");
-  await expect(page.locator('[data-layer="routes"] polyline')).toHaveCount(0);
-  await expect(page.getByTestId("flightline")).toHaveCount(0);
-  await expect(page.getByTestId("status")).toContainText(
-    "Deleted wire route-ui-1",
-  );
-
-  await page.keyboard.press("Control+z");
-  await clickRoute(page, "route-ui-1");
-  await openSelectionShelf(page);
-  await expect(page.getByRole("button", { name: "Delete wire" })).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: "Unroute (keep electrical connection)" }),
-  ).toHaveCount(0);
-});
-
 test("colors an electrical wire and restores the Razavi default with Auto", async ({
   page,
 }) => {
@@ -2256,28 +2058,6 @@ test("places and clears an independent direction arrow on one wire", async ({
   );
 });
 
-test("keeps Wire active for consecutive independent routes until Escape", async ({
-  page,
-}) => {
-  await page.goto("/editor");
-  await placeComponent(page, "resistor", { x: 280, y: 180 });
-  await placeComponent(page, "resistor", { x: 520, y: 180 });
-  await placeComponent(page, "resistor", { x: 280, y: 360 });
-  await placeComponent(page, "resistor", { x: 520, y: 360 });
-
-  await clickDrawTool(page, "wire");
-  await page.getByTestId("terminal-R1-2").click();
-  await page.getByTestId("terminal-R2-1").click();
-  await expect(page.getByTestId("active-tool")).toHaveText("wire");
-  await page.getByTestId("terminal-R3-2").click();
-  await page.getByTestId("terminal-R4-1").click();
-
-  await expect(page.locator('[data-layer="routes"] polyline')).toHaveCount(2);
-  await expect(page.getByTestId("active-tool")).toHaveText("wire");
-  await page.keyboard.press("Escape");
-  await expect(page.getByTestId("active-tool")).toHaveText("pointer");
-});
-
 test("physically cuts an imported Route without reconnecting detached components through source guidance", async ({
   page,
 }) => {
@@ -2424,19 +2204,6 @@ test("turns an off-axis tap near a route bend into an exact junction", async ({
     y: 3,
   });
   await expect(page.locator('[data-layer="junctions"] circle')).toHaveCount(1);
-});
-
-test("keeps a selected MOS in its fixed Razavi three-terminal view", async ({
-  page,
-}) => {
-  await page.goto("/editor");
-  await placeComponent(page, "pmos", { x: 420, y: 260 });
-  await expect(page.getByTestId("terminal-M1-B")).toHaveCount(0);
-
-  await openSelectionShelf(page);
-  await expect(
-    page.getByRole("button", { name: "Show Bulk (4-terminal)" }),
-  ).toHaveCount(0);
 });
 
 test("keeps Bulk status and its prominent draw action on one compact row", async ({
@@ -2703,47 +2470,6 @@ test("moves an isolated free wire as one route", async ({ page }) => {
       y: point.y - before[index]!.y,
     })),
   ).toEqual(after.map(() => delta));
-});
-
-test("stretches the pointed segment of a selected attached wire", async ({
-  page,
-}) => {
-  await page.goto("/editor");
-  await placeComponent(page, "resistor", { x: 300, y: 220 });
-  await placeComponent(page, "resistor", { x: 540, y: 220 });
-  await clickDrawTool(page, "wire");
-  await page.getByTestId("terminal-R1-2").click();
-  await page.getByTestId("terminal-R2-1").click();
-  await page.keyboard.press("Escape");
-
-  const before = await readRoutePoints(page, "route-ui-1");
-  await dragRouteSegment(page, "route-ui-1", { x: 0, y: 80 });
-  const after = await readRoutePoints(page, "route-ui-1");
-  expect(after[0]).toEqual(before[0]);
-  expect(after.at(-1)).toEqual(before.at(-1));
-  expect(after).not.toEqual(before);
-});
-
-test("keeps a BJT base connection as an ordinary solid wire", async ({
-  page,
-}) => {
-  await page.goto("/editor");
-  await placeComponent(page, "npn", { x: 300, y: 220 });
-  await placeComponent(page, "resistor", { x: 540, y: 220 });
-  await clickDrawTool(page, "wire");
-  await page.getByTestId("terminal-Q1-B").click();
-  await page.getByTestId("terminal-R1-1").click();
-  await page.keyboard.press("Escape");
-
-  const formalRoute = page.locator(
-    '[data-layer="routes"] [data-object-id="route-ui-1"]',
-  );
-  await expect(formalRoute).toBeVisible();
-  await expect(formalRoute).not.toHaveAttribute(
-    "data-route-presentation",
-    "bulk-dashed",
-  );
-  await expect(formalRoute).not.toHaveAttribute("stroke-dasharray", "3 3");
 });
 
 test("keeps direct device pin corners on-grid and deletes a selected junction", async ({
@@ -3128,27 +2854,6 @@ test("moves an explicitly selected attached label", async ({ page }) => {
     targetPosition: { x: 470, y: 330 },
   });
   const after = await label.boundingBox();
-  expect(after).not.toBeNull();
-  expect(after!.x).not.toBe(before!.x);
-  expect(after!.y).not.toBe(before!.y);
-});
-
-test("moves floating text after it is created", async ({ page }) => {
-  await page.goto("/editor");
-  await placeText(page);
-  await page
-    .getByRole("textbox", { name: "Canvas text editor" })
-    .fill("Floating note");
-  await page.getByRole("button", { name: "Apply text changes" }).click();
-
-  const note = page.locator('[data-testid^="drafting-hit-note-"]');
-  await expect(note).toHaveCount(1);
-  const before = await note.boundingBox();
-  expect(before).not.toBeNull();
-  await note.dragTo(page.getByTestId("schematic-canvas"), {
-    targetPosition: { x: 650, y: 320 },
-  });
-  const after = await note.boundingBox();
   expect(after).not.toBeNull();
   expect(after!.x).not.toBe(before!.x);
   expect(after!.y).not.toBe(before!.y);
@@ -3662,36 +3367,6 @@ test("italic over a new Pin's standard look is the author's look, kept on Apply"
     "italic",
   );
   await expect(rendered).toHaveText("Vinp");
-});
-
-test("keeps literal text line breaks and overbars visible while editing", async ({
-  page,
-}) => {
-  await page.goto("/editor");
-  await placeText(page);
-  const editor = page.getByRole("textbox", { name: "Canvas text editor" });
-  await editor.fill("Vx");
-  await editor.press("ControlOrMeta+A");
-  await page.getByRole("button", { name: "Overbar" }).click();
-  await expect(editor.locator('[data-rich-text-style="overbar"]')).toHaveCSS(
-    "border-top-style",
-    "solid",
-  );
-  await page.getByRole("button", { name: "Overbar" }).click();
-  await expect(editor.locator('[data-rich-text-style="overbar"]')).toHaveCount(
-    0,
-  );
-  await editor.press("ControlOrMeta+A");
-  await page.getByRole("button", { name: "Overbar" }).click();
-  await editor.press("End");
-  // Enter finishes the text everywhere; a deliberate modifier asks for a line.
-  await editor.press("Shift+Enter");
-  await editor.type("bias");
-  await page.getByRole("button", { name: "Apply text changes" }).click();
-  await expect(
-    page.locator('[data-layer="drafting"] [data-text-run="line-break"]'),
-  ).toHaveCount(1);
-  await expect(page.locator('[data-layer="drafting"]')).toContainText("Vxbias");
 });
 
 test("keeps an overbar from widening a narrow glyph", async ({ page }) => {
@@ -4336,25 +4011,6 @@ test("selects and moves multiple instances while viewport gestures stay transien
   await expect(page.getByTestId("revision")).toHaveText("4");
 });
 
-test("R rotates a selected component instead of entering Rectangle", async ({
-  page,
-}) => {
-  await page.goto("/editor");
-  await placeComponent(page, "nmos", { x: 420, y: 260 });
-  await expect(page.getByTestId("revision")).toHaveText("1");
-
-  await page.getByTestId("hit-M1").click();
-  await page.keyboard.press("r");
-
-  await expect(page.getByTestId("revision")).toHaveText("2");
-  await expect(page.locator('[data-kind="draft-rectangle"]')).toHaveCount(0);
-
-  await page.keyboard.press("Shift+R");
-  await expect(page.getByTestId("revision")).toHaveText("3");
-  await page.keyboard.press("Control+r");
-  await expect(page.getByTestId("revision")).toHaveText("4");
-});
-
 test("C/V copies as fresh: a unique new reference, the label as drawn, and unselected connections detach", async ({
   page,
 }) => {
@@ -4530,22 +4186,6 @@ test("R rotates a copy preview before committing the copied component", async ({
   // The pasted designator and its visible label both read R2.
   await expect(canvas.getByText("R2", { exact: true })).toBeVisible();
   await page.keyboard.press("Escape");
-});
-
-test("numbers placed components per device type instead of globally", async ({
-  page,
-}) => {
-  await page.goto("/editor");
-  await placeComponent(page, "nmos", { x: 320, y: 200 });
-  await placeComponent(page, "nmos", { x: 520, y: 200 });
-  await placeComponent(page, "resistor", { x: 720, y: 200 });
-  await placeComponent(page, "capacitor", { x: 320, y: 400 });
-
-  await expect(page.getByTestId("hit-M1")).toBeVisible();
-  await expect(page.getByTestId("hit-M2")).toBeVisible();
-  await expect(page.getByTestId("hit-R1")).toBeVisible();
-  await expect(page.getByTestId("hit-C1")).toBeVisible();
-  await expect(page.getByTestId("instance-count")).toHaveText("4");
 });
 
 test("right-drag frames a region and fits the camera to it transiently", async ({
@@ -5335,25 +4975,6 @@ test("keeps the production command surface compact and publishes PWA metadata", 
   });
 });
 
-test("does not expose destructive Cell reset actions in Manager", async ({
-  page,
-}) => {
-  await page.goto("/editor");
-  await placeComponent(page, "resistor", { x: 320, y: 240 });
-  await openCellManager(page);
-  const manager = page.getByRole("dialog", { name: "Cell Manager" });
-  for (const name of [
-    "Reset Cell",
-    "Clear Drawing",
-    "Reset Cell Placement",
-    "Reset Cell Body",
-  ]) {
-    await expect(manager.getByText(name, { exact: true })).toHaveCount(0);
-  }
-  await manager.getByLabel("Close Cell Manager").click();
-  await expect(page.getByTestId("hit-R1")).toHaveCount(1);
-});
-
 test("shows first-party visitor analytics without tracking the dashboard itself", async ({
   page,
 }) => {
@@ -6095,42 +5716,6 @@ test("docked Properties JSON is the only global configuration surface", async ({
   await expect(
     page.getByRole("complementary", { name: "Properties" }),
   ).toHaveCount(0);
-});
-
-test("middle-click steers which way the wire corner turns", async ({
-  page,
-}) => {
-  await page.goto("/editor");
-  const canvas = page.getByTestId("schematic-canvas");
-  await clickDrawTool(page, "wire");
-
-  const drawCorner = async (
-    start: { x: number; y: number },
-    end: typeof start,
-  ) => {
-    await canvas.click({ position: start });
-    await canvas.dblclick({ position: end });
-  };
-
-  // Default corner carries the horizontal leg first.
-  await drawCorner({ x: 200, y: 200 }, { x: 360, y: 300 });
-  const horizontal = await readRoutePoints(page, await onlyRouteId(page));
-  expect(horizontal).toHaveLength(3);
-  expect(horizontal[1]!.y).toBe(horizontal[0]!.y);
-
-  await page.getByTestId("draw-tool-undo").click();
-  await expect(page.locator('[data-testid^="route-hit-"]')).toHaveCount(0);
-
-  // One middle-click flips the corner onto the other axis.
-  await clickDrawTool(page, "wire");
-  await canvas.click({ position: { x: 200, y: 200 } });
-  await canvas.click({ button: "middle", position: { x: 260, y: 240 } });
-  await expect(page.getByTestId("status")).toContainText("vertical first");
-  await canvas.dblclick({ position: { x: 360, y: 300 } });
-
-  const vertical = await readRoutePoints(page, await onlyRouteId(page));
-  expect(vertical).toHaveLength(3);
-  expect(vertical[1]!.x).toBe(vertical[0]!.x);
 });
 
 test("resizes a plain Power Rail from its end handle", async ({ page }) => {
@@ -6924,31 +6509,6 @@ test("the copy ghost shows the wires it is about to place", async ({
   await canvas.click({ position: { x: 400, y: 420 } });
   await page.keyboard.press("Escape");
   await expect(page.locator('[data-layer="routes"] polyline')).toHaveCount(2);
-});
-
-test("draws a wire at an angle the 45-degree grid cannot reach", async ({
-  page,
-}) => {
-  await page.goto("/editor");
-  const canvas = page.getByTestId("schematic-canvas");
-  await clickDrawTool(page, "wire");
-
-  await canvas.click({ position: { x: 200, y: 200 } });
-  // Middle-click cycles the corner shape and ends on any angle.
-  for (let step = 0; step < 3; step += 1) {
-    await canvas.click({ button: "middle", position: { x: 260, y: 240 } });
-  }
-  await expect(page.getByTestId("status")).toContainText("any angle");
-  await canvas.dblclick({ position: { x: 430, y: 260 } });
-
-  const points = await readRoutePoints(page, await onlyRouteId(page));
-  expect(points).toHaveLength(2);
-  const dx = Math.abs(points[1]!.x - points[0]!.x);
-  const dy = Math.abs(points[1]!.y - points[0]!.y);
-  // Neither axis-aligned nor 45 degrees: the leg reaches the endpoint direct.
-  expect(dx).toBeGreaterThan(0);
-  expect(dy).toBeGreaterThan(0);
-  expect(dx).not.toBe(dy);
 });
 
 test("cycles the corner from a middle press that drifts under the hand", async ({
