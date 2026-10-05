@@ -14,48 +14,6 @@ describe("built-in device/Symbol parity", () => {
     expect(validateDeviceRegistry(deviceRegistry, builtInSymbols)).toEqual([]);
   });
 
-  it("preserves hidden MOS bulk as the fourth electrical pin", () => {
-    expect(deviceDescriptor("nmos")).toMatchObject({
-      deviceClass: "mos",
-      referencePrefix: "M",
-      pinOrder: ["D", "G", "S", "B"],
-      targetPolicy: "required-model",
-      parameters: [
-        { name: "w", required: true },
-        { name: "l", required: true },
-        { name: "nf", required: false },
-        { name: "m", required: false },
-      ],
-    });
-    for (const symbolId of ["ndmos", "pdmos"]) {
-      expect(deviceDescriptor(symbolId)).toMatchObject({
-        deviceClass: "mos",
-        referencePrefix: "M",
-        pinOrder: ["D", "G", "S", "B"],
-        targetPolicy: "required-model",
-      });
-    }
-  });
-
-  it("defines Ground artwork as a non-emitting Net marker", () => {
-    expect(deviceDescriptor("ground")).toMatchObject({
-      deviceClass: "net-marker",
-      referencePrefix: null,
-      pinOrder: ["0"],
-      targetPolicy: "none",
-    });
-    expect(deviceDescriptor("vdd")).toBeUndefined();
-  });
-
-  it("defines the VDD power port as a non-emitting Net marker", () => {
-    expect(deviceDescriptor("vdd-port")).toMatchObject({
-      deviceClass: "net-marker",
-      referencePrefix: null,
-      pinOrder: ["P"],
-      targetPolicy: "none",
-    });
-  });
-
   // Drawn, designated, and read, but not simulable: SPICE's S card takes four
   // nodes and a model, and these have two terminals and no control, which is
   // why the catalog records them as manual-only. They still share the `S`

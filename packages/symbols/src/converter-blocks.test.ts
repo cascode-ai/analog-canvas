@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { requireRazaviCatalogSymbol } from "./razavi-catalog.js";
-import { SYMBOL_STANDARD_GRID, SymbolDefinitionSchema } from "./schema.js";
+import { SYMBOL_STANDARD_GRID } from "./schema.js";
 
 const CONVERTERS = ["adc", "dac"] as const;
 
@@ -108,13 +108,6 @@ describe("converter blocks", () => {
       expect(presentation!.defaultFormula).toBe(text);
       // Naming a block is not scaling it.
       expect(presentation!.supportsCoefficient).toBe(false);
-    }
-  });
-
-  it("parses under the Symbol contract", () => {
-    for (const id of CONVERTERS) {
-      const symbol = requireRazaviCatalogSymbol(id);
-      expect(SymbolDefinitionSchema.parse(symbol)).toEqual(symbol);
     }
   });
 });

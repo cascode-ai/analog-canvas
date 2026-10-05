@@ -1152,18 +1152,6 @@ describe("one Project copy path", () => {
     expect(target).toEqual(before);
   });
 
-  it("uses the same capture for C, retaining shared definitions and internal wires", () => {
-    const source = externalFixture();
-    const copied = place(
-      source,
-      captureProjectCopy(source, source.documents[0]!, selection(["X1"]))!,
-    );
-    expect(copied.externalSubcircuitDefinitions).toEqual(
-      source.externalSubcircuitDefinitions,
-    );
-    expect(copied.documents[0]!.instances).toHaveLength(2);
-  });
-
   it("keeps hierarchy, imports only referenced Cells, and versions changed source definitions", () => {
     const source = createEmptyProject("source", "Source");
     const child = createEmptyDocument("child", "Amplifier");

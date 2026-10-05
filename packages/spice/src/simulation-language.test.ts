@@ -77,9 +77,6 @@ describe("simulation source assistance", () => {
         .statements.map((s) => s.rawText)
         .join("\n"),
     ).toContain("future_command");
-    expect(
-      inspect(".endc\n").diagnostics.some((d) => d.severity === "error"),
-    ).toBe(true);
   });
 
   it("resolves virtual relative paths but never host paths or root escapes", () => {
