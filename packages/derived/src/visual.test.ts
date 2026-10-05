@@ -297,6 +297,43 @@ describe("visual quality diagnostics", () => {
     ).toEqual([]);
   });
 
+  it("reports a wire leaving an op-amp's input back across its own triangle (#1301)", () => {
+    // IN+ lands at (-40,10) on an op-amp at the origin; its triangle spans
+    // x -30..22.
+    const wired = (end: { x: number; y: number }) => {
+      const document = createEmptyDocument("doc", "Own body");
+      document.instances.push({
+        id: "X1",
+        symbolId: "opamp",
+        placement: { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+      });
+      document.nets.push({
+        id: "n",
+        terminals: [{ instanceId: "X1", pinName: "IN+" }],
+      });
+      document.junctions.push({ id: "end", netId: "n", position: end });
+      document.routes.push(
+        createRoutePath({
+          id: "w",
+          netId: "n",
+          start: { kind: "terminal", instanceId: "X1", pinName: "IN+" },
+          end: { kind: "junction", junctionId: "end" },
+          bends: [],
+          modes: ["manual"],
+        }),
+      );
+      return diagnoseVisualQuality(document, resolver).filter(
+        (item) => item.code === "VISUAL_WIRE_THROUGH_SYMBOL",
+      );
+    };
+    expect(wired({ x: -100, y: 10 })).toEqual([]);
+    // Information, not a warning: drawings often run a bias line on through
+    // the transistor its gate is on.
+    expect(wired({ x: 60, y: 10 })).toMatchObject([
+      { objectIds: ["w", "X1"], severity: "info" },
+    ]);
+  });
+
   it("reports a wire through a MOS, not one grazing its edge from a pin or toward its gate", () => {
     // An NMOS at the origin: D (10,-20), G (-20,0), S (10,20).
     const document = createEmptyDocument("doc", "MOS edges");

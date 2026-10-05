@@ -497,23 +497,31 @@ function pushRoutingQualityMetrics(
             })
           : [...boundsById].map(([id, bounds]) => ({ id, bounds }));
       for (const { id: instanceId, bounds: box } of candidateBounds) {
-        if (
-          (index === 1 && fromTerminalInstances.has(instanceId)) ||
-          (index === centerline.length - 1 &&
-            toTerminalInstances.has(instanceId))
-        ) {
-          continue;
-        }
-        if (
-          segmentIntersectsRect(from, to, insetRect(box, WIRE_THROUGH_INSET))
-        ) {
+        const inner = insetRect(box, WIRE_THROUGH_INSET);
+        // A wire leaving the part's own pin is judged too: back across the
+        // body is still through it (#1301). Only a pin inside the body, such
+        // as a bulk at a transistor's centre, must start within it.
+        const ownPin =
+          index === 1 && fromTerminalInstances.has(instanceId)
+            ? from
+            : index === centerline.length - 1 &&
+                toTerminalInstances.has(instanceId)
+              ? to
+              : undefined;
+        if (ownPin && pointInsideRect(ownPin, inner)) continue;
+        if (segmentIntersectsRect(from, to, inner)) {
+          // Back across the part a wire starts from is information: drawn
+          // drawings often run a bias line from one gate through its own
+          // transistor to the next (850 in the Gallery of 2026-10-04).
           diagnostics.push({
             code: "VISUAL_WIRE_THROUGH_SYMBOL",
-            severity: "warning",
+            severity: ownPin ? "info" : "warning",
             category: "observation",
             confidence: "low",
             gateEligible: false,
-            message: `Route ${route.id} passes through instance ${instanceId}`,
+            message: ownPin
+              ? `Route ${route.id} runs back across its own part ${instanceId}`
+              : `Route ${route.id} passes through instance ${instanceId}`,
             objectIds: [route.id, instanceId],
             bounds: box,
             parameters: { segmentIndex: index - 1 },
@@ -662,6 +670,15 @@ function candidateRoutesAtPoint(
  * latch were reported as through M3 and M4.
  */
 const WIRE_THROUGH_INSET = 1.5;
+
+function pointInsideRect(point: Point, box: Rect): boolean {
+  return (
+    point.x > box.x &&
+    point.x < box.x + box.width &&
+    point.y > box.y &&
+    point.y < box.y + box.height
+  );
+}
 
 function insetRect(box: Rect, inset: number): Rect {
   return {
