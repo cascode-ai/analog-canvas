@@ -194,7 +194,10 @@ A formula block (catalog `formula: true`: integrator, unit delay, discrete-time
 integrator, transconductance) takes `signalFlow:{formula?, coefficient?,
 bodyWidth?, bodyHeight?}` on `place-component`, and `set-signal-flow` changes
 them later (`null` clears one; a new formula drops the old formula's look, as
-the Properties formula does). These are drawing text, never netlist parameters:
+the Properties formula does). A formula is compact text, not TeX: `^` raises
+and a single `_` lowers the next term, a longer script groups in parentheses
+or braces (`g_m`, `g_(m1)`, `g_{m1}`, `z^-1`), and one top-level `/` makes a
+fraction (`1/s`). These are drawing text, never netlist parameters:
 `set-property` on a part without netlist parameters names `set-signal-flow`.
 `set-display-alias {target, text}` draws a part's name label as other text
 while its Reference (or Pin name) stays in the netlist, as the Properties

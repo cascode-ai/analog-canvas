@@ -10,6 +10,9 @@ not visual quality or electrical performance.
 `proposedRevision`. `diff.changedObjectIds` identifies touched objects.
 `resolvedRoutes` gives their normalized route polylines; inspect it after moving
 instances or editing paths. Do not count a dry-run as a committed change.
+MCP receipts count the Cell's `errors` and `warnings`; `unwiredPins` says how
+many of those errors are pins not wired yet (`MISSING_PIN_NET`), as most are
+while a circuit is being drawn. Errors beyond that count need attention now.
 
 MCP receipts also identify stages such as compile and commit; an explicit
 `dryRun` request is not committed and reports `applied: false`. A

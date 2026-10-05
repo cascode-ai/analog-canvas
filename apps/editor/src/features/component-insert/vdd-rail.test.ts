@@ -39,6 +39,7 @@ import {
   constrainedPowerRailEndpoint,
   constructVddRailEdits,
   planVddRailEdits,
+  railSupplyPinEdits,
 } from "./vdd-rail";
 
 import {
@@ -1314,5 +1315,54 @@ describe("Power Rail pin contacts", () => {
     expect(netOf(history.document, "M2", "S")).toBeUndefined();
     expect(transact([{ kind: "redo" }]).ok).toBe(true);
     expectSourcesOnRail(history.document);
+  });
+});
+
+describe("a rail's VDD Pin on the Cell's block (#1257)", () => {
+  it("goes on top of a Cell no parent has placed, and leaves a placed Cell's block alone", () => {
+    const project = createEmptyProject("project", "Project");
+    const cell = project.documents[0]!;
+    const plan = planVddRailEdits(cell, {
+      instanceId: "VDD1",
+      start: { x: 0, y: -60 },
+      end: { x: 100, y: -60 },
+    });
+    if (!plan.ok) throw new Error(plan.message);
+    const edits = [...plan.edits, ...railSupplyPinEdits(project, cell, plan)];
+    const result = executeTransaction(
+      cell,
+      {
+        transactionId: "rail",
+        documentId: cell.id,
+        expectedRevision: cell.revision,
+        actor: { kind: "human", id: "test" },
+        edits,
+      },
+      { symbolResolver: resolver },
+    );
+    expect(result.ok, JSON.stringify(result)).toBe(true);
+    if (!result.ok) return;
+    const terminal = result.document.netlist!.terminals.find(
+      (item) => item.name === "VDD",
+    )!;
+    expect(result.document.presentation.cellSymbol?.pinPlacements).toEqual([
+      { terminalId: terminal.id, side: "north", offset: 0 },
+    ]);
+
+    // Once a parent has drawn the Cell, its block keeps the layout that
+    // drawing was made with.
+    const parent = createEmptyDocument("parent", "Parent");
+    parent.instances.push({
+      id: "X1",
+      symbolId: `cell:${cell.id}`,
+      reference: "X1",
+      placement: { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+      netlist: {
+        parameters: {},
+        binding: { kind: "subcircuit", childDocumentId: cell.id },
+      },
+    } as never);
+    project.documents.push(parent);
+    expect(railSupplyPinEdits(project, cell, plan)).toEqual([]);
   });
 });

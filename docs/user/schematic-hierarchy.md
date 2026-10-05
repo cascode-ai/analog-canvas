@@ -136,6 +136,10 @@ first Pin fixes that Port's order and spelling. Grouping does not rewrite the
 canvas objects, but the logical connection is real, including during export.
 Different Port names on the same internal Net remain separate interface pins.
 Moving a symbol pin to another side changes geometry, not the netlist port order.
+A supply Pin added to a Cell that no parent has placed yet starts on the block's
+edge, as textbooks draw it: a VDD Port, VDD Power marker or VDD Power Rail on
+top, a ground-named Pin below. Once a parent has placed the Cell, new Pins no
+longer move its block's existing layout.
 If a wire touches a Cell Pin, any ordinary Net Label on that logical Net must
 use the Pin's formal name (case-insensitively). A different Label name is
 rejected as a name conflict so it cannot silently connect the Pin to remote

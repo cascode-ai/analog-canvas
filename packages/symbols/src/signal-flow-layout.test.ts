@@ -204,6 +204,16 @@ describe("Symbol body text as RichText", () => {
     expect(parseSignalFlowInline("a_b_c")).toEqual([
       { kind: "text", value: "a_b_c" },
     ]);
+    // A script groups in parentheses, or in braces as TeX writes it.
+    for (const formula of ["g_(m1)", "g_{m1}"])
+      expect(parseSignalFlowInline(formula)).toEqual([
+        { kind: "text", value: "g" },
+        { kind: "subscript", value: "m1" },
+      ]);
+    expect(parseSignalFlowInline("z^{-1}")).toEqual([
+      { kind: "text", value: "z" },
+      { kind: "superscript", value: "-1" },
+    ]);
   });
 
   // Typed body text is stored as compact source, so the scripts and fraction

@@ -101,7 +101,10 @@ import {
   netLabelPlacementTargetAtPoint,
 } from "../features/wiring/route-interaction-geometry";
 import { planPlacedCellPin } from "../features/component-insert/cell-pin-placement";
-import { planVddRailEdits } from "../features/component-insert/vdd-rail";
+import {
+  planVddRailEdits,
+  railSupplyPinEdits,
+} from "../features/component-insert/vdd-rail";
 import { planInitialMosBulkDefault } from "../features/component-insert/mos-bulk-defaults";
 import { placedInstanceNetlist } from "../features/component-insert/placed-instance-netlist";
 import { initialInstanceNetlist } from "../features/netlist-export/netlist-authoring";
@@ -528,7 +531,9 @@ export function planBrowserAgentCommand(
         ...(command.scope ? { scope: command.scope } : {}),
       });
       if (!plan.ok) throw new Error(plan.message);
-      return { edits: [...plan.edits] };
+      return {
+        edits: [...plan.edits, ...railSupplyPinEdits(project, document, plan)],
+      };
     }
     case "extend-power-rail":
       return {
