@@ -15,7 +15,6 @@ an index for change impact, not a claim that the listed suites are exhaustive.
 | Analog Simulation deck compilation and source/probe mapping      | `packages/netlist/src/{simulation-compile,source-waveform}.test.ts`                                                | existing Agent Simulation browser workflow                      |
 | Analog Simulation execution, lifecycle, and artifact contracts   | `packages/simulation-service/src/*.test.ts`                                                                        | existing Agent/MCP and browser wiring checks                    |
 | ngspice process/environment; ngspice/VACASK rawfile and results  | `packages/spice-run/src/*.test.ts`                                                                                 | qualified fixture and hosted smoke checks                       |
-| Digital Timing Simulation logic and waveform projection          | `packages/timing-simulation/src/*.test.ts` and focused Editor timing tests                                         | development-only timing window workflow                         |
 | Agent authentication, permissions, and session lifetime          | `packages/agent-adapter/src/{session-state,service,request-contract}.test.ts`                                      | browser Agent session workflow                                  |
 | Browser recovery and persistence hardening                       | editor document unit contracts                                                                                     | recovery dialog and hardening Playwright specs                  |
 | User-visible editing workflows                                   | focused editor unit contracts                                                                                      | `apps/editor/e2e/` scenarios                                    |
@@ -26,12 +25,12 @@ for the shared fact. Do not duplicate all lower-level cases in Playwright.
 
 ## Simulation vocabulary
 
-`Timing Simulation` means the deterministic digital timing engine in
-`packages/timing-simulation`. `Analog Simulation` means the structured Canvas
-to ngspice or VACASK path owned by `packages/netlist`,
-`packages/simulation-service`, and `packages/spice-run`. Tests and documentation
-must use those names instead of the unqualified word "simulation" when the
-distinction matters.
+`Analog Simulation` means the structured Canvas to ngspice or VACASK path owned
+by `packages/netlist`, `packages/simulation-service`, and `packages/spice-run`.
+Clock sources, logic gates and flip-flops use their registered analog models
+through this same path; there is no separate digital event engine. Model
+interfaces and generation are protected by the netlist model-contract tests;
+actual electrical behavior is qualified separately with a named simulator.
 
 Recorded ngspice rawfiles are parser and numerical-reference fixtures. Package
 builders are unit or module-contract fixtures. A browser Project is a workflow

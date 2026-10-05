@@ -54,7 +54,7 @@ and Durable Object storage. `src/` and the top-level Worker only mount it.
   - `search/`: the Project search dialog.
   - `selection/`: visual selection, deletion, geometry, and inspector details.
   - `simulation/`: the analog Simulation workspace, run history and results,
-    and the local-development digital timing panel.
+    source editing and waveform export/placement.
   - `text-editing/`: annotation and drafting-text editing.
   - `user-components/`: code and preview authoring, the public component library,
     shared definition contracts, and instance-isolated application.
@@ -136,8 +136,7 @@ to these owners:
 - `editor-properties.css`: editable properties and their derived context.
 - `editor-dialogs.css`: editor-owned modal workflows.
 - `editor-agent.css`: agent session presentation.
-- `editor-simulation.css`: the Simulation workspace and the local-development
-  timing tool window.
+- `editor-simulation.css`: the Simulation workspace, results and waveform tools.
 - `editor-accessibility.css`: the cross-cutting reduced-motion policy.
 - `editor-context-menu.css`: the canvas context menu.
 

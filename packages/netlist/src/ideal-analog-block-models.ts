@@ -1,12 +1,10 @@
 import { deriveStableId, type CircuitProject } from "@icm/model";
 import {
-  ADDER_SYMBOL_ID,
   ADDER_TARGET,
   adderBodyFor,
   adderBodySigns,
   adderInputSigns,
   builtInModelContract,
-  subcircuitDescriptor,
   type BuiltInSubcircuitDescriptor,
   type InputSign,
 } from "@icm/devices";
@@ -75,48 +73,6 @@ export function builtInBlockCallTarget(
   return body === ADDER_TARGET ? target : body;
 }
 
-type IdealBlockTarget =
-  | "opamp"
-  | "opamp_differential"
-  | "voltage_amplifier"
-  | "transconductance"
-  | "differential_transconductance"
-  | typeof ADDER_TARGET;
-
-const MODELS: Record<
-  IdealBlockTarget,
-  {
-    symbolId: string;
-    ports: readonly string[];
-  }
-> = {
-  opamp: {
-    symbolId: "opamp",
-    ports: ["VDD", "VSS", "VIP", "VIN", "VOUT"],
-  },
-  opamp_differential: {
-    symbolId: "opamp-differential",
-    ports: ["VDD", "VSS", "VIP", "VIN", "VOP", "VON"],
-  },
-  voltage_amplifier: {
-    symbolId: "voltage-amplifier",
-    ports: ["VDD", "VSS", "VIN", "VOUT"],
-  },
-  transconductance: {
-    symbolId: "transconductance",
-    ports: ["VDD", "VSS", "VIN", "VOUT"],
-  },
-  differential_transconductance: {
-    symbolId: "differential-transconductance",
-    ports: ["VDD", "VSS", "VIP", "VIN", "VOUT"],
-  },
-  // The signal-flow summing node: linear, so SPICE and Spectre share it.
-  [ADDER_TARGET]: {
-    symbolId: ADDER_SYMBOL_ID,
-    ports: ["VDD", "VSS", "A", "B", "Y"],
-  },
-};
-
 function controlledSource(
   target: string,
   reference: string,
@@ -159,21 +115,12 @@ export function idealAnalogBlockCell(
   // body and are never a SPICE parameter of it.
   const adderSigns = adderBodySigns(target);
   const name = adderSigns ? ADDER_TARGET : target;
-  if (!Object.hasOwn(MODELS, name)) return null;
-  const model = MODELS[name as IdealBlockTarget];
-  const parameter = adderSigns
-    ? undefined
-    : builtInModelContract(name)?.parameters[0];
+  const model = builtInModelContract(name);
+  if (model?.family !== "linear") return null;
+  const ports = model.ports.map((port) => port.name);
+  const parameter = adderSigns ? undefined : model.parameters[0];
   if (!adderSigns && !parameter)
     throw new Error(`Ideal analog model has no parameter: ${name}`);
-  const descriptor = subcircuitDescriptor(model.symbolId);
-  if (
-    !descriptor ||
-    descriptor.target !== name ||
-    descriptor.ports.map((port) => port.name).join(",") !==
-      model.ports.join(",")
-  )
-    throw new Error(`Ideal analog model interface drifted: ${name}`);
 
   const e = (
     reference: string,
@@ -198,16 +145,16 @@ export function idealAnalogBlockCell(
         e("ESUMA", ["Y", "nsum", "A", "0"], gain(adderSigns[0])),
         e("ESUMB", ["nsum", "0", "B", "0"], gain(adderSigns[1])),
       ]
-    : name === "opamp"
+    : model.implementation === "opamp"
       ? [e("ECORE", ["VOUT", "0", "VIP", "VIN"])]
-      : name === "opamp_differential"
+      : model.implementation === "opamp_differential"
         ? [
             e("EPLUS", ["VOP", "0", "VIP", "VIN"], "gain/2"),
             e("EMINUS", ["VON", "0", "VIN", "VIP"], "gain/2"),
           ]
-        : name === "voltage_amplifier"
+        : model.implementation === "voltage_amplifier"
           ? [e("ECORE", ["VOUT", "0", "VIN", "0"])]
-          : name === "transconductance"
+          : model.implementation === "transconductance"
             ? [g(["0", "VOUT", "VIN", "0"])]
             : [g(["0", "VOUT", "VIP", "VIN"])];
 
@@ -215,13 +162,13 @@ export function idealAnalogBlockCell(
     origin: "generated-model",
     id: deriveStableId("netlist-ideal-block-cell", target),
     name: target,
-    ports: model.ports.map((port, index) => ({
+    ports: ports.map((port, index) => ({
       id: deriveStableId("netlist-ideal-block-port", target, String(index)),
       name: port,
       netName: port,
     })),
     nets: [
-      ...model.ports.map((port, index) => ({
+      ...ports.map((port, index) => ({
         id: deriveStableId("netlist-ideal-block-net", target, String(index)),
         name: port,
         scope: "local" as const,

@@ -1,8 +1,11 @@
-import { builtInModelDefaults, subcircuitDescriptor } from "@icm/devices";
+import {
+  builtInModelContract,
+  builtInModelContracts,
+  builtInModelDefaults,
+} from "@icm/devices";
 import {
   voltage,
   printSpiceBehavioralModel,
-  type BehavioralElement,
   type BehavioralModel,
 } from "./behavioral-model.js";
 
@@ -21,12 +24,6 @@ import {
  *   the quantized input.
  */
 
-type SignalModel = {
-  symbolId: string;
-  ports: readonly string[];
-  body: readonly BehavioralElement[];
-};
-
 /** Full scale, kept off zero while the supplies settle. */
 const RANGE = "max(V(VDD,VSS),1u)";
 const LEVELS = "pow(2,bits)";
@@ -39,50 +36,30 @@ const quantizer = [
   ),
 ];
 
-const MODELS: Readonly<Record<string, SignalModel>> = {
-  multiplier: {
-    symbolId: "multiplier",
-    ports: ["VDD", "VSS", "A", "B", "Y"],
-    body: [voltage("BY", "Y", "0", "gain*V(A)*V(B)")],
-  },
-  adc: {
-    symbolId: "adc",
-    ports: ["VDD", "VSS", "VIN", "VOUT"],
-    body: quantizer,
-  },
-  dac: {
-    symbolId: "dac",
-    ports: ["VDD", "VSS", "VIN", "VOUT"],
-    body: quantizer,
-  },
-};
-
 /** Every subcircuit target this module gives a body. */
-export const IDEAL_SIGNAL_TARGETS: readonly string[] = Object.keys(MODELS);
+export const IDEAL_SIGNAL_TARGETS: readonly string[] = builtInModelContracts
+  .filter((model) => model.family === "signal")
+  .map((model) => model.target);
 
 /** The `.subckt` text of one block, ready for an ngspice file. */
 export function idealSignalModel(target: string): BehavioralModel {
-  const model = MODELS[target];
-  if (!model) throw new Error(`No ideal signal model: ${target}`);
-  const descriptor = subcircuitDescriptor(model.symbolId);
-  if (
-    !descriptor ||
-    descriptor.target !== target ||
-    descriptor.ports.map((port) => port.name).join(",") !==
-      model.ports.join(",")
-  )
-    throw new Error(`Ideal signal model interface drifted: ${target}`);
+  const model = builtInModelContract(target);
+  if (model?.family !== "signal")
+    throw new Error(`No ideal signal model: ${target}`);
   return {
     name: target,
-    ports: model.ports,
+    ports: model.ports.map((port) => port.name),
     comment:
-      target === "multiplier"
+      model.implementation === "multiplier"
         ? "Ideal multiplier: V(Y) = gain*V(A)*V(B) from ground"
         : `Ideal ${target.toUpperCase()}: 2^bits levels between VSS and VDD, no clock`,
     parameters: Object.entries(builtInModelDefaults(target)).map(
       ([name, defaultValue]) => ({ name, defaultValue }),
     ),
-    elements: model.body,
+    elements:
+      model.implementation === "multiplier"
+        ? [voltage("BY", "Y", "0", "gain*V(A)*V(B)")]
+        : quantizer,
   };
 }
 

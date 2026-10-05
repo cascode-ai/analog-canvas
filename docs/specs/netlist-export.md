@@ -235,8 +235,15 @@ an explicitly selected external master or child Cell is never replaced by a
 built-in model. [Instance parameter contracts](../../packages/devices/src/instance-parameters.ts)
 serve Properties, Agent validation, ERC and editable generated Circuit source.
 [Built-in model contracts](../../packages/devices/src/built-in-model-contracts.ts)
-own family, backend availability and complete parameter metadata/defaults;
-family factories own equations. Known model parameters are editable in Circuit
+own explicit implementation selectors, family, backend availability and complete
+parameter metadata/defaults. Their ordered interfaces come from the canonical
+component subcircuit definitions; family factories consume them rather than
+redeclaring port arrays or target inventories. Artwork aliases share the same
+master interface. The isolated comparator selects only the canonical signal
+ports, without changing the historical five-port external comparator. Internal
+switch control ports and magnetic lowering remain separate electrical interfaces,
+not inferred from visible Symbol pins. Family factories own equations, and
+backend printers own syntax. Known model parameters are editable in Circuit
 source and write back to the same `Instance.netlist.parameters`. Custom and
 unreviewed external/Cell parameter sets remain open. No new persisted schema,
 global supply declaration or parallel legacy implementation is introduced.

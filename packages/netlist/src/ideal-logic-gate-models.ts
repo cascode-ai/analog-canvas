@@ -1,4 +1,9 @@
-import { builtInModelDefaults, subcircuitDescriptor } from "@icm/devices";
+import {
+  builtInModelContract,
+  builtInModelContracts,
+  builtInModelDefaults,
+  type BuiltInModelRecipe,
+} from "@icm/devices";
 import {
   voltage,
   current,
@@ -26,106 +31,22 @@ import {
  */
 
 type Combinational = {
-  kind: "combinational";
-  symbolId: string;
   inputs: readonly string[];
-  fn: "inverter" | "buffer" | "and" | "nand" | "or" | "nor" | "xor" | "xnor";
+  fn: Exclude<
+    Extract<BuiltInModelRecipe, { family: "logic" }>["implementation"],
+    "flip-flop"
+  >;
 };
 
 type FlipFlop = {
-  kind: "flip-flop";
-  symbolId: string;
   reset: boolean;
   complement: boolean;
 };
 
-type LogicModel = Combinational | FlipFlop;
-
-const INPUTS = [
-  ["", ["A", "B"]],
-  ["_3", ["A", "B", "C"]],
-  ["_4", ["A", "B", "C", "D"]],
-] as const;
-
-const MODELS: Readonly<Record<string, LogicModel>> = Object.fromEntries([
-  [
-    "inverter",
-    {
-      kind: "combinational",
-      symbolId: "inverter",
-      inputs: ["A"],
-      fn: "inverter",
-    },
-  ],
-  [
-    "buffer",
-    { kind: "combinational", symbolId: "buffer", inputs: ["A"], fn: "buffer" },
-  ],
-  ...(["and", "nand", "or", "nor", "xor", "xnor"] as const).flatMap((fn) =>
-    INPUTS.map(([suffix, inputs]) => [
-      `${fn}_gate${suffix}`,
-      {
-        kind: "combinational",
-        symbolId: `${fn}-gate${suffix.replace("_", "-")}`,
-        inputs,
-        fn,
-      },
-    ]),
-  ),
-  [
-    "d_flip_flop",
-    {
-      kind: "flip-flop",
-      symbolId: "d-flip-flop",
-      reset: false,
-      complement: true,
-    },
-  ],
-  [
-    "d_flip_flop_q",
-    {
-      kind: "flip-flop",
-      symbolId: "d-flip-flop-q",
-      reset: false,
-      complement: false,
-    },
-  ],
-  [
-    "d_flip_flop_reset",
-    {
-      kind: "flip-flop",
-      symbolId: "d-flip-flop-reset",
-      reset: true,
-      complement: true,
-    },
-  ],
-]);
-
 /** Every subcircuit target this module gives a body. */
-export const IDEAL_LOGIC_TARGETS: readonly string[] = Object.keys(MODELS);
-
-function modelPorts(target: string, model: LogicModel): readonly string[] {
-  const ports =
-    model.kind === "combinational"
-      ? ["VDD", "VSS", ...model.inputs, "Y"]
-      : [
-          "VDD",
-          "VSS",
-          "D",
-          "CK",
-          ...(model.reset ? ["RST"] : []),
-          "Q",
-          ...(model.complement ? ["QBAR"] : []),
-        ];
-  const descriptor = subcircuitDescriptor(model.symbolId);
-  if (
-    !descriptor ||
-    descriptor.target !== target ||
-    descriptor.ports.map((port) => port.name).join(",") !== ports.join(",")
-  )
-    throw new Error(`Ideal logic model interface drifted: ${target}`);
-  return ports;
-}
+export const IDEAL_LOGIC_TARGETS: readonly string[] = builtInModelContracts
+  .filter((model) => model.family === "logic")
+  .map((model) => model.target);
 
 /** An input's logic level, 0..1 volts on an internal node. */
 const level = (pin: string) =>
@@ -218,9 +139,10 @@ function flipFlopBody(model: FlipFlop): BehavioralElement[] {
 
 /** The `.subckt` text of one gate or flip-flop, ready for an ngspice file. */
 export function idealLogicModel(target: string): BehavioralModel {
-  const model = MODELS[target];
-  if (!model) throw new Error(`No ideal logic model: ${target}`);
-  const ports = modelPorts(target, model);
+  const model = builtInModelContract(target);
+  if (model?.family !== "logic")
+    throw new Error(`No ideal logic model: ${target}`);
+  const ports = model.ports.map((port) => port.name);
   return {
     name: target,
     ports,
@@ -229,9 +151,17 @@ export function idealLogicModel(target: string): BehavioralModel {
       ([name, defaultValue]) => ({ name, defaultValue }),
     ),
     elements:
-      model.kind === "combinational"
-        ? combinationalBody(model)
-        : flipFlopBody(model),
+      model.implementation === "flip-flop"
+        ? flipFlopBody({
+            reset: ports.includes("RST"),
+            complement: ports.includes("QBAR"),
+          })
+        : combinationalBody({
+            fn: model.implementation,
+            inputs: model.ports
+              .filter((port) => port.direction === "input")
+              .map((port) => port.name),
+          }),
   };
 }
 
