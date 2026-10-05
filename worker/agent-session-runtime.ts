@@ -576,37 +576,3 @@ export function redeemClaimResponse(
       }
     : errorBody(result.code, errorMessage(result.code));
 }
-
-export async function forwardCircuitRequest(
-  machine: AgentSessionMachine,
-  token: string,
-  requestId: string,
-  payloadBytes: number,
-  payload: unknown,
-  now: number,
-  forward: (payload: unknown) => Promise<unknown>,
-  payloadHash = requestId,
-): Promise<{ ok: true; result: unknown } | RelayError> {
-  const auth = machine.authorize(token, now);
-  if (!auth.ok) return errorBody(auth.code, errorMessage(auth.code));
-  const size = machine.checkSize(payloadBytes);
-  if (!size.ok) return errorBody(size.code, errorMessage(size.code));
-  const begin = machine.beginRequest(requestId, now, payloadHash);
-  if (begin.kind === "rejected") {
-    return errorBody(begin.code, errorMessage(begin.code));
-  }
-  if (begin.kind === "cached") return { ok: true, result: begin.result };
-  try {
-    const result = await forward(payload);
-    machine.completeRequest(requestId, result, Date.now());
-    return { ok: true, result };
-  } catch (error) {
-    machine.failRequest(requestId);
-    throw error;
-  }
-}
-
-export function revokeSession(machine: AgentSessionMachine): { ok: true } {
-  machine.revoke();
-  return { ok: true };
-}

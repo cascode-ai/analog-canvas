@@ -37,10 +37,8 @@ import {
 
 import {
   AgentSessionDO,
-  forwardCircuitRequest,
   redeemClaimResponse,
   relayHeaders,
-  revokeSession,
   routeAgentSessionRequest,
   type AgentSessionNamespaceLike,
 } from "./agent-session";
@@ -203,20 +201,6 @@ function folder() {
   };
 }
 
-function tokenFor(
-  machine: AgentSessionMachine,
-  code: string,
-  now: number,
-): string {
-  const redeemed = machine.redeemClaim(code, now);
-  if (!redeemed.ok) throw new Error("claim failed in fixture");
-  return redeemed.claim.agentToken;
-}
-
-// WP-WA4: the relay orchestration (authorize → size → idempotency → forward →
-// cache) is tested with an injected forward callback; the real Cloudflare
-// WebSocket browser channel is the deployment-verified transport.
-
 describe("agent-session relay", () => {
   it("redeems a valid claim again by replacing the prior bearer", () => {
     const { machine, session, now } = folder();
@@ -234,156 +218,6 @@ describe("agent-session relay", () => {
     expect(retry.agentToken).not.toBe(first.agentToken);
     expect(machine.authorize(first.agentToken, now()).ok).toBe(false);
     expect(machine.authorize(retry.agentToken, now()).ok).toBe(true);
-  });
-
-  it("forwards an authorized request and caches its result", async () => {
-    const { machine, session, now } = folder();
-    const token = tokenFor(machine, session.claimCode, now());
-    const forward = vi.fn(async () => ({ revision: 9 }));
-
-    const result = await forwardCircuitRequest(
-      machine,
-      token,
-      "request-1",
-      10,
-      { example: true },
-      now(),
-      forward,
-    );
-
-    expect(result.ok).toBe(true);
-    if (result.ok) expect(result.result).toEqual({ revision: 9 });
-    expect(forward).toHaveBeenCalledTimes(1);
-  });
-
-  it("serves the cached result on retry and never calls forward again", async () => {
-    const { machine, session, now } = folder();
-    const token = tokenFor(machine, session.claimCode, now());
-    const forward = vi.fn(async () => ({ revision: 9 }));
-
-    await forwardCircuitRequest(
-      machine,
-      token,
-      "request-1",
-      10,
-      {},
-      now(),
-      forward,
-    );
-    const replay = await forwardCircuitRequest(
-      machine,
-      token,
-      "request-1",
-      10,
-      {},
-      now(),
-      forward,
-    );
-
-    expect(replay.ok).toBe(true);
-    if (replay.ok) expect(replay.result).toEqual({ revision: 9 });
-    expect(forward).toHaveBeenCalledTimes(1);
-  });
-
-  it("does not forward a concurrent duplicate request", async () => {
-    const { machine, session, now } = folder();
-    const token = tokenFor(machine, session.claimCode, now());
-    let release!: () => void;
-    const gate = new Promise<void>((resolve) => {
-      release = resolve;
-    });
-    const forward = vi.fn(async () => {
-      await gate;
-      return { revision: 9 };
-    });
-    const first = forwardCircuitRequest(
-      machine,
-      token,
-      "request-1",
-      10,
-      {},
-      now(),
-      forward,
-      "payload-a",
-    );
-    await Promise.resolve();
-    const duplicate = await forwardCircuitRequest(
-      machine,
-      token,
-      "request-1",
-      10,
-      {},
-      now(),
-      forward,
-      "payload-a",
-    );
-    expect(duplicate).toMatchObject({
-      ok: false,
-      error: { code: "REQUEST_IN_PROGRESS" },
-    });
-    expect(forward).toHaveBeenCalledTimes(1);
-    release();
-    await first;
-  });
-
-  it("rejects an oversized payload before forwarding", async () => {
-    const { machine, session, now } = folder();
-    const token = tokenFor(machine, session.claimCode, now());
-    const forward = vi.fn(async () => "should-not-run");
-
-    const result = await forwardCircuitRequest(
-      machine,
-      token,
-      "request-big",
-      129, // maxRequestBytes is 128
-      {},
-      now(),
-      forward,
-    );
-
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error.code).toBe("REQUEST_TOO_LARGE");
-    expect(forward).not.toHaveBeenCalled();
-  });
-
-  it("rejects a bad token before forwarding", async () => {
-    const { machine, now } = folder();
-    const forward = vi.fn(async () => "should-not-run");
-
-    const result = await forwardCircuitRequest(
-      machine,
-      "not-a-token",
-      "request-1",
-      10,
-      {},
-      now(),
-      forward,
-    );
-
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error.code).toBe("TOKEN_INVALID");
-    expect(forward).not.toHaveBeenCalled();
-  });
-
-  it("revokes the session so subsequent forwarding fails", async () => {
-    const { machine, session, now } = folder();
-    const token = tokenFor(machine, session.claimCode, now());
-    const forward = vi.fn(async () => ({}));
-
-    expect(revokeSession(machine).ok).toBe(true);
-
-    const result = await forwardCircuitRequest(
-      machine,
-      token,
-      "request-1",
-      10,
-      {},
-      now(),
-      forward,
-    );
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error.code).toBe("SESSION_REVOKED");
-    expect(forward).not.toHaveBeenCalled();
   });
 
   it("emits no-store and allowlisted CORS headers", () => {

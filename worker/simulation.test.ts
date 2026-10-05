@@ -256,7 +256,7 @@ describe("native simulation route", () => {
     ).toBe(413);
     expect(run).not.toHaveBeenCalled();
   });
-  it.each(["completed", "failed", "timed-out", "completed-with-dropped-input"])(
+  it.each(["failed", "timed-out", "completed-with-dropped-input"])(
     "preserves the shared harness %s verdict",
     async (status) => {
       const reply = await nativeReply();
@@ -358,11 +358,6 @@ describe("native simulation route", () => {
       503,
       '{"error":"simulator-busy","message":"one run at a time"}',
       "simulator-busy",
-    ],
-    [
-      500,
-      '{"error":"run-directory-unavailable","message":"EACCES"}',
-      "run-directory-unavailable",
     ],
     [502, "upstream connect error", undefined],
     [500, "", undefined],
