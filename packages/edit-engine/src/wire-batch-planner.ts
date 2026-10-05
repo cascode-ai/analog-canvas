@@ -41,7 +41,8 @@ function keepClear(
   const context = deriveNetConnectivityContext(document, resolver);
   const ends = [intent.from.endpoint, intent.to.endpoint];
   const ownNets = ends.flatMap((endpoint) => {
-    const netId =
+    const key = endpointKey(endpoint);
+    const netIds = [
       endpoint.kind === "junction"
         ? document.junctions.find((item) => item.id === endpoint.junctionId)
             ?.netId
@@ -51,10 +52,22 @@ function keepClear(
                 terminal.instanceId === endpoint.instanceId &&
                 terminal.pinName === endpoint.pinName,
             ),
-          )?.id;
-    return netId
-      ? [context.logicalNetResolution.byBaseNetId.get(netId)?.id ?? netId]
-      : [];
+          )?.id,
+      // A wire an earlier connect of this batch ran to the pin is the pin's
+      // own: its Net membership settles only at commit (#1304).
+      ...document.routes
+        .filter((route) =>
+          [route.start, routeEnd(route)].some(
+            (end) => endpointKey(end) === key,
+          ),
+        )
+        .map((route) => route.netId),
+    ];
+    return netIds.flatMap((netId) =>
+      netId
+        ? [context.logicalNetResolution.byBaseNetId.get(netId)?.id ?? netId]
+        : [],
+    );
   });
   const clearance = createRouteClearance(document, resolver, context, {
     logicalIds: new Set(ownNets),

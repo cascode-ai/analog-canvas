@@ -370,3 +370,54 @@ describe("an Agent connect keeps clear of parts and other Nets (#1257)", () => {
     expect(chosen.document.routes).toEqual([]);
   });
 });
+
+describe("a batch connect from a pin an earlier connect reached (#1304)", () => {
+  const part = (id: string, x: number, y: number, rotation: 0 | 90 = 0) => ({
+    id,
+    symbolId: "resistor",
+    reference: id,
+    placement: { position: { x, y }, rotation, mirror: "none" as const },
+    netlist: { parameters: { value: "1k" } },
+  });
+  const pin = (instanceId: string, pinName: string) => ({
+    kind: "endpoint" as const,
+    endpoint: { kind: "terminal" as const, instanceId, pinName },
+  });
+
+  it("taps a wire onto a pin, then wires on from that pin, in one batch", () => {
+    // R1.2 (0,20) to R2.1 (0,80) is a vertical trunk; R3.1 is at (100,50)
+    // and R4.2 at (180,50).
+    const document = createEmptyDocument("doc", "Tap then chain");
+    document.instances.push(
+      part("R1", 0, 0),
+      part("R2", 0, 100),
+      part("R3", 100, 70),
+      part("R4", 200, 50, 90),
+    );
+    const h = history(document);
+    const send = (intents: WireIntent[]) => {
+      const plan = planWireBatch(h.document, resolver, intents, 512, {
+        keepClear: true,
+      });
+      if (typeof plan === "string") throw new Error(plan);
+      const result = h.transact({
+        transactionId: `t-${h.document.revision}`,
+        documentId: h.document.id,
+        expectedRevision: h.document.revision,
+        actor: { kind: "agent", id: "test" },
+        edits: plan.edits,
+      });
+      if (!result.ok) throw new Error(JSON.stringify(result));
+    };
+    send([wire("trunk", pin("R1", "2"), pin("R2", "1"))]);
+    send([
+      wire("tap", at(0, 50), pin("R3", "1")),
+      wire("chain", pin("R3", "1"), pin("R4", "2")),
+    ]);
+    const nets = h.document.nets.filter((net) => net.terminals.length);
+    expect(nets).toHaveLength(1);
+    expect(
+      nets[0]!.terminals.map((t) => `${t.instanceId}.${t.pinName}`).sort(),
+    ).toEqual(["R1.2", "R2.1", "R3.1", "R4.2"]);
+  });
+});
