@@ -105,6 +105,44 @@ export const LazyConnectAgentPanel = lazyChunk("dialog", () =>
   })),
 );
 
+// Properties sections load with the first selection that shows them. A tab
+// that outlived a deploy found the chunk gone, and the whole editor fell to
+// its crash screen when a paste selected the new part.
+export const LazyComponentPropertyCodeEditor = lazyChunk("inline", () =>
+  import("../features/properties/property-editors").then((module) => ({
+    default: module.ComponentPropertyCodeEditor,
+  })),
+);
+
+export const LazyAnnotationColorProperties = lazyChunk("inline", () =>
+  import("../features/properties/property-editors").then((module) => ({
+    default: module.AnnotationColorProperties,
+  })),
+);
+
+export const LazyDraftingPropertiesPanel = lazyChunk("inline", () =>
+  import("../features/properties/property-editors").then((module) => ({
+    default: module.DraftingPropertiesPanel,
+  })),
+);
+
+export const LazyDocumentSettingsSection = lazyChunk("inline", () =>
+  import("../features/properties/property-editors").then((module) => ({
+    default: module.DocumentSettingsSection,
+  })),
+);
+
+export const LazyExamplesPanel = lazyChunk("inline", () =>
+  import("../features/editor-shell/examples-panel").then((module) => ({
+    default: module.ExamplesPanel,
+  })),
+);
+
+export const LazyComponentDefinitionEditor = lazyChunk(
+  "dialog",
+  () => import("../features/user-components/component-definition-editor"),
+);
+
 export const LazyAgentPropertiesSection = lazyChunk("inline", () =>
   import("../agent/connect-agent-panel").then((module) => ({
     default: module.AgentPropertiesSection,

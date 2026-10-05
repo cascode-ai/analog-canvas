@@ -1,4 +1,4 @@
-import { lazy, Suspense, type ComponentProps, type RefObject } from "react";
+import { Suspense, type ComponentProps, type RefObject } from "react";
 
 import { KeptDocumentStyleSection } from "../features/editor-shell/kept-document-style-section";
 import { ToolIcon } from "../features/editor-shell/tool-icon";
@@ -19,29 +19,14 @@ import {
   ProjectDiagnosticsSection,
   SelectionInspectorDetails,
 } from "../features/selection/selection-inspector-details";
-import { LazyAgentPropertiesSection } from "./lazy-editor-dialogs";
-
-// Load selection-only editors when their Properties section is opened.
-const ComponentPropertyCodeEditor = lazy(() =>
-  import("../features/properties/property-editors").then((module) => ({
-    default: module.ComponentPropertyCodeEditor,
-  })),
-);
-const AnnotationColorProperties = lazy(() =>
-  import("../features/properties/property-editors").then((module) => ({
-    default: module.AnnotationColorProperties,
-  })),
-);
-const DraftingPropertiesPanel = lazy(() =>
-  import("../features/properties/property-editors").then((module) => ({
-    default: module.DraftingPropertiesPanel,
-  })),
-);
-const DocumentSettingsSection = lazy(() =>
-  import("../features/properties/property-editors").then((module) => ({
-    default: module.DocumentSettingsSection,
-  })),
-);
+import {
+  LazyAgentPropertiesSection,
+  // Selection-only editors load when their Properties section is opened.
+  LazyAnnotationColorProperties as AnnotationColorProperties,
+  LazyComponentPropertyCodeEditor as ComponentPropertyCodeEditor,
+  LazyDocumentSettingsSection as DocumentSettingsSection,
+  LazyDraftingPropertiesPanel as DraftingPropertiesPanel,
+} from "./lazy-editor-dialogs";
 
 interface ComponentPropertiesModel {
   code: ComponentProps<typeof ComponentPropertyCodeEditor>;
