@@ -390,9 +390,10 @@ partial netlist is exposed while an error remains. Required error coverage inclu
 - unsupported dialect/device combination;
 - identifier, parameter, count, or output resource-limit violation.
 
-Information reports generated local Net names. Warnings may report
-conflicting directions inside one same-name Formal Port group. Neither can
-downgrade a missing electrical fact required for meaningful output.
+Information reports generated local Net names, explicit NoConnect nodes and
+the MOS body findings below. Warnings may report conflicting directions inside
+one same-name Formal Port group. Neither can downgrade a missing electrical
+fact required for meaningful output.
 
 ### One electrical extraction authority
 
@@ -457,6 +458,33 @@ retain priority. The same fallback applies to historical imported devices when
 their B terminal has no connection; source provenance does not disable the
 conventional default. Missing D/G/S wiring remains an error. Existing declared
 Cell interfaces keep their order; this default only adds needed implicit supplies.
+
+A supply added this way is never silent. Where it becomes a new Cell Pin, the
+export reports `MOS_BODY_DEFAULT_SUPPLY` as information for that Cell, one
+finding per supply: the MOS whose bodies take it, the pin it became (VDD, or
+VSS for ground), the other pin of the pair when that came with it, and that
+connecting a B pin chooses another body. An LDO's pass device drawn without a
+body printed as `XMP vout net0 vin VDD …` beside a `VDD` pin nobody drew, and
+nothing said so. The finding is listed in the Check Report, the Agent's netlist
+read and its diagnostics; it does not count as a warning and gates nothing. A
+Cell that already has that supply (a marker, a rail, a supply Port, or a Net
+the author named VDD or VSS), a body wired explicitly and a body following a
+Cell default raise nothing, nor does a simulation deck's root, which gains no
+pin. A caller that only passes the new supply on is not reported; the Cell
+whose body took it is.
+
+A body that follows a default (the Cell's default, the single drawn supply, or
+the default a copied body brought along) onto one supply while its source is
+on another supply of the same domain is reported as information,
+`MOS_BODY_OTHER_SUPPLY`, for example "M1's body follows the Cell's PMOS
+default VDDL; its source is on VDDH. Connect its B pin to VDDH if that is the
+body you mean". A supply is what a body default reads as one
+([connectivity](connectivity-and-routing.md#authoring-rules)), compared as the
+netlist names its nodes, so a copied Ground marker is still ground. The drawing
+holds no voltages: a body on the higher supply is reverse-biased and usually
+intended, one on the lower supply is forward-biased, and only the author knows
+which is which, so this is a question rather than a warning. A body wired
+explicitly is never reported.
 
 Ground is the one reference a Cell states rather than reaches for. A Cell
 printed as a `.subckt` that meets ground — its own, or through a Cell it

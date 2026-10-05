@@ -106,6 +106,18 @@ function blockSuppliesToDefault(
   });
 }
 
+/**
+ * The Net {@link withImplicitMosSupplies} adds to a Cell for a conventional
+ * supply it had to supply itself, VDD or ground (`0`). Extraction reads it
+ * back to say which bodies took that supply and which pin it became.
+ */
+export function implicitSupplyNetId(
+  documentId: string,
+  supply: "VDD" | "0",
+): string {
+  return deriveStableId("netlist-default-supply", documentId, supply);
+}
+
 /** A read-only electrical projection for schematic MOS bodies with no authored
  * connection. Supply symbols are not required to express the default substrate.
  * Existing body wiring, Cell defaults and explicit NoConnect remain authoritative.
@@ -147,7 +159,7 @@ export function withImplicitMosSupplies(
       return document.nets.find((net) =>
         named[0]!.baseNetIds.includes(net.id),
       )!;
-    const netId = deriveStableId("netlist-default-supply", document.id, name);
+    const netId = implicitSupplyNetId(document.id, name);
     const ownerId = deriveStableId(
       "netlist-default-supply-owner",
       document.id,

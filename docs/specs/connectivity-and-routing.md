@@ -252,6 +252,13 @@ marker of that domain, or more than one (AVDD beside VDD, AGND beside DGND),
 has no answer — the body stays unresolved and the Cell default must name one,
 because choosing between two authored supplies is the author's decision. An
 unwired marker names no Net, so it neither answers nor competes.
+A default on one of two supplies of a domain still leaves a question for each
+device whose source is on the other: a PMOS sourced from VDDH with its body on
+a VDDL default is forward-biased if VDDH is the higher supply. The drawing
+holds no voltages, so the netlist asks rather than decides
+(`MOS_BODY_OTHER_SUPPLY`, information, in
+[netlist export](netlist-export.md#one-electrical-extraction-authority)), and a
+body wired from B answers it.
 Pasting a supply marker settles a body default the target Cell does not have
 yet, exactly as placing that marker does, and never overrules one it has. A
 body left alone on a Net that its own policy binding named, with no geometry,

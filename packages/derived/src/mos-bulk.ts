@@ -10,6 +10,7 @@ import { foldNetName, routeEnd } from "@icm/model";
 import {
   resolveDocumentLogicalNets,
   type ResolvedDocumentLogicalNets,
+  type ResolvedLogicalNet,
 } from "./logical-net.js";
 import { supplyMarkerForSymbol, type SupplyDomain } from "./supply-marker.js";
 
@@ -181,11 +182,25 @@ export function drawsSupply(
   return drawn.nets.length > 0 || drawn.contradictory;
 }
 
+/**
+ * Every supply the author drew in a domain, by Logical-Net ID: the candidates
+ * {@link drawnSupplyNet} weighs, under the same classification. Where that
+ * asks for the one supply, this answers whether a Net is a supply at all, so
+ * a Cell with two positive supplies has both here.
+ */
+export function drawnSupplyLogicalNetIds(
+  document: SchematicDocument,
+  domain: SupplyDomain,
+  logicalNets?: ResolvedDocumentLogicalNets,
+): ReadonlySet<string> {
+  return new Set(drawnSupplyNets(document, domain, logicalNets).logicalNetIds);
+}
+
 function drawnSupplyNets(
   document: SchematicDocument,
   domain: SupplyDomain,
   logicalNets?: ResolvedDocumentLogicalNets,
-): { nets: Net[]; contradictory: boolean } {
+): { nets: Net[]; logicalNetIds: string[]; contradictory: boolean } {
   const resolved = logicalNets ?? resolveDocumentLogicalNets(document);
   const candidates = new Map<string, Net>();
   let contradictory = false;
@@ -225,7 +240,11 @@ function drawnSupplyNets(
     );
     if (net) addCandidate(net.id);
   }
-  return { nets: [...candidates.values()], contradictory };
+  return {
+    nets: [...candidates.values()],
+    logicalNetIds: [...candidates.keys()],
+    contradictory,
+  };
 }
 
 /**
@@ -348,6 +367,99 @@ export function resolveMosBulkConnection(
     net: undefined,
     materialized: false,
   };
+}
+
+/** A MOS whose default body is one supply while its source is on another. */
+export interface MosBodyOffSourceSupply {
+  instance: Instance;
+  /** How the body came to its supply: a default, never a drawn wire. */
+  status: "cell-default" | "instance-override" | "supply-default";
+  /** The supply the body follows. */
+  bodyNet: Net;
+  /** The other supply of the same domain, which the source is on. */
+  sourceNet: Net;
+}
+
+/**
+ * The MOS whose body follows a default onto one supply while its source is on
+ * another supply of the same domain: a PMOS on a Cell's second positive
+ * supply, whose body the Cell's PMOS default put on the first. A level
+ * shifter's VDDH devices with their bodies on VDDL are forward-biased when
+ * VDDH is the higher supply. Which one is higher is a voltage the drawing does
+ * not hold, so this names the question rather than a fault; a body wired
+ * explicitly has been answered and is not listed. A supply is what
+ * {@link drawnSupplyLogicalNetIds} classifies as one, the same reading a body
+ * default takes, so a source on an internal node is never compared.
+ */
+export function mosBodiesOffSourceSupply(
+  document: SchematicDocument,
+  logicalNets?: ResolvedDocumentLogicalNets,
+): MosBodyOffSourceSupply[] {
+  const resolved = logicalNets ?? resolveDocumentLogicalNets(document);
+  const supplies = new Map<SupplyDomain, ReadonlySet<string>>();
+  const suppliesOf = (domain: SupplyDomain) => {
+    let found = supplies.get(domain);
+    if (!found) {
+      found = drawnSupplyLogicalNetIds(document, domain, resolved);
+      supplies.set(domain, found);
+    }
+    return found;
+  };
+  // A copied or older marker can lack its name claim, and so stand on a Net
+  // of its own; it still names its supply, as the netlist writes it. Two
+  // ground markers are one ground, never two supplies to choose between.
+  const supplyName = (group: ResolvedLogicalNet) => {
+    if (group.name) return foldNetName(group.name);
+    for (const instance of document.instances) {
+      const marker = supplyMarkerForSymbol(instance.symbolId);
+      if (
+        marker &&
+        document.nets.some(
+          (net) =>
+            group.baseNetIds.includes(net.id) &&
+            net.terminals.some(
+              (terminal) =>
+                terminal.instanceId === instance.id &&
+                terminal.pinName === marker.pinName,
+            ),
+        )
+      )
+        return foldNetName(marker.name);
+    }
+    return undefined;
+  };
+  return document.instances.flatMap((instance) => {
+    const kind = mosBulkKind(instance);
+    if (!kind) return [];
+    // A body and a source on two supplies of one domain need two to be on;
+    // most Cells have one, and then no body is looked up at all.
+    const domain = suppliesOf(kind === "nmos" ? "ground" : "vdd");
+    if (domain.size < 2) return [];
+    const resolution = resolveMosBulkConnection(document, instance, resolved);
+    if (!resolution?.net || resolution.status === "explicit") return [];
+    const sourceNet = document.nets.find((net) =>
+      net.terminals.some(
+        (terminal) =>
+          terminal.instanceId === instance.id && terminal.pinName === "S",
+      ),
+    );
+    if (!sourceNet) return [];
+    const body = resolved.byBaseNetId.get(resolution.net.id);
+    const source = resolved.byBaseNetId.get(sourceNet.id);
+    if (!body || !source || body.id === source.id) return [];
+    if (!domain.has(body.id) || !domain.has(source.id)) return [];
+    const bodyName = supplyName(body);
+    return bodyName === undefined || bodyName !== supplyName(source)
+      ? [
+          {
+            instance,
+            status: resolution.status,
+            bodyNet: resolution.net,
+            sourceNet,
+          },
+        ]
+      : [];
+  });
 }
 
 /**

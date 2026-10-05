@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { createAgentCircuitService } from "@icm/agent-adapter";
-import { diagnoseVisualQuality } from "@icm/derived";
+import { diagnoseVisualQuality, resolveMosBulkConnection } from "@icm/derived";
 import { createEmptyProject } from "@icm/model";
+import { createDesignNetlistExport } from "@icm/netlist";
 import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
 import { AgentSessionClient } from "../../../../packages/agent-client/src/session-client";
 import { FakeAgentHttp } from "../../../../packages/agent-client/src/test-support/fake-relay";
@@ -428,6 +429,51 @@ describe("the editor plans an Agent's action list", () => {
       expect(findings).not.toContain("VISUAL_TERMINAL_ON_FOREIGN_ROUTE");
     },
   );
+  it("ties a PMOS body with no Net to its own source in one connect (#1302)", async () => {
+    const { controller, client, instance } = await editor();
+    const apply = async (actions: unknown[]) => {
+      const report = await client.applyActions(actions);
+      expect(report.ok, report.message).toBe(true);
+    };
+    await apply([place("pmos", "MP", 100), place("resistor", "R1", 400)]);
+    await apply([
+      { kind: "connect", from: pin("MP", "S"), to: pin("R1", "1") },
+    ]);
+    const mp = instance("MP")!;
+    expect(mp.symbolVariantId).toBe("textbook-3terminal");
+    const findings = () =>
+      createDesignNetlistExport(controller.project, {
+        format: "spice",
+      }).diagnostics.filter((item) => item.code === "MOS_BODY_DEFAULT_SUPPLY");
+    // Nothing drawn says where the body goes, so the netlist gives it VDD
+    // and says so.
+    expect(resolveMosBulkConnection(controller.document, mp.id)?.status).toBe(
+      "unresolved",
+    );
+    expect(findings().map((item) => item.objectIds)).toEqual([[mp.id]]);
+    await apply([
+      { kind: "connect", from: pin("MP", "B"), to: pin("MP", "S") },
+    ]);
+    const netOf = (pinName: string) =>
+      controller.document.nets.find((net) =>
+        net.terminals.some(
+          (terminal) =>
+            terminal.instanceId === mp.id && terminal.pinName === pinName,
+        ),
+      )?.id;
+    expect(netOf("B")).toBeDefined();
+    expect(netOf("B")).toBe(netOf("S"));
+    expect(resolveMosBulkConnection(controller.document, mp.id)?.status).toBe(
+      "explicit",
+    );
+    // Drawn as the GUI's Draw bulk connection draws it.
+    expect(
+      controller.document.routes.filter(
+        (route) => route.presentation === "bulk-dashed",
+      ),
+    ).toHaveLength(1);
+    expect(findings()).toEqual([]);
+  });
 
   it("leaves the Document alone for a list that changes nothing", async () => {
     const { controller, client, instance } = await editor();

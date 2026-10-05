@@ -16,6 +16,7 @@ import {
   drawnSupplyNet,
   drawnSwitchControl,
   drawnSwitchPhase,
+  mosBodiesOffSourceSupply,
   mosBulkKind,
   resolveMosBulkConnection,
   resolveDocumentLogicalNets,
@@ -68,6 +69,7 @@ import {
 import { normalizeIndependentSource } from "./source-waveform.js";
 import {
   bodyIgnoresSupplies,
+  implicitSupplyNetId,
   withImplicitMosSupplies,
 } from "./implicit-mos-supplies.js";
 import { idealAnalogBlockCell } from "./ideal-analog-block-models.js";
@@ -2065,6 +2067,115 @@ function projectSpiceReferences(cell: DesignNetlistCell): void {
   }
 }
 
+/** `M1`, `M1 and M2`, `M1, M2 and M3`; a long list ends in a count. */
+function partList(names: readonly string[]): string {
+  const shown =
+    names.length > 8
+      ? [...names.slice(0, 7), `${names.length - 7} more`]
+      : names;
+  return shown.length === 1
+    ? shown[0]!
+    : `${shown.slice(0, -1).join(", ")} and ${shown.at(-1)!}`;
+}
+
+/**
+ * Which MOS bodies took a supply this export added to the Cell, and which pin
+ * that supply became (#1302). A body with no Net takes the conventional VDD or
+ * ground, and a Cell that draws neither gets it as a new Cell Pin, VDD and
+ * VSS together. That is the documented default, yet it added a fourth
+ * terminal nobody drew without a word: an LDO's pass device got a VDD pin
+ * where its body was meant to be the input. Information, as a generated Net
+ * name is: the netlist and every gate stay as they were.
+ */
+function reportDefaultBodySupplies(
+  document: SchematicDocument,
+  context: CellNetContext,
+  ports: DesignNetlistCell["ports"],
+  diagnostics: NetlistDiagnostic[],
+): void {
+  const added = (["VDD", "0"] as const).flatMap((supply) => {
+    const net = document.nets.find(
+      (candidate) => candidate.id === implicitSupplyNetId(document.id, supply),
+    );
+    const group = net ? context.logicalNets.byBaseNetId.get(net.id) : undefined;
+    // A Net the author drew joined it: the Cell had this supply already.
+    if (!net || group?.baseNetIds.length !== 1) return [];
+    const pin = ports.find(
+      (port) => context.logicalNets.byBaseNetId.get(port.id)?.id === group.id,
+    );
+    if (!pin) return [];
+    const bodies = net.terminals.flatMap((terminal) => {
+      if (terminal.pinName !== "B") return [];
+      const instance = document.instances.find(
+        (candidate) => candidate.id === terminal.instanceId,
+      );
+      return instance && mosBulkKind(instance)
+        ? [{ id: instance.id, name: instance.reference ?? instance.id }]
+        : [];
+    });
+    bodies.sort((left, right) =>
+      left.name.localeCompare(right.name, "en", { numeric: true }),
+    );
+    return [{ supply, pin: pin.name, bodies }];
+  });
+  for (const { supply, pin, bodies } of added) {
+    if (!bodies.length) continue;
+    // VDD and ground come as a pair; say so when the other one has no body.
+    const companion = added.find(
+      (other) => other.supply !== supply && !other.bodies.length,
+    );
+    const one = bodies.length === 1;
+    const subject = one
+      ? `${bodies[0]!.name}'s body has no Net and takes`
+      : `The bodies of ${partList(bodies.map((body) => body.name))} have no Net and take`;
+    const taken =
+      supply === "VDD"
+        ? `the conventional ${pin}, added to this Cell's pins${companion ? ` with ${companion.pin}` : ""}`
+        : `the conventional ground, added to this Cell's pins as ${pin}${companion ? `, with ${companion.pin}` : ""}`;
+    diagnostic(
+      diagnostics,
+      document.id,
+      "MOS_BODY_DEFAULT_SUPPLY",
+      `${subject} ${taken}; connect ${one ? "its B pin" : "a B pin"} to choose another body`,
+      bodies.map((body) => body.id),
+      "info",
+    );
+  }
+}
+
+/**
+ * A MOS whose body follows a default onto one supply while its source is on
+ * another supply of the same domain (#1336): a level shifter's VDDH PMOS with
+ * its body on the Cell's PMOS default VDDL, forward-biased when VDDH is the
+ * higher supply. The drawing holds no voltages, and most such bodies sit on
+ * the higher supply on purpose, so this is a question, not a warning; a body
+ * wired explicitly is the answer and is never asked about.
+ */
+function reportBodiesOffSourceSupply(
+  document: SchematicDocument,
+  context: CellNetContext,
+  diagnostics: NetlistDiagnostic[],
+): void {
+  for (const item of mosBodiesOffSourceSupply(document, context.logicalNets)) {
+    const body = context.nameByNetId.get(item.bodyNet.id);
+    const source = context.nameByNetId.get(item.sourceNet.id);
+    if (!body || !source || body === source) continue;
+    const kind = mosBulkKind(item.instance)!.toUpperCase();
+    const follows =
+      item.status === "instance-override"
+        ? `keeps the ${kind} default it was copied with, ${body}`
+        : `follows the Cell's ${kind} default ${body}`;
+    diagnostic(
+      diagnostics,
+      document.id,
+      "MOS_BODY_OTHER_SUPPLY",
+      `${item.instance.reference ?? item.instance.id}'s body ${follows}; its source is on ${source}. Connect its B pin to ${source} if that is the body you mean`,
+      [item.instance.id],
+      "info",
+    );
+  }
+}
+
 function extractCell(
   project: CircuitProject,
   document: SchematicDocument,
@@ -2228,6 +2339,9 @@ function extractCell(
       });
     }
   }
+  // Node names are final here, ground included, so findings use them.
+  reportDefaultBodySupplies(document, context, ports, diagnostics);
+  reportBodiesOffSourceSupply(document, context, diagnostics);
   const referenceIndex = createReferenceIndex(document, project);
   const syntheticReferences = new Map<string, string>();
   const reservedReferences = new Set(referenceIndex.byReference.keys());

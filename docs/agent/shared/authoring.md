@@ -111,12 +111,22 @@ targets to avoid full-Snapshot name resolution. Names remain supported when usef
   expression in braces (`{vdd/2}`). Write micro as `u`. The same checks run
   on stored values, as Cell diagnostics.
 - Three-terminal MOS artwork still has an electrical B pin. Read `mosBulk` and
-  `mosBulkDefaults`; ordinary devices reuse defaults. To give one device
-  another body, `connect` its B pin to that Net, as the GUI's Draw action
-  does: the body leaves the Cell default for a dashed body wire. In a Cell
-  with two supplies, check the PMOS on the one that is not the default.
-  Hidden bulk needs no decorative wire; four-pin presentation is a separate
-  visual choice.
+  `mosBulkDefaults`; ordinary devices reuse defaults. A body on no Net
+  (`mosBulk.status: "unresolved"`) takes the conventional VDD or ground; a
+  Cell that draws no such supply gains it as a Cell Pin, and the netlist says
+  so as information, `MOS_BODY_DEFAULT_SUPPLY`, naming the parts. To give one
+  device another body, `connect` its B pin to that Net, as the GUI's Draw
+  action does: the body leaves the Cell default for a dashed body wire. A
+  body tied to its own source is one call,
+  `{kind:"connect",from:{kind:"pin",instance:"MP",pin:"B"},to:{kind:"pin",instance:"MP",pin:"S"}}`,
+  or a `wire-at` tap on the source wire. A default for the whole Cell is an
+  `advanced_transact` of two edits, as the GUI sends them:
+  `{kind:"set_mos_bulk_defaults",pmosNetId:"<Net ID>"}` (`nmosNetId` for
+  NMOS), then `{kind:"reconcile_mos_bulk"}`. In a Cell with two supplies,
+  check the PMOS on the one that is not the default: `MOS_BODY_OTHER_SUPPLY`
+  (information) names a body that follows the default onto another supply
+  than its source's. Hidden bulk needs no decorative wire; four-pin
+  presentation is a separate visual choice.
 - Name Nets with `add-label` / Net Label `edit-text` (native `set-net-label`).
   This creates the name claim and bound annotation together; free text does not.
   Supply `position` for a new label. RichText text runs use `value`, not `text`.
