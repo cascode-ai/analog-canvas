@@ -130,73 +130,106 @@ it("gives a plain Agent voltage-node label the GUI's standard look", () => {
   expect(authored.annotation.formatOverride).toEqual(explicit);
 });
 
-it("stands an Agent label clear of the part at its stub's open end", () => {
-  const project = createEmptyProject("stub-label", "Stub label");
-  const doc = project.documents[0]!;
-  doc.instances.push({
-    id: "r",
-    reference: "R1",
+it.each([
+  // Out of a resistor's left pin, the stub runs left and the name reads
+  // away from it.
+  {
     symbolId: "resistor",
-    placement: { position: { x: 100, y: 100 }, rotation: 90, mirror: "none" },
-    netlist: { parameters: { value: "1k" } },
-  });
-  const resolver = createProjectSymbolResolver(project, builtInSymbols);
-  const [pin, contact] = ["1", "2"]
-    .map((pinName) => {
-      const endpoint = { kind: "terminal" as const, instanceId: "r", pinName };
-      return [
-        endpoint,
-        resolveEndpointConnection(doc, resolver, endpoint)!.contactPoint,
-      ] as const;
-    })
-    .sort(([, a], [, b]) => a.x - b.x)[0]!;
-  // A stub two grid steps out of the resistor's left pin, open at its end.
-  doc.nets.push({ id: "n", terminals: [] });
-  doc.junctions.push({
-    id: "end",
-    netId: "n",
-    position: { x: contact.x - 20, y: contact.y },
-  });
-  doc.routes.push(
-    createRoutePath({
-      id: "stub",
-      netId: "n",
-      start: pin,
-      end: { kind: "junction", junctionId: "end" },
-      bends: [],
-      modes: ["manual"],
-    }),
-  );
-  const label = (text: string) => {
-    const plan = planBrowserAgentCommand(project, doc.id, resolver, {
-      kind: "set-net-label",
-      annotationId: "label",
-      netId: "n",
-      text: { runs: [{ kind: "text", value: text }] },
-      position: { x: contact.x - 10, y: contact.y },
+    mirror: "none" as const,
+    pins: ["1", "2"],
+    out: { x: -20, y: 0 },
+    reads: "end",
+    narrow: "middle",
+  },
+  // Down from a transmission gate's NMOS gate, the name stays beside the
+  // stub, at its end: halfway down, S̄ reached up into the NMOS.
+  {
+    symbolId: "nmos",
+    mirror: "vertical" as const,
+    pins: ["D", "G", "S"],
+    out: { x: 0, y: 20 },
+    reads: "start",
+    // Any name halfway down reaches up into the NMOS.
+    narrow: null,
+  },
+])(
+  "stands an Agent label clear of the part at its stub's open end (stub $out.x,$out.y)",
+  ({ symbolId, mirror, pins, out, reads, narrow }) => {
+    const project = createEmptyProject("stub-label", "Stub label");
+    const doc = project.documents[0]!;
+    doc.instances.push({
+      id: "r",
+      reference: "R1",
+      symbolId,
+      placement: { position: { x: 100, y: 100 }, rotation: 90, mirror },
     });
-    if (!("edits" in plan)) throw new Error("Expected document edits");
-    const edit = plan.edits.find(
-      (e) => e.kind === "upsert_schematic_annotation",
+    const resolver = createProjectSymbolResolver(project, builtInSymbols);
+    // The pin the stub leaves from: the one farthest the stub's way.
+    const [pin, contact] = pins
+      .map((pinName) => {
+        const endpoint = {
+          kind: "terminal" as const,
+          instanceId: "r",
+          pinName,
+        };
+        return [
+          endpoint,
+          resolveEndpointConnection(doc, resolver, endpoint)!.contactPoint,
+        ] as const;
+      })
+      .sort(
+        ([, a], [, b]) =>
+          b.x * out.x + b.y * out.y - (a.x * out.x + a.y * out.y),
+      )[0]!;
+    // A stub two grid steps out of that pin, open at its end.
+    doc.nets.push({ id: "n", terminals: [] });
+    doc.junctions.push({
+      id: "end",
+      netId: "n",
+      position: { x: contact.x + out.x, y: contact.y + out.y },
+    });
+    doc.routes.push(
+      createRoutePath({
+        id: "stub",
+        netId: "n",
+        start: pin,
+        end: { kind: "junction", junctionId: "end" },
+        bends: [],
+        modes: ["manual"],
+      }),
     );
-    if (edit?.kind !== "upsert_schematic_annotation")
-      throw new Error("Expected label");
-    return edit.annotation;
-  };
-  // Centred on the stub, v_bias reached back over the resistor's lead. At
-  // the open end it reads away from the wire and is clear.
-  const moved = label("vbias");
-  expect(moved).toMatchObject({
-    alignment: "end",
-    anchor: { kind: "route", routeId: "stub", t: 1 },
-  });
-  const context = createLabelClearanceContext(doc, resolver);
-  expect(
-    context.conflictsAt(context.measure(moved).inkBounds, moved.id),
-  ).toEqual([]);
-  // A name narrow enough to sit over the stub stays centred on it.
-  expect(label("a")).toMatchObject({
-    alignment: "middle",
-    anchor: { t: 0.5 },
-  });
-});
+    const label = (text: string) => {
+      const plan = planBrowserAgentCommand(project, doc.id, resolver, {
+        kind: "set-net-label",
+        annotationId: "label",
+        netId: "n",
+        text: { runs: [{ kind: "text", value: text }] },
+        position: { x: contact.x + out.x / 2, y: contact.y + out.y / 2 },
+      });
+      if (!("edits" in plan)) throw new Error("Expected document edits");
+      const edit = plan.edits.find(
+        (e) => e.kind === "upsert_schematic_annotation",
+      );
+      if (edit?.kind !== "upsert_schematic_annotation")
+        throw new Error("Expected label");
+      return edit.annotation;
+    };
+    // Halfway along the stub, v_bias reached back over the resistor's lead.
+    // At the open end it is clear.
+    const moved = label("vbias");
+    expect(moved).toMatchObject({
+      alignment: reads,
+      anchor: { kind: "route", routeId: "stub", t: 1 },
+    });
+    const context = createLabelClearanceContext(doc, resolver);
+    expect(
+      context.conflictsAt(context.measure(moved).inkBounds, moved.id),
+    ).toEqual([]);
+    // A name narrow enough to stand clear halfway along stays there.
+    if (narrow)
+      expect(label("a")).toMatchObject({
+        alignment: narrow,
+        anchor: { t: 0.5 },
+      });
+  },
+);

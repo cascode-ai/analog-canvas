@@ -16,10 +16,12 @@ import type { SymbolResolver } from "@icm/symbols";
  * is not clear of parts, wires and other labels. Centred on a stub two grid
  * steps out of a block's pin, a label reached back into the block, and one
  * with a subscript reached the stub of the pin above: all 12 labels of a
- * two-block DAC array were drawn over something. When the label's horizontal
- * segment ends open, the label stands at that end and reads away from the
- * wire, if it is clear there. Otherwise it keeps its spot. The Net Label tool
- * is unchanged: a person sees the preview where the label commits.
+ * two-block DAC array were drawn over something. When the label's segment
+ * ends open, the label stands at that end, if it is clear there: reading
+ * away from a horizontal wire, and beside a vertical one as before. A
+ * transmission gate's S̄ beside the stub below its NMOS gate had reached up
+ * into the NMOS. Otherwise it keeps its spot. The Net Label tool is
+ * unchanged: a person sees the preview where the label commits.
  *
  * `text` is what the label will read. Its name claim lands in the same
  * transaction, so the document cannot tell yet.
@@ -38,7 +40,9 @@ export function netLabelAtOpenEnd(
     ({ address }) => address.legId === anchor.legId,
   );
   const segment = geometry.segments[index];
-  if (!route || !segment || segment.from.y !== segment.to.y) return label;
+  if (!route || !segment) return label;
+  const vertical = segment.from.x === segment.to.x;
+  if (!vertical && segment.from.y !== segment.to.y) return label;
   const [start, end] = routeEndpoints(route);
   const open = (endpoint: typeof start) =>
     endpoint.kind === "junction" &&
@@ -74,7 +78,7 @@ export function netLabelAtOpenEnd(
       : [segment.from, segment.to];
     const candidate: Annotation = {
       ...label,
-      alignment: at.x < other.x ? "end" : "start",
+      alignment: vertical ? label.alignment : at.x < other.x ? "end" : "start",
       anchor: {
         ...attachment,
         fallbackPosition: {

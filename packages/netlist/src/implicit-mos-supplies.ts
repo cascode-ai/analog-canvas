@@ -12,16 +12,21 @@ import {
   resolveMosBulkConnection,
   resolveDocumentLogicalNets,
 } from "@icm/derived";
-import { instanceBuiltInSubcircuit } from "@icm/devices";
+import {
+  IDEAL_COMPARATOR_TARGET,
+  instanceBuiltInSubcircuit,
+} from "@icm/devices";
 import type { DesignNetlistAnalysisOptions } from "./extract.js";
 import { idealAnalogBlockCell } from "./ideal-analog-block-models.js";
 import type { NetlistFormat } from "./net-name-codec.js";
 
 /**
  * The built-in bodies that never read VDD or VSS: the ideal amplifiers and
- * the adder in either format, and the multiplier in SPICE. An authored Cell
- * or a declared external definition of the same name replaces the body, and
- * may well use its supplies.
+ * the adder in either format, and the multiplier and the ideal comparator in
+ * SPICE. The ideal comparator's call has no supply nodes at all, yet a flash
+ * ADC drawn with ground and no VDD gained a VDD Cell Pin that nothing inside
+ * used. An authored Cell or a declared external definition of the same name
+ * replaces the body, and may well use its supplies.
  */
 export function bodyIgnoresSupplies(
   target: string,
@@ -39,7 +44,8 @@ export function bodyIgnoresSupplies(
     return false;
   return (
     idealAnalogBlockCell(target, format) !== null ||
-    (format === "spice" && target === "multiplier")
+    (format === "spice" &&
+      (target === "multiplier" || target === IDEAL_COMPARATOR_TARGET))
   );
 }
 

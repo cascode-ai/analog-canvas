@@ -821,10 +821,10 @@ clear, so capitals stand 4 units up and a descender or a subscript higher, up
 to a grid step. On a vertical segment it sits to the right and starts at the
 Wire, so it never covers it. The placement preview stands where the label
 commits. An Agent's new label stands where the tool would put it at the
-Agent's point. When that spot is not clear of parts, wires and other labels,
-and the label's horizontal segment ends open, as a stub out of a pin does,
-the label stands at the open end and reads away from the Wire, if it is clear
-there; otherwise it keeps the spot. Each selected label
+Agent's point. When that spot is not clear of parts, wires, junction dots and
+other labels, and the label's segment ends open, as a stub out of a pin does,
+the label stands at the open end if it is clear there: reading away from a
+horizontal Wire, beside a vertical one. Otherwise it keeps the spot. Each selected label
 draws a glowing tether to what it belongs to, and so do the labels of a lone
 selected part:
 
