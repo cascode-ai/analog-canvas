@@ -3120,8 +3120,6 @@ describe("Agent placement and naming the GUI way (#1254, #1256)", () => {
   });
 });
 
-describe("every rejection names its action (#1231)", () => {});
-
 describe("Cell instances in one call (#1231)", () => {
   it("places several Cell instances atomically, named in turn", async () => {
     const { client, controller } = await folder();
