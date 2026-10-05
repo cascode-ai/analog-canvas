@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createEmptyDocument, createEmptyProject } from "@icm/model";
+import type { SchematicDocument } from "@icm/model";
 import { importSpiceSources } from "@icm/spice";
 import { analyzeDesignNetlist } from "./extract.js";
 import { printDesignNetlist } from "./printers.js";
@@ -651,6 +652,123 @@ describe("ground as the Cell's own pin", () => {
     // for the global reference under another name.
     expect(result.file.text).toMatch(/M1 OUT VDD GNDA GNDA NMOS/u);
     expect(result.file.text).not.toMatch(/(?:^|\s)0(?:\s|$)/u);
+  });
+
+  /** A caller of `child` wiring each of its Pins to a Port of the same name. */
+  function callerOf(child: SchematicDocument, pins: readonly string[]) {
+    const top = createEmptyDocument("top", "top");
+    top.netlist!.name = "top";
+    top.instances.push({
+      id: "X1",
+      reference: "X1",
+      symbolId: "cell-symbol",
+      placement: null,
+      netlist: {
+        binding: { kind: "subcircuit", childDocumentId: child.id },
+        parameters: {},
+      },
+    });
+    for (const pin of pins) {
+      top.instances.push({ id: `P-${pin}`, symbolId: "port", placement: null });
+      top.nets.push({
+        id: `top-${pin}`,
+        terminals: [
+          { instanceId: "X1", pinName: pin },
+          { instanceId: `P-${pin}`, pinName: "P" },
+        ],
+      });
+      top.netlist!.terminals.push({
+        id: `terminal-top-${pin}`,
+        name: `${pin}_top`,
+        netId: `top-${pin}`,
+        direction: "inout",
+        interfaceInstanceIds: [`P-${pin}`],
+      });
+    }
+    return top;
+  }
+
+  it("keeps a call to a Cell whose author gave ground a pin to that Cell's pins", () => {
+    const project = createEmptyProject("vss-own-call", "VSS own call", "top");
+    const leaf = cellWithGround("leaf", "leaf");
+    leaf.instances.push({ id: "PGND", symbolId: "port", placement: null });
+    leaf.nets
+      .find((net) => net.id === "net-gnd")!
+      .terminals.push({ instanceId: "PGND", pinName: "P" });
+    leaf.netlist!.terminals.push({
+      id: "terminal-gnd",
+      name: "GNDA",
+      netId: "net-gnd",
+      direction: "inout",
+      interfaceInstanceIds: ["PGND"],
+    });
+    project.documents = [callerOf(leaf, ["VDD", "OUT", "GNDA"]), leaf];
+    const result = createDesignNetlistExport(project, { format: "spice" });
+    expect(result.status, JSON.stringify(result.diagnostics)).toBe("ready");
+    if (result.status !== "ready") return;
+    expect(result.file.text).toContain(".subckt leaf VDD GNDA OUT\n");
+    // Three nodes for three pins: the author's ground pin is the reference.
+    expect(result.file.text).toMatch(/^X1 \S+ \S+ \S+ leaf$/mu);
+  });
+
+  it("names ground's pin GND when the Cell has another Net called VSS (#1353)", () => {
+    // A Cell with ± supplies draws ground and a Port VSS, its negative
+    // supply. The added ground pin took the same name: the interface read
+    // `VDD VSS VSS OUT` and every node of both Nets was VSS, shorting the
+    // negative supply to ground inside the Cell.
+    const project = createEmptyProject("vss-taken", "VSS taken", "top");
+    const leaf = cellWithGround("leaf", "leaf");
+    leaf.instances.push(
+      { id: "PVSS", symbolId: "port", placement: null },
+      {
+        id: "R1",
+        symbolId: "resistor",
+        reference: "R1",
+        placement: null,
+        netlist: {
+          binding: { kind: "primitive", deviceClass: "resistor" },
+          parameters: { value: "1k" },
+        },
+      },
+    );
+    leaf.nets.push({
+      id: "net-vss",
+      terminals: [
+        { instanceId: "PVSS", pinName: "P" },
+        { instanceId: "R1", pinName: "1" },
+      ],
+    });
+    leaf.nets
+      .find((net) => net.id === "net-out")!
+      .terminals.push({ instanceId: "R1", pinName: "2" });
+    leaf.netlist!.terminals.push({
+      id: "terminal-vss",
+      name: "Vss",
+      netId: "net-vss",
+      direction: "inout",
+      interfaceInstanceIds: ["PVSS"],
+    });
+    project.documents = [callerOf(leaf, ["VDD", "OUT", "Vss"]), leaf];
+    const result = createDesignNetlistExport(project, { format: "spice" });
+    expect(result.status, JSON.stringify(result.diagnostics)).toBe("ready");
+    if (result.status !== "ready") return;
+    expect(result.file.text).toContain(".subckt leaf VDD GND Vss OUT\n");
+    // Ground's nodes and the negative supply's stay apart.
+    expect(result.file.text).toMatch(/M1 OUT VDD GND GND NMOS/u);
+    expect(result.file.text).toMatch(/R1 Vss OUT 1k/u);
+    // The call carries the caller's own ground, VSS there, at the GND pin.
+    expect(result.file.text).toContain(".subckt top VSS ");
+    expect(result.file.text).toMatch(/^X1 VDD_top VSS Vss_top OUT_top leaf$/mu);
+    expect(
+      result.diagnostics.filter((item) => item.code === "GROUND_PIN_RENAMED"),
+    ).toEqual([
+      expect.objectContaining({
+        severity: "info",
+        documentId: "leaf",
+        message:
+          "Ground's pin is named GND: Vss is another Net here. If Vss is this Cell's ground, connect it to the ground marker",
+      }),
+    ]);
   });
 
   it("keeps node 0 in the one Cell a deck prints as its own cards", () => {

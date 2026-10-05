@@ -51,6 +51,7 @@ import {
   subcircuitDescriptor,
   type BuiltInSubcircuitDescriptor,
   type DeviceDescriptor,
+  type ReviewedExternalDeviceBinding,
 } from "@icm/devices";
 import { parseSpiceNumber } from "@icm/spice";
 
@@ -914,7 +915,7 @@ function extractHierarchyInstance(
   // The child's ground pin is not in its authored interface; both sides
   // derive it from the Documents, so the call carries this Cell's own ground
   // node at the position the child's definition puts it.
-  if (options.groundPin === "pin" && cellReachesGround(child, documentsById)) {
+  if (options.groundPin === "pin" && addsGroundPin(child, documentsById)) {
     const callerGround = context.nameByAuthoredName.get(foldNetName("0"));
     if (callerGround) {
       nodes.splice(
@@ -923,7 +924,7 @@ function extractHierarchyInstance(
           childPorts.map((port) => ({ id: port.netIds[0]!, name: port.name })),
         ),
         0,
-        { pinName: GROUND_PORT_NAME, netName: callerGround },
+        { pinName: groundPinName(child).name, netName: callerGround },
       );
     }
   }
@@ -1107,6 +1108,15 @@ function extractExternalSubcircuitInstance(
       netName: netName ?? `<unconnected:${terminal.targetName}>`,
     };
   });
+  if (reviewed)
+    reportSubstrateTerminals(
+      document,
+      instance,
+      reviewed,
+      nodes,
+      context,
+      diagnostics,
+    );
   const parameters = Object.entries(netlist.parameters);
   const projectedParameters = reviewed
     ? [
@@ -1158,6 +1168,51 @@ function extractExternalSubcircuitInstance(
     nodes,
     parameters: projectedParameters,
   };
+}
+
+/** A Net named as a Cell's ground or negative rail: VSS, AVSS, GND, VEE, SUB. */
+const LOWEST_SUPPLY_NAME = /^[ad]?(?:vss|gnd|vee|v?sub)[a-z0-9_]*$/iu;
+
+/**
+ * A terminal the PDK ties to the p-substrate belongs on ground or the lowest
+ * supply (#1314). A SKY130 vertical PNP's collector is the substrate: drawn
+ * as a current-mirror load, it exported ready, verified clean, and a run put
+ * the mirror's output at 0.93 V where the textbook mirror sits near
+ * VDD - V_EB. The same holds for a substrate property terminal bound to a
+ * signal Net.
+ */
+function reportSubstrateTerminals(
+  document: SchematicDocument,
+  instance: Instance,
+  reviewed: ReviewedExternalDeviceBinding,
+  nodes: readonly { pinName: string; netName: string }[],
+  context: CellNetContext,
+  diagnostics: NetlistDiagnostic[],
+): void {
+  const ground = context.nameByAuthoredName.get(foldNetName("0")) ?? "0";
+  for (const terminal of reviewed.terminals) {
+    if (terminal.role !== "substrate") continue;
+    const node = nodes.find((item) => item.pinName === terminal.targetName);
+    if (
+      !node ||
+      node.netName.startsWith("<unconnected:") ||
+      node.netName === ground ||
+      node.netName === "0" ||
+      LOWEST_SUPPLY_NAME.test(node.netName)
+    )
+      continue;
+    const reference = instance.reference ?? instance.id;
+    diagnostic(
+      diagnostics,
+      document.id,
+      "PDK_SUBSTRATE_TERMINAL",
+      reviewed.symbolId === "pnp" && terminal.pinName === "C"
+        ? `${reference}'s collector is the p-substrate of ${reviewed.masterName} and belongs on ground or the lowest supply; it is on ${node.netName}. Use it as a diode, or with its collector grounded`
+        : `${reference}.${terminal.pinName} is the p-substrate of ${reviewed.masterName} and belongs on ground or the lowest supply; it is on ${node.netName}`,
+      [instance.id],
+      "warning",
+    );
+  }
 }
 
 function extractBuiltInSubcircuitInstance(
@@ -2112,8 +2167,74 @@ function cellReachesGround(
     const binding = instance.netlist?.binding;
     if (binding?.kind !== "subcircuit") return false;
     const child = documentsById.get(binding.childDocumentId);
-    return child ? cellReachesGround(child, documentsById, seen) : false;
+    return child ? addsGroundPin(child, documentsById, seen) : false;
   });
+}
+
+/**
+ * Whether a Cell printed as a subcircuit adds a ground pin of its own
+ * making: it meets ground, and its author gave ground no pin. A caller passes
+ * its ground only to such a pin. A call to a Cell whose author's GNDA was its
+ * ground carried one node more than the Cell had pins.
+ */
+function addsGroundPin(
+  document: SchematicDocument,
+  documentsById: Map<string, SchematicDocument>,
+  seen: Set<string> = new Set(),
+): boolean {
+  if (!cellReachesGround(document, documentsById, seen)) return false;
+  const logical = resolveDocumentLogicalNets(
+    withNetlistPowerMarkerClaims(document),
+  );
+  return !(document.netlist?.terminals ?? []).some((terminal) => {
+    const name = logical.byBaseNetId.get(terminal.netId)?.name;
+    return name !== undefined && foldNetName(name) === foldNetName("0");
+  });
+}
+
+/**
+ * The name of the ground pin a Cell adds: VSS, as the Block libraries write
+ * it, unless the Cell gives that name to another Net or Pin (#1353). A Cell
+ * with ± supplies draws ground and a Port VSS, its negative supply; two pins
+ * named VSS shorted the two inside the Cell and in every caller. Then GND, or
+ * GND__2 and on, as an imported name is told apart from an authored one.
+ * `taken` is the author's spelling of the name that was in the way. Both the
+ * Cell and its callers read it from the Document.
+ */
+function groundPinName(document: SchematicDocument): {
+  name: string;
+  taken?: string;
+} {
+  const names = new Map<string, string>();
+  const logical = resolveDocumentLogicalNets(
+    withNetlistPowerMarkerClaims(document),
+  );
+  const isGround = (name: string | undefined) =>
+    name !== undefined && foldNetName(name) === foldNetName("0");
+  for (const group of logical.groups)
+    if (group.name && !isGround(group.name))
+      names.set(foldNetName(group.name), group.name);
+  for (const terminal of document.netlist?.terminals ?? [])
+    names.set(foldNetName(terminal.name), terminal.name);
+  // An imported node keeps its deck's name when nothing else names it.
+  const pinned = new Set(
+    (document.netlist?.terminals ?? []).map(
+      (terminal) => logical.byBaseNetId.get(terminal.netId)?.id,
+    ),
+  );
+  for (const evidence of document.connectivityEvidence) {
+    if (evidence.kind !== "net-name-hint") continue;
+    const group = logical.byBaseNetId.get(evidence.netId);
+    if (group?.name || pinned.has(group?.id)) continue;
+    if (!names.has(foldNetName(evidence.sourceName)))
+      names.set(foldNetName(evidence.sourceName), evidence.sourceName);
+  }
+  const taken = names.get(foldNetName(GROUND_PORT_NAME));
+  if (taken === undefined) return { name: GROUND_PORT_NAME };
+  for (let index = 1; ; index += 1) {
+    const name = index === 1 ? "GND" : `GND__${index}`;
+    if (!names.has(foldNetName(name))) return { name, taken };
+  }
 }
 
 /**
@@ -2456,11 +2577,12 @@ function extractCell(
     printedAsSubcircuit &&
     cellReachesGround(document, documentsById)
   ) {
-    const encodedGround = encodeCandidate(GROUND_PORT_NAME, "local", options);
+    const groundName = groundPinName(document);
+    const encodedGround = encodeCandidate(groundName.name, "local", options);
     const groundNet = context.nets.find((net) => net.name === "0");
     const groundToken = encodedGround.ok
       ? encodedGround.token
-      : GROUND_PORT_NAME;
+      : groundName.name;
     // An author who already gave ground a pin of their own keeps it: the
     // policy states a reference, it does not duplicate one. The node then
     // takes that pin's name, so no Cell printed as a subcircuit is left
@@ -2509,6 +2631,21 @@ function extractCell(
         netName: groundToken,
       });
     }
+    // The author may have meant that Net as ground, or not: say which name
+    // ground's pin took, and how to make the two one.
+    if (!authoredPin && groundName.taken !== undefined)
+      diagnostic(
+        diagnostics,
+        document.id,
+        "GROUND_PIN_RENAMED",
+        `Ground's pin is named ${groundToken}: ${groundName.taken} is another Net here${
+          groundNet
+            ? `. If ${groundName.taken} is this Cell's ground, connect it to the ground marker`
+            : ""
+        }`,
+        groundNet ? [groundNet.id] : [],
+        "info",
+      );
   }
   // Node names are final here, ground included, so findings use them.
   reportDefaultBodySupplies(document, context, ports, diagnostics);

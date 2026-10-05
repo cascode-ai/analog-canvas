@@ -2027,7 +2027,19 @@ describe("voltage-controlled switch", () => {
     }
 
     const analysis = analyzeDesignNetlist(project, { format: "spice" });
-    expect(analysis.diagnostics).toEqual([]);
+    // Every terminal is on a Net of its own here, the substrates too, and
+    // each substrate off ground is a warning (#1314); nothing else is.
+    expect(
+      analysis.diagnostics.map((item) => [
+        item.code,
+        item.severity,
+        item.objectIds,
+      ]),
+    ).toEqual([
+      ["PDK_SUBSTRATE_TERMINAL", "warning", ["XQ1"]],
+      ["PDK_SUBSTRATE_TERMINAL", "warning", ["XQ2"]],
+      ["PDK_SUBSTRATE_TERMINAL", "warning", ["XR1"]],
+    ]);
     const text = printSpiceNetlist(analysis.ir!);
     expect(text).toContain(
       "XM1 XM1_0 XM1_1 XM1_2 XM1_3 sky130_fd_pr__nfet_01v8 l=0.15 w=1 nf=1 m=2",

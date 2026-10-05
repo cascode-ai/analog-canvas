@@ -465,6 +465,17 @@ substrate bound as the process binds it. The Agent and the GUI place through
 the same plan. A reviewed BJT wrapper takes the instance multiplier `m`, kept
 through every model change; ngspice scales the X call by it.
 
+A terminal a reviewed wrapper ties to the p-substrate belongs on ground or the
+Cell's lowest supply: the SKY130 vertical PNP's collector, and the substrate
+property terminals of the NPN, poly resistors, varactor and inductors. One on
+another Net exports with the warning `PDK_SUBSTRATE_TERMINAL` (#1314): "Q3's
+collector is the p-substrate of sky130_fd_pr__pnp_05v5_W0p68L0p68 and belongs
+on ground or the lowest supply; it is on mir. Use it as a diode, or with its
+collector grounded". A PNP mirror load drawn with it exported ready and
+simulated its output at 0.93 V, where the textbook mirror sits near
+VDD − V_EB. Ground is the Cell's ground node, and the lowest supply a Net named
+like one (`VSS`, `AVSS`, `GND`, `VEE`, `SUB`, `VSUB`, any case).
+
 IHP SG13G2 binds reviewed devices the way IHP-Open-PDK's own xschem symbols
 call them: `sg13_lv_nmos`/`sg13_lv_pmos` and the 3.3 V `sg13_hv_*` (`d g s b`;
 `w l ng m`), the HBTs `npn13G2`, `npn13G2l`, `npn13G2v` (`c b e bn`, substrate
@@ -558,7 +569,17 @@ passes ground down to a child gets the pin too, or the child's reference would
 have nowhere to come from. A Cell whose author already gave ground a pin of
 their own keeps that pin — the policy states a reference rather than
 duplicating one — and the node takes that pin's name, so no Cell printed as a
-subcircuit is left reaching for the global reference under another name.
+subcircuit is left reaching for the global reference under another name. A
+call then passes nothing extra: the caller's ground goes only to a pin the
+Cell adds, and a parent that only calls such Cells needs no ground pin for
+them. The added pin is named `VSS` unless the Cell already gives that name,
+in any case, to another Pin or Net, as a Cell with ± supplies does when it
+draws ground and a Port `VSS` for its negative supply (#1353). It is then
+`GND` (or `GND__2` and on), the two stay apart, and the export reports
+`GROUND_PIN_RENAMED` as information: "Ground's pin is named GND: VSS is
+another Net here. If VSS is this Cell's ground, connect it to the ground
+marker". Callers name the same pin; like the body defaults, a run does not
+repeat the finding.
 
 The one Cell a deck prints as its own top-level cards keeps node `0`: there the
 deck is the outside, and its calls carry that `0` into each child's `VSS` pin.
