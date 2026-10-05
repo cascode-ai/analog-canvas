@@ -1,7 +1,7 @@
 {
   "format": "analog-canvas-agent-distribution-v1",
   "version": 1,
-  "registrySha256": "8d0b89fbcf42cd47f85a2b1c17a7e752f6d9116e60cd30d6ce1def654b5eea1e",
+  "registrySha256": "4a7ba4c4d2899fff244132f0c91dc4b9a34ac513f36e73e3583b5f3cb77d129b",
   "sources": [
     {
       "source": "docs/agent/simulation-specs.md",
@@ -61,7 +61,7 @@
     },
     {
       "source": "packages/agent-adapter/src/agent-authoring-catalog.generated.ts",
-      "sha256": "8acda8a75fc4dd2953c425e2202376d0db5bddee2f5759a9f0a0b6c5dad686e0"
+      "sha256": "a96499fc68ecaf0d4b571357ad2a89147b70c7bde8cb46e37836e3bba4fade92"
     },
     {
       "source": "docs/agent/knowledge/circuit-reading.md",
@@ -621,7 +621,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/circuit-style-knowledge.md"
       ],
-      "sha256": "937bbc948980779fa2df19a3e39f381d69e0852099b4b039d522d8faff08ca72"
+      "sha256": "01d5f2f390f63df8c8eec5983ea8a22c6200a1494e365d88c815b11c6b8d59f8"
     },
     {
       "file": "packages/agent-adapter/src/agent-docs.generated.ts",
@@ -650,7 +650,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/circuit-style-knowledge.md"
       ],
-      "sha256": "5ab4f4c51b13dcf9fead99287d31377821f57c19c15a16753c35fc244208d118"
+      "sha256": "39b346196abb095292660622ac35a58ecd346398ce0aa99ecff01b185eebb02c"
     },
     {
       "file": "packages/agent-adapter/src/agent-api-help.generated.ts",

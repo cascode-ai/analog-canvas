@@ -354,6 +354,24 @@ describe("authoring helper compilation", () => {
       },
     ]);
   });
+  it.each([
+    "simple-switch",
+    "spdt-switch",
+    "voltage-controlled-switch",
+    "differential-transconductance",
+    "adc",
+    "dac",
+  ])(
+    "places the reviewed palette part %s, as the GUI palette does (#1303)",
+    (symbol) => {
+      const command = compile([
+        { kind: "place-component", symbol, position: { x: 0, y: 0 } },
+      ])[0]!.command;
+      expect(command?.kind).toBe("place-components");
+      if (command?.kind !== "place-components") return;
+      expect(command.instances[0]!.symbolId).toBe(symbol);
+    },
+  );
   it("forwards pin anchors to the shared server planner and requires one position form", () => {
     const action = {
       kind: "place-component",
