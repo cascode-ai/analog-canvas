@@ -5,13 +5,17 @@ import type {
   AgentFileResourceResponse,
   AgentProjectResourceRequest,
   AgentProjectResourceResponse,
+  AgentSimulationResourceRequest,
+  AgentSimulationResourceResponse,
 } from "@icm/agent-adapter";
 import { AgentHttpClient, type ClaimSuccess } from "../http-client.js";
-import { testSnapshot } from "../../../agent-adapter/src/test-support/snapshot-fixture.js";
 
 /**
- * In-process fake of the public relay for Helper and MCP contract tests.
- * Tests script claim/circuit outcomes; nothing touches the network.
+ * In-process stand-in for the public relay. It pairs a client and carries
+ * its requests to the editor; it never answers for the editor. Attach the
+ * real editor's services with `circuit`, `files`, `projects` and
+ * `simulation` (apps/editor's liveAgentEditor does). A request no editor
+ * service is attached for fails.
  */
 
 export interface RecordedCircuitCall {
@@ -19,214 +23,6 @@ export interface RecordedCircuitCall {
   token: string;
   request: AgentCircuitRequest;
   payload: string;
-}
-
-export function capabilitiesResponse(requestId: string): AgentCircuitResponse {
-  return {
-    apiVersion: "3.0",
-    requestId,
-    operation: "capabilities",
-    ok: true,
-    capabilities: {
-      apiVersions: ["3.0"],
-      snapshotVersions: ["3.0"],
-      operations: ["capabilities", "snapshot", "transact", "render"],
-      editKinds: ["add_instance", "move_instance", "connect_endpoints"],
-      // As the editor advertises them: it plans action lists itself.
-      transactionForms: [
-        "edits",
-        "wireIntent",
-        "structureEdits",
-        "command",
-        "actions",
-      ],
-      permissions: {
-        snapshot: true,
-        render: true,
-        sourceSpans: false,
-        edit: { geometry: true, connectivity: true, presentation: true },
-      },
-      limits: {
-        maxSnapshotBytes: 4_000_000,
-        maxTransactionEdits: 64,
-        maxRenderBytes: 1_000_000,
-        maxRequestBytes: 256_000,
-        changeHistoryEntries: 32,
-      },
-    },
-  };
-}
-
-export function snapshotResponse(
-  requestId: string,
-  snapshot = testSnapshot(),
-  revision = snapshot.document.revision,
-): Extract<AgentCircuitResponse, { operation: "snapshot"; snapshot: unknown }> {
-  return {
-    apiVersion: "3.0",
-    requestId,
-    operation: "snapshot",
-    ok: true,
-    revision,
-    snapshot,
-    diagnostics: snapshot.document.diagnostics,
-  };
-}
-
-export function bootstrapSnapshotResponse(
-  requestId: string,
-  snapshot = testSnapshot(),
-): Extract<AgentCircuitResponse, { projection: "bootstrap" }> {
-  const current = snapshot.document;
-  return {
-    apiVersion: "3.0",
-    requestId,
-    operation: "snapshot",
-    ok: true,
-    projection: "bootstrap",
-    revision: current.revision,
-    context: {
-      snapshotVersion: "3.0",
-      byteLength: 512,
-      project: {
-        id: snapshot.project.id,
-        name: snapshot.project.name,
-        structureRevision: snapshot.project.structureRevision,
-        topDocumentId: snapshot.project.topDocumentId,
-        simulationFolderCount: snapshot.project.simulationFolders.length,
-        documents: snapshot.project.documents.map((document) => ({
-          id: document.id,
-          name: document.name,
-          revision: document.id === current.id ? current.revision : 0,
-          instanceCount: document.instanceCount,
-          netCount: document.netCount,
-        })),
-      },
-      document: {
-        id: current.id,
-        name: current.name,
-        revision: current.revision,
-        instanceCount: current.instances.length,
-        netCount: current.nets.length,
-        routeCount: current.routes.length,
-        junctionCount: current.junctions.length,
-        annotationCount: current.annotations.length,
-        noConnectCount: current.noConnects.length,
-        draftingObjectCount: current.drafting.objects.length,
-      },
-    },
-  };
-}
-
-export function stateSnapshotResponse(
-  requestId: string,
-  snapshot = testSnapshot(),
-  includeDiagnostics = false,
-): Extract<AgentCircuitResponse, { projection: "state" }> {
-  const diagnostics = snapshot.document.diagnostics;
-  const errors = diagnostics.filter((item) => item.severity === "error").length;
-  const warnings = diagnostics.filter(
-    (item) => item.severity === "warning",
-  ).length;
-  return {
-    apiVersion: "3.0",
-    requestId,
-    operation: "snapshot",
-    ok: true,
-    projection: "state",
-    projectId: snapshot.project.id,
-    structureRevision: snapshot.project.structureRevision,
-    documentId: snapshot.document.id,
-    documentName: snapshot.document.name,
-    revision: snapshot.document.revision,
-    instanceCount: snapshot.document.instances.length,
-    netCount: snapshot.document.nets.length,
-    counts: { errors, warnings, total: diagnostics.length },
-    ...(includeDiagnostics ? { diagnostics } : {}),
-  };
-}
-
-export function folderDirectoryResponse(
-  requestId: string,
-  snapshot = testSnapshot(),
-): Extract<AgentCircuitResponse, { projection: "folder-directory" }> {
-  return {
-    apiVersion: "3.0",
-    requestId,
-    operation: "snapshot",
-    ok: true,
-    projection: "folder-directory",
-    projectId: snapshot.project.id,
-    structureRevision: snapshot.project.structureRevision,
-    documentId: snapshot.document.id,
-    revision: snapshot.document.revision,
-    folders: snapshot.project.simulationFolders.map((folder) => ({
-      id: folder.id,
-      name: folder.name,
-      entry: folder.input.entry,
-      circuitBindings: folder.input.circuitBindings,
-    })),
-  };
-}
-
-export function transactSuccessResponse(
-  requestId: string,
-  fromRevision: number,
-  changedObjectIds: string[] = [],
-): AgentCircuitResponse {
-  return {
-    apiVersion: "3.0",
-    requestId,
-    operation: "transact",
-    ok: true,
-    applied: true,
-    revision: fromRevision + 1,
-    proposedRevision: fromRevision + 1,
-    diff: {
-      documentId: "main",
-      fromRevision,
-      toRevision: fromRevision + 1,
-      editKinds: ["add_instance"],
-      changedObjectIds,
-    },
-    diagnostics: [],
-  };
-}
-
-export function errorResponse(
-  requestId: string,
-  operation: "snapshot" | "transact" | "render",
-  code: string,
-  message: string,
-): AgentCircuitResponse {
-  return {
-    apiVersion: "3.0",
-    requestId,
-    operation,
-    ok: false,
-    error: { code, message },
-    diagnostics: [],
-  };
-}
-
-export function renderResponse(requestId: string): AgentCircuitResponse {
-  const svg = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>', "utf8");
-  return {
-    apiVersion: "3.0",
-    requestId,
-    operation: "render",
-    ok: true,
-    revision: 5,
-    artifact: {
-      mediaType: "image/svg+xml",
-      encoding: "base64",
-      data: svg.toString("base64"),
-      sha256: "b".repeat(64),
-      byteLength: svg.byteLength,
-      mode: "formal",
-    },
-    diagnostics: [],
-  };
 }
 
 export interface FakeRelayOptions {
@@ -242,7 +38,20 @@ export interface FakeRelayOptions {
   projects?: (
     request: AgentProjectResourceRequest,
   ) => Promise<AgentProjectResourceResponse> | AgentProjectResourceResponse;
+  simulation?: (
+    request: AgentSimulationResourceRequest,
+  ) =>
+    Promise<AgentSimulationResourceResponse> | AgentSimulationResourceResponse;
   baseUrl?: string;
+}
+
+/** No editor is attached: the relay has nothing to carry a request to. */
+function noEditor(resource: string) {
+  return (): never => {
+    throw new Error(
+      `No editor attached for this ${resource} request: run the client against the real editor (liveAgentEditor)`,
+    );
+  };
 }
 
 export class FakeAgentHttp extends AgentHttpClient {
@@ -251,6 +60,7 @@ export class FakeAgentHttp extends AgentHttpClient {
   readonly resumes: Array<{ sessionId: string; connectorToken: string }> = [];
   readonly fileCalls: AgentFileResourceRequest[] = [];
   readonly projectCalls: AgentProjectResourceRequest[] = [];
+  readonly simulationCalls: AgentSimulationResourceRequest[] = [];
   readonly disconnects: string[] = [];
   /** Replaceable per-test dispatch over recorded circuit calls. */
   circuitHandler: (call: RecordedCircuitCall) => Promise<AgentCircuitResponse>;
@@ -258,6 +68,7 @@ export class FakeAgentHttp extends AgentHttpClient {
   private readonly resumeHandler: NonNullable<FakeRelayOptions["resume"]>;
   private readonly fileHandler: NonNullable<FakeRelayOptions["files"]>;
   private readonly projectHandler: NonNullable<FakeRelayOptions["projects"]>;
+  private readonly simulationHandler: FakeRelayOptions["simulation"];
 
   constructor(options: FakeRelayOptions = {}) {
     super({ baseUrl: options.baseUrl ?? "https://relay.test" });
@@ -274,53 +85,10 @@ export class FakeAgentHttp extends AgentHttpClient {
         documentIds: ["main"],
       }));
     this.resumeHandler = options.resume ?? (() => this.claimHandler("resume"));
-    this.fileHandler =
-      options.files ??
-      ((request) => ({
-        apiVersion: "3.0",
-        requestId: request.requestId,
-        operation: "discard",
-        ok: true,
-        discarded: true,
-      }));
-    this.projectHandler =
-      options.projects ??
-      ((request) => ({
-        apiVersion: "3.0",
-        requestId: request.requestId,
-        operation: "list-projects",
-        ok: true,
-        projects: [],
-      }));
-    this.circuitHandler =
-      options.circuit ??
-      (async ({ request }) => {
-        switch (request.operation) {
-          case "capabilities":
-            return capabilitiesResponse(request.requestId);
-          case "snapshot":
-            if (request.projection === "bootstrap")
-              return bootstrapSnapshotResponse(request.requestId);
-            if (request.projection === "state")
-              return stateSnapshotResponse(
-                request.requestId,
-                testSnapshot(),
-                request.diagnosticDetail === "items",
-              );
-            if (request.projection === "folder-directory")
-              return folderDirectoryResponse(request.requestId);
-            return snapshotResponse(request.requestId);
-          case "render":
-            return renderResponse(request.requestId);
-          default:
-            return errorResponse(
-              request.requestId,
-              "transact",
-              "UNSUPPORTED_EDIT",
-              "not scripted",
-            );
-        }
-      });
+    this.simulationHandler = options.simulation;
+    this.fileHandler = options.files ?? noEditor("File");
+    this.projectHandler = options.projects ?? noEditor("Project");
+    this.circuitHandler = options.circuit ?? noEditor("Circuit");
   }
 
   override async claim(claimCode: string): Promise<ClaimSuccess> {
@@ -367,6 +135,15 @@ export class FakeAgentHttp extends AgentHttpClient {
   ): Promise<AgentProjectResourceResponse> {
     this.projectCalls.push(request);
     return this.projectHandler(request);
+  }
+
+  override async simulation(
+    _sessionId: string,
+    _agentToken: string,
+    request: AgentSimulationResourceRequest,
+  ): Promise<AgentSimulationResourceResponse> {
+    this.simulationCalls.push(request);
+    return (this.simulationHandler ?? noEditor("Simulation"))(request);
   }
 
   override async disconnect(sessionId: string): Promise<void> {

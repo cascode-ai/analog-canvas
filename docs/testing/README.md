@@ -24,6 +24,16 @@ Use the cheapest layer that can prove the behavior. Keep one primary contract
 test per behavior; add a higher-layer test only when it proves wiring or a real
 user path that the lower layer cannot prove.
 
+Test against the real counterpart. An Agent client or MCP test talks to the
+real editor: `liveAgentEditor()` in
+`apps/editor/src/agent/live-agent-editor.test-support.ts` builds the editor's
+live controller, Circuit service and File, Project and Simulation hosts as the
+browser does. Script only what lies outside the editor: pairing and network
+faults at the relay, and the answers of services the editor calls over the
+network (simulation, Gallery, Cloud Projects). Never write the editor's answers
+by hand. A stand-in editor drifts from the real one, so a test against it
+proves nothing about the product.
+
 ## Advisory gate planning
 
 Before expensive validation, inspect the real commands selected for the
