@@ -172,14 +172,6 @@ function baseRequest(requestId: string): {
   return { apiVersion: AGENT_API_VERSION, requestId };
 }
 
-/**
- * Unified Agent-side Helper (Agent rationale). Owns claim/resume, token and session
- * state, capabilities/revision caches, exact-payload request-ID retry, the
- * Snapshot cache, and compilation-plus-execution of high-level actions.
- * Bearer tokens remain process-local and are sent only in Authorization
- * headers. A revocable connector credential may be persisted by M4 so a new
- * MCP process can resume without another claim-code hand-off.
- */
 /** The action an editor's refusal of an action list names, if it does. */
 function refusedAction(error: {
   actionIndex?: number | undefined;
@@ -193,6 +185,15 @@ function refusedAction(error: {
       };
 }
 
+/**
+ * Unified Agent-side Helper (Agent rationale). Owns claim/resume, token and session
+ * state, capabilities/revision caches, exact-payload request-ID retry, the
+ * Snapshot cache, and sending high-level actions, which it compiles itself
+ * only for an editor that does not plan them.
+ * Bearer tokens remain process-local and are sent only in Authorization
+ * headers. A revocable connector credential may be persisted by M4 so a new
+ * MCP process can resume without another claim-code hand-off.
+ */
 export class AgentSessionClient {
   readonly connection: ConnectionTracker;
   private readonly http: AgentHttpClient;
