@@ -28,6 +28,8 @@ import {
   planRenameCellTerminal,
   planRemoveCellTerminal,
   planRemoveCellTerminals,
+  planSetCellSymbolPins,
+  planMoveRouteClearance,
   planCellSelectionDeletion,
   gateRoutingOperationPlan,
   createRoutingOperationPlan,
@@ -100,7 +102,7 @@ import {
 import { instanceDisplayEdits } from "../features/instance-display/instance-display-edits";
 import { planDisplayAlias } from "../features/properties/group-naming";
 import { arrangeInstanceLabels } from "../features/instance-display/arrange-instance-labels";
-import { netLabelAtOpenEnd } from "./net-label-open-end";
+import { netLabelAtClearSpot } from "./net-label-clear-spot";
 import { instanceParameterVisibilityEdits } from "../features/instance-display/instance-parameter-display";
 import {
   dragNetLabelAttachmentAtPoint,
@@ -334,16 +336,27 @@ export function planBrowserAgentCommand(
           throw new Error(`Instance not found: ${instanceId}`);
       if (new Set(command.instanceIds).size !== command.instanceIds.length)
         throw new Error("instances must be distinct");
+      const edits: SchematicEdit[] = [
+        {
+          kind: "align_instances",
+          instanceIds: [...command.instanceIds],
+          axis: command.axis,
+          ...(command.coordinate !== undefined
+            ? { coordinate: command.coordinate }
+            : {}),
+        },
+      ];
+      // Lined up by coordinates, as a typed move is: its stretched wires are
+      // drawn clear of what they would cross (#1344).
       return {
         edits: [
-          {
-            kind: "align_instances",
-            instanceIds: [...command.instanceIds],
-            axis: command.axis,
-            ...(command.coordinate !== undefined
-              ? { coordinate: command.coordinate }
-              : {}),
-          },
+          ...edits,
+          ...planMoveRouteClearance(
+            document,
+            resolver,
+            command.instanceIds,
+            edits,
+          ),
         ],
       };
     }
@@ -1284,7 +1297,7 @@ export function planBrowserAgentCommand(
             kind: "upsert_schematic_annotation",
             annotation:
               created && createdGeometry
-                ? netLabelAtOpenEnd(
+                ? netLabelAtClearSpot(
                     document,
                     resolver,
                     annotation,
@@ -1388,6 +1401,14 @@ export function planBrowserAgentCommand(
           project,
           documentId,
           command.terminalId,
+        ),
+      };
+    case "set-cell-symbol-pins":
+      return {
+        structureEdits: planSetCellSymbolPins(
+          project,
+          documentId,
+          command.pins,
         ),
       };
     case "unplace":

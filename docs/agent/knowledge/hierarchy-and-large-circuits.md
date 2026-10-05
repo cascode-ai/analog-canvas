@@ -21,7 +21,8 @@ saved simulation folder's entry. Explicit export/simulation roots remain separat
 
 Use existing `transact.command` (MCP `advanced_transact`) for
 `bind-cell-parameter`, `rename-cell-parameter`, `set-cell-parameter-default`,
-`remove-cell-parameter`, `rename-cell-terminal` and `remove-cell-terminal`.
+`remove-cell-parameter`, `rename-cell-terminal`, `remove-cell-terminal` and
+`set-cell-symbol-pins`.
 Read the current schema and `commandKinds`; address the child `documentId` and
 current `expectedStructureRevision`. These commands reuse GUI planners and
 commit affected callers atomically. Parameter rename updates local references
@@ -35,6 +36,25 @@ retains the planner's non-merging behavior. Removal retains disconnected parent
 wire stubs as Junctions. These commands add no GUI confirmation and do not
 replace or restrict raw typed edits. Reviewed PDK External interfaces retain
 their existing constraints; edit supported instance parameters instead.
+
+To arrange the Pins on a Cell's block, send `set-cell-symbol-pins` (also an
+action: MCP `circuit_transform`) to the child `documentId`, by Pin name, for
+example to put `bl` west and `blb` east as the Cell's schematic draws them:
+`{kind:"set-cell-symbol-pins",pins:[{name:"bl",side:"west"},{name:"blb",side:"east"}]}`.
+Every Pin not named keeps the place its callers were drawn with (or, before
+the first placement, the place that placement would give it). A named Pin
+without `offset` (multiples of 10 along the side) stays put on its own side
+and takes the first free slot of a new one. Unknown names and shared slots
+are refused with the Cell's Pin names or the free slots. Callers keep their
+Nets and netlist calls, and the wiring the move stretches is redrawn around
+the block; the receipt names those callers and their Cells. This replaces
+rebuilding the low-level `set_cell_symbol_presentation` edit's whole
+`pinPlacements` by terminal ID.
+
+A placed Cell shows its Cell name, not its instance name (`X1`). Probing a
+node inside one of several identical blocks, such as `v(xdut.x1.net0)`, needs
+that name: `set-instance-display` with `showReference:true` shows `X1` above
+the Cell name on the parent, as the Properties Visual annotation switch does.
 
 A reused child is one definition in several parent contexts. Before changing
 its interface or internal meaning, inspect affected references; do not clone it

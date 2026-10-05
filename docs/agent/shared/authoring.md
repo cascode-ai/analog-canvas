@@ -40,6 +40,12 @@ targets to avoid full-Snapshot name resolution. Names remain supported when usef
   rejected with a free name, because it would block the netlist; nothing is
   placed. To draw another name, as textbooks label an op-amp A1, place it under
   its own name and use `set-display-alias`.
+- A placed Cell shows its Cell name; its instance name (`X1`, `X2`, …), which
+  the netlist calls it by, is hidden. To show it, for instance to tell which
+  block is `x1` when probing `v(xdut.x1.net0)`, use `set-instance-display`
+  with `instanceIds` and `showReference:true`: `X1` takes the Cell name's
+  place and the name moves a row below, as the Properties Visual annotation
+  switch does. `showReference:false` hides it again.
 - For exact pin placement, `place-component` accepts `pinAnchor:{pinName,position}`
   instead of origin `position`; rotation/mirror still apply. It uses the shared
   routing landing (including variants and fine-pitch pins), not artwork contact,
@@ -105,18 +111,40 @@ targets to avoid full-Snapshot name resolution. Names remain supported when usef
   the Process the Netlist panel shows. A BJT in a SKY130 Project arrives as
   the reviewed SKY130 wrapper, keeping its `m`. Given `parameters` win, and
   only a value given is shown in a Value label.
+- A diode placed in Abstract, SKY130, IHP SG13G2 or Custom is bound to the
+  generic model `DIODE`. The SPICE netlist defines it with one
+  `.model DIODE D(IS=1e-14 N=1)` card in each Cell that uses it and says so as
+  information, `GENERIC_DIODE_MODEL`, naming the diodes. A `.model DIODE` in
+  the Project's own simulation sources replaces the card. For a real device,
+  `set-model` the diode to its own model.
 - `place-component` and `set-property` refuse a parameter the part does not
   take (naming the one it most likely meant), a value outside a choice list,
   and a quantity that is neither a SPICE number (`1k`, `2.5n`, `9kΩ`) nor an
   expression in braces (`{vdd/2}`). Write micro as `u`. The same checks run
   on stored values, as Cell diagnostics.
+- An adder input subtracts by its sign, a choice: `signA`/`signB` `"-"`
+  (default `"+"`), so V_hold − V_DAC is one adder with `signB:"-"`, drawn
+  with its + and − marks, not an adder after a −1 gain block.
 - Three-terminal MOS artwork still has an electrical B pin. Read `mosBulk` and
-  `mosBulkDefaults`; ordinary devices reuse defaults. To give one device
-  another body, `connect` its B pin to that Net, as the GUI's Draw action
-  does: the body leaves the Cell default for a dashed body wire. In a Cell
-  with two supplies, check the PMOS on the one that is not the default.
-  Hidden bulk needs no decorative wire; four-pin presentation is a separate
-  visual choice.
+  `mosBulkDefaults`; ordinary devices reuse defaults. A body on no Net
+  (`mosBulk.status: "unresolved"`) takes the conventional VDD or ground; a
+  Cell that draws no such supply gains it as a Cell Pin, and the netlist says
+  so as information, `MOS_BODY_DEFAULT_SUPPLY`, naming the parts. To give one
+  device another body, `connect` its B pin to that Net, as the GUI's Draw
+  action does: the body leaves the Cell default for a dashed body wire. A
+  body tied to its own source is one call,
+  `{kind:"connect",from:{kind:"pin",instance:"MP",pin:"B"},to:{kind:"pin",instance:"MP",pin:"S"}}`,
+  or a `wire-at` tap on the source wire. A default for the whole Cell is an
+  `advanced_transact` of two edits, as the GUI sends them:
+  `{kind:"set_mos_bulk_defaults",pmosNetId:"<Net ID>"}` (`nmosNetId` for
+  NMOS), then `{kind:"reconcile_mos_bulk"}`. In a Cell with two supplies,
+  check the PMOS on the one that is not the default: `MOS_BODY_OTHER_SUPPLY`
+  (information) names a body that follows the default onto another supply
+  than its source's. With no default set, such a Cell's unwired bodies are
+  unresolved and take the conventional VDD or ground; the same finding names
+  one whose source is on another supply. MCP `verify` lists both findings by
+  name in `information`, beside its counts. Hidden bulk needs no decorative
+  wire; four-pin presentation is a separate visual choice.
 - Name Nets with `add-label` / Net Label `edit-text` (native `set-net-label`).
   This creates the name claim and bound annotation together; free text does not.
   Supply `position` for a new label. RichText text runs use `value`, not `text`.
@@ -213,11 +241,15 @@ amplifier, name it at each end instead: `connect` the pin to an open
 and the pin as its target, `{kind:"pin",instance:"M4",pin:"G"}`, which puts the
 label on that stub; Nets of one name in a Cell are one Net. A name that is not
 clear halfway along the stub stands at its open end, reading outward from a
-horizontal stub and beside a vertical one; where that end is crowded too, the
-label stays on the stub and `VISUAL_LABEL_CLEARANCE` says so, so move the
-parts apart. To tie a MOS body to its source, connect B to the source wire a
-step or two below the device (`{kind:"wire-at"}`), which taps it with a dot;
-a wire to the S pin itself has to detour around the device's own lead. A trunk and its branches
+horizontal stub and beside a vertical one. A label on a longer wire that is not
+clear where the pin target puts it, such as where another Net's wire crosses,
+slides along that straight run of the wire to the nearest clear spot. Where
+nothing is clear, the
+label stays and `VISUAL_LABEL_CLEARANCE` says so, so move the parts apart. A
+wire whose last leg into a pin, or first leg out of one, would run along a
+wire of its own Net there ends where it meets that wire, with a dot: to tie a
+MOS body to its source, connect B to S, and where the output already leaves
+the source the body wire taps it instead of running along it. A trunk and its branches
 are checked the same way and refused, not bent. This is not a general
 autorouter: conflicting taps or excess expanded edits also reject the whole
 operation. Ordinary crossings without a Junction remain legal. It does not move
@@ -274,7 +306,9 @@ slots and tries a fixed set of nearby collision-avoiding positions in one
 undoable operation, keeping each Reference clear before its value. A part's
 labels may slide along its side to fit between two rows of wiring; they keep
 a word's space from other labels, a little space from junction dots, and
-stay on their part's side of any wire but its own. Where parts
+stay on their part's side of any wire but its own. While another place is
+clear, a value does not stand just under or after another part's name, where
+it would read as that part's. Where parts
 sit too close for both, the value is the one left touching a wire; hide values
 with `set-instance-display` or move the parts apart. A requested Port's name
 that a part or wire now covers moves to the first clear one of its sides. Set `compact:false` or `avoidCollisions:false` to disable
@@ -297,8 +331,16 @@ resolved display text, including bound Net and device labels. `edit-text` on a
 bound Pin, Reference, Net, or Value label restyles the same visible characters;
 change the owning terminal, name claim, Reference, or parameter to change them.
 
-Cell interface/symbol edits use `structureEdits` with a nested
-`transact_document`, not top-level `edits`; the per-kind contract supplies that
+To arrange the Pins on a Cell's block, address the Cell (the call's
+`documentId`) with `set-cell-symbol-pins` (MCP `circuit_transform`), by name:
+`{kind:"set-cell-symbol-pins",pins:[{name:"bl",side:"east"},{name:"blb",side:"west",offset:0}]}`.
+Pins not named keep their place, a named Pin without `offset` takes the first
+free slot on a new side, and callers keep their Nets while the wiring the
+change stretches is redrawn; an unknown name or a shared slot is refused with
+the names or free slots. Other Cell interface/symbol edits use
+`structureEdits` with a nested `transact_document`, not top-level `edits`,
+such as the low-level `set_cell_symbol_presentation`, which takes the whole
+`pinPlacements` list by terminal ID; the per-kind contract supplies that
 envelope when needed. HTTP callers use their published transact schema, not an
 MCP tool envelope; its `actions` form takes the actions `apply_actions` takes.
 Current revision guards and locks always apply.

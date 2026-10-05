@@ -201,6 +201,12 @@ their request identity for the session: after the result cache is gone, a
 completed mutation returns `REQUEST_RESULT_UNAVAILABLE` rather than executing
 again. The Agent must reconcile its outcome before making a new write.
 
+The relay stores each completed mutation's identity (request ID, payload hash
+and timestamps, never its result) once, under its own Durable Object storage
+key, and looks it up when a request ID is not in memory. The session state
+value keeps only mutations not yet completed, so it stays the same size
+however many writes a session makes. Ending the session deletes both.
+
 Circuit edits target one exact Document revision. Dry-run and commit share the
 same validation path. On `STALE_REVISION`, uncertain write outcome, reconnect,
 or human revision event, the Agent refreshes Snapshot state and reconciles

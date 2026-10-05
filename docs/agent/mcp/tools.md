@@ -18,7 +18,7 @@ Focused circuit tools retain the `{documentId?, actions:[...]}` call envelope:
 | -------------------- | ----------------------------------------------------------------- |
 | `circuit_place`      | Built-in symbol, Cell and existing-instance placement; power rail |
 | `circuit_wire`       | Connect, disconnect, and mark unused pins No Connect             |
-| `circuit_transform`  | Individual move/rotate/mirror/set-orientation, arrange, detach-move and rail span |
+| `circuit_transform`  | Individual move/rotate/mirror/set-orientation, arrange, detach-move and rail span; a Cell block's Pin sides |
 | `circuit_selection`  | Selection transform, copy and align                               |
 | `circuit_text`       | Labels, annotations, text changes and annotation movement         |
 | `circuit_properties` | References, parameters, formulas, model selection, display flags and aliases, block supplies |
@@ -201,6 +201,14 @@ and a single `_` lowers the next term, a longer script groups in parentheses
 or braces (`g_m`, `g_(m1)`, `g_{m1}`, `z^-1`), and one top-level `/` makes a
 fraction (`1/s`). These are drawing text, never netlist parameters:
 `set-property` on a part without netlist parameters names `set-signal-flow`.
+The adder's inputs add by default. To subtract one, as a residue
+V_hold − V_DAC, a ΣΔ loop error or a phase detector does, set its sign with
+`parameters:{signB:"-"}` on `place-component` or `set-property {target,
+set:{signB:"-"}}` (`signA` for input A; `+` or `-`, and a Unicode minus `−`
+is stored as `-`). The drawing then marks each input + or −, and the netlist
+calls `adder_minus_b` (or `adder_minus_a`, `adder_minus_ab`), whose source for
+B has gain −1. Do not add a −1 gain block for a subtraction the figure does
+not draw.
 `set-display-alias {target, text}` draws a part's name label as other text
 while its Reference (or Pin name) stays in the netlist, as the Properties
 display alias does: an op-amp stays `X1` and shows `A1`; `text:null` shows its
@@ -223,6 +231,28 @@ Cell upright. `set-model` and `set-display-alias` take a `target`
 owned Port, Net and bound terminal-name display atomically; use the returned
 Instance ID for subsequent wiring. To place an imported Instance, use `place-existing` with
 `instanceId` and `placement` (or `move` from the tray); default labels use the GUI planner.
+A placed Cell shows its Cell name; its instance name (`X1`) is hidden, as
+in the GUI. `set-instance-display` with `showReference:true` shows it above
+the Cell name, as the Properties Visual annotation switch does, for instance
+to tell which block is `x1` when probing `v(xdut.x1.net0)`.
+
+`set-cell-symbol-pins` (in `circuit_transform`) arranges the Pins on the block
+of the call's Cell, its `documentId`, by name:
+`{kind:"set-cell-symbol-pins",pins:[{name:"bl",side:"east"},{name:"blb",side:"west",offset:0}]}`.
+Sides are `north`, `east`, `south` and `west`; `offset` runs along the side
+from its middle in multiples of 10. A Pin not named stays where its callers
+were drawn with it (for a Cell no parent has placed yet, where its first
+placement would put it). A named Pin without `offset` stays put if its side
+does not change, and otherwise takes the first free slot on its new side (0,
+-20, 20, …, a full row from the Pins there). An unknown name is refused with
+the Cell's Pin names, two Pins on one slot with that side's free slots.
+Callers keep their Nets and the wiring the change stretches is redrawn clear;
+the receipt's `projectStructure.changedDocumentIds` names the Cell and each
+Cell whose callers were redrawn, and `changedObjectIds` those callers (a
+caller with a wire on a Pin that moved) and their wires.
+No terminal IDs or whole `pinPlacements` list are needed, as the low-level
+`set_cell_symbol_presentation` edit takes them.
+
 `place-component` batches use the browser's native display factory: references
 and displayable values are object-attached, and power markers own electrical
 power claims. Use `set-instance-display` with `instanceIds`, `showReference`
@@ -284,10 +314,11 @@ transaction form and plans it with the code the GUI runs.
 | `circuit_wire`       | `connect`                                           | wire intent                          | GUI routing planner                                                         |
 |                      | `disconnect`                                        | `disconnect-pin` command; a wire's is `delete-selection` | GUI pin menu: Delete connection where wires end on the pin, Disconnect endpoint where none does; GUI deletion |
 |                      | `disconnect` with `noConnect`, a No Connect mark    | typed edits                          | Edit Engine, as the GUI's No Connect toggle                                 |
-| `circuit_transform`  | `move`                                              | `set-properties` command, or a move command | Properties position field: a moved part joins a pin it lands on, as a drag does; GUI tray, annotation and Junction planners |
+| `circuit_transform`  | `move`                                              | `set-properties` command, or a move command | Properties position field: a moved part joins a pin it lands on, as a drag does, and a wire it stretches across a part or another Net's pin is drawn clear as `connect` draws it; GUI tray, annotation and Junction planners |
 |                      | `rotate`, `mirror`, `set-orientation`               | `set-properties` command             | Properties rotation and mirror fields                                       |
 |                      | `arrange`                                           | `arrange-instances` command          | Origins on one coordinate; the GUI's own Align is `circuit_selection` `align` |
 |                      | `detach-move`, `extend-power-rail`                  | command                              | GUI move and rail planners                                                  |
+|                      | `set-cell-symbol-pins`                              | command                              | Cell symbol presentation planner: every Pin's current place kept, the named ones moved; callers keep their Nets and their stretched wiring is redrawn clear |
 | `circuit_selection`  | `transform`, `copy`, `align`                        | command                              | GUI selection transform, copy and alignment                                 |
 | `circuit_text`       | `add-label`, Net Label `edit-text`, `set-net-label` | `set-net-label` command              | GUI Net Label planner                                                       |
 |                      | `edit-text`                                         | `set-text` command                   | GUI text commit: a name label renames its part, a value label sets its value; the same characters in a new look only restyle |
@@ -306,7 +337,14 @@ order on a private copy, so a later action sees the earlier ones. An
 Mutation receipts already include authoritative changed-object IDs, edit kinds,
 diagnostics and diagnostic deltas. Do not reconstruct the change from a partial
 Snapshot or count the same diagnostics twice. Use `verify` for a fresh check
-when needed and `render` when visual review matters. On `STATE_CHANGED`,
+when needed and `render` when visual review matters. Beside its `errors`,
+`warnings` and `total`, `verify` names in `information` the findings a count
+would hide: a MOS body given a supply nobody wired, as a Cell Pin nobody drew
+(`MOS_BODY_DEFAULT_SUPPLY`) or on another supply than its source
+(`MOS_BODY_OTHER_SUPPLY`). Each has code, message and objectIds, and
+`documentId` when it is another Cell's. It lists at most ten;
+`informationOmitted` counts the rest. Generated Net names stay counted in
+`total`; `inspect` of diagnostics lists everything. On `STATE_CHANGED`,
 refresh and re-plan; never blindly replay a changed payload.
 
 `inspect` with `target:{kind:"document"},detail:"full"` returns complete

@@ -178,7 +178,12 @@ Undo restores the whole committed document, including the derived membership.
   both pins of a two-pin part on one Logical Net is refused with that reason;
   a move then completes without connecting.
 - Moving a connected Instance stretches the attached Route while preserving
-  endpoint identity.
+  endpoint identity. A move typed as a coordinate (the Properties position
+  field, an Agent's `move`) redraws a wire its stretch would lay across a
+  part or over another Net's pin or wire, along the path the Agent's
+  `connect` takes, keeping its ends, Net and style; a wire with no clear
+  path keeps the stretch. A drag keeps the stretch as dragged, since the
+  person dragging sees it (#1344).
 - Placement and an explicitly snapped instance move use the same engine contact
   planner. Every moved visible pin is checked against the final transformed
   geometry; multiple Net joins are folded before Route splits are compiled.
@@ -247,6 +252,15 @@ marker of that domain, or more than one (AVDD beside VDD, AGND beside DGND),
 has no answer — the body stays unresolved and the Cell default must name one,
 because choosing between two authored supplies is the author's decision. An
 unwired marker names no Net, so it neither answers nor competes.
+A default on one of two supplies of a domain still leaves a question for each
+device whose source is on the other: a PMOS sourced from VDDH with its body on
+a VDDL default is forward-biased if VDDH is the higher supply. The drawing
+holds no voltages, so the netlist asks rather than decides
+(`MOS_BODY_OTHER_SUPPLY`, information, in
+[netlist export](netlist-export.md#one-electrical-extraction-authority)), and a
+body wired from B answers it. Until a Cell default names one of two supplies,
+the netlist gives an unresolved body the conventional VDD or ground and asks
+the same question when its source is on another supply.
 Pasting a supply marker settles a body default the target Cell does not have
 yet, exactly as placing that marker does, and never overrules one it has. A
 body left alone on a Net that its own policy binding named, with no geometry,
@@ -397,8 +411,9 @@ with routing guides is left alone. `ERC_OVERLAPPING_NETS` is an error for
 two wires of different Logical Nets drawn along one line over a common span:
 the sheet shows one continuous wire, the Nets joined, while the netlist keeps
 them apart. A stretch after a move, a mirror or a pin change can leave wires
-so; a pin change planned in Properties, such as swapped inputs, redraws a
-wire it would stretch onto another Net clear of it instead. A crossing, wires
+so; a pin change planned in Properties, such as swapped inputs, and a typed
+move redraw a wire they would stretch onto another Net clear of it instead.
+A crossing, wires
 meeting end to end and a shared trunk of one Net are not overlaps. Each pair
 of wires is named once, with the span. `ERC_INSTANCE_NOT_DRAWN`
 counts the Instances a Cell holds that the sheet does not draw: they keep their
@@ -567,7 +582,11 @@ only overlap between separately authored Routes.
   When the planner's own path would meet one, a wire without via points
   takes the cheapest clear path (the route-net clearance) or is refused when
   there is none; a wire with via points is refused with what it would meet.
-  A wire drawn between points alone is drawn as asked.
+  A wire drawn between points alone is drawn as asked. A wire whose last leg
+  into a pin or Junction, or first leg out of one, would run along a wire of
+  its own Net there ends where it first meets that wire, tapping it with a
+  Junction: a source follower's body wired to its source taps the output
+  wire leaving the source instead of running back along it (#1337).
 - An Agent transaction, or its dry run, that would leave a new Junction on a
   Route of another Net (`VISUAL_AMBIGUOUS_JUNCTION`) is refused before it
   reaches the Document: ambiguous intersections are rejected, not guessed.

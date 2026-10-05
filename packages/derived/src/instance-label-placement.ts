@@ -2,12 +2,13 @@ import { deviceDescriptor } from "@icm/devices";
 import { transformPoint } from "@icm/model";
 import type { Point, Rect, SchematicDocument } from "@icm/model";
 import type { ResolvedSymbol } from "@icm/symbols";
-import { getRazaviCatalogEntry } from "@icm/symbols";
+import { getRazaviCatalogEntry, withInputSigns } from "@icm/symbols";
 
 import type { SchematicStyleProfile } from "./style-profile.js";
 import { visibleSymbolInkBounds } from "./visual.js";
 import { magneticDisplayParameters } from "./instance-value.js";
 import { fractionGeometry, fractionPartScale } from "./rich-text-layout.js";
+import { LABEL_CAP_HEIGHT_EM } from "./text-ink.js";
 
 export interface InstanceLabelPlacement {
   readonly position: Point;
@@ -394,8 +395,7 @@ export function instanceLabelInkBounds(
 
 /** Clearance between a label's ink and its Symbol's drawn ink, in drawing units. */
 export const INSTANCE_LABEL_GAP = 4;
-/** Height of the label font's capitals and figures, in em. */
-export const LABEL_CAP_HEIGHT_EM = 0.72;
+export { LABEL_CAP_HEIGHT_EM };
 
 /**
  * The distances the placement rule works with, in drawing units: the gap,
@@ -446,7 +446,10 @@ export function placeUprightInstanceLabel(
 ): InstanceLabelPlacement | null {
   if (!instance.placement) return null;
   const worldBounds = transformedBounds(
-    instanceLabelInkBounds(resolved, instance.signalFlowParameters),
+    instanceLabelInkBounds(
+      withInputSigns(resolved, instance),
+      instance.signalFlowParameters,
+    ),
     instance,
   );
   const rotatedSide = transformedSide(localSide, instance);
@@ -880,13 +883,15 @@ function defaultPlacementWith(
   place: typeof placeUprightInstanceLabel,
   rows: InstanceLabelRowRule,
   instance: SchematicDocument["instances"][number],
-  resolved: ResolvedSymbol,
+  symbol: ResolvedSymbol,
   profile: SchematicStyleProfile,
   grid: number,
   slot: InstanceLabelSlot,
   sizeScale: number,
 ): InstanceLabelPlacement | null {
   if (!instance.placement) return null;
+  // An adder's sign marks are its ink as much as its circle is.
+  const resolved = withInputSigns(symbol, instance);
   const localBounds = visibleSymbolInkBounds(
     resolved,
     instance.signalFlowParameters,

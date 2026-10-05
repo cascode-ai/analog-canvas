@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  CellSymbolSideSchema,
   PointSchema,
   StableIdSchema,
   RichTextDocumentSchema,
@@ -434,5 +435,28 @@ export const AgentAuthoringCommandSchema = z.discriminatedUnion("kind", [
     name: NameSchema,
     mergeExistingPort: z.boolean().optional(),
   }),
+  z
+    .strictObject({
+      kind: z.literal("set-cell-symbol-pins"),
+      pins: z
+        .array(
+          z.strictObject({
+            name: NameSchema,
+            side: CellSymbolSideSchema,
+            offset: z
+              .number()
+              .int()
+              .optional()
+              .describe(
+                "From the side's middle, a multiple of 10. Left out: a Pin keeping its side stays put, one changing side takes the first free slot (0, -20, 20, …).",
+              ),
+          }),
+        )
+        .min(1)
+        .max(256),
+    })
+    .describe(
+      "Arrange this Cell's block Pins by name. Pins not named keep their place; callers keep their Nets and their wiring is redrawn.",
+    ),
 ]);
 export type AgentAuthoringCommand = z.infer<typeof AgentAuthoringCommandSchema>;

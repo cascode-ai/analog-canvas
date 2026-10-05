@@ -101,7 +101,7 @@ import {
   runErcChecks,
   resolveDraftingObjectGeometry,
   displayableInstanceValue,
-  symbolCarriesReference,
+  instanceCarriesReference,
   symbolSupportsValueAnnotation,
   resolveMosBulkConnection,
   supplyDefaultMosBulkNet,
@@ -8492,10 +8492,15 @@ function WorkspaceEditor({
                         defaultForeground: styleProfile.foreground,
                         revision: document.revision,
                         // A Cell Pin's name label is shown or hidden like a
-                        // device Reference, though the Pin has no Reference.
+                        // device Reference, though the Pin has no Reference;
+                        // a placed Cell's X1, though its block's Symbol has
+                        // no designator (#1317).
                         referenceVisible:
                           selectedLabelRenderable &&
-                          (symbolCarriesReference(selectedInstance.symbolId) ||
+                          (instanceCarriesReference(
+                            selectedInstance,
+                            project,
+                          ) ||
                             selectedFormalTerminal !== undefined)
                             ? selectedInstanceLabel !== undefined &&
                               selectedInstanceLabel.visible !== false

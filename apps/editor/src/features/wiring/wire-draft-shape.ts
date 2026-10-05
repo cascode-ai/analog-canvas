@@ -12,7 +12,7 @@ import {
   type Rect,
   type SchematicDocument,
 } from "@icm/model";
-import type { SymbolResolver } from "@icm/symbols";
+import { resolveInstanceSymbol, type SymbolResolver } from "@icm/symbols";
 
 type Axis = "horizontal" | "vertical";
 
@@ -114,10 +114,8 @@ function endpointInk(
   );
   return document.instances.flatMap((instance) => {
     if (!instance.placement || !owners.has(instance.id)) return [];
-    const resolved = resolver.resolve(
-      instance.symbolId,
-      instance.symbolVariantId,
-    );
+    // Its drawn ink, an adder's sign marks included.
+    const resolved = resolveInstanceSymbol(resolver, instance);
     if (!resolved) return [];
     const local = visibleSymbolInkBounds(
       resolved,

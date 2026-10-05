@@ -824,7 +824,10 @@ commits. An Agent's new label stands where the tool would put it at the
 Agent's point. When that spot is not clear of parts, wires, junction dots and
 other labels, and the label's segment ends open, as a stub out of a pin does,
 the label stands at the open end if it is clear there: reading away from a
-horizontal Wire, beside a vertical one. Otherwise it keeps the spot. Each selected label
+horizontal Wire, beside a vertical one. Otherwise it slides along its segment,
+a grid step at a time, to the clear spot nearest the Agent's point, off
+another Net's wire crossing it there; where nothing is clear it keeps the
+spot. Each selected label
 draws a glowing tether to what it belongs to, and so do the labels of a lone
 selected part:
 

@@ -2,6 +2,10 @@ import { describe, expect, it } from "vitest";
 import { createEmptyProject, createEmptyDocument } from "@icm/model";
 
 import { instanceParameterContract } from "./instance-parameters.js";
+import {
+  canonicalParameterValues,
+  validateDeviceParameters,
+} from "./parameter-validation.js";
 
 const definitions = [
   {
@@ -102,6 +106,38 @@ describe("instanceParameterContract", () => {
       names(instanceParameterContract({}, { symbolId: "d-flip-flop-q" })),
     ).toEqual([["vt", "td"], true]);
   });
+  it("gives the adder a + or - choice per input, both + by default", () => {
+    const contract = instanceParameterContract({}, { symbolId: "adder" });
+    expect(contract?.definitions).toMatchObject([
+      { name: "signA", editor: "select", defaultValue: "+" },
+      { name: "signB", editor: "select", defaultValue: "+" },
+    ]);
+    expect(
+      contract?.definitions[1]?.options?.map((option) => option.value),
+    ).toEqual(["+", "-"]);
+    // The choice is checked as the GUI and an Agent check it.
+    const check = (parameters: Record<string, string>) =>
+      validateDeviceParameters(
+        { parameters: contract!.definitions },
+        parameters,
+        { open: contract!.open },
+      );
+    expect(check({ signA: "+", signB: "-" })).toEqual([]);
+    // #1324 spells the minus as U+2212: it is taken, and stored as -.
+    expect(check({ signB: "−" })).toEqual([]);
+    expect(
+      canonicalParameterValues(
+        { parameters: contract!.definitions },
+        { signA: "+", SIGNB: "−" },
+      ),
+    ).toEqual({ signA: "+", SIGNB: "-" });
+    // Anything else is still refused, an en dash too, with the choices named.
+    for (const value of ["minus", "–", "+-"])
+      expect(check({ signB: value }), value).toMatchObject([
+        { kind: "select", name: "signB", value, allowed: ["+", "-"] },
+      ]);
+  });
+
   it("gives a built-in part its descriptor", () => {
     expect(
       names(instanceParameterContract({}, { symbolId: "resistor" })),

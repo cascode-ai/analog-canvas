@@ -145,7 +145,11 @@ resolved, so continuation text cannot shift the anchor or escape export
 bounds.
 
 Derived visual diagnostics cover unplaced or unresolved symbols, symbol and
-label overlap, Routes through symbols, collinear same-Net Route overlap, a
+label overlap (free drawing text over a label included, measured by the ink
+its words draw; polarity marks are left out), labels and free text struck
+through by a wire (text over a part's outline is not reported: notes inside
+a block are drawn there on purpose), Routes through symbols,
+collinear same-Net Route overlap, a
 Route leaving a pin backward or leaving a one-pin symbol from the side where no
 other wire meets it, terminals resting on another Net's Route, short route
 segments, ambiguous
@@ -177,7 +181,10 @@ active symbol variant's visible geometry and clusters repeated overlaps.
 - Polarity notation moves with its component or drafting annotation, while
   every negative-polarity bar remains horizontal on the page at all rotations.
   Symbol assets identify those bars with an `upright-*-polarity-negative`
-  primitive part instead of relying on geometric guesses in the renderer.
+  primitive part instead of relying on geometric guesses in the renderer. An
+  adder's input signs are the Instance's own notation, laid out against its
+  turn and mirror where they are made
+  ([Razavi contract](razavi-visual-contract.md#signal-flow-adder-signs)).
 - Drafting text, formulas, fractions, and polarity marks keep their glyphs and
   strokes upright. Rotation may change a multipart polarity annotation's
   layout direction, but never rotates the notation itself.

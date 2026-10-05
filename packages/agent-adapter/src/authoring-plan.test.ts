@@ -66,6 +66,27 @@ describe("planning an action list", () => {
     });
   });
 
+  it("sends a Cell's Pin layout by name as its command, for the editor to plan without the client reading the Document (#1320)", () => {
+    const action = {
+      kind: "set-cell-symbol-pins",
+      pins: [
+        { name: "bl", side: "east" },
+        { name: "blb", side: "west", offset: 0 },
+      ],
+    };
+    expect(planBlind([action])).toMatchObject({
+      kind: "send",
+      readSnapshot: false,
+      payload: { command: action },
+    });
+    // A side the block has not is refused before anything is sent.
+    expect(
+      planBlind([
+        { kind: "set-cell-symbol-pins", pins: [{ name: "bl", side: "up" }] },
+      ]),
+    ).toMatchObject({ kind: "refused", actionIndex: 0, actionKind: "schema" });
+  });
+
   it("reads the Document for a list that names parts by Reference", () => {
     const snapshot = testSnapshot();
     let reads = 0;

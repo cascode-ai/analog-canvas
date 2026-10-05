@@ -245,9 +245,14 @@ Batch operations are explicit and distinct:
   keep that line's space from a junction dot,
   and no wire runs between a
   label and its part or between the Reference and the value, other than
-  the part's own wires. Where nothing is clear, text drawn over a wire, a
-  part or other text counts for more than a label too close to text or to
-  a junction dot, or cut off by a wire. A part's Reference comes first: no position that clears the value
+  the part's own wires. Labels are read in groups, a name and then its value
+  below it or after it on its line: a value may not follow another part's
+  name about as closely as it stands by its own part and labels, nor a name
+  stand just before another part's value. A value stacked above its name,
+  just under a neighbour's name, read as the neighbour's (#1347). Where
+  nothing is clear, text drawn over a wire, a part or other text counts for
+  more than a label too close to text or to a junction dot, cut off by a
+  wire, or read as another part's. A part's Reference comes first: no position that clears the value
   but draws the Reference over a wire, a part or another label is preferred
   to one that keeps the Reference clear. A requested Cell Pin's name, while
   still on one of its own sides, takes the first of them where it meets

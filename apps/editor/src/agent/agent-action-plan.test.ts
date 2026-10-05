@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { createAgentCircuitService } from "@icm/agent-adapter";
+import { diagnoseVisualQuality, resolveMosBulkConnection } from "@icm/derived";
 import { createEmptyProject } from "@icm/model";
+import { createDesignNetlistExport } from "@icm/netlist";
+import {
+  InMemorySymbolResolver,
+  builtInSymbols,
+  createProjectHierarchicalSymbols,
+  hierarchicalSymbolId,
+} from "@icm/symbols";
 import { AgentSessionClient } from "../../../../packages/agent-client/src/session-client";
 import { FakeAgentHttp } from "../../../../packages/agent-client/src/test-support/fake-relay";
 import { EditorDocumentController } from "../document/document-controller";
@@ -326,6 +334,385 @@ describe("the editor plans an Agent's action list", () => {
       applied: true,
     });
     expect(controller.document.instances).toEqual([]);
+  });
+
+  it(
+    "draws a moved part's stretched wires clear of other parts and pins (#1344)",
+    { timeout: 30_000 },
+    async () => {
+      // A 2-bit flash ADC: a ladder R4–R1, three comparators each taking a
+      // tap on IN− and vin on IN+. X3 is typed two grid steps higher and X1
+      // two lower. X1's IN− bend slid down along R1, so the wire seemed to
+      // leave from R1's middle, and X3's IN+ came to lie on its own IN− wire.
+      const { controller, client } = await editor();
+      const apply = async (actions: unknown[]) => {
+        const report = await client.applyActions(actions);
+        expect(report.ok, report.message).toBe(true);
+      };
+      const at = (symbol: string, reference: string, x: number, y: number) => ({
+        kind: "place-component",
+        symbol,
+        reference,
+        position: { x, y },
+      });
+      await apply([
+        ...["R4", "R3", "R2", "R1"].map((reference, index) =>
+          at("resistor", reference, 0, -120 + 60 * index),
+        ),
+        ...["X3", "X2", "X1"].map((reference, index) =>
+          at("comparator", reference, 120, -90 + 60 * index),
+        ),
+        {
+          kind: "place-component",
+          symbol: "port",
+          reference: "vin",
+          pinAnchor: { pinName: "P", position: { x: -60, y: 130 } },
+          direction: "input",
+        },
+      ]);
+      const id = (reference: string) =>
+        controller.document.instances.find(
+          (item) =>
+            item.reference === reference ||
+            controller.document.netlist?.terminals.some(
+              (terminal) =>
+                terminal.name === reference &&
+                terminal.interfaceInstanceIds?.includes(item.id),
+            ),
+        )!.id;
+      const net = (...pins: [string, string][]) =>
+        apply([
+          {
+            kind: "route-net",
+            target: {
+              kind: "pins",
+              pins: pins.map(([reference, pinName]) => ({
+                instanceId: id(reference),
+                pinName,
+              })),
+            },
+          },
+        ]);
+      await net(["R4", "2"], ["R3", "1"], ["X3", "IN-"]);
+      await net(["R3", "2"], ["R2", "1"], ["X2", "IN-"]);
+      await net(["R2", "2"], ["R1", "1"], ["X1", "IN-"]);
+      await net(["vin", "P"], ["X1", "IN+"], ["X2", "IN+"], ["X3", "IN+"]);
+      const joined = () =>
+        controller.document.nets
+          .map((item) =>
+            item.terminals
+              .map(
+                (terminal) =>
+                  `${controller.document.instances.find((part) => part.id === terminal.instanceId)?.reference}.${terminal.pinName}`,
+              )
+              .sort()
+              .join(" "),
+          )
+          .filter(Boolean)
+          .sort();
+      const before = joined();
+
+      await apply([
+        {
+          kind: "move",
+          target: { kind: "instance", reference: "X3" },
+          position: { x: 120, y: -130 },
+        },
+        {
+          kind: "move",
+          target: { kind: "instance", reference: "X1" },
+          position: { x: 120, y: 70 },
+        },
+      ]);
+
+      expect(joined()).toEqual(before);
+      const findings = diagnoseVisualQuality(
+        controller.document,
+        new InMemorySymbolResolver(builtInSymbols),
+      ).map((finding) => finding.code);
+      expect(findings).not.toContain("VISUAL_WIRE_THROUGH_SYMBOL");
+      expect(findings).not.toContain("VISUAL_TERMINAL_ON_FOREIGN_ROUTE");
+    },
+  );
+  it("ties a PMOS body with no Net to its own source in one connect (#1302)", async () => {
+    const { controller, client, instance } = await editor();
+    const apply = async (actions: unknown[]) => {
+      const report = await client.applyActions(actions);
+      expect(report.ok, report.message).toBe(true);
+    };
+    await apply([place("pmos", "MP", 100), place("resistor", "R1", 400)]);
+    await apply([
+      { kind: "connect", from: pin("MP", "S"), to: pin("R1", "1") },
+    ]);
+    const mp = instance("MP")!;
+    expect(mp.symbolVariantId).toBe("textbook-3terminal");
+    const findings = () =>
+      createDesignNetlistExport(controller.project, {
+        format: "spice",
+      }).diagnostics.filter((item) => item.code === "MOS_BODY_DEFAULT_SUPPLY");
+    // Nothing drawn says where the body goes, so the netlist gives it VDD
+    // and says so.
+    expect(resolveMosBulkConnection(controller.document, mp.id)?.status).toBe(
+      "unresolved",
+    );
+    expect(findings().map((item) => item.objectIds)).toEqual([[mp.id]]);
+    await apply([
+      { kind: "connect", from: pin("MP", "B"), to: pin("MP", "S") },
+    ]);
+    const netOf = (pinName: string) =>
+      controller.document.nets.find((net) =>
+        net.terminals.some(
+          (terminal) =>
+            terminal.instanceId === mp.id && terminal.pinName === pinName,
+        ),
+      )?.id;
+    expect(netOf("B")).toBeDefined();
+    expect(netOf("B")).toBe(netOf("S"));
+    expect(resolveMosBulkConnection(controller.document, mp.id)?.status).toBe(
+      "explicit",
+    );
+    // Drawn as the GUI's Draw bulk connection draws it.
+    expect(
+      controller.document.routes.filter(
+        (route) => route.presentation === "bulk-dashed",
+      ),
+    ).toHaveLength(1);
+    expect(findings()).toEqual([]);
+  });
+
+  /**
+   * sram6t drawn as a textbook draws it, bl and wl left, blb right, VDD
+   * above and VSS below, placed once in the top Cell as X1 and wired to the
+   * top Cell's own Pins VDD, VSS, bl, blb and wl0.
+   */
+  async function sramArray() {
+    const harness = await editor();
+    const { controller, client } = harness;
+    const apply = async (actions: unknown[], documentId?: string) => {
+      const report = await client.applyActions(
+        actions,
+        documentId ? { documentId } : {},
+      );
+      expect(report.ok, report.message).toBe(true);
+      return report;
+    };
+    const port = (reference: string, x: number, y: number, right = false) => ({
+      kind: "place-component",
+      symbol: "port",
+      reference,
+      position: { x, y },
+      direction: "inout",
+      ...(right ? { mirror: "horizontal" } : {}),
+    });
+    await apply([{ kind: "create-cell", id: "sram6t", name: "sram6t" }]);
+    await apply(
+      [
+        port("VDD", 200, 0),
+        port("VSS", 200, 300),
+        port("bl", 0, 100),
+        port("blb", 400, 100, true),
+        port("wl", 0, 200),
+      ],
+      "sram6t",
+    );
+    await apply([
+      {
+        kind: "place-cell",
+        childDocumentId: "sram6t",
+        reference: "X1",
+        placement: { position: { x: 400, y: 400 } },
+      },
+    ]);
+    await apply([
+      port("VDD", 400, 200),
+      port("VSS", 400, 600),
+      port("bl", 200, 340),
+      port("wl0", 200, 460),
+      port("blb", 600, 400, true),
+    ]);
+    const main = () =>
+      controller.project.documents.find((item) => item.id === "main")!;
+    const id = (name: string) =>
+      main().instances.find(
+        (item) =>
+          item.reference === name ||
+          main().netlist?.terminals.some(
+            (terminal) =>
+              terminal.name === name &&
+              terminal.interfaceInstanceIds.includes(item.id),
+          ),
+      )!.id;
+    for (const [pin, name] of [
+      ["VDD", "VDD"],
+      ["VSS", "VSS"],
+      ["bl", "bl"],
+      ["blb", "blb"],
+      ["wl", "wl0"],
+    ])
+      await apply([
+        {
+          kind: "connect",
+          from: { kind: "pin", instance: "X1", pin },
+          to: {
+            kind: "pin",
+            instance: { kind: "instance", id: id(name!) },
+            pin: "P",
+          },
+        },
+      ]);
+    return { ...harness, main, id };
+  }
+
+  it(
+    "swaps a placed Cell's bl and blb in one call; its caller keeps its Nets and netlist line (#1320)",
+    { timeout: 30_000 },
+    async () => {
+      const { controller, client, main, id } = await sramArray();
+      const members = () =>
+        main()
+          .nets.map((net) =>
+            net.terminals
+              .map((terminal) => `${terminal.instanceId}.${terminal.pinName}`)
+              .sort()
+              .join(" "),
+          )
+          .sort();
+      const callLine = () => {
+        const exported = createDesignNetlistExport(controller.project, {
+          format: "spice",
+        });
+        expect(exported.status, JSON.stringify(exported)).toBe("ready");
+        return exported.status === "ready"
+          ? exported.file.text.split("\n").find((line) => /^X1 /u.test(line))
+          : undefined;
+      };
+      const sides = () =>
+        Object.fromEntries(
+          createProjectHierarchicalSymbols(controller.project)
+            .find((symbol) => symbol.id === hierarchicalSymbolId("sram6t"))!
+            .pins.map((pin) => [pin.name, pin.direction]),
+        );
+      expect(sides()).toMatchObject({ bl: "west", blb: "east" });
+      expect(callLine()).toBe("X1 VDD VSS bl blb wl0 sram6t");
+      const nets = members();
+
+      const report = await client.applyActions(
+        [
+          {
+            kind: "set-cell-symbol-pins",
+            pins: [
+              { name: "bl", side: "east" },
+              { name: "blb", side: "west" },
+            ],
+          },
+        ],
+        { documentId: "sram6t" },
+      );
+      expect(report.ok, report.message).toBe(true);
+      expect(sides()).toEqual({
+        VDD: "north",
+        VSS: "south",
+        bl: "east",
+        blb: "west",
+        wl: "west",
+      });
+      expect(members()).toEqual(nets);
+      expect(callLine()).toBe("X1 VDD VSS bl blb wl0 sram6t");
+      // The receipt names the caller whose wiring was redrawn, and its Cell.
+      expect(report.projectStructure?.changedDocumentIds).toContain("main");
+      expect(report.changedObjectIds).toContain(id("X1"));
+      // Its stretched wires are drawn around the block, not through it.
+      expect(
+        diagnoseVisualQuality(main(), controller.resolver).map(
+          (finding) => finding.code,
+        ),
+      ).not.toContain("VISUAL_WIRE_THROUGH_SYMBOL");
+    },
+  );
+
+  it(
+    "refuses a Pin the Cell has not, naming the action and the Cell's Pins (#1320)",
+    { timeout: 30_000 },
+    async () => {
+      const { controller, client } = await sramArray();
+      const before = structuredClone(controller.project.documents);
+      const report = await client.applyActions(
+        [
+          {
+            kind: "set-cell-symbol-pins",
+            pins: [{ name: "bll", side: "west" }],
+          },
+        ],
+        { documentId: "sram6t" },
+      );
+      expect(report).toMatchObject({
+        ok: false,
+        actionIndex: 0,
+        actionKind: "set-cell-symbol-pins",
+        message:
+          'actions[0] (set-cell-symbol-pins): sram6t has no Pin "bll"; its Pins: VDD, VSS, bl, blb, wl. Nothing was changed.',
+      });
+      expect(controller.project.documents).toEqual(before);
+    },
+  );
+
+  it("draws the wires an arrange stretches clear of the parts they would cross (#1344)", async () => {
+    // R2 is lined up 80 lower with R4. The stretch drops its wire from R1
+    // with a crossbar halfway down, straight through R3.
+    const { controller, client } = await editor();
+    const apply = async (actions: unknown[]) => {
+      const report = await client.applyActions(actions);
+      expect(report.ok, report.message).toBe(true);
+    };
+    await apply(
+      [
+        ["R1", 0, 0],
+        ["R2", 100, 0],
+        ["R3", 50, 60],
+        ["R4", 200, 80],
+      ].map(([reference, x, y]) => ({
+        kind: "place-component",
+        symbol: "resistor",
+        reference,
+        position: { x, y },
+      })),
+    );
+    await apply([
+      { kind: "connect", from: pin("R1", "2"), to: pin("R2", "2") },
+    ]);
+    const netOf = (reference: string, pinName: string) => {
+      const instance = controller.document.instances.find(
+        (item) => item.reference === reference,
+      )!;
+      return controller.document.nets.find((net) =>
+        net.terminals.some(
+          (terminal) =>
+            terminal.instanceId === instance.id && terminal.pinName === pinName,
+        ),
+      )?.id;
+    };
+    expect(netOf("R2", "2")).toBe(netOf("R1", "2"));
+
+    await apply([
+      {
+        kind: "arrange",
+        instances: [
+          { kind: "instance", reference: "R2" },
+          { kind: "instance", reference: "R4" },
+        ],
+        axis: "y",
+        coordinate: 80,
+      },
+    ]);
+
+    expect(netOf("R2", "2")).toBe(netOf("R1", "2"));
+    expect(netOf("R3", "1")).toBeUndefined();
+    expect(
+      diagnoseVisualQuality(
+        controller.document,
+        new InMemorySymbolResolver(builtInSymbols),
+      ).map((finding) => finding.code),
+    ).not.toContain("VISUAL_WIRE_THROUGH_SYMBOL");
   });
 
   it("leaves the Document alone for a list that changes nothing", async () => {

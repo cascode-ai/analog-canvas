@@ -32,7 +32,7 @@ import type {
 } from "@icm/model";
 import { routeEnd, routeEndpoints } from "@icm/model";
 import { schematicTextFontSize } from "@icm/render-svg";
-import type { SymbolResolver } from "@icm/symbols";
+import { resolveInstanceSymbol, type SymbolResolver } from "@icm/symbols";
 
 import { clamp, closestPointOnSegment } from "../../canvas/canvas-geometry";
 import { instanceVisibleHitBox } from "../../canvas/instance-geometry";
@@ -771,10 +771,8 @@ export function instanceHitBox(
   resolver: SymbolResolver,
 ): Rect | null {
   if (!instance.placement) return null;
-  const resolved = resolver.resolve(
-    instance.symbolId,
-    instance.symbolVariantId,
-  );
+  // An adder's sign marks are part of what a click or a marquee picks.
+  const resolved = resolveInstanceSymbol(resolver, instance);
   return resolved ? instanceVisibleHitBox(instance, resolved) : null;
 }
 

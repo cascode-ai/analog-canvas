@@ -233,3 +233,75 @@ it.each([
       });
   },
 );
+
+it("slides an Agent label along its wire off another Net's wire crossing it", () => {
+  // A beta-multiplier reference: the vbn wire runs down between two parts,
+  // and the startup's wire crosses it at its middle, where vbn's label stood
+  // struck through.
+  const project = createEmptyProject("cross-label", "Crossed label");
+  const doc = project.documents[0]!;
+  for (const [id, y] of [
+    ["r1", -40],
+    ["r2", 140],
+  ] as const)
+    doc.instances.push({
+      id,
+      reference: id.toUpperCase(),
+      symbolId: "resistor",
+      placement: { position: { x: 0, y }, rotation: 0, mirror: "none" },
+    });
+  const resolver = createProjectSymbolResolver(project, builtInSymbols);
+  // A vertical resistor's lower or upper pin.
+  const pin = (instanceId: string, side: "lower" | "upper") =>
+    ["1", "2"]
+      .map((pinName) => ({ kind: "terminal" as const, instanceId, pinName }))
+      .sort(
+        (a, b) =>
+          (resolveEndpointConnection(doc, resolver, a)!.contactPoint.y -
+            resolveEndpointConnection(doc, resolver, b)!.contactPoint.y) *
+          (side === "lower" ? -1 : 1),
+      )[0]!;
+  doc.nets.push({ id: "n", terminals: [] }, { id: "m", terminals: [] });
+  doc.routes.push(
+    createRoutePath({
+      id: "vbn",
+      netId: "n",
+      start: pin("r1", "lower"),
+      end: pin("r2", "upper"),
+      bends: [],
+      modes: ["manual"],
+    }),
+  );
+  doc.junctions.push(
+    { id: "w", netId: "m", position: { x: -60, y: 50 } },
+    { id: "e", netId: "m", position: { x: 60, y: 50 } },
+  );
+  doc.routes.push(
+    createRoutePath({
+      id: "st",
+      netId: "m",
+      start: { kind: "junction", junctionId: "w" },
+      end: { kind: "junction", junctionId: "e" },
+      bends: [],
+      modes: ["manual"],
+    }),
+  );
+  const plan = planBrowserAgentCommand(project, doc.id, resolver, {
+    kind: "set-net-label",
+    annotationId: "label",
+    netId: "n",
+    text: { runs: [{ kind: "text", value: "vbn" }] },
+    position: { x: 0, y: 50 },
+  });
+  if (!("edits" in plan)) throw new Error("Expected document edits");
+  const edit = plan.edits.find((e) => e.kind === "upsert_schematic_annotation");
+  if (edit?.kind !== "upsert_schematic_annotation")
+    throw new Error("Expected label");
+  const label = edit.annotation;
+  expect(label.anchor).toMatchObject({ kind: "route", routeId: "vbn" });
+  expect(label.anchor).not.toMatchObject({ t: 0.5 });
+  const context = createLabelClearanceContext(doc, resolver);
+  expect(
+    context.conflictsAt(context.measure(label).inkBounds, label.id),
+  ).toEqual([]);
+});

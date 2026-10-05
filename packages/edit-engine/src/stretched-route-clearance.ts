@@ -11,6 +11,7 @@ import type { SymbolResolver } from "@icm/symbols";
 import type { SchematicEdit } from "./edit-schema.js";
 import { createRouteClearance } from "./route-clearance.js";
 import { compileWireDraft } from "./routing-planner.js";
+import { projectRoutingEditGeometry } from "./routing-geometry-projection.js";
 import { executeTransaction } from "./transaction.js";
 
 /** Why a wire, as drawn in `document`, reads as a connection it is not. */
@@ -51,6 +52,20 @@ function membership(document: SchematicDocument): string {
   ]);
 }
 
+/** Which pins are joined, whatever the Nets and wires are called. */
+function pinGroups(document: SchematicDocument): string {
+  return JSON.stringify(
+    document.nets
+      .map((net) =>
+        net.terminals
+          .map((terminal) => `${terminal.instanceId}.${terminal.pinName}`)
+          .sort(),
+      )
+      .filter((pins) => pins.length)
+      .sort(),
+  );
+}
+
 /**
  * set_route_path edits that redraw each of `routeIds` along the cheapest
  * clear path when a change left it meeting what it must not (another Net's
@@ -59,15 +74,28 @@ function membership(document: SchematicDocument): string {
  * style. A wire with no clear path keeps the change's geometry. `preview`
  * applies the change with the given extra edits and returns the Document, or
  * null when it is rejected; each wire is redrawn on the previous result.
+ *
+ * `drawn`, when given, returns the Document whose wires are judged and
+ * redrawn instead: a move's stretched wires before normalization, which
+ * merges a wire laid along another of its Net with it and so changes which
+ * wires there are. A redraw then has to keep only which pins are joined.
  */
 export function redrawStretchedRoutesClear(
   before: { document: SchematicDocument; resolver: SymbolResolver },
   resolver: SymbolResolver,
   routeIds: readonly string[],
   preview: (extra: readonly SchematicEdit[]) => SchematicDocument | null,
+  drawn?: (extra: readonly SchematicEdit[]) => SchematicDocument | null,
 ): SchematicEdit[] {
-  let working = preview([]);
+  const judged = drawn ?? preview;
+  const joins = drawn ? pinGroups : membership;
+  let working = judged([]);
   if (!working) return [];
+  // What the change alone leaves, previewed only once a redraw has to be
+  // compared with it: most moves stretch no wire onto anything.
+  let result: SchematicDocument | null | undefined = drawn
+    ? undefined
+    : working;
   const extra: SchematicEdit[] = [];
   // Wires still to be looked at are no obstacles yet: two pins that traded
   // places each sit on the other's stretched wire, and neither could leave.
@@ -159,11 +187,102 @@ export function redrawStretchedRoutesClear(
     const next = preview([...extra, edit]);
     // A redraw changes where a wire runs, never what it joins: one that
     // brought a wire onto another Net's open end would merge the two.
-    if (!next || membership(next) !== membership(working)) continue;
+    if (result === undefined) result = preview([]);
+    if (!next || !result || joins(next) !== joins(result)) continue;
+    const nextDrawn = judged([...extra, edit]);
+    if (!nextDrawn) continue;
     extra.push(edit);
-    working = next;
+    result = next;
+    working = nextDrawn;
   }
   return extra;
+}
+
+/**
+ * Where a change's own geometry edits put parts, Junctions and wires, before
+ * the transaction normalizes them. Other edits, such as a moved pin's joins,
+ * are left out.
+ */
+function projectDrawnGeometry(
+  document: SchematicDocument,
+  edits: readonly SchematicEdit[],
+): SchematicDocument {
+  return projectRoutingEditGeometry(
+    document,
+    edits.filter(
+      (edit) =>
+        edit.kind === "move_instance" ||
+        edit.kind === "move_junction" ||
+        edit.kind === "set_route_path" ||
+        edit.kind === "remove_route_geometry",
+    ),
+  );
+}
+
+/** The Document `edits` and then `extra` leave, or null when it is refused. */
+function previewEdits(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  edits: readonly SchematicEdit[],
+  transactionId: string,
+): (extra: readonly SchematicEdit[]) => SchematicDocument | null {
+  return (extra) => {
+    const result = executeTransaction(
+      document,
+      {
+        transactionId,
+        documentId: document.id,
+        expectedRevision: document.revision,
+        actor: { kind: "human", id: transactionId },
+        edits: [...edits, ...extra],
+      },
+      { symbolResolver: resolver },
+    );
+    return result.ok ? result.document : null;
+  };
+}
+
+/**
+ * Wires a typed move stretches onto what they must not touch are drawn clear
+ * of it instead (#1344). A flash ADC's comparator typed two grid steps lower
+ * slid the bend of its IN− wire down along the ladder resistor under its
+ * tap, so the wire seemed to leave from the resistor's middle; another typed
+ * higher came to lie with its IN+ pin on its own stretched IN− wire. Each
+ * wire at a moved part is redrawn by redrawStretchedRoutesClear. A drag is
+ * left as it stretches, since the person dragging sees it happen; Properties
+ * and an Agent's move do not show it. Returns the edits to send in the same
+ * transaction as `edits`.
+ */
+export function planMoveRouteClearance(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  instanceIds: readonly string[],
+  edits: readonly SchematicEdit[],
+): SchematicEdit[] {
+  const moved = new Set(instanceIds);
+  const routeIds = document.routes
+    .filter((route) =>
+      [route.start, routeEnd(route)].some(
+        (endpoint) =>
+          endpoint.kind === "terminal" && moved.has(endpoint.instanceId),
+      ),
+    )
+    .map((route) => route.id);
+  if (routeIds.length === 0) return [];
+  return redrawStretchedRoutesClear(
+    { document, resolver },
+    resolver,
+    routeIds,
+    previewEdits(document, resolver, edits, "move-route-clearance"),
+    // Judged as stretched: the comparator's IN− wire, slid down along the
+    // resistor under its tap, merged there with the resistor's own wire, and
+    // what was left ran from the resistor's lower pin. An alignment stretches
+    // its wires inside the transaction, with no edit to project, so it is
+    // judged as the transaction leaves it.
+    edits.some((edit) => edit.kind === "align_instances")
+      ? undefined
+      : (extra) => projectDrawnGeometry(document, [...edits, ...extra]),
+  );
 }
 
 /**
@@ -210,19 +329,6 @@ export function planPinChangeRouteClearance(
     { document, resolver },
     resolver,
     routeIds,
-    (extra) => {
-      const result = executeTransaction(
-        document,
-        {
-          transactionId: "pin-change-route-clearance",
-          documentId: document.id,
-          expectedRevision: document.revision,
-          actor: { kind: "human", id: "pin-change-route-clearance" },
-          edits: [...edits, ...extra],
-        },
-        { symbolResolver: resolver },
-      );
-      return result.ok ? result.document : null;
-    },
+    previewEdits(document, resolver, edits, "pin-change-route-clearance"),
   );
 }

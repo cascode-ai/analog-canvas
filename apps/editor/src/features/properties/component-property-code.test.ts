@@ -123,6 +123,42 @@ describe("component property code", () => {
       });
     },
   );
+  it("offers each adder input's sign as a + or − choice and edits it", () => {
+    const adder: Instance = {
+      ...instance,
+      symbolId: "adder",
+      reference: "X1",
+      netlist: initialInstanceNetlist("adder", {})!,
+    };
+    const adderContext = {
+      ...context,
+      instance: adder,
+      details: { parameters: componentParameters("adder") },
+    };
+    const source = formatComponentPropertyCode(adderContext);
+    const decoded = JSON.parse(source);
+    // A new adder adds both inputs.
+    expect(decoded.parameters).toEqual({ signA: "+", signB: "+" });
+    expect(
+      propertyCodeSpans(source, adderContext).find(
+        (span) => span.field.path === "parameters.signB",
+      )?.field,
+    ).toMatchObject({
+      kind: "choice",
+      label: "Input B sign",
+      options: [
+        { value: "+", label: "+" },
+        { value: "-", label: "−" },
+      ],
+    });
+    decoded.parameters.signB = "-";
+    expect(
+      parseComponentPropertyCode(JSON.stringify(decoded), adderContext),
+    ).toMatchObject({
+      ok: true,
+      value: { parameters: { signA: "+", signB: "-" } },
+    });
+  });
   it("projects a legacy sensor into device/terminal controls and validates direction", () => {
     const sourceContext = {
       ...context,

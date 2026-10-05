@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   displayableInstanceParameter,
   displayableInstanceValue,
+  instanceCarriesReference,
+  symbolCarriesReference,
 } from "./instance-value.js";
 
 function instance(
@@ -238,5 +240,25 @@ describe("displayableInstanceValue", () => {
     expect(displayableInstanceValue(instance("unknown-symbol")).kind).toBe(
       "undisplayable",
     );
+  });
+});
+
+describe("which parts carry a Reference to show", () => {
+  it("counts a placed Cell's X name, which its derived block's Symbol cannot tell (#1317)", () => {
+    const cell = {
+      id: "X1",
+      reference: "X1",
+      symbolId: "hierarchical-symbol-sram6t",
+      placement: null,
+      netlist: {
+        binding: { kind: "subcircuit" as const, childDocumentId: "sram6t" },
+        parameters: {},
+      },
+    };
+    expect(symbolCarriesReference(cell.symbolId)).toBe(false);
+    expect(instanceCarriesReference(cell)).toBe(true);
+    expect(instanceCarriesReference(instance("resistor"))).toBe(true);
+    // A signal-flow block has no designator either way.
+    expect(instanceCarriesReference(instance("integrator"))).toBe(false);
   });
 });

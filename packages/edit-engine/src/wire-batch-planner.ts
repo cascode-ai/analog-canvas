@@ -1,9 +1,11 @@
 import {
   deriveNetConnectivityContext,
   endpointKey,
+  intersectSegments,
   pointOnSegment,
   resolveEndpointConnection,
   resolveRouteGeometry,
+  samePoint,
 } from "@icm/derived";
 import {
   routeEnd,
@@ -76,7 +78,7 @@ function keepClear(
   const ends = [from, to].map((anchor) =>
     anchor.kind === "endpoint" ? anchor.endpoint : undefined,
   );
-  const ownNets = [from, to].flatMap((anchor) => {
+  const netsOf = (anchor: typeof from): string[] => {
     if (anchor.kind === "route-segment") {
       const netId = document.routes.find(
         (route) => route.id === anchor.routeId,
@@ -117,24 +119,125 @@ function keepClear(
         ? [context.logicalNetResolution.byBaseNetId.get(netId)?.id ?? netId]
         : [],
     );
-  });
+  };
+  const nets = { from: netsOf(from), to: netsOf(to) };
   const clearance = createRouteClearance(document, resolver, context, {
-    logicalIds: new Set(ownNets),
+    logicalIds: new Set([...nets.from, ...nets.to]),
     endpointKeys: new Set(
       ends.flatMap((end) => (end ? [endpointKey(end)] : [])),
     ),
   });
   const problem = clearance.conflict(points, ends);
-  if (!problem) return intent;
+  if (!problem)
+    return tapOwnWire(document, resolver, resolved, points, nets) ?? intent;
   if (intent.waypoints?.length)
     return `the requested path ${problem}, so it would read as connected there; give via points that keep clear of it`;
   const clear = clearance.path(endOf(from), endOf(to));
   if (typeof clear === "string") return clear;
-  return {
+  const cleared = {
     ...resolved,
     waypoints: clear.waypoints,
     cornerOrder: clear.cornerOrder,
   };
+  return (
+    (clear.points &&
+      tapOwnWire(document, resolver, cleared, clear.points, nets)) ??
+    cleared
+  );
+}
+
+/**
+ * A wire whose last leg into a pin, or first leg out of one, would run along
+ * a wire of that pin's own Net there ends where it meets that wire instead,
+ * with a T: two wires drawn over each other read as one, and the eye cannot
+ * tell where either goes. A source follower's body, wired to its source,
+ * came down beside the device and ran back along the output wire into the
+ * source pin (#1337). It now taps the output wire where it comes down. Only
+ * a wire of the end's own Net may take the wire there: one of the other
+ * end's Net would leave the pin unjoined, and a body still on its Cell's
+ * default has no Net to tap. Null when no end needs it.
+ */
+function tapOwnWire(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  intent: WireIntent,
+  points: readonly Point[],
+  nets: { from: readonly string[]; to: readonly string[] },
+): WireIntent | null {
+  if (points.length < 3) return null;
+  const context = deriveNetConnectivityContext(document, resolver);
+  const wiresOf = (logicalIds: readonly string[]) => {
+    const own = new Set(logicalIds);
+    return document.routes.flatMap((route) =>
+      own.has(
+        context.logicalNetResolution.byBaseNetId.get(route.netId)?.id ??
+          route.netId,
+      )
+        ? (resolveRouteGeometry(document, resolver, route)?.segments ?? []).map(
+            (segment) => ({ route, segment }),
+          )
+        : [],
+    );
+  };
+  /** Where a leg, walked from `outer` toward the pin at `pin`, first runs
+   * along one of `wires` for some length. */
+  const meeting = (
+    wires: ReturnType<typeof wiresOf>,
+    outer: Point,
+    pin: Point,
+  ) => {
+    let best: Extract<WireIntent["to"], { kind: "route-segment" }> | null =
+      null;
+    for (const { route, segment } of wires) {
+      const near = intersectSegments(outer, pin, segment.from, segment.to);
+      const far = intersectSegments(pin, outer, segment.from, segment.to);
+      // Touching at one point is a crossing, or the pin itself.
+      if (
+        near?.kind !== "overlap" ||
+        far?.kind !== "overlap" ||
+        samePoint(near.point, far.point)
+      )
+        continue;
+      if (
+        !best ||
+        Math.hypot(near.point.x - outer.x, near.point.y - outer.y) <
+          Math.hypot(best.point.x - outer.x, best.point.y - outer.y)
+      )
+        best = {
+          kind: "route-segment",
+          routeId: route.id,
+          legId: segment.address.legId,
+          point: near.point,
+        };
+    }
+    return best;
+  };
+  let path = [...points];
+  let next: WireIntent = intent;
+  if (intent.to.kind === "endpoint" && nets.to.length) {
+    const end = meeting(wiresOf(nets.to), path.at(-2)!, path.at(-1)!);
+    if (end) {
+      path = [...path.slice(0, -1), end.point];
+      next = { ...next, to: end };
+    }
+  }
+  if (intent.from.kind === "endpoint" && nets.from.length) {
+    const start = meeting(wiresOf(nets.from), path[1]!, path[0]!);
+    if (start) {
+      path = [start.point, ...path.slice(1)];
+      next = { ...next, from: start };
+    }
+  }
+  if (next === intent) return null;
+  const bends = path
+    .slice(1, -1)
+    .filter(
+      (point, index, all) =>
+        !samePoint(point, path[0]!) &&
+        !samePoint(point, path.at(-1)!) &&
+        (index === 0 || !samePoint(point, all[index - 1]!)),
+    );
+  return { ...next, waypoints: bends };
 }
 
 /** Where a resolved wire end is: its endpoint, or the point of a tap or an

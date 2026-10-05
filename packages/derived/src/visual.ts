@@ -1,7 +1,10 @@
 import { registerDocumentCache } from "./document-caches.js";
 import { routeEnd, transformPoint } from "@icm/model";
 import type { Point, Rect, RouteEndpoint, SchematicDocument } from "@icm/model";
-import { resolveAdaptiveSignalFlowBlockLayout } from "@icm/symbols";
+import {
+  resolveAdaptiveSignalFlowBlockLayout,
+  resolveInstanceSymbol,
+} from "@icm/symbols";
 import type {
   ResolvedSymbol,
   SignalFlowLayoutParameters,
@@ -28,6 +31,10 @@ import {
   isSchematicAnnotationVisible,
   resolveAnnotationPresentation,
 } from "./annotation-presentation.js";
+import {
+  drawnFreeTexts,
+  resolveDraftingTextInkBounds,
+} from "./drafting-geometry.js";
 import { pointOnSegment } from "./segment-geometry.js";
 import type { ResolvedDocumentLogicalNets } from "./logical-net.js";
 import {
@@ -329,10 +336,7 @@ export function visibleInstanceBounds(
 ): Array<{ id: string; bounds: Rect }> {
   return document.instances.flatMap((instance) => {
     if (!instance.placement) return [];
-    const resolved = resolver.resolve(
-      instance.symbolId,
-      instance.symbolVariantId,
-    );
+    const resolved = resolveInstanceSymbol(resolver, instance);
     if (!resolved) return [];
     const box = visibleSymbolLocalBounds(
       resolved,
@@ -923,6 +927,37 @@ export function diagnoseVisualQuality(
       message: `${objectIds.length} measured annotation bounds overlap`,
       objectIds,
       bounds: enclosingBounds(cluster.map((item) => item.bounds))!,
+      parameters: { clusteredObjectCount: objectIds.length },
+    });
+  }
+  // Free drawing text over a label reads as one smudge with it, as two
+  // labels do: a φ2 note written on a switch's name (#1323).
+  for (const object of drawnFreeTexts(document)) {
+    const ink = resolveDraftingTextInkBounds(
+      document,
+      resolver,
+      object,
+      routingGeometry,
+    );
+    const covered = annotationBounds.filter((label) =>
+      rectanglesOverlap(ink, label.bounds),
+    );
+    if (!covered.length) continue;
+    const objectIds = [
+      object.id,
+      ...covered
+        .map((label) => label.id)
+        .sort((left, right) => left.localeCompare(right, "en")),
+    ];
+    diagnostics.push({
+      code: "VISUAL_LABEL_OVERLAP",
+      severity: "warning",
+      category: "observation",
+      confidence: "low",
+      gateEligible: false,
+      message: `Free text is drawn over ${covered.length === 1 ? "a label" : `${covered.length} labels`}`,
+      objectIds,
+      bounds: enclosingBounds([ink, ...covered.map((label) => label.bounds)])!,
       parameters: { clusteredObjectCount: objectIds.length },
     });
   }

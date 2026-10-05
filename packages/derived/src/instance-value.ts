@@ -1,6 +1,7 @@
-import type { RichTextDocument } from "@icm/model";
+import type { CircuitProject, Instance, RichTextDocument } from "@icm/model";
 import {
   deviceDescriptor,
+  referencePolicyForInstance,
   referencePolicyForSymbol,
   type DeviceParameterDefinition,
 } from "@icm/devices";
@@ -147,6 +148,19 @@ export function displayableInstanceParameter(
  */
 export function symbolCarriesReference(symbolId: string): boolean {
   return referencePolicyForSymbol(symbolId).kind !== "none";
+}
+
+/**
+ * Whether this Instance gets a reference designator, by the policy that
+ * names it. A placed Cell's block is derived per Project, so its Symbol has
+ * no designator of its own, yet the Cell instance is X1 in the netlist; a
+ * person probing `v(xdut.x1.net0)` needs to show it (#1317).
+ */
+export function instanceCarriesReference(
+  instance: Instance,
+  project?: Pick<CircuitProject, "componentDefinitions">,
+): boolean {
+  return referencePolicyForInstance(instance, project).kind !== "none";
 }
 
 export function displayableInstanceValue(

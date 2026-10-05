@@ -8,7 +8,7 @@ import type {
   SchematicDocument,
   VisualAnchor,
 } from "@icm/model";
-import { mirrorScale } from "@icm/model";
+import { flattenRichText, mirrorScale } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
 import { resolveVisualAnchor, type ResolvedAnchor } from "./anchor.js";
@@ -30,6 +30,7 @@ import {
   type SchematicStyleProfile,
 } from "./style-profile.js";
 import { arrowArtwork, arrowArtworkBounds } from "./arrow-artwork.js";
+import { labelInkDescentEm, uprightTextInkBounds } from "./text-ink.js";
 
 // ADR 0010 / WP-R1: the single derived-geometry entry for DraftingObjects.
 // Renderer, Editor overlay, and Agent Snapshot consume ONLY this result; no
@@ -257,6 +258,46 @@ function resolveText(
   object: Extract<DraftingObject, { kind: "text" }>,
   routingGeometry: ResolvedDocumentRoutingGeometry,
 ) {
+  return resolveTextWithInk(document, resolver, object, routingGeometry)
+    .geometry;
+}
+
+/**
+ * Free drawing text that draws words: polarity marks, which stand at
+ * terminals on purpose, and blank text are left out. Findings about text
+ * over a label or a wire look at these (#1323).
+ */
+export function drawnFreeTexts(
+  document: SchematicDocument,
+): Extract<DraftingObject, { kind: "text" }>[] {
+  return (document.drafting?.objects ?? []).filter(
+    (object): object is Extract<DraftingObject, { kind: "text" }> =>
+      object.kind === "text" &&
+      !object.polarity &&
+      flattenRichText(object.content).trim() !== "",
+  );
+}
+
+/**
+ * What a free text's words draw, capitals to subscripts, as a label's
+ * inkBounds: its line box's empty ascent and descent left out. Text with
+ * polarity marks, a formula or a turn keeps its bounds.
+ */
+export function resolveDraftingTextInkBounds(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  object: Extract<DraftingObject, { kind: "text" }>,
+  routingGeometry: ResolvedDocumentRoutingGeometry,
+): DerivedRect {
+  return resolveTextWithInk(document, resolver, object, routingGeometry).ink();
+}
+
+function resolveTextWithInk(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  object: Extract<DraftingObject, { kind: "text" }>,
+  routingGeometry: ResolvedDocumentRoutingGeometry,
+) {
   // Text anchors may be free/object/route; route anchors reuse the shared route
   // math via resolveVisualAnchor.
   const resolved = resolveVisualAnchor(
@@ -334,14 +375,45 @@ function resolveText(
         ),
       ])
     : resolvedTextBounds;
+  // Measured only when asked for: the drawing and the Snapshot never need it.
+  const ink = (): DerivedRect => {
+    if (polarity || rotation !== 0 || formulaExtents(content, metrics))
+      return bounds;
+    const fontSize = metrics.fontSize;
+    const layout = measureRichTextDocument(content, metrics);
+    const width = Math.max(fontSize * 0.6, layout.width);
+    return uprightTextInkBounds({
+      left:
+        object.alignment === "start"
+          ? textPosition.x
+          : object.alignment === "end"
+            ? textPosition.x - width
+            : textPosition.x - width / 2,
+      width,
+      baseline:
+        object.anchor.kind === "object"
+          ? centeredFirstBaselineY(content, textPosition.y, fontSize, profile)
+          : textPosition.y,
+      fontSize,
+      fractionAscent:
+        fontSize *
+        fractionPartScale(profile.typography.subscriptScale) *
+        fractionExtraAscentEm(content, profile.typography),
+      descentEm: labelInkDescentEm(content, profile.typography),
+      layoutHeight: layout.height,
+    });
+  };
   return {
-    kind: "text" as const,
-    position,
-    textPosition,
-    rotation,
-    polarityLines: polarity?.lines ?? [],
-    bounds,
-    diagnostics,
+    geometry: {
+      kind: "text" as const,
+      position,
+      textPosition,
+      rotation,
+      polarityLines: polarity?.lines ?? [],
+      bounds,
+      diagnostics,
+    },
+    ink,
   };
 }
 
@@ -842,6 +914,32 @@ function baselineTextBounds(
     width,
     height,
   };
+}
+
+/** Glyph cap height is ~0.7 em; dropping the baseline by 0.35 em sits the
+ * capitals optically centered on a line's vertical center. */
+const CENTERED_CAP_BASELINE_RATIO = 0.35;
+
+/**
+ * First-line baseline that centers the painted line grid on `centerY`. Line
+ * breaks step a constant `lineHeight` em (see the renderer's renderRuns), so
+ * the painted grid spans (lineCount - 1) steps regardless of inline fraction
+ * extents.
+ */
+export function centeredFirstBaselineY(
+  content: RichTextDocument,
+  centerY: number,
+  fontSize: number,
+  profile: SchematicStyleProfile,
+): number {
+  const lineCount =
+    content.runs.filter((run) => run.kind === "line-break").length + 1;
+  const lineStep = fontSize * profile.typography.lineHeight;
+  return (
+    centerY -
+    ((lineCount - 1) / 2) * lineStep +
+    CENTERED_CAP_BASELINE_RATIO * fontSize
+  );
 }
 
 function rotatedRectBounds(

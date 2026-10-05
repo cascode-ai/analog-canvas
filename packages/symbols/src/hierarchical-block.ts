@@ -13,12 +13,20 @@ import type {
 import {
   createHierarchicalBlockGeometry,
   hierarchicalBlockBodySize,
+  hierarchicalBlockPinSlots,
   type HierarchicalBlockLayoutOptions,
+  type HierarchicalBlockPinSlot,
   type HierarchicalBlockTerminal,
 } from "./hierarchical-block-geometry.js";
 import { resolvePdkSymbolMappingForTerminalOrder } from "./pdk-registry.js";
 import { SymbolDefinitionSchema } from "./schema.js";
 import type { SymbolDefinition } from "./schema.js";
+
+export {
+  freeHierarchicalBlockOffsets,
+  hierarchicalBlockPinSlots,
+  type HierarchicalBlockPinSlot,
+} from "./hierarchical-block-geometry.js";
 
 export function hierarchicalSymbolId(cellName: string): string {
   return deriveStableId("hierarchical-symbol", cellName.toLowerCase());
@@ -260,6 +268,24 @@ export function unplacedCellSymbol(
   return fitted.width === plain.width && fitted.height === plain.height
     ? base
     : { ...base, minimumBodySize: fitted };
+}
+
+/**
+ * Where every Pin of a Cell's block stands as its callers see it, in
+ * interface order (#1320): a placed Cell's stored placements and automatic
+ * slots; for a Cell no parent has placed yet, the layout its first placement
+ * would store (unplacedCellSymbol).
+ */
+export function cellSymbolPinSlots(
+  project: Pick<CircuitProject, "documents">,
+  document: SchematicDocument,
+): HierarchicalBlockPinSlot[] {
+  return hierarchicalBlockPinSlots(
+    projectCellSymbolTerminals(document),
+    placedCellDocumentIds(project).has(document.id)
+      ? document.presentation.cellSymbol
+      : unplacedCellSymbol(document),
+  );
 }
 
 export function createProjectHierarchicalSymbols(

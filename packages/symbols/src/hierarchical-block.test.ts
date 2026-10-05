@@ -8,9 +8,11 @@ import {
 
 import { builtInSymbols } from "./builtins.js";
 import {
+  cellSymbolPinSlots,
   createHierarchicalBlockSymbol,
   createProjectHierarchicalSymbols,
   externalSubcircuitSymbolId,
+  freeHierarchicalBlockOffsets,
   hierarchicalSymbolId,
 } from "./hierarchical-block.js";
 
@@ -521,6 +523,86 @@ describe("hierarchical block formal terminals", () => {
     expect(
       symbol?.pins.every((pin) => pin.at.x % 10 === 0 && pin.at.y % 10 === 0),
     ).toBe(true);
+  });
+
+  it("reads where every Pin of a Cell's block stands, placed or not (#1320)", () => {
+    // bl drawn left, blb right; z, an output, is not drawn at all.
+    const project = createEmptyProject("p", "Top", "top");
+    const cell = createEmptyDocument("sram", "SRAM");
+    for (const [id, x] of [
+      ["P-bl", 0],
+      ["P-blb", 200],
+    ] as const)
+      cell.instances.push({
+        id,
+        symbolId: "port",
+        placement: { position: { x, y: 100 }, rotation: 0, mirror: "none" },
+      });
+    cell.instances.push({ id: "P-z", symbolId: "port", placement: null });
+    const terminal = (name: string, direction: "inout" | "output") => ({
+      id: `terminal-${name}`,
+      name,
+      netId: `net-${name}`,
+      direction,
+      interfaceInstanceIds: [`P-${name}`],
+    });
+    cell.netlist = {
+      name: "sram",
+      formalParameters: [],
+      terminals: [
+        terminal("blb", "inout"),
+        terminal("bl", "inout"),
+        terminal("z", "output"),
+      ],
+    };
+    project.documents.push(cell);
+    const shown = (source: typeof project) =>
+      createProjectHierarchicalSymbols(source)
+        .find((symbol) => symbol.id === hierarchicalSymbolId("sram"))!
+        .pins.map((pin) => ({
+          terminalId: `terminal-${pin.name}`,
+          side: pin.direction,
+          offset:
+            pin.direction === "west" || pin.direction === "east"
+              ? pin.at.y
+              : pin.at.x,
+        }));
+    // Unplaced: the drawn sides its first placement would store, and the
+    // automatic slot for the Pin with none.
+    expect(cellSymbolPinSlots(project, cell)).toEqual([
+      { terminalId: "terminal-blb", side: "east", offset: 0 },
+      { terminalId: "terminal-bl", side: "west", offset: 0 },
+      { terminalId: "terminal-z", side: "east", offset: -20 },
+    ]);
+    expect(cellSymbolPinSlots(project, cell)).toEqual(shown(project));
+    // Placed with nothing stored: the automatic layout callers were drawn
+    // with, blb west and bl east.
+    project.documents[0]!.instances.push({
+      id: "X1",
+      symbolId: hierarchicalSymbolId("sram"),
+      reference: "X1",
+      placement: null,
+      netlist: {
+        binding: { kind: "subcircuit", childDocumentId: cell.id },
+        parameters: {},
+      },
+    });
+    expect(cellSymbolPinSlots(project, cell)).toEqual([
+      { terminalId: "terminal-blb", side: "west", offset: 0 },
+      { terminalId: "terminal-bl", side: "east", offset: 0 },
+      { terminalId: "terminal-z", side: "east", offset: -20 },
+    ]);
+    expect(cellSymbolPinSlots(project, cell)).toEqual(shown(project));
+  });
+
+  it("lists free offsets in automatic order, a full row from every Pin", () => {
+    expect(freeHierarchicalBlockOffsets([0]).slice(0, 3)).toEqual([
+      -20, 20, -40,
+    ]);
+    // Beside Pins drawn half a row off the automatic rows.
+    expect(freeHierarchicalBlockOffsets([-10, 10]).slice(0, 2)).toEqual([
+      -40, 40,
+    ]);
   });
 });
 

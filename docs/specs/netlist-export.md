@@ -125,6 +125,12 @@ stable local pins with different names. The released SKY130 resistor maps
 `R0/R1/B` from native `1/2/B`; B is a real `Net.terminals` membership edited
 only in Properties and never a Symbol pin, Route endpoint, or NoConnect. The
 reviewed MIM capacitor maps `C0/C1` from the frozen capacitor pins `1/2`.
+A reviewed mapping names the pins of one symbol and is offered only on it: the
+SKY130 varactor `sky130_fd_pr__cap_var_lvt` also maps `C0/C1` from `1/2` and
+its substrate `B` from Properties, so it is a model of the plain capacitor. The
+variable capacitor (Var Cap, pins `P1/P2`) stands for any tunable capacitance
+— a switched MOM or MIM bank, MOS capacitors, or a varactor — and stays an
+ideal capacitor with no reviewed model; a model target on it is refused.
 
 `Instance.reference` is the authored schematic name. Selecting or clearing a
 reviewed external target preserves it. SPICE extraction adds the invocation
@@ -177,8 +183,32 @@ The signal-flow and converter blocks have bodies too
 ([amplifiers and adder](../../packages/netlist/src/ideal-analog-block-models.ts),
 [multiplier and converters](../../packages/netlist/src/ideal-signal-block-models.ts)):
 
-- The adder is two stacked unity E-sources, V(Y) = V(A) + V(B) from ground.
-  It is linear, so SPICE and Spectre both print it.
+- The adder is two E-sources stacked through an internal node, V(Y) = V(A) +
+  V(B) from ground. It is linear, so SPICE and Spectre both print it.
+- Each adder input has a sign, `signA` and `signB`, `+` (the default) or `-`,
+  edited in Properties as a choice. The Unicode minus `−` (U+2212), as
+  typeset text spells it, counts as `-` wherever a sign is typed, checked or
+  read; Properties and an Agent's `place-component` and `set-property` store
+  it as `-`. A sign is not a SPICE parameter: it chooses the body, and the
+  call carries none. Each pattern of signs has its own body, named after the
+  inputs it subtracts, whose source gains follow the signs: `adder` (+ +),
+  `adder_minus_a` (− +), `adder_minus_b` (+ −) and `adder_minus_ab` (− −).
+  The V_hold − V_DAC of a pipelined ADC stage therefore calls
+  `adder_minus_b`, whose `ESUMB nsum 0 B 0 {-1}` subtracts B. An adder whose
+  inputs both add calls `adder` and exports byte for byte as before signs
+  existed, whether it stores `+` or no sign at all. Any other sign blocks
+  export with `INVALID_ADDER_SIGN`. An adder bound to another subcircuit
+  calls that subcircuit. In a Project that defines `adder` itself, in any
+  case, every adder keeps calling it whatever its signs: an external
+  definition replaces every built-in adder body, and a Cell of that name is
+  refused as a shared master name (`MASTER_NAME_COLLISION`), as it is beside
+  an adder that adds. When an adder that calls such a subcircuit subtracts,
+  export warns with `ADDER_SIGN_NOT_EXPORTED` that the subcircuit must
+  subtract as drawn. One table in
+  [`@icm/devices`](../../packages/devices/src/adder.ts) names the adder's
+  target, its sign parameters and its bodies for export, Properties and the
+  drawing. The drawing marks the signs: see the
+  [Razavi contract](razavi-visual-contract.md#signal-flow-adder-signs).
 - The multiplier is V(Y) = gain·V(A)·V(B) from ground. `gain` defaults to 1/V
   and is edited in Properties.
 - The ADC and the DAC each map their input onto 2^`bits` levels between VSS
@@ -258,6 +288,21 @@ Native VACASK uses the same defaults and four-terminal interface through the
 qualified `icm_switch` runtime primitive, which registers hard-edge breakpoints.
 This requires the patched native runtime, not stock upstream 0.3.4; see the
 [runtime patch and qualification](../../containers/vacask/patches/README.md).
+A diode placed in a Process with no diode of its own (Abstract, SKY130, IHP
+SG13G2, Custom) is bound to the generic model `DIODE`, which no library
+defines. Every Cell whose diodes name it, a Zener's included, carries one
+`.model DIODE D(IS=1e-14 N=1)` card in its own body: SPICE's default
+junction, its saturation current and emission coefficient stated. The export
+reports `GENERIC_DIODE_MODEL` as information for that Cell, naming the
+diodes ("D1 uses the generic diode model DIODE (IS=1e-14, N=1); set a model
+for a real device"); like `MOS_BODY_DEFAULT_SUPPLY` it gates nothing. The name
+stays an editable model target, and a diode bound to any other name gets no
+card. A model of that name in the Project's own text, a simulation source
+file (`.model DIODE …`, or `model DIODE …` in VACASK) or the SPICE it was
+imported from, is the author's: no Cell then carries the card, which would
+shadow it inside the Cell. Native VACASK writes the card as an `sp_diode`
+model. The card is SPICE only; a Spectre export still names `DIODE` for the
+reader's libraries to define.
 A drawn T-coil or transformer is one Symbol on the canvas and coupled
 windings in the netlist: each Instance is an `X` call on a built-in
 subcircuit that the file defines once, ahead of the Cells, with the
@@ -384,9 +429,10 @@ partial netlist is exposed while an error remains. Required error coverage inclu
 - unsupported dialect/device combination;
 - identifier, parameter, count, or output resource-limit violation.
 
-Information reports generated local Net names. Warnings may report
-conflicting directions inside one same-name Formal Port group. Neither can
-downgrade a missing electrical fact required for meaningful output.
+Information reports generated local Net names, explicit NoConnect nodes and
+the MOS body findings below. Warnings may report conflicting directions inside
+one same-name Formal Port group. Neither can downgrade a missing electrical
+fact required for meaningful output.
 
 ### One electrical extraction authority
 
@@ -451,6 +497,48 @@ retain priority. The same fallback applies to historical imported devices when
 their B terminal has no connection; source provenance does not disable the
 conventional default. Missing D/G/S wiring remains an error. Existing declared
 Cell interfaces keep their order; this default only adds needed implicit supplies.
+
+A supply added this way is never silent. Where it becomes a new Cell Pin, the
+export reports `MOS_BODY_DEFAULT_SUPPLY` as information for that Cell, one
+finding per supply: the MOS whose bodies take it, the pin it became (VDD, or
+VSS for ground), the other pin of the pair when that came with it, and that
+connecting a B pin chooses another body. An LDO's pass device drawn without a
+body printed as `XMP vout net0 vin VDD …` beside a `VDD` pin nobody drew, and
+nothing said so. The finding is listed in the Check Report (Review Netlist
+Issues), the Agent's netlist read and its diagnostics, and MCP `verify` names
+it beside its counts; it does not count as a warning and gates nothing. The
+Netlist panel lists only what keeps its text from being copied, so it shows no
+information. A Cell that already has that supply (a marker, a rail, a supply
+Port, or a Net the author named VDD or VSS), a body wired explicitly and a
+body following a Cell default raise nothing, nor does a simulation deck's
+root, which gains no pin. A caller that only passes the new supply on is not
+reported; the Cell whose body took it is.
+
+A body that follows a default (the Cell's default, the single drawn supply, or
+the default a copied body brought along) onto one supply while its source is
+on another supply of the same domain is reported as information,
+`MOS_BODY_OTHER_SUPPLY`, for example "M1's body follows the Cell's PMOS
+default VDDL; its source is on VDDH. Connect its B pin to VDDH if that is the
+body you mean". A supply is what a body default reads as one
+([connectivity](connectivity-and-routing.md#authoring-rules)), compared as the
+netlist names its nodes, so a copied Ground marker is still ground, and node
+`0` is called ground. The drawing holds no voltages: a body on the higher
+supply is reverse-biased and usually intended, one on the lower supply is
+forward-biased, and only the author knows which is which, so this is a
+question rather than a warning. A body wired explicitly is never reported.
+
+Two supplies of a domain are also why a body can have no default: a Cell that
+draws VDD beside VDDH and configures no PMOS body default leaves an unwired
+PMOS body unresolved, and the export gives it the conventional VDD. A body
+with no Net is therefore asked the same question wherever the export puts it
+on another node than its source's supply: "MP's body has no Net and takes the
+conventional VDD; its source is on VDDH. Connect its B pin to VDDH if that is
+the body you mean". The conventional supply is the export's choice — the Net
+named VDD or VSS, drawn as a supply or only labelled, or a pin it adds, which
+`MOS_BODY_DEFAULT_SUPPLY` also reports — while the source must be on a supply
+the author drew. An imported MOS with no fourth node takes the Cell's body
+default where one is set, and is then reported as following it. NMOS bodies
+on ground supplies are compared the same way.
 
 Ground is the one reference a Cell states rather than reaches for. A Cell
 printed as a `.subckt` that meets ground — its own, or through a Cell it
@@ -541,7 +629,7 @@ Gallery's mark ([community gallery](community-gallery.md)) — answers `false`.
 
 Existing conflicting bindings, missing hierarchy interfaces, unsupported devices,
 invalid waveforms, and incomplete connections remain blocking. This projection
-never exports the permissive authoring IR. It cannot omit an invalid device or invent a model definition. Numerical defaults
+never exports the permissive authoring IR. It cannot omit an invalid device or invent a model definition, apart from the generic diode card above, which stands in only for the placeholder name a Process binds. Numerical defaults
 and the explicit substrate rule belong only to the selected preset above.
 
 The editor's primary Netlist button copies immediately in its current format

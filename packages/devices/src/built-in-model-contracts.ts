@@ -1,3 +1,4 @@
+import { ADDER_SIGN_PARAMETERS, ADDER_TARGET } from "./adder.js";
 import type { DeviceParameterDefinition } from "./contract.js";
 import { IDEAL_COMPARATOR_TARGET } from "./contract.js";
 import { builtInSubcircuitDescriptors } from "./registry.js";
@@ -138,7 +139,7 @@ function contract(target: string): BuiltInModelContract | undefined {
       ? "comparator"
       : target === "multiplier" || target === "adc" || target === "dac"
         ? "signal"
-        : target === "adder" || Object.hasOwn(analog, target)
+        : target === ADDER_TARGET || Object.hasOwn(analog, target)
           ? "linear"
           : /^(?:inverter|buffer|(?:and|nand|or|nor|xor|xnor)_gate(?:_[34])?|d_flip_flop(?:_q|_reset)?)$/u.test(
                 target,
@@ -154,9 +155,11 @@ function contract(target: string): BuiltInModelContract | undefined {
         ? logic
         : family === "comparator"
           ? comparator
-          : Object.hasOwn(analog, target)
-            ? [analog[target as keyof typeof analog]]
-            : [],
+          : target === ADDER_TARGET
+            ? ADDER_SIGN_PARAMETERS
+            : Object.hasOwn(analog, target)
+              ? [analog[target as keyof typeof analog]]
+              : [],
     backends: {
       spice: "included",
       spectre:

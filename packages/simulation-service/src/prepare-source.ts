@@ -12,6 +12,7 @@ import { resolveSourceSimulationContext } from "./source-context.js";
 import { problem, type Capabilities, type Problem } from "./contract.js";
 import type { ExecutionInput } from "./executor.js";
 import { sha256 } from "./content-digest.js";
+import { netlistRunWarnings } from "./netlist-warnings.js";
 import { sourceInputRevision } from "./input-identity.js";
 import { inspectNativeAnalyses } from "./native-source-analysis.js";
 import { outputVolumeWarning } from "./result-volume.js";
@@ -170,9 +171,7 @@ export async function prepareSourceExecutionInput(
     deviceOperatingPoints: deviceOp.deviceOperatingPoints,
     measurements: compiled.config.measurements,
     warnings: [
-      ...compiled.warnings
-        .filter((w) => w.code !== "GENERATED_NET_NAME")
-        .map((w) => w.message),
+      ...netlistRunWarnings(compiled.warnings),
       ...native.warnings,
       ...(volume ? [volume] : []),
       ...(unqualified.length

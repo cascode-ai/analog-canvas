@@ -62,6 +62,56 @@ export function diagnosticsCompact(entry: CachedSnapshot): DiagnosticsReport {
   };
 }
 
+/**
+ * Information `verify` names rather than counts: the netlist gives a MOS body
+ * a supply nobody wired, as a Cell Pin nobody drew or on another supply than
+ * its source. The circuit stays ready with no warning, so a count alone hid
+ * it (#1302). A generated Net name only says what an unnamed node is called;
+ * those stay in `total`.
+ */
+const VERIFY_NAMED_INFORMATION = new Set([
+  "MOS_BODY_DEFAULT_SUPPLY",
+  "MOS_BODY_OTHER_SUPPLY",
+]);
+/** A milestone check stays small; `inspect` of diagnostics lists the rest. */
+const VERIFY_INFORMATION_LIMIT = 10;
+const VERIFY_OBJECT_ID_LIMIT = 8;
+
+export interface VerifyInformation {
+  code: string;
+  message: string;
+  objectIds: string[];
+  /** How many objects the finding names, when `objectIds` holds the first. */
+  objectCount?: number;
+  /** The Cell the finding is about, when that is not the Cell verified. */
+  documentId?: string;
+}
+
+export function verifyInformation(entry: CachedSnapshot): {
+  information: VerifyInformation[];
+  omitted: number;
+} {
+  const named = entry.diagnostics.filter(
+    (d) => d.severity === "info" && VERIFY_NAMED_INFORMATION.has(d.code),
+  );
+  const information = named.slice(0, VERIFY_INFORMATION_LIMIT).map((d) => {
+    const objectIds = d.objectIds ?? [];
+    const documentId = d.parameters?.["documentId"];
+    return {
+      code: d.code,
+      message: d.message,
+      objectIds: objectIds.slice(0, VERIFY_OBJECT_ID_LIMIT),
+      ...(objectIds.length > VERIFY_OBJECT_ID_LIMIT
+        ? { objectCount: objectIds.length }
+        : {}),
+      ...(typeof documentId === "string" && documentId !== entry.documentId
+        ? { documentId }
+        : {}),
+    };
+  });
+  return { information, omitted: named.length - information.length };
+}
+
 /** Successful edit receipts: all errors, one example per warning/info code.
  * Complete diagnostic derivation and the explicit full response are unchanged.
  */

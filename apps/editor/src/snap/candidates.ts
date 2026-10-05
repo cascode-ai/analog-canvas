@@ -5,7 +5,7 @@ import {
 import type { ResolvedDocumentRoutingGeometry } from "@icm/derived";
 import type { WireSource } from "@icm/edit-engine";
 import type { Point, Rect, SchematicDocument } from "@icm/model";
-import type { SymbolResolver } from "@icm/symbols";
+import { resolveInstanceSymbol, type SymbolResolver } from "@icm/symbols";
 
 import { closestPointOnSegment } from "../canvas/canvas-geometry";
 import { instanceVisibleHitBox } from "../canvas/instance-geometry";
@@ -320,10 +320,8 @@ function buildInstanceGeometryAnchors(
   resolver: SymbolResolver,
 ): SnapAnchor[] {
   if (!instance.placement) return [];
-  const resolved = resolver.resolve(
-    instance.symbolId,
-    instance.symbolVariantId,
-  );
+  // The box a click picks the part by, an adder's sign marks included.
+  const resolved = resolveInstanceSymbol(resolver, instance);
   if (!resolved) return [];
   const bounds = instanceVisibleHitBox(instance, resolved);
   return [

@@ -13,7 +13,7 @@ import {
   type RouteEndpoint,
   type SchematicDocument,
 } from "@icm/model";
-import type { SymbolResolver } from "@icm/symbols";
+import { resolveInstanceSymbol, type SymbolResolver } from "@icm/symbols";
 import { compileWireDraft } from "./routing-planner.js";
 
 type Rect = { x: number; y: number; width: number; height: number };
@@ -256,10 +256,10 @@ export function createRouteClearance(
   }[] = [];
   for (const instance of document.instances) {
     if (!instance.placement) continue;
-    const resolved = resolver.resolve(
-      instance.symbolId,
-      instance.symbolVariantId,
-    );
+    // The ink the Instance draws, an adder's sign marks included, as
+    // visual diagnostics measure it: a wire planned clear of it is not
+    // reported as through it.
+    const resolved = resolveInstanceSymbol(resolver, instance);
     if (!resolved) continue;
     const label = instance.reference ?? instance.id;
     labels.set(instance.id, label);

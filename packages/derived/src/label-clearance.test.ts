@@ -400,3 +400,108 @@ it("keeps a label a line's space off a junction dot, which is its wires' ink", (
   );
   expect(diagnoseLabelClearance(doc, resolver)).toEqual([]);
 });
+it("reports free text struck through by a wire or drawn over a label (#1323)", () => {
+  // A φ2 note written on a switch's name read as one smudge with it, and
+  // nothing reported it.
+  const doc = createEmptyDocument("d", "Notes");
+  doc.nets.push({ id: "n", terminals: [] });
+  doc.junctions.push(
+    { id: "a", netId: "n", position: { x: 0, y: 100 } },
+    { id: "b", netId: "n", position: { x: 200, y: 100 } },
+  );
+  doc.routes.push(
+    createRoutePath({
+      id: "w",
+      netId: "n",
+      start: { kind: "junction", junctionId: "a" },
+      end: { kind: "junction", junctionId: "b" },
+      bends: [],
+      modes: ["manual"],
+    }),
+  );
+  const note = (id: string, x: number, y: number, polarity?: "both") => ({
+    id,
+    kind: "text" as const,
+    locked: false,
+    zIndex: 0,
+    anchor: { kind: "free" as const, position: { x, y } },
+    content: { runs: [{ kind: "text" as const, value: "phi2" }] },
+    alignment: "start" as const,
+    rotation: 0 as const,
+    ...(polarity ? { polarity } : {}),
+  });
+  // Standing on the wire's line, its descender reaches over it.
+  doc.drafting!.objects.push(note("on-wire", 20, 98));
+  expect(
+    diagnoseLabelClearance(doc, resolver).map((d) => [d.code, d.objectIds]),
+  ).toEqual([["VISUAL_LABEL_CLEARANCE", ["on-wire", "w"]]]);
+
+  // Its baseline 4 units above the wire: the line box still reaches the wire,
+  // the words do not.
+  doc.drafting!.objects[0] = note("on-wire", 20, 96);
+  expect(diagnoseLabelClearance(doc, resolver)).toEqual([]);
+
+  // Over a label; a polarity mark there is drawn on purpose and passes.
+  doc.drafting!.objects = [note("on-label", 100, 40)];
+  doc.annotations.push({
+    id: "name",
+    kind: "instance-label",
+    content: { runs: [{ kind: "text", value: "S2" }] },
+    anchor: { kind: "free", position: { x: 104, y: 42 } },
+    alignment: "start",
+    rotation: 0,
+    locked: false,
+  });
+  expect(
+    diagnoseVisualQuality(doc, resolver)
+      .filter((d) => d.code === "VISUAL_LABEL_OVERLAP")
+      .map((d) => d.objectIds),
+  ).toEqual([["on-label", "name"]]);
+  doc.drafting!.objects = [note("mark", 100, 40, "both")];
+  doc.revision += 1;
+  expect(
+    diagnoseVisualQuality(doc, resolver).filter(
+      (d) => d.code === "VISUAL_LABEL_OVERLAP",
+    ),
+  ).toEqual([]);
+
+  // Over a part's outline, as a note inside a block is drawn on purpose.
+  doc.annotations = [];
+  doc.instances.push({
+    id: "r",
+    symbolId: "resistor",
+    placement: { position: { x: 300, y: 40 }, rotation: 0, mirror: "none" },
+  });
+  doc.drafting!.objects = [note("inside", 296, 44)];
+  doc.revision += 1;
+  expect(diagnoseLabelClearance(doc, resolver)).toEqual([]);
+  expect(
+    diagnoseVisualQuality(doc, resolver).filter(
+      (d) => d.code === "VISUAL_LABEL_OVERLAP",
+    ),
+  ).toEqual([]);
+});
+
+it("keeps a label off an adder's sign marks, which are its ink (#1324)", () => {
+  const doc = createEmptyDocument("d", "Signs");
+  doc.instances.push({
+    id: "sum",
+    symbolId: "adder",
+    reference: "X1",
+    placement: { position: { x: 100, y: 100 }, rotation: 0, mirror: "none" },
+    netlist: {
+      binding: { kind: "unresolved-subcircuit", name: "adder" },
+      parameters: { signA: "+", signB: "+" },
+    },
+  });
+  // Over the plus that marks input A: x 74.7 … 82.3, y 85.7 … 93.3.
+  const box = { x: 72, y: 84, width: 4, height: 3 };
+  const adding = createLabelClearanceContext(doc, resolver);
+  expect(adding.conflictsAt(box, "label")).toEqual([]);
+  doc.instances[0]!.netlist!.parameters.signB = "-";
+  const subtracting = createLabelClearanceContext(doc, resolver);
+  expect(subtracting.conflictsAt(box, "label")).toEqual(["sum"]);
+  const obstacle = subtracting.symbols.find((item) => item.id === "sum")!;
+  // The plus reaches 3.8 units left of x = 78.5; one unit of padding.
+  expect(obstacle.bounds.x).toBeCloseTo(100 - 21.5 - 3.8 - 1, 6);
+});

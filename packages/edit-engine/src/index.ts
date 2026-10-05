@@ -7,7 +7,7 @@ export * from "./angled-wire-repair.js";
 export * from "./route-operations.js";
 export * from "./routing-planner.js";
 export * from "./wire-batch-planner.js";
-export * from "./pin-change-route-clearance.js";
+export * from "./stretched-route-clearance.js";
 export * from "./series-splice-planner.js";
 export * from "./power-net-planner.js";
 export * from "./power-rail-contact-planner.js";

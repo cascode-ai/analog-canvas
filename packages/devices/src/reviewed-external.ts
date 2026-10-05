@@ -72,8 +72,6 @@ export interface ReviewedExternalDeviceBinding {
     | "inductor"
     | "npn"
     | "pnp";
-  /** Additional Canvas symbols that share this reviewed wrapper interface. */
-  readonly compatibleSymbolIds?: readonly string[];
   readonly deviceClass: "mos" | "resistor" | "capacitor" | "inductor" | "bjt";
   readonly terminals: readonly ReviewedExternalTerminalBinding[];
   readonly parameters: readonly ReviewedExternalParameterBinding[];
@@ -267,13 +265,19 @@ const sky130MimCapBinding = (
   ],
 });
 
+/**
+ * The SKY130 varactor is drawn with the plain capacitor, whose pins 1 and 2
+ * its C0 and C1 take. The Variable Capacitor is not a varactor: it stands for
+ * any tunable capacitance (a switched MOM or MIM bank, MOS capacitors, or a
+ * varactor), so it stays an ideal capacitor and is offered no reviewed model
+ * (#1298).
+ */
 const sky130VaractorBinding = (): ReviewedExternalDeviceBinding => ({
   id: "sky130-cap-var-lvt",
   libraryId: "sky130_fd_pr",
   masterName: "sky130_fd_pr__cap_var_lvt",
   invocationKind: "external-subcircuit",
   symbolId: "capacitor",
-  compatibleSymbolIds: ["variable-capacitor"],
   deviceClass: "capacitor",
   terminals: [
     { targetName: "C0", pinName: "1", interaction: "canvas" },
@@ -732,14 +736,17 @@ export function reviewedExternalModelSuggestions(
     .map((binding) => binding.masterName);
 }
 
+/**
+ * Whether a part drawn with this symbol may take the reviewed device. Only its
+ * own symbol may: the binding's terminals name that symbol's pins, so on any
+ * other drawing they are pins the part does not have, and it can be neither
+ * wired nor exported.
+ */
 export function reviewedExternalBindingSupportsSymbol(
   binding: ReviewedExternalDeviceBinding,
   symbolId: string,
 ): boolean {
-  return (
-    binding.symbolId === symbolId ||
-    binding.compatibleSymbolIds?.includes(symbolId) === true
-  );
+  return binding.symbolId === symbolId;
 }
 
 /** Reviewed SKY130 plain-um input to the canonical Project length spelling. */

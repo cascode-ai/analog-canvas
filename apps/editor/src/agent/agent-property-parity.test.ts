@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { createAgentCircuitService } from "@icm/agent-adapter";
-import { createEmptyProject, type CircuitProject } from "@icm/model";
+import { instanceCarriesReference, resolveAnnotationText } from "@icm/derived";
+import {
+  createEmptyProject,
+  flattenRichText,
+  type CircuitProject,
+} from "@icm/model";
 import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 import { AgentSessionClient } from "../../../../packages/agent-client/src/session-client";
 import { FakeAgentHttp } from "../../../../packages/agent-client/src/test-support/fake-relay";
@@ -136,6 +141,99 @@ describe("Agent property actions are planned as Apply in Properties", () => {
     ]);
     expect(instance("F1").netlist?.parameters).toEqual({ gain: "4" });
     expect(instance("F1").netlist).not.toHaveProperty("control");
+  });
+
+  it("makes an adder input subtract as its Properties sign does (#1324)", async () => {
+    const { controller, apply, refuse, instance } = await session();
+    await apply([
+      { ...place("adder", "X1", 100), parameters: { signB: "-" } },
+      place("adder", "X2", 300),
+    ]);
+    expect(instance("X1").netlist?.parameters).toEqual({
+      signA: "+",
+      signB: "-",
+    });
+    // Without parameters an adder lands adding both inputs, as from the GUI.
+    expect(instance("X2").netlist?.parameters).toEqual({
+      signA: "+",
+      signB: "+",
+    });
+    const before = structuredClone(controller.project);
+    const x2 = instance("X2");
+    const target = { kind: "instance", reference: "X2" };
+    await apply([{ kind: "set-property", target, set: { signA: "-" } }]);
+    expect(instance("X2").netlist?.parameters).toEqual({
+      signA: "-",
+      signB: "+",
+    });
+    // The same sign chosen in Properties.
+    const document = before.documents[0]!;
+    const plan = planPropertyApply(
+      {
+        project: before,
+        document,
+        resolver: createProjectSymbolResolver(before, builtInSymbols),
+        instance: document.instances.find((item) => item.id === x2.id)!,
+      },
+      {
+        parameters: { signA: "-", signB: "+" },
+        placement: { coordinate: [300, 100], rotation: 0, mirror: "none" },
+        appearance: { color: "auto" },
+      },
+    );
+    expect(plan.kind).toBe("edits");
+    const gui = new EditorDocumentController(before);
+    if (plan.kind === "edits") expect(gui.transact(plan.edits).ok).toBe(true);
+    expect(controller.document.instances).toEqual(gui.document.instances);
+
+    // #1324 spells the minus as U+2212. Typed so, by an Agent or in
+    // Properties, it is taken and stored as -.
+    await apply([{ kind: "set-property", target, set: { signB: "−" } }]);
+    expect(instance("X2").netlist?.parameters).toEqual({
+      signA: "-",
+      signB: "-",
+    });
+    await apply([{ ...place("adder", "X3", 500), parameters: { signA: "−" } }]);
+    expect(instance("X3").netlist?.parameters).toEqual({
+      signA: "-",
+      signB: "+",
+    });
+    const typed = structuredClone(controller.project);
+    const typedDocument = typed.documents[0]!;
+    const x1 = typedDocument.instances.find((item) => item.reference === "X1")!;
+    const typedPlan = planPropertyApply(
+      {
+        project: typed,
+        document: typedDocument,
+        resolver: createProjectSymbolResolver(typed, builtInSymbols),
+        instance: x1,
+      },
+      {
+        parameters: { signA: "−", signB: "-" },
+        placement: { coordinate: [100, 100], rotation: 0, mirror: "none" },
+        appearance: { color: "auto" },
+      },
+    );
+    expect(typedPlan).toMatchObject({
+      kind: "edits",
+      edits: [
+        {
+          kind: "patch_instance_netlist_parameters",
+          instanceId: x1.id,
+          set: { signA: "-" },
+        },
+      ],
+    });
+
+    // Anything else is refused: a word, or another dash.
+    expect(
+      await refuse([{ kind: "set-property", target, set: { signB: "minus" } }]),
+    ).toContain('must be one of: +, -; received "minus"');
+    expect(
+      await refuse([
+        { ...place("adder", "X4", 700), parameters: { signA: "–" } },
+      ]),
+    ).toContain('must be one of: +, -; received "–"');
   });
 
   it("refuses spice.* keys and names the parameters the model owns", async () => {
@@ -348,5 +446,95 @@ describe("Agent property actions are planned as Apply in Properties", () => {
         false,
     ).toBe(false);
     expect(controller.document.routes.length).toBeLessThan(routes);
+  });
+
+  it("shows a placed Cell's X1 on request, as the Properties Reference switch does (#1317)", async () => {
+    const { controller, client, apply, instance } = await session();
+    const inCell = async (actions: unknown[]) => {
+      const report = await client.applyActions(actions, { documentId: "inv" });
+      expect(report.ok, report.message).toBe(true);
+    };
+    await apply([{ kind: "create-cell", id: "inv", name: "inv" }]);
+    await inCell([
+      {
+        kind: "place-component",
+        symbol: "port",
+        reference: "in",
+        position: { x: 0, y: 0 },
+      },
+    ]);
+    await apply([
+      {
+        kind: "place-cell",
+        childDocumentId: "inv",
+        placement: { position: { x: 200, y: 200 } },
+      },
+    ]);
+    const cell = instance("X1");
+    const labels = (project: CircuitProject) =>
+      project.documents[0]!.annotations.filter(
+        (item) =>
+          item.anchor.kind === "object" && item.anchor.objectId === cell.id,
+      );
+    const at = (project: CircuitProject, kind: string) => {
+      const label = labels(project).find((item) => item.kind === kind);
+      return label?.anchor.kind === "object"
+        ? label.anchor.fallbackPosition
+        : undefined;
+    };
+    // By default only the Cell's name shows, in the Reference's slot (#803);
+    // Properties still offers the Reference switch for it.
+    expect(labels(controller.project).map((item) => item.kind)).toEqual([
+      "instance-value",
+    ]);
+    expect(instanceCarriesReference(cell, controller.project)).toBe(true);
+    const nameSlot = at(controller.project, "instance-value");
+
+    const before = structuredClone(controller.project);
+    const document = before.documents[0]!;
+    const plan = planPropertyApply(
+      {
+        project: before,
+        document,
+        resolver: createProjectSymbolResolver(before, builtInSymbols),
+        instance: document.instances.find((item) => item.id === cell.id)!,
+      },
+      {
+        placement: { coordinate: [200, 200], rotation: 0, mirror: "none" },
+        display: { visualAnnotation: true },
+        appearance: { color: "auto" },
+      },
+    );
+    expect(plan.kind).toBe("edits");
+    const gui = new EditorDocumentController(before);
+    if (plan.kind === "edits") expect(gui.transact(plan.edits).ok).toBe(true);
+
+    await apply([
+      {
+        kind: "set-instance-display",
+        instanceIds: [cell.id],
+        showReference: true,
+      },
+    ]);
+    expect(labels(controller.project)).toEqual(labels(gui.project));
+    const reference = labels(controller.project).find(
+      (item) => item.binding?.kind === "instance-reference",
+    )!;
+    expect(reference.visible).toBeUndefined();
+    expect(
+      flattenRichText(resolveAnnotationText(controller.document, reference)),
+    ).toBe("X1");
+    // X1 takes the slot the Cell's name had; the name moves a row below.
+    expect(at(controller.project, "instance-label")).toEqual(nameSlot);
+    expect(at(controller.project, "instance-value")!.y).toBe(nameSlot!.y + 20);
+    // Hidden again, the Cell's name returns to its slot.
+    await apply([
+      {
+        kind: "set-instance-display",
+        instanceIds: [cell.id],
+        showReference: false,
+      },
+    ]);
+    expect(at(controller.project, "instance-value")).toEqual(nameSlot);
   });
 });

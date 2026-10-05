@@ -208,6 +208,12 @@ does not own a second Cloud store, imported-Cell format, or write path.
 - A Schematic transaction targets exactly one Document. A Project structural
   transaction atomically composes ordered Schematic transactions with
   add/remove Document operations and validates the complete final Project.
+  External-subcircuit callers are judged by what the transaction changes: it
+  is refused with `INVALID_RESULT` for a caller it leaves using a pin its
+  definition lacks, or drawing a property-only terminal, that was not already
+  so. The message names the part, its Cell and the ways out (disconnect the
+  pin, clear the model, or delete the part). A caller already in that state is
+  reported by export and does not block unrelated edits (#1298).
 - `expectedRevision` must equal the current revision.
 - The complete payload is schema-validated before application.
 - All edits apply or none apply.

@@ -16,10 +16,12 @@ import {
   drawnSupplyNet,
   drawnSwitchControl,
   drawnSwitchPhase,
+  mosBodiesOffSourceSupply,
   mosBulkKind,
   resolveMosBulkConnection,
   resolveDocumentLogicalNets,
   type DrawnMagneticNetwork,
+  type PlacedMosBodies,
   type ProjectedNetName,
   type ResolvedDocumentLogicalNets,
   type ResolvedLogicalNet,
@@ -33,7 +35,10 @@ import type {
   StableId,
 } from "@icm/model";
 import {
+  ADDER_SIGNED_INPUTS,
+  ADDER_TARGET,
   IDEAL_COMPARATOR_TARGET,
+  adderInputSigns,
   builtInModelContract,
   createReferenceIndex,
   deviceDescriptor,
@@ -68,9 +73,14 @@ import {
 import { normalizeIndependentSource } from "./source-waveform.js";
 import {
   bodyIgnoresSupplies,
+  implicitSupplyNetId,
   withImplicitMosSupplies,
 } from "./implicit-mos-supplies.js";
-import { idealAnalogBlockCell } from "./ideal-analog-block-models.js";
+import {
+  builtInBlockCallTarget,
+  idealAnalogBlockCell,
+  projectSubcircuitNames,
+} from "./ideal-analog-block-models.js";
 import { IDEAL_SWITCH_MODEL } from "./ideal-switch-model.js";
 export { IDEAL_SWITCH_MODEL } from "./ideal-switch-model.js";
 
@@ -1150,6 +1160,8 @@ function extractBuiltInSubcircuitInstance(
   context: CellNetContext,
   _options: ResolvedDesignNetlistAnalysisOptions,
   diagnostics: NetlistDiagnostic[],
+  /** The Project's own subcircuit names; see projectSubcircuitNames. */
+  projectNames: ReadonlySet<string>,
   /** The body never reads VDD/VSS, so an undrawn supply is tied to ground. */
   supplyFree = false,
 ): DesignNetlistInstance | null {
@@ -1165,10 +1177,7 @@ function extractBuiltInSubcircuitInstance(
     );
     return null;
   }
-  const target =
-    binding?.kind === "unresolved-subcircuit"
-      ? binding.name
-      : definition.target;
+  const target = builtInBlockCallTarget(instance, definition, projectNames);
   if (!isIdentifier(reference) || !isIdentifier(target)) {
     diagnostic(
       diagnostics,
@@ -1178,7 +1187,54 @@ function extractBuiltInSubcircuitInstance(
       [instance.id],
     );
   }
-  const parameters = Object.entries(netlist?.parameters ?? {});
+  // An adder's input signs chose its body above; they are not SPICE
+  // parameters, so the call carries none of them.
+  const adderSigns =
+    definition.target === ADDER_TARGET
+      ? adderInputSigns(netlist?.parameters)
+      : [];
+  const signNames = new Set(
+    ADDER_SIGNED_INPUTS.map((input) => input.parameter.toLowerCase()),
+  );
+  for (const input of adderSigns) {
+    if (input.sign === null)
+      diagnostic(
+        diagnostics,
+        document.id,
+        "INVALID_ADDER_SIGN",
+        `Adder ${reference}'s ${input.parameter} must be + or -; received ${netlist?.parameters[input.parameter]}`,
+        [instance.id],
+        "error",
+        input.parameter,
+      );
+  }
+  // The signs choose among the generated adder bodies only. A call that
+  // reaches anything else must subtract as drawn: a subcircuit the adder
+  // was retargeted to, or the Project's own definition of the name.
+  const retargeted =
+    binding?.kind === "unresolved-subcircuit" &&
+    binding.name.toLowerCase() !== definition.target;
+  const ownDefinition = projectNames.has(target.toLowerCase());
+  if (
+    adderSigns.some((input) => input.sign === "-") &&
+    (retargeted || ownDefinition)
+  )
+    diagnostic(
+      diagnostics,
+      document.id,
+      "ADDER_SIGN_NOT_EXPORTED",
+      `Adder ${reference} subtracts ${adderSigns
+        .filter((input) => input.sign === "-")
+        .map((input) => input.pinName)
+        .join(" and ")}, but calls ${target}${
+        ownDefinition ? ", which this Project defines" : ""
+      }: the signs choose only among the built-in adder bodies, so ${target} must subtract as drawn`,
+      [instance.id],
+      "warning",
+    );
+  const parameters = Object.entries(netlist?.parameters ?? {}).filter(
+    ([name]) => !adderSigns.length || !signNames.has(name.toLowerCase()),
+  );
   for (const [name] of parameters) {
     if (isIdentifier(name)) continue;
     diagnostic(
@@ -1324,6 +1380,53 @@ function extractBuiltInSubcircuitInstance(
       .sort(([a], [b]) => compareText(a, b))
       .map(([name, rawValue]) => ({ name, rawValue })),
   };
+}
+
+/**
+ * The model a diode takes in a Process with no diode of its own (#1310):
+ * Abstract, SKY130, IHP SG13G2 and Custom bind each diode placed from the
+ * library to `DIODE`, a name no library defines, so every run of that
+ * netlist failed on the missing model while the export said ready. Like the
+ * ideal switch, each Cell using the name carries this card in its own body:
+ * SPICE's default junction, with its saturation current and emission
+ * coefficient stated. It is a stand-in, reported as information, and a model
+ * of the same name that the Project defines itself replaces it.
+ */
+export const GENERIC_DIODE_MODEL: DesignNetlistModel = {
+  name: "DIODE",
+  type: "D",
+  parameters: [
+    { name: "IS", rawValue: "1e-14" },
+    { name: "N", rawValue: "1" },
+  ],
+  authoredName: true,
+};
+
+/** `.model DIODE …` in SPICE, or `model DIODE …` in VACASK and Spectre. */
+const GENERIC_DIODE_DEFINITION = new RegExp(
+  String.raw`^[ \t]*\.?model[ \t]+${GENERIC_DIODE_MODEL.name}(?=[\s(]|$)`,
+  "imu",
+);
+
+/**
+ * Whether the Project's own text defines the generic diode's name: a source
+ * file in one of its simulation folders, or the SPICE it was imported from.
+ * That model is the author's. The card inside a Cell would shadow it there,
+ * so no Cell carries one.
+ */
+function projectDefinesGenericDiode(project: CircuitProject): boolean {
+  const texts = [
+    ...(project.simulationFolders ?? []).flatMap((folder) =>
+      folder.input.files.map((file) => file.text),
+    ),
+    ...(project.source?.files ?? []).flatMap((file) => [
+      file.content?.text,
+      file.originalContent?.text,
+    ]),
+  ];
+  return texts.some(
+    (text) => text !== undefined && GENERIC_DIODE_DEFINITION.test(text),
+  );
 }
 
 /** Phase nodes no drawn Net supplies, per Cell: each switch on one is told. */
@@ -2065,12 +2168,180 @@ function projectSpiceReferences(cell: DesignNetlistCell): void {
   }
 }
 
+/** `M1`, `M1 and M2`, `M1, M2 and M3`; a long list ends in a count. */
+function partList(names: readonly string[]): string {
+  const shown =
+    names.length > 8
+      ? [...names.slice(0, 7), `${names.length - 7} more`]
+      : names;
+  return shown.length === 1
+    ? shown[0]!
+    : `${shown.slice(0, -1).join(", ")} and ${shown.at(-1)!}`;
+}
+
+/**
+ * Which MOS bodies took a supply this export added to the Cell, and which pin
+ * that supply became (#1302). A body with no Net takes the conventional VDD or
+ * ground, and a Cell that draws neither gets it as a new Cell Pin, VDD and
+ * VSS together. That is the documented default, yet it added a fourth
+ * terminal nobody drew without a word: an LDO's pass device got a VDD pin
+ * where its body was meant to be the input. Information, as a generated Net
+ * name is: the netlist and every gate stay as they were.
+ */
+function reportDefaultBodySupplies(
+  document: SchematicDocument,
+  context: CellNetContext,
+  ports: DesignNetlistCell["ports"],
+  diagnostics: NetlistDiagnostic[],
+): void {
+  const added = (["VDD", "0"] as const).flatMap((supply) => {
+    const net = document.nets.find(
+      (candidate) => candidate.id === implicitSupplyNetId(document.id, supply),
+    );
+    const group = net ? context.logicalNets.byBaseNetId.get(net.id) : undefined;
+    // A Net the author drew joined it: the Cell had this supply already.
+    if (!net || group?.baseNetIds.length !== 1) return [];
+    const pin = ports.find(
+      (port) => context.logicalNets.byBaseNetId.get(port.id)?.id === group.id,
+    );
+    if (!pin) return [];
+    const bodies = net.terminals.flatMap((terminal) => {
+      if (terminal.pinName !== "B") return [];
+      const instance = document.instances.find(
+        (candidate) => candidate.id === terminal.instanceId,
+      );
+      return instance && mosBulkKind(instance)
+        ? [{ id: instance.id, name: instance.reference ?? instance.id }]
+        : [];
+    });
+    bodies.sort((left, right) =>
+      left.name.localeCompare(right.name, "en", { numeric: true }),
+    );
+    return [{ supply, pin: pin.name, bodies }];
+  });
+  for (const { supply, pin, bodies } of added) {
+    if (!bodies.length) continue;
+    // VDD and ground come as a pair; say so when the other one has no body.
+    const companion = added.find(
+      (other) => other.supply !== supply && !other.bodies.length,
+    );
+    const one = bodies.length === 1;
+    const subject = one
+      ? `${bodies[0]!.name}'s body has no Net and takes`
+      : `The bodies of ${partList(bodies.map((body) => body.name))} have no Net and take`;
+    const taken =
+      supply === "VDD"
+        ? `the conventional ${pin}, added to this Cell's pins${companion ? ` with ${companion.pin}` : ""}`
+        : `the conventional ground, added to this Cell's pins as ${pin}${companion ? `, with ${companion.pin}` : ""}`;
+    diagnostic(
+      diagnostics,
+      document.id,
+      "MOS_BODY_DEFAULT_SUPPLY",
+      `${subject} ${taken}; connect ${one ? "its B pin" : "a B pin"} to choose another body`,
+      bodies.map((body) => body.id),
+      "info",
+    );
+  }
+}
+
+/**
+ * Which diodes run on the generic card (#1310). Information, as a default
+ * body supply is: the netlist now runs, but on a stand-in junction, not on a
+ * device anyone chose.
+ */
+function reportGenericDiodes(
+  document: SchematicDocument,
+  diodes: readonly DesignNetlistInstance[],
+  diagnostics: NetlistDiagnostic[],
+): void {
+  const parts = diodes
+    .map((card) => {
+      const instance = document.instances.find((item) => item.id === card.id);
+      return {
+        id: card.id,
+        name: instance?.reference ?? card.reference,
+        zener: instance?.symbolId === "zener-diode",
+      };
+    })
+    .sort((left, right) =>
+      left.name.localeCompare(right.name, "en", { numeric: true }),
+    );
+  const values = GENERIC_DIODE_MODEL.parameters
+    .map((parameter) => `${parameter.name}=${parameter.rawValue}`)
+    .join(", ");
+  // A Zener on it runs, but never breaks down: say so rather than let a
+  // regulator simulate as a plain diode unnoticed.
+  const zeners = parts.filter((part) => part.zener).map((part) => part.name);
+  diagnostic(
+    diagnostics,
+    document.id,
+    "GENERIC_DIODE_MODEL",
+    `${partList(parts.map((part) => part.name))} ${parts.length === 1 ? "uses" : "use"} the generic diode model ${GENERIC_DIODE_MODEL.name} (${values}); set a model for a real device${
+      zeners.length
+        ? `. It has no breakdown, so ${partList(zeners)} ${zeners.length === 1 ? "does" : "do"} not act as a Zener until given a Zener model`
+        : ""
+    }`,
+    parts.map((part) => part.id),
+    "info",
+  );
+}
+
+/**
+ * A MOS whose body follows a default onto one supply while its source is on
+ * another supply of the same domain (#1336): a level shifter's VDDH PMOS with
+ * its body on the Cell's PMOS default VDDL, forward-biased when VDDH is the
+ * higher supply. The drawing holds no voltages, and most such bodies sit on
+ * the higher supply on purpose, so this is a question, not a warning; a body
+ * wired explicitly is the answer and is never asked about. A body with no Net
+ * is asked about the same way: a Cell with two supplies has no default to
+ * give it, and the conventional VDD or ground it takes then need not be its
+ * source's.
+ */
+function reportBodiesOffSourceSupply(
+  document: SchematicDocument,
+  context: CellNetContext,
+  placedBodies: PlacedMosBodies | undefined,
+  diagnostics: NetlistDiagnostic[],
+): void {
+  // Node 0 reads as ground.
+  const spoken = (node: string) => (node === "0" ? "ground" : node);
+  for (const item of mosBodiesOffSourceSupply(
+    document,
+    context.logicalNets,
+    placedBodies,
+  )) {
+    const bodyNode = context.nameByNetId.get(item.bodyNet.id);
+    const sourceNode = context.nameByNetId.get(item.sourceNet.id);
+    if (!bodyNode || !sourceNode || bodyNode === sourceNode) continue;
+    const body = spoken(bodyNode);
+    const source = spoken(sourceNode);
+    const kind = mosBulkKind(item.instance)!.toUpperCase();
+    const follows =
+      item.status === "conventional"
+        ? `has no Net and takes the conventional ${body}`
+        : item.status === "instance-override"
+          ? `keeps the ${kind} default it was copied with, ${body}`
+          : `follows the Cell's ${kind} default ${body}`;
+    diagnostic(
+      diagnostics,
+      document.id,
+      "MOS_BODY_OTHER_SUPPLY",
+      `${item.instance.reference ?? item.instance.id}'s body ${follows}; its source is on ${source}. Connect its B pin to ${source} if that is the body you mean`,
+      [item.instance.id],
+      "info",
+    );
+  }
+}
+
 function extractCell(
   project: CircuitProject,
   document: SchematicDocument,
   documentsById: Map<string, SchematicDocument>,
   cellNameByDocumentId: ReadonlyMap<string, string>,
+  /** The Project's own subcircuit names; see projectSubcircuitNames. */
+  projectNames: ReadonlySet<string>,
   projectedNames: ReadonlyMap<string, ProjectedNetName>,
+  placedBodies: PlacedMosBodies | undefined,
   options: ResolvedDesignNetlistAnalysisOptions,
   diagnostics: NetlistDiagnostic[],
 ): DesignNetlistCell | null {
@@ -2228,6 +2499,9 @@ function extractCell(
       });
     }
   }
+  // Node names are final here, ground included, so findings use them.
+  reportDefaultBodySupplies(document, context, ports, diagnostics);
+  reportBodiesOffSourceSupply(document, context, placedBodies, diagnostics);
   const referenceIndex = createReferenceIndex(document, project);
   const syntheticReferences = new Map<string, string>();
   const reservedReferences = new Set(referenceIndex.byReference.keys());
@@ -2339,12 +2613,10 @@ function extractCell(
           context,
           options,
           diagnostics,
+          projectNames,
           bodyIgnoresSupplies(
-            binding?.kind === "unresolved-subcircuit"
-              ? binding.name
-              : builtInSubcircuit.target,
-            project,
-            cellNameByDocumentId.values(),
+            builtInBlockCallTarget(instance, builtInSubcircuit, projectNames),
+            projectNames,
             options.format,
           ),
         )
@@ -2387,6 +2659,20 @@ function extractCell(
     )
   )
     models.push(structuredClone(IDEAL_SWITCH_MODEL));
+  // SPICE only (VACASK prints it from the SPICE card). A Spectre export still
+  // names DIODE for the reader's libraries to define.
+  const genericDiodes =
+    options.format === "spice"
+      ? instances.filter(
+          (instance) =>
+            instance.deviceClass === "diode" &&
+            instance.target === GENERIC_DIODE_MODEL.name,
+        )
+      : [];
+  if (genericDiodes.length && !projectDefinesGenericDiode(project)) {
+    models.push(structuredClone(GENERIC_DIODE_MODEL));
+    reportGenericDiodes(document, genericDiodes, diagnostics);
+  }
   for (const extracted of instances) {
     const source = document.instances.find(
       (candidate) => candidate.id === extracted.id,
@@ -2454,7 +2740,8 @@ function analyzeDesign(
     rootAsTopLevel: options.rootAsTopLevel ?? false,
     groundPin: options.groundPin ?? "global",
   };
-  project = withImplicitMosSupplies(project, resolvedOptions);
+  const projection = withImplicitMosSupplies(project, resolvedOptions);
+  project = projection.project;
   const diagnostics: NetlistDiagnostic[] = [];
   const documents = reachableDocuments(
     project,
@@ -2503,6 +2790,12 @@ function analyzeDesign(
       cellNames.set(folded, { documentId: document.id, authoredName });
     }
   }
+  // The names this export defines itself, which no generated body takes:
+  // its Cells and the Project's external definitions.
+  const projectNames = projectSubcircuitNames(
+    project,
+    cellNameByDocumentId.values(),
+  );
   const cells: DesignNetlistCell[] = [];
   for (const collision of findExternalMasterCollisions(project, documents)) {
     diagnostic(
@@ -2519,7 +2812,9 @@ function analyzeDesign(
       document,
       documentsById,
       cellNameByDocumentId,
+      projectNames,
       nameProjection.byDocumentId.get(document.id) ?? new Map(),
+      projection.placedBodies.get(document.id),
       resolvedOptions,
       diagnostics,
     );
@@ -2786,10 +3081,7 @@ function analyzeDesign(
     }
     const descriptor = instanceBuiltInSubcircuit(project, instance);
     if (!descriptor) continue;
-    const target =
-      binding?.kind === "unresolved-subcircuit"
-        ? binding.name
-        : descriptor.target;
+    const target = builtInBlockCallTarget(instance, descriptor, projectNames);
     if (
       descriptor.target === "comparator" &&
       target === IDEAL_COMPARATOR_TARGET
@@ -2811,14 +3103,9 @@ function analyzeDesign(
     });
   }
   // A default Analog Block call gets one actual idealized E/G-source master.
-  // Authored Cells and explicit external master interfaces retain priority;
-  // an instance retargeted to another subcircuit never receives this model.
-  const occupiedNames = new Set([
-    ...cells.map((cell) => cell.name.toLowerCase()),
-    ...project.externalSubcircuitDefinitions.map((item) =>
-      item.name.toLowerCase(),
-    ),
-  ]);
+  // Authored Cells and explicit external master interfaces (projectNames)
+  // retain priority; an instance retargeted to another subcircuit never
+  // receives this model.
   const idealCells = [
     ...new Set(
       cells.flatMap((cell) =>
@@ -2833,7 +3120,7 @@ function analyzeDesign(
   ]
     .sort(compareText)
     .flatMap((target) => {
-      if (occupiedNames.has(target.toLowerCase())) return [];
+      if (projectNames.has(target.toLowerCase())) return [];
       const model = idealAnalogBlockCell(target, resolvedOptions.format);
       return model ? [model] : [];
     });
@@ -2852,7 +3139,7 @@ function analyzeDesign(
           builtInModelContract(instance.target)?.backends[
             resolvedOptions.format
           ] === "included" &&
-          !occupiedNames.has(instance.target.toLowerCase())
+          !projectNames.has(instance.target.toLowerCase())
             ? [instance.target]
             : [],
         ),
@@ -2866,7 +3153,7 @@ function analyzeDesign(
       topCellId: resolvedOptions.rootDocumentId,
       cells: [...idealCells, ...cells],
       generatedDefinitions: [
-        ...(!occupiedNames.has(IDEAL_COMPARATOR_TARGET.toLowerCase()) &&
+        ...(!projectNames.has(IDEAL_COMPARATOR_TARGET.toLowerCase()) &&
         cells.some((cell) =>
           cell.instances.some(
             (instance) => instance.target === IDEAL_COMPARATOR_TARGET,

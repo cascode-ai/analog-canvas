@@ -658,8 +658,12 @@ export function locateDesignNetlist(
     // A card the Cell prints itself, such as the ideal switch, is not a model
     // binding anyone authored, so its name is not an editable field. Nor is
     // the subcircuit a T-coil or transformer calls: the Symbol decides it.
+    // The generic diode's card stands in for a name a binding gave, which
+    // stays editable: naming another model there replaces the card.
     const ownModels = new Set([
-      ...(cell.models ?? []).map((model) => model.name),
+      ...(cell.models ?? []).flatMap((model) =>
+        model.authoredName ? [] : [model.name],
+      ),
       ...(ir.generatedDefinitions ?? []).map((definition) => definition.name),
     ]);
     for (const instance of cell.instances) {

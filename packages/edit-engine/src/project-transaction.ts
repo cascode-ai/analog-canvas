@@ -7,16 +7,19 @@ import {
   flattenRichText,
   plainNameDocument,
   type CircuitProject,
+  type RouteEndpoint,
   type SchematicDocument,
 } from "@icm/model";
 import { routeEnd } from "@icm/model";
 import { resolveReviewedExternalBinding } from "@icm/devices";
+import { resolveEndpointPoint } from "@icm/derived";
 import {
   builtInSymbols,
   createProjectSymbolResolver,
   externalSubcircuitSymbolId,
   hierarchicalSymbolId,
   resolvePdkSymbolMappingForTerminalOrder,
+  type SymbolResolver,
 } from "@icm/symbols";
 import { z } from "zod";
 
@@ -28,8 +31,9 @@ import {
 } from "./edit-schema.js";
 import { executeTransaction } from "./transaction.js";
 import { planInstanceSymbolGeometryRouteFollow } from "./transaction-route-follow.js";
-import { redrawStretchedRoutesClear } from "./pin-change-route-clearance.js";
+import { redrawStretchedRoutesClear } from "./stretched-route-clearance.js";
 import type {
+  AppliedTransaction,
   EditDiagnostic,
   EditTransactionResult,
 } from "./transaction-result.js";
@@ -176,9 +180,25 @@ function replaceDocument(
   project.documents[index] = document;
 }
 
-function externalCallerValidationFailure(
+interface ExternalCallerFailure {
+  /** What is wrong, independent of which Net, Route or flag shows it. */
+  key: string;
+  message: string;
+  objectIds: string[];
+  documentId: string;
+  instanceId: string;
+}
+
+/**
+ * Every place an external-subcircuit caller uses a pin its definition does not
+ * have, or draws a property-only terminal of its reviewed device. Each message
+ * names the part, its Cell and the ways out, since the part may be far from
+ * whatever edit is refused.
+ */
+function externalCallerValidationFailures(
   project: CircuitProject,
-): { message: string; objectIds: string[] } | null {
+): ExternalCallerFailure[] {
+  const failures: ExternalCallerFailure[] = [];
   const definitions = new Map(
     project.externalSubcircuitDefinitions.map((definition) => [
       definition.id,
@@ -203,6 +223,26 @@ function externalCallerValidationFailure(
           : definition.terminals.map((terminal) => terminal.name)
         ).map((name) => name.toLowerCase()),
       );
+      const part = instance.reference ?? instance.id;
+      const where = `${part} in Cell ${document.name}`;
+      const failure = (
+        kind: "unknown-pin" | "property-pin-drawn",
+        pinName: string,
+        message: string,
+        objectIds: string[],
+      ): ExternalCallerFailure => ({
+        key: [
+          kind,
+          document.id,
+          instance.id,
+          definition.id,
+          pinName.toLowerCase(),
+        ].join("\u0000"),
+        message,
+        objectIds,
+        documentId: document.id,
+        instanceId: instance.id,
+      });
       const references = [
         ...document.nets.flatMap((net) =>
           net.terminals
@@ -239,26 +279,95 @@ function externalCallerValidationFailure(
         ),
       ];
       for (const reference of references) {
+        const pin = `${part}.${reference.pinName}`;
         if (!allowed.has(reference.pinName.toLowerCase())) {
-          return {
-            message: `External subcircuit Instance ${instance.id} references unknown terminal ${reference.pinName}`,
-            objectIds: reference.objectIds,
-          };
+          failures.push(
+            failure(
+              "unknown-pin",
+              reference.pinName,
+              `${where} uses pin ${reference.pinName}, which its model ${definition.name} does not have. Disconnect ${pin}, clear ${part}'s model, or delete ${part}.`,
+              reference.objectIds,
+            ),
+          );
+          continue;
         }
         const terminal = reviewed?.terminals.find(
           (candidate) =>
             candidate.pinName.toLowerCase() === reference.pinName.toLowerCase(),
         );
         if (reference.canvas && terminal?.interaction === "property") {
-          return {
-            message: `Property-only terminal ${instance.id}.${reference.pinName} cannot own canvas geometry`,
-            objectIds: reference.objectIds,
-          };
+          failures.push(
+            failure(
+              "property-pin-drawn",
+              reference.pinName,
+              `${where} has a Wire or No Connect at ${pin}, a property-only terminal of its model ${definition.name}. Remove it and choose the Net in Properties, clear ${part}'s model, or delete ${part}.`,
+              reference.objectIds,
+            ),
+          );
         }
       }
     }
   }
-  return null;
+  return failures;
+}
+
+/**
+ * The first external caller this transaction leaves invalid that was not
+ * already invalid before it. A part that is already wrong — a Var Cap bound
+ * to the SKY130 varactor before #1298 is wired at P1/P2, pins the varactor
+ * does not have — is reported by export where it is, and must not refuse
+ * every unrelated Project edit, in other Cells included. An edit that makes a
+ * caller wrong is still refused.
+ */
+function introducedExternalCallerFailure(
+  before: CircuitProject,
+  after: CircuitProject,
+): ExternalCallerFailure | null {
+  const failures = externalCallerValidationFailures(after);
+  if (failures.length === 0) return null;
+  const existing = new Set(
+    externalCallerValidationFailures(before).map((failure) => failure.key),
+  );
+  return failures.find((failure) => !existing.has(failure.key)) ?? null;
+}
+
+/**
+ * A caller's wiring follow, naming beside its wires each caller with a wire
+ * on a pin that moved (#1320). The pins moved with the Cell's symbol, though
+ * the Instance itself is unchanged, so a receipt that listed only the wires
+ * left out which blocks they belong to.
+ */
+function withRedrawnCallers(
+  result: AppliedTransaction,
+  before: { document: SchematicDocument; resolver: SymbolResolver },
+  resolver: SymbolResolver,
+  callerIds: ReadonlySet<string>,
+): AppliedTransaction {
+  const changed = new Set(result.diff.changedObjectIds);
+  const moved = (end: RouteEndpoint) => {
+    const from = resolveEndpointPoint(before.document, before.resolver, end);
+    const to = resolveEndpointPoint(result.document, resolver, end);
+    return !from || !to || from.x !== to.x || from.y !== to.y;
+  };
+  const callers = result.document.routes.flatMap((route) =>
+    changed.has(route.id)
+      ? [route.start, routeEnd(route)].flatMap((end) =>
+          end.kind === "terminal" && callerIds.has(end.instanceId) && moved(end)
+            ? [end.instanceId]
+            : [],
+        )
+      : [],
+  );
+  if (!callers.length) return result;
+  return {
+    ...result,
+    diff: {
+      ...result.diff,
+      changedObjectIds: [
+        ...new Set([...result.diff.changedObjectIds, ...callers]),
+      ].sort(),
+    },
+  };
 }
 
 /**
@@ -759,7 +868,16 @@ export function executeProjectTransaction(
         ),
       );
       const routeResult = follow(routeEdits);
-      documentResults.push(routeResult);
+      documentResults.push(
+        routeResult.ok
+          ? withRedrawnCallers(
+              routeResult,
+              { document: originalParent, resolver: originalResolver },
+              resolver,
+              callerIds,
+            )
+          : routeResult,
+      );
       if (!routeResult.ok) {
         return rejectProjectTransaction(
           project,
@@ -781,7 +899,10 @@ export function executeProjectTransaction(
   const proposedStructureRevision =
     project.structureRevision + (applied ? 1 : 0);
   candidate.structureRevision = proposedStructureRevision;
-  const externalCallerFailure = externalCallerValidationFailure(candidate);
+  const externalCallerFailure = introducedExternalCallerFailure(
+    project,
+    candidate,
+  );
   if (externalCallerFailure) {
     return rejectProjectTransaction(
       project,
@@ -793,6 +914,10 @@ export function executeProjectTransaction(
           severity: "error",
           message: externalCallerFailure.message,
           objectIds: externalCallerFailure.objectIds,
+          parameters: {
+            documentId: externalCallerFailure.documentId,
+            instanceId: externalCallerFailure.instanceId,
+          },
         },
       ],
     );

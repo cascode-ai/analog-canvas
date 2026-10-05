@@ -1,7 +1,12 @@
-import { createEmptyDocument, type SchematicDocument } from "@icm/model";
+import {
+  createEmptyDocument,
+  createRoutePath,
+  type SchematicDocument,
+} from "@icm/model";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 import {
   deriveNetConnectivityContext,
+  diagnoseVisualQuality,
   endpointKey,
   resolveRouteGeometry,
 } from "@icm/derived";
@@ -267,7 +272,7 @@ describe("an Agent connect keeps clear of parts and other Nets (#1257)", () => {
     id: string,
     x: number,
     y: number,
-    rotation: 0 | 90 = 0,
+    rotation: 0 | 90 | 180 | 270 = 0,
   ) => ({
     id,
     symbolId: "resistor",
@@ -368,6 +373,71 @@ describe("an Agent connect keeps clear of parts and other Nets (#1257)", () => {
     );
     expect(refused).toMatch(/passes through R3/);
     expect(chosen.document.routes).toEqual([]);
+  });
+
+  it("keeps clear of an adder's sign marks, as visual diagnostics see them (#1324)", () => {
+    // R1.2 points right at (40,90) and R2.1 down at (80,60). The planner's
+    // L runs right along y=90 and up x=80: past the adder S1's circle, but
+    // through the plus its subtracting B puts over input A, centred at
+    // (78.5, 89.5).
+    const drawn = (signB: "+" | "-") => {
+      const document = createEmptyDocument("doc", "Signed adder");
+      document.instances.push(
+        resistor("R1", 20, 90, 270),
+        resistor("R2", 80, 40, 180),
+        {
+          id: "S1",
+          symbolId: "adder",
+          reference: "S1",
+          placement: {
+            position: { x: 100, y: 100 },
+            rotation: 0,
+            mirror: "none",
+          },
+          netlist: {
+            binding: { kind: "unresolved-subcircuit", name: "adder" },
+            parameters: { signA: "+", signB },
+          },
+        },
+      );
+      return history(document);
+    };
+    const throughS1 = (h: DocumentHistory) =>
+      diagnoseVisualQuality(h.document, resolver).filter(
+        (item) =>
+          item.code === "VISUAL_WIRE_THROUGH_SYMBOL" &&
+          item.objectIds.includes("S1"),
+      );
+    // An adder whose inputs both add draws no marks: the L passes it.
+    const adding = drawn("+");
+    const direct = committedPath(adding, { keepClear: true });
+    if (typeof direct === "string") throw new Error(direct);
+    expect(direct).toEqual([
+      { x: 40, y: 90 },
+      { x: 80, y: 90 },
+      { x: 80, y: 60 },
+    ]);
+    expect(throughS1(adding)).toEqual([]);
+
+    // Once B subtracts, the same L runs through the plus: refused, and the
+    // wire goes round by the other corner.
+    expect(conflict(drawn("-"), direct)).toBe("passes through S1");
+    const h = drawn("-");
+    const cleared = committedPath(h, { keepClear: true });
+    expect(cleared).toEqual([
+      { x: 40, y: 90 },
+      { x: 40, y: 60 },
+      { x: 80, y: 60 },
+    ]);
+    if (typeof cleared === "string") throw new Error(cleared);
+    expect(conflict(h, cleared)).toBeNull();
+    expect(throughS1(h)).toEqual([]);
+
+    // Drawn anyway, the L is what visual diagnostics report: one view.
+    const forced = drawn("-");
+    const along = committedPath(forced, {}, direct.slice(1, -1));
+    expect(along).toEqual(direct);
+    expect(throughS1(forced)).not.toEqual([]);
   });
 
   it("keeps a wire to a Net, a tap on a wire or an open end clear too", () => {
@@ -576,6 +646,143 @@ describe("an Agent wire from a MOS body on its Cell's default", () => {
       ]);
     },
   );
+
+  it("still joins the pin it was asked to when the other end's wire runs along the last leg", () => {
+    // R1's Net has a wire standing at x = 100 where the wire to R2 comes
+    // up into R2's lower pin. Ending on that wire would leave R2 unjoined.
+    const document = createEmptyDocument("other-net", "Other end's wire");
+    for (const [id, y] of [
+      ["R1", 80],
+      ["R2", 0],
+    ] as const)
+      document.instances.push({
+        id,
+        symbolId: "resistor",
+        placement: {
+          position: { x: id === "R1" ? 0 : 100, y },
+          rotation: 0,
+          mirror: "none",
+        },
+      });
+    document.nets.push({
+      id: "a",
+      terminals: [{ instanceId: "R1", pinName: "1" }],
+    });
+    document.junctions.push(
+      { id: "a-top", netId: "a", position: { x: 100, y: 30 } },
+      { id: "a-bottom", netId: "a", position: { x: 100, y: 90 } },
+    );
+    document.routes.push(
+      createRoutePath({
+        id: "a-wire",
+        netId: "a",
+        start: { kind: "junction", junctionId: "a-top" },
+        end: { kind: "junction", junctionId: "a-bottom" },
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+    const h = history(document);
+    const terminal = (instanceId: string, pinName: string) => ({
+      kind: "endpoint" as const,
+      endpoint: { kind: "terminal" as const, instanceId, pinName },
+    });
+    const plan = planWireBatch(
+      h.document,
+      resolver,
+      [
+        wire("join", terminal("R1", "1"), terminal("R2", "2"), [
+          { x: 100, y: 60 },
+        ]),
+      ],
+      512,
+      { keepClear: true },
+    );
+    if (typeof plan === "string") throw new Error(plan);
+    const result = h.transact({
+      transactionId: "join",
+      documentId: h.document.id,
+      expectedRevision: h.document.revision,
+      actor: { kind: "agent", id: "test" },
+      edits: plan.edits,
+    });
+    expect(result.ok, JSON.stringify(result)).toBe(true);
+    const netOf = (instanceId: string, pinName: string) =>
+      h.document.nets.find((net) =>
+        net.terminals.some(
+          (t) => t.instanceId === instanceId && t.pinName === pinName,
+        ),
+      )?.id;
+    expect(netOf("R2", "2")).toBeDefined();
+    expect(netOf("R2", "2")).toBe(netOf("R1", "1"));
+  });
+
+  it("taps the source's output wire instead of running along it (#1337)", () => {
+    // A source follower whose output leaves the source to the right: the
+    // body wire came down beside the device and ran back along the output
+    // wire into the source pin, two wires drawn over each other.
+    const document = createEmptyDocument("follower", "Source follower");
+    document.instances.push({
+      id: "M1",
+      symbolId: "nmos",
+      symbolVariantId: "textbook-3terminal",
+      placement: { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+    });
+    const h = history(document);
+    const terminal = (pinName: string) => ({
+      kind: "endpoint" as const,
+      endpoint: { kind: "terminal" as const, instanceId: "M1", pinName },
+    });
+    commit(h, [wire("out", terminal("S"), free(80, 20))]);
+    const plan = planWireBatch(
+      h.document,
+      resolver,
+      [wire("body", terminal("B"), terminal("S"))],
+      512,
+      { keepClear: true },
+    );
+    if (typeof plan === "string") throw new Error(plan);
+    const result = h.transact({
+      transactionId: "body",
+      documentId: h.document.id,
+      expectedRevision: h.document.revision,
+      actor: { kind: "agent", id: "test" },
+      edits: plan.edits,
+    });
+    expect(result.ok, JSON.stringify(result)).toBe(true);
+    const lines = h.document.routes.flatMap((route) => {
+      const points =
+        resolveRouteGeometry(h.document, resolver, route)?.centerline ?? [];
+      return points.slice(1).map((to, index) => ({
+        route: route.id,
+        from: points[index]!,
+        to,
+      }));
+    });
+    // No two segments lie along each other.
+    for (const [index, a] of lines.entries())
+      for (const b of lines.slice(index + 1)) {
+        const horizontal = a.from.y === a.to.y && b.from.y === b.to.y;
+        const vertical = a.from.x === a.to.x && b.from.x === b.to.x;
+        if (horizontal && a.from.y === b.from.y)
+          expect(
+            Math.min(Math.max(a.from.x, a.to.x), Math.max(b.from.x, b.to.x)) -
+              Math.max(Math.min(a.from.x, a.to.x), Math.min(b.from.x, b.to.x)),
+          ).toBeLessThanOrEqual(0);
+        if (vertical && a.from.x === b.from.x)
+          expect(
+            Math.min(Math.max(a.from.y, a.to.y), Math.max(b.from.y, b.to.y)) -
+              Math.max(Math.min(a.from.y, a.to.y), Math.min(b.from.y, b.to.y)),
+          ).toBeLessThanOrEqual(0);
+      }
+    const netOf = (pinName: string) =>
+      h.document.nets.find((net) =>
+        net.terminals.some(
+          (t) => t.instanceId === "M1" && t.pinName === pinName,
+        ),
+      )?.id;
+    expect(netOf("B")).toBe(netOf("S"));
+  });
 });
 
 describe("an Agent connect to an open point on another part's pin", () => {

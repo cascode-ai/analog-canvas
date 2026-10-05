@@ -4,8 +4,10 @@ import { describe, expect, it } from "vitest";
 
 import {
   deriveMosBulkRouteFamily,
+  drawnSupplyLogicalNetIds,
   hasExplicitMosBulkRoute,
   isMosBulkTerminal,
+  mosBodiesOffSourceSupply,
   mosBulkKind,
   mosBulkShouldBeVisible,
   resolveDetachedMosBulkDefault,
@@ -598,5 +600,175 @@ describe("MOS bulk resolution", () => {
       status: "unresolved",
       net: undefined,
     });
+  });
+});
+
+describe("a default body on another supply than its source (#1336)", () => {
+  /**
+   * A level shifter's two PMOS: VDDH and VDDL drawn as supplies, the Cell's
+   * PMOS default on VDDL, which was drawn first, and M1's source on VDDH.
+   */
+  function levelShifter() {
+    const document = createEmptyDocument("main", "Main");
+    document.instances.push(
+      mos("M1", "pmos"),
+      mos("M2", "pmos"),
+      { id: "VH", symbolId: "vdd-port", placement: null },
+      { id: "VL", symbolId: "vdd-port", placement: null },
+    );
+    document.nets.push(
+      {
+        id: "net-vddh",
+        terminals: [
+          { instanceId: "VH", pinName: "P" },
+          { instanceId: "M1", pinName: "S" },
+        ],
+      },
+      {
+        id: "net-vddl",
+        terminals: [
+          { instanceId: "VL", pinName: "P" },
+          { instanceId: "M2", pinName: "S" },
+        ],
+      },
+      {
+        id: "net-out",
+        terminals: [
+          { instanceId: "M1", pinName: "D" },
+          { instanceId: "M2", pinName: "D" },
+        ],
+      },
+    );
+    for (const [marker, netId, name] of [
+      ["VH", "net-vddh", "VDDH"],
+      ["VL", "net-vddl", "VDDL"],
+    ] as const)
+      document.connectivityEvidence.push({
+        id: `claim-${marker}`,
+        kind: "name-claim",
+        netId,
+        name,
+        scope: "global",
+        powerDomain: "vdd",
+        owner: { kind: "power-marker", objectId: marker },
+      });
+    document.mosBulkDefaults = { pmosNetId: "net-vddl" };
+    return document;
+  }
+
+  it("lists a PMOS whose default body is VDDL while its source is on VDDH", () => {
+    const document = levelShifter();
+    expect([...drawnSupplyLogicalNetIds(document, "vdd")].sort()).toEqual([
+      "net-vddh",
+      "net-vddl",
+    ]);
+    // M2's source is on the default itself, so only M1 is asked about.
+    expect(
+      mosBodiesOffSourceSupply(document).map((item) => ({
+        instance: item.instance.id,
+        status: item.status,
+        body: item.bodyNet.id,
+        source: item.sourceNet.id,
+      })),
+    ).toEqual([
+      {
+        instance: "M1",
+        status: "cell-default",
+        body: "net-vddl",
+        source: "net-vddh",
+      },
+    ]);
+  });
+
+  it("leaves a body wired explicitly alone", () => {
+    const document = levelShifter();
+    document.nets[0]!.terminals.push({ instanceId: "M1", pinName: "B" });
+    expect(resolveMosBulkConnection(document, "M1")?.status).toBe("explicit");
+    expect(mosBodiesOffSourceSupply(document)).toEqual([]);
+  });
+
+  it("lists a body a netlist placed on the conventional VDD, drawn as a supply or not", () => {
+    // No default, so the bodies have none; a netlist projection put M1's
+    // on the Net labelled VDD, where it reads as wired.
+    const document = levelShifter();
+    delete document.mosBulkDefaults;
+    expect(resolveMosBulkConnection(document, "M1")?.status).toBe("unresolved");
+    document.nets.push({
+      id: "net-vdd",
+      terminals: [{ instanceId: "M1", pinName: "B" }],
+    });
+    document.connectivityEvidence.push({
+      id: "claim-vdd",
+      kind: "name-claim",
+      netId: "net-vdd",
+      name: "VDD",
+      scope: "local",
+      owner: { kind: "net-label", annotationId: "label-vdd" },
+    });
+    expect(mosBodiesOffSourceSupply(document)).toEqual([]);
+    expect(
+      mosBodiesOffSourceSupply(
+        document,
+        undefined,
+        new Map([["M1", "conventional"]]),
+      ).map((item) => ({
+        instance: item.instance.id,
+        status: item.status,
+        body: item.bodyNet.id,
+        source: item.sourceNet.id,
+      })),
+    ).toEqual([
+      {
+        instance: "M1",
+        status: "conventional",
+        body: "net-vdd",
+        source: "net-vddh",
+      },
+    ]);
+  });
+
+  it("compares supplies only, never an internal node", () => {
+    const document = levelShifter();
+    // M1 drawn the other way round: its drain on VDDH, its source on the
+    // output node, which is no supply.
+    for (const net of document.nets)
+      for (const terminal of net.terminals)
+        if (terminal.instanceId === "M1" && terminal.pinName !== "G")
+          terminal.pinName = terminal.pinName === "S" ? "D" : "S";
+    expect(mosBodiesOffSourceSupply(document)).toEqual([]);
+  });
+
+  it("reads a copied Ground marker without its name claim as the same ground", () => {
+    // A copy can carry a marker whose claim stayed behind, so it stands on a
+    // Net of its own. The netlist writes both as node 0: one ground, not two
+    // supplies to choose between.
+    const document = createEmptyDocument("main", "Main");
+    document.instances.push(
+      mos("M1", "nmos"),
+      { id: "GND1", symbolId: "ground", placement: null },
+      { id: "GND2", symbolId: "ground", placement: null },
+    );
+    document.nets.push(
+      { id: "net-gnd", terminals: [{ instanceId: "GND1", pinName: "0" }] },
+      {
+        id: "net-gnd-copy",
+        terminals: [
+          { instanceId: "GND2", pinName: "0" },
+          { instanceId: "M1", pinName: "S" },
+        ],
+      },
+    );
+    document.connectivityEvidence.push({
+      id: "claim-gnd",
+      kind: "name-claim",
+      netId: "net-gnd",
+      name: "0",
+      scope: "global",
+      powerDomain: "ground",
+      owner: { kind: "power-marker", objectId: "GND1" },
+    });
+    document.mosBulkDefaults = { nmosNetId: "net-gnd" };
+    expect(drawnSupplyLogicalNetIds(document, "ground").size).toBe(2);
+    expect(mosBodiesOffSourceSupply(document)).toEqual([]);
   });
 });

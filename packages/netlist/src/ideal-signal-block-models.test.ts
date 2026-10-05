@@ -8,9 +8,17 @@ import {
   builtInSubcircuitDescriptors,
   subcircuitDescriptor,
 } from "@icm/devices";
-import { createEmptyProject, type CircuitProject } from "@icm/model";
+import {
+  createEmptyDocument,
+  createEmptyProject,
+  type CircuitProject,
+} from "@icm/model";
 
 import { createDesignNetlistExport } from "./export.js";
+import {
+  analyzeDesignNetlist,
+  analyzeDesignNetlistForAuthoring,
+} from "./extract.js";
 import { idealAnalogBlockCell } from "./ideal-analog-block-models.js";
 import { IDEAL_LOGIC_TARGETS } from "./ideal-logic-gate-models.js";
 import {
@@ -110,6 +118,231 @@ describe("generated block bodies", () => {
     expect(spectre.file.text).toMatch(/^ESUMB \(nsum 0 B 0\) vcvs gain=1$/mu);
   });
 
+  it.each([
+    ["+", "+", "adder", "1", "1"],
+    ["-", "+", "adder_minus_a", "-1", "1"],
+    ["+", "-", "adder_minus_b", "1", "-1"],
+    ["-", "-", "adder_minus_ab", "-1", "-1"],
+  ] as const)(
+    "export an adder signed A%s B%s as %s, its sources' gains following the signs",
+    (signA, signB, body, gainA, gainB) => {
+      const project = blockCell("adder");
+      project.documents[0]!.instances[0]!.netlist!.parameters = {
+        signA,
+        signB,
+      };
+      const spice = createDesignNetlistExport(project);
+      expect(spice.status).toBe("ready");
+      if (spice.status !== "ready") return;
+      // The signs choose the body and are no parameter of the call.
+      expect(spice.file.text).toMatch(
+        new RegExp(`^X1 VDD VSS A B Y ${body}$`, "mu"),
+      );
+      expect(spice.file.text).not.toMatch(/sign/iu);
+      expect(spice.file.text).toContain(`.subckt ${body} VDD VSS A B Y\n`);
+      expect(spice.file.text).toContain(`ESUMA Y nsum A 0 {${gainA}}`);
+      expect(spice.file.text).toContain(`ESUMB nsum 0 B 0 {${gainB}}`);
+      expect(spice.file.text).toContain(`.ends ${body}\n`);
+
+      const spectre = createDesignNetlistExport(project, { format: "spectre" });
+      expect(spectre.status).toBe("ready");
+      if (spectre.status !== "ready") return;
+      expect(spectre.diagnostics).toEqual([]);
+      expect(spectre.file.text).toMatch(
+        new RegExp(`^subckt ${body} \\(VDD VSS A B Y\\)$`, "mu"),
+      );
+      expect(spectre.file.text).toMatch(
+        new RegExp(`^ESUMB \\(nsum 0 B 0\\) vcvs gain=${gainB}$`, "mu"),
+      );
+    },
+  );
+
+  it("export an adder that adds both inputs exactly as before signs existed", () => {
+    // Every adder drawn before #1324 has no sign; a new one stores both +.
+    const unsigned = blockCell("adder");
+    const signed = blockCell("adder");
+    signed.documents[0]!.instances[0]!.netlist!.parameters = {
+      signA: "+",
+      signB: "+",
+    };
+    for (const format of ["spice", "spectre"] as const) {
+      const before = createDesignNetlistExport(unsigned, { format });
+      const after = createDesignNetlistExport(signed, { format });
+      expect(before.status).toBe("ready");
+      if (before.status !== "ready" || after.status !== "ready")
+        throw new Error(`${format} export blocked`);
+      expect(after.file.text).toBe(before.file.text);
+    }
+  });
+
+  it("give two adders with different signs a body each", () => {
+    const project = blockCell("adder");
+    const document = project.documents[0]!;
+    const sum = document.instances[0]!;
+    document.instances.push({
+      ...structuredClone(sum),
+      id: "difference",
+      reference: "X2",
+      netlist: { ...sum.netlist!, parameters: { signA: "+", signB: "-" } },
+    });
+    for (const net of document.nets)
+      for (const terminal of [...net.terminals])
+        if (terminal.instanceId === "block")
+          net.terminals.push({ ...terminal, instanceId: "difference" });
+    const spice = createDesignNetlistExport(project);
+    expect(spice.status).toBe("ready");
+    if (spice.status !== "ready") return;
+    expect(spice.file.text).toMatch(/^X1 VDD VSS A B Y adder$/mu);
+    expect(spice.file.text).toMatch(/^X2 VDD VSS A B Y adder_minus_b$/mu);
+    expect(spice.file.text.match(/^\.subckt adder /gmu)).toHaveLength(1);
+    expect(spice.file.text.match(/^\.subckt adder_minus_b /gmu)).toHaveLength(
+      1,
+    );
+    expect(spice.externalMasterCount).toBe(0);
+  });
+
+  it("refuse an adder sign other than + or -", () => {
+    const project = blockCell("adder");
+    project.documents[0]!.instances[0]!.netlist!.parameters = {
+      signB: "minus",
+    };
+    const spice = createDesignNetlistExport(project);
+    expect(spice.status).toBe("blocked");
+    expect(spice.diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: "INVALID_ADDER_SIGN",
+        severity: "error",
+        objectIds: ["block"],
+        parameter: "signB",
+      }),
+    );
+  });
+
+  it("read a stored Unicode minus as -, exporting as an ASCII one does", () => {
+    // Input stores -; a minus typed as U+2212 into a file still subtracts.
+    const ascii = blockCell("adder");
+    ascii.documents[0]!.instances[0]!.netlist!.parameters = { signB: "-" };
+    const unicode = blockCell("adder");
+    unicode.documents[0]!.instances[0]!.netlist!.parameters = { signB: "−" };
+    for (const format of ["spice", "spectre"] as const) {
+      const expected = createDesignNetlistExport(ascii, { format });
+      const actual = createDesignNetlistExport(unicode, { format });
+      if (expected.status !== "ready" || actual.status !== "ready")
+        throw new Error(`${format} export blocked`);
+      expect(actual.file.text).toContain("adder_minus_b");
+      expect(actual.file.text).toBe(expected.file.text);
+    }
+  });
+
+  it.each(["adder", "ADDER"])(
+    "keep calling the Project's own %s whatever the signs, warning when one subtracts",
+    (name) => {
+      // An external definition of the same name replaces any body: the
+      // signs cannot choose a generated one over it.
+      const project = blockCell("adder");
+      project.externalSubcircuitDefinitions.push({
+        id: "own-adder",
+        name,
+        interfaceStatus: "declared",
+        formalParameters: [],
+        terminals: ["VDD", "VSS", "A", "B", "Y"].map((terminal) => ({
+          id: `own-${terminal}`,
+          name: terminal,
+          direction: "inout" as const,
+        })),
+      });
+      const block = project.documents[0]!.instances[0]!;
+      const sum = createDesignNetlistExport(project);
+      if (sum.status !== "ready") throw new Error("sum blocked");
+      expect(sum.file.text).toMatch(/^X1 VDD VSS A B Y adder$/mu);
+      expect(sum.file.text).not.toMatch(/^\.subckt adder/imu);
+      expect(
+        sum.diagnostics.filter((item) => item.code.startsWith("ADDER_")),
+      ).toEqual([]);
+
+      block.netlist!.parameters = { signA: "+", signB: "-" };
+      const difference = createDesignNetlistExport(project);
+      if (difference.status !== "ready") throw new Error("difference blocked");
+      expect(difference.file.text).toMatch(/^X1 VDD VSS A B Y adder$/mu);
+      expect(difference.file.text).not.toMatch(
+        /adder_minus|^\.subckt adder/imu,
+      );
+      expect(
+        difference.diagnostics.filter((item) => item.code.startsWith("ADDER_")),
+      ).toEqual([
+        expect.objectContaining({
+          code: "ADDER_SIGN_NOT_EXPORTED",
+          severity: "warning",
+          objectIds: ["block"],
+          message: expect.stringContaining(
+            "subtracts B, but calls adder, which this Project defines",
+          ),
+        }),
+      ]);
+    },
+  );
+
+  it("keep calling the Project's own adder Cell whatever the signs", () => {
+    // A Cell named Adder beside the block: export refuses the shared name
+    // whatever the signs, and the authoring view still calls the Cell.
+    const project = blockCell("adder");
+    const top = project.documents[0]!;
+    const own = createEmptyDocument("own-adder", "Adder");
+    own.netlist!.name = "Adder";
+    project.documents.push(own);
+    top.instances.push({
+      id: "own",
+      reference: "X2",
+      symbolId: "block",
+      placement: null,
+      netlist: {
+        parameters: {},
+        binding: { kind: "subcircuit", childDocumentId: own.id },
+      },
+    });
+    top.instances[0]!.netlist!.parameters = { signA: "-", signB: "+" };
+    const strict = analyzeDesignNetlist(project);
+    expect(strict.ir).toBeNull();
+    expect(strict.diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: "MASTER_NAME_COLLISION",
+        objectIds: ["block"],
+      }),
+    );
+    const { ir, diagnostics } = analyzeDesignNetlistForAuthoring(project);
+    const call = ir!.cells
+      .find((cell) => cell.id === top.id)!
+      .instances.find((instance) => instance.id === "block")!;
+    expect(call.target).toBe("adder");
+    expect(ir!.cells.map((cell) => cell.name)).not.toContain("adder_minus_a");
+    expect(diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: "ADDER_SIGN_NOT_EXPORTED",
+        severity: "warning",
+        objectIds: ["block"],
+      }),
+    );
+  });
+
+  it("warn that an adder bound to another subcircuit calls it whatever its signs", () => {
+    const project = blockCell("adder");
+    project.documents[0]!.instances[0]!.netlist = {
+      binding: { kind: "unresolved-subcircuit", name: "my_difference" },
+      parameters: { signA: "+", signB: "-" },
+    };
+    const spice = createDesignNetlistExport(project);
+    expect(spice.status).toBe("ready");
+    if (spice.status !== "ready") return;
+    expect(spice.file.text).toMatch(/^X1 VDD VSS A B Y my_difference$/mu);
+    expect(spice.diagnostics).toEqual([
+      expect.objectContaining({
+        code: "ADDER_SIGN_NOT_EXPORTED",
+        severity: "warning",
+        objectIds: ["block"],
+      }),
+    ]);
+  });
+
   it.each(["multiplier", "adc", "dac"])(
     "export the %s ready in SPICE, and to Spectre with a warning",
     (symbolId) => {
@@ -148,6 +381,7 @@ describe.skipIf(!ngspiceOnPath())(
     it("add, multiply and quantize as their symbols say", () => {
       const cells = [
         ["adder", "sum_cell"],
+        ["adder", "difference_cell"],
         ["multiplier", "product_cell"],
         ["adc", "adc_cell"],
         ["dac", "dac_cell"],
@@ -157,6 +391,9 @@ describe.skipIf(!ngspiceOnPath())(
         // The DAC's resolution comes from Properties, as a call parameter.
         if (symbolId === "dac")
           project.documents[0]!.instances[0]!.netlist!.parameters.bits = "3";
+        // A residue or loop error: input B subtracts.
+        if (cell === "difference_cell")
+          project.documents[0]!.instances[0]!.netlist!.parameters.signB = "-";
         const result = createDesignNetlistExport(project);
         if (result.status !== "ready") throw new Error(`${symbolId} blocked`);
         return result.file.text;
@@ -169,6 +406,7 @@ describe.skipIf(!ngspiceOnPath())(
         "VB b 0 0.5",
         "VR ramp 0 PWL(0 -0.1 10u 1.9)",
         "XS vdd 0 a b ysum sum_cell",
+        "XF vdd 0 a b ydiff difference_cell",
         "XM vdd 0 a b yprod product_cell",
         "XA vdd 0 ramp yadc adc_cell",
         "XD vdd 0 ramp ydac dac_cell",
@@ -178,6 +416,8 @@ describe.skipIf(!ngspiceOnPath())(
         ...[
           ["sum_start", "ysum", "0"],
           ["sum_peak", "ysum", "0.25u"],
+          ["difference_start", "ydiff", "0"],
+          ["difference_peak", "ydiff", "0.25u"],
           ["product_start", "yprod", "0"],
           ["product_peak", "yprod", "0.25u"],
           ["adc_below", "yadc", "0.2u"],
@@ -205,6 +445,9 @@ describe.skipIf(!ngspiceOnPath())(
         );
         expect(measured.sum_start).toBeCloseTo(0.7, 3);
         expect(measured.sum_peak).toBeCloseTo(0.8, 3);
+        // V(A) − V(B): 0.2 − 0.5, then 0.3 − 0.5 at the sine's peak.
+        expect(measured.difference_start).toBeCloseTo(-0.3, 3);
+        expect(measured.difference_peak).toBeCloseTo(-0.2, 3);
         expect(measured.product_start).toBeCloseTo(0.1, 3);
         expect(measured.product_peak).toBeCloseTo(0.15, 3);
         // 8 bits over 1.8 V: LSB = 1.8/256 V. The ramp at 5.5 µs is 1.0 V,

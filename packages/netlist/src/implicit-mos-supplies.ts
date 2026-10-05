@@ -11,13 +11,19 @@ import {
   portableCellIdentifier,
   resolveMosBulkConnection,
   resolveDocumentLogicalNets,
+  type PlacedMosBodies,
+  type PlacedMosBody,
 } from "@icm/derived";
 import {
   IDEAL_COMPARATOR_TARGET,
   instanceBuiltInSubcircuit,
 } from "@icm/devices";
 import type { DesignNetlistAnalysisOptions } from "./extract.js";
-import { idealAnalogBlockCell } from "./ideal-analog-block-models.js";
+import {
+  builtInBlockCallTarget,
+  idealAnalogBlockCell,
+  projectSubcircuitNames,
+} from "./ideal-analog-block-models.js";
 import type { NetlistFormat } from "./net-name-codec.js";
 
 /**
@@ -30,18 +36,11 @@ import type { NetlistFormat } from "./net-name-codec.js";
  */
 export function bodyIgnoresSupplies(
   target: string,
-  project: CircuitProject,
-  cellNames: Iterable<string>,
+  /** The Project's own subcircuit names; see projectSubcircuitNames. */
+  projectNames: ReadonlySet<string>,
   format: NetlistFormat,
 ): boolean {
-  const folded = target.toLowerCase();
-  if (
-    [...cellNames].some((name) => name.toLowerCase() === folded) ||
-    project.externalSubcircuitDefinitions.some(
-      (definition) => definition.name.toLowerCase() === folded,
-    )
-  )
-    return false;
+  if (projectNames.has(target.toLowerCase())) return false;
   return (
     idealAnalogBlockCell(target, format) !== null ||
     (format === "spice" &&
@@ -59,10 +58,13 @@ function blockSuppliesToDefault(
   source: CircuitProject,
   options: DesignNetlistAnalysisOptions,
 ): { documentId: string; instanceId: string; supply: "VDD" | "VSS" }[] {
-  const cellNames = source.documents.flatMap((document) =>
-    document.netlist?.name
-      ? [portableCellIdentifier(document.netlist.name, document.id)]
-      : [],
+  const projectNames = projectSubcircuitNames(
+    source,
+    source.documents.flatMap((document) =>
+      document.netlist?.name
+        ? [portableCellIdentifier(document.netlist.name, document.id)]
+        : [],
+    ),
   );
   return source.documents.flatMap((document) => {
     let logical: ReturnType<typeof resolveDocumentLogicalNets> | undefined;
@@ -76,16 +78,10 @@ function blockSuppliesToDefault(
     return document.instances.flatMap((instance) => {
       const descriptor = instanceBuiltInSubcircuit(source, instance);
       if (!descriptor) return [];
-      const binding = instance.netlist?.binding;
-      const target =
-        binding?.kind === "unresolved-subcircuit"
-          ? binding.name
-          : descriptor.target;
       if (
         bodyIgnoresSupplies(
-          target,
-          source,
-          cellNames,
+          builtInBlockCallTarget(instance, descriptor, projectNames),
+          projectNames,
           options.format ?? "spice",
         )
       )
@@ -106,6 +102,28 @@ function blockSuppliesToDefault(
   });
 }
 
+/**
+ * The Net {@link withImplicitMosSupplies} adds to a Cell for a conventional
+ * supply it had to supply itself, VDD or ground (`0`). Extraction reads it
+ * back to say which bodies took that supply and which pin it became.
+ */
+export function implicitSupplyNetId(
+  documentId: string,
+  supply: "VDD" | "0",
+): string {
+  return deriveStableId("netlist-default-supply", documentId, supply);
+}
+
+export interface ImplicitMosSupplyProjection {
+  project: CircuitProject;
+  /**
+   * The MOS bodies with no Net that the projection placed, by Document ID:
+   * a placed body is a member of its Net in `project` and reads as wired
+   * there, so whoever reports on bodies asks here how it came to be.
+   */
+  placedBodies: ReadonlyMap<string, PlacedMosBodies>;
+}
+
 /** A read-only electrical projection for schematic MOS bodies with no authored
  * connection. Supply symbols are not required to express the default substrate.
  * Existing body wiring, Cell defaults and explicit NoConnect remain authoritative.
@@ -113,7 +131,7 @@ function blockSuppliesToDefault(
 export function withImplicitMosSupplies(
   source: CircuitProject,
   options: DesignNetlistAnalysisOptions,
-): CircuitProject {
+): ImplicitMosSupplyProjection {
   const blockSupplies = blockSuppliesToDefault(source, options);
   const missing = source.documents.flatMap((document) => {
     const logical = resolveDocumentLogicalNets(document);
@@ -125,7 +143,9 @@ export function withImplicitMosSupplies(
         : [],
     );
   });
-  if (!missing.length && !blockSupplies.length) return source;
+  const placedBodies = new Map<string, Map<string, PlacedMosBody>>();
+  if (!missing.length && !blockSupplies.length)
+    return { project: source, placedBodies };
   const project = structuredClone(source);
   const addedVddPorts = new Set<string>();
   const supplies = new Map<string, { nmos: Net; pmos: Net }>();
@@ -147,7 +167,7 @@ export function withImplicitMosSupplies(
       return document.nets.find((net) =>
         named[0]!.baseNetIds.includes(net.id),
       )!;
-    const netId = deriveStableId("netlist-default-supply", document.id, name);
+    const netId = implicitSupplyNetId(document.id, name);
     const ownerId = deriveStableId(
       "netlist-default-supply-owner",
       document.id,
@@ -206,15 +226,22 @@ export function withImplicitMosSupplies(
       kind === "nmos"
         ? document.mosBulkDefaults?.nmosNetId
         : document.mosBulkDefaults?.pmosNetId;
-    const net =
-      document.nets.find((candidate) => candidate.id === configuredId) ??
-      defaults(document)[kind];
+    // An imported part with no fourth node is unresolved even under a Cell
+    // default, which it takes here; every other body that reaches this point
+    // has no default and takes the conventional supply.
+    const configured = document.nets.find(
+      (candidate) => candidate.id === configuredId,
+    );
+    const net = configured ?? defaults(document)[kind];
     // An unresolved policy-owned orphan can still carry stale B membership.
     for (const candidate of document.nets)
       candidate.terminals = candidate.terminals.filter(
         (pin) => pin.instanceId !== instance.id || pin.pinName !== "B",
       );
     net.terminals.push({ instanceId: instance.id, pinName: "B" });
+    let placed = placedBodies.get(document.id);
+    if (!placed) placedBodies.set(document.id, (placed = new Map()));
+    placed.set(instance.id, configured ? "cell-default" : "conventional");
   }
   for (const item of blockSupplies) {
     const document = project.documents.find((d) => d.id === item.documentId)!;
@@ -257,5 +284,5 @@ export function withImplicitMosSupplies(
       }
     }
   }
-  return project;
+  return { project, placedBodies };
 }

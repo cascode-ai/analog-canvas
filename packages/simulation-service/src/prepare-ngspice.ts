@@ -19,6 +19,7 @@ import {
 import { problem, type Capabilities, type Problem } from "./contract.js";
 import type { ExecutionInput } from "./executor.js";
 import { sha256 } from "./content-digest.js";
+import { netlistRunWarnings } from "./netlist-warnings.js";
 import { sourceInputRevision } from "./input-identity.js";
 import {
   literalSourceAnalyses,
@@ -407,9 +408,7 @@ export async function prepareNgspiceExecutionInput(
     deviceOperatingPoints: compiled.deviceOperatingPoints,
     measurements: config.measurements,
     warnings: [
-      ...compiled.warnings
-        .filter((item) => item.code !== "GENERATED_NET_NAME")
-        .map((item) => item.message),
+      ...netlistRunWarnings(compiled.warnings),
       ...(volume ? [volume] : []),
       ...(unqualified.length
         ? [
