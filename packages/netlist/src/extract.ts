@@ -594,13 +594,16 @@ function buildNetContext(
         encodedGenerated.ok &&
         occupiedNames.has(encodedGenerated.collisionKey)
       );
+      // An unnamed internal Net is valid; its exported name is information.
+      // As a warning, a two-stage op amp's four internal nodes outnumbered
+      // its real findings, and simulation preparation already drops it.
       diagnostic(
         diagnostics,
         document.id,
         "GENERATED_NET_NAME",
         `Unnamed logical Net ${logicalNet.id} exports as ${name}`,
         [...logicalNet.baseNetIds],
-        "warning",
+        "info",
       );
     }
     if (!name) continue;
