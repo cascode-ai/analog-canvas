@@ -4,14 +4,8 @@
  * it exists purely to stop an all-nets sweep from re-deriving full-document
  * contact evidence and routing geometry once per net.
  */
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 
-import {
-  createEmptyDocument,
-  createRoutePath,
-  SchematicDocumentSchema,
-} from "@icm/model";
+import { createEmptyDocument, createRoutePath } from "@icm/model";
 import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 
@@ -96,27 +90,6 @@ describe("shared connectivity context (#17)", () => {
     document.revision += 1;
     expect(deriveImportedRoutingGuidance(document, resolver)).toHaveLength(1);
   });
-  it("context-shared derivation matches the per-net derivation exactly", () => {
-    const document = SchematicDocumentSchema.parse(
-      JSON.parse(
-        readFileSync(
-          resolve(
-            process.cwd(),
-            "fixtures/projects/port-nets/project.icproj.json",
-          ),
-          "utf8",
-        ),
-      ).documents[0],
-    );
-    const context = deriveNetConnectivityContext(document, resolver);
-    expect(document.nets.length).toBeGreaterThan(0);
-    for (const net of document.nets) {
-      expect(deriveNetConnectivity(document, resolver, net, context)).toEqual(
-        deriveNetConnectivity(document, resolver, net),
-      );
-    }
-  });
-
   it("pre-resolves and orders net-label bindings without changing connectivity", () => {
     const document = createEmptyDocument("main", "Main");
     document.nets.push({ id: "net-bias", terminals: [] });

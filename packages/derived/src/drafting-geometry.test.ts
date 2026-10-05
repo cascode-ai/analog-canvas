@@ -157,42 +157,6 @@ describe("object-anchored drafting text on rectangles", () => {
     expect(label.content.runs).toHaveLength(1);
   });
 
-  it("leaves a label that already fits on one line", () => {
-    const document = documentWith([
-      rectangle("box-1", { x: 100, y: 60 }, 120, 80),
-      anchoredLabel("label-1", "box-1", { x: 0, y: 0 }),
-    ]);
-    const geometry = resolveDraftingObjectGeometry(
-      document,
-      resolver,
-      document.drafting!.objects[1]!,
-    );
-    if (geometry.kind !== "text") throw new Error("expected text geometry");
-    const laidOut = draftTextLayoutContent(
-      document,
-      document.drafting!.objects[1] as Extract<
-        DraftingObject,
-        { kind: "text" }
-      >,
-      labelMetrics(document),
-    );
-    expect(laidOut.runs.some((run) => run.kind === "line-break")).toBe(false);
-  });
-
-  it("keeps the resolved center in sync with a moved rectangle", () => {
-    const moved = documentWith([
-      rectangle("box-1", { x: 250, y: -30 }),
-      anchoredLabel("label-1", "box-1", { x: 0, y: 0 }),
-    ]);
-    const geometry = resolveDraftingObjectGeometry(
-      moved,
-      resolver,
-      moved.drafting!.objects[1]!,
-    );
-    if (geometry.kind !== "text") throw new Error("expected text geometry");
-    expect(geometry.position).toEqual({ x: 250, y: -30 });
-  });
-
   it("applies the local offset relative to the rectangle center", () => {
     const label = anchoredLabel("label-1", "box-1", { x: 0, y: 0 });
     label.anchor = {

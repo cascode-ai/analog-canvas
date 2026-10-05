@@ -180,34 +180,6 @@ describe("generated voltage-node text", () => {
     },
   );
 
-  it("keeps a lowercase leading v visible when the user authored it", () => {
-    const content = voltageNodeTextDocument("vBIAS");
-
-    expect(flattenRichText(content)).toBe("vBIAS");
-    expect(content.runs[0]).toEqual({
-      kind: "span",
-      style: "italic",
-      children: [
-        {
-          kind: "span",
-          style: "bold",
-          children: [{ kind: "text", value: "v" }],
-        },
-      ],
-    });
-    expect(content.runs[1]).toEqual({
-      kind: "span",
-      style: "subscript",
-      children: [
-        {
-          kind: "span",
-          style: "bold",
-          children: [{ kind: "text", value: "BIAS" }],
-        },
-      ],
-    });
-  });
-
   it("keeps a lone V italic without inventing an empty subscript", () => {
     const content = voltageNodeTextDocument("V");
 

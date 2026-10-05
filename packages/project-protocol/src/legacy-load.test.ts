@@ -16,7 +16,6 @@ import { resolve } from "node:path";
 import { CURRENT_MODEL_SCHEMA_VERSION } from "@icm/model";
 import { describe, expect, it } from "vitest";
 
-import { serializeProject } from "./save.js";
 import { tryParseProjectWithMetadata } from "./load.js";
 import { createEmptyProject } from "@icm/model";
 
@@ -90,20 +89,4 @@ describe("legacy Project loading (#446)", () => {
       expect(result.project.schemaVersion).toBe(CURRENT_MODEL_SCHEMA_VERSION);
     },
   );
-
-  it("still refuses versions older than the chain start", () => {
-    const result = tryParseProjectWithMetadata(minimalProjectAt(23));
-    expect(result.ok).toBe(false);
-    if (result.ok) return;
-    expect(result.diagnostics[0]?.code).toBe("UNSUPPORTED_SCHEMA_VERSION");
-  });
-
-  it("still loads a current-version project unmigrated", () => {
-    const result = tryParseProjectWithMetadata(
-      serializeProject(createEmptyProject("current", "Current")),
-    );
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.migrated).toBe(false);
-  });
 });

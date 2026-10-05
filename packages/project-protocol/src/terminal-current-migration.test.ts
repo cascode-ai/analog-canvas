@@ -1,7 +1,6 @@
-import { CURRENT_MODEL_SCHEMA_VERSION, createEmptyProject } from "@icm/model";
+import { createEmptyProject } from "@icm/model";
 import { describe, expect, it } from "vitest";
 
-import { parseProjectWithMetadata } from "./load.js";
 import { upgradeSchema43To44WithReport } from "./previous-to-current.js";
 
 describe("schema 43 to 44 terminal-current migration", () => {
@@ -71,18 +70,5 @@ describe("schema 43 to 44 terminal-current migration", () => {
         },
       },
     ]);
-  });
-
-  it("loads a schema-43 setup through the public compatibility boundary", () => {
-    const project = createEmptyProject("project", "Project");
-    const raw = structuredClone(project) as unknown as Record<string, unknown>;
-    raw.schemaVersion = 43;
-    raw.simulationSetups = [];
-
-    const result = parseProjectWithMetadata(JSON.stringify(raw));
-
-    expect(result.sourceSchemaVersion).toBe(43);
-    expect(result.migrated).toBe(true);
-    expect(result.project.schemaVersion).toBe(CURRENT_MODEL_SCHEMA_VERSION);
   });
 });

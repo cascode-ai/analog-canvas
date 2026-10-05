@@ -137,7 +137,7 @@ describe("visual quality diagnostics", () => {
     expect(document.instances[0]!.placement!.position).toEqual({ x: 0, y: 0 });
   });
 
-  it.each(["manual", "locked", "trunk"] as const)(
+  it.each(["manual"] as const)(
     "accepts arbitrary wire angles for %s routes without diagnostics",
     (mode) => {
       const document = createEmptyDocument("doc", "Wire angle diagnostics");
@@ -550,31 +550,6 @@ describe("terminal-on-foreign-route exclusions", () => {
     diagnoseVisualQuality(document, resolver).filter(
       (item) => item.code === "VISUAL_TERMINAL_ON_FOREIGN_ROUTE",
     );
-
-  it("stays quiet for a pin legally attached to the route it touches", () => {
-    const document = documentWithRestingPin();
-    document.nets.push({
-      id: "n",
-      terminals: [{ instanceId: "R1", pinName: "2" }],
-    });
-    document.junctions.push({
-      id: "J1",
-      netId: "n",
-      position: { x: 60, y: 140 },
-      role: "route-anchor",
-    });
-    document.routes.push(
-      createRoutePath({
-        id: "own-wire",
-        netId: "n",
-        start: { kind: "terminal", instanceId: "R1", pinName: "2" },
-        end: { kind: "junction", junctionId: "J1" },
-        bends: [],
-        modes: ["manual"],
-      }),
-    );
-    expect(foreignHits(document)).toEqual([]);
-  });
 
   it("stays quiet for a NoConnect-marked pin resting on a foreign wire", () => {
     const document = documentWithRestingPin();

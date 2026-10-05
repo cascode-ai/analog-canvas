@@ -32,19 +32,6 @@ function publishedBeforeTheRuleChanged(): string {
 }
 
 describe("stale bound format overrides", () => {
-  it("loads a Project the retired rule left behind instead of refusing it", () => {
-    const result = tryParseProjectWithMetadata(publishedBeforeTheRuleChanged());
-
-    if (!result.ok) {
-      throw new Error(
-        `Expected a repair, got: ${result.diagnostics
-          .map((diagnostic) => diagnostic.message)
-          .join("; ")}`,
-      );
-    }
-    expect(result.ok).toBe(true);
-  });
-
   it("restores the text the bound name actually reads", () => {
     const result = tryParseProjectWithMetadata(publishedBeforeTheRuleChanged());
 

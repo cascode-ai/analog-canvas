@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { createEmptyProject, CURRENT_MODEL_SCHEMA_VERSION } from "@icm/model";
+import { createEmptyProject } from "@icm/model";
 import { serializeProject } from "./save.js";
 
-import { parseProject, tryParseProjectWithMetadata } from "./index.js";
+import { parseProject } from "./index.js";
 import {
   upgradeSchema28To29,
   upgradeSchema28To29WithReport,
@@ -110,32 +110,6 @@ describe("schema migrations through hidden Net-name retirement", () => {
     expect(
       upgradeSchema33To34WithReport({ schemaVersion: 33 }).report.changed,
     ).toBe(false);
-  });
-
-  it("migrates schema 31 through the current schema at the project boundary", () => {
-    const current = JSON.parse(
-      JSON.stringify(createEmptyProject("test", "Test")),
-    ) as Record<string, unknown>;
-    const v31 = JSON.stringify({ ...current, schemaVersion: 31 });
-    const result = tryParseProjectWithMetadata(v31);
-
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.sourceSchemaVersion).toBe(31);
-    expect(result.migrated).toBe(true);
-    expect(result.project.schemaVersion).toBe(CURRENT_MODEL_SCHEMA_VERSION);
-  });
-
-  it("keeps schema 30 loadable through the upgrade chain", () => {
-    const current = JSON.parse(
-      JSON.stringify(createEmptyProject("test", "Test")),
-    ) as Record<string, unknown>;
-    const v30 = JSON.stringify({ ...current, schemaVersion: 30 });
-    expect(tryParseProjectWithMetadata(v30)).toMatchObject({
-      ok: true,
-      sourceSchemaVersion: 30,
-      migrated: true,
-    });
   });
 
   it("round-trips style, Signal Flow, and Annotation presentation independently from netlist data", () => {

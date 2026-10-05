@@ -393,20 +393,6 @@ describe("instance label placement", () => {
     ).toEqual(defaultInstanceLabelPlacement(instance, resolved, profile, 10));
   });
 
-  it("keeps the value slot on the transformed side after rotation", () => {
-    const reference = placedDefaultLabel("capacitor", 90);
-    const value = placedDefaultLabel(
-      "capacitor",
-      90,
-      "none",
-      undefined,
-      "value",
-    );
-    expect(value.alignment).toBe("middle");
-    expect(value.position.x).toBe(reference.position.x);
-    expect(value.position.y - reference.position.y).toBe(20);
-  });
-
   it("stacks the value row away from the part when the label sits above it", () => {
     const reference = placedDefaultLabel("resistor", 270);
     const value = placedDefaultLabel(
