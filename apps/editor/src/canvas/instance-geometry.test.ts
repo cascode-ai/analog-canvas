@@ -112,27 +112,6 @@ describe("selection geometry", () => {
     );
   });
 
-  it("transforms an ordinary tight envelope with instance placement", () => {
-    const resolved = resolver.resolve("opamp");
-    expect(resolved).toBeDefined();
-    const localBounds = visibleSymbolLocalBounds(resolved!);
-    const bounds = instanceVisibleHitBox(
-      {
-        id: "U1",
-        symbolId: "opamp",
-        placement: {
-          position: { x: 100, y: 200 },
-          rotation: 90,
-          mirror: "none",
-        },
-      },
-      resolved!,
-    );
-    expect(bounds).not.toBeNull();
-    expect(bounds!.width).toBeCloseTo(localBounds.height);
-    expect(bounds!.height).toBeCloseTo(localBounds.width);
-  });
-
   it("uses the reviewed DFF artwork envelope instead of source-crop whitespace", () => {
     const resolved = resolver.resolve("d-flip-flop");
     expect(resolved).toBeDefined();

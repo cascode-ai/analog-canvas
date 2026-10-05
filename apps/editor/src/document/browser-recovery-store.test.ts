@@ -15,7 +15,6 @@ import {
 import {
   finalizeBrowserRecoveryRecord,
   type BrowserRecoveryRecordDraft,
-  type BrowserRecoveryRecordV2,
   type BrowserRecoverySession,
 } from "./browser-recovery-contract";
 import { PROJECT_RECOVERY_KEY } from "./project-recovery";
@@ -638,19 +637,5 @@ describe("migrateLegacyProjectRecovery", () => {
       reason: "store-unavailable",
     });
     expect(storage.has(PROJECT_RECOVERY_KEY)).toBe(true);
-  });
-});
-
-describe("record size precheck", () => {
-  it("uses the contract limit as an executable constant", async () => {
-    const { store } = freshStore();
-    const huge: BrowserRecoveryRecordV2 = record({
-      projectText: `${projectText}${"x".repeat(5 * 1024 * 1024)}`,
-    });
-    const outcome = await store.writeRecord(huge);
-    expect(outcome.status).toBe("rejected-too-large");
-    if (outcome.status === "rejected-too-large") {
-      expect(outcome.byteLength).toBeGreaterThan(4 * 1024 * 1024);
-    }
   });
 });

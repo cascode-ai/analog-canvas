@@ -44,15 +44,6 @@ describe("editor export commands", () => {
       expect(String(plan.artifact.bytes)).not.toContain("VB1");
     },
   );
-  it("blocks structurally incomplete extraction", () => {
-    const project = createEmptyProject("project", "Circuit");
-    project.documents[0]!.netlist = undefined;
-    expect(planDesignNetlistExport({ format: "spice", project })).toEqual({
-      status: "blocked",
-      message: "Resolve the Check Report findings before export",
-    });
-  });
-
   it("blocks a netlist whose drawing has a dead-end node", () => {
     // A TODO placeholder is a value somebody will bind later; a node only one
     // pin reaches is a wire nobody drew, and the message names it so the

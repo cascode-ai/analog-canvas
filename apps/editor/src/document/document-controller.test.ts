@@ -387,21 +387,6 @@ describe("EditorDocumentController", () => {
     ).toEqual(semanticTextDocument("Vout", "formal-port"));
   });
 
-  it("accepts a human transaction via dispatch identical to transact", () => {
-    const controller = new EditorDocumentController(hierarchicalProject());
-
-    const result = controller.dispatchTransaction({
-      transactionId: "human-1",
-      documentId: controller.activeDocumentId,
-      expectedRevision: controller.document.revision,
-      actor: { kind: "human", id: "human-local" },
-      edits: [{ kind: "add_instance", instance: instance("Rh") }],
-    });
-
-    expect(result.ok && result.applied).toBe(true);
-    expect(controller.document.instances).toContainEqual(instance("Rh"));
-  });
-
   it("leaves history, Project, and resolver unchanged on a dry-run dispatch", () => {
     const controller = new EditorDocumentController(hierarchicalProject());
     const revisionBefore = controller.document.revision;

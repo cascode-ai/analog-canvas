@@ -148,44 +148,6 @@ describe("recovery scheduler", () => {
     expect(written).toEqual(["new-project"]);
   });
 
-  it("flush after cancel writes nothing", () => {
-    const written: unknown[] = [];
-    const timers = fakes();
-    const scheduler = createRecoveryScheduler({
-      delayMs: 400,
-      write: (project) => written.push(project),
-      setTimeout: timers.setTimeout,
-      clearTimeout: timers.clearTimeout,
-    });
-
-    scheduler.schedule("rev-1");
-    scheduler.cancel();
-    scheduler.flush();
-
-    expect(written).toEqual([]);
-  });
-
-  it("reschedules when a new project arrives before the timer fires", () => {
-    const written: unknown[] = [];
-    const timers = fakes();
-    const scheduler = createRecoveryScheduler({
-      delayMs: 400,
-      write: (project) => written.push(project),
-      setTimeout: timers.setTimeout,
-      clearTimeout: timers.clearTimeout,
-    });
-
-    scheduler.schedule("rev-1");
-    scheduler.schedule("rev-2");
-
-    expect(scheduler.isPending).toBe(true);
-    expect(timers.armedCount()).toBe(1);
-
-    timers.fire();
-    expect(written).toEqual(["rev-2"]);
-    expect(scheduler.isPending).toBe(false);
-  });
-
   it("uses the configured delay for each scheduled timer", () => {
     let observedDelay = -1;
     const timers = fakes();

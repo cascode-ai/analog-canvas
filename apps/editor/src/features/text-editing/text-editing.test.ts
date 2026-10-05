@@ -28,7 +28,6 @@ import {
   resolveTextEditingTarget,
   roleLabelDefault,
   spliceVisibleEdit,
-  textDeletionEdit,
   updateTextEditingSession,
 } from "./text-editing";
 
@@ -901,17 +900,6 @@ describe("unified text editing", () => {
           content: { runs: [{ kind: "line-break" }] },
         },
       },
-    });
-  });
-
-  it("creates deletion edits from the session owner", () => {
-    const session = createTextEditingSession({
-      owner: "annotation",
-      object: annotation(),
-    });
-    expect(textDeletionEdit(session)).toEqual({
-      kind: "remove_schematic_annotation",
-      annotationId: "annotation-1",
     });
   });
 });

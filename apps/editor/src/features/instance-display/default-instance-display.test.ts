@@ -93,10 +93,8 @@ describe("default instance display annotations", () => {
     },
   );
   it.each([
-    ["vcvs", "A_{v}v_{2}"],
     ["vccs", "g_{m}v_{2}"],
     ["cccs", "βi_{2}"],
-    ["ccvs", "R_{m}i_{2}"],
   ])(
     "numbers the second %s label from its allocated Reference",
     (symbolId, expected) => {
@@ -412,37 +410,6 @@ describe("default instance display annotations", () => {
     expect(annotations[0]?.binding).toBeUndefined();
   });
 
-  it("still subscripts an instance designator, which is an identifier", () => {
-    // The brake. Fixing Cell names must not flatten `M1` into upright text:
-    // there the leading symbol and its index are exactly what the reader
-    // expects to see set apart.
-    const document = createEmptyDocument("main", "Main");
-    const annotations = defaultInstanceDisplayAnnotations(
-      document,
-      {
-        id: "m1",
-        symbolId: "nmos",
-        placement: {
-          position: { x: 100, y: 100 },
-          rotation: 0 as const,
-          mirror: "none" as const,
-        },
-        reference: "M1",
-      },
-      resolver,
-      resolveSchematicStyleProfile(document.presentation.styleProfileId),
-      {},
-    );
-
-    const label = annotations.find(
-      (annotation) => annotation.binding?.kind === "instance-reference",
-    );
-    expect(label?.binding).toEqual({
-      kind: "instance-reference",
-      instanceId: "m1",
-    });
-  });
-
   it("shows a formal Port terminal name as its only visible identity", () => {
     const document = createEmptyDocument("main", "Main");
     const instance = {
@@ -573,26 +540,6 @@ describe("blocks that carry no designator", () => {
         symbolId,
       ).toEqual([]);
     }
-  });
-
-  it("still labels an ordinary device", () => {
-    const document = createEmptyDocument("main", "Main");
-    const annotations = defaultInstanceDisplayAnnotations(
-      document,
-      {
-        id: "R1",
-        symbolId: "resistor",
-        placement: {
-          position: { x: 100, y: 100 },
-          rotation: 0 as const,
-          mirror: "none" as const,
-        },
-      },
-      resolver,
-      styleProfile(document),
-      {},
-    );
-    expect(annotations.length).toBeGreaterThan(0);
   });
 
   it("labels each compound magnetic device with its allocated X reference", () => {

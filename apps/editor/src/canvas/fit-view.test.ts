@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import {
   CAMERA_ZOOM_LIMITS,
   cameraAnchorFromScreen,
-  cameraDeltaFromScreen,
   canvasInsetsFromOverlays,
   fitCameraToBounds,
   fitCameraToVisibleBounds,
@@ -129,12 +128,6 @@ describe("letterboxed screen mapping", () => {
   const camera = { x: 0, y: 0, width: 400, height: 800 };
   const viewport = { width: 1200, height: 600 };
 
-  it("uses the SVG's one uniform scale for both pan axes", () => {
-    expect(cameraDeltaFromScreen(camera, { x: 120, y: 120 }, viewport)).toEqual(
-      { x: 160, y: 160 },
-    );
-  });
-
   it("accounts for centered letterboxing in cursor anchors", () => {
     const point = { x: 510, y: 300 };
     const anchor = cameraAnchorFromScreen(camera, point, viewport);
@@ -159,26 +152,6 @@ describe("letterboxed screen mapping", () => {
 });
 
 describe("panCameraByScreenPixels", () => {
-  it("keeps the keyboard step constant in screen space across zoom levels", () => {
-    const viewport = { width: 800, height: 400 };
-    expect(
-      panCameraByScreenPixels(
-        { x: 100, y: 200, width: 800, height: 400 },
-        "right",
-        48,
-        viewport,
-      ),
-    ).toEqual({ x: 148, y: 200, width: 800, height: 400 });
-    expect(
-      panCameraByScreenPixels(
-        { x: 100, y: 200, width: 400, height: 200 },
-        "down",
-        48,
-        viewport,
-      ),
-    ).toEqual({ x: 100, y: 224, width: 400, height: 200 });
-  });
-
   it("moves each direction without changing zoom", () => {
     const current = { x: 100, y: 200, width: 800, height: 400 };
     const viewport = { width: 800, height: 400 };

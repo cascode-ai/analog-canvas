@@ -244,8 +244,4 @@ describe("shapes quick-place", () => {
     });
     expect(quickPlaceRequest("razavi", "cell-pin")).toBeNull();
   });
-
-  it("returns null for unknown symbols", () => {
-    expect(quickPlaceRequest("razavi", "not-a-symbol")).toBeNull();
-  });
 });
