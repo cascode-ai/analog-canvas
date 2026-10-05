@@ -293,7 +293,7 @@ represented structurally. A display string is not a source specification.
   dialect spelling, so automatic allocation skips conflicts. This does not
   mutate the Project.
 - Every Net mapped by one projected Formal Port uses that Port name before
-  anonymous allocation and therefore receives no generated-name warning.
+  anonymous allocation and therefore receives no generated-name report.
 - A global Net must have an explicit name.
 - The global Net named `0` is the reference node.
 - Other global Nets are emitted through the dialect's global declaration and
@@ -375,9 +375,9 @@ partial netlist is exposed while an error remains. Required error coverage inclu
 - unsupported dialect/device combination;
 - identifier, parameter, count, or output resource-limit violation.
 
-Warnings may report generated local Net names or conflicting directions inside
-one same-name Formal Port group. They cannot downgrade a missing
-electrical fact required for meaningful output.
+Information reports generated local Net names. Warnings may report
+conflicting directions inside one same-name Formal Port group. Neither can
+downgrade a missing electrical fact required for meaningful output.
 
 ### One electrical extraction authority
 
