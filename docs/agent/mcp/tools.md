@@ -196,7 +196,7 @@ bodyWidth?, bodyHeight?}` on `place-component`, and `set-signal-flow` changes
 them later (`null` clears one; a new formula drops the old formula's look, as
 the Properties formula does). These are drawing text, never netlist parameters:
 `set-property` on a part without netlist parameters names `set-signal-flow`.
-`set-display-alias {instanceId, text}` draws a part's name label as other text
+`set-display-alias {target, text}` draws a part's name label as other text
 while its Reference (or Pin name) stays in the netlist, as the Properties
 display alias does: an op-amp stays `X1` and shows `A1`; `text:null` shows its
 own name again. It survives Project Code and Copy as the label's text. A
@@ -209,7 +209,12 @@ reachable landing when a pin cannot land where asked, and `place-existing`
 with a `pinAnchor` needs no `placement`. `mirror` with `axis` reflects a part
 in place as the selection `transform` does (`y` flips it left-right, `x`
 top-bottom); `set-orientation` sets an absolute rotation and mirror.
-Several `place-cell` actions share one call and one Undo, named in turn. Placement creates its
+Several `place-cell` actions share one call and one Undo, named in turn. A
+`place-cell` may leave out `instanceId` and the placement's `rotation` and
+`mirror`, as `place-component` does: the Helper makes the ID and turns the
+Cell upright. `set-model` and `set-display-alias` take a `target`
+(`{kind:"instance", reference}` or `id`), as `set-property` does; their native
+`instanceId` is still accepted. Placement creates its
 owned Port, Net and bound terminal-name display atomically; use the returned
 Instance ID for subsequent wiring. To place an imported Instance, use `place-existing` with
 `instanceId` and `placement` (or `move` from the tray); default labels use the GUI planner.

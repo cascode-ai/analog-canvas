@@ -156,7 +156,7 @@ the same model and exporter; no alternate electrical protocol is needed.
 An Open or Closed switch (`ideal-switch`, `closed-switch`) is clocked by the
 phase its name label shows; a freshly placed `S1` is clocked by a phase called
 `S1`. To share one clock, write the phase on each switch's label with
-`circuit_properties` `set-display-alias {instanceId, text:"Φ_1"}`: the netlist
+`circuit_properties` `set-display-alias {target, text:"Φ_1"}`: the netlist
 then writes `S1 a b PHI1 VSS ideal_switch`, and every switch showing Φ₁ follows
 the same clock. Drive it with a Net named `Φ1` (a Net Label, or the Net of a
 pulse source) or a Cell Pin `Φ1`; until then `SWITCH_PHASE_NOT_DRIVEN` warns.

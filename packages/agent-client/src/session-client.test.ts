@@ -1515,6 +1515,40 @@ describe("agent session client", () => {
     expect(client.summary("main")?.revision).toBe(6);
   });
 
+  it("sends Cells placed without IDs or orientation as one native batch, with no Snapshot (#1301)", async () => {
+    const { client, http } = await freshClient();
+    await client.connect("session-1.code");
+    const commands: unknown[] = [];
+    http.circuitHandler = async ({ request }) => {
+      if (request.operation === "transact") {
+        commands.push(request.command);
+        return transactSuccessResponse(
+          request.requestId,
+          request.expectedRevision,
+        );
+      }
+      throw new Error(`unexpected ${request.operation} request`);
+    };
+    const place = (x: number) => ({
+      kind: "place-cell",
+      childDocumentId: "child",
+      placement: { position: { x, y: 0 } },
+    });
+    const report = await client.applyActions([place(0), place(100)]);
+    expect(report.ok, JSON.stringify(report)).toBe(true);
+    expect(commands).toHaveLength(1);
+    const batch = commands[0] as {
+      kind: string;
+      commands: { instanceId: string; placement: unknown }[];
+    };
+    expect(batch.kind).toBe("batch");
+    expect(batch.commands.map((item) => item.placement)).toEqual([
+      { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+      { position: { x: 100, y: 0 }, rotation: 0, mirror: "none" },
+    ]);
+    expect(new Set(batch.commands.map((item) => item.instanceId)).size).toBe(2);
+  });
+
   it("reuses bootstrap and transaction revisions for consecutive direct edits without a full snapshot", async () => {
     const { client, http } = await freshClient();
     await client.connect("session-1.code");
