@@ -73,6 +73,10 @@ function scopedRequestHash(
   );
 }
 
+/** Downloads an ended session still has to delete from R2. */
+const ARTIFACT_CLEANUP_KEY = "agent-artifact-cleanup";
+const ARTIFACT_CLEANUP_RETRY_MS = 60_000;
+
 /** Cloudflare Durable Object owning one temporary Agent session. */
 export class AgentSessionDO {
   private readonly artifacts: AgentArtifacts;
@@ -482,6 +486,15 @@ export class AgentSessionDO {
 
   async alarm(): Promise<void> {
     await this.ready;
+    const left = await this.state.storage.get<string[]>(ARTIFACT_CLEANUP_KEY);
+    if (left?.length) {
+      const still = await this.artifacts.deleteObjects(left);
+      await this.state.storage.put(ARTIFACT_CLEANUP_KEY, still);
+      if (still.length)
+        await this.state.storage.setAlarm?.(
+          Date.now() + ARTIFACT_CLEANUP_RETRY_MS,
+        );
+    }
     if (this.replacedUntil) {
       if (Date.now() < this.replacedUntil) {
         await this.state.storage.setAlarm?.(this.replacedUntil);
@@ -1704,7 +1717,12 @@ export class AgentSessionDO {
         () => crypto.randomUUID(),
         Date.now(),
       );
-      await this.persist();
+      // A failed write here would leave the object unable to answer any
+      // request, its session neither ended nor usable. The next change
+      // writes the state again.
+      await this.persist().catch((error: unknown) =>
+        console.error("Agent session state not saved on restore", error),
+      );
     }
   }
 
@@ -1732,8 +1750,18 @@ export class AgentSessionDO {
     }
   }
 
+  /**
+   * End the session's storage. Downloads R2 could not delete stay listed,
+   * with an alarm to retry them, so the session ends either way.
+   */
   private async clearStoredSession(): Promise<void> {
-    await this.artifacts.clear();
+    const left = [
+      ...((await this.state.storage.get<string[]>(ARTIFACT_CLEANUP_KEY)) ?? []),
+      ...(await this.artifacts.clear()),
+    ];
     await this.state.storage.deleteAll?.();
+    if (!left.length) return;
+    await this.state.storage.put(ARTIFACT_CLEANUP_KEY, left);
+    await this.state.storage.setAlarm?.(Date.now() + ARTIFACT_CLEANUP_RETRY_MS);
   }
 }

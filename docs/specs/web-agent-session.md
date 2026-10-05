@@ -124,6 +124,9 @@ once by Disconnect. Relay forwards time out after
 30 seconds, well within the idle window. The relay persists the renewed
 deadline, reschedules expiry, and sends `session.renewed` so browser recovery
 and its timer follow the same deadline. `session.expired` ends idle sessions.
+An ended session's download copies are deleted from storage in bulk; copies
+storage cannot delete at once are retried later, and the session ends either
+way, answering with the typed expired or revoked errors.
 The initial connector expiry returned to a client is a deadline snapshot;
 resume must ask the server even if that saved timestamp has passed.
 

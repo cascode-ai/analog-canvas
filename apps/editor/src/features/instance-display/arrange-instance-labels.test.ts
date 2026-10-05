@@ -52,6 +52,56 @@ function apply(
       doc.annotations[index] = edit.annotation;
     }
 }
+/** A straight wire between two free points. */
+function wire(
+  doc: ReturnType<typeof fixture>["doc"],
+  id: string,
+  from: { x: number; y: number },
+  to: { x: number; y: number },
+) {
+  if (!doc.nets.some((net) => net.id === "n"))
+    doc.nets.push({ id: "n", terminals: [] });
+  doc.junctions.push(
+    { id: `${id}-a`, netId: "n", position: from },
+    { id: `${id}-b`, netId: "n", position: to },
+  );
+  doc.routes.push(
+    createRoutePath({
+      id,
+      netId: "n",
+      start: { kind: "junction", junctionId: `${id}-a` },
+      end: { kind: "junction", junctionId: `${id}-b` },
+      bends: [],
+      modes: ["manual"],
+    }),
+  );
+}
+/** A transistor showing its Reference and W/L in their default rows. */
+function transistor(
+  doc: ReturnType<typeof fixture>["doc"],
+  id: string,
+  symbolId: "nmos" | "pmos",
+  position: { x: number; y: number },
+) {
+  const instance = {
+    id,
+    reference: id.toUpperCase(),
+    symbolId,
+    placement: { position, rotation: 0 as const, mirror: "none" as const },
+    netlist: { parameters: { w: "10u", l: "0.5u" } },
+  };
+  doc.instances.push(instance);
+  doc.annotations.push(
+    ...defaultInstanceDisplayAnnotations(
+      doc,
+      instance,
+      resolver,
+      resolveDocumentStyleProfile(doc.presentation),
+      { showValue: true },
+    ),
+  );
+  return instance;
+}
 /** Overlap of two labels' drawn ink. */
 function inkOverlaps(
   context: ReturnType<typeof createLabelClearanceContext>,
@@ -112,7 +162,30 @@ describe("opt-in label arrangement", () => {
     // The value's default row is covered twice. Every other side clears the
     // value but puts the Reference on a label: one conflict against two, so
     // the whole group used to move and the part's name was drawn over text.
+    // A wire just above the Reference row leaves the group no room to slide
+    // up, and a wire between its rows does not count as room.
     const { doc, instance } = fixture();
+    doc.nets.push({ id: "n", terminals: [] });
+    doc.junctions.push(
+      { id: "a", netId: "n", position: { x: 0, y: 92 } },
+      { id: "b", netId: "n", position: { x: 92, y: 92 } },
+      { id: "c", netId: "n", position: { x: 108, y: 92 } },
+      { id: "d", netId: "n", position: { x: 200, y: 92 } },
+    );
+    for (const [id, start, end] of [
+      ["left", "a", "b"],
+      ["right", "c", "d"],
+    ] as const)
+      doc.routes.push(
+        createRoutePath({
+          id,
+          netId: "n",
+          start: { kind: "junction", junctionId: start },
+          end: { kind: "junction", junctionId: end },
+          bends: [],
+          modes: ["manual"],
+        }),
+      );
     const reference = doc.annotations.find(
       (a) => a.binding?.kind === "instance-reference",
     )!;
@@ -485,5 +558,218 @@ describe("opt-in label arrangement", () => {
       id: "obstacle",
       locked: true,
     });
+  });
+  it("slides a part's labels along its side to fit between two rows of wiring", () => {
+    // An input transistor of a Miller op amp: its W/L row crosses the tail
+    // wire below, the gate wire takes its left side, a bias line runs under
+    // the pair, and labels above it would stand beyond the mirror's wire.
+    // Its right side, a little above the middle, fits both rows between the
+    // mirror's wire and the tail.
+    const doc = createEmptyDocument("d", "Input pair");
+    const m1 = transistor(doc, "m1", "nmos", { x: 90, y: -40 });
+    wire(doc, "tail", { x: 60, y: -20 }, { x: 200, y: -20 });
+    wire(doc, "gate", { x: 40, y: -40 }, { x: 70, y: -40 });
+    wire(doc, "mirror", { x: 40, y: -80 }, { x: 200, y: -80 });
+    wire(doc, "bias", { x: 40, y: -5 }, { x: 200, y: -5 });
+    const before = createLabelClearanceContext(doc, resolver);
+    expect(
+      doc.annotations.some((a) => before.conflicts(a).includes("tail")),
+    ).toBe(true);
+
+    apply(doc, arrangeInstanceLabels(doc, resolver, [m1.id], {}));
+
+    const after = createLabelClearanceContext(doc, resolver);
+    const body = after.symbols.find((s) => s.id === m1.id)!.bounds;
+    for (const label of doc.annotations) {
+      expect(after.conflicts(label), label.id).toEqual([]);
+      const ink = after.measure(label).inkBounds;
+      expect(ink.x).toBeGreaterThanOrEqual(body.x + body.width);
+      expect(ink.y).toBeGreaterThan(-80);
+      expect(ink.y + ink.height).toBeLessThan(-20);
+    }
+  });
+  it("never puts a wire between a part's Reference and its W/L", () => {
+    // A mirror transistor under a VDD rail, crowded on its sides: above it,
+    // between the rail and the part, there is room for the Reference only,
+    // and its W/L met nothing above the rail, away from the transistor.
+    const doc = createEmptyDocument("d", "Mirror");
+    const m3 = transistor(doc, "m3", "pmos", { x: 110, y: -100 });
+    wire(doc, "rail", { x: 40, y: -140 }, { x: 220, y: -140 });
+    wire(doc, "gate", { x: 40, y: -100 }, { x: 90, y: -100 });
+    wire(doc, "drain", { x: 40, y: -70 }, { x: 220, y: -70 });
+
+    apply(doc, arrangeInstanceLabels(doc, resolver, [m3.id], {}));
+
+    const after = createLabelClearanceContext(doc, resolver);
+    for (const label of doc.annotations) {
+      expect(after.conflicts(label), label.id).toEqual([]);
+      expect(after.measure(label).inkBounds.y).toBeGreaterThan(-140);
+    }
+  });
+  it("never leaves a part's labels beyond a wire that runs beside it", () => {
+    // A wire passes just right of the transistor, between it and its
+    // default labels, which meet nothing there.
+    const doc = createEmptyDocument("d", "Bypass");
+    const m1 = transistor(doc, "m1", "nmos", { x: 90, y: -40 });
+    wire(doc, "bypass", { x: 103, y: -100 }, { x: 103, y: 20 });
+    const before = createLabelClearanceContext(doc, resolver);
+    for (const label of doc.annotations) {
+      expect(before.conflicts(label)).toEqual([]);
+      expect(before.measure(label).inkBounds.x).toBeGreaterThan(103);
+    }
+
+    apply(doc, arrangeInstanceLabels(doc, resolver, [m1.id], {}));
+
+    const after = createLabelClearanceContext(doc, resolver);
+    for (const label of doc.annotations) {
+      expect(after.conflicts(label), label.id).toEqual([]);
+      const ink = after.measure(label).inkBounds;
+      expect(ink.x + ink.width).toBeLessThan(103);
+    }
+  });
+  it("lets a part's own wire run between its name and its W/L", () => {
+    // A transistor drawn with a Port at each pin: its bulk wire runs through
+    // its name's row, the Source Pin's name sits on its W/L's, and the Gate
+    // Pin's name takes its left side. Above and below its own bulk wire,
+    // both labels still read as the transistor's.
+    const doc = createEmptyDocument("d", "Basic transistor");
+    const instance = {
+      id: "m3",
+      reference: "M3",
+      symbolId: "nmos",
+      placement: {
+        position: { x: 400, y: 180 },
+        rotation: 0 as const,
+        mirror: "none" as const,
+      },
+      netlist: { parameters: { w: "1u", l: "150n" } },
+    };
+    doc.instances.push(instance);
+    doc.annotations.push(
+      ...defaultInstanceDisplayAnnotations(
+        doc,
+        instance,
+        resolver,
+        resolveDocumentStyleProfile(doc.presentation),
+        { showValue: true },
+      ),
+    );
+    doc.nets.push({ id: "n", terminals: [] });
+    doc.junctions.push({
+      id: "bulk-end",
+      netId: "n",
+      position: { x: 450, y: 180 },
+    });
+    doc.routes.push(
+      createRoutePath({
+        id: "bulk",
+        netId: "n",
+        start: { kind: "terminal", instanceId: "m3", pinName: "B" },
+        end: { kind: "junction", junctionId: "bulk-end" },
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+    for (const [id, value, x, y] of [
+      ["gate", "Gate", 324, 185],
+      ["source", "Source", 383, 230],
+      ["drain", "Drain", 387, 136],
+      ["bulk-name", "Bulk", 470, 185],
+    ] as const)
+      doc.annotations.push({
+        id,
+        kind: "instance-label",
+        content: { runs: [{ kind: "text", value }] },
+        anchor: { kind: "free", position: { x, y } },
+        alignment: "start",
+        rotation: 0,
+        locked: true,
+      });
+
+    apply(doc, arrangeInstanceLabels(doc, resolver, [instance.id], {}));
+
+    const after = createLabelClearanceContext(doc, resolver);
+    const [name, size] = (
+      ["instance-reference", "instance-value"] as const
+    ).map((kind) =>
+      after.measure(doc.annotations.find((a) => a.binding?.kind === kind)!),
+    );
+    for (const label of doc.annotations)
+      expect(after.conflicts(label), label.id).toEqual([]);
+    expect(name!.inkBounds.y + name!.inkBounds.height).toBeLessThan(180);
+    expect(size!.inkBounds.y).toBeGreaterThan(180);
+  });
+  it("does not move a name from just beside other text onto it", () => {
+    // The Reference touches text just above it and a wire runs through it;
+    // one row up it would meet only that text, drawn over it, and two grid
+    // steps right only other text. Wires fence every other side. A name had
+    // been nudged so onto a Pin's name in a gain-boosted op amp.
+    const { doc, instance } = fixture();
+    const reference = doc.annotations.find(
+      (a) => a.binding?.kind === "instance-reference",
+    )!;
+    for (let x = 30; x <= 90; x += 6)
+      wire(doc, `left-${x}`, { x, y: 0 }, { x, y: 200 });
+    for (let y = 20; y <= 74; y += 6)
+      wire(doc, `top-${y}`, { x: 0, y }, { x: 200, y });
+    for (const y of [132, 138, 150, 156])
+      wire(doc, `bottom-${y}`, { x: 0, y }, { x: 200, y });
+    wire(doc, "through", { x: 105, y: 102 }, { x: 128, y: 102 });
+    for (const [id, value, x, y] of [
+      ["above", "I", 110, 89],
+      ["beyond", "WW", 152, 108],
+    ] as const)
+      doc.annotations.push({
+        id,
+        kind: "instance-label",
+        content: { runs: [{ kind: "text", value }] },
+        anchor: { kind: "free", position: { x, y } },
+        alignment: "start",
+        rotation: 0,
+        locked: true,
+      });
+    const before = createLabelClearanceContext(doc, resolver);
+    expect(before.conflicts(reference)).toEqual(["above", "through"]);
+    expect(
+      before.overlapsAt(before.measure(reference).inkBounds, reference.id),
+    ).toEqual([]);
+
+    apply(doc, arrangeInstanceLabels(doc, resolver, [instance.id], {}));
+
+    const after = createLabelClearanceContext(doc, resolver);
+    const moved = doc.annotations.find((a) => a.id === reference.id)!;
+    expect(after.overlapsAt(after.measure(moved).inkBounds, moved.id)).toEqual(
+      [],
+    );
+  });
+  it("keeps a word's space between a part's labels and another label on their line", () => {
+    // A resistor's "2k" two units after an input Port's name read "v_inn2k".
+    const { doc, instance } = fixture();
+    const value = doc.annotations.find(
+      (a) => a.binding?.kind === "instance-value",
+    )!;
+    const context = createLabelClearanceContext(doc, resolver);
+    const ink = context.measure(value).inkBounds;
+    doc.annotations.push({
+      id: "pin-name",
+      kind: "instance-label",
+      content: { runs: [{ kind: "text", value: "vinn" }] },
+      anchor: {
+        kind: "free",
+        position: { x: ink.x - 2, y: context.measure(value).position.y },
+      },
+      alignment: "end",
+      rotation: 0,
+      locked: true,
+    });
+    expect(createLabelClearanceContext(doc, resolver).conflicts(value)).toEqual(
+      ["pin-name"],
+    );
+
+    apply(doc, arrangeInstanceLabels(doc, resolver, [instance.id], {}));
+
+    const after = createLabelClearanceContext(doc, resolver);
+    const moved = doc.annotations.find((a) => a.id === value.id)!;
+    expect(after.conflicts(moved)).toEqual([]);
   });
 });

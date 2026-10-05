@@ -4,7 +4,10 @@ import type { RichTextDocument } from "@icm/model";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 import { defaultInstanceLabelPlacement } from "./instance-label-placement.js";
 import { displayableInstanceValue } from "./instance-value.js";
-import { diagnoseLabelClearance } from "./label-clearance.js";
+import {
+  createLabelClearanceContext,
+  diagnoseLabelClearance,
+} from "./label-clearance.js";
 import { resolveDocumentStyleProfile } from "./style-profile.js";
 import { diagnoseVisualQuality } from "./visual.js";
 const resolver = new InMemorySymbolResolver(builtInSymbols);
@@ -306,4 +309,30 @@ it("lets a Net Label stand as close over its wire as its text allows (#1300)", (
   expect(diagnoseLabelClearance(doc, resolver)).toHaveLength(1);
   doc.annotations = [label(plain("top"), 2)];
   expect(diagnoseLabelClearance(doc, resolver)).toHaveLength(1);
+});
+it("asks a word's space between labels on a line and a little between lines", () => {
+  const doc = createEmptyDocument("d", "Spacing");
+  doc.annotations.push({
+    id: "name",
+    kind: "instance-label",
+    content: { runs: [{ kind: "text", value: "vinn" }] },
+    anchor: { kind: "free", position: { x: 0, y: 100 } },
+    alignment: "start",
+    rotation: 0,
+    locked: false,
+  });
+  const context = createLabelClearanceContext(doc, resolver);
+  const ink = context.measure(doc.annotations[0]!).inkBounds;
+  const after = (gap: number) => ({ ...ink, x: ink.x + ink.width + gap });
+  const below = (gap: number) => ({ ...ink, y: ink.y + ink.height + gap });
+  // "2k" two units after "vinn" read as "vinn2k".
+  expect(context.conflictsAt(after(2), "other")).toEqual(["name"]);
+  expect(context.conflictsAt(after(5), "other")).toEqual([]);
+  expect(context.conflictsAt(below(0.5), "other")).toEqual(["name"]);
+  expect(context.conflictsAt(below(2), "other")).toEqual([]);
+  // Too close is not drawn over.
+  expect(context.overlapsAt(after(2), "other")).toEqual([]);
+  expect(context.overlapsAt(after(-2), "other")).toEqual(["name"]);
+  // Clearance findings name wires and parts only, as before.
+  expect(diagnoseLabelClearance(doc, resolver)).toEqual([]);
 });
