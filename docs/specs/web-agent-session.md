@@ -190,6 +190,32 @@ bounded exponential reconnect keeps the same Project/session binding. Bearer
 tokens remain Agent-side only; browser recovery stores only the editor-side
 session record required for same-browser reconnect.
 
+## Request timing and activity
+
+Timing is observational metadata on the existing transport, not another handshake.
+HTTP clients record request ID, resource/operation, attempt, HTTP status/outcome,
+`headerMs` through response headers, and `bodyMs` for JSON transfer, parsing and
+canonical validation. `totalMs` now includes that consumed-body work rather than
+ending at headers. Byte-download timings stop at headers; stream transfer belongs
+to the downloading consumer. Retry delay is reported separately from attempt time.
+No credentials or request/file bodies are recorded.
+
+Relay response headers add `serverMs` (DO fetch entry through response construction),
+`preForwardMs`, `forwardMs`, and `postForwardMs`; the latter three partition that
+server interval. `restoreMs` is a subset of pre-forward, not an extra additive phase.
+Forward includes socket dispatch/response processing; post-forward includes completion
+and persistence. Legacy `relayMs` retains forward plus post-forward, not pure socket
+latency. Host scheduling before DO fetch entry and outer HTTP routing are not measured
+by these server phases. Each layer uses its own elapsed clock; do not subtract remote
+wall timestamps. Errors and cache hits report current phases; hits have no new forward
+or editor measurement. Editor work and visibility remain the browser's observations.
+
+Client timings retain 64 attempts; MCP defaults to the last eight and reports omitted
+counts. Existing status/activity reads expose bounded details when needed, never as a
+mandatory next step. Relay activity retains 32 records in the current live DO instance,
+including admitted failures and cache hits; it is not persistent audit history and may
+disappear on instance replacement. `hidden` alone is not proof of a latency cause.
+
 ## Idempotency and revisions
 
 Each request ID is bound to the canonical exact payload hash while active.

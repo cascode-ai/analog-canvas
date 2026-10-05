@@ -14,6 +14,34 @@ function jsonResponse(status: number, body: unknown): Response {
 // apps/editor/src/agent/agent-http-client-live.test.ts. These are the relay
 // and network side.
 describe("agent http client", () => {
+  it.each(["TimeoutError", "TypeError"])(
+    "records %s failures without credentials or request body",
+    async (name) => {
+      const http = new AgentHttpClient({
+        baseUrl: BASE,
+        fetch: async () => {
+          throw new DOMException("network-fault", name);
+        },
+      });
+      await expect(
+        http.circuit("s", "private-token", {
+          apiVersion: "3.0",
+          requestId: "uncertain-id",
+          operation: "snapshot",
+          documentId: "main",
+        }),
+      ).rejects.toThrow();
+      expect(http.requestTimings[0]).toMatchObject({
+        requestId: "uncertain-id",
+        operation: "snapshot",
+        attempt: 1,
+        outcome: name === "TimeoutError" ? "timeout" : "network-error",
+      });
+      expect(JSON.stringify(http.requestTimings)).not.toMatch(
+        /private-token|documentId|network-fault/,
+      );
+    },
+  );
   it("keeps streamed artifact authorization on this session and refuses redirects", async () => {
     let calls = 0;
     const http = new AgentHttpClient({
@@ -171,6 +199,30 @@ describe("agent http client", () => {
     expect(waits).toEqual([2000, 2000]);
     expect(bodies).toHaveLength(3);
     expect(new Set(bodies).size).toBe(1);
+    expect(
+      http.requestTimings.map(
+        ({ requestId, operation, attempt, status, outcome }) => ({
+          requestId,
+          operation,
+          attempt,
+          status,
+          outcome,
+        }),
+      ),
+    ).toEqual(
+      [1, 2, 3].map((attempt) => ({
+        requestId: "same-id",
+        operation: "transact",
+        attempt,
+        status: 429,
+        outcome: attempt < 3 ? "retry" : "http-error",
+      })),
+    );
+    expect(
+      http.requestTimings
+        .slice(0, 2)
+        .every((t) => t.retryDelayMs !== undefined),
+    ).toBe(true);
   });
   it("honors Retry-After beyond the local wait budget without retrying early", async () => {
     const http = new AgentHttpClient({

@@ -80,6 +80,16 @@ function scopedRequestHash(
 const ARTIFACT_CLEANUP_KEY = "agent-artifact-cleanup";
 const ARTIFACT_CLEANUP_RETRY_MS = 60_000;
 
+interface RequestTrace {
+  started: number;
+  restoreMs?: number;
+  forwardStarted?: number;
+  forwardEnded?: number;
+  identity?: { requestId: string; operation: string };
+  cache?: "hit";
+  result?: { ok?: unknown; revision?: unknown } | undefined;
+}
+
 /** Cloudflare Durable Object owning one temporary Agent session. */
 export class AgentSessionDO {
   private readonly artifacts: AgentArtifacts;
@@ -108,6 +118,78 @@ export class AgentSessionDO {
   }
 
   async fetch(request: Request): Promise<Response> {
+    const resource = new URL(request.url).pathname.slice(1);
+    if (
+      request.method !== "POST" ||
+      !["circuit", "files", "simulation", "projects"].includes(resource)
+    )
+      return this.handleFetch(request);
+    const trace: RequestTrace = { started: performance.now() };
+    const response = await this.handleFetch(request, trace);
+    const ended = performance.now();
+    const phases = {
+      serverMs: ended - trace.started,
+      restoreMs: trace.restoreMs ?? 0,
+      preForwardMs: (trace.forwardStarted ?? ended) - trace.started,
+      forwardMs:
+        trace.forwardStarted === undefined
+          ? 0
+          : (trace.forwardEnded ?? ended) - trace.forwardStarted,
+      postForwardMs:
+        trace.forwardEnded === undefined ? 0 : ended - trace.forwardEnded,
+    };
+    for (const [key, value] of Object.entries(phases))
+      response.headers.set(
+        `x-agent-${key.replace(/[A-Z]/g, (letter) => "-" + letter.toLowerCase())}`,
+        String(Math.max(0, Math.round(value))),
+      );
+    if (trace.cache) response.headers.set("x-agent-cache", trace.cache);
+    if (trace.identity) {
+      const editor =
+        trace.forwardStarted === undefined
+          ? undefined
+          : this.editorTimings.get(trace.identity.requestId);
+      if (trace.forwardStarted !== undefined)
+        this.editorTimings.delete(trace.identity.requestId);
+      if (editor) {
+        response.headers.set("x-agent-editor-ms", String(editor.workMs));
+        response.headers.set("x-agent-editor-visibility", editor.visibility);
+      }
+      if (
+        trace.forwardStarted !== undefined &&
+        !response.headers.has("x-agent-relay-ms")
+      )
+        response.headers.set(
+          "x-agent-relay-ms",
+          String(Math.round(ended - trace.forwardStarted)),
+        );
+      this.recentOperations.push({
+        ...trace.identity,
+        resource,
+        at: new Date().toISOString(),
+        durationMs:
+          trace.forwardStarted === undefined
+            ? 0
+            : Math.round(ended - trace.forwardStarted),
+        ok: response.ok && trace.result?.ok !== false,
+        ...phases,
+        ...(trace.cache ? { cache: trace.cache } : {}),
+        ...(typeof trace.result?.revision === "number"
+          ? { revision: trace.result.revision }
+          : {}),
+        ...(editor
+          ? { editorMs: editor.workMs, editorVisibility: editor.visibility }
+          : {}),
+      });
+      if (this.recentOperations.length > 32) this.recentOperations.shift();
+    }
+    return response;
+  }
+
+  private async handleFetch(
+    request: Request,
+    trace?: RequestTrace,
+  ): Promise<Response> {
     await this.ready;
     const url = new URL(request.url);
     const allowedOrigin = this.env.AGENT_ALLOWED_ORIGIN ?? null;
@@ -122,6 +204,7 @@ export class AgentSessionDO {
       );
     }
     const machine = await this.loadMachine();
+    if (trace) trace.restoreMs = performance.now() - trace.started;
     if (!machine) {
       return jsonResponse(
         errorBody("SESSION_NOT_FOUND", errorMessage("SESSION_NOT_FOUND")),
@@ -277,18 +360,23 @@ export class AgentSessionDO {
     }
     if (request.method === "POST" && url.pathname === "/circuit") {
       const context = machine.contextRevision;
-      const response = await this.circuit(request, machine, allowedOrigin);
+      const response = await this.circuit(
+        request,
+        machine,
+        allowedOrigin,
+        trace,
+      );
       if (context) response.headers.set("x-agent-context", context);
       return response;
     }
     if (request.method === "POST" && url.pathname === "/files") {
-      return this.files(request, machine, allowedOrigin);
+      return this.files(request, machine, allowedOrigin, trace);
     }
     if (request.method === "POST" && url.pathname === "/simulation") {
-      return this.simulation(request, machine, allowedOrigin);
+      return this.simulation(request, machine, allowedOrigin, trace);
     }
     if (request.method === "POST" && url.pathname === "/projects") {
-      return this.projects(request, machine, allowedOrigin);
+      return this.projects(request, machine, allowedOrigin, trace);
     }
     if (request.method === "GET" && url.pathname === "/activity") {
       const auth = machine.authorizeStatus(bearerToken(request), Date.now());
@@ -302,6 +390,7 @@ export class AgentSessionDO {
         {
           ok: true,
           sessionId: machine.sessionId,
+          scope: "live-relay-instance",
           operations: [...this.recentOperations],
         },
         200,
@@ -777,6 +866,7 @@ export class AgentSessionDO {
     request: Request,
     machine: AgentSessionMachine,
     allowedOrigin: string | null,
+    trace?: RequestTrace,
   ): Promise<Response> {
     const observedContext = machine.contextRevision;
     const raw = await request.text();
@@ -851,14 +941,24 @@ export class AgentSessionDO {
       request.headers.get("x-agent-workspace"),
     );
     const readOnly = isReadOnlyCircuitRequest(circuitRequest);
+    if (trace)
+      trace.identity = {
+        requestId: circuitRequest.requestId,
+        operation: circuitRequest.operation,
+      };
     const begin = await this.beginRequest(
       machine,
       circuitRequest.requestId,
       payloadHash,
       readOnly ? "read" : "write",
     );
-    if (begin.kind === "cached")
+    if (begin.kind === "cached") {
+      if (trace) {
+        trace.cache = "hit";
+        trace.result = begin.result as RequestTrace["result"];
+      }
       return jsonResponse(begin.result, 200, allowedOrigin);
+    }
     if (begin.kind === "rejected") {
       return jsonResponse(
         errorBody(begin.code, errorMessage(begin.code)),
@@ -887,7 +987,9 @@ export class AgentSessionDO {
           ? observedContext
           : (request.headers.get("x-agent-context") ?? undefined),
         request.headers.get("x-agent-workspace") ?? undefined,
+        trace,
       );
+      if (trace) trace.result = result as RequestTrace["result"];
       machine.completeRequest(circuitRequest.requestId, result, Date.now());
       if (circuitRequest.operation !== "capabilities")
         machine.recordActivity(Date.now());
@@ -930,6 +1032,7 @@ export class AgentSessionDO {
     request: Request,
     machine: AgentSessionMachine,
     allowedOrigin: string | null,
+    trace?: RequestTrace,
   ): Promise<Response> {
     const raw = await request.text();
     const size = machine.checkSize(new TextEncoder().encode(raw).byteLength);
@@ -1005,6 +1108,11 @@ export class AgentSessionDO {
         );
     }
     const readOnly = isReadOnlyFileRequest(fileRequest);
+    if (trace)
+      trace.identity = {
+        requestId: fileRequest.requestId,
+        operation: fileRequest.operation,
+      };
     const begin = await this.beginRequest(
       machine,
       fileRequest.requestId,
@@ -1015,8 +1123,13 @@ export class AgentSessionDO {
       ),
       readOnly ? "read" : "write",
     );
-    if (begin.kind === "cached")
+    if (begin.kind === "cached") {
+      if (trace) {
+        trace.cache = "hit";
+        trace.result = begin.result as RequestTrace["result"];
+      }
       return jsonResponse(begin.result, 200, allowedOrigin);
+    }
     if (begin.kind === "rejected")
       return jsonResponse(
         errorBody(begin.code, errorMessage(begin.code)),
@@ -1038,7 +1151,9 @@ export class AgentSessionDO {
         "file-request",
         request.headers.get("x-agent-context") ?? undefined,
         request.headers.get("x-agent-workspace") ?? undefined,
+        trace,
       );
+      if (trace) trace.result = result as RequestTrace["result"];
       // Export blobs are explicitly one-shot: the DO retains only an unavailable
       // idempotency marker, never their bytes. Candidate summaries are safe to cache.
       if (fileRequest.operation === "download") {
@@ -1095,6 +1210,7 @@ export class AgentSessionDO {
     request: Request,
     machine: AgentSessionMachine,
     allowedOrigin: string | null,
+    trace?: RequestTrace,
   ): Promise<Response> {
     const raw = await request.text();
     const size = machine.checkSize(new TextEncoder().encode(raw).byteLength);
@@ -1151,6 +1267,11 @@ export class AgentSessionDO {
       );
     }
     const readOnly = isReadOnlySimulationRequest(simulationRequest);
+    if (trace)
+      trace.identity = {
+        requestId: simulationRequest.requestId,
+        operation: simulationRequest.operation,
+      };
     const begin = await this.beginRequest(
       machine,
       simulationRequest.requestId,
@@ -1161,8 +1282,13 @@ export class AgentSessionDO {
       ),
       readOnly ? "read" : "write",
     );
-    if (begin.kind === "cached")
+    if (begin.kind === "cached") {
+      if (trace) {
+        trace.cache = "hit";
+        trace.result = begin.result as RequestTrace["result"];
+      }
       return jsonResponse(begin.result, 200, allowedOrigin);
+    }
     if (begin.kind === "rejected")
       return jsonResponse(
         errorBody(begin.code, errorMessage(begin.code)),
@@ -1188,7 +1314,9 @@ export class AgentSessionDO {
         "simulation-request",
         request.headers.get("x-agent-context") ?? undefined,
         request.headers.get("x-agent-workspace") ?? undefined,
+        trace,
       );
+      if (trace) trace.result = result as RequestTrace["result"];
       machine.completeRequest(simulationRequest.requestId, result, Date.now());
       if (
         simulationRequest.operation !== "capabilities" &&
@@ -1242,6 +1370,7 @@ export class AgentSessionDO {
     request: Request,
     machine: AgentSessionMachine,
     allowedOrigin: string | null,
+    trace?: RequestTrace,
   ): Promise<Response> {
     const raw = await request.text();
     const size = machine.checkSize(new TextEncoder().encode(raw).byteLength);
@@ -1300,6 +1429,11 @@ export class AgentSessionDO {
       );
     }
     const readOnly = isReadOnlyProjectRequest(projectRequest);
+    if (trace)
+      trace.identity = {
+        requestId: projectRequest.requestId,
+        operation: projectRequest.operation,
+      };
     const begin = await this.beginRequest(
       machine,
       projectRequest.requestId,
@@ -1311,6 +1445,10 @@ export class AgentSessionDO {
       readOnly ? "read" : "write",
     );
     if (begin.kind === "cached") {
+      if (trace) {
+        trace.cache = "hit";
+        trace.result = begin.result as RequestTrace["result"];
+      }
       return jsonResponse(begin.result, 200, allowedOrigin);
     }
     if (begin.kind === "rejected") {
@@ -1335,7 +1473,9 @@ export class AgentSessionDO {
         "project-request",
         request.headers.get("x-agent-context") ?? undefined,
         request.headers.get("x-agent-workspace") ?? undefined,
+        trace,
       );
+      if (trace) trace.result = result as RequestTrace["result"];
       machine.completeRequest(projectRequest.requestId, result, Date.now());
       machine.recordActivity(Date.now());
       await this.persist();
@@ -1545,6 +1685,13 @@ export class AgentSessionDO {
     ok: boolean;
     revision?: number;
     editorVisibility?: "visible" | "hidden";
+    editorMs?: number;
+    serverMs?: number;
+    restoreMs?: number;
+    preForwardMs?: number;
+    forwardMs?: number;
+    postForwardMs?: number;
+    cache?: "hit";
   }[] = [];
 
   /** What the editor reported with each reply, until its request returns. */
@@ -1560,32 +1707,12 @@ export class AgentSessionDO {
    */
   private relayTiming(
     request: { requestId: string; operation?: unknown; action?: unknown },
-    resource: string,
-    result: unknown,
+    _resource: string,
+    _result: unknown,
     forwardStarted: number,
   ): Record<string, string> {
     const requestId = request.requestId;
     const editor = this.editorTimings.get(requestId);
-    this.editorTimings.delete(requestId);
-    const outcome = result as { ok?: unknown; revision?: unknown };
-    this.recentOperations.push({
-      requestId,
-      resource,
-      operation:
-        typeof request.operation === "string"
-          ? request.operation
-          : typeof request.action === "string"
-            ? request.action
-            : resource,
-      at: new Date(forwardStarted).toISOString(),
-      durationMs: Date.now() - forwardStarted,
-      ok: outcome?.ok !== false,
-      ...(typeof outcome?.revision === "number"
-        ? { revision: outcome.revision }
-        : {}),
-      ...(editor ? { editorVisibility: editor.visibility } : {}),
-    });
-    if (this.recentOperations.length > 32) this.recentOperations.shift();
     return {
       "x-agent-relay-ms": String(Date.now() - forwardStarted),
       ...(editor
@@ -1611,44 +1738,50 @@ export class AgentSessionDO {
       | "project-request" = "circuit-request",
     contextRevision?: string,
     workspaceId?: string,
+    trace?: RequestTrace,
   ): Promise<unknown> {
-    const sockets = this.state.getWebSockets?.(EDITOR_SOCKET_TAG) ?? [];
-    const socket = sockets.find(
-      (candidate) => candidate.readyState === WebSocket.OPEN,
-    );
-    if (!socket) throw new Error("EDITOR_OFFLINE");
-    const requestId = payload.requestId;
-    const response = new Promise<unknown>((resolve, reject) => {
-      const timeout = setTimeout(
-        () => {
-          this.pendingForwards.delete(requestId);
-          reject(new Error("REQUEST_TIMEOUT"));
-        },
-        kind === "simulation-request"
-          ? SIMULATION_FORWARD_TIMEOUT_MS
-          : FORWARD_TIMEOUT_MS,
+    if (trace) trace.forwardStarted = performance.now();
+    try {
+      const sockets = this.state.getWebSockets?.(EDITOR_SOCKET_TAG) ?? [];
+      const socket = sockets.find(
+        (candidate) => candidate.readyState === WebSocket.OPEN,
       );
-      this.pendingForwards.set(requestId, {
-        resolve,
-        reject,
-        timeout,
-        socket,
+      if (!socket) throw new Error("EDITOR_OFFLINE");
+      const requestId = payload.requestId;
+      const response = new Promise<unknown>((resolve, reject) => {
+        const timeout = setTimeout(
+          () => {
+            this.pendingForwards.delete(requestId);
+            reject(new Error("REQUEST_TIMEOUT"));
+          },
+          kind === "simulation-request"
+            ? SIMULATION_FORWARD_TIMEOUT_MS
+            : FORWARD_TIMEOUT_MS,
+        );
+        this.pendingForwards.set(requestId, {
+          resolve,
+          reject,
+          timeout,
+          socket,
+        });
       });
-    });
-    socket.send(
-      JSON.stringify({
-        protocolVersion: AGENT_SESSION_PROTOCOL_VERSION,
-        sessionId: machine.sessionId,
-        messageId: crypto.randomUUID(),
-        requestId,
-        sentAt: new Date().toISOString(),
-        kind,
-        ...(contextRevision ? { contextRevision } : {}),
-        ...(workspaceId ? { workspaceId } : {}),
-        payload,
-      }),
-    );
-    return response;
+      socket.send(
+        JSON.stringify({
+          protocolVersion: AGENT_SESSION_PROTOCOL_VERSION,
+          sessionId: machine.sessionId,
+          messageId: crypto.randomUUID(),
+          requestId,
+          sentAt: new Date().toISOString(),
+          kind,
+          ...(contextRevision ? { contextRevision } : {}),
+          ...(workspaceId ? { workspaceId } : {}),
+          payload,
+        }),
+      );
+      return await response;
+    } finally {
+      if (trace) trace.forwardEnded = performance.now();
+    }
   }
 
   private emit(event: AgentSessionEvent): void {

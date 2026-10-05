@@ -344,6 +344,12 @@ describe("the Agent HTTP client reading the live editor", () => {
                   "x-agent-relay-ms": "830",
                   "x-agent-editor-ms": "120",
                   "x-agent-editor-visibility": "hidden",
+                  "x-agent-server-ms": "910",
+                  "x-agent-restore-ms": "10",
+                  "x-agent-pre-forward-ms": "80",
+                  "x-agent-forward-ms": "800",
+                  "x-agent-post-forward-ms": "30",
+                  "x-agent-cache": "hit",
                 }
               : {}),
           },
@@ -357,6 +363,18 @@ describe("the Agent HTTP client reading the live editor", () => {
     expect(rest).toEqual([]);
     expect(timing).toMatchObject({
       request: "circuit",
+      resource: "circuit",
+      requestId: snapshotRequest.requestId,
+      operation: "snapshot",
+      attempt: 1,
+      status: 200,
+      outcome: "ok",
+      serverMs: 910,
+      restoreMs: 10,
+      preForwardMs: 80,
+      forwardMs: 800,
+      postForwardMs: 30,
+      cache: "hit",
       relayMs: 830,
       editorMs: 120,
       editorVisibility: "hidden",
@@ -366,6 +384,47 @@ describe("the Agent HTTP client reading the live editor", () => {
     // A response without the relay's headers records the round trip alone.
     expect(http.requestTimings[0]).not.toHaveProperty("relayMs");
   });
+
+  it("counts header wait separately from body transfer and validation, without logging payloads", async () => {
+    const { service } = liveAgentEditor();
+    let clock = 100;
+    const now = vi.spyOn(performance, "now").mockImplementation(() => clock);
+    try {
+      const http = new AgentHttpClient({
+        baseUrl: BASE,
+        fetch: async () => {
+          clock += 40;
+          const response = Response.json(service.handle(snapshotRequest));
+          const json = response.json.bind(response);
+          response.json = async () => {
+            clock += 70;
+            return json();
+          };
+          return response;
+        },
+      });
+      await http.circuit("s", TOKEN, snapshotRequest);
+      expect(http.requestTimings[0]).toMatchObject({
+        headerMs: 40,
+        bodyMs: 70,
+        totalMs: 110,
+        requestId: snapshotRequest.requestId,
+        outcome: "ok",
+      });
+      expect(JSON.stringify(http.requestTimings)).not.toContain(TOKEN);
+      expect(http.requestTimings[0]).not.toHaveProperty("body");
+      for (let i = 0; i < 70; i++)
+        await http.circuit("s", TOKEN, {
+          ...snapshotRequest,
+          requestId: `read-${i}`,
+        });
+      expect(http.requestTimings).toHaveLength(64);
+      expect(http.requestTimings[0]!.requestId).toBe("read-6");
+    } finally {
+      now.mockRestore();
+    }
+  });
+
 });
 
 /**

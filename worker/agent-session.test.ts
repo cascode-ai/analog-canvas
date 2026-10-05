@@ -928,6 +928,17 @@ describe("public Agent session routes", () => {
     expect(await response!.json()).toMatchObject({
       error: { code: "EDITOR_DISCONNECTED" },
     });
+    for (const name of [
+      "server",
+      "restore",
+      "pre-forward",
+      "forward",
+      "post-forward",
+    ])
+      expect(
+        Number(response!.headers.get(`x-agent-${name}-ms`)),
+      ).toBeGreaterThanOrEqual(0);
+    expect(response!.headers.has("x-agent-forward-ms")).toBe(true);
   });
 
   it("acknowledges a session-bound browser heartbeat outside business dispatch", async () => {
@@ -1287,6 +1298,44 @@ describe("public Agent session routes", () => {
       snapshot: { document: { id: "document-main" } },
     });
     expect(browser.families).toEqual(["circuit"]);
+    const phase = (name: string) => {
+      expect(snapshot!.headers.has(`x-agent-${name}-ms`)).toBe(true);
+      return Number(snapshot!.headers.get(`x-agent-${name}-ms`));
+    };
+    expect(
+      Math.abs(
+        phase("server") -
+          phase("pre-forward") -
+          phase("forward") -
+          phase("post-forward"),
+      ),
+    ).toBeLessThanOrEqual(2);
+    expect(phase("restore")).toBeLessThanOrEqual(phase("pre-forward"));
+    // Exact replay is a cache hit, not a second editor dispatch; its timings
+    // describe this request, never the first request's editor measurements.
+    const cached = await routeAgentSessionRequest(
+      new Request(
+        `https://editor.example/api/agent/sessions/${created.session.sessionId}/circuit`,
+        {
+          method: "POST",
+          headers: {
+            authorization: `Bearer ${claim.agentToken}`,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({
+            apiVersion: "3.0",
+            requestId: "snapshot-1",
+            operation: "snapshot",
+            documentId: "document-main",
+          }),
+        },
+      ),
+      env,
+    );
+    expect(cached!.headers.get("x-agent-cache")).toBe("hit");
+    expect(cached!.headers.get("x-agent-forward-ms")).toBe("0");
+    expect(cached!.headers.has("x-agent-editor-ms")).toBe(false);
+    expect(browser.families).toEqual(["circuit"]);
     // Where the time went, beside an unchanged body (#1227).
     expect(snapshot!.headers.get("x-agent-editor-ms")).toBe("42");
     expect(snapshot!.headers.get("x-agent-editor-visibility")).toBe("hidden");
@@ -1313,6 +1362,7 @@ describe("public Agent session routes", () => {
           revision: 0,
           editorVisibility: "hidden",
         },
+        { requestId: "snapshot-1", cache: "hit", forwardMs: 0 },
       ],
     });
     const anonymous = await routeAgentSessionRequest(
