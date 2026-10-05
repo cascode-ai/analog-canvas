@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { subcircuitDescriptor } from "@icm/devices";
+import { IDEAL_COMPARATOR_TARGET, subcircuitDescriptor } from "@icm/devices";
 import { createEmptyProject, type CircuitProject } from "@icm/model";
 
 import { createDesignNetlistExport } from "./export.js";
@@ -121,6 +121,23 @@ describe("blocks whose body never reads its supplies", () => {
     if (result.status !== "ready") return;
     expect(result.file.text).toContain(".subckt dut VDD VSS VIP VIN VOUT");
     expect(result.file.text).toContain("X1 VDD VSS VIP VIN VOUT opamp");
+  });
+
+  it("export an ideal comparator with no supply drawn and no VDD pin", () => {
+    // A flash ADC drawn with ground and no VDD gained a VDD Cell Pin that
+    // nothing inside used: the ideal comparator's call has no supply nodes.
+    const project = unpoweredBlock("comparator");
+    project.documents[0]!.instances[0]!.netlist!.binding = {
+      kind: "unresolved-subcircuit",
+      name: IDEAL_COMPARATOR_TARGET,
+    };
+    const result = createDesignNetlistExport(project);
+    expect(result.status).toBe("ready");
+    if (result.status !== "ready") return;
+    expect(result.file.text).toMatch(/^\.subckt dut VIP VIN VOUT$/mu);
+    expect(result.file.text).toMatch(
+      /^X1 VIP VIN VOUT icm_ideal_comparator$/mu,
+    );
   });
 
   it("give a block whose body uses its supplies the Cell's default ones", () => {

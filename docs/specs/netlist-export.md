@@ -483,7 +483,7 @@ choice with `circuit_properties` `set-block-supply {target, supply, net}`;
 `net: null` returns to Auto.
 
 Some built-in bodies never read their supplies: the ideal amplifiers and the
-adder in either format, and the multiplier in SPICE. When such a Block has
+adder in either format, and the multiplier and the ideal comparator in SPICE. When such a Block has
 neither a selected nor a drawn supply, the unused port is tied to node `0`
 and nothing blocks. A textbook switched-capacitor integrator therefore exports
 without a supply drawn. An authored Cell or a declared external definition of
