@@ -659,7 +659,11 @@ describe("hierarchy domain planners", () => {
           kind: "set_cell_symbol_presentation",
           presentation: {
             minimumBodySize: { width: 80, height: 60 },
-            pinPlacements: cell.presentation.cellSymbol!.pinPlacements,
+            // out is drawn right of the Cell's middle (#1319); in is on it.
+            pinPlacements: [
+              ...cell.presentation.cellSymbol!.pinPlacements!,
+              { terminalId: "terminal-P3", side: "east", offset: 0 },
+            ],
           },
         },
       ],

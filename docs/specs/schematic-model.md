@@ -184,11 +184,14 @@ two explicit placements may occupy the same side/offset slot. A supply Cell Pin
 that no parent has placed yet gets an explicit placement on the top or bottom
 edge, in the same transaction, as the textbook draws it; a Cell already placed
 somewhere keeps the automatic layout its drawings were made with. While no
-parent has placed a Cell, its derived block is also tall and wide enough for
-each top or bottom Pin's name to clear the side Pins' names and the body's
-sides. Its first placement persists that size as the minimum body size in the
-same transaction, so the block keeps it once placed; a placed Cell's block is
-never resized by this rule.
+parent has placed a Cell, its derived block also puts each Pin without a
+stored placement on the side its Port is drawn on, left or right of the
+middle of the Cell's drawing, in their drawn order from top to bottom (a Port
+on the middle keeps the automatic side), and is tall and wide enough for each
+top or bottom Pin's name to clear the side Pins' names and the body's sides.
+Its first placement persists those placements and that size, as explicit
+placements and the minimum body size, in the same transaction, so the block
+keeps them once placed; a placed Cell's block is never changed by this rule.
 
 ## Core invariants
 

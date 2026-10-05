@@ -4,6 +4,7 @@ import {
   semanticTextDocument,
 } from "@icm/model";
 import type {
+  CellSymbolPinPlacement,
   CellSymbolPresentation,
   CircuitProject,
   SchematicDocument,
@@ -133,19 +134,96 @@ export function placedCellDocumentIds(
   );
 }
 
-/** The body size of a Cell's block, as the Project's symbols draw it. */
-export function cellBlockBodySize(
-  document: Pick<SchematicDocument, "netlist"> & {
-    readonly presentation?: SchematicDocument["presentation"];
-    readonly annotations?: SchematicDocument["annotations"];
-  },
-  options: HierarchicalBlockLayoutOptions = {},
-): { width: number; height: number } {
-  return hierarchicalBlockBodySize(
-    projectCellSymbolTerminals(document),
-    document.presentation?.cellSymbol,
-    options,
+/** The block's Pin rows, in the order an automatic slot is taken. */
+const ROW_PITCH = 20;
+
+/**
+ * Sides for the Pins with no stored placement, from where their Ports are
+ * drawn in the Cell (#1319): left of the drawing's middle on the block's
+ * west side, right of it on the east, in their drawn order from top to
+ * bottom. sram6t drew bl left and blb right, and its block had them the
+ * other way round, mirrored against its own schematic. A Port on the
+ * middle, or not drawn, keeps the automatic rule.
+ */
+function drawnPinPlacements(
+  document: SchematicDocument,
+): CellSymbolPinPlacement[] {
+  const stored = document.presentation.cellSymbol?.pinPlacements ?? [];
+  const positions = document.instances.flatMap((instance) =>
+    instance.placement ? [instance.placement.position] : [],
   );
+  if (!positions.length) return [];
+  const xs = positions.map((position) => position.x);
+  const middle = (Math.min(...xs) + Math.max(...xs)) / 2;
+  const drawnAt = (terminalId: string) => {
+    const terminal = document.netlist?.terminals.find(
+      (item) => item.id === terminalId,
+    );
+    return document.instances.find(
+      (instance) => instance.id === terminal?.interfaceInstanceIds[0],
+    )?.placement?.position;
+  };
+  const sides = { west: [], east: [] } as Record<
+    "west" | "east",
+    { terminalId: string; x: number; y: number }[]
+  >;
+  for (const terminal of projectCellSymbolTerminals(document)) {
+    if (stored.some((placement) => placement.terminalId === terminal.id))
+      continue;
+    const at = drawnAt(terminal.id);
+    if (!at || at.x === middle) continue;
+    sides[at.x < middle ? "west" : "east"].push({
+      terminalId: terminal.id,
+      ...at,
+    });
+  }
+  return (["west", "east"] as const).flatMap((side) => {
+    const taken = new Set(
+      stored
+        .filter((placement) => placement.side === side)
+        .map((placement) => placement.offset),
+    );
+    const offsets: number[] = [];
+    for (let step = 0; offsets.length < sides[side].length; step += 1) {
+      const offset = (step % 2 ? -1 : 1) * Math.ceil(step / 2) * ROW_PITCH;
+      if (!taken.has(offset)) offsets.push(offset);
+    }
+    offsets.sort((a, b) => a - b);
+    return sides[side]
+      .sort((a, b) => a.y - b.y || a.x - b.x)
+      .map((entry, index) => ({
+        terminalId: entry.terminalId,
+        side,
+        offset: offsets[index]!,
+      }));
+  });
+}
+
+/**
+ * The symbol a Cell no parent has placed yet shows, and the one its first
+ * placement keeps (planPlaceCellInstance): Pins on the side their Ports are
+ * drawn on (#1319), and a body with room for top and bottom Pin names
+ * (#1327). A placed block's Pins never move, so this applies only before.
+ */
+export function unplacedCellSymbol(
+  document: SchematicDocument,
+): CellSymbolPresentation | undefined {
+  const current = document.presentation.cellSymbol;
+  const drawn = drawnPinPlacements(document);
+  const base: CellSymbolPresentation | undefined = drawn.length
+    ? {
+        ...current,
+        pinPlacements: [...(current?.pinPlacements ?? []), ...drawn],
+      }
+    : current;
+  const terminals = projectCellSymbolTerminals(document);
+  const fitted = hierarchicalBlockBodySize(terminals, base, {
+    fitNames: true,
+  });
+  const plain = hierarchicalBlockBodySize(terminals, base);
+  return fitted.width === plain.width && fitted.height === plain.height
+    ? base
+    : { ...base, minimumBodySize: fitted };
 }
 
 export function createProjectHierarchicalSymbols(
@@ -153,16 +231,23 @@ export function createProjectHierarchicalSymbols(
     Partial<Pick<CircuitProject, "externalSubcircuitDefinitions">>,
   baseDefinitions: readonly SymbolDefinition[] = [],
 ): SymbolDefinition[] {
-  // A Cell no parent has placed yet sizes its block so that its Pins' names
-  // read apart. Its first placement keeps that size (planPlaceCellInstance);
-  // a placed block's Pins never move.
+  // A Cell no parent has placed yet shows the symbol its first placement
+  // keeps (unplacedCellSymbol); a placed block's Pins never move.
   const placed = placedCellDocumentIds(project);
   const internal = project.documents.flatMap((document) => {
     // Top is an entry point, not a restriction on Cell reuse. First placement
     // and definition preview must resolve before a caller exists.
-    const definition = createHierarchicalBlockSymbol(document, {
-      fitNames: !placed.has(document.id),
-    });
+    const definition = createHierarchicalBlockSymbol(
+      placed.has(document.id)
+        ? document
+        : {
+            ...document,
+            presentation: {
+              ...document.presentation,
+              cellSymbol: unplacedCellSymbol(document),
+            },
+          },
+    );
     return definition ? [definition] : [];
   });
   const external = (project.externalSubcircuitDefinitions ?? []).flatMap(

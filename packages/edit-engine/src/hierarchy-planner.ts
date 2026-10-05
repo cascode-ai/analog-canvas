@@ -25,11 +25,11 @@ import {
 } from "@icm/devices";
 import {
   builtInSymbols,
-  cellBlockBodySize,
   createProjectSymbolResolver,
   externalSubcircuitSymbolId,
   hierarchicalSymbolId,
   placedCellDocumentIds,
+  unplacedCellSymbol,
 } from "@icm/symbols";
 import {
   derivePowerRailComponent,
@@ -725,7 +725,7 @@ export function planPlaceCellInstance(
   }
   const child = requireDocument(project, binding.childDocumentId);
   return [
-    ...firstPlacementBodySize(project, child),
+    ...firstPlacementSymbol(project, child),
     transactDocument(project, parentDocumentId, [
       { kind: "add_instance", instance },
       ...annotations.map((annotation) => ({
@@ -737,25 +737,22 @@ export function planPlaceCellInstance(
 }
 
 /**
- * A Cell no parent has placed draws its block large enough for its Pins'
- * names to read apart (#1327). Its first placement keeps that size, so the
- * block does not shrink once placed and later Pins never move under wires.
+ * A Cell no parent has placed shows the symbol its first placement keeps:
+ * Pins on the side their Ports are drawn on (#1319), and room for top and
+ * bottom Pin names (#1327). The first placement stores it, so the block does
+ * not change once placed and later Pins never move under wires.
  */
-function firstPlacementBodySize(
+function firstPlacementSymbol(
   project: CircuitProject,
   child: SchematicDocument,
 ): ProjectStructureEdit[] {
   if (placedCellDocumentIds(project).has(child.id)) return [];
-  const fitted = cellBlockBodySize(child, { fitNames: true });
-  const plain = cellBlockBodySize(child);
-  if (fitted.width === plain.width && fitted.height === plain.height) return [];
+  const next = unplacedCellSymbol(child);
   const current = child.presentation.cellSymbol;
+  if (!next || JSON.stringify(next) === JSON.stringify(current)) return [];
   return [
     transactDocument(project, child.id, [
-      {
-        kind: "set_cell_symbol_presentation",
-        presentation: { ...current, minimumBodySize: fitted },
-      },
+      { kind: "set_cell_symbol_presentation", presentation: next },
     ]),
   ];
 }

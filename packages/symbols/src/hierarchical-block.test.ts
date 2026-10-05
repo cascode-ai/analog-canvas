@@ -83,6 +83,51 @@ describe("hierarchical block formal terminals", () => {
     });
     expect(at(project, "VDD")).toEqual({ x: 0, y: -50 });
   });
+  it("puts an unplaced Cell's Pins on the side and in the order their Ports are drawn (#1319)", () => {
+    // blb comes first in the interface but is drawn right of bl; input a is
+    // drawn above input b. The automatic rule would put blb west and b
+    // above a, mirrored against the Cell's own schematic.
+    const project = createEmptyProject("p", "Top", "top");
+    const cell = createEmptyDocument("sram", "SRAM");
+    const port = (
+      name: string,
+      direction: "input" | "inout",
+      x: number,
+      y: number,
+    ) => {
+      cell.instances.push({
+        id: `P-${name}`,
+        symbolId: "port",
+        placement: { position: { x, y }, rotation: 0, mirror: "none" },
+      });
+      return {
+        id: `terminal-${name}`,
+        name,
+        netId: `net-${name}`,
+        direction,
+        interfaceInstanceIds: [`P-${name}`],
+      };
+    };
+    cell.netlist = {
+      name: "sram",
+      formalParameters: [],
+      terminals: [
+        port("blb", "inout", 200, 100),
+        port("bl", "inout", 0, 100),
+        port("b", "input", 0, 200),
+        port("a", "input", 0, 140),
+      ],
+    };
+    project.documents.push(cell);
+    const at = (name: string) =>
+      createProjectHierarchicalSymbols(project)
+        .find((symbol) => symbol.id === hierarchicalSymbolId("sram"))!
+        .pins.find((pin) => pin.name === name)!;
+    expect(at("bl").direction).toBe("west");
+    expect(at("blb").direction).toBe("east");
+    expect(at("a").at.y).toBeLessThan(at("b").at.y);
+    expect(at("bl").at.y).toBeLessThan(at("a").at.y);
+  });
   it("derives pins only from the private formal cell interface", () => {
     const symbol = createHierarchicalBlockSymbol({
       name: "Child",
