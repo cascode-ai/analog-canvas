@@ -154,6 +154,58 @@ describe("final-position contact transform", () => {
         ).toContainEqual({ instanceId: "X", pinName });
     }
   });
+  it("does not join a moved part's pin to the part's own stretched wire", () => {
+    // A comparator typed a grid step higher stretched its IN- wire through
+    // the place IN+ came to, and the move joined IN+ to it: a flash ADC's
+    // input went onto a ladder tap.
+    const d = createEmptyDocument("own-wire", "Own wire");
+    d.instances.push(
+      {
+        id: "C",
+        symbolId: "comparator",
+        reference: "X1",
+        netlist: { parameters: {} },
+        placement: { position: { x: 120, y: 0 }, rotation: 0, mirror: "none" },
+      },
+      // The ladder resistor whose lower pin is the tap.
+      {
+        id: "R",
+        symbolId: "resistor",
+        reference: "R1",
+        netlist: { parameters: {} },
+        placement: { position: { x: 0, y: -30 }, rotation: 0, mirror: "none" },
+      },
+    );
+    d.nets.push({
+      id: "tap",
+      terminals: [
+        { instanceId: "R", pinName: "2" },
+        { instanceId: "C", pinName: "IN-" },
+      ],
+    });
+    d.routes.push(
+      createRoutePath({
+        id: "w",
+        netId: "tap",
+        start: { kind: "terminal", instanceId: "R", pinName: "2" },
+        end: { kind: "terminal", instanceId: "C", pinName: "IN-" },
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+    const plan = planInstanceContactTransform(
+      d,
+      resolver,
+      { instanceIds: ["C"], routeIds: [], junctionIds: [] },
+      { x: 0, y: -20 },
+      true,
+    );
+    const kinds = plan.edits.map((edit) => edit.kind);
+    expect(kinds).toContain("set_route_path");
+    expect(kinds).not.toContain("attach_endpoint_to_route");
+    expect(kinds).not.toContain("merge_nets");
+    expect(kinds).not.toContain("connect_endpoints");
+  });
   it("does not connect a geometrically coincident passive move", () => {
     const d = move(fixture(), { x: 0, y: -100 }, false);
     expect(

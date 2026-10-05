@@ -2,7 +2,7 @@ import {
   resolveEndpointConnection,
   type RoutingSelectionSeed,
 } from "@icm/derived";
-import type { Point, SchematicDocument } from "@icm/model";
+import { routeEndpoints, type Point, type SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 import {
   placementWireSources,
@@ -65,12 +65,33 @@ export function planInstanceContactTransform(
         preludeEdits: [],
       });
   }
+  // The moved parts' own wires follow them, and so do the wires moved with
+  // them: their new geometry is the move's, not a conductor the parts were
+  // dropped on. A comparator typed a grid step higher stretched its IN− wire
+  // through the place IN+ came to, and the move joined IN+ to it, putting the
+  // input on a ladder tap.
+  const followers = new Set(seed.routeIds);
+  for (const route of projected.routes)
+    if (
+      routeEndpoints(route).some(
+        (end) => end.kind === "terminal" && movingIds.has(end.instanceId),
+      )
+    )
+      followers.add(route.id);
   const contact = proposePlacementContact(
     projected,
     resolver,
     instances[0]!,
     targets,
-    { mode: "move", instances },
+    {
+      mode: "move",
+      instances,
+      routeIds: new Set(
+        projected.routes
+          .map((route) => route.id)
+          .filter((id) => !followers.has(id)),
+      ),
+    },
   );
   if (contact.rejected || contact.ambiguous) {
     return {
