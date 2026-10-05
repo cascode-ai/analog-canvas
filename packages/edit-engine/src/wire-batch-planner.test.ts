@@ -577,3 +577,56 @@ describe("an Agent wire from a MOS body on its Cell's default", () => {
     },
   );
 });
+
+describe("an Agent connect to an open point on another part's pin", () => {
+  it("names the pin to connect to instead", () => {
+    const document = createEmptyDocument("doc", "Point on a pin");
+    document.instances.push(
+      {
+        id: "R1",
+        symbolId: "resistor",
+        reference: "R1",
+        placement: { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+        netlist: { parameters: { value: "1k" } },
+      },
+      {
+        id: "G1",
+        symbolId: "ground",
+        placement: { position: { x: 0, y: 100 }, rotation: 0, mirror: "none" },
+      },
+    );
+    document.nets.push({
+      id: "net-gnd",
+      terminals: [{ instanceId: "G1", pinName: "0" }],
+    });
+    document.connectivityEvidence.push({
+      id: "claim-ground",
+      kind: "name-claim",
+      netId: "net-gnd",
+      name: "0",
+      scope: "global",
+      powerDomain: "ground",
+      owner: { kind: "power-marker", objectId: "G1" },
+    });
+    // (0, 90) is the ground's pin: the wire would end on it unjoined.
+    const plan = planWireBatch(
+      document,
+      resolver,
+      [
+        wire(
+          "w",
+          {
+            kind: "endpoint",
+            endpoint: { kind: "terminal", instanceId: "R1", pinName: "2" },
+          },
+          free(0, 90),
+        ),
+      ],
+      512,
+      { keepClear: true },
+    );
+    expect(plan).toBe(
+      'Wire 1: (0, 90) is pin 0 of the ground G1, on Net 0: to join it, connect to the pin itself, {kind:"pin",instance:{kind:"instance",id:"G1"},pin:"0"}',
+    );
+  });
+});

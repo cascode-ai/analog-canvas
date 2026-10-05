@@ -241,6 +241,10 @@ export function createRouteClearance(
     label: string;
     points: Point[];
     logicalId: string | undefined;
+    /** How an Agent names this pin as a wire's end. */
+    target: string;
+    /** The pin in words, for a part with or without a Reference. */
+    text: string;
   }[] = [];
   const bodies: {
     instanceId: string;
@@ -315,6 +319,12 @@ export function createRouteClearance(
         label: `${label}.${pin.name}`,
         points: [connection.contactPoint, connection.gridLanding],
         logicalId: pinNet.get(key),
+        target: instance.reference
+          ? `{kind:"pin",instance:"${instance.reference}",pin:"${pin.name}"}`
+          : `{kind:"pin",instance:{kind:"instance",id:"${instance.id}"},pin:"${pin.name}"}`,
+        text: instance.reference
+          ? `${instance.reference}.${pin.name}`
+          : `pin ${pin.name} of the ${instance.symbolId} ${instance.id}`,
       });
     }
   }
@@ -468,6 +478,22 @@ export function createRouteClearance(
     const a = geometryOf(from);
     const b = geometryOf(to);
     if (!a || !b) return "an endpoint has no routing landing";
+    // An open end on another part's pin is that pin, and no path to it can
+    // keep clear of it. A connect to the spot where a ground's pin sat was
+    // refused as passing over "pin instance-d437….0"; name the pin to join.
+    for (const end of [from, to]) {
+      if ("kind" in end) continue;
+      const pin = pins.find(
+        (candidate) =>
+          !own.endpointKeys.has(candidate.key) &&
+          !ownNet(candidate.logicalId) &&
+          candidate.points.some(
+            (point) => point.x === end.x && point.y === end.y,
+          ),
+      );
+      if (pin)
+        return `${format(end)} is ${pin.text}${pin.logicalId ? `, on Net ${logical.byId.get(pin.logicalId)?.name ?? pin.logicalId}` : ""}: to join it, connect to the pin itself, ${pin.target}`;
+    }
     // No path helps a pin that already sits on another Net's wire.
     for (const [end, connection] of [
       [fromEnd, a],
