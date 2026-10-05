@@ -31,7 +31,10 @@ import {
 } from "./simulation-compile.js";
 import { printSpiceWithLocations } from "./printers.js";
 import type { PrintedNetlistParameter as PrintedSpiceParameter } from "./printed-netlist.js";
-import type { DesignNetlistCell } from "./ir.js";
+import type {
+  DesignNetlistCell,
+  DesignNetlistGeneratedDefinition,
+} from "./ir.js";
 import {
   inspectSimulationSourceGraph,
   type SimulationSourceDiagnostic,
@@ -292,26 +295,37 @@ export function compileNgspiceSourceSimulation(
         definitions.set(cell.id, { cell, bindingId: binding.id });
     }
   }
-  // A drawn T-coil's or transformer's subcircuit is generated too: defined
-  // once, by the first bound root that calls it.
-  const magneticOwners = new Map<string, string>();
+  // Behavioral and magnetic definitions share ownership: the first bound
+  // root that calls the model emits it, even if later roots reach it too.
+  const generatedOwners = new Map<string, string>();
+  const generatedDefinitions = new Map<
+    string,
+    DesignNetlistGeneratedDefinition
+  >();
   for (const binding of bindings) {
     for (const subcircuit of plans.get(binding.id)!.circuit
-      .magneticSubcircuits ?? []) {
+      .generatedDefinitions ?? []) {
       const name = subcircuit.name.toLowerCase();
+      const prior = generatedDefinitions.get(name);
+      if (prior && JSON.stringify(prior) !== JSON.stringify(subcircuit))
+        fail(
+          "SIMULATION_GENERATED_DEFINITION_CONFLICT",
+          `Conflicting generated model ${subcircuit.name}`,
+        );
+      generatedDefinitions.set(name, subcircuit);
       if (names.has(name))
         fail(
           "SIMULATION_GENERATED_NAME_COLLISION",
           `Generated Cell ${subcircuit.name} shares its name with the built-in ${subcircuit.name} subcircuit`,
         );
-      if (!magneticOwners.has(name)) magneticOwners.set(name, binding.id);
+      if (!generatedOwners.has(name)) generatedOwners.set(name, binding.id);
     }
   }
   for (const { path, statement } of graph.statements) {
     if (
       statement.kind === "subckt_start" &&
       (names.has(statement.name.toLowerCase()) ||
-        magneticOwners.has(statement.name.toLowerCase()))
+        generatedOwners.has(statement.name.toLowerCase()))
     )
       diagnostics.push({
         code: "SIMULATION_GENERATED_DEFINITION_SHADOWED",
@@ -348,9 +362,9 @@ export function compileNgspiceSourceSimulation(
         {
           ...ir,
           cells,
-          magneticSubcircuits: (ir.magneticSubcircuits ?? []).filter(
+          generatedDefinitions: (ir.generatedDefinitions ?? []).filter(
             (subcircuit) =>
-              magneticOwners.get(subcircuit.name.toLowerCase()) === binding.id,
+              generatedOwners.get(subcircuit.name.toLowerCase()) === binding.id,
           ),
         },
         binding.emission === "top-level",

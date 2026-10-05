@@ -1,8 +1,9 @@
-import { subcircuitDescriptor } from "@icm/devices";
+import { builtInModelDefaults, subcircuitDescriptor } from "@icm/devices";
 
 /**
  * Ideal ngspice bodies for the multiplier and the two converters. They are
- * nonlinear, so unlike the adder they are B-sources and SPICE only.
+ * nonlinear, so unlike the adder their canonical bodies use B-sources. The
+ * native VACASK generator consumes these same reviewed equations.
  *
  * - The multiplier is a signal-flow mixing node: V(Y) = gain·V(A)·V(B) from
  *   ground, gain in 1/V. VDD/VSS stay in the interface, unused, as for the
@@ -17,7 +18,6 @@ import { subcircuitDescriptor } from "@icm/devices";
 type SignalModel = {
   symbolId: string;
   ports: readonly string[];
-  parameters: string;
   body: readonly string[];
 };
 
@@ -32,29 +32,22 @@ const MODELS: Readonly<Record<string, SignalModel>> = {
   multiplier: {
     symbolId: "multiplier",
     ports: ["VDD", "VSS", "A", "B", "Y"],
-    parameters: "gain=1",
     body: ["BY Y 0 V={gain*V(A)*V(B)}"],
   },
   adc: {
     symbolId: "adc",
     ports: ["VDD", "VSS", "VIN", "VOUT"],
-    parameters: "bits=8",
     body: quantizer,
   },
   dac: {
     symbolId: "dac",
     ports: ["VDD", "VSS", "VIN", "VOUT"],
-    parameters: "bits=8",
     body: quantizer,
   },
 };
 
 /** Every subcircuit target this module gives a body. */
 export const IDEAL_SIGNAL_TARGETS: readonly string[] = Object.keys(MODELS);
-
-export function isIdealSignalTarget(target: string): boolean {
-  return Object.hasOwn(MODELS, target);
-}
 
 /** The `.subckt` text of one block, ready for an ngspice file. */
 export function spiceIdealSignalSubcircuit(target: string): string[] {
@@ -72,7 +65,11 @@ export function spiceIdealSignalSubcircuit(target: string): string[] {
     target === "multiplier"
       ? "* Ideal multiplier: V(Y) = gain*V(A)*V(B) from ground"
       : `* Ideal ${target.toUpperCase()}: 2^bits levels between VSS and VDD, no clock`,
-    `.subckt ${target} ${model.ports.join(" ")} params: ${model.parameters}`,
+    `.subckt ${target} ${model.ports.join(" ")} params: ${Object.entries(
+      builtInModelDefaults(target),
+    )
+      .map(([name, value]) => `${name}=${value}`)
+      .join(" ")}`,
     ...model.body,
     `.ends ${target}`,
   ];

@@ -93,7 +93,11 @@ export function nativeSimulationDevices(
         ancestors: Set<string>,
       ) {
         if (++visits > 4096 || ancestors.has(cell.id)) return;
-        const document = project.documents.find((d) => d.id === cell.id)!;
+        // Generated masters have no Canvas owner. Their call remains a public
+        // device, but implementation primitives must not become fake Instances.
+        if (cell.origin === "generated-model") return;
+        const document = project.documents.find((d) => d.id === cell.id);
+        if (!document) return;
         // One name inventory per visited Cell, not a full scan for every pin.
         const occupied = new Set([
           ...cell.instances.map((i) => i.reference),
@@ -111,7 +115,12 @@ export function nativeSimulationDevices(
           const authored = document.instances.find((i) => i.id === card.id);
           const polarity = authored ? mosBulkKind(authored) : undefined;
           const nativeDevice =
-            card.invocationKind === "primitive" ? reference : undefined;
+            card.invocationKind === "primitive" &&
+            !cell.models?.some(
+              (model) => model.name === card.target && model.type === "SW",
+            )
+              ? reference
+              : undefined;
           const child =
             card.deviceClass === "hierarchical"
               ? ir!.cells.find((c) => c.name === card.target)

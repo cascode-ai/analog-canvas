@@ -244,16 +244,35 @@ export function compileSourceSimulation(
     NonNullable<DesignNetlistIR["externalMasters"]>[number]
   >();
   const globals = new Set<string>();
-  // Kept so the native printer can say which drawn device it cannot write.
-  const magneticSubcircuits = new Map<
+  const generatedDefinitions = new Map<
     string,
-    NonNullable<DesignNetlistIR["magneticSubcircuits"]>[number]
+    NonNullable<DesignNetlistIR["generatedDefinitions"]>[number]
   >();
   for (const binding of bindings) {
     const ir = plans.get(binding.id)!;
     for (const name of ir.globals) globals.add(name);
-    for (const subcircuit of ir.magneticSubcircuits ?? [])
-      magneticSubcircuits.set(subcircuit.name, subcircuit);
+    for (const definition of ir.generatedDefinitions ?? []) {
+      const prior = generatedDefinitions.get(definition.name);
+      if (prior && JSON.stringify(prior) !== JSON.stringify(definition))
+        fail(
+          "SIMULATION_GENERATED_DEFINITION_CONFLICT",
+          `Conflicting generated model ${definition.name}`,
+          binding.path,
+        );
+      generatedDefinitions.set(definition.name, definition);
+      if (
+        names.has(definition.name) &&
+        names.get(definition.name) !== `model:${definition.name}`
+      )
+        fail(
+          "SIMULATION_GENERATED_NAME_COLLISION",
+          `Generated model ${definition.name} shares a Cell name`,
+          binding.path,
+        );
+      names.set(definition.name, `model:${definition.name}`);
+      if (!owners.has(`model:${definition.name}`))
+        owners.set(`model:${definition.name}`, binding.id);
+    }
     for (const master of ir.externalMasters ?? [])
       masters.set(master.id, master);
     for (const cell of ir.cells) {
@@ -336,10 +355,19 @@ export function compileSourceSimulation(
         cells: [...cells.values()],
         globals: [...globals],
         externalMasters: [...masters.values()],
-        magneticSubcircuits: [...magneticSubcircuits.values()],
+        generatedDefinitions: [...generatedDefinitions.values()],
       },
       binding.emission === "top-level",
-      { cellIds, preamble: index === 0, reservedNames: authoredMasters },
+      {
+        cellIds,
+        preamble: index === 0,
+        reservedNames: authoredMasters,
+        definitionNames: new Set(
+          [...generatedDefinitions.keys()].filter(
+            (name) => owners.get(`model:${name}`) === binding.id,
+          ),
+        ),
+      },
     );
     if (!printed.ok)
       diagnostics.push(

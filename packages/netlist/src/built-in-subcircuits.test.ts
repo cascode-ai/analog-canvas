@@ -85,6 +85,41 @@ function analogBlockProject(
 }
 
 describe("built-in Analog Block subcircuits", () => {
+  it("honors an explicit external master on an amplifier Symbol", () => {
+    const project = analogBlockProject(
+      ["opamp"],
+      [
+        ["IN+", "plus"],
+        ["IN-", "minus"],
+        ["OUT", "out"],
+      ],
+    );
+    project.externalSubcircuitDefinitions.push({
+      id: "custom",
+      name: "custom_amp",
+      interfaceStatus: "declared",
+      terminals: ["IN+", "IN-", "OUT"].map((name, i) => ({
+        id: `p${i}`,
+        name,
+        direction: "passive" as const,
+      })),
+      formalParameters: [],
+    });
+    const instance = project.documents[0]!.instances.find(
+      (i) => i.id === "block-1",
+    )!;
+    instance.netlist = {
+      binding: { kind: "external-subcircuit", definitionId: "custom" },
+      parameters: { custom_gain: "{g}" },
+    };
+    const result = createDesignNetlistExport(project);
+    expect(result.status, JSON.stringify(result.diagnostics)).toBe("ready");
+    if (result.status !== "ready") return;
+    expect(result.file.text).toContain(
+      "X1 plus minus out custom_amp custom_gain={g}",
+    );
+    expect(result.file.text).not.toContain(".subckt opamp ");
+  });
   it("exports a logic gate with its generated ideal body", () => {
     // Issue #1255 asked for a body or a blocking diagnostic; a placed gate
     // now gets the body, so nobody has to draw its transistors.

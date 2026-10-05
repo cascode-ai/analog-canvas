@@ -166,8 +166,8 @@ and [delivery cadence](docs/deployment.md#development-and-delivery-cadence).
 - `packages/simulation-service/` and `packages/spice-run/`: shared simulation
   preparation, run lifecycle, and artifacts, plus simulator request and result
   contracts.
-- `packages/timing-simulation/`: deterministic digital timing simulation; its
-  experimental editor UI is hidden in production builds.
+- `packages/timing-simulation/`: isolated legacy digital event engine. It has
+  no current editor UI and is not the ngspice/VACASK analog logic model path.
 - `packages/platform-node/`: Node filesystem storage and recovery adapters with
   no current in-repository consumer.
 - `packages/agent-adapter/`, `packages/agent-client/`, and

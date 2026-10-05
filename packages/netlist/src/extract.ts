@@ -34,8 +34,10 @@ import type {
 } from "@icm/model";
 import {
   IDEAL_COMPARATOR_TARGET,
+  builtInModelContract,
   createReferenceIndex,
   deviceDescriptor,
+  instanceBuiltInSubcircuit,
   nextReference,
   projectLengthToSky130Micrometres,
   requiredParameterNames,
@@ -69,12 +71,11 @@ import {
   withImplicitMosSupplies,
 } from "./implicit-mos-supplies.js";
 import { idealAnalogBlockCell } from "./ideal-analog-block-models.js";
-import { isIdealLogicTarget } from "./ideal-logic-gate-models.js";
-import { isIdealSignalTarget } from "./ideal-signal-block-models.js";
 
 /** A target with a generated ngspice body: logic, multiplier, converters. */
 function isBehaviouralTarget(target: string): boolean {
-  return isIdealLogicTarget(target) || isIdealSignalTarget(target);
+  const family = builtInModelContract(target)?.family;
+  return family === "logic" || family === "signal";
 }
 
 const IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/u;
@@ -1572,6 +1573,7 @@ function magneticSubcircuit(
   definition: DeviceDescriptor,
 ): DesignNetlistMagneticSubcircuit {
   return {
+    kind: "magnetic",
     name: network.subcircuit,
     ports: network.ports.map((port) => port.port),
     formalParameters: drawnMagneticParameters(network).map((name) => ({
@@ -2357,7 +2359,7 @@ function extractCell(
     }
     if (cellPinInstanceIds.has(instance.id)) continue;
     const binding = instance.netlist?.binding;
-    const builtInSubcircuit = subcircuitDescriptor(instance.symbolId, project);
+    const builtInSubcircuit = instanceBuiltInSubcircuit(project, instance);
     const extracted = builtInSubcircuit
       ? extractBuiltInSubcircuitInstance(
           document,
@@ -2717,8 +2719,9 @@ function analyzeDesign(
       // is written, and a warning says the reader's libraries must define
       // it. (The comparator keeps its own IDEAL_COMPARATOR_SPICE_ONLY rule.)
       if (
-        resolvedOptions.format === "spectre" &&
-        isBehaviouralTarget(instance.target) &&
+        builtInModelContract(instance.target)?.backends[
+          resolvedOptions.format
+        ] === "external" &&
         !availableSubcircuits.has(target)
       ) {
         diagnostic(
@@ -2810,7 +2813,7 @@ function analyzeDesign(
         });
       }
     }
-    const descriptor = subcircuitDescriptor(instance.symbolId, project);
+    const descriptor = instanceBuiltInSubcircuit(project, instance);
     if (!descriptor) continue;
     const target =
       binding?.kind === "unresolved-subcircuit"
@@ -2891,25 +2894,27 @@ function analyzeDesign(
     ir: {
       topCellId: resolvedOptions.rootDocumentId,
       cells: [...idealCells, ...cells],
-      ...(cells.some((cell) =>
-        cell.instances.some(
-          (instance) => instance.target === IDEAL_COMPARATOR_TARGET,
+      generatedDefinitions: [
+        ...(!occupiedNames.has(IDEAL_COMPARATOR_TARGET.toLowerCase()) &&
+        cells.some((cell) =>
+          cell.instances.some(
+            (instance) => instance.target === IDEAL_COMPARATOR_TARGET,
+          ),
+        )
+          ? [{ kind: "behavioral" as const, name: IDEAL_COMPARATOR_TARGET }]
+          : []),
+        ...behaviouralBodies.map((name) => ({
+          kind: "behavioral" as const,
+          name,
+        })),
+        ...[...magneticSubcircuits.values()].sort((left, right) =>
+          compareText(left.name, right.name),
         ),
-      )
-        ? { idealComparator: true as const }
-        : {}),
-      ...(behaviouralBodies.length > 0 ? { behaviouralBodies } : {}),
+      ],
       globals,
       externalMasters: [...externalMasters.values()].sort((left, right) =>
         compareText(left.name, right.name),
       ),
-      ...(magneticSubcircuits.size > 0
-        ? {
-            magneticSubcircuits: [...magneticSubcircuits.values()].sort(
-              (left, right) => compareText(left.name, right.name),
-            ),
-          }
-        : {}),
     },
     diagnostics,
   };

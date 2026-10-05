@@ -1,10 +1,11 @@
-import { subcircuitDescriptor } from "@icm/devices";
+import { builtInModelDefaults, subcircuitDescriptor } from "@icm/devices";
 
 /**
  * Ideal behavioural bodies for the Library's logic gates and D flip-flops,
  * as the comparator and the analog blocks have theirs. A placed gate then
  * exports a complete netlist and simulates in ngspice; nobody has to draw
- * its transistors. SPICE only: the bodies are ngspice B-sources.
+ * its transistors. These canonical SPICE bodies also supply the reviewed
+ * equations projected by the native VACASK generator.
  *
  * - An input is high above half the supply, V(VDD,VSS)/2. Its level
  *   0..1 comes from a smooth `tanh` step `vt` wide, which keeps Newton
@@ -95,10 +96,6 @@ const MODELS: Readonly<Record<string, LogicModel>> = Object.fromEntries([
 
 /** Every subcircuit target this module gives a body. */
 export const IDEAL_LOGIC_TARGETS: readonly string[] = Object.keys(MODELS);
-
-export function isIdealLogicTarget(target: string): boolean {
-  return Object.hasOwn(MODELS, target);
-}
 
 function modelPorts(target: string, model: LogicModel): readonly string[] {
   const ports =
@@ -204,7 +201,11 @@ export function spiceIdealLogicSubcircuit(target: string): string[] {
   const ports = modelPorts(target, model);
   return [
     `* Ideal ${model.symbolId}: switches at V(VDD,VSS)/2; vt sets the step width, td the delay`,
-    `.subckt ${target} ${ports.join(" ")} params: vt=10m td=10p`,
+    `.subckt ${target} ${ports.join(" ")} params: ${Object.entries(
+      builtInModelDefaults(target),
+    )
+      .map(([name, value]) => `${name}=${value}`)
+      .join(" ")}`,
     ...(model.kind === "combinational"
       ? combinationalBody(model)
       : flipFlopBody(model)),

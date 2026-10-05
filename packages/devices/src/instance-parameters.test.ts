@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { createEmptyProject, createEmptyDocument } from "@icm/model";
 
 import { instanceParameterContract } from "./instance-parameters.js";
 
@@ -23,6 +24,84 @@ const names = (
   contract && [contract.definitions.map((p) => p.name), contract.open];
 
 describe("instanceParameterContract", () => {
+  it("shares external and child formal defaults while keeping their parameter namespaces open", () => {
+    const project = createEmptyProject("p", "Authored models", "root");
+    const child = createEmptyDocument("child", "Child");
+    child.netlist!.formalParameters = [{ name: "GAIN", defaultValue: "17" }];
+    project.documents.push(child);
+    project.externalSubcircuitDefinitions.push({
+      id: "custom",
+      name: "custom_amp",
+      terminals: [],
+      formalParameters: [{ name: "strength", defaultValue: "2" }],
+      interfaceStatus: "declared",
+    });
+    for (const [binding, expected] of [
+      [
+        { kind: "subcircuit", childDocumentId: "child" },
+        { name: "GAIN", defaultValue: "17" },
+      ],
+      [
+        { kind: "external-subcircuit", definitionId: "custom" },
+        { name: "strength", defaultValue: "2" },
+      ],
+    ] as const) {
+      const contract = instanceParameterContract(project, {
+        symbolId: "opamp",
+        netlist: { binding },
+      });
+      expect(contract?.definitions).toMatchObject([expected]);
+      expect(contract?.open).toBe(true);
+      expect(contract?.model).toBeUndefined();
+    }
+  });
+  it("shares model defaults across amplifier variants without closing custom arguments", () => {
+    for (const symbolId of ["opamp", "opamp-wide", "opamp-differential"]) {
+      const contract = instanceParameterContract({}, { symbolId });
+      expect(contract?.definitions).toMatchObject([
+        { name: "gain", defaultValue: "1e6" },
+      ]);
+      expect(contract?.open).toBe(true);
+    }
+  });
+
+  it("describes the effective target, not the artwork of an externally retargeted block", () => {
+    expect(
+      names(
+        instanceParameterContract(
+          {},
+          {
+            symbolId: "opamp",
+            netlist: {
+              binding: {
+                kind: "unresolved-subcircuit",
+                name: "custom_amplifier",
+              },
+            },
+          },
+        ),
+      ),
+    ).toEqual([[], true]);
+    expect(
+      names(
+        instanceParameterContract(
+          {},
+          {
+            symbolId: "comparator",
+            netlist: {
+              binding: {
+                kind: "unresolved-subcircuit",
+                name: "icm_ideal_comparator",
+              },
+            },
+          },
+        ),
+      ),
+    ).toEqual([["vhigh", "vlow", "vtransition"], false]);
+    expect(
+      names(instanceParameterContract({}, { symbolId: "d-flip-flop-q" })),
+    ).toEqual([["vt", "td"], true]);
+  });
   it("gives a built-in part its descriptor", () => {
     expect(
       names(instanceParameterContract({}, { symbolId: "resistor" })),
@@ -58,7 +137,7 @@ describe("instanceParameterContract", () => {
           },
         ),
       ),
-    ).toEqual([["value"], true]);
+    ).toEqual([[], true]);
   });
 
   it("leaves a Cell call open and knows nothing of a symbol outside the registry", () => {

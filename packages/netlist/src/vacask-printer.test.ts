@@ -474,6 +474,8 @@ describe("project scalar semantics at the VACASK boundary", () => {
     ["1M", "0.001"],
     ["1meg", "1000000"],
     ["1g", "1000000000"],
+    ["1T", "1e+12"],
+    ["-3g", "-3e+9"],
     ["10uF", "0.000009999999999999999"],
   ])("preserves %s", (input, expected) =>
     expect(vacaskProjectValue(input)).toBe(expected),
