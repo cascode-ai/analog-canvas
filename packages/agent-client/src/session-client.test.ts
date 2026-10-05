@@ -1556,6 +1556,65 @@ describe("agent session client", () => {
     expect(report).toMatchObject({ errors: 3, unwiredPins: 2, warnings: 1 });
   });
 
+  it("leaves the open Cell's findings out of a receipt that changed only the Project's structure", async () => {
+    const { client, http } = await freshClient();
+    await client.connect("session-1.code");
+    let editKinds = ["project:add_document"];
+    http.circuitHandler = async ({ request }) => {
+      if (request.operation !== "transact")
+        throw new Error(`unexpected ${request.operation} request`);
+      const response = transactSuccessResponse(
+        request.requestId,
+        request.expectedRevision,
+        ["document-new"],
+      );
+      return {
+        ...response,
+        diff: {
+          documentId: "main",
+          fromRevision: request.expectedRevision,
+          toRevision: request.expectedRevision + 1,
+          editKinds,
+          changedObjectIds: ["document-new"],
+        },
+        diagnostics: [
+          {
+            primary: {
+              documentId: "main",
+              hierarchyPath: [],
+              kind: "instance",
+              objectId: "instance-1",
+            },
+            code: "MISSING_PIN_NET",
+            domain: "spice",
+            severity: "error",
+            confidence: "high",
+            gateEligible: true,
+            message: "Required pin M1.D is not connected",
+            objectIds: ["instance-1"],
+          },
+        ],
+      } as never;
+    };
+    const report = await client.applyActions([
+      { kind: "create-cell", id: "document-new", name: "fresh" },
+    ]);
+    expect(report).toMatchObject({
+      ok: true,
+      changedObjectIds: ["document-new"],
+    });
+    expect(report).not.toHaveProperty("errors");
+    expect(report).not.toHaveProperty("diagnostics");
+
+    // A Project transaction that edits the Cell, as placing a Cell Pin
+    // does, keeps the Cell's findings.
+    editKinds = ["project:transact_document"];
+    const placed = await client.applyActions([
+      { kind: "create-cell", id: "document-other", name: "other" },
+    ]);
+    expect(placed).toMatchObject({ errors: 1, unwiredPins: 1 });
+  });
+
   it("sends Cells placed without IDs or orientation as one native batch, with no Snapshot (#1301)", async () => {
     const { client, http } = await freshClient();
     await client.connect("session-1.code");

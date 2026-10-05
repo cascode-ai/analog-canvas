@@ -13,6 +13,9 @@ instances or editing paths. Do not count a dry-run as a committed change.
 MCP receipts count the Cell's `errors` and `warnings`; `unwiredPins` says how
 many of those errors are pins not wired yet (`MISSING_PIN_NET`), as most are
 while a circuit is being drawn. Errors beyond that count need attention now.
+A change to the Project's structure alone, such as `create-cell`, leaves the
+open Cell unchanged and carries no findings; `changedObjectIds` names the new
+Cell, and its own findings come with its first edit.
 
 MCP receipts also identify stages such as compile and commit; an explicit
 `dryRun` request is not committed and reports `applied: false`. A

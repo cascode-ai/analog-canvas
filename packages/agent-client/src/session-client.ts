@@ -1895,6 +1895,16 @@ export class AgentSessionClient {
     const unwiredPins = response.diagnostics.filter(
       (item) => item.code === "MISSING_PIN_NET",
     ).length;
+    // A change to the Project's structure alone, such as a new Cell, leaves
+    // the open Cell as it was: its findings are not this change's. A new
+    // Cell's receipt read as three errors of an unrelated Cell. A Project
+    // transaction that edits a Cell (placing a Cell Pin) keeps them.
+    const structureOnly =
+      response.diff.editKinds.length > 0 &&
+      response.diff.editKinds.every(
+        (kind) =>
+          kind.startsWith("project:") && kind !== "project:transact_document",
+      );
     const report: ApplyActionsReport = {
       ok: true,
       stage: "done",
@@ -1912,13 +1922,18 @@ export class AgentSessionClient {
         ? { terminalConnectivityChanged: response.terminalConnectivityChanged }
         : {}),
       editKinds: response.diff.editKinds,
-      diagnostics: response.diagnostics,
-      errors: response.diagnostics.filter((item) => item.severity === "error")
-        .length,
-      ...(unwiredPins ? { unwiredPins } : {}),
-      warnings: response.diagnostics.filter(
-        (item) => item.severity === "warning",
-      ).length,
+      ...(structureOnly
+        ? {}
+        : {
+            diagnostics: response.diagnostics,
+            errors: response.diagnostics.filter(
+              (item) => item.severity === "error",
+            ).length,
+            ...(unwiredPins ? { unwiredPins } : {}),
+            warnings: response.diagnostics.filter(
+              (item) => item.severity === "warning",
+            ).length,
+          }),
       ...(response.diagnosticDelta
         ? { diagnosticDelta: response.diagnosticDelta }
         : {}),
