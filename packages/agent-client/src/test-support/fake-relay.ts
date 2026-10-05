@@ -7,7 +7,7 @@ import type {
   AgentProjectResourceResponse,
 } from "@icm/agent-adapter";
 import { AgentHttpClient, type ClaimSuccess } from "../http-client.js";
-import { testSnapshot } from "./snapshot-fixture.js";
+import { testSnapshot } from "../../../agent-adapter/src/test-support/snapshot-fixture.js";
 
 /**
  * In-process fake of the public relay for Helper and MCP contract tests.

@@ -1,12 +1,15 @@
+import { agentRazaviAuthoringCatalog } from "./agent-authoring-catalog.generated.js";
 import {
   AgentAuthoringCommandSchema,
-  AgentSchematicEditSchema,
-  AgentWireIntentSchema,
   isBatchableAuthoringCommand,
   type AgentAuthoringCommand,
+} from "./authoring-command.js";
+import {
+  AgentSchematicEditSchema,
+  AgentWireIntentSchema,
+  type AgentSemanticIntent,
   type AgentSessionSnapshot,
-} from "@icm/agent-adapter";
-import { agentRazaviAuthoringCatalog } from "@icm/agent-adapter/kit";
+} from "./schema.js";
 import {
   instanceParameterContract,
   subcircuitDescriptor,
@@ -42,8 +45,8 @@ type ActionOfKind<K extends AuthoringAction["kind"]> = Extract<
  */
 export interface CompiledTransaction {
   form: "edits" | "wire-intent" | "command" | "semantic";
-  command?: import("@icm/agent-adapter").AgentAuthoringCommand;
-  semanticIntent?: import("@icm/agent-adapter").AgentSemanticIntent;
+  command?: AgentAuthoringCommand;
+  semanticIntent?: AgentSemanticIntent;
   edits?: SchematicEdit[];
   /** Input action index for each compiled primitive edit, in the same order. */
   editActionIndices?: number[];

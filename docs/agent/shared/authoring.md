@@ -297,7 +297,8 @@ change the owning terminal, name claim, Reference, or parameter to change them.
 Cell interface/symbol edits use `structureEdits` with a nested
 `transact_document`, not top-level `edits`; the per-kind contract supplies that
 envelope when needed. HTTP callers use their published transact schema, not an
-MCP tool envelope. Current revision guards and locks always apply.
+MCP tool envelope; its `actions` form takes the actions `apply_actions` takes.
+Current revision guards and locks always apply.
 
 For simulation, go directly to the selected transport's call guide. The
 [shared simulation workflow](simulation.md) is optional detail for unfamiliar

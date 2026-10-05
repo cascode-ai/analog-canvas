@@ -7,7 +7,7 @@ import {
   SnapshotCache,
   type CachedSnapshot,
 } from "./snapshot-cache.js";
-import { testSnapshot } from "./test-support/snapshot-fixture.js";
+import { testSnapshot } from "../../agent-adapter/src/test-support/snapshot-fixture.js";
 
 function cachedEntry(revision = 5): CachedSnapshot {
   return {

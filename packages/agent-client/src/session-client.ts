@@ -5,8 +5,6 @@ import {
   AgentFolderDirectoryResponseSchema,
   AgentGeometrySnapshotResponseSchema,
   AgentPinsSnapshotResponseSchema,
-  AgentAuthoringCommandSchema,
-  isBatchableAuthoringCommand,
   AgentCapabilitiesResponseSchema,
   AgentRenderResponseSchema,
   AgentTransactionPayloadSchema,
@@ -57,16 +55,10 @@ import {
   type SnapshotSummary,
 } from "./snapshot-cache.js";
 import {
-  ActionCompileError,
-  compileActions,
-  describeCallSplit,
-  directConnectIntent,
-  nativeForm,
-  splitIntoCalls,
+  actionRefusalNaming,
+  planActions,
   type ActionCall,
-  type CompiledTransaction,
-} from "./authoring-helper.js";
-import { AuthoringActionSchema } from "./authoring-actions.js";
+} from "@icm/agent-adapter/authoring";
 import type { WorkspaceBindingStore } from "./workspace-binding-store.js";
 
 interface ActiveSession {
@@ -101,6 +93,13 @@ export interface AgentSessionClientOptions {
   workspaceBindingStore?: WorkspaceBindingStore;
   /** A one-command process cannot honor an in-memory-only bind. */
   requireDurableWorkspaceBinding?: boolean;
+  /**
+   * Compile action lists here even when the editor plans them. The editor's
+   * plan is the same code; tests compare the two, and a host may pin it.
+   */
+  planActionsLocally?: boolean;
+  /** The IDs a locally compiled action list makes; random by default. */
+  allocateId?: (prefix: string) => string;
 }
 
 export interface ConnectReport {
@@ -181,6 +180,19 @@ function baseRequest(requestId: string): {
  * headers. A revocable connector credential may be persisted by M4 so a new
  * MCP process can resume without another claim-code hand-off.
  */
+/** The action an editor's refusal of an action list names, if it does. */
+function refusedAction(error: {
+  actionIndex?: number | undefined;
+  actionKind?: string | undefined;
+}): { actionIndex?: number; actionKind?: string } {
+  return error.actionIndex === undefined
+    ? {}
+    : {
+        actionIndex: error.actionIndex,
+        ...(error.actionKind ? { actionKind: error.actionKind } : {}),
+      };
+}
+
 export class AgentSessionClient {
   readonly connection: ConnectionTracker;
   private readonly http: AgentHttpClient;
@@ -214,6 +226,8 @@ export class AgentSessionClient {
   private boundWorkspace: { projectId: string; documentIds: string[] } | null =
     null;
   private capabilitiesCache: AgentCapabilitiesResponse | null = null;
+  private readonly planActionsLocally: boolean;
+  private readonly allocateId: (prefix: string) => string;
   private resumePromise: Promise<ActiveSession | null> | null = null;
   private simulationMetadata = new Map<
     string,
@@ -271,6 +285,9 @@ export class AgentSessionClient {
     this.workspaceBindingStore = options.workspaceBindingStore;
     this.requireDurableWorkspaceBinding =
       options.requireDurableWorkspaceBinding ?? false;
+    this.planActionsLocally = options.planActionsLocally ?? false;
+    this.allocateId =
+      options.allocateId ?? ((prefix) => `${prefix}-${crypto.randomUUID()}`);
     this.connection = new ConnectionTracker(this.now);
   }
 
@@ -1348,10 +1365,11 @@ export class AgentSessionClient {
   }
 
   /**
-   * Compile high-level actions against the current clean Snapshot, require one atomic
-   * transaction, then commit it in a single request. The commit validates
-   * atomically, so a concurrent human edit surfaces as `STATE_CHANGED` with
-   * the objects that moved, never as a blind overwrite.
+   * Send high-level actions as one atomic transaction in a single request.
+   * An editor that plans `actions` takes the list as it is; an older one gets
+   * it compiled here, by the same code, against the current clean Snapshot.
+   * The commit validates atomically, so a concurrent human edit surfaces as
+   * `STATE_CHANGED` with the objects that moved, never as a blind overwrite.
    */
   async applyActions(
     actions: readonly unknown[],
@@ -1361,171 +1379,64 @@ export class AgentSessionClient {
       diagnosticDeltaDetail?: "full" | "compact";
     } = {},
   ): Promise<ApplyActionsReport> {
-    const parsed = z.array(AuthoringActionSchema).safeParse(actions);
-    if (!parsed.success) {
-      const issue = parsed.error.issues[0];
-      return {
-        ok: false,
-        stage: "compile",
-        code: "ACTION_COMPILE_FAILED",
-        message: issue
-          ? `${issue.path.join(".")}: ${issue.message}`
-          : "invalid action",
-        actionIndex: Number(issue?.path[0] ?? 0) || 0,
-        actionKind: "schema",
-      };
-    }
-    // A friendlier place-cell, set-model or set-display-alias goes native
-    // here when it needs no Snapshot to (#1301).
-    const direct = parsed.data.map((action) =>
-      nativeForm(action, (prefix) => `${prefix}-${crypto.randomUUID()}`),
-    );
     if (
-      direct.length > 0 &&
-      direct.length <= 64 &&
-      direct.every((action) => action.kind === "connect")
-    ) {
-      const wires = direct.map((action) =>
-        directConnectIntent(
-          action,
-          (prefix) => `${prefix}-${crypto.randomUUID()}`,
-        ),
-      );
-      if (wires.every((wire) => wire !== undefined)) {
-        return namingAction(
-          direct,
-          await this.submitTransaction(
-            await this.revisionFor(options.documentId),
-            { wireIntent: wires.length === 1 ? wires[0] : wires },
-            {
-              dryRun: options.dryRunOnly ?? false,
-              diagnosticDeltaDetail: options.diagnosticDeltaDetail ?? "full",
-            },
-          ),
-          () => (direct.length === 1 ? 0 : undefined),
-        );
-      }
-    }
-    if (direct.length === 1) {
-      const action = direct[0]!;
-      const command = AgentAuthoringCommandSchema.safeParse(action);
-      if (
-        command.success ||
-        action.kind === "focus" ||
-        action.kind === "undo" ||
-        action.kind === "redo"
-      ) {
-        const revision = await this.revisionFor(options.documentId);
-        const payload =
-          action.kind === "focus"
-            ? { semanticIntent: action.intent }
-            : action.kind === "undo" || action.kind === "redo"
-              ? { edits: [{ kind: action.kind }] }
-              : { command: command.data };
-        return namingAction(
-          direct,
-          await this.submitTransaction(revision, payload, {
-            diagnosticDeltaDetail: options.diagnosticDeltaDetail ?? "full",
-            dryRun: options.dryRunOnly ?? false,
-          }),
-          () => 0,
-        );
-      }
-    }
-    if (
-      direct.length > 1 &&
-      direct.length <= 64 &&
-      direct.every(
-        (action) =>
-          isBatchableAuthoringCommand(action) &&
-          AgentAuthoringCommandSchema.safeParse(action).success,
+      !this.planActionsLocally &&
+      (await this.capabilities()).capabilities.transactionForms?.includes(
+        "actions",
       )
     ) {
-      const revision = await this.revisionFor(options.documentId);
-      // The batch's items are these actions, in order.
-      return namingAction(
-        direct,
-        await this.submitTransaction(
-          revision,
-          { command: { kind: "batch", commands: direct } },
-          {
-            dryRun: options.dryRunOnly ?? false,
-            diagnosticDeltaDetail: options.diagnosticDeltaDetail ?? "full",
-          },
-        ),
-        (report) =>
-          report.diagnostics?.flatMap((diagnostic) =>
-            typeof diagnostic.parameters?.actionIndex === "number"
-              ? [diagnostic.parameters.actionIndex]
-              : [],
-          )[0],
+      // The editor plans the list with the same code, against the Document
+      // it holds: one request, and no Snapshot read here.
+      return this.submitTransaction(
+        await this.revisionFor(options.documentId),
+        { actions },
+        {
+          dryRun: options.dryRunOnly ?? false,
+          diagnosticDeltaDetail: options.diagnosticDeltaDetail ?? "full",
+        },
       );
     }
-    const entry = await this.snapshot(options.documentId);
-    let compiled: CompiledTransaction[];
-    try {
-      compiled = compileActions(actions, {
-        snapshot: entry.snapshot,
-        allocateId: (prefix) => `${prefix}-${crypto.randomUUID()}`,
-        maxEditsPerTransaction:
-          this.capabilitiesCache?.capabilities.limits.maxTransactionEdits ?? 64,
-      });
-    } catch (error) {
-      if (!(error instanceof ActionCompileError)) throw error;
+    let entry: CachedSnapshot | undefined;
+    const plan = await planActions(actions, {
+      allocateId: this.allocateId,
+      snapshot: async () => {
+        entry = await this.snapshot(options.documentId);
+        return entry.snapshot;
+      },
+      maxEditsPerTransaction: () =>
+        this.capabilitiesCache?.capabilities.limits.maxTransactionEdits ?? 64,
+    });
+    if (plan.kind === "refused")
       return {
         ok: false,
         stage: "compile",
         code: "ACTION_COMPILE_FAILED",
-        message: error.message,
-        actionIndex: error.index,
-        actionKind: error.actionKind,
-        revision: entry.revision,
+        message: plan.message,
+        actionIndex: plan.actionIndex,
+        actionKind: plan.actionKind,
+        ...(plan.readSnapshot && entry ? { revision: entry.revision } : {}),
       };
-    }
-    if (
-      compiled.length > 1 &&
-      compiled.every((item) => item.form === "wire-intent")
-    ) {
-      return this.submitTransaction(
-        this.revisionFromSnapshot(entry),
-        { wireIntent: compiled.map((item) => item.wireIntent!) },
-        {
-          dryRun: options.dryRunOnly ?? false,
-          diagnosticDeltaDetail: options.diagnosticDeltaDetail ?? "full",
-        },
-      );
-    }
-    const batchCommands = compiled.flatMap((item) =>
-      item.form === "command" &&
-      item.command &&
-      isBatchableAuthoringCommand(item.command)
-        ? [item.command]
-        : [],
-    );
-    if (
-      compiled.length > 1 &&
-      compiled.length <= 64 &&
-      batchCommands.length === compiled.length
-    ) {
-      return this.submitTransaction(
-        this.revisionFromSnapshot(entry),
-        { command: { kind: "batch", commands: batchCommands } },
-        {
-          dryRun: options.dryRunOnly ?? false,
-          diagnosticDeltaDetail: options.diagnosticDeltaDetail ?? "full",
-        },
-      );
-    }
-    if (compiled.length === 0) {
+    if (plan.kind === "split")
+      return {
+        ok: false,
+        stage: "compile",
+        code: "ACTION_BATCH_NOT_ATOMIC",
+        message: plan.message,
+        revision: entry!.revision,
+        transactions: plan.transactions,
+        calls: plan.calls,
+      };
+    if (plan.kind === "nothing") {
+      const read = entry!;
       // Content-only no-ops must not create an undo entry. Check authority with
       // the existing lightweight state read, not another full Snapshot/write.
-      const current = await this.documentState(entry.documentId, {
+      const current = await this.documentState(read.documentId, {
         refresh: true,
       });
       if (
-        current.projectId !== entry.snapshot.project.id ||
-        current.revision !== entry.revision ||
-        current.structureRevision !== entry.snapshot.project.structureRevision
+        current.projectId !== read.snapshot.project.id ||
+        current.revision !== read.revision ||
+        current.structureRevision !== read.snapshot.project.structureRevision
       )
         return {
           ok: false,
@@ -1537,9 +1448,9 @@ export class AgentSessionClient {
       return {
         ok: true,
         stage: "done",
-        projectId: entry.snapshot.project.id,
-        documentId: entry.documentId,
-        revision: entry.revision,
+        projectId: read.snapshot.project.id,
+        documentId: read.documentId,
+        revision: read.revision,
         applied: false,
         transactions: 0,
         changedObjectIds: [],
@@ -1547,74 +1458,18 @@ export class AgentSessionClient {
         dryRun: options.dryRunOnly ?? false,
       };
     }
-    if (compiled.length !== 1) {
-      const calls = splitIntoCalls(compiled);
-      return {
-        ok: false,
-        stage: "compile",
-        code: "ACTION_BATCH_NOT_ATOMIC",
-        message: describeCallSplit(calls),
-        revision: entry.revision,
-        transactions: compiled.length,
-        calls,
-      };
-    }
-    const transaction = compiled[0]!;
-    const payload =
-      transaction.form === "edits"
-        ? { edits: transaction.edits }
-        : transaction.form === "command"
-          ? { command: transaction.command }
-          : transaction.form === "semantic"
-            ? { semanticIntent: transaction.semanticIntent }
-            : { wireIntent: transaction.wireIntent };
     const report = await this.submitTransaction(
-      this.revisionFromSnapshot(entry),
-      payload,
+      plan.readSnapshot && entry
+        ? this.revisionFromSnapshot(entry)
+        : await this.revisionFor(options.documentId),
+      plan.payload,
       {
         dryRun: options.dryRunOnly ?? false,
         diagnosticDeltaDetail: options.diagnosticDeltaDetail ?? "full",
       },
     );
-    if (report.ok) return report;
-    const editIndex = report.diagnostics?.flatMap((diagnostic) =>
-      diagnostic.path?.[0] === "edits" && typeof diagnostic.path[1] === "number"
-        ? [diagnostic.path[1]]
-        : [],
-    )[0];
-    const instanceIndex = report.diagnostics?.flatMap((diagnostic) =>
-      typeof diagnostic.parameters?.instanceIndex === "number"
-        ? [diagnostic.parameters.instanceIndex]
-        : [],
-    )[0];
-    // The editor names a command's failing item; a batch of commands
-    // joins several actions, one command is one action (#1231).
-    const itemIndex = report.diagnostics?.flatMap((diagnostic) =>
-      typeof diagnostic.parameters?.actionIndex === "number"
-        ? [diagnostic.parameters.actionIndex]
-        : [],
-    )[0];
-    const actionIndex =
-      transaction.form === "edits"
-        ? editIndex === undefined
-          ? undefined
-          : transaction.editActionIndices?.[editIndex]
-        : transaction.command?.kind === "place-components" &&
-            instanceIndex !== undefined
-          ? transaction.editActionIndices?.[instanceIndex]
-          : transaction.command?.kind === "batch" && itemIndex !== undefined
-            ? transaction.actionIndices?.[itemIndex]
-            : transaction.actionIndices?.length === 1
-              ? transaction.actionIndices[0]
-              : undefined;
-    if (actionIndex === undefined) return report;
-    const actionKind = direct[actionIndex]?.kind;
-    return {
-      ...report,
-      actionIndex,
-      ...(actionKind ? { actionKind } : {}),
-      message: `actions[${actionIndex}]${actionKind ? ` (${actionKind})` : ""}: ${(report.message ?? "transaction rejected").replace(/^actions\[\d+\]: /u, "")}`,
-    };
+    const naming = report.ok ? undefined : actionRefusalNaming(plan, report);
+    return naming ? { ...report, ...naming } : report;
   }
 
   /** Same four-operation API; the helper only supplies identity and revisions. */
@@ -1842,7 +1697,30 @@ export class AgentSessionClient {
         response.error.code === "STALE_REVISION" ||
         response.error.code === "STALE_STRUCTURE_REVISION"
       )
-        return this.stateChangedReport(entry, response.error.message);
+        return {
+          ...(await this.stateChangedReport(entry, response.error.message)),
+          ...refusedAction(response.error),
+        };
+      if (
+        response.error.code === "ACTION_COMPILE_FAILED" ||
+        response.error.code === "ACTION_BATCH_NOT_ATOMIC"
+      )
+        // The editor refused the list while planning it: reported as when
+        // the client compiles the list itself.
+        return {
+          ok: false,
+          stage: "compile",
+          code: response.error.code,
+          message: response.error.message,
+          ...refusedAction(response.error),
+          ...(response.revision !== undefined
+            ? { revision: response.revision }
+            : {}),
+          ...(response.error.transactions !== undefined
+            ? { transactions: response.error.transactions }
+            : {}),
+          ...(response.error.calls ? { calls: response.error.calls } : {}),
+        };
       return {
         ok: false,
         stage: "commit",
@@ -1850,6 +1728,9 @@ export class AgentSessionClient {
         message: response.error.message,
         diagnostics: response.diagnostics,
         ...(() => {
+          // The editor names the refused action of a list it planned.
+          if (response.error.actionIndex !== undefined)
+            return refusedAction(response.error);
           const actionIndex = response.diagnostics.find(
             (item) => typeof item.parameters?.actionIndex === "number",
           )?.parameters?.actionIndex;
@@ -2317,24 +2198,6 @@ export class AgentSessionClient {
  * A refused report that names the action it refused, by index and kind
  * (#1231), when `indexOf` can tell which one it was.
  */
-function namingAction(
-  actions: readonly { kind: string }[],
-  report: ApplyActionsReport,
-  indexOf: (report: ApplyActionsReport) => number | undefined,
-): ApplyActionsReport {
-  if (report.ok || report.actionIndex !== undefined) return report;
-  const actionIndex = indexOf(report);
-  const actionKind =
-    actionIndex === undefined ? undefined : actions[actionIndex]?.kind;
-  if (actionIndex === undefined || !actionKind) return report;
-  return {
-    ...report,
-    actionIndex,
-    actionKind,
-    message: `actions[${actionIndex}] (${actionKind}): ${(report.message ?? "transaction rejected").replace(/^actions\[\d+\]: /u, "")}`,
-  };
-}
-
 /** A schema refusal that names the field, as `structureEdits[0].edits[1].kind: …`. */
 function schemaIssueText(issue: z.core.$ZodIssue | undefined): string {
   if (!issue) return "Invalid transaction";

@@ -1130,6 +1130,9 @@
               },
               "structureEdits": {
                 "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema442"
+              },
+              "actions": {
+                "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema479"
               }
             },
             "required": [
@@ -18313,7 +18316,16 @@
               "text"
             ],
             "additionalProperties": false
-          }
+          },
+          "__schema479": {
+            "minItems": 1,
+            "maxItems": 256,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema480"
+            }
+          },
+          "__schema480": {}
         }
       },
       "agentCircuitResponse": {
@@ -20970,6 +20982,60 @@
                   },
                   "message": {
                     "type": "string"
+                  },
+                  "calls": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "actionIndices": {
+                          "type": "array",
+                          "items": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "actionKinds": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "sends": {
+                          "type": "string",
+                          "enum": [
+                            "command",
+                            "commands",
+                            "edit batch",
+                            "placement batch",
+                            "delete batch",
+                            "wires",
+                            "focus"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "actionIndices",
+                        "actionKinds",
+                        "sends"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "transactions": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "actionIndex": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "actionKind": {
+                    "type": "string",
+                    "minLength": 1
                   }
                 },
                 "required": [

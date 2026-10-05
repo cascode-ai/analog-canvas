@@ -18,6 +18,11 @@
       "development": "./src/agent-kit.ts",
       "types": "./dist/agent-kit.d.ts",
       "default": "./dist/agent-kit.js"
+    },
+    "./authoring": {
+      "development": "./src/authoring.ts",
+      "types": "./dist/authoring.d.ts",
+      "default": "./dist/authoring.js"
     }
   },
   "scripts": {
@@ -26,6 +31,7 @@
   "dependencies": {
     "@icm/simulation-service": "workspace:*",
     "@icm/derived": "workspace:*",
+    "@icm/devices": "workspace:*",
     "@icm/edit-engine": "workspace:*",
     "@icm/model": "workspace:*",
     "@icm/netlist": "workspace:*",

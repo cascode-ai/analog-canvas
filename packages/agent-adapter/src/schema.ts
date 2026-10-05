@@ -304,6 +304,10 @@ const TransactionPayloadShape = {
     .min(1)
     .max(256)
     .optional(),
+  /** High-level authoring actions, which the editor plans as the MCP
+   * client compiles them: see the authoring contract. Malformed actions are
+   * refused with ACTION_COMPILE_FAILED naming the action. */
+  actions: z.array(z.unknown()).min(1).max(256).optional(),
 };
 /** A Project structure edit, as advanced_transact's structureEdits take
  * one; describe_tool reads each kind's contract from it (#1231). */
@@ -316,6 +320,7 @@ function oneTransactionForm(
     semanticIntent?: unknown;
     structureEdits?: unknown;
     command?: unknown;
+    actions?: unknown;
   },
   context: z.RefinementCtx,
 ): void {
@@ -325,12 +330,13 @@ function oneTransactionForm(
     request.semanticIntent,
     request.structureEdits,
     request.command,
+    request.actions,
   ];
   if (forms.filter((form) => form !== undefined).length !== 1) {
     context.addIssue({
       code: "custom",
       message:
-        "Provide exactly one of edits, wireIntent, semanticIntent, structureEdits, or command",
+        "Provide exactly one of edits, wireIntent, semanticIntent, structureEdits, command, or actions",
     });
   }
 }
@@ -938,6 +944,20 @@ export const AgentRenderResponseSchema = ResponseBaseSchema.extend({
   }),
   diagnostics: z.array(AgentDiagnosticSchema),
 });
+/** One call of an action list that needs several (ACTION_BATCH_NOT_ATOMIC). */
+export const AgentActionCallSchema = z.strictObject({
+  actionIndices: z.array(z.number().int().nonnegative()),
+  actionKinds: z.array(z.string()),
+  sends: z.enum([
+    "command",
+    "commands",
+    "edit batch",
+    "placement batch",
+    "delete batch",
+    "wires",
+    "focus",
+  ]),
+});
 export const AgentErrorResponseSchema = ResponseBaseSchema.extend({
   operation: z.enum(["error", "snapshot", "transact", "render"]),
   ok: z.literal(false),
@@ -945,6 +965,14 @@ export const AgentErrorResponseSchema = ResponseBaseSchema.extend({
   error: z.strictObject({
     code: z.string().min(1),
     message: z.string(),
+    /** ACTION_BATCH_NOT_ATOMIC: the calls to send instead, in order. */
+    calls: z.array(AgentActionCallSchema).optional(),
+    /** ACTION_BATCH_NOT_ATOMIC: how many transactions the list compiles to. */
+    transactions: z.number().int().positive().optional(),
+    /** An action list's refusal: the action it concerns. */
+    actionIndex: z.number().int().nonnegative().optional(),
+    /** The kind of that action, or `schema` for a malformed one. */
+    actionKind: z.string().min(1).optional(),
   }),
   diagnostics: z.array(AgentDiagnosticSchema),
 });

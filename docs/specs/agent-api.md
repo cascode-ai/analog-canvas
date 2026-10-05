@@ -79,6 +79,23 @@ permission and controller boundary. `capabilities` advertises supported
 `commandKinds` and `transactionForms`. Structural commands require
 `expectedStructureRevision`.
 
+`transact.actions` is a further exclusive form: up to 256 of the high-level
+authoring actions MCP `apply_actions` takes ([authoring](../agent/shared/authoring.md)).
+Where `transactionForms` lists `actions`, the browser plans the list with
+the code the MCP Helper otherwise runs itself, then commits it as the one
+edit batch, wire batch, command or focus operation it is. A list that needs
+several transactions is refused with `ACTION_BATCH_NOT_ATOMIC` and
+`error.calls`, the consecutive calls to send instead. A malformed list, or one
+naming what the Document does not hold, is refused with
+`ACTION_COMPILE_FAILED`. A refusal names the action it concerns in
+`error.actionIndex` and `error.actionKind`, and its message begins
+`actions[i] (kind):`. A list sent on unchanged (wires, one command, a batch of
+commands, focus, undo or redo) is checked against `expectedRevision` as its
+form is. A list resolved against the Document, by Reference or target, needs
+Snapshot permission; it is planned on the Document as it stands and committed
+in the same step, so no edit lands between the two. A list that changes nothing answers
+`applied: false` and adds no history entry.
+
 Undo/redo uses the shared browser Document/Project history and requires all
 edit permissions. Dry-run does not advance history; there is no private Agent
 stack or last-Agent-only undo guarantee. Transaction receipts retain the

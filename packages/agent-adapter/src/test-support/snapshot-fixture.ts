@@ -1,5 +1,5 @@
 import { createRoutePath } from "@icm/model";
-import type { AgentSessionSnapshot } from "@icm/agent-adapter";
+import type { AgentSessionSnapshot } from "../schema.js";
 
 function connection(x: number, y: number) {
   return {

@@ -10,6 +10,9 @@
       "@icm/simulation-service/*": ["./packages/simulation-service/src/*"],
       "@icm/agent-adapter": ["./packages/agent-adapter/src/index.ts"],
       "@icm/agent-adapter/kit": ["./packages/agent-adapter/src/agent-kit.ts"],
+      "@icm/agent-adapter/authoring": [
+        "./packages/agent-adapter/src/authoring.ts"
+      ],
       "@icm/agent-client": ["./packages/agent-client/src/index.ts"],
       "@icm/mcp-server": ["./apps/mcp-server/src/index.ts"],
       "@icm/agent-routing": ["./packages/agent-routing/src/index.ts"],

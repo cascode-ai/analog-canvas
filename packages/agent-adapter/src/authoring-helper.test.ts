@@ -8,7 +8,7 @@ import {
   type CompiledTransaction,
 } from "./authoring-helper.js";
 import { testSnapshot } from "./test-support/snapshot-fixture.js";
-import type { AgentSessionSnapshot } from "@icm/agent-adapter";
+import type { AgentSessionSnapshot } from "./schema.js";
 import { AuthoringActionSchema } from "./authoring-actions.js";
 import { z } from "zod";
 import { defaultDraftTextDocument } from "@icm/model";

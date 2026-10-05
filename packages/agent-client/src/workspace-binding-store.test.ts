@@ -10,7 +10,7 @@ import {
   snapshotResponse,
   transactSuccessResponse,
 } from "./test-support/fake-relay.js";
-import { testSnapshot } from "./test-support/snapshot-fixture.js";
+import { testSnapshot } from "../../agent-adapter/src/test-support/snapshot-fixture.js";
 
 describe("task workspace binding", () => {
   it("restores across fresh clients, isolates tasks, and refuses a closed or replaced target without reading a foreground document", async () => {

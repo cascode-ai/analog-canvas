@@ -13,7 +13,7 @@ import {
   stateSnapshotResponse,
   transactSuccessResponse,
 } from "./test-support/fake-relay.js";
-import { testSnapshot } from "./test-support/snapshot-fixture.js";
+import { testSnapshot } from "../../agent-adapter/src/test-support/snapshot-fixture.js";
 import { AgentSessionClient } from "./session-client.js";
 import { ConnectorStore } from "./connector-store.js";
 
