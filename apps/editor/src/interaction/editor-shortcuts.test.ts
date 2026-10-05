@@ -230,6 +230,7 @@ describe("editor shortcut contract", () => {
       command({ id: "tool.activate", tool: "wire" }),
     );
     expect(resolve("a")).toBeNull();
+    expect(resolve("a", { interactionMode: "drawing" })).toBeNull();
     expect(resolve("k")).toBeNull();
     expect(resolve("k", { interactionMode: "drawing" })).toBeNull();
     expect(resolve("o")).toEqual({ kind: "toggle-display-settings" });
