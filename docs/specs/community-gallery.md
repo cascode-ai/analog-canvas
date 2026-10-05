@@ -353,8 +353,11 @@ at `/moderation` (full-width masonry for rejected entries and the recycle bin)
 and the submitter's view at `/mine` (status chips, rejection
 reason, owner-visible preview, open-in-editor). Every gallery page state wears
 the shared site chrome. Moderation cards open the circuit normally; their
-bottom ellipsis menu contains Restore to Gallery and Move to recycle bin
-(or confirmed Delete forever for recycled entries). Moderator appointment,
+actions are a visible row of alike buttons, with no menu: Restore to Gallery,
+Move to recycle bin and Delete on a rejected entry, and Delete on a recycled
+one. Delete removes the entry in one click, without a confirmation; for a
+rejected entry the editor first moves it to the bin, the only place the server
+deletes from. Moderator appointment,
 schema convergence, and netlist-mark maintenance have no product forms;
 authorized operator scripts use the existing admin-only APIs.
 
@@ -387,8 +390,8 @@ exempt.
 Owner deletion: `DELETE /api/gallery/<id>` (same-origin) also accepts the
 owning session, which removes the entry with its saved versions and likes
 permanently in one step, without withdrawing it first. `/mine` surfaces the
-available actions: Withdraw, a Restore on voluntarily withdrawn entries, and
-a confirmed Delete.
+available actions as the same visible row: Withdraw, then Restore and Delete
+on a withdrawn entry. Delete removes it in one click, without a confirmation.
 
 ## Version history
 

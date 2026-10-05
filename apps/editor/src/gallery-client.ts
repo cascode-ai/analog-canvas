@@ -514,24 +514,6 @@ export async function loadGalleryEntry(
   }
 }
 
-/** The public contributors ranked by how many circuits they have shared. */
-export async function loadGalleryAuthors(
-  fetchLike: typeof fetch = fetch,
-): Promise<GalleryAuthorOption[] | null> {
-  try {
-    const response = await fetchLike("/api/gallery/authors", {
-      credentials: "same-origin",
-    });
-    if (!response.ok) return null;
-    const payload = (await response.json()) as {
-      authors?: GalleryAuthorOption[];
-    };
-    return payload.authors ?? [];
-  } catch {
-    return null;
-  }
-}
-
 /** The grouped tag menu. An unreachable worker leaves the menu empty. */
 export async function loadGalleryTagSummary(
   fetchLike: typeof fetch = fetch,

@@ -7,7 +7,6 @@ import {
   galleryEntryMatchesQuery,
   GalleryCountPanel,
   GalleryFeed,
-  loadGalleryAuthors,
   loadGalleryFeed,
 } from "./gallery-feed";
 
@@ -230,37 +229,6 @@ describe("loadGalleryFeed", () => {
       throw new Error("offline");
     }) as unknown as typeof fetch;
     expect(await loadGalleryFeed(throwing)).toBeNull();
-  });
-});
-
-describe("loadGalleryAuthors", () => {
-  it("loads the full public contributor ranking", async () => {
-    const urls: string[] = [];
-    const capturing = (async (input: RequestInfo | URL) => {
-      urls.push(String(input));
-      return new Response(
-        JSON.stringify({
-          authors: [
-            { author: "Alice", ownerUserId: "account-alice", count: 12 },
-            { author: "Bob", ownerUserId: "account-bob", count: 3 },
-          ],
-        }),
-        { status: 200 },
-      );
-    }) as typeof fetch;
-
-    expect(await loadGalleryAuthors(capturing)).toEqual([
-      { author: "Alice", ownerUserId: "account-alice", count: 12 },
-      { author: "Bob", ownerUserId: "account-bob", count: 3 },
-    ]);
-    expect(urls).toEqual(["/api/gallery/authors"]);
-  });
-
-  it("distinguishes an empty ranking from an unavailable one", async () => {
-    expect(await loadGalleryAuthors(fetchReturning({ authors: [] }))).toEqual(
-      [],
-    );
-    expect(await loadGalleryAuthors(fetchReturning({}, false))).toBeNull();
   });
 });
 

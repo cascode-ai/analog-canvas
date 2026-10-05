@@ -363,6 +363,10 @@ test("Cloud Save updates one binding while local export stays interchange", asyn
   await expect(page.getByTestId("status")).toContainText(
     "Saved New Circuit to Cloud",
   );
+  // A private save applies no Gallery quality gate.
+  await expect(page.getByRole("dialog", { name: "Check Report" })).toHaveCount(
+    0,
+  );
   await expect(page.getByTestId("project-unsaved-indicator")).toHaveCount(0);
   await expect(page.getByTestId("statusbar-issues")).toHaveText("Not checked");
   await chooseComponent(page, "resistor");
@@ -384,6 +388,8 @@ test("Cloud Save updates one binding while local export stays interchange", asyn
     reopenedMenu.getByRole("button", { name: "Save", exact: true }),
   ).toHaveCount(1);
   const cloudProjectButton = reopenedMenu.getByTestId("cloud-project-cloud-1");
+  // The Project already open is not offered again.
+  await expect(cloudProjectButton).toBeDisabled();
   const cloudProjectTime = cloudProjectButton.locator("time");
   await expect(cloudProjectTime).toBeVisible();
   expect(
