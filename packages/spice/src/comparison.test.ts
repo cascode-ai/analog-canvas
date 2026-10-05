@@ -61,6 +61,44 @@ describe("read-only structural netlist comparison", () => {
       ]);
     },
   );
+  it("reads R, C and L written end for end as the same device (#1296)", async () => {
+    const circuit = (lines: string[]) =>
+      ir([".subckt net A B C", ...lines, ".ends net"].join("\n"));
+    // A chain of two resistors through an unnamed node, a capacitor and an
+    // inductor, each written the other way round.
+    const expected = await circuit([
+      "R1 A mid 10k",
+      "R2 mid B 20k",
+      "C1 B C 1p",
+      "L1 C A 1n",
+      "D1 A C dmod",
+      ".model dmod d",
+    ]);
+    const swapped = await circuit([
+      "R1 net9 A 10k",
+      "R2 B net9 20k",
+      "C1 C B 1p",
+      "L1 A C 1n",
+      "D1 A C dmod",
+      ".model dmod d",
+    ]);
+    expect(compareCircuitIR(swapped, expected, "net")).toMatchObject({
+      topology: "equal",
+      differences: [],
+    });
+    // A diode has a polarity: written the other way it is another circuit.
+    const reversed = await circuit([
+      "R1 A mid 10k",
+      "R2 mid B 20k",
+      "C1 B C 1p",
+      "L1 C A 1n",
+      "D1 C A dmod",
+      ".model dmod d",
+    ]);
+    expect(compareCircuitIR(reversed, expected, "net").topology).toBe(
+      "different",
+    );
+  });
   it("matches numeric units and ignores internal automatic names, not endpoints", async () => {
     const expected = await ir(
       reference

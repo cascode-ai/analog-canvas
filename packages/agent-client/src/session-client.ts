@@ -1619,13 +1619,15 @@ export class AgentSessionClient {
     } = {},
   ): Promise<ApplyActionsReport> {
     const normalized = Array.isArray(payload) ? { edits: payload } : payload;
-    const parsed = AgentTransactionPayloadSchema.safeParse(normalized);
+    const parsed = AgentTransactionPayloadSchema.safeParse(
+      await this.withNestedRevisions(normalized),
+    );
     if (!parsed.success)
       return {
         ok: false,
         stage: "compile",
         code: "EDIT_SCHEMA_INVALID",
-        message: parsed.error.issues[0]?.message ?? "Invalid transaction",
+        message: schemaIssueText(parsed.error.issues[0]),
       };
     const entry = options.snapshot
       ? this.revisionFromSnapshot(options.snapshot)
@@ -1696,6 +1698,39 @@ export class AgentSessionClient {
     });
   }
 
+  /**
+   * A nested `transact_document` left without `expectedRevision` takes its
+   * Document's current revision, as the top-level transaction does: the
+   * helper supplies revisions, and the MCP schema does not describe nested
+   * entries, so leaving it out used to fail with no field named.
+   */
+  private async withNestedRevisions(payload: unknown): Promise<unknown> {
+    if (!payload || typeof payload !== "object") return payload;
+    const structureEdits = (payload as { structureEdits?: unknown })
+      .structureEdits;
+    if (!Array.isArray(structureEdits)) return payload;
+    const filled: unknown[] = [];
+    for (const edit of structureEdits) {
+      const entry = edit as {
+        kind?: unknown;
+        documentId?: unknown;
+        expectedRevision?: unknown;
+      } | null;
+      filled.push(
+        entry?.kind === "transact_document" &&
+          entry.expectedRevision === undefined &&
+          typeof entry.documentId === "string"
+          ? {
+              ...entry,
+              expectedRevision: (await this.revisionFor(entry.documentId))
+                .revision,
+            }
+          : edit,
+      );
+    }
+    return { ...payload, structureEdits: filled };
+  }
+
   private async revisionFor(documentId?: string): Promise<KnownRevision> {
     const target = await this.resolveDocumentId(documentId);
     const known = this.knownRevisions.get(target);
@@ -1740,7 +1775,7 @@ export class AgentSessionClient {
         ok: false,
         stage: "compile",
         code: "EDIT_SCHEMA_INVALID",
-        message: parsed.error.issues[0]?.message ?? "Invalid transaction",
+        message: schemaIssueText(parsed.error.issues[0]),
       };
     const request = (dryRun: boolean): AgentCircuitRequest => ({
       ...baseRequest(this.newRequestId()),
@@ -2266,4 +2301,17 @@ function namingAction(
     actionKind,
     message: `actions[${actionIndex}] (${actionKind}): ${(report.message ?? "transaction rejected").replace(/^actions\[\d+\]: /u, "")}`,
   };
+}
+
+/** A schema refusal that names the field, as `structureEdits[0].edits[1].kind: …`. */
+function schemaIssueText(issue: z.core.$ZodIssue | undefined): string {
+  if (!issue) return "Invalid transaction";
+  const path = issue.path
+    .map((part, index) =>
+      typeof part === "number"
+        ? `[${part}]`
+        : `${index === 0 ? "" : "."}${String(part)}`,
+    )
+    .join("");
+  return path ? `${path}: ${issue.message}` : issue.message;
 }

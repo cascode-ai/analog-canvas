@@ -515,6 +515,52 @@ describe("agent session client", () => {
       expect(report.ok).toBe(false);
     },
   );
+  it("fills a nested Document transaction's revision and names a refused field", async () => {
+    const { client, http } = await freshClient();
+    await client.connect("session-1.code");
+    const snapshot = await client.snapshot();
+    const sent: unknown[] = [];
+    http.circuitHandler = async ({ request }) => {
+      if (request.operation !== "transact")
+        return snapshotResponse(request.requestId);
+      sent.push(request.structureEdits);
+      return transactSuccessResponse(
+        request.requestId,
+        request.expectedRevision,
+      );
+    };
+    const nested = (extra: object) => ({
+      structureEdits: [
+        {
+          kind: "transact_document",
+          documentId: snapshot.documentId,
+          ...extra,
+          edits: [
+            {
+              kind: "set_instance_reference",
+              instanceId: "R1",
+              reference: "R2",
+            },
+          ],
+        },
+      ],
+    });
+    await client.advancedTransact(nested({}));
+    expect(sent).toEqual([
+      [expect.objectContaining({ expectedRevision: snapshot.revision })],
+    ]);
+    const refused = await client.advancedTransact(
+      nested({ expectedRevision: "latest" }),
+    );
+    expect(refused).toMatchObject({
+      ok: false,
+      code: "EDIT_SCHEMA_INVALID",
+      message: expect.stringMatching(
+        /^structureEdits\[0\]\.expectedRevision: /u,
+      ),
+    });
+    expect(sent).toHaveLength(1);
+  });
   it("reuses a composed operation's snapshot and preserves its revision on conflicts", async () => {
     const { client, http } = await freshClient();
     await client.connect("session-1.code");

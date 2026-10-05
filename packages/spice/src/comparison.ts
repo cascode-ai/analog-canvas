@@ -342,6 +342,7 @@ export function compareCircuitIR(
       cell: CircuitCellIR,
       devices: Map<string, Instance>,
       nameOf: (name: string) => string,
+      turned: ReadonlySet<Instance> = new Set(),
     ) => {
       const nodes = new Map<string, string[]>();
       const endpoints = new Map<string, string>();
@@ -356,18 +357,80 @@ export function compareCircuitIR(
         const canonical = nameOf(name);
         named.set(canonical, instance);
         const pins = pinNames.get(instance);
-        for (const pin of instance.terminals)
-          add(
-            `${canonical}:${pins?.[pin.position] ?? pin.position}`,
-            pin.netId,
-          );
+        for (const pin of instance.terminals) {
+          const position = turned.has(instance)
+            ? 1 - pin.position
+            : pin.position;
+          add(`${canonical}:${pins?.[position] ?? position}`, pin.netId);
+        }
       }
       for (const p of cell.ports) add(`port:${lower(p.name)}`, p.netId);
       return { devices: named, endpoints, nodes };
     };
     // A paired device goes by the reference's name on both sides.
-    const ap = project(a, actualDevices, (name) => partner.get(name) ?? name),
-      ep = project(e, expectedDevices, (name) => name);
+    const actualName = (name: string) => partner.get(name) ?? name;
+    const ep = project(e, expectedDevices, (name) => name);
+    const members = (
+      projection: ReturnType<typeof project>,
+      endpoint: string,
+    ): ReadonlySet<string> => {
+      const id = projection.endpoints.get(endpoint);
+      return new Set(id ? (projection.nodes.get(id) ?? []) : []);
+    };
+    // How far the wiring is from the expected one: for every endpoint, the
+    // endpoints it shares a Net with on one side and not on the other. A
+    // Net that only some of its devices' turns would fix still gets closer.
+    const mismatched = (projection: ReturnType<typeof project>) => {
+      let count = 0;
+      for (const endpoint of new Set([
+        ...projection.endpoints.keys(),
+        ...ep.endpoints.keys(),
+      ])) {
+        const actualMembers = members(projection, endpoint);
+        const expectedMembers = members(ep, endpoint);
+        for (const member of actualMembers)
+          if (!expectedMembers.has(member)) count += 1;
+        for (const member of expectedMembers)
+          if (!actualMembers.has(member)) count += 1;
+      }
+      return count;
+    };
+    // R, C and L have no polarity: `R1 a b` and `R1 b a` are one resistor
+    // (#1296). Each such device is turned end for end where that brings the
+    // wiring closer to the expected one, one device at a time until no turn
+    // helps, so a chain of them settles from its ends inward.
+    const turned = new Set<Instance>();
+    const unpolarized = [...partner]
+      .map(([an, en]) => [actualDevices.get(an)!, expectedDevices.get(en)!])
+      .filter(([ai, ei]) =>
+        [ai, ei].every(
+          (instance) =>
+            instance!.target.kind === "primitive" &&
+            ["resistor", "capacitor", "inductor"].includes(
+              lower(instance!.target.family),
+            ) &&
+            instance!.terminals.length === 2,
+        ),
+      )
+      .map(([ai]) => ai!);
+    let ap = project(a, actualDevices, actualName, turned);
+    let misses = mismatched(ap);
+    for (let pass = 0; misses > 0 && pass < 8; pass += 1) {
+      let improved = false;
+      for (const instance of unpolarized) {
+        if (turned.has(instance)) turned.delete(instance);
+        else turned.add(instance);
+        const candidate = project(a, actualDevices, actualName, turned);
+        const candidateMisses = mismatched(candidate);
+        if (candidateMisses < misses) {
+          ap = candidate;
+          misses = candidateMisses;
+          improved = true;
+        } else if (turned.has(instance)) turned.delete(instance);
+        else turned.add(instance);
+      }
+      if (!improved) break;
+    }
     const target = (instance: Instance) => {
       const t = instance.target;
       switch (t.kind) {
