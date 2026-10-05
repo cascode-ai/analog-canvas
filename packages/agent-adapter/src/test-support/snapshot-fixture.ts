@@ -1,227 +1,169 @@
-import { createRoutePath } from "@icm/model";
+import { planEnsureNamedNet } from "@icm/edit-engine";
+import { createEmptyProject, type CircuitProject } from "@icm/model";
+import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 import type { AgentSessionSnapshot } from "../schema.js";
+import { createAgentCircuitService } from "../service.js";
 
-function connection(x: number, y: number) {
-  return {
-    contactPoint: { x, y },
-    gridLanding: { x, y },
-    escapePath: [],
-    outward: null,
-  };
-}
+let built: AgentSessionSnapshot | undefined;
 
 /**
- * Deterministic minimal Snapshot for Helper tests: one NMOS, one resistor,
- * a routed local Net (Vout), a global VDD Net anchored by one junction, and
- * one net-label annotation. Revision 5.
+ * A small circuit as the editor holds it, made as an Agent makes one: typed
+ * edits and a wire through the real Agent service and Edit Engine, read back
+ * as the real Snapshot. One NMOS M1 (w 2u, l 1u), one resistor R1, a wire
+ * from M1.D to R1.1 (vout-route, on vout-net) that a Net Label (label-1)
+ * names Vout, and a global VDD rail from junction-1 to junction-2. Nothing
+ * in it is written by hand: IDs, pins, routes and diagnostics are the real
+ * ones.
  */
 export function testSnapshot(): AgentSessionSnapshot {
-  return {
-    snapshotVersion: "3.0",
-    electricalTopologyHash: "a".repeat(64),
-    byteLength: 2048,
-    project: {
-      id: "project-1",
-      name: "Test Project",
-      structureRevision: 0,
-      topDocumentId: "main",
-      simulationFolders: [],
-      documents: [
-        {
-          id: "main",
-          name: "Main",
-          instanceCount: 2,
-          netCount: 2,
-          references: [],
-        },
-      ],
+  built ??= build();
+  return structuredClone(built);
+}
+
+function build(): AgentSessionSnapshot {
+  const created = createEmptyProject("project-1", "Test Project");
+  created.documents[0]!.id = "main";
+  created.documents[0]!.name = "Main";
+  created.topDocumentId = "main";
+  let project: CircuitProject = created;
+  const document = () => project.documents[0]!;
+  const service = createAgentCircuitService({
+    agentId: "fixture",
+    resolver: new InMemorySymbolResolver(builtInSymbols),
+    permissions: {
+      snapshot: true,
+      render: false,
+      sourceSpans: false,
+      edit: { geometry: true, connectivity: true, presentation: true },
     },
-    document: {
-      id: "main",
-      name: "Main",
-      revision: 5,
-      sourceStatus: "in-sync",
-      bounds: { x: 0, y: 0, width: 800, height: 600 },
-      presentation: {
-        styleProfileId: "razavi-textbook-v1",
-        grid: 20,
-        compactness: "normal",
+    store: {
+      getDocument: () => document(),
+      commitDocument: (next) => {
+        project = { ...project, documents: [next] };
       },
-      cellInterface: null,
-      instances: [
-        {
+      getProject: () => project,
+      commitProject: (next) => {
+        project = next;
+      },
+    },
+  });
+  let request = 0;
+  const transact = (payload: Record<string, unknown>) => {
+    request += 1;
+    const response = service.handle({
+      apiVersion: "3.0",
+      requestId: `fixture-${request}`,
+      operation: "transact",
+      transactionId: `fixture-${request}`,
+      documentId: "main",
+      expectedRevision: document().revision,
+      ...payload,
+    });
+    if (!response.ok)
+      throw new Error(
+        `The fixture's edit was refused: ${response.error.message}`,
+      );
+  };
+
+  transact({
+    edits: [
+      {
+        kind: "add_instance",
+        instance: {
           id: "instance-1",
           reference: "M1",
-          masterName: null,
           symbolId: "nmos",
-          symbolVariantId: null,
-          target: null,
-          model: null,
-          parameters: {},
           placement: {
             position: { x: 300, y: 240 },
             rotation: 0,
             mirror: "none",
           },
-          bounds: { x: 280, y: 200, width: 40, height: 80 },
-          pins: [
-            {
-              name: "G",
-              role: "input",
-              direction: "west",
-              visibility: "visible",
-              localPosition: { x: -20, y: 0 },
-              connection: connection(280, 240),
-              netId: "net-g",
-            },
-            {
-              name: "D",
-              role: "output",
-              direction: "north",
-              visibility: "visible",
-              localPosition: { x: 0, y: -40 },
-              connection: connection(300, 200),
-              netId: "net-vout",
-            },
-            {
-              name: "S",
-              role: "input",
-              direction: "south",
-              visibility: "visible",
-              localPosition: { x: 0, y: 40 },
-              connection: connection(300, 280),
-              netId: "net-gnd",
-            },
-          ],
-          mosBulk: { status: "supply-default", netId: null },
-          netlist: {
-            binding: { kind: "primitive", deviceClass: "mos" },
-            parameters: { w: "2u", l: "1u" },
-          },
+          netlist: { parameters: { w: "2u", l: "1u" } },
         },
-        {
+      },
+      {
+        kind: "add_instance",
+        instance: {
           id: "instance-2",
           reference: "R1",
-          masterName: null,
           symbolId: "resistor",
-          symbolVariantId: null,
-          target: null,
-          model: null,
-
-          parameters: {},
           placement: {
-            position: { x: 460, y: 160 },
+            position: { x: 460, y: 120 },
             rotation: 0,
             mirror: "none",
           },
-          bounds: null,
-          pins: [
-            {
-              name: "1",
-              role: "passive",
-              direction: "north",
-              visibility: "visible",
-              localPosition: { x: 0, y: -20 },
-              connection: connection(460, 140),
-              netId: "net-vout",
-            },
-            {
-              name: "2",
-              role: "passive",
-              direction: "south",
-              visibility: "visible",
-              localPosition: { x: 0, y: 20 },
-              connection: connection(460, 180),
-              netId: null,
-            },
-          ],
         },
-      ],
-      nets: [
-        {
-          id: "net-vout",
-          name: "Vout",
-          scope: "local",
-          powerDomain: "none",
-          terminals: [
-            { instanceId: "instance-1", pinName: "D" },
-            { instanceId: "instance-2", pinName: "1" },
-          ],
-          routeIds: ["route-1"],
-          junctionIds: [],
-        },
-        {
-          id: "net-vdd",
-          name: "VDD",
-          scope: "global",
-          powerDomain: "vdd",
-          terminals: [],
-          routeIds: [],
-          junctionIds: ["junction-1"],
-        },
-      ],
-      routes: [
-        {
-          ...createRoutePath({
-            id: "route-1",
-            netId: "net-vout",
-            start: {
-              kind: "terminal",
-              instanceId: "instance-1",
-              pinName: "D",
-            },
-            end: {
-              kind: "terminal",
-              instanceId: "instance-2",
-              pinName: "1",
-            },
-            bends: [
-              { x: 300, y: 160 },
-              { x: 460, y: 160 },
-            ],
-            modes: ["auto", "auto", "auto"],
-          }),
-          polyline: [
-            { x: 300, y: 200 },
-            { x: 300, y: 160 },
-            { x: 460, y: 160 },
-            { x: 460, y: 140 },
-          ],
-        },
-      ],
-      junctions: [
-        {
-          id: "junction-1",
-          netId: "net-vdd",
-          position: { x: 200, y: 80 },
-          role: "route-anchor",
-        },
-      ],
-      noConnects: [],
-      annotations: [
-        {
+      },
+    ],
+  });
+  transact({
+    wireIntent: {
+      id: "vout",
+      from: {
+        kind: "endpoint",
+        endpoint: { kind: "terminal", instanceId: "instance-1", pinName: "D" },
+      },
+      to: {
+        kind: "endpoint",
+        endpoint: { kind: "terminal", instanceId: "instance-2", pinName: "1" },
+      },
+    },
+  });
+  // Name the wire's Net with a Net Label, as the editor's Net Label does.
+  const netId = document().routes.find(
+    (route) => route.id === "vout-route",
+  )!.netId;
+  const named = planEnsureNamedNet(document(), {
+    candidateNetId: netId,
+    name: "Vout",
+    evidenceId: "evidence-vout",
+    owner: { kind: "net-label", annotationId: "label-1" },
+    scope: "local",
+  });
+  if (!named.ok) throw new Error(named.message);
+  transact({
+    edits: [
+      ...named.edits,
+      {
+        kind: "upsert_schematic_annotation",
+        annotation: {
           id: "label-1",
           kind: "net-label",
-          content: { runs: [{ kind: "text", value: "Vout" }] },
-          anchor: { kind: "free", position: { x: 300, y: 150 } },
-          netId: "net-vout",
+          binding: { kind: "net-name", netId },
+          netId,
+          // Over the wire's top run, from (310, 100) to (460, 100).
+          anchor: { kind: "free", position: { x: 380, y: 90 } },
           alignment: "middle",
           rotation: 0,
           locked: false,
         },
-      ],
-      drafting: { objects: [] },
-      layoutGroups: [],
-      constraints: [],
-      diagnostics: [
-        {
-          code: "VISUAL_SPACING",
-          domain: "visual",
-          severity: "warning",
-          message: "Label Vout is close to route-1",
-          objectIds: ["label-1"],
-        },
-      ],
-    },
-  };
+      },
+    ],
+  });
+  transact({
+    edits: [
+      {
+        kind: "add_power_rail",
+        netId: "net-vdd",
+        routeId: "route-vdd",
+        startJunctionId: "junction-1",
+        endJunctionId: "junction-2",
+        labelId: "label-vdd",
+        netName: "VDD",
+        scope: "global",
+        powerDomain: "vdd",
+        start: { x: 200, y: 40 },
+        end: { x: 360, y: 40 },
+      },
+    ],
+  });
+  const response = service.handle({
+    apiVersion: "3.0",
+    requestId: "fixture-snapshot",
+    operation: "snapshot",
+    documentId: "main",
+  });
+  if (!response.ok || !("snapshot" in response))
+    throw new Error("The fixture's Snapshot could not be read");
+  return response.snapshot;
 }

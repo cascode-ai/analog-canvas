@@ -29,6 +29,8 @@ describe("snapshot cache", () => {
       { code: "ERC_FLOATING", severity: "error", message: "floating pin" },
     ];
     const summary = snapshotSummary({ ...entry, diagnostics: extra });
+    // The response's own list, counted once: the Snapshot's findings and one more error.
+    const own = countDiagnostics(entry.snapshot.document.diagnostics);
     expect(summary).toEqual({
       projectId: "project-1",
       documentId: "main",
@@ -36,8 +38,8 @@ describe("snapshot cache", () => {
       revision: 5,
       instanceCount: 2,
       netCount: 2,
-      errors: 1,
-      warnings: 1,
+      errors: own.errors + 1,
+      warnings: own.warnings,
     });
   });
 
@@ -72,10 +74,10 @@ describe("snapshot cache", () => {
       id: "instance-3",
       reference: "R2",
     });
-    after.document.nets[0]!.name = "VoutX";
+    after.document.nets.find((net) => net.id === "vout-net")!.name = "VoutX";
     const changed = changedObjectIds(before, after);
     expect(changed).toContain("instance-3");
-    expect(changed).toContain("net-vout");
+    expect(changed).toContain("vout-net");
     expect(changed).not.toContain("instance-1");
   });
 });
