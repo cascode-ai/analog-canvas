@@ -332,6 +332,60 @@ describe("route-net", () => {
     }
   });
 
+  it("runs an op-amp's feedback clear of its triangle's corners", () => {
+    // An op-amp at (460,10): IN- (420,0), OUT (490,10), and its triangle's
+    // corners at (430,-20), (430,40) and (481.96,10). The feedback used to
+    // run along y = -20, straight through the top corner.
+    const document = createEmptyDocument("doc", "Follower");
+    document.instances = [
+      {
+        id: "X1",
+        reference: "X1",
+        symbolId: "opamp",
+        placement: { position: { x: 460, y: 10 }, rotation: 0, mirror: "none" },
+      },
+    ];
+    const next = apply(
+      document,
+      planRouteNet(
+        document,
+        resolver,
+        {
+          target: {
+            kind: "pins",
+            pins: [
+              { instanceId: "X1", pinName: "OUT" },
+              { instanceId: "X1", pinName: "IN-" },
+            ],
+          },
+        },
+        64,
+      ).edits,
+    ).document;
+    const line = resolveRouteGeometry(
+      next,
+      resolver,
+      next.routes[0]!,
+    )!.centerline;
+    for (const corner of [
+      { x: 430, y: -20 },
+      { x: 430, y: 40 },
+    ])
+      for (const [index, to] of line.slice(1).entries()) {
+        const from = line[index]!;
+        const onIt =
+          (from.x === to.x &&
+            corner.x === from.x &&
+            corner.y >= Math.min(from.y, to.y) &&
+            corner.y <= Math.max(from.y, to.y)) ||
+          (from.y === to.y &&
+            corner.y === from.y &&
+            corner.x >= Math.min(from.x, to.x) &&
+            corner.x <= Math.max(from.x, to.x));
+        expect(onIt, JSON.stringify(line)).toBe(false);
+      }
+  });
+
   it("leaves a pin around its own part rather than through it", () => {
     const document = createEmptyDocument("doc", "Bandgap");
     document.instances = [

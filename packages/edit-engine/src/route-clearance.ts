@@ -59,6 +59,102 @@ function runsAlong(a: Point, b: Point, c: Point, d: Point): boolean {
   return high - low > TOLERANCE;
 }
 
+/**
+ * Where segment a-b meets segment c-d at single points: a proper crossing,
+ * or an end of one lying on the other. Collinear overlaps are runsAlong's.
+ */
+function contactPoints(a: Point, b: Point, c: Point, d: Point): Point[] {
+  const cross = (o: Point, p: Point, q: Point) =>
+    (p.x - o.x) * (q.y - o.y) - (p.y - o.y) * (q.x - o.x);
+  const onSegment = (p: Point, from: Point, to: Point) =>
+    Math.abs(cross(from, to, p)) <=
+      TOLERANCE * Math.hypot(to.x - from.x, to.y - from.y) &&
+    p.x >= Math.min(from.x, to.x) - TOLERANCE &&
+    p.x <= Math.max(from.x, to.x) + TOLERANCE &&
+    p.y >= Math.min(from.y, to.y) - TOLERANCE &&
+    p.y <= Math.max(from.y, to.y) + TOLERANCE;
+  const points = [
+    ...[c, d].filter((p) => onSegment(p, a, b)),
+    ...[a, b].filter((p) => onSegment(p, c, d)),
+  ];
+  const d1 = cross(c, d, a);
+  const d2 = cross(c, d, b);
+  const d3 = cross(a, b, c);
+  const d4 = cross(a, b, d);
+  if (
+    ((d1 > TOLERANCE && d2 < -TOLERANCE) ||
+      (d1 < -TOLERANCE && d2 > TOLERANCE)) &&
+    ((d3 > TOLERANCE && d4 < -TOLERANCE) || (d3 < -TOLERANCE && d4 > TOLERANCE))
+  ) {
+    const t = d1 / (d1 - d2);
+    points.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+  }
+  return points;
+}
+
+/**
+ * The corners of a path drawn only with straight lines (M, L, H, V and Z,
+ * absolute or relative), such as an op-amp's triangle; none for curves.
+ */
+function straightPathPoints(data: string): Point[] {
+  const tokens = data.match(/[a-zA-Z]|-?(?:\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?/gu);
+  if (!tokens) return [];
+  const points: Point[] = [];
+  let current = { x: 0, y: 0 };
+  let start = current;
+  let command = "";
+  for (let index = 0; index < tokens.length;) {
+    const token = tokens[index]!;
+    if (/[a-zA-Z]/u.test(token)) {
+      command = token;
+      index += 1;
+      if (command === "Z" || command === "z") {
+        current = start;
+        points.push(current);
+      }
+      continue;
+    }
+    const number = (offset: number) => Number(tokens[index + offset]);
+    const relative = command === command.toLowerCase();
+    switch (command.toUpperCase()) {
+      case "M":
+      case "L": {
+        const x = number(0);
+        const y = number(1);
+        current = relative ? { x: current.x + x, y: current.y + y } : { x, y };
+        if (command.toUpperCase() === "M") {
+          // A second figure in one path is not joined to the first.
+          if (points.length) return [];
+          start = current;
+          command = relative ? "l" : "L";
+        }
+        points.push(current);
+        index += 2;
+        break;
+      }
+      case "H":
+        current = {
+          x: relative ? current.x + number(0) : number(0),
+          y: current.y,
+        };
+        points.push(current);
+        index += 1;
+        break;
+      case "V":
+        current = {
+          x: current.x,
+          y: relative ? current.y + number(0) : number(0),
+        };
+        points.push(current);
+        index += 1;
+        break;
+      default:
+        return [];
+    }
+  }
+  return points;
+}
+
 /** Parameter interval of segment a-b inside a closed rectangle, if any. */
 function clip(a: Point, b: Point, box: Rect): [number, number] | null {
   let low = 0;
@@ -180,7 +276,9 @@ export function createRouteClearance(
               ? primitive.points
               : primitive.kind === "polygon"
                 ? [...primitive.points, primitive.points[0]!]
-                : [];
+                : primitive.kind === "path"
+                  ? straightPathPoints(primitive.data)
+                  : [];
         return points
           .slice(1)
           .map((to, index) => [place(points[index]!), place(to)] as const);
@@ -290,6 +388,23 @@ export function createRouteClearance(
         // as a lead.
         if (body.strokes.some(([c, d]) => runsAlong(a, b, c, d)))
           return `runs along ${body.label}'s drawing`;
+        // Nor may it touch the drawing on the way, as along an op-amp's
+        // edge through the corner of its triangle; only where it meets the
+        // part's own pin does it reach a lead.
+        const attachments = endConnections.flatMap((connection) =>
+          connection?.endpoint.kind === "terminal" &&
+          connection.endpoint.instanceId === body.instanceId
+            ? [connection.gridLanding, connection.contactPoint]
+            : [],
+        );
+        if (
+          body.strokes.some(([c, d]) =>
+            contactPoints(a, b, c, d).some(
+              (point) => !attachments.some((end) => same(point, end)),
+            ),
+          )
+        )
+          return `touches ${body.label}'s drawing`;
       }
     }
     for (const route of routes) {
