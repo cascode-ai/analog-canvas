@@ -547,6 +547,12 @@ the same Cell. Draw the clock on a Net named `Φ1`, or give the Cell a Pin named
 drives that phase. **Ctrl SW** takes its control from its CTRL pin instead.
 Switches are written in SPICE only.
 
+A diode you place in Abstract, SKY130, IHP SG13G2 or Custom takes the generic
+model `DIODE`. Until you choose another model, the SPICE netlist defines it
+with one `.model DIODE D(IS=1e-14 N=1)` card in the same Cell, and the Check
+Report names the diodes that use it. A `.model DIODE` card in your own
+simulation files replaces it.
+
 **Netlist / Instances…** opens the Project's netlist instances as one editable
 JSON document in the right sidebar. Paste whole blocks to change references,
 model bindings and parameters together. Outer keys are Cell IDs; inner keys are

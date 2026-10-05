@@ -278,6 +278,21 @@ Native VACASK uses the same defaults and four-terminal interface through the
 qualified `icm_switch` runtime primitive, which registers hard-edge breakpoints.
 This requires the patched native runtime, not stock upstream 0.3.4; see the
 [runtime patch and qualification](../../containers/vacask/patches/README.md).
+A diode placed in a Process with no diode of its own (Abstract, SKY130, IHP
+SG13G2, Custom) is bound to the generic model `DIODE`, which no library
+defines. Every Cell whose diodes name it, a Zener's included, carries one
+`.model DIODE D(IS=1e-14 N=1)` card in its own body: SPICE's default
+junction, its saturation current and emission coefficient stated. The export
+reports `GENERIC_DIODE_MODEL` as information for that Cell, naming the
+diodes ("D1 uses the generic diode model DIODE (IS=1e-14, N=1); set a model
+for a real device"); like `MOS_BODY_DEFAULT_SUPPLY` it gates nothing. The name
+stays an editable model target, and a diode bound to any other name gets no
+card. A model of that name in the Project's own text, a simulation source
+file (`.model DIODE …`, or `model DIODE …` in VACASK) or the SPICE it was
+imported from, is the author's: no Cell then carries the card, which would
+shadow it inside the Cell. Native VACASK writes the card as an `sp_diode`
+model. The card is SPICE only; a Spectre export still names `DIODE` for the
+reader's libraries to define.
 A drawn T-coil or transformer is one Symbol on the canvas and coupled
 windings in the netlist: each Instance is an `X` call on a built-in
 subcircuit that the file defines once, ahead of the Cells, with the
@@ -589,7 +604,7 @@ Gallery's mark ([community gallery](community-gallery.md)) — answers `false`.
 
 Existing conflicting bindings, missing hierarchy interfaces, unsupported devices,
 invalid waveforms, and incomplete connections remain blocking. This projection
-never exports the permissive authoring IR. It cannot omit an invalid device or invent a model definition. Numerical defaults
+never exports the permissive authoring IR. It cannot omit an invalid device or invent a model definition, apart from the generic diode card above, which stands in only for the placeholder name a Process binds. Numerical defaults
 and the explicit substrate rule belong only to the selected preset above.
 
 The editor's primary Netlist button copies immediately in its current format

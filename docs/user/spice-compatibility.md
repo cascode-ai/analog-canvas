@@ -37,7 +37,8 @@ substrate-to-collector connection. The exact
 terminal as a `Substrate Net` property and is structural only in the hosted
 Profile. Clearing its `netlistTarget`, or choosing an ordinary model name,
 restores the ordinary three-node Q card and removes the model-only substrate
-membership. The generic Diode remains model-bearing structural only; this
+membership. The generic Diode keeps its generic `DIODE` model, which a SPICE
+export defines with a default card until another model is bound; this
 hosted environment does not claim a qualified SKY130 diode or NPN target.
 
 This convenience is structural only. It does not install SKY130, resolve a

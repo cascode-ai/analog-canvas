@@ -1369,6 +1369,53 @@ function extractBuiltInSubcircuitInstance(
   };
 }
 
+/**
+ * The model a diode takes in a Process with no diode of its own (#1310):
+ * Abstract, SKY130, IHP SG13G2 and Custom bind each diode placed from the
+ * library to `DIODE`, a name no library defines, so every run of that
+ * netlist failed on the missing model while the export said ready. Like the
+ * ideal switch, each Cell using the name carries this card in its own body:
+ * SPICE's default junction, with its saturation current and emission
+ * coefficient stated. It is a stand-in, reported as information, and a model
+ * of the same name that the Project defines itself replaces it.
+ */
+export const GENERIC_DIODE_MODEL: DesignNetlistModel = {
+  name: "DIODE",
+  type: "D",
+  parameters: [
+    { name: "IS", rawValue: "1e-14" },
+    { name: "N", rawValue: "1" },
+  ],
+  authoredName: true,
+};
+
+/** `.model DIODE …` in SPICE, or `model DIODE …` in VACASK and Spectre. */
+const GENERIC_DIODE_DEFINITION = new RegExp(
+  String.raw`^[ \t]*\.?model[ \t]+${GENERIC_DIODE_MODEL.name}(?=[\s(]|$)`,
+  "imu",
+);
+
+/**
+ * Whether the Project's own text defines the generic diode's name: a source
+ * file in one of its simulation folders, or the SPICE it was imported from.
+ * That model is the author's. The card inside a Cell would shadow it there,
+ * so no Cell carries one.
+ */
+function projectDefinesGenericDiode(project: CircuitProject): boolean {
+  const texts = [
+    ...(project.simulationFolders ?? []).flatMap((folder) =>
+      folder.input.files.map((file) => file.text),
+    ),
+    ...(project.source?.files ?? []).flatMap((file) => [
+      file.content?.text,
+      file.originalContent?.text,
+    ]),
+  ];
+  return texts.some(
+    (text) => text !== undefined && GENERIC_DIODE_DEFINITION.test(text),
+  );
+}
+
 /** Phase nodes no drawn Net supplies, per Cell: each switch on one is told. */
 const undrivenPhaseNodes = new WeakMap<CellNetContext, Set<string>>();
 
@@ -2185,6 +2232,48 @@ function reportDefaultBodySupplies(
 }
 
 /**
+ * Which diodes run on the generic card (#1310). Information, as a default
+ * body supply is: the netlist now runs, but on a stand-in junction, not on a
+ * device anyone chose.
+ */
+function reportGenericDiodes(
+  document: SchematicDocument,
+  diodes: readonly DesignNetlistInstance[],
+  diagnostics: NetlistDiagnostic[],
+): void {
+  const parts = diodes
+    .map((card) => {
+      const instance = document.instances.find((item) => item.id === card.id);
+      return {
+        id: card.id,
+        name: instance?.reference ?? card.reference,
+        zener: instance?.symbolId === "zener-diode",
+      };
+    })
+    .sort((left, right) =>
+      left.name.localeCompare(right.name, "en", { numeric: true }),
+    );
+  const values = GENERIC_DIODE_MODEL.parameters
+    .map((parameter) => `${parameter.name}=${parameter.rawValue}`)
+    .join(", ");
+  // A Zener on it runs, but never breaks down: say so rather than let a
+  // regulator simulate as a plain diode unnoticed.
+  const zeners = parts.filter((part) => part.zener).map((part) => part.name);
+  diagnostic(
+    diagnostics,
+    document.id,
+    "GENERIC_DIODE_MODEL",
+    `${partList(parts.map((part) => part.name))} ${parts.length === 1 ? "uses" : "use"} the generic diode model ${GENERIC_DIODE_MODEL.name} (${values}); set a model for a real device${
+      zeners.length
+        ? `. It has no breakdown, so ${partList(zeners)} ${zeners.length === 1 ? "does" : "do"} not act as a Zener until given a Zener model`
+        : ""
+    }`,
+    parts.map((part) => part.id),
+    "info",
+  );
+}
+
+/**
  * A MOS whose body follows a default onto one supply while its source is on
  * another supply of the same domain (#1336): a level shifter's VDDH PMOS with
  * its body on the Cell's PMOS default VDDL, forward-biased when VDDH is the
@@ -2540,6 +2629,20 @@ function extractCell(
     )
   )
     models.push(structuredClone(IDEAL_SWITCH_MODEL));
+  // SPICE only (VACASK prints it from the SPICE card). A Spectre export still
+  // names DIODE for the reader's libraries to define.
+  const genericDiodes =
+    options.format === "spice"
+      ? instances.filter(
+          (instance) =>
+            instance.deviceClass === "diode" &&
+            instance.target === GENERIC_DIODE_MODEL.name,
+        )
+      : [];
+  if (genericDiodes.length && !projectDefinesGenericDiode(project)) {
+    models.push(structuredClone(GENERIC_DIODE_MODEL));
+    reportGenericDiodes(document, genericDiodes, diagnostics);
+  }
   for (const extracted of instances) {
     const source = document.instances.find(
       (candidate) => candidate.id === extracted.id,

@@ -51,6 +51,12 @@ export interface DesignNetlistModel {
   /** The SPICE model type, such as `SW`. */
   type: string;
   parameters: DesignNetlistParameter[];
+  /**
+   * The name is the one a binding gives, such as the generic diode's `DIODE`:
+   * the card only stands in while nothing else defines it, so the name stays
+   * the author's to change. The ideal switch's name is the netlist's own.
+   */
+  authoredName?: true;
 }
 
 export interface DesignNetlistCell {
@@ -67,7 +73,8 @@ export interface DesignNetlistCell {
   instances: DesignNetlistInstance[];
   /** Ordered definition defaults retained without conflating absence and "". */
   formalParameters?: DesignNetlistFormalParameter[];
-  /** Model cards only this Cell's own instances use, such as the ideal switch. */
+  /** Model cards only this Cell's own instances use, such as the ideal switch
+   * and the generic diode. */
   models?: DesignNetlistModel[];
 }
 

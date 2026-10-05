@@ -2,6 +2,7 @@ import {
   deviceDescriptor,
   reviewedExternalBindingForMaster,
 } from "@icm/devices";
+import { GENERIC_DIODE_MODEL } from "@icm/netlist";
 export const NETLIST_PROFILE_IDS = [
   "abstract",
   "sky130",
@@ -199,7 +200,8 @@ const GENERIC_TARGETS: Partial<Record<NetlistDeviceFamily, string>> = {
   pmos: "PMOS",
   npn: "NPN",
   pnp: "PNP",
-  diode: "DIODE",
+  // The netlist defines this one itself while nothing else does.
+  diode: GENERIC_DIODE_MODEL.name,
   switch: "SW",
 };
 const SKY130_TARGETS: Partial<Record<NetlistDeviceFamily, string>> = {

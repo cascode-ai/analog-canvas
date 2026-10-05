@@ -111,6 +111,12 @@ targets to avoid full-Snapshot name resolution. Names remain supported when usef
   the Process the Netlist panel shows. A BJT in a SKY130 Project arrives as
   the reviewed SKY130 wrapper, keeping its `m`. Given `parameters` win, and
   only a value given is shown in a Value label.
+- A diode placed in Abstract, SKY130, IHP SG13G2 or Custom is bound to the
+  generic model `DIODE`. The SPICE netlist defines it with one
+  `.model DIODE D(IS=1e-14 N=1)` card in each Cell that uses it and says so as
+  information, `GENERIC_DIODE_MODEL`, naming the diodes. A `.model DIODE` in
+  the Project's own simulation sources replaces the card. For a real device,
+  `set-model` the diode to its own model.
 - `place-component` and `set-property` refuse a parameter the part does not
   take (naming the one it most likely meant), a value outside a choice list,
   and a quantity that is neither a SPICE number (`1k`, `2.5n`, `9kΩ`) nor an
