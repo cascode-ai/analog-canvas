@@ -11,6 +11,8 @@ import type {
 
 import {
   createHierarchicalBlockGeometry,
+  hierarchicalBlockBodySize,
+  type HierarchicalBlockLayoutOptions,
   type HierarchicalBlockTerminal,
 } from "./hierarchical-block-geometry.js";
 import { resolvePdkSymbolMappingForTerminalOrder } from "./pdk-registry.js";
@@ -34,10 +36,14 @@ export interface BlockSymbolLayout {
   presentation?: CellSymbolPresentation | undefined;
 }
 
-export function createBlockSymbol(layout: BlockSymbolLayout): SymbolDefinition {
+export function createBlockSymbol(
+  layout: BlockSymbolLayout,
+  options: HierarchicalBlockLayoutOptions = {},
+): SymbolDefinition {
   const positional = createHierarchicalBlockGeometry(
     layout.terminals,
     layout.presentation,
+    options,
   );
   return SymbolDefinitionSchema.parse({
     ...positional,
@@ -93,6 +99,7 @@ export function createHierarchicalBlockSymbol(
     readonly presentation?: SchematicDocument["presentation"];
     readonly annotations?: SchematicDocument["annotations"];
   },
+  options: HierarchicalBlockLayoutOptions = {},
 ): SymbolDefinition | null {
   // The current netlist name is the local Cell identity. sourceBinding keeps
   // import provenance and intentionally does not change when the local Cell is
@@ -100,12 +107,45 @@ export function createHierarchicalBlockSymbol(
   const cellName = document.netlist?.name;
   const terminals = projectCellSymbolTerminals(document);
   if (!cellName) return null;
-  return createBlockSymbol({
-    id: hierarchicalSymbolId(cellName),
-    name: document.name,
-    terminals,
-    presentation: document.presentation?.cellSymbol,
-  });
+  return createBlockSymbol(
+    {
+      id: hierarchicalSymbolId(cellName),
+      name: document.name,
+      terminals,
+      presentation: document.presentation?.cellSymbol,
+    },
+    options,
+  );
+}
+
+/** The Cells some Cell of the Project has placed. */
+export function placedCellDocumentIds(
+  project: Pick<CircuitProject, "documents">,
+): Set<string> {
+  return new Set(
+    project.documents.flatMap((parent) =>
+      parent.instances.flatMap((instance) =>
+        instance.netlist?.binding?.kind === "subcircuit"
+          ? [instance.netlist.binding.childDocumentId]
+          : [],
+      ),
+    ),
+  );
+}
+
+/** The body size of a Cell's block, as the Project's symbols draw it. */
+export function cellBlockBodySize(
+  document: Pick<SchematicDocument, "netlist"> & {
+    readonly presentation?: SchematicDocument["presentation"];
+    readonly annotations?: SchematicDocument["annotations"];
+  },
+  options: HierarchicalBlockLayoutOptions = {},
+): { width: number; height: number } {
+  return hierarchicalBlockBodySize(
+    projectCellSymbolTerminals(document),
+    document.presentation?.cellSymbol,
+    options,
+  );
 }
 
 export function createProjectHierarchicalSymbols(
@@ -113,10 +153,16 @@ export function createProjectHierarchicalSymbols(
     Partial<Pick<CircuitProject, "externalSubcircuitDefinitions">>,
   baseDefinitions: readonly SymbolDefinition[] = [],
 ): SymbolDefinition[] {
+  // A Cell no parent has placed yet sizes its block so that its Pins' names
+  // read apart. Its first placement keeps that size (planPlaceCellInstance);
+  // a placed block's Pins never move.
+  const placed = placedCellDocumentIds(project);
   const internal = project.documents.flatMap((document) => {
     // Top is an entry point, not a restriction on Cell reuse. First placement
     // and definition preview must resolve before a caller exists.
-    const definition = createHierarchicalBlockSymbol(document);
+    const definition = createHierarchicalBlockSymbol(document, {
+      fitNames: !placed.has(document.id),
+    });
     return definition ? [definition] : [];
   });
   const external = (project.externalSubcircuitDefinitions ?? []).flatMap(

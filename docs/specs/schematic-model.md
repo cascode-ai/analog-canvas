@@ -183,7 +183,12 @@ two explicit placements may occupy the same side/offset slot. A supply Cell Pin
 (a VDD Power port, or a Port named like VDD/VCC or VSS/GND) added to a Cell
 that no parent has placed yet gets an explicit placement on the top or bottom
 edge, in the same transaction, as the textbook draws it; a Cell already placed
-somewhere keeps the automatic layout its drawings were made with.
+somewhere keeps the automatic layout its drawings were made with. While no
+parent has placed a Cell, its derived block is also tall and wide enough for
+each top or bottom Pin's name to clear the side Pins' names and the body's
+sides. Its first placement persists that size as the minimum body size in the
+same transaction, so the block keeps it once placed; a placed Cell's block is
+never resized by this rule.
 
 ## Core invariants
 
