@@ -439,6 +439,7 @@ import {
   instanceValueAnnotation,
   isRoutedMarker,
   netLabelPlacementTargetAtPoint,
+  netLabelPlacementTargetForText,
 } from "../features/wiring/route-interaction-geometry";
 import {
   labelsOwnedBy,
@@ -446,6 +447,8 @@ import {
 } from "../features/wiring/label-tether";
 import type { NetLabelPlacementTarget } from "../features/wiring/route-interaction-geometry";
 import {
+  netLabelBaselineAboveWire,
+  netLabelBaselineForName,
   netLabelCapHeight,
   netLabelDirection,
   netLabelDirectionText,
@@ -4735,8 +4738,19 @@ function WorkspaceEditor({
     netLabelTarget?: NetLabelPlacementTarget;
   } {
     if (copyPlacement) {
-      const netLabelTarget = standaloneCopiedNetLabel(copyPlacement.clipboard)
-        ? resolveNetLabelPlacementTarget(point, svg)
+      const copied = standaloneCopiedNetLabel(copyPlacement.clipboard);
+      // The copy keeps its look and stands over its new wire as a new label
+      // with that text does.
+      const netLabelTarget = copied
+        ? resolveNetLabelPlacementTarget(point, svg, undefined, undefined, {
+            baselineAboveWire: netLabelBaselineForName(
+              copied.name,
+              copied.annotation.formatOverride,
+              document.presentation,
+              copied.annotation.sizeScale ?? 1,
+            ),
+            rotation: copied.annotation.rotation,
+          })
         : null;
       if (netLabelTarget)
         return {
@@ -4812,8 +4826,21 @@ function WorkspaceEditor({
     svg?: SVGSVGElement,
     preferredRouteId?: string,
     direction: NetLabelDirection | undefined = netLabelPlacement?.direction,
+    /** The text the label carries, once known: it stands as close over a
+     * horizontal wire as that text allows (#1300). */
+    seat:
+      | { baselineAboveWire: number; rotation?: number }
+      | undefined = netLabelPlacement?.phase === "placing"
+      ? {
+          baselineAboveWire: netLabelBaselineAboveWire(
+            netLabelPlacement.content,
+            styleProfile,
+            netLabelPlacement.sizeScale,
+          ),
+        }
+      : undefined,
   ): NetLabelPlacementTarget | null {
-    return netLabelPlacementTargetAtPoint(
+    const target = netLabelPlacementTargetAtPoint(
       routeGeometryRecords,
       point,
       svg ? logicalRadiusForPixels(svg, NET_LABEL_SNAP_CAPTURE_RADIUS_PX) : 0,
@@ -4828,6 +4855,14 @@ function WorkspaceEditor({
           }
         : undefined,
     );
+    return target && seat
+      ? netLabelPlacementTargetForText(
+          routeGeometryRecords,
+          target,
+          seat.rotation ?? target.rotation ?? 0,
+          seat.baselineAboveWire,
+        )
+      : target;
   }
 
   /**
@@ -4863,7 +4898,12 @@ function WorkspaceEditor({
     const turned = document.annotations.flatMap((annotation) => {
       if (!visualSelection.annotationIds.includes(annotation.id)) return [];
       if (annotation.locked) return [];
-      const next = turnedNetLabel(annotation, geometryOf, styleProfile);
+      const next = turnedNetLabel(
+        annotation,
+        geometryOf,
+        styleProfile,
+        document,
+      );
       return next ? [next] : [];
     });
     if (!turned.length) return;

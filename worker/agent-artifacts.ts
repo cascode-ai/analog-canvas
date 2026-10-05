@@ -27,8 +27,10 @@ export interface AgentArtifactBucket {
       httpMetadata: { contentType: string };
     },
   ): Promise<unknown>;
-  delete(key: string): Promise<void>;
+  delete(keys: string | string[]): Promise<void>;
 }
+/** R2 deletes at most this many keys in one call. */
+const BULK_DELETE_KEYS = 1000;
 
 /** Session-scoped transfer replicas. Canonical run evidence has its own retention. */
 export class AgentArtifacts {
@@ -44,16 +46,37 @@ export class AgentArtifacts {
       this.index = value ?? {};
     });
   }
-  async clear(): Promise<void> {
+  /**
+   * Forget every transfer, then delete its bytes. Returns the keys still
+   * stored, for the session to retry: it ends whether or not R2 takes them.
+   */
+  async clear(): Promise<string[]> {
     await this.ready;
     this.closing = true;
     await Promise.allSettled(this.pending.values());
-    if (this.bucket)
-      await Promise.all(
-        Object.values(this.index).map(({ key }) => this.bucket!.delete(key)),
-      );
+    const keys = Object.values(this.index).map(({ key }) => key);
     this.index = {};
     await this.storage.put(INDEX_KEY, {});
+    return this.deleteObjects(keys);
+  }
+
+  /**
+   * Delete stored bytes in bulk calls and return the keys left. One call per
+   * object had sent a session's every download to R2 at once when it
+   * expired; when that failed, the session could neither end nor answer.
+   */
+  async deleteObjects(keys: readonly string[]): Promise<string[]> {
+    if (!this.bucket) return [];
+    let left = [...keys];
+    try {
+      while (left.length) {
+        await this.bucket.delete(left.slice(0, BULK_DELETE_KEYS));
+        left = left.slice(BULK_DELETE_KEYS);
+      }
+    } catch (error) {
+      console.error("Agent artifact deletion deferred", error);
+    }
+    return left;
   }
   async handle(
     request: Request,

@@ -34,8 +34,10 @@ import type {
 } from "@icm/model";
 import {
   IDEAL_COMPARATOR_TARGET,
+  builtInModelContract,
   createReferenceIndex,
   deviceDescriptor,
+  instanceBuiltInSubcircuit,
   nextReference,
   projectLengthToSky130Micrometres,
   requiredParameterNames,
@@ -69,12 +71,11 @@ import {
   withImplicitMosSupplies,
 } from "./implicit-mos-supplies.js";
 import { idealAnalogBlockCell } from "./ideal-analog-block-models.js";
-import { isIdealLogicTarget } from "./ideal-logic-gate-models.js";
-import { isIdealSignalTarget } from "./ideal-signal-block-models.js";
 
 /** A target with a generated ngspice body: logic, multiplier, converters. */
 function isBehaviouralTarget(target: string): boolean {
-  return isIdealLogicTarget(target) || isIdealSignalTarget(target);
+  const family = builtInModelContract(target)?.family;
+  return family === "logic" || family === "signal";
 }
 
 const IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/u;
@@ -109,7 +110,7 @@ function diagnostic(
   code: string,
   message: string,
   objectIds: StableId[] = [],
-  severity: "error" | "warning" = "error",
+  severity: NetlistDiagnostic["severity"] = "error",
   parameter?: string,
 ): void {
   diagnostics.push({
@@ -593,13 +594,16 @@ function buildNetContext(
         encodedGenerated.ok &&
         occupiedNames.has(encodedGenerated.collisionKey)
       );
+      // An unnamed internal Net is valid; its exported name is information.
+      // As a warning, a two-stage op amp's four internal nodes outnumbered
+      // its real findings, and simulation preparation already drops it.
       diagnostic(
         diagnostics,
         document.id,
         "GENERATED_NET_NAME",
         `Unnamed logical Net ${logicalNet.id} exports as ${name}`,
         [...logicalNet.baseNetIds],
-        "warning",
+        "info",
       );
     }
     if (!name) continue;
@@ -720,13 +724,15 @@ function buildNetContext(
     const key = `${noConnect.endpoint.instanceId}\u0000${noConnect.endpoint.pinName}`;
     noConnectNameByTerminal.set(key, generated);
     noConnectNets.push({ id: noConnect.id, name: generated, scope: "local" });
+    // The author marked this pin unused; its node name is information, not
+    // a problem. As a warning, a PFD's two unused QBAR marks buried the rest.
     diagnostic(
       diagnostics,
       document.id,
       "GENERATED_NO_CONNECT_NODE",
       `Explicit NoConnect ${noConnect.id} exports as floating node ${generated}`,
       [noConnect.id, noConnect.endpoint.instanceId],
-      "warning",
+      "info",
     );
   }
 
@@ -813,7 +819,7 @@ function terminalNetName(
       ? // The fourth node has two authored answers; name both so the
         // report is actionable instead of only true.
         `Required pin ${instance.reference ?? instance.id}.B has no body Net: connect B, or set this Cell's MOS body default`
-      : `Required pin ${instance.reference ?? instance.id}.${pinName} is not connected to an exportable Net`,
+      : `Required pin ${instance.reference ?? instance.id}.${pinName} is not connected to an exportable Net: connect it, or mark it No Connect if it is unused`,
     [instance.id],
   );
   return null;
@@ -1385,7 +1391,8 @@ function extractDrawnSwitch(
     // A switch whose label still shows its own name is clocked by a phase of
     // that name, so a freshly placed switch netlists at once. Writing Φ1 on
     // the label moves it onto a shared clock.
-    const phase = drawnSwitchPhase(document, instance) ?? reference;
+    const drawnPhase = drawnSwitchPhase(document, instance);
+    const phase = drawnPhase ?? reference;
     const encoded = encodeCandidate(phase, "local", options);
     if (!encoded.ok) {
       diagnostic(
@@ -1419,7 +1426,11 @@ function extractDrawnSwitch(
         diagnostics,
         document.id,
         "SWITCH_PHASE_NOT_DRIVEN",
-        `No Net named ${phase} in this Cell drives switch ${reference}: name the clock's Net ${phase}, or add a Cell Pin ${phase}`,
+        // Clocked by its own name, a switch shares no clock: say how to give
+        // it one before asking for a Net named after the switch.
+        drawnPhase === null
+          ? `No Net named ${phase} in this Cell drives switch ${reference}, which is clocked by its own name: write its phase on its label (a display alias such as Φ1) to share one clock, and draw that clock on a Net or Cell Pin of the same name`
+          : `No Net named ${phase} in this Cell drives switch ${reference}: name the clock's Net ${phase}, or add a Cell Pin ${phase}`,
         [instance.id],
         "warning",
       );
@@ -1567,6 +1578,7 @@ function magneticSubcircuit(
   definition: DeviceDescriptor,
 ): DesignNetlistMagneticSubcircuit {
   return {
+    kind: "magnetic",
     name: network.subcircuit,
     ports: network.ports.map((port) => port.port),
     formalParameters: drawnMagneticParameters(network).map((name) => ({
@@ -2352,7 +2364,7 @@ function extractCell(
     }
     if (cellPinInstanceIds.has(instance.id)) continue;
     const binding = instance.netlist?.binding;
-    const builtInSubcircuit = subcircuitDescriptor(instance.symbolId, project);
+    const builtInSubcircuit = instanceBuiltInSubcircuit(project, instance);
     const extracted = builtInSubcircuit
       ? extractBuiltInSubcircuitInstance(
           document,
@@ -2712,8 +2724,9 @@ function analyzeDesign(
       // is written, and a warning says the reader's libraries must define
       // it. (The comparator keeps its own IDEAL_COMPARATOR_SPICE_ONLY rule.)
       if (
-        resolvedOptions.format === "spectre" &&
-        isBehaviouralTarget(instance.target) &&
+        builtInModelContract(instance.target)?.backends[
+          resolvedOptions.format
+        ] === "external" &&
         !availableSubcircuits.has(target)
       ) {
         diagnostic(
@@ -2805,7 +2818,7 @@ function analyzeDesign(
         });
       }
     }
-    const descriptor = subcircuitDescriptor(instance.symbolId, project);
+    const descriptor = instanceBuiltInSubcircuit(project, instance);
     if (!descriptor) continue;
     const target =
       binding?.kind === "unresolved-subcircuit"
@@ -2886,25 +2899,27 @@ function analyzeDesign(
     ir: {
       topCellId: resolvedOptions.rootDocumentId,
       cells: [...idealCells, ...cells],
-      ...(cells.some((cell) =>
-        cell.instances.some(
-          (instance) => instance.target === IDEAL_COMPARATOR_TARGET,
+      generatedDefinitions: [
+        ...(!occupiedNames.has(IDEAL_COMPARATOR_TARGET.toLowerCase()) &&
+        cells.some((cell) =>
+          cell.instances.some(
+            (instance) => instance.target === IDEAL_COMPARATOR_TARGET,
+          ),
+        )
+          ? [{ kind: "behavioral" as const, name: IDEAL_COMPARATOR_TARGET }]
+          : []),
+        ...behaviouralBodies.map((name) => ({
+          kind: "behavioral" as const,
+          name,
+        })),
+        ...[...magneticSubcircuits.values()].sort((left, right) =>
+          compareText(left.name, right.name),
         ),
-      )
-        ? { idealComparator: true as const }
-        : {}),
-      ...(behaviouralBodies.length > 0 ? { behaviouralBodies } : {}),
+      ],
       globals,
       externalMasters: [...externalMasters.values()].sort((left, right) =>
         compareText(left.name, right.name),
       ),
-      ...(magneticSubcircuits.size > 0
-        ? {
-            magneticSubcircuits: [...magneticSubcircuits.values()].sort(
-              (left, right) => compareText(left.name, right.name),
-            ),
-          }
-        : {}),
     },
     diagnostics,
   };

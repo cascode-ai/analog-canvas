@@ -530,7 +530,11 @@ second copy protocol.
 
 The planner authors the resulting geometry for every planned Route in the
 same transaction. Engine instance-follow remains the safe single-instance
-fallback, not a second progressive planner for a group gesture. Marquee Route
+fallback, not a second progressive planner for a group gesture. It agrees with
+the closure on internal wiring: when parts only slide, a Route component whose
+pins all belong to parts sliding by the same offset (an open stub, with its
+bends, open Junctions and labels) travels with them whole, and only Routes
+reaching a part that stays, turns or slides differently stretch. Marquee Route
 selection tests actual polyline segments against the rectangle, rather than
 selecting a distant bend solely because its bounding box overlaps the gesture.
 
@@ -674,8 +678,8 @@ when the destination already has the same name. No `_copy` suffix is added.
 Copied electrical labels retain their RichText, overbars, subscripts, typography,
 color and host-relative offsets; moving a copy changes its position only.
 A Net Label copied on its own keeps the ordinary copy preview. Dropping it
-within the Net Label tool's wire capture radius attaches it to that wire at
-the tool's standard offset and names the wire's Net, preserving the label's
+within the Net Label tool's wire capture radius attaches it to that wire where
+a new label with its text stands and names the wire's Net, preserving the label's
 look and scope. Outside that radius it remains a free label, including in
 another Project tab. Copy and attachment are one undoable edit. A label
 copied with other objects keeps the copied group's connectivity.
@@ -806,12 +810,17 @@ when the component moves or rotates and through Project file save/load. Net/powe
 labels carry Net identity separately from their
 visual anchor. A resolved anchor drives both the glyph and every text
 hit/marquee surface; its fallback is only for an orphaned target, never an
-editor-local alternate position. Dragging a route-anchored Net label re-anchors
-it along its own Route (segment, t, and a generous normal-offset band) instead
-of moving a fallback position. A new Net Label, placed with `L` or by naming a
-selected Wire, takes its Wire's standard side, whichever way the Wire was drawn.
-On a horizontal segment it sits above the Wire. On a vertical segment it sits to
-the right and starts at the Wire, so it never covers it. Each selected label
+editor-local alternate position. A route-anchored Net label dropped beside its
+own Route, along a segment and within 20 units of it, re-anchors there
+(segment, t and normal offset) exactly where it was dropped, so it keeps
+following that Wire; dropped further away it becomes a free label that still
+names its Net. A new Net Label, placed with `L` or by naming a selected Wire,
+takes its Wire's standard side, whichever way the Wire was drawn. On a
+horizontal segment it sits just above the Wire: its lowest ink keeps 4 units
+clear, so capitals stand 4 units up and a descender or a subscript higher, up
+to a grid step. On a vertical segment it sits to the right and starts at the
+Wire, so it never covers it. The placement preview stands where the label
+commits. Each selected label
 draws a glowing tether to what it belongs to, and so do the labels of a lone
 selected part:
 

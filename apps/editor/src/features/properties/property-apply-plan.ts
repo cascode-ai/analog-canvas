@@ -1,5 +1,6 @@
 import {
   gateRoutingOperationPlan,
+  planPinChangeRouteClearance,
   planRenameCellTerminal,
   planSetDeviceModelTarget,
   planSetVddConnectionMode,
@@ -82,6 +83,9 @@ export function planPropertyApply(
     instance,
     formalTerminal ? nonNameValues : value,
   );
+  // Swapped inputs and other pin changes draw the wires they stretch clear
+  // of other Nets (#1309).
+  edits.push(...planPinChangeRouteClearance(document, resolver, edits));
   if (!instance.placement && value.placement) {
     edits.push({
       kind: "place_instance",

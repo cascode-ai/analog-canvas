@@ -5,7 +5,12 @@ import {
   resolveEndpointConnection,
   resolveRouteGeometry,
 } from "@icm/derived";
-import { routeEnd, type SchematicDocument } from "@icm/model";
+import {
+  routeEnd,
+  type Point,
+  type RouteEndpoint,
+  type SchematicDocument,
+} from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 import { executeTransaction, type SchematicEdit } from "./transaction.js";
 import { proposeWireIntent, type WireIntent } from "./routing-planner.js";
@@ -14,34 +19,72 @@ import { createRouteClearance } from "./route-clearance.js";
 import { resolveWireIntentTarget } from "./wire-intent-target.js";
 
 /**
- * A wire between two endpoints that keeps clear of what it must not touch
- * (#1257): another Net's pin, a part's body or drawing, another Net's wire.
- * Any of those would read as a connection the netlist does not have. The
- * planner's own path is kept when it is clear. Otherwise a wire with no
- * via points takes the cheapest clear path, and one with via points, which
- * the caller chose, is refused with what it would meet.
+ * A wire that keeps clear of what it must not touch (#1257): another Net's
+ * pin, a part's body or drawing, another Net's wire. Any of those would read
+ * as a connection the netlist does not have. It leaves a pin or a Junction
+ * for another, for a Net (the conductor the selector resolves to), for a tap
+ * on a wire or for an open end. Only a wire between two endpoints used to be
+ * checked: one to a Net was drawn straight through four transistors of an
+ * OTA to reach its bias Net. The planner's own path is kept when it is
+ * clear. Otherwise a wire with no via points takes the cheapest clear path,
+ * and one with via points, which the caller chose, is refused with what it
+ * would meet.
  */
 function keepClear(
   document: SchematicDocument,
   resolver: SymbolResolver,
   intent: WireIntent,
 ): WireIntent | string {
-  if (intent.from.kind !== "endpoint" || intent.to.kind !== "endpoint")
-    return intent;
-  const planned = proposeWireIntent(document, resolver, intent);
+  const from = resolveWireIntentTarget(
+    document,
+    resolver,
+    intent.from,
+    intent.to,
+  );
+  if (typeof from === "string") return intent;
+  const to = resolveWireIntentTarget(document, resolver, intent.to, from);
+  if (typeof to === "string") return intent;
+  // A wire drawn between points alone is drawn where it is asked: it may
+  // end on another wire to join it.
+  if (from.kind !== "endpoint" && to.kind !== "endpoint") return intent;
+  const resolved = { ...intent, from, to };
+  const planned = proposeWireIntent(document, resolver, resolved);
   if (typeof planned === "string") return intent;
   const path = planned.edits.find((edit) => edit.kind === "set_route_path");
   if (!path) return intent;
-  const points = resolveRouteGeometry(
-    document,
-    resolver,
-    path.route,
-  )?.centerline;
+  // A tap's Junction exists only once the planned edits apply.
+  let points = resolveRouteGeometry(document, resolver, path.route)?.centerline;
+  if (!points) {
+    const draft = createContactPlanningDraft(document, resolver);
+    try {
+      for (const edit of planned.edits) draft.apply(edit);
+    } catch {
+      return intent;
+    }
+    points = resolveRouteGeometry(
+      draft.document,
+      resolver,
+      path.route,
+    )?.centerline;
+  }
   if (!points) return intent;
   const context = deriveNetConnectivityContext(document, resolver);
-  const ends = [intent.from.endpoint, intent.to.endpoint];
-  const ownNets = ends.flatMap((endpoint) => {
-    const netId =
+  const ends = [from, to].map((anchor) =>
+    anchor.kind === "endpoint" ? anchor.endpoint : undefined,
+  );
+  const ownNets = [from, to].flatMap((anchor) => {
+    if (anchor.kind === "route-segment") {
+      const netId = document.routes.find(
+        (route) => route.id === anchor.routeId,
+      )?.netId;
+      return netId
+        ? [context.logicalNetResolution.byBaseNetId.get(netId)?.id ?? netId]
+        : [];
+    }
+    if (anchor.kind !== "endpoint") return [];
+    const endpoint = anchor.endpoint;
+    const key = endpointKey(endpoint);
+    const netIds = [
       endpoint.kind === "junction"
         ? document.junctions.find((item) => item.id === endpoint.junctionId)
             ?.netId
@@ -51,26 +94,48 @@ function keepClear(
                 terminal.instanceId === endpoint.instanceId &&
                 terminal.pinName === endpoint.pinName,
             ),
-          )?.id;
-    return netId
-      ? [context.logicalNetResolution.byBaseNetId.get(netId)?.id ?? netId]
-      : [];
+          )?.id,
+      // A wire an earlier connect of this batch ran to the pin is the pin's
+      // own: its Net membership settles only at commit (#1304).
+      ...document.routes
+        .filter((route) =>
+          [route.start, routeEnd(route)].some(
+            (end) => endpointKey(end) === key,
+          ),
+        )
+        .map((route) => route.netId),
+    ];
+    return netIds.flatMap((netId) =>
+      netId
+        ? [context.logicalNetResolution.byBaseNetId.get(netId)?.id ?? netId]
+        : [],
+    );
   });
   const clearance = createRouteClearance(document, resolver, context, {
     logicalIds: new Set(ownNets),
-    endpointKeys: new Set(ends.map(endpointKey)),
+    endpointKeys: new Set(
+      ends.flatMap((end) => (end ? [endpointKey(end)] : [])),
+    ),
   });
   const problem = clearance.conflict(points, ends);
   if (!problem) return intent;
   if (intent.waypoints?.length)
     return `the requested path ${problem}, so it would read as connected there; give via points that keep clear of it`;
-  const clear = clearance.path(ends[0]!, ends[1]!);
+  const clear = clearance.path(endOf(from), endOf(to));
   if (typeof clear === "string") return clear;
   return {
-    ...intent,
+    ...resolved,
     waypoints: clear.waypoints,
     cornerOrder: clear.cornerOrder,
   };
+}
+
+/** Where a resolved wire end is: its endpoint, or the point of a tap or an
+ * open end. */
+function endOf(
+  anchor: Exclude<WireIntent["from"], { kind: "net" | "wire-at" }>,
+): RouteEndpoint | Point {
+  return anchor.kind === "endpoint" ? anchor.endpoint : anchor.point;
 }
 
 /** Plan on private evolving state, then dispatch the combined edits once.

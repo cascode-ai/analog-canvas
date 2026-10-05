@@ -40,7 +40,11 @@ import {
   planInsertedInstanceConnections,
 } from "./placement-connectivity";
 import { planPlacedCellPin } from "./cell-pin-placement";
-import { constrainedPowerRailEndpoint, planVddRailEdits } from "./vdd-rail";
+import {
+  constrainedPowerRailEndpoint,
+  planVddRailEdits,
+  railSupplyPinEdits,
+} from "./vdd-rail";
 import {
   defaultInstanceDisplayAnnotations,
   missingDefaultInstanceDisplayAnnotations,
@@ -606,7 +610,10 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
     }
     const result = options.transactConnectivity(
       "connect",
-      [...railPlan.edits],
+      [
+        ...railPlan.edits,
+        ...railSupplyPinEdits(options.project, options.document, railPlan),
+      ],
       railPlan.expectedElectricalEffect
         ? { expectedElectricalEffect: railPlan.expectedElectricalEffect }
         : {},

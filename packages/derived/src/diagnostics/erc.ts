@@ -637,6 +637,13 @@ export function runErcChecks(
       logicalNets,
       diagnostics,
     );
+    reportWiresOverlappingAnotherNet(
+      document,
+      docIndex,
+      logicalNets,
+      resolver,
+      diagnostics,
+    );
   }
 
   // A child interface can be shared by several parent instances. Preserve the
@@ -1097,6 +1104,22 @@ function reportDanglingWires(
       evidence.owner.kind === "power-marker"
     )
       labelledObjects.add(evidence.owner.objectId);
+  // A Net Label dragged off its wire keeps naming the stub it stands at
+  // (#1300): a free label of the open end's Net within a few grid steps of
+  // it counts as that wire's label.
+  const reach = document.presentation.grid * 4;
+  const freeLabels = document.annotations.flatMap((annotation) => {
+    if (
+      (annotation.kind !== "net-label" && annotation.kind !== "power-label") ||
+      annotation.anchor.kind !== "free"
+    )
+      return [];
+    const netId =
+      annotation.binding?.kind === "net-name"
+        ? annotation.binding.netId
+        : annotation.netId;
+    return netId ? [{ netId, position: annotation.anchor.position }] : [];
+  });
   for (const junction of [...document.junctions].sort((a, b) =>
     a.id.localeCompare(b.id, "en"),
   )) {
@@ -1106,7 +1129,15 @@ function reportDanglingWires(
     if (
       route.presentation === "power-rail" ||
       labelledObjects.has(junction.id) ||
-      labelledObjects.has(route.id)
+      labelledObjects.has(route.id) ||
+      freeLabels.some(
+        (label) =>
+          label.netId === junction.netId &&
+          Math.hypot(
+            label.position.x - junction.position.x,
+            label.position.y - junction.position.y,
+          ) <= reach,
+      )
     )
       continue;
     diagnostics.push({
@@ -1290,6 +1321,129 @@ function reportPinsTouchingAnotherNet(
             pinName: first.pinName,
             otherInstanceId: second.instanceId,
             otherPinName: second.pinName,
+          },
+        });
+      }
+    }
+  }
+}
+
+/**
+ * Two wires of different Nets drawn along one line over a common span
+ * (#1309). The drawing shows one continuous wire, the two Nets joined, while
+ * the netlist keeps them apart: a stretch after a move, a mirror or a pin
+ * change, such as swapped op-amp inputs, can leave them so. A crossing and
+ * two wires meeting end to end are not an overlap; wires of one Logical Net
+ * may share a trunk. Reported once for each pair of wires.
+ */
+function reportWiresOverlappingAnotherNet(
+  document: CircuitProject["documents"][number],
+  docIndex: ReturnType<ProjectConnectivityIndex["documents"]["get"]>,
+  logicalNets: ReturnType<typeof resolveDocumentLogicalNets>,
+  resolver: SymbolResolver,
+  diagnostics: ErcDiagnostic[],
+): void {
+  if (document.routes.length < 2) return;
+  const geometry =
+    docIndex?.routingGeometry ??
+    resolveDocumentRoutingGeometry(document, resolver);
+  const logicalOf = (netId: string) =>
+    logicalNets.byBaseNetId.get(netId) ?? null;
+  interface Span {
+    routeId: string;
+    netId: string;
+    logicalId: string;
+    start: number;
+    end: number;
+  }
+  // Each segment by the line it lies on: its direction, taken one way round,
+  // and its distance from the origin across that direction.
+  const lines = new Map<
+    string,
+    { unit: { x: number; y: number }; offset: number; spans: Span[] }
+  >();
+  for (const route of document.routes) {
+    const centerline = geometry.routes.get(route.id)?.centerline;
+    if (!centerline) continue;
+    const logicalId = logicalOf(route.netId)?.id ?? route.netId;
+    for (let index = 1; index < centerline.length; index += 1) {
+      const a = centerline[index - 1]!;
+      const b = centerline[index]!;
+      const length = Math.hypot(b.x - a.x, b.y - a.y);
+      if (length < 1e-6) continue;
+      let unit = { x: (b.x - a.x) / length, y: (b.y - a.y) / length };
+      if (unit.x < -1e-9 || (Math.abs(unit.x) <= 1e-9 && unit.y < 0))
+        unit = { x: -unit.x, y: -unit.y };
+      const offset = unit.x * a.y - unit.y * a.x;
+      const key = `${Math.round(unit.x * 1e6)}:${Math.round(unit.y * 1e6)}:${Math.round(offset * 1e3)}`;
+      const along = (point: { x: number; y: number }) =>
+        unit.x * point.x + unit.y * point.y;
+      const line = lines.get(key) ?? { unit, offset, spans: [] };
+      line.spans.push({
+        routeId: route.id,
+        netId: route.netId,
+        logicalId,
+        start: Math.min(along(a), along(b)),
+        end: Math.max(along(a), along(b)),
+      });
+      lines.set(key, line);
+    }
+  }
+  const reported = new Set<string>();
+  for (const { unit, offset, spans } of lines.values()) {
+    if (spans.length < 2) continue;
+    spans.sort(
+      (left, right) =>
+        left.start - right.start ||
+        left.routeId.localeCompare(right.routeId, "en"),
+    );
+    for (let index = 0; index < spans.length; index += 1) {
+      const left = spans[index]!;
+      for (
+        let other = index + 1;
+        other < spans.length && spans[other]!.start < left.end - 0.5;
+        other += 1
+      ) {
+        const right = spans[other]!;
+        if (left.logicalId === right.logicalId) continue;
+        const end = Math.min(left.end, right.end);
+        if (end - right.start <= 0.5) continue;
+        const [first, second] = [left, right].sort((a, b) =>
+          a.routeId.localeCompare(b.routeId, "en"),
+        ) as [Span, Span];
+        const pair = `${first.routeId}\u0000${second.routeId}`;
+        if (reported.has(pair)) continue;
+        reported.add(pair);
+        const at = (t: number) => ({
+          x: Math.round((t * unit.x - offset * unit.y) * 1000) / 1000,
+          y: Math.round((t * unit.y + offset * unit.x) * 1000) / 1000,
+        });
+        const from = at(right.start);
+        const to = at(end);
+        const name = (span: Span) => logicalOf(span.netId)?.name ?? span.netId;
+        diagnostics.push({
+          id: `erc:overlapping-nets:${document.id}:${first.routeId}:${second.routeId}`,
+          domain: "erc",
+          code: "ERC_OVERLAPPING_NETS",
+          severity: "error",
+          confidence: "high",
+          gateEligible: false,
+          message: `Wires ${first.routeId} (Net ${name(first)}) and ${second.routeId} (Net ${name(second)}) run on top of each other from (${from.x}, ${from.y}) to (${to.x}, ${to.y}): the drawing shows the two Nets joined, though the netlist keeps them apart. Move one wire off the other`,
+          primary: directObjectLocator(document.id, "route", first.routeId),
+          related: [
+            directObjectLocator(document.id, "route", second.routeId),
+            directObjectLocator(document.id, "net", first.netId),
+            directObjectLocator(document.id, "net", second.netId),
+          ],
+          parameters: {
+            routeId: first.routeId,
+            otherRouteId: second.routeId,
+            netId: first.netId,
+            otherNetId: second.netId,
+            fromX: from.x,
+            fromY: from.y,
+            toX: to.x,
+            toY: to.y,
           },
         });
       }

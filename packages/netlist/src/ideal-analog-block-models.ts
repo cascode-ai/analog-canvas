@@ -1,5 +1,5 @@
 import { deriveStableId } from "@icm/model";
-import { idealAnalogBlockParameter, subcircuitDescriptor } from "@icm/devices";
+import { builtInModelContract, subcircuitDescriptor } from "@icm/devices";
 
 import type { DesignNetlistCell, DesignNetlistInstance } from "./ir.js";
 import type { NetlistFormat } from "./net-name-codec.js";
@@ -88,7 +88,7 @@ export function idealAnalogBlockCell(
   const name = target as IdealBlockTarget;
   const model = MODELS[name];
   // The adder has no setting: Y is A + B.
-  const parameter = name === "adder" ? null : idealAnalogBlockParameter(name);
+  const parameter = builtInModelContract(name)?.parameters[0];
   if (name !== "adder" && !parameter)
     throw new Error(`Ideal analog model has no parameter: ${name}`);
   const descriptor = subcircuitDescriptor(model.symbolId);
@@ -137,6 +137,7 @@ export function idealAnalogBlockCell(
               : [g(["0", "VOUT", "VIP", "VIN"])];
 
   return {
+    origin: "generated-model",
     id: deriveStableId("netlist-ideal-block-cell", name),
     name,
     ports: model.ports.map((port, index) => ({
@@ -161,7 +162,14 @@ export function idealAnalogBlockCell(
         : []),
     ],
     formalParameters: parameter
-      ? [{ name: parameter.name, defaultValue: parameter.defaultValue }]
+      ? [
+          {
+            name: parameter.name,
+            ...(parameter.defaultValue !== undefined
+              ? { defaultValue: parameter.defaultValue }
+              : {}),
+          },
+        ]
       : [],
     instances,
   };

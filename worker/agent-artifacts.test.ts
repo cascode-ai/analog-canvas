@@ -47,8 +47,10 @@ function fixture() {
         httpMetadata: { contentType: object.contentType },
       };
     },
-    delete: async (key) => {
-      objects.delete(key);
+    // R2 takes one key or a list of up to 1,000.
+    delete: async (keys) => {
+      for (const key of Array.isArray(keys) ? keys : [keys])
+        objects.delete(key);
     },
   };
   const files = new AgentArtifacts(storage, bucket);
@@ -258,5 +260,108 @@ describe("authorized streaming artifact transfer", () => {
         )
       ).status,
     ).not.toBe(200);
+  });
+});
+
+describe("an ended session's downloads", () => {
+  /** A claimed session with two uploaded files, as a fresh object sees it. */
+  async function session() {
+    const f = fixture();
+    let alarm: number | undefined;
+    const deletes: string[][] = [];
+    let failDeletes = false;
+    const storage = {
+      ...f.storage,
+      setAlarm: async (time: number) => {
+        alarm = time;
+      },
+    };
+    const bucket: AgentArtifactBucket = {
+      ...f.bucket,
+      delete: async (keys) => {
+        if (failDeletes) throw new Error("Too many subrequests.");
+        const list = Array.isArray(keys) ? keys : [keys];
+        deletes.push(list);
+        for (const key of list) f.objects.delete(key);
+      },
+    };
+    let counter = 0;
+    const { machine, session } = AgentSessionMachine.create({
+      projectSessionId: "work",
+      projectId: "project",
+      documentIds: ["doc"],
+      scopes: ["simulation.run"],
+      now: Date.now(),
+      random: () => `secret-${counter++}`,
+    });
+    await storage.put(SESSION_STATE_KEY, machine.serialize());
+    const open = () =>
+      new AgentSessionDO({ storage }, { SIMULATION_ARTIFACTS: bucket });
+    const object = open();
+    for (const file of ["a", "b"])
+      expect(
+        (
+          await object.fetch(
+            put(file, file, { "x-editor-secret": session.editorSecret }),
+          )
+        ).status,
+      ).toBe(200);
+    return {
+      ...f,
+      storage,
+      deletes,
+      open,
+      editorSecret: session.editorSecret,
+      alarm: () => alarm,
+      failDeletes: (fail: boolean) => {
+        failDeletes = fail;
+      },
+    };
+  }
+
+  it("deletes them from R2 in one bulk call", async () => {
+    const s = await session();
+    const object = s.open();
+    await object.fetch(
+      new Request("https://internal/control", {
+        method: "POST",
+        headers: {
+          "x-editor-secret": s.editorSecret,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ action: "revoke" }),
+      }),
+    );
+    expect(s.objects.size).toBe(0);
+    expect(s.deletes).toHaveLength(1);
+    expect(s.deletes[0]).toHaveLength(2);
+  });
+
+  it("ends an expired session that R2 cannot clear yet, and retries on an alarm", async () => {
+    // Expired while the object was away: restoring it ends the session. A
+    // failed delete there used to fail the object's start-up, so every
+    // request to it, the editor's status polls included, threw.
+    const s = await session();
+    const state = s.values.get(SESSION_STATE_KEY) as { expiresAt: number };
+    s.values.set(SESSION_STATE_KEY, { ...state, expiresAt: Date.now() - 1 });
+    s.failDeletes(true);
+    const object = s.open();
+
+    const status = await object.fetch(
+      new Request("https://internal/status", {
+        headers: { "x-editor-secret": s.editorSecret },
+      }),
+    );
+    expect(status.status).toBeGreaterThanOrEqual(400);
+    expect(status.status).toBeLessThan(500);
+    expect(s.values.has(SESSION_STATE_KEY)).toBe(false);
+    expect(s.objects.size).toBe(2);
+    expect(s.alarm()).toBeGreaterThan(Date.now());
+
+    s.failDeletes(false);
+    await object.alarm();
+    expect(s.objects.size).toBe(0);
+    await object.alarm();
+    expect(s.deletes).toHaveLength(1);
   });
 });

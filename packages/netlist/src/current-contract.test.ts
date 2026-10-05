@@ -738,7 +738,7 @@ describe("current formal cell interface", () => {
     expect(result.diagnostics).toEqual([
       expect.objectContaining({
         code: "GENERATED_NO_CONNECT_NODE",
-        severity: "warning",
+        severity: "info",
         objectIds: ["no-connect-r1-2", "R1"],
       }),
     ]);
@@ -1148,6 +1148,26 @@ describe("current formal cell interface", () => {
       name: "DATA\\<3\\>",
       scope: "local",
     });
+  });
+
+  it("says an unconnected pin can be connected or marked No Connect (#1305)", () => {
+    // A PFD's unused QBAR outputs blocked its netlist, and the message did
+    // not say that a No Connect mark resolves an unused pin.
+    const project = resistorProject({ value: "1k" });
+    const document = project.documents[0]!;
+    document.nets[1]!.terminals = [];
+
+    const result = analyzeDesignNetlist(project, { format: "spice" });
+
+    expect(result.ir).toBeNull();
+    expect(result.diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: "MISSING_PIN_NET",
+        severity: "error",
+        message:
+          "Required pin R1.2 is not connected to an exportable Net: connect it, or mark it No Connect if it is unused",
+      }),
+    );
   });
 
   it("says a pin on a Net it cannot spell is on that Net, not unconnected", () => {
@@ -1915,6 +1935,10 @@ describe("voltage-controlled switch", () => {
         diagnostic.severity,
       ]),
     ).toEqual([["SWITCH_PHASE_NOT_DRIVEN", "warning"]]);
+    // The warning says how to share a clock, not only how to drive S1.
+    expect(analysis.diagnostics[0]!.message).toContain(
+      "write its phase on its label (a display alias such as Φ1)",
+    );
     expect(printSpiceNetlist(analysis.ir!)).toContain(
       "S1 vout 0 S1 0 ideal_switch",
     );
@@ -2093,8 +2117,12 @@ describe("drawn switches", () => {
       analysis.diagnostics.filter((item) => item.severity === "error"),
     ).toEqual([]);
     // No Net named Φ1 is drawn yet, so the phase is a node of its own.
-    expect(analysis.diagnostics.map((item) => item.code)).toContain(
-      "SWITCH_PHASE_NOT_DRIVEN",
+    expect(
+      analysis.diagnostics.find(
+        (item) => item.code === "SWITCH_PHASE_NOT_DRIVEN",
+      )?.message,
+    ).toBe(
+      "No Net named Φ1 in this Cell drives switch S1: name the clock's Net Φ1, or add a Cell Pin Φ1",
     );
     const text = printSpiceNetlist(analysis.ir!);
     expect(text).toContain("S1 in out PHI1 0 ideal_switch");

@@ -515,6 +515,52 @@ describe("agent session client", () => {
       expect(report.ok).toBe(false);
     },
   );
+  it("fills a nested Document transaction's revision and names a refused field", async () => {
+    const { client, http } = await freshClient();
+    await client.connect("session-1.code");
+    const snapshot = await client.snapshot();
+    const sent: unknown[] = [];
+    http.circuitHandler = async ({ request }) => {
+      if (request.operation !== "transact")
+        return snapshotResponse(request.requestId);
+      sent.push(request.structureEdits);
+      return transactSuccessResponse(
+        request.requestId,
+        request.expectedRevision,
+      );
+    };
+    const nested = (extra: object) => ({
+      structureEdits: [
+        {
+          kind: "transact_document",
+          documentId: snapshot.documentId,
+          ...extra,
+          edits: [
+            {
+              kind: "set_instance_reference",
+              instanceId: "R1",
+              reference: "R2",
+            },
+          ],
+        },
+      ],
+    });
+    await client.advancedTransact(nested({}));
+    expect(sent).toEqual([
+      [expect.objectContaining({ expectedRevision: snapshot.revision })],
+    ]);
+    const refused = await client.advancedTransact(
+      nested({ expectedRevision: "latest" }),
+    );
+    expect(refused).toMatchObject({
+      ok: false,
+      code: "EDIT_SCHEMA_INVALID",
+      message: expect.stringMatching(
+        /^structureEdits\[0\]\.expectedRevision: /u,
+      ),
+    });
+    expect(sent).toHaveLength(1);
+  });
   it("reuses a composed operation's snapshot and preserves its revision on conflicts", async () => {
     const { client, http } = await freshClient();
     await client.connect("session-1.code");
@@ -1467,6 +1513,140 @@ describe("agent session client", () => {
     expect(report.ok).toBe(true);
     expect(report.revision).toBe(6);
     expect(client.summary("main")?.revision).toBe(6);
+  });
+
+  it("counts the pins not wired yet among a receipt's errors (#1301)", async () => {
+    const { client, http } = await freshClient();
+    await client.connect("session-1.code");
+    const finding = (code: string, severity: "error" | "warning") => ({
+      primary: {
+        documentId: "main",
+        hierarchyPath: [],
+        kind: "instance" as const,
+        objectId: "instance-1",
+      },
+      code,
+      domain: "spice",
+      severity,
+      confidence: "high" as const,
+      gateEligible: true,
+      message: code,
+      objectIds: ["instance-1"],
+    });
+    http.circuitHandler = async ({ request }) => {
+      if (request.operation !== "transact")
+        throw new Error(`unexpected ${request.operation} request`);
+      return {
+        ...transactSuccessResponse(request.requestId, request.expectedRevision),
+        diagnostics: [
+          finding("MISSING_PIN_NET", "error"),
+          finding("MISSING_PIN_NET", "error"),
+          finding("MISSING_CONTROL_SENSOR", "error"),
+          finding("ERC_FLOATING_GATE", "warning"),
+        ],
+      } as never;
+    };
+    const report = await client.applyActions([
+      {
+        kind: "transform",
+        selection: { instanceIds: ["instance-1"] },
+        transform: { kind: "translate", delta: { x: 20, y: 0 } },
+      },
+    ]);
+    expect(report).toMatchObject({ errors: 3, unwiredPins: 2, warnings: 1 });
+  });
+
+  it("leaves the open Cell's findings out of a receipt that changed only the Project's structure", async () => {
+    const { client, http } = await freshClient();
+    await client.connect("session-1.code");
+    let editKinds = ["project:add_document"];
+    http.circuitHandler = async ({ request }) => {
+      if (request.operation !== "transact")
+        throw new Error(`unexpected ${request.operation} request`);
+      const response = transactSuccessResponse(
+        request.requestId,
+        request.expectedRevision,
+        ["document-new"],
+      );
+      return {
+        ...response,
+        diff: {
+          documentId: "main",
+          fromRevision: request.expectedRevision,
+          toRevision: request.expectedRevision + 1,
+          editKinds,
+          changedObjectIds: ["document-new"],
+        },
+        diagnostics: [
+          {
+            primary: {
+              documentId: "main",
+              hierarchyPath: [],
+              kind: "instance",
+              objectId: "instance-1",
+            },
+            code: "MISSING_PIN_NET",
+            domain: "spice",
+            severity: "error",
+            confidence: "high",
+            gateEligible: true,
+            message: "Required pin M1.D is not connected",
+            objectIds: ["instance-1"],
+          },
+        ],
+      } as never;
+    };
+    const report = await client.applyActions([
+      { kind: "create-cell", id: "document-new", name: "fresh" },
+    ]);
+    expect(report).toMatchObject({
+      ok: true,
+      changedObjectIds: ["document-new"],
+    });
+    expect(report).not.toHaveProperty("errors");
+    expect(report).not.toHaveProperty("diagnostics");
+
+    // A Project transaction that edits the Cell, as placing a Cell Pin
+    // does, keeps the Cell's findings.
+    editKinds = ["project:transact_document"];
+    const placed = await client.applyActions([
+      { kind: "create-cell", id: "document-other", name: "other" },
+    ]);
+    expect(placed).toMatchObject({ errors: 1, unwiredPins: 1 });
+  });
+
+  it("sends Cells placed without IDs or orientation as one native batch, with no Snapshot (#1301)", async () => {
+    const { client, http } = await freshClient();
+    await client.connect("session-1.code");
+    const commands: unknown[] = [];
+    http.circuitHandler = async ({ request }) => {
+      if (request.operation === "transact") {
+        commands.push(request.command);
+        return transactSuccessResponse(
+          request.requestId,
+          request.expectedRevision,
+        );
+      }
+      throw new Error(`unexpected ${request.operation} request`);
+    };
+    const place = (x: number) => ({
+      kind: "place-cell",
+      childDocumentId: "child",
+      placement: { position: { x, y: 0 } },
+    });
+    const report = await client.applyActions([place(0), place(100)]);
+    expect(report.ok, JSON.stringify(report)).toBe(true);
+    expect(commands).toHaveLength(1);
+    const batch = commands[0] as {
+      kind: string;
+      commands: { instanceId: string; placement: unknown }[];
+    };
+    expect(batch.kind).toBe("batch");
+    expect(batch.commands.map((item) => item.placement)).toEqual([
+      { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+      { position: { x: 100, y: 0 }, rotation: 0, mirror: "none" },
+    ]);
+    expect(new Set(batch.commands.map((item) => item.instanceId)).size).toBe(2);
   });
 
   it("reuses bootstrap and transaction revisions for consecutive direct edits without a full snapshot", async () => {

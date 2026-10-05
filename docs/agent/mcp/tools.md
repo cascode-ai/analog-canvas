@@ -17,7 +17,7 @@ Focused circuit tools retain the `{documentId?, actions:[...]}` call envelope:
 | Tool                 | Scope                                                             |
 | -------------------- | ----------------------------------------------------------------- |
 | `circuit_place`      | Built-in symbol, Cell and existing-instance placement; power rail |
-| `circuit_wire`       | Connect and disconnect                                            |
+| `circuit_wire`       | Connect, disconnect, and mark unused pins No Connect             |
 | `circuit_transform`  | Individual move/rotate/mirror/set-orientation, arrange, detach-move and rail span |
 | `circuit_selection`  | Selection transform, copy and align                               |
 | `circuit_text`       | Labels, annotations, text changes and annotation movement         |
@@ -95,9 +95,12 @@ partially transforming a mixed selection.
 `cornerOrder`. The wire passes through every `via` point: points listed
 from `to` back to `from` are followed in that reverse order, and points no
 order can follow without doubling back are refused with a reason rather than
-committed as another path. Between two endpoints the wire also keeps clear of
-other Nets' pins and wires and of parts' bodies: without `via` it detours,
-with `via` that would meet one it is refused with the obstacle named. A
+committed as another path. A wire from a pin or Junction, whether to another,
+to a `net`, to a tap on a wire or to an open `point`, also keeps clear of other
+Nets' pins and wires and of parts' bodies: without `via` it detours, with
+`via` that would meet one it is refused with the obstacle named, and with no
+clear path at all it is refused like `route-net`. A wire drawn between points
+alone is drawn as asked, and may end on another wire to join it. A
 transaction that would put a Junction on another Net's wire is refused too.
 A `route-segment` target uses the Route's stable `legId` and a `point`; the
 server owns splitting and Junction creation.
@@ -107,7 +110,10 @@ Name Nets through labels/markers, never raw Base-Net fields.
 covered by common actions, not a separate permission tier. It uses the same
 validation and revision guards. Its listed schema/help describes the exclusive
 payload forms; the Helper supplies IDs and Document/Project revisions.
-Nested `transact_document` entries use their target Document revisions.
+Nested `transact_document` entries use their target Document revisions; one
+left without `expectedRevision` takes that Document's current revision. A
+payload the schema refuses names the field, such as
+`structureEdits[0].edits[1].kind`.
 The complete `analog-canvas://contract/advanced-edits` resource is the HTTP
 request envelope for offline tooling, not the MCP tool's argument schema.
 Do not load it merely to perform one edit.
@@ -188,9 +194,12 @@ A formula block (catalog `formula: true`: integrator, unit delay, discrete-time
 integrator, transconductance) takes `signalFlow:{formula?, coefficient?,
 bodyWidth?, bodyHeight?}` on `place-component`, and `set-signal-flow` changes
 them later (`null` clears one; a new formula drops the old formula's look, as
-the Properties formula does). These are drawing text, never netlist parameters:
+the Properties formula does). A formula is compact text, not TeX: `^` raises
+and a single `_` lowers the next term, a longer script groups in parentheses
+or braces (`g_m`, `g_(m1)`, `g_{m1}`, `z^-1`), and one top-level `/` makes a
+fraction (`1/s`). These are drawing text, never netlist parameters:
 `set-property` on a part without netlist parameters names `set-signal-flow`.
-`set-display-alias {instanceId, text}` draws a part's name label as other text
+`set-display-alias {target, text}` draws a part's name label as other text
 while its Reference (or Pin name) stays in the netlist, as the Properties
 display alias does: an op-amp stays `X1` and shows `A1`; `text:null` shows its
 own name again. It survives Project Code and Copy as the label's text. A
@@ -203,7 +212,12 @@ reachable landing when a pin cannot land where asked, and `place-existing`
 with a `pinAnchor` needs no `placement`. `mirror` with `axis` reflects a part
 in place as the selection `transform` does (`y` flips it left-right, `x`
 top-bottom); `set-orientation` sets an absolute rotation and mirror.
-Several `place-cell` actions share one call and one Undo, named in turn. Placement creates its
+Several `place-cell` actions share one call and one Undo, named in turn. A
+`place-cell` may leave out `instanceId` and the placement's `rotation` and
+`mirror`, as `place-component` does: the Helper makes the ID and turns the
+Cell upright. `set-model` and `set-display-alias` take a `target`
+(`{kind:"instance", reference}` or `id`), as `set-property` does; their native
+`instanceId` is still accepted. Placement creates its
 owned Port, Net and bound terminal-name display atomically; use the returned
 Instance ID for subsequent wiring. To place an imported Instance, use `place-existing` with
 `instanceId` and `placement` (or `move` from the tray); default labels use the GUI planner.
@@ -220,7 +234,8 @@ same attached labels and preserves their authored placement and style.
 The `binding.parameter` field is supported by Snapshot reads and advanced
 annotation edits, including hidden labels.
 Do not substitute free drafting text for these projections. `add-label` attaches
-new labels to their Net's routed geometry when available.
+new labels to their Net's routed geometry when available. Its target is a Net,
+or a pin: the label then names that pin's Net on the wire leaving the pin.
 `add-label` and Net Label `edit-text` author the electrical name claim and bound
 text together. Deleting the label removes its owned claim, not the physical wires.
 
@@ -266,6 +281,7 @@ resolves names and shapes arguments.
 |                      | `add-power-rail`                                    | command                              | GUI power rail planner                                                      |
 | `circuit_wire`       | `connect`                                           | wire intent                          | GUI routing planner                                                         |
 |                      | `disconnect`                                        | `disconnect-pin` command; a wire's is `delete-selection` | GUI pin menu: Delete connection where wires end on the pin, Disconnect endpoint where none does; GUI deletion |
+|                      | `disconnect` with `noConnect`, a No Connect mark    | typed edits                          | Edit Engine, as the GUI's No Connect toggle                                 |
 | `circuit_transform`  | `move`                                              | `set-properties` command, or a move command | Properties position field: a moved part joins a pin it lands on, as a drag does; GUI tray, annotation and Junction planners |
 |                      | `rotate`, `mirror`, `set-orientation`               | `set-properties` command             | Properties rotation and mirror fields                                       |
 |                      | `arrange`                                           | `arrange-instances` command          | Origins on one coordinate; the GUI's own Align is `circuit_selection` `align` |

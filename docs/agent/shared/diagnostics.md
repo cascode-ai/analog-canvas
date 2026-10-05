@@ -11,9 +11,10 @@ become blockers merely because their severity says warning.
 | Ambiguous Junction | Compare exact Nets and geometry; remove misleading branch placement without changing intended connectivity |
 | Constraint violation | Preserve locks and adjust the responsible unlocked area |
 | Symbol/label overlap | Compare visible strokes/text in the render; compact placement can be intentional |
-| Wire through symbol | Check actual strokes and endpoints; bounding-box overlap alone is not proof of a bad wire |
+| Wire through symbol | Check actual strokes and endpoints; bounding-box overlap alone is not proof of a bad wire. A wire running back across the part it starts from is reported as information; route it out of the pin first |
 | Route overlap | Same-Net collinear spans may be an intentional shared trunk; remove only redundant/confusing geometry |
-| Terminal departure | Inspect for hooks or reversal; deliberate bends are not automatically wrong |
+| Overlapping Nets (`ERC_OVERLAPPING_NETS`) | Two Nets drawn along one line read as shorted; reroute one wire off the named span, never add a Junction or merge the Nets |
+| Terminal departure | Reported where a wire leaves a pin backward, against the pin's direction, or leaves a port, supply or ground from the side with no other wire there; turn the symbol or approach the pin along its direction. A bend at the end of a part's lead, or a trunk running past a pin it taps, is ordinary drafting and is not reported |
 | Short segment / outside page | Review readability and intended bounds, not just a threshold |
 | Flightline | Route/label the intended relation or disclose a deliberately incomplete view |
 

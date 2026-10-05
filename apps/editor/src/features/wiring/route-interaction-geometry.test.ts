@@ -18,6 +18,7 @@ import {
   dragNetLabelAttachmentAtPoint,
   closestNetConductorPoint,
   netLabelPlacementTargetAtPoint,
+  netLabelPlacementTargetForText,
   dragRouteAttachmentAtPoint,
   effectiveRouteAttachment,
   looseRouteAnchorIds,
@@ -105,6 +106,48 @@ describe("route interaction geometry", () => {
       ).toEqual(presentation.bounds);
     },
   );
+
+  it("leaves the wire under a close Net label clickable (#1300)", () => {
+    const document = looseRouteDocument();
+    const record = routeRecord(document);
+    const profile = resolveSchematicStyleProfile(
+      document.presentation.styleProfileId,
+    );
+    const label = {
+      id: "label",
+      kind: "net-label" as const,
+      netId: "net-1",
+      content: { runs: [{ kind: "text" as const, value: "F" }] },
+      anchor: {
+        kind: "route" as const,
+        routeId: "route-1",
+        legId: record.geometry.segments[0]!.address.legId,
+        t: 0.5,
+        direction: "forward" as const,
+        // Capitals stand 4 units over the wire at y = 0.
+        normalOffset: -4,
+        orientation: "follow" as const,
+        fallbackPosition: { x: 50, y: -4 },
+      },
+      alignment: "middle" as const,
+      rotation: 0 as const,
+      locked: false,
+    };
+    document.annotations.push(label);
+    const box = annotationHitBox(document, resolver, label, [record], profile);
+    const { bounds } = resolveAnnotationPresentation(
+      document,
+      resolver,
+      label,
+      profile,
+    );
+    // The font box reached across the wire; the hit box stops above it but
+    // keeps the text's full width and cap height.
+    expect(bounds.y + bounds.height).toBeGreaterThan(0);
+    expect(box.y + box.height).toBeLessThan(0);
+    expect(box.y).toBeLessThan(-4 - 10);
+    expect([box.x, box.width]).toEqual([bounds.x, bounds.width]);
+  });
 
   it("recognizes a free route backed by two loose route anchors", () => {
     const document = looseRouteDocument();
@@ -218,6 +261,31 @@ describe("route interaction geometry", () => {
       routeId: "route-1",
       conductorPoint: { x: 70, y: 0 },
     });
+  });
+
+  it("previews a Net Label as close over its wire as its text lets it commit (#1300)", () => {
+    const document = looseRouteDocument();
+    const record = routeRecord(document);
+    const target = netLabelPlacementTargetAtPoint(
+      [record],
+      { x: 70, y: 6 },
+      7,
+    )!;
+    // Capitals stand 4 units up; seating the seated target again (as the
+    // commit does) leaves it where the preview showed it.
+    const seated = netLabelPlacementTargetForText([record], target, 0, 4);
+    expect(seated).toMatchObject({
+      routeAttachment: { t: 0.7, normalOffset: -4 },
+      conductorPoint: { x: 70, y: 0 },
+      labelPosition: { x: 70, y: -4 },
+    });
+    expect(netLabelPlacementTargetForText([record], seated, 0, 4)).toEqual(
+      seated,
+    );
+    // A label turned to run along the wire's normal keeps its look.
+    expect(netLabelPlacementTargetForText([record], target, 270, 4)).toEqual(
+      target,
+    );
   });
 
   it("puts a Net Label above a horizontal wire and right of a vertical one, however drawn", () => {

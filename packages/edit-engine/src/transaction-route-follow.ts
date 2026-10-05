@@ -13,6 +13,8 @@ import type {
   SchematicDocument,
 } from "@icm/model";
 import {
+  deriveInternalGroupSelection,
+  endpointKey,
   polylineSatisfiesConstraint,
   resolveEndpointConnection,
 } from "@icm/derived";
@@ -203,6 +205,130 @@ export function followRouteEndpoint(
     leads,
     outward,
   );
+}
+
+/**
+ * Wiring that hangs only from parts this transaction slides by one offset
+ * travels with them, rigidly (#1308): an open stub from a pin keeps its
+ * shape, its bends, its open Junctions and its labels, as the movement
+ * closure carries it in a selection move. Stretching it instead dragged the
+ * pin end along and left the open end behind, folding the stub back through
+ * the part. A component reaching any other pin, a part that also turns,
+ * mirrors or changes its pins, an offset off the electrical lattice, geometry
+ * this transaction states itself, or a locked segment is left to the
+ * ordinary follow. Returns the carried Route IDs.
+ */
+export function carryTranslatedRouteComponents(
+  draft: SchematicDocument,
+  originalDocument: SchematicDocument,
+  instanceIds: ReadonlySet<string>,
+  authoredRouteIds: ReadonlySet<string>,
+  movedJunctionIds: ReadonlySet<string>,
+  changedObjectIds: Set<string>,
+): Set<string> {
+  const lattice = electricalConnectionGrid(draft.presentation.grid);
+  const groups = new Map<string, { delta: Point; instanceIds: string[] }>();
+  for (const id of instanceIds) {
+    const before = originalDocument.instances.find((item) => item.id === id);
+    const after = draft.instances.find((item) => item.id === id);
+    const from = before?.placement;
+    const to = after?.placement;
+    if (
+      !before ||
+      !after ||
+      !from ||
+      !to ||
+      from.rotation !== to.rotation ||
+      from.mirror !== to.mirror ||
+      before.symbolId !== after.symbolId ||
+      before.symbolVariantId !== after.symbolVariantId ||
+      JSON.stringify(before.signalFlowParameters) !==
+        JSON.stringify(after.signalFlowParameters)
+    )
+      continue;
+    const delta = {
+      x: to.position.x - from.position.x,
+      y: to.position.y - from.position.y,
+    };
+    if (
+      (delta.x === 0 && delta.y === 0) ||
+      delta.x % lattice !== 0 ||
+      delta.y % lattice !== 0
+    )
+      continue;
+    const key = `${delta.x},${delta.y}`;
+    const group = groups.get(key) ?? { delta, instanceIds: [] };
+    group.instanceIds.push(id);
+    groups.set(key, group);
+  }
+  const carried = new Set<string>();
+  for (const { delta, instanceIds: members } of groups.values()) {
+    const internal = new Set(
+      deriveInternalGroupSelection(draft, members).routeIds,
+    );
+    const routes = draft.routes.filter((route) => internal.has(route.id));
+    // Components of the internal wiring, joined where Routes share an end.
+    const byEndpoint = new Map<string, RouteBranch[]>();
+    for (const route of routes)
+      for (const endpoint of [route.start, routeEnd(route)]) {
+        const key = endpointKey(endpoint);
+        byEndpoint.set(key, [...(byEndpoint.get(key) ?? []), route]);
+      }
+    const seen = new Set<string>();
+    for (const seed of routes) {
+      if (seen.has(seed.id)) continue;
+      const component: RouteBranch[] = [];
+      const queue = [seed];
+      seen.add(seed.id);
+      while (queue.length) {
+        const route = queue.shift()!;
+        component.push(route);
+        for (const endpoint of [route.start, routeEnd(route)])
+          for (const next of byEndpoint.get(endpointKey(endpoint)) ?? [])
+            if (!seen.has(next.id)) {
+              seen.add(next.id);
+              queue.push(next);
+            }
+      }
+      const junctionIds = new Set(
+        component.flatMap((route) =>
+          [route.start, routeEnd(route)].flatMap((endpoint) =>
+            endpoint.kind === "junction" ? [endpoint.junctionId] : [],
+          ),
+        ),
+      );
+      if (
+        component.some(
+          (route) =>
+            authoredRouteIds.has(route.id) ||
+            route.legs.some(
+              (leg) => leg.mode === "locked" || leg.mode === "trunk",
+            ),
+        ) ||
+        [...junctionIds].some((id) => movedJunctionIds.has(id))
+      )
+        continue;
+      for (const route of component) {
+        for (const leg of route.legs)
+          if (leg.to.kind === "bend")
+            leg.to.position = {
+              x: leg.to.position.x + delta.x,
+              y: leg.to.position.y + delta.y,
+            };
+        carried.add(route.id);
+        changedObjectIds.add(route.id);
+      }
+      for (const junction of draft.junctions)
+        if (junctionIds.has(junction.id)) {
+          junction.position = {
+            x: junction.position.x + delta.x,
+            y: junction.position.y + delta.y,
+          };
+          changedObjectIds.add(junction.id);
+        }
+    }
+  }
+  return carried;
 }
 
 /**

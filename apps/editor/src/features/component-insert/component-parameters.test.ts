@@ -14,6 +14,23 @@ import {
 } from "@icm/devices";
 
 describe("component parameter catalogue", () => {
+  it("does not offer the default gain for an explicitly retargeted instance", () => {
+    const instance = {
+      symbolId: "opamp",
+      netlist: {
+        binding: {
+          kind: "unresolved-subcircuit",
+          name: "custom_amp",
+        },
+        parameters: {},
+      },
+    } as Instance;
+    expect(componentParameters(instance.symbolId, instance)).toEqual([]);
+    expect(componentParameters("nand-gate").map((p) => p.key)).toEqual([
+      "vt",
+      "td",
+    ]);
+  });
   it.each([
     ["opamp", "gain", "1e6"],
     ["opamp-differential", "gain", "1e6"],

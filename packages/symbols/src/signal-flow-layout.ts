@@ -166,9 +166,12 @@ export function parseSignalFlowFraction(
 }
 
 function scriptEnd(value: string, start: number): number {
-  if (value[start] === "(") {
-    const close = value.indexOf(")", start + 1);
-    return close === -1 ? start : close + 1;
+  // A script groups in parentheses, or in braces as TeX writes it: an Agent
+  // wrote g_{m1} and the block drew the braces and the underscore.
+  const close = value[start] === "(" ? ")" : value[start] === "{" ? "}" : null;
+  if (close) {
+    const at = value.indexOf(close, start + 1);
+    return at === -1 ? start : at + 1;
   }
   let end = start;
   // A sign may prefix a script (z^-1 or z^+1), but a later sign starts the
@@ -184,7 +187,8 @@ export type SignalFlowInlinePart =
 
 /**
  * Read one line of compact formula syntax: `^` raises the next term, and a
- * single `_` lowers it (`g_m`); anything else is literal text.
+ * single `_` lowers it (`g_m`); a longer script groups in parentheses or
+ * braces (`g_(m1)`, `g_{m1}`); anything else is literal text.
  */
 export function parseSignalFlowInline(value: string): SignalFlowInlinePart[] {
   const normalized = normalizeSignalFlowFormula(value);
@@ -222,7 +226,8 @@ export function parseSignalFlowInline(value: string): SignalFlowInlinePart[] {
     parts.push({
       kind: normalized[marker] === "^" ? "superscript" : "subscript",
       value:
-        rawScript.startsWith("(") && rawScript.endsWith(")")
+        (rawScript.startsWith("(") && rawScript.endsWith(")")) ||
+        (rawScript.startsWith("{") && rawScript.endsWith("}"))
           ? rawScript.slice(1, -1)
           : rawScript,
     });

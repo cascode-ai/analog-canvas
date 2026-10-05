@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import { assembleServer } from "./server.js";
 import {
   httpCommandFailureMessage,
@@ -7,6 +7,11 @@ import {
   runHttpCommand,
 } from "./http-cli.js";
 import { executeOperation, operationDefinitions } from "./operations.js";
+
+// The first tool listing builds every tool's contract: about a second
+// alone, and past the 5 s a test gets beside the full suite on a CI runner.
+// Each worker builds them once, here, outside any one test's time.
+beforeAll(() => void operationDefinitions(), 30_000);
 
 describe("HTTP executable adapter", () => {
   it("does not wait for stdin on argument-less discovery", () => {

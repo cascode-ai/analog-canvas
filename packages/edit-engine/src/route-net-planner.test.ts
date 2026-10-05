@@ -281,6 +281,166 @@ describe("route-net", () => {
     expect(falseContacts(phi2)).toEqual([]);
   });
 
+  it("joins a ladder node with a T, whichever way the pins' IDs sort", () => {
+    // An R-2R node: two series resistors lying on y = 0 and the 2R leg
+    // standing below, its pin pointing up. Named so the leg sorts first, it
+    // used to be wired to each neighbour with an L that left it sideways,
+    // two bumps instead of one straight line with the leg tapped on.
+    for (const [left, leg, right] of [
+      ["c-left", "a-leg", "b-right"],
+      ["a-left", "b-leg", "c-right"],
+    ]) {
+      const document = createEmptyDocument("doc", "Ladder");
+      const part = (id: string, x: number, y: number, rotation: 0 | 90) => ({
+        id,
+        reference: id,
+        symbolId: "resistor",
+        placement: { position: { x, y }, rotation, mirror: "none" as const },
+      });
+      // Pins: left.1 at (-30,0), leg.1 at (0,40), right.2 at (30,0).
+      document.instances = [
+        part(left!, -50, 0, 90),
+        part(leg!, 0, 60, 0),
+        part(right!, 50, 0, 90),
+      ];
+      const next = apply(
+        document,
+        planRouteNet(
+          document,
+          resolver,
+          {
+            target: {
+              kind: "pins",
+              pins: [
+                { instanceId: left!, pinName: "1" },
+                { instanceId: leg!, pinName: "1" },
+                { instanceId: right!, pinName: "2" },
+              ],
+            },
+          },
+          64,
+        ).edits,
+      ).document;
+      const lines = next.routes.map(
+        (route) => resolveRouteGeometry(next, resolver, route)!.centerline,
+      );
+      // Every wire is one straight segment meeting the others at (0, 0).
+      expect(lines.every((line) => line.length === 2)).toBe(true);
+      expect(
+        lines.every((line) => line.some((p) => p.x === 0 && p.y === 0)),
+      ).toBe(true);
+    }
+  });
+
+  it("draws a node as one straight line with its branches tapped on", () => {
+    // A pipeline stage's hold node: the switch S1.2 (60,0) and the adder's
+    // A (280,0) line up; the hold capacitor's top CH.1 (80,20) and the
+    // sub-ADC's IN (100,80) lie below the line. Joined pin to pin, the line
+    // dipped to CH.1 and came back up beside it, two Junctions a step apart.
+    const document = createEmptyDocument("doc", "Hold node");
+    const part = (id: string, symbolId: string, x: number, y: number) => ({
+      id,
+      reference: id,
+      symbolId,
+      placement: {
+        position: { x, y },
+        rotation: 0 as const,
+        mirror: "none" as const,
+      },
+    });
+    document.instances = [
+      part("S1", "simple-switch", 40, 0),
+      part("CH", "capacitor", 80, 40),
+      part("X1", "adc", 150, 80),
+      part("X3", "adder", 300, 0),
+    ];
+    const next = apply(
+      document,
+      planRouteNet(
+        document,
+        resolver,
+        {
+          target: {
+            kind: "pins",
+            pins: [
+              { instanceId: "S1", pinName: "2" },
+              { instanceId: "CH", pinName: "1" },
+              { instanceId: "X1", pinName: "IN" },
+              { instanceId: "X3", pinName: "A" },
+            ],
+          },
+        },
+        64,
+      ).edits,
+    ).document;
+    const lines = next.routes.map(
+      (route) => resolveRouteGeometry(next, resolver, route)!.centerline,
+    );
+    expect(
+      lines.every((line) => line.length === 2),
+      JSON.stringify(lines),
+    ).toBe(true);
+    expect(
+      next.junctions
+        .map((junction) => `${junction.position.x},${junction.position.y}`)
+        .sort(),
+    ).toEqual(["100,0", "80,0"]);
+  });
+
+  it("runs an op-amp's feedback clear of its triangle's corners", () => {
+    // An op-amp at (460,10): IN- (420,0), OUT (490,10), and its triangle's
+    // corners at (430,-20), (430,40) and (481.96,10). The feedback used to
+    // run along y = -20, straight through the top corner.
+    const document = createEmptyDocument("doc", "Follower");
+    document.instances = [
+      {
+        id: "X1",
+        reference: "X1",
+        symbolId: "opamp",
+        placement: { position: { x: 460, y: 10 }, rotation: 0, mirror: "none" },
+      },
+    ];
+    const next = apply(
+      document,
+      planRouteNet(
+        document,
+        resolver,
+        {
+          target: {
+            kind: "pins",
+            pins: [
+              { instanceId: "X1", pinName: "OUT" },
+              { instanceId: "X1", pinName: "IN-" },
+            ],
+          },
+        },
+        64,
+      ).edits,
+    ).document;
+    const line = resolveRouteGeometry(
+      next,
+      resolver,
+      next.routes[0]!,
+    )!.centerline;
+    for (const corner of [
+      { x: 430, y: -20 },
+      { x: 430, y: 40 },
+    ])
+      for (const [index, to] of line.slice(1).entries()) {
+        const from = line[index]!;
+        const onIt =
+          (from.x === to.x &&
+            corner.x === from.x &&
+            corner.y >= Math.min(from.y, to.y) &&
+            corner.y <= Math.max(from.y, to.y)) ||
+          (from.y === to.y &&
+            corner.y === from.y &&
+            corner.x >= Math.min(from.x, to.x) &&
+            corner.x <= Math.max(from.x, to.x));
+        expect(onIt, JSON.stringify(line)).toBe(false);
+      }
+  });
+
   it("leaves a pin around its own part rather than through it", () => {
     const document = createEmptyDocument("doc", "Bandgap");
     document.instances = [

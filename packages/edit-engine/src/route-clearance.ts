@@ -4,6 +4,7 @@ import {
   resolveEndpointConnection,
   visibleSymbolInkBounds,
   type EndpointConnection,
+  type EndpointRoutingGeometry,
   type NetConnectivityContext,
 } from "@icm/derived";
 import {
@@ -22,12 +23,21 @@ type CornerOrder = "horizontal-first" | "vertical-first";
 export interface ClearPath {
   waypoints: Point[];
   cornerOrder: CornerOrder;
+  /** The path drawn, from landing to landing, and what it cost to choose it:
+   * length, two grid steps a bend, one for leaving or reaching a pin
+   * against its direction. Set by `path`. */
+  points?: Point[];
+  cost?: number;
 }
 
 export interface RouteClearance {
-  /** The cheapest path between two endpoints that meets nothing it must
-   * not, or why every tried path does. */
-  path(from: RouteEndpoint, to: RouteEndpoint): ClearPath | string;
+  /** The cheapest path between two ends that meets nothing it must not, or
+   * why every tried path does. An end is an endpoint, or a point: a tap on a
+   * wire of the path's own Net, or an open end. */
+  path(
+    from: RouteEndpoint | Point,
+    to: RouteEndpoint | Point,
+  ): ClearPath | string;
   /** Why a fixed path, from landing to landing, would read as a false
    * connection, or null. `ends` are the endpoints at its two ends. */
   conflict(
@@ -57,6 +67,102 @@ function runsAlong(a: Point, b: Point, c: Point, d: Point): boolean {
   const low = Math.max(0, Math.min(along(c), along(d)));
   const high = Math.min(length, Math.max(along(c), along(d)));
   return high - low > TOLERANCE;
+}
+
+/**
+ * Where segment a-b meets segment c-d at single points: a proper crossing,
+ * or an end of one lying on the other. Collinear overlaps are runsAlong's.
+ */
+function contactPoints(a: Point, b: Point, c: Point, d: Point): Point[] {
+  const cross = (o: Point, p: Point, q: Point) =>
+    (p.x - o.x) * (q.y - o.y) - (p.y - o.y) * (q.x - o.x);
+  const onSegment = (p: Point, from: Point, to: Point) =>
+    Math.abs(cross(from, to, p)) <=
+      TOLERANCE * Math.hypot(to.x - from.x, to.y - from.y) &&
+    p.x >= Math.min(from.x, to.x) - TOLERANCE &&
+    p.x <= Math.max(from.x, to.x) + TOLERANCE &&
+    p.y >= Math.min(from.y, to.y) - TOLERANCE &&
+    p.y <= Math.max(from.y, to.y) + TOLERANCE;
+  const points = [
+    ...[c, d].filter((p) => onSegment(p, a, b)),
+    ...[a, b].filter((p) => onSegment(p, c, d)),
+  ];
+  const d1 = cross(c, d, a);
+  const d2 = cross(c, d, b);
+  const d3 = cross(a, b, c);
+  const d4 = cross(a, b, d);
+  if (
+    ((d1 > TOLERANCE && d2 < -TOLERANCE) ||
+      (d1 < -TOLERANCE && d2 > TOLERANCE)) &&
+    ((d3 > TOLERANCE && d4 < -TOLERANCE) || (d3 < -TOLERANCE && d4 > TOLERANCE))
+  ) {
+    const t = d1 / (d1 - d2);
+    points.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+  }
+  return points;
+}
+
+/**
+ * The corners of a path drawn only with straight lines (M, L, H, V and Z,
+ * absolute or relative), such as an op-amp's triangle; none for curves.
+ */
+function straightPathPoints(data: string): Point[] {
+  const tokens = data.match(/[a-zA-Z]|-?(?:\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?/gu);
+  if (!tokens) return [];
+  const points: Point[] = [];
+  let current = { x: 0, y: 0 };
+  let start = current;
+  let command = "";
+  for (let index = 0; index < tokens.length;) {
+    const token = tokens[index]!;
+    if (/[a-zA-Z]/u.test(token)) {
+      command = token;
+      index += 1;
+      if (command === "Z" || command === "z") {
+        current = start;
+        points.push(current);
+      }
+      continue;
+    }
+    const number = (offset: number) => Number(tokens[index + offset]);
+    const relative = command === command.toLowerCase();
+    switch (command.toUpperCase()) {
+      case "M":
+      case "L": {
+        const x = number(0);
+        const y = number(1);
+        current = relative ? { x: current.x + x, y: current.y + y } : { x, y };
+        if (command.toUpperCase() === "M") {
+          // A second figure in one path is not joined to the first.
+          if (points.length) return [];
+          start = current;
+          command = relative ? "l" : "L";
+        }
+        points.push(current);
+        index += 2;
+        break;
+      }
+      case "H":
+        current = {
+          x: relative ? current.x + number(0) : number(0),
+          y: current.y,
+        };
+        points.push(current);
+        index += 1;
+        break;
+      case "V":
+        current = {
+          x: current.x,
+          y: relative ? current.y + number(0) : number(0),
+        };
+        points.push(current);
+        index += 1;
+        break;
+      default:
+        return [];
+    }
+  }
+  return points;
 }
 
 /** Parameter interval of segment a-b inside a closed rectangle, if any. */
@@ -96,6 +202,9 @@ export function createRouteClearance(
   own: {
     logicalIds: ReadonlySet<string>;
     endpointKeys: ReadonlySet<string>;
+    /** Points of other Nets a path must not touch although no wire of
+     * `document` reaches them, such as the ends of wires left out of it. */
+    blockedPoints?: readonly Point[];
   },
 ): RouteClearance {
   const logical = context.logicalNetResolution;
@@ -177,7 +286,9 @@ export function createRouteClearance(
               ? primitive.points
               : primitive.kind === "polygon"
                 ? [...primitive.points, primitive.points[0]!]
-                : [];
+                : primitive.kind === "path"
+                  ? straightPathPoints(primitive.data)
+                  : [];
         return points
           .slice(1)
           .map((to, index) => [place(points[index]!), place(to)] as const);
@@ -287,6 +398,23 @@ export function createRouteClearance(
         // as a lead.
         if (body.strokes.some(([c, d]) => runsAlong(a, b, c, d)))
           return `runs along ${body.label}'s drawing`;
+        // Nor may it touch the drawing on the way, as along an op-amp's
+        // edge through the corner of its triangle; only where it meets the
+        // part's own pin does it reach a lead.
+        const attachments = endConnections.flatMap((connection) =>
+          connection?.endpoint.kind === "terminal" &&
+          connection.endpoint.instanceId === body.instanceId
+            ? [connection.gridLanding, connection.contactPoint]
+            : [],
+        );
+        if (
+          body.strokes.some(([c, d]) =>
+            contactPoints(a, b, c, d).some(
+              (point) => !attachments.some((end) => same(point, end)),
+            ),
+          )
+        )
+          return `touches ${body.label}'s drawing`;
       }
     }
     for (const route of routes) {
@@ -311,25 +439,47 @@ export function createRouteClearance(
         if (segments.some(([a, b]) => pointOnSegment(point, a, b)))
           return `touches ${text} at ${format(point)}`;
     }
+    for (const point of own.blockedPoints ?? [])
+      if (segments.some(([a, b]) => pointOnSegment(point, a, b)))
+        return `touches another Net's wire end at ${format(point)}`;
     return null;
   };
 
   const grid = document.presentation.grid;
   const path: RouteClearance["path"] = (from, to) => {
-    const a = connectionOf(from);
-    const b = connectionOf(to);
+    // A point has no pin to leave along, as a Junction has none.
+    const endpointOf = (end: RouteEndpoint | Point) =>
+      "kind" in end ? end : undefined;
+    const geometryOf = (
+      end: RouteEndpoint | Point,
+    ): EndpointRoutingGeometry | undefined =>
+      "kind" in end
+        ? connectionOf(end)
+        : {
+            contactPoint: end,
+            gridLanding: end,
+            escapePath: [],
+            outward: null,
+          };
+    const endText = (end: RouteEndpoint | Point) =>
+      "kind" in end ? endpointText(end) : format(end);
+    const fromEnd = endpointOf(from);
+    const toEnd = endpointOf(to);
+    const a = geometryOf(from);
+    const b = geometryOf(to);
     if (!a || !b) return "an endpoint has no routing landing";
     // No path helps a pin that already sits on another Net's wire.
     for (const [end, connection] of [
-      [from, a],
-      [to, b],
+      [fromEnd, a],
+      [toEnd, b],
     ] as const) {
+      if (!end) continue;
       const sitting = conflict([connection.gridLanding], [end]);
       if (sitting) return `${sitting}; move that wire off the pin first`;
     }
     const start = a.gridLanding;
     const end = b.gridLanding;
-    const axis = (connection: EndpointConnection) => {
+    const axis = (connection: EndpointRoutingGeometry) => {
       const outward = connection.outward;
       if (!outward) return null;
       return Math.abs(outward.x) >= Math.abs(outward.y)
@@ -432,11 +582,35 @@ export function createRouteClearance(
             Math.abs(point.y - points[index]!.y),
           0,
         );
+      // A wire leaves a pin, and reaches one, along the way the pin points.
+      // Of two equally short L shapes, the one turning away right at a pin
+      // read as a bump (each node of an R-2R ladder came out as two), and
+      // which of the two came first depended only on how pin IDs sorted.
+      const along = (
+        connection: EndpointRoutingGeometry,
+        from: Point | undefined,
+        to: Point | undefined,
+      ) => {
+        const outward = connection.outward;
+        if (!outward || !from || !to) return true;
+        const dx = to.x - from.x;
+        const dy = to.y - from.y;
+        return (
+          Math.abs(dx * outward.y - dy * outward.x) <= EPSILON &&
+          dx * outward.x + dy * outward.y > EPSILON
+        );
+      };
+      const turnsAway =
+        (along(a, points[0], points[1]) ? 0 : 1) +
+        (along(b, points.at(-1), points.at(-2)) ? 0 : 1);
       return [
         {
           candidate,
           points,
-          cost: length + Math.max(0, points.length - 2) * 2 * grid,
+          cost:
+            length +
+            Math.max(0, points.length - 2) * 2 * grid +
+            turnsAway * grid,
         },
       ];
     });
@@ -444,11 +618,14 @@ export function createRouteClearance(
     scored.sort((left, right) => left.cost - right.cost);
     let reason: string | null = null;
     for (const entry of scored) {
-      const found = conflict(entry.points, [from, to]);
-      if (found === null) return entry.candidate;
+      const found = conflict(entry.points, [fromEnd, toEnd]);
+      if (found === null)
+        return { ...entry.candidate, points: entry.points, cost: entry.cost };
       reason ??= found;
     }
-    return `no clear path from ${endpointText(from)} to ${endpointText(to)}: the direct one ${reason ?? "is blocked"}. Move the parts apart, or give a trunk`;
+    // Textbooks draw a bias line that cannot cross the drawing as a short
+    // labelled stub at each end; say so, or the Agent is left stuck.
+    return `no clear path from ${endText(from)} to ${endText(to)}: the direct one ${reason ?? "is blocked"}. Move the parts apart, give a trunk, or name the Net at each end with a Net Label on a short stub`;
   };
   return { path, conflict };
 }

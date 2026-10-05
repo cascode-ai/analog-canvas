@@ -89,6 +89,12 @@ export interface EditExecutionContext {
    * otherwise derive it a second time for the same revision.
    */
   beforeContactEvidence?: ContactEvidenceHint;
+  /**
+   * Instances whose pins moved without an edit of their own in this
+   * transaction, as a caller's do when its Cell symbol changes. Like a moved
+   * part's, their pins gain no connection by landing on a wire (#1316).
+   */
+  pinsMovedInstanceIds?: ReadonlySet<string>;
 }
 
 export function rejectTransaction(

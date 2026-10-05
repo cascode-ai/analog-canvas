@@ -21,6 +21,7 @@ import {
   previousPortLabelPlacement,
   resolveAnnotationPresentation,
   resolveDocumentStyleProfile,
+  uniformRowDefaultInstanceLabelPlacement,
 } from "@icm/derived";
 import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
@@ -757,6 +758,69 @@ describe("value labels as a part turns (#1105)", () => {
       fallbackPosition: rule(0, "value").position,
     });
     expect(annotation.alignment).toBe(rule(0, "value").alignment);
+  });
+
+  it("moves a MOS W/L value one text row down onto the stacked-fraction row as the part turns (#1299)", () => {
+    const document = createEmptyDocument("mos", "MOS");
+    const nmos = resolver.resolve("nmos")!;
+    const at = (rotation: 0 | 90 | 180 | 270) => ({
+      id: "M1",
+      symbolId: "nmos",
+      placement: { position, rotation, mirror: "none" as const },
+      netlist: { parameters: { w: "10u", l: "150n" } },
+    });
+    document.instances.push(at(0));
+    // Where the rule until 2026-10-05 put it: one text row under M1.
+    const uniform = uniformRowDefaultInstanceLabelPlacement(
+      at(0),
+      nmos,
+      profile,
+      10,
+      "value",
+    )!;
+    const annotation: Annotation = {
+      id: "value-m1",
+      kind: "instance-value",
+      binding: { kind: "instance-value", instanceId: "M1" },
+      anchor: {
+        kind: "object",
+        objectId: "M1",
+        localOffset: {
+          x: uniform.position.x - position.x,
+          y: uniform.position.y - position.y,
+        },
+        fallbackPosition: uniform.position,
+      },
+      alignment: uniform.alignment,
+      rotation: 0,
+      locked: false,
+    };
+    document.annotations.push(annotation);
+    const current = (rotation: 0 | 90 | 180 | 270) =>
+      defaultInstanceLabelPlacement(at(rotation), nmos, profile, 10, "value")!;
+    for (const [from, to] of [
+      [0, 90],
+      [90, 0],
+    ] as const) {
+      document.instances[0]!.placement = at(to).placement;
+      followAttachedAnnotations(
+        document,
+        "M1",
+        position,
+        { rotation: from, mirror: "none" },
+        position,
+        { rotation: to, mirror: "none" },
+        new Set(),
+        resolver,
+      );
+      expect(annotation.anchor).toMatchObject({
+        fallbackPosition: current(to).position,
+      });
+      expect(annotation.alignment).toBe(current(to).alignment);
+    }
+    // Back at rest the value sits a stacked-fraction row under the
+    // Reference, not the one text row it started in.
+    expect(current(0).position.y - uniform.position.y).toBe(10);
   });
 
   it("keeps a value shown without a Reference in the Reference's slot", () => {

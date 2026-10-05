@@ -368,7 +368,9 @@ differently. It judges terminals only: two
 Routes crossing is the ordinary case the model already names, and a pin the
 author declared `NoConnect` has been answered for. `ERC_DANGLING_WIRE` names a
 wire end at a Junction no other wire, pin or label reaches. A Power Rail's ends
-and a labelled wire are exempt. `ERC_NET_LABEL_NAMES_NOTHING` names a Net
+and a labelled wire are exempt, and so is an end with a free Net or power label
+of its own Net within four grid steps: a label moved off its wire still names
+the stub it stands at. `ERC_NET_LABEL_NAMES_NOTHING` names a Net
 Label whose Net reaches no pin, wire or Junction: drawn beside a wire it reads
 as that wire's name, yet the wire's own Net stays unnamed. A label pasted away
 from a wire lands so, as do older drawings; a label dropped on its wire, or
@@ -387,7 +389,14 @@ marker). Only the stored membership holds it in the Net, so the drawing and the
 netlist disagree, as when a drawn tail node is stored as ground. Parts that
 touch (a wire end or pin lying on another part's wire) count as drawn together;
 a pin on no wire at all is `ERC_UNCONNECTED_PIN`'s; imported topology shown
-with routing guides is left alone. `ERC_INSTANCE_NOT_DRAWN`
+with routing guides is left alone. `ERC_OVERLAPPING_NETS` is an error for
+two wires of different Logical Nets drawn along one line over a common span:
+the sheet shows one continuous wire, the Nets joined, while the netlist keeps
+them apart. A stretch after a move, a mirror or a pin change can leave wires
+so; a pin change planned in Properties, such as swapped inputs, redraws a
+wire it would stretch onto another Net clear of it instead. A crossing, wires
+meeting end to end and a shared trunk of one Net are not overlaps. Each pair
+of wires is named once, with the span. `ERC_INSTANCE_NOT_DRAWN`
 counts the Instances a Cell holds that the sheet does not draw: they keep their
 reference, their Net terminals and their netlist cards while nothing on the
 sheet shows them, so the warning names them and the Placement Tray — which
@@ -547,11 +556,14 @@ only overlap between separately authored Routes.
   revision once.
 - GUI and Agent use the same planners, transaction engine, derived geometry,
   and diagnostics.
-- An Agent `connect` between two endpoints keeps clear of what would read as
+- An Agent `connect` from a pin or Junction keeps clear of what would read as
   a connection the netlist does not have: another Net's pin, a part's body or
-  drawing, another Net's wire. When the planner's own path would meet one, a
-  wire without via points takes the cheapest clear path (the route-net
-  clearance); a wire with via points is refused with what it would meet.
+  drawing, another Net's wire. Its other end may be an endpoint, the
+  conductor a Net selector resolves to, a tap on a wire, or an open point.
+  When the planner's own path would meet one, a wire without via points
+  takes the cheapest clear path (the route-net clearance) or is refused when
+  there is none; a wire with via points is refused with what it would meet.
+  A wire drawn between points alone is drawn as asked.
 - An Agent transaction, or its dry run, that would leave a new Junction on a
   Route of another Net (`VISUAL_AMBIGUOUS_JUNCTION`) is refused before it
   reaches the Document: ambiguous intersections are rejected, not guessed.

@@ -343,9 +343,12 @@ R1 A B 5k
         cards(printDesignNetlist(format, strict.ir!).text),
       );
       expect(result.file.text).not.toMatch(/^(?:\*|\/\/)/mu);
-      expect(
-        result.diagnostics.some((item) => item.code === "GENERATED_NET_NAME"),
-      ).toBe(true);
+      // An unnamed internal Net's exported name is information (#1301).
+      const generated = result.diagnostics.filter(
+        (item) => item.code === "GENERATED_NET_NAME",
+      );
+      expect(generated.length).toBeGreaterThan(0);
+      expect(generated.every((item) => item.severity === "info")).toBe(true);
       expect(
         result.file.text.startsWith(
           format === "spice" ? "\n" : "simulator lang=spectre\n",

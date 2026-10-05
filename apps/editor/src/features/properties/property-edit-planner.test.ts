@@ -280,14 +280,20 @@ describe("property edit planner", () => {
   });
 
   it("puts a new label above a horizontal wire and right of a vertical one, however drawn", () => {
-    for (const [start, end, normalOffset, alignment] of [
-      [{ x: 100, y: 0 }, { x: 0, y: 0 }, 10, "middle"],
-      [{ x: 0, y: 100 }, { x: 0, y: 0 }, 8, "start"],
-      [{ x: 0, y: 0 }, { x: 0, y: 100 }, -8, "start"],
+    // Over a horizontal wire a label stands as close as its text allows
+    // (#1300): plain capitals 4 units up, descenders 8, and a subscript
+    // (VOUT reads V_OUT) the full grid step.
+    for (const [start, end, name, normalOffset, alignment] of [
+      [{ x: 100, y: 0 }, { x: 0, y: 0 }, "SIGNAL", 4, "middle"],
+      [{ x: 100, y: 0 }, { x: 0, y: 0 }, "bypass", 8, "middle"],
+      [{ x: 100, y: 0 }, { x: 0, y: 0 }, "VOUT", 10, "middle"],
+      [{ x: 0, y: 0 }, { x: 100, y: 0 }, "SIGNAL", -4, "middle"],
+      [{ x: 0, y: 100 }, { x: 0, y: 0 }, "SIGNAL", 8, "start"],
+      [{ x: 0, y: 0 }, { x: 0, y: 100 }, "SIGNAL", -8, "start"],
     ] as const) {
       const input = routedFixture(start, end);
       const label = createPropertyEditPlanner(input)
-        .netLabelEditsForRoute(input.document.routes[0]!, "SIGNAL")
+        .netLabelEditsForRoute(input.document.routes[0]!, name)
         ?.flatMap((edit) =>
           edit.kind === "upsert_schematic_annotation" ? [edit.annotation] : [],
         )[0];

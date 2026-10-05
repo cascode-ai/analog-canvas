@@ -1,4 +1,4 @@
-import { deviceDescriptor } from "@icm/devices";
+import { instanceParameterContract } from "@icm/devices";
 import type { SchematicEdit } from "@icm/edit-engine";
 import {
   NetlistParameterNameSchema,
@@ -25,12 +25,12 @@ export type AdditionalParameterPlan =
     };
 
 function knownParameterNames(
-  symbolId: string,
+  instance: Instance,
   additionalKnownNames: readonly string[] = [],
 ): ReadonlySet<string> {
   return new Set(
     [
-      ...(deviceDescriptor(symbolId)?.parameters ?? []).map(
+      ...(instanceParameterContract({}, instance)?.definitions ?? []).map(
         (parameter) => parameter.name,
       ),
       ...additionalKnownNames,
@@ -42,7 +42,7 @@ export function additionalParameterDrafts(
   instance: Instance,
   additionalKnownNames: readonly string[] = [],
 ): readonly AdditionalParameterDraft[] {
-  const known = knownParameterNames(instance.symbolId, additionalKnownNames);
+  const known = knownParameterNames(instance, additionalKnownNames);
   return Object.entries(instance.netlist?.parameters ?? {})
     .filter(([name]) => !known.has(name.toLowerCase()))
     .map(([name, value], index) => ({
@@ -68,7 +68,7 @@ export function planAdditionalParameterPatch(
       message: "This component has no netlist record to receive parameters",
     };
   }
-  const known = knownParameterNames(instance.symbolId, additionalKnownNames);
+  const known = knownParameterNames(instance, additionalKnownNames);
   const desired = new Map<string, { name: string; value: string }>();
   for (const draft of drafts) {
     const name = draft.name.trim();

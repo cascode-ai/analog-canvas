@@ -369,4 +369,124 @@ describe("an Agent connect keeps clear of parts and other Nets (#1257)", () => {
     expect(refused).toMatch(/passes through R3/);
     expect(chosen.document.routes).toEqual([]);
   });
+
+  it("keeps a wire to a Net, a tap on a wire or an open end clear too", () => {
+    // R1.1 points right at (20,0). R3 lies across y=0 at x 80..120, and the
+    // trunk from R2.2 runs down x=200 through (200,0). Every target below is
+    // straight ahead through R3; the wire to a Net was drawn so, through four
+    // transistors of an OTA.
+    const drawn = (target: WireIntent["to"], single: boolean) => {
+      const document = createEmptyDocument("doc", "Clearance to a tap");
+      document.instances.push(
+        resistor("R1", 0, 0, 90),
+        resistor("R3", 100, 0, 90),
+        resistor("R2", 200, -80),
+      );
+      const h = history(document);
+      commit(h, [wire("trunk", pin("R2", "2"), free(200, 60))]);
+      const trunkNet = h.document.nets[0]!.id;
+      const intent = wire(
+        "w",
+        pin("R1", "1"),
+        target.kind === "net" ? { kind: "net", net: trunkNet } : target,
+      );
+      const plan = planWireBatch(
+        h.document,
+        resolver,
+        single ? intent : [intent],
+        512,
+        { keepClear: true },
+      );
+      if (typeof plan === "string") throw new Error(plan);
+      const result = h.transact({
+        transactionId: "t",
+        documentId: h.document.id,
+        expectedRevision: h.document.revision,
+        actor: { kind: "agent", id: "test" },
+        edits: plan.edits,
+      });
+      if (!result.ok) throw new Error(JSON.stringify(result));
+      const route = h.document.routes.find(
+        (item) =>
+          item.start.kind === "terminal" && item.start.instanceId === "R1",
+      )!;
+      const points = resolveRouteGeometry(
+        h.document,
+        resolver,
+        route,
+      )!.centerline;
+      const context = deriveNetConnectivityContext(h.document, resolver);
+      const problem = createRouteClearance(h.document, resolver, context, {
+        logicalIds: new Set(
+          h.document.routes.map(
+            (item) =>
+              context.logicalNetResolution.byBaseNetId.get(item.netId)?.id ??
+              item.netId,
+          ),
+        ),
+        endpointKeys: new Set([endpointKey(route.start)]),
+      }).conflict(points, [route.start, undefined]);
+      return { points, problem };
+    };
+    for (const [target, single] of [
+      [{ kind: "net", net: "" }, true],
+      [at(200, 0), false],
+      [free(160, 0), false],
+    ] as const) {
+      const { points, problem } = drawn(target, single);
+      expect(problem, `${target.kind}: ${JSON.stringify(points)}`).toBeNull();
+      expect(points.length).toBeGreaterThan(2);
+    }
+  });
+});
+
+describe("a batch connect from a pin an earlier connect reached (#1304)", () => {
+  const part = (id: string, x: number, y: number, rotation: 0 | 90 = 0) => ({
+    id,
+    symbolId: "resistor",
+    reference: id,
+    placement: { position: { x, y }, rotation, mirror: "none" as const },
+    netlist: { parameters: { value: "1k" } },
+  });
+  const pin = (instanceId: string, pinName: string) => ({
+    kind: "endpoint" as const,
+    endpoint: { kind: "terminal" as const, instanceId, pinName },
+  });
+
+  it("taps a wire onto a pin, then wires on from that pin, in one batch", () => {
+    // R1.2 (0,20) to R2.1 (0,80) is a vertical trunk; R3.1 is at (100,50)
+    // and R4.2 at (180,50).
+    const document = createEmptyDocument("doc", "Tap then chain");
+    document.instances.push(
+      part("R1", 0, 0),
+      part("R2", 0, 100),
+      part("R3", 100, 70),
+      part("R4", 200, 50, 90),
+    );
+    const h = history(document);
+    const send = (intents: WireIntent[]) => {
+      const plan = planWireBatch(h.document, resolver, intents, 512, {
+        keepClear: true,
+      });
+      if (typeof plan === "string") throw new Error(plan);
+      const result = h.transact({
+        transactionId: `t-${h.document.revision}`,
+        documentId: h.document.id,
+        expectedRevision: h.document.revision,
+        actor: { kind: "agent", id: "test" },
+        edits: plan.edits,
+      });
+      if (!result.ok) throw new Error(JSON.stringify(result));
+    };
+    send([wire("trunk", pin("R1", "2"), pin("R2", "1"))]);
+    send([
+      wire("tap", at(0, 50), pin("R3", "1")),
+      wire("chain", pin("R3", "1"), pin("R4", "2")),
+    ]);
+    const nets = h.document.nets.filter((net) => net.terminals.length);
+    expect(nets).toHaveLength(1);
+    expect(
+      nets[0]!.terminals.map((t) => `${t.instanceId}.${t.pinName}`).sort(),
+    ).toEqual(["R1.2", "R2.1", "R3.1", "R4.2"]);
+  });
 });

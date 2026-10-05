@@ -230,7 +230,10 @@ interface ResolvedDocument {
     position: { x: number; y: number };
   }[];
   annotations: Record<string, unknown>[];
-  noConnects: { id: string }[];
+  noConnects: {
+    id: string;
+    endpoint: { instanceId: string; pinName: string };
+  }[];
   drafting: { object: Record<string, unknown>; id: string }[];
 }
 
@@ -302,7 +305,10 @@ function resolvedDocument(snapshot: AgentSessionSnapshot): ResolvedDocument {
       position: junction.position,
     })),
     annotations: document.annotations as unknown as Record<string, unknown>[],
-    noConnects: document.noConnects.map((noConnect) => ({ id: noConnect.id })),
+    noConnects: document.noConnects.map((noConnect) => ({
+      id: noConnect.id,
+      endpoint: noConnect.endpoint,
+    })),
     drafting: document.drafting.objects.map((entry) => ({
       object: entry.object as unknown as Record<string, unknown>,
       id: entry.object.id,
@@ -444,6 +450,39 @@ function resolveByIdOrName<T extends NamedId>(
  * allocates IDs; it never invents electrical facts. Anything the mapped typed
  * edit cannot express is a hard error pointing at the advanced path.
  */
+/**
+ * The native form of a place-cell, set-model or set-display-alias written in
+ * the friendlier form, where reaching it needs no Snapshot (#1301): a Cell
+ * instance named and turned upright, a target given by ID. A target given by
+ * Reference is left for compileActions to resolve.
+ */
+export function nativeForm(
+  action: AuthoringAction,
+  allocateId: (prefix: string) => string,
+): AuthoringAction {
+  switch (action.kind) {
+    case "place-cell":
+      return {
+        ...action,
+        instanceId: action.instanceId ?? allocateId("instance"),
+        placement: {
+          ...action.placement,
+          rotation: action.placement.rotation ?? 0,
+          mirror: action.placement.mirror ?? "none",
+        },
+      };
+    case "set-model":
+    case "set-display-alias": {
+      if (action.instanceId !== undefined || action.target?.id === undefined)
+        return action;
+      const { target, ...rest } = action;
+      return { ...rest, instanceId: target.id };
+    }
+    default:
+      return action;
+  }
+}
+
 export function compileActions(
   actions: readonly unknown[],
   context: CompileContext,
@@ -511,6 +550,22 @@ export function compileActions(
       editActionIndices: entry.editActionIndices,
     });
     return entry;
+  };
+  /** A typed edit, as a No Connect mark is. */
+  const pushEdit = (index: number, kind: string, edit: unknown): void => {
+    const validated = AgentSchematicEditSchema.safeParse(edit);
+    if (!validated.success) {
+      const issue = validated.error.issues[0];
+      throw new ActionCompileError(
+        index,
+        kind,
+        `compiled edit failed contract validation: ${issue?.path.join(".")} ${issue?.message ?? ""}`.trim(),
+      );
+    }
+    const slot = openEdits(kind);
+    slot.edits.push(validated.data as SchematicEdit);
+    slot.actionKinds.push(kind);
+    slot.editActionIndices.push(index);
   };
   /** A placement request: always repacked into place-components, where an
    * omitted Reference takes the next free name. */
@@ -621,7 +676,6 @@ export function compileActions(
     actionIndex = index;
     actionKind = action.kind;
     switch (action.kind) {
-      case "set-model":
       case "route-net":
       case "set-port-direction":
       case "set-vdd-mode":
@@ -632,10 +686,8 @@ export function compileActions(
       case "batch":
       case "place-components":
       case "set-instance-display":
-      case "set-display-alias":
       case "arrange-labels":
       case "place-existing":
-      case "place-cell":
       case "set-net-label":
       case "transform":
       case "copy":
@@ -664,6 +716,29 @@ export function compileActions(
           actionKinds: [action.kind],
         });
         break;
+      case "place-cell":
+      case "set-model":
+      case "set-display-alias": {
+        let native = nativeForm(action, allocateId);
+        if (
+          (native.kind === "set-model" ||
+            native.kind === "set-display-alias") &&
+          native.instanceId === undefined
+        ) {
+          const { target, ...rest } = native;
+          native = {
+            ...rest,
+            instanceId: resolveInstance(document, index, action.kind, target!)
+              .id,
+          };
+        }
+        transactions.push({
+          form: "command",
+          command: AgentAuthoringCommandSchema.parse(native),
+          actionKinds: [action.kind],
+        });
+        break;
+      }
       case "focus":
         transactions.push({
           form: "semantic",
@@ -693,7 +768,9 @@ export function compileActions(
         compileConnect(index, action, document, allocateId, pushWireIntent);
         break;
       case "disconnect":
-        if (action.target.kind === "pin") {
+        if (action.noConnect !== undefined)
+          compileNoConnect(index, action, document, pushEdit, allocateId);
+        else if (action.target.kind === "pin") {
           const instance = resolveInstance(document, index, action.kind, {
             kind: "instance",
             ...(typeof action.target.instance === "string"
@@ -1029,6 +1106,7 @@ export function compileActions(
     );
 }
 
+type PushEdit = (index: number, kind: string, edit: unknown) => void;
 type PushPlacement = (index: number, kind: string, instance: unknown) => void;
 type PushWireIntent = (index: number, kind: string, intent: unknown) => void;
 type AllocateId = (prefix: string) => string;
@@ -1396,6 +1474,153 @@ function compileConnect(
   );
 }
 
+/**
+ * A disconnect with noConnect marks or clears a pin's No Connect, as the
+ * GUI's toggle does (#1305). An unused QBAR blocked a PFD's netlist, and
+ * the Agent's only way to mark it was an advanced edit with an ID it had to
+ * invent. Marking a wired pin disconnects it first: the Agent asked to.
+ */
+function compileNoConnect(
+  index: number,
+  action: ActionOfKind<"disconnect">,
+  document: ResolvedDocument,
+  pushEdit: PushEdit,
+  allocateId: AllocateId,
+): void {
+  const target = action.target;
+  if (target.kind !== "pin")
+    throw new ActionCompileError(
+      index,
+      action.kind,
+      "noConnect applies to a pin target, not a route",
+    );
+  const instance = resolveInstance(document, index, action.kind, {
+    kind: "instance",
+    ...(typeof target.instance === "string"
+      ? { reference: target.instance }
+      : target.instance),
+  });
+  const pinName = target.pin;
+  requirePin(index, action.kind, instance, pinName);
+  if (pinName === "P" && document.cellTerminalInstanceIds.has(instance.id))
+    throw new ActionCompileError(
+      index,
+      action.kind,
+      "A formal Cell Pin's P pin is its Net's connection, never No Connect; use remove-cell-terminal or delete-selection instead",
+    );
+  const name = `${instance.reference ?? instance.id}.${pinName}`;
+  const marked = document.noConnects.find(
+    (noConnect) =>
+      noConnect.endpoint.instanceId === instance.id &&
+      noConnect.endpoint.pinName === pinName,
+  );
+  if (!action.noConnect) {
+    if (!marked)
+      throw new ActionCompileError(
+        index,
+        action.kind,
+        `pin ${name} has no No Connect mark`,
+      );
+    pushEdit(index, action.kind, {
+      kind: "remove_no_connect",
+      noConnectId: marked.id,
+    });
+    return;
+  }
+  if (marked)
+    throw new ActionCompileError(
+      index,
+      action.kind,
+      `pin ${name} is already marked No Connect`,
+    );
+  const wired = document.nets.some((candidate) =>
+    candidate.terminals.some(
+      (terminal) =>
+        terminal.instanceId === instance.id && terminal.pinName === pinName,
+    ),
+  );
+  if (wired)
+    pushEdit(index, action.kind, {
+      kind: "disconnect_endpoint",
+      endpoint: terminalEndpoint(instance, pinName),
+    });
+  pushEdit(index, action.kind, {
+    kind: "add_no_connect",
+    noConnect: {
+      id: allocateId("no-connect"),
+      endpoint: terminalEndpoint(instance, pinName),
+    },
+  });
+}
+
+/**
+ * The Net of an add-label's pin target, and a point on the wire leaving that
+ * pin for the label to stand over. Naming a bias gate's stub once took a
+ * Snapshot read just to learn the new stub's Net.
+ */
+function pinNet(
+  index: number,
+  action: ActionOfKind<"add-label">,
+  document: ResolvedDocument,
+): {
+  net: ResolvedDocument["nets"][number];
+  position: { x: number; y: number } | undefined;
+} {
+  const target = action.target;
+  if (target.kind !== "pin")
+    throw new ActionCompileError(index, action.kind, "expected a pin target");
+  const instance = resolveInstance(document, index, action.kind, {
+    kind: "instance",
+    ...(typeof target.instance === "string"
+      ? { reference: target.instance }
+      : target.instance),
+  });
+  requirePin(index, action.kind, instance, target.pin);
+  const net = document.nets.find((candidate) =>
+    candidate.terminals.some(
+      (terminal) =>
+        terminal.instanceId === instance.id && terminal.pinName === target.pin,
+    ),
+  );
+  if (!net)
+    throw new ActionCompileError(
+      index,
+      action.kind,
+      `pin ${instance.reference ?? instance.id}.${target.pin} is on no Net yet; connect it first, for example to a {kind:"point"} a grid step or two out`,
+    );
+  const connection = instance.pins.find(
+    (pin) => pin.name === target.pin,
+  )?.connection;
+  const atPin = (point: { x: number; y: number }) =>
+    !!connection &&
+    [connection.contactPoint, connection.gridLanding].some(
+      (end) => end.x === point.x && end.y === point.y,
+    );
+  for (const routeId of net.routeIds) {
+    const line = document.routes.find(
+      (route) => route.id === routeId,
+    )?.polyline;
+    if (!line || line.length < 2) continue;
+    const [from, to] = atPin(line[0]!)
+      ? [line[0]!, line[1]!]
+      : atPin(line.at(-1)!)
+        ? [line.at(-1)!, line.at(-2)!]
+        : [];
+    if (from && to)
+      return {
+        net,
+        position: {
+          x: Math.round((from.x + to.x) / 2),
+          y: Math.round((from.y + to.y) / 2),
+        },
+      };
+  }
+  return {
+    net,
+    position: connection ? { ...connection.gridLanding } : undefined,
+  };
+}
+
 function compileAddLabel(
   index: number,
   action: ActionOfKind<"add-label">,
@@ -1405,12 +1630,16 @@ function compileAddLabel(
   import("@icm/agent-adapter").AgentAuthoringCommand,
   { kind: "set-net-label" }
 > {
-  const net = resolveNet(document, index, action.kind, {
-    kind: "net",
-    ...(action.target.name ? { name: action.target.name } : {}),
-    ...(action.target.id ? { id: action.target.id } : {}),
-  });
-  let position = action.position;
+  const target = action.target;
+  const atPin = target.kind === "pin" ? pinNet(index, action, document) : null;
+  const net =
+    atPin?.net ??
+    resolveNet(document, index, action.kind, {
+      kind: "net",
+      ...(target.kind === "net" && target.name ? { name: target.name } : {}),
+      ...(target.kind === "net" && target.id ? { id: target.id } : {}),
+    });
+  let position = action.position ?? atPin?.position;
   if (!position) {
     const route = net.routeIds
       .map((routeId) =>

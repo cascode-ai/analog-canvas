@@ -285,8 +285,8 @@
       "requires": [],
       "uri": "analog-canvas://catalog/builtins",
       "kitPath": "references/razavi-authoring-catalog.json",
-      "name": "Reviewed built-in Razavi catalog",
-      "description": "Canonical built-in symbols and pins.",
+      "name": "Reviewed built-in catalog",
+      "description": "Canonical built-in palette symbols and pins.",
       "mimeType": "application/json"
     },
     {

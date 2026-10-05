@@ -5,12 +5,7 @@ import type {
   DesignNetlistMagneticSubcircuit,
   DesignNetlistParameter,
 } from "./ir.js";
-import { IDEAL_COMPARATOR_TARGET } from "@icm/devices";
-import {
-  isIdealLogicTarget,
-  spiceIdealLogicSubcircuit,
-} from "./ideal-logic-gate-models.js";
-import { spiceIdealSignalSubcircuit } from "./ideal-signal-block-models.js";
+import { generatedBehavioralModel } from "./generated-models.js";
 import type { NetlistFormat } from "./net-name-codec.js";
 import { normalizeIndependentSource } from "./source-waveform.js";
 import { signedControlGain } from "./controlled-current.js";
@@ -238,15 +233,6 @@ function spiceModels(cell: DesignNetlistCell): string[] {
   );
 }
 
-/** Finite-transition comparator: continuous in OP/DC/AC/TRAN, with no hidden supply nets. */
-function spiceIdealComparatorSubcircuit(): string[] {
-  return [
-    `.subckt ${IDEAL_COMPARATOR_TARGET} VIP VIN VOUT params: vhigh=1 vlow=0 vtransition=1m`,
-    "Bcmp VOUT 0 V={vlow+(vhigh-vlow)*0.5*(1+tanh((V(VIP)-V(VIN))/vtransition))}",
-    `.ends ${IDEAL_COMPARATOR_TARGET}`,
-  ];
-}
-
 /**
  * A drawn T-coil's or transformer's coupled windings, as the subcircuit its
  * `X` calls name. Each inductor is written from its dotted node, which is how
@@ -401,21 +387,13 @@ function renderSpice(
   };
   const globals = ir.globals.filter((name) => name !== "0");
   if (globals.length) append(...wrapSpice([".global", ...globals]));
-  if (ir.idealComparator) {
-    append("");
-    append(...spiceIdealComparatorSubcircuit());
-  }
-  for (const target of ir.behaviouralBodies ?? []) {
+  for (const definition of ir.generatedDefinitions ?? []) {
     append("");
     append(
-      ...(isIdealLogicTarget(target)
-        ? spiceIdealLogicSubcircuit(target)
-        : spiceIdealSignalSubcircuit(target)),
+      ...(definition.kind === "magnetic"
+        ? spiceMagneticSubcircuit(definition)
+        : generatedBehavioralModel(definition.name)),
     );
-  }
-  for (const subcircuit of ir.magneticSubcircuits ?? []) {
-    append("");
-    append(...spiceMagneticSubcircuit(subcircuit));
   }
   for (const cell of ir.cells) {
     if (rootAsTopLevel && cell.id === ir.topCellId) continue;
@@ -590,8 +568,9 @@ function renderSpectre(
   const instances: PrintedNetlistInstance[] = [];
   const globals = ir.globals.filter((name) => name !== "0");
   if (globals.length) lines.push(`global ${globals.join(" ")}`);
-  for (const subcircuit of ir.magneticSubcircuits ?? [])
-    lines.push("", ...spectreMagneticSubcircuit(subcircuit));
+  for (const definition of ir.generatedDefinitions ?? [])
+    if (definition.kind === "magnetic")
+      lines.push("", ...spectreMagneticSubcircuit(definition));
   let length = lines.join("\n").length;
   for (const cell of ir.cells) {
     const offset = length + 2;
@@ -664,9 +643,7 @@ export function locateDesignNetlist(
     // the subcircuit a T-coil or transformer calls: the Symbol decides it.
     const ownModels = new Set([
       ...(cell.models ?? []).map((model) => model.name),
-      ...(ir.magneticSubcircuits ?? []).map((subcircuit) => subcircuit.name),
-      ...(ir.idealComparator ? [IDEAL_COMPARATOR_TARGET] : []),
-      ...(ir.behaviouralBodies ?? []),
+      ...(ir.generatedDefinitions ?? []).map((definition) => definition.name),
     ]);
     for (const instance of cell.instances) {
       const original = card(instance);

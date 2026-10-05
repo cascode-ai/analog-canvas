@@ -260,6 +260,78 @@ describe("authoring helper compilation", () => {
       },
     ]);
   });
+  it.each([
+    "simple-switch",
+    "spdt-switch",
+    "voltage-controlled-switch",
+    "differential-transconductance",
+    "adc",
+    "dac",
+  ])(
+    "places the reviewed palette part %s, as the GUI palette does (#1303)",
+    (symbol) => {
+      const command = compile([
+        { kind: "place-component", symbol, position: { x: 0, y: 0 } },
+      ])[0]!.command;
+      expect(command?.kind).toBe("place-components");
+      if (command?.kind !== "place-components") return;
+      expect(command.instances[0]!.symbolId).toBe(symbol);
+    },
+  );
+  it("names a placed Cell and turns it upright unless told otherwise, as place-component does (#1301)", () => {
+    const [placed] = compile([
+      {
+        kind: "place-cell",
+        childDocumentId: "child",
+        placement: { position: { x: 100, y: 0 } },
+      },
+    ]);
+    expect(placed!.command).toMatchObject({
+      kind: "place-cell",
+      childDocumentId: "child",
+      instanceId: expect.stringMatching(/^instance-alloc-\d+$/),
+      placement: { position: { x: 100, y: 0 }, rotation: 0, mirror: "none" },
+    });
+    const turned = compile([
+      {
+        kind: "place-cell",
+        childDocumentId: "child",
+        instanceId: "cell-1",
+        placement: { position: { x: 0, y: 0 }, rotation: 90 },
+      },
+    ])[0]!.command;
+    expect(turned).toMatchObject({
+      instanceId: "cell-1",
+      placement: { rotation: 90, mirror: "none" },
+    });
+  });
+  it.each(["set-model", "set-display-alias"] as const)(
+    "%s takes a target as the other property actions do (#1301)",
+    (kind) => {
+      const value =
+        kind === "set-model" ? { model: "nch" } : { text: "A_1" as string };
+      for (const target of [
+        { kind: "instance", reference: "M1" },
+        { kind: "instance", id: "instance-1" },
+      ])
+        expect(compile([{ kind, target, ...value }])[0]!.command).toEqual({
+          kind,
+          instanceId: "instance-1",
+          ...value,
+        });
+      expect(
+        AuthoringActionSchema.safeParse({
+          kind,
+          instanceId: "instance-1",
+          target: { kind: "instance", id: "instance-1" },
+          ...value,
+        }).success,
+      ).toBe(false);
+      expect(AuthoringActionSchema.safeParse({ kind, ...value }).success).toBe(
+        false,
+      );
+    },
+  );
   it("forwards pin anchors to the shared server planner and requires one position form", () => {
     const action = {
       kind: "place-component",
@@ -352,7 +424,7 @@ describe("authoring helper compilation", () => {
       );
     };
     expect(kinds("move")).toEqual(["instance", "junction", "annotation"]);
-    expect(kinds("add-label")).toEqual(["net"]);
+    expect(kinds("add-label")).toEqual(["net", "pin"]);
     expect(kinds("edit-text")).toEqual(["annotation", "drafting"]);
     expect(
       AuthoringActionSchema.safeParse({
@@ -1008,6 +1080,98 @@ describe("authoring helper compilation", () => {
       position: { x: 460, y: 140 },
       text: { runs: [{ kind: "text", value: "Vout" }] },
     });
+  });
+
+  it("marks and clears a pin's No Connect with disconnect, as the GUI does (#1305)", () => {
+    const r1 = { kind: "pin", instance: "R1", pin: "2" };
+    const [marked] = compile([
+      { kind: "disconnect", target: r1, noConnect: true },
+    ]);
+    expect(marked?.edits).toEqual([
+      {
+        kind: "add_no_connect",
+        noConnect: {
+          id: expect.stringMatching(/^no-connect-/),
+          endpoint: {
+            kind: "terminal",
+            instanceId: "instance-2",
+            pinName: "2",
+          },
+        },
+      },
+    ]);
+    // A wired pin is disconnected first, in the same transaction.
+    const [unused] = compile([
+      {
+        kind: "disconnect",
+        target: { kind: "pin", instance: "M1", pin: "D" },
+        noConnect: true,
+      },
+    ]);
+    expect(unused?.edits?.map((edit) => edit.kind)).toEqual([
+      "disconnect_endpoint",
+      "add_no_connect",
+    ]);
+    expectCompileError(
+      [{ kind: "disconnect", target: r1, noConnect: false }],
+      "pin R1.2 has no No Connect mark",
+    );
+    expectCompileError(
+      [
+        {
+          kind: "disconnect",
+          target: { kind: "route", route: "route-1" },
+          noConnect: true,
+        },
+      ],
+      "noConnect applies to a pin target",
+    );
+
+    const snapshot = testSnapshot();
+    snapshot.document.noConnects.push({
+      id: "nc-r1",
+      endpoint: { kind: "terminal", instanceId: "instance-2", pinName: "2" },
+    });
+    const [cleared] = compile(
+      [{ kind: "disconnect", target: r1, noConnect: false }],
+      snapshot,
+    );
+    expect(cleared?.edits).toEqual([
+      { kind: "remove_no_connect", noConnectId: "nc-r1" },
+    ]);
+    expectCompileError(
+      [{ kind: "disconnect", target: r1, noConnect: true }],
+      "pin R1.2 is already marked No Connect",
+      snapshot,
+    );
+  });
+
+  it("names a pin's Net on the wire leaving that pin", () => {
+    // A bias gate's stub, just drawn, is named in the same call list
+    // without a Snapshot read to learn the stub's new Net.
+    const [transaction] = compile([
+      {
+        kind: "add-label",
+        target: { kind: "pin", instance: "M1", pin: "D" },
+        text: "Vout",
+      },
+    ]);
+    expect(transaction?.command).toMatchObject({
+      kind: "set-net-label",
+      netId: "net-vout",
+      // Halfway along route-1's first segment, from M1.D up to its bend.
+      position: { x: 300, y: 180 },
+    });
+    expectCompileError(
+      [
+        {
+          kind: "add-label",
+          target: { kind: "pin", instance: "R1", pin: "2" },
+          text: "x",
+        },
+      ],
+      "pin R1.2 is on no Net yet",
+    );
   });
 
   it("leaves supply naming policy to the shared server planner", () => {

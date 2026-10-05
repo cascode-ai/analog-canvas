@@ -1,12 +1,25 @@
-import type { Annotation, Point } from "@icm/model";
+import { labelTextDocument } from "@icm/model";
+import type {
+  Annotation,
+  Point,
+  RichTextDocument,
+  RouteAnnotationAttachment,
+  SchematicDocument,
+} from "@icm/model";
 
+import { labelInkDescentEm } from "./annotation-presentation.js";
+import { resolveAnnotationText } from "./annotation-text.js";
 import { LABEL_CAP_HEIGHT_EM } from "./instance-label-placement.js";
 import type { ResolvedRouteGeometry } from "./resolved-route-geometry.js";
 import {
+  isNearVerticalSegment,
   netLabelSideOffset,
   resolveRouteAttachment,
 } from "./route-attachment.js";
-import type { SchematicStyleProfile } from "./style-profile.js";
+import {
+  resolveDocumentStyleProfile,
+  type SchematicStyleProfile,
+} from "./style-profile.js";
 
 /** Which way a Net Label's text runs from the point where it meets its wire. */
 export type NetLabelDirection = "right" | "down" | "left" | "up";
@@ -43,11 +56,53 @@ export function netLabelDirection(look: {
 export const NET_LABEL_WIRE_GAP = 8;
 
 /**
- * How far above a horizontal wire an upright Net Label's baseline stands: a
- * grid step, so a subscript (V_out) still clears the wire by half a step. At
- * the wire gap the subscript came within three units of it.
+ * How far above a horizontal wire an upright Net Label's baseline stands at
+ * most: a grid step, so a subscript (V_out) still clears the wire by half a
+ * step. At the wire gap the subscript came within three units of it.
  */
 export const NET_LABEL_BASELINE_ABOVE_WIRE = 10;
+
+/**
+ * Clear space between an upright Net Label's lowest ink and the horizontal
+ * wire under it. A label without a subscript stood a whole grid step up, so
+ * on stubs 20 units apart it read as naming the wire above (#1300).
+ */
+export const NET_LABEL_INK_ABOVE_WIRE = 4;
+
+/**
+ * How far a Net Label's ink reaches below its baseline: a subscript's
+ * figures, a descender (g, p, y), or nothing.
+ */
+export function netLabelInkDescent(
+  content: RichTextDocument,
+  profile: SchematicStyleProfile,
+  sizeScale = 1,
+): number {
+  return (
+    profile.typography.netFontSize *
+    sizeScale *
+    labelInkDescentEm(content, profile.typography)
+  );
+}
+
+/**
+ * Baseline height of an upright Net Label above a horizontal wire, for what
+ * it reads: its lowest ink keeps NET_LABEL_INK_ABOVE_WIRE from the wire, up
+ * to the grid step a subscript has always taken.
+ */
+export function netLabelBaselineAboveWire(
+  content: RichTextDocument,
+  profile: SchematicStyleProfile,
+  sizeScale = 1,
+): number {
+  return Math.min(
+    NET_LABEL_BASELINE_ABOVE_WIRE,
+    Math.ceil(
+      NET_LABEL_INK_ABOVE_WIRE +
+        netLabelInkDescent(content, profile, sizeScale),
+    ),
+  );
+}
 
 export interface NetLabelLook {
   /** Signed normal offset of the label's attachment on this segment. */
@@ -81,6 +136,8 @@ export function netLabelLook(
   from: Point,
   to: Point,
   capHeight: number,
+  /** An upright label's baseline above a horizontal wire; see netLabelBaselineAboveWire. */
+  baselineAboveWire = NET_LABEL_BASELINE_ABOVE_WIRE,
 ): NetLabelLook {
   const vertical = Math.abs(to.y - from.y) > Math.abs(to.x - from.x);
   const standard = (distance: number) => netLabelSideOffset(from, to, distance);
@@ -105,7 +162,7 @@ export function netLabelLook(
           rotation: 270,
         };
     }
-  const baseline = NET_LABEL_BASELINE_ABOVE_WIRE;
+  const baseline = baselineAboveWire;
   switch (direction) {
     case "right":
       return {
@@ -129,8 +186,73 @@ export function netLabelLook(
 /** The normal offset of a new, unturned Net Label on a segment: above a
  * horizontal wire, right of a vertical one, as `netLabelLook` puts a label
  * reading to the right. */
-export function netLabelStandardOffset(from: Point, to: Point): number {
-  return netLabelLook("right", from, to, 0).normalOffset;
+export function netLabelStandardOffset(
+  from: Point,
+  to: Point,
+  baselineAboveWire = NET_LABEL_BASELINE_ABOVE_WIRE,
+): number {
+  return netLabelLook("right", from, to, 0, baselineAboveWire).normalOffset;
+}
+
+/**
+ * netLabelBaselineAboveWire for a label of this Net name and look, read as
+ * the label will draw it: its own format, or the name's semantic label text.
+ */
+export function netLabelBaselineForName(
+  name: string,
+  formatOverride: RichTextDocument | undefined,
+  presentation: SchematicDocument["presentation"],
+  sizeScale = 1,
+): number {
+  return netLabelBaselineAboveWire(
+    formatOverride ?? labelTextDocument(name, presentation),
+    resolveDocumentStyleProfile(presentation),
+    sizeScale,
+  );
+}
+
+/**
+ * A Net Label attachment a placement tool computed at the full grid step,
+ * re-seated for the text it carries (#1300). Only an upright label standing
+ * at that standard offset over a horizontal segment moves, closer to its
+ * wire; a turned label, a label beside a vertical wire, or one placed at any
+ * other offset keeps its place.
+ */
+export function netLabelAttachmentForText(
+  attachment: RouteAnnotationAttachment,
+  position: Point,
+  rotation: number,
+  baselineAboveWire: number,
+  geometry: ResolvedRouteGeometry,
+): { attachment: RouteAnnotationAttachment; position: Point } {
+  const segment = geometry.segments.find(
+    (candidate) => candidate.address.legId === attachment.legId,
+  );
+  const unchanged = { attachment, position };
+  if (
+    !segment ||
+    ((rotation % 360) + 360) % 360 !== 0 ||
+    isNearVerticalSegment(segment.from, segment.to) ||
+    attachment.normalOffset !== netLabelStandardOffset(segment.from, segment.to)
+  )
+    return unchanged;
+  const dx = segment.to.x - segment.from.x;
+  const dy = segment.to.y - segment.from.y;
+  const length = Math.hypot(dx, dy);
+  if (!length) return unchanged;
+  const normalOffset = netLabelStandardOffset(
+    segment.from,
+    segment.to,
+    baselineAboveWire,
+  );
+  const shift = normalOffset - attachment.normalOffset;
+  return {
+    attachment: { ...attachment, normalOffset },
+    position: {
+      x: Math.round(position.x - (dy / length) * shift),
+      y: Math.round(position.y + (dx / length) * shift),
+    },
+  };
 }
 
 /** A direction's alignment and rotation away from any wire: a label
@@ -160,6 +282,8 @@ export function turnedNetLabel(
   annotation: Annotation,
   geometryOf: (routeId: string) => ResolvedRouteGeometry | undefined,
   profile: SchematicStyleProfile,
+  /** The drawing, so an upright turn stands as close as its text allows. */
+  document?: SchematicDocument,
 ): Annotation | null {
   if (annotation.kind !== "net-label") return null;
   const direction = nextNetLabelDirection(netLabelDirection(annotation));
@@ -177,6 +301,13 @@ export function turnedNetLabel(
     segment.from,
     segment.to,
     netLabelCapHeight(profile, annotation.sizeScale ?? 1),
+    document
+      ? netLabelBaselineAboveWire(
+          resolveAnnotationText(document, annotation),
+          profile,
+          annotation.sizeScale ?? 1,
+        )
+      : NET_LABEL_BASELINE_ABOVE_WIRE,
   );
   const attachment = { ...anchor, normalOffset: look.normalOffset };
   const resolved = resolveRouteAttachment(geometry, attachment);

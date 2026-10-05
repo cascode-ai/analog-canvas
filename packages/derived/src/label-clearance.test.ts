@@ -1,8 +1,13 @@
 import { expect, it } from "vitest";
 import { createEmptyDocument, createRoutePath } from "@icm/model";
+import type { RichTextDocument } from "@icm/model";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 import { defaultInstanceLabelPlacement } from "./instance-label-placement.js";
-import { diagnoseLabelClearance } from "./label-clearance.js";
+import { displayableInstanceValue } from "./instance-value.js";
+import {
+  createLabelClearanceContext,
+  diagnoseLabelClearance,
+} from "./label-clearance.js";
 import { resolveDocumentStyleProfile } from "./style-profile.js";
 import { diagnoseVisualQuality } from "./visual.js";
 const resolver = new InMemorySymbolResolver(builtInSymbols);
@@ -138,4 +143,196 @@ it("does not report a default label against its own part", () => {
       (d) => d.code === "VISUAL_LABEL_OVERLAP",
     ),
   ).toEqual([]);
+});
+
+/** Default reference and value annotations for one part, as the editor creates them. */
+function placeDefaultLabels(
+  doc: ReturnType<typeof createEmptyDocument>,
+  instance: ReturnType<typeof createEmptyDocument>["instances"][number],
+  reference: RichTextDocument,
+): void {
+  doc.instances.push(instance);
+  const resolved = resolver.resolve(instance.symbolId)!;
+  const profile = resolveDocumentStyleProfile(doc.presentation);
+  const value = displayableInstanceValue(instance);
+  if (value.kind !== "displayable") throw new Error(value.reason);
+  const at = instance.placement!.position;
+  for (const slot of ["reference", "value"] as const) {
+    const placement = defaultInstanceLabelPlacement(
+      instance,
+      resolved,
+      profile,
+      doc.presentation.grid,
+      slot,
+    )!;
+    doc.annotations.push({
+      id: `${instance.id}-${slot}`,
+      kind: slot === "reference" ? "instance-label" : "instance-value",
+      content: slot === "reference" ? reference : value.content,
+      anchor: {
+        kind: "object",
+        objectId: instance.id,
+        localOffset: {
+          x: placement.position.x - at.x,
+          y: placement.position.y - at.y,
+        },
+        fallbackPosition: placement.position,
+      },
+      alignment: placement.alignment,
+      rotation: 0,
+      locked: false,
+    });
+  }
+}
+
+/** A designator drawn as a letter with a subscript, such as M₂. */
+function subscripted(letter: string, index: string): RichTextDocument {
+  return {
+    runs: [
+      { kind: "text", value: letter },
+      {
+        kind: "span",
+        style: "subscript",
+        children: [{ kind: "text", value: index }],
+      },
+    ],
+  };
+}
+
+it("keeps a MOS W/L fraction clear of its own subscripted reference (#1299)", () => {
+  const doc = createEmptyDocument("d", "MOS");
+  const orientations = [
+    [0, "none"],
+    [0, "horizontal"],
+    [90, "none"],
+    [180, "none"],
+    [270, "none"],
+    [180, "horizontal"],
+  ] as const;
+  for (const [index, [rotation, mirror]] of orientations.entries())
+    for (const [row, symbolId] of (["nmos", "pmos"] as const).entries())
+      placeDefaultLabels(
+        doc,
+        {
+          id: `${symbolId}${index}`,
+          symbolId,
+          placement: {
+            position: { x: 100 + index * 200, y: 100 + row * 300 },
+            rotation,
+            mirror,
+          },
+          netlist: { parameters: { w: "10u", l: "150n" } },
+        },
+        subscripted("M", "2"),
+      );
+  expect(
+    diagnoseVisualQuality(doc, resolver).filter(
+      (d) => d.code === "VISUAL_LABEL_OVERLAP",
+    ),
+  ).toEqual([]);
+  expect(diagnoseLabelClearance(doc, resolver)).toEqual([]);
+});
+
+it("does not report an inductor's default labels against its own coil (#1299)", () => {
+  // The coil is one path without declared bounds. Its labels keep their gap
+  // from the path's drawn hull, so the check has to measure that hull rather
+  // than the Symbol's padded viewBox.
+  const doc = createEmptyDocument("d", "Inductors");
+  for (const [index, rotation] of ([0, 90, 180, 270] as const).entries())
+    placeDefaultLabels(
+      doc,
+      {
+        id: `l${index}`,
+        symbolId: "inductor",
+        placement: {
+          position: { x: 100 + index * 200, y: 100 },
+          rotation,
+          mirror: "none",
+        },
+        netlist: { parameters: { value: "10u" } },
+      },
+      subscripted("L", "A"),
+    );
+  expect(diagnoseLabelClearance(doc, resolver)).toEqual([]);
+  // A label actually drawn over the coil is still reported.
+  const label = doc.annotations.find((a) => a.id === "l0-reference")!;
+  if (label.anchor.kind !== "object") throw new Error("object anchor");
+  label.anchor = {
+    ...label.anchor,
+    localOffset: { x: -5, y: 5 },
+    fallbackPosition: { x: 95, y: 105 },
+  };
+  expect(diagnoseLabelClearance(doc, resolver).map((d) => d.objectIds)).toEqual(
+    [["l0-reference", "l0"]],
+  );
+});
+
+it("lets a Net Label stand as close over its wire as its text allows (#1300)", () => {
+  const doc = createEmptyDocument("d", "Close label");
+  doc.nets.push({ id: "n", terminals: [] });
+  doc.junctions.push(
+    { id: "a", netId: "n", position: { x: 100, y: 200 } },
+    { id: "b", netId: "n", position: { x: 300, y: 200 } },
+  );
+  doc.routes.push(
+    createRoutePath({
+      id: "w",
+      netId: "n",
+      start: { kind: "junction", junctionId: "a" },
+      end: { kind: "junction", junctionId: "b" },
+      bends: [],
+      modes: ["manual"],
+    }),
+  );
+  const label = (content: RichTextDocument, baselineAboveWire: number) => ({
+    id: "label",
+    kind: "net-label" as const,
+    content,
+    anchor: {
+      kind: "free" as const,
+      position: { x: 200, y: 200 - baselineAboveWire },
+    },
+    alignment: "middle" as const,
+    rotation: 0 as const,
+    locked: false,
+  });
+  const plain = (value: string): RichTextDocument => ({
+    runs: [{ kind: "text", value }],
+  });
+  // Capitals 4 units up and a descender 8 up stand clear of the wire...
+  doc.annotations = [label(plain("B0"), 4)];
+  expect(diagnoseLabelClearance(doc, resolver)).toEqual([]);
+  doc.annotations = [label(plain("top"), 8)];
+  expect(diagnoseLabelClearance(doc, resolver)).toEqual([]);
+  // ...where a subscript's figures at 4, or that descender at 2, reach it.
+  doc.annotations = [label(subscripted("V", "out"), 4)];
+  expect(diagnoseLabelClearance(doc, resolver)).toHaveLength(1);
+  doc.annotations = [label(plain("top"), 2)];
+  expect(diagnoseLabelClearance(doc, resolver)).toHaveLength(1);
+});
+it("asks a word's space between labels on a line and a little between lines", () => {
+  const doc = createEmptyDocument("d", "Spacing");
+  doc.annotations.push({
+    id: "name",
+    kind: "instance-label",
+    content: { runs: [{ kind: "text", value: "vinn" }] },
+    anchor: { kind: "free", position: { x: 0, y: 100 } },
+    alignment: "start",
+    rotation: 0,
+    locked: false,
+  });
+  const context = createLabelClearanceContext(doc, resolver);
+  const ink = context.measure(doc.annotations[0]!).inkBounds;
+  const after = (gap: number) => ({ ...ink, x: ink.x + ink.width + gap });
+  const below = (gap: number) => ({ ...ink, y: ink.y + ink.height + gap });
+  // "2k" two units after "vinn" read as "vinn2k".
+  expect(context.conflictsAt(after(2), "other")).toEqual(["name"]);
+  expect(context.conflictsAt(after(5), "other")).toEqual([]);
+  expect(context.conflictsAt(below(0.5), "other")).toEqual(["name"]);
+  expect(context.conflictsAt(below(2), "other")).toEqual([]);
+  // Too close is not drawn over.
+  expect(context.overlapsAt(after(2), "other")).toEqual([]);
+  expect(context.overlapsAt(after(-2), "other")).toEqual(["name"]);
+  // Clearance findings name wires and parts only, as before.
+  expect(diagnoseLabelClearance(doc, resolver)).toEqual([]);
 });

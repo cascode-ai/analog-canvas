@@ -284,4 +284,65 @@ describe("annotation drag model", () => {
     });
     expect(dragged.netId).toBe("net");
   });
+
+  it("keeps a Net Label dropped beside its own wire on that wire (#1300)", () => {
+    const document = createEmptyDocument("document", "Document");
+    document.nets.push({ id: "net", terminals: [] });
+    document.junctions.push(
+      { id: "j1", netId: "net", position: { x: 0, y: 0 } },
+      { id: "j2", netId: "net", position: { x: 100, y: 0 } },
+    );
+    document.routes.push(
+      createRoutePath({
+        id: "route",
+        netId: "net",
+        start: { kind: "junction", junctionId: "j1" },
+        end: { kind: "junction", junctionId: "j2" },
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+    const legId = document.routes[0]!.legs[0]!.id;
+    const annotation: Annotation = {
+      id: "b0",
+      kind: "net-label",
+      netId: "net",
+      anchor: {
+        kind: "route",
+        routeId: "route",
+        legId,
+        t: 0.5,
+        normalOffset: -10,
+        direction: "forward",
+        orientation: "follow",
+        fallbackPosition: { x: 50, y: -10 },
+      },
+      alignment: "middle",
+      rotation: 0,
+      locked: false,
+    };
+    // The Agent's move-annotation places at one-unit precision.
+    const agentContext = { ...context(document), annotationGrid: 1 };
+    // Three units above the wire: still on it, at the dropped point.
+    expect(
+      draggedAnnotationAtPosition(agentContext, annotation, {
+        x: 40,
+        y: -3,
+      }).anchor,
+    ).toEqual({
+      ...annotation.anchor,
+      t: 0.4,
+      normalOffset: -3,
+      fallbackPosition: { x: 40, y: -3 },
+    });
+    // Past the wire's end, or well away from it, the label goes free as
+    // before.
+    for (const point of [
+      { x: 150, y: -3 },
+      { x: 40, y: -30 },
+    ])
+      expect(
+        draggedAnnotationAtPosition(agentContext, annotation, point).anchor,
+      ).toEqual({ kind: "free", position: point });
+  });
 });

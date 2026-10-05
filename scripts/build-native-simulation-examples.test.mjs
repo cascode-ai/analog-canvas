@@ -168,7 +168,7 @@ test.each([
             expect(diagnostic).toMatchObject({
               category: "structural",
               domain: "spice",
-              severity: "warning",
+              severity: "info",
               confidence: "high",
               gateEligible: true,
             });

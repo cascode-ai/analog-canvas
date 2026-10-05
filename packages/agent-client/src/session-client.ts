@@ -61,6 +61,7 @@ import {
   compileActions,
   describeCallSplit,
   directConnectIntent,
+  nativeForm,
   splitIntoCalls,
   type ActionCall,
   type CompiledTransaction,
@@ -159,6 +160,8 @@ export interface ApplyActionsReport {
   calls?: ActionCall[];
   changedObjectIds?: string[];
   errors?: number;
+  /** How many of `errors` are pins not wired yet (MISSING_PIN_NET). */
+  unwiredPins?: number;
   warnings?: number;
   dryRun?: boolean;
 }
@@ -1372,7 +1375,11 @@ export class AgentSessionClient {
         actionKind: "schema",
       };
     }
-    const direct = parsed.data;
+    // A friendlier place-cell, set-model or set-display-alias goes native
+    // here when it needs no Snapshot to (#1301).
+    const direct = parsed.data.map((action) =>
+      nativeForm(action, (prefix) => `${prefix}-${crypto.randomUUID()}`),
+    );
     if (
       direct.length > 0 &&
       direct.length <= 64 &&
@@ -1428,7 +1435,11 @@ export class AgentSessionClient {
     if (
       direct.length > 1 &&
       direct.length <= 64 &&
-      direct.every(isBatchableAuthoringCommand)
+      direct.every(
+        (action) =>
+          isBatchableAuthoringCommand(action) &&
+          AgentAuthoringCommandSchema.safeParse(action).success,
+      )
     ) {
       const revision = await this.revisionFor(options.documentId);
       // The batch's items are these actions, in order.
@@ -1619,13 +1630,15 @@ export class AgentSessionClient {
     } = {},
   ): Promise<ApplyActionsReport> {
     const normalized = Array.isArray(payload) ? { edits: payload } : payload;
-    const parsed = AgentTransactionPayloadSchema.safeParse(normalized);
+    const parsed = AgentTransactionPayloadSchema.safeParse(
+      await this.withNestedRevisions(normalized),
+    );
     if (!parsed.success)
       return {
         ok: false,
         stage: "compile",
         code: "EDIT_SCHEMA_INVALID",
-        message: parsed.error.issues[0]?.message ?? "Invalid transaction",
+        message: schemaIssueText(parsed.error.issues[0]),
       };
     const entry = options.snapshot
       ? this.revisionFromSnapshot(options.snapshot)
@@ -1696,6 +1709,39 @@ export class AgentSessionClient {
     });
   }
 
+  /**
+   * A nested `transact_document` left without `expectedRevision` takes its
+   * Document's current revision, as the top-level transaction does: the
+   * helper supplies revisions, and the MCP schema does not describe nested
+   * entries, so leaving it out used to fail with no field named.
+   */
+  private async withNestedRevisions(payload: unknown): Promise<unknown> {
+    if (!payload || typeof payload !== "object") return payload;
+    const structureEdits = (payload as { structureEdits?: unknown })
+      .structureEdits;
+    if (!Array.isArray(structureEdits)) return payload;
+    const filled: unknown[] = [];
+    for (const edit of structureEdits) {
+      const entry = edit as {
+        kind?: unknown;
+        documentId?: unknown;
+        expectedRevision?: unknown;
+      } | null;
+      filled.push(
+        entry?.kind === "transact_document" &&
+          entry.expectedRevision === undefined &&
+          typeof entry.documentId === "string"
+          ? {
+              ...entry,
+              expectedRevision: (await this.revisionFor(entry.documentId))
+                .revision,
+            }
+          : edit,
+      );
+    }
+    return { ...payload, structureEdits: filled };
+  }
+
   private async revisionFor(documentId?: string): Promise<KnownRevision> {
     const target = await this.resolveDocumentId(documentId);
     const known = this.knownRevisions.get(target);
@@ -1740,7 +1786,7 @@ export class AgentSessionClient {
         ok: false,
         stage: "compile",
         code: "EDIT_SCHEMA_INVALID",
-        message: parsed.error.issues[0]?.message ?? "Invalid transaction",
+        message: schemaIssueText(parsed.error.issues[0]),
       };
     const request = (dryRun: boolean): AgentCircuitRequest => ({
       ...baseRequest(this.newRequestId()),
@@ -1844,6 +1890,21 @@ export class AgentSessionClient {
         }
       }
     }
+    // Mid-drawing, nearly every error is a pin not wired yet (#1301): say how
+    // many, so the errors that are something else stand out.
+    const unwiredPins = response.diagnostics.filter(
+      (item) => item.code === "MISSING_PIN_NET",
+    ).length;
+    // A change to the Project's structure alone, such as a new Cell, leaves
+    // the open Cell as it was: its findings are not this change's. A new
+    // Cell's receipt read as three errors of an unrelated Cell. A Project
+    // transaction that edits a Cell (placing a Cell Pin) keeps them.
+    const structureOnly =
+      response.diff.editKinds.length > 0 &&
+      response.diff.editKinds.every(
+        (kind) =>
+          kind.startsWith("project:") && kind !== "project:transact_document",
+      );
     const report: ApplyActionsReport = {
       ok: true,
       stage: "done",
@@ -1861,12 +1922,18 @@ export class AgentSessionClient {
         ? { terminalConnectivityChanged: response.terminalConnectivityChanged }
         : {}),
       editKinds: response.diff.editKinds,
-      diagnostics: response.diagnostics,
-      errors: response.diagnostics.filter((item) => item.severity === "error")
-        .length,
-      warnings: response.diagnostics.filter(
-        (item) => item.severity === "warning",
-      ).length,
+      ...(structureOnly
+        ? {}
+        : {
+            diagnostics: response.diagnostics,
+            errors: response.diagnostics.filter(
+              (item) => item.severity === "error",
+            ).length,
+            ...(unwiredPins ? { unwiredPins } : {}),
+            warnings: response.diagnostics.filter(
+              (item) => item.severity === "warning",
+            ).length,
+          }),
       ...(response.diagnosticDelta
         ? { diagnosticDelta: response.diagnosticDelta }
         : {}),
@@ -2266,4 +2333,17 @@ function namingAction(
     actionKind,
     message: `actions[${actionIndex}] (${actionKind}): ${(report.message ?? "transaction rejected").replace(/^actions\[\d+\]: /u, "")}`,
   };
+}
+
+/** A schema refusal that names the field, as `structureEdits[0].edits[1].kind: …`. */
+function schemaIssueText(issue: z.core.$ZodIssue | undefined): string {
+  if (!issue) return "Invalid transaction";
+  const path = issue.path
+    .map((part, index) =>
+      typeof part === "number"
+        ? `[${part}]`
+        : `${index === 0 ? "" : "."}${String(part)}`,
+    )
+    .join("");
+  return path ? `${path}: ${issue.message}` : issue.message;
 }

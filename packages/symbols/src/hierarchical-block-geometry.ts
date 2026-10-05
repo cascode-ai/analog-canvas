@@ -12,6 +12,26 @@ const ROW_PITCH = 20;
 const BODY_PADDING = 20;
 const MINIMUM_BODY_WIDTH = 80;
 const MINIMUM_BODY_HEIGHT = 40;
+/**
+ * Half the body height a top or bottom Pin's name needs beyond the nearest
+ * side-Pin row, so that the two names clear each other by about 3. Pin names
+ * (15.1 high, capitals 10.9) stand on a baseline 18 below the top edge and
+ * 10 above the bottom one, 4 below a side Pin's row. A supply's name is
+ * often drawn V_DD, and its subscript drops 6.7 below the baseline: at 30,
+ * the DD of an inverter's V_DD stood 1.5 above its "out".
+ */
+const NAME_ROW_CLEARANCE = 35;
+/** Room between a top or bottom Pin's name and the body's side edges. */
+const NAME_EDGE_INSET = 4;
+
+export interface HierarchicalBlockLayoutOptions {
+  /**
+   * Size the body so that each top or bottom Pin's name clears the side
+   * Pins' names and the body's sides. Only for a Cell no parent has placed
+   * yet: a placed block's Pins must never move under its wires.
+   */
+  readonly fitNames?: boolean | undefined;
+}
 
 export interface HierarchicalBlockTerminal {
   readonly id: string;
@@ -122,6 +142,7 @@ function resolvePinSlots(
 function bodySize(
   slots: readonly PinSlot[],
   minimum: CellSymbolPresentation["minimumBodySize"] | undefined,
+  options: HierarchicalBlockLayoutOptions = {},
 ): { width: number; height: number } {
   const westLabels = slots
     .filter((slot) => slot.side === "west")
@@ -141,19 +162,60 @@ function bodySize(
       .filter((slot) => slot.side === "west" || slot.side === "east")
       .map((slot) => Math.abs(slot.offset)),
   );
-  const width = Math.max(
+  let width = Math.max(
     MINIMUM_BODY_WIDTH,
     minimum?.width ?? 0,
     maxHorizontalOffset * 2 + BODY_PADDING * 2,
     Math.max(...westLabels, 0) + Math.max(...eastLabels, 0) + BODY_PADDING,
   );
-  const height = Math.max(
+  let height = Math.max(
     MINIMUM_BODY_HEIGHT,
     minimum?.height ?? 0,
     maxVerticalOffset * 2 + BODY_PADDING * 2,
   );
+  if (options.fitNames) {
+    // An inverter Cell with a VDD Pin on top read "in V_DDout": on a body
+    // 40 high, the top name shares the side names' row.
+    const sideOffsets = slots
+      .filter((slot) => slot.side === "west" || slot.side === "east")
+      .map((slot) => slot.offset);
+    const ends = slots.filter(
+      (slot) => slot.side === "north" || slot.side === "south",
+    );
+    if (sideOffsets.length && ends.some((slot) => slot.side === "north"))
+      height = Math.max(
+        height,
+        2 * (NAME_ROW_CLEARANCE - Math.min(...sideOffsets)),
+      );
+    if (sideOffsets.length && ends.some((slot) => slot.side === "south"))
+      height = Math.max(
+        height,
+        2 * (NAME_ROW_CLEARANCE + Math.max(...sideOffsets)),
+      );
+    for (const slot of ends)
+      width = Math.max(
+        width,
+        2 *
+          (Math.abs(slot.offset) +
+            estimatedLabelWidth(slot.terminal) / 2 +
+            NAME_EDGE_INSET),
+      );
+  }
   // Centre-based body edges need a half-size on the 10-unit pin grid.
   return { width: roundUp(width), height: roundUp(height) };
+}
+
+/** The body size a Cell's block takes for these Pins. */
+export function hierarchicalBlockBodySize(
+  terminals: readonly HierarchicalBlockTerminal[],
+  presentation?: CellSymbolPresentation,
+  options: HierarchicalBlockLayoutOptions = {},
+): { width: number; height: number } {
+  return bodySize(
+    resolvePinSlots(terminals, presentation),
+    presentation?.minimumBodySize,
+    options,
+  );
 }
 
 function pinForSlot(slot: PinSlot, width: number, height: number): SymbolPin {
@@ -215,9 +277,14 @@ function leadToBody(pin: SymbolPin, width: number, height: number) {
 export function createHierarchicalBlockGeometry(
   terminals: readonly HierarchicalBlockTerminal[],
   presentation?: CellSymbolPresentation,
+  options: HierarchicalBlockLayoutOptions = {},
 ): SymbolDefinition {
   const slots = resolvePinSlots(terminals, presentation);
-  const { width, height } = bodySize(slots, presentation?.minimumBodySize);
+  const { width, height } = bodySize(
+    slots,
+    presentation?.minimumBodySize,
+    options,
+  );
   const pins = slots.map((slot) => pinForSlot(slot, width, height));
   const left = -width / 2;
   const top = -height / 2;

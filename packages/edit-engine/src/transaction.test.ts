@@ -10,6 +10,7 @@ import {
   defaultInstanceLabelPlacement,
   instanceLabelInkBounds,
   instanceLabelMetrics,
+  instanceValueRowOffset,
   legacyDefaultInstanceLabelPlacement,
   legacyPortLabelPlacement,
   displayableInstanceValue,
@@ -3137,9 +3138,11 @@ describe("Edit Transaction envelope", () => {
     expect(label.anchor.fallbackPosition).toEqual(reference.position);
     expect(valueAnnotation.anchor.fallbackPosition).toEqual(value.position);
     // The two rows stay a fixed grid-quantized distance apart at every
-    // orientation, so they can never overlap.
+    // orientation, so they can never overlap; a W/L fraction's row is the
+    // taller stacked one (#1299).
     expect(valueAnnotation.anchor.fallbackPosition.y).toBe(
-      label.anchor.fallbackPosition.y + 20,
+      label.anchor.fallbackPosition.y +
+        instanceValueRowOffset("nmos", profile, document.presentation.grid),
     );
     expect(valueAnnotation.alignment).toBe(label.alignment);
   });

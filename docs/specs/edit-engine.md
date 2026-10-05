@@ -243,7 +243,11 @@ Topology operations have these preconditions:
 - `set_cell_symbol_presentation` changes only a Cell definition's optional
   stable-terminal visual intent. It is wrapped in a Project structural
   transaction so caller Symbol geometry and route following reconcile together;
-  it creates no endpoint or drawing-object kind.
+  it creates no endpoint or drawing-object kind. A caller's pins keep their
+  Nets: like a moved part's, a pin that lands on another Net's wire gains no
+  connection, and a wire the stretch would lay over another Net's pin or wire,
+  or across a part, is redrawn clear of it along the Agent connect's path
+  (#1316).
 - `remove_instance` requires no Net, annotation, group, or constraint
   reference. Owner-addressed Connectivity Evidence is cleaned atomically and
   does not make an otherwise removable Instance permanent.

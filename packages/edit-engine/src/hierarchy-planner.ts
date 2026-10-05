@@ -28,6 +28,8 @@ import {
   createProjectSymbolResolver,
   externalSubcircuitSymbolId,
   hierarchicalSymbolId,
+  placedCellDocumentIds,
+  unplacedCellSymbol,
 } from "@icm/symbols";
 import {
   derivePowerRailComponent,
@@ -721,14 +723,36 @@ export function planPlaceCellInstance(
   if (binding?.kind !== "subcircuit") {
     throw new Error(`Instance is not bound to a Cell: ${instance.id}`);
   }
-  requireDocument(project, binding.childDocumentId);
+  const child = requireDocument(project, binding.childDocumentId);
   return [
+    ...firstPlacementSymbol(project, child),
     transactDocument(project, parentDocumentId, [
       { kind: "add_instance", instance },
       ...annotations.map((annotation) => ({
         kind: "upsert_schematic_annotation" as const,
         annotation,
       })),
+    ]),
+  ];
+}
+
+/**
+ * A Cell no parent has placed shows the symbol its first placement keeps:
+ * Pins on the side their Ports are drawn on (#1319), and room for top and
+ * bottom Pin names (#1327). The first placement stores it, so the block does
+ * not change once placed and later Pins never move under wires.
+ */
+function firstPlacementSymbol(
+  project: CircuitProject,
+  child: SchematicDocument,
+): ProjectStructureEdit[] {
+  if (placedCellDocumentIds(project).has(child.id)) return [];
+  const next = unplacedCellSymbol(child);
+  const current = child.presentation.cellSymbol;
+  if (!next || JSON.stringify(next) === JSON.stringify(current)) return [];
+  return [
+    transactDocument(project, child.id, [
+      { kind: "set_cell_symbol_presentation", presentation: next },
     ]),
   ];
 }
@@ -827,6 +851,24 @@ function supplyEdgePlacement(
       },
     },
   ];
+}
+
+/**
+ * The supply edge rule (#1257) for a Cell Pin that no Cell Pin command adds:
+ * a local Power Rail adds its VDD terminal itself, and that terminal went to
+ * the block's left side, under its inputs. A ring oscillator's three
+ * inverters each took their VDD wire down past the incoming signal.
+ */
+export function planSupplyTerminalEdge(
+  project: CircuitProject,
+  documentId: string,
+  terminals: readonly { id: string; name: string; vddPower: boolean }[],
+): DocumentEdits {
+  return supplyEdgePlacement(
+    project,
+    requireDocument(project, documentId),
+    terminals,
+  );
 }
 
 export function planCreateCellPin(

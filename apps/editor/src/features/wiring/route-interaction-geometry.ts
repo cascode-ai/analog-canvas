@@ -5,6 +5,7 @@ import {
   endpointKey,
   isNearVerticalSegment,
   measureRichTextDocument,
+  netLabelAttachmentForText,
   netLabelLook,
   netLabelStandardOffset,
   type NetLabelDirection,
@@ -392,6 +393,35 @@ export function netLabelPlacementTargetAtPoint(
 }
 
 /**
+ * A Net Label placement target re-seated for the text the label carries
+ * (#1300): an upright label over a horizontal wire stands as close as its
+ * ink allows, so the preview shows where the label commits.
+ */
+export function netLabelPlacementTargetForText(
+  routeGeometryRecords: readonly RouteGeometryRecord[],
+  target: NetLabelPlacementTarget,
+  rotation: number,
+  baselineAboveWire: number,
+): NetLabelPlacementTarget {
+  const geometry = routeGeometryRecords.find(
+    ({ route }) => route.id === target.routeId,
+  )?.geometry;
+  if (!geometry) return target;
+  const placed = netLabelAttachmentForText(
+    target.routeAttachment,
+    target.labelPosition,
+    rotation,
+    baselineAboveWire,
+    geometry,
+  );
+  return {
+    ...target,
+    routeAttachment: placed.attachment,
+    labelPosition: placed.position,
+  };
+}
+
+/**
  * Reposition an existing route marker from the desired label position. The
  * electrical route remains authoritative: the marker may slide along the
  * attached route and its label may move only within a small normal-offset
@@ -609,14 +639,34 @@ export function annotationHitBox(
     // Passing no geometry leaves `resolveAnnotationPresentation` to derive it,
     // which is what it did before; a caller that holds the Document's geometry
     // passes it so a per-Annotation hit box does not re-resolve every Route.
-    return resolveAnnotationPresentation(
+    const { bounds, inkBounds: ink } = resolveAnnotationPresentation(
       document,
       resolver,
       annotation,
       styleProfile,
       routingGeometry,
       logicalNets,
-    ).bounds;
+    );
+    // A Net label stands just clear of its wire (#1300). Across its text the
+    // box reaches only a unit past its ink, so the wire beside it still takes
+    // a click there; along the text it keeps the full box.
+    if (annotation.kind !== "net-label") return bounds;
+    const turn = ((annotation.rotation % 180) + 180) % 180;
+    if (turn === 0)
+      return {
+        x: bounds.x,
+        y: ink.y - 1,
+        width: bounds.width,
+        height: ink.height + 2,
+      };
+    if (turn === 90)
+      return {
+        x: ink.x - 1,
+        y: bounds.y,
+        width: ink.width + 2,
+        height: bounds.height,
+      };
+    return bounds;
   }
   const anchor = annotationAnchor(
     document,

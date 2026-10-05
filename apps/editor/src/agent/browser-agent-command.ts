@@ -67,6 +67,8 @@ import {
   resolveAnnotationName,
   magneticDisplayParameters,
   derivePowerRailComponent,
+  netLabelAttachmentForText,
+  netLabelBaselineForName,
 } from "@icm/derived";
 import {
   builtInSymbols,
@@ -103,7 +105,10 @@ import {
   netLabelPlacementTargetAtPoint,
 } from "../features/wiring/route-interaction-geometry";
 import { planPlacedCellPin } from "../features/component-insert/cell-pin-placement";
-import { planVddRailEdits } from "../features/component-insert/vdd-rail";
+import {
+  planVddRailEdits,
+  railSupplyPinEdits,
+} from "../features/component-insert/vdd-rail";
 import { planInitialMosBulkDefault } from "../features/component-insert/mos-bulk-defaults";
 import { placedInstanceNetlist } from "../features/component-insert/placed-instance-netlist";
 import { initialInstanceNetlist } from "../features/netlist-export/netlist-authoring";
@@ -604,7 +609,9 @@ export function planBrowserAgentCommand(
         ...(command.scope ? { scope: command.scope } : {}),
       });
       if (!plan.ok) throw new Error(plan.message);
-      return { edits: [...plan.edits] };
+      return {
+        edits: [...plan.edits, ...railSupplyPinEdits(project, document, plan)],
+      };
     }
     case "extend-power-rail":
       return {
@@ -1208,12 +1215,33 @@ export function planBrowserAgentCommand(
               Number.POSITIVE_INFINITY,
             )
           : null;
-      const anchor = createdPlacement
+      // A new label stands as close over its wire as its text allows, as
+      // one placed with the Net Label tool does (#1300).
+      const createdGeometry = createdPlacement
+        ? records.find(({ route }) => route.id === createdPlacement.routeId)
+            ?.geometry
+        : undefined;
+      const created =
+        createdPlacement && createdGeometry
+          ? netLabelAttachmentForText(
+              createdPlacement.routeAttachment,
+              createdPlacement.labelPosition,
+              createdPlacement.rotation ?? 0,
+              netLabelBaselineForName(name, labelFormat, document.presentation),
+              createdGeometry,
+            )
+          : createdPlacement
+            ? {
+                attachment: createdPlacement.routeAttachment,
+                position: createdPlacement.labelPosition,
+              }
+            : null;
+      const anchor = created
         ? {
             kind: "route" as const,
-            ...createdPlacement.routeAttachment,
+            ...created.attachment,
             orientation: "horizontal" as const,
-            fallbackPosition: createdPlacement.labelPosition,
+            fallbackPosition: created.position,
           }
         : attached
           ? {

@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve, posix } from "node:path";
 import { fileURLToPath } from "node:url";
 import { agentOperatingKit } from "@icm/agent-adapter/kit";
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { AgentSchematicEditSchema } from "@icm/agent-adapter";
 import { z } from "zod";
 import { mcpResources } from "./resources.generated.js";
@@ -80,6 +80,11 @@ interface ManifestResource {
  * Contract test (Agent rationale): MCP Resources must project from the exact sources
  * the registry declares, independently of the HTTP Kit projection.
  */
+// The first tool listing builds every tool's contract: about a second
+// alone, and past the 5 s a test gets beside the full suite on a CI runner.
+// Each worker builds them once, here, outside any one test's time.
+beforeAll(() => void listToolDefinitions(), 30_000);
+
 describe("mcp resources single-source projection", () => {
   it("selects exact symbols from the same catalog and rejects guessing", () => {
     const full = readResourceContent("analog-canvas://catalog/builtins");

@@ -2,7 +2,6 @@ import {
   assessImportReference,
   deriveNetConnectivity,
   deriveNetConnectivityContext,
-  deriveRoutingGuidance,
   endpointKey,
   isVisibleEndpoint,
   pointOnSegment,
@@ -15,13 +14,18 @@ import {
   deriveStableId,
   electricalConnectionGrid,
   foldNetName,
+  routeEnd,
   snapGridPoint,
   type Point,
   type RouteEndpoint,
   type SchematicDocument,
 } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
-import { createRouteClearance } from "./route-clearance.js";
+import {
+  createRouteClearance,
+  type ClearPath,
+  type RouteClearance,
+} from "./route-clearance.js";
 import type { WireIntent } from "./routing-planner.js";
 import { planWireBatch } from "./wire-batch-planner.js";
 
@@ -312,22 +316,211 @@ export function planRouteNet(
       });
     }
   } else {
-    wires = deriveRoutingGuidance({
-      netId: components[0]!.netId ?? "unbound",
-      components,
-    }).map((guide) => {
-      const path = clearance.path(guide.from, guide.to);
-      if (typeof path === "string") throw new Error(`route-net: ${path}`);
-      return {
-        id: id(guide.id),
-        from: { kind: "endpoint", endpoint: guide.from },
-        to: { kind: "endpoint", endpoint: guide.to },
-        ...(path.waypoints.length ? { waypoints: path.waypoints } : {}),
-        cornerOrder: path.cornerOrder,
-      };
-    });
+    wires = planNetTree(document, resolver, components, clearance, id);
   }
   const plan = planWireBatch(document, resolver, wires, maxEdits);
   if (typeof plan === "string") throw new Error(`route-net: ${plan}`);
   return plan;
+}
+
+type TreeNode = RoutingGuidanceComponent["nodes"][number];
+type Segment = readonly [Point, Point];
+
+/**
+ * The wires that join a Net's visible components, drawn as a person draws a
+ * node. First a straight trunk between two pins that line up with nothing in
+ * the way; then, one at a time, the component cheapest to join, at a pin or
+ * Junction already joined or straight onto a wire already drawn. Joining pin
+ * to pin alone drew a pipeline stage's hold node down to its capacitor's pin
+ * and back up on its way to the adder, two Junctions where one T belongs.
+ */
+function planNetTree(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  components: readonly RoutingGuidanceComponent[],
+  clearance: RouteClearance,
+  id: (part: string) => string,
+): WireIntent[] {
+  const sorted = [...components].sort((a, b) => a.id.localeCompare(b.id, "en"));
+  const nodes = sorted.flatMap((component) =>
+    [...component.nodes]
+      .sort((a, b) => a.key.localeCompare(b.key, "en"))
+      .map((node) => ({ component, node })),
+  );
+  const same = (a: Point, b: Point) => a.x === b.x && a.y === b.y;
+  const distance = (a: Point, b: Point) =>
+    Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+  const joined = new Set<string>();
+  const treeNodes: TreeNode[] = [];
+  const segments: Segment[] = [];
+  const wires: WireIntent[] = [];
+  const along = (points: readonly Point[]): Segment[] =>
+    points.slice(1).map((to, index) => [points[index]!, to] as const);
+  const join = (
+    component: RoutingGuidanceComponent,
+    points: readonly Point[] = [],
+  ) => {
+    joined.add(component.id);
+    treeNodes.push(...component.nodes);
+    const keys = new Set(component.nodes.map((node) => node.key));
+    for (const route of document.routes) {
+      if (
+        !keys.has(endpointKey(route.start)) &&
+        !keys.has(endpointKey(routeEnd(route)))
+      )
+        continue;
+      const line = resolveRouteGeometry(document, resolver, route)?.centerline;
+      if (line) segments.push(...along(line));
+    }
+    segments.push(...along(points));
+  };
+  // A wire may not run over a pin it does not join: the pin would sit on
+  // the wire without belonging to it.
+  const overOtherPins = (points: readonly Point[], ends: readonly Point[]) =>
+    nodes.some(
+      ({ component, node }) =>
+        !joined.has(component.id) &&
+        !ends.some((end) => same(end, node.point)) &&
+        along(points).some(([from, to]) =>
+          pointOnSegment(node.point, from, to),
+        ),
+    );
+
+  // The trunk: the longest straight run between two components' pins.
+  let trunk: { a: (typeof nodes)[number]; b: (typeof nodes)[number] } | null =
+    null;
+  let trunkLength = 0;
+  for (const [index, a] of nodes.entries())
+    for (const b of nodes.slice(index + 1)) {
+      if (a.component.id === b.component.id) continue;
+      const [p, q] = [a.node.point, b.node.point];
+      if ((p.x !== q.x && p.y !== q.y) || same(p, q)) continue;
+      const length = distance(p, q);
+      if (length <= trunkLength) continue;
+      if (
+        overOtherPins([p, q], [p, q]) ||
+        clearance.conflict([p, q], [a.node.endpoint, b.node.endpoint])
+      )
+        continue;
+      trunk = { a, b };
+      trunkLength = length;
+    }
+  if (trunk) {
+    wires.push({
+      id: id("trunk"),
+      from: { kind: "endpoint", endpoint: trunk.a.node.endpoint },
+      to: { kind: "endpoint", endpoint: trunk.b.node.endpoint },
+    });
+    join(trunk.a.component, [trunk.a.node.point, trunk.b.node.point]);
+    join(trunk.b.component);
+  } else {
+    // No pins line up: start from the cheapest pair to join.
+    let seed: {
+      a: (typeof nodes)[number];
+      b: (typeof nodes)[number];
+      path: ClearPath;
+    } | null = null;
+    let reason: string | null = null;
+    const pairs = nodes
+      .flatMap((a, index) =>
+        nodes
+          .slice(index + 1)
+          .filter((b) => b.component.id !== a.component.id)
+          .map((b) => ({
+            a,
+            b,
+            estimate: distance(a.node.point, b.node.point),
+          })),
+      )
+      .sort((left, right) => left.estimate - right.estimate)
+      .slice(0, 8);
+    for (const { a, b } of pairs) {
+      const path = clearance.path(a.node.endpoint, b.node.endpoint);
+      if (typeof path === "string") {
+        reason ??= path;
+        continue;
+      }
+      if (overOtherPins(path.points!, [a.node.point, b.node.point])) continue;
+      if (!seed || path.cost! < seed.path.cost!) seed = { a, b, path };
+    }
+    if (!seed) throw new Error(`route-net: ${reason ?? "no clear path"}`);
+    wires.push({
+      id: id(seed.a.component.id),
+      from: { kind: "endpoint", endpoint: seed.a.node.endpoint },
+      to: { kind: "endpoint", endpoint: seed.b.node.endpoint },
+      ...(seed.path.waypoints.length ? { waypoints: seed.path.waypoints } : {}),
+      cornerOrder: seed.path.cornerOrder,
+    });
+    join(seed.a.component, seed.path.points);
+    join(seed.b.component);
+  }
+
+  const tapGrid = electricalConnectionGrid(document.presentation.grid);
+  while (joined.size < sorted.length) {
+    let best: {
+      component: RoutingGuidanceComponent;
+      node: TreeNode;
+      endpoint: RouteEndpoint | null;
+      point: Point;
+      path: ClearPath;
+    } | null = null;
+    let reason: string | null = null;
+    for (const { component, node } of nodes) {
+      if (joined.has(component.id)) continue;
+      // A joined pin or Junction, or straight onto a drawn wire.
+      const targets = [
+        ...treeNodes.map((target) => ({
+          endpoint: target.endpoint as RouteEndpoint | null,
+          point: target.point,
+        })),
+        ...segments.flatMap(([from, to]) => {
+          if (from.x !== to.x && from.y !== to.y) return [];
+          const projected = projectPointToSegment(node.point, from, to);
+          if (!projected) return [];
+          const foot = snapGridPoint(projected.point, tapGrid);
+          if (
+            same(foot, from) ||
+            same(foot, to) ||
+            !pointOnSegment(foot, from, to)
+          )
+            return [];
+          return [{ endpoint: null as RouteEndpoint | null, point: foot }];
+        }),
+      ]
+        .filter((target) => !same(target.point, node.point))
+        .sort(
+          (left, right) =>
+            distance(node.point, left.point) -
+              distance(node.point, right.point) ||
+            left.point.x - right.point.x ||
+            left.point.y - right.point.y,
+        )
+        .slice(0, 4);
+      for (const target of targets) {
+        const path = clearance.path(
+          node.endpoint,
+          target.endpoint ?? target.point,
+        );
+        if (typeof path === "string") {
+          reason ??= path;
+          continue;
+        }
+        if (overOtherPins(path.points!, [node.point, target.point])) continue;
+        if (!best || path.cost! < best.path.cost!)
+          best = { component, node, ...target, path };
+      }
+    }
+    if (!best) throw new Error(`route-net: ${reason ?? "no clear path"}`);
+    wires.push({
+      id: id(best.component.id),
+      from: { kind: "endpoint", endpoint: best.node.endpoint },
+      to: best.endpoint
+        ? { kind: "endpoint", endpoint: best.endpoint }
+        : { kind: "wire-at", point: best.point },
+      ...(best.path.waypoints.length ? { waypoints: best.path.waypoints } : {}),
+      cornerOrder: best.path.cornerOrder,
+    });
+    join(best.component, best.path.points);
+  }
+  return wires;
 }

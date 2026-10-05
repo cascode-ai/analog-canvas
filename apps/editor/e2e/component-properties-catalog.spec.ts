@@ -22,6 +22,8 @@ const componentSymbolIds = [
   "resistor",
   "pulse-voltage-source",
   "voltage-amplifier",
+  "opamp",
+  "nand-gate",
   "vdd-port",
   "vccs",
 ];
@@ -96,6 +98,25 @@ for (const symbolId of componentSymbolIds) {
       await expect(
         properties.getByRole("button", { name: "VSS Net options" }),
       ).toBeVisible();
+    }
+    if (symbolId === "opamp" || symbolId === "voltage-amplifier") {
+      await expectComponentCodeField(
+        page,
+        "parameters.gain",
+        symbolId === "opamp" ? "1e6" : "1",
+      );
+      await editComponentPropertyCode(page, (code) => {
+        code.parameters.gain = "123";
+      });
+      await expectComponentCodeField(page, "parameters.gain", "123");
+    }
+    if (symbolId === "nand-gate") {
+      await expectComponentCodeField(page, "parameters.vt", "10m");
+      await expectComponentCodeField(page, "parameters.td", "10p");
+      await editComponentPropertyCode(page, (code) => {
+        code.parameters.td = "20p";
+      });
+      await expectComponentCodeField(page, "parameters.td", "20p");
     }
     await expect(properties.locator(":scope > *")).toHaveCount(1);
     await expect(properties.locator(":scope > :only-child")).toHaveAttribute(

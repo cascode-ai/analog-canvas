@@ -265,7 +265,7 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
 
   const parametersForInstance = (instance: Instance) =>
     options.componentParametersForInstance?.(instance) ??
-    componentParameters(instance.symbolId);
+    componentParameters(instance.symbolId, instance);
 
   const commitElectricalMarkerName = (
     instanceId: string,

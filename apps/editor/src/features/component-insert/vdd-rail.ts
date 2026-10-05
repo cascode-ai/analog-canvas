@@ -1,5 +1,8 @@
 import type { ExpectedElectricalEffect, SchematicEdit } from "@icm/edit-engine";
-import { planPowerRailPinContacts } from "@icm/edit-engine";
+import {
+  planPowerRailPinContacts,
+  planSupplyTerminalEdge,
+} from "@icm/edit-engine";
 import {
   endpointKey,
   findRouteSegmentsAtPoint,
@@ -8,8 +11,10 @@ import {
   resolveDocumentRoutingGeometry,
 } from "@icm/derived";
 import {
+  deriveStableId,
   foldNetName,
   routeEnd,
+  type CircuitProject,
   type Point,
   type SchematicDocument,
 } from "@icm/model";
@@ -280,4 +285,32 @@ export function planVddRailEdits(
       ...bulkDefaultEdits,
     ],
   };
+}
+
+/**
+ * A local rail adds its Cell's VDD Pin itself. In a Cell no parent has
+ * placed yet, that Pin goes on top of the block, as a VDD Port's does
+ * (#1257), so a parent's rail reaches it straight down.
+ */
+export function railSupplyPinEdits(
+  project: CircuitProject,
+  document: SchematicDocument,
+  plan: Extract<VddRailPlan, { ok: true }>,
+): SchematicEdit[] {
+  const rail = plan.edits.find((edit) => edit.kind === "add_power_rail");
+  if (rail?.kind !== "add_power_rail" || rail.scope !== "local") return [];
+  return [
+    ...planSupplyTerminalEdge(project, document.id, [
+      {
+        id: deriveStableId(
+          "cell-terminal",
+          document.id,
+          "power-rail",
+          rail.labelId,
+        ),
+        name: rail.netName,
+        vddPower: true,
+      },
+    ]),
+  ];
 }

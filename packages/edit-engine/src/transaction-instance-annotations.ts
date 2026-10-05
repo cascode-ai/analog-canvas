@@ -27,7 +27,9 @@ import {
   displayableInstanceValue,
   inferInstanceLabelSide,
   instanceLabelRowOffset,
+  instanceValueRowOffset,
   previousInstanceLabelRowOffset,
+  uniformRowDefaultInstanceLabelPlacement,
   objectStyleProfile,
   placeUprightInstanceLabel,
   resolveAnnotationPresentation,
@@ -414,9 +416,11 @@ export function canonicalInstanceLabelRow(
     );
   if (slot === "value") {
     if (placedBy(defaultInstanceLabelPlacement))
-      return instanceLabelRowOffset(profile, grid);
+      return instanceValueRowOffset(instance.symbolId, profile, grid);
     // A label an earlier rule put down is just as untouched; the next
     // orientation edit moves it with the current rule.
+    if (placedBy(uniformRowDefaultInstanceLabelPlacement))
+      return instanceLabelRowOffset(profile, grid);
     if (
       placedBy(previousDefaultInstanceLabelPlacement) ||
       placedBy(legacyDefaultInstanceLabelPlacement)
@@ -815,7 +819,11 @@ export function followAttachedAnnotations(
       // world space before side inference, and the upright placer adds the
       // current row distance back.
       const rowOffset = row
-        ? instanceLabelRowOffset(styleProfile, draft.presentation.grid)
+        ? instanceValueRowOffset(
+            instance.symbolId,
+            styleProfile,
+            draft.presentation.grid,
+          )
         : 0;
       const slotAnchor = row
         ? { x: visiblePosition.x, y: visiblePosition.y - row }

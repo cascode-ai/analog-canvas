@@ -24,9 +24,11 @@ import {
   MAX_SCHEMATIC_EDITS_PER_TRANSACTION,
   SchematicEditSchema,
   type EditActor,
+  type SchematicEdit,
 } from "./edit-schema.js";
 import { executeTransaction } from "./transaction.js";
 import { planInstanceSymbolGeometryRouteFollow } from "./transaction-route-follow.js";
+import { redrawStretchedRoutesClear } from "./pin-change-route-clearance.js";
 import type {
   EditDiagnostic,
   EditTransactionResult,
@@ -705,25 +707,58 @@ export function executeProjectTransaction(
         }),
       );
       if (callerIds.size === 0) continue;
-      const routeEdits = planInstanceSymbolGeometryRouteFollow(
+      const followEdits = planInstanceSymbolGeometryRouteFollow(
         parent,
         originalParent,
         originalResolver,
         resolver,
         callerIds,
       );
-      if (routeEdits.length === 0) continue;
-      const routeResult = executeTransaction(
-        parent,
-        {
-          transactionId: `${transaction.transactionId}-symbol-route-follow-${parent.id}`,
-          documentId: parent.id,
-          expectedRevision: parent.revision,
-          actor: transaction.actor as EditActor,
-          edits: routeEdits,
-        },
-        { symbolResolver: resolver },
+      if (followEdits.length === 0) continue;
+      const withRedrawn = (extra: readonly SchematicEdit[]) => {
+        const redrawn = new Set(
+          extra.flatMap((edit) =>
+            edit.kind === "set_route_path" ? [edit.route.id] : [],
+          ),
+        );
+        return [
+          ...followEdits.filter(
+            (edit) =>
+              edit.kind !== "set_route_path" || !redrawn.has(edit.route.id),
+          ),
+          ...extra,
+        ];
+      };
+      const follow = (edits: readonly SchematicEdit[]) =>
+        executeTransaction(
+          parent,
+          {
+            transactionId: `${transaction.transactionId}-symbol-route-follow-${parent.id}`,
+            documentId: parent.id,
+            expectedRevision: parent.revision,
+            actor: transaction.actor as EditActor,
+            edits: [...edits],
+          },
+          // The callers' pins moved with their symbol: a pin that lands on
+          // another Net's wire keeps its own Net (#1316).
+          { symbolResolver: resolver, pinsMovedInstanceIds: callerIds },
+        );
+      // A wire the stretch lays over another Net's pin or wire, or across a
+      // part, is drawn clear of it, as a pin change in Properties is.
+      const routeEdits = withRedrawn(
+        redrawStretchedRoutesClear(
+          { document: originalParent, resolver: originalResolver },
+          resolver,
+          followEdits.flatMap((edit) =>
+            edit.kind === "set_route_path" ? [edit.route.id] : [],
+          ),
+          (extra) => {
+            const preview = follow(withRedrawn(extra));
+            return preview.ok ? preview.document : null;
+          },
+        ),
       );
+      const routeResult = follow(routeEdits);
       documentResults.push(routeResult);
       if (!routeResult.ok) {
         return rejectProjectTransaction(
