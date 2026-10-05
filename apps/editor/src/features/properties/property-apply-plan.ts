@@ -24,6 +24,7 @@ import { snapCoordinate } from "../../snap/engine";
 import { instanceLabelAnnotationFor } from "../instance-display/default-instance-display";
 import { instanceDisplayEdits } from "../instance-display/instance-display-edits";
 import { instanceParameterVisibilityEdits } from "../instance-display/instance-parameter-display";
+import { withStruckLabelsArranged } from "../instance-display/struck-label-arrangement";
 import { instanceValueAnnotation } from "../wiring/route-interaction-geometry";
 import type { ComponentPropertyCodeValue } from "./component-property-code";
 import { planComponentPropertyCodeEdits } from "./component-property-code-edits";
@@ -255,19 +256,21 @@ export function planPropertyApply(
     return { kind: "unchanged" };
   if (structureEdits.length > 0) {
     // Merge structural document edits with the draft into one project
-    // transaction and one undo boundary.
+    // transaction and one undo boundary. Labels the draft's redrawn wires
+    // newly run through move clear here too (#1366).
+    const arranged = withStruckLabelsArranged(document, resolver, edits);
     const documentEdit = structureEdits.find(
       (edit) =>
         edit.kind === "transact_document" && edit.documentId === document.id,
     );
     if (documentEdit?.kind === "transact_document")
-      documentEdit.edits.push(...edits);
-    else if (edits.length)
+      documentEdit.edits.push(...arranged);
+    else if (arranged.length)
       structureEdits.push({
         kind: "transact_document",
         documentId: document.id,
         expectedRevision: document.revision,
-        edits,
+        edits: arranged,
       });
     return { kind: "structure", structureEdits };
   }
@@ -281,12 +284,16 @@ export function planPropertyApply(
   );
   if (contactMove && !contactMove.ok)
     return { kind: "rejected", message: contactMove.message };
+  // Labels the moved or changed part's wires newly strike move clear (#1366).
   return contactMove
     ? {
         kind: "connectivity",
         intent: contactMove.intent,
-        edits: contactMove.edits,
+        edits: withStruckLabelsArranged(document, resolver, contactMove.edits),
         expectedElectricalEffect: contactMove.expectedElectricalEffect,
       }
-    : { kind: "edits", edits };
+    : {
+        kind: "edits",
+        edits: withStruckLabelsArranged(document, resolver, edits),
+      };
 }

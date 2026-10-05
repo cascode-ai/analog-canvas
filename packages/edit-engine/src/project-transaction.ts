@@ -35,6 +35,7 @@ import {
   projectDrawnGeometry,
   redrawStretchedRoutesClear,
 } from "./stretched-route-clearance.js";
+import { planInstanceLabelReflow } from "./caller-label-reflow.js";
 import type {
   AppliedTransaction,
   EditDiagnostic,
@@ -373,6 +374,20 @@ function withRedrawnCallers(
   };
 }
 
+export interface ProjectTransactionOptions {
+  /**
+   * Edits that move a caller's labels its redrawn wiring newly strikes
+   * (#1366), given the caller before the change and after its wiring
+   * follow. The editor supplies its label arrangement; without one, labels
+   * stay where they are.
+   */
+  readonly arrangeStruckLabels?: (
+    before: { document: SchematicDocument; resolver: SymbolResolver },
+    after: SchematicDocument,
+    resolver: SymbolResolver,
+  ) => readonly SchematicEdit[];
+}
+
 /**
  * Applies structural and existing per-Document edits to one cloned Project.
  * Intermediate values may temporarily be incomplete (for example, a child is
@@ -382,6 +397,7 @@ function withRedrawnCallers(
 export function executeProjectTransaction(
   sourceProject: CircuitProject,
   input: ProjectTransaction | unknown,
+  options: ProjectTransactionOptions = {},
 ): ProjectTransactionResult {
   const project = CircuitProjectSchema.parse(sourceProject);
   const parsed = ProjectTransactionSchema.safeParse(input);
@@ -875,7 +891,36 @@ export function executeProjectTransaction(
           (extra) => projectDrawnGeometry(parent, withRedrawn(extra)),
         ),
       );
-      const routeResult = follow(routeEdits);
+      // The callers' labels keep their place beside the changed block, and
+      // labels its redrawn wiring or its grown block newly cover move clear
+      // (#1366).
+      const reflowed = [
+        ...routeEdits,
+        ...planInstanceLabelReflow(
+          parent,
+          callerIds,
+          originalResolver,
+          resolver,
+        ),
+      ];
+      const followed = follow(reflowed);
+      const labelEdits =
+        followed.ok && options.arrangeStruckLabels
+          ? options.arrangeStruckLabels(
+              { document: originalParent, resolver: originalResolver },
+              followed.document,
+              resolver,
+            )
+          : [];
+      // A label move the transaction refuses never refuses the Pin change.
+      const labelled = labelEdits.length
+        ? follow([...reflowed, ...labelEdits])
+        : null;
+      const routeResult = labelled?.ok
+        ? labelled
+        : followed.ok
+          ? followed
+          : follow(routeEdits);
       documentResults.push(
         routeResult.ok
           ? withRedrawnCallers(

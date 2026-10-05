@@ -455,10 +455,11 @@ function resolveByIdOrName<T extends NamedId>(
  * edit cannot express is a hard error pointing at the advanced path.
  */
 /**
- * The native form of a place-cell, set-model or set-display-alias written in
- * the friendlier form, where reaching it needs no Snapshot (#1301): a Cell
- * instance named and turned upright, a target given by ID. A target given by
- * Reference is left for compileActions to resolve.
+ * The native form of a place-cell, set-model, set-display-alias or
+ * apply-label-preset written in the friendlier form, where reaching it needs
+ * no Snapshot (#1301): a Cell instance named and turned upright, targets
+ * given by ID. A target given by Reference is left for compileActions to
+ * resolve.
  */
 export function nativeForm(
   action: AuthoringAction,
@@ -481,6 +482,12 @@ export function nativeForm(
         return action;
       const { target, ...rest } = action;
       return { ...rest, instanceId: target.id };
+    }
+    case "apply-label-preset": {
+      const { targets, ...rest } = action;
+      const ids = targets?.map((target) => target.id);
+      if (!ids?.every((id): id is string => id !== undefined)) return action;
+      return { ...rest, instanceIds: ids };
     }
     default:
       return action;
@@ -742,6 +749,21 @@ export function compileActions(
           command: AgentAuthoringCommandSchema.parse(native),
           actionKinds: [action.kind],
         });
+        break;
+      }
+      case "apply-label-preset": {
+        const { targets, ...native } = action;
+        pushCommand(
+          targets
+            ? {
+                ...native,
+                instanceIds: targets.map(
+                  (target) =>
+                    resolveInstance(document, index, action.kind, target).id,
+                ),
+              }
+            : native,
+        );
         break;
       }
       case "focus":

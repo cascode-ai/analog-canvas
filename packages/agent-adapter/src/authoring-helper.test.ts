@@ -1254,6 +1254,53 @@ describe("authoring helper compilation", () => {
     });
   });
 
+  it("sends a label preset with its parts by Reference resolved to IDs (#1350)", () => {
+    const [named] = compile([
+      {
+        kind: "apply-label-preset",
+        preset: "textbook",
+        targets: [
+          { kind: "instance", reference: "M1" },
+          { kind: "instance", reference: "R1" },
+        ],
+      },
+    ]);
+    expect(named?.command).toEqual({
+      kind: "apply-label-preset",
+      preset: "textbook",
+      instanceIds: ["instance-1", "instance-2"],
+    });
+    // Left out, the editor takes every placed part of the Cell.
+    const [whole] = compile([
+      { kind: "apply-label-preset", preset: "textbook" },
+    ]);
+    expect(whole?.command).toEqual({
+      kind: "apply-label-preset",
+      preset: "textbook",
+    });
+    expectCompileError(
+      [
+        {
+          kind: "apply-label-preset",
+          preset: "textbook",
+          targets: [{ kind: "instance", reference: "M9" }],
+        },
+      ],
+      'no instance matches Reference "M9"',
+    );
+    for (const action of [
+      {
+        kind: "apply-label-preset",
+        preset: "textbook",
+        instanceIds: ["instance-1"],
+        targets: [{ kind: "instance", reference: "M1" }],
+      },
+      { kind: "apply-label-preset", preset: "razavi" },
+      { kind: "apply-label-preset", preset: "textbook", instanceIds: [] },
+    ])
+      expect(AuthoringActionSchema.safeParse(action).success).toBe(false);
+  });
+
   it("compiles delete for supported kinds and refuses nets", () => {
     const [transaction] = compile([
       { kind: "delete", target: { kind: "instance", reference: "R1" } },
@@ -1348,6 +1395,7 @@ describe("every action compiles in a mixed call", () => {
         kind: "set-cell-symbol-pins",
         pins: [{ name: "bl", side: "east" }],
       },
+      { kind: "apply-label-preset", preset: "textbook" },
     ];
     for (const command of commands) {
       expect(

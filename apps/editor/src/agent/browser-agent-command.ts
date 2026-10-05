@@ -102,6 +102,8 @@ import {
 import { instanceDisplayEdits } from "../features/instance-display/instance-display-edits";
 import { planDisplayAlias } from "../features/properties/group-naming";
 import { arrangeInstanceLabels } from "../features/instance-display/arrange-instance-labels";
+import { withStruckLabelsArranged } from "../features/instance-display/struck-label-arrangement";
+import { textbookLabelEdits } from "../features/instance-display/label-preset";
 import { netLabelAtClearSpot } from "./net-label-clear-spot";
 import { instanceParameterVisibilityEdits } from "../features/instance-display/instance-parameter-display";
 import {
@@ -273,6 +275,51 @@ function assertDeleteSelectionFits(
 }
 
 /**
+ * A label preset over the edit limit commits nothing and names the leading
+ * parts that fit, each count found by planning those parts as the preset
+ * would, so the Agent splits it without guessing. `low` always fits.
+ */
+function assertLabelPresetFits(
+  document: SchematicDocument,
+  ids: readonly string[],
+  expandedEdits: number,
+  maxTransactionEdits: number,
+  expansionOf: (ids: readonly string[]) => number,
+): void {
+  if (expandedEdits <= maxTransactionEdits) return;
+  let low = 0;
+  let high = ids.length;
+  while (high - low > 1) {
+    const middle = Math.floor((low + high) / 2);
+    if (expansionOf(ids.slice(0, middle)) <= maxTransactionEdits) low = middle;
+    else high = middle;
+  }
+  const names = ids
+    .slice(0, low)
+    .map(
+      (id) =>
+        document.instances.find((item) => item.id === id)?.reference ?? id,
+    );
+  throw new AgentCommandPlanningError(
+    0,
+    `apply-label-preset expands to ${expandedEdits} edits, and one transaction takes at most ${maxTransactionEdits}. ` +
+      (low === 0
+        ? "Not even its first part fits alone. "
+        : `The first ${low} of its ${ids.length} parts fit (${names.join(", ")}): apply it to them in one call and to the rest in another. `) +
+      "Nothing was changed.",
+    {
+      code: "LIMIT_EXCEEDED",
+      parameters: {
+        expandedEdits,
+        maxTransactionEdits,
+        selectedParts: ids.length,
+        fittingParts: low,
+      },
+    },
+  );
+}
+
+/**
  * A part the Agent places is named as a GUI placement names it. A missing
  * Reference takes the next free one. One the netlist would refuse, with
  * another prefix or a name already in use, is rejected with a free name
@@ -347,9 +394,10 @@ export function planBrowserAgentCommand(
         },
       ];
       // Lined up by coordinates, as a typed move is: its stretched wires are
-      // drawn clear of what they would cross (#1344).
+      // drawn clear of what they would cross (#1344), and labels they newly
+      // strike move clear (#1366).
       return {
-        edits: [
+        edits: withStruckLabelsArranged(document, resolver, [
           ...edits,
           ...planMoveRouteClearance(
             document,
@@ -357,7 +405,7 @@ export function planBrowserAgentCommand(
             command.instanceIds,
             edits,
           ),
-        ],
+        ]),
       };
     }
     case "disconnect-pin": {
@@ -445,6 +493,30 @@ export function planBrowserAgentCommand(
           command,
         ),
       };
+    case "apply-label-preset": {
+      // The parts named, or every placed part of the Cell. Hiding and
+      // arranging go as one transaction, so one undo takes back both.
+      const ids = command.instanceIds
+        ? [...new Set(command.instanceIds)]
+        : document.instances.flatMap((item) =>
+            item.placement ? [item.id] : [],
+          );
+      for (const id of ids)
+        if (!document.instances.some((item) => item.id === id))
+          throw new Error(`Instance not found: ${id}`);
+      // textbook is the only preset.
+      const plan = (parts: readonly string[]) =>
+        textbookLabelEdits(document, resolver, parts);
+      const edits = plan(ids);
+      assertLabelPresetFits(
+        document,
+        ids,
+        edits.length,
+        maxTransactionEdits,
+        (parts) => plan(parts).length,
+      );
+      return { edits };
+    }
     case "route-net":
       return planRouteNet(document, resolver, command, maxTransactionEdits);
     case "delete-selection": {

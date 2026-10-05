@@ -75,12 +75,10 @@ export function arrangeInstanceLabels(
     context.measure(annotation).inkBounds;
   // Each visible part name or value: the part it labels, and which it is.
   const partLabels = new Map(
-    context.visible.flatMap((label) =>
-      label.binding?.kind === "instance-reference" ||
-      label.binding?.kind === "instance-value"
-        ? [[label.id, label.binding] as const]
-        : [],
-    ),
+    context.visible.flatMap((label) => {
+      const part = partLabelOf(label, context.visible);
+      return part ? [[label.id, part] as const] : [];
+    }),
   );
 
   // Every visible Reference and value of the parts, eligible or not: a
@@ -90,15 +88,14 @@ export function arrangeInstanceLabels(
   for (const original of context.visible) {
     if (original.anchor.kind !== "object" || !ids.has(original.anchor.objectId))
       continue;
-    const binding = original.binding;
-    if (
-      binding?.kind !== "instance-reference" &&
-      binding?.kind !== "instance-value"
-    )
-      continue;
+    if (!partLabels.has(original.id)) continue;
     const ownerId = original.anchor.objectId;
-    ownLabels.set(ownerId, [...(ownLabels.get(ownerId) ?? []), original]);
     const eligible = eligibleLabel(original, ownerId);
+    // A Cell's name moved by hand stays out of its part's group, as it was
+    // before Cell names were arranged: it still takes its space as another
+    // label, but does not hold the Reference to its side.
+    if (!eligible && isCellNameLabel(original)) continue;
+    ownLabels.set(ownerId, [...(ownLabels.get(ownerId) ?? []), original]);
     if (eligible)
       groups.set(ownerId, [...(groups.get(ownerId) ?? []), eligible]);
   }
@@ -107,20 +104,16 @@ export function arrangeInstanceLabels(
     original: Annotation,
     ownerId: string,
   ): EligibleLabel | null {
-    const binding = original.binding;
-    if (
-      original.locked ||
-      original.rotation !== 0 ||
-      (binding?.kind !== "instance-reference" &&
-        binding?.kind !== "instance-value")
-    )
-      return null;
+    const part = partLabels.get(original.id);
+    if (original.locked || original.rotation !== 0 || !part) return null;
     const instance = document.instances.find((i) => i.id === ownerId)!;
-    if (!instance.placement || binding.instanceId !== instance.id) return null;
-    const reference = binding.kind === "instance-reference";
+    if (!instance.placement || part.instanceId !== instance.id) return null;
+    const reference = part.kind === "instance-reference";
+    // A placed Cell's name is literal text; nothing restyles it.
+    const cellName = isCellNameLabel(original);
     const deviceLetter = referenceDeviceLetter(instance.symbolId);
     if (
-      original.content ||
+      (original.content && !cellName) ||
       (original.formatOverride &&
         (!reference ||
           !isRoleLabelFormat(
@@ -161,6 +154,7 @@ export function arrangeInstanceLabels(
       return null;
     const annotation =
       reference &&
+      !cellName &&
       options.referenceStyle === "first-letter-subscript" &&
       /^[A-Za-z][A-Za-z0-9]+$/.test(instance.reference ?? "")
         ? {
@@ -640,6 +634,49 @@ export function arrangeInstanceLabels(
 
 /** How much nearer another part a label may stand than its own part. */
 const ASSOCIATION_MARGIN = 5;
+
+/** A placed Cell's name under its block, drawn as literal text (#803). */
+function isCellNameLabel(label: Annotation): boolean {
+  return (
+    label.anchor.kind === "object" &&
+    label.id === `instance-master-${label.anchor.objectId}` &&
+    label.content !== undefined
+  );
+}
+
+/**
+ * The part a label names, and whether it reads as its name or its value. A
+ * placed Cell's name stands in its Reference's slot while the Reference is
+ * hidden, as a new Cell's does, and in its value's slot beside it. It moves
+ * as a part's name does: a redrawn caller wire ran through an SRAM block's
+ * "sram6t" under the block, and nothing could clear it (#1366).
+ */
+export function partLabelOf(
+  label: Annotation,
+  visible: readonly Annotation[],
+): {
+  instanceId: string;
+  kind: "instance-reference" | "instance-value";
+} | null {
+  const binding = label.binding;
+  if (
+    binding?.kind === "instance-reference" ||
+    binding?.kind === "instance-value"
+  )
+    return { instanceId: binding.instanceId, kind: binding.kind };
+  if (!isCellNameLabel(label) || label.anchor.kind !== "object") return null;
+  const instanceId = label.anchor.objectId;
+  return {
+    instanceId,
+    kind: visible.some(
+      (other) =>
+        other.binding?.kind === "instance-reference" &&
+        other.binding.instanceId === instanceId,
+    )
+      ? "instance-value"
+      : "instance-reference",
+  };
+}
 
 /**
  * Whether text at `next` reads after text at `first`: below it, or after it
