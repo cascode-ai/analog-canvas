@@ -140,8 +140,11 @@ targets to avoid full-Snapshot name resolution. Names remain supported when usef
   NMOS), then `{kind:"reconcile_mos_bulk"}`. In a Cell with two supplies,
   check the PMOS on the one that is not the default: `MOS_BODY_OTHER_SUPPLY`
   (information) names a body that follows the default onto another supply
-  than its source's. Hidden bulk needs no decorative wire; four-pin
-  presentation is a separate visual choice.
+  than its source's. With no default set, such a Cell's unwired bodies are
+  unresolved and take the conventional VDD or ground; the same finding names
+  one whose source is on another supply. MCP `verify` lists both findings by
+  name in `information`, beside its counts. Hidden bulk needs no decorative
+  wire; four-pin presentation is a separate visual choice.
 - Name Nets with `add-label` / Net Label `edit-text` (native `set-net-label`).
   This creates the name claim and bound annotation together; free text does not.
   Supply `position` for a new label. RichText text runs use `value`, not `text`.

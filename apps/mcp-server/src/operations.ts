@@ -45,6 +45,7 @@ import {
   inspectDocument,
   inspectObject,
   searchSnapshot,
+  verifyInformation,
   type SearchKind,
 } from "./results.js";
 import { exportFile, importFile, openGalleryEntry } from "./file-operations.js";
@@ -1345,9 +1346,12 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
           ? changedObjectIds(before.snapshot, fresh.snapshot)
           : [];
       const counts = diagnosticsCompact(fresh).counts;
+      const { information, omitted } = verifyInformation(fresh);
       return {
         revision: fresh.revision,
         ...counts,
+        ...(information.length ? { information } : {}),
+        ...(omitted ? { informationOmitted: omitted } : {}),
         changedObjectIds: changed,
         ...(parsed.expectedNetlist
           ? {

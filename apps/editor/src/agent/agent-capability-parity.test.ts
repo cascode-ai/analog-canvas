@@ -1008,6 +1008,161 @@ it("reports a Cell's unbound BJT in the Cell's own diagnostics (#1251)", async (
   expect(verified.errors).toBeGreaterThan(0);
 });
 
+describe("verify names the supply a MOS body takes without a wire", () => {
+  it("names the VDD pin added for a PMOS body, and counts generated Net names (#1302)", async () => {
+    const { client, controller, tool } = await folder();
+    const apply = async (actions: unknown[]) => {
+      const report = await client.applyActions(actions);
+      expect(report.ok, report.message).toBe(true);
+    };
+    await apply([
+      {
+        kind: "place-component",
+        symbol: "pmos",
+        reference: "MP",
+        position: { x: 100, y: 100 },
+      },
+      {
+        kind: "place-component",
+        symbol: "resistor",
+        reference: "R1",
+        position: { x: 400, y: 100 },
+      },
+    ]);
+    const pin = (instance: string, name: string) => ({
+      kind: "pin",
+      instance,
+      pin: name,
+    });
+    // MP's source and R1 meet on a Net nobody named.
+    await apply([
+      { kind: "connect", from: pin("MP", "S"), to: pin("R1", "1") },
+    ]);
+    const mp = controller.document.instances.find(
+      (item) => item.reference === "MP",
+    )!;
+    const verified = await tool("verify", {});
+    expect(verified.information).toEqual([
+      {
+        code: "MOS_BODY_DEFAULT_SUPPLY",
+        message:
+          "MP's body has no Net and takes the conventional VDD, added to this Cell's pins with VSS; connect its B pin to choose another body",
+        objectIds: [mp.id],
+      },
+    ]);
+    const all = await tool("inspect", {
+      target: { kind: "diagnostics" },
+      detail: "full",
+    });
+    expect(JSON.stringify(all)).toContain("GENERATED_NET_NAME");
+    expect(verified.total).toBeGreaterThan(
+      verified.errors + verified.warnings + verified.information.length,
+    );
+    // Its body tied to its source, nothing is added and verify names nothing.
+    await apply([
+      { kind: "connect", from: pin("MP", "B"), to: pin("MP", "S") },
+    ]);
+    expect((await tool("verify", {})).information).toBeUndefined();
+  });
+
+  it("keeps a long finding short and names the Cell it is about", async () => {
+    const { client, tool } = await folder();
+    const apply = async (actions: unknown[], documentId?: string) => {
+      const report = await client.applyActions(
+        actions,
+        documentId ? { documentId } : {},
+      );
+      expect(report.ok, report.message).toBe(true);
+    };
+    await apply([{ kind: "create-cell", id: "bank", name: "bank" }]);
+    await apply(
+      Array.from({ length: 9 }, (_, index) => ({
+        kind: "place-component",
+        symbol: "pmos",
+        reference: `M${index + 1}`,
+        position: { x: 100 + index * 200, y: 100 },
+      })),
+      "bank",
+    );
+    await apply([
+      {
+        kind: "place-cell",
+        childDocumentId: "bank",
+        reference: "X1",
+        placement: { position: { x: 400, y: 400 } },
+      },
+    ]);
+    // Verified from the top Cell, the finding is the bank's.
+    const [finding, ...rest] = (await tool("verify", {})).information;
+    expect(rest).toEqual([]);
+    expect(finding).toMatchObject({
+      code: "MOS_BODY_DEFAULT_SUPPLY",
+      message:
+        "The bodies of M1, M2, M3, M4, M5, M6, M7 and 2 more have no Net and take the conventional VDD, added to this Cell's pins with VSS; connect a B pin to choose another body",
+      objectCount: 9,
+      documentId: "bank",
+    });
+    expect(finding.objectIds).toHaveLength(8);
+  });
+
+  it("names a PMOS on VDDH whose body follows the VDDL default (#1336)", async () => {
+    const { client, controller, tool } = await folder();
+    const apply = async (actions: unknown[]) => {
+      const report = await client.applyActions(actions);
+      expect(report.ok, report.message).toBe(true);
+    };
+    // VDDL is placed first, so it becomes the Cell's PMOS body default.
+    await apply([
+      {
+        kind: "place-component",
+        symbol: "vdd-port",
+        reference: "VDDL",
+        position: { x: 100, y: 0 },
+      },
+      {
+        kind: "place-component",
+        symbol: "vdd-port",
+        reference: "VDDH",
+        position: { x: 400, y: 0 },
+      },
+      {
+        kind: "place-component",
+        symbol: "pmos",
+        reference: "M1",
+        position: { x: 400, y: 200 },
+      },
+    ]);
+    const supply = (name: string) => ({
+      kind: "pin",
+      instance: {
+        kind: "instance",
+        id: controller.document.netlist!.terminals.find(
+          (terminal) => terminal.name === name,
+        )!.interfaceInstanceIds[0]!,
+      },
+      pin: "P",
+    });
+    await apply([
+      {
+        kind: "connect",
+        from: { kind: "pin", instance: "M1", pin: "S" },
+        to: supply("VDDH"),
+      },
+    ]);
+    const m1 = controller.document.instances.find(
+      (item) => item.reference === "M1",
+    )!;
+    expect((await tool("verify", {})).information).toEqual([
+      {
+        code: "MOS_BODY_OTHER_SUPPLY",
+        message:
+          "M1's body follows the Cell's PMOS default VDDL; its source is on VDDH. Connect its B pin to VDDH if that is the body you mean",
+        objectIds: [m1.id],
+      },
+    ]);
+  });
+});
+
 it("reads a SKY130 short device name as its reviewed target in a SKY130 Project", async () => {
   const { controller } = await folder();
   const preferences = createDefaultNetlistExportPreferences();

@@ -369,11 +369,29 @@ export function resolveMosBulkConnection(
   };
 }
 
+/**
+ * Where a netlist projection put a MOS body that has no Net: on the Cell's
+ * MOS body default (an imported part with no fourth node takes it), or, with
+ * none set, on the conventional VDD or ground.
+ */
+export type PlacedMosBody = "cell-default" | "conventional";
+
+/**
+ * The bodies a netlist projection of a Document placed, by instance ID. In
+ * the projected Document such a body is a member of that Net and reads as
+ * wired; this says it was not.
+ */
+export type PlacedMosBodies = ReadonlyMap<string, PlacedMosBody>;
+
 /** A MOS whose default body is one supply while its source is on another. */
 export interface MosBodyOffSourceSupply {
   instance: Instance;
-  /** How the body came to its supply: a default, never a drawn wire. */
-  status: "cell-default" | "instance-override" | "supply-default";
+  /**
+   * How the body came to its supply: a default, never a drawn wire.
+   * `conventional`: it has no Net, and the netlist gave it the conventional
+   * VDD or ground.
+   */
+  status: "instance-override" | "supply-default" | PlacedMosBody;
   /** The supply the body follows. */
   bodyNet: Net;
   /** The other supply of the same domain, which the source is on. */
@@ -390,10 +408,17 @@ export interface MosBodyOffSourceSupply {
  * explicitly has been answered and is not listed. A supply is what
  * {@link drawnSupplyLogicalNetIds} classifies as one, the same reading a body
  * default takes, so a source on an internal node is never compared.
+ *
+ * Two supplies of a domain are also why a body can have no default at all:
+ * the netlist then gives it the conventional VDD or ground, which may be
+ * neither of the two, or the one its source is not on. Given the bodies a
+ * netlist projection of this Document placed, those are compared too, the
+ * body on whatever Net the projection chose.
  */
 export function mosBodiesOffSourceSupply(
   document: SchematicDocument,
   logicalNets?: ResolvedDocumentLogicalNets,
+  placedBodies?: PlacedMosBodies,
 ): MosBodyOffSourceSupply[] {
   const resolved = logicalNets ?? resolveDocumentLogicalNets(document);
   const supplies = new Map<SupplyDomain, ReadonlySet<string>>();
@@ -436,7 +461,9 @@ export function mosBodiesOffSourceSupply(
     const domain = suppliesOf(kind === "nmos" ? "ground" : "vdd");
     if (domain.size < 2) return [];
     const resolution = resolveMosBulkConnection(document, instance, resolved);
-    if (!resolution?.net || resolution.status === "explicit") return [];
+    if (!resolution?.net) return [];
+    const status = placedBodies?.get(instance.id) ?? resolution.status;
+    if (status === "explicit") return [];
     const sourceNet = document.nets.find((net) =>
       net.terminals.some(
         (terminal) =>
@@ -447,17 +474,14 @@ export function mosBodiesOffSourceSupply(
     const body = resolved.byBaseNetId.get(resolution.net.id);
     const source = resolved.byBaseNetId.get(sourceNet.id);
     if (!body || !source || body.id === source.id) return [];
-    if (!domain.has(body.id) || !domain.has(source.id)) return [];
+    // The conventional supply is the netlist's choice: a Net named VDD or
+    // VSS, drawn as a supply or only labelled, or one it adds. The source
+    // still has to be on a supply the author drew.
+    if (!domain.has(source.id)) return [];
+    if (status !== "conventional" && !domain.has(body.id)) return [];
     const bodyName = supplyName(body);
     return bodyName === undefined || bodyName !== supplyName(source)
-      ? [
-          {
-            instance,
-            status: resolution.status,
-            bodyNet: resolution.net,
-            sourceNet,
-          },
-        ]
+      ? [{ instance, status, bodyNet: resolution.net, sourceNet }]
       : [];
   });
 }

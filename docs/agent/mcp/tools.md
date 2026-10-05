@@ -336,7 +336,14 @@ order on a private copy, so a later action sees the earlier ones. An
 Mutation receipts already include authoritative changed-object IDs, edit kinds,
 diagnostics and diagnostic deltas. Do not reconstruct the change from a partial
 Snapshot or count the same diagnostics twice. Use `verify` for a fresh check
-when needed and `render` when visual review matters. On `STATE_CHANGED`,
+when needed and `render` when visual review matters. Beside its `errors`,
+`warnings` and `total`, `verify` names in `information` the findings a count
+would hide: a MOS body given a supply nobody wired, as a Cell Pin nobody drew
+(`MOS_BODY_DEFAULT_SUPPLY`) or on another supply than its source
+(`MOS_BODY_OTHER_SUPPLY`). Each has code, message and objectIds, and
+`documentId` when it is another Cell's. It lists at most ten;
+`informationOmitted` counts the rest. Generated Net names stay counted in
+`total`; `inspect` of diagnostics lists everything. On `STATE_CHANGED`,
 refresh and re-plan; never blindly replay a changed payload.
 
 `inspect` with `target:{kind:"document"},detail:"full"` returns complete

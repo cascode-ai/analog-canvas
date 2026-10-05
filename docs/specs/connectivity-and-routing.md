@@ -258,7 +258,9 @@ a VDDL default is forward-biased if VDDH is the higher supply. The drawing
 holds no voltages, so the netlist asks rather than decides
 (`MOS_BODY_OTHER_SUPPLY`, information, in
 [netlist export](netlist-export.md#one-electrical-extraction-authority)), and a
-body wired from B answers it.
+body wired from B answers it. Until a Cell default names one of two supplies,
+the netlist gives an unresolved body the conventional VDD or ground and asks
+the same question when its source is on another supply.
 Pasting a supply marker settles a body default the target Cell does not have
 yet, exactly as placing that marker does, and never overrules one it has. A
 body left alone on a Net that its own policy binding named, with no geometry,

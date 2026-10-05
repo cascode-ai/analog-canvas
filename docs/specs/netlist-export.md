@@ -494,13 +494,15 @@ finding per supply: the MOS whose bodies take it, the pin it became (VDD, or
 VSS for ground), the other pin of the pair when that came with it, and that
 connecting a B pin chooses another body. An LDO's pass device drawn without a
 body printed as `XMP vout net0 vin VDD …` beside a `VDD` pin nobody drew, and
-nothing said so. The finding is listed in the Check Report, the Agent's netlist
-read and its diagnostics; it does not count as a warning and gates nothing. A
-Cell that already has that supply (a marker, a rail, a supply Port, or a Net
-the author named VDD or VSS), a body wired explicitly and a body following a
-Cell default raise nothing, nor does a simulation deck's root, which gains no
-pin. A caller that only passes the new supply on is not reported; the Cell
-whose body took it is.
+nothing said so. The finding is listed in the Check Report (Review Netlist
+Issues), the Agent's netlist read and its diagnostics, and MCP `verify` names
+it beside its counts; it does not count as a warning and gates nothing. The
+Netlist panel lists only what keeps its text from being copied, so it shows no
+information. A Cell that already has that supply (a marker, a rail, a supply
+Port, or a Net the author named VDD or VSS), a body wired explicitly and a
+body following a Cell default raise nothing, nor does a simulation deck's
+root, which gains no pin. A caller that only passes the new supply on is not
+reported; the Cell whose body took it is.
 
 A body that follows a default (the Cell's default, the single drawn supply, or
 the default a copied body brought along) onto one supply while its source is
@@ -509,11 +511,24 @@ on another supply of the same domain is reported as information,
 default VDDL; its source is on VDDH. Connect its B pin to VDDH if that is the
 body you mean". A supply is what a body default reads as one
 ([connectivity](connectivity-and-routing.md#authoring-rules)), compared as the
-netlist names its nodes, so a copied Ground marker is still ground. The drawing
-holds no voltages: a body on the higher supply is reverse-biased and usually
-intended, one on the lower supply is forward-biased, and only the author knows
-which is which, so this is a question rather than a warning. A body wired
-explicitly is never reported.
+netlist names its nodes, so a copied Ground marker is still ground, and node
+`0` is called ground. The drawing holds no voltages: a body on the higher
+supply is reverse-biased and usually intended, one on the lower supply is
+forward-biased, and only the author knows which is which, so this is a
+question rather than a warning. A body wired explicitly is never reported.
+
+Two supplies of a domain are also why a body can have no default: a Cell that
+draws VDD beside VDDH and configures no PMOS body default leaves an unwired
+PMOS body unresolved, and the export gives it the conventional VDD. A body
+with no Net is therefore asked the same question wherever the export puts it
+on another node than its source's supply: "MP's body has no Net and takes the
+conventional VDD; its source is on VDDH. Connect its B pin to VDDH if that is
+the body you mean". The conventional supply is the export's choice — the Net
+named VDD or VSS, drawn as a supply or only labelled, or a pin it adds, which
+`MOS_BODY_DEFAULT_SUPPLY` also reports — while the source must be on a supply
+the author drew. An imported MOS with no fourth node takes the Cell's body
+default where one is set, and is then reported as following it. NMOS bodies
+on ground supplies are compared the same way.
 
 Ground is the one reference a Cell states rather than reaches for. A Cell
 printed as a `.subckt` that meets ground — its own, or through a Cell it

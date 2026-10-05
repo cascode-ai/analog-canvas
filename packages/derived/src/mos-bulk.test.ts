@@ -687,6 +687,46 @@ describe("a default body on another supply than its source (#1336)", () => {
     expect(mosBodiesOffSourceSupply(document)).toEqual([]);
   });
 
+  it("lists a body a netlist placed on the conventional VDD, drawn as a supply or not", () => {
+    // No default, so the bodies have none; a netlist projection put M1's
+    // on the Net labelled VDD, where it reads as wired.
+    const document = levelShifter();
+    delete document.mosBulkDefaults;
+    expect(resolveMosBulkConnection(document, "M1")?.status).toBe("unresolved");
+    document.nets.push({
+      id: "net-vdd",
+      terminals: [{ instanceId: "M1", pinName: "B" }],
+    });
+    document.connectivityEvidence.push({
+      id: "claim-vdd",
+      kind: "name-claim",
+      netId: "net-vdd",
+      name: "VDD",
+      scope: "local",
+      owner: { kind: "net-label", annotationId: "label-vdd" },
+    });
+    expect(mosBodiesOffSourceSupply(document)).toEqual([]);
+    expect(
+      mosBodiesOffSourceSupply(
+        document,
+        undefined,
+        new Map([["M1", "conventional"]]),
+      ).map((item) => ({
+        instance: item.instance.id,
+        status: item.status,
+        body: item.bodyNet.id,
+        source: item.sourceNet.id,
+      })),
+    ).toEqual([
+      {
+        instance: "M1",
+        status: "conventional",
+        body: "net-vdd",
+        source: "net-vddh",
+      },
+    ]);
+  });
+
   it("compares supplies only, never an internal node", () => {
     const document = levelShifter();
     // M1 drawn the other way round: its drain on VDDH, its source on the

@@ -21,6 +21,7 @@ import {
   resolveMosBulkConnection,
   resolveDocumentLogicalNets,
   type DrawnMagneticNetwork,
+  type PlacedMosBodies,
   type ProjectedNetName,
   type ResolvedDocumentLogicalNets,
   type ResolvedLogicalNet,
@@ -2279,22 +2280,36 @@ function reportGenericDiodes(
  * its body on the Cell's PMOS default VDDL, forward-biased when VDDH is the
  * higher supply. The drawing holds no voltages, and most such bodies sit on
  * the higher supply on purpose, so this is a question, not a warning; a body
- * wired explicitly is the answer and is never asked about.
+ * wired explicitly is the answer and is never asked about. A body with no Net
+ * is asked about the same way: a Cell with two supplies has no default to
+ * give it, and the conventional VDD or ground it takes then need not be its
+ * source's.
  */
 function reportBodiesOffSourceSupply(
   document: SchematicDocument,
   context: CellNetContext,
+  placedBodies: PlacedMosBodies | undefined,
   diagnostics: NetlistDiagnostic[],
 ): void {
-  for (const item of mosBodiesOffSourceSupply(document, context.logicalNets)) {
-    const body = context.nameByNetId.get(item.bodyNet.id);
-    const source = context.nameByNetId.get(item.sourceNet.id);
-    if (!body || !source || body === source) continue;
+  // Node 0 reads as ground.
+  const spoken = (node: string) => (node === "0" ? "ground" : node);
+  for (const item of mosBodiesOffSourceSupply(
+    document,
+    context.logicalNets,
+    placedBodies,
+  )) {
+    const bodyNode = context.nameByNetId.get(item.bodyNet.id);
+    const sourceNode = context.nameByNetId.get(item.sourceNet.id);
+    if (!bodyNode || !sourceNode || bodyNode === sourceNode) continue;
+    const body = spoken(bodyNode);
+    const source = spoken(sourceNode);
     const kind = mosBulkKind(item.instance)!.toUpperCase();
     const follows =
-      item.status === "instance-override"
-        ? `keeps the ${kind} default it was copied with, ${body}`
-        : `follows the Cell's ${kind} default ${body}`;
+      item.status === "conventional"
+        ? `has no Net and takes the conventional ${body}`
+        : item.status === "instance-override"
+          ? `keeps the ${kind} default it was copied with, ${body}`
+          : `follows the Cell's ${kind} default ${body}`;
     diagnostic(
       diagnostics,
       document.id,
@@ -2312,6 +2327,7 @@ function extractCell(
   documentsById: Map<string, SchematicDocument>,
   cellNameByDocumentId: ReadonlyMap<string, string>,
   projectedNames: ReadonlyMap<string, ProjectedNetName>,
+  placedBodies: PlacedMosBodies | undefined,
   options: ResolvedDesignNetlistAnalysisOptions,
   diagnostics: NetlistDiagnostic[],
 ): DesignNetlistCell | null {
@@ -2471,7 +2487,7 @@ function extractCell(
   }
   // Node names are final here, ground included, so findings use them.
   reportDefaultBodySupplies(document, context, ports, diagnostics);
-  reportBodiesOffSourceSupply(document, context, diagnostics);
+  reportBodiesOffSourceSupply(document, context, placedBodies, diagnostics);
   const referenceIndex = createReferenceIndex(document, project);
   const syntheticReferences = new Map<string, string>();
   const reservedReferences = new Set(referenceIndex.byReference.keys());
@@ -2710,7 +2726,8 @@ function analyzeDesign(
     rootAsTopLevel: options.rootAsTopLevel ?? false,
     groundPin: options.groundPin ?? "global",
   };
-  project = withImplicitMosSupplies(project, resolvedOptions);
+  const projection = withImplicitMosSupplies(project, resolvedOptions);
+  project = projection.project;
   const diagnostics: NetlistDiagnostic[] = [];
   const documents = reachableDocuments(
     project,
@@ -2776,6 +2793,7 @@ function analyzeDesign(
       documentsById,
       cellNameByDocumentId,
       nameProjection.byDocumentId.get(document.id) ?? new Map(),
+      projection.placedBodies.get(document.id),
       resolvedOptions,
       diagnostics,
     );

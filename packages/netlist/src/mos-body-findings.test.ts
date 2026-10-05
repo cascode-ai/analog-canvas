@@ -339,4 +339,156 @@ describe("a default body on another supply than its source (#1336)", () => {
       ),
     ).toEqual([["M2"]]);
   });
+
+  it("says which default an imported body with no Net takes", () => {
+    // An imported part never resolves to a default by itself; the netlist
+    // gives it the Cell's.
+    const project = levelShifter();
+    const m1 = project.documents[0]!.instances.find(
+      (item) => item.id === "M1",
+    )!;
+    m1.importProvenance = {
+      kind: "model",
+      sourceMasterName: "PMOS",
+      sourceTarget: "PMOS",
+    };
+    expect(
+      findings(project, "MOS_BODY_OTHER_SUPPLY").map((item) => item.message),
+    ).toEqual([
+      "M1's body follows the Cell's PMOS default VDDL; its source is on VDDH. Connect its B pin to VDDH if that is the body you mean",
+    ]);
+  });
+});
+
+describe("a body with no Net on another supply than its source (#1336)", () => {
+  /** A supply marker on a Net named `name`, holding `pins`. */
+  function supply(
+    document: SchematicDocument,
+    name: string,
+    pins: readonly (readonly [string, string])[],
+  ): void {
+    const ground = name === "0";
+    const marker = `marker-${name}`;
+    document.instances.push({
+      id: marker,
+      symbolId: ground ? "ground" : "vdd-port",
+      placement: null,
+    });
+    document.nets.push({
+      id: `net-${name}`,
+      terminals: [
+        { instanceId: marker, pinName: ground ? "0" : "P" },
+        ...pins.map(([instanceId, pinName]) => ({ instanceId, pinName })),
+      ],
+    });
+    document.connectivityEvidence.push({
+      id: `claim-${name}`,
+      kind: "name-claim",
+      netId: `net-${name}`,
+      name,
+      scope: "global",
+      powerDomain: ground ? "ground" : "vdd",
+      owner: { kind: "power-marker", objectId: marker },
+    });
+  }
+
+  /**
+   * Two MOS between `in` and `out`, M1 sourced from `other` and M2 from
+   * `conventional`. Two supplies of a domain give a body no default, and
+   * neither body is wired.
+   */
+  function twoSupplies(
+    kind: "nmos" | "pmos",
+    conventional: string,
+    other: string,
+  ) {
+    const project = createEmptyProject("cell", "Two supplies", "cell");
+    const document = project.documents[0]!;
+    document.netlist!.name = "cell";
+    mos(document, "M1", kind);
+    mos(document, "M2", kind);
+    port(document, "in", [
+      ["M1", "G"],
+      ["M2", "G"],
+    ]);
+    port(document, "out", [
+      ["M1", "D"],
+      ["M2", "D"],
+    ]);
+    if (other === "VSS") port(document, "VSS", [["M1", "S"]]);
+    else supply(document, other, [["M1", "S"]]);
+    if (conventional === "VSS") port(document, "VSS", [["M2", "S"]]);
+    else supply(document, conventional, [["M2", "S"]]);
+    return project;
+  }
+
+  it("asks about a PMOS on VDDH whose body takes the conventional VDD", () => {
+    const project = twoSupplies("pmos", "VDD", "VDDH");
+    const result = createDesignNetlistExport(project, { format: "spice" });
+    expect(result.status).toBe("ready");
+    if (result.status !== "ready") return;
+    // The body is written where the conventional supply puts it.
+    expect(result.file.text).toMatch(/M1 out in VDDH VDD PMOS/u);
+    expect(
+      result.diagnostics.filter((item) => item.code.startsWith("MOS_BODY")),
+    ).toEqual([
+      expect.objectContaining({
+        code: "MOS_BODY_OTHER_SUPPLY",
+        severity: "info",
+        objectIds: ["M1"],
+        message:
+          "M1's body has no Net and takes the conventional VDD; its source is on VDDH. Connect its B pin to VDDH if that is the body you mean",
+      }),
+    ]);
+  });
+
+  it("asks about an NMOS on ground whose body takes the conventional VSS", () => {
+    // Ground beside a VSS Cell Pin: the body takes VSS, M1's source is on
+    // ground. A deck's root keeps ground as node 0.
+    const project = twoSupplies("nmos", "VSS", "0");
+    expect(
+      analyzeDesignNetlist(project, SIMULATION_DECK_GROUND)
+        .diagnostics.filter((item) => item.code.startsWith("MOS_BODY"))
+        .map((item) => [item.code, item.objectIds, item.message]),
+    ).toEqual([
+      [
+        "MOS_BODY_OTHER_SUPPLY",
+        ["M1"],
+        "M1's body has no Net and takes the conventional VSS; its source is on ground. Connect its B pin to ground if that is the body you mean",
+      ],
+    ]);
+  });
+
+  it("asks about each body when the conventional supply is a pin it adds", () => {
+    // VDDL and VDDH, and no VDD: the bodies take a VDD pin nobody drew,
+    // which neither source is on.
+    const project = twoSupplies("pmos", "VDDL", "VDDH");
+    expect(
+      createDesignNetlistExport(project, { format: "spice" })
+        .diagnostics.filter((item) => item.code.startsWith("MOS_BODY"))
+        .map((item) => [item.code, item.message]),
+    ).toEqual([
+      [
+        "MOS_BODY_DEFAULT_SUPPLY",
+        "The bodies of M1 and M2 have no Net and take the conventional VDD, added to this Cell's pins with VSS; connect a B pin to choose another body",
+      ],
+      [
+        "MOS_BODY_OTHER_SUPPLY",
+        "M1's body has no Net and takes the conventional VDD; its source is on VDDH. Connect its B pin to VDDH if that is the body you mean",
+      ],
+      [
+        "MOS_BODY_OTHER_SUPPLY",
+        "M2's body has no Net and takes the conventional VDD; its source is on VDDL. Connect its B pin to VDDL if that is the body you mean",
+      ],
+    ]);
+  });
+
+  it("is silent once the body is wired, or for a source on the conventional supply", () => {
+    const project = twoSupplies("pmos", "VDD", "VDDH");
+    project.documents[0]!.nets.find(
+      (net) => net.id === "net-VDDH",
+    )!.terminals.push({ instanceId: "M1", pinName: "B" });
+    // M2's source is on VDD, where its body goes.
+    expect(findings(project, "MOS_BODY_OTHER_SUPPLY")).toEqual([]);
+  });
 });

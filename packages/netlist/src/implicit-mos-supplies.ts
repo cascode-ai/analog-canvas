@@ -11,6 +11,8 @@ import {
   portableCellIdentifier,
   resolveMosBulkConnection,
   resolveDocumentLogicalNets,
+  type PlacedMosBodies,
+  type PlacedMosBody,
 } from "@icm/derived";
 import {
   IDEAL_COMPARATOR_TARGET,
@@ -116,6 +118,16 @@ export function implicitSupplyNetId(
   return deriveStableId("netlist-default-supply", documentId, supply);
 }
 
+export interface ImplicitMosSupplyProjection {
+  project: CircuitProject;
+  /**
+   * The MOS bodies with no Net that the projection placed, by Document ID:
+   * a placed body is a member of its Net in `project` and reads as wired
+   * there, so whoever reports on bodies asks here how it came to be.
+   */
+  placedBodies: ReadonlyMap<string, PlacedMosBodies>;
+}
+
 /** A read-only electrical projection for schematic MOS bodies with no authored
  * connection. Supply symbols are not required to express the default substrate.
  * Existing body wiring, Cell defaults and explicit NoConnect remain authoritative.
@@ -123,7 +135,7 @@ export function implicitSupplyNetId(
 export function withImplicitMosSupplies(
   source: CircuitProject,
   options: DesignNetlistAnalysisOptions,
-): CircuitProject {
+): ImplicitMosSupplyProjection {
   const blockSupplies = blockSuppliesToDefault(source, options);
   const missing = source.documents.flatMap((document) => {
     const logical = resolveDocumentLogicalNets(document);
@@ -135,7 +147,9 @@ export function withImplicitMosSupplies(
         : [],
     );
   });
-  if (!missing.length && !blockSupplies.length) return source;
+  const placedBodies = new Map<string, Map<string, PlacedMosBody>>();
+  if (!missing.length && !blockSupplies.length)
+    return { project: source, placedBodies };
   const project = structuredClone(source);
   const addedVddPorts = new Set<string>();
   const supplies = new Map<string, { nmos: Net; pmos: Net }>();
@@ -216,15 +230,22 @@ export function withImplicitMosSupplies(
       kind === "nmos"
         ? document.mosBulkDefaults?.nmosNetId
         : document.mosBulkDefaults?.pmosNetId;
-    const net =
-      document.nets.find((candidate) => candidate.id === configuredId) ??
-      defaults(document)[kind];
+    // An imported part with no fourth node is unresolved even under a Cell
+    // default, which it takes here; every other body that reaches this point
+    // has no default and takes the conventional supply.
+    const configured = document.nets.find(
+      (candidate) => candidate.id === configuredId,
+    );
+    const net = configured ?? defaults(document)[kind];
     // An unresolved policy-owned orphan can still carry stale B membership.
     for (const candidate of document.nets)
       candidate.terminals = candidate.terminals.filter(
         (pin) => pin.instanceId !== instance.id || pin.pinName !== "B",
       );
     net.terminals.push({ instanceId: instance.id, pinName: "B" });
+    let placed = placedBodies.get(document.id);
+    if (!placed) placedBodies.set(document.id, (placed = new Map()));
+    placed.set(instance.id, configured ? "cell-default" : "conventional");
   }
   for (const item of blockSupplies) {
     const document = project.documents.find((d) => d.id === item.documentId)!;
@@ -267,5 +288,5 @@ export function withImplicitMosSupplies(
       }
     }
   }
-  return project;
+  return { project, placedBodies };
 }
