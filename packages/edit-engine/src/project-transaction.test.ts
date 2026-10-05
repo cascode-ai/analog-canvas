@@ -2318,6 +2318,69 @@ describe("a Cell symbol's pins change sides (#1316)", () => {
     expect(findings).not.toContain("VISUAL_WIRE_THROUGH_SYMBOL");
   });
 
+  it("redraws a stretched wire down its own Net's trunk, as an SRAM bit line", () => {
+    // A's wire leaves a vertical trunk of its own Net, as each SRAM cell's
+    // blb leaves the shared bit line. Moved to the east side below B, its
+    // stretch ran through the block and over B's pin. Its clear path runs
+    // down the trunk, where the transaction merges the two wires; that
+    // changes which wires there are, not which pins are joined.
+    const { project, child } = wiredCaller();
+    const parent = project.documents[0]!;
+    const stub = parent.junctions.find((junction) => junction.id === "open-A")!;
+    parent.junctions.push({
+      id: "trunk-end",
+      netId: "net-parent-A",
+      position: { x: stub.position.x, y: stub.position.y + 150 },
+    });
+    parent.routes.push(
+      createRoutePath({
+        id: "trunk-A",
+        netId: "net-parent-A",
+        start: { kind: "junction", junctionId: "open-A" },
+        end: { kind: "junction", junctionId: "trunk-end" },
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+    const pinsBefore = parent.nets.map((net) =>
+      net.terminals.map((terminal) => terminal.pinName),
+    );
+    const result = executeProjectTransaction(project, {
+      transactionId: "a-east",
+      projectId: project.id,
+      expectedStructureRevision: project.structureRevision,
+      actor: { kind: "agent", id: "test" },
+      edits: planSetCellSymbolPresentation(project, child.id, {
+        pinPlacements: [
+          { terminalId: "terminal-a", side: "east", offset: 20 },
+          { terminalId: "terminal-b", side: "east", offset: 0 },
+        ],
+      }),
+    });
+    if (!result.ok) throw new Error(result.error.message);
+    const after = result.project.documents[0]!;
+    expect(
+      after.nets.map((net) =>
+        net.terminals.map((terminal) => terminal.pinName),
+      ),
+    ).toEqual(pinsBefore);
+    const resolver = createProjectSymbolResolver(
+      result.project,
+      builtInSymbols,
+    );
+    const findings = [
+      ...runErcChecks(
+        result.project,
+        buildProjectConnectivityIndex(result.project, resolver),
+        resolver,
+      ),
+      ...diagnoseVisualQuality(after, resolver),
+    ].map((item) => item.code);
+    expect(findings).not.toContain("ERC_TOUCHING_NOT_CONNECTED");
+    expect(findings).not.toContain("VISUAL_WIRE_THROUGH_SYMBOL");
+    expect(findings).not.toContain("VISUAL_TERMINAL_ON_FOREIGN_ROUTE");
+  });
+
   it("names each caller whose wiring was redrawn beside its wires (#1320)", () => {
     const { project, child } = wiredCaller();
     const result = executeProjectTransaction(project, {

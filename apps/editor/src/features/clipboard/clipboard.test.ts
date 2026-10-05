@@ -5,6 +5,7 @@ import {
   resolveAnnotationText,
   resolveDocumentLogicalNets,
   resolveDocumentStyleProfile,
+  resolveRouteGeometry,
 } from "@icm/derived";
 import type { Annotation, DraftingObject, Instance } from "@icm/model";
 import {
@@ -705,6 +706,161 @@ describe("schematic clipboard", () => {
     expect(ghost.instances).toHaveLength(2);
     expect(ghost.routes).toHaveLength(1);
     expect(() => buildSvgScene(ghost, resolver)).not.toThrow();
+  });
+
+  it("draws every piece of a copied wire the paste splits", () => {
+    // R3's wire taps R1–R2's wire at a Junction the wire runs through. The
+    // paste splits the through wire there, one piece under a new ID, and a
+    // ghost keeping only the renamed wires drew half of it.
+    const document = createEmptyDocument("document-main", "Clipboard");
+    const at = (x: number, y: number) => ({
+      position: { x, y },
+      rotation: 0 as const,
+      mirror: "none" as const,
+    });
+    document.instances.push(
+      { ...resistorInstance("R1", "R1"), placement: at(100, 100) },
+      { ...resistorInstance("R2", "R2"), placement: at(300, 100) },
+      { ...resistorInstance("R3", "R3"), placement: at(200, 200) },
+    );
+    document.nets.push({
+      id: "net-n",
+      terminals: [
+        { instanceId: "R1", pinName: "2" },
+        { instanceId: "R2", pinName: "2" },
+        { instanceId: "R3", pinName: "1" },
+      ],
+    });
+    document.junctions.push({
+      id: "junction-tap",
+      netId: "net-n",
+      position: { x: 200, y: 120 },
+    });
+    document.routes.push(
+      createRoutePath({
+        id: "route-through",
+        netId: "net-n",
+        start: { kind: "terminal", instanceId: "R1", pinName: "2" },
+        end: { kind: "terminal", instanceId: "R2", pinName: "2" },
+        bends: [],
+        modes: ["manual"],
+      }),
+      createRoutePath({
+        id: "route-tap",
+        netId: "net-n",
+        start: { kind: "junction", junctionId: "junction-tap" },
+        end: { kind: "terminal", instanceId: "R3", pinName: "1" },
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+    const clipboard = copySelection(document, ["R1", "R2", "R3"], [], {
+      routeIds: ["route-through", "route-tap"],
+      junctionIds: ["junction-tap"],
+      annotationIds: [],
+    });
+    const ghost = clipboardPreviewDocument(
+      document,
+      clipboard!,
+      { x: 0, y: 0 },
+      [],
+      resolver,
+    );
+    // Both halves of the through wire, 100 units each along y = 120.
+    const alongThroughWire = ghost.routes
+      .flatMap((route) => {
+        const points =
+          resolveRouteGeometry(ghost, resolver, route)?.centerline ?? [];
+        return points.slice(1).map((to, index) => [points[index]!, to]);
+      })
+      .filter(([from, to]) => from!.y === 120 && to!.y === 120)
+      .reduce((sum, [from, to]) => sum + Math.abs(to!.x - from!.x), 0);
+    expect(ghost.routes).toHaveLength(3);
+    expect(alongThroughWire).toBe(200);
+    expect(() => buildSvgScene(ghost, resolver)).not.toThrow();
+  });
+
+  it("draws the ghost in a Cell whose block keeps a stored Pin layout", () => {
+    // A Cell placed somewhere, or whose block Pins were arranged, stores
+    // that layout in its presentation. The ghost inherited it while holding
+    // none or only some of the Cell's Pins, so it failed validation and no
+    // preview was drawn: copying a part showed nothing under the cursor.
+    const document = createEmptyDocument("document-cell", "Cell");
+    document.instances.push(
+      resistorInstance("R1", "R1"),
+      {
+        id: "P1",
+        symbolId: "port",
+        placement: { position: { x: 0, y: 100 }, rotation: 0, mirror: "none" },
+      },
+      {
+        id: "P2",
+        symbolId: "port",
+        placement: {
+          position: { x: 200, y: 100 },
+          rotation: 0,
+          mirror: "horizontal",
+        },
+      },
+    );
+    document.nets.push(
+      {
+        id: "net-in",
+        terminals: [
+          { instanceId: "P1", pinName: "P" },
+          { instanceId: "R1", pinName: "1" },
+        ],
+      },
+      {
+        id: "net-out",
+        terminals: [
+          { instanceId: "P2", pinName: "P" },
+          { instanceId: "R1", pinName: "2" },
+        ],
+      },
+    );
+    document.netlist!.terminals.push(
+      {
+        id: "terminal-in",
+        name: "in",
+        netId: "net-in",
+        direction: "input",
+        interfaceInstanceIds: ["P1"],
+      },
+      {
+        id: "terminal-out",
+        name: "out",
+        netId: "net-out",
+        direction: "output",
+        interfaceInstanceIds: ["P2"],
+      },
+    );
+    document.presentation.cellSymbol = {
+      pinPlacements: [
+        { terminalId: "terminal-in", side: "west", offset: 0 },
+        { terminalId: "terminal-out", side: "east", offset: 0 },
+      ],
+    };
+    for (const instanceIds of [["R1"], ["P1"]]) {
+      const clipboard = copySelection(document, instanceIds, [], {
+        routeIds: [],
+        junctionIds: [],
+        annotationIds: [],
+      });
+      const ghost = clipboardPreviewDocument(
+        document,
+        clipboard!,
+        { x: 0, y: 0 },
+        [],
+        resolver,
+      );
+      expect(ghost.instances.map((instance) => instance.symbolId)).toEqual(
+        instanceIds.map((id) => (id === "R1" ? "resistor" : "port")),
+      );
+      expect(buildSvgScene(ghost, resolver).formalBody).toContain(
+        "data-symbol-id",
+      );
+    }
   });
 
   it("duplicates selected components, their named electrical Net, and route atomically", () => {

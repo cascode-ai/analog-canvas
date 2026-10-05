@@ -304,12 +304,13 @@ reports `GENERIC_DIODE_MODEL` as information for that Cell, naming the
 diodes ("D1 uses the generic diode model DIODE (IS=1e-14, N=1); set a model
 for a real device"); like `MOS_BODY_DEFAULT_SUPPLY` it gates nothing. The name
 stays an editable model target, and a diode bound to any other name gets no
-card. A model of that name in the Project's own text, a simulation source
-file (`.model DIODE …`, or `model DIODE …` in VACASK) or the SPICE it was
-imported from, is the author's: no Cell then carries the card, which would
-shadow it inside the Cell. Native VACASK writes the card as an `sp_diode`
-model. The card is SPICE only; a Spectre export still names `DIODE` for the
-reader's libraries to define.
+card. A model of that name in the author's own text is the author's, and no
+Cell carries the card, which would shadow it inside the Cell: in the SPICE the
+Project was imported from, everywhere; in a simulation folder's files
+(`.model DIODE …`, or `model DIODE …` in VACASK), in that folder's runs only.
+The design export and every other folder's runs keep the card. Native VACASK
+writes the card as an `sp_diode` model. The card is SPICE only; a Spectre
+export still names `DIODE` for the reader's libraries to define.
 A drawn T-coil or transformer is one Symbol on the canvas and coupled
 windings in the netlist: each Instance is an `X` call on a built-in
 subcircuit that the file defines once, ahead of the Cells, with the

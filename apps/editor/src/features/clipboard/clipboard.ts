@@ -544,8 +544,12 @@ function fallbackClipboardPreviewDocument(
       offset,
     ),
   );
+  // The Cell's block layout names the Cell's Pins, of which the ghost holds
+  // none or some: inherited, it failed validation and no ghost was drawn.
+  const { cellSymbol: _cellSymbol, ...presentation } = base.presentation;
   return {
     ...base,
+    presentation,
     instances: clipboard.instances.map((instance) => ({
       ...structuredClone(instance),
       placement: instance.placement
@@ -701,8 +705,25 @@ export function clipboardPreviewDocument(
       );
       if (result.ok) {
         const instanceIds = new Set(proposal.instanceIds);
-        const routeIds = new Set(Object.values(proposal.idRemap.routes));
-        const junctionIds = new Set(Object.values(proposal.idRemap.junctions));
+        // The dry run lands clear of the circuit, so every wire and Junction
+        // on the copy's Nets is the copy's. Normalization may split a copied
+        // wire or join two at a Junction of its own, under new IDs: a ghost
+        // keeping only the renamed ones dropped part of a rail, and one whose
+        // wires named a Junction it lacked failed validation, so nothing was
+        // drawn (Gallery drawings copied whole).
+        const copiedNetIds = new Set(Object.values(proposal.idRemap.nets));
+        const routeIds = new Set([
+          ...Object.values(proposal.idRemap.routes),
+          ...result.document.routes
+            .filter((route) => copiedNetIds.has(route.netId))
+            .map((route) => route.id),
+        ]);
+        const junctionIds = new Set([
+          ...Object.values(proposal.idRemap.junctions),
+          ...result.document.junctions
+            .filter((junction) => copiedNetIds.has(junction.netId))
+            .map((junction) => junction.id),
+        ]);
         const annotationIds = new Set(
           Object.values(proposal.idRemap.annotations),
         );

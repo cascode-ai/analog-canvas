@@ -65,9 +65,6 @@ const loadNativeProjectWorkspace = () =>
 const UserComponentsLibrary = lazy(
   () => import("../features/user-components/user-components-library"),
 );
-const ComponentDefinitionEditor = lazy(
-  () => import("../features/user-components/component-definition-editor"),
-);
 
 interface ComponentEditorSession {
   key: string;
@@ -253,6 +250,8 @@ import {
 import { EditorPropertiesDock } from "./editor-properties-dock";
 import { LazyProjectCodePanel as ProjectCodePanel } from "./lazy-editor-dialogs";
 import { LazySpiceSimulationSurface } from "./lazy-editor-dialogs";
+import { LazyExamplesPanel as ExamplesPanel } from "./lazy-editor-dialogs";
+import { LazyComponentDefinitionEditor as ComponentDefinitionEditor } from "./lazy-editor-dialogs";
 import { recoverSourceDrafts } from "../features/simulation/source-draft-cache";
 import { useProjectCheck } from "./use-project-check";
 import { summarizeVisualDiagnostics } from "../features/selection/selection-inspector-details";
@@ -265,11 +264,6 @@ import {
   quickPlaceRequest,
   ShapesPanel,
 } from "../features/editor-shell/shapes-panel";
-const ExamplesPanel = lazy(() =>
-  import("../features/editor-shell/examples-panel").then((module) => ({
-    default: module.ExamplesPanel,
-  })),
-);
 import {
   type GalleryEntryContext,
   createGalleryExampleCommands,

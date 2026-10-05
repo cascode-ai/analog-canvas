@@ -203,7 +203,7 @@ export function redrawStretchedRoutesClear(
  * the transaction normalizes them. Other edits, such as a moved pin's joins,
  * are left out.
  */
-function projectDrawnGeometry(
+export function projectDrawnGeometry(
   document: SchematicDocument,
   edits: readonly SchematicEdit[],
 ): SchematicDocument {

@@ -217,12 +217,17 @@ export function compileSourceSimulation(
   }
   const currents = nativeCurrentInstrumentation(currentInput, currentDevices);
   diagnostics.push(...currents.diagnostics);
+  // The files this run reads: a model they define is the run's own.
+  const deckSources = currentInput.files
+    .filter((file) => reachable.has(file.path))
+    .map((file) => file.text);
   for (const binding of bindings) {
     const result = analyzeDesignNetlist(effective, {
       format: "spice",
       rootDocumentId: binding.documentId,
       ...SIMULATION_DECK_GROUND,
       rootAsTopLevel: binding.emission === "top-level",
+      deckSources,
     });
     diagnostics.push(...result.diagnostics.map(simulationNetlistDiagnostic));
     if (result.ir)

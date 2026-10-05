@@ -115,8 +115,8 @@ targets to avoid full-Snapshot name resolution. Names remain supported when usef
   generic model `DIODE`. The SPICE netlist defines it with one
   `.model DIODE D(IS=1e-14 N=1)` card in each Cell that uses it and says so as
   information, `GENERIC_DIODE_MODEL`, naming the diodes. A `.model DIODE` in
-  the Project's own simulation sources replaces the card. For a real device,
-  `set-model` the diode to its own model.
+  a simulation folder's own files replaces the card in that folder's runs.
+  For a real device, `set-model` the diode to its own model.
 - `place-component` and `set-property` refuse a parameter the part does not
   take (naming the one it most likely meant), a value outside a choice list,
   and a quantity that is neither a SPICE number (`1k`, `2.5n`, `9kΩ`) nor an
