@@ -7,8 +7,10 @@ import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 import { expect, it } from "vitest";
 import { planBrowserAgentCommand } from "./browser-agent-command.js";
 import {
+  createLabelClearanceContext,
   netLabelAttachmentForText,
   netLabelBaselineForName,
+  resolveEndpointConnection,
   resolveRouteGeometry,
 } from "@icm/derived";
 import { netLabelPlacementTargetAtPoint } from "../features/wiring/route-interaction-geometry";
@@ -126,4 +128,75 @@ it("gives a plain Agent voltage-node label the GUI's standard look", () => {
   if (authored?.kind !== "upsert_schematic_annotation")
     throw new Error("Expected a label edit");
   expect(authored.annotation.formatOverride).toEqual(explicit);
+});
+
+it("stands an Agent label clear of the part at its stub's open end", () => {
+  const project = createEmptyProject("stub-label", "Stub label");
+  const doc = project.documents[0]!;
+  doc.instances.push({
+    id: "r",
+    reference: "R1",
+    symbolId: "resistor",
+    placement: { position: { x: 100, y: 100 }, rotation: 90, mirror: "none" },
+    netlist: { parameters: { value: "1k" } },
+  });
+  const resolver = createProjectSymbolResolver(project, builtInSymbols);
+  const [pin, contact] = ["1", "2"]
+    .map((pinName) => {
+      const endpoint = { kind: "terminal" as const, instanceId: "r", pinName };
+      return [
+        endpoint,
+        resolveEndpointConnection(doc, resolver, endpoint)!.contactPoint,
+      ] as const;
+    })
+    .sort(([, a], [, b]) => a.x - b.x)[0]!;
+  // A stub two grid steps out of the resistor's left pin, open at its end.
+  doc.nets.push({ id: "n", terminals: [] });
+  doc.junctions.push({
+    id: "end",
+    netId: "n",
+    position: { x: contact.x - 20, y: contact.y },
+  });
+  doc.routes.push(
+    createRoutePath({
+      id: "stub",
+      netId: "n",
+      start: pin,
+      end: { kind: "junction", junctionId: "end" },
+      bends: [],
+      modes: ["manual"],
+    }),
+  );
+  const label = (text: string) => {
+    const plan = planBrowserAgentCommand(project, doc.id, resolver, {
+      kind: "set-net-label",
+      annotationId: "label",
+      netId: "n",
+      text: { runs: [{ kind: "text", value: text }] },
+      position: { x: contact.x - 10, y: contact.y },
+    });
+    if (!("edits" in plan)) throw new Error("Expected document edits");
+    const edit = plan.edits.find(
+      (e) => e.kind === "upsert_schematic_annotation",
+    );
+    if (edit?.kind !== "upsert_schematic_annotation")
+      throw new Error("Expected label");
+    return edit.annotation;
+  };
+  // Centred on the stub, v_bias reached back over the resistor's lead. At
+  // the open end it reads away from the wire and is clear.
+  const moved = label("vbias");
+  expect(moved).toMatchObject({
+    alignment: "end",
+    anchor: { kind: "route", routeId: "stub", t: 1 },
+  });
+  const context = createLabelClearanceContext(doc, resolver);
+  expect(
+    context.conflictsAt(context.measure(moved).inkBounds, moved.id),
+  ).toEqual([]);
+  // A name narrow enough to sit over the stub stays centred on it.
+  expect(label("a")).toMatchObject({
+    alignment: "middle",
+    anchor: { t: 0.5 },
+  });
 });

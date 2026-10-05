@@ -49,6 +49,7 @@ import {
   roleLabelFormat,
   projectCellInterface,
   foldNetName,
+  labelTextDocument,
   type CircuitProject,
   type Instance,
   type SchematicDocument,
@@ -99,6 +100,7 @@ import {
 import { instanceDisplayEdits } from "../features/instance-display/instance-display-edits";
 import { planDisplayAlias } from "../features/properties/group-naming";
 import { arrangeInstanceLabels } from "../features/instance-display/arrange-instance-labels";
+import { netLabelAtOpenEnd } from "./net-label-open-end";
 import { instanceParameterVisibilityEdits } from "../features/instance-display/instance-parameter-display";
 import {
   dragNetLabelAttachmentAtPoint,
@@ -1257,29 +1259,40 @@ export function planBrowserAgentCommand(
           : position
             ? { kind: "free" as const, position }
             : existing!.anchor;
+      const annotation = {
+        ...(existing ?? {
+          id: command.annotationId,
+          kind:
+            net.powerDomain === "none"
+              ? ("net-label" as const)
+              : ("power-label" as const),
+          anchor: { kind: "free" as const, position: command.position! },
+          alignment: createdPlacement?.alignment ?? ("middle" as const),
+          rotation: 0 as const,
+          locked: false,
+        }),
+        content: undefined,
+        netId,
+        binding: { kind: "net-name" as const, netId },
+        formatOverride: labelFormat,
+        anchor,
+      };
       return {
         edits: [
           ...plan.edits,
           {
             kind: "upsert_schematic_annotation",
-            annotation: {
-              ...(existing ?? {
-                id: command.annotationId,
-                kind:
-                  net.powerDomain === "none"
-                    ? ("net-label" as const)
-                    : ("power-label" as const),
-                anchor: { kind: "free" as const, position: command.position! },
-                alignment: createdPlacement?.alignment ?? ("middle" as const),
-                rotation: 0 as const,
-                locked: false,
-              }),
-              content: undefined,
-              netId,
-              binding: { kind: "net-name", netId },
-              formatOverride: labelFormat,
-              anchor,
-            },
+            annotation:
+              created && createdGeometry
+                ? netLabelAtOpenEnd(
+                    document,
+                    resolver,
+                    annotation,
+                    labelFormat ??
+                      labelTextDocument(name, document.presentation),
+                    createdGeometry,
+                  )
+                : annotation,
           },
         ],
       };
