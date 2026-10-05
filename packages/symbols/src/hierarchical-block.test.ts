@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { createEmptyProject, type RichTextDocument } from "@icm/model";
+import {
+  createEmptyDocument,
+  createEmptyProject,
+  type RichTextDocument,
+} from "@icm/model";
 
 import { builtInSymbols } from "./builtins.js";
 import {
@@ -22,6 +26,62 @@ describe("hierarchical block formal terminals", () => {
       }),
     ]);
     expect(JSON.stringify(project)).toBe(before);
+  });
+  it("sizes an unplaced Cell's block for its top and bottom Pin names, and leaves a placed one's (#1327)", () => {
+    // Three inputs take rows 0, -20 and 20, VDD on top and VSS below: each
+    // supply name needs a row clear of the nearest side name.
+    const project = createEmptyProject("p", "Top", "top");
+    const cell = createEmptyDocument("bias", "Bias");
+    const terminal = (
+      name: string,
+      direction: "input" | "inout",
+    ): NonNullable<typeof cell.netlist>["terminals"][number] => ({
+      id: `terminal-${name}`,
+      name,
+      netId: `net-${name}`,
+      direction,
+      interfaceInstanceIds: [`P-${name}`],
+    });
+    cell.netlist = {
+      name: "bias",
+      formalParameters: [],
+      terminals: [
+        terminal("a", "input"),
+        terminal("b", "input"),
+        terminal("c", "input"),
+        terminal("VDD", "inout"),
+        terminal("VSS", "inout"),
+      ],
+    };
+    cell.presentation.cellSymbol = {
+      pinPlacements: [
+        { terminalId: "terminal-VDD", side: "north", offset: 0 },
+        { terminalId: "terminal-VSS", side: "south", offset: 0 },
+      ],
+    };
+    project.documents.push(cell);
+    const at = (source: typeof project, name: string) =>
+      createProjectHierarchicalSymbols(source)
+        .find((symbol) => symbol.id === hierarchicalSymbolId("bias"))!
+        .pins.find((pin) => pin.name === name)!.at;
+    // Body 100 high: VDD's name row clears b at -20, VSS's clears c at 20.
+    expect(at(project, "b")).toEqual({ x: -50, y: -20 });
+    expect(at(project, "VDD")).toEqual({ x: 0, y: -60 });
+    expect(at(project, "VSS")).toEqual({ x: 0, y: 60 });
+
+    // Placed somewhere, the block derives as before (80 high), so drawings
+    // made with it keep their wiring.
+    project.documents[0]!.instances.push({
+      id: "X1",
+      symbolId: hierarchicalSymbolId("bias"),
+      reference: "X1",
+      placement: null,
+      netlist: {
+        binding: { kind: "subcircuit", childDocumentId: cell.id },
+        parameters: {},
+      },
+    });
+    expect(at(project, "VDD")).toEqual({ x: 0, y: -50 });
   });
   it("derives pins only from the private formal cell interface", () => {
     const symbol = createHierarchicalBlockSymbol({

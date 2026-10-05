@@ -302,9 +302,12 @@ represented structurally. A display string is not a source specification.
   Net cannot be both a formal Cell Pin and global; that ambiguity blocks export
   until the interface mode or the conflicting owner is changed.
 - An unconnected terminal must carry an explicit `NoConnect`; otherwise export
-  is blocked. Each explicit `NoConnect` receives one deterministic,
-  collision-free exporter-only local node (`NC0001`, `NC0002`, ...), preserving
-  fixed device and subcircuit arity without adding a Project Net.
+  is blocked, and the error says to connect it or mark it No Connect. Each
+  explicit `NoConnect` receives one deterministic, collision-free
+  exporter-only local node (`NC0001`, `NC0002`, ...), preserving fixed device
+  and subcircuit arity without adding a Project Net. The node's name is
+  reported as information (`GENERATED_NO_CONNECT_NODE`): the mark is the
+  author's stated intent, not a finding to resolve.
 - Drawing coordinates, text styling and flightlines do not affect Export IR.
   Committed physical connectivity and owned electrical name claims do;
   a Net Label's electrical claim is not merely its drawn text.

@@ -738,7 +738,7 @@ describe("current formal cell interface", () => {
     expect(result.diagnostics).toEqual([
       expect.objectContaining({
         code: "GENERATED_NO_CONNECT_NODE",
-        severity: "warning",
+        severity: "info",
         objectIds: ["no-connect-r1-2", "R1"],
       }),
     ]);
@@ -1148,6 +1148,26 @@ describe("current formal cell interface", () => {
       name: "DATA\\<3\\>",
       scope: "local",
     });
+  });
+
+  it("says an unconnected pin can be connected or marked No Connect (#1305)", () => {
+    // A PFD's unused QBAR outputs blocked its netlist, and the message did
+    // not say that a No Connect mark resolves an unused pin.
+    const project = resistorProject({ value: "1k" });
+    const document = project.documents[0]!;
+    document.nets[1]!.terminals = [];
+
+    const result = analyzeDesignNetlist(project, { format: "spice" });
+
+    expect(result.ir).toBeNull();
+    expect(result.diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: "MISSING_PIN_NET",
+        severity: "error",
+        message:
+          "Required pin R1.2 is not connected to an exportable Net: connect it, or mark it No Connect if it is unused",
+      }),
+    );
   });
 
   it("says a pin on a Net it cannot spell is on that Net, not unconnected", () => {

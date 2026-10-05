@@ -17,7 +17,7 @@ Focused circuit tools retain the `{documentId?, actions:[...]}` call envelope:
 | Tool                 | Scope                                                             |
 | -------------------- | ----------------------------------------------------------------- |
 | `circuit_place`      | Built-in symbol, Cell and existing-instance placement; power rail |
-| `circuit_wire`       | Connect and disconnect                                            |
+| `circuit_wire`       | Connect, disconnect, and mark unused pins No Connect             |
 | `circuit_transform`  | Individual move/rotate/mirror/set-orientation, arrange, detach-move and rail span |
 | `circuit_selection`  | Selection transform, copy and align                               |
 | `circuit_text`       | Labels, annotations, text changes and annotation movement         |
@@ -234,7 +234,8 @@ same attached labels and preserves their authored placement and style.
 The `binding.parameter` field is supported by Snapshot reads and advanced
 annotation edits, including hidden labels.
 Do not substitute free drafting text for these projections. `add-label` attaches
-new labels to their Net's routed geometry when available.
+new labels to their Net's routed geometry when available. Its target is a Net,
+or a pin: the label then names that pin's Net on the wire leaving the pin.
 `add-label` and Net Label `edit-text` author the electrical name claim and bound
 text together. Deleting the label removes its owned claim, not the physical wires.
 
@@ -278,7 +279,7 @@ planned once.
 |                      | `place-cell`, `place-existing`               | command (several `place-cell` batch)      | GUI Cell and tray placement                                            |
 |                      | `add-power-rail`                             | command                                   | GUI power rail planner                                                 |
 | `circuit_wire`       | `connect`                                    | wire intent                               | GUI routing planner                                                    |
-|                      | `disconnect`                                 | typed edits                               | Edit Engine                                                            |
+|                      | `disconnect`, with `noConnect` a No Connect mark | typed edits                           | Edit Engine, as the GUI's No Connect toggle                            |
 | `circuit_transform`  | `move`                                       | `move_instance`, or a move command        | Edit Engine; GUI tray, annotation and Junction planners                |
 |                      | `rotate`, `mirror`, `set-orientation`        | `rotate_instance` / `mirror_instance`     | Edit Engine (labels follow as in the GUI)                              |
 |                      | `arrange`                                    | typed edits                               | Edit Engine                                                            |

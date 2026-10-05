@@ -207,7 +207,8 @@ or Route in the way; move parts apart or give a trunk. Where a Net cannot
 cross the drawing, such as a cascode bias line reaching both halves of an
 amplifier, name it at each end instead: `connect` the pin to an open
 `{kind:"point"}` a grid step or two out, then `add-label` with the Net's name
-on that stub; Nets of one name in a Cell are one Net. A trunk and its branches
+and the pin as its target, `{kind:"pin",instance:"M4",pin:"G"}`, which puts the
+label on that stub; Nets of one name in a Cell are one Net. A trunk and its branches
 are checked the same way and refused, not bent. This is not a general
 autorouter: conflicting taps or excess expanded edits also reject the whole
 operation. Ordinary crossings without a Junction remain legal. It does not move
@@ -222,6 +223,12 @@ applies, and any invalid later target leaves the whole batch unapplied.
 Its focused contract is `describe_tool({tool:"apply_actions",operations:["route-net"]})`;
 use it when parameters are unfamiliar, not as a mandatory preflight. Ordinary
 `circuit_wire` keeps its compact connect/disconnect declaration.
+
+A pin left unused on purpose, such as a flip-flop's QBAR or one side of a
+differential output, needs a No Connect mark, or the netlist blocks with
+`MISSING_PIN_NET`: `{kind:"disconnect",target:{kind:"pin",instance:"X1",pin:"QBAR"},noConnect:true}`.
+A wired pin is disconnected first. The pin exports as its own floating node
+(`NC0001`), reported as information. `noConnect:false` removes the mark.
 
 For cleanup, prefer move/mirror/group transforms and route edits. Geometry moves
 do not perform GUI drag-to-connect snapping. `terminalConnectivityChanged` in

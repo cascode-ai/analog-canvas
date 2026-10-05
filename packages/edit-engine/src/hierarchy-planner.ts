@@ -25,9 +25,11 @@ import {
 } from "@icm/devices";
 import {
   builtInSymbols,
+  cellBlockBodySize,
   createProjectSymbolResolver,
   externalSubcircuitSymbolId,
   hierarchicalSymbolId,
+  placedCellDocumentIds,
 } from "@icm/symbols";
 import {
   derivePowerRailComponent,
@@ -721,14 +723,39 @@ export function planPlaceCellInstance(
   if (binding?.kind !== "subcircuit") {
     throw new Error(`Instance is not bound to a Cell: ${instance.id}`);
   }
-  requireDocument(project, binding.childDocumentId);
+  const child = requireDocument(project, binding.childDocumentId);
   return [
+    ...firstPlacementBodySize(project, child),
     transactDocument(project, parentDocumentId, [
       { kind: "add_instance", instance },
       ...annotations.map((annotation) => ({
         kind: "upsert_schematic_annotation" as const,
         annotation,
       })),
+    ]),
+  ];
+}
+
+/**
+ * A Cell no parent has placed draws its block large enough for its Pins'
+ * names to read apart (#1327). Its first placement keeps that size, so the
+ * block does not shrink once placed and later Pins never move under wires.
+ */
+function firstPlacementBodySize(
+  project: CircuitProject,
+  child: SchematicDocument,
+): ProjectStructureEdit[] {
+  if (placedCellDocumentIds(project).has(child.id)) return [];
+  const fitted = cellBlockBodySize(child, { fitNames: true });
+  const plain = cellBlockBodySize(child);
+  if (fitted.width === plain.width && fitted.height === plain.height) return [];
+  const current = child.presentation.cellSymbol;
+  return [
+    transactDocument(project, child.id, [
+      {
+        kind: "set_cell_symbol_presentation",
+        presentation: { ...current, minimumBodySize: fitted },
+      },
     ]),
   ];
 }
