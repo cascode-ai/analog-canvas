@@ -51,89 +51,99 @@ const pin = (instance: string, name: string) => ({
 });
 
 describe("the editor plans an Agent's action list", () => {
-  it("places, wires, edits, labels, moves, deletes and steps history, the client never reading the Document", async () => {
-    const { controller, client, http, instance } = await editor();
-    const apply = async (actions: unknown[]) => {
-      const report = await client.applyActions(actions);
-      expect(report.ok, report.message).toBe(true);
-      return report;
-    };
-    await apply([
-      place("resistor", "R1", 100, { value: "1k" }),
-      place("resistor", "R2", 300),
-      place("nmos", "M1", 500),
-    ]);
-    expect(instance("R1")?.netlist?.parameters).toMatchObject({ value: "1k" });
-    const routes = controller.document.routes.length;
-    await apply([
-      { kind: "connect", from: pin("R1", "2"), to: pin("R2", "1") },
-    ]);
-    await apply([
-      { kind: "connect", from: pin("R2", "2"), to: pin("M1", "D") },
-      { kind: "connect", from: pin("M1", "S"), to: pin("R1", "1") },
-    ]);
-    expect(controller.document.routes.length).toBeGreaterThan(routes);
-    await apply([
-      {
-        kind: "set-reference",
-        target: { kind: "instance", reference: "R1" },
-        reference: "R9",
-      },
-      {
-        kind: "set-property",
-        target: { kind: "instance", reference: "R2" },
-        set: { value: "2k" },
-      },
-      {
-        kind: "rotate",
-        target: { kind: "instance", reference: "R2" },
-        rotation: 90,
-      },
-    ]);
-    expect(instance("R1")).toBeUndefined();
-    expect(instance("R9")).toBeDefined();
-    expect(instance("R2")?.netlist?.parameters).toMatchObject({ value: "2k" });
-    expect(instance("R2")?.placement?.rotation).toBe(90);
-    expect(
-      (
-        await apply([
-          { kind: "add-label", target: pin("R2", "1"), text: "MID" },
-        ])
-      ).editKinds,
-    ).toContain("upsert_schematic_annotation");
-    await apply([
-      { kind: "annotate", text: "Bias", position: { x: 100, y: 400 } },
-    ]);
-    // Free text is a drafting object.
-    expect(JSON.stringify(controller.document.drafting?.objects)).toContain(
-      "Bias",
-    );
-    await apply([
-      {
-        kind: "move",
-        target: { kind: "instance", reference: "M1" },
-        position: { x: 700, y: 100 },
-      },
-    ]);
-    expect(instance("M1")?.placement?.position.x).toBe(700);
-    await apply([
-      { kind: "delete", target: { kind: "instance", reference: "R9" } },
-    ]);
-    expect(instance("R9")).toBeUndefined();
-    await apply([{ kind: "undo" }]);
-    expect(instance("R9")).toBeDefined();
-    await apply([{ kind: "redo" }]);
-    expect(instance("R9")).toBeUndefined();
-    // The editor reads the Document itself: past the first call's revision
-    // bootstrap, the client never asks for it.
-    expect(
-      http.circuitCalls.filter(
-        ({ request }) =>
-          request.operation === "snapshot" &&
-          request.projection !== "bootstrap",
-      ),
-    ).toEqual([]);
-  });
+  // Ten calls through the live editor, the first loading it cold: beside a
+  // busy run it outlasts 5 s.
+  it(
+    "places, wires, edits, labels, moves, deletes and steps history, the client never reading the Document",
+    { timeout: 30_000 },
+    async () => {
+      const { controller, client, http, instance } = await editor();
+      const apply = async (actions: unknown[]) => {
+        const report = await client.applyActions(actions);
+        expect(report.ok, report.message).toBe(true);
+        return report;
+      };
+      await apply([
+        place("resistor", "R1", 100, { value: "1k" }),
+        place("resistor", "R2", 300),
+        place("nmos", "M1", 500),
+      ]);
+      expect(instance("R1")?.netlist?.parameters).toMatchObject({
+        value: "1k",
+      });
+      const routes = controller.document.routes.length;
+      await apply([
+        { kind: "connect", from: pin("R1", "2"), to: pin("R2", "1") },
+      ]);
+      await apply([
+        { kind: "connect", from: pin("R2", "2"), to: pin("M1", "D") },
+        { kind: "connect", from: pin("M1", "S"), to: pin("R1", "1") },
+      ]);
+      expect(controller.document.routes.length).toBeGreaterThan(routes);
+      await apply([
+        {
+          kind: "set-reference",
+          target: { kind: "instance", reference: "R1" },
+          reference: "R9",
+        },
+        {
+          kind: "set-property",
+          target: { kind: "instance", reference: "R2" },
+          set: { value: "2k" },
+        },
+        {
+          kind: "rotate",
+          target: { kind: "instance", reference: "R2" },
+          rotation: 90,
+        },
+      ]);
+      expect(instance("R1")).toBeUndefined();
+      expect(instance("R9")).toBeDefined();
+      expect(instance("R2")?.netlist?.parameters).toMatchObject({
+        value: "2k",
+      });
+      expect(instance("R2")?.placement?.rotation).toBe(90);
+      expect(
+        (
+          await apply([
+            { kind: "add-label", target: pin("R2", "1"), text: "MID" },
+          ])
+        ).editKinds,
+      ).toContain("upsert_schematic_annotation");
+      await apply([
+        { kind: "annotate", text: "Bias", position: { x: 100, y: 400 } },
+      ]);
+      // Free text is a drafting object.
+      expect(JSON.stringify(controller.document.drafting?.objects)).toContain(
+        "Bias",
+      );
+      await apply([
+        {
+          kind: "move",
+          target: { kind: "instance", reference: "M1" },
+          position: { x: 700, y: 100 },
+        },
+      ]);
+      expect(instance("M1")?.placement?.position.x).toBe(700);
+      await apply([
+        { kind: "delete", target: { kind: "instance", reference: "R9" } },
+      ]);
+      expect(instance("R9")).toBeUndefined();
+      await apply([{ kind: "undo" }]);
+      expect(instance("R9")).toBeDefined();
+      await apply([{ kind: "redo" }]);
+      expect(instance("R9")).toBeUndefined();
+      // The editor reads the Document itself: past the first call's revision
+      // bootstrap, the client never asks for it.
+      expect(
+        http.circuitCalls.filter(
+          ({ request }) =>
+            request.operation === "snapshot" &&
+            request.projection !== "bootstrap",
+        ),
+      ).toEqual([]);
+    },
+  );
 
   it("refuses a list in the editor, naming the action it concerns", async () => {
     const { controller, client } = await editor();
