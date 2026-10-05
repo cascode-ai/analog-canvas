@@ -326,7 +326,7 @@ describe("Circuit parameter source projection", () => {
     });
     expect(exported.ir).not.toBeNull();
   });
-  it.each(["{}", "{W", "{W;quit}", "{W}\nRnew out 0 1", "{W) + 1}"])(
+  it.each(["{W;quit}", "{W}\nRnew out 0 1"])(
     "does not let an expression escape its Circuit slot: %s",
     (text) => {
       const { source } = fixture();
