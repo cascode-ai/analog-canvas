@@ -1915,6 +1915,10 @@ describe("voltage-controlled switch", () => {
         diagnostic.severity,
       ]),
     ).toEqual([["SWITCH_PHASE_NOT_DRIVEN", "warning"]]);
+    // The warning says how to share a clock, not only how to drive S1.
+    expect(analysis.diagnostics[0]!.message).toContain(
+      "write its phase on its label (a display alias such as Φ1)",
+    );
     expect(printSpiceNetlist(analysis.ir!)).toContain(
       "S1 vout 0 S1 0 ideal_switch",
     );
@@ -2093,8 +2097,12 @@ describe("drawn switches", () => {
       analysis.diagnostics.filter((item) => item.severity === "error"),
     ).toEqual([]);
     // No Net named Φ1 is drawn yet, so the phase is a node of its own.
-    expect(analysis.diagnostics.map((item) => item.code)).toContain(
-      "SWITCH_PHASE_NOT_DRIVEN",
+    expect(
+      analysis.diagnostics.find(
+        (item) => item.code === "SWITCH_PHASE_NOT_DRIVEN",
+      )?.message,
+    ).toBe(
+      "No Net named Φ1 in this Cell drives switch S1: name the clock's Net Φ1, or add a Cell Pin Φ1",
     );
     const text = printSpiceNetlist(analysis.ir!);
     expect(text).toContain("S1 in out PHI1 0 ideal_switch");

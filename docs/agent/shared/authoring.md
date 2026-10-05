@@ -56,6 +56,10 @@ targets to avoid full-Snapshot name resolution. Names remain supported when usef
   that line, exact, Ports and their names included. Or use the selection
   `transform` mirror with an explicit center. Neither copies connectivity nor
   installs a persistent symmetry constraint.
+- A Port's lead leaves its circle to the east, as an input at the left edge
+  is drawn. Place an output at the right edge with `mirror:"horizontal"` so
+  its circle ends the wire; otherwise the wire has to hook round the circle
+  to reach the pin (`VISUAL_TERMINAL_DEPARTURE`, "from the side").
   For free drafting text, selection `transform` translation preserves fine
   offsets and formatting. Attached drafting objects follow a selected owner;
   moving one separately requires an explicit anchor edit. Locked targets reject
@@ -146,6 +150,18 @@ not the visual formula as a simulator expression. Raw HTTP uses native
 `set_instance_netlist` edit. That edit replaces all netlist facts: preserve
 existing binding and parameters when changing only control. MCP and HTTP use
 the same model and exporter; no alternate electrical protocol is needed.
+
+### Switch clock phases
+
+An Open or Closed switch (`ideal-switch`, `closed-switch`) is clocked by the
+phase its name label shows; a freshly placed `S1` is clocked by a phase called
+`S1`. To share one clock, write the phase on each switch's label with
+`circuit_properties` `set-display-alias {instanceId, text:"Φ_1"}`: the netlist
+then writes `S1 a b PHI1 VSS ideal_switch`, and every switch showing Φ₁ follows
+the same clock. Drive it with a Net named `Φ1` (a Net Label, or the Net of a
+pulse source) or a Cell Pin `Φ1`; until then `SWITCH_PHASE_NOT_DRIVEN` warns.
+Free text beside a switch is drawing only and clocks nothing. A Ctrl SW
+(`externally-controlled-switch`) takes its control from its CTRL pin instead.
 
 Multiple placements, wires, labels, model assignments and annotation moves have
 existing atomic batch paths. Failure commits nothing; success has one undo.

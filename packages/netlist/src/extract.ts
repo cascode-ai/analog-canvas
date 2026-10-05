@@ -1385,7 +1385,8 @@ function extractDrawnSwitch(
     // A switch whose label still shows its own name is clocked by a phase of
     // that name, so a freshly placed switch netlists at once. Writing Φ1 on
     // the label moves it onto a shared clock.
-    const phase = drawnSwitchPhase(document, instance) ?? reference;
+    const drawnPhase = drawnSwitchPhase(document, instance);
+    const phase = drawnPhase ?? reference;
     const encoded = encodeCandidate(phase, "local", options);
     if (!encoded.ok) {
       diagnostic(
@@ -1419,7 +1420,11 @@ function extractDrawnSwitch(
         diagnostics,
         document.id,
         "SWITCH_PHASE_NOT_DRIVEN",
-        `No Net named ${phase} in this Cell drives switch ${reference}: name the clock's Net ${phase}, or add a Cell Pin ${phase}`,
+        // Clocked by its own name, a switch shares no clock: say how to give
+        // it one before asking for a Net named after the switch.
+        drawnPhase === null
+          ? `No Net named ${phase} in this Cell drives switch ${reference}, which is clocked by its own name: write its phase on its label (a display alias such as Φ1) to share one clock, and draw that clock on a Net or Cell Pin of the same name`
+          : `No Net named ${phase} in this Cell drives switch ${reference}: name the clock's Net ${phase}, or add a Cell Pin ${phase}`,
         [instance.id],
         "warning",
       );
