@@ -3,6 +3,7 @@ import {
   createEmptyDocument,
   createRoutePath,
   canonicalPortTextDocument,
+  type Rect,
 } from "@icm/model";
 import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
 import {
@@ -82,12 +83,13 @@ function transistor(
   id: string,
   symbolId: "nmos" | "pmos",
   position: { x: number; y: number },
+  mirror: "none" | "horizontal" = "none",
 ) {
   const instance = {
     id,
     reference: id.toUpperCase(),
     symbolId,
-    placement: { position, rotation: 0 as const, mirror: "none" as const },
+    placement: { position, rotation: 0 as const, mirror },
     netlist: { parameters: { w: "10u", l: "0.5u" } },
   };
   doc.instances.push(instance);
@@ -162,8 +164,9 @@ describe("opt-in label arrangement", () => {
     // The value's default row is covered twice. Every other side clears the
     // value but puts the Reference on a label: one conflict against two, so
     // the whole group used to move and the part's name was drawn over text.
-    // A wire just above the Reference row leaves the group no room to slide
-    // up, and a wire between its rows does not count as room.
+    // Wires just above the Reference row, and a row higher, leave the group
+    // no room to slide up, and a wire between its rows does not count as
+    // room.
     const { doc, instance } = fixture();
     doc.nets.push({ id: "n", terminals: [] });
     doc.junctions.push(
@@ -186,6 +189,8 @@ describe("opt-in label arrangement", () => {
           modes: ["manual"],
         }),
       );
+    wire(doc, "left-high", { x: 0, y: 80 }, { x: 92, y: 80 });
+    wire(doc, "right-high", { x: 108, y: 80 }, { x: 200, y: 80 });
     const reference = doc.annotations.find(
       (a) => a.binding?.kind === "instance-reference",
     )!;
@@ -741,6 +746,63 @@ describe("opt-in label arrangement", () => {
     expect(after.overlapsAt(after.measure(moved).inkBounds, moved.id)).toEqual(
       [],
     );
+  });
+  /**
+   * A current-steering DAC unit: the switch M3 sits under the cascode M2,
+   * with its gate wire on the left, its output wire below and M4 to the
+   * right. M3's labels are arranged.
+   */
+  function dacUnit(m2x: number) {
+    const doc = createEmptyDocument("d", "DAC unit");
+    const m2 = transistor(doc, "m2", "pmos", { x: m2x, y: -40 });
+    const m3 = transistor(doc, "m3", "pmos", { x: 80, y: 40 });
+    transistor(doc, "m4", "pmos", { x: 140, y: 40 }, "horizontal");
+    for (const [id, from, to] of [
+      ["vcas", [20, -40], [m2x - 20, -40]],
+      ["d", [20, 40], [60, 40]],
+      ["db", [160, 40], [200, 40]],
+      ["outp", [90, 60], [90, 80]],
+      ["outp-bar", [40, 80], [90, 80]],
+      ["outn", [130, 60], [130, 80]],
+      ["outn-bar", [130, 80], [180, 80]],
+    ] as const)
+      wire(doc, id, { x: from[0], y: from[1] }, { x: to[0], y: to[1] });
+    apply(doc, arrangeInstanceLabels(doc, resolver, [m3.id], {}));
+    const after = createLabelClearanceContext(doc, resolver);
+    const labels = doc.annotations
+      .filter((a) => a.anchor.kind === "object" && a.anchor.objectId === m3.id)
+      .map((label) => ({
+        conflicts: after.conflicts(label),
+        ink: after.measure(label).inkBounds,
+      }));
+    const box = (id: string) =>
+      after.symbols.find((symbol) => symbol.id === id)!.bounds;
+    return { labels, m2: box(m2.id), m3: box(m3.id) };
+  }
+  it("keeps a part's labels nearer it than any other part", () => {
+    // Above M3 met nothing, so its W/L went two rows up, beside M2, and
+    // read as M2's.
+    const { labels, m2, m3 } = dacUnit(115);
+    const gap = (a: Rect, b: Rect) =>
+      Math.hypot(
+        Math.max(0, a.x - b.x - b.width, b.x - a.x - a.width),
+        Math.max(0, a.y - b.y - b.height, b.y - a.y - a.height),
+      );
+    for (const label of labels) {
+      expect(label.conflicts).toEqual([]);
+      expect(gap(label.ink, m3)).toBeLessThanOrEqual(gap(label.ink, m2) + 5);
+    }
+  });
+  it("slides a part's labels past its middle into the room above its gate wire", () => {
+    // M2 stands right above M3, so the one clear place beside M3 is left of
+    // it, above its gate wire: a group sliding there keeps only a quarter of
+    // its height beside the part.
+    const { labels, m3 } = dacUnit(100);
+    for (const label of labels) {
+      expect(label.conflicts).toEqual([]);
+      expect(label.ink.x + label.ink.width).toBeLessThanOrEqual(m3.x);
+      expect(label.ink.y + label.ink.height).toBeLessThanOrEqual(40);
+    }
   });
   it("moves a part's name off a free drawing note (#1323)", () => {
     // A φ2 note written on a switch's default name read as one smudge.
