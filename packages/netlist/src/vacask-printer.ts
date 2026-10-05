@@ -16,6 +16,7 @@ import type {
 } from "./printed-netlist.js";
 import { normalizeIndependentSource } from "./source-waveform.js";
 import { nativeBehavioralModel } from "./native-generated-models.js";
+import { switchBehavioralDefinition } from "./ideal-switch-model.js";
 
 const RESERVED = new Set(
   "include section endsection load model global ground subckt ends parameters control endc analysis sweep embed save".split(
@@ -260,13 +261,10 @@ export function printVacaskWithLocations(
     while (used.has(switchMaster)) switchMaster += "_";
     used.add(switchMaster);
     if (emission.preamble !== false) {
-      // A global lowercase implementation also works for mixed-case parent
-      // Cell names. Forward resistances as real parameters, not VA integers
-      // (the default 1e12 off resistance exceeds Verilog-A's integer range).
-      append(`subckt ${switchMaster} (p n cp cn)`);
-      append("parameters ron=1 roff=1e12 vt=0 scale=1");
-      append("core (p n) i=scale*v(p,n)/(v(cp,cn)>vt ? ron : roff)");
-      append("ends");
+      // The qualified native primitive registers hard-edge breakpoints. A
+      // ternary behavioral source alone cannot do this on OpenVAF/VACASK 0.3.4.
+      // RON/ROFF/VT still come from the shared Cell-owned model below.
+      append(`model ${switchMaster} icm_switch`);
     }
   }
   if (
@@ -672,12 +670,19 @@ export function printVacaskWithLocations(
               "VACASK_UNSUPPORTED_MODEL",
               `Cell-owned switch ${model.name} needs an explicit native hysteresis model.`,
             );
-          // Keep the Canvas reference and four-terminal interface intact. The
-          // compiled behavioral primitive needs a lowercase internal name.
+          // Keep the Canvas reference and four-terminal interface intact;
+          // only the qualified runtime owns event location and LTE history.
           append(`subckt ${vacaskIdentifier(model.name)} (p n cp cn)`);
           append("parameters $mfactor=1");
           append(
-            `implementation (p n cp cn) ${switchMaster} scale=$mfactor vt=${projectValue(values.get("vt") ?? "0", parameterNames)} ron=${projectValue(values.get("ron") ?? "1", parameterNames)} roff=${projectValue(values.get("roff") ?? "1e12", parameterNames)}`,
+            `implementation (p n cp cn) ${switchMaster} $mfactor=$mfactor ${switchBehavioralDefinition(
+              model,
+            )
+              .parameters.map(
+                (p) =>
+                  `${p.name}=${projectValue(p.defaultValue, parameterNames)}`,
+              )
+              .join(" ")}`,
           );
           append("ends");
           continue;

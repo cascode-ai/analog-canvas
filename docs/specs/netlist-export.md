@@ -254,6 +254,10 @@ nothing drives `S1`; writing Φ₁ on its label moves it onto that shared clock.
 Spectre writes the same Cell-local four-terminal master as a hard conductance
 `bsource`, with those unchanged defaults and phase/CTRL semantics. It neither
 invents a clock nor smooths a transition. The SPDT selector has no primitive.
+Native VACASK uses the same defaults and four-terminal interface through the
+qualified `icm_switch` runtime primitive, which registers hard-edge breakpoints.
+This requires the patched native runtime, not stock upstream 0.3.4; see the
+[runtime patch and qualification](../../containers/vacask/patches/README.md).
 A drawn T-coil or transformer is one Symbol on the canvas and coupled
 windings in the netlist: each Instance is an `X` call on a built-in
 subcircuit that the file defines once, ahead of the Cells, with the

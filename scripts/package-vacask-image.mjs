@@ -3,12 +3,99 @@ import { cp, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { createSimulationEnvironmentMetadata } from "@icm/spice-run";
 import {
   BSIM4_CHAINRULE_PATCHED_SHA256,
   BSIM4_CHAINRULE_SOURCE_SHA256,
 } from "./lib/vacask-bsim4-chainrule.mjs";
 
 const sha = (bytes) => createHash("sha256").update(bytes).digest("hex");
+
+/** Upgrade an exclusively staged copy, retaining every accepted model and limit.
+ * Build provenance is checked here; numerical qualification belongs to the build
+ * job and strict image boot must subsequently match the produced environment. */
+export async function replaceVacaskSimulator(
+  context,
+  build,
+  sourceConfig,
+  outputConfig,
+) {
+  const config = JSON.parse(await readFile(sourceConfig, "utf8"));
+  const previous = config.runtime.expectedEnvironment;
+  assert.equal(previous.simulator.name, "vacask");
+  assert.equal(
+    sha(await readFile(join(context, "vacask/bin/vacask"))),
+    previous.simulator.binarySha256,
+    "Staged simulator does not match the accepted baseline",
+  );
+  const revision = (
+    await readFile(join(build, "upstream-revision.txt"), "utf8")
+  ).trim();
+  assert.equal(revision, "c1a1c84f1b2b9aa71c0cddf06e555441434db7b7");
+  const patch = await readFile(join(build, "hard-switch.patch"));
+  const patchLines = JSON.parse(
+    await readFile(
+      new URL(
+        "../containers/vacask/patches/hard-switch.patch.json",
+        import.meta.url,
+      ),
+      "utf8",
+    ),
+  );
+  assert.deepEqual(patch, Buffer.from(patchLines.join("\n") + "\n"));
+  const binary = await readFile(join(build, "vacask"));
+  const binarySha256 = sha(binary);
+  assert.match(
+    await readFile(join(build, "SHA256SUMS"), "utf8"),
+    new RegExp(`^${binarySha256}\\s+.*vacask$`, "m"),
+  );
+  // Read every required input before changing the staged context.
+  const source = await readFile(join(build, "upstream-source.tar.gz"));
+  const sums = (await readFile(join(context, "SHA256SUMS"), "utf8"))
+    .trim()
+    .split("\n")
+    .filter(
+      (line) => !/  vacask\/(?:bin\/vacask|compat-build\.json)$/u.test(line),
+    );
+  const provenance = {
+    version: "0.3.4-icm-hard-switch1",
+    upstream: "https://codeberg.org/arpadbuermen/VACASK",
+    revision,
+    patch: "hard-switch.patch",
+    source: "upstream-source.tar.gz",
+    recipe: "containers/vacask/Dockerfile.compat-build",
+    binarySha256,
+  };
+  const entries = [
+    ["vacask/bin/vacask", binary],
+    [
+      "vacask/compat-build.json",
+      Buffer.from(JSON.stringify(provenance, null, 2) + "\n"),
+    ],
+    ["model-source/vacask/hard-switch.patch", patch],
+    ["model-source/vacask/upstream-source.tar.gz", source],
+  ];
+  await mkdir(join(context, "model-source/vacask"));
+  for (const [path, bytes] of entries) {
+    await writeFile(join(context, path), bytes);
+    sums.push(`${sha(bytes)}  ${path}`);
+  }
+  await writeFile(join(context, "SHA256SUMS"), sums.sort().join("\n") + "\n");
+  const { fingerprint: _fingerprint, ...facts } = previous;
+  config.runtime.expectedEnvironment =
+    await createSimulationEnvironmentMetadata({
+      ...facts,
+      simulator: {
+        ...facts.simulator,
+        version: provenance.version,
+        binarySha256,
+      },
+    });
+  await writeFile(outputConfig, JSON.stringify(config, null, 2) + "\n", {
+    flag: "wx",
+  });
+  return config.runtime.expectedEnvironment;
+}
 
 export async function readModelBuildSource(buildDirectory, release) {
   const source = await readFile(join(buildDirectory, "bsim4v8.va"));
@@ -150,20 +237,41 @@ export async function packageVacaskImage(
   await writeFile(join(root, "SHA256SUMS"), sums.sort().join("\n") + "\n", {
     flag: "wx",
   });
-  return { directory: root, status: "packaged-not-built", files: sums.length };
+  return {
+    directory: root,
+    status: "packaged-not-built",
+    files: sums.length,
+  };
 }
 if (
   process.argv[1] &&
   pathToFileURL(resolve(process.argv[1])).href === import.meta.url
 ) {
-  assert.equal(
-    process.argv.length,
-    7,
-    "Usage: package-vacask-image.mjs <new-context> <linux-release> <repaired-build> <model-package> <harness-package>",
-  );
-  console.log(
-    JSON.stringify(
-      await packageVacaskImage(...process.argv.slice(2).map((p) => resolve(p))),
-    ),
-  );
+  if (process.argv[2] === "--simulator-build") {
+    assert.equal(
+      process.argv.length,
+      7,
+      "Usage: package-vacask-image.mjs --simulator-build <staged-context> <build-artifact> <baseline-config> <new-config>",
+    );
+    console.log(
+      JSON.stringify(
+        await replaceVacaskSimulator(
+          ...process.argv.slice(3).map((p) => resolve(p)),
+        ),
+      ),
+    );
+  } else {
+    assert.equal(
+      process.argv.length,
+      7,
+      "Usage: package-vacask-image.mjs <new-context> <linux-release> <repaired-build> <model-package> <harness-package>",
+    );
+    console.log(
+      JSON.stringify(
+        await packageVacaskImage(
+          ...process.argv.slice(2).map((p) => resolve(p)),
+        ),
+      ),
+    );
+  }
 }

@@ -1,4 +1,5 @@
-# Rebuild only the 0.3.4 simulator for kernels without pidfd_open. Boost's
+# Rebuild the pinned 0.3.4 simulator with native hard-switch event handling.
+# Also retain support for kernels without pidfd_open. Boost's
 # supported SIGCHLD implementation is selected in BOTH Boost and VACASK.
 # OpenVAF, model sources and compiled models stay unchanged.
 FROM node:24.14.0-bookworm-slim@sha256:d8e448a56fc63242f70026718378bd4b00f8c82e78d20eefb199224a4d8e33d8 AS node-runtime
@@ -17,10 +18,14 @@ RUN curl -fsSLo boost.tar.bz2 https://archives.boost.io/release/1.88.0/source/bo
     && cd boost_1_88_0 && ./bootstrap.sh --with-libraries=filesystem,process --prefix=/opt/boost \
     && ./b2 -j2 link=static threading=multi cxxflags=-DBOOST_PROCESS_V2_DISABLE_PIDFD_OPEN install
 COPY source/ /build/source/
+COPY patches/ /build/patches/
 COPY context/vacask/bin/openvaf-r /opt/compiler/openvaf-r
 RUN chmod 755 /opt/compiler/openvaf-r \
     && test "$(git -C source rev-parse HEAD)" = c1a1c84f1b2b9aa71c0cddf06e555441434db7b7 \
     && test -z "$(git -C source status --porcelain)" \
+    && node -e "require('fs').writeFileSync('/build/patches/hard-switch.patch', JSON.parse(require('fs').readFileSync('/build/patches/hard-switch.patch.json','utf8')).join('\n')+'\n')" \
+    && git -C source apply --check /build/patches/hard-switch.patch \
+    && git -C source apply /build/patches/hard-switch.patch \
     && cmake -S source -B out -G Ninja -DCMAKE_BUILD_TYPE=Release \
        -DBoost_ROOT=/opt/boost -DTOMLPP_DIR=/usr -DSuiteSparse_DIR=/usr \
        -DOPENVAF_DIR=/opt/compiler -DCADNIP_PARSERS=OFF \
@@ -28,6 +33,10 @@ RUN chmod 755 /opt/compiler/openvaf-r \
     && cmake --build out --target sim -j2 \
     && mkdir /artifact && cp out/simulator/vacask /artifact/vacask \
     && cp /os-packages.txt /artifact/os-packages.txt \
+    && cp /build/patches/hard-switch.patch /artifact/hard-switch.patch \
+    && printf '%s\n' c1a1c84f1b2b9aa71c0cddf06e555441434db7b7 > /artifact/upstream-revision.txt \
+    && git -C source archive --output=/artifact/upstream-source.tar HEAD \
+    && gzip /artifact/upstream-source.tar \
     && sha256sum /artifact/vacask > /artifact/SHA256SUMS \
     && ldd /artifact/vacask > /artifact/ldd.txt
 FROM scratch AS artifact
