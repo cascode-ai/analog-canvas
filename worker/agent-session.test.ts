@@ -1687,7 +1687,7 @@ describe("Agent idle expiry", () => {
 
 describe("Agent request ledger", () => {
   /** A claimed session whose editor answers every Circuit request. */
-  async function session() {
+  async function session(onForward: () => void = () => {}) {
     const storage = new MemoryStorage();
     const created = AgentSessionMachine.create({
       sessionId: "ledger-session",
@@ -1711,6 +1711,9 @@ describe("Agent request ledger", () => {
         scopes: ["circuit.snapshot", "circuit.edit.geometry"],
       }),
       () => object,
+      (envelope) => {
+        if (envelope.kind === "circuit-request") onForward();
+      },
     );
     const socket = browser.socket;
     /** A fresh object on the same storage, as after eviction or a deploy. */
@@ -1742,6 +1745,33 @@ describe("Agent request ledger", () => {
       );
     return { storage, open, edit, forwarded: () => browser.families.length };
   }
+
+  it.each([-60_000, 60_000])(
+    "keeps elapsed relay timings stable when the wall clock jumps by %d ms",
+    async (jump) => {
+      let wall = Date.now();
+      let elapsed = 100;
+      const s = await session(() => {
+        wall += jump;
+        elapsed += 50;
+      });
+      const wallClock = vi.spyOn(Date, "now").mockImplementation(() => wall);
+      const elapsedClock = vi
+        .spyOn(performance, "now")
+        .mockImplementation(() => elapsed);
+      try {
+        const response = await s.edit("clock-jump");
+        expect(response.status).toBe(200);
+        expect(response.headers.get("x-agent-relay-ms")).toBe("50");
+        expect(response.headers.get("x-agent-forward-ms")).toBe("50");
+        expect(response.headers.get("x-agent-server-ms")).toBe("50");
+        expect(s.forwarded()).toBe(1);
+      } finally {
+        wallClock.mockRestore();
+        elapsedClock.mockRestore();
+      }
+    },
+  );
 
   it("stores each completed write once under its own key and keeps the session state small", async () => {
     const s = await session();

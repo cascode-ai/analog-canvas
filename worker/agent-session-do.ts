@@ -978,7 +978,7 @@ export class AgentSessionDO {
       const discovery =
         circuitRequest.operation === "snapshot" ||
         circuitRequest.operation === "capabilities";
-      const forwardStarted = Date.now();
+      const forwardStarted = performance.now();
       const result = await this.forwardToEditor(
         machine,
         circuitRequest,
@@ -1144,7 +1144,7 @@ export class AgentSessionDO {
       requestId: fileRequest.requestId,
     });
     try {
-      const forwardStarted = Date.now();
+      const forwardStarted = performance.now();
       const result = await this.forwardToEditor(
         machine,
         fileRequest,
@@ -1307,7 +1307,7 @@ export class AgentSessionDO {
       requestId: simulationRequest.requestId,
     });
     try {
-      const forwardStarted = Date.now();
+      const forwardStarted = performance.now();
       const result = await this.forwardToEditor(
         machine,
         simulationRequest,
@@ -1466,7 +1466,7 @@ export class AgentSessionDO {
       requestId: projectRequest.requestId,
     });
     try {
-      const forwardStarted = Date.now();
+      const forwardStarted = performance.now();
       const result = await this.forwardToEditor(
         machine,
         projectRequest,
@@ -1702,7 +1702,7 @@ export class AgentSessionDO {
 
   /**
    * Where a relayed request's time went, as response headers: the whole
-   * forward to the editor and back, the editor's own work, and whether its
+   * forward through request completion/persistence, the editor's own work, and whether its
    * tab was in the background (#1227). The body's contract is unchanged.
    */
   private relayTiming(
@@ -1714,7 +1714,9 @@ export class AgentSessionDO {
     const requestId = request.requestId;
     const editor = this.editorTimings.get(requestId);
     return {
-      "x-agent-relay-ms": String(Date.now() - forwardStarted),
+      "x-agent-relay-ms": String(
+        Math.round(performance.now() - forwardStarted),
+      ),
       ...(editor
         ? {
             "x-agent-editor-ms": String(editor.workMs),

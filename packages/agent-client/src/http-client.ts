@@ -216,6 +216,7 @@ export class AgentHttpClient {
     sessionId: string,
     agentToken: string,
     request: AgentCircuitRequest,
+    attempts?: AgentHttpAttempts,
   ): Promise<AgentCircuitResponse> {
     const response = await this.send(
       `/api/agent/sessions/${encodeURIComponent(sessionId)}/circuit`,
@@ -229,6 +230,7 @@ export class AgentHttpClient {
       },
       this.timeoutMs,
       request,
+      attempts,
     );
     return this.consume(response, (body) => {
       if (!response.ok) {
@@ -251,6 +253,7 @@ export class AgentHttpClient {
     sessionId: string,
     agentToken: string,
     request: AgentFileResourceRequest,
+    attempts?: AgentHttpAttempts,
   ): Promise<AgentFileResourceResponse> {
     const response = await this.send(
       `/api/agent/sessions/${encodeURIComponent(sessionId)}/files`,
@@ -264,6 +267,7 @@ export class AgentHttpClient {
       },
       this.timeoutMs,
       request,
+      attempts,
     );
     return this.consume(response, (body) => {
       if (!response.ok) throw this.transportError(response.status, body);
@@ -287,6 +291,7 @@ export class AgentHttpClient {
     sessionId: string,
     agentToken: string,
     request: AgentSimulationResourceRequest,
+    attempts?: AgentHttpAttempts,
   ): Promise<AgentSimulationResourceResponse> {
     const response = await this.send(
       `/api/agent/sessions/${encodeURIComponent(sessionId)}/simulation`,
@@ -300,6 +305,7 @@ export class AgentHttpClient {
       },
       this.timeoutMs,
       request,
+      attempts,
     );
     return this.consume(response, (body) => {
       if (!response.ok) throw this.transportError(response.status, body);
@@ -317,6 +323,7 @@ export class AgentHttpClient {
     sessionId: string,
     agentToken: string,
     request: AgentProjectResourceRequest,
+    attempts?: AgentHttpAttempts,
   ): Promise<AgentProjectResourceResponse> {
     const response = await this.send(
       `/api/agent/sessions/${encodeURIComponent(sessionId)}/projects`,
@@ -330,6 +337,7 @@ export class AgentHttpClient {
       },
       this.timeoutMs,
       request,
+      attempts,
     );
     return this.consume(response, (body) => {
       if (!response.ok) throw this.transportError(response.status, body);
@@ -404,6 +412,7 @@ export class AgentHttpClient {
     init: RequestInit,
     timeoutMs = this.timeoutMs,
     identity?: { requestId: string; operation: string },
+    attempts: AgentHttpAttempts = { count: 0 },
   ): Promise<Response> {
     if (
       this.contextRevision &&
@@ -423,18 +432,25 @@ export class AgentHttpClient {
     }
     for (let attempt = 0; ; attempt += 1) {
       let response: Response;
+      const requestAttempt = ++attempts.count;
       const started = performance.now();
       try {
         response = await this.fetchImpl(joinUrl(this.baseUrl, path), {
           ...init,
           signal: AbortSignal.timeout(timeoutMs),
         });
-        this.noteTiming(path, started, attempt + 1, identity, response);
-      } catch (error) {
-        this.noteTiming(
+        attempts.last = this.noteTiming(
           path,
           started,
-          attempt + 1,
+          requestAttempt,
+          identity,
+          response,
+        );
+      } catch (error) {
+        attempts.last = this.noteTiming(
+          path,
+          started,
+          requestAttempt,
           identity,
           undefined,
           error instanceof Error &&
@@ -532,14 +548,25 @@ export class AgentHttpClient {
   ): Promise<T> {
     const started = performance.now();
     const timing = this.responseTimings.get(response);
+    let bodyFailure: "timeout" | "network-error" | undefined;
     try {
-      const body: unknown = await response.json().catch(() => null);
+      const body: unknown = await response.json().catch((error: unknown) => {
+        if (error instanceof Error) {
+          if (error.name === "TimeoutError" || error.name === "AbortError")
+            bodyFailure = "timeout";
+          else if (error.name === "TypeError") bodyFailure = "network-error";
+        }
+        // Retain the established parse/null and public error/retry behavior.
+        return null;
+      });
       return parse(body);
     } catch (error) {
-      if (timing && response.ok) timing.record.outcome = "invalid-response";
+      if (timing && response.ok && !bodyFailure)
+        timing.record.outcome = "invalid-response";
       throw error;
     } finally {
       if (timing) {
+        if (bodyFailure) timing.record.outcome = bodyFailure;
         timing.record.bodyMs = Math.round(performance.now() - started);
         timing.record.totalMs = Math.round(performance.now() - timing.started);
         this.responseTimings.delete(response);
@@ -623,7 +650,14 @@ export class AgentHttpClient {
     this.requestTimings.push(record);
     if (response) this.responseTimings.set(response, { started, record });
     if (this.requestTimings.length > 64) this.requestTimings.shift();
+    return record;
   }
+}
+
+/** Ephemeral telemetry for one dispatch; shared by HTTP and session retries. */
+export interface AgentHttpAttempts {
+  count: number;
+  last?: AgentRequestTiming;
 }
 
 /** One request's time, hop by hop; see AgentHttpClient.requestTimings. */
