@@ -1,7 +1,10 @@
 import { registerDocumentCache } from "./document-caches.js";
 import { flattenRichText, routeEnd, transformPoint } from "@icm/model";
 import type { Point, Rect, RouteEndpoint, SchematicDocument } from "@icm/model";
-import { resolveAdaptiveSignalFlowBlockLayout } from "@icm/symbols";
+import {
+  resolveAdaptiveSignalFlowBlockLayout,
+  resolveInstanceSymbol,
+} from "@icm/symbols";
 import type {
   ResolvedSymbol,
   SignalFlowLayoutParameters,
@@ -330,10 +333,7 @@ export function visibleInstanceBounds(
 ): Array<{ id: string; bounds: Rect }> {
   return document.instances.flatMap((instance) => {
     if (!instance.placement) return [];
-    const resolved = resolver.resolve(
-      instance.symbolId,
-      instance.symbolVariantId,
-    );
+    const resolved = resolveInstanceSymbol(resolver, instance);
     if (!resolved) return [];
     const box = visibleSymbolLocalBounds(
       resolved,

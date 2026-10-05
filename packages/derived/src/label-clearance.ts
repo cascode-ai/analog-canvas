@@ -1,6 +1,6 @@
 import { flattenRichText, transformPoint } from "@icm/model";
 import type { Annotation, Point, Rect, SchematicDocument } from "@icm/model";
-import type { SymbolResolver } from "@icm/symbols";
+import { resolveInstanceSymbol, type SymbolResolver } from "@icm/symbols";
 import {
   isSchematicAnnotationVisible,
   resolveAnnotationPresentation,
@@ -35,7 +35,8 @@ const LABEL_LINE_SPACE = 1;
  * placement keeps its gap from (instanceLabelInkBounds), padded by one unit.
  * visibleInstanceBounds falls back to the whole viewBox when a path declares
  * no bounds, which put an inductor's coil 4 units wider than its loops and
- * reported its own default labels as drawn over it (#1299).
+ * reported its own default labels as drawn over it (#1299). An adder's sign
+ * marks are ink too (#1324).
  */
 function labelObstacleBounds(
   document: SchematicDocument,
@@ -44,10 +45,7 @@ function labelObstacleBounds(
   const padding = 1;
   return document.instances.flatMap((instance) => {
     if (!instance.placement) return [];
-    const resolved = resolver.resolve(
-      instance.symbolId,
-      instance.symbolVariantId,
-    );
+    const resolved = resolveInstanceSymbol(resolver, instance);
     if (!resolved) return [];
     const ink = instanceLabelInkBounds(resolved, instance.signalFlowParameters);
     const corners = [

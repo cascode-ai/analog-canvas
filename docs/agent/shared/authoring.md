@@ -110,6 +110,9 @@ targets to avoid full-Snapshot name resolution. Names remain supported when usef
   and a quantity that is neither a SPICE number (`1k`, `2.5n`, `9kΩ`) nor an
   expression in braces (`{vdd/2}`). Write micro as `u`. The same checks run
   on stored values, as Cell diagnostics.
+- An adder input subtracts by its sign, a choice: `signA`/`signB` `"-"`
+  (default `"+"`), so V_hold − V_DAC is one adder with `signB:"-"`, drawn
+  with its + and − marks, not an adder after a −1 gain block.
 - Three-terminal MOS artwork still has an electrical B pin. Read `mosBulk` and
   `mosBulkDefaults`; ordinary devices reuse defaults. A body on no Net
   (`mosBulk.status: "unresolved"`) takes the conventional VDD or ground; a

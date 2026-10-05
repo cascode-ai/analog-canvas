@@ -183,8 +183,22 @@ The signal-flow and converter blocks have bodies too
 ([amplifiers and adder](../../packages/netlist/src/ideal-analog-block-models.ts),
 [multiplier and converters](../../packages/netlist/src/ideal-signal-block-models.ts)):
 
-- The adder is two stacked unity E-sources, V(Y) = V(A) + V(B) from ground.
-  It is linear, so SPICE and Spectre both print it.
+- The adder is two E-sources stacked through an internal node, V(Y) = V(A) +
+  V(B) from ground. It is linear, so SPICE and Spectre both print it.
+- Each adder input has a sign, `signA` and `signB`, `+` (the default) or `-`,
+  edited in Properties as a choice. A sign is not a SPICE parameter: it
+  chooses the body, and the call carries none. Each pattern of signs has its
+  own body, named after the inputs it subtracts, whose source gains follow
+  the signs: `adder` (+ +), `adder_minus_a` (− +), `adder_minus_b` (+ −) and
+  `adder_minus_ab` (− −). The V_hold − V_DAC of a pipelined ADC stage
+  therefore calls `adder_minus_b`, whose `ESUMB nsum 0 B 0 {-1}` subtracts B.
+  An adder whose inputs both add calls `adder` and exports byte for byte as
+  before signs existed, whether it stores `+` or no sign at all. A sign other
+  than `+` or `-` blocks export with `INVALID_ADDER_SIGN`. An adder bound to
+  another subcircuit calls that subcircuit; when it subtracts, export warns
+  with `ADDER_SIGN_NOT_EXPORTED` that the bound subcircuit must subtract as
+  drawn. The drawing marks the signs: see the
+  [Razavi contract](razavi-visual-contract.md#signal-flow-adder-signs).
 - The multiplier is V(Y) = gain·V(A)·V(B) from ground. `gain` defaults to 1/V
   and is edited in Properties.
 - The ADC and the DAC each map their input onto 2^`bits` levels between VSS

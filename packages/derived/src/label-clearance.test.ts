@@ -465,3 +465,27 @@ it("reports free text struck through by a wire or drawn over a label (#1323)", (
     ),
   ).toEqual([]);
 });
+
+it("keeps a label off an adder's sign marks, which are its ink (#1324)", () => {
+  const doc = createEmptyDocument("d", "Signs");
+  doc.instances.push({
+    id: "sum",
+    symbolId: "adder",
+    reference: "X1",
+    placement: { position: { x: 100, y: 100 }, rotation: 0, mirror: "none" },
+    netlist: {
+      binding: { kind: "unresolved-subcircuit", name: "adder" },
+      parameters: { signA: "+", signB: "+" },
+    },
+  });
+  // Over the plus that marks input A: x 74.7 … 82.3, y 85.7 … 93.3.
+  const box = { x: 72, y: 84, width: 4, height: 3 };
+  const adding = createLabelClearanceContext(doc, resolver);
+  expect(adding.conflictsAt(box, "label")).toEqual([]);
+  doc.instances[0]!.netlist!.parameters.signB = "-";
+  const subtracting = createLabelClearanceContext(doc, resolver);
+  expect(subtracting.conflictsAt(box, "label")).toEqual(["sum"]);
+  const obstacle = subtracting.symbols.find((item) => item.id === "sum")!;
+  // The plus reaches 3.8 units left of x = 78.5; one unit of padding.
+  expect(obstacle.bounds.x).toBeCloseTo(100 - 21.5 - 3.8 - 1, 6);
+});

@@ -200,6 +200,30 @@ inputs remain unambiguous. Both blocks are behavioral and manual-only: neither
 their formula nor coefficient implies a SPICE primitive or automatic device
 mapping.
 
+## Signal-flow adder signs
+
+The adder's Symbol is the reviewed summing circle with its inner plus. An
+input that subtracts is a fact of the Instance, its `signA` or `signB`
+netlist parameter ([netlist export](netlist-export.md#device-definition)),
+not another Symbol. The drawing projects it as the textbook does: once one
+input subtracts, each input carries a small plus or minus, and an adder whose
+inputs all add draws none, exactly as before signs existed.
+
+The marks' placement is measured on the adder's own pinned witness, Figure
+21.38, at its calibration of 1.3 px per unit about the circle's centre. Both
+summing nodes there put the plus over input A at (−21.4, −10.6) and the minus
+beside input B at (−12.4, 18.4), each 7.6 units wide; Figure 21.33 agrees
+within 0.7 units. The marks are centred at (−21.5, −10.5) and (−12.5, 18.5),
+7.6-unit bars in the normal symbol stroke with butt ends, like the voltage
+source's polarity marks. They move with their inputs through every turn and
+mirror, and each bar stays level or upright on the page, as polarity notation
+does. They are the Instance's ink in the formal scene and its export bounds,
+the selection outline, label placement and label clearance, visual
+diagnostics, and the box a click or a marquee picks the adder by
+([input signs](../../packages/symbols/src/input-signs.ts)). The Symbol
+definition, its geometry evidence and the registered fidelity target are
+unchanged.
+
 ## Catalog, runtime, and palette exposure
 
 A Razavi palette entry is eligible only when all conditions hold:

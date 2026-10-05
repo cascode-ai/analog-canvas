@@ -34,7 +34,9 @@ import type {
   StableId,
 } from "@icm/model";
 import {
+  ADDER_SIGNED_INPUTS,
   IDEAL_COMPARATOR_TARGET,
+  adderInputSigns,
   builtInModelContract,
   createReferenceIndex,
   deviceDescriptor,
@@ -72,7 +74,10 @@ import {
   implicitSupplyNetId,
   withImplicitMosSupplies,
 } from "./implicit-mos-supplies.js";
-import { idealAnalogBlockCell } from "./ideal-analog-block-models.js";
+import {
+  builtInBlockCallTarget,
+  idealAnalogBlockCell,
+} from "./ideal-analog-block-models.js";
 import { IDEAL_SWITCH_MODEL } from "./ideal-switch-model.js";
 export { IDEAL_SWITCH_MODEL } from "./ideal-switch-model.js";
 
@@ -1167,10 +1172,7 @@ function extractBuiltInSubcircuitInstance(
     );
     return null;
   }
-  const target =
-    binding?.kind === "unresolved-subcircuit"
-      ? binding.name
-      : definition.target;
+  const target = builtInBlockCallTarget(instance, definition);
   if (!isIdentifier(reference) || !isIdentifier(target)) {
     diagnostic(
       diagnostics,
@@ -1180,7 +1182,46 @@ function extractBuiltInSubcircuitInstance(
       [instance.id],
     );
   }
-  const parameters = Object.entries(netlist?.parameters ?? {});
+  // An adder's input signs chose its body above; they are not SPICE
+  // parameters, so the call carries none of them.
+  const adderSigns =
+    definition.target === "adder" ? adderInputSigns(netlist?.parameters) : [];
+  const signNames = new Set(
+    ADDER_SIGNED_INPUTS.map((input) => input.parameter.toLowerCase()),
+  );
+  for (const input of adderSigns) {
+    if (input.sign === null)
+      diagnostic(
+        diagnostics,
+        document.id,
+        "INVALID_ADDER_SIGN",
+        `Adder ${reference}'s ${input.parameter} must be + or -; received ${netlist?.parameters[input.parameter]}`,
+        [instance.id],
+        "error",
+        input.parameter,
+      );
+  }
+  if (
+    adderSigns.some((input) => input.sign === "-") &&
+    binding?.kind === "unresolved-subcircuit" &&
+    binding.name.toLowerCase() !== definition.target
+  )
+    diagnostic(
+      diagnostics,
+      document.id,
+      "ADDER_SIGN_NOT_EXPORTED",
+      `Adder ${reference} subtracts ${adderSigns
+        .filter((input) => input.sign === "-")
+        .map((input) => input.pinName)
+        .join(
+          " and ",
+        )}, but calls ${target}: the signs choose only among the built-in adder bodies, so ${target} must subtract as drawn`,
+      [instance.id],
+      "warning",
+    );
+  const parameters = Object.entries(netlist?.parameters ?? {}).filter(
+    ([name]) => !adderSigns.length || !signNames.has(name.toLowerCase()),
+  );
   for (const [name] of parameters) {
     if (isIdentifier(name)) continue;
     diagnostic(
@@ -2454,9 +2495,7 @@ function extractCell(
           options,
           diagnostics,
           bodyIgnoresSupplies(
-            binding?.kind === "unresolved-subcircuit"
-              ? binding.name
-              : builtInSubcircuit.target,
+            builtInBlockCallTarget(instance, builtInSubcircuit),
             project,
             cellNameByDocumentId.values(),
             options.format,
@@ -2900,10 +2939,7 @@ function analyzeDesign(
     }
     const descriptor = instanceBuiltInSubcircuit(project, instance);
     if (!descriptor) continue;
-    const target =
-      binding?.kind === "unresolved-subcircuit"
-        ? binding.name
-        : descriptor.target;
+    const target = builtInBlockCallTarget(instance, descriptor);
     if (
       descriptor.target === "comparator" &&
       target === IDEAL_COMPARATOR_TARGET

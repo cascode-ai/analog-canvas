@@ -69,6 +69,7 @@ import type {
 } from "@icm/model";
 import {
   resolveAdaptiveSignalFlowBlockLayout,
+  resolveInstanceSymbol,
   resolveSignalFlowPinAt,
   signalFlowBodyUsesLabelTypography,
 } from "@icm/symbols";
@@ -624,10 +625,7 @@ export function renderInstanceOutlineGeometry(
       (instance) => wanted.has(instance.id) && instance.placement !== null,
     )
     .map((instance) => {
-      const resolved = resolver.resolve(
-        instance.symbolId,
-        instance.symbolVariantId,
-      );
+      const resolved = resolveInstanceSymbol(resolver, instance);
       // Decoration must not take the canvas down: the scene is the layer
       // that decides what an unresolved symbol means.
       if (!resolved) return "";
@@ -932,10 +930,8 @@ function deriveBounds(
       candidate.placement !== null &&
       (!objectIds || objectIds.has(candidate.id)),
   )) {
-    const resolved = resolver.resolve(
-      instance.symbolId,
-      instance.symbolVariantId,
-    );
+    // An adder's sign marks reach past its circle; its box includes them.
+    const resolved = resolveInstanceSymbol(resolver, instance);
     if (!resolved) {
       throw new Error(`Unresolved symbol: ${instance.symbolId}`);
     }
@@ -1376,10 +1372,7 @@ export function buildSvgScene(
     .filter((instance) => instance.placement !== null)
     .sort((left, right) => left.id.localeCompare(right.id, "en"))
     .map((instance) => {
-      const resolved = resolver.resolve(
-        instance.symbolId,
-        instance.symbolVariantId,
-      );
+      const resolved = resolveInstanceSymbol(resolver, instance);
       if (!resolved) {
         throw new Error(`Unresolved symbol: ${instance.symbolId}`);
       }

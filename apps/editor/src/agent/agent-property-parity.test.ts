@@ -138,6 +138,59 @@ describe("Agent property actions are planned as Apply in Properties", () => {
     expect(instance("F1").netlist).not.toHaveProperty("control");
   });
 
+  it("makes an adder input subtract as its Properties sign does (#1324)", async () => {
+    const { controller, apply, refuse, instance } = await session();
+    await apply([
+      { ...place("adder", "X1", 100), parameters: { signB: "-" } },
+      place("adder", "X2", 300),
+    ]);
+    expect(instance("X1").netlist?.parameters).toEqual({
+      signA: "+",
+      signB: "-",
+    });
+    // Without parameters an adder lands adding both inputs, as from the GUI.
+    expect(instance("X2").netlist?.parameters).toEqual({
+      signA: "+",
+      signB: "+",
+    });
+    const before = structuredClone(controller.project);
+    const x2 = instance("X2");
+    const target = { kind: "instance", reference: "X2" };
+    await apply([{ kind: "set-property", target, set: { signA: "-" } }]);
+    expect(instance("X2").netlist?.parameters).toEqual({
+      signA: "-",
+      signB: "+",
+    });
+    // The same sign chosen in Properties.
+    const document = before.documents[0]!;
+    const plan = planPropertyApply(
+      {
+        project: before,
+        document,
+        resolver: createProjectSymbolResolver(before, builtInSymbols),
+        instance: document.instances.find((item) => item.id === x2.id)!,
+      },
+      {
+        parameters: { signA: "-", signB: "+" },
+        placement: { coordinate: [300, 100], rotation: 0, mirror: "none" },
+        appearance: { color: "auto" },
+      },
+    );
+    expect(plan.kind).toBe("edits");
+    const gui = new EditorDocumentController(before);
+    if (plan.kind === "edits") expect(gui.transact(plan.edits).ok).toBe(true);
+    expect(controller.document.instances).toEqual(gui.document.instances);
+    // A sign is + or -: not a Unicode minus, not a word.
+    expect(
+      await refuse([{ kind: "set-property", target, set: { signB: "−" } }]),
+    ).toContain('must be one of: +, -; received "−"');
+    expect(
+      await refuse([
+        { ...place("adder", "X3", 500), parameters: { signA: "minus" } },
+      ]),
+    ).toContain("must be one of: +, -");
+  });
+
   it("refuses spice.* keys and names the parameters the model owns", async () => {
     const { apply, refuse } = await session();
     await apply([place("nmos", "M1", 100)]);

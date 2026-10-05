@@ -17,7 +17,10 @@ import {
   instanceBuiltInSubcircuit,
 } from "@icm/devices";
 import type { DesignNetlistAnalysisOptions } from "./extract.js";
-import { idealAnalogBlockCell } from "./ideal-analog-block-models.js";
+import {
+  builtInBlockCallTarget,
+  idealAnalogBlockCell,
+} from "./ideal-analog-block-models.js";
 import type { NetlistFormat } from "./net-name-codec.js";
 
 /**
@@ -76,14 +79,9 @@ function blockSuppliesToDefault(
     return document.instances.flatMap((instance) => {
       const descriptor = instanceBuiltInSubcircuit(source, instance);
       if (!descriptor) return [];
-      const binding = instance.netlist?.binding;
-      const target =
-        binding?.kind === "unresolved-subcircuit"
-          ? binding.name
-          : descriptor.target;
       if (
         bodyIgnoresSupplies(
-          target,
+          builtInBlockCallTarget(instance, descriptor),
           source,
           cellNames,
           options.format ?? "spice",

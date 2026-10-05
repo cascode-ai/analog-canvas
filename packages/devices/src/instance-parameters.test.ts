@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { createEmptyProject, createEmptyDocument } from "@icm/model";
 
+import { adderInputSigns } from "./built-in-model-contracts.js";
 import { instanceParameterContract } from "./instance-parameters.js";
+import { validateDeviceParameters } from "./parameter-validation.js";
 
 const definitions = [
   {
@@ -102,6 +104,44 @@ describe("instanceParameterContract", () => {
       names(instanceParameterContract({}, { symbolId: "d-flip-flop-q" })),
     ).toEqual([["vt", "td"], true]);
   });
+  it("gives the adder a + or - choice per input, both + by default", () => {
+    const contract = instanceParameterContract({}, { symbolId: "adder" });
+    expect(contract?.definitions).toMatchObject([
+      { name: "signA", editor: "select", defaultValue: "+" },
+      { name: "signB", editor: "select", defaultValue: "+" },
+    ]);
+    expect(
+      contract?.definitions[1]?.options?.map((option) => option.value),
+    ).toEqual(["+", "-"]);
+    // The choice is checked as the GUI and an Agent check it.
+    const check = (parameters: Record<string, string>) =>
+      validateDeviceParameters(
+        { parameters: contract!.definitions },
+        parameters,
+        { open: contract!.open },
+      );
+    expect(check({ signA: "+", signB: "-" })).toEqual([]);
+    expect(check({ signB: "−" })).toMatchObject([
+      { kind: "select", name: "signB", allowed: ["+", "-"] },
+    ]);
+  });
+
+  it("reads an adder's signs as export does: missing adds, anything else is no sign", () => {
+    expect(adderInputSigns(undefined)).toEqual([
+      { pinName: "A", parameter: "signA", sign: "+" },
+      { pinName: "B", parameter: "signB", sign: "+" },
+    ]);
+    expect(
+      adderInputSigns({ signb: " - ", signA: "x" }).map((input) => [
+        input.parameter,
+        input.sign,
+      ]),
+    ).toEqual([
+      ["signA", null],
+      ["signb", "-"],
+    ]);
+  });
+
   it("gives a built-in part its descriptor", () => {
     expect(
       names(instanceParameterContract({}, { symbolId: "resistor" })),

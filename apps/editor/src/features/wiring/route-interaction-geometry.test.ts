@@ -21,6 +21,7 @@ import {
   netLabelPlacementTargetForText,
   dragRouteAttachmentAtPoint,
   effectiveRouteAttachment,
+  instanceHitBox,
   looseRouteAnchorIds,
 } from "./route-interaction-geometry";
 
@@ -443,6 +444,27 @@ describe("route interaction geometry", () => {
       },
       alignment: "middle",
     });
+  });
+
+  it("lets a click on an adder's sign mark pick the adder (#1324)", () => {
+    const document = createEmptyDocument("signs", "Signs");
+    document.instances.push({
+      id: "sum",
+      symbolId: "adder",
+      reference: "X1",
+      placement: { position: { x: 100, y: 100 }, rotation: 0, mirror: "none" },
+      netlist: {
+        binding: { kind: "unresolved-subcircuit", name: "adder" },
+        parameters: { signA: "+", signB: "+" },
+      },
+    });
+    const adding = instanceHitBox(document.instances[0]!, resolver)!;
+    document.instances[0]!.netlist!.parameters.signB = "-";
+    const subtracting = instanceHitBox(document.instances[0]!, resolver)!;
+    // The plus over input A reaches x = 74.7, left of the pin at x = 80.
+    expect(adding.x).toBeGreaterThan(75);
+    expect(subtracting.x).toBeLessThanOrEqual(74.7);
+    expect(subtracting.x + subtracting.width).toBe(adding.x + adding.width);
   });
 });
 

@@ -1,6 +1,7 @@
 export * from "./builtins.js";
 export * from "./expanded-device-catalog.js";
 export * from "./hierarchical-block.js";
+export * from "./input-signs.js";
 export * from "./pdk-registry.js";
 export * from "./razavi-catalog.js";
 export * from "./resolver.js";

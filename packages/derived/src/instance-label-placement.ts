@@ -2,7 +2,7 @@ import { deviceDescriptor } from "@icm/devices";
 import { transformPoint } from "@icm/model";
 import type { Point, Rect, SchematicDocument } from "@icm/model";
 import type { ResolvedSymbol } from "@icm/symbols";
-import { getRazaviCatalogEntry } from "@icm/symbols";
+import { getRazaviCatalogEntry, withInputSigns } from "@icm/symbols";
 
 import type { SchematicStyleProfile } from "./style-profile.js";
 import { visibleSymbolInkBounds } from "./visual.js";
@@ -446,7 +446,10 @@ export function placeUprightInstanceLabel(
 ): InstanceLabelPlacement | null {
   if (!instance.placement) return null;
   const worldBounds = transformedBounds(
-    instanceLabelInkBounds(resolved, instance.signalFlowParameters),
+    instanceLabelInkBounds(
+      withInputSigns(resolved, instance),
+      instance.signalFlowParameters,
+    ),
     instance,
   );
   const rotatedSide = transformedSide(localSide, instance);
@@ -880,13 +883,15 @@ function defaultPlacementWith(
   place: typeof placeUprightInstanceLabel,
   rows: InstanceLabelRowRule,
   instance: SchematicDocument["instances"][number],
-  resolved: ResolvedSymbol,
+  symbol: ResolvedSymbol,
   profile: SchematicStyleProfile,
   grid: number,
   slot: InstanceLabelSlot,
   sizeScale: number,
 ): InstanceLabelPlacement | null {
   if (!instance.placement) return null;
+  // An adder's sign marks are its ink as much as its circle is.
+  const resolved = withInputSigns(symbol, instance);
   const localBounds = visibleSymbolInkBounds(
     resolved,
     instance.signalFlowParameters,

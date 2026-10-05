@@ -1,8 +1,65 @@
 import { deriveStableId } from "@icm/model";
-import { builtInModelContract, subcircuitDescriptor } from "@icm/devices";
+import {
+  adderInputSigns,
+  builtInModelContract,
+  subcircuitDescriptor,
+  type BuiltInSubcircuitDescriptor,
+} from "@icm/devices";
 
 import type { DesignNetlistCell, DesignNetlistInstance } from "./ir.js";
 import type { NetlistFormat } from "./net-name-codec.js";
+
+/**
+ * The adder's bodies, one per pattern of input signs, each named after the
+ * inputs it subtracts: V(Y) = gA·V(A) + gB·V(B). Both inputs adding is the
+ * plain `adder`, so a drawing whose adders all add exports as it always has.
+ */
+const ADDER_BODIES = {
+  adder: [1, 1],
+  adder_minus_a: [-1, 1],
+  adder_minus_b: [1, -1],
+  adder_minus_ab: [-1, -1],
+} as const satisfies Record<string, readonly [number, number]>;
+type AdderBody = keyof typeof ADDER_BODIES;
+
+/**
+ * The master a built-in block's call names. An authored target wins: a
+ * comparator's isolated model, or any subcircuit the author retargeted the
+ * block to. An adder left on its own body calls the body its input signs
+ * choose; an invalid sign leaves it on `adder`, for export to refuse.
+ */
+export function builtInBlockCallTarget(
+  instance: {
+    readonly netlist?:
+      | {
+          readonly binding?:
+            { readonly kind?: unknown; readonly name?: unknown } | undefined;
+          readonly parameters?: Readonly<Record<string, string>> | undefined;
+        }
+      | null
+      | undefined;
+  },
+  descriptor: BuiltInSubcircuitDescriptor,
+): string {
+  const binding = instance.netlist?.binding;
+  const target =
+    binding?.kind === "unresolved-subcircuit" &&
+    typeof binding.name === "string"
+      ? binding.name
+      : descriptor.target;
+  if (
+    descriptor.target !== "adder" ||
+    target.toLowerCase() !== descriptor.target
+  )
+    return target;
+  const signs = adderInputSigns(instance.netlist?.parameters);
+  if (signs.some((input) => input.sign === null)) return target;
+  const subtracted = signs
+    .filter((input) => input.sign === "-")
+    .map((input) => input.pinName.toLowerCase())
+    .join("");
+  return subtracted ? `adder_minus_${subtracted}` : target;
+}
 
 type IdealBlockTarget =
   | "opamp"
@@ -47,7 +104,7 @@ const MODELS: Record<
 };
 
 function controlledSource(
-  target: IdealBlockTarget,
+  target: string,
   reference: string,
   deviceClass: "vcvs" | "vccs",
   nodes: readonly [string, string, string, string],
@@ -84,12 +141,18 @@ export function idealAnalogBlockCell(
   target: string,
   format: NetlistFormat,
 ): DesignNetlistCell | null {
-  if (!Object.hasOwn(MODELS, target)) return null;
-  const name = target as IdealBlockTarget;
-  const model = MODELS[name];
-  // The adder has no setting: Y is A + B.
-  const parameter = builtInModelContract(name)?.parameters[0];
-  if (name !== "adder" && !parameter)
+  // Every adder body shares the adder's model entry; its signs choose the
+  // body and are never a SPICE parameter of it.
+  const adderGains = Object.hasOwn(ADDER_BODIES, target)
+    ? ADDER_BODIES[target as AdderBody]
+    : undefined;
+  const name = adderGains ? "adder" : target;
+  if (!Object.hasOwn(MODELS, name)) return null;
+  const model = MODELS[name as IdealBlockTarget];
+  const parameter = adderGains
+    ? undefined
+    : builtInModelContract(name)?.parameters[0];
+  if (!adderGains && !parameter)
     throw new Error(`Ideal analog model has no parameter: ${name}`);
   const descriptor = subcircuitDescriptor(model.symbolId);
   if (
@@ -106,7 +169,7 @@ export function idealAnalogBlockCell(
     expression = "gain",
   ) =>
     controlledSource(
-      name,
+      target,
       reference,
       "vcvs",
       nodes,
@@ -115,9 +178,14 @@ export function idealAnalogBlockCell(
       format,
     );
   const g = (nodes: readonly [string, string, string, string]) =>
-    controlledSource(name, "GCORE", "vccs", nodes, "gm", "gm", format);
-  const instances: DesignNetlistInstance[] =
-    name === "opamp"
+    controlledSource(target, "GCORE", "vccs", nodes, "gm", "gm", format);
+  const instances: DesignNetlistInstance[] = adderGains
+    ? // Two sources stacked through nsum: V(Y) = gA·V(A) + gB·V(B).
+      [
+        e("ESUMA", ["Y", "nsum", "A", "0"], String(adderGains[0])),
+        e("ESUMB", ["nsum", "0", "B", "0"], String(adderGains[1])),
+      ]
+    : name === "opamp"
       ? [e("ECORE", ["VOUT", "0", "VIP", "VIN"])]
       : name === "opamp_differential"
         ? [
@@ -128,33 +196,27 @@ export function idealAnalogBlockCell(
           ? [e("ECORE", ["VOUT", "0", "VIN", "0"])]
           : name === "transconductance"
             ? [g(["0", "VOUT", "VIN", "0"])]
-            : name === "adder"
-              ? // Two unity sources stacked through nsum: V(Y) = V(A) + V(B).
-                [
-                  e("ESUMA", ["Y", "nsum", "A", "0"], "1"),
-                  e("ESUMB", ["nsum", "0", "B", "0"], "1"),
-                ]
-              : [g(["0", "VOUT", "VIP", "VIN"])];
+            : [g(["0", "VOUT", "VIP", "VIN"])];
 
   return {
     origin: "generated-model",
-    id: deriveStableId("netlist-ideal-block-cell", name),
-    name,
+    id: deriveStableId("netlist-ideal-block-cell", target),
+    name: target,
     ports: model.ports.map((port, index) => ({
-      id: deriveStableId("netlist-ideal-block-port", name, String(index)),
+      id: deriveStableId("netlist-ideal-block-port", target, String(index)),
       name: port,
       netName: port,
     })),
     nets: [
       ...model.ports.map((port, index) => ({
-        id: deriveStableId("netlist-ideal-block-net", name, String(index)),
+        id: deriveStableId("netlist-ideal-block-net", target, String(index)),
         name: port,
         scope: "local" as const,
       })),
-      ...(name === "adder"
+      ...(adderGains
         ? [
             {
-              id: deriveStableId("netlist-ideal-block-net", name, "nsum"),
+              id: deriveStableId("netlist-ideal-block-net", target, "nsum"),
               name: "nsum",
               scope: "local" as const,
             },

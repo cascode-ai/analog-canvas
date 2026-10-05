@@ -201,6 +201,13 @@ and a single `_` lowers the next term, a longer script groups in parentheses
 or braces (`g_m`, `g_(m1)`, `g_{m1}`, `z^-1`), and one top-level `/` makes a
 fraction (`1/s`). These are drawing text, never netlist parameters:
 `set-property` on a part without netlist parameters names `set-signal-flow`.
+The adder's inputs add by default. To subtract one, as a residue
+V_hold − V_DAC, a ΣΔ loop error or a phase detector does, set its sign with
+`parameters:{signB:"-"}` on `place-component` or `set-property {target,
+set:{signB:"-"}}` (`signA` for input A; `+` or ASCII `-` only). The drawing
+then marks each input + or −, and the netlist calls `adder_minus_b` (or
+`adder_minus_a`, `adder_minus_ab`), whose source for B has gain −1. Do not
+add a −1 gain block for a subtraction the figure does not draw.
 `set-display-alias {target, text}` draws a part's name label as other text
 while its Reference (or Pin name) stays in the netlist, as the Properties
 display alias does: an op-amp stays `X1` and shows `A1`; `text:null` shows its
