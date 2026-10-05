@@ -5,6 +5,8 @@ import {
   RichTextDocumentSchema,
   PlacementSchema,
   InstancePlacementRequestSchema,
+  InstanceNetlistDataSchema,
+  SignalFlowParametersSchema,
 } from "@icm/model";
 
 /** Small server-planned conveniences; results still commit as existing edits. */
@@ -68,7 +70,117 @@ const RouteNetCommandSchema = z.strictObject({
       "Straight horizontal/vertical trunk; otherwise use MST guidance. Atomic, not an obstacle autorouter.",
     ),
 });
+const TextInputSchema = z.union([
+  z.string().min(1).max(256),
+  RichTextDocumentSchema,
+]);
+const SelectionSchemaWithNoConnects = SelectionSchema.extend({
+  noConnectIds: SelectedIdsSchema,
+});
 const BatchItemSchema = z.discriminatedUnion("kind", [
+  z
+    .strictObject({
+      kind: z.literal("set-properties"),
+      instanceId: StableIdSchema,
+      reference: NameSchema.optional().describe(
+        "The part's Reference; for a Cell Pin, the Pin's name.",
+      ),
+      parameters: z
+        .strictObject({
+          set: z
+            .record(z.string().min(1), z.string().min(1).max(1024))
+            .optional(),
+          unset: z.array(z.string().min(1)).max(64).optional(),
+        })
+        .optional(),
+      signalFlow: z
+        .strictObject({
+          formula: z.string().min(1).max(256).nullable().optional(),
+          coefficient: z.string().min(1).max(64).nullable().optional(),
+          bodyWidth: SignalFlowParametersSchema.shape.bodyWidth
+            .unwrap()
+            .nullable()
+            .optional(),
+          bodyHeight: SignalFlowParametersSchema.shape.bodyHeight
+            .unwrap()
+            .nullable()
+            .optional(),
+        })
+        .optional()
+        .describe("A formula block's drawing; null clears a field."),
+      supplies: z
+        .strictObject({
+          VDD: StableIdSchema.nullable().optional(),
+          VSS: StableIdSchema.nullable().optional(),
+        })
+        .optional()
+        .describe("A block's supply Net by ID; null returns it to Auto."),
+      control: InstanceNetlistDataSchema.shape.control
+        .unwrap()
+        .nullable()
+        .optional()
+        .describe("A controlled source's control; null clears it."),
+      placement: z
+        .strictObject({
+          position: PointSchema.optional(),
+          pinAnchor: AgentPinAnchorSchema.optional(),
+          rotation: PlacementSchema.shape.rotation.optional(),
+          mirror: PlacementSchema.shape.mirror.optional(),
+          reflect: z
+            .enum(["x", "y"])
+            .optional()
+            .describe("Reflect in place: y flips left-right, x top-bottom."),
+        })
+        .optional(),
+    })
+    .describe(
+      "Change one part as Apply in Properties does, through the same planner: a moved part joins a pin it lands on, as a drag does.",
+    ),
+  z.strictObject({
+    kind: z.literal("set-text"),
+    target: z.discriminatedUnion("kind", [
+      z.strictObject({ kind: z.literal("annotation"), id: StableIdSchema }),
+      z.strictObject({ kind: z.literal("drafting"), id: StableIdSchema }),
+    ]),
+    text: TextInputSchema,
+  }),
+  z.strictObject({
+    kind: z.literal("add-text"),
+    id: StableIdSchema,
+    position: PointSchema,
+    text: TextInputSchema,
+    alignment: z.enum(["start", "middle", "end"]).optional(),
+    rotation: z
+      .union([z.literal(0), z.literal(90), z.literal(180), z.literal(270)])
+      .optional(),
+  }),
+  z
+    .strictObject({
+      kind: z.literal("arrange-instances"),
+      instanceIds: z.array(StableIdSchema).min(2).max(256),
+      axis: z.enum(["x", "y"]),
+      coordinate: z.number().int().optional(),
+    })
+    .describe(
+      "Line up part origins on one coordinate (the first part's when left out).",
+    ),
+  z
+    .strictObject({
+      kind: z.literal("disconnect-pin"),
+      instanceId: StableIdSchema,
+      pinName: z.string().min(1).max(128),
+    })
+    .describe(
+      "Free one pin from its Net, as its menu does: Delete connection where wires end on it, Disconnect endpoint where none does.",
+    ),
+  z
+    .strictObject({
+      kind: z.literal("delete-selection"),
+      selection: SelectionSchemaWithNoConnects,
+    })
+    .describe(
+      "Explicit selection. Includes owned displays and formal interface declarations, and, as in the GUI, a wire that only tapped a deleted part into other wiring. Select all object IDs for complete Cell deletion.",
+    ),
   // Several Cell instances place in one call and one undo, as place-components
   // places several built-in parts (#1231).
   z.strictObject({
@@ -175,14 +287,6 @@ export const AgentAuthoringCommandSchema = z.discriminatedUnion("kind", [
     })
     .describe(
       "Opt-in, bounded one-pass placement of visible default Instance labels. Compact/collision avoidance default true. Preserve manually positioned, locked and custom-styled labels, bindings and electrical names; unresolved clashes remain observations.",
-    ),
-  z
-    .strictObject({
-      kind: z.literal("delete-selection"),
-      selection: SelectionSchema.extend({ noConnectIds: SelectedIdsSchema }),
-    })
-    .describe(
-      "Explicit selection. Includes owned displays and formal interface declarations, and, as in the GUI, a wire that only tapped a deleted part into other wiring. Select all object IDs for complete Cell deletion.",
     ),
   z.strictObject({
     kind: z.literal("batch"),

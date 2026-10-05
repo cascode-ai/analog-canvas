@@ -3,21 +3,18 @@ import {
   AgentSchematicEditSchema,
   AgentWireIntentSchema,
   isBatchableAuthoringCommand,
+  type AgentAuthoringCommand,
   type AgentSessionSnapshot,
 } from "@icm/agent-adapter";
 import { agentRazaviAuthoringCatalog } from "@icm/agent-adapter/kit";
 import {
-  deviceDescriptor,
   instanceParameterContract,
   subcircuitDescriptor,
   validateDeviceParameters,
 } from "@icm/devices";
 import {
-  createDraftText,
-  flattenRichText,
   InstancePlacementRequestSchema,
   reflectOrientation,
-  rewriteRichTextContent,
   SignalFlowParametersSchema,
   type Orientation,
   type RichTextDocument,
@@ -554,6 +551,7 @@ export function compileActions(
     });
     return entry;
   };
+  /** A typed edit, as a No Connect mark is. */
   const pushEdit = (index: number, kind: string, edit: unknown): void => {
     const validated = AgentSchematicEditSchema.safeParse(edit);
     if (!validated.success) {
@@ -610,9 +608,73 @@ export function compileActions(
     });
   };
 
+  // The action being compiled: every command it sends is reported under it.
+  let actionIndex = 0;
+  let actionKind = "";
+  const pushCommand = (command: AgentAuthoringCommand): void => {
+    const validated = AgentAuthoringCommandSchema.safeParse(command);
+    if (!validated.success) {
+      const issue = validated.error.issues[0];
+      throw new ActionCompileError(
+        actionIndex,
+        actionKind,
+        `${issue?.path.join(".")} ${issue?.message ?? ""}`.trim(),
+      );
+    }
+    transactions.push({
+      form: "command",
+      command: validated.data,
+      actionKinds: [actionKind],
+    });
+  };
+  /** Properties, as Apply in Properties changes them: the editor plans it. */
+  const pushProperties = (
+    instance: SnapshotInstance,
+    change: Omit<
+      Extract<AgentAuthoringCommand, { kind: "set-properties" }>,
+      "kind" | "instanceId"
+    >,
+  ): void =>
+    pushCommand({ kind: "set-properties", instanceId: instance.id, ...change });
+  /** Deletions in a row are one selection, deleted at once as in the GUI. */
+  const pushDelete = (part: Partial<DeleteSelection>): void => {
+    const last = transactions[transactions.length - 1];
+    if (
+      last?.form === "command" &&
+      last.command?.kind === "delete-selection" &&
+      last.editActionIndices
+    ) {
+      const selection = last.command.selection;
+      for (const key of Object.keys(part) as (keyof DeleteSelection)[])
+        for (const id of part[key] ?? [])
+          if (!selection[key].includes(id)) selection[key].push(id);
+      last.actionKinds.push(actionKind);
+      last.editActionIndices.push(actionIndex);
+      return;
+    }
+    transactions.push({
+      form: "command",
+      command: {
+        kind: "delete-selection",
+        selection: {
+          instanceIds: [...(part.instanceIds ?? [])],
+          routeIds: [...(part.routeIds ?? [])],
+          junctionIds: [...(part.junctionIds ?? [])],
+          annotationIds: [...(part.annotationIds ?? [])],
+          draftingIds: [...(part.draftingIds ?? [])],
+          noConnectIds: [...(part.noConnectIds ?? [])],
+        },
+      },
+      actionKinds: [actionKind],
+      editActionIndices: [actionIndex],
+    });
+  };
+
   const createdBy = new Map<CompiledTransaction, number>();
   parsed.data.forEach((action, index) => {
     const before = transactions.length;
+    actionIndex = index;
+    actionKind = action.kind;
     switch (action.kind) {
       case "route-net":
       case "set-port-direction":
@@ -643,6 +705,11 @@ export function compileActions(
       case "rename-cell-parameter":
       case "set-cell-parameter-default":
       case "remove-cell-parameter":
+      case "set-properties":
+      case "set-text":
+      case "add-text":
+      case "arrange-instances":
+      case "disconnect-pin":
         transactions.push({
           form: "command",
           command: action,
@@ -681,7 +748,12 @@ export function compileActions(
         break;
       case "undo":
       case "redo":
-        pushEdit(index, action.kind, { kind: action.kind });
+        // History steps go alone: the editor restores one entry per call.
+        transactions.push({
+          form: "edits",
+          edits: [{ kind: action.kind }],
+          actionKinds: [action.kind],
+        });
         break;
       case "place-component":
         compilePlaceComponent(
@@ -698,7 +770,29 @@ export function compileActions(
       case "disconnect":
         if (action.noConnect !== undefined)
           compileNoConnect(index, action, document, pushEdit, allocateId);
-        else compileDisconnect(index, action, document, pushEdit);
+        else if (action.target.kind === "pin") {
+          const instance = resolveInstance(document, index, action.kind, {
+            kind: "instance",
+            ...(typeof action.target.instance === "string"
+              ? { reference: action.target.instance }
+              : action.target.instance),
+          });
+          requirePin(index, action.kind, instance, action.target.pin);
+          pushCommand({
+            kind: "disconnect-pin",
+            instanceId: instance.id,
+            pinName: action.target.pin,
+          });
+        } else {
+          const route = resolveByIdOrName(
+            index,
+            action.kind,
+            "route",
+            document.routes,
+            { id: action.target.route },
+          );
+          pushDelete({ routeIds: [route.id] });
+        }
         break;
       case "move":
         if (action.target.kind === "annotation") {
@@ -709,14 +803,10 @@ export function compileActions(
             document.annotations.map((entry) => ({ id: String(entry.id) })),
             action.target,
           );
-          transactions.push({
-            form: "command",
-            actionKinds: [action.kind],
-            command: {
-              kind: "move-annotation",
-              annotationId: annotation.id,
-              position: action.position!,
-            },
+          pushCommand({
+            kind: "move-annotation",
+            annotationId: annotation.id,
+            position: action.position!,
           });
         } else if (action.target.kind === "junction") {
           const junction = resolveByIdOrName(
@@ -726,14 +816,10 @@ export function compileActions(
             document.junctions,
             action.target,
           );
-          transactions.push({
-            form: "command",
-            actionKinds: [action.kind],
-            command: {
-              kind: "move-junction",
-              junctionId: junction.id,
-              position: action.position!,
-            },
+          pushCommand({
+            kind: "move-junction",
+            junctionId: junction.id,
+            position: action.position!,
           });
         } else {
           const instance = resolveInstance(
@@ -742,357 +828,178 @@ export function compileActions(
             action.kind,
             action.target,
           );
-          if (!instance.placed) {
-            if (action.pinAnchor)
-              throw new ActionCompileError(
-                index,
-                action.kind,
-                "move pinAnchor requires a placed Instance; use place-existing with pinAnchor for a tray Instance",
-              );
-            transactions.push({
-              form: "command",
-              actionKinds: [action.kind],
-              command: {
-                kind: "place-existing",
-                instanceId: instance.id,
-                placement: {
-                  position: action.position!,
-                  rotation: 0,
-                  mirror: "none",
-                },
-              },
-            });
-            break;
-          }
-          let position = action.position!;
-          if (action.pinAnchor) {
+          if (action.pinAnchor)
             requirePin(index, action.kind, instance, action.pinAnchor.pinName);
-            const landing = instance.pins.find(
-              (pin) => pin.name === action.pinAnchor!.pinName,
-            )?.connection?.gridLanding;
-            if (!landing || !instance.position)
-              throw new ActionCompileError(
-                index,
-                action.kind,
-                `Pin ${action.pinAnchor.pinName} has no resolved routing landing`,
-              );
-            position = {
-              x: instance.position.x + action.pinAnchor.position.x - landing.x,
-              y: instance.position.y + action.pinAnchor.position.y - landing.y,
-            };
-            const grid = document.grid;
-            const snapped = {
-              x: Math.round(position.x / grid) * grid,
-              y: Math.round(position.y / grid) * grid,
-            };
-            if (snapped.x !== position.x || snapped.y !== position.y)
-              throw new ActionCompileError(
-                index,
-                action.kind,
-                `Pin ${instance.reference ?? instance.id}.${action.pinAnchor.pinName} cannot land at (${action.pinAnchor.position.x}, ${action.pinAnchor.position.y}) on placement grid ${grid}; nearest reachable landing is (${landing.x + snapped.x - instance.position.x}, ${landing.y + snapped.y - instance.position.y})`,
-              );
-          }
-          pushEdit(index, action.kind, {
-            kind: "move_instance",
-            instanceId: instance.id,
-            position,
-          });
+          if (!instance.placed)
+            pushCommand({
+              kind: "place-existing",
+              instanceId: instance.id,
+              ...(action.pinAnchor
+                ? { pinAnchor: action.pinAnchor }
+                : {
+                    placement: {
+                      position: action.position!,
+                      rotation: 0,
+                      mirror: "none",
+                    },
+                  }),
+            });
+          else
+            pushProperties(instance, {
+              placement: action.pinAnchor
+                ? { pinAnchor: action.pinAnchor }
+                : { position: action.position! },
+            });
         }
         break;
-      case "rotate": {
-        const instance = resolveInstance(
-          document,
-          index,
-          action.kind,
-          action.target,
+      case "rotate":
+        pushProperties(
+          resolveInstance(document, index, action.kind, action.target),
+          { placement: { rotation: action.rotation } },
         );
-        pushEdit(index, action.kind, {
-          kind: "rotate_instance",
-          instanceId: instance.id,
-          rotation: action.rotation,
-        });
-        if (instance.orientation)
-          instance.orientation = {
-            ...instance.orientation,
-            rotation: action.rotation as Orientation["rotation"],
-          };
         break;
-      }
-      case "mirror": {
-        const instance = resolveInstance(
-          document,
-          index,
-          action.kind,
-          action.target,
-        );
-        // A reflection from where the part is, one vocabulary with the
-        // selection transform (#1231); a state is still accepted.
-        let mirror = action.mirror;
-        if (action.axis) {
-          if (!instance.orientation)
-            throw new ActionCompileError(
-              index,
-              action.kind,
-              "reflect a placed part; place it first",
-            );
-          mirror = reflectOrientation(
-            instance.orientation,
-            action.axis === "y" ? "left-right" : "top-bottom",
-          ).mirror;
-        }
-        pushEdit(index, action.kind, {
-          kind: "mirror_instance",
-          instanceId: instance.id,
-          mirror,
-        });
-        // A later reflection in this call starts from this one.
-        if (instance.orientation && mirror)
-          instance.orientation = {
-            ...instance.orientation,
-            mirror: mirror as Orientation["mirror"],
-          };
-        break;
-      }
-      case "set-reference": {
-        const instance = resolveInstance(
-          document,
-          index,
-          action.kind,
-          action.target,
-        );
-        pushEdit(index, action.kind, {
-          kind: "set_instance_reference",
-          instanceId: instance.id,
-          reference: action.reference,
-        });
-        break;
-      }
-      case "set-property": {
-        const instance = resolveInstance(
-          document,
-          index,
-          action.kind,
-          action.target,
-        );
-        if (!instance.netlist)
-          throw new ActionCompileError(
-            index,
-            action.kind,
-            `${instance.reference ?? instance.id} has no netlist parameters${
-              catalogEntry(instance.symbolId)?.formula
-                ? "; use set-signal-flow for its formula or coefficient"
-                : ""
-            }`,
-          );
-        for (const key of [
-          ...Object.keys(action.set ?? {}),
-          ...(action.unset ?? []),
-        ]) {
-          if (key.startsWith("spice.")) {
-            throw new ActionCompileError(
-              index,
-              action.kind,
-              "spice.* keys are migration-only; use typed netlist facts",
-            );
-          }
-        }
-        validateActionParameters(
-          index,
-          action.kind,
-          instance,
-          action.set,
-          context.snapshot.project.externalSubcircuitDefinitions,
-        );
-        pushEdit(index, action.kind, {
-          kind: "patch_instance_netlist_parameters",
-          instanceId: instance.id,
-          ...(action.set ? { set: action.set } : {}),
-          ...(action.unset ? { unset: action.unset } : {}),
-        });
-        // Subsequent control replacements in this batch must keep earlier
-        // parameter edits, not restore the pre-batch Snapshot values.
-        const parameters = {
-          ...(instance.netlist?.parameters ?? {}),
-          ...action.set,
-        };
-        for (const key of action.unset ?? []) delete parameters[key];
-        instance.netlist = { ...instance.netlist, parameters };
-        break;
-      }
-      case "set-block-supply": {
-        // Fixes MISSING_BLOCK_SUPPLY in one action, through the same
-        // property-only terminal the Properties panel binds.
-        const instance = resolveInstance(
-          document,
-          index,
-          action.kind,
-          action.target,
-        );
-        // A built-in block names its supplies, and a built-in primitive has
-        // none; the edit engine checks a user component's terminal itself.
-        const descriptor = subcircuitDescriptor(instance.symbolId);
-        if (
-          descriptor
-            ? !descriptor.ports.some((port) => port.supply === action.supply)
-            : deviceDescriptor(instance.symbolId) !== undefined
-        )
-          throw new ActionCompileError(
-            index,
-            action.kind,
-            `instance "${instance.reference ?? instance.id}" has no ${action.supply} supply to choose`,
-          );
-        const net =
-          action.net === null
-            ? null
-            : resolveNet(document, index, action.kind, action.net);
-        pushEdit(index, action.kind, {
-          kind: "set_property_terminal_net",
-          instanceId: instance.id,
-          pinName: action.supply,
-          netId: net?.id ?? null,
-        });
-        break;
-      }
-      case "set-source-control": {
-        const instance = resolveInstance(
-          document,
-          index,
-          action.kind,
-          action.target,
-        );
-        pushEdit(index, action.kind, {
-          kind: "set_instance_netlist",
-          instanceId: instance.id,
-          netlist: {
-            ...(instance.netlist?.binding
-              ? { binding: instance.netlist.binding }
-              : {}),
-            parameters: { ...(instance.netlist?.parameters ?? {}) },
-            ...(action.control ? { control: action.control } : {}),
+      case "mirror":
+        pushProperties(
+          resolveInstance(document, index, action.kind, action.target),
+          {
+            placement: action.axis
+              ? { reflect: action.axis }
+              : { mirror: action.mirror! },
           },
+        );
+        break;
+      case "set-orientation":
+        pushProperties(
+          resolveInstance(document, index, action.kind, action.target),
+          {
+            placement: {
+              ...(action.rotation !== undefined
+                ? { rotation: action.rotation }
+                : {}),
+              ...(action.mirror !== undefined ? { mirror: action.mirror } : {}),
+            },
+          },
+        );
+        break;
+      case "set-reference":
+        pushProperties(
+          resolveInstance(document, index, action.kind, action.target),
+          { reference: action.reference },
+        );
+        break;
+      case "set-property":
+        pushProperties(
+          resolveInstance(document, index, action.kind, action.target),
+          {
+            parameters: {
+              ...(action.set ? { set: action.set } : {}),
+              ...(action.unset ? { unset: action.unset } : {}),
+            },
+          },
+        );
+        break;
+      case "set-signal-flow": {
+        const { kind: _kind, target, ...signalFlow } = action;
+        pushProperties(resolveInstance(document, index, action.kind, target), {
+          signalFlow,
         });
         break;
       }
+      case "set-block-supply":
+        pushProperties(
+          resolveInstance(document, index, action.kind, action.target),
+          {
+            supplies: {
+              [action.supply]:
+                action.net === null
+                  ? null
+                  : resolveNet(document, index, action.kind, action.net).id,
+            },
+          },
+        );
+        break;
+      case "set-source-control":
+        pushProperties(
+          resolveInstance(document, index, action.kind, action.target),
+          { control: action.control },
+        );
+        break;
       case "add-label":
-        transactions.push({
-          form: "command",
-          command: compileAddLabel(index, action, document, allocateId),
-          actionKinds: [action.kind],
-        });
+        pushCommand(compileAddLabel(index, action, document, allocateId));
         break;
       case "edit-text": {
-        const annotation =
-          action.target.kind === "annotation"
-            ? document.annotations.find(
-                (entry) =>
-                  entry.id === (action.target.id ?? action.target.name),
-              )
-            : undefined;
-        if (
-          annotation?.kind === "net-label" ||
-          annotation?.kind === "power-label"
-        ) {
-          transactions.push({
-            form: "command",
-            actionKinds: [action.kind],
-            command: {
+        const id = action.target.id ?? action.target.name ?? "";
+        if (action.target.kind === "annotation") {
+          const annotation = resolveByIdOrName(
+            index,
+            action.kind,
+            "annotation",
+            document.annotations.map((entry) => ({
+              id: String(entry.id),
+              entry,
+            })),
+            { id },
+          ).entry;
+          if (
+            annotation.kind === "net-label" ||
+            annotation.kind === "power-label"
+          ) {
+            pushCommand({
               kind: "set-net-label",
               annotationId: String(annotation.id),
               netId: String(annotation.netId),
               text: richText(action.text),
-            },
+            });
+            break;
+          }
+          pushCommand({
+            kind: "set-text",
+            target: { kind: "annotation", id: String(annotation.id) },
+            text: action.text,
           });
           break;
         }
-        compileEditText(index, action, document, pushEdit);
+        const drafting = resolveByIdOrName(
+          index,
+          action.kind,
+          "drafting object",
+          document.drafting,
+          { id },
+        );
+        pushCommand({
+          kind: "set-text",
+          target: { kind: "drafting", id: drafting.id },
+          text: action.text,
+        });
         break;
       }
       case "annotate":
-        pushEdit(index, action.kind, {
-          kind: "upsert_drafting_object",
-          object: createDraftText({
-            id: allocateId("text"),
-            position: action.position,
-            content: action.text,
-            alignment: action.alignment,
-            rotation: action.rotation,
-          }),
+        pushCommand({
+          kind: "add-text",
+          id: allocateId("text"),
+          position: action.position,
+          text: action.text,
+          ...(action.alignment ? { alignment: action.alignment } : {}),
+          ...(action.rotation !== undefined
+            ? { rotation: action.rotation }
+            : {}),
         });
         break;
-      case "arrange": {
-        const instanceIds = action.instances.map(
-          (ref) => resolveInstance(document, index, action.kind, ref).id,
-        );
-        if (new Set(instanceIds).size !== instanceIds.length) {
-          throw new ActionCompileError(
-            index,
-            action.kind,
-            "instances must be distinct",
-          );
-        }
-        pushEdit(index, action.kind, {
-          kind: "align_instances",
-          instanceIds,
+      case "arrange":
+        pushCommand({
+          kind: "arrange-instances",
+          instanceIds: action.instances.map(
+            (ref) => resolveInstance(document, index, action.kind, ref).id,
+          ),
           axis: action.axis,
           ...(action.coordinate !== undefined
             ? { coordinate: action.coordinate }
             : {}),
         });
         break;
-      }
       case "delete":
-        compileDelete(index, action, document, pushEdit);
+        pushDelete(resolveDeletion(index, action, document));
         break;
-      case "set-orientation": {
-        const instance = resolveInstance(
-          document,
-          index,
-          action.kind,
-          action.target,
-        );
-        if (action.rotation !== undefined)
-          pushEdit(index, action.kind, {
-            kind: "rotate_instance",
-            instanceId: instance.id,
-            rotation: action.rotation,
-          });
-        if (action.mirror !== undefined)
-          pushEdit(index, action.kind, {
-            kind: "mirror_instance",
-            instanceId: instance.id,
-            mirror: action.mirror,
-          });
-        if (instance.orientation)
-          instance.orientation = {
-            rotation: (action.rotation ??
-              instance.orientation.rotation) as Orientation["rotation"],
-            mirror: action.mirror ?? instance.orientation.mirror,
-          };
-        break;
-      }
-      case "set-signal-flow": {
-        const instance = resolveInstance(
-          document,
-          index,
-          action.kind,
-          action.target,
-        );
-        const parameters = signalFlowChange(
-          index,
-          action.kind,
-          instance,
-          action,
-        );
-        pushEdit(index, action.kind, {
-          kind: "set_instance_signal_flow_parameters",
-          instanceId: instance.id,
-          parameters,
-        });
-        // A later action in this call sees the change.
-        if (parameters) instance.signalFlowParameters = parameters;
-        else delete instance.signalFlowParameters;
-        break;
-      }
       default: {
         // Every action compiles to something: a kind left out here was once
         // dropped from a mixed call without a word.
@@ -1381,67 +1288,6 @@ function mirroredPlacement(
   return { position, ...orientation };
 }
 
-/** One catalog entry, or undefined for a part outside the reviewed catalog. */
-function catalogEntry(symbolId: string) {
-  return agentRazaviAuthoringCatalog.symbols.find(
-    (symbol) => symbol.symbolId === symbolId,
-  );
-}
-
-/**
- * The signal-flow parameters set-signal-flow leaves: null clears a field,
- * a value replaces it, and the formula's authored look goes with a new
- * formula, as in the Properties formula. Null when nothing is left.
- */
-function signalFlowChange(
-  index: number,
-  kind: string,
-  instance: SnapshotInstance,
-  action: Extract<AuthoringAction, { kind: "set-signal-flow" }>,
-): z.infer<typeof SignalFlowParametersSchema> | null {
-  const entry = catalogEntry(instance.symbolId);
-  if (!entry?.formula)
-    throw new ActionCompileError(
-      index,
-      kind,
-      `${instance.reference ?? instance.id} (${instance.symbolId}) draws no formula`,
-    );
-  if (action.coefficient && !entry.coefficient)
-    throw new ActionCompileError(
-      index,
-      kind,
-      `${instance.symbolId} draws no coefficient`,
-    );
-  const next: Record<string, unknown> = {
-    ...(instance.signalFlowParameters ?? {}),
-  };
-  for (const key of [
-    "formula",
-    "coefficient",
-    "bodyWidth",
-    "bodyHeight",
-  ] as const) {
-    if (!(key in action)) continue;
-    const value = action[key];
-    if (value === null || value === undefined) delete next[key];
-    else next[key] = value;
-  }
-  if (next.formula !== instance.signalFlowParameters?.formula)
-    delete next.formulaFormat;
-  if (!next.formula) delete next.formulaFormat;
-  if (
-    JSON.stringify(next) === JSON.stringify(instance.signalFlowParameters ?? {})
-  )
-    throw new ActionCompileError(
-      index,
-      kind,
-      "the block already shows this; nothing to change",
-    );
-  return Object.keys(next).length
-    ? (next as z.infer<typeof SignalFlowParametersSchema>)
-    : null;
-}
-
 function validateActionParameters(
   index: number,
   kind: string,
@@ -1626,45 +1472,6 @@ function compileConnect(
     action.kind,
     connectIntent(action, anchorFor(from), anchorFor(to), allocateId),
   );
-}
-
-function compileDisconnect(
-  index: number,
-  action: ActionOfKind<"disconnect">,
-  document: ResolvedDocument,
-  pushEdit: PushEdit,
-): void {
-  if (action.target.kind === "pin") {
-    const instance = resolveInstance(document, index, action.kind, {
-      kind: "instance",
-      ...(typeof action.target.instance === "string"
-        ? { reference: action.target.instance }
-        : action.target.instance),
-    });
-    requirePin(index, action.kind, instance, action.target.pin);
-    if (
-      action.target.pin === "P" &&
-      document.cellTerminalInstanceIds.has(instance.id)
-    )
-      throw new ActionCompileError(
-        index,
-        action.kind,
-        "A formal Cell Pin's P pin cannot be disconnected; use remove-cell-terminal or delete-selection instead",
-      );
-    pushEdit(index, action.kind, {
-      kind: "disconnect_endpoint",
-      endpoint: terminalEndpoint(instance, action.target.pin),
-    });
-    return;
-  }
-  const route = resolveByIdOrName(
-    index,
-    action.kind,
-    "route",
-    document.routes,
-    { id: action.target.route },
-  );
-  pushEdit(index, action.kind, { kind: "cut_connection", routeId: route.id });
 }
 
 /**
@@ -1879,106 +1686,17 @@ function compileAddLabel(
   };
 }
 
-function compileEditText(
-  index: number,
-  action: ActionOfKind<"edit-text">,
-  document: ResolvedDocument,
-  pushEdit: PushEdit,
-): void {
-  const contentUpdate = (previous: unknown): RichTextDocument => {
-    if (typeof action.text !== "string") return action.text;
-    const rewritten = rewriteRichTextContent(
-      previous as RichTextDocument,
-      action.text,
-    );
-    if (!rewritten)
-      throw new ActionCompileError(
-        index,
-        action.kind,
-        "This text contains a formula or fraction; supply explicit RichText to replace it without losing its structure",
-      );
-    return rewritten;
-  };
-  const reference = action.target.id ?? action.target.name ?? "";
-  if (action.target.kind === "annotation") {
-    const annotation = resolveByIdOrName(
-      index,
-      action.kind,
-      "annotation",
-      document.annotations.map((entry) => ({ id: String(entry.id), entry })),
-      { id: reference },
-    );
-    const { resolvedText, content: _content, ...source } = annotation.entry;
-    const nextText = richText(action.text);
-    if (source.binding) {
-      if (
-        typeof resolvedText !== "string" ||
-        flattenRichText(nextText) !== resolvedText
-      ) {
-        throw new ActionCompileError(
-          index,
-          action.kind,
-          "bound labels can only be restyled with edit-text; change their underlying name or value through its owning object",
-        );
-      }
-      // A same-text string is content-only, not an explicit format override.
-      if (typeof action.text === "string") {
-        return;
-      }
-      pushEdit(index, action.kind, {
-        kind: "upsert_schematic_annotation",
-        annotation: { ...source, formatOverride: nextText },
-      });
-      return;
-    }
-    if (
-      typeof action.text === "string" &&
-      flattenRichText(_content as RichTextDocument) === action.text
-    )
-      return;
-    pushEdit(index, action.kind, {
-      kind: "upsert_schematic_annotation",
-      annotation: {
-        ...source,
-        content: contentUpdate(_content),
-      },
-    });
-    return;
-  }
-  const drafting = resolveByIdOrName(
-    index,
-    action.kind,
-    "drafting object",
-    document.drafting.map((entry) => ({ id: entry.id, object: entry.object })),
-    { id: reference },
-  );
-  if (drafting.object.kind !== "text") {
-    throw new ActionCompileError(
-      index,
-      action.kind,
-      `drafting object "${drafting.id}" is a ${String(drafting.object.kind)}, not text`,
-    );
-  }
-  if (
-    typeof action.text === "string" &&
-    flattenRichText(drafting.object.content as RichTextDocument) === action.text
-  )
-    return;
-  pushEdit(index, action.kind, {
-    kind: "upsert_drafting_object",
-    object: {
-      ...drafting.object,
-      content: contentUpdate(drafting.object.content),
-    },
-  });
-}
+type DeleteSelection = Extract<
+  AgentAuthoringCommand,
+  { kind: "delete-selection" }
+>["selection"];
 
-function compileDelete(
+/** The object a delete action names, as a selection to delete. */
+function resolveDeletion(
   index: number,
   action: ActionOfKind<"delete">,
   document: ResolvedDocument,
-  pushEdit: PushEdit,
-): void {
+): Partial<DeleteSelection> {
   const reference =
     action.target.id ??
     (action.target.kind === "instance"
@@ -1986,94 +1704,78 @@ function compileDelete(
       : action.target.name) ??
     "";
   switch (action.target.kind) {
-    case "instance": {
-      const instance = resolveInstance(document, index, action.kind, {
-        kind: "instance",
-        ...(action.target.id
-          ? { id: action.target.id }
-          : { reference: action.target.reference }),
-      });
-      pushEdit(index, action.kind, {
-        kind: "remove_instance",
-        instanceId: instance.id,
-      });
-      return;
-    }
+    case "instance":
+      return {
+        instanceIds: [
+          resolveInstance(document, index, action.kind, {
+            kind: "instance",
+            ...(action.target.id
+              ? { id: action.target.id }
+              : { reference: action.target.reference }),
+          }).id,
+        ],
+      };
     case "net":
       throw new ActionCompileError(
         index,
         action.kind,
         "a Net is derived from connectivity; disconnect its terminals/routes instead",
       );
-    case "route": {
-      const route = resolveByIdOrName(
-        index,
-        action.kind,
-        "route",
-        document.routes,
-        { id: reference },
-      );
-      pushEdit(index, action.kind, {
-        kind: "cut_connection",
-        routeId: route.id,
-      });
-      return;
-    }
-    case "junction": {
-      const junction = resolveByIdOrName(
-        index,
-        action.kind,
-        "junction",
-        document.junctions,
-        { id: reference },
-      );
-      pushEdit(index, action.kind, {
-        kind: "remove_junction",
-        junctionId: junction.id,
-      });
-      return;
-    }
-    case "annotation": {
-      const annotation = resolveByIdOrName(
-        index,
-        action.kind,
-        "annotation",
-        document.annotations.map((entry) => ({ id: String(entry.id) })),
-        { id: reference },
-      );
-      pushEdit(index, action.kind, {
-        kind: "remove_schematic_annotation",
-        annotationId: annotation.id,
-      });
-      return;
-    }
-    case "drafting": {
-      const drafting = resolveByIdOrName(
-        index,
-        action.kind,
-        "drafting object",
-        document.drafting,
-        { id: reference },
-      );
-      pushEdit(index, action.kind, {
-        kind: "remove_drafting_object",
-        objectId: drafting.id,
-      });
-      return;
-    }
-    case "no-connect": {
-      const noConnect = resolveByIdOrName(
-        index,
-        action.kind,
-        "no-connect",
-        document.noConnects,
-        { id: reference },
-      );
-      pushEdit(index, action.kind, {
-        kind: "remove_no_connect",
-        noConnectId: noConnect.id,
-      });
-      return;
-    }
+    case "route":
+      return {
+        routeIds: [
+          resolveByIdOrName(index, action.kind, "route", document.routes, {
+            id: reference,
+          }).id,
+        ],
+      };
+    case "junction":
+      return {
+        junctionIds: [
+          resolveByIdOrName(
+            index,
+            action.kind,
+            "junction",
+            document.junctions,
+            { id: reference },
+          ).id,
+        ],
+      };
+    case "annotation":
+      return {
+        annotationIds: [
+          resolveByIdOrName(
+            index,
+            action.kind,
+            "annotation",
+            document.annotations.map((entry) => ({ id: String(entry.id) })),
+            { id: reference },
+          ).id,
+        ],
+      };
+    case "drafting":
+      return {
+        draftingIds: [
+          resolveByIdOrName(
+            index,
+            action.kind,
+            "drafting object",
+            document.drafting,
+            { id: reference },
+          ).id,
+        ],
+      };
+    case "no-connect":
+      return {
+        noConnectIds: [
+          resolveByIdOrName(
+            index,
+            action.kind,
+            "no-connect",
+            document.noConnects,
+            { id: reference },
+          ).id,
+        ],
+      };
   }
 }

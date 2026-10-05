@@ -1,13 +1,12 @@
-import { useEffect, useRef, useState } from "react";
-import { InlineConfirm } from "./inline-confirm";
+import { useEffect, useState } from "react";
 import "../styles/gallery-entry.css";
 import "../styles/moderation.css";
 
-import { announceGalleryChange, galleryPreviewUrl } from "../gallery-client";
+import { announceGalleryChange } from "../gallery-client";
 import { fetchSessionUser, type SessionUser } from "./account";
+import { EntryCard } from "./entry-card";
 import { GalleryChrome } from "./gallery-chrome";
 import { Masonry } from "./masonry";
-import { TilePreview } from "./tile-preview";
 
 /** Post-publication curation. Operational maintenance belongs in scripts. */
 type ModerationState =
@@ -38,127 +37,6 @@ interface ModerationEntry {
   reviewedAt?: string | null;
 }
 
-function EntryMenu({
-  entry,
-  kind,
-  disabled,
-  onAction,
-}: {
-  entry: ModerationEntry;
-  kind: CollectionKind;
-  disabled: boolean;
-  onAction: (action: EntryAction) => void;
-}) {
-  const ref = useRef<HTMLDetailsElement>(null);
-  const [open, setOpen] = useState(false);
-  const prefix = kind === "rejected" ? "rejected" : "bin";
-  useEffect(() => {
-    if (!open) return;
-    const outside = (event: PointerEvent) => {
-      if (!ref.current?.contains(event.target as Node)) {
-        ref.current?.removeAttribute("open");
-      }
-    };
-    document.addEventListener("pointerdown", outside);
-    return () => document.removeEventListener("pointerdown", outside);
-  }, [open]);
-  const act = (action: EntryAction) => {
-    ref.current?.removeAttribute("open");
-    ref.current?.querySelector("summary")?.focus();
-    onAction(action);
-  };
-  return (
-    <details
-      ref={ref}
-      name="moderation-entry-actions"
-      className="moderation-entry-menu"
-      data-testid={`${prefix}-menu-${entry.id}`}
-      onToggle={(event) => setOpen(event.currentTarget.open)}
-      onKeyDown={(event) => {
-        const details = ref.current;
-        if (!details) return;
-        if (event.key === "Escape") {
-          details.open = false;
-          details.querySelector("summary")?.focus();
-          event.preventDefault();
-        } else if (
-          ["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)
-        ) {
-          event.preventDefault();
-          details.open = true;
-          const buttons = [
-            ...details.querySelectorAll<HTMLButtonElement>(
-              "button:not(:disabled)",
-            ),
-          ];
-          const current = buttons.indexOf(
-            document.activeElement as HTMLButtonElement,
-          );
-          const next =
-            event.key === "Home"
-              ? 0
-              : event.key === "End"
-                ? buttons.length - 1
-                : current < 0
-                  ? event.key === "ArrowUp"
-                    ? buttons.length - 1
-                    : 0
-                  : (current +
-                      (event.key === "ArrowUp" ? -1 : 1) +
-                      buttons.length) %
-                    buttons.length;
-          buttons[next]?.focus();
-        }
-      }}
-    >
-      <summary
-        aria-label={`Actions for ${entry.name}`}
-        title={`Actions for ${entry.name}`}
-        aria-haspopup="menu"
-      >
-        ⋯
-      </summary>
-      <div
-        className="moderation-entry-popover"
-        data-inline-confirm-menu
-        role="menu"
-        aria-label={`Actions for ${entry.name}`}
-      >
-        <button
-          type="button"
-          role="menuitem"
-          disabled={disabled}
-          data-testid={`${prefix}-restore-${entry.id}`}
-          onClick={() => act("restore")}
-        >
-          Restore to Gallery
-        </button>
-        {kind === "recycled" ? (
-          <InlineConfirm
-            role="menuitem"
-            disabled={disabled}
-            className="moderation-delete"
-            data-testid={`${prefix}-delete-${entry.id}`}
-            onConfirm={() => act("delete")}
-          >
-            Delete forever
-          </InlineConfirm>
-        ) : (
-          <button
-            type="button"
-            role="menuitem"
-            disabled={disabled}
-            data-testid={`${prefix}-recycle-${entry.id}`}
-            onClick={() => act("recycle")}
-          >
-            Move to recycle bin
-          </button>
-        )}
-      </div>
-    </details>
-  );
-}
-
 function ModerationCollection({
   kind,
   refreshVersion,
@@ -176,6 +54,7 @@ function ModerationCollection({
     message: string;
   } | null>(null);
   const [retry, setRetry] = useState(0);
+  const [notice, setNotice] = useState<string | null>(null);
   const rejected = kind === "rejected";
   const prefix = rejected ? "rejected" : "bin";
 
@@ -205,28 +84,46 @@ function ModerationCollection({
     if (busy) return;
     setBusy(id);
     setActionError(null);
-    try {
-      const response = await fetch(
-        action === "delete"
-          ? `/api/gallery/${id}`
-          : `/api/gallery/${id}/${action}`,
-        {
-          method: action === "delete" ? "DELETE" : "POST",
-          credentials: "same-origin",
-        },
-      );
-      if (!response.ok)
-        throw new Error("Could not update this entry. Please try again.");
+    setNotice(null);
+    const call = (path: string, method: "POST" | "DELETE") =>
+      fetch(path, { method, credentials: "same-origin" });
+    const gone = () => {
       setEntries(
         (current) => current?.filter((entry) => entry.id !== id) ?? null,
       );
       announceGalleryChange({ entryId: id });
       onChanged();
+    };
+    let binned = false;
+    try {
+      // Only what is in the bin can be deleted, so a rejected circuit goes
+      // there first: one click either way.
+      if (action === "delete" && rejected) {
+        if (!(await call(`/api/gallery/${id}/recycle`, "POST")).ok)
+          throw new Error("Could not move this entry to the bin.");
+        binned = true;
+      }
+      const response = await call(
+        action === "delete"
+          ? `/api/gallery/${id}`
+          : `/api/gallery/${id}/${action}`,
+        action === "delete" ? "DELETE" : "POST",
+      );
+      if (!response.ok)
+        throw new Error("Could not update this entry. Please try again.");
+      gone();
     } catch {
-      setActionError({
-        id,
-        message: "Could not update this entry. Please try again.",
-      });
+      if (binned) {
+        gone();
+        setNotice(
+          "Moved to the recycle bin, but deleting it failed. Delete it from the bin.",
+        );
+      } else {
+        setActionError({
+          id,
+          message: "Could not update this entry. Please try again.",
+        });
+      }
     } finally {
       setBusy(null);
     }
@@ -246,6 +143,11 @@ function ModerationCollection({
           <span className="moderation-count">{entries.length}</span>
         ) : null}
       </header>
+      {notice ? (
+        <p className="moderation-load-error" role="alert">
+          {notice}
+        </p>
+      ) : null}
       {loadError ? (
         <p className="moderation-load-error" role="alert">
           Could not load {rejected ? "rejected entries" : "the recycle bin"}.{" "}
@@ -274,58 +176,67 @@ function ModerationCollection({
             return {
               key: entry.id,
               node: (
-                <article
-                  className="moderation-card"
-                  data-testid={`${prefix}-card-${entry.id}`}
-                  aria-busy={busy === entry.id}
-                >
-                  <a
-                    className="moderation-card-open"
-                    href={`/g/${entry.id}`}
-                    data-testid={`${prefix}-open-${entry.id}`}
-                    title={`Open ${entry.name}`}
-                  >
-                    <TilePreview
-                      src={galleryPreviewUrl(entry.id, entry.previewRevision)}
-                      alt={`Preview of ${entry.name}`}
-                      {...(entry.previewWidth === undefined
-                        ? {}
-                        : { width: entry.previewWidth })}
-                      {...(entry.previewHeight === undefined
-                        ? {}
-                        : { height: entry.previewHeight })}
-                    />
-                    <h3>{entry.name}</h3>
-                  </a>
-                  {rejected && entry.rejectReason ? (
-                    <p className="moderation-card-reason">
-                      {entry.rejectReason}
-                    </p>
-                  ) : null}
-                  <footer className="moderation-card-footer">
-                    <span className="moderation-card-date">
-                      {date ? (
-                        <time
-                          dateTime={date}
-                          title={new Date(date).toLocaleString()}
+                <EntryCard
+                  entry={entry}
+                  status={rejected ? "rejected" : "recycled"}
+                  date={date}
+                  busy={busy === entry.id}
+                  testId={`${prefix}-card-${entry.id}`}
+                  openTestId={`${prefix}-open-${entry.id}`}
+                  actions={
+                    // Every action at hand, one click each, without a menu or
+                    // a second question: restoring and recycling undo each
+                    // other, and deleting is the Owner's own call.
+                    <>
+                      <button
+                        type="button"
+                        className="entry-action"
+                        disabled={busy !== null}
+                        data-testid={`${prefix}-restore-${entry.id}`}
+                        onClick={() => void act(entry.id, "restore")}
+                      >
+                        Restore
+                      </button>
+                      {rejected ? (
+                        <button
+                          type="button"
+                          className="entry-action"
+                          disabled={busy !== null}
+                          data-testid={`${prefix}-recycle-${entry.id}`}
+                          onClick={() => void act(entry.id, "recycle")}
                         >
-                          {new Date(date).toLocaleDateString()}
-                        </time>
+                          Recycle
+                        </button>
                       ) : null}
-                    </span>
-                    <EntryMenu
-                      entry={entry}
-                      kind={kind}
-                      disabled={busy !== null}
-                      onAction={(action) => void act(entry.id, action)}
-                    />
-                  </footer>
-                  {actionError?.id === entry.id ? (
-                    <p className="moderation-card-error" role="alert">
-                      {actionError.message}
-                    </p>
-                  ) : null}
-                </article>
+                      <button
+                        type="button"
+                        className="entry-action entry-action-danger"
+                        disabled={busy !== null}
+                        data-testid={`${prefix}-delete-${entry.id}`}
+                        onClick={() => void act(entry.id, "delete")}
+                      >
+                        Delete
+                      </button>
+                    </>
+                  }
+                  notes={
+                    <>
+                      {rejected && entry.rejectReason ? (
+                        <p className="entry-card-note">
+                          Reason: {entry.rejectReason}
+                        </p>
+                      ) : null}
+                      {actionError?.id === entry.id ? (
+                        <p
+                          className="entry-card-note entry-card-error"
+                          role="alert"
+                        >
+                          {actionError.message}
+                        </p>
+                      ) : null}
+                    </>
+                  }
+                />
               ),
             };
           })}
@@ -335,9 +246,32 @@ function ModerationCollection({
   );
 }
 
+/** What the gallery owner reviews, or a moderator's note, wherever shown. */
+export function ModerationContent({ isAdmin }: { isAdmin: boolean }) {
+  const [inventoryVersion, setInventoryVersion] = useState(0);
+  return isAdmin ? (
+    <>
+      <ModerationCollection
+        kind="rejected"
+        refreshVersion={inventoryVersion}
+        onChanged={() => setInventoryVersion((version) => version + 1)}
+      />
+      <ModerationCollection
+        kind="recycled"
+        refreshVersion={inventoryVersion}
+        onChanged={() => setInventoryVersion((version) => version + 1)}
+      />
+    </>
+  ) : (
+    <p className="gallery-status">
+      As a moderator you can edit any circuit from its page and restore its
+      earlier versions. Rejecting and withdrawing stay with the Owner.
+    </p>
+  );
+}
+
 export function Moderation() {
   const [state, setState] = useState<ModerationState>({ status: "loading" });
-  const [inventoryVersion, setInventoryVersion] = useState(0);
   useEffect(() => {
     let cancelled = false;
     void loadModerationAccess().then((next) => {
@@ -366,24 +300,8 @@ export function Moderation() {
               ? "Loading moderation…"
               : "Moderation is for the gallery owner and appointed moderators."}
           </p>
-        ) : state.user.isAdmin ? (
-          <>
-            <ModerationCollection
-              kind="rejected"
-              refreshVersion={inventoryVersion}
-              onChanged={() => setInventoryVersion((version) => version + 1)}
-            />
-            <ModerationCollection
-              kind="recycled"
-              refreshVersion={inventoryVersion}
-              onChanged={() => setInventoryVersion((version) => version + 1)}
-            />
-          </>
         ) : (
-          <p className="gallery-status">
-            Withdraw an entry from its page; the owner and the admin can bring
-            it back.
-          </p>
+          <ModerationContent isAdmin={state.user.isAdmin} />
         )}
       </div>
     </main>

@@ -437,18 +437,18 @@
   background: color-mix(in srgb, var(--icm-accent) 7%, transparent);
 }
 /* The live netlist takes the room the dock has. Its code area grows with the
-   netlist — ten lines at least — and stops growing only where the controls
-   under it begin, rather than at a share of the window that leaves the panel
-   half empty on a tall screen and scrolls on a short one. */
+   netlist as far as the dock allows. The controls and findings under it may
+   take the rest, but never squeeze it below the netlist's first thirty lines
+   (ten at least): the dock scrolls instead. */
 .netlist-live-code {
   display: flex;
   flex-direction: column;
   min-height: 100%;
 }
 .netlist-code-viewport {
-  /* As tall as the netlist, as far as the dock allows, ten lines at least. */
   flex: 0 1 var(--netlist-editor-height);
-  min-height: 214px;
+  /* Ten lines are 214px and thirty 598px, at the editor's 19.2px line. */
+  min-height: clamp(214px, var(--netlist-editor-height), 598px);
 }
 .netlist-code-viewport > .project-source-editor,
 .netlist-code-viewport > textarea {
@@ -1149,6 +1149,27 @@
   text-underline-offset: 0.15rem;
 }
 
+/* A narrower window hides the bar's least needed links whole; the zoom
+   controls always stay. */
+@media (max-width: 760px) {
+  .statusbar-analytics,
+  .statusbar-change-log:not(.statusbar-privacy) {
+    display: none;
+  }
+}
+
+@media (max-width: 560px) {
+  .statusbar-privacy {
+    display: none;
+  }
+}
+
+@media (max-width: 420px) {
+  .statusbar-hints-toggle {
+    display: none;
+  }
+}
+
 /* Root crash screen shown by the editor error boundary. */
 .editor-crash-screen {
   display: grid;
@@ -1480,9 +1501,7 @@
 }
 
 .app-chrome-actions .account-name,
-.app-chrome-actions .account-signout,
-.app-chrome-actions .account-signin > summary,
-.app-chrome-actions .account-link {
+.app-chrome-actions .account-signin > summary {
   box-sizing: border-box;
   display: inline-flex;
   align-items: center;
@@ -1500,9 +1519,7 @@
 }
 
 .app-chrome-actions .account-name:hover,
-.app-chrome-actions .account-signout:hover,
-.app-chrome-actions .account-signin > summary:hover,
-.app-chrome-actions .account-link:hover {
+.app-chrome-actions .account-signin > summary:hover {
   background: var(--icm-surface-hover);
 }
 
@@ -1529,15 +1546,29 @@
   .app-chrome-actions .app-action-label {
     display: none;
   }
+
+  /* A name is shown whole or not at all: here the round mark alone keeps
+     the account one tap away. */
+  .app-chrome-actions .account-name {
+    max-width: none;
+    padding-inline: 4px;
+    font-size: 0;
+  }
+
+  .app-chrome-actions .account-name::before {
+    margin-right: 0;
+    font-size: 11px;
+  }
 }
 
-/* Keep the complete header usable on a phone: turn Gallery into its icon,
-   keep the three menus compact, and leave the Z mark at the viewport edge. */
+/* Keep the complete header usable on a phone. A narrower window hides
+   things whole, least needed first; it never shrinks the menus' type, never
+   cuts a name short, and keeps the row's margins. */
 @media (max-width: 560px) {
   .app-chrome-main {
     flex-wrap: nowrap;
     gap: 4px;
-    padding-inline: 4px;
+    padding-inline: var(--icm-space-2);
   }
 
   .app-chrome-main .app-brand {
@@ -1567,18 +1598,24 @@
   .app-chrome-main .command-menu summary,
   .app-chrome-main .project-menu > summary {
     padding-inline: 2px;
-    font-size: var(--icm-font-xs);
   }
 
   .app-chrome-main .app-action-primary {
     padding-inline: 8px;
   }
+}
 
-  .app-chrome-main .account-more > summary {
-    padding-inline: 4px;
+/* The logo opens the Gallery too, so its own button goes first. */
+@media (max-width: 420px) {
+  .app-chrome-main .header-gallery-link {
+    display: none;
   }
+}
 
-  .app-chrome-actions .account-name {
+/* The menus keep their names; only the arrows after them go. */
+@media (max-width: 380px) {
+  .app-chrome-main .command-menu summary::after,
+  .app-chrome-main .project-menu > summary::after {
     display: none;
   }
 }
@@ -1586,16 +1623,11 @@
 @media (max-width: 360px) {
   .app-chrome-main {
     gap: 2px;
-    padding-inline: 2px;
   }
 
   .app-chrome-main .app-brand-mark {
     width: 18px;
     height: 18px;
-  }
-
-  .app-chrome-main .header-gallery-link {
-    display: none;
   }
 
   .app-chrome-main .app-action-primary {
@@ -1606,58 +1638,44 @@
     width: 2rem;
   }
 
-  .app-chrome-actions .account-more > summary {
-    padding-inline: 2px;
-  }
-
   .app-chrome-actions .tokenzhang-link-icon {
     width: 14px;
     height: 14px;
   }
 }
 
-/* The account (or Sign in) widens the right side. Its role chip yields
-   first, then the long publish label and the name's width, so the actions
-   never run under the account. */
-@media (max-width: 1320px) {
-  .app-chrome-actions:has(.account-menu, .account-signin) .account-owner-badge {
+/* Narrower than any phone, the Z mark and then the Agent button give way. */
+@media (max-width: 315px) {
+  .app-chrome-actions .tokenzhang-credit {
     display: none;
   }
 }
 
+@media (max-width: 296px) {
+  .app-chrome-actions .app-action-agent {
+    display: none;
+  }
+}
+
+/* The account (or Sign in) widens the right side, so the long publish
+   label yields to it; the actions never run under the account. */
 @media (max-width: 1020px) {
   .app-chrome:has(.app-chrome-actions :is(.account-menu, .account-signin))
     .publish-label-long {
     display: none;
   }
-
-  .app-chrome-actions .account-name {
-    max-width: 7rem;
-  }
 }
 
-.app-chrome-actions .account-signin,
-.app-chrome-actions .account-more {
+.app-chrome-actions .account-signin {
   position: relative;
 }
 
-.app-chrome-actions .account-signin > summary,
-.app-chrome-actions .account-more > summary {
+.app-chrome-actions .account-signin > summary {
   list-style: none;
 }
 
-.app-chrome-actions .account-signin > summary::-webkit-details-marker,
-.app-chrome-actions .account-more > summary::-webkit-details-marker {
+.app-chrome-actions .account-signin > summary::-webkit-details-marker {
   display: none;
-}
-
-.app-chrome-actions .account-more > summary {
-  display: inline-flex;
-  align-items: center;
-  min-height: var(--icm-control-h);
-  padding: 0 var(--icm-space-2);
-  border-radius: var(--icm-radius-sm);
-  cursor: pointer;
 }
 
 .app-chrome-actions .account-signin-panel,
@@ -1684,12 +1702,6 @@
   border-radius: 12px;
 }
 
-.app-chrome-actions .account-owner-badge {
-  color: var(--icm-accent);
-  font-size: var(--icm-font-xs);
-  font-weight: 700;
-}
-
 .app-chrome-actions .account-menu-identity {
   display: grid;
   gap: 4px;
@@ -1701,14 +1713,6 @@
   overflow-wrap: anywhere;
   font-size: var(--icm-font-sm);
   font-weight: 650;
-}
-
-.app-chrome-actions .account-rename-input {
-  width: 10rem;
-  min-height: var(--icm-control-h);
-  border: 1px solid var(--icm-accent);
-  border-radius: var(--icm-radius-sm);
-  font: inherit;
 }
 
 /* After a publish or an update: what reached the Gallery, and a way to it. */

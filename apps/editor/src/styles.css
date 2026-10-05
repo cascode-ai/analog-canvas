@@ -528,28 +528,16 @@ body {
   }
 
   .gallery-actions .account-name {
-    /* Wide enough for an ordinary two-part display name; the header still
-       holds one row at this width. Anything longer ellipsizes, which only
-       works because the chip stays out of the row's shared flex rule. */
-    max-width: 10rem;
+    /* Wide enough for an ordinary two-part display name beside its round
+       mark; the header still holds one row at this width. Anything longer
+       ellipsizes, which only works because the chip stays out of the row's
+       shared flex rule. */
+    max-width: 11.75rem;
   }
 }
 
-/* Narrower still, stop squeezing one row: the chrome wraps into brand and
-   action rows with breathing room. */
-@media (max-width: 620px) {
-  .gallery-chrome {
-    flex-wrap: wrap;
-    height: auto;
-    padding-top: 6px;
-    padding-bottom: 6px;
-    row-gap: 6px;
-  }
-
-  .gallery-actions .account-name {
-    max-width: 6.5rem;
-  }
-}
+/* Narrower still the header keeps one row by dropping what it repeats; that
+   rule sits in gallery.css, after the base it overrides. */
 
 /* Visitor analytics entry (compact, does not crowd menubar commands). */
 .analytics-link {

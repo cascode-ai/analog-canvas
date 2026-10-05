@@ -403,7 +403,7 @@ export function EditorAppChrome({
           {agentAction ? (
             <button
               type="button"
-              className="app-action"
+              className="app-action app-action-agent"
               data-testid="open-agent"
               title={agentAction.label}
               aria-label="Agent"
@@ -443,7 +443,7 @@ export function EditorAppChrome({
             </button>
           ) : null}
           {/* Who is signed in, as the Gallery shows it; Sign in otherwise. */}
-          <AccountMenu showGalleryLinks={false} alwaysVisible />
+          <AccountMenu inEditor alwaysVisible />
           {externalLinksEnabled ? (
             <>
               <BugReportLink

@@ -628,6 +628,7 @@ export function runErcChecks(
       diagnostics,
     );
     reportDanglingWires(document, diagnostics);
+    reportNetLabelsNamingNothing(document, diagnostics);
     reportLabelsNamingAnotherPart(document, diagnostics);
     reportShortedTwoPinParts(document, logicalNets, resolver, diagnostics);
     reportNetPiecesJoinedOnlyInData(
@@ -1026,6 +1027,50 @@ function reportNetPiecesJoinedOnlyInData(
         parameters: { netId: record.netId, pieceId: piece.id },
       });
     }
+  }
+}
+
+/**
+ * A Net Label whose Net reaches no pin, wire or Junction names nothing, though
+ * drawn beside a wire it reads as that wire's name: the wire's own Net stays
+ * unnamed. A label pasted away from a wire lands so, as do older drawings;
+ * pasting it onto the wire, or the Net Label tool (L), puts it on its wire.
+ */
+function reportNetLabelsNamingNothing(
+  document: CircuitProject["documents"][number],
+  diagnostics: ErcDiagnostic[],
+): void {
+  const reached = new Set<string>([
+    ...document.nets.flatMap((net) => (net.terminals.length ? [net.id] : [])),
+    ...document.routes.map((route) => route.netId),
+    ...document.junctions.map((junction) => junction.netId),
+  ]);
+  for (const annotation of document.annotations) {
+    if (annotation.kind !== "net-label") continue;
+    const netId =
+      annotation.binding?.kind === "net-name"
+        ? annotation.binding.netId
+        : annotation.netId;
+    if (!netId || reached.has(netId)) continue;
+    const claim = document.connectivityEvidence.find(
+      (evidence) =>
+        evidence.kind === "name-claim" &&
+        evidence.owner.kind === "net-label" &&
+        evidence.owner.annotationId === annotation.id,
+    );
+    const name = claim?.kind === "name-claim" ? claim.name : annotation.id;
+    diagnostics.push({
+      id: `erc:net-label-names-nothing:${document.id}:${annotation.id}`,
+      domain: "erc",
+      code: "ERC_NET_LABEL_NAMES_NOTHING",
+      severity: "warning",
+      confidence: "high",
+      gateEligible: false,
+      message: `Net Label ${name} is on no wire or pin, so it names nothing; paste it onto its wire, or place it there with the Net Label tool (L)`,
+      primary: directObjectLocator(document.id, "annotation", annotation.id),
+      related: [directObjectLocator(document.id, "net", netId)],
+      parameters: { annotationId: annotation.id, netId },
+    });
   }
 }
 

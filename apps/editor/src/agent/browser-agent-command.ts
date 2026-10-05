@@ -30,6 +30,7 @@ import {
   planRemoveCellTerminals,
   planCellSelectionDeletion,
   gateRoutingOperationPlan,
+  createRoutingOperationPlan,
   planEnsureNamedNet,
   planElectricalMarkerRename,
   proposedStandalonePowerConnection,
@@ -42,6 +43,7 @@ import {
 import {
   createCellDocument,
   deriveStableId,
+  routeEnd,
   flattenRichText,
   renamedLabelFormat,
   roleLabelFormat,
@@ -82,6 +84,8 @@ import {
   planProjectCopyPlacement,
 } from "../features/clipboard/project-copy";
 import { planDetachedMove } from "../features/selection/detached-move";
+import { planSetProperties } from "./property-command";
+import { planAddText, planSetText } from "./text-command";
 import {
   planSelectionAlignment,
   type EdgeAlignmentMode,
@@ -316,6 +320,80 @@ export function planBrowserAgentCommand(
   if (!document) throw new Error("Document not found");
   const sequence = document.revision + 1;
   switch (command.kind) {
+    case "set-properties":
+      return planSetProperties(project, document, resolver, command);
+    case "set-text":
+      return planSetText(document, command);
+    case "add-text":
+      return planAddText(command);
+    case "arrange-instances": {
+      for (const instanceId of command.instanceIds)
+        if (!document.instances.some((item) => item.id === instanceId))
+          throw new Error(`Instance not found: ${instanceId}`);
+      if (new Set(command.instanceIds).size !== command.instanceIds.length)
+        throw new Error("instances must be distinct");
+      return {
+        edits: [
+          {
+            kind: "align_instances",
+            instanceIds: [...command.instanceIds],
+            axis: command.axis,
+            ...(command.coordinate !== undefined
+              ? { coordinate: command.coordinate }
+              : {}),
+          },
+        ],
+      };
+    }
+    case "disconnect-pin": {
+      const instance = document.instances.find(
+        (item) => item.id === command.instanceId,
+      );
+      if (!instance)
+        throw new Error(`Instance not found: ${command.instanceId}`);
+      if (
+        command.pinName === "P" &&
+        document.netlist?.terminals.some((terminal) =>
+          terminal.interfaceInstanceIds.includes(instance.id),
+        )
+      )
+        throw new Error(
+          "A formal Cell Pin's P pin cannot be disconnected; use remove-cell-terminal or delete-selection instead",
+        );
+      // The pin's own menu: Delete connection where wires end on it (a wire
+      // cannot keep an end on a pin that left its Net), Disconnect endpoint
+      // where none does.
+      const endpoint = {
+        kind: "terminal" as const,
+        instanceId: instance.id,
+        pinName: command.pinName,
+      };
+      const wires = document.routes.filter((route) =>
+        [route.start, routeEnd(route)].some(
+          (end) =>
+            end.kind === "terminal" &&
+            end.instanceId === instance.id &&
+            end.pinName === command.pinName,
+        ),
+      );
+      const gate = gateRoutingOperationPlan(
+        document,
+        createRoutingOperationPlan(document, {
+          intent: "cut",
+          edits: [
+            ...wires.map((route): SchematicEdit => ({
+              kind: "remove_route_geometry",
+              routeId: route.id,
+            })),
+            { kind: "disconnect_endpoint", endpoint },
+          ],
+          diagnostics: [],
+        }),
+        { symbolResolver: resolver },
+      );
+      if (!gate.ok) throw new Error(gate.message);
+      return { edits: [...gate.edits] };
+    }
     case "move-junction": {
       const junction = document.junctions.find(
         (item) => item.id === command.junctionId,

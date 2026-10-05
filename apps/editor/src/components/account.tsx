@@ -42,7 +42,7 @@ const sessionRequests = new WeakMap<
   { expiresAt: number; request: Promise<SessionUser | null> }
 >();
 
-function cacheSessionUser(
+export function cacheSessionUser(
   fetchLike: typeof fetch,
   user: SessionUser | null,
 ): void {
@@ -168,7 +168,7 @@ export async function verifyEmailCode(
   }
 }
 
-async function renameAccount(
+export async function renameAccount(
   displayName: string,
   fetchLike: typeof fetch = fetch,
 ): Promise<SessionUser | null> {
@@ -232,7 +232,7 @@ export async function deleteAccount(
   }
 }
 
-async function signOut(fetchLike: typeof fetch = fetch): Promise<void> {
+export async function signOut(fetchLike: typeof fetch = fetch): Promise<void> {
   try {
     await fetchLike("/api/auth/logout", {
       method: "POST",
@@ -243,26 +243,32 @@ async function signOut(fetchLike: typeof fetch = fetch): Promise<void> {
   }
 }
 
+/** Fired on the page after the account changes, so the header reads it again. */
+export const ACCOUNT_CHANGED_EVENT = "icm-account-changed";
+
+/** The first letter a name starts with, for the round mark beside it. */
+export function accountInitial(name: string): string {
+  return [...name.trim()][0]?.toUpperCase() ?? "?";
+}
+
 export interface AccountMenuViewProps {
   state: AccountState;
   notice: string | null;
-  showGalleryLinks?: boolean;
+  /** Where a drawing is open, the account opens in a new tab beside it. */
+  inEditor?: boolean;
   /** Emails a sign-in code. */
   onEmailStart: (email: string) => Promise<EmailCodeResult>;
   /** Signs in with the emailed code. */
   onEmailVerify: (email: string, code: string) => Promise<EmailCodeResult>;
-  onRename: (displayName: string) => void;
-  onSignOut: () => void;
-  /** Deletes the account; the view reports the outcome before reloading. */
-  onDeleteAccount: () => Promise<DeleteAccountResult>;
 }
 
 /** Self-loading account area shared by Gallery and Editor chrome. */
 export function AccountMenu({
-  showGalleryLinks = true,
+  inEditor = false,
   alwaysVisible = false,
 }: {
-  showGalleryLinks?: boolean;
+  /** Where a drawing is open, the account opens in a new tab beside it. */
+  inEditor?: boolean;
   /** Keep the account affordance mounted while identity data is loading. */
   alwaysVisible?: boolean;
 }) {
@@ -275,11 +281,15 @@ export function AccountMenu({
       setNotice("Sign-in failed — try again.");
       window.history.replaceState(null, "", window.location.pathname);
     }
-    void loadAccountState().then((next) => {
-      if (!cancelled) setState(next);
-    });
+    const load = () =>
+      void loadAccountState().then((next) => {
+        if (!cancelled) setState(next);
+      });
+    load();
+    window.addEventListener(ACCOUNT_CHANGED_EVENT, load);
     return () => {
       cancelled = true;
+      window.removeEventListener(ACCOUNT_CHANGED_EVENT, load);
     };
   }, []);
 
@@ -298,32 +308,13 @@ export function AccountMenu({
       <AccountMenuView
         state={state}
         notice={notice}
-        showGalleryLinks={showGalleryLinks}
+        inEditor={inEditor}
         onEmailStart={(email) => requestEmailCode(email)}
         onEmailVerify={async (email, code) => {
           const result = await verifyEmailCode(email, code);
           // Signed in: the page starts over with the session, as a GitHub or
           // Google sign-in returns to a freshly loaded page.
           if (result.ok) window.location.reload();
-          return result;
-        }}
-        onRename={(displayName) => {
-          void renameAccount(displayName).then((user) => {
-            if (user) {
-              setState({ providers: state.providers, user });
-              cacheSessionUser(fetch, user);
-            }
-          });
-        }}
-        onSignOut={() => {
-          void signOut().then(() => {
-            setState({ providers: state.providers, user: null });
-            cacheSessionUser(fetch, null);
-          });
-        }}
-        onDeleteAccount={async () => {
-          const result = await deleteAccount();
-          if (result.ok) cacheSessionUser(fetch, null);
           return result;
         }}
       />

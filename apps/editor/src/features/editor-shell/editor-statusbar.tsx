@@ -153,117 +153,123 @@ export function EditorStatusbar({
         <p className="editor-status" data-testid="status" aria-live="polite">
           {status}
         </p>
-        {agentExpiring ? (
-          <span
-            className="statusbar-agent-expiring"
-            role="status"
-            data-testid="agent-expiring"
-          >
-            Agent connection ends in 1 minute
+        {/* The chips drop whole when the bar is short of room. */}
+        <div className="statusbar-chips">
+          {agentExpiring ? (
+            <span
+              className="statusbar-agent-expiring"
+              role="status"
+              data-testid="agent-expiring"
+            >
+              Agent connection ends in 1 minute
+              <button
+                type="button"
+                data-testid="agent-keep-connected"
+                onClick={agentExpiring.onKeep}
+              >
+                Keep connected
+              </button>
+            </span>
+          ) : null}
+          {/* Selecting is the resting state: only another tool is news. */}
+          {tool !== "pointer" || vddRailMode || pendingSymbolId ? (
+            <span
+              className="statusbar-tool"
+              data-testid="statusbar-tool"
+              title={toolTitle(tool, vddRailMode, pendingSymbolId)}
+              aria-label={toolTitle(tool, vddRailMode, pendingSymbolId)}
+            >
+              {toolLabel(tool, vddRailMode, pendingSymbolId)}
+            </span>
+          ) : null}
+          {selectionFilterSummary ? (
             <button
               type="button"
-              data-testid="agent-keep-connected"
-              onClick={agentExpiring.onKeep}
+              className="statusbar-tool"
+              data-testid="selection-filter-status"
+              onClick={onOpenSelectionFilter}
+              title="Choose Selectable Objects (Ctrl+Shift+F)"
             >
-              Keep connected
+              {selectionFilterSummary}
             </button>
-          </span>
-        ) : null}
-        <span
-          className="statusbar-tool"
-          data-testid="statusbar-tool"
-          title={toolTitle(tool, vddRailMode, pendingSymbolId)}
-          aria-label={toolTitle(tool, vddRailMode, pendingSymbolId)}
-        >
-          {toolLabel(tool, vddRailMode, pendingSymbolId)}
-        </span>
-        {selectionFilterSummary ? (
-          <button
-            type="button"
-            className="statusbar-tool"
-            data-testid="selection-filter-status"
-            onClick={onOpenSelectionFilter}
-            title="Choose Selectable Objects (Ctrl+Shift+F)"
-          >
-            {selectionFilterSummary}
-          </button>
-        ) : null}
-        {tool === "wire" ? (
-          <button
-            type="button"
-            className="statusbar-tool"
-            data-testid="wire-options-toggle"
-            onClick={onToggleWireOptions}
-            aria-expanded={wireOptionsOpen}
-            title="Wire options (F3) · / or middle-click cycles the corner"
-          >
-            {wireRoutingModeLabel(wireRoutingMode)} · F3
-          </button>
-        ) : null}
-        {tool === "wire" && wireOptionsOpen ? (
-          <span className="wire-options" data-testid="wire-options">
-            <label>
-              Route
-              <select
-                value={wireRoutingMode}
-                onChange={(event) =>
-                  onWireRoutingModeChange(
-                    event.currentTarget.value as WireRoutingMode,
-                  )
-                }
-              >
-                <option value="orthogonal">Orthogonal</option>
-                <option value="octilinear">45° octilinear</option>
-                <option value="free">Any angle</option>
-              </select>
-            </label>
-            <label>
-              Corner
-              <select
-                value={wireCornerOrder}
-                onChange={(event) =>
-                  onWireCornerOrderChange(
-                    event.currentTarget.value as WireCornerOrder,
-                  )
-                }
-              >
-                <option value="auto">Auto</option>
-                <option value="horizontal-first">Horizontal first</option>
-                <option value="vertical-first">Vertical first</option>
-                <option value="diagonal-first">Diagonal first</option>
-                <option value="orthogonal-first">Orthogonal first</option>
-              </select>
-            </label>
-          </span>
-        ) : null}
-        {recoveryLabel ? (
-          <output
-            className="statusbar-recovery"
-            data-testid="recovery-state"
-            aria-label="Browser recovery state"
-          >
-            {recoveryLabel}
-          </output>
-        ) : null}
-        {issues
-          ? (() => {
-              const badge = issuesBadge(issues);
-              return (
-                <button
-                  type="button"
-                  className="statusbar-issues"
-                  data-testid="statusbar-issues"
-                  data-check-status={issues.checkStatus ?? "current"}
-                  data-severity={badge.severity}
-                  title={badge.title}
-                  aria-label={`${badge.label}. ${badge.title}`}
-                  onClick={issues.onOpen}
+          ) : null}
+          {tool === "wire" ? (
+            <button
+              type="button"
+              className="statusbar-tool"
+              data-testid="wire-options-toggle"
+              onClick={onToggleWireOptions}
+              aria-expanded={wireOptionsOpen}
+              title="Wire options (F3) · / or middle-click cycles the corner"
+            >
+              {wireRoutingModeLabel(wireRoutingMode)} · F3
+            </button>
+          ) : null}
+          {tool === "wire" && wireOptionsOpen ? (
+            <span className="wire-options" data-testid="wire-options">
+              <label>
+                Route
+                <select
+                  value={wireRoutingMode}
+                  onChange={(event) =>
+                    onWireRoutingModeChange(
+                      event.currentTarget.value as WireRoutingMode,
+                    )
+                  }
                 >
-                  {badge.label}
-                </button>
-              );
-            })()
-          : null}
+                  <option value="orthogonal">Orthogonal</option>
+                  <option value="octilinear">45° octilinear</option>
+                  <option value="free">Any angle</option>
+                </select>
+              </label>
+              <label>
+                Corner
+                <select
+                  value={wireCornerOrder}
+                  onChange={(event) =>
+                    onWireCornerOrderChange(
+                      event.currentTarget.value as WireCornerOrder,
+                    )
+                  }
+                >
+                  <option value="auto">Auto</option>
+                  <option value="horizontal-first">Horizontal first</option>
+                  <option value="vertical-first">Vertical first</option>
+                  <option value="diagonal-first">Diagonal first</option>
+                  <option value="orthogonal-first">Orthogonal first</option>
+                </select>
+              </label>
+            </span>
+          ) : null}
+          {recoveryLabel ? (
+            <output
+              className="statusbar-recovery"
+              data-testid="recovery-state"
+              aria-label="Browser recovery state"
+            >
+              {recoveryLabel}
+            </output>
+          ) : null}
+          {issues
+            ? (() => {
+                const badge = issuesBadge(issues);
+                return (
+                  <button
+                    type="button"
+                    className="statusbar-issues"
+                    data-testid="statusbar-issues"
+                    data-check-status={issues.checkStatus ?? "current"}
+                    data-severity={badge.severity}
+                    title={badge.title}
+                    aria-label={`${badge.label}. ${badge.title}`}
+                    onClick={issues.onOpen}
+                  >
+                    {badge.label}
+                  </button>
+                );
+              })()
+            : null}
+        </div>
       </div>
       {visitStats ? (
         <a
@@ -301,7 +307,7 @@ export function EditorStatusbar({
         </a>
         {/* A new tab, like Change Log: the drawing stays open here. */}
         <a
-          className="statusbar-change-log"
+          className="statusbar-change-log statusbar-privacy"
           data-testid="statusbar-privacy"
           href={SITE_PRIVACY_PATH}
           target="_blank"

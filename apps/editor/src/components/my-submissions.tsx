@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { InlineConfirm } from "./inline-confirm";
 import "../styles/gallery-entry.css";
 
 import {
   announceGalleryChange,
-  galleryPreviewUrl,
   subscribeGalleryRefresh,
 } from "../gallery-client";
 import { fetchSessionUser } from "./account";
+import { EntryCard } from "./entry-card";
 import { GalleryChrome } from "./gallery-chrome";
+import { Masonry } from "./masonry";
 import { VersionHistoryDialog } from "./version-history-dialog";
 
 /**
@@ -24,6 +24,8 @@ export interface MineEntry {
   name: string;
   createdAt: string;
   previewRevision?: string;
+  previewWidth?: number;
+  previewHeight?: number;
   status: string;
   rejectReason: string | null;
   recycledAt?: string | null;
@@ -108,15 +110,8 @@ export async function setMyEntryRecycled(
   }
 }
 
-// Publishing is direct, so nothing new is ever "pending". Rejection is the
-// Owner's post-publication takedown with an author-visible reason.
-const STATUS_LABELS: Record<string, string> = {
-  public: "Published",
-  rejected: "Rejected",
-  recycled: "Withdrawn",
-};
-
-export function MySubmissions() {
+/** The list of the signed-in account's circuits, wherever it is shown. */
+export function MySubmissionsContent() {
   const [state, setState] = useState<MineState>({ status: "loading" });
   const [busy, setBusy] = useState<string | null>(null);
   const [historyFor, setHistoryFor] = useState<MineEntry | null>(null);
@@ -166,8 +161,8 @@ export function MySubmissions() {
     const ok = await deleteMyEntry(entry.id);
     setBusy(null);
     if (!ok) {
-      setNotice(`Could not delete "${entry.name}".`);
-      throw new Error(`Could not delete "${entry.name}". Try again.`);
+      setNotice(`Could not delete "${entry.name}". Try again.`);
+      return;
     }
     setNotice(`Deleted "${entry.name}".`);
     announceGalleryChange({ entryId: entry.id });
@@ -175,9 +170,8 @@ export function MySubmissions() {
   }
 
   return (
-    <main className="review-shell" data-testid="mine-page">
-      <GalleryChrome subtitle="My submissions" />
-      <div className="page-body">
+    <>
+      <div className="mine-content" data-testid="mine-content">
         {notice ? (
           <p className="gallery-status" data-testid="mine-notice">
             {notice}
@@ -196,108 +190,100 @@ export function MySubmissions() {
           </p>
         ) : (
           <section className="mine-list" data-testid="mine-list">
-            {state.entries.map((entry) => (
-              <article
-                key={entry.id}
-                className="mine-card"
-                data-testid={`mine-card-${entry.id}`}
-              >
-                <a
-                  className="mine-card-preview"
-                  href={`/g/${entry.id}`}
-                  title="Open in the editor"
-                >
-                  <img
-                    src={galleryPreviewUrl(entry.id, entry.previewRevision)}
-                    alt={`Preview of ${entry.name}`}
-                    loading="lazy"
+            <Masonry
+              minColumnWidth={260}
+              gap={16}
+              aria-label="Your circuits"
+              items={state.entries.map((entry) => ({
+                key: entry.id,
+                node: (
+                  <EntryCard
+                    entry={entry}
+                    status={entry.status}
+                    date={entry.createdAt}
+                    busy={busy === entry.id}
+                    testId={`mine-card-${entry.id}`}
+                    statusTestId={`mine-status-${entry.id}`}
+                    actions={
+                      // One step at a time: a published circuit is withdrawn
+                      // first, which hides it and keeps it; only what is off
+                      // the wall can be deleted for good, which also returns
+                      // the day's publish slot.
+                      <>
+                        <button
+                          type="button"
+                          className="entry-action"
+                          data-testid={`mine-history-${entry.id}`}
+                          onClick={() => setHistoryFor(entry)}
+                        >
+                          History
+                        </button>
+                        {entry.status === "public" ? (
+                          // Withdrawing is undone by Restore: it asks nothing.
+                          <button
+                            type="button"
+                            className="entry-action"
+                            data-testid={`mine-withdraw-${entry.id}`}
+                            disabled={busy === entry.id}
+                            onClick={() => void act(entry, "recycle")}
+                          >
+                            Withdraw
+                          </button>
+                        ) : (
+                          <>
+                            {entry.status === "recycled" &&
+                            !entry.rejectReason ? (
+                              <button
+                                type="button"
+                                className="entry-action"
+                                data-testid={`mine-restore-${entry.id}`}
+                                disabled={busy === entry.id}
+                                onClick={() => void act(entry, "restore")}
+                              >
+                                Restore
+                              </button>
+                            ) : null}
+                            {/* The click is the decision: no second question. */}
+                            <button
+                              type="button"
+                              className="entry-action entry-action-danger"
+                              data-testid={`mine-delete-${entry.id}`}
+                              disabled={busy === entry.id}
+                              onClick={() => void remove(entry)}
+                            >
+                              Delete
+                            </button>
+                          </>
+                        )}
+                      </>
+                    }
+                    notes={
+                      <>
+                        {entry.status === "rejected" && entry.rejectReason ? (
+                          <p
+                            className="entry-card-note"
+                            data-testid={`mine-reason-${entry.id}`}
+                          >
+                            Reason: {entry.rejectReason}
+                          </p>
+                        ) : null}
+                        {entry.status === "rejected" ? (
+                          <p className="entry-card-note">
+                            You may correct it in the editor. It remains hidden
+                            until the Owner restores it.
+                          </p>
+                        ) : null}
+                        {entry.status === "recycled" ? (
+                          <p className="entry-card-note">
+                            {recycledRetentionNote(Boolean(entry.rejectReason))}
+                          </p>
+                        ) : null}
+                      </>
+                    }
                   />
-                </a>
-                <div className="mine-card-copy">
-                  <h2>{entry.name}</h2>
-                  <p className="review-card-meta">
-                    {new Date(entry.createdAt).toLocaleString()}
-                  </p>
-                  <div className="mine-card-actions">
-                    <a
-                      className="account-link mine-card-edit"
-                      href={`/g/${entry.id}`}
-                      data-testid={`mine-edit-${entry.id}`}
-                    >
-                      Open in editor
-                    </a>
-                    <button
-                      type="button"
-                      className="account-link mine-card-history"
-                      data-testid={`mine-history-${entry.id}`}
-                      onClick={() => setHistoryFor(entry)}
-                    >
-                      Version history
-                    </button>
-                    {/* Withdrawing hides an entry and keeps it; deleting is
-                        the author saying they are done with it, and returns
-                        the day's publish slot. */}
-                    <InlineConfirm
-                      className="account-link mine-card-delete"
-                      data-testid={`mine-delete-${entry.id}`}
-                      disabled={busy === entry.id}
-                      onConfirm={() => remove(entry)}
-                    >
-                      Delete
-                    </InlineConfirm>
-                    {entry.status === "recycled" && !entry.rejectReason ? (
-                      <button
-                        type="button"
-                        className="account-link mine-card-restore"
-                        data-testid={`mine-restore-${entry.id}`}
-                        disabled={busy === entry.id}
-                        onClick={() => void act(entry, "restore")}
-                      >
-                        Restore
-                      </button>
-                    ) : entry.status === "public" ? (
-                      // Withdrawing is undone by Restore, so it asks nothing.
-                      <button
-                        type="button"
-                        className="mine-withdraw"
-                        data-testid={`mine-withdraw-${entry.id}`}
-                        disabled={busy === entry.id}
-                        onClick={() => void act(entry, "recycle")}
-                      >
-                        Withdraw
-                      </button>
-                    ) : null}
-                  </div>
-                </div>
-                <div className="mine-card-status">
-                  <span
-                    className={`mine-status mine-status-${entry.status}`}
-                    data-testid={`mine-status-${entry.id}`}
-                  >
-                    {STATUS_LABELS[entry.status] ?? entry.status}
-                  </span>
-                  {entry.status === "rejected" && entry.rejectReason ? (
-                    <p
-                      className="mine-reason"
-                      data-testid={`mine-reason-${entry.id}`}
-                    >
-                      Reason: {entry.rejectReason}
-                    </p>
-                  ) : null}
-                  {entry.status === "rejected" ? (
-                    <p className="mine-reason">
-                      You may correct it in the editor. It remains hidden until
-                      the Owner restores it.
-                    </p>
-                  ) : null}
-                  {entry.status === "recycled" ? (
-                    <p className="mine-reason">
-                      {recycledRetentionNote(Boolean(entry.rejectReason))}
-                    </p>
-                  ) : null}
-                </div>
-              </article>
-            ))}
+                ),
+              }))}
+            />
           </section>
         )}
       </div>
@@ -315,6 +301,18 @@ export function MySubmissions() {
           onClose={() => setHistoryFor(null)}
         />
       ) : null}
+    </>
+  );
+}
+
+/** `/mine`, the list on a page of its own. */
+export function MySubmissions() {
+  return (
+    <main className="review-shell" data-testid="mine-page">
+      <GalleryChrome subtitle="My submissions" />
+      <div className="page-body">
+        <MySubmissionsContent />
+      </div>
     </main>
   );
 }

@@ -200,7 +200,8 @@ test("compacts the editor header at half width and keeps the account role in its
     await expect(actions.getByTestId("publish-gallery-button")).toBeVisible();
     await expect(actions.getByTestId("open-agent")).toBeVisible();
     await expect(actions.locator(".tokenzhang-link-icon")).toBeVisible();
-    await expect(actions.locator(".account-more")).toBeVisible();
+    // The name, or at phone widths its round mark alone, opens the account.
+    await expect(actions.getByTestId("account-name")).toBeVisible();
     if (width <= 760) {
       await expect(
         actions.getByTestId("open-agent").locator(".app-action-label"),
@@ -213,7 +214,11 @@ test("compacts the editor header at half width and keeps the account role in its
     }
   }
 
-  await page.locator(".account-more > summary").click();
+  // Beside the drawing, the name opens the account page in its own tab.
+  const name = page.getByTestId("account-name");
+  await expect(name).toHaveAttribute("href", "/account");
+  await expect(name).toHaveAttribute("target", "_blank");
+  await page.goto("/account");
   await expect(page.getByTestId("account-menu-name")).toHaveText(
     "A Very Long Display Name",
   );

@@ -84,12 +84,9 @@ import type {
 } from "@icm/agent-adapter";
 import {
   planProjectCellImport,
-  planSetDeviceModelTarget,
   planSetVddConnectionMode,
   planRenameCellTerminal,
   planAngledWireRepairs,
-  planPinChangeRouteClearance,
-  gateRoutingOperationPlan,
   type ProjectStructureEdit,
   type SchematicEdit,
   type WireSource,
@@ -235,7 +232,6 @@ import { deriveWireUnderSymbolWarnings } from "../canvas/wire-under-symbol";
 import { createPlacementTrayCommands } from "../features/component-insert/placement-tray-commands";
 import { componentTargetDescription } from "../features/properties/component-identity-properties";
 import { componentSourceCode } from "../features/properties/component-source-code";
-import { planElectricalMarkerName } from "../features/properties/electrical-marker-name";
 import {
   endpointTestId,
   instanceLabelAnnotationFor,
@@ -388,21 +384,17 @@ import { deriveSelectionInspectionModel } from "../features/selection/selection-
 import { usePropertiesEditor } from "../features/properties/use-properties-editor";
 import { deferFocus } from "../interaction/deferred-focus";
 import { createPropertyEditPlanner } from "../features/properties/property-edit-planner";
-import {
-  instanceParameterVisibility,
-  instanceParameterVisibilityEdits,
-} from "../features/instance-display/instance-parameter-display";
+import { instanceParameterVisibility } from "../features/instance-display/instance-parameter-display";
 import {
   hasResettableLabels,
   resetLabelLookEdits,
 } from "../features/instance-display/reset-label-look";
 import { createSelectionPropertyCommands } from "../features/properties/selection-property-commands";
-import { planComponentPropertyCodeEdits } from "../features/properties/component-property-code-edits";
 import {
   groupVisibilityTargets,
   planGroupPropertyCodeEdits,
 } from "../features/properties/group-property-code-edits";
-import { planPropertyContactMove } from "../features/properties/property-contact-move";
+import { planPropertyApply } from "../features/properties/property-apply-plan";
 import {
   groupBatchName,
   groupRenames,
@@ -8654,260 +8646,49 @@ function WorkspaceEditor({
                           : {}),
                         onApply: (value: ComponentPropertyCodeValue) => {
                           try {
-                            // Formal Pin names own a Cell interface, never a display alias.
-                            const { displayName, ...nonNameValues } = value;
-                            const terminalEdits =
-                              selectedFormalTerminal &&
-                              displayName !== undefined &&
-                              displayName !== selectedFormalTerminal.name
-                                ? planRenameCellTerminal(
-                                    project,
-                                    document.id,
-                                    selectedFormalTerminal.id,
-                                    displayName,
-                                    { mergeExistingPort: true },
-                                  )
-                                : [];
-                            const edits: SchematicEdit[] =
-                              planComponentPropertyCodeEdits(
-                                document,
-                                selectedInstance,
-                                selectedFormalTerminal ? nonNameValues : value,
-                              );
-                            // Swapped inputs and other pin changes draw the
-                            // wires they stretch clear of other Nets (#1309).
-                            edits.push(
-                              ...planPinChangeRouteClearance(
+                            const plan = planPropertyApply(
+                              {
+                                project,
                                 document,
                                 resolver,
-                                edits,
-                              ),
+                                instance: selectedInstance,
+                                currentTarget:
+                                  selectedInstance.netlist?.binding?.kind ===
+                                  "model"
+                                    ? selectedInstance.netlist.binding.name
+                                    : selectedReviewedExternalBinding
+                                      ? (selectedExternalSubcircuit?.name ?? "")
+                                      : "",
+                              },
+                              value,
                             );
-                            if (
-                              !selectedInstance.placement &&
-                              value.placement
-                            ) {
-                              edits.push({
-                                kind: "place_instance",
-                                instanceId: selectedInstance.id,
-                                placement: {
-                                  position: {
-                                    x: snapCoordinate(
-                                      value.placement.coordinate[0],
-                                      document.presentation.grid,
-                                    ),
-                                    y: snapCoordinate(
-                                      value.placement.coordinate[1],
-                                      document.presentation.grid,
-                                    ),
-                                  },
-                                  rotation: value.placement.rotation,
-                                  mirror: value.placement.mirror,
-                                },
-                              });
-                            }
-                            const candidateInstance = {
-                              ...selectedInstance,
-                              ...(value.parameters && selectedInstance.netlist
-                                ? {
-                                    netlist: {
-                                      ...selectedInstance.netlist,
-                                      parameters: Object.fromEntries(
-                                        Object.entries(value.parameters).filter(
-                                          ([, raw]) => raw.trim() !== "",
-                                        ),
-                                      ),
-                                    },
-                                  }
-                                : {}),
-                            };
-                            const candidateDocument = {
-                              ...document,
-                              instances: document.instances.map((instance) =>
-                                instance.id === selectedInstance.id
-                                  ? candidateInstance
-                                  : instance,
-                              ),
-                            };
-                            if (value.display?.parameters) {
-                              // Apply visibility before movement so the transaction transforms
-                              // new and retained parameter anchors exactly once.
-                              edits.unshift(
-                                ...instanceParameterVisibilityEdits(
-                                  candidateDocument,
-                                  candidateInstance,
-                                  resolver,
-                                  value.display.parameters,
-                                ),
-                              );
-                            }
-                            const desiredReference =
-                              value.display?.visualAnnotation;
-                            const currentReference =
-                              selectedInstanceLabel !== undefined &&
-                              selectedInstanceLabel.visible !== false;
-                            if (
-                              typeof desiredReference === "boolean" &&
-                              desiredReference !== currentReference
-                            ) {
-                              edits.push(
-                                ...referenceLabelVisibilityEdits(
-                                  [selectedInstance.id],
-                                  desiredReference,
-                                ),
-                              );
-                            }
-                            const desiredValue = value.display?.value;
-                            const currentValue =
-                              selectedInstanceValue !== null &&
-                              selectedInstanceValue.visible !== false;
-                            if (
-                              typeof desiredValue === "boolean" &&
-                              desiredValue !== currentValue
-                            ) {
-                              if (
-                                desiredValue &&
-                                displayableInstanceValue(candidateInstance)
-                                  .kind !== "displayable"
-                              ) {
-                                return {
-                                  ok: false as const,
-                                  message:
-                                    "Set a valid component value before enabling its display",
-                                };
-                              }
-                              edits.push(
-                                ...valueVisibilityEdits(
-                                  candidateDocument,
-                                  [selectedInstance.id],
-                                  desiredValue,
-                                ),
-                              );
-                            }
-                            if (
-                              value.netName !== undefined &&
-                              value.netName !== selectedPortLogicalName
-                            ) {
-                              const markerPlan = planElectricalMarkerName(
-                                document,
-                                selectedInstance.id,
-                                value.netName,
-                              );
-                              if (markerPlan.status === "rejected") {
-                                return {
-                                  ok: false as const,
-                                  message: markerPlan.message,
-                                };
-                              }
-                              if (markerPlan.status === "ready") {
-                                const gate = gateRoutingOperationPlan(
-                                  document,
-                                  markerPlan.operationPlan,
-                                  { symbolResolver: resolver },
-                                );
-                                if (!gate.ok) {
-                                  return {
-                                    ok: false as const,
-                                    message: gate.message,
-                                  };
-                                }
-                                edits.push(...gate.edits);
-                              }
-                            }
-                            const currentTarget =
-                              selectedInstance.netlist?.binding?.kind ===
-                              "model"
-                                ? selectedInstance.netlist.binding.name
-                                : selectedReviewedExternalBinding
-                                  ? (selectedExternalSubcircuit?.name ?? "")
-                                  : "";
-                            const targetEdits: ProjectStructureEdit[] =
-                              value.netlistTarget !== undefined &&
-                              value.netlistTarget !== currentTarget
-                                ? planSetDeviceModelTarget(
-                                    project,
-                                    document.id,
-                                    selectedInstance.id,
-                                    value.netlistTarget,
-                                  )
-                                : [];
-                            const currentConnection = selectedSupplyMarker
-                              ? selectedFormalTerminal
-                                ? "cell-pin"
-                                : "global"
-                              : undefined;
-                            const connectionEdits: ProjectStructureEdit[] =
-                              selectedSupplyMarker &&
-                              value.connection !== undefined &&
-                              value.connection !== currentConnection
-                                ? planSetVddConnectionMode(
-                                    project,
-                                    document.id,
-                                    selectedSupplyMarker.id,
-                                    value.connection,
-                                  )
-                                : [];
-                            const structureEdits = [
-                              ...terminalEdits,
-                              ...targetEdits,
-                              ...connectionEdits,
-                            ];
-                            if (
-                              edits.length === 0 &&
-                              structureEdits.length === 0
-                            ) {
+                            if (plan.kind === "rejected")
+                              return {
+                                ok: false as const,
+                                message: plan.message,
+                              };
+                            if (plan.kind === "unchanged") {
                               setStatus(
                                 `Canvas properties for ${selectedInstance.id} are already up to date`,
                               );
                               return { ok: true as const };
                             }
-                            let applied: boolean;
-                            if (structureEdits.length > 0) {
-                              // Merge structural document edits with the draft into
-                              // one project transaction and one undo boundary.
-                              const documentEdit = structureEdits.find(
-                                (edit) =>
-                                  edit.kind === "transact_document" &&
-                                  edit.documentId === document.id,
-                              );
-                              if (documentEdit?.kind === "transact_document")
-                                documentEdit.edits.push(...edits);
-                              else if (edits.length)
-                                structureEdits.push({
-                                  kind: "transact_document",
-                                  documentId: document.id,
-                                  expectedRevision: document.revision,
-                                  edits,
-                                });
-                              applied = commitStructure(
-                                "apply-component-property-code",
-                                structureEdits,
-                              );
-                            } else {
-                              // A typed coordinate lands the part as a drag
-                              // would, joining a pin it now lies on.
-                              const contactMove = planPropertyContactMove(
-                                document,
-                                resolver,
-                                selectedInstance,
-                                edits,
-                              );
-                              if (contactMove && !contactMove.ok)
-                                return {
-                                  ok: false as const,
-                                  message: contactMove.message,
-                                };
-                              applied = contactMove
-                                ? (transactConnectivity(
-                                    contactMove.intent,
-                                    contactMove.edits,
-                                    {
-                                      expectedElectricalEffect:
-                                        contactMove.expectedElectricalEffect,
-                                    },
-                                  )?.ok ?? false)
-                                : transact(edits).ok;
-                            }
+                            const applied =
+                              plan.kind === "structure"
+                                ? commitStructure(
+                                    "apply-component-property-code",
+                                    plan.structureEdits,
+                                  )
+                                : plan.kind === "connectivity"
+                                  ? (transactConnectivity(
+                                      plan.intent,
+                                      plan.edits,
+                                      {
+                                        expectedElectricalEffect:
+                                          plan.expectedElectricalEffect,
+                                      },
+                                    )?.ok ?? false)
+                                  : transact(plan.edits).ok;
                             if (!applied) {
                               return {
                                 ok: false as const,

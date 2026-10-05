@@ -393,7 +393,9 @@ describe("GalleryFeed", () => {
     );
     expect(markup).toContain('data-testid="gallery-feed"');
     expect(markup).toContain("Analog Canvas");
-    expect(markup).toContain('data-testid="gallery-new-circuit"');
+    // Editor is the one way into the editor; there is no second New Circuit.
+    expect(markup).toContain('data-testid="gallery-editor-switch"');
+    expect(markup).not.toContain("gallery-new-circuit");
     expect(markup).toContain('data-testid="gallery-report-bug"');
     expect(markup).toContain("Report bug");
     expect(markup).toContain('href="/editor"');

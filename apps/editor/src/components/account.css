@@ -123,7 +123,10 @@
   font-size: 12px;
 }
 
+/* A quiet way to what the site keeps, under the ways in. */
 .account-signin-privacy {
+  justify-self: center;
+  align-self: center;
   color: var(--icm-text-muted);
   font-size: 12px;
   text-decoration: none;
@@ -134,22 +137,335 @@
   text-decoration: underline;
 }
 
-/* The one destructive account action: quiet red, last in the menu. */
-.account-delete-open {
-  padding: 6px 10px;
-  border: 1px solid transparent;
-  border-radius: var(--icm-radius-sm);
-  color: #b3261e;
+/* The name in the header is the account's one button. Its round mark carries
+   the first letter, so a phone-width header can show the mark alone. */
+.account-name::before {
+  content: attr(data-initial);
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  margin-right: 7px;
+  border-radius: 50%;
+  color: var(--icm-accent);
+  background: var(--icm-accent-soft);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 20px;
+  vertical-align: middle;
+}
+
+/* /account: the account's own page, one column of plain sections. */
+/* The account page is a dashboard: who is signed in and the tabs on the
+   left, the open tab on the right, nothing nested deeper than that. */
+/* A short tab and a long one sit in the same place: the scrollbar's room
+   is kept whether or not the tab scrolls. */
+.account-shell {
+  scrollbar-gutter: stable;
+}
+
+.page-body.account-page-body {
+  max-width: 90rem;
+  padding: 28px 24px 48px;
+}
+
+.account-dashboard {
+  display: grid;
+  grid-template-columns: 15rem minmax(0, 1fr);
+  gap: 32px;
+  align-items: start;
+  color: var(--icm-text);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.account-dashboard-side {
+  position: sticky;
+  top: 16px;
+  display: grid;
+  gap: 20px;
+}
+
+.account-dashboard-identity {
+  display: grid;
+  gap: 12px;
+}
+
+.account-dashboard-identity > div {
+  display: grid;
+  min-width: 0;
+  justify-items: start;
+  gap: 4px;
+}
+
+.account-dashboard-identity h1 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 650;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.account-dashboard-identity p {
+  margin: 0;
+  color: var(--icm-text-muted);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.account-page-avatar {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  color: var(--icm-accent);
+  background: var(--icm-accent-soft);
+  font-size: 30px;
+  font-weight: 700;
+}
+
+.account-dashboard .account-owner-badge {
+  margin-top: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  color: var(--icm-accent);
+  background: var(--icm-accent-soft);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.account-dashboard-tabs {
+  display: grid;
+  gap: 2px;
+}
+
+.account-dashboard-tabs button {
+  height: 34px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--icm-text);
   background: transparent;
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   text-align: left;
   white-space: nowrap;
   cursor: pointer;
 }
 
-.account-delete-open:hover {
+.account-dashboard-tabs button:hover {
+  background: var(--icm-surface-hover);
+}
+
+.account-dashboard-tabs button[aria-selected="true"] {
+  background: var(--icm-surface-hover);
+  box-shadow: inset 3px 0 0 var(--icm-accent);
+  font-weight: 650;
+}
+
+.account-dashboard-main {
+  min-width: 0;
+}
+
+.account-dashboard-main > h2 {
+  margin: 0 0 16px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--icm-border);
+  font-size: 20px;
+  font-weight: 650;
+}
+
+.account-dashboard .moderation-collection-heading h2 {
+  font-size: 16px;
+}
+
+.account-settings {
+  display: grid;
+  gap: 16px;
+  max-width: 44rem;
+}
+
+.account-page-section {
+  display: grid;
+  gap: 10px;
+  padding: 16px 18px;
+  border: 1px solid var(--icm-border);
+  border-radius: 12px;
+  background: var(--icm-surface);
+}
+
+.account-page-section h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.account-page-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.account-page-row > div {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.account-page-label,
+.account-page-note {
+  color: var(--icm-text-muted);
+  font-size: 13px;
+}
+
+.account-page-note {
+  margin: 0;
+}
+
+.account-page-value {
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-settings button {
+  flex: 0 0 auto;
+  height: var(--icm-control-h);
+  padding: 0 14px;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
+  color: var(--icm-text);
+  background: var(--icm-surface);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.account-settings button:hover {
+  background: var(--icm-surface-hover);
+}
+
+.account-settings .account-page-primary {
+  border-color: var(--icm-accent);
+  color: #fff;
+  background: var(--icm-accent);
+  font-weight: 600;
+}
+
+.account-settings .account-page-primary:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.account-page-rename {
+  display: grid;
+  gap: 8px;
+}
+
+.account-page-rename label {
+  color: var(--icm-text-muted);
+  font-size: 13px;
+}
+
+.account-page-rename .account-rename-input {
+  box-sizing: border-box;
+  width: 100%;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--icm-accent);
+  border-radius: 6px;
+  font: inherit;
+  font-size: 14px;
+}
+
+.account-page-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* Deleting the account sits last, in its own red-edged section. */
+.account-page-danger {
+  border-color: rgb(179 38 30 / 35%);
+}
+
+.account-page-danger h3 {
+  color: #b3261e;
+}
+
+.account-settings .account-page-delete {
+  border-color: rgb(179 38 30 / 45%);
+  color: #b3261e;
+}
+
+.account-settings .account-page-delete:hover {
   background: rgb(179 38 30 / 8%);
+}
+
+/* Narrow: the identity becomes a row and the tabs one line under it. */
+@media (max-width: 760px) {
+  .page-body.account-page-body {
+    padding: 16px 14px 40px;
+  }
+
+  .account-dashboard {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+
+  .account-dashboard-side {
+    position: static;
+    gap: 12px;
+  }
+
+  .account-dashboard-identity {
+    display: flex;
+    align-items: center;
+  }
+
+  .account-page-avatar {
+    width: 48px;
+    height: 48px;
+    font-size: 20px;
+  }
+
+  .account-dashboard-tabs {
+    display: flex;
+    gap: 4px;
+    border-bottom: 1px solid var(--icm-border);
+  }
+
+  .account-dashboard-tabs button {
+    flex: 0 0 auto;
+    border-radius: 6px 6px 0 0;
+  }
+
+  .account-dashboard-tabs button[aria-selected="true"] {
+    background: transparent;
+    box-shadow: inset 0 -2px 0 var(--icm-accent);
+  }
+
+  .account-dashboard-main > h2 {
+    display: none;
+  }
+}
+
+@media (max-width: 560px) {
+  .account-page-row {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 10px;
+  }
 }
 
 /* Portalled to the body, so no header stacking or overflow can clip it. */
@@ -198,6 +514,27 @@
 
 .account-delete-error {
   color: #b3261e;
+}
+
+.account-delete-typed {
+  display: grid;
+  gap: 6px;
+  margin-top: 0.4rem;
+}
+
+.account-delete-typed input {
+  box-sizing: border-box;
+  width: 100%;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--icm-border);
+  border-radius: 6px;
+  font: inherit;
+}
+
+.account-delete-typed input:focus {
+  border-color: #b3261e;
+  outline: none;
 }
 
 .account-delete-actions {

@@ -314,12 +314,13 @@ export function PrivacyPage() {
 
         <h2>Deleting your data and your rights</h2>
         <p>
-          You can delete your account at any time: open the account menu (⋯) and
-          choose <strong>Delete account…</strong>. This at once deletes the
-          account and everything kept for it: your Cloud Projects, the circuits
-          you published with their history, the components you shared, and your
-          likes. Export anything you want to keep first. Drawings stored only in
-          your browser are not affected.
+          You can delete your account at any time: select your name at the top
+          right to open your account page, and in its last section choose{" "}
+          <strong>Delete account…</strong>, then type your name to confirm. This
+          at once deletes the account and everything kept for it: your Cloud
+          Projects, the circuits you published with their history, the
+          components you shared, and your likes. Export anything you want to
+          keep first. Drawings stored only in your browser are not affected.
         </p>
         <p>
           You may also ask what data the site keeps about you, have it corrected

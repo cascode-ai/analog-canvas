@@ -120,7 +120,7 @@ Run `pnpm build` once after installing, and again after pulling package
 changes: the development server's Vite configuration loads some workspace
 packages from their built `dist/` output.
 
-Open the displayed loopback URL and choose **New Circuit**, or open its
+Open the displayed loopback URL and choose **Editor**, or open its
 `/editor` route directly. Create a circuit from the component palette, or
 import one `.cir`, `.sp`, `.spi`, or `.scs` entry together with its local include
 files.

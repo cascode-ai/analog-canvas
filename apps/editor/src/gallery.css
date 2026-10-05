@@ -17,6 +17,9 @@
    two sides of the row read as equal. */
 .gallery-chrome {
   display: flex;
+  /* A child of the Gallery's column: when it wraps into two rows it must not
+     be squeezed back to one row's height over the tabs below. */
+  flex-shrink: 0;
   align-items: center;
   justify-content: space-between;
   gap: var(--icm-space-3);
@@ -30,6 +33,37 @@
   z-index: 2;
 }
 
+/* Narrow, the header stays one row: what it repeats goes. Report bug and
+   GitHub leave, New Circuit too (Editor at the left opens a new circuit),
+   and the account shows its round mark alone. It follows the base rule
+   above; written in styles.css, which loads first, it would lose to it. */
+@media (max-width: 620px) {
+  .gallery-chrome {
+    gap: var(--icm-space-2);
+    padding-inline: var(--icm-space-2);
+  }
+
+  .gallery-actions {
+    gap: 6px;
+  }
+
+  .gallery-actions .bug-report-link,
+  .gallery-actions .app-repository-link {
+    display: none;
+  }
+
+  .gallery-actions .account-name {
+    max-width: none;
+    padding-inline: 4px;
+    font-size: 0;
+  }
+
+  .gallery-actions .account-name::before {
+    margin-right: 0;
+    font-size: 11px;
+  }
+}
+
 .gallery-chrome .app-brand,
 .app-chrome-main .app-brand,
 .gallery-actions,
@@ -37,8 +71,7 @@
   min-height: var(--icm-control-h);
 }
 
-/* Mirror the editor's blue Gallery switch so the two top-level views have
-   the same left-side route affordance. */
+/* The Gallery's one way into the editor, so it wears the primary blue. */
 .gallery-editor-link {
   display: inline-flex;
   flex: 0 0 auto;
@@ -47,8 +80,8 @@
   height: var(--icm-control-h);
   padding: 0 11px 0 9px;
   border-radius: 999px;
-  color: var(--icm-accent);
-  background: var(--icm-accent-soft);
+  color: #fff;
+  background: var(--icm-accent);
   font-size: var(--icm-font-sm);
   font-weight: 600;
   text-decoration: none;
@@ -56,8 +89,7 @@
 }
 
 .gallery-editor-link:hover {
-  color: #fff;
-  background: var(--icm-accent);
+  filter: brightness(1.08);
 }
 
 .gallery-editor-link:focus-visible {
@@ -70,11 +102,7 @@
   height: 15px;
 }
 
-.gallery-actions .account-owner-badge,
-.gallery-actions .account-link,
-.gallery-actions .account-signout,
-.gallery-actions .account-signin summary,
-.gallery-open-editor {
+.gallery-actions .account-signin summary {
   display: inline-flex;
   align-items: center;
   height: var(--icm-control-h);
@@ -95,8 +123,8 @@
   gap: 8px;
 }
 
-.account-name,
-.account-signout {
+.account-name {
+  text-decoration: none;
   padding: 6px 10px;
   border: 1px solid var(--icm-border);
   border-radius: var(--icm-radius-sm);
@@ -106,8 +134,7 @@
   cursor: pointer;
 }
 
-.account-name:hover,
-.account-signout:hover {
+.account-name:hover {
   background: var(--icm-surface-hover);
 }
 
@@ -124,7 +151,7 @@
   /* A flex item will not shrink below its content without this, which is how
      the chip ended up narrower than its own max-width and clipped anyway. */
   min-width: 0;
-  max-width: 14rem;
+  max-width: 15.75rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -135,30 +162,6 @@
   padding-top: 0;
   padding-bottom: 0;
   line-height: calc(var(--icm-control-h) - 2px);
-}
-
-.account-signout,
-.account-owner-badge {
-  white-space: nowrap;
-}
-
-.account-rename-input {
-  width: 12rem;
-  padding: 6px 10px;
-  border: 1px solid var(--icm-accent);
-  border-radius: var(--icm-radius-sm);
-  font-size: 13px;
-}
-
-.account-owner-badge {
-  padding: 3px 8px;
-  border-radius: 999px;
-  background: var(--icm-accent-soft);
-  color: var(--icm-accent);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
 }
 
 .account-signin summary {
@@ -211,32 +214,6 @@
   background: var(--icm-surface-hover);
 }
 
-/* Account actions collapse behind one disclosure so the Gallery header stays
-   readable at half-screen widths. The popover is complete in this route-level
-   stylesheet and no longer depends on the editor command-menu stylesheet. */
-.account-more {
-  position: relative;
-}
-
-.account-more > summary {
-  display: inline-flex;
-  gap: var(--icm-space-1);
-  align-items: center;
-  height: var(--icm-control-h);
-  padding: 0 var(--icm-space-2);
-  border-radius: var(--icm-radius-sm);
-  cursor: pointer;
-  list-style: none;
-}
-
-.account-more > summary::-webkit-details-marker {
-  display: none;
-}
-
-.account-more > summary:hover {
-  background: var(--icm-surface-hover, rgb(0 0 0 / 4%));
-}
-
 .account-popover {
   position: absolute;
   z-index: 60;
@@ -283,57 +260,144 @@
   padding: 6px 22px 40px;
 }
 
-.review-list,
-.mine-list {
+.review-list {
   display: flex;
   flex-direction: column;
   gap: 14px;
   padding: 12px 0 0;
 }
 
-.mine-card-preview img {
-  display: block;
-  width: 150px;
-  height: 100px;
-  object-fit: contain;
+.mine-list {
+  padding: 12px 0 0;
+}
+
+/* A Gallery entry as a card wherever entries are managed — an account's
+   own circuits and moderation alike: the drawing as the Gallery tiles show
+   it, then the status badge, name, date, one row of actions and notes. */
+.entry-card {
   border: 1px solid var(--icm-border);
-  border-radius: 8px;
-  background: #fff;
-}
-
-.mine-card-edit {
-  align-self: flex-start;
-  margin-top: 4px;
-}
-
-.mine-card-actions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-  margin-top: 4px;
-}
-
-.mine-card-actions .account-link {
-  border: none;
-  background: none;
-  padding: 0;
-  font: inherit;
-  cursor: pointer;
-}
-
-.mine-withdraw {
-  padding: 3px 10px;
-  border: 1px solid color-mix(in srgb, #c0392b 45%, var(--icm-border));
-  border-radius: 999px;
-  color: #c0392b;
+  border-radius: 12px;
   background: var(--icm-surface);
+  transition:
+    border-color 120ms,
+    box-shadow 120ms;
+}
+
+.entry-card:hover {
+  border-color: var(--icm-border-hover);
+  box-shadow: 0 4px 16px rgb(0 0 0 / 6%);
+}
+
+.entry-card-open {
+  display: block;
+  border-radius: 12px 12px 0 0;
+  color: var(--icm-text);
+  text-decoration: none;
+}
+
+.entry-card .gallery-tile-preview {
+  border-radius: 12px 12px 0 0;
+  padding: 16px;
+}
+
+.entry-card-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 12px 16px 14px;
+}
+
+.entry-card-copy h3 {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.entry-card-date {
+  color: var(--icm-text-muted);
   font-size: 12px;
+}
+
+/* One row of alike pills, red marking the one that cannot be undone. */
+.entry-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.entry-card-note {
+  margin: 0;
+  color: var(--icm-text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.entry-card-error {
+  color: var(--icm-danger, #b42318);
+}
+
+.entry-action {
+  display: inline-flex;
+  align-items: center;
+  box-sizing: border-box;
+  height: 28px;
+  padding: 0 12px;
+  border: 1px solid var(--icm-border);
+  border-radius: 999px;
+  color: var(--icm-text);
+  background: var(--icm-surface);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
   cursor: pointer;
 }
 
-.mine-withdraw:hover {
-  background: color-mix(in srgb, #c0392b 8%, var(--icm-surface));
+.entry-action:hover:not(:disabled) {
+  background: var(--icm-surface-hover);
+}
+
+.entry-action:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.entry-action-danger {
+  color: var(--icm-danger, #b42318);
+}
+
+/* A state, not an action: a tinted badge over the circuit's name, filled
+   where the actions are outlined, its colour telling which state. */
+.entry-status {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 999px;
+  color: var(--icm-text-muted);
+  background: var(--icm-surface-muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.entry-status-public {
+  color: var(--icm-accent);
+  background: var(--icm-accent-soft);
+}
+
+.entry-status-rejected {
+  color: var(--icm-danger, #b42318);
+  background: rgb(180 35 24 / 10%);
 }
 
 .gallery-filter {
@@ -436,8 +500,7 @@
   font-size: 17px;
 }
 
-.review-card,
-.mine-card {
+.review-card {
   display: flex;
   gap: 16px;
   padding: 14px;
@@ -464,8 +527,7 @@
   gap: 6px;
 }
 
-.review-card-copy h2,
-.mine-card-copy h2 {
+.review-card-copy h2 {
   margin: 0;
   font-size: 16px;
 }
@@ -507,65 +569,6 @@
   border-color: var(--icm-accent);
   color: #fff;
   background: var(--icm-accent);
-}
-
-.mine-card {
-  align-items: center;
-  justify-content: space-between;
-}
-
-.mine-card .mine-card-copy {
-  display: flex;
-  min-width: 0;
-  flex: 1;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.mine-card-status {
-  text-align: right;
-}
-
-.mine-status {
-  display: inline-block;
-  padding: 3px 10px;
-  border-radius: 999px;
-  background: var(--icm-surface-muted);
-  color: var(--icm-text-muted);
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.mine-status-public {
-  background: var(--icm-accent-soft);
-  color: var(--icm-accent);
-}
-
-.mine-status-rejected {
-  background: rgb(180 35 24 / 10%);
-  color: var(--icm-danger, #b42318);
-}
-
-.mine-reason {
-  margin: 6px 0 0;
-  max-width: 24rem;
-  color: var(--icm-text-muted);
-  font-size: 12px;
-}
-
-.gallery-open-editor {
-  padding: 0 16px;
-  border-radius: var(--icm-radius-sm);
-  background: var(--icm-accent);
-  color: #fff;
-  font-size: 13px;
-  font-weight: 600;
-  text-decoration: none;
-  white-space: nowrap;
-}
-
-.gallery-open-editor:hover {
-  filter: brightness(1.05);
 }
 
 /* A search reads the wall page by page; this says how far it has read. */
@@ -1158,6 +1161,8 @@
 /* The two walls: everyone's circuits, and your own private shelf. */
 .gallery-view-tabs {
   display: flex;
+  /* A row of the shell's column that keeps its height at any window size. */
+  flex-shrink: 0;
   align-items: flex-end;
   gap: 6px;
   padding: 14px 22px 0;
@@ -1191,6 +1196,12 @@
   list-style: none;
   white-space: nowrap;
   cursor: pointer;
+}
+
+.gallery-count-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .gallery-count-panel::-webkit-details-marker {
@@ -1355,6 +1366,8 @@ div.gallery-contributor-status {
   color: var(--icm-text-muted);
   font: inherit;
   font-weight: 600;
+  /* A tab label is one line at any width. */
+  white-space: nowrap;
   padding: 8px 14px;
   border-radius: 8px 8px 0 0;
   cursor: pointer;
@@ -1458,12 +1471,6 @@ div.gallery-contributor-status {
 /* Deleting is irreversible, so it reads as the weightier of the two author
    actions without shouting from a closed menu. */
 .gallery-owner-danger-action {
-  color: var(--icm-error);
-}
-
-/* Deleting is irreversible, so it reads as the weightier action on the card
-   without shouting over Open and Version history. */
-.mine-card-delete {
   color: var(--icm-error);
 }
 
@@ -1655,10 +1662,26 @@ div.gallery-contributor-status {
   border-bottom: 1px solid var(--icm-border);
 }
 
-.gallery-sidebar-search > .gallery-search-input {
+.gallery-search-field {
+  position: relative;
+  display: block;
+}
+
+.gallery-search-icon {
+  position: absolute;
+  top: 50%;
+  left: 10px;
+  width: 15px;
+  height: 15px;
+  color: var(--icm-text-muted);
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.gallery-sidebar-search .gallery-search-input {
   box-sizing: border-box;
   width: 100%;
-  padding: 8px 10px;
+  padding: 8px 10px 8px 32px;
   border-radius: 6px;
 }
 
@@ -1707,12 +1730,13 @@ div.gallery-contributor-status {
   display: none;
 }
 
+/* A narrower window narrows the sides only; nothing moves up or down. */
 @media (max-width: 900px) {
   .gallery-sidebar-search {
-    margin: 16px 10px 0;
+    margin-inline: 10px;
   }
   .gallery-tag-sidebar {
-    padding: 16px 10px;
+    padding-inline: 10px;
   }
   .gallery-main .gallery-wall {
     padding-left: 14px;
@@ -1725,6 +1749,9 @@ div.gallery-contributor-status {
     display: block;
   }
   .gallery-sidebar-slot {
+    /* Its own block context, as the grid cell was: the search's top margin
+       stays inside the white panel instead of opening a grey gap above it. */
+    display: flow-root;
     width: auto;
     border-right: 0;
     border-bottom: 1px solid var(--icm-border);
@@ -1752,6 +1779,21 @@ div.gallery-contributor-status {
   }
   .gallery-tag-sidebar[data-open="true"] {
     display: block;
+  }
+  /* The tabs keep their one-line labels; in a row too narrow the count
+     beside them gives way, ending in an ellipsis. Only the sides narrow:
+     the row keeps its height at every width. */
+  .gallery-view-tabs {
+    padding-inline: 10px;
+  }
+  .gallery-view-tablist {
+    flex-shrink: 0;
+  }
+  .gallery-view-tab {
+    padding: 8px 10px;
+  }
+  .gallery-contributor-menu {
+    min-width: 0;
   }
 }
 

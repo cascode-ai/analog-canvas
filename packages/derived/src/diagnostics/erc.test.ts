@@ -304,6 +304,76 @@ describe("ERC engine", () => {
     ]);
   });
 
+  it("names a Net Label that is on no wire or pin, not one beside its own wire", () => {
+    const project = emptyProject();
+    const document = project.documents[0]!;
+    document.nets.push(
+      { id: "wired", terminals: [] },
+      { id: "floating", terminals: [] },
+    );
+    document.junctions.push(
+      {
+        id: "A",
+        netId: "wired",
+        position: { x: 0, y: 0 },
+        role: "route-anchor",
+      },
+      {
+        id: "B",
+        netId: "wired",
+        position: { x: 100, y: 0 },
+        role: "route-anchor",
+      },
+    );
+    document.routes.push(
+      createRoutePath({
+        id: "stub",
+        netId: "wired",
+        start: { kind: "junction", junctionId: "A" },
+        end: { kind: "junction", junctionId: "B" },
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+    for (const [id, netId, name] of [
+      ["on-its-wire", "wired", "BFT_h<7>"],
+      ["pasted", "floating", "BFT_l<6>"],
+    ] as const) {
+      // Both are free text above the wire; only the first names its Net.
+      document.annotations.push({
+        id,
+        kind: "net-label",
+        binding: { kind: "net-name", netId },
+        netId,
+        anchor: { kind: "free", position: { x: 20, y: -15 } },
+        alignment: "start",
+        rotation: 0,
+        locked: false,
+      });
+      document.connectivityEvidence.push({
+        id: `claim-${id}`,
+        kind: "name-claim",
+        netId,
+        name,
+        scope: "local",
+        owner: { kind: "net-label", annotationId: id },
+      });
+    }
+    expect(
+      run(project).filter(
+        (diagnostic) => diagnostic.code === "ERC_NET_LABEL_NAMES_NOTHING",
+      ),
+    ).toEqual([
+      expect.objectContaining({
+        severity: "warning",
+        gateEligible: false,
+        message:
+          "Net Label BFT_l<6> is on no wire or pin, so it names nothing; paste it onto its wire, or place it there with the Net Label tool (L)",
+        parameters: { annotationId: "pasted", netId: "floating" },
+      }),
+    ]);
+  });
+
   it("names a wire that ends in the open, but not a rail's end or a labelled end", () => {
     const project = emptyProject();
     const document = project.documents[0]!;
