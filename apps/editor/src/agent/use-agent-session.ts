@@ -4,9 +4,7 @@ import {
   AGENT_API_VERSION,
   AGENT_HEARTBEAT_INTERVAL_MS,
   AGENT_HEARTBEAT_TIMEOUT_MS,
-  AGENT_FILE_RESOURCE_MAX_BYTES,
   AGENT_SESSION_PROTOCOL_VERSION,
-  AGENT_SIMULATION_MAX_TIMEOUT_MS,
   AgentSessionEventSchema,
   AgentSessionMessageSchema,
   AgentSessionScopeSchema,
@@ -22,7 +20,6 @@ import {
   type AgentOperationHost,
   type AgentFileResourceRequest,
   type AgentFileResourceResponse,
-  type AgentPermissions,
   type AgentSessionScope,
   type AgentSimulationResourceRequest,
   type AgentSimulationResourceResponse,
@@ -36,6 +33,7 @@ import { ArtifactDownloadError } from "@icm/simulation-service/files";
 
 import type { AgentConnectionStatus } from "./connect-agent-panel";
 import { transitionAgentSession } from "./agent-session-state-machine";
+import { agentCircuitServiceOptions } from "./agent-service-options";
 import {
   ConnectionOperation,
   type ConnectionOperationKind,
@@ -234,22 +232,6 @@ function attachArtifactPublisher(
     return;
   fileHost.setArtifactPublisher(live.publishArtifact);
   live.attachedFileHosts.add(fileHost);
-}
-
-function permissionsFromScopes(
-  scopes: readonly AgentSessionScope[],
-): AgentPermissions {
-  return {
-    snapshot: scopes.includes("circuit.snapshot"),
-    render: scopes.includes("circuit.render"),
-    sourceSpans: scopes.includes("circuit.source-spans"),
-    semanticControl: scopes.includes("editor.semantic-control"),
-    edit: {
-      geometry: scopes.includes("circuit.edit.geometry"),
-      connectivity: scopes.includes("circuit.edit.connectivity"),
-      presentation: scopes.includes("circuit.edit.presentation"),
-    },
-  };
 }
 
 function socketUrl(sessionId: string): string {
@@ -582,80 +564,16 @@ export function useAgentSession(
             serviceBinding.host === host
           )
             return serviceBinding.instance;
-          const instance = createAgentCircuitService({
-            agentId: `web-agent:${live.sessionId}`,
-            host,
-            permissions: permissionsFromScopes(scopes),
-            ...(options.fileHost
-              ? {
-                  fileResource: {
-                    path: "/api/agent/sessions/{sessionId}/files" as const,
-                    operations: [
-                      "download",
-                      "stage",
-                      "inspect",
-                      "discard",
-                      "request-approval",
-                      "open",
-                      "simulation-input",
-                      "import-cell",
-                    ] as const,
-                    maxBytes: AGENT_FILE_RESOURCE_MAX_BYTES,
-                    humanApprovalOperations: ["request-approval"] as const,
-                  },
-                  ...(options.simulationHost
-                    ? {
-                        simulationResource: {
-                          path: "/api/agent/sessions/{sessionId}/simulation" as const,
-                          operations: [
-                            "capabilities",
-                            "prepare",
-                            "start",
-                            "read",
-                            "cancel",
-                            "export",
-                            "prepare-batch",
-                            "start-batch",
-                            "read-batch",
-                            "cancel-batch",
-                            "prepare-sweep",
-                          ] as const,
-                          analyses: [
-                            "op",
-                            "dc",
-                            "ac",
-                            "tran",
-                            "noise",
-                          ] as const,
-                          maxTimeoutMs: AGENT_SIMULATION_MAX_TIMEOUT_MS,
-                          synchronous: false as const,
-                        },
-                      }
-                    : {}),
-                  ...(options.projectHost
-                    ? {
-                        projectResource: {
-                          path: "/api/agent/sessions/{sessionId}/projects" as const,
-                          operations: [
-                            "list-projects",
-                            "workspace",
-                            "list-cells",
-                            "import-cell",
-                            "list-gallery",
-                            "read-gallery-entry",
-                            "read-gallery-entries",
-                            "read-project-code",
-                            "replace-project-code",
-                            "read-netlist",
-                            "replace-netlist",
-                          ] as const,
-                          importMode: "project-local-copy" as const,
-                        },
-                      }
-                    : {}),
-                }
-              : {}),
-          });
+          const instance = createAgentCircuitService(
+            agentCircuitServiceOptions({
+              sessionId: live.sessionId,
+              host,
+              scopes,
+              files: Boolean(options.fileHost),
+              simulation: Boolean(options.simulationHost),
+              projects: Boolean(options.projectHost),
+            }),
+          );
           serviceBinding = { contextRevision, host, instance };
           return instance;
         };

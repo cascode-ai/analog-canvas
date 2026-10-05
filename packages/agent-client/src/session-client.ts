@@ -46,7 +46,6 @@ import {
 } from "./connector-store.js";
 import {
   SnapshotCache,
-  bootstrapFromFullSnapshot,
   bootstrapSummary,
   changedObjectIds,
   countDiagnostics,
@@ -862,41 +861,6 @@ export class AgentSessionClient {
     });
     const parsed = AgentBootstrapSnapshotResponseSchema.safeParse(response);
     if (!parsed.success) {
-      if (
-        response.ok &&
-        response.operation === "snapshot" &&
-        "snapshot" in response
-      ) {
-        const entry: CachedSnapshot = {
-          documentId: target,
-          revision: response.revision,
-          snapshot: response.snapshot,
-          diagnostics: [...response.diagnostics],
-          fetchedAt: this.now(),
-          requestId: response.requestId,
-          dirty: false,
-        };
-        this.cache.set(entry);
-        this.rememberRevision({
-          documentId: target,
-          revision: entry.revision,
-          structureRevision: entry.snapshot.project.structureRevision,
-          projectId: entry.snapshot.project.id,
-        });
-        const fallback = bootstrapFromFullSnapshot(response.snapshot);
-        this.updateDocumentRoster(
-          fallback.project.documents.map((document) => document.id),
-          fallback.project.topDocumentId,
-        );
-        return fallback;
-      }
-      if (!response.ok && response.error.code === "INVALID_REQUEST") {
-        // During a rolling deployment an older Editor rejects the new optional
-        // projection field. Fall back once to the established full request.
-        const full = await this.refreshSnapshot(target);
-        const fallback = bootstrapFromFullSnapshot(full.snapshot);
-        return fallback;
-      }
       if (!response.ok) {
         throw new AgentSessionError(
           response.error.code,
@@ -1033,8 +997,6 @@ export class AgentSessionClient {
       "state",
       options.diagnostics ?? "counts",
     );
-    if (!read.response.ok && read.response.error.code === "INVALID_REQUEST")
-      return fromCache(await this.refreshSnapshot(read.documentId));
     const parsed = AgentDocumentStateResponseSchema.safeParse(read.response);
     if (!parsed.success)
       throw new AgentSessionError(
@@ -1079,8 +1041,6 @@ export class AgentSessionClient {
     const cached = this.cache.get(target);
     if (cached && !cached.dirty && !options.refresh) return fromCache(cached);
     const read = await this.lightweightSnapshot(documentId, "folder-directory");
-    if (!read.response.ok && read.response.error.code === "INVALID_REQUEST")
-      return fromCache(await this.refreshSnapshot(read.documentId));
     const parsed = AgentFolderDirectoryResponseSchema.safeParse(read.response);
     if (!parsed.success)
       throw new AgentSessionError(
@@ -1119,83 +1079,6 @@ export class AgentSessionClient {
       projection: "geometry",
       geometryIds: ids,
     });
-    if (!response.ok && response.error.code === "INVALID_REQUEST") {
-      // An older Editor may reject the projection during a rolling deploy.
-      const full = await this.refreshSnapshot(target);
-      const document = full.snapshot.document;
-      const objects: unknown[] = [];
-      const found = new Set<string>();
-      for (const id of ids) {
-        const instance = document.instances.find((item) => item.id === id);
-        if (instance) {
-          objects.push({ kind: "instance", id, placement: instance.placement });
-          found.add(id);
-          continue;
-        }
-        const route = document.routes.find((item) => item.id === id);
-        if (route) {
-          objects.push({
-            kind: "route",
-            id,
-            netId: route.netId,
-            start: route.start,
-            legs: route.legs,
-            ...(route.presentation ? { presentation: route.presentation } : {}),
-          });
-          found.add(id);
-          continue;
-        }
-        const junction = document.junctions.find((item) => item.id === id);
-        if (junction) {
-          objects.push({
-            kind: "junction",
-            id,
-            netId: junction.netId,
-            position: junction.position,
-          });
-          found.add(id);
-          continue;
-        }
-        const annotation = document.annotations.find((item) => item.id === id);
-        if (annotation) {
-          objects.push({
-            kind: "annotation",
-            id,
-            anchor: annotation.anchor,
-            rotation: annotation.rotation,
-            alignment: annotation.alignment,
-          });
-          found.add(id);
-          continue;
-        }
-        const drafting = document.drafting.objects.find(
-          (item) => item.object.id === id,
-        );
-        if (drafting) {
-          objects.push({ kind: "drafting", id, object: drafting.object });
-          found.add(id);
-          continue;
-        }
-        const noConnect = document.noConnects.find((item) => item.id === id);
-        if (noConnect) {
-          objects.push({ kind: "no-connect", id, object: noConnect });
-          found.add(id);
-        }
-      }
-      return AgentGeometrySnapshotResponseSchema.parse({
-        apiVersion: AGENT_API_VERSION,
-        requestId: response.requestId,
-        operation: "snapshot",
-        ok: true,
-        projection: "geometry",
-        projectId: full.snapshot.project.id,
-        structureRevision: full.snapshot.project.structureRevision,
-        documentId: target,
-        revision: full.revision,
-        objects,
-        missingObjectIds: ids.filter((id) => !found.has(id)),
-      });
-    }
     if (!response.ok)
       throw new AgentSessionError(
         response.error.code,
@@ -1245,28 +1128,6 @@ export class AgentSessionClient {
       projection: "pins",
       instanceIds: [...instanceIds],
     });
-    if (!response.ok && response.error.code === "INVALID_REQUEST") {
-      const full = await this.refreshSnapshot(target);
-      const instances = full.snapshot.document.instances.filter((instance) =>
-        instanceIds.includes(instance.id),
-      );
-      return AgentPinsSnapshotResponseSchema.parse({
-        apiVersion: AGENT_API_VERSION,
-        requestId: response.requestId,
-        operation: "snapshot",
-        ok: true,
-        projection: "pins",
-        projectId: full.snapshot.project.id,
-        structureRevision: full.snapshot.project.structureRevision,
-        documentId: target,
-        revision: full.revision,
-        instances,
-        mosBulkDefaults: full.snapshot.document.mosBulkDefaults,
-        missingInstanceIds: [...new Set(instanceIds)].filter(
-          (id) => !instances.some((instance) => instance.id === id),
-        ),
-      });
-    }
     if (!response.ok)
       throw new AgentSessionError(
         response.error.code,
@@ -1589,23 +1450,6 @@ export class AgentSessionClient {
       }
     };
     let response = await submit(request(options.dryRun ?? false));
-    if (
-      !response.ok &&
-      response.error.code === "INVALID_REQUEST" &&
-      options.diagnosticDeltaDetail === "compact" &&
-      response.diagnostics.some(
-        (item) =>
-          item.code === "SCHEMA_VIOLATION" &&
-          item.message.includes("unsupported field") &&
-          item.message.includes("diagnosticDeltaDetail"),
-      )
-    ) {
-      // Explicit schema rejection proves no write ran. Rolling deploys may
-      // still have an older Editor open; retry once without the projection.
-      const legacy = request(options.dryRun ?? false);
-      if (legacy.operation === "transact") delete legacy.diagnosticDeltaDetail;
-      response = await submit(legacy);
-    }
     if (!response.ok) {
       if (
         response.error.code === "STALE_REVISION" ||

@@ -1,4 +1,4 @@
-import { AgentSessionError, type AgentSessionClient } from "@icm/agent-client";
+import type { AgentSessionClient } from "@icm/agent-client";
 import type { AgentFileResourceResponse } from "@icm/agent-adapter";
 import type { FetchArtifact } from "./local-workspace.js";
 import { TransferPending } from "./transfer-pending.js";
@@ -6,11 +6,7 @@ import { TransferPending } from "./transfer-pending.js";
 /** One sync's metadata preparation. Local cache hits never enter this function. */
 export function workspaceTransfer(client: AgentSessionClient): FetchArtifact {
   let ids: string[] = [];
-  const batches = new Map<
-    string,
-    Promise<AgentFileResourceResponse | undefined>
-  >();
-  let legacy = false;
+  const batches = new Map<string, Promise<AgentFileResourceResponse>>();
   let deferPending = false;
   const pendingIds = new Set<string>();
   const attempts = new Map<string, { started: number; count: number }>();
@@ -20,7 +16,7 @@ export function workspaceTransfer(client: AgentSessionClient): FetchArtifact {
     const first = attempt.count++ === 0;
     const position = ids.indexOf(ref.id);
     let descriptor: AgentFileResourceResponse | undefined;
-    if ((first || deferPending) && !legacy && position >= 0 && ids.length > 1) {
+    if ((first || deferPending) && position >= 0 && ids.length > 1) {
       const group = Math.floor(position / 32);
       // A publication retry is still one batch per round, not N individual
       // descriptor requests. Ready/cache-hit files do not enter later rounds.
@@ -55,22 +51,11 @@ export function workspaceTransfer(client: AgentSessionClient): FetchArtifact {
                 else pendingIds.delete(item.artifactId);
               }
             return response;
-          })
-          .catch((error: unknown) => {
-            if (
-              error instanceof AgentSessionError &&
-              error.code === "FILE_CONTENT_INVALID" &&
-              error.httpStatus === 400
-            ) {
-              legacy = true;
-              return undefined;
-            }
-            throw error;
           });
         batches.set(key, pending);
       }
       const response = await pending;
-      if (response?.ok && response.operation === "simulation-input") {
+      if (response.ok && response.operation === "simulation-input") {
         if (response.result.ok && "downloads" in response.result) {
           const entry = response.result.downloads.find(
             (item) => item.artifactId === ref.id,
@@ -82,14 +67,8 @@ export function workspaceTransfer(client: AgentSessionClient): FetchArtifact {
             entry.result.error.code !== "ARTIFACT_TRANSFER_PENDING"
           )
             descriptor = { ...response, result: entry.result };
-        } else if (
-          response.result.ok ||
-          response.result.error.code !== "SIMULATION_FILE_INVALID"
-        ) {
-          throw new Error(JSON.stringify(response));
-        } else legacy = true;
-        // A pre-batch editor's definite schema rejection falls back once per sync group.
-      } else if (response) throw new Error(JSON.stringify(response));
+        } else throw new Error(JSON.stringify(response));
+      } else throw new Error(JSON.stringify(response));
     }
     descriptor ??= await client.prepareArtifactDownload(
       ref.id,
