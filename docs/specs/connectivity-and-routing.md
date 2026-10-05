@@ -178,7 +178,12 @@ Undo restores the whole committed document, including the derived membership.
   both pins of a two-pin part on one Logical Net is refused with that reason;
   a move then completes without connecting.
 - Moving a connected Instance stretches the attached Route while preserving
-  endpoint identity.
+  endpoint identity. A move typed as a coordinate (the Properties position
+  field, an Agent's `move`) redraws a wire its stretch would lay across a
+  part or over another Net's pin or wire, along the path the Agent's
+  `connect` takes, keeping its ends, Net and style; a wire with no clear
+  path keeps the stretch. A drag keeps the stretch as dragged, since the
+  person dragging sees it (#1344).
 - Placement and an explicitly snapped instance move use the same engine contact
   planner. Every moved visible pin is checked against the final transformed
   geometry; multiple Net joins are folded before Route splits are compiled.
@@ -397,8 +402,9 @@ with routing guides is left alone. `ERC_OVERLAPPING_NETS` is an error for
 two wires of different Logical Nets drawn along one line over a common span:
 the sheet shows one continuous wire, the Nets joined, while the netlist keeps
 them apart. A stretch after a move, a mirror or a pin change can leave wires
-so; a pin change planned in Properties, such as swapped inputs, redraws a
-wire it would stretch onto another Net clear of it instead. A crossing, wires
+so; a pin change planned in Properties, such as swapped inputs, and a typed
+move redraw a wire they would stretch onto another Net clear of it instead.
+A crossing, wires
 meeting end to end and a shared trunk of one Net are not overlaps. Each pair
 of wires is named once, with the span. `ERC_INSTANCE_NOT_DRAWN`
 counts the Instances a Cell holds that the sheet does not draw: they keep their

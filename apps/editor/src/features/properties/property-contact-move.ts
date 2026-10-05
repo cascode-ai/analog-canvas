@@ -1,5 +1,6 @@
 import {
   planInstanceContactTransform,
+  planMoveRouteClearance,
   type ExpectedElectricalEffect,
   type RoutingOperationIntent,
   type SchematicEdit,
@@ -56,9 +57,15 @@ export function planPropertyContactMove(
   );
   const blocking = plan.diagnostics.find((item) => item.severity === "error");
   if (blocking) return { ok: false, message: blocking.message };
+  const moved = [...plan.edits, ...edits.filter((edit) => edit !== move)];
   return {
     ok: true,
-    edits: [...plan.edits, ...edits.filter((edit) => edit !== move)],
+    // A wire the stretch lays over a part or another Net's pin or wire is
+    // drawn clear of it, as the Agent's connect draws it (#1344).
+    edits: [
+      ...moved,
+      ...planMoveRouteClearance(document, resolver, [instance.id], moved),
+    ],
     intent: plan.intent,
     expectedElectricalEffect: plan.expectedElectricalEffect,
   };

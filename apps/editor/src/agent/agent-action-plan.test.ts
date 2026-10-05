@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { createAgentCircuitService } from "@icm/agent-adapter";
+import { diagnoseVisualQuality } from "@icm/derived";
 import { createEmptyProject } from "@icm/model";
+import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
 import { AgentSessionClient } from "../../../../packages/agent-client/src/session-client";
 import { FakeAgentHttp } from "../../../../packages/agent-client/src/test-support/fake-relay";
 import { EditorDocumentController } from "../document/document-controller";
@@ -327,6 +329,105 @@ describe("the editor plans an Agent's action list", () => {
     });
     expect(controller.document.instances).toEqual([]);
   });
+
+  it(
+    "draws a moved part's stretched wires clear of other parts and pins (#1344)",
+    { timeout: 30_000 },
+    async () => {
+      // A 2-bit flash ADC: a ladder R4–R1, three comparators each taking a
+      // tap on IN− and vin on IN+. X3 is typed two grid steps higher and X1
+      // two lower. X1's IN− bend slid down along R1, so the wire seemed to
+      // leave from R1's middle, and X3's IN+ came to lie on its own IN− wire.
+      const { controller, client } = await editor();
+      const apply = async (actions: unknown[]) => {
+        const report = await client.applyActions(actions);
+        expect(report.ok, report.message).toBe(true);
+      };
+      const at = (symbol: string, reference: string, x: number, y: number) => ({
+        kind: "place-component",
+        symbol,
+        reference,
+        position: { x, y },
+      });
+      await apply([
+        ...["R4", "R3", "R2", "R1"].map((reference, index) =>
+          at("resistor", reference, 0, -120 + 60 * index),
+        ),
+        ...["X3", "X2", "X1"].map((reference, index) =>
+          at("comparator", reference, 120, -90 + 60 * index),
+        ),
+        {
+          kind: "place-component",
+          symbol: "port",
+          reference: "vin",
+          pinAnchor: { pinName: "P", position: { x: -60, y: 130 } },
+          direction: "input",
+        },
+      ]);
+      const id = (reference: string) =>
+        controller.document.instances.find(
+          (item) =>
+            item.reference === reference ||
+            controller.document.netlist?.terminals.some(
+              (terminal) =>
+                terminal.name === reference &&
+                terminal.interfaceInstanceIds?.includes(item.id),
+            ),
+        )!.id;
+      const net = (...pins: [string, string][]) =>
+        apply([
+          {
+            kind: "route-net",
+            target: {
+              kind: "pins",
+              pins: pins.map(([reference, pinName]) => ({
+                instanceId: id(reference),
+                pinName,
+              })),
+            },
+          },
+        ]);
+      await net(["R4", "2"], ["R3", "1"], ["X3", "IN-"]);
+      await net(["R3", "2"], ["R2", "1"], ["X2", "IN-"]);
+      await net(["R2", "2"], ["R1", "1"], ["X1", "IN-"]);
+      await net(["vin", "P"], ["X1", "IN+"], ["X2", "IN+"], ["X3", "IN+"]);
+      const joined = () =>
+        controller.document.nets
+          .map((item) =>
+            item.terminals
+              .map(
+                (terminal) =>
+                  `${controller.document.instances.find((part) => part.id === terminal.instanceId)?.reference}.${terminal.pinName}`,
+              )
+              .sort()
+              .join(" "),
+          )
+          .filter(Boolean)
+          .sort();
+      const before = joined();
+
+      await apply([
+        {
+          kind: "move",
+          target: { kind: "instance", reference: "X3" },
+          position: { x: 120, y: -130 },
+        },
+        {
+          kind: "move",
+          target: { kind: "instance", reference: "X1" },
+          position: { x: 120, y: 70 },
+        },
+      ]);
+
+      expect(joined()).toEqual(before);
+      const findings = diagnoseVisualQuality(
+        controller.document,
+        new InMemorySymbolResolver(builtInSymbols),
+      ).map((finding) => finding.code);
+      expect(findings).not.toContain("VISUAL_WIRE_THROUGH_SYMBOL");
+      expect(findings).not.toContain("VISUAL_TERMINAL_ON_FOREIGN_ROUTE");
+    },
+  );
 
   it("leaves the Document alone for a list that changes nothing", async () => {
     const { controller, client, instance } = await editor();
