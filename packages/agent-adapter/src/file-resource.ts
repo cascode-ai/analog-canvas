@@ -12,8 +12,14 @@ import { AGENT_API_VERSION } from "./schema.js";
 const StableIdSchema = z.string().min(1).max(256);
 const Sha256Schema = z.string().regex(/^[a-f0-9]{64}$/u);
 
-/** Hard browser/relay ceiling for a single encoded file-resource request. */
-export const AGENT_FILE_RESOURCE_MAX_BYTES = 1_500_000;
+/**
+ * The most one file-resource request or response carries, decoded. Its
+ * base64 envelope, about 13.4 MB, stays well under the 32 MiB WebSocket
+ * message a Durable Object receives, and the relay's few copies of it well
+ * under an isolate's 128 MB. At 1.5 MB, a Project of 75 Cells could no longer
+ * be downloaded.
+ */
+export const AGENT_FILE_RESOURCE_MAX_BYTES = 10_000_000;
 export const AGENT_FILE_RESOURCE_MAX_FILES = 24;
 export const AGENT_FILE_CANDIDATE_TTL_MS = 5 * 60_000;
 
@@ -22,7 +28,11 @@ export const AgentFileBlobSchema = z.strictObject({
   mediaType: z.string().min(1).max(128),
   encoding: z.literal("base64"),
   data: z.string().min(4),
-  byteLength: z.number().int().positive().max(AGENT_FILE_RESOURCE_MAX_BYTES),
+  // No ceiling here: the editor enforces the one it advertises
+  // (capabilities `fileResource.maxBytes`) on what it accepts and sends. A
+  // ceiling built into the schema had held every installed client at the
+  // old one.
+  byteLength: z.number().int().positive(),
   sha256: Sha256Schema,
 });
 
