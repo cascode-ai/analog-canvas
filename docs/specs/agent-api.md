@@ -91,9 +91,9 @@ naming what the Document does not hold, is refused with
 `error.actionIndex` and `error.actionKind`, and its message begins
 `actions[i] (kind):`. A list sent on unchanged (wires, one command, a batch of
 commands, focus, undo or redo) is checked against `expectedRevision` as its
-form is. A list resolved against the Document, by Reference or target, is
-planned on the Document as it stands and committed in the same step, so no
-edit lands between the two. A list that changes nothing answers
+form is. A list resolved against the Document, by Reference or target, needs
+Snapshot permission; it is planned on the Document as it stands and committed
+in the same step, so no edit lands between the two. A list that changes nothing answers
 `applied: false` and adds no history entry.
 
 Undo/redo uses the shared browser Document/Project history and requires all

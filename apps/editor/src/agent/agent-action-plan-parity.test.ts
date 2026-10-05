@@ -232,6 +232,62 @@ describe("an action list planned by the editor matches the client's own plan", (
     });
   });
 
+  it("plans a list on the Document only with Snapshot permission", () => {
+    const project = createEmptyProject("project-1", "No Snapshot");
+    project.documents[0]!.id = "main";
+    project.topDocumentId = "main";
+    const controller = new EditorDocumentController(project);
+    const session = (snapshot: boolean) =>
+      createAgentCircuitService({
+        agentId: "test",
+        host: new BrowserAgentHost(controller),
+        permissions: {
+          snapshot,
+          render: false,
+          sourceSpans: false,
+          semanticControl: false,
+          edit: { geometry: true, connectivity: true, presentation: true },
+        },
+      });
+    let request = 0;
+    const transact = (
+      service: ReturnType<typeof session>,
+      actions: unknown[],
+    ) =>
+      service.handle({
+        apiVersion: "3.0",
+        requestId: `req-${++request}`,
+        operation: "transact",
+        documentId: "main",
+        transactionId: `txn-${request}`,
+        expectedRevision: controller.document.revision,
+        dryRun: false,
+        actions,
+      });
+    expect(
+      transact(session(true), [place("resistor", "R1", 100)]),
+    ).toMatchObject({ ok: true, applied: true });
+    const blind = session(false);
+    const before = structuredClone(controller.document);
+    // The client read the Document to compile this list.
+    expect(
+      transact(blind, [
+        {
+          kind: "set-property",
+          target: { kind: "instance", reference: "R1" },
+          set: { value: "2k" },
+        },
+      ]),
+    ).toMatchObject({ ok: false, error: { code: "PERMISSION_DENIED" } });
+    expect(controller.document).toEqual(before);
+    // An undo goes as it is, without the Document.
+    expect(transact(blind, [{ kind: "undo" }])).toMatchObject({
+      ok: true,
+      applied: true,
+    });
+    expect(controller.document.instances).toEqual([]);
+  });
+
   it("leaves the Document alone for a list that changes nothing", async () => {
     const { local, planned, same } = await pair();
     await same([place("resistor", "R1", 100)]);

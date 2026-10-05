@@ -1,5 +1,9 @@
 import { resolveDocumentRoutingGeometry, sha256Hex } from "@icm/derived";
-import { actionRefusalNaming, planActionsNow } from "./authoring-plan.js";
+import {
+  actionRefusalNaming,
+  planActionsNow,
+  type ActionPlan,
+} from "./authoring-plan.js";
 import {
   executeTransaction,
   executeProjectTransaction,
@@ -739,34 +743,49 @@ export function createAgentCircuitService(
             "This operation needs the live editor planning adapter",
             document.revision,
           );
-        const plan = planActionsNow(request.actions, {
-          allocateId,
-          snapshot: () => {
-            const cached = snapshotCache;
-            const snapshot =
-              cached !== undefined &&
-              cached.project === project &&
-              cached.document === document &&
-              cached.resolver === resolver &&
-              !cached.includeSourceSpans
-                ? cached.snapshot
-                : buildAgentSessionSnapshot({
-                    ...(project ? { project } : {}),
-                    document,
-                    resolver,
-                    includeSourceSpans: false,
-                  });
-            snapshotCache = {
-              project,
-              document,
-              resolver,
-              includeSourceSpans: false,
-              snapshot,
-            };
-            return snapshot;
-          },
-          maxEditsPerTransaction: () => limits.maxTransactionEdits,
-        });
+        // The client read a Snapshot to compile a list that needs the
+        // Document, so planning one here needs the same permission.
+        const snapshotDenied = new Error("Snapshot permission is not granted");
+        let plan: ActionPlan;
+        try {
+          plan = planActionsNow(request.actions, {
+            allocateId,
+            snapshot: () => {
+              if (!options.permissions.snapshot) throw snapshotDenied;
+              const cached = snapshotCache;
+              const snapshot =
+                cached !== undefined &&
+                cached.project === project &&
+                cached.document === document &&
+                cached.resolver === resolver &&
+                !cached.includeSourceSpans
+                  ? cached.snapshot
+                  : buildAgentSessionSnapshot({
+                      ...(project ? { project } : {}),
+                      document,
+                      resolver,
+                      includeSourceSpans: false,
+                    });
+              snapshotCache = {
+                project,
+                document,
+                resolver,
+                includeSourceSpans: false,
+                snapshot,
+              };
+              return snapshot;
+            },
+            maxEditsPerTransaction: () => limits.maxTransactionEdits,
+          });
+        } catch (error) {
+          if (error !== snapshotDenied) throw error;
+          return fail(
+            "transact",
+            "PERMISSION_DENIED",
+            snapshotDenied.message,
+            document.revision,
+          );
+        }
         if (plan.kind === "refused")
           return response({
             apiVersion: request.apiVersion,
