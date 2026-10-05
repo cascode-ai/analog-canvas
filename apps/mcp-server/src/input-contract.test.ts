@@ -72,6 +72,10 @@ describe("caller input contracts", () => {
         }),
       );
       expect(failure.error.details).toBeDefined();
+      // Details must not re-expand unrelated file/workspace union branches.
+      if (failure.error.details[0].code === "invalid_union")
+        expect(failure.error.details[0].errors).toHaveLength(1);
+      else expect(failure.error.details[0].code).toBe("too_big");
     }
     const field = describeToolContract({
       tool: "simulation_plot",
@@ -97,5 +101,9 @@ describe("caller input contracts", () => {
     expect(JSON.parse(result.content[0]!.text!).error.issues[0].path).toEqual([
       "request",
     ]);
+    expect(result.content[0]!.text!.length).toBeLessThan(1500);
+    expect(
+      JSON.parse(result.content[0]!.text!).error.details[0],
+    ).not.toHaveProperty("errors");
   });
 });

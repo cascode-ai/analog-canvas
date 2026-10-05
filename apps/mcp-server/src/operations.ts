@@ -523,7 +523,7 @@ export function operationError(error: unknown, input?: unknown): unknown {
         message: "Tool arguments do not match the input contract.",
         recovery: "fix-input",
         issues: inputIssues(error.issues, input),
-        details: inputIssueDetails(error.issues),
+        details: inputIssueDetails(error.issues, input),
       },
     };
   }
