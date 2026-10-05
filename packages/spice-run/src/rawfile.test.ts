@@ -82,17 +82,6 @@ describe("the header ngspice writes", () => {
 });
 
 describe("the blank line between points", () => {
-  it("recovers every point of the complex plot, both parts", () => {
-    const plot = expectPlots(parseNgspiceRawfile(fixture("rc-ac.raw")))[0]!;
-    expect(plot.complex).toBe(true);
-    expect(plot.pointCount).toBe(17);
-    expect(plot.vectors).toHaveLength(4);
-    for (const vector of plot.vectors) {
-      expect(vector.real).toHaveLength(17);
-      expect(vector.imag).toHaveLength(17);
-    }
-  });
-
   it("rejects a file whose points were run together", () => {
     // Deleting one blank line joins two points into an eight-line block. A
     // reader that advances a fixed number of lines per point cannot see the

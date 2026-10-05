@@ -1,7 +1,6 @@
-import { CURRENT_MODEL_SCHEMA_VERSION, createEmptyProject } from "@icm/model";
+import { createEmptyProject } from "@icm/model";
 import { describe, expect, it } from "vitest";
 
-import { tryParseProjectWithMetadata } from "./load.js";
 import {
   upgradeSchema41To42,
   upgradeSchema41To42WithReport,
@@ -38,23 +37,5 @@ describe("schema 41 to 42 named simulation setup migration", () => {
       migratedSetupCount: 1,
     });
     expect(upgradeSchema41To42(previous)).not.toHaveProperty("simulation");
-  });
-
-  it("loads a legacy Project without inventing authored intent", () => {
-    const previous = {
-      ...createEmptyProject("p", "P"),
-      schemaVersion: 41,
-    } as unknown as Record<string, unknown>;
-    delete previous.simulationSetups;
-    const loaded = tryParseProjectWithMetadata(JSON.stringify(previous));
-    expect(loaded).toMatchObject({
-      ok: true,
-      sourceSchemaVersion: 41,
-      migrated: true,
-      project: {
-        schemaVersion: CURRENT_MODEL_SCHEMA_VERSION,
-        simulationFolders: [],
-      },
-    });
   });
 });

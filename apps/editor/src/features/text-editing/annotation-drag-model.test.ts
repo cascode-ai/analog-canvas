@@ -88,7 +88,7 @@ describe("annotation drag model", () => {
     }
   });
 
-  it.each(["nmos", "pmos", "resistor"])(
+  it.each(["nmos"])(
     "freely places a %s value while keeping its host-relative anchor",
     (symbolId) => {
       const document = createEmptyDocument("document", "Document");

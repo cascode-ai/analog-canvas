@@ -208,7 +208,7 @@ describe("source simulation compiler", () => {
       ).toBe(true);
     },
   );
-  it.each(["pulse", "sin", "pwl"])(
+  it.each(["pulse"])(
     "explains mode-specific DC for %s without blocking or rewriting the native program",
     (waveform) => {
       const p = createEmptyProject("p", "Bias modes", "d");

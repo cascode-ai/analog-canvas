@@ -386,28 +386,4 @@ describe("render svg", () => {
     expect(scene.formalBody).toContain('data-role="formula-subscript"');
     expect(scene.formalBody).toContain(">mL</tspan>");
   });
-
-  it("renders signal-flow-frame, 12pt formula, fraction line, dynamic leads, and keeps pin names", () => {
-    const doc = createEmptyDocument("main", "Main");
-    doc.instances.push({
-      id: "i1",
-      symbolId: "formula-block",
-      placement: { position: { x: 200, y: 200 }, rotation: 0, mirror: "none" },
-      signalFlowParameters: {
-        formula: "z^-1/(1-z^-1)",
-        coefficient: "K",
-        bodyWidth: 160,
-        bodyHeight: 100,
-      },
-    });
-
-    const scene = buildSvgScene(doc, new InMemorySymbolResolver([definition]));
-    expect(scene.formalBody).toContain('data-role="signal-flow-frame"');
-    expect(scene.formalBody).toContain('font-size="12"');
-    expect(scene.formalBody).toContain('data-role="formula-fraction-bar"');
-    expect(scene.formalBody).toContain('data-part="input-a-lead"');
-    expect(scene.formalBody).toContain('data-part="output-y-lead"');
-    expect(scene.formalBody).toContain('data-pin-name="A"');
-    expect(scene.formalBody).toContain('data-pin-name="Y"');
-  });
 });

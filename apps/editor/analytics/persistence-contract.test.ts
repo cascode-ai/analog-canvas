@@ -3,12 +3,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { AnalyticsDO as EntrypointAnalyticsDO } from "../../../worker/index";
-import {
-  ANALYTICS_OPT_OUT_COOKIE,
-  ANALYTICS_PERSISTENCE_IDENTITY,
-  AnalyticsDO,
-  RETIRED_ANALYTICS_COOKIES,
-} from "./worker";
+import { ANALYTICS_PERSISTENCE_IDENTITY, AnalyticsDO } from "./worker";
 
 type WranglerConfig = {
   name: string;
@@ -65,10 +60,5 @@ describe("analytics persistence identity", () => {
       routes: ["/api/track", "/api/stats", "/api/analytics"],
     });
     expect(EntrypointAnalyticsDO).toBe(AnalyticsDO);
-  });
-
-  it("names the opt-out cookie and the retired source cookie", () => {
-    expect(ANALYTICS_OPT_OUT_COOKIE).toBe("canvas_optout");
-    expect(RETIRED_ANALYTICS_COOKIES).toEqual(["canvas_sid"]);
   });
 });

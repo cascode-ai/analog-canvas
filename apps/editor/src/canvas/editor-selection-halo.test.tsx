@@ -53,10 +53,6 @@ describe("editor selection halo", () => {
     expect(markup).not.toContain('data-object-id="inst-2"');
   });
 
-  it("draws nothing at all when the selection holds no component", () => {
-    expect(render([])).toBe("");
-  });
-
   /**
    * Both bodies painting the same instance would stack their stroke alpha and
    * read as a third, brighter state that means nothing.

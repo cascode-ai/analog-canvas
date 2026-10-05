@@ -1,5 +1,4 @@
 import {
-  AGENT_HEARTBEAT_TIMEOUT_MS,
   AGENT_SESSION_PROTOCOL_VERSION,
   AgentSessionControlMessageSchema,
   type AgentSessionControlMessage,
@@ -24,8 +23,4 @@ export function isHeartbeatAck(value: unknown, sessionId: string): boolean {
     parsed.data.sessionId === sessionId &&
     parsed.data.kind === "heartbeat-ack"
   );
-}
-
-export function isTransportStale(lastAckAt: number, now: number): boolean {
-  return now - lastAckAt >= AGENT_HEARTBEAT_TIMEOUT_MS;
 }

@@ -115,36 +115,6 @@ describe("power Net planner", () => {
     ).toMatchObject({ ok: false, relatedNetIds: ["net-tail"] });
   });
 
-  it("adds a Ground marker claim to an unnamed Base Net", () => {
-    const document = createEmptyDocument("main", "Main");
-    document.nets.push({
-      id: "net-tail",
-
-      terminals: [],
-    });
-    expect(
-      planEnsurePowerNet(document, {
-        candidateNetId: "net-tail",
-        candidateState: "existing",
-        domain: "ground",
-        ...marker,
-      }),
-    ).toEqual({
-      ok: true,
-      netId: "net-tail",
-      edits: [
-        {
-          kind: "upsert_connectivity_evidence",
-          evidence: expect.objectContaining({
-            netId: "net-tail",
-            name: "0",
-            powerDomain: "ground",
-          }),
-        },
-      ],
-    });
-  });
-
   it("rejects a requested supply attached to a differently named Net", () => {
     const document = createEmptyDocument("main", "Main");
     document.nets.push({

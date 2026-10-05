@@ -239,35 +239,6 @@ for (const scale of [0.5, 4]) {
   }
 }
 
-test("wire can start from any interior point of an existing net", async ({
-  page,
-}) => {
-  await page.goto("/editor");
-  await placeComponent(page, "resistor", { x: 260, y: 200 });
-  await placeComponent(page, "resistor", { x: 260, y: 420 });
-  await placeComponent(page, "resistor", { x: 460, y: 310 });
-  const ids = await instanceIds(page);
-
-  // Vertical wire between the first two resistors.
-  await page.keyboard.press("w");
-  await page.getByTestId(`terminal-${ids[0]}-2`).click();
-  await page.getByTestId(`terminal-${ids[1]}-1`).click();
-  await expect(page.locator('[data-canvas-hit-kind="route"]')).toHaveCount(1);
-
-  // Start the next wire from the MIDDLE of that wire, not from a pin, and
-  // land it on the third resistor's pin.
-  const route = page.locator('[data-canvas-hit-kind="route"]').first();
-  const box = (await route.boundingBox())!;
-  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-  await page.getByTestId(`terminal-${ids[2]}-1`).click();
-  await page.keyboard.press("Escape");
-
-  // The tap split the original wire and added the branch: three routes, one
-  // junction dot at the tee.
-  await expect(page.locator('[data-canvas-hit-kind="route"]')).toHaveCount(3);
-  await expect(page.locator('g[data-layer="junctions"] circle')).toHaveCount(1);
-});
-
 test("clicking the active pin does not fix a zero-length wire step", async ({
   page,
 }) => {
@@ -579,88 +550,6 @@ test("dragging a wire's end onto another wire joins them into one net", async ({
   await expectOnlyOpenWireEnds(page, 3);
 });
 
-test("dragging a wire segment onto a capacitor pin connects and dots it", async ({
-  page,
-}) => {
-  const project = createEmptyProject("segment-pin", "Segment pin contact");
-  const document = project.documents[0]!;
-  document.instances.push(
-    {
-      id: "R1",
-      symbolId: "resistor",
-      placement: {
-        position: { x: 200, y: 180 },
-        rotation: 0,
-        mirror: "none",
-      },
-    },
-    {
-      id: "R2",
-      symbolId: "resistor",
-      placement: {
-        position: { x: 400, y: 180 },
-        rotation: 0,
-        mirror: "none",
-      },
-    },
-    {
-      id: "C1",
-      symbolId: "capacitor",
-      placement: {
-        position: { x: 300, y: 320 },
-        rotation: 0,
-        mirror: "none",
-      },
-    },
-  );
-  document.nets.push(
-    {
-      id: "wire-net",
-      terminals: [
-        { instanceId: "R1", pinName: "2" },
-        { instanceId: "R2", pinName: "2" },
-      ],
-    },
-    {
-      id: "capacitor-top",
-      terminals: [{ instanceId: "C1", pinName: "1" }],
-    },
-  );
-  document.routes.push(
-    createRoutePath({
-      id: "dragged-wire",
-      netId: "wire-net",
-      start: { kind: "terminal", instanceId: "R1", pinName: "2" },
-      end: { kind: "terminal", instanceId: "R2", pinName: "2" },
-      bends: [],
-      modes: ["manual"],
-    }),
-  );
-
-  await page.goto("/editor");
-  await page.getByTestId("project-file").setInputFiles({
-    name: "segment-pin.icproj.json",
-    mimeType: "application/json",
-    buffer: Buffer.from(JSON.stringify(project)),
-  });
-  const canvas = page.getByTestId("schematic-canvas");
-  await awaitCanvasSettled(canvas);
-  const [start, finish] = await onScreen(canvas, [
-    { x: 300, y: 200 },
-    { x: 300, y: 300 },
-  ]);
-  await page.mouse.move(start!.x, start!.y);
-  await page.mouse.down();
-  await page.mouse.move(finish!.x, finish!.y, { steps: 8 });
-  await page.mouse.up();
-
-  await expect(page.getByTestId("status")).toContainText(
-    "connected it where it landed",
-  );
-  await expect(page.locator('[data-canvas-hit-kind="route"]')).toHaveCount(2);
-  await expect(page.locator('g[data-layer="junctions"] circle')).toHaveCount(1);
-});
-
 test("dragging a wire segment onto another wire endpoint connects there", async ({
   page,
 }) => {
@@ -879,70 +768,53 @@ test("a dragged diagonal moves along the pointer axis only", async ({
   ]);
 });
 
-for (const [direction, dy] of [
-  ["down", 20],
-  ["up", -20],
-] as const) {
-  test(`a diagonal drawn from a pin drags ${direction} and stays at 45 degrees`, async ({
-    page,
-  }) => {
-    await page.goto("/editor");
-    await placeComponent(page, "resistor", { x: 260, y: 200 });
-    await placeComponent(page, "resistor", { x: 560, y: 420 });
-    const ids = await instanceIds(page);
-    await page.keyboard.press("w");
-    await page.getByTestId(`terminal-${ids[0]}-2`).click();
-    // Two middle clicks: the opposite right angle, then 45 degrees.
-    const canvas = page.getByTestId("schematic-canvas");
-    const box = (await canvas.boundingBox())!;
-    await page.mouse.move(box.x + 420, box.y + 320);
-    for (let click = 0; click < 2; click += 1) {
-      await page.mouse.down({ button: "middle" });
-      await page.mouse.up({ button: "middle" });
-    }
-    await expect(page.getByTestId("status")).toContainText("45° diagonal");
-    await page.getByTestId(`terminal-${ids[1]}-1`).click();
-    await page.keyboard.press("Escape");
-    await awaitCanvasSettled(canvas);
+test("a diagonal drawn from a pin drags down and stays at 45 degrees", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await placeComponent(page, "resistor", { x: 260, y: 200 });
+  await placeComponent(page, "resistor", { x: 560, y: 420 });
+  const ids = await instanceIds(page);
+  await page.keyboard.press("w");
+  await page.getByTestId(`terminal-${ids[0]}-2`).click();
+  // Two middle clicks: the opposite right angle, then 45 degrees.
+  const canvas = page.getByTestId("schematic-canvas");
+  const box = (await canvas.boundingBox())!;
+  await page.mouse.move(box.x + 420, box.y + 320);
+  for (let click = 0; click < 2; click += 1) {
+    await page.mouse.down({ button: "middle" });
+    await page.mouse.up({ button: "middle" });
+  }
+  await expect(page.getByTestId("status")).toContainText("45° diagonal");
+  await page.getByTestId(`terminal-${ids[1]}-1`).click();
+  await page.keyboard.press("Escape");
+  await awaitCanvasSettled(canvas);
 
-    const wire = page.locator('[data-testid^="route-hit-"]');
-    const centerline = () =>
-      wire.evaluate((element) =>
-        Array.from((element as SVGPolylineElement).points).map(({ x, y }) => ({
-          x,
-          y,
-        })),
-      );
-    // R1's pin, straight into the diagonal, then a leg across to R2's pin.
-    const [pin, corner, end] = (await centerline()) as [Point, Point, Point];
-    expect(corner.x - pin.x).toBe(corner.y - pin.y);
-    expect(corner.y).toBe(end.y);
+  const wire = page.locator('[data-testid^="route-hit-"]');
+  const centerline = () =>
+    wire.evaluate((element) =>
+      Array.from((element as SVGPolylineElement).points).map(({ x, y }) => ({
+        x,
+        y,
+      })),
+    );
+  // R1's pin, straight into the diagonal, then a leg across to R2's pin.
+  const [pin, corner, end] = (await centerline()) as [Point, Point, Point];
+  expect(corner.x - pin.x).toBe(corner.y - pin.y);
+  expect(corner.y).toBe(end.y);
 
-    const grab = { x: pin.x + 130, y: pin.y + 130 };
-    await dragCanvas(page, canvas, [grab, { x: grab.x, y: grab.y + dy }]);
-    await expect(page.getByTestId("status")).toContainText(
-      "Moved route segment",
-    );
-    // Down jogs along R1's lead; up would fold into R1, so the diagonal
-    // takes the same line by stepping right. Either way the diagonal slides
-    // along the leg to R2 and keeps its angle.
-    expect(await centerline()).toEqual(
-      dy > 0
-        ? [
-            pin,
-            { x: pin.x, y: pin.y + 20 },
-            { ...corner, x: corner.x - 20 },
-            end,
-          ]
-        : [
-            pin,
-            { x: pin.x + 20, y: pin.y },
-            { ...corner, x: corner.x + 20 },
-            end,
-          ],
-    );
-  });
-}
+  const grab = { x: pin.x + 130, y: pin.y + 130 };
+  await dragCanvas(page, canvas, [grab, { x: grab.x, y: grab.y + 20 }]);
+  await expect(page.getByTestId("status")).toContainText("Moved route segment");
+  // Down jogs along R1's lead, and the diagonal slides along the leg to R2
+  // keeping its angle. routing.test drags it every way.
+  expect(await centerline()).toEqual([
+    pin,
+    { x: pin.x, y: pin.y + 20 },
+    { ...corner, x: corner.x - 20 },
+    end,
+  ]);
+});
 
 test("a leg dragged beside a diagonal carries it, and a no-op drag records nothing", async ({
   page,

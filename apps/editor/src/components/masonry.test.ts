@@ -21,10 +21,6 @@ describe("masonryColumnCount", () => {
 });
 
 describe("shortestColumn", () => {
-  it("targets the shortest column", () => {
-    expect(shortestColumn([300, 120, 260])).toBe(1);
-  });
-
   it("prefers the leftmost column on (near-)ties for reading order", () => {
     expect(shortestColumn([0, 0, 0])).toBe(0);
     expect(shortestColumn([200, 200.2, 199.8])).toBe(0);

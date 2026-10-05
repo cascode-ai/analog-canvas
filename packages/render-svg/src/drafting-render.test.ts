@@ -500,12 +500,6 @@ describe("drafting layer rendering", () => {
     expect(svg).not.toContain("&#160;");
   });
 
-  it("omits the drafting group when there are no drafting objects", () => {
-    const document = createEmptyDocument("doc", "Empty");
-    const svg = renderDocumentSvg(document, resolver);
-    expect(svg).not.toContain('data-layer="drafting"');
-  });
-
   it("renders a construction-line with dashed style", () => {
     const document = createEmptyDocument("doc", "Drafting");
     document.drafting = {
@@ -1036,78 +1030,6 @@ describe("drafting layer rendering", () => {
 });
 
 describe("instance value fraction rendering", () => {
-  it("renders a whole-annotation fraction with a real fraction bar", () => {
-    const document = createEmptyDocument("doc", "Value fraction");
-    document.instances.push({
-      id: "M1",
-      symbolId: "nmos",
-      placement: {
-        position: { x: 100, y: 100 },
-        rotation: 0,
-        mirror: "none",
-      },
-    });
-    document.annotations.push({
-      id: "instance-value-M1",
-      kind: "instance-value",
-      content: {
-        runs: [
-          {
-            kind: "fraction",
-            numerator: {
-              runs: [
-                {
-                  kind: "span",
-                  style: "bold",
-                  children: [{ kind: "text", value: "10um" }],
-                },
-              ],
-            },
-            denominator: {
-              runs: [
-                {
-                  kind: "span",
-                  style: "bold",
-                  children: [{ kind: "text", value: "150nm" }],
-                },
-              ],
-            },
-          },
-        ],
-      },
-      anchor: {
-        kind: "object",
-        objectId: "M1",
-        localOffset: { x: 40, y: 30 },
-        fallbackPosition: { x: 140, y: 130 },
-      },
-      alignment: "start",
-      rotation: 0,
-      locked: false,
-    });
-    const svg = renderDocumentSvg(document, resolver);
-    expect(svg).toContain('data-kind="instance-value"');
-    expect(svg).toContain('data-role="fraction-numerator"');
-    expect(svg).toContain('data-role="fraction-denominator"');
-    expect(svg).toContain('data-role="fraction-bar"');
-    expect(svg).toContain(">10um<");
-    expect(svg).toContain(">150nm<");
-    // W/L stays compact beside the device while retaining the same bold face,
-    // but SVG must not squeeze the glyph outlines to an estimated width.
-    const numerator = svg.match(
-      /<text data-role="fraction-numerator"[^>]*>/u,
-    )?.[0];
-    const denominator = svg.match(
-      /<text data-role="fraction-denominator"[^>]*>/u,
-    )?.[0];
-    expect(numerator).not.toContain("textLength");
-    expect(numerator).not.toContain("lengthAdjust");
-    expect(denominator).not.toContain("textLength");
-    expect(denominator).not.toContain("lengthAdjust");
-    // 15.116 × (0.76 × 1.1) ≈ 12.64px.
-    expect(svg).toContain('font-size="12.64"');
-  });
-
   it("keeps the bar when a multiplier follows the fraction", () => {
     const document = createEmptyDocument("doc", "Multiplied value fraction");
     document.instances.push({

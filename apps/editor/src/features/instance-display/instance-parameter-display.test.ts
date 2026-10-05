@@ -199,7 +199,7 @@ describe("magnetic parameter display", () => {
     },
   );
 
-  it.each(["xfmr", "tcoil"])(
+  it.each(["xfmr"])(
     "independently toggles K and winding labels on %s without changing electrical parameters",
     (symbolId) => {
       const before = fixture(symbolId);

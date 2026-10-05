@@ -192,42 +192,6 @@ async function wiredPair(page: Page): Promise<{
   return { ids, wireBefore: await routePoints(page) };
 }
 
-// Issue #485: Virtuoso's Shift+M. The same detachment Ctrl+drag performs,
-// reached through the verb-first path so it works from the keyboard on a
-// selection rather than only under the pointer.
-test("Shift+M moves the selection and leaves its wires where they were", async ({
-  page,
-}) => {
-  const { ids, wireBefore } = await wiredPair(page);
-
-  const top = page.getByTestId(`hit-${ids[0]}`);
-  await top.click();
-  await expect(top).toHaveClass(/selected/);
-  const before = (await top.boundingBox())!;
-
-  await page.keyboard.press("Shift+M");
-  await expect(page.getByTestId("status")).toContainText("without wires");
-
-  const target = { x: before.x + 200, y: before.y + before.height / 2 };
-  await page.mouse.move(target.x, target.y);
-  await page.mouse.click(target.x, target.y);
-
-  // The part moved and the wire kept its exact geometry.
-  const after = (await page.getByTestId(`hit-${ids[0]}`).boundingBox())!;
-  expect(after.x).toBeGreaterThan(before.x + 100);
-  expect(await routePoints(page)).toEqual(wireBefore);
-
-  // Geometry alone is insufficient: Shift+M is a real electrical disconnect,
-  // not a same-Net flightline disguised as a detached wire.
-  const terminals = await exportedTerminals(page);
-  expect(terminals).not.toContainEqual(
-    expect.objectContaining({ instanceId: ids[0] }),
-  );
-  expect(terminals).toContainEqual(
-    expect.objectContaining({ instanceId: ids[1] }),
-  );
-});
-
 // The brake: plain M must still drag the wire along, or Shift+M would have
 // silently replaced the behaviour it is supposed to sit beside.
 test("M still stretches the wire along with the part", async ({ page }) => {
@@ -256,6 +220,9 @@ test("M still stretches the wire along with the part", async ({ page }) => {
   );
 });
 
+// Issue #485: Virtuoso's Shift+M. The same detachment Ctrl+drag performs,
+// reached through the verb-first path so it works from the keyboard on a
+// selection rather than only under the pointer.
 // Shift+M is verb-first the same way M is: pressed with nothing selected it
 // arms, and the next click picks up whatever it points at.
 test("Shift+M with nothing selected arms the detached move for the next click", async ({

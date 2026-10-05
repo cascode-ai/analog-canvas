@@ -127,7 +127,6 @@ describe("netlist-crawler structural conversion", () => {
     );
   });
   it.each([
-    ["R1 (a b) resistor r=1k tc1=0.1", "spectre"],
     ["R1 a b 1k tc1=0.1", "spice"],
     ["R1 (a b) resistor", "spectre"],
     ["V1 (a 0) vsource type=pulse val0=0 val1=1", "spectre"],

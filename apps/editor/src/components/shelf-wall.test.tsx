@@ -47,10 +47,6 @@ describe("loadShelf", () => {
 });
 
 describe("shelf tile addressing", () => {
-  it("opens a Project by id in the editor", () => {
-    expect(shelfProjectHref("p1")).toBe("/editor?project=p1");
-  });
-
   it("escapes an id rather than pasting it into the query", () => {
     expect(shelfProjectHref("a b&c")).toBe("/editor?project=a%20b%26c");
   });

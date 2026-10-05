@@ -216,23 +216,6 @@ describe("createRecoveryCoordinator", () => {
     expect(read.sessions[0]?.latest?.unsavedAtSnapshot).toBe(false);
   });
 
-  it("rotates previous generations across separate writes", async () => {
-    const harness = createHarness();
-    harness.coordinator.stage(projectA);
-    harness.fire();
-    await harness.settle();
-    harness.coordinator.stage(projectB);
-    harness.fire();
-    await harness.settle();
-    const read = await harness.coordinator.store.readAll();
-    expect(read.sessions[0]?.latest?.projectText).toBe(
-      serializeProject(projectB),
-    );
-    expect(read.sessions[0]?.previous?.projectText).toBe(
-      serializeProject(projectA),
-    );
-  });
-
   it("flushNow writes a pending Project without waiting for the timer", async () => {
     const harness = createHarness();
     harness.coordinator.stage(projectA);

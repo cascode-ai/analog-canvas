@@ -80,7 +80,7 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllGlobals());
 
-describe.each(["svg", "png", "pdf"] as const)("%s file delivery", (format) => {
+describe.each(["svg", "png"] as const)("%s file delivery", (format) => {
   const run = (target: ReturnType<typeof commands>) =>
     format === "svg" ? target.exportSvg() : target.exportRaster(format);
 

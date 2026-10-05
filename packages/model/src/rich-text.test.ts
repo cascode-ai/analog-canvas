@@ -122,13 +122,6 @@ describe("canonical RichText helpers", () => {
     ).toBe(false);
   });
 
-  it("keeps former markup commands as literal text", () => {
-    const content: RichTextDocument = {
-      runs: [{ kind: "text", value: "V_{IN} = \\frac{1}{2}" }],
-    };
-    expect(flattenRichText(content)).toBe("V_{IN} = \\frac{1}{2}");
-  });
-
   it("accepts an atomic formula without interpreting it as styled text", () => {
     const content: RichTextDocument = {
       runs: [

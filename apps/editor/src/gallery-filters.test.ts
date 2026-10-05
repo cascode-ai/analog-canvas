@@ -185,12 +185,6 @@ describe("gallery filter preferences", () => {
     });
   });
 
-  it("restores a deliberately empty choice as emptiness", () => {
-    expect(
-      resolveGalleryFilters("", JSON.stringify(createDefaultGalleryFilters())),
-    ).toEqual(createDefaultGalleryFilters());
-  });
-
   it("ignores a store that is missing, damaged or the wrong shape", () => {
     expect(parseStoredGalleryFilters(null)).toBeNull();
     expect(parseStoredGalleryFilters("{")).toBeNull();

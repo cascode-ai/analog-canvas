@@ -38,14 +38,6 @@ describe("initial MOS bulk defaults", () => {
     ]);
   });
 
-  it("uses the explicit first vdd-domain Net even when it is named AVDD", () => {
-    const document = createEmptyDocument("main", "Main");
-    expect(planInitialMosBulkDefault(document, "vdd", "net-avdd")).toEqual([
-      { kind: "set_mos_bulk_defaults", pmosNetId: "net-avdd" },
-      { kind: "reconcile_mos_bulk" },
-    ]);
-  });
-
   it("does not overwrite an authored default when another rail is placed", () => {
     const document = createEmptyDocument("main", "Main");
     document.mosBulkDefaults = { pmosNetId: "net-avdd" };

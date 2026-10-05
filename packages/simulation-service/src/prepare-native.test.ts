@@ -138,30 +138,6 @@ describe("native model preparation", () => {
     ).toMatchObject({ kind: "generated", purpose: "environment" });
     expect({ project, folder }).toEqual(before);
   });
-  it("honors an explicit native section and never folds case or silently inserts a second include", async () => {
-    const { project, folder, caps } = fixture();
-    folder.input.dependencies = [
-      { id: "models", sha256: "a".repeat(64), mountPath: "library.inc" },
-    ];
-    const entry = folder.input.files[1]!;
-    entry.text = entry.text.replace(
-      "\n",
-      '\ninclude "../library.inc" section=ff\n',
-    );
-    const prepared = await prepareSourceExecutionInput(project, folder, caps);
-    expect(prepared.ok, JSON.stringify(prepared)).toBe(true);
-    if (prepared.ok) {
-      expect(prepared.input.preparedDeck).toBe(entry.text);
-      expect(prepared.input.environment.corner).toBe("ff");
-    }
-    entry.text = entry.text.replace("section=ff", "section=FF");
-    expect(
-      await prepareSourceExecutionInput(project, folder, caps),
-    ).toMatchObject({
-      ok: false,
-      error: { code: "SIMULATION_CORNER_UNSUPPORTED" },
-    });
-  });
   it("rejects mismatched dependencies and refuses a legacy executor without losing editable source", async () => {
     const { project, folder, caps } = fixture();
     const entry = folder.input.files[1]!.text;

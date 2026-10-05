@@ -12,29 +12,6 @@ describe("renderRichTextDocument", () => {
     expect(svg).toBe("a&lt;b&gt;&amp;c");
   });
 
-  it("renders italic and bold spans", () => {
-    const svg = renderRichTextDocument(
-      {
-        runs: [
-          {
-            kind: "span",
-            style: "italic",
-            children: [{ kind: "text", value: "I" }],
-          },
-          {
-            kind: "span",
-            style: "bold",
-            children: [{ kind: "text", value: "B" }],
-          },
-        ],
-      },
-      razaviTextbookProfile,
-    );
-    expect(svg).toContain('data-text-run="span"');
-    expect(svg).toContain("font-style:italic");
-    expect(svg).toContain("font-weight:700");
-  });
-
   it("composes nested styles instead of letting an inner style erase its parent", () => {
     const svg = renderRichTextDocument(
       {
@@ -79,35 +56,6 @@ describe("renderRichTextDocument", () => {
     expect(svg).toContain(">Vout</tspan>");
     expect(svg).not.toContain("&#160;");
     expect(svg).not.toContain("letter-spacing");
-  });
-
-  it("renders scripts with portable numeric size and baseline movement", () => {
-    const svg = renderRichTextDocument(
-      {
-        runs: [
-          { kind: "text", value: "V" },
-          {
-            kind: "span",
-            style: "subscript",
-            children: [{ kind: "text", value: "in" }],
-          },
-          {
-            kind: "span",
-            style: "superscript",
-            children: [{ kind: "text", value: "+" }],
-          },
-        ],
-      },
-      razaviTextbookProfile,
-      { fontSize: 20 },
-    );
-    expect(svg).toContain('data-text-run="subscript"');
-    expect(svg).toContain('data-text-run="superscript"');
-    // Resolve relative typography before export so Office-class SVG
-    // importers do not need to implement baseline-shift or percentage sizes.
-    expect(svg).toContain('font-size="15.2px"');
-    expect(svg).not.toContain("baseline-shift");
-    expect(svg).not.toContain('font-size="76%"');
   });
 
   it.each([

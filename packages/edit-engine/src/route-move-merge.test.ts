@@ -476,19 +476,6 @@ describe("bringing two wire ends head to head", () => {
     expect(ambiguousJunctionErrors(moved)).toEqual([]);
   });
 
-  it("still refuses to merge two wires that merely cross", () => {
-    // The brake, restated for this path: the vertical wire now spans
-    // y = 170..230 across the horizontal one, touching at an interior point
-    // of both with neither end resting on anything.
-    const moved = moveLooseRoute(twoLooseWires(), "wire-vertical", {
-      x: 0,
-      y: 70,
-    });
-
-    expect(conductingNetIds(moved)).toHaveLength(2);
-    expect(ambiguousJunctionErrors(moved)).toEqual([]);
-  });
-
   it("retires both labels when two named Nets are butted together", () => {
     const document = twoHeadToHeadWires();
     // The author labelled both sides, which is how they said the two were

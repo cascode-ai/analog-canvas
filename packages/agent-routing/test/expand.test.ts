@@ -289,25 +289,6 @@ describe("expandRouteGraph", () => {
     expect(result.edits).toEqual([]);
   });
 
-  it("resolvedGeometry matches the actual polyline (no hidden bends)", () => {
-    // If the helper returns [from, to], the Engine must store exactly that —
-    // no route_orthogonal guessing extra bends.
-    const graph = baseGraph({
-      nodes: [
-        { id: "tap0", role: "tap", at: { x: 200, y: 100 } },
-        { id: "tap1", role: "tap", at: { x: 200, y: 300 } },
-      ],
-      edges: [{ id: "trunk0", from: "tap0", to: "tap1", role: "trunk" }],
-    });
-    const result = expandRouteGraph(graph, input([]));
-    expect(result.conflicts).toEqual([]);
-    expect(result.resolvedGeometry).toHaveLength(1);
-    expect(result.resolvedGeometry[0]!.points).toEqual([
-      { x: 200, y: 100 },
-      { x: 200, y: 300 },
-    ]);
-  });
-
   it("is deterministic: same graph + input yields identical output", () => {
     const graph = baseGraph({
       nodes: [

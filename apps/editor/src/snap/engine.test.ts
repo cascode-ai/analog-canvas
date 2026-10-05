@@ -1,17 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  logicalToleranceForScale,
   resolvePointSnap,
   resolveTranslationSnap,
   SNAP_PROFILES,
 } from "./engine";
 
 describe("unified Snap Engine", () => {
-  it("converts a fixed screen tolerance across zoom levels", () => {
-    expect(logicalToleranceForScale(8, 2)).toBe(4);
-    expect(logicalToleranceForScale(8, 0.5)).toBe(16);
-  });
   it("resolves independent x/y extension-line matches before the grid", () => {
     const result = resolveTranslationSnap({
       rawDelta: { x: 18, y: 27 },

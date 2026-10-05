@@ -3,7 +3,6 @@ import type { Point } from "@icm/model";
 export interface CanvasDragVisual {
   translate(delta: Point): void;
   translateObject(objectId: string, delta: Point): void;
-  scale(pivot: Point, factor: number): void;
   setPolyline(points: readonly Point[]): void;
   setObjectPolyline(objectId: string, points: readonly Point[]): void;
   restore(): void;
@@ -250,15 +249,6 @@ export function startCanvasDragVisual(
           tether.element.setAttribute("x2", String(tether.target.x + delta.x));
           tether.element.setAttribute("y2", String(tether.target.y + delta.y));
         }
-      }
-    },
-    scale(pivot, factor) {
-      for (const item of saved) {
-        const prefix = `translate(${pivot.x} ${pivot.y}) scale(${factor}) translate(${-pivot.x} ${-pivot.y})`;
-        item.element.setAttribute(
-          "transform",
-          item.transform ? `${prefix} ${item.transform}` : prefix,
-        );
       }
     },
     setPolyline(points) {

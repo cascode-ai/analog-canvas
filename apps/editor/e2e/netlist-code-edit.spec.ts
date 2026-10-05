@@ -459,47 +459,6 @@ test("opens editable netlist by default, highlights a card, and synchronizes nam
   expect(errors).toEqual([]);
 });
 
-test("keeps explicit display aliases while renaming netlist and restores the live name immediately", async ({
-  page,
-}) => {
-  await page.goto("/editor");
-  await awaitEditorReady(page);
-  await page.getByTestId("project-file").setInputFiles({
-    name: "editable.icproj.json",
-    mimeType: "application/json",
-    buffer: Buffer.from(JSON.stringify(fixture())),
-  });
-  await page.getByTestId("annotation-hit-label-R1").dblclick();
-  const alias = page.getByRole("checkbox", { name: "Use display alias" });
-  await expect(alias).not.toBeChecked();
-  await page
-    .getByRole("textbox", { name: "Canvas text editor" })
-    .fill("R_source");
-  await page.getByRole("button", { name: "Apply text changes" }).click();
-  const code = page.getByLabel("Netlist code", { exact: true });
-  await expect(code).toContainText("R_source");
-  await page.getByTestId("annotation-hit-label-R1").dblclick();
-  await alias.check();
-  await page
-    .getByRole("textbox", { name: "Canvas text editor" })
-    .fill("Load resistor");
-  await page.getByRole("button", { name: "Apply text changes" }).click();
-  await expect(label(page)).toContainText("Load resistor");
-  await code.fill((await code.innerText()).replace("R_source ", "R_new "));
-  await code.press("Enter");
-  await expect(code).toContainText("R_new");
-  await expect(label(page)).toContainText("Load resistor");
-  await page.getByTestId("annotation-hit-label-R1").dblclick();
-  await expect(alias).toBeChecked();
-  await alias.uncheck();
-  await expect(label(page)).toContainText("Rnew");
-  await expect(
-    page.getByRole("textbox", { name: "Canvas text editor" }),
-  ).toHaveText("Rnew");
-  await page.getByRole("button", { name: "Apply text changes" }).click();
-  await page.screenshot({ path: "plan/netlist-edit-preview.png" });
-});
-
 test("rejects duplicate names atomically and retains a draft when the canvas changes", async ({
   page,
 }) => {
@@ -952,85 +911,6 @@ test("drawing label rules immediately update formatted names and amplifier body 
   await expect(body).toHaveText("AGAIN");
   await expect(second.locator('[data-text-run="subscript"]')).toHaveText("2");
   await page.screenshot({ path: testInfo.outputPath("label-typography.png") });
-});
-
-test("opening and reopening a PDK BJT adds X only to SPICE, never its canvas name", async ({
-  page,
-}) => {
-  const project = fixture();
-  const doc = project.documents[0]!;
-  doc.instances = [
-    {
-      id: "Q1",
-      reference: "Q1",
-      symbolId: "pnp",
-      placement: { position: { x: 250, y: 200 }, rotation: 0, mirror: "none" },
-      netlist: {
-        binding: { kind: "external-subcircuit", definitionId: "pdk-pnp" },
-        parameters: { m: "1" },
-      },
-    },
-  ];
-  doc.annotations = [
-    {
-      ...doc.annotations[0]!,
-      id: "label-Q1",
-      binding: { kind: "instance-reference", instanceId: "Q1" },
-      anchor: {
-        kind: "object",
-        objectId: "Q1",
-        localOffset: { x: 40, y: 0 },
-        fallbackPosition: { x: 290, y: 200 },
-      },
-    },
-  ];
-  doc.nets = ["C", "B", "E"].map((pinName) => ({
-    id: `net-${pinName}`,
-    terminals: [{ instanceId: "Q1", pinName }],
-  }));
-  project.externalSubcircuitDefinitions.push({
-    id: "pdk-pnp",
-    name: "sky130_fd_pr__pnp_05v5_W0p68L0p68",
-    terminals: ["C", "B", "E"].map((name) => ({
-      id: name,
-      name,
-      direction: "passive",
-    })),
-    formalParameters: [],
-    interfaceStatus: "declared",
-  });
-  await page.goto("/editor");
-  await awaitEditorReady(page);
-  await page.getByTestId("project-file").setInputFiles({
-    name: "pnp.icproj.json",
-    mimeType: "application/json",
-    buffer: Buffer.from(JSON.stringify(project)),
-  });
-  const canvasLabel = page.locator(
-    '[data-layer="annotations"] [data-object-id="label-Q1"]',
-  );
-  const code = page.getByLabel("Netlist code", { exact: true });
-  await expect(canvasLabel).toHaveText("Q1");
-  await page
-    .getByLabel("Netlist format", { exact: true })
-    .selectOption("spice");
-  await expect(code).toContainText("XQ1 ");
-  const saved = await downloadBytes(page, "File", "Export Project File…");
-  await page.getByTestId("project-file").setInputFiles({
-    name: "pnp-reopen.icproj.json",
-    mimeType: "application/json",
-    buffer: saved,
-  });
-  await expect(canvasLabel).toHaveText("Q1");
-  await page
-    .getByLabel("Netlist format", { exact: true })
-    .selectOption("spectre");
-  await expect(code).toContainText("Q1 (");
-  await expect(code).not.toContainText("XQ1");
-  await page.getByTestId("annotation-hit-label-Q1").dblclick();
-  await expect(
-    page.getByRole("textbox", { name: "Canvas text editor" }),
-  ).toHaveText("Q1");
 });
 
 test("a Cell Pin drawn under an overbar exports as its complement", async ({

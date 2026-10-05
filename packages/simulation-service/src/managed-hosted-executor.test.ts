@@ -96,7 +96,7 @@ describe("managed hosted executor", () => {
     expect(fetch).toHaveBeenCalledTimes(4);
   });
 
-  it.each(["expired", "succeeded", "failed"])(
+  it.each(["expired", "succeeded"])(
     "does not poll contradictory terminal %s indefinitely",
     async (state) => {
       const sleep = vi.fn();

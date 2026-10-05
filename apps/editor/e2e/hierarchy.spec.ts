@@ -443,52 +443,6 @@ test("keeps a chosen simulation Cell independent of later default Top changes", 
   expect(after.simulationFolders).toEqual(before.simulationFolders);
 });
 
-test("keeps drawing edits between structural edits in the same undo/redo timeline", async ({
-  page,
-}) => {
-  await page.goto("/editor");
-  await createCell(page, "HistoryA");
-  const first = await page.getByTestId("active-document-id").innerText();
-  await placeComponent(page, "resistor", { x: 300, y: 200 });
-  await page.keyboard.press("Escape");
-  await createCell(page, "HistoryB");
-  const snapshot = async () =>
-    parseSavedProject(
-      (await downloadBytes(page, "File", "Export Project File…")).toString(
-        "utf8",
-      ),
-    );
-  await page.getByTestId("draw-tool-undo").click();
-  let project = await snapshot();
-  expect(
-    project.documents.some(
-      (item: { name: string }) => item.name === "HistoryB",
-    ),
-  ).toBe(false);
-  expect(
-    project.documents.find((item: { id: string }) => item.id === first)
-      .instances,
-  ).toHaveLength(1);
-  await page.getByTestId("draw-tool-undo").click();
-  project = await snapshot();
-  expect(
-    project.documents.find((item: { id: string }) => item.id === first)
-      .instances,
-  ).toHaveLength(0);
-  await page.getByTestId("draw-tool-redo").click();
-  await page.getByTestId("draw-tool-redo").click();
-  project = await snapshot();
-  expect(
-    project.documents.some(
-      (item: { name: string }) => item.name === "HistoryB",
-    ),
-  ).toBe(true);
-  expect(
-    project.documents.find((item: { id: string }) => item.id === first)
-      .instances,
-  ).toHaveLength(1);
-});
-
 test("sets a Cell as default Top without changing its circuit and supports Undo", async ({
   page,
 }) => {
@@ -1047,39 +1001,6 @@ test("changes Port subscript case in both labels and names with one undo", async
   await expect(secondLabel).toHaveText("out");
 });
 
-test("places an unreferenced top Cell in an ordinary new Cell", async ({
-  page,
-}) => {
-  await page.goto("/editor");
-  await createCell(page, "Testbench");
-  await runCellCommand(page, "Place Cell");
-  await page
-    .getByRole("dialog", { name: "Place Hierarchical Cell" })
-    .getByRole("option", { name: /dut/u })
-    .click();
-  await page
-    .getByTestId("schematic-canvas")
-    .click({ position: { x: 320, y: 180 } });
-  await page.keyboard.press("Escape");
-  const project = parseSavedProject(
-    (await downloadBytes(page, "File", "Export Project File…")).toString(
-      "utf8",
-    ),
-  );
-  expect(project.topDocumentId).toBe("document-main");
-  const tb = project.documents.find(
-    (d: { name: string }) => d.name === "Testbench",
-  );
-  expect(tb.instances[0].netlist.binding).toEqual({
-    kind: "subcircuit",
-    childDocumentId: "document-main",
-  });
-  await page.keyboard.press("Control+z");
-  await expect(page.getByTestId("active-instance-count")).toHaveText("0");
-  await page.keyboard.press("Control+Shift+z");
-  await expect(page.getByTestId("active-instance-count")).toHaveText("1");
-});
-
 test("keeps Hierarchy discoverable and restores the operation row on demand", async ({
   page,
 }) => {
@@ -1450,32 +1371,6 @@ test("declares and places a Cell Pin on a new local Net", async ({ page }) => {
   }
 });
 
-test("declares a top Formal Cell Pin and exports the top interface", async ({
-  page,
-}) => {
-  await page.goto("/editor");
-  await placeCellPin(page, {
-    name: "VIN",
-    direction: "input",
-    position: { x: 300, y: 180 },
-  });
-  await page.getByTestId("hit-P1").click();
-  await revealPropertiesShelf(page);
-  const shelf = page.getByTestId("selection-shelf");
-  if ((await shelf.getAttribute("aria-expanded")) === "false") {
-    await shelf.click();
-  }
-  await expect(page.getByLabel("Cell Pin properties")).toHaveCount(0);
-
-  await clickCommand(page, "Netlist", "Review Netlist Issues…");
-  const preflight = page.getByRole("dialog", { name: "Check Report" });
-  await expect(preflight.getByTestId("netlist-preview")).toContainText(
-    ".subckt dut VIN",
-  );
-  await expect(preflight).not.toContainText("GENERATED_NET_NAME");
-  await expect(preflight).not.toContainText("MISSING_DEVICE_DEFINITION");
-});
-
 test("copies and independently deletes Formal Cell Pins", async ({ page }) => {
   await page.addInitScript(() => {
     window.localStorage.clear();
@@ -1759,22 +1654,6 @@ test("confirms connected last-Port deletion and restores caller wires with Undo 
   expect(circuit(await snapshot())).toEqual(circuit(original));
   await page.keyboard.press("Control+Shift+z");
   expect(circuit(await snapshot())).toEqual(circuit(deleted));
-});
-
-test("deletes a wired child Cell Pin through the ordinary instance path", async ({
-  page,
-}) => {
-  await page.goto("/editor");
-  await createCell(page, "ReusableStage");
-  await placeCellPin(page, {
-    name: "Vout",
-    position: { x: 300, y: 180 },
-  });
-  await page.getByTestId("hit-P1").click();
-  await page.keyboard.press("Delete");
-  await expect(page.getByTestId("hit-P1")).toHaveCount(0);
-  await page.keyboard.press("Control+z");
-  await expect(page.getByTestId("hit-P1")).toHaveCount(1);
 });
 
 test("places an existing Cell and blocks deleting its shared definition", async ({

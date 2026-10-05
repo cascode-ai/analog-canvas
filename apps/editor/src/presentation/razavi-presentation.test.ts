@@ -133,11 +133,15 @@ describe("Razavi hidden bulk policy", () => {
 
   it("does not infer bulk from an unconfigured VDD Net", () => {
     const document = createEmptyDocument("main", "Main");
-    document.instances.push(manualMos("M4", "pmos"));
+    // A drawn VDD marker the body could follow, with no Cell default set.
+    document.instances.push(manualMos("M4", "pmos"), {
+      id: "VDD1",
+      symbolId: "vdd-port",
+      placement: null,
+    });
     document.nets.push({
       id: "net-ui-2",
-
-      terminals: [],
+      terminals: [{ instanceId: "VDD1", pinName: "P" }],
     });
 
     expect(

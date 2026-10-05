@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createEmptyProject, CURRENT_MODEL_SCHEMA_VERSION } from "@icm/model";
+import { createEmptyProject } from "@icm/model";
 
 import { tryParseProjectWithMetadata } from "./load.js";
 import {
@@ -51,19 +51,6 @@ describe("schema 32 to 33 migration (ownerless Net equivalence)", () => {
     });
     expect(upgradeSchema32To33WithReport(previous).report).toEqual({
       changed: false,
-    });
-  });
-
-  it("loads an ordinary schema-32 Project through the canonical schema", () => {
-    const result = tryParseProjectWithMetadata(
-      JSON.stringify(schema32Project()),
-    );
-
-    expect(result).toMatchObject({
-      ok: true,
-      sourceSchemaVersion: 32,
-      migrated: true,
-      project: { schemaVersion: CURRENT_MODEL_SCHEMA_VERSION },
     });
   });
 

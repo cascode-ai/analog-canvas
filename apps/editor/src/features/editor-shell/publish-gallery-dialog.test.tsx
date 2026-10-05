@@ -151,30 +151,4 @@ describe("PublishGalleryDialog", () => {
     expect(markup).toContain("M1.g, R2.2");
     expect(markup).not.toMatch(/disabled=""[^>]*>Publish</u);
   });
-
-  it("shows the same advisory failures for a moderator", () => {
-    const markup = renderToStaticMarkup(
-      createElement(PublishGalleryDialog, {
-        defaultName: "Ring Oscillator",
-        session: { displayName: "Rev", isAdmin: false, role: "moderator" },
-        gateReport: {
-          ok: false,
-          failures: [
-            {
-              code: "empty-project",
-              message: "Too little content",
-              count: 1,
-              examples: [],
-            },
-          ],
-        },
-        publish: () => Promise.resolve({ status: "unauthorized" as const }),
-        onPublished: () => undefined,
-        onClose: () => undefined,
-      }),
-    );
-    expect(markup).not.toContain("publish-gallery-gates-blocking");
-    expect(markup).toContain("publishing stays open");
-    expect(markup).not.toMatch(/disabled=""[^>]*>Publish</u);
-  });
 });

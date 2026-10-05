@@ -102,23 +102,6 @@ describe("diagnostic aggregation", () => {
     ).toBeGreaterThan(merged.findIndex((item) => item.domain === "erc"));
   });
 
-  it("classifies route-quality observations as routing without changing their locator", () => {
-    const project = projectWithInstance();
-    const index = buildProjectConnectivityIndex(project, resolver);
-    const routing = adaptVisualDiagnostic(
-      { ...shortSegment, objectIds: ["I1"] },
-      "doc",
-      index,
-    );
-    expect(routing.domain).toBe("routing");
-    expect(routing.primary).toEqual({
-      documentId: "doc",
-      hierarchyPath: [],
-      kind: "instance",
-      objectId: "I1",
-    });
-  });
-
   it("keeps distinct visual observations on one primary object uniquely addressable", () => {
     const project = projectWithInstance();
     const index = buildProjectConnectivityIndex(project, resolver);

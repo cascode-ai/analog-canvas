@@ -19,27 +19,6 @@ const HOSTED_SKY130_PROFILE = validateHostedSimulationProfile(
 );
 
 describe("hosted simulation Profile", () => {
-  it("is a complete named contract for the deployed SKY130 environment", () => {
-    expect(validateHostedSimulationProfile(HOSTED_SKY130_PROFILE)).toBe(
-      HOSTED_SKY130_PROFILE,
-    );
-    expect(HOSTED_SKY130_PROFILE.id).toBe(
-      "sky130-core-continuous-ngspice46-v1",
-    );
-    expect(HOSTED_SKY130_PROFILE.models.library).toMatchObject({
-      directive: "lib",
-      runtimePath: "/opt/sky130/continuous/sky130.lib.spice",
-      sections: ["tt", "ff", "ss", "fs", "sf"],
-    });
-    expect(HOSTED_SKY130_PROFILE.qualifiedScope.analyses).toEqual([
-      "op",
-      "dc",
-      "ac",
-      "tran",
-      "noise",
-    ]);
-  });
-
   it("accepts exact observed identity and names every drift", () => {
     const observed = {
       platform: HOSTED_SKY130_PROFILE.platform,

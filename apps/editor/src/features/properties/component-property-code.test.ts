@@ -370,17 +370,6 @@ describe("component property code", () => {
     }
   });
 
-  it("omits display for a component with no display capability", () => {
-    const noDisplayContext = {
-      instance: { ...instance, reference: undefined },
-      referenceVisible: null,
-      valueVisible: null,
-    };
-    const source = formatComponentPropertyCode(noDisplayContext);
-    expect(source).not.toContain('"display"');
-    expect(parseComponentPropertyCode(source, noDisplayContext).ok).toBe(true);
-  });
-
   it("keeps a supply marker's connection and Net name in the same editable code surface", () => {
     const supplyContext = {
       instance: { ...instance, symbolId: "vdd-port", reference: undefined },

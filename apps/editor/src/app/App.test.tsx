@@ -4,7 +4,6 @@ import { resolve } from "node:path";
 import { createEmptyProject, createSimulationFolder } from "@icm/model";
 import { hierarchicalSymbolId } from "@icm/symbols";
 import { serializeProject, parseProject } from "@icm/project-protocol";
-import { EditTransactionSchema } from "@icm/edit-engine";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import * as derived from "@icm/derived";
@@ -423,47 +422,6 @@ describe("editor shell", () => {
       <App services={services} project={project} />,
     );
     expect(markup).toMatch(/data-testid="terminal-M1-D"[^>]*r="4"/u);
-  });
-
-  it("accepts a voltage source and its canonical label in one transaction", () => {
-    const result = EditTransactionSchema.safeParse({
-      transactionId: "place-voltage-source",
-      documentId: "document-main",
-      expectedRevision: 0,
-      actor: { kind: "human", id: "test" },
-      edits: [
-        {
-          kind: "add_instance",
-          instance: {
-            id: "V1",
-            symbolId: "voltage-source",
-            placement: {
-              position: { x: 100, y: 100 },
-              rotation: 0,
-              mirror: "none",
-            },
-          },
-        },
-        {
-          kind: "upsert_schematic_annotation",
-          annotation: {
-            id: "instance-label-V1",
-            kind: "instance-label",
-            content: { runs: [{ kind: "text", value: "V1" }] },
-            anchor: {
-              kind: "object",
-              objectId: "V1",
-              localOffset: { x: 0, y: 48 },
-              fallbackPosition: { x: 100, y: 148 },
-            },
-            alignment: "middle",
-            rotation: 0,
-            locked: false,
-          },
-        },
-      ],
-    });
-    expect(result.success).toBe(true);
   });
 
   it("keeps the bundled demo equal to the canonical Project fixture", () => {

@@ -774,13 +774,6 @@ describe("Edit Transaction envelope", () => {
       },
       { symbolResolver: resolver },
     );
-    console.log(
-      "BENT",
-      JSON.stringify({ ok: bent.ok, rejection: (bent as any).rejection }).slice(
-        0,
-        300,
-      ),
-    );
     expect(bent).toMatchObject({ ok: false, applied: false });
 
     // The same branch drawn collinearly extends the rail instead.
@@ -795,14 +788,6 @@ describe("Edit Transaction envelope", () => {
         ],
       },
       { symbolResolver: resolver },
-    );
-    console.log(
-      "EXT",
-      JSON.stringify(
-        Object.fromEntries(
-          Object.entries(extended).filter(([k]) => k !== "document"),
-        ),
-      ).slice(0, 600),
     );
     expect(extended.ok).toBe(true);
   });

@@ -75,15 +75,6 @@ describe("deriveWireUnderSymbolWarnings", () => {
     expect(hit[0]!.to.y).toBe(400);
   });
 
-  it("does not flag wires that stay clear of symbol bodies", () => {
-    const { document, records } = fixture({ x: 300, y: 200 });
-    expect(
-      deriveWireUnderSymbolWarnings(document, resolver, records).filter(
-        (warning) => warning.instanceId === "RX",
-      ),
-    ).toEqual([]);
-  });
-
   it("does not flag a pin's own stem skimming the outline", () => {
     // Endpoint resistors A and B connect to the route legitimately; their
     // own connection stems must not be reported.

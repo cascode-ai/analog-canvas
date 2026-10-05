@@ -3,10 +3,7 @@ import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
-import {
-  EditorDraftingHandles,
-  EditorDraftingHitTargets,
-} from "./editor-drafting-hit-targets";
+import { EditorDraftingHitTargets } from "./editor-drafting-hit-targets";
 import {
   createSelectionPolicy,
   DEFAULT_SELECTION_FILTER,
@@ -117,60 +114,5 @@ describe("EditorDraftingHitTargets", () => {
     expect(markup.indexOf("drafting-hit-back")).toBeLessThan(
       markup.indexOf("drafting-hit-front"),
     );
-  });
-});
-
-describe("EditorDraftingHandles", () => {
-  it("treats a historical waveform group as ordinary drafting geometry", () => {
-    const document = createEmptyDocument("main", "Waveform");
-    document.drafting = {
-      objects: [
-        {
-          id: "wave-a",
-          kind: "construction-line",
-          locked: false,
-          zIndex: 0,
-          anchor: { kind: "free", position: { x: 20, y: 20 } },
-          points: [
-            { x: 20, y: 20 },
-            { x: 120, y: 20 },
-          ],
-          lineStyle: "solid",
-        },
-        {
-          id: "wave-b",
-          kind: "construction-line",
-          locked: false,
-          zIndex: 0,
-          anchor: { kind: "free", position: { x: 20, y: 60 } },
-          points: [
-            { x: 20, y: 60 },
-            { x: 120, y: 60 },
-          ],
-          lineStyle: "solid",
-        },
-      ],
-    };
-    document.layoutGroups.push({
-      id: "waveform-group-1",
-      kind: "custom",
-      objectIds: ["wave-a", "wave-b"],
-      locked: false,
-    });
-
-    const markup = renderToStaticMarkup(
-      <svg>
-        <EditorDraftingHandles
-          document={document}
-          resolver={resolver}
-          selectedDraftingId="wave-b"
-          onHandlePointerDown={vi.fn()}
-          onDeleteVertex={vi.fn()}
-        />
-      </svg>,
-    );
-
-    expect(markup).toContain('data-testid="drafting-handles-wave-b"');
-    expect(markup).not.toContain("draft-group-scale-");
   });
 });

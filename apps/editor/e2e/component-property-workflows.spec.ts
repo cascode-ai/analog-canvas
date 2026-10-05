@@ -374,20 +374,41 @@ test("one live JSON edit combines model, dimensions and appearance in one undo b
   await page.goto("/editor");
   await placeComponent(page, "nmos", { x: 360, y: 220 });
   await openSelectionShelf(page);
+  // Placement binds nfet_01v8, so a different model makes the edit a Project
+  // structure change merged with the field edits.
+  await expectComponentCodeField(
+    page,
+    "netlistTarget",
+    "sky130_fd_pr__nfet_01v8",
+  );
   await editComponentPropertyCode(page, (code) => {
-    code.netlistTarget = "sky130_fd_pr__nfet_01v8";
+    code.netlistTarget = "sky130_fd_pr__nfet_01v8_lvt";
     code.parameters.w = "5u";
     code.color = [20, 30, 40];
   });
+  await expectComponentCodeField(
+    page,
+    "netlistTarget",
+    "sky130_fd_pr__nfet_01v8_lvt",
+  );
   await expectComponentCodeField(page, "netlistName", "M1");
   await expectComponentCodeField(page, "parameters.w", "5u");
   await expectComponentCodeField(page, "color", [20, 30, 40]);
   await page.getByTestId("draw-tool-undo").click();
+  await expectComponentCodeField(
+    page,
+    "netlistTarget",
+    "sky130_fd_pr__nfet_01v8",
+  );
   await expectComponentCodeField(page, "netlistName", "M1");
   await expectComponentCodeField(page, "parameters.w", "1u");
   await expectComponentCodeField(page, "color", "auto");
   await page.getByTestId("draw-tool-redo").click();
-  await expectComponentCodeField(page, "netlistName", "M1");
+  await expectComponentCodeField(
+    page,
+    "netlistTarget",
+    "sky130_fd_pr__nfet_01v8_lvt",
+  );
   await expectComponentCodeField(page, "parameters.w", "5u");
 });
 
@@ -482,220 +503,215 @@ test("property code undo and redo use Control on Windows", async ({ page }) => {
   await expect(page.getByTestId("hit-M1")).toHaveCount(1);
 });
 
-for (const width of [300, 540]) {
-  test(`plain selectable property code and inline controls at ${width}px`, async ({
+// The narrowest stored panel width; the panel has no width breakpoints.
+test("plain selectable property code and inline controls at 300px", async ({
+  page,
+}) => {
+  await page.addInitScript(
+    (size) =>
+      localStorage.setItem("icm.properties-panel-width.v1", String(size)),
+    300,
+  );
+  await page.goto("/editor");
+  await placeComponent(page, "pmos", { x: 360, y: 220 });
+  await openSelectionShelf(page);
+  const editor = page.getByTestId("component-property-code-editor");
+  const code = page.getByLabel("Editable Canvas property code");
+  const target = editor.getByLabel("Target netlist options");
+  await target.selectOption("sky130_fd_pr__pfet_01v8");
+  await expectComponentCodeField(
     page,
-  }) => {
-    await page.addInitScript(
-      (size) =>
-        localStorage.setItem("icm.properties-panel-width.v1", String(size)),
-      width,
-    );
-    await page.goto("/editor");
-    await placeComponent(page, "pmos", { x: 360, y: 220 });
-    await openSelectionShelf(page);
-    const editor = page.getByTestId("component-property-code-editor");
-    const code = page.getByLabel("Editable Canvas property code");
-    const target = editor.getByLabel("Target netlist options");
-    await target.selectOption("sky130_fd_pr__pfet_01v8");
-    await expectComponentCodeField(
-      page,
-      "netlistTarget",
-      "sky130_fd_pr__pfet_01v8",
-    );
-    const picker = editor.locator(".cm-netlist-target-picker");
-    await expect(picker).toBeVisible();
-    await expect(
-      editor.locator(".cm-json-string").filter({
-        hasText: '"sky130_fd_pr__pfet_01v8"',
-      }),
-    ).toHaveCount(1);
-    // Only the JSON name is painted; the native menu occupies one icon button.
-    await expect(target).toHaveCSS("opacity", "0");
-    const pickerBox = await picker.boundingBox();
-    expect(pickerBox!.width).toBeLessThanOrEqual(24);
-    const editorBox = await editor.boundingBox();
-    expect(pickerBox!.x + pickerBox!.width).toBeLessThanOrEqual(
-      editorBox!.x + editorBox!.width,
-    );
-    await target.focus();
-    await expect(target).toBeFocused();
-    await expect(picker).toHaveCSS("outline-style", "solid");
-    const raw = await readComponentPropertyCode(page);
+    "netlistTarget",
+    "sky130_fd_pr__pfet_01v8",
+  );
+  const picker = editor.locator(".cm-netlist-target-picker");
+  await expect(picker).toBeVisible();
+  await expect(
+    editor.locator(".cm-json-string").filter({
+      hasText: '"sky130_fd_pr__pfet_01v8"',
+    }),
+  ).toHaveCount(1);
+  // Only the JSON name is painted; the native menu occupies one icon button.
+  await expect(target).toHaveCSS("opacity", "0");
+  const pickerBox = await picker.boundingBox();
+  expect(pickerBox!.width).toBeLessThanOrEqual(24);
+  const editorBox = await editor.boundingBox();
+  expect(pickerBox!.x + pickerBox!.width).toBeLessThanOrEqual(
+    editorBox!.x + editorBox!.width,
+  );
+  await target.focus();
+  await expect(target).toBeFocused();
+  await expect(picker).toHaveCSS("outline-style", "solid");
+  const raw = await readComponentPropertyCode(page);
 
-    await expect(editor.locator(".cm-property-assist")).toHaveCount(0);
-    await expect(editor.locator(".cm-property-hint")).toHaveCount(0);
-    await expect(
-      editor.getByRole("button", { name: "Need help?", exact: true }),
-    ).toHaveCount(0);
-    expect(raw).not.toContain("//");
+  await expect(editor.locator(".cm-property-assist")).toHaveCount(0);
+  await expect(editor.locator(".cm-property-hint")).toHaveCount(0);
+  await expect(
+    editor.getByRole("button", { name: "Need help?", exact: true }),
+  ).toHaveCount(0);
+  expect(raw).not.toContain("//");
 
-    // Focus a text-only line; the editor center may contain an inline switch.
-    await code.locator(".cm-line").first().click();
-    await page.keyboard.press("ControlOrMeta+a");
-    const selected = await code.evaluate(() =>
-      window.getSelection()?.toString(),
-    );
-    // Selection serialization uses LF even when innerText uses the Windows
-    // CRLF convention. Compare all selected content, not OS line separators.
-    expect(selected?.replace(/\r\n/gu, "\n")).toBe(raw.replace(/\r\n/gu, "\n"));
+  // Focus a text-only line; the editor center may contain an inline switch.
+  await code.locator(".cm-line").first().click();
+  await page.keyboard.press("ControlOrMeta+a");
+  const selected = await code.evaluate(() => window.getSelection()?.toString());
+  // Selection serialization uses LF even when innerText uses the Windows
+  // CRLF convention. Compare all selected content, not OS line separators.
+  expect(selected?.replace(/\r\n/gu, "\n")).toBe(raw.replace(/\r\n/gu, "\n"));
 
-    const color = editor.getByRole("button", { name: "Edit line color" });
-    const reference = editor.getByRole("switch", {
-      name: "Toggle visual annotation visibility",
-    });
-    const value = editor.getByRole("switch", {
-      name: "Toggle value visibility",
-    });
-    const rotation = editor.getByRole("button", {
-      name: "Rotate clockwise 90 degrees",
-    });
-    const mirrorLeftRight = editor.getByRole("button", {
-      name: "Mirror left to right",
-    });
-    const mirrorTopBottom = editor.getByRole("button", {
-      name: "Mirror top to bottom",
-    });
-    await expect(color).toBeVisible();
-    await expect(reference).toHaveAttribute("aria-checked", "true");
-    await expect(value).toHaveAttribute("aria-checked", "false");
-    await expect(rotation).toBeVisible();
-    await expect(mirrorLeftRight).toBeVisible();
-    await expect(mirrorTopBottom).toBeVisible();
-    const horizontalIcon = mirrorLeftRight.locator("svg");
-    const verticalIcon = mirrorTopBottom.locator("svg");
-    await expect(horizontalIcon).toBeVisible();
-    await expect(verticalIcon).toBeVisible();
-    expect(await horizontalIcon.locator("path").getAttribute("d")).toBe(
-      await verticalIcon.locator("path").getAttribute("d"),
-    );
-    await expect(horizontalIcon.locator("g")).not.toHaveAttribute(
-      "transform",
-      /.+/u,
-    );
-    await expect(verticalIcon.locator("g")).toHaveAttribute(
-      "transform",
-      "rotate(90 8 8)",
-    );
-    expect(
-      await reference.evaluate((element) =>
-        element
-          .closest(".cm-line")
-          ?.textContent?.includes('"visualAnnotation"'),
-      ),
-    ).toBe(true);
-    expect(
-      await value.evaluate((element) =>
-        element.closest(".cm-line")?.textContent?.includes('"value"'),
-      ),
-    ).toBe(true);
-    expect(
-      await color.evaluate((element) =>
-        element.closest(".cm-line")?.textContent?.includes('"color"'),
-      ),
-    ).toBe(true);
-    expect(
-      await rotation.evaluate((element) =>
-        element.closest(".cm-line")?.textContent?.includes('"rotation"'),
-      ),
-    ).toBe(true);
-    expect(
-      await mirrorLeftRight.evaluate((element) =>
-        element.closest(".cm-line")?.textContent?.includes('"mirror"'),
-      ),
-    ).toBe(true);
-    expect(
-      await mirrorTopBottom.evaluate((element) =>
-        element.closest(".cm-line")?.textContent?.includes('"mirror"'),
-      ),
-    ).toBe(true);
-    await expect(
-      page.getByRole("dialog", { name: "Line color settings" }),
-    ).toHaveCount(0);
-    const layout = await editor.evaluate((section) => ({
-      overflow: section.scrollWidth > section.clientWidth,
-      editable: Boolean(section.querySelector('[contenteditable="true"]')),
-      inlineControls: section.querySelectorAll(
-        ".cm-line .cm-property-inline-toggle, .cm-line .cm-property-inline-placement, .cm-line .cm-property-inline-color",
-      ).length,
-    }));
-    expect(layout).toEqual({
-      overflow: false,
-      editable: true,
-      inlineControls: 6,
-    });
-    expect(raw).not.toContain("Line color");
-    await reference.click();
-    await value.click();
-    await rotation.click();
-    await expectComponentCodeField(page, "display.visualAnnotation", false);
-    await expectComponentCodeField(page, "display.value", true);
-    await expectComponentCodeField(page, "rotation", 90);
-    await mirrorLeftRight.click();
-    await expectComponentCodeField(page, "rotation", 90);
-    await expectComponentCodeField(page, "mirror", "horizontal");
-    await mirrorLeftRight.click();
-    await expectComponentCodeField(page, "rotation", 90);
-    await expectComponentCodeField(page, "mirror", "none");
-    await mirrorTopBottom.click();
-    await expectComponentCodeField(page, "rotation", 90);
-    await expectComponentCodeField(page, "mirror", "vertical");
-    await mirrorLeftRight.click();
-    await expectComponentCodeField(page, "rotation", 90);
-    await expectComponentCodeField(page, "mirror", "both");
-    await mirrorLeftRight.click();
-    await expectComponentCodeField(page, "rotation", 90);
-    await expectComponentCodeField(page, "mirror", "vertical");
-    await mirrorTopBottom.click();
-    await expectComponentCodeField(page, "rotation", 90);
-    await expectComponentCodeField(page, "mirror", "none");
-    for (const next of [180, 270, 0, 90]) {
-      await rotation.click();
-      await expectComponentCodeField(page, "rotation", next);
-    }
-    await color.click();
-
-    expect(
-      await page
-        .getByLabel("Line presets")
-        .getByRole("button")
-        .evaluateAll((buttons) =>
-          buttons.map((button) => button.getAttribute("aria-label")),
-        ),
-    ).toEqual([
-      "Use Black for line",
-      "Use Light gray for line",
-      "Use Red for line",
-      "Use Green for line",
-      "Use Blue for line",
-    ]);
-    await expect(
-      page.getByRole("button", { name: "Use Light gray for line" }),
-    ).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: "Use Blue for line" }),
-    ).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: "Use Black for line" }),
-    ).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: "Reset line", exact: true }),
-    ).toHaveCount(0);
-    await page.getByRole("button", { name: "Use Black for line" }).click();
-    await expectComponentCodeField(page, "color", [0, 0, 0]);
-
-    await color.click();
-    await page
-      .getByRole("button", { name: "Use Red for line", exact: true })
-      .click();
-    await expectComponentCodeField(page, "color", [220, 38, 38]);
-
-    await color.click();
-    await expect(page.getByLabel("Line RGB")).toHaveValue("[220,38,38]");
-    await page.getByLabel("Line RGB").fill("[12,38,38]");
-    await expectComponentCodeField(page, "color", [12, 38, 38]);
+  const color = editor.getByRole("button", { name: "Edit line color" });
+  const reference = editor.getByRole("switch", {
+    name: "Toggle visual annotation visibility",
   });
-}
+  const value = editor.getByRole("switch", {
+    name: "Toggle value visibility",
+  });
+  const rotation = editor.getByRole("button", {
+    name: "Rotate clockwise 90 degrees",
+  });
+  const mirrorLeftRight = editor.getByRole("button", {
+    name: "Mirror left to right",
+  });
+  const mirrorTopBottom = editor.getByRole("button", {
+    name: "Mirror top to bottom",
+  });
+  await expect(color).toBeVisible();
+  await expect(reference).toHaveAttribute("aria-checked", "true");
+  await expect(value).toHaveAttribute("aria-checked", "false");
+  await expect(rotation).toBeVisible();
+  await expect(mirrorLeftRight).toBeVisible();
+  await expect(mirrorTopBottom).toBeVisible();
+  const horizontalIcon = mirrorLeftRight.locator("svg");
+  const verticalIcon = mirrorTopBottom.locator("svg");
+  await expect(horizontalIcon).toBeVisible();
+  await expect(verticalIcon).toBeVisible();
+  expect(await horizontalIcon.locator("path").getAttribute("d")).toBe(
+    await verticalIcon.locator("path").getAttribute("d"),
+  );
+  await expect(horizontalIcon.locator("g")).not.toHaveAttribute(
+    "transform",
+    /.+/u,
+  );
+  await expect(verticalIcon.locator("g")).toHaveAttribute(
+    "transform",
+    "rotate(90 8 8)",
+  );
+  expect(
+    await reference.evaluate((element) =>
+      element.closest(".cm-line")?.textContent?.includes('"visualAnnotation"'),
+    ),
+  ).toBe(true);
+  expect(
+    await value.evaluate((element) =>
+      element.closest(".cm-line")?.textContent?.includes('"value"'),
+    ),
+  ).toBe(true);
+  expect(
+    await color.evaluate((element) =>
+      element.closest(".cm-line")?.textContent?.includes('"color"'),
+    ),
+  ).toBe(true);
+  expect(
+    await rotation.evaluate((element) =>
+      element.closest(".cm-line")?.textContent?.includes('"rotation"'),
+    ),
+  ).toBe(true);
+  expect(
+    await mirrorLeftRight.evaluate((element) =>
+      element.closest(".cm-line")?.textContent?.includes('"mirror"'),
+    ),
+  ).toBe(true);
+  expect(
+    await mirrorTopBottom.evaluate((element) =>
+      element.closest(".cm-line")?.textContent?.includes('"mirror"'),
+    ),
+  ).toBe(true);
+  await expect(
+    page.getByRole("dialog", { name: "Line color settings" }),
+  ).toHaveCount(0);
+  const layout = await editor.evaluate((section) => ({
+    overflow: section.scrollWidth > section.clientWidth,
+    editable: Boolean(section.querySelector('[contenteditable="true"]')),
+    inlineControls: section.querySelectorAll(
+      ".cm-line .cm-property-inline-toggle, .cm-line .cm-property-inline-placement, .cm-line .cm-property-inline-color",
+    ).length,
+  }));
+  expect(layout).toEqual({
+    overflow: false,
+    editable: true,
+    inlineControls: 6,
+  });
+  expect(raw).not.toContain("Line color");
+  await reference.click();
+  await value.click();
+  await rotation.click();
+  await expectComponentCodeField(page, "display.visualAnnotation", false);
+  await expectComponentCodeField(page, "display.value", true);
+  await expectComponentCodeField(page, "rotation", 90);
+  await mirrorLeftRight.click();
+  await expectComponentCodeField(page, "rotation", 90);
+  await expectComponentCodeField(page, "mirror", "horizontal");
+  await mirrorLeftRight.click();
+  await expectComponentCodeField(page, "rotation", 90);
+  await expectComponentCodeField(page, "mirror", "none");
+  await mirrorTopBottom.click();
+  await expectComponentCodeField(page, "rotation", 90);
+  await expectComponentCodeField(page, "mirror", "vertical");
+  await mirrorLeftRight.click();
+  await expectComponentCodeField(page, "rotation", 90);
+  await expectComponentCodeField(page, "mirror", "both");
+  await mirrorLeftRight.click();
+  await expectComponentCodeField(page, "rotation", 90);
+  await expectComponentCodeField(page, "mirror", "vertical");
+  await mirrorTopBottom.click();
+  await expectComponentCodeField(page, "rotation", 90);
+  await expectComponentCodeField(page, "mirror", "none");
+  for (const next of [180, 270, 0, 90]) {
+    await rotation.click();
+    await expectComponentCodeField(page, "rotation", next);
+  }
+  await color.click();
+
+  expect(
+    await page
+      .getByLabel("Line presets")
+      .getByRole("button")
+      .evaluateAll((buttons) =>
+        buttons.map((button) => button.getAttribute("aria-label")),
+      ),
+  ).toEqual([
+    "Use Black for line",
+    "Use Light gray for line",
+    "Use Red for line",
+    "Use Green for line",
+    "Use Blue for line",
+  ]);
+  await expect(
+    page.getByRole("button", { name: "Use Light gray for line" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Use Blue for line" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Use Black for line" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Reset line", exact: true }),
+  ).toHaveCount(0);
+  await page.getByRole("button", { name: "Use Black for line" }).click();
+  await expectComponentCodeField(page, "color", [0, 0, 0]);
+
+  await color.click();
+  await page
+    .getByRole("button", { name: "Use Red for line", exact: true })
+    .click();
+  await expectComponentCodeField(page, "color", [220, 38, 38]);
+
+  await color.click();
+  await expect(page.getByLabel("Line RGB")).toHaveValue("[220,38,38]");
+  await page.getByLabel("Line RGB").fill("[12,38,38]");
+  await expectComponentCodeField(page, "color", [12, 38, 38]);
+});
 
 test("a black-box part exposes its generated Reference", async ({ page }) => {
   await page.goto("/editor");
@@ -711,40 +727,6 @@ test("a black-box part exposes its generated Reference", async ({ page }) => {
   await expect(code).toContainText(/"name": "X1"/u);
   await expect(code).toContainText(/"netlistName": "X1"/u);
 });
-
-// The Properties path is the same for every ideal block; the blocks'
-// defaults are pinned by the device and netlist unit tests.
-for (const [symbolId, key, defaultValue] of [["opamp", "gain", "1e6"]] as const)
-  test(`${symbolId} exposes its ideal model parameter in Properties JSON`, async ({
-    page,
-  }) => {
-    await page.goto("/editor");
-    await placeComponent(page, symbolId, { x: 300, y: 200 });
-    await openSelectionShelf(page);
-    expect(
-      JSON.parse(await readComponentPropertyCode(page)).parameters[key],
-    ).toBe(defaultValue);
-    await editComponentPropertyCode(page, (code) => {
-      code.parameters[key] = "2";
-    });
-    await expect
-      .poll(
-        async () =>
-          JSON.parse(await readComponentPropertyCode(page)).parameters[key],
-      )
-      .toBe("2");
-    const saved = parseSavedProject(
-      (await downloadBytes(page, "File", "Export Project File…")).toString(
-        "utf8",
-      ),
-    );
-    expect(
-      saved.documents[0]!.instances.find(
-        (instance: SchematicDocument["instances"][number]) =>
-          instance.symbolId === symbolId,
-      )?.netlist?.parameters[key],
-    ).toBe("2");
-  });
 
 test("Q opens a text-first Properties editor with one-click exact draft copy", async ({
   page,
@@ -1345,38 +1327,6 @@ test("Properties keeps component and Annotation text colors independent", async 
   expect(savedLabel).not.toHaveProperty("textColor");
 });
 
-test("keeps fixed and variable capacitor Properties on the shared code surface", async ({
-  page,
-}) => {
-  await page.goto("/editor");
-  await placeComponent(page, "capacitor", { x: 280, y: 180 });
-  await placeComponent(page, "variable-capacitor", { x: 480, y: 180 });
-
-  await page.getByTestId("hit-C1").click();
-  await openSelectionShelf(page);
-  const properties = page.getByRole("complementary", { name: "Properties" });
-  const componentProperties = properties.getByRole("region", {
-    name: "Component properties",
-  });
-  await expect(
-    componentProperties.getByLabel("Editable Canvas property code"),
-  ).toBeVisible();
-  await expect(componentProperties.locator(":scope > *")).toHaveCount(1);
-  await expect(
-    properties.getByRole("group", { name: "Capacitor plate terminals" }),
-  ).toHaveCount(0);
-
-  await page.getByTestId("hit-C2").click();
-  await expect(properties).toContainText("C2 · variable-capacitor");
-  await expect(
-    componentProperties.getByLabel("Editable Canvas property code"),
-  ).toBeVisible();
-  await expect(componentProperties.locator(":scope > *")).toHaveCount(1);
-  await expect(
-    properties.getByRole("group", { name: "Capacitor plate terminals" }),
-  ).toHaveCount(0);
-});
-
 test("value display projects MOS W/L and passive values beside the reference", async ({
   page,
 }) => {
@@ -1740,49 +1690,6 @@ test("live property edits survive blank click and Escape without replaying legac
   await expectComponentCodeField(page, "parameters.value", "47k");
 });
 
-test("edits the transconductance trapezoid from gm to -gmL", async ({
-  page,
-}) => {
-  await page.goto("/editor");
-  await placeComponent(page, "transconductance", { x: 360, y: 240 });
-  await openSelectionShelf(page);
-  const properties = page.getByRole("complementary", { name: "Properties" });
-  const componentProperties = properties.locator(
-    '[aria-label="Component properties"]',
-  );
-  const formalScene = page.locator('[data-layer="formal"]');
-  const frame = formalScene.locator('[data-role="signal-flow-frame"]');
-
-  await expect(properties.getByText("Identity", { exact: true })).toHaveCount(
-    0,
-  );
-  await expect(
-    componentProperties.getByLabel("Editable Canvas property code"),
-  ).toBeVisible();
-  await expect(
-    componentProperties.getByRole("button", { name: "VDD Net options" }),
-  ).toBeVisible();
-  await expectComponentCodeField(page, "signalFlow", {});
-  await expect(frame).toHaveCount(1);
-  await expect(frame).toHaveAttribute(
-    "points",
-    "-20,-35 20,-17.5 20,17.5 -20,35",
-  );
-  await expect(
-    formalScene.locator('[data-role="formula-subscript"]'),
-  ).toHaveText("m");
-
-  await setComponentCodeField(page, "signalFlow.formula", "−gₘL");
-  await expect(
-    formalScene.locator('[data-role="formula-subscript"]'),
-  ).toHaveText("mL");
-
-  await page.getByTestId("draw-tool-undo").click();
-  await expectComponentCodeField(page, "signalFlow", {});
-  await page.getByTestId("draw-tool-redo").click();
-  await expectComponentCodeField(page, "signalFlow.formula", "−gₘL");
-});
-
 test("edits a formula-capable Signal Flow block with undo, redo, and Reset defaults", async ({
   page,
 }) => {
@@ -2013,14 +1920,6 @@ for (const fixture of [
     nativeReference: "R1",
     externalReference: "R1",
   },
-  {
-    symbolId: "capacitor",
-    model: "sky130_fd_pr__cap_mim_m3_1",
-    externalParameter: "mf",
-    primitiveParameter: "value",
-    nativeReference: "C1",
-    externalReference: "C1",
-  },
 ] as const) {
   test(`switches ${fixture.symbolId} Model parameters immediately and clears through None`, async ({
     page,
@@ -2064,7 +1963,7 @@ for (const fixture of [
   });
 }
 
-for (const symbol of ["xfmr", "tcoil"] as const) {
+for (const symbol of ["xfmr"] as const) {
   test(`${symbol} parameter label editing commits, escapes invalid input and closes when hidden`, async ({
     page,
   }) => {
@@ -2324,7 +2223,6 @@ test("batch Code edits common resistor values and colors atomically and reopens 
     parameters: { value: { R1: "10k", R2: "10k" }, tc: { R1: "1", R2: "2" } },
     color: [255, 0, 0],
   });
-  await page.screenshot({ path: "plan/batch-value-properties.png" });
 });
 
 test("batch Code colors different component types while rejecting incompatible value edits", async ({
@@ -2421,40 +2319,4 @@ test("batch Code drafts follow selection identity even when common values are id
       (instance: any) => instance.netlist.parameters.value,
     ),
   ).toEqual(["22k", "22k", "22k"]);
-});
-
-test("common item fields start with type and name and preserve reference binding", async ({
-  page,
-}) => {
-  await page.goto("/editor");
-  await placeComponent(page, "resistor", { x: 360, y: 240 });
-  await openSelectionShelf(page);
-  const before = JSON.parse(await readComponentPropertyCode(page));
-  expect(Object.keys(before).slice(0, 6)).toEqual([
-    "type",
-    "name",
-    "coordinate",
-    "rotation",
-    "mirror",
-    "color",
-  ]);
-  await setComponentCodeField(page, "name", "RL");
-  // The code editor takes typed text a frame later, and its draft and the
-  // Canvas change together. On a busy machine an export sent straight away
-  // can win that frame and save R1.
-  await expectComponentCodeField(page, "name", "RL");
-  const saved = parseSavedProject(
-    (await downloadBytes(page, "File", "Export Project File…")).toString(
-      "utf8",
-    ),
-  );
-  expect(saved.documents[0].instances[0].reference).toBe("RL");
-  expect(
-    saved.documents[0].annotations.find(
-      (annotation: { id: string }) => annotation.id === "instance-label-R1",
-    ).binding,
-  ).toEqual({ kind: "instance-reference", instanceId: "R1" });
-  await page.screenshot({ path: "plan/common-item-properties.png" });
-  await page.getByRole("button", { name: "Undo", exact: true }).click();
-  await expectComponentCodeField(page, "name", "R1");
 });

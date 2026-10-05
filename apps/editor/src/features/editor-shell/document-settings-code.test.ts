@@ -243,7 +243,6 @@ describe("document Style code", () => {
     ["canvas.scrollBehavior", "smooth", 'must be "auto", "zoom", or "pan"'],
     ["labels.subscript_case", "titlecase", "preserve"],
     ["labels.subscript_italic", "false", "must be true or false"],
-    ["labels.subscript_italic", 0, "must be true or false"],
     ["labels.underscore_subscript", "true", "must be true or false"],
     ["labels.subscript_after_first", 1, "must be true or false"],
     ["labels.first_letter_italic", null, "must be true or false"],

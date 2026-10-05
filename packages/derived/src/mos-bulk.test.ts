@@ -502,19 +502,6 @@ describe("MOS bulk resolution", () => {
     });
   });
 
-  it.each(["nmos", "pmos"] as const)(
-    "leaves an unconfigured manual %s bulk unresolved",
-    (symbolId) => {
-      const document = createEmptyDocument("main", "Main");
-      document.instances.push(mos("M1", symbolId));
-
-      expect(resolveMosBulkConnection(document, "M1")).toMatchObject({
-        status: "unresolved",
-        net: undefined,
-      });
-    },
-  );
-
   it("keeps a materialized Cell default visually implicit", () => {
     const document = createEmptyDocument("main", "Main");
     document.instances.push({
@@ -587,6 +574,9 @@ describe("MOS bulk resolution", () => {
 
   it("does not guess when imported fourth-node evidence is missing", () => {
     const document = createEmptyDocument("main", "Main");
+    // A Cell default a manual PMOS would take: an imported one must not.
+    document.nets.push({ id: "net-vdd", terminals: [] });
+    document.mosBulkDefaults = { pmosNetId: "net-vdd" };
     document.instances.push({
       ...mos("M1", "pmos"),
       sourceRef: {

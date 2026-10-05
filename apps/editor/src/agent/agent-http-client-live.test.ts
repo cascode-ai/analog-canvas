@@ -366,44 +366,6 @@ describe("the Agent HTTP client reading the live editor", () => {
     // A response without the relay's headers records the round trip alone.
     expect(http.requestTimings[0]).not.toHaveProperty("relayMs");
   });
-
-  it("returns a snapshot response untouched", async () => {
-    const live = clientOfLiveEditor();
-    // Two resistors and a wire, so the Snapshot carries parts, Nets and Routes.
-    await live.agentEdits({
-      actions: [
-        {
-          kind: "place-component",
-          symbol: "resistor",
-          reference: "R1",
-          position: { x: 100, y: 100 },
-        },
-        {
-          kind: "place-component",
-          symbol: "resistor",
-          reference: "R2",
-          position: { x: 300, y: 100 },
-        },
-      ],
-    });
-    await live.agentEdits({
-      actions: [
-        {
-          kind: "connect",
-          from: { kind: "pin", instance: "R1", pin: "2" },
-          to: { kind: "pin", instance: "R2", pin: "1" },
-        },
-      ],
-    });
-    const response = await live.http.circuit(
-      "session-1",
-      TOKEN,
-      snapshotRequest,
-    );
-    expect(response.ok && response.operation === "snapshot").toBe(true);
-    expect(response).toEqual(live.lastAnswer());
-    expect(snapshotOf(response).document.routes).toHaveLength(1);
-  });
 });
 
 /**

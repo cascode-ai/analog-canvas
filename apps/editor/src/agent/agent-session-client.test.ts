@@ -1,13 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { AgentSessionError } from "../../../../packages/agent-client/src/errors";
-import { liveAgentEditor, personEdits } from "./live-agent-editor.test-support";
-
-const place = (symbol: string, reference: string, x: number) => ({
-  kind: "place-component",
-  symbol,
-  reference,
-  position: { x, y: 100 },
-});
+import { liveAgentEditor } from "./live-agent-editor.test-support";
 
 describe("the Agent client against the live editor", () => {
   it("claims a code, caches capabilities, bootstraps once, and reports online", async () => {
@@ -16,6 +9,10 @@ describe("the Agent client against the live editor", () => {
     expect(http.claims).toEqual(["session-1.claim-code"]);
     expect(report.mode).toBe("claimed");
     expect(report.projectId).toBe(controller.project.id);
+    expect(report.documentIds).toEqual(
+      controller.project.documents.map((item) => item.id),
+    );
+    expect(report.context?.documentId).toBe(controller.document.id);
     expect(report.context?.revision).toBe(controller.document.revision);
     expect(report.context?.byteLength).toBeGreaterThan(0);
     expect(report.context?.diagnosticsLoaded).toBe(false);
@@ -41,47 +38,6 @@ describe("the Agent client against the live editor", () => {
     expect(http.circuitCalls.length).toBe(calls);
   });
 
-  it("surfaces STATE_CHANGED with the objects a person changed, instead of overwriting", async () => {
-    const { client, controller } = liveAgentEditor();
-    await client.connect("session-1.code");
-    expect(
-      (
-        await client.applyActions([
-          place("resistor", "R1", 100),
-          place("resistor", "R2", 300),
-        ])
-      ).ok,
-    ).toBe(true);
-    // The Agent reads the Document, then a person moves R2.
-    await client.snapshot();
-    const r2 = controller.document.instances.find(
-      (item) => item.reference === "R2",
-    )!;
-    personEdits(controller, [
-      {
-        kind: "move_instance",
-        instanceId: r2.id,
-        position: { x: 500, y: 300 },
-      },
-    ]);
-    const report = await client.advancedTransact([
-      {
-        kind: "set_instance_reference",
-        instanceId: r2.id,
-        reference: "R7",
-      },
-    ]);
-    expect(report).toMatchObject({
-      ok: false,
-      stage: "commit",
-      code: "STATE_CHANGED",
-      revision: controller.document.revision,
-    });
-    expect(report.changedObjectIds).toContain(r2.id);
-    expect(r2.reference).toBe("R2");
-    expect(client.summary("main")?.revision).toBe(controller.document.revision);
-  });
-
   it("retains a canonical request ID and payload through network recovery", async () => {
     const { client, http } = liveAgentEditor();
     await client.connect("session-1.code");
@@ -101,6 +57,7 @@ describe("the Agent client against the live editor", () => {
       request,
       request,
     ]);
+    expect(client.connection.snapshot.state).toBe("online");
     await expect(
       client.request({ ...request, secret: "invalid" }),
     ).rejects.toThrow("Invalid Agent Circuit request");

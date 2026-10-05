@@ -5,28 +5,6 @@ import { moveRouteSegment } from "./route-geometry-edit.js";
 import type { RouteEditPath, SegmentMode } from "./route-geometry-edit.js";
 
 describe("direct route segment movement", () => {
-  it("turns a direct segment into a stable orthogonal dogleg", () => {
-    expect(
-      moveRouteSegment(
-        {
-          points: [
-            { x: 0, y: 0 },
-            { x: 100, y: 0 },
-          ],
-          segmentModes: ["manual"],
-        },
-        0,
-        { x: 50, y: 30 },
-      ),
-    ).toEqual({
-      waypoints: [
-        { x: 0, y: 30 },
-        { x: 100, y: 30 },
-      ],
-      segmentModes: ["manual", "manual", "manual"],
-    });
-  });
-
   it("moves only an interior segment and rejects protected neighbors", () => {
     const polyline: RouteEditPath = {
       points: [

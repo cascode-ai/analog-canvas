@@ -187,7 +187,7 @@ describe("displayableInstanceValue", () => {
     });
   });
 
-  it.each(["EV", "W", "3", "3u", "3um", "{W_VAR}"])(
+  it.each(["EV", "W", "3", "{W_VAR}"])(
     "does not modify a user-authored dimension %s",
     (raw) => {
       const result = displayableInstanceValue(

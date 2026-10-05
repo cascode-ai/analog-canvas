@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  createHeartbeat,
-  isHeartbeatAck,
-  isTransportStale,
-} from "./transport-liveness";
+import { createHeartbeat, isHeartbeatAck } from "./transport-liveness";
 
 describe("Agent transport liveness", () => {
   it("creates and recognizes only session-bound heartbeat control frames", () => {
@@ -36,10 +32,5 @@ describe("Agent transport liveness", () => {
         "session-1",
       ),
     ).toBe(false);
-  });
-
-  it("marks a connection stale at the shared timeout boundary", () => {
-    expect(isTransportStale(10_000, 54_999)).toBe(false);
-    expect(isTransportStale(10_000, 55_000)).toBe(true);
   });
 });

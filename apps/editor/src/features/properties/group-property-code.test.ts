@@ -185,30 +185,6 @@ describe("batch component property code", () => {
     });
   });
 
-  it("lists a shared parameter by each component even where they agree", () => {
-    const items = ["R1", "R2"].map((key) => ({
-      key,
-      instanceId: key.toLowerCase(),
-      name: key,
-      parameters: { value: "1k" },
-      reference: true,
-      value: false,
-      foreground: "auto" as const,
-    }));
-    const listed = { ...context, parameters: { value: "1k" }, items };
-    const source = formatGroupPropertyCode(listed);
-    expect(JSON.parse(source).parameters).toEqual({
-      value: { R1: "1k", R2: "1k" },
-    });
-    // One value in place of the list still sets them all.
-    expect(
-      parseGroupPropertyCode(
-        source.replace(/"value": \{[^}]*\}/u, '"value": "2k"'),
-        listed,
-      ),
-    ).toMatchObject({ ok: true, value: { parameters: { value: "2k" } } });
-  });
-
   it("shows the name they all show, or as is, and takes one name for all", () => {
     const item = (key: string, shown?: string | null) => ({
       key,

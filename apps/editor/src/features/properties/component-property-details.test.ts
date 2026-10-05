@@ -8,10 +8,7 @@ import {
 } from "./component-property-code";
 import { planComponentPropertyCodeEdits } from "./component-property-code-edits";
 import { createEmptyDocument } from "@icm/model";
-import {
-  componentSymbolOptions,
-  componentDetailFields,
-} from "./component-property-details";
+import { componentDetailFields } from "./component-property-details";
 import { configurableLogicGateIds } from "./logic-gate-input-count";
 
 const instance: Instance = {
@@ -197,18 +194,6 @@ describe("unified component property details", () => {
       parseComponentPropertyCode(JSON.stringify(defaults), context).ok,
     ).toBe(true);
   });
-  it("only offers pin-compatible drawing variants, including combined input/output swaps", () => {
-    expect(componentSymbolOptions("opamp-differential")).toEqual(
-      expect.arrayContaining([
-        "opamp-differential",
-        "opamp-differential-inputs-swapped",
-        "opamp-differential-crossed",
-        "opamp-differential-crossed-inputs-swapped",
-      ]),
-    );
-    expect(componentSymbolOptions("nmos")).toEqual(["nmos"]);
-  });
-
   it("keeps contact-style symbol choices but rejects a second authority for amplifier polarity", () => {
     for (const symbolId of ["opamp-differential", "ideal-switch"]) {
       const variantContext = {

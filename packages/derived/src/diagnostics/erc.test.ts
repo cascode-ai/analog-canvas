@@ -1103,6 +1103,17 @@ describe("ERC engine", () => {
         terminals: [{ instanceId: "I1", pinName: "R" }],
       },
     ];
+    // Two Base Nets carrying the same local name.
+    project.documents[0]!.connectivityEvidence = ["net-a", "net-b"].map(
+      (netId) => ({
+        id: `claim-${netId}`,
+        kind: "name-claim" as const,
+        netId,
+        name: "OUT",
+        owner: { kind: "net-label" as const, annotationId: `label-${netId}` },
+        scope: "local" as const,
+      }),
+    );
     expect(run(project).map((item) => item.code)).not.toContain(
       "ERC_NET_NAME_CONFLICT",
     );

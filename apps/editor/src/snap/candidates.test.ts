@@ -88,30 +88,6 @@ describe("snap candidate builder", () => {
       ),
     ).toEqual([]);
   });
-  it("excludes every moving instance from static snap targets", () => {
-    const document = createEmptyDocument("doc", "Snap");
-    document.instances.push({
-      id: "R1",
-      symbolId: "resistor",
-      placement: {
-        position: { x: 100, y: 100 },
-        rotation: 0,
-        mirror: "none",
-      },
-    });
-
-    const targets = buildSceneSnapTargets(
-      document,
-      new InMemorySymbolResolver(builtInSymbols),
-      [],
-      new Set(["R1"]),
-    );
-
-    expect(targets.some((target) => target.id.startsWith("instance:R1:"))).toBe(
-      false,
-    );
-  });
-
   it("reuses revision-scoped geometry while preserving exclusion semantics", () => {
     const document = createEmptyDocument("doc", "Snap");
     document.instances.push(

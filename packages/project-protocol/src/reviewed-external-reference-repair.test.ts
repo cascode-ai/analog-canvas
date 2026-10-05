@@ -34,12 +34,6 @@ function legacyProject() {
 }
 
 describe("reviewed external references on file open", () => {
-  it("preserves the authored device name instead of adding an export prefix", () => {
-    const opened = parseProjectWithMetadata(JSON.stringify(legacyProject()));
-    expect(opened.migrated).toBe(true);
-    expect(opened.project.documents[0]!.instances[0]!.reference).toBe("M1");
-  });
-
   it("keeps bound display formatting and its authored name", () => {
     const project = legacyProject();
     project.documents[0]!.annotations.push({

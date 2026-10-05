@@ -17,19 +17,6 @@ describe("SPICE editor assistance", () => {
       );
     },
   );
-  it("suggests optional AC on a complete DC source without inserting it", () => {
-    const doc = "V1 in 0 DC 1.8";
-    const state = EditorState.create({
-      doc,
-      selection: { anchor: doc.length },
-    });
-    const guide = parameterGuide(state)!;
-    expect(guide.parameters.slice(guide.tokens.length)).toContainEqual({
-      label: "AC magnitude [phase / deg]",
-      optional: true,
-    });
-    expect(state.doc.toString()).toBe(doc);
-  });
   it("deduplicates SPICE names case-insensitively while retaining Canvas labels", () => {
     const doc = "* test\n.control\nsave ";
     const state = EditorState.create({

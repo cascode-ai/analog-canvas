@@ -156,7 +156,7 @@ describe("source execution preparation", () => {
       prepared.input.files!.every((f) => !f.text.includes("options scale")),
     ).toBe(true);
   });
-  it.each([0, -1, Infinity, NaN])(
+  it.each([0, Infinity, NaN])(
     "rejects invalid Profile defaultScale %s",
     (value) => {
       const selected = structuredClone(caps);

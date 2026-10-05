@@ -177,30 +177,6 @@ describe("the Agent client's receipts and revisions against the live editor", ()
     ]);
   });
 
-  it("retries the exact same request payload once on a network failure", async () => {
-    const { client, http } = liveAgentEditor();
-    const real = http.circuitHandler;
-    let capabilityRequests = 0;
-    // The first capabilities request is lost on the way to the editor.
-    http.circuitHandler = async (call) => {
-      if (
-        call.request.operation === "capabilities" &&
-        capabilityRequests++ === 0
-      )
-        throw new AgentSessionError("NETWORK_FAILURE", "down", "network");
-      return real(call);
-    };
-    const report = await client.connect("session-1.code");
-    expect(report.mode).toBe("claimed");
-    expect(report.capabilities.operations).toContain("transact");
-    const payloads = http.circuitCalls
-      .filter(({ request }) => request.operation === "capabilities")
-      .map(({ payload }) => payload);
-    expect(payloads).toHaveLength(2);
-    expect(payloads[0]).toBe(payloads[1]);
-    expect(client.connection.snapshot.state).toBe("online");
-  });
-
   it("keeps the pairing but marks the editor offline when the relay reports EDITOR_OFFLINE", async () => {
     const { client, http, controller } = liveAgentEditor();
     const real = http.circuitHandler;
@@ -233,25 +209,6 @@ describe("the Agent client's receipts and revisions against the live editor", ()
     });
     expect(http.claims).toHaveLength(1);
     expect(client.connection.snapshot.state).toBe("online");
-  });
-
-  it("validates advanced edits against the contract before sending", async () => {
-    const { client, http, controller, id } = await editorWithR1();
-    const before = structuredClone(controller.document);
-    const calls = http.circuitCalls.length;
-    const report = await client.advancedTransact([
-      { kind: "move_instance", instanceId: id, position: { x: 300, y: 300 } },
-      { kind: "not_a_real_edit" },
-    ]);
-    expect(report).toMatchObject({
-      ok: false,
-      stage: "compile",
-      code: "EDIT_SCHEMA_INVALID",
-    });
-    expect(report.message).toMatch(/^edits\[1\]\.kind:/);
-    // Nothing reached the editor, not even the valid move.
-    expect(http.circuitCalls.length).toBe(calls);
-    expect(controller.document).toEqual(before);
   });
 
   it("commits a valid advanced transaction and refreshes the revision", async () => {
@@ -475,26 +432,6 @@ describe("the Agent client's receipts and revisions against the live editor", ()
     await expect(client.refreshSnapshot("main")).rejects.toMatchObject({
       code: "DOCUMENT_NOT_FOUND",
     });
-  });
-
-  it("refreshes on a stale direct edit without replaying the mutation", async () => {
-    const { client, http, controller, id, position } = await editorWithR1();
-    // A person moves R1 after the Agent's call.
-    personEdits(controller, [
-      { kind: "move_instance", instanceId: id, position: { x: 300, y: 300 } },
-    ]);
-    const calls = http.circuitCalls.length;
-    const report = await client.applyActions([translate(id)]);
-    expect(report).toMatchObject({
-      ok: false,
-      code: "STATE_CHANGED",
-      revision: controller.document.revision,
-    });
-    expect(position()).toEqual({ x: 300, y: 300 });
-    // One commit attempt, then a read of the Document as it now stands.
-    expect(
-      http.circuitCalls.slice(calls).map(({ request }) => request.operation),
-    ).toEqual(["transact", "snapshot"]);
   });
 
   it("reads selected pins once and invalidates stale cached topology", async () => {

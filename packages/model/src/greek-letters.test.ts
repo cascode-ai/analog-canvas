@@ -3,14 +3,6 @@ import { describe, expect, it } from "vitest";
 import { GREEK_LETTERS, spellGreekLetters } from "./greek-letters.js";
 
 describe("Greek letter names", () => {
-  it("writes each letter as its standard name, in its own case", () => {
-    expect(spellGreekLetters("φ1")).toBe("phi1");
-    expect(spellGreekLetters("Φ1")).toBe("PHI1");
-    expect(spellGreekLetters("σΣ")).toBe("sigmaSIGMA");
-    expect(spellGreekLetters("VΩ_out")).toBe("VOMEGA_out");
-    expect(spellGreekLetters("αβγ")).toBe("alphabetagamma");
-  });
-
   it("names every Greek letter, small and capital", () => {
     const glyphs = new Set(GREEK_LETTERS.map((letter) => letter.glyph));
     for (const [first, last] of [

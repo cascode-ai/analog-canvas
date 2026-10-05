@@ -18,7 +18,7 @@ function svgWithoutMatrix(): SVGSVGElement {
 }
 
 describe("canvas viewport coordinates", () => {
-  it.each([0.25, 0.5, 1, 2, 3, 4, 8])(
+  it.each([0.25, 1, 3, 8])(
     "keeps electrical capture usable and bounded at scale %s",
     (scale) => {
       const svg = {

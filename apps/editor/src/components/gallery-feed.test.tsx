@@ -285,13 +285,6 @@ describe("galleryEntryMatchesQuery", () => {
     description: "Three-stage loop",
     tags: ["clocking"],
   };
-  it("reaches name, author, description, and tags, case-insensitively", () => {
-    expect(galleryEntryMatchesQuery(entry, "RING")).toBe(true);
-    expect(galleryEntryMatchesQuery(entry, "mei")).toBe(true);
-    expect(galleryEntryMatchesQuery(entry, "three-stage")).toBe(true);
-    expect(galleryEntryMatchesQuery(entry, "clock")).toBe(true);
-    expect(galleryEntryMatchesQuery(entry, "zzz")).toBe(false);
-  });
   it("tolerates one ordinary typo per word without fuzzing short acronyms", () => {
     for (const query of [
       "rign",

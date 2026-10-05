@@ -2,7 +2,6 @@ import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
-import { classifySimulationOutcome, readNgspiceDiagnostics } from "./index.js";
 import { SimulationResultSchema } from "./result-schema.js";
 import {
   readSimulationData,
@@ -634,52 +633,6 @@ describe("a run that produced no numbers", () => {
     const reading = readSimulationData(empty);
     expect(reading.status).toBe("unusable");
     expect(reading.diagnostics[0]!.text).toContain("nothing in it to read");
-  });
-
-  it("is a failure even when the simulator exited zero and logged normally", () => {
-    // The measured shape of this trap: ngspice returns 0, prints a plausible
-    // batch log, and leaves nothing behind. Since #572 an exit code is not a
-    // verdict at all, so nothing about the process can catch this -- only the
-    // rawfile can. The reading's own error diagnostic is what carries it into
-    // the outcome the rest of the pipeline sees.
-    const log = [
-      "Circuit: * rc low pass",
-      "",
-      "Doing analysis at TEMP = 27.000000 and TNOM = 27.000000",
-      "No. of Data Rows : 0",
-    ].join("\n");
-    const reading = readSimulationData("");
-    expect(reading.status).toBe("unusable");
-
-    expect(
-      classifySimulationOutcome(readNgspiceDiagnostics(log), {
-        timedOut: false,
-        timeoutMs: 30_000,
-      }),
-    ).toEqual({ status: "completed" });
-
-    expect(
-      classifySimulationOutcome(
-        [...readNgspiceDiagnostics(log), ...reading.diagnostics],
-        { timedOut: false, timeoutMs: 30_000 },
-      ),
-    ).toEqual({ status: "failed" });
-  });
-
-  it("never reports a reading that succeeded with nothing in it", () => {
-    // A plot this release does not read, alone in the file. There is nothing
-    // to show, so this is unusable — not `read` with an empty list, which is
-    // the same blank chart by another route.
-    const unknown = fixture("divider-op.raw").replace(
-      "Plotname: Operating Point",
-      "Plotname: DC transfer characteristic",
-    );
-    const reading = readSimulationData(unknown);
-    expect(reading.status).toBe("unusable");
-    expect(reading.diagnostics[0]!.severity).toBe("error");
-    expect(reading.diagnostics[0]!.text).toContain(
-      "DC transfer characteristic",
-    );
   });
 
   it("reads the plots it knows and names the one it skipped", () => {

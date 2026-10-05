@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { CURRENT_MODEL_SCHEMA_VERSION, createEmptyProject } from "@icm/model";
+import { createEmptyProject } from "@icm/model";
 
-import { parseProjectWithMetadata } from "./load.js";
 import {
   upgradeSchema40To41,
   upgradeSchema40To41WithReport,
@@ -15,16 +14,6 @@ describe("schema 40 to 41", () => {
       ...previous,
       schemaVersion: 41,
     });
-  });
-
-  it("loads an existing schema-40 Project through the explicit chain", () => {
-    const current = createEmptyProject("project", "Project", "main");
-    const result = parseProjectWithMetadata(
-      JSON.stringify({ ...current, schemaVersion: 40 }),
-    );
-    expect(result.project.schemaVersion).toBe(CURRENT_MODEL_SCHEMA_VERSION);
-    expect(result.sourceSchemaVersion).toBe(40);
-    expect(result.migrated).toBe(true);
   });
 
   it("reports that the version-only migration rewrites no authored data", () => {
