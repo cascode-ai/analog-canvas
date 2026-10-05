@@ -73,6 +73,35 @@ describe("Agent Document Snapshot", () => {
       JSON.stringify(full).length / 2,
     );
   });
+  it("bounds an adder round the sign marks it draws (#1324)", () => {
+    const bounds = (signB: "+" | "-") => {
+      const document = createEmptyDocument("doc", "Adder");
+      document.instances.push({
+        id: "S1",
+        symbolId: "adder",
+        reference: "S1",
+        placement: {
+          position: { x: 100, y: 100 },
+          rotation: 0,
+          mirror: "none",
+        },
+        netlist: {
+          binding: { kind: "unresolved-subcircuit", name: "adder" },
+          parameters: { signA: "+", signB },
+        },
+      });
+      const box = selectAgentInstances({ document, resolver }, ["S1"])[0]!
+        .bounds!;
+      return [box.x, box.y, box.x + box.width, box.y + box.height].map(
+        (value) => Number(value.toFixed(6)),
+      );
+    };
+    // Adding, an adder is its Symbol's box.
+    expect(bounds("+")).toEqual([76, 84, 124, 124]);
+    // Once B subtracts, the plus over A and the minus by B reach past it.
+    expect(bounds("-")).toEqual([72.7, 83.7, 124, 124.3]);
+  });
+
   it("builds a bounded bootstrap projection without full topology or diagnostics", () => {
     const project = fixtureProject();
     const document = project.documents[0]!;

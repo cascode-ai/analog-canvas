@@ -7,3 +7,4 @@ export * from "./parameter-expression.js";
 export * from "./parameter-validation.js";
 export * from "./instance-parameters.js";
 export * from "./built-in-model-contracts.js";
+export * from "./adder.js";

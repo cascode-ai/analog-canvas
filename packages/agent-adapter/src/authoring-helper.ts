@@ -11,6 +11,7 @@ import {
   type AgentSessionSnapshot,
 } from "./schema.js";
 import {
+  canonicalParameterValues,
   instanceParameterContract,
   subcircuitDescriptor,
   validateDeviceParameters,
@@ -1201,7 +1202,7 @@ function compilePlaceComponent(
       `Instance Reference "${action.reference}" already exists in this document`,
     );
   }
-  validateActionParameters(
+  const parameters = validateActionParameters(
     index,
     action.kind,
     { symbolId: action.symbol },
@@ -1226,10 +1227,10 @@ function compilePlaceComponent(
     // Without parameters or control the editor fills the netlist, catalog
     // defaults and the Process's model, exactly as a GUI insert, and leaves a
     // block that emits nothing without one.
-    ...(!powerMarker && (action.parameters || action.control)
+    ...(!powerMarker && (parameters || action.control)
       ? {
           netlist: {
-            parameters: action.parameters ?? {},
+            parameters: parameters ?? {},
             ...(action.control ? { control: action.control } : {}),
           },
         }
@@ -1292,6 +1293,11 @@ function mirroredPlacement(
   return { position, ...orientation };
 }
 
+/**
+ * The parameters as the part stores them, once its model takes them: a
+ * choice typed in another spelling it accepts, such as the Unicode minus for
+ * an adder's `-`, becomes the choice. Throws the first refusal.
+ */
 function validateActionParameters(
   index: number,
   kind: string,
@@ -1300,8 +1306,8 @@ function validateActionParameters(
   externalSubcircuitDefinitions?: Parameters<
     typeof instanceParameterContract
   >[0]["externalSubcircuitDefinitions"],
-): void {
-  if (!parameters) return;
+): Readonly<Record<string, string>> | undefined {
+  if (!parameters) return undefined;
   // The parameters the part's model owns, as export reads them: a part bound
   // to a reviewed SKY130 model takes that model's (a resistor's w, l, mult).
   // Custom and imported symbols outside the registry deliberately remain a
@@ -1310,14 +1316,18 @@ function validateActionParameters(
     externalSubcircuitDefinitions ? { externalSubcircuitDefinitions } : {},
     owner,
   );
-  if (!contract) return;
+  if (!contract) return parameters;
   const symbolId = owner.symbolId;
   const issues = validateDeviceParameters(
     { parameters: contract.definitions },
     parameters,
     { open: contract.open },
   );
-  if (!issues.length) return;
+  if (!issues.length)
+    return canonicalParameterValues(
+      { parameters: contract.definitions },
+      parameters,
+    );
   const issue = issues[0]!;
   const allowed = contract.definitions.map((parameter) => parameter.name);
   const allowedText = allowed.length ? allowed.join(", ") : "(none)";

@@ -6,6 +6,7 @@ import {
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 import {
   deriveNetConnectivityContext,
+  diagnoseVisualQuality,
   endpointKey,
   resolveRouteGeometry,
 } from "@icm/derived";
@@ -271,7 +272,7 @@ describe("an Agent connect keeps clear of parts and other Nets (#1257)", () => {
     id: string,
     x: number,
     y: number,
-    rotation: 0 | 90 = 0,
+    rotation: 0 | 90 | 180 | 270 = 0,
   ) => ({
     id,
     symbolId: "resistor",
@@ -372,6 +373,71 @@ describe("an Agent connect keeps clear of parts and other Nets (#1257)", () => {
     );
     expect(refused).toMatch(/passes through R3/);
     expect(chosen.document.routes).toEqual([]);
+  });
+
+  it("keeps clear of an adder's sign marks, as visual diagnostics see them (#1324)", () => {
+    // R1.2 points right at (40,90) and R2.1 down at (80,60). The planner's
+    // L runs right along y=90 and up x=80: past the adder S1's circle, but
+    // through the plus its subtracting B puts over input A, centred at
+    // (78.5, 89.5).
+    const drawn = (signB: "+" | "-") => {
+      const document = createEmptyDocument("doc", "Signed adder");
+      document.instances.push(
+        resistor("R1", 20, 90, 270),
+        resistor("R2", 80, 40, 180),
+        {
+          id: "S1",
+          symbolId: "adder",
+          reference: "S1",
+          placement: {
+            position: { x: 100, y: 100 },
+            rotation: 0,
+            mirror: "none",
+          },
+          netlist: {
+            binding: { kind: "unresolved-subcircuit", name: "adder" },
+            parameters: { signA: "+", signB },
+          },
+        },
+      );
+      return history(document);
+    };
+    const throughS1 = (h: DocumentHistory) =>
+      diagnoseVisualQuality(h.document, resolver).filter(
+        (item) =>
+          item.code === "VISUAL_WIRE_THROUGH_SYMBOL" &&
+          item.objectIds.includes("S1"),
+      );
+    // An adder whose inputs both add draws no marks: the L passes it.
+    const adding = drawn("+");
+    const direct = committedPath(adding, { keepClear: true });
+    if (typeof direct === "string") throw new Error(direct);
+    expect(direct).toEqual([
+      { x: 40, y: 90 },
+      { x: 80, y: 90 },
+      { x: 80, y: 60 },
+    ]);
+    expect(throughS1(adding)).toEqual([]);
+
+    // Once B subtracts, the same L runs through the plus: refused, and the
+    // wire goes round by the other corner.
+    expect(conflict(drawn("-"), direct)).toBe("passes through S1");
+    const h = drawn("-");
+    const cleared = committedPath(h, { keepClear: true });
+    expect(cleared).toEqual([
+      { x: 40, y: 90 },
+      { x: 40, y: 60 },
+      { x: 80, y: 60 },
+    ]);
+    if (typeof cleared === "string") throw new Error(cleared);
+    expect(conflict(h, cleared)).toBeNull();
+    expect(throughS1(h)).toEqual([]);
+
+    // Drawn anyway, the L is what visual diagnostics report: one view.
+    const forced = drawn("-");
+    const along = committedPath(forced, {}, direct.slice(1, -1));
+    expect(along).toEqual(direct);
+    expect(throughS1(forced)).not.toEqual([]);
   });
 
   it("keeps a wire to a Net, a tap on a wire or an open end clear too", () => {

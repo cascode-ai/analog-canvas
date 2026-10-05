@@ -134,7 +134,12 @@ export function validateDeviceParameters(
     }
     if (definition.editor === "select") {
       const allowed = (definition.options ?? []).map((option) => option.value);
-      if (!allowed.includes(rawValue))
+      if (
+        !allowed.includes(rawValue) &&
+        !definition.options?.some((option) =>
+          option.spellings?.includes(rawValue),
+        )
+      )
         issues.push({
           kind: "select",
           name,
@@ -157,4 +162,31 @@ export function validateDeviceParameters(
     }
   }
   return issues;
+}
+
+/**
+ * The parameters as they are stored: a choice typed in another spelling its
+ * option accepts, such as the Unicode minus for an adder's `-`, becomes the
+ * option's value. Names match as validation matches them, ignoring case;
+ * every other value is kept as given.
+ */
+export function canonicalParameterValues(
+  descriptor: Pick<DeviceDescriptor, "parameters">,
+  parameters: Readonly<Record<string, string>>,
+): Record<string, string> {
+  const definitions = new Map(
+    descriptor.parameters.map((parameter) => [
+      parameter.name.toLowerCase(),
+      parameter,
+    ]),
+  );
+  return Object.fromEntries(
+    Object.entries(parameters).map(([name, rawValue]) => [
+      name,
+      definitions
+        .get(name.toLowerCase())
+        ?.options?.find((option) => option.spellings?.includes(rawValue))
+        ?.value ?? rawValue,
+    ]),
+  );
 }

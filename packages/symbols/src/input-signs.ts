@@ -1,4 +1,8 @@
-import { adderInputSigns } from "@icm/devices";
+import {
+  ADDER_SYMBOL_ID,
+  adderInputSigns,
+  type ADDER_SIGNED_INPUTS,
+} from "@icm/devices";
 import {
   inverseTransformPoint,
   type Orientation,
@@ -10,13 +14,18 @@ import type { SymbolDefinition, SymbolPrimitive } from "./schema.js";
 
 /**
  * Where the adder draws each input's sign: the centre of the mark, in the
- * Symbol's own coordinates. Measured on the adder's pinned witness, Razavi's
- * Figure 21.38, at its calibration of 1.3 px per unit about the circle's
- * centre: both summing nodes there put the plus over input A at
- * (−21.4, −10.6) and the minus beside input B at (−12.4, 18.4). The adder in
- * Figure 21.33 agrees within 0.7 units.
+ * Symbol's own coordinates. The marks are presentation the Instance owns,
+ * drawn from its sign parameters; they are not Symbol artwork, and the
+ * adder's definition and evidence carry none of them. Measured on the
+ * adder's pinned witness, Razavi's Figure 21.38, at its calibration of
+ * 1.3 px per unit about the circle's centre: both summing nodes there put
+ * the plus over input A at (−21.4, −10.6) and the minus beside input B at
+ * (−12.4, 18.4). The adder in Figure 21.33 agrees within 0.7 units.
+ * input-signs.test.ts pins these positions.
  */
-const ADDER_SIGN_CENTERS: Readonly<Record<string, SymbolLocalPoint>> = {
+const ADDER_SIGN_CENTERS: Readonly<
+  Record<(typeof ADDER_SIGNED_INPUTS)[number]["pinName"], SymbolLocalPoint>
+> = {
   A: { x: -21.5, y: -10.5 },
   B: { x: -12.5, y: 18.5 },
 };
@@ -47,12 +56,12 @@ const SIGN_PART = /^input-[a-z]+-sign-(?:plus|minus)$/u;
  * they move with their inputs, and each bar is laid out against the
  * Instance's turn and mirror, so a minus stays level on the page.
  */
-export function inputSignPrimitives(
+function inputSignPrimitives(
   definition: SymbolDefinition,
   instance: InputSignSource,
 ): SymbolPrimitive[] {
   if (
-    definition.id !== "adder" ||
+    definition.id !== ADDER_SYMBOL_ID ||
     // Already drawn: a Symbol this function extended stays as it is.
     definition.primitives.some((primitive) =>
       SIGN_PART.test(primitive.part ?? ""),
@@ -88,8 +97,7 @@ export function inputSignPrimitives(
   };
   return signs.flatMap(({ pinName, sign }) => {
     const center = ADDER_SIGN_CENTERS[pinName];
-    if (!center || !definition.pins.some((pin) => pin.name === pinName))
-      return [];
+    if (!definition.pins.some((pin) => pin.name === pinName)) return [];
     const part = `input-${pinName.toLowerCase()}-sign-${
       sign === "-" ? "minus" : "plus"
     }`;
@@ -143,7 +151,14 @@ export function withInputSigns(
   };
 }
 
-/** The Symbol an Instance draws, with its sign marks; see withInputSigns. */
+/**
+ * The Symbol an Instance draws, with its sign marks; see withInputSigns.
+ * Whatever measures an Instance's ink resolves it here: the scene and its
+ * bounds, the hit box and snapping, labels, visual diagnostics, the bodies
+ * wire planning keeps clear of and the wire-under-symbol warning, and the
+ * Agent Snapshot's bounds. A reader of pins alone may resolve the bare
+ * Symbol, since the marks add no pin.
+ */
 export function resolveInstanceSymbol(
   resolver: SymbolResolver,
   instance: InputSignSource & {

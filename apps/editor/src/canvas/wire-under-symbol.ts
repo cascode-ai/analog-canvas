@@ -6,7 +6,11 @@ import {
 } from "@icm/model";
 import { resolveEndpointConnection } from "@icm/derived";
 import type { ResolvedRouteGeometry } from "@icm/derived";
-import type { ResolvedSymbol, SymbolResolver } from "@icm/symbols";
+import {
+  resolveInstanceSymbol,
+  type ResolvedSymbol,
+  type SymbolResolver,
+} from "@icm/symbols";
 
 import { instanceVisibleHitBox } from "./instance-geometry";
 
@@ -48,12 +52,8 @@ function visiblePinLeads(
   document: SchematicDocument,
   resolver: SymbolResolver,
   instance: SchematicDocument["instances"][number],
+  resolved: ResolvedSymbol,
 ): PinLead[] {
-  const resolved = resolver.resolve(
-    instance.symbolId,
-    instance.symbolVariantId,
-  );
-  if (!resolved) return [];
   return resolved.definition.pins.flatMap((pin) => {
     if (pin.presentation.visibility === "implicit") return [];
     if (resolved.variant?.hiddenPinNames.includes(pin.name)) return [];
@@ -343,10 +343,9 @@ export function deriveWireUnderSymbolWarnings(
 ): WireUnderSymbolWarning[] {
   const targets = document.instances.flatMap((instance) => {
     if (!instance.placement) return [];
-    const resolved = resolver.resolve(
-      instance.symbolId,
-      instance.symbolVariantId,
-    );
+    // The ink the Instance draws, an adder's sign marks included, as the
+    // wire planners and visual diagnostics measure it.
+    const resolved = resolveInstanceSymbol(resolver, instance);
     if (!resolved) return [];
     const regions = collisionRegions(instance, resolved);
     return regions.length > 0
@@ -354,7 +353,7 @@ export function deriveWireUnderSymbolWarnings(
           {
             instanceId: instance.id,
             regions,
-            leads: visiblePinLeads(document, resolver, instance),
+            leads: visiblePinLeads(document, resolver, instance, resolved),
           },
         ]
       : [];

@@ -15,7 +15,11 @@ import type {
   Rect,
   SchematicDocument,
 } from "@icm/model";
-import type { SymbolPin, SymbolResolver } from "@icm/symbols";
+import {
+  resolveInstanceSymbol,
+  type SymbolPin,
+  type SymbolResolver,
+} from "@icm/symbols";
 
 import { utf8ByteLength } from "./platform.js";
 import {
@@ -204,10 +208,8 @@ function placedInstanceBounds(
 ): Rect | null {
   const instance = document.instances.find((item) => item.id === instanceId);
   if (!instance?.placement) return null;
-  const resolved = resolver.resolve(
-    instance.symbolId,
-    instance.symbolVariantId,
-  );
+  // The box reaches round an adder's sign marks as well as its circle.
+  const resolved = resolveInstanceSymbol(resolver, instance);
   if (!resolved) return null;
   const box = resolved.definition.viewBox;
   const corners = [

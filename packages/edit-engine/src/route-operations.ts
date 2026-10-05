@@ -21,7 +21,7 @@ import {
   type SchematicDocument,
   type ScreenFlip,
 } from "@icm/model";
-import type { SymbolResolver } from "@icm/symbols";
+import { resolveInstanceSymbol, type SymbolResolver } from "@icm/symbols";
 
 import {
   deriveInternalGroupSelection as deriveRoutingInternalGroupSelection,
@@ -447,10 +447,8 @@ function movedInstanceBodies(
 ): Rect[] {
   return document.instances.flatMap((instance) => {
     if (!movedInstanceIds.has(instance.id) || !instance.placement) return [];
-    const resolved = resolver.resolve(
-      instance.symbolId,
-      instance.symbolVariantId,
-    );
+    // Its drawn ink, an adder's sign marks included.
+    const resolved = resolveInstanceSymbol(resolver, instance);
     if (!resolved) return [];
     const box = visibleSymbolLocalBounds(
       resolved,

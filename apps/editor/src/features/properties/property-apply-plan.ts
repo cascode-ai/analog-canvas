@@ -13,6 +13,10 @@ import {
   displayableInstanceValue,
   resolveDocumentLogicalNets,
 } from "@icm/derived";
+import {
+  canonicalParameterValues,
+  instanceParameterContract,
+} from "@icm/devices";
 import type { CircuitProject, Instance, SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
@@ -58,9 +62,24 @@ export type PropertyApplyPlan =
  */
 export function planPropertyApply(
   context: PropertyApplyContext,
-  value: ComponentPropertyCodeValue,
+  input: ComponentPropertyCodeValue,
 ): PropertyApplyPlan {
   const { project, document, resolver, instance } = context;
+  // A choice typed in another spelling it accepts, such as the Unicode minus
+  // for an adder's `-`, is stored as the choice.
+  const contract = input.parameters
+    ? instanceParameterContract(project, instance)
+    : undefined;
+  const value: ComponentPropertyCodeValue =
+    contract && input.parameters
+      ? {
+          ...input,
+          parameters: canonicalParameterValues(
+            { parameters: contract.definitions },
+            input.parameters,
+          ),
+        }
+      : input;
   // Formal Pin names own a Cell interface, never a display alias.
   const formalTerminal = document.netlist?.terminals.find((terminal) =>
     terminal.interfaceInstanceIds.includes(instance.id),

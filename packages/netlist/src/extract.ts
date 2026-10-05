@@ -36,6 +36,7 @@ import type {
 } from "@icm/model";
 import {
   ADDER_SIGNED_INPUTS,
+  ADDER_TARGET,
   IDEAL_COMPARATOR_TARGET,
   adderInputSigns,
   builtInModelContract,
@@ -78,6 +79,7 @@ import {
 import {
   builtInBlockCallTarget,
   idealAnalogBlockCell,
+  projectSubcircuitNames,
 } from "./ideal-analog-block-models.js";
 import { IDEAL_SWITCH_MODEL } from "./ideal-switch-model.js";
 export { IDEAL_SWITCH_MODEL } from "./ideal-switch-model.js";
@@ -1158,6 +1160,8 @@ function extractBuiltInSubcircuitInstance(
   context: CellNetContext,
   _options: ResolvedDesignNetlistAnalysisOptions,
   diagnostics: NetlistDiagnostic[],
+  /** The Project's own subcircuit names; see projectSubcircuitNames. */
+  projectNames: ReadonlySet<string>,
   /** The body never reads VDD/VSS, so an undrawn supply is tied to ground. */
   supplyFree = false,
 ): DesignNetlistInstance | null {
@@ -1173,7 +1177,7 @@ function extractBuiltInSubcircuitInstance(
     );
     return null;
   }
-  const target = builtInBlockCallTarget(instance, definition);
+  const target = builtInBlockCallTarget(instance, definition, projectNames);
   if (!isIdentifier(reference) || !isIdentifier(target)) {
     diagnostic(
       diagnostics,
@@ -1186,7 +1190,9 @@ function extractBuiltInSubcircuitInstance(
   // An adder's input signs chose its body above; they are not SPICE
   // parameters, so the call carries none of them.
   const adderSigns =
-    definition.target === "adder" ? adderInputSigns(netlist?.parameters) : [];
+    definition.target === ADDER_TARGET
+      ? adderInputSigns(netlist?.parameters)
+      : [];
   const signNames = new Set(
     ADDER_SIGNED_INPUTS.map((input) => input.parameter.toLowerCase()),
   );
@@ -1202,10 +1208,16 @@ function extractBuiltInSubcircuitInstance(
         input.parameter,
       );
   }
+  // The signs choose among the generated adder bodies only. A call that
+  // reaches anything else must subtract as drawn: a subcircuit the adder
+  // was retargeted to, or the Project's own definition of the name.
+  const retargeted =
+    binding?.kind === "unresolved-subcircuit" &&
+    binding.name.toLowerCase() !== definition.target;
+  const ownDefinition = projectNames.has(target.toLowerCase());
   if (
     adderSigns.some((input) => input.sign === "-") &&
-    binding?.kind === "unresolved-subcircuit" &&
-    binding.name.toLowerCase() !== definition.target
+    (retargeted || ownDefinition)
   )
     diagnostic(
       diagnostics,
@@ -1214,9 +1226,9 @@ function extractBuiltInSubcircuitInstance(
       `Adder ${reference} subtracts ${adderSigns
         .filter((input) => input.sign === "-")
         .map((input) => input.pinName)
-        .join(
-          " and ",
-        )}, but calls ${target}: the signs choose only among the built-in adder bodies, so ${target} must subtract as drawn`,
+        .join(" and ")}, but calls ${target}${
+        ownDefinition ? ", which this Project defines" : ""
+      }: the signs choose only among the built-in adder bodies, so ${target} must subtract as drawn`,
       [instance.id],
       "warning",
     );
@@ -2326,6 +2338,8 @@ function extractCell(
   document: SchematicDocument,
   documentsById: Map<string, SchematicDocument>,
   cellNameByDocumentId: ReadonlyMap<string, string>,
+  /** The Project's own subcircuit names; see projectSubcircuitNames. */
+  projectNames: ReadonlySet<string>,
   projectedNames: ReadonlyMap<string, ProjectedNetName>,
   placedBodies: PlacedMosBodies | undefined,
   options: ResolvedDesignNetlistAnalysisOptions,
@@ -2599,10 +2613,10 @@ function extractCell(
           context,
           options,
           diagnostics,
+          projectNames,
           bodyIgnoresSupplies(
-            builtInBlockCallTarget(instance, builtInSubcircuit),
-            project,
-            cellNameByDocumentId.values(),
+            builtInBlockCallTarget(instance, builtInSubcircuit, projectNames),
+            projectNames,
             options.format,
           ),
         )
@@ -2776,6 +2790,12 @@ function analyzeDesign(
       cellNames.set(folded, { documentId: document.id, authoredName });
     }
   }
+  // The names this export defines itself, which no generated body takes:
+  // its Cells and the Project's external definitions.
+  const projectNames = projectSubcircuitNames(
+    project,
+    cellNameByDocumentId.values(),
+  );
   const cells: DesignNetlistCell[] = [];
   for (const collision of findExternalMasterCollisions(project, documents)) {
     diagnostic(
@@ -2792,6 +2812,7 @@ function analyzeDesign(
       document,
       documentsById,
       cellNameByDocumentId,
+      projectNames,
       nameProjection.byDocumentId.get(document.id) ?? new Map(),
       projection.placedBodies.get(document.id),
       resolvedOptions,
@@ -3060,7 +3081,7 @@ function analyzeDesign(
     }
     const descriptor = instanceBuiltInSubcircuit(project, instance);
     if (!descriptor) continue;
-    const target = builtInBlockCallTarget(instance, descriptor);
+    const target = builtInBlockCallTarget(instance, descriptor, projectNames);
     if (
       descriptor.target === "comparator" &&
       target === IDEAL_COMPARATOR_TARGET
@@ -3082,14 +3103,9 @@ function analyzeDesign(
     });
   }
   // A default Analog Block call gets one actual idealized E/G-source master.
-  // Authored Cells and explicit external master interfaces retain priority;
-  // an instance retargeted to another subcircuit never receives this model.
-  const occupiedNames = new Set([
-    ...cells.map((cell) => cell.name.toLowerCase()),
-    ...project.externalSubcircuitDefinitions.map((item) =>
-      item.name.toLowerCase(),
-    ),
-  ]);
+  // Authored Cells and explicit external master interfaces (projectNames)
+  // retain priority; an instance retargeted to another subcircuit never
+  // receives this model.
   const idealCells = [
     ...new Set(
       cells.flatMap((cell) =>
@@ -3104,7 +3120,7 @@ function analyzeDesign(
   ]
     .sort(compareText)
     .flatMap((target) => {
-      if (occupiedNames.has(target.toLowerCase())) return [];
+      if (projectNames.has(target.toLowerCase())) return [];
       const model = idealAnalogBlockCell(target, resolvedOptions.format);
       return model ? [model] : [];
     });
@@ -3123,7 +3139,7 @@ function analyzeDesign(
           builtInModelContract(instance.target)?.backends[
             resolvedOptions.format
           ] === "included" &&
-          !occupiedNames.has(instance.target.toLowerCase())
+          !projectNames.has(instance.target.toLowerCase())
             ? [instance.target]
             : [],
         ),
@@ -3137,7 +3153,7 @@ function analyzeDesign(
       topCellId: resolvedOptions.rootDocumentId,
       cells: [...idealCells, ...cells],
       generatedDefinitions: [
-        ...(!occupiedNames.has(IDEAL_COMPARATOR_TARGET.toLowerCase()) &&
+        ...(!projectNames.has(IDEAL_COMPARATOR_TARGET.toLowerCase()) &&
         cells.some((cell) =>
           cell.instances.some(
             (instance) => instance.target === IDEAL_COMPARATOR_TARGET,

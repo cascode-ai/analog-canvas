@@ -421,4 +421,52 @@ describe("deriveWireUnderSymbolWarnings", () => {
       ),
     ).not.toEqual([]);
   });
+
+  it("flags a wire through an adder's sign marks, as the planners avoid them (#1324)", () => {
+    // A wire coming down x=280 stops at y=290, above input A at (280, 300):
+    // clear of the circle, but through the plus the adder draws over A once
+    // B subtracts, its bar at y=289.5.
+    const flagged = (signB: "+" | "-") => {
+      const document = createEmptyDocument("doc", "Signed adder");
+      document.instances.push({
+        id: "S1",
+        symbolId: "adder",
+        reference: "S1",
+        placement: {
+          position: { x: 300, y: 300 },
+          rotation: 0,
+          mirror: "none",
+        },
+        netlist: {
+          binding: { kind: "unresolved-subcircuit", name: "adder" },
+          parameters: { signA: "+", signB },
+        },
+      });
+      document.nets.push({ id: "net-s", terminals: [] });
+      document.junctions.push(
+        { id: "J1", netId: "net-s", position: { x: 280, y: 260 } },
+        { id: "J2", netId: "net-s", position: { x: 280, y: 290 } },
+      );
+      document.routes.push(
+        createRoutePath({
+          id: "route-s",
+          netId: "net-s",
+          start: { kind: "junction", junctionId: "J1" },
+          end: { kind: "junction", junctionId: "J2" },
+          bends: [],
+          modes: ["manual"],
+        }),
+      );
+      const geometry = resolveDocumentRoutingGeometry(document, resolver);
+      const records = document.routes.flatMap((route) => {
+        const resolved = geometry.routes.get(route.id);
+        return resolved ? [{ route, geometry: resolved }] : [];
+      });
+      return deriveWireUnderSymbolWarnings(document, resolver, records);
+    };
+    expect(flagged("+")).toEqual([]);
+    expect(flagged("-")).toEqual([
+      expect.objectContaining({ routeId: "route-s", instanceId: "S1" }),
+    ]);
+  });
 });

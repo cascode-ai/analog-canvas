@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { createEmptyProject, createEmptyDocument } from "@icm/model";
 
-import { adderInputSigns } from "./built-in-model-contracts.js";
 import { instanceParameterContract } from "./instance-parameters.js";
-import { validateDeviceParameters } from "./parameter-validation.js";
+import {
+  canonicalParameterValues,
+  validateDeviceParameters,
+} from "./parameter-validation.js";
 
 const definitions = [
   {
@@ -121,25 +123,19 @@ describe("instanceParameterContract", () => {
         { open: contract!.open },
       );
     expect(check({ signA: "+", signB: "-" })).toEqual([]);
-    expect(check({ signB: "−" })).toMatchObject([
-      { kind: "select", name: "signB", allowed: ["+", "-"] },
-    ]);
-  });
-
-  it("reads an adder's signs as export does: missing adds, anything else is no sign", () => {
-    expect(adderInputSigns(undefined)).toEqual([
-      { pinName: "A", parameter: "signA", sign: "+" },
-      { pinName: "B", parameter: "signB", sign: "+" },
-    ]);
+    // #1324 spells the minus as U+2212: it is taken, and stored as -.
+    expect(check({ signB: "−" })).toEqual([]);
     expect(
-      adderInputSigns({ signb: " - ", signA: "x" }).map((input) => [
-        input.parameter,
-        input.sign,
-      ]),
-    ).toEqual([
-      ["signA", null],
-      ["signb", "-"],
-    ]);
+      canonicalParameterValues(
+        { parameters: contract!.definitions },
+        { signA: "+", SIGNB: "−" },
+      ),
+    ).toEqual({ signA: "+", SIGNB: "-" });
+    // Anything else is still refused, an en dash too, with the choices named.
+    for (const value of ["minus", "–", "+-"])
+      expect(check({ signB: value }), value).toMatchObject([
+        { kind: "select", name: "signB", value, allowed: ["+", "-"] },
+      ]);
   });
 
   it("gives a built-in part its descriptor", () => {

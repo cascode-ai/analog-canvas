@@ -22,6 +22,7 @@ import type { DesignNetlistAnalysisOptions } from "./extract.js";
 import {
   builtInBlockCallTarget,
   idealAnalogBlockCell,
+  projectSubcircuitNames,
 } from "./ideal-analog-block-models.js";
 import type { NetlistFormat } from "./net-name-codec.js";
 
@@ -35,18 +36,11 @@ import type { NetlistFormat } from "./net-name-codec.js";
  */
 export function bodyIgnoresSupplies(
   target: string,
-  project: CircuitProject,
-  cellNames: Iterable<string>,
+  /** The Project's own subcircuit names; see projectSubcircuitNames. */
+  projectNames: ReadonlySet<string>,
   format: NetlistFormat,
 ): boolean {
-  const folded = target.toLowerCase();
-  if (
-    [...cellNames].some((name) => name.toLowerCase() === folded) ||
-    project.externalSubcircuitDefinitions.some(
-      (definition) => definition.name.toLowerCase() === folded,
-    )
-  )
-    return false;
+  if (projectNames.has(target.toLowerCase())) return false;
   return (
     idealAnalogBlockCell(target, format) !== null ||
     (format === "spice" &&
@@ -64,10 +58,13 @@ function blockSuppliesToDefault(
   source: CircuitProject,
   options: DesignNetlistAnalysisOptions,
 ): { documentId: string; instanceId: string; supply: "VDD" | "VSS" }[] {
-  const cellNames = source.documents.flatMap((document) =>
-    document.netlist?.name
-      ? [portableCellIdentifier(document.netlist.name, document.id)]
-      : [],
+  const projectNames = projectSubcircuitNames(
+    source,
+    source.documents.flatMap((document) =>
+      document.netlist?.name
+        ? [portableCellIdentifier(document.netlist.name, document.id)]
+        : [],
+    ),
   );
   return source.documents.flatMap((document) => {
     let logical: ReturnType<typeof resolveDocumentLogicalNets> | undefined;
@@ -83,9 +80,8 @@ function blockSuppliesToDefault(
       if (!descriptor) return [];
       if (
         bodyIgnoresSupplies(
-          builtInBlockCallTarget(instance, descriptor),
-          source,
-          cellNames,
+          builtInBlockCallTarget(instance, descriptor, projectNames),
+          projectNames,
           options.format ?? "spice",
         )
       )

@@ -186,18 +186,28 @@ The signal-flow and converter blocks have bodies too
 - The adder is two E-sources stacked through an internal node, V(Y) = V(A) +
   V(B) from ground. It is linear, so SPICE and Spectre both print it.
 - Each adder input has a sign, `signA` and `signB`, `+` (the default) or `-`,
-  edited in Properties as a choice. A sign is not a SPICE parameter: it
-  chooses the body, and the call carries none. Each pattern of signs has its
-  own body, named after the inputs it subtracts, whose source gains follow
-  the signs: `adder` (+ +), `adder_minus_a` (− +), `adder_minus_b` (+ −) and
-  `adder_minus_ab` (− −). The V_hold − V_DAC of a pipelined ADC stage
-  therefore calls `adder_minus_b`, whose `ESUMB nsum 0 B 0 {-1}` subtracts B.
-  An adder whose inputs both add calls `adder` and exports byte for byte as
-  before signs existed, whether it stores `+` or no sign at all. A sign other
-  than `+` or `-` blocks export with `INVALID_ADDER_SIGN`. An adder bound to
-  another subcircuit calls that subcircuit; when it subtracts, export warns
-  with `ADDER_SIGN_NOT_EXPORTED` that the bound subcircuit must subtract as
-  drawn. The drawing marks the signs: see the
+  edited in Properties as a choice. The Unicode minus `−` (U+2212), as
+  typeset text spells it, counts as `-` wherever a sign is typed, checked or
+  read; Properties and an Agent's `place-component` and `set-property` store
+  it as `-`. A sign is not a SPICE parameter: it chooses the body, and the
+  call carries none. Each pattern of signs has its own body, named after the
+  inputs it subtracts, whose source gains follow the signs: `adder` (+ +),
+  `adder_minus_a` (− +), `adder_minus_b` (+ −) and `adder_minus_ab` (− −).
+  The V_hold − V_DAC of a pipelined ADC stage therefore calls
+  `adder_minus_b`, whose `ESUMB nsum 0 B 0 {-1}` subtracts B. An adder whose
+  inputs both add calls `adder` and exports byte for byte as before signs
+  existed, whether it stores `+` or no sign at all. Any other sign blocks
+  export with `INVALID_ADDER_SIGN`. An adder bound to another subcircuit
+  calls that subcircuit. In a Project that defines `adder` itself, in any
+  case, every adder keeps calling it whatever its signs: an external
+  definition replaces every built-in adder body, and a Cell of that name is
+  refused as a shared master name (`MASTER_NAME_COLLISION`), as it is beside
+  an adder that adds. When an adder that calls such a subcircuit subtracts,
+  export warns with `ADDER_SIGN_NOT_EXPORTED` that the subcircuit must
+  subtract as drawn. One table in
+  [`@icm/devices`](../../packages/devices/src/adder.ts) names the adder's
+  target, its sign parameters and its bodies for export, Properties and the
+  drawing. The drawing marks the signs: see the
   [Razavi contract](razavi-visual-contract.md#signal-flow-adder-signs).
 - The multiplier is V(Y) = gain·V(A)·V(B) from ground. `gain` defaults to 1/V
   and is edited in Properties.

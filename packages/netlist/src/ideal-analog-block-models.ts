@@ -1,32 +1,44 @@
-import { deriveStableId } from "@icm/model";
+import { deriveStableId, type CircuitProject } from "@icm/model";
 import {
+  ADDER_SYMBOL_ID,
+  ADDER_TARGET,
+  adderBodyFor,
+  adderBodySigns,
   adderInputSigns,
   builtInModelContract,
   subcircuitDescriptor,
   type BuiltInSubcircuitDescriptor,
+  type InputSign,
 } from "@icm/devices";
 
 import type { DesignNetlistCell, DesignNetlistInstance } from "./ir.js";
 import type { NetlistFormat } from "./net-name-codec.js";
 
 /**
- * The adder's bodies, one per pattern of input signs, each named after the
- * inputs it subtracts: V(Y) = gA·V(A) + gB·V(B). Both inputs adding is the
- * plain `adder`, so a drawing whose adders all add exports as it always has.
+ * The subcircuit names a Project defines itself, in lower case, as SPICE
+ * compares names: its exported Cells and its declared external definitions.
+ * Each replaces any generated body of the same name.
  */
-const ADDER_BODIES = {
-  adder: [1, 1],
-  adder_minus_a: [-1, 1],
-  adder_minus_b: [1, -1],
-  adder_minus_ab: [-1, -1],
-} as const satisfies Record<string, readonly [number, number]>;
-type AdderBody = keyof typeof ADDER_BODIES;
+export function projectSubcircuitNames(
+  project: Pick<CircuitProject, "externalSubcircuitDefinitions">,
+  cellNames: Iterable<string>,
+): ReadonlySet<string> {
+  return new Set([
+    ...Array.from(cellNames, (name) => name.toLowerCase()),
+    ...project.externalSubcircuitDefinitions.map((definition) =>
+      definition.name.toLowerCase(),
+    ),
+  ]);
+}
 
 /**
  * The master a built-in block's call names. An authored target wins: a
  * comparator's isolated model, or any subcircuit the author retargeted the
  * block to. An adder left on its own body calls the body its input signs
- * choose; an invalid sign leaves it on `adder`, for export to refuse.
+ * choose, unless the Project defines `adder` itself: a Cell or an external
+ * definition of that name replaces every built-in adder body, so the call
+ * keeps calling it, whatever the signs. An invalid sign leaves the adder on
+ * `adder`, for export to refuse.
  */
 export function builtInBlockCallTarget(
   instance: {
@@ -40,6 +52,8 @@ export function builtInBlockCallTarget(
       | undefined;
   },
   descriptor: BuiltInSubcircuitDescriptor,
+  /** The Project's own subcircuit names; see projectSubcircuitNames. */
+  projectNames: ReadonlySet<string>,
 ): string {
   const binding = instance.netlist?.binding;
   const target =
@@ -48,17 +62,17 @@ export function builtInBlockCallTarget(
       ? binding.name
       : descriptor.target;
   if (
-    descriptor.target !== "adder" ||
-    target.toLowerCase() !== descriptor.target
+    descriptor.target !== ADDER_TARGET ||
+    target.toLowerCase() !== ADDER_TARGET ||
+    projectNames.has(ADDER_TARGET)
   )
     return target;
-  const signs = adderInputSigns(instance.netlist?.parameters);
-  if (signs.some((input) => input.sign === null)) return target;
-  const subtracted = signs
-    .filter((input) => input.sign === "-")
-    .map((input) => input.pinName.toLowerCase())
-    .join("");
-  return subtracted ? `adder_minus_${subtracted}` : target;
+  const signs = adderInputSigns(instance.netlist?.parameters).map(
+    (input) => input.sign,
+  );
+  if (!signs.every((sign): sign is InputSign => sign !== null)) return target;
+  const body = adderBodyFor(signs);
+  return body === ADDER_TARGET ? target : body;
 }
 
 type IdealBlockTarget =
@@ -67,7 +81,7 @@ type IdealBlockTarget =
   | "voltage_amplifier"
   | "transconductance"
   | "differential_transconductance"
-  | "adder";
+  | typeof ADDER_TARGET;
 
 const MODELS: Record<
   IdealBlockTarget,
@@ -97,8 +111,8 @@ const MODELS: Record<
     ports: ["VDD", "VSS", "VIP", "VIN", "VOUT"],
   },
   // The signal-flow summing node: linear, so SPICE and Spectre share it.
-  adder: {
-    symbolId: "adder",
+  [ADDER_TARGET]: {
+    symbolId: ADDER_SYMBOL_ID,
     ports: ["VDD", "VSS", "A", "B", "Y"],
   },
 };
@@ -143,16 +157,14 @@ export function idealAnalogBlockCell(
 ): DesignNetlistCell | null {
   // Every adder body shares the adder's model entry; its signs choose the
   // body and are never a SPICE parameter of it.
-  const adderGains = Object.hasOwn(ADDER_BODIES, target)
-    ? ADDER_BODIES[target as AdderBody]
-    : undefined;
-  const name = adderGains ? "adder" : target;
+  const adderSigns = adderBodySigns(target);
+  const name = adderSigns ? ADDER_TARGET : target;
   if (!Object.hasOwn(MODELS, name)) return null;
   const model = MODELS[name as IdealBlockTarget];
-  const parameter = adderGains
+  const parameter = adderSigns
     ? undefined
     : builtInModelContract(name)?.parameters[0];
-  if (!adderGains && !parameter)
+  if (!adderSigns && !parameter)
     throw new Error(`Ideal analog model has no parameter: ${name}`);
   const descriptor = subcircuitDescriptor(model.symbolId);
   if (
@@ -179,11 +191,12 @@ export function idealAnalogBlockCell(
     );
   const g = (nodes: readonly [string, string, string, string]) =>
     controlledSource(target, "GCORE", "vccs", nodes, "gm", "gm", format);
-  const instances: DesignNetlistInstance[] = adderGains
-    ? // Two sources stacked through nsum: V(Y) = gA·V(A) + gB·V(B).
+  const gain = (sign: InputSign) => (sign === "-" ? "-1" : "1");
+  const instances: DesignNetlistInstance[] = adderSigns
+    ? // Two sources stacked through nsum: V(Y) = ±V(A) ± V(B).
       [
-        e("ESUMA", ["Y", "nsum", "A", "0"], String(adderGains[0])),
-        e("ESUMB", ["nsum", "0", "B", "0"], String(adderGains[1])),
+        e("ESUMA", ["Y", "nsum", "A", "0"], gain(adderSigns[0])),
+        e("ESUMB", ["nsum", "0", "B", "0"], gain(adderSigns[1])),
       ]
     : name === "opamp"
       ? [e("ECORE", ["VOUT", "0", "VIP", "VIN"])]
@@ -213,7 +226,7 @@ export function idealAnalogBlockCell(
         name: port,
         scope: "local" as const,
       })),
-      ...(adderGains
+      ...(adderSigns
         ? [
             {
               id: deriveStableId("netlist-ideal-block-net", target, "nsum"),

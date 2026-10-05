@@ -8,9 +8,17 @@ import {
   builtInSubcircuitDescriptors,
   subcircuitDescriptor,
 } from "@icm/devices";
-import { createEmptyProject, type CircuitProject } from "@icm/model";
+import {
+  createEmptyDocument,
+  createEmptyProject,
+  type CircuitProject,
+} from "@icm/model";
 
 import { createDesignNetlistExport } from "./export.js";
+import {
+  analyzeDesignNetlist,
+  analyzeDesignNetlistForAuthoring,
+} from "./extract.js";
 import { idealAnalogBlockCell } from "./ideal-analog-block-models.js";
 import { IDEAL_LOGIC_TARGETS } from "./ideal-logic-gate-models.js";
 import {
@@ -195,7 +203,9 @@ describe("generated block bodies", () => {
 
   it("refuse an adder sign other than + or -", () => {
     const project = blockCell("adder");
-    project.documents[0]!.instances[0]!.netlist!.parameters = { signB: "−" };
+    project.documents[0]!.instances[0]!.netlist!.parameters = {
+      signB: "minus",
+    };
     const spice = createDesignNetlistExport(project);
     expect(spice.status).toBe("blocked");
     expect(spice.diagnostics).toContainEqual(
@@ -204,6 +214,112 @@ describe("generated block bodies", () => {
         severity: "error",
         objectIds: ["block"],
         parameter: "signB",
+      }),
+    );
+  });
+
+  it("read a stored Unicode minus as -, exporting as an ASCII one does", () => {
+    // Input stores -; a minus typed as U+2212 into a file still subtracts.
+    const ascii = blockCell("adder");
+    ascii.documents[0]!.instances[0]!.netlist!.parameters = { signB: "-" };
+    const unicode = blockCell("adder");
+    unicode.documents[0]!.instances[0]!.netlist!.parameters = { signB: "−" };
+    for (const format of ["spice", "spectre"] as const) {
+      const expected = createDesignNetlistExport(ascii, { format });
+      const actual = createDesignNetlistExport(unicode, { format });
+      if (expected.status !== "ready" || actual.status !== "ready")
+        throw new Error(`${format} export blocked`);
+      expect(actual.file.text).toContain("adder_minus_b");
+      expect(actual.file.text).toBe(expected.file.text);
+    }
+  });
+
+  it.each(["adder", "ADDER"])(
+    "keep calling the Project's own %s whatever the signs, warning when one subtracts",
+    (name) => {
+      // An external definition of the same name replaces any body: the
+      // signs cannot choose a generated one over it.
+      const project = blockCell("adder");
+      project.externalSubcircuitDefinitions.push({
+        id: "own-adder",
+        name,
+        interfaceStatus: "declared",
+        formalParameters: [],
+        terminals: ["VDD", "VSS", "A", "B", "Y"].map((terminal) => ({
+          id: `own-${terminal}`,
+          name: terminal,
+          direction: "inout" as const,
+        })),
+      });
+      const block = project.documents[0]!.instances[0]!;
+      const sum = createDesignNetlistExport(project);
+      if (sum.status !== "ready") throw new Error("sum blocked");
+      expect(sum.file.text).toMatch(/^X1 VDD VSS A B Y adder$/mu);
+      expect(sum.file.text).not.toMatch(/^\.subckt adder/imu);
+      expect(
+        sum.diagnostics.filter((item) => item.code.startsWith("ADDER_")),
+      ).toEqual([]);
+
+      block.netlist!.parameters = { signA: "+", signB: "-" };
+      const difference = createDesignNetlistExport(project);
+      if (difference.status !== "ready") throw new Error("difference blocked");
+      expect(difference.file.text).toMatch(/^X1 VDD VSS A B Y adder$/mu);
+      expect(difference.file.text).not.toMatch(
+        /adder_minus|^\.subckt adder/imu,
+      );
+      expect(
+        difference.diagnostics.filter((item) => item.code.startsWith("ADDER_")),
+      ).toEqual([
+        expect.objectContaining({
+          code: "ADDER_SIGN_NOT_EXPORTED",
+          severity: "warning",
+          objectIds: ["block"],
+          message: expect.stringContaining(
+            "subtracts B, but calls adder, which this Project defines",
+          ),
+        }),
+      ]);
+    },
+  );
+
+  it("keep calling the Project's own adder Cell whatever the signs", () => {
+    // A Cell named Adder beside the block: export refuses the shared name
+    // whatever the signs, and the authoring view still calls the Cell.
+    const project = blockCell("adder");
+    const top = project.documents[0]!;
+    const own = createEmptyDocument("own-adder", "Adder");
+    own.netlist!.name = "Adder";
+    project.documents.push(own);
+    top.instances.push({
+      id: "own",
+      reference: "X2",
+      symbolId: "block",
+      placement: null,
+      netlist: {
+        parameters: {},
+        binding: { kind: "subcircuit", childDocumentId: own.id },
+      },
+    });
+    top.instances[0]!.netlist!.parameters = { signA: "-", signB: "+" };
+    const strict = analyzeDesignNetlist(project);
+    expect(strict.ir).toBeNull();
+    expect(strict.diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: "MASTER_NAME_COLLISION",
+        objectIds: ["block"],
+      }),
+    );
+    const { ir, diagnostics } = analyzeDesignNetlistForAuthoring(project);
+    const call = ir!.cells
+      .find((cell) => cell.id === top.id)!
+      .instances.find((instance) => instance.id === "block")!;
+    expect(call.target).toBe("adder");
+    expect(ir!.cells.map((cell) => cell.name)).not.toContain("adder_minus_a");
+    expect(diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: "ADDER_SIGN_NOT_EXPORTED",
+        severity: "warning",
+        objectIds: ["block"],
       }),
     );
   });

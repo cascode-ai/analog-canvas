@@ -25,6 +25,11 @@ export interface DeviceParameterDefinition {
   readonly options?: readonly {
     readonly value: string;
     readonly label: string;
+    /**
+     * Other ways a person or an Agent may type this value, such as the
+     * Unicode minus for `-`. They are accepted, and stored as `value`.
+     */
+    readonly spellings?: readonly string[];
   }[];
   /** Keep inactive source fields authored but out of the ordinary editor. */
   readonly visibleForSourceWaveforms?: readonly ("pulse" | "sin" | "pwl")[];

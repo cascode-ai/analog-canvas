@@ -1,3 +1,4 @@
+import { ADDER_SIGN_PARAMETERS, ADDER_TARGET } from "./adder.js";
 import type { DeviceParameterDefinition } from "./contract.js";
 import { IDEAL_COMPARATOR_TARGET } from "./contract.js";
 import { builtInSubcircuitDescriptors } from "./registry.js";
@@ -92,62 +93,6 @@ const analog = {
   ),
 } as const;
 
-/** A summing input's sign: `+` adds the input, `-` subtracts it. */
-export type InputSign = "+" | "-";
-
-/**
- * The adder's inputs, each with the parameter that signs it. The signs are
- * choices, not SPICE parameters: export reads them to pick the adder's body
- * and writes none of them on the call, and the drawing marks each input with
- * its sign once one subtracts.
- */
-export const ADDER_SIGNED_INPUTS = [
-  { pinName: "A", parameter: "signA" },
-  { pinName: "B", parameter: "signB" },
-] as const;
-
-const adderSigns = ADDER_SIGNED_INPUTS.map(
-  ({ pinName, parameter: name }): DeviceParameterDefinition => ({
-    name,
-    label: `Input ${pinName} sign`,
-    defaultValue: "+",
-    help: `+ adds input ${pinName} and - subtracts it: Y = ±A ± B.`,
-    placeholder: "+",
-    required: false,
-    editor: "select",
-    options: [
-      { value: "+", label: "+" },
-      { value: "-", label: "−" },
-    ],
-    displayRole: "none",
-  }),
-);
-
-/**
- * The sign each adder input carries, in pin order, read as export reads it.
- * A missing parameter adds, as on every adder drawn before signs existed;
- * a value other than `+` or `-` reads as null, for the caller to refuse.
- */
-export function adderInputSigns(
-  parameters: Readonly<Record<string, string>> | undefined,
-): readonly {
-  readonly pinName: (typeof ADDER_SIGNED_INPUTS)[number]["pinName"];
-  readonly parameter: string;
-  readonly sign: InputSign | null;
-}[] {
-  return ADDER_SIGNED_INPUTS.map(({ pinName, parameter }) => {
-    const authored = Object.entries(parameters ?? {}).find(
-      ([name]) => name.toLowerCase() === parameter.toLowerCase(),
-    );
-    const value = authored?.[1].trim() ?? "+";
-    return {
-      pinName,
-      parameter: authored?.[0] ?? parameter,
-      sign: value === "+" || value === "-" ? value : null,
-    };
-  });
-}
-
 const logic = [
   parameter(
     "vt",
@@ -194,7 +139,7 @@ function contract(target: string): BuiltInModelContract | undefined {
       ? "comparator"
       : target === "multiplier" || target === "adc" || target === "dac"
         ? "signal"
-        : target === "adder" || Object.hasOwn(analog, target)
+        : target === ADDER_TARGET || Object.hasOwn(analog, target)
           ? "linear"
           : /^(?:inverter|buffer|(?:and|nand|or|nor|xor|xnor)_gate(?:_[34])?|d_flip_flop(?:_q|_reset)?)$/u.test(
                 target,
@@ -210,8 +155,8 @@ function contract(target: string): BuiltInModelContract | undefined {
         ? logic
         : family === "comparator"
           ? comparator
-          : target === "adder"
-            ? adderSigns
+          : target === ADDER_TARGET
+            ? ADDER_SIGN_PARAMETERS
             : Object.hasOwn(analog, target)
               ? [analog[target as keyof typeof analog]]
               : [],
