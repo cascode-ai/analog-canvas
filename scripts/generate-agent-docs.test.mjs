@@ -119,6 +119,12 @@ test("generation is deterministic and checked-in projections match", async () =>
 });
 test("every declared Kit destination and resource is emitted; no phantom fallback", async () => {
   const output = await compile(registry);
+  assert.ok(
+    [...output.keys()].every(
+      (file) => !file.startsWith("skills/circuit-layout/"),
+    ),
+    "Agent documentation generation must not recreate the retired circuit-layout Skill",
+  );
   const report = JSON.parse(
     output.get("docs/agent/distribution.generated.json"),
   );

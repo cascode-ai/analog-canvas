@@ -114,7 +114,7 @@ Regeneration order when symbol data changes:
 - `scripts/` — generators, gate planning (`gate-plan.mjs`, `gate-run.mjs`, `ci-plan.mjs`, `lib/`), packaging, release smoke, and simulation acceptance, with `*.test.mjs` beside them.
 - `tools/` — Python PDF-vector extraction and Razavi calibration tooling.
 - `config/` — the validation-gate catalog, the MCP distribution declaration (`agent-mcp-distribution.json` holds the published MCP version), and the historically named VACASK candidate environment.
-- `skills/circuit-layout/` — the repo-local Agent layout skill. `references/` — pinned research-only reference repositories (fetched into the ignored `.reference-src/`, never imported or bundled).
+- `references/` — pinned research-only reference repositories (fetched into the ignored `.reference-src/`, never imported or bundled).
 - `docs/` — product plan, ADRs, specs, user and Agent guides, roadmap, testing, deployment. `.github/workflows/` — `ci`, `cloudflare` (production), `retire-preview` (manual dormant-data shutdown), `container`, `simulator-host`, `mcp-release`.
 
 ### Package layering
@@ -168,6 +168,6 @@ Specifications own accepted contracts; topic ADRs explain reasons and link to sp
 
 - Default reading set for product work: [docs/README.md](docs/README.md#contributor-reading-order).
 - Test layers and contract ownership: [docs/testing/README.md](docs/testing/README.md) and its contract matrix.
-- Agent schematic-layout workflow: [docs/agent/workflow.md](docs/agent/workflow.md) and the repo-local [skills/circuit-layout/SKILL.md](skills/circuit-layout/SKILL.md).
+- Agent schematic-layout workflow: [docs/agent/workflow.md](docs/agent/workflow.md); select transport guidance through the [Agent guide](docs/agent/README.md).
 - `pnpm docs:check` validates links in `README.md` and `docs/`, and requires every ADR and spec to be indexed with a `Status:` line (specs also need an owner line). `format:check` skips Markdown, though most docs are Prettier-formatted.
 - Some docs are test-pinned: `packages/{model,edit-engine,agent-adapter}/src/protocol-documentation.test.ts` read spec and plan text (for example the current Project schema version), and `apps/mcp-server/src/resources.test.ts` requires `resources.generated.ts` to match the docs listed in `docs/agent/distribution.json` — after editing one of those docs, run `pnpm agent-docs:generate`.

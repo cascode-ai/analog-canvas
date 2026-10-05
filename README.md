@@ -182,9 +182,8 @@ and [delivery cadence](docs/deployment.md#development-and-delivery-cadence).
 - `scripts/` and `config/`: build, generation, validation-gate, release, and
   deployment tooling, with the gate catalog and pinned MCP and VACASK
   declarations.
-- `tools/`, `skills/`, and `references/`: manual Razavi calibration and PDF
-  extraction tools, the repository-local `circuit-layout` Agent Skill, and the
-  pinned external research-source manifest.
+- `tools/` and `references/`: manual Razavi calibration and PDF extraction
+  tools, and the pinned external research-source manifest.
 - `docs/`: current architecture, user guides, normative contracts, ADRs, and
   delivery plans.
 

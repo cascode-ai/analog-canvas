@@ -19,7 +19,6 @@ reference. Choose task guidance only when the work calls for it; the registry's
 | MCP simulation Agent | Save, run, measure, hand off | [Quickstart](mcp-quickstart.md) | [Simulation calls](mcp/simulation.md) for runs; [detailed contracts](mcp/simulation-reference.md), [Specs](simulation-specs.md) and [handoff](simulation-result-handoff.md) when needed; authoring for circuit edits | MCP resources |
 | Raw HTTP Agent / integrator | Claim, resume, request and retry | [Kit README](http-kit/README.md) | [Boundary](http-kit/AGENTS.md), [API lifecycle](api-usage.md) and published OpenAPI for requests; [examples](examples.md) as needed | `GET /api/agent/kit` |
 | Shared-client CLI Agent / script | Invoke tools without MCP host | [CLI lifecycle](http-cli.md) | Authoring, `--http list-tools` and `--http resource` as needed | Same package and operation registry as MCP |
-| Repository circuit Agent | Read, place, route, review | [Skill source](repo-skill/SKILL.md) | Task-selected workflow and generated reading map | `skills/circuit-layout/` |
 | Product maintainer | Change, verify and release guidance | [Maintenance](maintenance.md) | Root working rules, code contracts and release docs | Repository only |
 
 MCP is the default. Configuration success is not proof of callable tools. If a
@@ -54,7 +53,7 @@ wiring tables plus a two-stage amplifier example. The old patterns/routing
 resource URIs and Kit paths serve that same source, not extra required reading.
 Its canonical registry entry precedes the aliases so generated links resolve
 to `reference/razavi-style`. Shared workflow owns human collaboration; shared
-diagnostics owns finding/repair policy. The optional RouteGraph library
-reference is repository-only.
+diagnostics owns finding/repair policy. The optional
+[RouteGraph library reference](routegraph.md) is repository-only.
 Runtime guides cannot link to an undistributed local document: generation fails
 instead of silently sending an installed Agent to the repository's latest branch.

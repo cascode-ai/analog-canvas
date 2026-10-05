@@ -7,7 +7,6 @@
     "mcp",
     "http-kit",
     "http-cli",
-    "repo-skill",
     "maintainer"
   ],
   "documents": [
@@ -20,8 +19,7 @@
       "consumers": [
         "mcp",
         "http-cli",
-        "http-kit",
-        "repo-skill"
+        "http-kit"
       ],
       "task": "Simulation Spec rules and raw handoff",
       "load": "on-demand",
@@ -37,8 +35,7 @@
       "mimeType": "text/markdown",
       "consumers": [
         "mcp",
-        "http-cli",
-        "repo-skill"
+        "http-cli"
       ],
       "task": "MCP live-session quickstart",
       "load": "entry",
@@ -52,8 +49,7 @@
       "description": "Claim, OpenAPI, Snapshot, and transact workflow for hosts without MCP.",
       "mimeType": "text/markdown",
       "consumers": [
-        "http-kit",
-        "repo-skill"
+        "http-kit"
       ],
       "task": "Raw HTTP live-session workflow",
       "load": "required",
@@ -73,8 +69,7 @@
       "consumers": [
         "mcp",
         "http-cli",
-        "http-kit",
-        "repo-skill"
+        "http-kit"
       ],
       "task": "Session contract",
       "load": "on-demand",
@@ -91,8 +86,7 @@
       "consumers": [
         "mcp",
         "http-cli",
-        "http-kit",
-        "repo-skill"
+        "http-kit"
       ],
       "task": "Built-in authoring contract",
       "load": "on-demand",
@@ -109,8 +103,7 @@
       "consumers": [
         "mcp",
         "http-cli",
-        "http-kit",
-        "repo-skill"
+        "http-kit"
       ],
       "task": "Schematic workflow",
       "load": "on-demand",
@@ -127,8 +120,7 @@
       "consumers": [
         "mcp",
         "http-cli",
-        "http-kit",
-        "repo-skill"
+        "http-kit"
       ],
       "task": "Tool behavior",
       "load": "on-demand",
@@ -145,8 +137,7 @@
       "consumers": [
         "mcp",
         "http-cli",
-        "http-kit",
-        "repo-skill"
+        "http-kit"
       ],
       "task": "Response semantics and recovery",
       "load": "on-demand",
@@ -163,8 +154,7 @@
       "consumers": [
         "mcp",
         "http-cli",
-        "http-kit",
-        "repo-skill"
+        "http-kit"
       ],
       "task": "Look up schematic layout rules",
       "load": "on-demand",
@@ -181,8 +171,7 @@
       "consumers": [
         "mcp",
         "http-cli",
-        "http-kit",
-        "repo-skill"
+        "http-kit"
       ],
       "task": "Routing and diagnostics",
       "load": "on-demand",
@@ -199,8 +188,7 @@
       "consumers": [
         "mcp",
         "http-cli",
-        "http-kit",
-        "repo-skill"
+        "http-kit"
       ],
       "task": "Layout lookup alias; do not reread",
       "load": "on-demand",
@@ -217,8 +205,7 @@
       "consumers": [
         "mcp",
         "http-cli",
-        "http-kit",
-        "repo-skill"
+        "http-kit"
       ],
       "task": "Advanced transaction contract",
       "load": "on-demand",
@@ -230,8 +217,7 @@
       "id": "http-kit/README.md",
       "source": "docs/agent/http-kit/README.md",
       "consumers": [
-        "http-kit",
-        "repo-skill"
+        "http-kit"
       ],
       "task": "Bootstrap raw HTTP",
       "load": "entry",
@@ -245,8 +231,7 @@
       "id": "http-kit/AGENTS.md",
       "source": "docs/agent/http-kit/AGENTS.md",
       "consumers": [
-        "http-kit",
-        "repo-skill"
+        "http-kit"
       ],
       "task": "Bootstrap raw HTTP",
       "load": "entry",
@@ -257,8 +242,7 @@
       "id": "reference/http-cli",
       "source": "docs/agent/http-cli.md",
       "consumers": [
-        "http-cli",
-        "repo-skill"
+        "http-cli"
       ],
       "task": "Operate shared-client CLI",
       "load": "entry",
@@ -277,8 +261,7 @@
       "consumers": [
         "mcp",
         "http-cli",
-        "http-kit",
-        "repo-skill"
+        "http-kit"
       ],
       "task": "Discover built-in symbols",
       "load": "on-demand",
@@ -295,8 +278,7 @@
       "consumers": [
         "mcp",
         "http-cli",
-        "http-kit",
-        "repo-skill"
+        "http-kit"
       ],
       "task": "Evidence-first circuit reading",
       "load": "on-demand",
@@ -313,8 +295,7 @@
       "consumers": [
         "mcp",
         "http-cli",
-        "http-kit",
-        "repo-skill"
+        "http-kit"
       ],
       "task": "Hierarchy and large circuits",
       "load": "on-demand",
@@ -331,8 +312,7 @@
       "consumers": [
         "mcp",
         "http-cli",
-        "http-kit",
-        "repo-skill"
+        "http-kit"
       ],
       "task": "PDK models and symbols",
       "load": "on-demand",
@@ -348,8 +328,7 @@
       "source": "docs/agent/mcp-install.md",
       "consumers": [
         "mcp",
-        "http-cli",
-        "repo-skill"
+        "http-cli"
       ],
       "task": "Install the Analog Canvas MCP adapter",
       "load": "on-demand",
@@ -363,8 +342,7 @@
       "id": "reference/api-usage",
       "source": "docs/agent/api-usage.md",
       "consumers": [
-        "http-kit",
-        "repo-skill"
+        "http-kit"
       ],
       "task": "Agent API Usage",
       "load": "on-demand",
@@ -378,8 +356,7 @@
       "id": "reference/examples",
       "source": "docs/agent/examples.md",
       "consumers": [
-        "http-kit",
-        "repo-skill"
+        "http-kit"
       ],
       "task": "Reproducible Agent Workflows",
       "load": "on-demand",
@@ -395,8 +372,7 @@
       "consumers": [
         "mcp",
         "http-cli",
-        "http-kit",
-        "repo-skill"
+        "http-kit"
       ],
       "task": "Agent simulation result handoff",
       "load": "on-demand",
@@ -412,8 +388,7 @@
       "source": "docs/agent/mcp/tools.md",
       "consumers": [
         "mcp",
-        "http-cli",
-        "repo-skill"
+        "http-cli"
       ],
       "task": "MCP editing tools and local inspection",
       "load": "on-demand",
@@ -428,8 +403,7 @@
       "source": "docs/agent/mcp/simulation.md",
       "consumers": [
         "mcp",
-        "http-cli",
-        "repo-skill"
+        "http-cli"
       ],
       "task": "MCP simulation calls and file ownership",
       "load": "on-demand",
@@ -444,8 +418,7 @@
       "source": "docs/agent/mcp/simulation-reference.md",
       "consumers": [
         "mcp",
-        "http-cli",
-        "repo-skill"
+        "http-cli"
       ],
       "task": "Detailed MCP simulation contracts",
       "load": "on-demand",
@@ -461,8 +434,7 @@
       "consumers": [
         "mcp",
         "http-cli",
-        "http-kit",
-        "repo-skill"
+        "http-kit"
       ],
       "task": "Shared simulation lifecycle",
       "load": "on-demand",
@@ -485,8 +457,7 @@
       "consumers": [
         "mcp",
         "http-cli",
-        "http-kit",
-        "repo-skill"
+        "http-kit"
       ],
       "task": "Layout lookup alias; do not reread",
       "load": "on-demand",
@@ -496,9 +467,9 @@
     },
     {
       "id": "repo/routegraph",
-      "source": "docs/agent/repo-skill/routegraph.md",
+      "source": "docs/agent/routegraph.md",
       "consumers": [
-        "repo-skill"
+        "maintainer"
       ],
       "task": "Use optional repository RouteGraph helper",
       "load": "on-demand",
@@ -509,9 +480,7 @@
     "apiHelp": "docs/agent/http-kit/api-help.json",
     "connect": "docs/agent/entrypoints/connect.md",
     "instructions": "docs/agent/mcp/instructions.md",
-    "toolHelp": "docs/agent/mcp/tool-help.json",
-    "skill": "docs/agent/repo-skill/SKILL.md",
-    "skillMetadata": "docs/agent/repo-skill/openai.yaml"
+    "toolHelp": "docs/agent/mcp/tool-help.json"
   },
   "templateConsumers": {
     "apiHelp": {
@@ -536,18 +505,6 @@
         "http-cli"
       ],
       "task": "Discover tool operation and limitations"
-    },
-    "skill": {
-      "consumers": [
-        "repo-skill"
-      ],
-      "task": "Select circuit task reading"
-    },
-    "skillMetadata": {
-      "consumers": [
-        "repo-skill"
-      ],
-      "task": "Host Skill discovery"
     }
   }
 }
