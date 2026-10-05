@@ -2,11 +2,26 @@ import { describe, expect, it } from "vitest";
 
 import type { AgentSessionScope } from "./envelope.js";
 
+import { AGENT_FILE_RESOURCE_MAX_BYTES } from "./file-resource.js";
 import {
   AgentSessionMachine,
+  DEFAULT_AGENT_SESSION_LIMITS,
   constantTimeEqual,
   type AgentSessionLimits,
 } from "./session-state.js";
+
+it("carries the largest file the File Resource allows, within the platform's message ceiling", () => {
+  // Base64 grows a file by a third; the typed envelope needs a little more.
+  const envelope = Math.ceil(AGENT_FILE_RESOURCE_MAX_BYTES / 3) * 4 + 100_000;
+  for (const limit of [
+    DEFAULT_AGENT_SESSION_LIMITS.maxRequestBytes,
+    DEFAULT_AGENT_SESSION_LIMITS.maxMessageBytes,
+  ]) {
+    expect(limit).toBeGreaterThan(envelope);
+    // A Durable Object receives WebSocket messages of at most 32 MiB.
+    expect(limit).toBeLessThanOrEqual(32 * 1024 * 1024);
+  }
+});
 
 const scopes: AgentSessionScope[] = [
   "circuit.snapshot",

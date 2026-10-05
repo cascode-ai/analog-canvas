@@ -48,11 +48,13 @@ export const DEFAULT_AGENT_SESSION_LIMITS: AgentSessionLimits = {
   // The bearer lifetime: presence alone never outlives what an Agent that
   // stopped working could still use.
   presenceCapMs: 8 * 60 * 60 * 1000,
-  // Project Code may occupy the full 2 MB product limit; leave room for the
-  // typed request envelope instead of making the largest valid Project
-  // impossible to replace through the Project Resource.
-  maxRequestBytes: 3_000_000,
-  maxMessageBytes: 6_000_000,
+  // A file-resource request or response carries up to 10 MB decoded
+  // (AGENT_FILE_RESOURCE_MAX_BYTES), about 13.4 MB as base64; leave room for
+  // the typed envelope. The platform's own ceiling is a 32 MiB WebSocket
+  // message into the Durable Object, and 128 MB of memory for the relay's
+  // copies. At 3 and 6 MB these held files to 1.5 MB.
+  maxRequestBytes: 16_000_000,
+  maxMessageBytes: 16_000_000,
   rateLimit: { windowMs: 60_000, maxRequests: 60 },
   resultCacheTtlMs: 5 * 60 * 1000,
   resultCacheMaxEntries: 32,

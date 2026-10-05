@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { AGENT_API_VERSION, base64EncodeBytes } from "@icm/agent-adapter";
+import {
+  AGENT_API_VERSION,
+  AGENT_FILE_RESOURCE_MAX_BYTES,
+  AgentFileResourceResponseSchema,
+  base64EncodeBytes,
+} from "@icm/agent-adapter";
 import { createEmptyProject, type ProjectSimulationFolder } from "@icm/model";
 import { resolveDocumentLogicalNets } from "@icm/derived";
 import { serializeProject } from "@icm/project-protocol";
@@ -395,6 +400,41 @@ describe("BrowserAgentFileHost", () => {
       ),
     ).toBe(serializeProject(live));
     expect(live.name).toBe("Live Project");
+  });
+
+  it("downloads a Project past the old 1.5 MB ceiling, in a response a client accepts", async () => {
+    // A Production Project of 75 Cells drawn through the Agent no longer
+    // fitted under 1.5 MB.
+    const { live, host } = setup();
+    const document = live.documents[0]!;
+    for (let index = 0; index < 14000; index++)
+      document.instances.push({
+        id: `r${index}`,
+        symbolId: "resistor",
+        reference: `R${index}`,
+        placement: {
+          position: { x: (index % 100) * 40, y: Math.floor(index / 100) * 60 },
+          rotation: 0,
+          mirror: "none",
+        },
+        netlist: { parameters: { value: "1k" } },
+      });
+    const response = await host.handle({
+      apiVersion: AGENT_API_VERSION,
+      requestId: "download-large-project",
+      operation: "download",
+      artifact: "project",
+    });
+
+    expect(response).toMatchObject({ ok: true, operation: "download" });
+    if (!response.ok || response.operation !== "download") return;
+    expect(response.artifact.byteLength).toBeGreaterThan(1_500_000);
+    expect(response.artifact.byteLength).toBeLessThan(
+      AGENT_FILE_RESOURCE_MAX_BYTES,
+    );
+    expect(AgentFileResourceResponseSchema.safeParse(response).success).toBe(
+      true,
+    );
   });
 
   it("stages a Project in memory and changes it only after explicit approval", async () => {
