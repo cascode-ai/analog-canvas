@@ -438,11 +438,35 @@ export function createRouteClearance(
             Math.abs(point.y - points[index]!.y),
           0,
         );
+      // A wire leaves a pin, and reaches one, along the way the pin points.
+      // Of two equally short L shapes, the one turning away right at a pin
+      // read as a bump (each node of an R-2R ladder came out as two), and
+      // which of the two came first depended only on how pin IDs sorted.
+      const along = (
+        connection: EndpointConnection,
+        from: Point | undefined,
+        to: Point | undefined,
+      ) => {
+        const outward = connection.outward;
+        if (!outward || !from || !to) return true;
+        const dx = to.x - from.x;
+        const dy = to.y - from.y;
+        return (
+          Math.abs(dx * outward.y - dy * outward.x) <= EPSILON &&
+          dx * outward.x + dy * outward.y > EPSILON
+        );
+      };
+      const turnsAway =
+        (along(a, points[0], points[1]) ? 0 : 1) +
+        (along(b, points.at(-1), points.at(-2)) ? 0 : 1);
       return [
         {
           candidate,
           points,
-          cost: length + Math.max(0, points.length - 2) * 2 * grid,
+          cost:
+            length +
+            Math.max(0, points.length - 2) * 2 * grid +
+            turnsAway * grid,
         },
       ];
     });
