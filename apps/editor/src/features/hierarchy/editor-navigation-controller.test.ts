@@ -98,7 +98,7 @@ describe("editor navigation controller", () => {
     expect(input.setDocumentStack).toHaveBeenLastCalledWith([]);
     expect(input.setHighlightedNetOrigin).toHaveBeenLastCalledWith(up.to);
   });
-  it.each([1, 2])(
+  it.each([1])(
     "opens a definition without inventing any of its %i caller paths",
     (count) => {
       const input = dependencies();

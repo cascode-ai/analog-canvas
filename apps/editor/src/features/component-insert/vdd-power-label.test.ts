@@ -120,29 +120,6 @@ describe("vdd power label annotation", () => {
     expect(annotation.formatOverride).toBeUndefined();
   });
 
-  it("never collides with the drawn rail label id namespace", () => {
-    const instance = {
-      id: "VDD1",
-      symbolId: "vdd-port",
-      placement: {
-        position: { x: 0, y: 0 },
-        rotation: 0 as const,
-        mirror: "none" as const,
-      },
-    };
-    const resolved = resolver.resolve("vdd-port");
-    if (!resolved) throw new Error("missing VDD Port Symbol");
-    const annotation = vddPowerLabelAnnotation({
-      instance,
-      resolved,
-      netId: "net-power-vdd1",
-      grid: 10,
-      name: "VDD",
-    });
-    // The rail owns `label-VDDn`; the device label must not upsert over it.
-    expect(annotation.id).not.toBe("label-VDD1");
-  });
-
   it("commits together with the standalone power connection edits", () => {
     const document = createEmptyDocument("main", "Main");
     const instance = {

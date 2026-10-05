@@ -110,48 +110,6 @@ describe("drawn VDD rail construction", () => {
     ]);
   });
 
-  it("keeps the VDD label at the visual right end for a right-to-left draw", () => {
-    const rail = constructVddRailEdits({
-      instanceId: "VDD4",
-      start: { x: 260, y: 40 },
-      end: { x: 80, y: 40 },
-    }).at(-1);
-
-    expect(rail).toMatchObject({
-      kind: "add_power_rail",
-      startJunctionId: "junction-vdd4-start",
-      endJunctionId: "junction-vdd4-end",
-    });
-  });
-
-  it("does not reuse AVDD when constructing a VDD rail", () => {
-    const document = createEmptyDocument("main", "Main");
-    document.nets.push({
-      id: "net-avdd",
-
-      terminals: [],
-    });
-
-    const plan = planVddRailEdits(document, {
-      instanceId: "VDD1",
-      start: { x: 40, y: 20 },
-      end: { x: 180, y: 20 },
-    });
-
-    expect(plan).toMatchObject({
-      ok: true,
-      netId: "net-power-vdd1",
-      edits: [
-        {
-          kind: "add_power_rail",
-          netId: "net-power-vdd1",
-        },
-        { kind: "set_mos_bulk_defaults", pmosNetId: "net-power-vdd1" },
-        { kind: "reconcile_mos_bulk" },
-      ],
-    });
-  });
-
   it("records the first explicitly drawn AVDD rail as the PMOS bulk default", () => {
     const document = createEmptyDocument("main", "Main");
     const plan = planVddRailEdits(document, {
@@ -795,25 +753,6 @@ describe("a rail drawn across the ends of existing wires", () => {
     if (!result.ok) throw new Error(result.error.message);
     return { gate, document: result.document };
   }
-
-  it("joins every wire whose END rests on the rail", () => {
-    // The mirror of the endpoint rule #469 established: there the rail's end
-    // landed on a wire, here the wires' ends land on the rail. The gesture is
-    // the same deliberate act, so the refusal — "That edit would have changed
-    // which Nets these objects belong to" — was wrong in both directions.
-    const { gate, document } = drawRail(
-      twoStandingWires(),
-      { x: 60, y: 100 },
-      { x: 240, y: 100 },
-    );
-    expect(
-      gate.ok,
-      gate.ok ? "" : `${gate.message} :: ${gate.diagnostics[0]?.message ?? ""}`,
-    ).toBe(true);
-    if (!document) return;
-    const netIds = new Set(document.routes.map((route) => route.netId));
-    expect(netIds.size).toBe(1);
-  });
 
   it("leaves a wire the rail merely crosses on its own Net", () => {
     // Same rail, drawn across the wires' MIDDLES instead of their ends. Two

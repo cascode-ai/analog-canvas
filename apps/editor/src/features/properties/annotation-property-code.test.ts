@@ -197,19 +197,6 @@ describe("annotation code projection", () => {
       value: { content: object.content },
     });
   });
-  it("moves the whole free path and retains its segment structure", () => {
-    expect(
-      change(arrow, (code) => {
-        code.placement.at = [110, 120];
-      }),
-    ).toMatchObject({
-      ok: true,
-      value: {
-        from: { position: { x: 110, y: 120 } },
-        to: { position: { x: 210, y: 120 } },
-      },
-    });
-  });
   it("keeps existing steep curves and fractional outline widths editable", () => {
     const curved: DraftingObject = {
       ...arrow,

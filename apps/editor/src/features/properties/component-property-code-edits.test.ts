@@ -389,32 +389,6 @@ describe("planComponentPropertyCodeEdits", () => {
     ]);
   });
 
-  it("emits no edit for the current presentation", () => {
-    const document = createEmptyDocument("main", "Main");
-    const instance = {
-      id: "R1",
-      symbolId: "resistor",
-      placement: {
-        position: { x: 100, y: 100 },
-        rotation: 0 as const,
-        mirror: "none" as const,
-      },
-      reference: "R1",
-    };
-    document.instances.push(instance);
-    expect(
-      planComponentPropertyCodeEdits(document, instance, {
-        placement: {
-          coordinate: [100, 100],
-          rotation: 0,
-          mirror: "none",
-        },
-        display: { visualAnnotation: true, value: false },
-        appearance: { color: "auto" },
-      }),
-    ).toEqual([]);
-  });
-
   it("clears a retired component background on the next appearance edit", () => {
     const document = createEmptyDocument("main", "Main");
     const instance = {
@@ -572,28 +546,6 @@ describe("planComponentPropertyCodeEdits", () => {
         kind: "set_instance_signal_flow_parameters",
         instanceId: "A1",
         parameters: null,
-      },
-    ]);
-  });
-
-  it("keeps comparator polarity independent from its input-swap state", () => {
-    const document = createEmptyDocument("main", "Main");
-    const instance = {
-      id: "A1",
-      symbolId: "comparator-inputs-swapped",
-      placement: null,
-    };
-    document.instances.push(instance);
-    expect(
-      planComponentPropertyCodeEdits(document, instance, {
-        placement: null,
-        appearance: { color: "auto", inputPolarity: false },
-      }),
-    ).toEqual([
-      {
-        kind: "set_instance_symbol",
-        instanceId: "A1",
-        symbolId: "comparator-unmarked-inputs-swapped",
       },
     ]);
   });

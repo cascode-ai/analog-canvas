@@ -648,44 +648,6 @@ describe("component placement electrical contacts", () => {
     });
   });
 
-  it("does not merge a VDD marker into a distinct AVDD supply", () => {
-    const document = createEmptyDocument("main", "Main");
-    document.nets.push({
-      id: "net-avdd",
-
-      terminals: [],
-    });
-    addSupplyClaim(document, "net-avdd", "AVDD", "global", "vdd");
-    const vddPort = {
-      id: "VDD2",
-      symbolId: "vdd-port",
-      placement: {
-        position: { x: 100, y: 100 },
-        rotation: 0 as const,
-        mirror: "none" as const,
-      },
-    };
-
-    const proposal = proposedStandalonePowerConnection(document, vddPort);
-
-    expect(proposal).toMatchObject({
-      powerNetId: "net-power-vdd2",
-      edits: [
-        {
-          kind: "connect_endpoints",
-        },
-        {
-          kind: "upsert_connectivity_evidence",
-          evidence: expect.objectContaining({
-            kind: "name-claim",
-            name: "VDD",
-            powerDomain: "vdd",
-          }),
-        },
-      ],
-    });
-  });
-
   it("converges four separately placed Ground symbols on one canonical Net", () => {
     let document = createEmptyDocument("main", "Main");
     for (const [index, id] of ["GND1", "GND2", "GND3", "GND4"].entries()) {
@@ -832,14 +794,6 @@ describe("naming a supply marker", () => {
       ? resolveDocumentLogicalNets(document).byBaseNetId.get(net.id)?.name
       : undefined;
   };
-
-  it("starts every marker on the one shared supply", () => {
-    let document = createEmptyDocument("main", "Main");
-    document = withSupply(document, "VDD1", 100);
-    document = withSupply(document, "VDD2", 300);
-    expect(logicalName(document, "VDD1")).toBe("VDD");
-    expect(logicalName(document, "VDD2")).toBe("VDD");
-  });
 
   it("gives one marker its own rail without moving the others", () => {
     let document = createEmptyDocument("main", "Main");

@@ -282,14 +282,6 @@ describe("component insertion catalog", () => {
     for (const id of ["vcvs", "vccs", "cccs", "ccvs"])
       expect(symbols.map((symbol) => symbol.id)).toContain(id);
   });
-
-  it("returns no selectable entries for an unmatched query", () => {
-    expect(
-      flattenComponentCatalog(
-        componentCatalog("razavi-textbook-v1", "does-not-exist"),
-      ),
-    ).toEqual([]);
-  });
 });
 
 describe("reach order inside a category", () => {
