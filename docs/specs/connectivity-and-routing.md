@@ -263,6 +263,10 @@ same order above; `MISSING_PIN_NET` is reported for an omitted B without
 explicit NoConnect only when that order has no answer.
 Starting a `bulk-dashed` route from B treats a configured default membership as
 unowned; committing clears the binding before connecting the explicit Net.
+An Agent's `connect` or `route-net` from B is that route too: a body on its
+Cell's default leaves the default, and its wire is `bulk-dashed`. Joining
+through the default had put the default's supply on whatever the body reached,
+such as the device's own source.
 Deleting the explicit route may reconcile only an explicitly configured cell
 default. Source-bound/imported MOS instances keep their fourth-node evidence;
 when absent, the same missing-terminal rule applies. If ordinary route editing

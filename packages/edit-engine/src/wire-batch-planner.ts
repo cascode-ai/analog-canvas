@@ -13,7 +13,11 @@ import {
 } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 import { executeTransaction, type SchematicEdit } from "./transaction.js";
-import { proposeWireIntent, type WireIntent } from "./routing-planner.js";
+import {
+  defaultBoundMosBody,
+  proposeWireIntent,
+  type WireIntent,
+} from "./routing-planner.js";
 import { createContactPlanningDraft } from "./contact-planning-draft.js";
 import { createRouteClearance } from "./route-clearance.js";
 import { resolveWireIntentTarget } from "./wire-intent-target.js";
@@ -88,13 +92,16 @@ function keepClear(
       endpoint.kind === "junction"
         ? document.junctions.find((item) => item.id === endpoint.junctionId)
             ?.netId
-        : document.nets.find((net) =>
-            net.terminals.some(
-              (terminal) =>
-                terminal.instanceId === endpoint.instanceId &&
-                terminal.pinName === endpoint.pinName,
-            ),
-          )?.id,
+        : // A body on its Cell's default leaves it for the wire's Net.
+          defaultBoundMosBody(document, endpoint)
+          ? undefined
+          : document.nets.find((net) =>
+              net.terminals.some(
+                (terminal) =>
+                  terminal.instanceId === endpoint.instanceId &&
+                  terminal.pinName === endpoint.pinName,
+              ),
+            )?.id,
       // A wire an earlier connect of this batch ran to the pin is the pin's
       // own: its Net membership settles only at commit (#1304).
       ...document.routes

@@ -2,6 +2,7 @@ import type { RouteEndpoint, SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 import type { SchematicEdit } from "./edit-schema.js";
 import { planDirectEndpointConnection } from "./direct-contact-planner.js";
+import { applyMosBulkEdit } from "./transaction-mos-bulk.js";
 import { applyNetPowerEdit } from "./transaction-net-power.js";
 import { applyRouteTopologyEdit } from "./transaction-route-topology.js";
 import { applyPresentationLayoutEdit } from "./transaction-presentation-layout.js";
@@ -41,6 +42,9 @@ export function createContactPlanningDraft(
       applyNetPowerEdit(edit, context);
     else if (edit.kind === "remove_schematic_annotation")
       applyPresentationLayoutEdit(edit, context);
+    // A wire from a body on its Cell's default takes it off the default.
+    else if (edit.kind === "clear_mos_bulk_default")
+      applyMosBulkEdit(edit, context);
     else throw new Error(`Unexpected contact edit: ${edit.kind}`);
     edits.push(edit);
   };

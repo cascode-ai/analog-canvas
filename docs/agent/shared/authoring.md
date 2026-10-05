@@ -111,9 +111,12 @@ targets to avoid full-Snapshot name resolution. Names remain supported when usef
   expression in braces (`{vdd/2}`). Write micro as `u`. The same checks run
   on stored values, as Cell diagnostics.
 - Three-terminal MOS artwork still has an electrical B pin. Read `mosBulk` and
-  `mosBulkDefaults`; ordinary devices reuse defaults. Use dedicated bulk edits
-  for overrides. Hidden bulk needs no decorative wire; four-pin presentation
-  is a separate visual choice.
+  `mosBulkDefaults`; ordinary devices reuse defaults. To give one device
+  another body, `connect` its B pin to that Net, as the GUI's Draw action
+  does: the body leaves the Cell default for a dashed body wire. In a Cell
+  with two supplies, check the PMOS on the one that is not the default.
+  Hidden bulk needs no decorative wire; four-pin presentation is a separate
+  visual choice.
 - Name Nets with `add-label` / Net Label `edit-text` (native `set-net-label`).
   This creates the name claim and bound annotation together; free text does not.
   Supply `position` for a new label. RichText text runs use `value`, not `text`.
