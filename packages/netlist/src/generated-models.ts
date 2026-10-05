@@ -19,7 +19,7 @@ export function generatedBehavioralDefinition(target: string): BehavioralModel {
   if (model?.family === "comparator")
     return {
       name: IDEAL_COMPARATOR_TARGET,
-      ports: ["VIP", "VIN", "VOUT"],
+      ports: model.ports.map((port) => port.name),
       parameters: Object.entries(builtInModelDefaults(target)).map(
         ([name, defaultValue]) => ({ name, defaultValue }),
       ),

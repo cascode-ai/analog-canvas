@@ -8,6 +8,7 @@ import { builtInSubcircuitDescriptors } from "@icm/devices";
 
 import {
   IDEAL_LOGIC_TARGETS,
+  idealLogicModel,
   spiceIdealLogicSubcircuit,
 } from "./ideal-logic-gate-models.js";
 
@@ -23,8 +24,12 @@ describe("ideal logic bodies", () => {
       );
     expect([...new Set(logic)].sort()).toEqual([...IDEAL_LOGIC_TARGETS].sort());
     // Each body's ports are its symbol's, in the symbol's order.
-    for (const target of IDEAL_LOGIC_TARGETS)
-      expect(() => spiceIdealLogicSubcircuit(target)).not.toThrow();
+    for (const descriptor of builtInSubcircuitDescriptors.filter((descriptor) =>
+      IDEAL_LOGIC_TARGETS.includes(descriptor.target),
+    ))
+      expect(idealLogicModel(descriptor.target).ports).toEqual(
+        descriptor.ports.map((port) => port.name),
+      );
   });
 
   it("writes an inverter as one level, one function and a delayed output", () => {

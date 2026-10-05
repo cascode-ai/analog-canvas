@@ -1,18 +1,54 @@
 import { ADDER_SIGN_PARAMETERS, ADDER_TARGET } from "./adder.js";
-import type { DeviceParameterDefinition } from "./contract.js";
+import type {
+  BuiltInSubcircuitPort,
+  DeviceParameterDefinition,
+} from "./contract.js";
 import { IDEAL_COMPARATOR_TARGET } from "./contract.js";
 import { builtInSubcircuitDescriptors } from "./registry.js";
 
 export type ModelBackend = "spice" | "spectre" | "vacask";
-export interface BuiltInModelContract {
+/** Implementation selectors contain no equations or backend syntax. */
+export type BuiltInModelRecipe =
+  | {
+      readonly family: "linear";
+      readonly implementation:
+        | "opamp"
+        | "opamp_differential"
+        | "voltage_amplifier"
+        | "transconductance"
+        | "differential_transconductance"
+        | "adder";
+    }
+  | {
+      readonly family: "logic";
+      readonly implementation:
+        | "inverter"
+        | "buffer"
+        | "and"
+        | "nand"
+        | "or"
+        | "nor"
+        | "xor"
+        | "xnor"
+        | "flip-flop";
+    }
+  | {
+      readonly family: "signal";
+      readonly implementation: "multiplier" | "quantizer";
+    }
+  | { readonly family: "comparator"; readonly implementation: "comparator" };
+
+export type BuiltInModelContract = BuiltInModelRecipe & {
   readonly target: string;
-  readonly family: "linear" | "logic" | "signal" | "comparator";
+  /** Canonical built-in interface, not a Project-local replacement. */
+  readonly symbolId: string;
+  readonly ports: readonly BuiltInSubcircuitPort[];
   readonly parameters: readonly DeviceParameterDefinition[];
   /** A call-only export still needs the author's external definition. */
   readonly backends: Readonly<
     Record<ModelBackend, "included" | "external" | "unsupported">
   >;
-}
+};
 
 function parameter(
   name: string,
@@ -133,23 +169,61 @@ const comparator = [
   ),
 ];
 
+const recipes: Readonly<Record<string, BuiltInModelRecipe>> = {
+  opamp: { family: "linear", implementation: "opamp" },
+  opamp_differential: {
+    family: "linear",
+    implementation: "opamp_differential",
+  },
+  voltage_amplifier: { family: "linear", implementation: "voltage_amplifier" },
+  transconductance: { family: "linear", implementation: "transconductance" },
+  differential_transconductance: {
+    family: "linear",
+    implementation: "differential_transconductance",
+  },
+  [ADDER_TARGET]: { family: "linear", implementation: "adder" },
+  multiplier: { family: "signal", implementation: "multiplier" },
+  adc: { family: "signal", implementation: "quantizer" },
+  dac: { family: "signal", implementation: "quantizer" },
+  inverter: { family: "logic", implementation: "inverter" },
+  buffer: { family: "logic", implementation: "buffer" },
+  ...Object.fromEntries(
+    (["and", "nand", "or", "nor", "xor", "xnor"] as const).flatMap(
+      (implementation) =>
+        ["", "_3", "_4"].map((suffix) => [
+          `${implementation}_gate${suffix}`,
+          { family: "logic", implementation } satisfies BuiltInModelRecipe,
+        ]),
+    ),
+  ),
+  d_flip_flop: { family: "logic", implementation: "flip-flop" },
+  d_flip_flop_q: { family: "logic", implementation: "flip-flop" },
+  d_flip_flop_reset: { family: "logic", implementation: "flip-flop" },
+  [IDEAL_COMPARATOR_TARGET]: {
+    family: "comparator",
+    implementation: "comparator",
+  },
+};
+
 function contract(target: string): BuiltInModelContract | undefined {
-  const family =
+  const recipe = Object.hasOwn(recipes, target) ? recipes[target] : undefined;
+  if (!recipe) return undefined;
+  const { family, implementation } = recipe;
+  const descriptor = builtInSubcircuitDescriptors.find((descriptor) =>
     target === IDEAL_COMPARATOR_TARGET
-      ? "comparator"
-      : target === "multiplier" || target === "adc" || target === "dac"
-        ? "signal"
-        : target === ADDER_TARGET || Object.hasOwn(analog, target)
-          ? "linear"
-          : /^(?:inverter|buffer|(?:and|nand|or|nor|xor|xnor)_gate(?:_[34])?|d_flip_flop(?:_q|_reset)?)$/u.test(
-                target,
-              )
-            ? "logic"
-            : undefined;
-  if (!family) return undefined;
+      ? descriptor.symbolId === "comparator"
+      : descriptor.target === target,
+  )!;
   return {
+    ...recipe,
     target,
-    family,
+    symbolId: descriptor.symbolId,
+    // The isolated comparator deliberately lowers only signal ports. Its
+    // historical five-port external master is not a generated model.
+    ports:
+      target === IDEAL_COMPARATOR_TARGET
+        ? descriptor.ports.filter((port) => !port.supply)
+        : descriptor.ports,
     parameters:
       family === "logic"
         ? logic
@@ -165,7 +239,7 @@ function contract(target: string): BuiltInModelContract | undefined {
       spectre:
         family === "linear" ||
         family === "comparator" ||
-        (family === "logic" && !target.startsWith("d_flip_flop"))
+        (family === "logic" && implementation !== "flip-flop")
           ? "included"
           : "external",
       vacask: "included",
