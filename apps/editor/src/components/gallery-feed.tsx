@@ -9,7 +9,6 @@ import {
   removeGalleryAuthorEntry,
   galleryFeedQueryKey,
   galleryPreviewUrl,
-  loadGalleryAuthors,
   loadGalleryEntry,
   loadGalleryFeed,
   galleryTagScope,
@@ -57,7 +56,6 @@ import {
 // existing importer of this module working unchanged.
 export { galleryEntryMatchesQuery } from "../gallery-search";
 export {
-  loadGalleryAuthors,
   loadGalleryFeed,
   loadGalleryTags,
   type GalleryAuthorOption,

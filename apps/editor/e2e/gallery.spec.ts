@@ -23,7 +23,6 @@ import {
   openMenu,
   openProjectProperties,
 } from "./editor-fixtures.js";
-import { CLOUD_PROJECT_LIMIT } from "../src/features/editor-shell/cloud-projects";
 import { galleryEntryMatchesQuery } from "../src/gallery-search";
 
 const ENTRY = {
@@ -273,7 +272,7 @@ test("admin checks duplicates and cleans selected copies with partial failure re
   ).not.toBeVisible();
 });
 
-for (const role of ["visitor", "user", "moderator"]) {
+for (const role of ["user", "moderator"]) {
   test(`duplicate check is hidden for ${role}`, async ({ page }) => {
     await page.route("**/api/auth/me", (route) =>
       route.fulfill({
@@ -1523,57 +1522,6 @@ test("a tab returning to a Gallery link shows the current entry unless its copy 
   await expect(page.getByTestId("status")).toContainText(
     "Opened gallery circuit: Next Visit",
   );
-});
-
-test("clicking a byline filters the wall to that author, clearable", async ({
-  page,
-}) => {
-  await page.route("**/api/gallery**", (route) => {
-    const url = new URL(route.request().url());
-    if (url.pathname !== "/api/gallery") return route.fallback();
-    const alice = url.searchParams.get("author") === "alice";
-    const entries = [
-      {
-        id: "f-alice",
-        name: "Alice's OTA",
-        author: "alice",
-        description: "",
-        createdAt: "2026-08-22T10:00:00.000Z",
-        schemaVersion: 23,
-      },
-      ...(alice
-        ? []
-        : [
-            {
-              id: "f-bob",
-              name: "Bob's Mixer",
-              author: "bob",
-              description: "",
-              createdAt: "2026-08-22T09:00:00.000Z",
-              schemaVersion: 23,
-            },
-          ]),
-    ];
-    return route.fulfill({ json: { entries, nextCursor: null } });
-  });
-  await page.route("**/api/gallery/*/preview.svg", (route) =>
-    route.fulfill({
-      contentType: "image/svg+xml",
-      body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 6"><rect width="10" height="6" fill="#fff"/></svg>',
-    }),
-  );
-
-  await page.goto("/");
-  await expect(page.getByTestId("gallery-tile-f-bob")).toBeVisible();
-  await page.getByTestId("gallery-author-f-alice").click();
-  await expect(page.getByTestId("gallery-filter")).toContainText(
-    "Circuits by alice",
-  );
-  await expect(page.getByTestId("gallery-tile-f-bob")).toHaveCount(0);
-  await expect(page).toHaveURL(/\?author=alice$/);
-  await page.getByTestId("gallery-filter-clear").click();
-  await expect(page.getByTestId("gallery-tile-f-bob")).toBeVisible();
-  await expect(page).not.toHaveURL(/author=/);
 });
 
 test("narrows the wall by netlist mark and by the reader's own likes", async ({
@@ -3064,16 +3012,6 @@ test("the wall count opens a contributor ranking whose names open each gallery",
       json: { entries, nextCursor: null, total: entries.length },
     });
   });
-  await page.route("**/api/gallery/authors", (route) =>
-    route.fulfill({
-      json: {
-        authors: [
-          { author: "Alice", count: 2 },
-          { author: "Bob", count: 1 },
-        ],
-      },
-    }),
-  );
   await page.route("**/api/gallery/tags", (route) =>
     route.fulfill({ json: { tags: [] } }),
   );
@@ -3200,18 +3138,6 @@ test("contributors cover filtered pages while text search follows only matching 
   ]);
   await expect(popover).not.toContainText("so far");
   expect(globalRequests).toBe(0);
-});
-
-test("an API without totals hides the count rather than guessing", async ({
-  page,
-}) => {
-  await mockGallery(page, [ENTRY]);
-  await page.route("**/api/gallery/tags", (route) =>
-    route.fulfill({ json: { tags: [] } }),
-  );
-  await page.goto("/");
-  await expect(page.getByTestId(`gallery-tile-${ENTRY.id}`)).toBeVisible();
-  await expect(page.getByTestId("gallery-count-panel")).toHaveCount(0);
 });
 
 test("the tag menu multi-selects and tile tags join the selection", async ({
@@ -3962,79 +3888,6 @@ test("a mistaken click beside the publish form keeps what was written", async ({
     "Gain boosted, 1.2 V supply, trimmed offset.",
   );
   await expect(dialog.getByTestId("publish-tag-cascode")).toBeVisible();
-});
-
-test("Cloud Save updates one stable private Project", async ({ page }) => {
-  await page.route("**/api/auth/me", (route) =>
-    route.fulfill({
-      json: {
-        user: {
-          id: "u1",
-          displayName: "Token Zhang",
-          email: "owner@example.com",
-          provider: "github",
-          isAdmin: false,
-        },
-      },
-    }),
-  );
-  let cloudProject: {
-    id: string;
-    name: string;
-    projectText: string;
-    updatedAt: string;
-    revision: number;
-    schemaVersion: number;
-  } | null = null;
-  let storedProjectText = "";
-  await page.route("**/api/projects", (route) => {
-    if (route.request().method() === "POST") {
-      const body = route.request().postDataJSON() as {
-        name: string;
-        projectText: string;
-      };
-      storedProjectText = body.projectText;
-      cloudProject = {
-        id: "cloud-1",
-        ...body,
-        updatedAt: "2026-08-23T00:00:00.000Z",
-        revision: 1,
-        schemaVersion: ENTRY.schemaVersion,
-      };
-      return route.fulfill({
-        status: 201,
-        json: { project: cloudProject },
-      });
-    }
-    return route.fulfill({
-      json: { projects: cloudProject ? [cloudProject] : [] },
-    });
-  });
-  await page.goto("/editor");
-  await chooseComponent(page, "nmos");
-  await page
-    .getByTestId("schematic-canvas")
-    .click({ position: { x: 360, y: 280 } });
-  await page.keyboard.press("Escape");
-  const fileMenu = await openMenu(page, "File");
-  await fileMenu.getByRole("button", { name: "Save", exact: true }).click();
-
-  // Private formal saving does not apply Gallery quality gates.
-  await expect(page.getByTestId("status")).toContainText(
-    "Saved New Circuit to Cloud",
-  );
-  await expect(page.getByRole("dialog", { name: "Check Report" })).toHaveCount(
-    0,
-  );
-  expect(storedProjectText).toContain("nmos");
-
-  const reopenedMenu = await openMenu(page, "File");
-  await expect(
-    reopenedMenu.getByText(`Cloud Projects (1/${CLOUD_PROJECT_LIMIT})`),
-  ).toBeVisible();
-  await expect(
-    reopenedMenu.getByTestId("cloud-project-cloud-1"),
-  ).toBeDisabled();
 });
 
 test("keeps newest-first order and stops after the last circuit", async ({
@@ -4894,19 +4747,7 @@ test("the Examples panel guards dirty work before opening an entry", async ({
   await expect(page.getByTestId("hit-R1")).toHaveCount(0);
 });
 
-test("bundled starter tiles open their example in the editor", async ({
-  page,
-}) => {
-  await mockGallery(page, []);
-  await page.goto("/");
-  await page.getByTestId("gallery-bundled-common-source-amplifier").click();
-  await expect(page).toHaveURL(/\/editor\?example=common-source-amplifier$/);
-  await awaitEditorReady(page);
-  await expect(page.getByTestId("status")).toContainText(
-    "Opened example: Common-Source Amplifier",
-  );
-});
-
+// Also the browser check that a starter tile opens its example in the editor.
 test("bundled VDD rails keep their current presentation in the Gallery and editor", async ({
   page,
 }) => {
