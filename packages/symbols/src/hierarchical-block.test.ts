@@ -128,6 +128,46 @@ describe("hierarchical block formal terminals", () => {
     expect(at("a").at.y).toBeLessThan(at("b").at.y);
     expect(at("bl").at.y).toBeLessThan(at("a").at.y);
   });
+  it("sets an unplaced Cell's drawn rows a little below the middle under a top Pin (#1319)", () => {
+    // The body grows evenly from its middle, and VDD's name needs room above
+    // the first row only: rows from the middle up had made a DAC unit 160
+    // high where 120 holds it.
+    const project = createEmptyProject("p", "Top", "top");
+    const cell = createEmptyDocument("unit", "Unit");
+    const port = (name: string, x: number, y: number) => {
+      cell.instances.push({
+        id: `P-${name}`,
+        symbolId: "port",
+        placement: { position: { x, y }, rotation: 0, mirror: "none" },
+      });
+      return {
+        id: `terminal-${name}`,
+        name,
+        netId: `net-${name}`,
+        direction: "input" as const,
+        interfaceInstanceIds: [`P-${name}`],
+      };
+    };
+    cell.netlist = {
+      name: "unit",
+      formalParameters: [],
+      terminals: [
+        port("p", 0, 0),
+        port("q", 0, 40),
+        port("VDD", 100, -60),
+        port("r", 200, 20),
+      ],
+    };
+    cell.presentation.cellSymbol = {
+      pinPlacements: [{ terminalId: "terminal-VDD", side: "north", offset: 0 }],
+    };
+    project.documents.push(cell);
+    const at = (name: string) =>
+      createProjectHierarchicalSymbols(project)
+        .find((symbol) => symbol.id === hierarchicalSymbolId("unit"))!
+        .pins.find((pin) => pin.name === name)!.at.y;
+    expect([at("p"), at("q"), at("r")]).toEqual([0, 20, 10]);
+  });
   it("derives pins only from the private formal cell interface", () => {
     const symbol = createHierarchicalBlockSymbol({
       name: "Child",

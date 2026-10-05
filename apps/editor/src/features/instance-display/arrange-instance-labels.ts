@@ -209,6 +209,22 @@ export function arrangeInstanceLabels(
       )
       .map((route) => route.id);
     /**
+     * Half a conflict for a label nearer another part than its own by more
+     * than a few units: it reads as that part's. A DAC unit's switch, M3,
+     * had its W/L arranged two rows above it, beside the cascode M2.
+     */
+    const strayed = (ink: Rect) => {
+      if (!owner) return 0;
+      const own = rectangleGap(ink, owner);
+      return context.symbols.some(
+        (symbol) =>
+          symbol.id !== instance.id &&
+          rectangleGap(ink, symbol.bounds) + ASSOCIATION_MARGIN < own,
+      )
+        ? 0.5
+        : 0;
+    };
+    /**
      * Wires between a label and its part, other than those drawn across the
      * label, which count already. Above a VDD rail, a PMOS's W/L met
      * nothing, but the rail cut it off from its transistor below. Each counts
@@ -268,7 +284,8 @@ export function arrangeInstanceLabels(
       return (
         others(context.conflicts(candidate)) +
         others(context.overlapsAt(ink, candidate.id)) +
-        cutOff(ink)
+        cutOff(ink) +
+        strayed(ink)
       );
     };
     /**
@@ -301,8 +318,10 @@ export function arrangeInstanceLabels(
     /**
      * The group moved along its side to the clear place nearest where it
      * stands, a little off what bounds that place when there is room, or
-     * null. At least half of the shorter of the group and the part stay side
-     * by side, so the labels never pass to a neighbour.
+     * null. A quarter of the shorter of the group and the part stays side by
+     * side, and no label may stray nearer another part, so the labels never
+     * pass to a neighbour. Half had kept a DAC switch's labels from the room
+     * above its gate wire, the one clear place beside it.
      */
     const slideClear = (
       arrangement: readonly Annotation[],
@@ -315,7 +334,7 @@ export function arrangeInstanceLabels(
       const boxes = arrangement.map(box);
       const low = Math.min(...boxes.map((b) => b[along]));
       const high = Math.max(...boxes.map((b) => b[along] + b[extent]));
-      const keep = Math.min(high - low, owner[extent]) / 2;
+      const keep = Math.min(high - low, owner[extent]) / 4;
       const first = Math.ceil(owner[along] + keep - high);
       const last = Math.floor(owner[along] + owner[extent] - keep - low);
       const clearBy = (shift: number) => {
@@ -325,7 +344,9 @@ export function arrangeInstanceLabels(
             (b, index) =>
               !context
                 .conflictsAt(b, arrangement[index]!.id)
-                .some((id) => !groupIds.has(id)) && !cutOff(b),
+                .some((id) => !groupIds.has(id)) &&
+              !cutOff(b) &&
+              !strayed(b),
           ) && !between(moved)
         );
       };
@@ -558,6 +579,16 @@ export function arrangeInstanceLabels(
     }
     return moved;
   }
+}
+
+/** How much nearer another part a label may stand than its own part. */
+const ASSOCIATION_MARGIN = 5;
+
+function rectangleGap(a: Rect, b: Rect): number {
+  return Math.hypot(
+    Math.max(0, a.x - b.x - b.width, b.x - a.x - a.width),
+    Math.max(0, a.y - b.y - b.height, b.y - a.y - a.height),
+  );
 }
 
 function overlap(a: Rect, b: Rect): boolean {

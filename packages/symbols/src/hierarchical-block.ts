@@ -177,18 +177,33 @@ function drawnPinPlacements(
       ...at,
     });
   }
+  // The rows sit a little below the middle under a top Pin, a little above
+  // it over a bottom one: the body grows evenly from its middle, and a top
+  // name needs room above the first row only. A DAC unit with VDD on top
+  // and four Pins down its left took 160 high with its rows from the
+  // middle up, and 120 with them centred 10 below it.
+  const ends = new Set(stored.map((placement) => placement.side));
+  const centre =
+    ends.has("north") === ends.has("south") ? 0 : ends.has("north") ? 10 : -10;
   return (["west", "east"] as const).flatMap((side) => {
     const taken = new Set(
       stored
         .filter((placement) => placement.side === side)
         .map((placement) => placement.offset),
     );
-    const offsets: number[] = [];
-    for (let step = 0; offsets.length < sides[side].length; step += 1) {
-      const offset = (step % 2 ? -1 : 1) * Math.ceil(step / 2) * ROW_PITCH;
-      if (!taken.has(offset)) offsets.push(offset);
+    const count = sides[side].length;
+    let offsets = Array.from(
+      { length: count },
+      (_, index) => centre + ROW_PITCH * index - (ROW_PITCH / 2) * (count - 1),
+    );
+    if (offsets.some((offset) => taken.has(offset))) {
+      offsets = [];
+      for (let step = 0; offsets.length < count; step += 1) {
+        const offset = (step % 2 ? -1 : 1) * Math.ceil(step / 2) * ROW_PITCH;
+        if (!taken.has(offset)) offsets.push(offset);
+      }
+      offsets.sort((a, b) => a - b);
     }
-    offsets.sort((a, b) => a - b);
     return sides[side]
       .sort((a, b) => a.y - b.y || a.x - b.x)
       .map((entry, index) => ({
