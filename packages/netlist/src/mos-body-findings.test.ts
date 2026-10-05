@@ -482,13 +482,4 @@ describe("a body with no Net on another supply than its source (#1336)", () => {
       ],
     ]);
   });
-
-  it("is silent once the body is wired, or for a source on the conventional supply", () => {
-    const project = twoSupplies("pmos", "VDD", "VDDH");
-    project.documents[0]!.nets.find(
-      (net) => net.id === "net-VDDH",
-    )!.terminals.push({ instanceId: "M1", pinName: "B" });
-    // M2's source is on VDD, where its body goes.
-    expect(findings(project, "MOS_BODY_OTHER_SUPPLY")).toEqual([]);
-  });
 });

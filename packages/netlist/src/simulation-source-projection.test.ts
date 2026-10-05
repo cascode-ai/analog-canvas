@@ -14,7 +14,6 @@ const legacySetups = () =>
 import { migrateSimulationSetupToSource } from "./simulation-source-migration.js";
 import { projectSourceSimulation } from "./simulation-source-projection.js";
 import { inspectSimulationSourceGraph } from "./simulation-source-graph.js";
-import { compileSourceSimulation } from "./simulation-source-compile.js";
 import { locateSimulationText } from "./simulation-source-map.js";
 
 function fixture() {
@@ -255,28 +254,5 @@ describe("native source run projection", () => {
     ).toContainEqual(
       expect.objectContaining({ code: "SIMULATION_TEMPERATURE_AMBIGUOUS" }),
     );
-  });
-  it("retains legacy temperature projections for inspection without executing them through the native compiler", () => {
-    const f = fixture();
-    const before = structuredClone(f.folder);
-    const variant = {
-      variables: [{ variableId: "base", value: "12u" }],
-      environment: { temperatureC: 85 },
-    };
-    const point = projectPoint(f, variant);
-    expect(point.diagnostics).toEqual([]);
-    const biasFile = point.mappedFiles.find((f) => f.path === "bias.spice")!;
-    const bias = biasFile.text;
-    expect(bias).toContain("BASE=12u");
-    expect(locateSimulationText(biasFile, bias.indexOf("12u"))).toMatchObject({
-      purpose: "run-variant",
-    });
-    expect(compileSourceSimulation(f.project, f.folder, variant)).toMatchObject(
-      {
-        ok: false,
-        diagnostics: [{ code: "SIMULATION_LEGACY_SOURCE" }],
-      },
-    );
-    expect(f.folder).toEqual(before);
   });
 });

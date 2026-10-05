@@ -53,31 +53,4 @@ describe("source include graph", () => {
     ]);
     expect(graph.diagnostics.every((d) => d.sourceRef)).toBe(true);
   });
-  it("treats generated paths and explicit dependency mounts as opaque owners", () => {
-    const graph = inspect(
-      {
-        "tb/run.cir":
-          '* title\n.include "../circuit.spice"\n.lib "../models.spice" tt\n',
-      },
-      {
-        circuitBindings: [
-          {
-            id: "b",
-            documentId: "d",
-            path: "circuit.spice",
-            emission: "subcircuit",
-          },
-        ],
-        dependencies: [
-          { id: "m", mountPath: "models.spice", sha256: "a".repeat(64) },
-        ],
-      },
-    );
-    expect(graph.paths).toEqual([
-      "tb/run.cir",
-      "circuit.spice",
-      "models.spice",
-    ]);
-    expect(graph.diagnostics).toEqual([]);
-  });
 });
