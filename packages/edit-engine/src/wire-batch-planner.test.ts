@@ -576,6 +576,73 @@ describe("an Agent wire from a MOS body on its Cell's default", () => {
       ]);
     },
   );
+
+  it("taps the source's output wire instead of running along it (#1337)", () => {
+    // A source follower whose output leaves the source to the right: the
+    // body wire came down beside the device and ran back along the output
+    // wire into the source pin, two wires drawn over each other.
+    const document = createEmptyDocument("follower", "Source follower");
+    document.instances.push({
+      id: "M1",
+      symbolId: "nmos",
+      symbolVariantId: "textbook-3terminal",
+      placement: { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+    });
+    const h = history(document);
+    const terminal = (pinName: string) => ({
+      kind: "endpoint" as const,
+      endpoint: { kind: "terminal" as const, instanceId: "M1", pinName },
+    });
+    commit(h, [wire("out", terminal("S"), free(80, 20))]);
+    const plan = planWireBatch(
+      h.document,
+      resolver,
+      [wire("body", terminal("B"), terminal("S"))],
+      512,
+      { keepClear: true },
+    );
+    if (typeof plan === "string") throw new Error(plan);
+    const result = h.transact({
+      transactionId: "body",
+      documentId: h.document.id,
+      expectedRevision: h.document.revision,
+      actor: { kind: "agent", id: "test" },
+      edits: plan.edits,
+    });
+    expect(result.ok, JSON.stringify(result)).toBe(true);
+    const lines = h.document.routes.flatMap((route) => {
+      const points =
+        resolveRouteGeometry(h.document, resolver, route)?.centerline ?? [];
+      return points.slice(1).map((to, index) => ({
+        route: route.id,
+        from: points[index]!,
+        to,
+      }));
+    });
+    // No two segments lie along each other.
+    for (const [index, a] of lines.entries())
+      for (const b of lines.slice(index + 1)) {
+        const horizontal = a.from.y === a.to.y && b.from.y === b.to.y;
+        const vertical = a.from.x === a.to.x && b.from.x === b.to.x;
+        if (horizontal && a.from.y === b.from.y)
+          expect(
+            Math.min(Math.max(a.from.x, a.to.x), Math.max(b.from.x, b.to.x)) -
+              Math.max(Math.min(a.from.x, a.to.x), Math.min(b.from.x, b.to.x)),
+          ).toBeLessThanOrEqual(0);
+        if (vertical && a.from.x === b.from.x)
+          expect(
+            Math.min(Math.max(a.from.y, a.to.y), Math.max(b.from.y, b.to.y)) -
+              Math.max(Math.min(a.from.y, a.to.y), Math.min(b.from.y, b.to.y)),
+          ).toBeLessThanOrEqual(0);
+      }
+    const netOf = (pinName: string) =>
+      h.document.nets.find((net) =>
+        net.terminals.some(
+          (t) => t.instanceId === "M1" && t.pinName === pinName,
+        ),
+      )?.id;
+    expect(netOf("B")).toBe(netOf("S"));
+  });
 });
 
 describe("an Agent connect to an open point on another part's pin", () => {

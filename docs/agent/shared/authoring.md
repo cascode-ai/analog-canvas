@@ -226,9 +226,11 @@ clear halfway along the stub stands at its open end, reading outward from a
 horizontal stub and beside a vertical one. A label on a longer wire that is not
 clear where the pin target puts it, such as where another Net's wire crosses,
 slides along the wire to the nearest clear spot. Where nothing is clear, the
-label stays and `VISUAL_LABEL_CLEARANCE` says so, so move the parts apart. To tie a MOS body to its source, connect B to the source wire a
-step or two below the device (`{kind:"wire-at"}`), which taps it with a dot;
-a wire to the S pin itself has to detour around the device's own lead. A trunk and its branches
+label stays and `VISUAL_LABEL_CLEARANCE` says so, so move the parts apart. A
+wire whose last leg into a pin, or first leg out of one, would run along a
+wire of its own Net there ends where it meets that wire, with a dot: to tie a
+MOS body to its source, connect B to S, and where the output already leaves
+the source the body wire taps it instead of running along it. A trunk and its branches
 are checked the same way and refused, not bent. This is not a general
 autorouter: conflicting taps or excess expanded edits also reject the whole
 operation. Ordinary crossings without a Junction remain legal. It does not move

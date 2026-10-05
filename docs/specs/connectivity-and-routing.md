@@ -580,7 +580,11 @@ only overlap between separately authored Routes.
   When the planner's own path would meet one, a wire without via points
   takes the cheapest clear path (the route-net clearance) or is refused when
   there is none; a wire with via points is refused with what it would meet.
-  A wire drawn between points alone is drawn as asked.
+  A wire drawn between points alone is drawn as asked. A wire whose last leg
+  into a pin or Junction, or first leg out of one, would run along a wire of
+  its own Net there ends where it first meets that wire, tapping it with a
+  Junction: a source follower's body wired to its source taps the output
+  wire leaving the source instead of running back along it (#1337).
 - An Agent transaction, or its dry run, that would leave a new Junction on a
   Route of another Net (`VISUAL_AMBIGUOUS_JUNCTION`) is refused before it
   reaches the Document: ambiguous intersections are rejected, not guessed.

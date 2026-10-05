@@ -125,16 +125,139 @@ function keepClear(
     ),
   });
   const problem = clearance.conflict(points, ends);
-  if (!problem) return intent;
+  if (!problem)
+    return tapOwnWire(document, resolver, resolved, points, ownNets) ?? intent;
   if (intent.waypoints?.length)
     return `the requested path ${problem}, so it would read as connected there; give via points that keep clear of it`;
   const clear = clearance.path(endOf(from), endOf(to));
   if (typeof clear === "string") return clear;
-  return {
+  const cleared = {
     ...resolved,
     waypoints: clear.waypoints,
     cornerOrder: clear.cornerOrder,
   };
+  return (
+    (clear.points &&
+      tapOwnWire(document, resolver, cleared, clear.points, ownNets)) ??
+    cleared
+  );
+}
+
+/**
+ * A wire whose last leg into a pin, or first leg out of one, would run along
+ * a wire of its own Net there ends where it meets that wire instead, with a
+ * T: two wires drawn over each other read as one, and the eye cannot tell
+ * where either goes. A source follower's body, wired to its source, came
+ * down beside the device and ran back along the output wire into the source
+ * pin (#1337). It now taps the output wire where it comes down. Null when no
+ * end needs it.
+ */
+function tapOwnWire(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  intent: WireIntent,
+  points: readonly Point[],
+  ownNets: readonly string[],
+): WireIntent | null {
+  if (points.length < 3) return null;
+  const context = deriveNetConnectivityContext(document, resolver);
+  const own = new Set(ownNets);
+  const segments = document.routes.flatMap((route) => {
+    const logical =
+      context.logicalNetResolution.byBaseNetId.get(route.netId)?.id ??
+      route.netId;
+    if (!own.has(logical)) return [];
+    return (
+      resolveRouteGeometry(document, resolver, route)?.segments ?? []
+    ).map((segment) => ({ route, segment }));
+  });
+  /** Where a leg, walked from `outer` toward the pin at `pin`, first runs
+   * along one of those wires. */
+  const meeting = (outer: Point, pin: Point) => {
+    let best: { anchor: WireIntent["to"]; point: Point } | null = null;
+    for (const { route, segment } of segments) {
+      const overlap = collinearOverlap(outer, pin, segment.from, segment.to);
+      if (!overlap) continue;
+      // The overlap's end nearer the far end of the leg is where the wire
+      // first meets the other one.
+      const point =
+        Math.hypot(overlap[0].x - outer.x, overlap[0].y - outer.y) <=
+        Math.hypot(overlap[1].x - outer.x, overlap[1].y - outer.y)
+          ? overlap[0]
+          : overlap[1];
+      if (
+        !best ||
+        Math.hypot(point.x - outer.x, point.y - outer.y) <
+          Math.hypot(best.point.x - outer.x, best.point.y - outer.y)
+      )
+        best = {
+          anchor: {
+            kind: "route-segment",
+            routeId: route.id,
+            legId: segment.address.legId,
+            point,
+          },
+          point,
+        };
+    }
+    return best;
+  };
+  let path = [...points];
+  let next: WireIntent = intent;
+  if (intent.to.kind === "endpoint") {
+    const end = meeting(path.at(-2)!, path.at(-1)!);
+    if (end) {
+      path = [...path.slice(0, -1), end.point];
+      next = { ...next, to: end.anchor };
+    }
+  }
+  if (intent.from.kind === "endpoint") {
+    const start = meeting(path[1]!, path[0]!);
+    if (start) {
+      path = [start.point, ...path.slice(1)];
+      next = { ...next, from: start.anchor };
+    }
+  }
+  if (next === intent) return null;
+  const bends = path
+    .slice(1, -1)
+    .filter(
+      (point, index, all) =>
+        !samePoint(point, path[0]!) &&
+        !samePoint(point, path.at(-1)!) &&
+        (index === 0 || !samePoint(point, all[index - 1]!)),
+    );
+  return { ...next, waypoints: bends };
+}
+
+function samePoint(a: Point, b: Point): boolean {
+  return Math.abs(a.x - b.x) < 1e-6 && Math.abs(a.y - b.y) < 1e-6;
+}
+
+/** The two ends of the positive-length overlap of collinear segments a-b
+ * and c-d, axis-aligned, or null. */
+function collinearOverlap(
+  a: Point,
+  b: Point,
+  c: Point,
+  d: Point,
+): [Point, Point] | null {
+  const horizontal = a.y === b.y && c.y === d.y && a.y === c.y && a.x !== b.x;
+  const vertical = a.x === b.x && c.x === d.x && a.x === c.x && a.y !== b.y;
+  if (!horizontal && !vertical) return null;
+  const axis = horizontal ? "x" : "y";
+  const low = Math.max(Math.min(a[axis], b[axis]), Math.min(c[axis], d[axis]));
+  const high = Math.min(Math.max(a[axis], b[axis]), Math.max(c[axis], d[axis]));
+  if (high - low <= 1e-6) return null;
+  return horizontal
+    ? [
+        { x: low, y: a.y },
+        { x: high, y: a.y },
+      ]
+    : [
+        { x: a.x, y: low },
+        { x: a.x, y: high },
+      ];
 }
 
 /** Where a resolved wire end is: its endpoint, or the point of a tap or an
