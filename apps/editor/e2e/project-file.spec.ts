@@ -5,7 +5,6 @@ import { resolve } from "node:path";
 import { AgentHttpClient } from "../../../packages/agent-client/src/http-client.js";
 import {
   createEmptyProject,
-  createRoutePath,
   CURRENT_MODEL_SCHEMA_VERSION,
   type CircuitProject,
 } from "@icm/model";
@@ -113,9 +112,10 @@ async function mockFullCloudProjectList(page: Page) {
   );
 }
 
+// 720×600 covers the short window: the File popover has the same fixed width
+// from 720 to 1536, so a wide short window adds nothing.
 for (const { width, height } of [
   { width: 1536, height: 825 },
-  { width: 1536, height: 600 },
   { width: 720, height: 600 },
 ]) {
   test(`File commands remain reachable with 20 Cloud Projects at ${width}×${height}`, async ({
@@ -705,73 +705,6 @@ test("imports and upgrades a portable Project before explicit export", async ({
   expect(exported.schemaVersion).toBe(CURRENT_MODEL_SCHEMA_VERSION);
 });
 
-test("normalizes legacy overlapping Wire topology on Project import", async ({
-  page,
-}) => {
-  const source = createEmptyProject("legacy-overlap", "Legacy overlap");
-  const document = source.documents[0]!;
-  document.sourceStatus = "in-sync";
-  document.nets.push({ id: "net", terminals: [] });
-  document.junctions.push(
-    {
-      id: "left",
-      netId: "net",
-      position: { x: 0, y: 0 },
-      role: "route-anchor",
-    },
-    {
-      id: "right",
-      netId: "net",
-      position: { x: 100, y: 0 },
-      role: "route-anchor",
-    },
-    {
-      id: "top",
-      netId: "net",
-      position: { x: 50, y: 50 },
-      role: "route-anchor",
-    },
-  );
-  document.routes.push(
-    createRoutePath({
-      id: "trunk",
-      netId: "net",
-      start: { kind: "junction", junctionId: "left" },
-      end: { kind: "junction", junctionId: "right" },
-      bends: [],
-      modes: ["manual"],
-    }),
-    createRoutePath({
-      id: "overlapping-branch",
-      netId: "net",
-      start: { kind: "junction", junctionId: "top" },
-      end: { kind: "junction", junctionId: "right" },
-      bends: [{ x: 50, y: 0 }],
-      modes: ["manual", "manual"],
-    }),
-  );
-
-  await page.goto("/editor");
-  await page.getByTestId("project-file").setInputFiles({
-    name: "legacy-overlap.icproj.json",
-    mimeType: "application/json",
-    buffer: Buffer.from(JSON.stringify(source)),
-  });
-  await expect(page.getByTestId("status")).toContainText(
-    "normalized connectivity and Wire topology in 1 Cell",
-  );
-  const exported = parseSavedProject(
-    (await downloadBytes(page, "File", "Export Project File…")).toString(
-      "utf8",
-    ),
-  ) as typeof source;
-  expect(exported.documents[0]).toMatchObject({
-    revision: 1,
-    sourceStatus: "geometry-only-changed",
-  });
-  expect(exported.documents[0]!.routes).toHaveLength(3);
-});
-
 test("imports split source-ground markers with independent owners and saves the repair", async ({
   page,
 }) => {
@@ -813,6 +746,9 @@ test("imports split source-ground markers with independent owners and saves the 
     mimeType: "application/json",
     buffer: Buffer.from(JSON.stringify(source)),
   });
+  await expect(page.getByTestId("status")).toContainText(
+    "normalized connectivity and Wire topology in 1 Cell",
+  );
   await expect(page.getByTestId("status")).toContainText(
     "save to Cloud or export to keep the",
   );

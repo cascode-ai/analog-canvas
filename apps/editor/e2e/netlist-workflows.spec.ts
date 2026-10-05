@@ -512,7 +512,8 @@ test("copies structural SPICE and Spectre netlists while exposing instance autho
   await expect(properties.getByText(/^Model:/u)).toHaveCount(0);
 });
 
-for (const process of NETLIST_PROFILE_IDS) {
+// IHP SG13G2 copies like SKY130, through X calls netlist-process.test pins.
+for (const process of NETLIST_PROFILE_IDS.filter((id) => id !== "sg13g2")) {
   test(`copies both syntaxes from the right panel in ${process} without simulation configuration`, async ({
     page,
   }) => {

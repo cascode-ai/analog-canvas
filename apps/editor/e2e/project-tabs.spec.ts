@@ -670,7 +670,9 @@ test("New Circuit opens a blank tab beside the circuit this window drew, and a r
   await expect(page.getByTestId("active-instance-count")).toHaveText("1");
 });
 
-for (const modifier of ["Control", "Meta", "plain"]) {
+// Plain C/V across tabs is pasted by the partial-selection, fresh-copy and
+// denied-permission cases; these rows check the browser's own copy events.
+for (const modifier of ["Control", "Meta"]) {
   test(`${modifier} C/V copies a wired subset into an existing project`, async ({
     page,
     context,
@@ -695,8 +697,7 @@ for (const modifier of ["Control", "Meta", "plain"]) {
       { steps: 5 },
     );
     await page.mouse.up();
-    const key = (letter: string) =>
-      modifier === "plain" ? letter : `${modifier}+${letter}`;
+    const key = (letter: string) => `${modifier}+${letter}`;
     // A leftover browser selection in the header must not take ownership
     // once the canvas has focus again.
     await page.evaluate(() => {
@@ -711,18 +712,12 @@ for (const modifier of ["Control", "Meta", "plain"]) {
       .count();
     await page.keyboard.press(key("c"));
     await expect(page.getByTestId("status")).toContainText("Circuit copied");
-    if (modifier === "plain") {
-      await expect(page.getByTestId("copy-placement-preview")).toBeVisible();
-    } else {
-      await expect(page.getByTestId("copy-placement-preview")).toHaveCount(0);
-    }
+    await expect(page.getByTestId("copy-placement-preview")).toHaveCount(0);
     expect(sourceRoutes).toBeGreaterThan(0);
-    if (modifier !== "plain") {
-      const encoded = await page.evaluate(() => navigator.clipboard.readText());
-      const source = JSON.parse(encoded).project.documents[0];
-      expect(source.instances).toHaveLength(2);
-      expect(source.routes.length).toBe(sourceRoutes);
-    }
+    const encoded = await page.evaluate(() => navigator.clipboard.readText());
+    const source = JSON.parse(encoded).project.documents[0];
+    expect(source.instances).toHaveLength(2);
+    expect(source.routes.length).toBe(sourceRoutes);
     await page
       .getByRole("button", { name: "New project tab", exact: true })
       .click();
