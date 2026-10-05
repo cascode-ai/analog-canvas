@@ -69,6 +69,26 @@ export function printSpiceBehavioralModel(model: BehavioralModel): string[] {
   ];
 }
 
+/** Native Spectre syntax, projected from the same nodes/equations/defaults. */
+export function printSpectreBehavioralModel(model: BehavioralModel): string[] {
+  return [
+    ...(model.comment ? [`// ${model.comment}`] : []),
+    `subckt ${model.name} (${model.ports.join(" ")})`,
+    ...(model.parameters.length
+      ? [
+          `parameters ${model.parameters.map((p) => `${p.name}=${p.defaultValue}`).join(" ")}`,
+        ]
+      : []),
+    ...model.elements.map((element) => {
+      const prefix = `${element.name} (${element.nodes.join(" ")})`;
+      return element.kind === "voltage" || element.kind === "current"
+        ? `${prefix} bsource ${element.kind === "voltage" ? "v" : "i"}=${projectBehavioralExpression(element.expression, (value) => value)}`
+        : `${prefix} ${element.kind} ${element.kind === "capacitor" ? "c" : "r"}=${element.value}`;
+    }),
+    `ends ${model.name}`,
+  ];
+}
+
 /** Translate only the reviewed expression notation; never parse device cards. */
 export function projectBehavioralExpression(
   raw: string,

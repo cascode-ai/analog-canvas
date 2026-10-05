@@ -2063,7 +2063,11 @@ describe("drawn switches", () => {
     ],
   });
   function switched(
-    symbolId: "ideal-switch" | "closed-switch" | "externally-controlled-switch",
+    symbolId:
+      | "ideal-switch"
+      | "closed-switch"
+      | "simple-switch"
+      | "externally-controlled-switch",
     label?: ReturnType<typeof phi>,
   ) {
     const project = createEmptyProject("project", "Project");
@@ -2203,15 +2207,39 @@ describe("drawn switches", () => {
     expect(fields.map((field) => field.kind)).toEqual(["reference"]);
   });
 
-  it("writes switches only in SPICE", () => {
-    const analysis = analyzeDesignNetlist(switched("ideal-switch", phi("1")), {
-      format: "spectre",
-    });
-    expect(analysis.diagnostics.map((item) => item.code)).toContain(
-      "SWITCH_SPICE_ONLY",
-    );
-    expect(analysis.ir).toBeNull();
-  });
+  it.each([
+    "ideal-switch",
+    "closed-switch",
+    "simple-switch",
+    "externally-controlled-switch",
+  ] as const)(
+    "includes a hard Spectre %s with the same control, defaults and source location",
+    (symbol) => {
+      const project = switched(symbol, phi("1"));
+      const before = structuredClone(project);
+      const result = createDesignNetlistExport(project, {
+        format: "spectre",
+        includeLocations: true,
+      });
+      expect(result.status, JSON.stringify(result.diagnostics)).toBe("ready");
+      if (result.status !== "ready") return;
+      expect(result.file.text).toContain("subckt ideal_switch (p n cp cn)");
+      expect(result.file.text).toContain("parameters ron=1 roff=1e12 vt=0.5");
+      expect(result.file.text).toContain(
+        "core (p n) bsource i=v(p,n)/(v(cp,cn)>vt ? ron : roff)",
+      );
+      const location = result.locations.instances.find(
+        (i) => i.instanceId === "S1",
+      )!;
+      expect(
+        result.file.text.slice(location.startOffset, location.endOffset),
+      ).toBe(
+        `S1 (in out ${symbol === "externally-controlled-switch" ? "clk" : "PHI1"} VSS) ideal_switch`,
+      );
+      expect(result.externalMasterCount).toBe(0);
+      expect(project).toEqual(before);
+    },
+  );
 
   it("refuses a label that cannot name a node", () => {
     const analysis = analyzeDesignNetlist(

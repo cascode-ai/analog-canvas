@@ -188,12 +188,13 @@ The signal-flow and converter blocks have bodies too
   quantized input. `bits` defaults to 8 and is edited in Properties.
 
 An authored Cell or a declared external definition with the same name replaces
-any body. The logic, multiplier and converter bodies are ngspice B-sources, so
-a Spectre export writes their calls without a body and warns,
-`SPECTRE_MODEL_NOT_INCLUDED`, that the reader's libraries must define them: a
-PDK standard cell or a Verilog-A model, for example. The comparator keeps its
-own `IDEAL_COMPARATOR_SPICE_ONLY` rule
-([logic models](../../packages/netlist/src/ideal-logic-gate-models.ts)).
+the ordinary built-in body. Comparator's reserved master still rejects authored
+shadowing. SPICE and native VACASK include all reviewed built-in models.
+Spectre also includes Comparator and every combinational gate, projecting their
+shared equations into `bsource` and the same RC output delay. DFF, multiplier
+and converter Spectre exports retain their existing call-only behavior and
+`SPECTRE_MODEL_NOT_INCLUDED` warning: the reader's external library must define
+them. Explicit external and custom bindings are never replaced by an ideal body.
 
 [DeviceDescriptor](../../packages/devices/src/contract.ts) owns canonical pin
 order, invocation policy, parameter metadata and supported dialects. The
@@ -215,10 +216,13 @@ One `generatedDefinitions` inventory transports comparator, logic, signal and
 magnetic bodies through structural printing and simulation preparation. Each
 definition is emitted once across bound files, with normal collision and
 shadowing diagnostics. Generated internal primitives are not editable Instances.
-Native VACASK prints the reviewed nonlinear equations as behavioral sources,
-requiring its OpenVAF compiler; it does not convert arbitrary user SPICE source.
-Spectre's existing call-only nonlinear exports and comparator restriction remain
-explicit backend facts rather than promises of executable models.
+Model factories produce small typed electrical recipes (ports, defaults, nodes,
+elements and expressions), not SPICE cards for another backend to reverse-parse.
+Each printer owns syntax projection only. Native VACASK prints the reviewed
+nonlinear equations as behavioral sources, requiring its OpenVAF compiler;
+it does not convert arbitrary user SPICE source. Backend availability is a fact
+of the shared model contract, not a runtime/PDK permission gate on structural
+export. Licensed Spectre execution remains a separate qualification obligation.
 
 `DeviceParameterDefinition` is the same descriptor-owned field metadata used
 by Insert and Properties (key, label, requiredness, editor kind, optional unit
@@ -247,8 +251,9 @@ closes through `ideal_switch`, an `SW` model card (RON 1 Ω, ROFF 1e12 Ω, VT
 whose label still shows its own name is clocked by a phase of that name, so a
 freshly placed `S1` prints as `S1 a b S1 VSS ideal_switch` and warns that
 nothing drives `S1`; writing Φ₁ on its label moves it onto that shared clock.
-Switches are
-SPICE only (`SWITCH_SPICE_ONLY`), and the SPDT selector has no primitive.
+Spectre writes the same Cell-local four-terminal master as a hard conductance
+`bsource`, with those unchanged defaults and phase/CTRL semantics. It neither
+invents a clock nor smooths a transition. The SPDT selector has no primitive.
 A drawn T-coil or transformer is one Symbol on the canvas and coupled
 windings in the netlist: each Instance is an `X` call on a built-in
 subcircuit that the file defines once, ahead of the Cells, with the

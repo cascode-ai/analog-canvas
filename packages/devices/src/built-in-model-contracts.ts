@@ -160,11 +160,11 @@ function contract(target: string): BuiltInModelContract | undefined {
     backends: {
       spice: "included",
       spectre:
-        family === "comparator"
-          ? "unsupported"
-          : family === "linear"
-            ? "included"
-            : "external",
+        family === "linear" ||
+        family === "comparator" ||
+        (family === "logic" && !target.startsWith("d_flip_flop"))
+          ? "included"
+          : "external",
       vacask: "included",
     },
   };

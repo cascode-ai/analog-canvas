@@ -5,7 +5,11 @@ import {
   createSimulationFolder,
   type CircuitProject,
 } from "@icm/model";
-import { subcircuitDescriptor } from "@icm/devices";
+import {
+  subcircuitDescriptor,
+  builtInModelContract,
+  builtInSubcircuitDescriptors,
+} from "@icm/devices";
 
 import { createDesignNetlistExport } from "./export.js";
 import { analyzeDesignNetlistForAuthoring } from "./extract.js";
@@ -144,25 +148,47 @@ describe("built-in Analog Block subcircuits", () => {
     expect(text).toMatch(/^X2 \S+ \S+ a1 b1 y1 nand_gate$/mu);
     expect(result.externalMasterCount).toBe(0);
 
-    // The bodies are ngspice behavioural sources. Spectre writes the call
-    // and warns that the reader's libraries must define the gate.
+    // Both backends now include the same combinational recipe once.
     const spectre = createDesignNetlistExport(project, { format: "spectre" });
     expect(spectre.status).toBe("ready");
     if (spectre.status !== "ready") return;
-    expect(spectre.file.text).not.toContain("subckt nand_gate");
+    expect(
+      spectre.file.text.split("subckt nand_gate (VDD VSS A B Y)"),
+    ).toHaveLength(2);
+    expect(spectre.file.text).toContain("Cd (ndl VSS) capacitor c=td/1000");
     expect(spectre.file.text).toMatch(/^X1 \(.*\) nand_gate$/mu);
-    expect(spectre.diagnostics).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          code: "SPECTRE_MODEL_NOT_INCLUDED",
-          severity: "warning",
-          message: expect.stringContaining(
-            "X1 calls nand_gate, which this Spectre export does not define",
-          ),
-        }),
-      ]),
-    );
+    expect(spectre.diagnostics).toEqual([]);
+    expect(spectre.externalMasterCount).toBe(0);
   });
+
+  it.each(
+    builtInSubcircuitDescriptors.filter(
+      (d) => builtInModelContract(d.target)?.family === "logic",
+    ),
+  )(
+    "honors Spectre model capability for $symbolId without changing its interface",
+    (descriptor) => {
+      const connections = descriptor.ports.flatMap((p) =>
+        p.pinName ? [[p.pinName, p.name.toLowerCase()] as const] : [],
+      );
+      const project = analogBlockProject([descriptor.symbolId], connections);
+      const before = structuredClone(project);
+      const result = createDesignNetlistExport(project, { format: "spectre" });
+      expect(result.status, JSON.stringify(result.diagnostics)).toBe("ready");
+      if (result.status !== "ready") return;
+      const included =
+        builtInModelContract(descriptor.target)!.backends.spectre ===
+        "included";
+      expect(result.file.text.includes(`subckt ${descriptor.target} (`)).toBe(
+        included,
+      );
+      expect(
+        result.diagnostics.some((d) => d.code === "SPECTRE_MODEL_NOT_INCLUDED"),
+      ).toBe(!included);
+      expect(result.file.text).not.toMatch(/V=\{|\.subckt/u);
+      expect(project).toEqual(before);
+    },
+  );
 
   describe("comparator models", () => {
     const comparatorPins = [

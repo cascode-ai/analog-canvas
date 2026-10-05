@@ -71,8 +71,10 @@ import {
   withImplicitMosSupplies,
 } from "./implicit-mos-supplies.js";
 import { idealAnalogBlockCell } from "./ideal-analog-block-models.js";
+import { IDEAL_SWITCH_MODEL } from "./ideal-switch-model.js";
+export { IDEAL_SWITCH_MODEL } from "./ideal-switch-model.js";
 
-/** A target with a generated ngspice body: logic, multiplier, converters. */
+/** A target with a shared generated recipe: logic, multiplier, converters. */
 function isBehaviouralTarget(target: string): boolean {
   const family = builtInModelContract(target)?.family;
   return family === "logic" || family === "signal";
@@ -1146,7 +1148,7 @@ function extractBuiltInSubcircuitInstance(
   definition: BuiltInSubcircuitDescriptor,
   reference: string,
   context: CellNetContext,
-  options: ResolvedDesignNetlistAnalysisOptions,
+  _options: ResolvedDesignNetlistAnalysisOptions,
   diagnostics: NetlistDiagnostic[],
   /** The body never reads VDD/VSS, so an undrawn supply is tied to ground. */
   supplyFree = false,
@@ -1191,16 +1193,6 @@ function extractBuiltInSubcircuitInstance(
     definition.target === "comparator" &&
     target === IDEAL_COMPARATOR_TARGET
   ) {
-    if (options.format !== "spice") {
-      diagnostic(
-        diagnostics,
-        document.id,
-        "IDEAL_COMPARATOR_SPICE_ONLY",
-        `Ideal comparator ${reference} currently has an ngspice model only; select SPICE or bind the historical external comparator target`,
-        [instance.id],
-      );
-      return null;
-    }
     const seenParameters = new Set<string>();
     for (const [name, rawValue] of parameters) {
       const folded = name.toLowerCase();
@@ -1334,23 +1326,6 @@ function extractBuiltInSubcircuitInstance(
   };
 }
 
-/**
- * The ideal switch every drawn switch shares: an ngspice voltage-controlled
- * switch closed above half a volt of control, whose resistances are
- * negligible beside the circuit's own, as the ngspice manual advises for an
- * ideal switch. Each Cell using it carries the card in its own body.
- */
-export const IDEAL_SWITCH_MODEL: DesignNetlistModel = {
-  name: "ideal_switch",
-  type: "SW",
-  parameters: [
-    { name: "RON", rawValue: "1" },
-    { name: "ROFF", rawValue: "1e12" },
-    { name: "VT", rawValue: "0.5" },
-    { name: "VH", rawValue: "0" },
-  ],
-};
-
 /** Phase nodes no drawn Net supplies, per Cell: each switch on one is told. */
 const undrivenPhaseNodes = new WeakMap<CellNetContext, Set<string>>();
 
@@ -1376,16 +1351,6 @@ function extractDrawnSwitch(
   diagnostics: NetlistDiagnostic[],
 ): DesignNetlistInstance | null {
   const reference = instance.reference!;
-  if (options.format !== "spice") {
-    diagnostic(
-      diagnostics,
-      document.id,
-      "SWITCH_SPICE_ONLY",
-      `Switch ${reference} is written only in SPICE netlists; choose SPICE`,
-      [instance.id],
-    );
-    return null;
-  }
   let controlNode: string | null;
   if (control === "phase") {
     // A switch whose label still shows its own name is clocked by a phase of
@@ -2707,7 +2672,7 @@ function analyzeDesign(
     // today is bound to it; one with no binding (an older drawing) falls
     // back to the bare target `comparator`, which nothing defines unless
     // the Project declares an external definition of that name.
-    ...(resolvedOptions.format === "spice" ? [IDEAL_COMPARATOR_TARGET] : []),
+    IDEAL_COMPARATOR_TARGET,
   ]);
   for (const cell of cells) {
     for (const instance of cell.instances) {
@@ -2720,9 +2685,8 @@ function analyzeDesign(
         ? subcircuitDescriptor(sourceInstance.symbolId, project)
         : undefined;
       const target = instance.target.toLowerCase();
-      // A block whose body is SPICE only still exports to Spectre: the call
-      // is written, and a warning says the reader's libraries must define
-      // it. (The comparator keeps its own IDEAL_COMPARATOR_SPICE_ONLY rule.)
+      // A backend's call-only contract still exports: the call is written,
+      // and a warning says the reader's libraries must define it.
       if (
         builtInModelContract(instance.target)?.backends[
           resolvedOptions.format
@@ -2755,8 +2719,10 @@ function analyzeDesign(
       // A placed logic gate, flip-flop, multiplier or converter gets a
       // generated ideal body.
       if (
-        resolvedOptions.format === "spice" &&
-        isBehaviouralTarget(instance.target)
+        isBehaviouralTarget(instance.target) &&
+        builtInModelContract(instance.target)?.backends[
+          resolvedOptions.format
+        ] === "included"
       ) {
         availableSubcircuits.add(target);
         continue;
@@ -2876,23 +2842,23 @@ function analyzeDesign(
   // Each generated body in use (logic, multiplier, converters) is printed
   // once, unless an authored Cell or a declared external definition already
   // owns its name.
-  const behaviouralBodies =
-    resolvedOptions.format === "spice"
-      ? [
-          ...new Set(
-            cells.flatMap((cell) =>
-              cell.instances.flatMap((instance) =>
-                instance.invocationKind === "subcircuit" &&
-                instance.target &&
-                isBehaviouralTarget(instance.target) &&
-                !occupiedNames.has(instance.target.toLowerCase())
-                  ? [instance.target]
-                  : [],
-              ),
-            ),
-          ),
-        ].sort(compareText)
-      : [];
+  const behaviouralBodies = [
+    ...new Set(
+      cells.flatMap((cell) =>
+        cell.instances.flatMap((instance) =>
+          instance.invocationKind === "subcircuit" &&
+          instance.target &&
+          isBehaviouralTarget(instance.target) &&
+          builtInModelContract(instance.target)?.backends[
+            resolvedOptions.format
+          ] === "included" &&
+          !occupiedNames.has(instance.target.toLowerCase())
+            ? [instance.target]
+            : [],
+        ),
+      ),
+    ),
+  ].sort(compareText);
   for (const target of behaviouralBodies)
     externalMasters.delete(`builtin:${target.toLowerCase()}`);
   return {
