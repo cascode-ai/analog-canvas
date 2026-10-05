@@ -93,7 +93,7 @@
     },
     {
       "source": "docs/agent/mcp/tools.md",
-      "sha256": "dc24ca9dbbe17424477030ee6d7d8cdb0815df63d7e18c421e7b9a1dce2856e9"
+      "sha256": "ca69f8028bbce1eb305da59f797900d74f459ea146bb35e14a7d940bd6673e24"
     },
     {
       "source": "docs/agent/mcp/simulation.md",
@@ -621,7 +621,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/circuit-style-knowledge.md"
       ],
-      "sha256": "d83a12971aef93a7ac56cedf65d763442b8fc48932bcd9cef225dfd4f0962888"
+      "sha256": "fcbf44c8a477b20fa180309564c7c7abca9bdd211fd613d82d5e66b1a92e61a7"
     },
     {
       "file": "packages/agent-adapter/src/agent-docs.generated.ts",
