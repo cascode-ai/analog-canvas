@@ -241,11 +241,16 @@ export function compileNgspiceSourceSimulation(
   // Two passes share one ephemeral instrumentation set across reused Cell definitions.
   // No additional sources or pins are written back into the Project.
   let instrumentations: readonly TerminalCurrentInstrumentation[] = [];
+  // The files this run reads: a model they define is the run's own.
+  const deckSources = preparedFiles
+    .filter((file) => reachable.has(file.path))
+    .map((file) => file.text);
   for (const [id, intent] of intents) {
     const plan = buildSimulationPlan(effective, intent, {
       nativeControl: true,
       rootAsTopLevel: byBinding.get(id)!.emission === "top-level",
       terminalInstrumentations: instrumentations,
+      deckSources,
     });
     if (plan.ok) instrumentations = plan.terminalInstrumentations;
     else diagnostics.push(...plan.diagnostics.map(simulationNetlistDiagnostic));
@@ -258,6 +263,7 @@ export function compileNgspiceSourceSimulation(
       nativeControl: true,
       rootAsTopLevel: byBinding.get(id)!.emission === "top-level",
       terminalInstrumentations: instrumentations,
+      deckSources,
     });
     if (!plan.ok)
       return {

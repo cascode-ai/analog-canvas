@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { createEmptyProject } from "@icm/model";
+import { createEmptyProject, createSimulationFolder } from "@icm/model";
 
 import { createDesignNetlistExport, designExtractsNetlist } from "./export.js";
 import { analyzeDesignNetlist } from "./extract.js";
+import { compileNgspiceSourceSimulation } from "./simulation-source-ngspice.js";
 import { printVacaskWithLocations } from "./vacask-printer.js";
 
 const CARD = ".model DIODE D(IS=1e-14 N=1)";
@@ -114,26 +115,45 @@ describe("the generic diode model (#1310)", () => {
     expect(genericFindings(result)).toEqual([]);
   });
 
-  it("keeps a DIODE model the Project defines itself", () => {
-    const fromTestbench = diodeProject([{ id: "d1", reference: "D1" }]);
-    fromTestbench.simulationFolders.push({
-      version: 4,
-      id: "tb",
-      name: "Testbench",
-      input: {
-        kind: "source",
-        entry: "tb.spice",
-        configPath: "experiment.json",
-        files: [
-          {
-            path: "tb.spice",
-            text: "* buck\n.model DIODE D(IS=1e-14 N=1 RS=10m)\n",
-          },
-        ],
-        circuitBindings: [],
-        dependencies: [],
-      },
-    });
+  it("leaves DIODE to a model the run's own files define", () => {
+    // The testbench's model is its run's: that deck carries no card, which
+    // inside the Cell would shadow it. A second folder's run, and the design
+    // export, still need the card; without it they stopped on the missing
+    // model, as every run did before the card existed.
+    const project = diodeProject([{ id: "d1", reference: "D1" }]);
+    const folder = (id: string, model?: string) => {
+      const created = createSimulationFolder({
+        id,
+        name: id,
+        profileId: "test",
+        engine: "ngspice",
+        documentId: "dut",
+      });
+      const run = created.input.files.find((file) => file.path === "run.cir")!;
+      if (model) run.text = run.text.replace(".control", `${model}\n.control`);
+      return created;
+    };
+    project.simulationFolders.push(
+      folder("tb", ".model DIODE D(IS=1e-14 N=1 RS=10m)"),
+      folder("other"),
+    );
+    const deck = (id: string) => {
+      const compiled = compileNgspiceSourceSimulation(
+        project,
+        project.simulationFolders.find((item) => item.id === id)!,
+      );
+      if (!compiled.ok) throw new Error(JSON.stringify(compiled.diagnostics));
+      return compiled.generated[0]!.text;
+    };
+    expect(deck("tb")).toContain("D1 anode cathode DIODE");
+    expect(deck("tb")).not.toContain(".model");
+    expect(deck("other")).toContain(CARD);
+    const exported = spice(project);
+    expect(exported.file.text).toContain(CARD);
+    expect(genericFindings(exported)).toHaveLength(1);
+  });
+
+  it("keeps a DIODE model the SPICE it was imported from defines", () => {
     const fromImport = diodeProject([{ id: "d1", reference: "D1" }]);
     fromImport.source.files.push({
       id: "deck",
@@ -144,16 +164,14 @@ describe("the generic diode model (#1310)", () => {
         encoding: "utf-8",
       },
     });
-    for (const project of [fromTestbench, fromImport]) {
-      const result = spice(project);
-      expect(result.file.text).toContain("D1 anode cathode DIODE");
-      expect(result.file.text).not.toContain(".model");
-      expect(genericFindings(result)).toEqual([]);
-    }
+    const result = spice(fromImport);
+    expect(result.file.text).toContain("D1 anode cathode DIODE");
+    expect(result.file.text).not.toContain(".model");
+    expect(genericFindings(result)).toEqual([]);
     // A comment, or another name that starts the same, defines nothing.
-    fromTestbench.simulationFolders[0]!.input.files[0]!.text =
+    fromImport.source.files[0]!.content!.text =
       "* .model DIODE D(IS=2e-14)\n.model DIODE_FAST D(IS=2e-14)\n";
-    expect(spice(fromTestbench).file.text).toContain(CARD);
+    expect(spice(fromImport).file.text).toContain(CARD);
   });
 
   it("prints the card in SPICE only: Spectre still names DIODE alone", () => {

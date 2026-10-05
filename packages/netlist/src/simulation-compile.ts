@@ -238,6 +238,8 @@ export interface CompileStructuredSimulationOptions {
   readonly nativeControl?: boolean;
   /** Shared ephemeral instrumentation when multiple generated bindings reuse Cells. */
   readonly terminalInstrumentations?: readonly TerminalCurrentInstrumentation[];
+  /** The run's own source text; a model it defines replaces a stand-in card. */
+  readonly deckSources?: readonly string[];
 }
 
 function diagnostic(
@@ -821,6 +823,7 @@ export function buildSimulationPlan(
     rootDocumentId: input.rootDocumentId,
     ...SIMULATION_DECK_GROUND,
     rootAsTopLevel: options.rootAsTopLevel ?? true,
+    ...(options.deckSources ? { deckSources: options.deckSources } : {}),
   });
   // A null IR already carries at least one error, `MISSING_ROOT_CELL` among
   // them when the root Document is not in the Project.

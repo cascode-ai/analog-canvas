@@ -280,6 +280,14 @@ export interface DesignNetlistAnalysisOptions {
    * must round-trip to and what a Snapshot reads.
    */
   groundPin?: GroundPinPolicy;
+  /**
+   * The text of the source files a run puts beside this netlist: its
+   * simulation folder's own files. A model they define for the generic
+   * diode's name is that run's, so its Cells carry no card for it. A design
+   * export carries none; it reads only the SPICE the Project was imported
+   * from, so another folder's testbench model never leaves it without one.
+   */
+  deckSources?: readonly string[];
 }
 
 /** Ground as the Cell's own pin, or as SPICE's global node. */
@@ -1409,16 +1417,19 @@ const GENERIC_DIODE_DEFINITION = new RegExp(
 );
 
 /**
- * Whether the Project's own text defines the generic diode's name: a source
- * file in one of its simulation folders, or the SPICE it was imported from.
- * That model is the author's. The card inside a Cell would shadow it there,
- * so no Cell carries one.
+ * Whether the author's own text defines the generic diode's name: a source
+ * file of the run this netlist is for, or the SPICE the Project was imported
+ * from. That model is the author's. The card inside a Cell would shadow it
+ * there, so no Cell carries one. Another simulation folder's files do not
+ * count: a testbench defining DIODE for its own run left a second folder's
+ * run, and the design export, with no model at all.
  */
-function projectDefinesGenericDiode(project: CircuitProject): boolean {
+function definesGenericDiode(
+  project: CircuitProject,
+  deckSources: readonly string[],
+): boolean {
   const texts = [
-    ...(project.simulationFolders ?? []).flatMap((folder) =>
-      folder.input.files.map((file) => file.text),
-    ),
+    ...deckSources,
     ...(project.source?.files ?? []).flatMap((file) => [
       file.content?.text,
       file.originalContent?.text,
@@ -2669,7 +2680,10 @@ function extractCell(
             instance.target === GENERIC_DIODE_MODEL.name,
         )
       : [];
-  if (genericDiodes.length && !projectDefinesGenericDiode(project)) {
+  if (
+    genericDiodes.length &&
+    !definesGenericDiode(project, options.deckSources)
+  ) {
     models.push(structuredClone(GENERIC_DIODE_MODEL));
     reportGenericDiodes(document, genericDiodes, diagnostics);
   }
@@ -2739,6 +2753,7 @@ function analyzeDesign(
     rootDocumentId: options.rootDocumentId ?? project.topDocumentId,
     rootAsTopLevel: options.rootAsTopLevel ?? false,
     groundPin: options.groundPin ?? "global",
+    deckSources: options.deckSources ?? [],
   };
   const projection = withImplicitMosSupplies(project, resolvedOptions);
   project = projection.project;
