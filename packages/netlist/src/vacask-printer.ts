@@ -1,6 +1,7 @@
 import { directObjectLocator } from "@icm/derived";
 import {
   parameterExpressionBody,
+  builtInModelContract,
   reviewedExternalBindingForMaster,
 } from "@icm/devices";
 import { expressionIsStructurallyValid, parseSpiceNumber } from "@icm/spice";
@@ -14,6 +15,7 @@ import type {
   PrintedNetlistParameter,
 } from "./printed-netlist.js";
 import { normalizeIndependentSource } from "./source-waveform.js";
+import { nativeBehavioralModel } from "./native-generated-models.js";
 
 const RESERVED = new Set(
   "include section endsection load model global ground subckt ends parameters control endc analysis sweep embed save".split(
@@ -73,7 +75,11 @@ export function vacaskProjectValue(
         "VACASK_NONFINITE_PARAMETER",
         `Non-finite project value: ${raw}`,
       );
-    return String(number.value);
+    // Integer tokens can be narrowed to 32 bits when native behavioral
+    // parameters reach OSDI/Verilog-A. Keep large electrical values real.
+    return Number.isInteger(number.value) && Math.abs(number.value) > 2147483647
+      ? number.value.toExponential()
+      : String(number.value);
   }
   const body = parameterExpressionBody(raw) ?? raw.trim();
   if (!expressionIsStructurallyValid(body))
@@ -153,6 +159,7 @@ export function printVacaskWithLocations(
   rootAsTopLevel = false,
   emission: {
     cellIds?: ReadonlySet<string>;
+    definitionNames?: ReadonlySet<string>;
     preamble?: boolean;
     reservedNames?: Iterable<string>;
     /** Editing projection only: unresolved parameter slots never reach execution. */
@@ -168,14 +175,25 @@ export function printVacaskWithLocations(
       : vacaskProjectValue(raw, names);
   const cellsById = new Map(ir.cells.map((cell) => [cell.id, cell]));
   const cellsByName = new Map(ir.cells.map((cell) => [cell.name, cell]));
-  const magneticNames = new Set(
-    (ir.magneticSubcircuits ?? []).map((subcircuit) => subcircuit.name),
-  );
   const mastersByName = new Map(
-    [...ir.cells, ...(ir.externalMasters ?? [])].map((master) => [
-      master.name,
-      master,
-    ]),
+    [
+      ...ir.cells,
+      ...(ir.externalMasters ?? []),
+      ...(ir.generatedDefinitions ?? []).map((definition) => ({
+        name: definition.name,
+        formalParameters:
+          definition.kind === "magnetic"
+            ? definition.formalParameters
+            : (builtInModelContract(definition.name)?.parameters ?? []).map(
+                (p) => ({
+                  name: p.name,
+                  ...(p.defaultValue !== undefined
+                    ? { defaultValue: p.defaultValue }
+                    : {}),
+                }),
+              ),
+      })),
+    ].map((master) => [master.name, master]),
   );
   // Only generated definitions with an actual IR multiplicity call acquire
   // forwarding. Do not claim an arbitrary external wrapper forwards a factor
@@ -229,31 +247,61 @@ export function printVacaskWithLocations(
   const used = new Set([
     ...(emission.reservedNames ?? []),
     ...ir.cells.map((c) => c.name),
+    ...(ir.generatedDefinitions ?? []).map((d) => d.name),
     ...(ir.externalMasters ?? []).map((m) => m.name),
     ...ir.cells.flatMap((c) =>
       c.instances.flatMap((i) => (i.target ? [i.target] : [])),
     ),
   ]);
   const models = new Map<string, string>();
-  for (const cell of ir.cells)
-    for (const card of cell.instances) {
-      if (
-        card.invocationKind !== "primitive" ||
-        !(card.deviceClass in PRIMITIVES) ||
-        models.has(card.deviceClass)
-      )
-        continue;
-      const definition =
-        PRIMITIVES[card.deviceClass as keyof typeof PRIMITIVES];
-      let name = `__icm_${definition.module}`;
-      while (used.has(name)) name += "_";
-      used.add(name);
-      models.set(card.deviceClass, name);
-      if (emission.preamble !== false) {
-        if (definition.file) append(`load "${definition.file}"`);
-        append(`model ${name} ${definition.module}`);
-      }
+  let switchMaster: string | undefined;
+  if (ir.cells.some((c) => c.models?.some((m) => m.type === "SW"))) {
+    switchMaster = "__icm_switch";
+    while (used.has(switchMaster)) switchMaster += "_";
+    used.add(switchMaster);
+    if (emission.preamble !== false) {
+      // A global lowercase implementation also works for mixed-case parent
+      // Cell names. Forward resistances as real parameters, not VA integers
+      // (the default 1e12 off resistance exceeds Verilog-A's integer range).
+      append(`subckt ${switchMaster} (p n cp cn)`);
+      append("parameters ron=1 roff=1e12 vt=0 scale=1");
+      append("core (p n) i=scale*v(p,n)/(v(cp,cn)>vt ? ron : roff)");
+      append("ends");
     }
+  }
+  if (
+    emission.preamble !== false &&
+    ir.cells.some((c) => c.models?.some((m) => m.type === "D"))
+  )
+    append('load "spice/diode.osdi"');
+  const classes = new Set(
+    ir.cells.flatMap((cell) =>
+      cell.instances.flatMap((card) =>
+        card.invocationKind === "primitive" ? [card.deviceClass] : [],
+      ),
+    ),
+  );
+  for (const definition of ir.generatedDefinitions ?? []) {
+    if (definition.kind === "magnetic") {
+      classes.add("inductor");
+      if (definition.capacitors.length) classes.add("capacitor");
+    } else if (builtInModelContract(definition.name)?.family === "logic") {
+      classes.add("resistor");
+      classes.add("capacitor");
+    }
+  }
+  for (const deviceClass of classes) {
+    if (!(deviceClass in PRIMITIVES)) continue;
+    const definition = PRIMITIVES[deviceClass as keyof typeof PRIMITIVES];
+    let name = `__icm_${definition.module}`;
+    while (used.has(name)) name += "_";
+    used.add(name);
+    models.set(deviceClass, name);
+    if (emission.preamble !== false) {
+      if (definition.file) append(`load "${definition.file}"`);
+      append(`model ${name} ${definition.module}`);
+    }
+  }
   try {
     if (emission.preamble !== false) append("ground 0");
     const globals = ir.globals.filter((n) => n !== "0");
@@ -270,20 +318,13 @@ export function printVacaskWithLocations(
 
   const emitCard = (cellId: string, card: DesignNetlistInstance) => {
     if (card.deviceClass === "net-marker") return;
-    if (
-      card.invocationKind === "subcircuit" &&
-      card.target &&
-      magneticNames.has(card.target) &&
-      !cellsByName.has(card.target)
-    )
-      throw new ProjectionError(
-        "VACASK_UNSUPPORTED_DEVICE",
-        `${card.reference} is coupled windings, and native VACASK has no mutual inductance; simulate it with ngspice.`,
-      );
     const start = text.length;
     const localSpans: PrintedNetlistParameter[] = [];
     const assigned = new Set<string>();
     const scope = cellsById.get(cellId)!;
+    const ownedModel = scope.models?.find(
+      (model) => model.name === card.target,
+    );
     const inheritedMultiplicity = multipliedCells.has(cellId);
     const externalSubcircuit =
       card.invocationKind === "subcircuit" &&
@@ -333,6 +374,19 @@ export function printVacaskWithLocations(
       });
       line += value;
     };
+    if (ownedModel?.type === "SW") {
+      const values = new Map(
+        ownedModel.parameters.map((p) => [p.name.toLowerCase(), p.rawValue]),
+      );
+      if (
+        parseSpiceNumber(values.get("vh") ?? "0")?.value !== 0 ||
+        card.nodes.length !== 4
+      )
+        throw new ProjectionError(
+          "VACASK_UNSUPPORTED_MODEL",
+          `${card.reference}: hysteretic switch models need an explicit native model.`,
+        );
+    }
     if (card.invocationKind === "subcircuit" || !models.has(card.deviceClass)) {
       if (!card.target)
         throw new ProjectionError(
@@ -531,6 +585,50 @@ export function printVacaskWithLocations(
     parameters.push(...localSpans);
   };
 
+  for (const definition of ir.generatedDefinitions ?? []) {
+    if (
+      emission.definitionNames &&
+      !emission.definitionNames.has(definition.name)
+    )
+      continue;
+    if (definition.kind === "behavioral") {
+      for (const line of nativeBehavioralModel(
+        definition.name,
+        (raw) => vacaskProjectValue(raw),
+        models,
+      ))
+        append(line);
+    } else {
+      append(
+        `subckt ${vacaskIdentifier(definition.name)} (${definition.ports.map(vacaskIdentifier).join(" ")})`,
+      );
+      for (const p of definition.formalParameters)
+        append(`parameters ${p.name}=${vacaskProjectValue(p.defaultValue)}`);
+      append("model __coupling mutual");
+      for (const [index, l] of definition.inductors.entries()) {
+        const line = (nodes: readonly string[]) =>
+          `${l.name} (${nodes.join(" ")}) ${models.get("inductor")} l=${l.parameter}`;
+        if (index === 1) {
+          append(`@if ${definition.coupling.parameter}<0`);
+          append(line([...l.nodes].reverse()));
+          append("@else");
+          append(line(l.nodes));
+          append("@end");
+        } else append(line(l.nodes));
+      }
+      const k = definition.coupling;
+      append(
+        `${k.name} () __coupling k=abs(${k.parameter}) ind1=${JSON.stringify(k.inductors[0])} ind2=${JSON.stringify(k.inductors[1])}`,
+      );
+      for (const c of definition.capacitors)
+        append(
+          `${c.name} (${c.nodes.join(" ")}) ${models.get("capacitor")} c=${c.parameter}`,
+        );
+      append("ends");
+    }
+    append("");
+  }
+
   for (const cell of ir.cells) {
     if (emission.cellIds && !emission.cellIds.has(cell.id)) continue;
     const top = rootAsTopLevel && cell.id === ir.topCellId;
@@ -562,6 +660,35 @@ export function printVacaskWithLocations(
           );
         append(
           `parameters ${vacaskIdentifier(p.name)}=${vacaskProjectValue(p.defaultValue, parameterNames)}`,
+        );
+      }
+      for (const model of cell.models ?? []) {
+        if (model.type === "SW") {
+          const values = new Map(
+            model.parameters.map((p) => [p.name.toLowerCase(), p.rawValue]),
+          );
+          if (parseSpiceNumber(values.get("vh") ?? "0")?.value !== 0)
+            throw new ProjectionError(
+              "VACASK_UNSUPPORTED_MODEL",
+              `Cell-owned switch ${model.name} needs an explicit native hysteresis model.`,
+            );
+          // Keep the Canvas reference and four-terminal interface intact. The
+          // compiled behavioral primitive needs a lowercase internal name.
+          append(`subckt ${vacaskIdentifier(model.name)} (p n cp cn)`);
+          append("parameters $mfactor=1");
+          append(
+            `implementation (p n cp cn) ${switchMaster} scale=$mfactor vt=${projectValue(values.get("vt") ?? "0", parameterNames)} ron=${projectValue(values.get("ron") ?? "1", parameterNames)} roff=${projectValue(values.get("roff") ?? "1e12", parameterNames)}`,
+          );
+          append("ends");
+          continue;
+        }
+        if (model.type !== "D")
+          throw new ProjectionError(
+            "VACASK_UNSUPPORTED_MODEL",
+            `Cell-owned model ${model.name} (${model.type}) needs a qualified native mapping.`,
+          );
+        append(
+          `model ${vacaskIdentifier(model.name)} sp_diode ${model.parameters.map((p) => `${p.name.toLowerCase()}=${projectValue(p.rawValue, parameterNames)}`).join(" ")}`,
         );
       }
     } catch (error) {

@@ -239,15 +239,14 @@ describe("drawn magnetic devices", () => {
     );
   });
 
-  it("counts as simulatable, but not on native VACASK", () => {
+  it("projects coupled windings through the native mutual primitive", () => {
     expect(evaluateSimulatability(tcoil()).blockers).toEqual([]);
     expect(evaluateSimulatability(transformer()).blockers).toEqual([]);
     const analysis = analyzeDesignNetlist(transformer());
     const printed = printVacaskWithLocations(analysis.ir!);
-    expect(printed.ok).toBe(false);
-    if (printed.ok) return;
-    expect(printed.diagnostics.map((item) => item.code)).toEqual([
-      "VACASK_UNSUPPORTED_DEVICE",
-    ]);
+    expect(printed.ok).toBe(true);
+    if (!printed.ok) return;
+    expect(printed.text).toContain("model __coupling mutual");
+    expect(printed.text).toMatch(/ind1="[^"]+" ind2="[^"]+"/u);
   });
 });

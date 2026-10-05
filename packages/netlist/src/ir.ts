@@ -54,6 +54,8 @@ export interface DesignNetlistModel {
 }
 
 export interface DesignNetlistCell {
+  /** Compiler-owned model bodies are never editable Canvas Documents. */
+  origin?: "generated-model";
   id: StableId;
   name: string;
   ports: Array<{ id: StableId; name: string; netName: string }>;
@@ -87,6 +89,7 @@ export interface DesignNetlistExternalMaster {
  * per file, ahead of the Cells that call it.
  */
 export interface DesignNetlistMagneticSubcircuit {
+  kind: "magnetic";
   name: string;
   ports: string[];
   /** Every parameter with its library default; each call passes its own. */
@@ -108,18 +111,18 @@ export interface DesignNetlistMagneticSubcircuit {
 export interface DesignNetlistIR {
   topCellId: StableId;
   cells: DesignNetlistCell[];
-  /** A signal-only, supply-independent ideal comparator body is printed once. */
-  idealComparator?: true;
-  /**
-   * Targets whose generated ngspice bodies are printed once each: logic
-   * gates, flip-flops, the multiplier and the converters.
-   */
-  behaviouralBodies?: string[];
   externalMasters?: DesignNetlistExternalMaster[];
-  /** Coupled-winding subcircuits the file defines for drawn magnetic devices. */
-  magneticSubcircuits?: DesignNetlistMagneticSubcircuit[];
+  /** One compiler-owned definition inventory, transported unchanged to every backend. */
+  generatedDefinitions?: DesignNetlistGeneratedDefinition[];
   globals: string[];
 }
+
+export type DesignNetlistGeneratedDefinition =
+  | DesignNetlistMagneticSubcircuit
+  | {
+      kind: "behavioral";
+      name: string;
+    };
 
 export type NetlistDiagnosticSeverity = "error" | "warning";
 

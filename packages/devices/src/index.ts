@@ -6,4 +6,4 @@ export * from "./validation.js";
 export * from "./parameter-expression.js";
 export * from "./parameter-validation.js";
 export * from "./instance-parameters.js";
-export * from "./ideal-analog-block-parameters.js";
+export * from "./built-in-model-contracts.js";

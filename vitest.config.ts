@@ -33,6 +33,8 @@ const isolatedTests = moduleTests
       exclude: (path: string) => /(?:^|\/)(?:node_modules|dist)$/u.test(path),
     }),
   )
+  // Vitest glob patterns use forward slashes on Windows as well.
+  .map((file) => file.replaceAll("\\", "/"))
   .filter(
     (file) =>
       !standaloneTests.includes(file) &&

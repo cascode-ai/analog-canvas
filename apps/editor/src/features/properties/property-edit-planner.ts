@@ -8,7 +8,7 @@ import {
   resolveAnnotationName,
   resolveNetLabelBinding,
 } from "@icm/derived";
-import { resolveReviewedExternalBinding } from "@icm/devices";
+import { instanceParameterContract } from "@icm/devices";
 import { planEnsureNamedNet, type SchematicEdit } from "@icm/edit-engine";
 import {
   deriveStableId,
@@ -27,10 +27,7 @@ import {
 import type { SymbolResolver } from "@icm/symbols";
 
 import { snapCoordinate } from "../../snap/engine";
-import {
-  componentParameters,
-  reviewedExternalComponentParameters,
-} from "../component-insert/component-parameters";
+import { componentParameters } from "../component-insert/component-parameters";
 import { initialInstanceNetlist } from "../netlist-export/netlist-authoring";
 
 export interface PropertyEditPlannerDependencies {
@@ -413,48 +410,26 @@ export function createPropertyEditPlanner({
     instance: SchematicDocument["instances"][number],
   ) => {
     const binding = instance.netlist?.binding;
-    const declaredParameters =
-      binding?.kind === "subcircuit"
-        ? project.documents.find((cell) => cell.id === binding.childDocumentId)
-            ?.netlist?.formalParameters
-        : binding?.kind === "external-subcircuit"
-          ? project.externalSubcircuitDefinitions.find(
-              (definition) => definition.id === binding.definitionId,
-            )?.formalParameters
-          : undefined;
-    if (binding?.kind === "external-subcircuit") {
-      const definition = project.externalSubcircuitDefinitions.find(
-        (candidate) => candidate.id === binding.definitionId,
-      );
-      const reviewed = definition
-        ? resolveReviewedExternalBinding(
-            definition.name,
-            definition.terminals.map((terminal) => terminal.name),
-          )
-        : undefined;
-      if (reviewed) {
-        return reviewedExternalComponentParameters(reviewed);
-      }
-    }
-    if (declaredParameters) {
-      return declaredParameters.map((parameter) => ({
+    const parameters = componentParameters(
+      instance.symbolId,
+      instance,
+      project,
+    );
+    if (
+      (binding?.kind === "subcircuit" ||
+        binding?.kind === "external-subcircuit") &&
+      instanceParameterContract(project, instance)?.open
+    ) {
+      return parameters.map((parameter) => ({
+        ...parameter,
         definitionParameter: true,
         key:
           Object.keys(instance.netlist?.parameters ?? {}).find(
-            (key) => key.toLowerCase() === parameter.name.toLowerCase(),
-          ) ?? parameter.name,
-        label: parameter.name,
-        placeholder: parameter.defaultValue ?? "Required",
-        ...(parameter.defaultValue !== undefined
-          ? { defaultValue: parameter.defaultValue }
-          : {}),
-        help:
-          parameter.defaultValue !== undefined
-            ? `Inherited: ${parameter.defaultValue}. Empty uses the definition default.`
-            : "This definition requires an instance value.",
+            (key) => key.toLowerCase() === parameter.key.toLowerCase(),
+          ) ?? parameter.key,
       }));
     }
-    return componentParameters(instance.symbolId);
+    return parameters;
   };
 
   const instancePropertyEdits = (

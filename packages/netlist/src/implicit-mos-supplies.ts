@@ -12,7 +12,7 @@ import {
   resolveMosBulkConnection,
   resolveDocumentLogicalNets,
 } from "@icm/derived";
-import { subcircuitDescriptor } from "@icm/devices";
+import { instanceBuiltInSubcircuit } from "@icm/devices";
 import type { DesignNetlistAnalysisOptions } from "./extract.js";
 import { idealAnalogBlockCell } from "./ideal-analog-block-models.js";
 import type { NetlistFormat } from "./net-name-codec.js";
@@ -68,7 +68,7 @@ function blockSuppliesToDefault(
       return drawn.get(domain)!;
     };
     return document.instances.flatMap((instance) => {
-      const descriptor = subcircuitDescriptor(instance.symbolId, source);
+      const descriptor = instanceBuiltInSubcircuit(source, instance);
       if (!descriptor) return [];
       const binding = instance.netlist?.binding;
       const target =

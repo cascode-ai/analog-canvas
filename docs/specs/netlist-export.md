@@ -199,6 +199,27 @@ own `IDEAL_COMPARATOR_SPICE_ONLY` rule
 order, invocation policy, parameter metadata and supported dialects. The
 [registry](../../packages/devices/src/registry.ts) supplies reviewed entries.
 
+The effective Instance binding is authoritative before the Symbol's default:
+an explicitly selected external master or child Cell is never replaced by a
+built-in model. [Instance parameter contracts](../../packages/devices/src/instance-parameters.ts)
+serve Properties, Agent validation, ERC and editable generated Circuit source.
+[Built-in model contracts](../../packages/devices/src/built-in-model-contracts.ts)
+own family, backend availability and complete parameter metadata/defaults;
+family factories own equations. Known model parameters are editable in Circuit
+source and write back to the same `Instance.netlist.parameters`. Custom and
+unreviewed external/Cell parameter sets remain open. No new persisted schema,
+global supply declaration or parallel legacy implementation is introduced.
+
+Generated masters have compiler ownership, not Canvas Document ownership.
+One `generatedDefinitions` inventory transports comparator, logic, signal and
+magnetic bodies through structural printing and simulation preparation. Each
+definition is emitted once across bound files, with normal collision and
+shadowing diagnostics. Generated internal primitives are not editable Instances.
+Native VACASK prints the reviewed nonlinear equations as behavioral sources,
+requiring its OpenVAF compiler; it does not convert arbitrary user SPICE source.
+Spectre's existing call-only nonlinear exports and comparator restriction remain
+explicit backend facts rather than promises of executable models.
+
 `DeviceParameterDefinition` is the same descriptor-owned field metadata used
 by Insert and Properties (key, label, requiredness, editor kind, optional unit
 hint/example/help, and display role). Required export fields are derived from
@@ -246,8 +267,10 @@ exporting as `tcoil` or `xfmr` (`MAGNETIC_SUBCIRCUIT_NAME_COLLISION`) blocks
 export. The dotted ends belong to the pins — pin 1 and the tap for a T-coil,
 P+ and S+ for a transformer, as the library draws them — so the copy of
 either definition a saved Project carries lowers the same way while it keeps
-the library's pins and parameters. Native VACASK has no mutual inductance and
-reports `VACASK_UNSUPPORTED_DEVICE`.
+the library's pins and parameters. Native VACASK writes the same winding
+network using its `mutual` primitive and bundled inductors. Its coupling
+coefficient is nonnegative: negative coupling reverses the secondary winding's
+reference direction without changing the externally visible pin order.
 Decorative symbols never have a device definition. An unsupported electrical
 Symbol blocks export.
 
@@ -535,6 +558,7 @@ line break). The printer supplies stable Document/Instance locations, including
 SPICE continuation lines; the caret highlights the corresponding canvas Instance
 and opens its Cell when necessary. It does not infer identity from Reference
 spelling, which may repeat across Cells. The link runs both ways:
+
 - Parts selected on the canvas light their printed cards, and a new selection
   scrolls them into view.
 - A new selection on the canvas takes over from the caret's part.
@@ -542,20 +566,21 @@ spelling, which may repeat across Cells. The link runs both ways:
 While the strict export is blocked, the panel shows a read-only draft printed
 from the authoring IR (`createDraftNetlistPreview`), so a part appears in the
 netlist as soon as it is placed. In the draft:
+
 - an unconnected pin, a missing model and a missing required value print as
   `?`;
 - a part with no netlist form is named in a closing comment;
 - the first line says the text is a draft.
-The cards a blocking finding names are lit in yellow and keep the canvas link.
-A `?` is no identifier in either format, so a draft never passes for a
-netlist. Copy and export stay blocked until the strict export is ready, and
-`designExtractsNetlist` never reads the draft.
-Explicit inspector actions (Q, double-clicking a component, Issues and import
-review) replace the default netlist panel. Canvas editing never requires closing
-the netlist first. A project panel is closed by the control that opened it —
-the toolbar button or the menu entry, both of which toggle — so the dock shows
-no close button over the panel's own controls, and the copy button keeps the
-right edge while the Format and Process selects give up width first.
+  The cards a blocking finding names are lit in yellow and keep the canvas link.
+  A `?` is no identifier in either format, so a draft never passes for a
+  netlist. Copy and export stay blocked until the strict export is ready, and
+  `designExtractsNetlist` never reads the draft.
+  Explicit inspector actions (Q, double-clicking a component, Issues and import
+  review) replace the default netlist panel. Canvas editing never requires closing
+  the netlist first. A project panel is closed by the control that opened it —
+  the toolbar button or the menu entry, both of which toggle — so the dock shows
+  no close button over the panel's own controls, and the copy button keeps the
+  right edge while the Format and Process selects give up width first.
 
 Source edits use one atomic Project transaction with per-Document revisions.
 Renaming preserves layout, wiring and IDs, updates bound labels, and leaves
