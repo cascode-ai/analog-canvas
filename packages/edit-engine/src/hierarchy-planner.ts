@@ -829,6 +829,24 @@ function supplyEdgePlacement(
   ];
 }
 
+/**
+ * The supply edge rule (#1257) for a Cell Pin that no Cell Pin command adds:
+ * a local Power Rail adds its VDD terminal itself, and that terminal went to
+ * the block's left side, under its inputs. A ring oscillator's three
+ * inverters each took their VDD wire down past the incoming signal.
+ */
+export function planSupplyTerminalEdge(
+  project: CircuitProject,
+  documentId: string,
+  terminals: readonly { id: string; name: string; vddPower: boolean }[],
+): DocumentEdits {
+  return supplyEdgePlacement(
+    project,
+    requireDocument(project, documentId),
+    terminals,
+  );
+}
+
 export function planCreateCellPin(
   project: CircuitProject,
   documentId: string,
