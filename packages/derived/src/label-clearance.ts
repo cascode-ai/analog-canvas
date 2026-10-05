@@ -246,6 +246,16 @@ export function createLabelClearanceContext(
     /** Other labels drawn over `box` itself, not only too close to it. */
     overlapsAt: (box: Rect, annotationId: string) =>
       labelsAt(box, annotationId).sort(),
+    /** Other labels whose ink comes within `reach` of `box`. */
+    labelsWithin: (box: Rect, annotationId: string, reach: number) =>
+      labelsAt(box, annotationId, reach, reach)
+        .filter(
+          (id) => rectangleGap(box, moved.get(id) ?? labels.get(id)!) <= reach,
+        )
+        .sort(),
+    /** Where a label or free text is drawn, as moved in this pass. */
+    labelBounds: (id: string): Rect | undefined =>
+      moved.get(id) ?? labels.get(id),
     wiresAt,
     dotsAt,
     crossings,

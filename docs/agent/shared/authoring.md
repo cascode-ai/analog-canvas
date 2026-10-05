@@ -274,7 +274,9 @@ slots and tries a fixed set of nearby collision-avoiding positions in one
 undoable operation, keeping each Reference clear before its value. A part's
 labels may slide along its side to fit between two rows of wiring; they keep
 a word's space from other labels, a little space from junction dots, and
-stay on their part's side of any wire but its own. Where parts
+stay on their part's side of any wire but its own. While another place is
+clear, a value does not stand just under or after another part's name, where
+it would read as that part's. Where parts
 sit too close for both, the value is the one left touching a wire; hide values
 with `set-instance-display` or move the parts apart. A requested Port's name
 that a part or wire now covers moves to the first clear one of its sides. Set `compact:false` or `avoidCollisions:false` to disable

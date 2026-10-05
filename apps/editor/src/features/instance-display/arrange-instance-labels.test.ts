@@ -862,6 +862,64 @@ describe("opt-in label arrangement", () => {
     const moved = doc.annotations.find((a) => a.id === value.id)!;
     expect(after.conflicts(moved)).toEqual([]);
   });
+  it("keeps a part's value from reading as the name above it (#1347)", () => {
+    // A Pierce oscillator: the crystal's inductor Lm lies under the inverter
+    // X1, its series wires on both sides and a wire below it. Above Lm, its
+    // 10m stacked over L_m stood just under X₁ and read as X1's.
+    const doc = createEmptyDocument("d", "Pierce");
+    const style = resolveDocumentStyleProfile(doc.presentation);
+    for (const [id, reference, symbolId, position, rotation, value] of [
+      ["x1", "X1", "inverter", { x: 0, y: 0 }, 0, undefined],
+      ["lm", "Lm", "inductor", { x: 0, y: 90 }, 90, "10m"],
+    ] as const) {
+      const instance = {
+        id,
+        reference,
+        symbolId,
+        placement: { position, rotation, mirror: "none" as const },
+        netlist: { parameters: value ? { value } : {} },
+      };
+      doc.instances.push(instance);
+      doc.annotations.push(
+        ...defaultInstanceDisplayAnnotations(doc, instance, resolver, style, {
+          showValue: true,
+        }),
+      );
+    }
+    for (const [id, from, to] of [
+      ["rm", [-80, 90], [-30, 90]],
+      ["cm", [30, 90], [80, 90]],
+      ["c0", [-80, 115], [80, 115]],
+    ] as const)
+      wire(doc, id, { x: from[0], y: from[1] }, { x: to[0], y: to[1] });
+    const label = (kind: string, ownerId: string) =>
+      doc.annotations.find(
+        (a) =>
+          a.binding?.kind === kind &&
+          a.anchor.kind === "object" &&
+          a.anchor.objectId === ownerId,
+      )!;
+
+    apply(doc, arrangeInstanceLabels(doc, resolver, ["lm"], {}));
+
+    const after = createLabelClearanceContext(doc, resolver);
+    const ink = (kind: string, ownerId: string) =>
+      after.measure(label(kind, ownerId)).inkBounds;
+    const gap = (a: Rect, b: Rect) =>
+      Math.hypot(
+        Math.max(0, a.x - b.x - b.width, b.x - a.x - a.width),
+        Math.max(0, a.y - b.y - b.height, b.y - a.y - a.height),
+      );
+    const value = ink("instance-value", "lm");
+    const name = ink("instance-reference", "lm");
+    // Above Lm, clear of the wires beside and below it.
+    expect(value.y + value.height).toBeLessThanOrEqual(78);
+    expect(after.conflicts(label("instance-value", "lm"))).toEqual([]);
+    expect(after.conflicts(label("instance-reference", "lm"))).toEqual([]);
+    expect(gap(value, ink("instance-reference", "x1"))).toBeGreaterThan(
+      gap(value, name) + 5,
+    );
+  });
   it("moves a name off a junction dot beside it", () => {
     // A Schmitt trigger's M2 kept its name 0.2 units from the dot on its
     // gate, where the input trunk met it.

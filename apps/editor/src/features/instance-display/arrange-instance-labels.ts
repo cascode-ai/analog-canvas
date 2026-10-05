@@ -73,6 +73,15 @@ export function arrangeInstanceLabels(
   const grid = document.presentation.grid;
   const box = (annotation: Annotation): Rect =>
     context.measure(annotation).inkBounds;
+  // Each visible part name or value: the part it labels, and which it is.
+  const partLabels = new Map(
+    context.visible.flatMap((label) =>
+      label.binding?.kind === "instance-reference" ||
+      label.binding?.kind === "instance-value"
+        ? [[label.id, label.binding] as const]
+        : [],
+    ),
+  );
 
   // Every visible Reference and value of the parts, eligible or not: a
   // label this pass may not move still takes its space from its siblings.
@@ -225,6 +234,42 @@ export function arrangeInstanceLabels(
         : 0;
     };
     /**
+     * Half a conflict for a value that follows another part's name about as
+     * closely as it stands by its own part and labels, or a name that such a
+     * value follows. Labels are read in groups, a name and then its value
+     * below it or after it on its line, wherever the parts are. A Pierce
+     * oscillator's inductor stacked its 10m above its name, 5 units under the
+     * inverter's X₁ and 4 above its own L_m, and read as X₁'s (#1347). A
+     * value above another part's name, as in a column of transistors each
+     * with its name over its W/L, still reads as its own, and so do two
+     * names or two values side by side.
+     */
+    const mistaken = (
+      ink: Rect,
+      label: Annotation,
+      siblings: readonly Rect[],
+    ) => {
+      const kind = partLabels.get(label.id)?.kind;
+      const own = Math.min(
+        owner ? rectangleGap(ink, owner) : Number.POSITIVE_INFINITY,
+        ...siblings.map((sibling) => rectangleGap(ink, sibling)),
+      );
+      if (!kind || !Number.isFinite(own)) return 0;
+      return context
+        .labelsWithin(ink, label.id, own + ASSOCIATION_MARGIN)
+        .some((id) => {
+          const other = partLabels.get(id);
+          if (!other || other.instanceId === instance.id || other.kind === kind)
+            return false;
+          const theirs = context.labelBounds(id)!;
+          return kind === "instance-value"
+            ? readsAfter(theirs, ink)
+            : readsAfter(ink, theirs);
+        })
+        ? 0.5
+        : 0;
+    };
+    /**
      * Wires between a label and its part, other than those drawn across the
      * label, which count already. Above a VDD rail, a PMOS's W/L met
      * nothing, but the rail cut it off from its transistor below. Each counts
@@ -290,7 +335,8 @@ export function arrangeInstanceLabels(
         others(context.overlapsAt(ink, candidate.id)) +
         context.dotsAt(ink).filter((id) => !conflicts.includes(id)).length / 2 +
         cutOff(ink) +
-        strayed(ink)
+        strayed(ink) +
+        mistaken(ink, candidate, siblings.map(box))
       );
     };
     /**
@@ -352,7 +398,11 @@ export function arrangeInstanceLabels(
                 .some((id) => !groupIds.has(id)) &&
               !context.dotsAt(b).length &&
               !cutOff(b) &&
-              !strayed(b),
+              !strayed(b) &&
+              !mistaken(b, arrangement[index]!, [
+                ...fixed.map(box),
+                ...moved.filter((_, other) => other !== index),
+              ]),
           ) && !between(moved)
         );
       };
@@ -589,6 +639,20 @@ export function arrangeInstanceLabels(
 
 /** How much nearer another part a label may stand than its own part. */
 const ASSOCIATION_MARGIN = 5;
+
+/**
+ * Whether text at `next` reads after text at `first`: below it, or after it
+ * on its line.
+ */
+function readsAfter(first: Rect, next: Rect): boolean {
+  const slack = 1;
+  return (
+    next.y >= first.y + first.height - slack ||
+    (next.x >= first.x + first.width - slack &&
+      next.y < first.y + first.height &&
+      next.y + next.height > first.y)
+  );
+}
 
 function rectangleGap(a: Rect, b: Rect): number {
   return Math.hypot(
