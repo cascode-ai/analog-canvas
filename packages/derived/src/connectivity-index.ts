@@ -1,3 +1,4 @@
+import { registerDocumentCache } from "./document-caches.js";
 import { deriveStableId, foldNetName } from "@icm/model";
 import type {
   CircuitProject,
@@ -126,10 +127,9 @@ interface CachedDocumentIndex {
 }
 
 /** Derived-only cache: never persisted and invalidated by revision/resolver. */
-const documentIndexCache = new WeakMap<
-  SchematicDocument,
-  CachedDocumentIndex
->();
+const documentIndexCache = registerDocumentCache(
+  new WeakMap<SchematicDocument, CachedDocumentIndex>(),
+);
 
 /**
  * Returns routing guidance whose `from`/`to` are ordered by `endpointKey` and

@@ -1,3 +1,4 @@
+import { registerDocumentCache } from "./document-caches.js";
 import { foldNetName } from "@icm/model";
 import type { SchematicDocument } from "@icm/model";
 
@@ -31,13 +32,15 @@ export interface ResolvedDocumentLogicalNets {
   byBaseNetId: ReadonlyMap<string, ResolvedLogicalNet>;
 }
 
-const committedDocumentLogicalNetCache = new WeakMap<
-  SchematicDocument,
-  {
-    revision: number;
-    resolution: ResolvedDocumentLogicalNets;
-  }
->();
+const committedDocumentLogicalNetCache = registerDocumentCache(
+  new WeakMap<
+    SchematicDocument,
+    {
+      revision: number;
+      resolution: ResolvedDocumentLogicalNets;
+    }
+  >(),
+);
 
 export type LogicalNetContractIssue = {
   code:

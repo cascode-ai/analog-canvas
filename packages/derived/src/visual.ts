@@ -1,3 +1,4 @@
+import { registerDocumentCache } from "./document-caches.js";
 import { routeEnd, transformPoint } from "@icm/model";
 import type { Point, Rect, RouteEndpoint, SchematicDocument } from "@icm/model";
 import { resolveAdaptiveSignalFlowBlockLayout } from "@icm/symbols";
@@ -73,10 +74,9 @@ interface CachedVisualDiagnostics {
 }
 
 /** Derived-only default diagnostic cache, invalidated by revision/resolver. */
-const visualDiagnosticCache = new WeakMap<
-  SchematicDocument,
-  CachedVisualDiagnostics
->();
+const visualDiagnosticCache = registerDocumentCache(
+  new WeakMap<SchematicDocument, CachedVisualDiagnostics>(),
+);
 
 function rectanglesOverlap(left: Rect, right: Rect): boolean {
   return (
