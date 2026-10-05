@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { z } from "zod";
 import { inlineSchema } from "./inline-schema.js";
 import {
@@ -6,11 +6,21 @@ import {
   ToolContractRegistry,
   selectToolSchema,
 } from "./tool-contracts.js";
-import { callTool, describeToolContract, toolInputSchema } from "./tools.js";
+import {
+  callTool,
+  describeToolContract,
+  listToolDefinitions,
+  toolInputSchema,
+} from "./tools.js";
 import { readResourceContent } from "./resources.js";
 
 const text = (result: Awaited<ReturnType<typeof callTool>>) =>
   JSON.parse(result.content[0]!.text!);
+
+// The first tool listing builds every tool's contract: about a second
+// alone, and past the 5 s a test gets beside the full suite on a CI runner.
+// Each worker builds them once, here, outside any one test's time.
+beforeAll(() => void listToolDefinitions(), 30_000);
 
 describe("on-demand tool contracts", () => {
   it("discovers operations offline without returning every input schema", async () => {
