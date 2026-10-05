@@ -1,6 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { inlineSchema } from "./inline-schema.js";
 import { listToolDefinitions, toolInputSchema } from "./tools.js";
+
+// The first tool listing builds every tool's contract: about a second
+// alone, and past the 5 s a test gets beside the full suite on a CI runner.
+// Each worker builds them once, here, outside any one test's time.
+beforeAll(() => void listToolDefinitions(), 30_000);
 
 describe("host-facing inline schemas", () => {
   it("retains constraints and metadata without metadata-only intersections", () => {
