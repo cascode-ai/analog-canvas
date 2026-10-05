@@ -199,7 +199,11 @@ the netlist does not have. Each guide wire takes the cheapest of a few simple
 paths that avoids them: the plain L, a short lead out of a pin, or a detour
 along a free row or column. When none does, or a pin already sits on another
 Net's wire, the whole operation is refused and the message names the pin, part
-or Route in the way; move parts apart or give a trunk. A trunk and its branches
+or Route in the way; move parts apart or give a trunk. Where a Net cannot
+cross the drawing, such as a cascode bias line reaching both halves of an
+amplifier, name it at each end instead: `connect` the pin to an open
+`{kind:"point"}` a grid step or two out, then `add-label` with the Net's name
+on that stub; Nets of one name in a Cell are one Net. A trunk and its branches
 are checked the same way and refused, not bent. This is not a general
 autorouter: conflicting taps or excess expanded edits also reject the whole
 operation. Ordinary crossings without a Junction remain legal. It does not move

@@ -617,7 +617,9 @@ export function createRouteClearance(
       if (found === null) return entry.candidate;
       reason ??= found;
     }
-    return `no clear path from ${endText(from)} to ${endText(to)}: the direct one ${reason ?? "is blocked"}. Move the parts apart, or give a trunk`;
+    // Textbooks draw a bias line that cannot cross the drawing as a short
+    // labelled stub at each end; say so, or the Agent is left stuck.
+    return `no clear path from ${endText(from)} to ${endText(to)}: the direct one ${reason ?? "is blocked"}. Move the parts apart, give a trunk, or name the Net at each end with a Net Label on a short stub`;
   };
   return { path, conflict };
 }
