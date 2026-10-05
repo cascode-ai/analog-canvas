@@ -47,7 +47,18 @@ and all existing generated model families remain covered. This is bounded
 qualification, not a claim about arbitrary feedback-controlled switches or
 general Verilog-A event support. Licensed Spectre remains a separate obligation.
 
+The formal Linux build and strict pinned-image boot passed in
+[run 37294456075](https://github.com/cascode-ai/analog-canvas/actions/runs/37294456075):
+51 native cases passed (the five ngspice cases are qualified locally, not claimed
+as run on this Linux job). Its measured simulator version and identity are
+recorded in `config/vacask-preview-environment.json`; models and startup retain
+their previous accepted identities. The build image is
+`sha256:e2bbd5d23b1595d5acea5d1f6461616afc8a04bd1bca54dbe8f3ab1267d60552`;
+the host must independently verify its own image and runtime lock.
+
 Upstream is AGPL-3.0. Build artifacts include the complete upstream source
 archive (including its license), this patch and the exact revision; the image
 retains them under `/opt/model-source/vacask/`. Corresponding source and the
 rebuild recipe must remain publicly available when this runtime is hosted.
+They are published in the
+[corresponding-source release](https://github.com/cascode-ai/analog-canvas/releases/tag/vacask-runtime-source-0.3.4-icm-hard-switch1).
