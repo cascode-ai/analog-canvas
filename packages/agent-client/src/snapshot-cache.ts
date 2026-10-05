@@ -77,44 +77,6 @@ export function bootstrapSummary(
   };
 }
 
-/** Rolling-deploy fallback when an older host answers a bootstrap request with a full Snapshot. */
-export function bootstrapFromFullSnapshot(
-  snapshot: AgentSessionSnapshot,
-): AgentBootstrapSnapshot {
-  const current = snapshot.document;
-  return {
-    snapshotVersion: snapshot.snapshotVersion,
-    // This fallback really transferred the full payload, so report that cost.
-    byteLength: snapshot.byteLength,
-    project: {
-      id: snapshot.project.id,
-      name: snapshot.project.name,
-      structureRevision: snapshot.project.structureRevision,
-      topDocumentId: snapshot.project.topDocumentId,
-      simulationFolderCount: snapshot.project.simulationFolders.length,
-      documents: snapshot.project.documents.map((document) => ({
-        id: document.id,
-        name: document.name,
-        revision: document.id === current.id ? current.revision : 0,
-        instanceCount: document.instanceCount,
-        netCount: document.netCount,
-      })),
-    },
-    document: {
-      id: current.id,
-      name: current.name,
-      revision: current.revision,
-      instanceCount: current.instances.length,
-      netCount: current.nets.length,
-      routeCount: current.routes.length,
-      junctionCount: current.junctions.length,
-      annotationCount: current.annotations.length,
-      noConnectCount: current.noConnects.length,
-      draftingObjectCount: current.drafting.objects.length,
-    },
-  };
-}
-
 export function countDiagnostics(diagnostics: readonly AgentDiagnostic[]): {
   errors: number;
   warnings: number;
