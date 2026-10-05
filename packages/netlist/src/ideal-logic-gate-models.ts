@@ -1,11 +1,18 @@
 import { builtInModelDefaults, subcircuitDescriptor } from "@icm/devices";
+import {
+  voltage,
+  current,
+  passive,
+  printSpiceBehavioralModel,
+  type BehavioralElement,
+  type BehavioralModel,
+} from "./behavioral-model.js";
 
 /**
  * Ideal behavioural bodies for the Library's logic gates and D flip-flops,
  * as the comparator and the analog blocks have theirs. A placed gate then
  * exports a complete netlist and simulates in ngspice; nobody has to draw
- * its transistors. These canonical SPICE bodies also supply the reviewed
- * equations projected by the native VACASK generator.
+ * its transistors. All backends consume the same typed elements and equations.
  *
  * - An input is high above half the supply, V(VDD,VSS)/2. Its level
  *   0..1 comes from a smooth `tanh` step `vt` wide, which keeps Newton
@@ -122,28 +129,33 @@ function modelPorts(target: string, model: LogicModel): readonly string[] {
 
 /** An input's logic level, 0..1 volts on an internal node. */
 const level = (pin: string) =>
-  `Bh${pin} h${pin} 0 V={0.5*(1+tanh((V(${pin},VSS)-0.5*V(VDD,VSS))/vt))}`;
+  voltage(
+    `Bh${pin}`,
+    `h${pin}`,
+    "0",
+    `0.5*(1+tanh((V(${pin},VSS)-0.5*V(VDD,VSS))/vt))`,
+  );
 
 /** The rail-to-rail output of a 0..1 function, delayed by `td`. */
 function drive(expression: string, outputs: readonly [string, string?]) {
   const [output, complement] = outputs;
   return [
-    `Bf nfn VSS V={V(VDD,VSS)*(${expression})}`,
-    "Rd nfn ndl 1k",
-    "Cd ndl VSS {td/1000}",
-    `B${output} ${output} VSS V={V(ndl,VSS)}`,
+    voltage("Bf", "nfn", "VSS", `V(VDD,VSS)*(${expression})`),
+    passive("resistor", "Rd", "nfn", "ndl", "1k"),
+    passive("capacitor", "Cd", "ndl", "VSS", "td/1000", true),
+    voltage(`B${output}`, output, "VSS", "V(ndl,VSS)"),
     ...(complement
-      ? [`B${complement} ${complement} VSS V={V(VDD,VSS)-V(ndl,VSS)}`]
+      ? [voltage(`B${complement}`, complement, "VSS", "V(VDD,VSS)-V(ndl,VSS)")]
       : []),
   ];
 }
 
-function combinationalBody(model: Combinational): string[] {
+function combinationalBody(model: Combinational): BehavioralElement[] {
   const levels = model.inputs.map((pin) => `V(h${pin})`);
   const all = levels.join("*");
   const none = levels.map((value) => `(1-${value})`).join("*");
   // Parity, one input at a time, through internal nodes np1, np2, …
-  const parity: string[] = [];
+  const parity: BehavioralElement[] = [];
   let odd = levels[0]!;
   for (const [index, value] of levels.slice(1).entries()) {
     if (index === levels.length - 2) {
@@ -151,7 +163,12 @@ function combinationalBody(model: Combinational): string[] {
       break;
     }
     parity.push(
-      `Bp${index + 1} np${index + 1} 0 V={${odd}+${value}-2*${odd}*${value}}`,
+      voltage(
+        `Bp${index + 1}`,
+        `np${index + 1}`,
+        "0",
+        `${odd}+${value}-2*${odd}*${value}`,
+      ),
     );
     odd = `V(np${index + 1})`;
   }
@@ -172,7 +189,7 @@ function combinationalBody(model: Combinational): string[] {
   ];
 }
 
-function flipFlopBody(model: FlipFlop): string[] {
+function flipFlopBody(model: FlipFlop): BehavioralElement[] {
   const hold = model.reset ? "*(1-V(hRST))" : "";
   const clear = (node: string) => (model.reset ? `-V(${node})*V(hRST)` : "");
   return [
@@ -181,12 +198,17 @@ function flipFlopBody(model: FlipFlop): string[] {
     ...(model.reset ? [level("RST")] : []),
     // The master follows D while CK is low; the slave follows the master
     // while CK is high. A 1 TΩ leak gives each held node a DC path.
-    `Bm 0 nm I={10m*((V(hD)-V(nm))*(1-V(hCK))${hold}${clear("nm")})}`,
-    "Cm nm 0 1p",
-    "Rm nm 0 1T",
-    `Bs 0 ns I={10m*((V(nm)-V(ns))*V(hCK)${hold}${clear("ns")})}`,
-    "Cs ns 0 1p",
-    "Rs ns 0 1T",
+    current(
+      "Bm",
+      "0",
+      "nm",
+      `10m*((V(hD)-V(nm))*(1-V(hCK))${hold}${clear("nm")})`,
+    ),
+    passive("capacitor", "Cm", "nm", "0", "1p"),
+    passive("resistor", "Rm", "nm", "0", "1T"),
+    current("Bs", "0", "ns", `10m*((V(nm)-V(ns))*V(hCK)${hold}${clear("ns")})`),
+    passive("capacitor", "Cs", "ns", "0", "1p"),
+    passive("resistor", "Rs", "ns", "0", "1T"),
     ...drive("0.5*(1+tanh((V(ns)-0.5)/10m))", [
       "Q",
       ...(model.complement ? ["QBAR"] : []),
@@ -195,20 +217,25 @@ function flipFlopBody(model: FlipFlop): string[] {
 }
 
 /** The `.subckt` text of one gate or flip-flop, ready for an ngspice file. */
-export function spiceIdealLogicSubcircuit(target: string): string[] {
+export function idealLogicModel(target: string): BehavioralModel {
   const model = MODELS[target];
   if (!model) throw new Error(`No ideal logic model: ${target}`);
   const ports = modelPorts(target, model);
-  return [
-    `* Ideal ${model.symbolId}: switches at V(VDD,VSS)/2; vt sets the step width, td the delay`,
-    `.subckt ${target} ${ports.join(" ")} params: ${Object.entries(
-      builtInModelDefaults(target),
-    )
-      .map(([name, value]) => `${name}=${value}`)
-      .join(" ")}`,
-    ...(model.kind === "combinational"
-      ? combinationalBody(model)
-      : flipFlopBody(model)),
-    `.ends ${target}`,
-  ];
+  return {
+    name: target,
+    ports,
+    comment: `Ideal ${model.symbolId}: switches at V(VDD,VSS)/2; vt sets the step width, td the delay`,
+    parameters: Object.entries(builtInModelDefaults(target)).map(
+      ([name, defaultValue]) => ({ name, defaultValue }),
+    ),
+    elements:
+      model.kind === "combinational"
+        ? combinationalBody(model)
+        : flipFlopBody(model),
+  };
+}
+
+/** Existing SPICE consumer API, projected from the shared recipe. */
+export function spiceIdealLogicSubcircuit(target: string): string[] {
+  return printSpiceBehavioralModel(idealLogicModel(target));
 }

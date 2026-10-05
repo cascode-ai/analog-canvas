@@ -3,23 +3,38 @@ import {
   builtInModelDefaults,
   IDEAL_COMPARATOR_TARGET,
 } from "@icm/devices";
-import { spiceIdealLogicSubcircuit } from "./ideal-logic-gate-models.js";
-import { spiceIdealSignalSubcircuit } from "./ideal-signal-block-models.js";
+import { idealLogicModel } from "./ideal-logic-gate-models.js";
+import { idealSignalModel } from "./ideal-signal-block-models.js";
+import {
+  voltage,
+  printSpiceBehavioralModel,
+  type BehavioralModel,
+} from "./behavioral-model.js";
 
 /** One family dispatch; printers never own model equations or defaults. */
-export function generatedBehavioralModel(target: string): string[] {
+export function generatedBehavioralDefinition(target: string): BehavioralModel {
   const model = builtInModelContract(target);
-  if (model?.family === "logic") return spiceIdealLogicSubcircuit(target);
-  if (model?.family === "signal") return spiceIdealSignalSubcircuit(target);
+  if (model?.family === "logic") return idealLogicModel(target);
+  if (model?.family === "signal") return idealSignalModel(target);
   if (model?.family === "comparator")
-    return [
-      `.subckt ${IDEAL_COMPARATOR_TARGET} VIP VIN VOUT params: ${Object.entries(
-        builtInModelDefaults(target),
-      )
-        .map(([name, value]) => `${name}=${value}`)
-        .join(" ")}`,
-      "Bcmp VOUT 0 V={vlow+(vhigh-vlow)*0.5*(1+tanh((V(VIP)-V(VIN))/vtransition))}",
-      `.ends ${IDEAL_COMPARATOR_TARGET}`,
-    ];
+    return {
+      name: IDEAL_COMPARATOR_TARGET,
+      ports: ["VIP", "VIN", "VOUT"],
+      parameters: Object.entries(builtInModelDefaults(target)).map(
+        ([name, defaultValue]) => ({ name, defaultValue }),
+      ),
+      elements: [
+        voltage(
+          "Bcmp",
+          "VOUT",
+          "0",
+          "vlow+(vhigh-vlow)*0.5*(1+tanh((V(VIP)-V(VIN))/vtransition))",
+        ),
+      ],
+    };
   throw new Error(`No generated behavioral model: ${target}`);
+}
+
+export function generatedBehavioralModel(target: string): string[] {
+  return printSpiceBehavioralModel(generatedBehavioralDefinition(target));
 }
