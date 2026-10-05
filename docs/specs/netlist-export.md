@@ -558,7 +558,17 @@ passes ground down to a child gets the pin too, or the child's reference would
 have nowhere to come from. A Cell whose author already gave ground a pin of
 their own keeps that pin — the policy states a reference rather than
 duplicating one — and the node takes that pin's name, so no Cell printed as a
-subcircuit is left reaching for the global reference under another name.
+subcircuit is left reaching for the global reference under another name. A
+call then passes nothing extra: the caller's ground goes only to a pin the
+Cell adds, and a parent that only calls such Cells needs no ground pin for
+them. The added pin is named `VSS` unless the Cell already gives that name,
+in any case, to another Pin or Net, as a Cell with ± supplies does when it
+draws ground and a Port `VSS` for its negative supply (#1353). It is then
+`GND` (or `GND__2` and on), the two stay apart, and the export reports
+`GROUND_PIN_RENAMED` as information: "Ground's pin is named GND: VSS is
+another Net here. If VSS is this Cell's ground, connect it to the ground
+marker". Callers name the same pin; like the body defaults, a run does not
+repeat the finding.
 
 The one Cell a deck prints as its own top-level cards keeps node `0`: there the
 deck is the outside, and its calls carry that `0` into each child's `VSS` pin.

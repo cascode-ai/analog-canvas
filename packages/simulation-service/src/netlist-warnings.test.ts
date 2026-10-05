@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { netlistRunWarnings } from "./netlist-warnings.js";
 
 describe("the netlist findings a run shows", () => {
-  it("leaves generated names and conventional body supplies to the netlist review", () => {
+  it("leaves generated names, conventional body supplies and a renamed ground pin to the netlist review", () => {
     expect(
       netlistRunWarnings([
         {
@@ -12,6 +12,10 @@ describe("the netlist findings a run shows", () => {
         {
           code: "MOS_BODY_DEFAULT_SUPPLY",
           message: "MP's body has no Net and takes the conventional VDD",
+        },
+        {
+          code: "GROUND_PIN_RENAMED",
+          message: "Ground's pin is named GND: VSS is another Net here",
         },
         {
           code: "MOS_BODY_OTHER_SUPPLY",
