@@ -178,7 +178,7 @@ export class ActionCompileError extends Error {
   readonly actionKind: string;
 
   constructor(index: number, actionKind: string, message: string) {
-    super(`action[${index}] ${actionKind}: ${message}`);
+    super(`actions[${index}] (${actionKind}): ${message}`);
     this.name = "ActionCompileError";
     this.index = index;
     this.actionKind = actionKind;

@@ -6,6 +6,7 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 import { AgentSessionClient, AgentSessionError } from "@icm/agent-client";
 import {
   capabilitiesResponse,
+  errorResponse,
   FakeAgentHttp,
   folderDirectoryResponse,
   renderResponse,
@@ -46,7 +47,7 @@ function parseText(result: {
 beforeAll(() => void listToolDefinitions(), 30_000);
 
 describe("mcp tool surface", () => {
-  it("circuit_properties sends terminal control for the editor to plan as Properties does", async () => {
+  it("circuit_properties sends terminal control for the editor to plan", async () => {
     const { session, http } = await toolSession();
     await callTool("connect", { claimCode: "session-1.code" }, session);
     const snapshot = testSnapshot();
@@ -87,13 +88,21 @@ describe("mcp tool surface", () => {
       session,
     );
     expect(parseText(result)).toMatchObject({ ok: true });
+    // The editor plans it as Properties does (authoring-helper.test.ts).
     expect(
       http.circuitCalls
         .filter(({ request }) => request.operation === "transact")
         .map(({ request }) => request),
     ).toMatchObject([
-      // The editor plans it as Properties does, keeping the parameters.
-      { command: { kind: "set-properties", instanceId: source.id, control } },
+      {
+        actions: [
+          {
+            kind: "set-source-control",
+            target: { kind: "instance", id: source.id },
+            control,
+          },
+        ],
+      },
     ]);
   });
   it("reads context, diagnostics and folder names through lightweight server projections", async () => {
@@ -334,7 +343,7 @@ describe("mcp tool surface", () => {
       expect(session.client.simulationResource).toHaveBeenCalledTimes(1);
     },
   );
-  it("submits several connect actions as one atomic wire transaction", async () => {
+  it("sends several connect actions in one request", async () => {
     const { session, http } = await toolSession();
     await callTool("connect", { claimCode: "session-1.code" }, session);
     http.circuitHandler = async ({ request }) =>
@@ -359,7 +368,7 @@ describe("mcp tool surface", () => {
       .map((c) => c.request)
       .filter((r) => r.operation === "transact");
     expect(requests).toHaveLength(1);
-    expect(requests[0]!.wireIntent).toHaveLength(2);
+    expect(requests[0]!.actions).toHaveLength(2);
   });
   it("reports the actual runtime origin without remote pairing for local readiness", async () => {
     const { session, http } = await toolSession();
@@ -1115,29 +1124,41 @@ describe("mcp tool surface", () => {
     ).toEqual(["bootstrap", "geometry"]);
   });
 
-  it("apply_actions rejects a hidden multi-transaction batch before committing", async () => {
+  it("apply_actions reports the editor's refusal of a list that needs several calls", async () => {
     const http = new FakeAgentHttp();
     const { session } = await toolSession(http);
     await callTool("connect", { claimCode: "session-1.code" }, session);
-    const transacts: boolean[] = [];
+    const calls = [
+      {
+        actionIndices: [0],
+        actionKinds: ["place-component"],
+        sends: "placement batch" as const,
+      },
+      { actionIndices: [1], actionKinds: ["connect"], sends: "wires" as const },
+    ];
+    const message =
+      "These actions need 2 calls; one call sends one transaction. Send them in this order, each group in its own call: actions[0] (place-component) as one placement batch; actions[1] (connect) as wires.";
+    let transacts = 0;
     http.circuitHandler = async ({ request }) => {
-      switch (request.operation) {
-        case "transact":
-          transacts.push(request.dryRun ?? false);
-          return transactSuccessResponse(
-            request.requestId,
-            request.expectedRevision,
-          );
-        case "snapshot": {
-          const count = http.circuitCalls.filter(
-            (call) => call.request.operation === "snapshot",
-          ).length;
-          if (count > 1) return snapshotResponse(request.requestId);
-          return snapshotResponse(request.requestId);
-        }
-        default:
-          return capabilitiesResponse(request.requestId);
-      }
+      if (request.operation !== "transact")
+        return capabilitiesResponse(request.requestId);
+      transacts++;
+      const refusal = errorResponse(
+        request.requestId,
+        "transact",
+        "ACTION_BATCH_NOT_ATOMIC",
+        message,
+      );
+      return {
+        ...refusal,
+        revision: 5,
+        error: {
+          code: "ACTION_BATCH_NOT_ATOMIC",
+          message,
+          calls,
+          transactions: 2,
+        },
+      };
     };
     const result = await callTool(
       "apply_actions",
@@ -1158,34 +1179,22 @@ describe("mcp tool surface", () => {
       },
       session,
     );
-    const value = parseText(result) as {
-      ok: boolean;
-      code: string;
-      message: string;
-      transactions: number;
-    };
     expect(result.isError).toBe(true);
-    expect(value).toMatchObject({
+    expect(parseText(result)).toEqual({
       ok: false,
+      stage: "compile",
       code: "ACTION_BATCH_NOT_ATOMIC",
+      message,
+      revision: 5,
       transactions: 2,
-      calls: [
-        {
-          actionIndices: [0],
-          actionKinds: ["place-component"],
-          sends: "placement batch",
-        },
-        { actionIndices: [1], actionKinds: ["connect"], sends: "wires" },
-      ],
+      calls,
     });
-    expect(value.message).toContain(
-      "actions[0] (place-component) as one placement batch; actions[1] (connect) as wires",
-    );
-    expect(transacts).toEqual([]);
+    // The one request was the editor's to refuse; nothing else was sent.
+    expect(transacts).toBe(1);
   });
 
   it.each(["apply_actions", "circuit_wire"])(
-    "%s creates visible wire geometry for a pin-to-pin connect",
+    "%s sends a pin-to-pin connect for the editor to route",
     async (tool) => {
       const http = new FakeAgentHttp();
       const { session } = await toolSession(http);
@@ -1229,38 +1238,46 @@ describe("mcp tool surface", () => {
       );
 
       expect(parseText(result)).toMatchObject({ ok: true, transactions: 1 });
-      // One relayed request: the commit carries the wireIntent and validates
-      // atomically, with no client-side dry-run pass ahead of it.
+      // One relayed request, with no dry-run pass ahead of it. The editor
+      // plans the wire and its waypoint (authoring-helper.test.ts).
       expect(transacts).toHaveLength(1);
-      for (const request of transacts) {
-        expect(request.edits).toBeUndefined();
-        expect(request.wireIntent).toMatchObject({
-          from: {
-            kind: "endpoint",
-            endpoint: {
-              kind: "terminal",
-              instanceId: "instance-1",
-              pinName: "G",
-            },
+      expect(transacts[0]).toMatchObject({
+        actions: [
+          {
+            kind: "connect",
+            from: { kind: "pin", instance: "M1", pin: "G" },
+            to: { kind: "pin", instance: "R1", pin: "2" },
+            via: [{ x: 360, y: 240 }],
           },
-          to: {
-            kind: "endpoint",
-            endpoint: {
-              kind: "terminal",
-              instanceId: "instance-2",
-              pinName: "2",
-            },
-          },
-          waypoints: [{ x: 360, y: 240 }],
-        });
-      }
+        ],
+      });
     },
   );
 
-  it("apply_actions surfaces compile failures without sending", async () => {
+  it("apply_actions reports the editor's planning refusal, naming the action", async () => {
     const { session, http } = await toolSession();
     await callTool("connect", { claimCode: "session-1.code" }, session);
-    const calls = http.circuitCalls.length;
+    const message =
+      'actions[0] (place-component): unknown symbol "not-in-catalog"';
+    http.circuitHandler = async ({ request }) => {
+      if (request.operation !== "transact")
+        return capabilitiesResponse(request.requestId);
+      return {
+        ...errorResponse(
+          request.requestId,
+          "transact",
+          "ACTION_COMPILE_FAILED",
+          message,
+        ),
+        revision: 5,
+        error: {
+          code: "ACTION_COMPILE_FAILED",
+          message,
+          actionIndex: 0,
+          actionKind: "place-component",
+        },
+      };
+    };
     const result = await callTool(
       "apply_actions",
       {
@@ -1276,11 +1293,41 @@ describe("mcp tool surface", () => {
       session,
     );
     expect(result.isError).toBe(true);
-    const value = parseText(result) as { ok: boolean; code: string };
-    expect(value.ok).toBe(false);
-    expect(value.code).toBe("ACTION_COMPILE_FAILED");
-    // Compilation resolves catalog and object names against a fresh Snapshot.
-    expect(http.circuitCalls.length).toBe(calls + 1);
+    expect(parseText(result)).toEqual({
+      ok: false,
+      stage: "compile",
+      code: "ACTION_COMPILE_FAILED",
+      message,
+      actionIndex: 0,
+      actionKind: "place-component",
+      revision: 5,
+    });
+  });
+
+  it("apply_actions asks for a reload when the editor page cannot plan actions", async () => {
+    const { session, http } = await toolSession();
+    // An editor page loaded before it could plan action lists.
+    const editor = http.circuitHandler;
+    let transacts = 0;
+    http.circuitHandler = async (call) => {
+      if (call.request.operation === "transact") transacts++;
+      const response = await editor(call);
+      if (response.operation === "capabilities" && response.ok)
+        response.capabilities.transactionForms = ["edits", "command"];
+      return response;
+    };
+    await callTool("connect", { claimCode: "session-1.code" }, session);
+    const result = await callTool(
+      "apply_actions",
+      { actions: [{ kind: "undo" }] },
+      session,
+    );
+    expect(result.isError).toBe(true);
+    expect(parseText(result)).toMatchObject({
+      ok: false,
+      code: "EDITOR_OUTDATED",
+    });
+    expect(transacts).toBe(0);
   });
 
   it("allows advanced transactions without a resource-read ceremony", async () => {

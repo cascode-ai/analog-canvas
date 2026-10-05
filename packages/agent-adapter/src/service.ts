@@ -1,7 +1,7 @@
 import { resolveDocumentRoutingGeometry, sha256Hex } from "@icm/derived";
 import {
   actionRefusalNaming,
-  planActionsNow,
+  planActions,
   type ActionPlan,
 } from "./authoring-plan.js";
 import {
@@ -734,8 +734,8 @@ export function createAgentCircuitService(
       }
 
       if (request.operation === "transact" && request.actions) {
-        // The editor plans the list as the MCP client compiled it, against
-        // the Document it holds, then answers the one transaction it is.
+        // The editor plans the list against the Document it holds, then
+        // answers the one transaction it is.
         if (!host?.planAuthoringCommand)
           return fail(
             "transact",
@@ -743,12 +743,12 @@ export function createAgentCircuitService(
             "This operation needs the live editor planning adapter",
             document.revision,
           );
-        // The client read a Snapshot to compile a list that needs the
-        // Document, so planning one here needs the same permission.
+        // Planning a list that needs the Document reads it, as a Snapshot
+        // would, so it needs the same permission.
         const snapshotDenied = new Error("Snapshot permission is not granted");
         let plan: ActionPlan;
         try {
-          plan = planActionsNow(request.actions, {
+          plan = planActions(request.actions, {
             allocateId,
             snapshot: () => {
               if (!options.permissions.snapshot) throw snapshotDenied;
@@ -844,9 +844,9 @@ export function createAgentCircuitService(
             },
           });
         const { actions: _actions, ...rest } = request;
-        // The client read the Document again before compiling a list that
-        // needs it, so such a list is planned on the Document held now. A
-        // list that goes through as it is keeps its form's revision checks.
+        // A list that needs the Document is planned on the one held now and
+        // committed in the same step. A list that goes through as it is
+        // keeps its form's revision checks.
         const answer = service.handle({
           ...rest,
           ...(plan.readSnapshot

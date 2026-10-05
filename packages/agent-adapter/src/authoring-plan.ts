@@ -29,9 +29,9 @@ export type PlannedDiagnostics =
   | undefined;
 
 /**
- * How one call's action list is sent: what the Agent client did on its own
- * before the editor could plan actions, and what the editor now does with a
- * transaction's `actions`. Both sides run this, so one list gets one answer.
+ * How the editor carries out one call's action list, a transaction's
+ * `actions`: refuse it, send it as one transaction, do nothing, or name the
+ * calls it needs instead.
  */
 export type ActionPlan =
   /** The list is malformed, or names what the Document does not hold. */
@@ -130,12 +130,12 @@ function planWithoutDocument(
   const parsed = z.array(AuthoringActionSchema).safeParse(actions);
   if (!parsed.success) {
     const issue = parsed.error.issues[0];
+    const actionIndex = Number(issue?.path[0] ?? 0) || 0;
+    const field = issue?.path.slice(1).join(".");
     return {
       kind: "refused",
-      message: issue
-        ? `${issue.path.join(".")}: ${issue.message}`
-        : "invalid action",
-      actionIndex: Number(issue?.path[0] ?? 0) || 0,
+      message: `actions[${actionIndex}] (schema): ${field ? `${field}: ` : ""}${issue?.message ?? "invalid action"}`,
+      actionIndex,
       actionKind: "schema",
       readSnapshot: false,
     };
@@ -293,39 +293,19 @@ function planOnDocument(
   };
 }
 
-interface PlanOptions<Snapshot> {
-  allocateId: (prefix: string) => string;
-  /** The Document, read only when the list needs it. */
-  snapshot: () => Snapshot;
-  /** Read after the Document, when compiling needs it. */
-  maxEditsPerTransaction: () => number;
-}
-
 /**
  * Plan one call's action list into the single transaction that carries it,
- * reading the Document only when the list needs it. The Agent client reads
- * it over the network.
+ * reading the Document only when the list needs it.
  */
-export async function planActions(
+export function planActions(
   actions: readonly unknown[],
-  options: PlanOptions<AgentSessionSnapshot | Promise<AgentSessionSnapshot>>,
-): Promise<ActionPlan> {
-  const first = planWithoutDocument(actions, options.allocateId);
-  if (first.kind !== "compile") return first;
-  const snapshot = await options.snapshot();
-  return planOnDocument(
-    actions,
-    first.direct,
-    snapshot,
-    options.allocateId,
-    options.maxEditsPerTransaction(),
-  );
-}
-
-/** planActions for the editor, which holds the Document. */
-export function planActionsNow(
-  actions: readonly unknown[],
-  options: PlanOptions<AgentSessionSnapshot>,
+  options: {
+    allocateId: (prefix: string) => string;
+    /** The Document, read only when the list needs it. */
+    snapshot: () => AgentSessionSnapshot;
+    /** Read after the Document, when compiling needs it. */
+    maxEditsPerTransaction: () => number;
+  },
 ): ActionPlan {
   const first = planWithoutDocument(actions, options.allocateId);
   if (first.kind !== "compile") return first;

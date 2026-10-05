@@ -43,17 +43,7 @@ export {
   type ConnectReport,
   type StatusReport,
 } from "./session-client.js";
-export {
-  ActionCompileError,
-  compileActions,
-  describeCallSplit,
-  splitIntoCalls,
-  type ActionCall,
-  type CompiledTransaction,
-  type CompileContext,
-  type SchematicEdit,
-  type WireIntent,
-} from "@icm/agent-adapter/authoring";
+export type { ActionCall } from "@icm/agent-adapter/authoring";
 export {
   AuthoringActionSchema,
   ObjectRefSchema,

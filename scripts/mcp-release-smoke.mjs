@@ -44,6 +44,7 @@ const connectorToken = "release-connector-token";
 let revision = 5;
 let resumeCount = 0;
 let lastCircuitWorkspace;
+let lastTransact;
 const svg = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>', "utf8");
 const projectBytes = Buffer.from('{"release":true}\n', "utf8");
 const comparisonNetlist = ".subckt main I O\nC1 I O 0.1u\n.ends main";
@@ -528,6 +529,14 @@ const relay = createServer(async (request, response) => {
           snapshotVersions: ["3.0"],
           operations: ["capabilities", "snapshot", "transact", "render"],
           editKinds: ["add_instance"],
+          // As the editor advertises them: it plans action lists itself.
+          transactionForms: [
+            "edits",
+            "wireIntent",
+            "structureEdits",
+            "command",
+            "actions",
+          ],
           permissions: {
             snapshot: true,
             render: true,
@@ -570,6 +579,7 @@ const relay = createServer(async (request, response) => {
               diagnostics: [],
             });
     } else if (body.operation === "transact") {
+      lastTransact = body;
       const fromRevision = revision;
       if (!body.dryRun) revision += 1;
       result = json({
@@ -966,16 +976,18 @@ try {
       },
     ],
   });
-  await first.tool("circuit_place", {
-    actions: [
-      {
-        kind: "place-component",
-        symbol: "resistor",
-        reference: "R1",
-        position: { x: 200, y: 200 },
-      },
-    ],
-  });
+  const placement = {
+    kind: "place-component",
+    symbol: "resistor",
+    reference: "R1",
+    position: { x: 200, y: 200 },
+  };
+  await first.tool("circuit_place", { actions: [placement] });
+  assert.deepEqual(
+    lastTransact?.actions,
+    [placement],
+    "Packaged MCP did not send the action list for the editor to plan",
+  );
   await first.tool("verify");
   const verifyInput = {
     expectedNetlist: { text: comparisonNetlist.replace("0.1u", "100n") },

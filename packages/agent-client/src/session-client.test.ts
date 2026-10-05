@@ -40,10 +40,8 @@ describe("agent session client", () => {
     http.circuitHandler = async ({ request }) => {
       if (request.operation !== "transact")
         throw new Error("unexpected topology read");
-      expect(request.wireIntent).toMatchObject([
-        { from: { endpoint: { instanceId: "instance-1", pinName: "G" } } },
-        { to: { kind: "free", point: { x: 220, y: 200 } } },
-      ]);
+      // The editor plans the list; the client sends it as it is.
+      expect(request.actions).toEqual(actions);
       return transactSuccessResponse(
         request.requestId,
         request.expectedRevision,
@@ -54,20 +52,19 @@ describe("agent session client", () => {
       instance: { kind: "instance", id: "instance-1" },
       pin: "G",
     };
-    expect(
-      await client.applyActions([
-        {
-          kind: "connect",
-          from,
-          to: {
-            kind: "pin",
-            instance: { kind: "instance", id: "instance-2" },
-            pin: "1",
-          },
+    const actions = [
+      {
+        kind: "connect",
+        from,
+        to: {
+          kind: "pin",
+          instance: { kind: "instance", id: "instance-2" },
+          pin: "1",
         },
-        { kind: "connect", from, to: { kind: "point", x: 220, y: 200 } },
-      ]),
-    ).toMatchObject({ ok: true });
+      },
+      { kind: "connect", from, to: { kind: "point", x: 220, y: 200 } },
+    ];
+    expect(await client.applyActions(actions)).toMatchObject({ ok: true });
     expect(http.circuitCalls.length - before).toBe(1);
   });
   it("retries compact receipt projection only after an explicit pre-write schema rejection", async () => {
@@ -1277,9 +1274,11 @@ describe("agent session client", () => {
     expect(report.changedObjectIds).toEqual(["instance-3"]);
     expect(report.errors).toBe(0);
     expect(report.warnings).toBe(0);
+    // Only the connection's read: the editor plans the list, and the
+    // receipt stands without reading the Document again.
     expect(
       http.circuitCalls.filter((call) => call.request.operation === "snapshot"),
-    ).toHaveLength(2);
+    ).toHaveLength(1);
     expect(client.recentTransactions()).toHaveLength(1);
   });
 
@@ -1333,6 +1332,8 @@ describe("agent session client", () => {
           );
       }
     };
+    // The Agent reads the Document, then a person edits it before the call.
+    await client.snapshot();
     const report = await client.applyActions([
       {
         kind: "move",
@@ -1613,40 +1614,6 @@ describe("agent session client", () => {
       { kind: "create-cell", id: "document-other", name: "other" },
     ]);
     expect(placed).toMatchObject({ errors: 1, unwiredPins: 1 });
-  });
-
-  it("sends Cells placed without IDs or orientation as one native batch, with no Snapshot (#1301)", async () => {
-    const { client, http } = await freshClient();
-    await client.connect("session-1.code");
-    const commands: unknown[] = [];
-    http.circuitHandler = async ({ request }) => {
-      if (request.operation === "transact") {
-        commands.push(request.command);
-        return transactSuccessResponse(
-          request.requestId,
-          request.expectedRevision,
-        );
-      }
-      throw new Error(`unexpected ${request.operation} request`);
-    };
-    const place = (x: number) => ({
-      kind: "place-cell",
-      childDocumentId: "child",
-      placement: { position: { x, y: 0 } },
-    });
-    const report = await client.applyActions([place(0), place(100)]);
-    expect(report.ok, JSON.stringify(report)).toBe(true);
-    expect(commands).toHaveLength(1);
-    const batch = commands[0] as {
-      kind: string;
-      commands: { instanceId: string; placement: unknown }[];
-    };
-    expect(batch.kind).toBe("batch");
-    expect(batch.commands.map((item) => item.placement)).toEqual([
-      { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
-      { position: { x: 100, y: 0 }, rotation: 0, mirror: "none" },
-    ]);
-    expect(new Set(batch.commands.map((item) => item.instanceId)).size).toBe(2);
   });
 
   it("reuses bootstrap and transaction revisions for consecutive direct edits without a full snapshot", async () => {
