@@ -160,6 +160,8 @@ export interface ApplyActionsReport {
   calls?: ActionCall[];
   changedObjectIds?: string[];
   errors?: number;
+  /** How many of `errors` are pins not wired yet (MISSING_PIN_NET). */
+  unwiredPins?: number;
   warnings?: number;
   dryRun?: boolean;
 }
@@ -1888,6 +1890,11 @@ export class AgentSessionClient {
         }
       }
     }
+    // Mid-drawing, nearly every error is a pin not wired yet (#1301): say how
+    // many, so the errors that are something else stand out.
+    const unwiredPins = response.diagnostics.filter(
+      (item) => item.code === "MISSING_PIN_NET",
+    ).length;
     const report: ApplyActionsReport = {
       ok: true,
       stage: "done",
@@ -1908,6 +1915,7 @@ export class AgentSessionClient {
       diagnostics: response.diagnostics,
       errors: response.diagnostics.filter((item) => item.severity === "error")
         .length,
+      ...(unwiredPins ? { unwiredPins } : {}),
       warnings: response.diagnostics.filter(
         (item) => item.severity === "warning",
       ).length,

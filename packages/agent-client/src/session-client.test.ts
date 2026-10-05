@@ -1515,6 +1515,47 @@ describe("agent session client", () => {
     expect(client.summary("main")?.revision).toBe(6);
   });
 
+  it("counts the pins not wired yet among a receipt's errors (#1301)", async () => {
+    const { client, http } = await freshClient();
+    await client.connect("session-1.code");
+    const finding = (code: string, severity: "error" | "warning") => ({
+      primary: {
+        documentId: "main",
+        hierarchyPath: [],
+        kind: "instance" as const,
+        objectId: "instance-1",
+      },
+      code,
+      domain: "spice",
+      severity,
+      confidence: "high" as const,
+      gateEligible: true,
+      message: code,
+      objectIds: ["instance-1"],
+    });
+    http.circuitHandler = async ({ request }) => {
+      if (request.operation !== "transact")
+        throw new Error(`unexpected ${request.operation} request`);
+      return {
+        ...transactSuccessResponse(request.requestId, request.expectedRevision),
+        diagnostics: [
+          finding("MISSING_PIN_NET", "error"),
+          finding("MISSING_PIN_NET", "error"),
+          finding("MISSING_CONTROL_SENSOR", "error"),
+          finding("ERC_FLOATING_GATE", "warning"),
+        ],
+      } as never;
+    };
+    const report = await client.applyActions([
+      {
+        kind: "transform",
+        selection: { instanceIds: ["instance-1"] },
+        transform: { kind: "translate", delta: { x: 20, y: 0 } },
+      },
+    ]);
+    expect(report).toMatchObject({ errors: 3, unwiredPins: 2, warnings: 1 });
+  });
+
   it("sends Cells placed without IDs or orientation as one native batch, with no Snapshot (#1301)", async () => {
     const { client, http } = await freshClient();
     await client.connect("session-1.code");
