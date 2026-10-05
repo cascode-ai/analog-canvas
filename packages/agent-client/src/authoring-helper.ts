@@ -1659,6 +1659,74 @@ function compileDisconnect(
   pushEdit(index, action.kind, { kind: "cut_connection", routeId: route.id });
 }
 
+/**
+ * The Net of an add-label's pin target, and a point on the wire leaving that
+ * pin for the label to stand over. Naming a bias gate's stub once took a
+ * Snapshot read just to learn the new stub's Net.
+ */
+function pinNet(
+  index: number,
+  action: ActionOfKind<"add-label">,
+  document: ResolvedDocument,
+): {
+  net: ResolvedDocument["nets"][number];
+  position: { x: number; y: number } | undefined;
+} {
+  const target = action.target;
+  if (target.kind !== "pin")
+    throw new ActionCompileError(index, action.kind, "expected a pin target");
+  const instance = resolveInstance(document, index, action.kind, {
+    kind: "instance",
+    ...(typeof target.instance === "string"
+      ? { reference: target.instance }
+      : target.instance),
+  });
+  requirePin(index, action.kind, instance, target.pin);
+  const net = document.nets.find((candidate) =>
+    candidate.terminals.some(
+      (terminal) =>
+        terminal.instanceId === instance.id && terminal.pinName === target.pin,
+    ),
+  );
+  if (!net)
+    throw new ActionCompileError(
+      index,
+      action.kind,
+      `pin ${instance.reference ?? instance.id}.${target.pin} is on no Net yet; connect it first, for example to a {kind:"point"} a grid step or two out`,
+    );
+  const connection = instance.pins.find(
+    (pin) => pin.name === target.pin,
+  )?.connection;
+  const atPin = (point: { x: number; y: number }) =>
+    !!connection &&
+    [connection.contactPoint, connection.gridLanding].some(
+      (end) => end.x === point.x && end.y === point.y,
+    );
+  for (const routeId of net.routeIds) {
+    const line = document.routes.find(
+      (route) => route.id === routeId,
+    )?.polyline;
+    if (!line || line.length < 2) continue;
+    const [from, to] = atPin(line[0]!)
+      ? [line[0]!, line[1]!]
+      : atPin(line.at(-1)!)
+        ? [line.at(-1)!, line.at(-2)!]
+        : [];
+    if (from && to)
+      return {
+        net,
+        position: {
+          x: Math.round((from.x + to.x) / 2),
+          y: Math.round((from.y + to.y) / 2),
+        },
+      };
+  }
+  return {
+    net,
+    position: connection ? { ...connection.gridLanding } : undefined,
+  };
+}
+
 function compileAddLabel(
   index: number,
   action: ActionOfKind<"add-label">,
@@ -1668,12 +1736,16 @@ function compileAddLabel(
   import("@icm/agent-adapter").AgentAuthoringCommand,
   { kind: "set-net-label" }
 > {
-  const net = resolveNet(document, index, action.kind, {
-    kind: "net",
-    ...(action.target.name ? { name: action.target.name } : {}),
-    ...(action.target.id ? { id: action.target.id } : {}),
-  });
-  let position = action.position;
+  const target = action.target;
+  const atPin = target.kind === "pin" ? pinNet(index, action, document) : null;
+  const net =
+    atPin?.net ??
+    resolveNet(document, index, action.kind, {
+      kind: "net",
+      ...(target.kind === "net" && target.name ? { name: target.name } : {}),
+      ...(target.kind === "net" && target.id ? { id: target.id } : {}),
+    });
+  let position = action.position ?? atPin?.position;
   if (!position) {
     const route = net.routeIds
       .map((routeId) =>

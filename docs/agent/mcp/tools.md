@@ -234,7 +234,8 @@ same attached labels and preserves their authored placement and style.
 The `binding.parameter` field is supported by Snapshot reads and advanced
 annotation edits, including hidden labels.
 Do not substitute free drafting text for these projections. `add-label` attaches
-new labels to their Net's routed geometry when available.
+new labels to their Net's routed geometry when available. Its target is a Net,
+or a pin: the label then names that pin's Net on the wire leaving the pin.
 `add-label` and Net Label `edit-text` author the electrical name claim and bound
 text together. Deleting the label removes its owned claim, not the physical wires.
 

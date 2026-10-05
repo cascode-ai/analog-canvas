@@ -207,7 +207,8 @@ or Route in the way; move parts apart or give a trunk. Where a Net cannot
 cross the drawing, such as a cascode bias line reaching both halves of an
 amplifier, name it at each end instead: `connect` the pin to an open
 `{kind:"point"}` a grid step or two out, then `add-label` with the Net's name
-on that stub; Nets of one name in a Cell are one Net. A trunk and its branches
+and the pin as its target, `{kind:"pin",instance:"M4",pin:"G"}`, which puts the
+label on that stub; Nets of one name in a Cell are one Net. A trunk and its branches
 are checked the same way and refused, not bent. This is not a general
 autorouter: conflicting taps or excess expanded edits also reject the whole
 operation. Ordinary crossings without a Junction remain legal. It does not move

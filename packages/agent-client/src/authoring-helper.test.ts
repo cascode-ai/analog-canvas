@@ -518,7 +518,7 @@ describe("authoring helper compilation", () => {
       );
     };
     expect(kinds("move")).toEqual(["instance", "junction", "annotation"]);
-    expect(kinds("add-label")).toEqual(["net"]);
+    expect(kinds("add-label")).toEqual(["net", "pin"]);
     expect(kinds("edit-text")).toEqual(["annotation", "drafting"]);
     expect(
       AuthoringActionSchema.safeParse({
@@ -1266,6 +1266,34 @@ describe("authoring helper compilation", () => {
       position: { x: 460, y: 140 },
       text: { runs: [{ kind: "text", value: "Vout" }] },
     });
+  });
+
+  it("names a pin's Net on the wire leaving that pin", () => {
+    // A bias gate's stub, just drawn, is named in the same call list
+    // without a Snapshot read to learn the stub's new Net.
+    const [transaction] = compile([
+      {
+        kind: "add-label",
+        target: { kind: "pin", instance: "M1", pin: "D" },
+        text: "Vout",
+      },
+    ]);
+    expect(transaction?.command).toMatchObject({
+      kind: "set-net-label",
+      netId: "net-vout",
+      // Halfway along route-1's first segment, from M1.D up to its bend.
+      position: { x: 300, y: 180 },
+    });
+    expectCompileError(
+      [
+        {
+          kind: "add-label",
+          target: { kind: "pin", instance: "R1", pin: "2" },
+          text: "x",
+        },
+      ],
+      "pin R1.2 is on no Net yet",
+    );
   });
 
   it("leaves supply naming policy to the shared server planner", () => {

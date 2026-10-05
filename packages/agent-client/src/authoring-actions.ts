@@ -390,7 +390,11 @@ export const AuthoringActionSchema = z.discriminatedUnion("kind", [
     ),
   z.strictObject({
     kind: z.literal("add-label"),
-    target: NetRefSchema,
+    target: z
+      .union([NetRefSchema, PinTargetSchema])
+      .describe(
+        "The Net to name, or a pin: then the label names that pin's Net and stands on the wire leaving it, such as a stub just drawn.",
+      ),
     text: TextInputSchema,
     position: PointInputSchema.optional(),
   }),
