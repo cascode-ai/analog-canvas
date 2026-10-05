@@ -222,7 +222,11 @@ capability and authoring-help requests need no scope. A saved Project-folder
 source update needs both `simulation.run` and `project.import`, plus the
 connectivity edit scope when it carries circuit edits. The relay checks bearer
 token, session/document binding, scope, expiry, body size, and rate limits
-before forwarding.
+before forwarding. A File Resource request or response carries up to 10 MB
+decoded, the `fileResource.maxBytes` the editor advertises and enforces;
+clients build in no ceiling of their own. The relay's 16 MB body and message
+ceilings leave room for the base64 envelope, well under the 32 MiB WebSocket
+message a Durable Object receives.
 
 Semantic editor control may select a canonical locator, highlight a Net,
 activate/fit an existing Cell, or clear focus. It never advances revision,
