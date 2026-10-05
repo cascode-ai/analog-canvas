@@ -203,16 +203,33 @@ export function arrangeInstanceLabels(
       siblings.some((sibling) => covers(candidate, sibling))
         ? Number.POSITIVE_INFINITY
         : context.conflicts(candidate).filter((id) => !groupIds.has(id)).length;
+    /**
+     * Conflicts of an arrangement, the Reference's before the value's: a part
+     * is named by its Reference, so no clear value is worth drawing the name
+     * over a wire or another label. Moving the group to another side to clear
+     * a value had struck a folded-cascode OTA's M1 through by its drain wire.
+     */
     const total = (arrangement: readonly Annotation[]) =>
       arrangement.reduce(
-        (sum, candidate, index) =>
-          sum +
-          score(candidate, [
+        (sum, candidate, index) => {
+          const conflicts = score(candidate, [
             ...fixed,
             ...arrangement.filter((_, other) => other !== index),
-          ]),
-        0,
+          ]);
+          return group[index]!.slot === "reference"
+            ? { name: sum.name + conflicts, value: sum.value }
+            : { name: sum.name, value: sum.value + conflicts };
+        },
+        { name: 0, value: 0 },
       );
+    const better = (
+      left: { name: number; value: number },
+      right: { name: number; value: number },
+    ) =>
+      left.name < right.name ||
+      (left.name === right.name && left.value < right.value);
+    const clear = (conflicts: { name: number; value: number }) =>
+      conflicts.name === 0 && conflicts.value === 0;
 
     // The default rows first, then the same rows on each other side.
     const preferred = group.map((label) =>
@@ -230,7 +247,7 @@ export function arrangeInstanceLabels(
     );
     let chosen = preferred;
     let best = total(preferred);
-    if (options.avoidCollisions !== false && best > 0 && !fixed.length)
+    if (options.avoidCollisions !== false && !clear(best) && !fixed.length)
       for (const side of LOCAL_SIDES) {
         const arrangement: Annotation[] = [];
         for (const label of group) {
@@ -249,16 +266,16 @@ export function arrangeInstanceLabels(
         }
         if (arrangement.length !== group.length) continue;
         const candidate = total(arrangement);
-        if (candidate < best) {
+        if (better(candidate, best)) {
           chosen = arrangement;
           best = candidate;
         }
-        if (!best) break;
+        if (clear(best)) break;
       }
 
     // A label still in conflict tries a few nearby positions; it never
     // wanders arbitrarily far, moves a device, or covers a sibling.
-    if (options.avoidCollisions !== false && best > 0) {
+    if (options.avoidCollisions !== false && !clear(best)) {
       chosen = [...chosen];
       for (const [index, label] of group.entries()) {
         const siblings = () => [
@@ -297,7 +314,7 @@ export function arrangeInstanceLabels(
       anchor: label.original.anchor,
       alignment: label.original.alignment,
     }));
-    if (total(originals) < total(chosen)) chosen = originals;
+    if (better(total(originals), total(chosen))) chosen = originals;
     for (const [index, label] of group.entries()) {
       const next = chosen[index]!;
       if (JSON.stringify(next) === JSON.stringify(label.original)) continue;
