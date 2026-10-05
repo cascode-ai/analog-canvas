@@ -48,8 +48,9 @@ is data, not another automatically converted tool declaration.
 
 Use `apply_actions` for one atomic edit batch, wire batch, planned command or focus
 operation per call. Split create and wire phases so new pin geometry comes
-from Snapshot. The browser plans commands with the same planners as the GUI;
-all resulting edits use the existing controller, revision and permission checks.
+from Snapshot. The browser plans each call's actions, and commands with the
+same planners as the GUI; all resulting edits use the existing controller,
+revision and permission checks.
 
 Several `connect` actions may share one call. They are planned in order on
 private state and committed once, with one Undo; a failure leaves no partial

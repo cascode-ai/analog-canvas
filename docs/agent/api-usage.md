@@ -62,8 +62,14 @@ targeting. Omitting the flag preserves the normal foreground open behavior.
 ## Transactions and request identity
 
 Use exactly one schema-defined form: `edits`, `structureEdits`, `wireIntent`,
-`semanticIntent` or `command`. Use current `expectedRevision` and, when
+`semanticIntent`, `command` or `actions`. Use current `expectedRevision` and, when
 required, `expectedStructureRevision`. Semantic focus is non-mutating.
+
+`actions` takes the same high-level actions as MCP `apply_actions`
+([authoring](shared/authoring.md)), and the editor plans them against its
+Document. A refusal names the action in `error.actionIndex` and
+`error.actionKind`. `ACTION_BATCH_NOT_ATOMIC` lists in `error.calls` the
+calls to send instead, in order.
 
 For a risky edit, send a dry run and inspect its diff/diagnostics. Commit the
 reviewed payload with `dryRun:false`, **new requestId and transactionId**, and

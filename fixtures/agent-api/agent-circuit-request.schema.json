@@ -147,6 +147,9 @@
         },
         "structureEdits": {
           "$ref": "#/$defs/__schema442"
+        },
+        "actions": {
+          "$ref": "#/$defs/__schema479"
         }
       },
       "required": [
@@ -17330,6 +17333,15 @@
         "text"
       ],
       "additionalProperties": false
-    }
+    },
+    "__schema479": {
+      "minItems": 1,
+      "maxItems": 256,
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/__schema480"
+      }
+    },
+    "__schema480": {}
   }
 }
