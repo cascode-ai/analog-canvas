@@ -8,24 +8,26 @@ import {
   requestLedgerKey,
   simulationOperationScopes,
 } from "./agent-session-runtime";
-import {
-  AgentFileResourceRequestSchema,
-  AgentProjectResourceRequestSchema,
-  AgentSimulationResourceRequestSchema,
-} from "@icm/agent-adapter";
 
 import {
   AGENT_SSE_KEEPALIVE_INTERVAL_MS,
   AGENT_MCP_BOOTSTRAP_FORMAT,
+  AgentFileResourceRequestSchema,
+  AgentProjectResourceRequestSchema,
   AgentSessionMachine,
-  createAgentCircuitService,
+  AgentSimulationResourceRequestSchema,
   type AgentMcpBootstrapManifest,
   type AgentSessionLimits,
   type PersistedAgentSessionState,
 } from "@icm/agent-adapter";
-import { createEmptyProject } from "@icm/model";
-import { BrowserAgentHost } from "../apps/editor/src/agent/browser-agent-host";
-import { EditorDocumentController } from "../apps/editor/src/document/document-controller";
+import {
+  emptyAgentProject,
+  liveAgentEditor,
+} from "../apps/editor/src/agent/live-agent-editor.test-support";
+import {
+  HostedSimulationService,
+  dividerFolder,
+} from "../apps/editor/src/agent/live-simulation.test-support";
 import {
   AGENT_OPERATING_KIT_FORMAT,
   AGENT_OPERATING_KIT_VERSION,
@@ -447,6 +449,82 @@ function routedFixture() {
   };
 }
 
+type LiveEditor = ReturnType<typeof liveAgentEditor>;
+
+/** A live editor whose Project and Cell carry the session's identities. */
+function editorFor(
+  projectId: string,
+  documentId: string,
+  options: Omit<Parameters<typeof liveAgentEditor>[0] & {}, "project"> = {},
+): LiveEditor {
+  const project = emptyAgentProject();
+  project.id = projectId;
+  project.documents[0]!.id = documentId;
+  project.topDocumentId = documentId;
+  project.simulationFolders = [dividerFolder("divider", "Divider")];
+  return liveAgentEditor({ ...options, project });
+}
+
+/**
+ * The browser end of a session, as the session hook is: it takes each request
+ * the relay sends over the socket, has the real editor answer it, and sends
+ * the answer back in a response envelope with the hook's timing. Only the
+ * envelope is this test's; every answer is the editor's own.
+ */
+function editorEnd(
+  editor: LiveEditor,
+  object: () => AgentSessionDO,
+  seen: (envelope: { kind: string }) => void = () => {},
+) {
+  const families: string[] = [];
+  const socket = {
+    readyState: WebSocket.OPEN,
+    send(text: string) {
+      const envelope = JSON.parse(text) as { kind: string; payload: unknown };
+      seen(envelope);
+      if (!envelope.kind.endsWith("-request")) return;
+      const family = envelope.kind.slice(0, -"-request".length);
+      families.push(family);
+      void editorAnswer(editor, family, envelope.payload).then((payload) =>
+        object().webSocketMessage(
+          socket,
+          JSON.stringify({
+            ...envelope,
+            kind: `${family}-response`,
+            timing: { workMs: 42, visibility: "hidden" },
+            payload,
+          }),
+        ),
+      );
+    },
+  } as unknown as WebSocket;
+  return { socket, families };
+}
+
+async function editorAnswer(
+  editor: LiveEditor,
+  family: string,
+  payload: unknown,
+): Promise<unknown> {
+  switch (family) {
+    case "circuit":
+      return editor.service.handle(payload);
+    case "file":
+      return editor.fileHost.handle(
+        AgentFileResourceRequestSchema.parse(payload),
+      );
+    case "project":
+      return editor.projectHost.handle(
+        AgentProjectResourceRequestSchema.parse(payload),
+      );
+    case "simulation":
+      return editor.simulationHost!.handle(
+        AgentSimulationResourceRequestSchema.parse(payload),
+      );
+  }
+  throw new Error(`The editor answers no ${family} request`);
+}
+
 describe("public Agent session routes", () => {
   it("relays typed simulation failures without revoking a session and replays a receipt once", async () => {
     const { env, objects, sockets } = routedFixture();
@@ -471,57 +549,19 @@ describe("public Agent session routes", () => {
     const claim = (await (await post("/api/agent/claims", {
       claimCode: created.session.claimCode,
     }))!.json()) as { agentToken: string };
-    const id = created.session.sessionId,
-      object = objects.get(id)!;
-    let sent = 0;
-    const socket = {
-      readyState: WebSocket.OPEN,
-      send: (text: string) => {
-        const envelope = JSON.parse(text);
-        if (envelope.kind === "event") return;
-        sent++;
-        const payload =
-          envelope.payload.operation === "prepare"
-            ? {
-                ok: false,
-                error: {
-                  code: "BAD_PROBE",
-                  message: "Fix this probe",
-                  stage: "prepare",
-                  recovery: "fix-input",
-                },
-              }
-            : {
-                ok: true,
-                run: {
-                  id: "run-one",
-                  preparedId: "prepared",
-                  inputRevision: "rev",
-                  state: "running",
-                  artifacts: [],
-                },
-              };
-        queueMicrotask(
-          () =>
-            void object.webSocketMessage(
-              socket,
-              JSON.stringify({
-                ...envelope,
-                kind: "simulation-response",
-                payload: {
-                  ...payload,
-                  apiVersion: "3.0",
-                  requestId: envelope.requestId,
-                  operation: envelope.payload.operation,
-                },
-              }),
-            ),
-        );
-      },
-    } as unknown as WebSocket;
-    sockets.set(id, [socket]);
+    const id = created.session.sessionId;
+    const service = new HostedSimulationService();
+    const browser = editorEnd(
+      editorFor("p", "doc", {
+        scopes: ["simulation.run"],
+        simulationService: service.fetch,
+      }),
+      () => objects.get(id)!,
+    );
+    sockets.set(id, [browser.socket]);
     const path = `/api/agent/sessions/${id}/simulation`,
       base = { apiVersion: "3.0" };
+    // A folder the Project lacks: the editor's typed failure passes through.
     const error = await post(
       path,
       {
@@ -536,29 +576,53 @@ describe("public Agent session routes", () => {
       },
       claim.agentToken,
     );
+    expect(error!.status).toBe(200);
     expect(await error!.json()).toMatchObject({
       ok: false,
-      error: { recovery: "fix-input" },
+      error: { stage: "prepare" },
     });
+    // The session survives it: the divider prepares, and its start runs once.
+    const prepared = (await (await post(
+      path,
+      {
+        ...base,
+        requestId: "prepare",
+        operation: "prepare",
+        source: {
+          kind: "project-folder",
+          folderId: "divider",
+          expectedStructureRevision: 0,
+        },
+      },
+      claim.agentToken,
+    ))!.json()) as { ok: boolean; prepared: { id: string; digest: string } };
+    expect(prepared.ok).toBe(true);
     const start = {
       ...base,
       requestId: "once",
       operation: "start",
-      preparedId: "prepared",
-      digest: "a".repeat(64),
+      preparedId: prepared.prepared.id,
+      digest: prepared.prepared.digest,
     };
+    const run = (await (await post(path, start, claim.agentToken))!.json()) as {
+      ok: boolean;
+      run: { id: string };
+    };
+    expect(run.ok).toBe(true);
     expect(
       await (await post(path, start, claim.agentToken))!.json(),
-    ).toMatchObject({ ok: true, run: { id: "run-one" } });
-    expect(
-      await (await post(path, start, claim.agentToken))!.json(),
-    ).toMatchObject({ ok: true, run: { id: "run-one" } });
-    expect(sent).toBe(2);
+    ).toMatchObject({ ok: true, run: { id: run.run.id } });
+    expect(browser.families).toEqual([
+      "simulation",
+      "simulation",
+      "simulation",
+    ]);
+    expect(service.executions).toBe(1);
     expect(
       (await post(path, { ...start, requestId: "other" }, "wrong-token"))!
         .status,
     ).toBe(401);
-    expect(sent).toBe(2);
+    expect(browser.families).toHaveLength(3);
   });
   it("publishes the exact Agent API contract", async () => {
     const { env } = routedFixture();
@@ -1309,40 +1373,13 @@ describe("public Agent session routes", () => {
       env,
     );
     const claim = (await claimResponse!.json()) as { agentToken: string };
-    const object = objects.get(created.session.sessionId)!;
-    let sent = 0;
-    const socket = {
-      readyState: WebSocket.OPEN,
-      send: (text: string) => {
-        if (JSON.parse(text).kind === "event") return;
-        sent += 1;
-        const request = JSON.parse(text) as { requestId: string };
-        queueMicrotask(() => {
-          void object.webSocketMessage(
-            socket as WebSocket,
-            JSON.stringify({
-              protocolVersion: "1.0",
-              sessionId: created.session.sessionId,
-              messageId: "response-message",
-              requestId: request.requestId,
-              sentAt: new Date().toISOString(),
-              kind: "circuit-response",
-              timing: { workMs: 42, visibility: "hidden" },
-              payload: {
-                apiVersion: "3.0",
-                requestId: request.requestId,
-                operation: "snapshot",
-                ok: false,
-                revision: 3,
-                error: { code: "TEST_RESPONSE", message: "fixture" },
-                diagnostics: [],
-              },
-            }),
-          );
-        });
-      },
-    } as unknown as WebSocket;
-    sockets.set(created.session.sessionId, [socket]);
+    const browser = editorEnd(
+      editorFor("project", "document-main", {
+        scopes: ["circuit.snapshot", "circuit.edit.geometry"],
+      }),
+      () => objects.get(created.session.sessionId)!,
+    );
+    sockets.set(created.session.sessionId, [browser.socket]);
 
     const invalid = await routeAgentSessionRequest(
       new Request(
@@ -1388,7 +1425,7 @@ describe("public Agent session routes", () => {
         },
       ],
     });
-    expect(sent).toBe(0);
+    expect(browser.families).toHaveLength(0);
 
     const snapshot = await routeAgentSessionRequest(
       new Request(
@@ -1410,8 +1447,12 @@ describe("public Agent session routes", () => {
       env,
     );
     expect(snapshot?.status).toBe(200);
-    expect(await snapshot!.json()).toMatchObject({ ok: false, revision: 3 });
-    expect(sent).toBe(1);
+    expect(await snapshot!.json()).toMatchObject({
+      ok: true,
+      revision: 0,
+      snapshot: { document: { id: "document-main" } },
+    });
+    expect(browser.families).toEqual(["circuit"]);
     // Where the time went, beside an unchanged body (#1227).
     expect(snapshot!.headers.get("x-agent-editor-ms")).toBe("42");
     expect(snapshot!.headers.get("x-agent-editor-visibility")).toBe("hidden");
@@ -1434,8 +1475,8 @@ describe("public Agent session routes", () => {
           requestId: "snapshot-1",
           resource: "circuit",
           operation: "snapshot",
-          ok: false,
-          revision: 3,
+          ok: true,
+          revision: 0,
           editorVisibility: "hidden",
         },
       ],
@@ -1468,7 +1509,7 @@ describe("public Agent session routes", () => {
             operation: "transact",
             documentId: "document-main",
             transactionId: "tx-1",
-            expectedRevision: 3,
+            expectedRevision: 0,
             edits: [{ kind: "noop" }],
           }),
         },
@@ -1476,7 +1517,8 @@ describe("public Agent session routes", () => {
       env,
     );
     expect(geometryEdit?.status).toBe(200);
-    expect(sent).toBe(2);
+    expect(await geometryEdit!.json()).toMatchObject({ ok: true });
+    expect(browser.families).toHaveLength(2);
 
     const forbidden = await routeAgentSessionRequest(
       new Request(
@@ -1507,7 +1549,7 @@ describe("public Agent session routes", () => {
       env,
     );
     expect(forbidden?.status).toBe(403);
-    expect(sent).toBe(2);
+    expect(browser.families).toHaveLength(2);
 
     const semanticForbidden = await routeAgentSessionRequest(
       new Request(
@@ -1532,7 +1574,7 @@ describe("public Agent session routes", () => {
       env,
     );
     expect(semanticForbidden?.status).toBe(403);
-    expect(sent).toBe(2);
+    expect(browser.families).toHaveLength(2);
   });
 });
 
@@ -1565,39 +1607,20 @@ describe("Agent idle expiry", () => {
       payload?: { type?: string; expiresAt?: string };
     }> = [];
     let object: AgentSessionDO;
-    const socket = {
-      readyState: WebSocket.OPEN,
-      send(text: string) {
-        const envelope = JSON.parse(text);
-        messages.push(envelope);
-        if (!envelope.kind.endsWith("-request")) return;
-        const family = envelope.kind.split("-")[0];
-        const error = { code: "TEST_RESPONSE", message: "fixture" };
-        queueMicrotask(
-          () =>
-            void object.webSocketMessage(
-              socket,
-              JSON.stringify({
-                ...envelope,
-                kind: `${family}-response`,
-                payload: {
-                  apiVersion: "3.0",
-                  requestId: envelope.requestId,
-                  operation: envelope.payload.operation,
-                  ok: false,
-                  error:
-                    family === "project"
-                      ? { ...error, recovery: "retry" }
-                      : family === "simulation"
-                        ? { ...error, stage: "prepare", recovery: "fix-input" }
-                        : error,
-                  ...(family === "circuit" ? { diagnostics: [] } : {}),
-                },
-              }),
-            ),
-        );
-      },
-    } as unknown as WebSocket;
+    const browser = editorEnd(
+      editorFor("project", "doc", {
+        scopes: [
+          "circuit.snapshot",
+          "project.download",
+          "project.import",
+          "simulation.run",
+        ],
+        simulationService: new HostedSimulationService().fetch,
+      }),
+      () => object,
+      (envelope) => messages.push(envelope),
+    );
+    const socket = browser.socket;
     const makeObject = () =>
       new AgentSessionDO({ storage, getWebSockets: () => [socket] }, {});
     object = makeObject();
@@ -1676,7 +1699,7 @@ describe("Agent idle expiry", () => {
         },
       },
     ],
-    ["projects", { operation: "list-projects" }],
+    ["projects", { operation: "read-project-code" }],
   ])(
     "renews admitted %s operations, persists and reschedules the deadline",
     async (path, request) => {
@@ -1798,38 +1821,14 @@ describe("Agent request ledger", () => {
     );
     if (!claimed.ok) throw new Error("fixture claim failed");
     await storage.put(SESSION_STATE_KEY, created.machine.serialize());
-    // The editor end is the real editor's Circuit service on a real Document.
-    const project = createEmptyProject("project", "Ledger");
-    project.documents[0]!.id = "doc";
-    project.topDocumentId = "doc";
-    const controller = new EditorDocumentController(project);
-    const service = createAgentCircuitService({
-      agentId: "ledger",
-      host: new BrowserAgentHost(controller),
-      permissions: {
-        snapshot: true,
-        render: true,
-        sourceSpans: false,
-        semanticControl: false,
-        edit: { geometry: true, connectivity: true, presentation: true },
-      },
-    });
-    let forwarded = 0;
     let object: AgentSessionDO;
-    const socket = {
-      readyState: WebSocket.OPEN,
-      send(text: string) {
-        const envelope = JSON.parse(text);
-        if (envelope.kind !== "circuit-request") return;
-        forwarded += 1;
-        void Promise.resolve(service.handle(envelope.payload)).then((payload) =>
-          object.webSocketMessage(
-            socket,
-            JSON.stringify({ ...envelope, kind: "circuit-response", payload }),
-          ),
-        );
-      },
-    } as unknown as WebSocket;
+    const browser = editorEnd(
+      editorFor("project", "doc", {
+        scopes: ["circuit.snapshot", "circuit.edit.geometry"],
+      }),
+      () => object,
+    );
+    const socket = browser.socket;
     /** A fresh object on the same storage, as after eviction or a deploy. */
     const open = () => {
       object = new AgentSessionDO(
@@ -1857,7 +1856,7 @@ describe("Agent request ledger", () => {
           }),
         }),
       );
-    return { storage, open, edit, forwarded: () => forwarded };
+    return { storage, open, edit, forwarded: () => browser.families.length };
   }
 
   it("stores each completed write once under its own key and keeps the session state small", async () => {
