@@ -22,6 +22,14 @@ import { agentOperatingKit } from "@icm/agent-adapter/kit";
 import type { AgentArtifactBucket } from "./agent-artifacts";
 
 export const SESSION_STATE_KEY = "agent-session-v1";
+/**
+ * Each completed write's request record, stored once under its own key so the
+ * session state above stays small however long the session runs (#1329).
+ */
+export const REQUEST_LEDGER_KEY_PREFIX = "agent-request:";
+export function requestLedgerKey(requestId: string): string {
+  return `${REQUEST_LEDGER_KEY_PREFIX}${requestId}`;
+}
 export const EDITOR_SOCKET_TAG = "editor";
 export const EDITOR_PROTOCOL = "icm-agent-session";
 export const FORWARD_TIMEOUT_MS = 30_000;

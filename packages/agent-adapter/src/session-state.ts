@@ -134,6 +134,17 @@ interface PendingRequest {
   replayMode?: "read" | "write";
 }
 
+/**
+ * A completed write's request identity, kept for the rest of the session so
+ * a retry is never executed again. The host stores each one once, outside
+ * the session state (`completedRequestsToStore`, `recallRequest`).
+ */
+export interface CompletedAgentRequest {
+  payloadHash: string;
+  startedAt: number;
+  completedAt: number;
+}
+
 interface SessionInternals {
   contextRevision?: string;
   sessionId: string;
@@ -187,6 +198,10 @@ export interface PersistedAgentSessionState {
   /** Optional for backward-compatible restore of pre-M4 Durable Object state. */
   connector?: ConnectorRecord | null;
   rateWindow: RateWindow;
+  /**
+   * Write requests in flight. States saved before completed writes were
+   * stored apart also list those; restore offers them to be stored.
+   */
   requestLedger?: Array<[string, PendingRequest]>;
 }
 
@@ -217,6 +232,8 @@ export class AgentSessionMachine {
     this.internals.documentIds = new Set(documentIds);
   }
   private readonly activeRequests = new Set<string>();
+  /** Completed writes brought back from the host's store for one retry. */
+  private readonly recalledRequests = new Set<string>();
 
   private constructor(
     private readonly limits: AgentSessionLimits,
@@ -349,7 +366,9 @@ export class AgentSessionMachine {
         rateWindow: { ...state.rateWindow },
         // Project-bearing responses remain process-local. Only request IDs,
         // payload hashes, and timestamps survive to preserve at-most-once
-        // execution without retaining Snapshot/render bodies.
+        // execution without retaining Snapshot/render bodies. Completed
+        // writes an older state still lists wait in `pending` until the host
+        // stores them.
         cache: new Map(),
         pending: new Map(
           (state.requestLedger ?? []).map(([id, value]) => [id, { ...value }]),
@@ -383,8 +402,13 @@ export class AgentSessionMachine {
         ? { ...this.internals.connector }
         : null,
       rateWindow: { ...this.internals.rateWindow },
+      // Completed writes are stored apart, one record each, so the state
+      // stays the same size however many writes a session completes.
       requestLedger: [...this.internals.pending.entries()]
-        .filter(([, value]) => value.replayMode !== "read")
+        .filter(
+          ([, value]) =>
+            value.replayMode !== "read" && value.completedAt === undefined,
+        )
         .map(([id, value]) => [id, { ...value }]),
     };
   }
@@ -569,7 +593,8 @@ export class AgentSessionMachine {
   /**
    * Begin a forwarded request: reject on pause/revoke/expiry/rate-limit, serve a
    * cached terminal result for a repeated `requestId`, or allow the forward to
-   * proceed. A completed write never runs again; an evicted read may.
+   * proceed. A completed write never runs again; an evicted read may. For a
+   * request ID it does not hold, the host first recalls any stored record.
    */
   beginRequest(
     requestId: string,
@@ -694,6 +719,65 @@ export class AgentSessionMachine {
   failRequest(requestId: string, forget = true): void {
     this.activeRequests.delete(requestId);
     if (forget) this.internals.pending.delete(requestId);
+  }
+
+  /** Whether this machine holds the request ID, in flight or completed. */
+  holdsRequest(requestId: string): boolean {
+    return this.internals.pending.has(requestId);
+  }
+
+  /**
+   * Completed writes for the host to store, each once under its own key,
+   * before it stores `serialize()`, which leaves them out. A record recalled
+   * from that store is not offered again.
+   */
+  completedRequestsToStore(): Array<[string, CompletedAgentRequest]> {
+    const completed: Array<[string, CompletedAgentRequest]> = [];
+    for (const [requestId, value] of this.internals.pending) {
+      if (
+        value.completedAt === undefined ||
+        value.replayMode === "read" ||
+        this.recalledRequests.has(requestId)
+      )
+        continue;
+      completed.push([
+        requestId,
+        {
+          payloadHash: value.payloadHash,
+          startedAt: value.startedAt,
+          completedAt: value.completedAt,
+        },
+      ]);
+    }
+    return completed;
+  }
+
+  /**
+   * The host has stored these completed writes: drop them from memory, with
+   * every record recalled from the store. A retry recalls its record again.
+   */
+  forgetStoredRequests(requestIds: Iterable<string>): void {
+    for (const requestId of [...requestIds, ...this.recalledRequests]) {
+      if (this.internals.pending.get(requestId)?.completedAt !== undefined)
+        this.internals.pending.delete(requestId);
+    }
+    this.recalledRequests.clear();
+  }
+
+  /**
+   * Bring back a completed write the host stored, for a request ID this
+   * machine no longer holds, so `beginRequest` answers a retry as before:
+   * `REQUEST_RESULT_UNAVAILABLE`, or `REQUEST_ID_REUSED` for another payload.
+   */
+  recallRequest(requestId: string, record: CompletedAgentRequest): void {
+    if (this.internals.pending.has(requestId)) return;
+    this.internals.pending.set(requestId, {
+      payloadHash: record.payloadHash,
+      startedAt: record.startedAt,
+      completedAt: record.completedAt,
+      replayMode: "write",
+    });
+    this.recalledRequests.add(requestId);
   }
 
   /** Enforce the relay-level request-size ceiling. */

@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import mcpDistribution from "../config/agent-mcp-distribution.json";
 import {
+  REQUEST_LEDGER_KEY_PREFIX,
   SESSION_STATE_KEY,
   fileOperationScopes,
   projectOperationScopes,
+  requestLedgerKey,
   simulationOperationScopes,
 } from "./agent-session-runtime";
 import {
@@ -16,9 +18,14 @@ import {
   AGENT_SSE_KEEPALIVE_INTERVAL_MS,
   AGENT_MCP_BOOTSTRAP_FORMAT,
   AgentSessionMachine,
+  createAgentCircuitService,
   type AgentMcpBootstrapManifest,
   type AgentSessionLimits,
+  type PersistedAgentSessionState,
 } from "@icm/agent-adapter";
+import { createEmptyProject } from "@icm/model";
+import { BrowserAgentHost } from "../apps/editor/src/agent/browser-agent-host";
+import { EditorDocumentController } from "../apps/editor/src/document/document-controller";
 import {
   AGENT_OPERATING_KIT_FORMAT,
   AGENT_OPERATING_KIT_VERSION,
@@ -1768,5 +1775,159 @@ describe("Agent idle expiry", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("Agent request ledger", () => {
+  /** A claimed session whose editor answers every Circuit request. */
+  async function session() {
+    const storage = new MemoryStorage();
+    const created = AgentSessionMachine.create({
+      sessionId: "ledger-session",
+      projectSessionId: "project:1",
+      projectId: "project",
+      documentIds: ["doc"],
+      scopes: ["circuit.snapshot", "circuit.edit.geometry"],
+      limits: { rateLimit: { windowMs: 60_000, maxRequests: 1_000 } },
+      now: Date.now(),
+      random: () => crypto.randomUUID(),
+    });
+    const claimed = created.machine.redeemClaim(
+      created.session.claimCode,
+      Date.now(),
+    );
+    if (!claimed.ok) throw new Error("fixture claim failed");
+    await storage.put(SESSION_STATE_KEY, created.machine.serialize());
+    // The editor end is the real editor's Circuit service on a real Document.
+    const project = createEmptyProject("project", "Ledger");
+    project.documents[0]!.id = "doc";
+    project.topDocumentId = "doc";
+    const controller = new EditorDocumentController(project);
+    const service = createAgentCircuitService({
+      agentId: "ledger",
+      host: new BrowserAgentHost(controller),
+      permissions: {
+        snapshot: true,
+        render: true,
+        sourceSpans: false,
+        semanticControl: false,
+        edit: { geometry: true, connectivity: true, presentation: true },
+      },
+    });
+    let forwarded = 0;
+    let object: AgentSessionDO;
+    const socket = {
+      readyState: WebSocket.OPEN,
+      send(text: string) {
+        const envelope = JSON.parse(text);
+        if (envelope.kind !== "circuit-request") return;
+        forwarded += 1;
+        void Promise.resolve(service.handle(envelope.payload)).then((payload) =>
+          object.webSocketMessage(
+            socket,
+            JSON.stringify({ ...envelope, kind: "circuit-response", payload }),
+          ),
+        );
+      },
+    } as unknown as WebSocket;
+    /** A fresh object on the same storage, as after eviction or a deploy. */
+    const open = () => {
+      object = new AgentSessionDO(
+        { storage, getWebSockets: () => [socket] },
+        {},
+      );
+    };
+    open();
+    const edit = (requestId: string, transactionId = requestId) =>
+      object.fetch(
+        new Request("https://internal/circuit", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            authorization: `Bearer ${claimed.claim.agentToken}`,
+          },
+          body: JSON.stringify({
+            apiVersion: "3.0",
+            requestId,
+            operation: "transact",
+            documentId: "doc",
+            transactionId,
+            expectedRevision: 0,
+            edits: [{ kind: "noop" }],
+          }),
+        }),
+      );
+    return { storage, open, edit, forwarded: () => forwarded };
+  }
+
+  it("stores each completed write once under its own key and keeps the session state small", async () => {
+    const s = await session();
+    const stateBytes = () =>
+      JSON.stringify(s.storage.values.get(SESSION_STATE_KEY)).length;
+    const put = vi.spyOn(s.storage, "put");
+    expect((await s.edit("write-0")).status).toBe(200);
+    const afterFirst = stateBytes();
+    for (let index = 1; index < 200; index += 1)
+      expect((await s.edit(`write-${index}`)).status).toBe(200);
+    expect(s.forwarded()).toBe(200);
+
+    const ledgerKeys = [...s.storage.values.keys()].filter((key) =>
+      key.startsWith(REQUEST_LEDGER_KEY_PREFIX),
+    );
+    expect(ledgerKeys).toHaveLength(200);
+    // Each written once.
+    const ledgerPuts = put.mock.calls
+      .map(([key]) => key)
+      .filter((key) => key.startsWith(REQUEST_LEDGER_KEY_PREFIX));
+    expect(ledgerPuts).toHaveLength(200);
+    expect(new Set(ledgerPuts).size).toBe(200);
+    expect(s.storage.values.get(requestLedgerKey("write-7"))).toEqual({
+      payloadHash: expect.stringMatching(/^[0-9a-f]{64}$/u),
+      startedAt: expect.any(Number),
+      completedAt: expect.any(Number),
+    });
+    // Before, each completed write added its record to this one value.
+    expect(s.storage.values.get(SESSION_STATE_KEY)).toMatchObject({
+      requestLedger: [],
+    });
+    expect(stateBytes()).toBeLessThan(2 * afterFirst);
+
+    s.open();
+    const retry = await s.edit("write-7");
+    expect(retry.status).toBe(409);
+    expect(await retry.json()).toMatchObject({
+      error: { code: "REQUEST_RESULT_UNAVAILABLE" },
+    });
+    expect(
+      await (await s.edit("write-7", "another-transaction")).json(),
+    ).toMatchObject({ error: { code: "REQUEST_ID_REUSED" } });
+    expect(s.forwarded()).toBe(200);
+  });
+
+  it("moves completed writes out of a session state saved before, on restore", async () => {
+    const s = await session();
+    expect((await s.edit("before-deploy")).status).toBe(200);
+    const key = requestLedgerKey("before-deploy");
+    const record = s.storage.values.get(key) as object;
+    const state = s.storage.values.get(
+      SESSION_STATE_KEY,
+    ) as PersistedAgentSessionState;
+    // As the relay saved a live session before: the record inside the state.
+    s.storage.values.delete(key);
+    s.storage.values.set(SESSION_STATE_KEY, {
+      ...state,
+      requestLedger: [["before-deploy", { ...record, replayMode: "write" }]],
+    });
+
+    s.open();
+    const retry = await s.edit("before-deploy");
+    expect(await retry.json()).toMatchObject({
+      error: { code: "REQUEST_RESULT_UNAVAILABLE" },
+    });
+    expect(s.storage.values.get(key)).toEqual(record);
+    expect(s.storage.values.get(SESSION_STATE_KEY)).toMatchObject({
+      requestLedger: [],
+    });
+    expect(s.forwarded()).toBe(1);
   });
 });

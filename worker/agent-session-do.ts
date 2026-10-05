@@ -27,7 +27,9 @@ import {
   type AgentSessionEvent,
   type AgentSessionScope,
   type AgentTransportErrorCode,
+  type CompletedAgentRequest,
   type PersistedAgentSessionState,
+  type RequestBeginResult,
 } from "@icm/agent-adapter";
 
 import {
@@ -46,6 +48,7 @@ import {
   operationScopes,
   redeemClaimResponse,
   relayHeaders,
+  requestLedgerKey,
   sha256Text,
   simulationOperationScopes,
   projectOperationScopes,
@@ -848,9 +851,9 @@ export class AgentSessionDO {
       request.headers.get("x-agent-workspace"),
     );
     const readOnly = isReadOnlyCircuitRequest(circuitRequest);
-    const begin = machine.beginRequest(
+    const begin = await this.beginRequest(
+      machine,
       circuitRequest.requestId,
-      Date.now(),
       payloadHash,
       readOnly ? "read" : "write",
     );
@@ -1002,9 +1005,9 @@ export class AgentSessionDO {
         );
     }
     const readOnly = isReadOnlyFileRequest(fileRequest);
-    const begin = machine.beginRequest(
+    const begin = await this.beginRequest(
+      machine,
       fileRequest.requestId,
-      Date.now(),
       await scopedRequestHash(
         raw,
         request.headers.get("x-agent-context") ?? machine.contextRevision,
@@ -1148,9 +1151,9 @@ export class AgentSessionDO {
       );
     }
     const readOnly = isReadOnlySimulationRequest(simulationRequest);
-    const begin = machine.beginRequest(
+    const begin = await this.beginRequest(
+      machine,
       simulationRequest.requestId,
-      Date.now(),
       await scopedRequestHash(
         raw,
         request.headers.get("x-agent-context") ?? machine.contextRevision,
@@ -1297,9 +1300,9 @@ export class AgentSessionDO {
       );
     }
     const readOnly = isReadOnlyProjectRequest(projectRequest);
-    const begin = machine.beginRequest(
+    const begin = await this.beginRequest(
+      machine,
       projectRequest.requestId,
-      Date.now(),
       await scopedRequestHash(
         raw,
         request.headers.get("x-agent-context") ?? machine.contextRevision,
@@ -1689,6 +1692,27 @@ export class AgentSessionDO {
     }
   }
 
+  /**
+   * Begin a request against the session's whole ledger. A completed write
+   * leaves memory once stored under its own key, so for a request ID the
+   * machine does not hold, its stored record is recalled first. Recall and
+   * begin run together after the read, which holds the input gate.
+   */
+  private async beginRequest(
+    machine: AgentSessionMachine,
+    requestId: string,
+    payloadHash: string,
+    replayMode: "read" | "write",
+  ): Promise<RequestBeginResult> {
+    if (!machine.holdsRequest(requestId)) {
+      const stored = await this.state.storage.get<CompletedAgentRequest>(
+        requestLedgerKey(requestId),
+      );
+      if (stored) machine.recallRequest(requestId, stored);
+    }
+    return machine.beginRequest(requestId, Date.now(), payloadHash, replayMode);
+  }
+
   private async loadMachine(): Promise<AgentSessionMachine | null> {
     if (this.machine) return this.machine;
     const stored =
@@ -1734,7 +1758,7 @@ export class AgentSessionDO {
       await this.clearStoredSession();
       return;
     }
-    await this.state.storage.put(SESSION_STATE_KEY, this.machine.serialize());
+    await this.storeState(this.machine);
     if (this.publishedExpiresAt !== this.machine.expiresAt) {
       this.publishedExpiresAt = this.machine.expiresAt;
       await this.state.storage.setAlarm?.(
@@ -1748,6 +1772,23 @@ export class AgentSessionDO {
       this.emit(event);
       this.notifyEditor(event);
     }
+  }
+
+  /**
+   * Write the session state. Completed writes leave it: each record goes
+   * once under its own key, issued before the state with no await between
+   * them, a series Durable Objects submit atomically. Only then does the
+   * machine drop them, so a retry finds its record in memory or in storage.
+   */
+  private async storeState(machine: AgentSessionMachine): Promise<void> {
+    const completed = machine.completedRequestsToStore();
+    await Promise.all([
+      ...completed.map(([requestId, record]) =>
+        this.state.storage.put(requestLedgerKey(requestId), record),
+      ),
+      this.state.storage.put(SESSION_STATE_KEY, machine.serialize()),
+    ]);
+    machine.forgetStoredRequests(completed.map(([requestId]) => requestId));
   }
 
   /**

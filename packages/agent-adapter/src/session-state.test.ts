@@ -446,11 +446,18 @@ describe("AgentSessionMachine", () => {
     );
 
     const state = machine.serialize();
-    expect(JSON.stringify(state)).not.toContain(session.editorSecret);
-    expect(JSON.stringify(state)).not.toContain(session.claimCode);
-    expect(JSON.stringify(state)).not.toContain(redeemed.claim.agentToken);
-    expect(JSON.stringify(state)).toContain("payload-hash");
-    expect(JSON.stringify(state)).not.toContain("circuit-response-marker");
+    const stored = machine.completedRequestsToStore();
+    for (const persisted of [state, stored]) {
+      expect(JSON.stringify(persisted)).not.toContain(session.editorSecret);
+      expect(JSON.stringify(persisted)).not.toContain(session.claimCode);
+      expect(JSON.stringify(persisted)).not.toContain(
+        redeemed.claim.agentToken,
+      );
+      expect(JSON.stringify(persisted)).not.toContain(
+        "circuit-response-marker",
+      );
+    }
+    expect(JSON.stringify(stored)).toContain("payload-hash");
 
     const restored = AgentSessionMachine.restore(
       state,
@@ -459,10 +466,141 @@ describe("AgentSessionMachine", () => {
     );
     expect(restored.authorizeEditor(session.editorSecret)).toBe(true);
     expect(restored.authorize(redeemed.claim.agentToken, now()).ok).toBe(true);
+    restored.recallRequest(...stored[0]!);
     expect(restored.beginRequest("pending", now(), "payload-hash")).toEqual({
       kind: "rejected",
       code: "REQUEST_RESULT_UNAVAILABLE",
     });
+  });
+
+  it("keeps completed writes out of the session state and offers each once to be stored", () => {
+    const { machine, now, advance } = setup();
+    machine.beginRequest("write-1", now(), "hash-1");
+    const startedAt = now();
+    // In flight, a write stays in the state: its outcome is not known yet.
+    expect(machine.serialize().requestLedger).toEqual([
+      ["write-1", { payloadHash: "hash-1", startedAt, replayMode: "write" }],
+    ]);
+    advance(1_000);
+    machine.completeRequest("write-1", { ok: true }, now());
+    machine.beginRequest("read-1", now(), "read-hash", "read");
+    machine.completeRequest("read-1", { ok: true }, now());
+    machine.beginRequest("write-2", now(), "hash-2");
+    machine.completeRequestWithoutResult("write-2", now());
+    machine.beginRequest("write-3", now(), "hash-3");
+
+    expect(machine.serialize().requestLedger).toEqual([
+      [
+        "write-3",
+        { payloadHash: "hash-3", startedAt: now(), replayMode: "write" },
+      ],
+    ]);
+    const completed = machine.completedRequestsToStore();
+    expect(completed).toEqual([
+      ["write-1", { payloadHash: "hash-1", startedAt, completedAt: now() }],
+      [
+        "write-2",
+        { payloadHash: "hash-2", startedAt: now(), completedAt: now() },
+      ],
+    ]);
+    // Until the host has stored them, the machine still answers for them.
+    expect(machine.beginRequest("write-2", now(), "hash-2")).toEqual({
+      kind: "rejected",
+      code: "REQUEST_RESULT_UNAVAILABLE",
+    });
+
+    machine.forgetStoredRequests(completed.map(([requestId]) => requestId));
+    expect(machine.completedRequestsToStore()).toEqual([]);
+    expect(machine.holdsRequest("write-1")).toBe(false);
+    expect(machine.holdsRequest("write-2")).toBe(false);
+    expect(machine.holdsRequest("write-3")).toBe(true);
+    expect(machine.serialize().requestLedger).toHaveLength(1);
+  });
+
+  it("answers a retry of a stored write from its recalled record", () => {
+    const { machine, now, random } = setup();
+    machine.beginRequest("write-1", now(), "hash-1");
+    machine.completeRequest("write-1", { ok: true }, now());
+    const [stored] = machine.completedRequestsToStore();
+    machine.forgetStoredRequests(["write-1"]);
+    // A fresh object holds neither the result cache nor the record.
+    const restored = AgentSessionMachine.restore(
+      machine.serialize(),
+      random,
+      now(),
+    );
+    expect(restored.holdsRequest("write-1")).toBe(false);
+
+    restored.recallRequest(...stored!);
+    expect(restored.beginRequest("write-1", now(), "hash-1")).toEqual({
+      kind: "rejected",
+      code: "REQUEST_RESULT_UNAVAILABLE",
+    });
+    expect(restored.beginRequest("write-1", now(), "other-hash")).toEqual({
+      kind: "rejected",
+      code: "REQUEST_ID_REUSED",
+    });
+    // It is stored already: never offered again, and dropped at the next
+    // store, to be recalled again by a later retry.
+    expect(restored.completedRequestsToStore()).toEqual([]);
+    restored.forgetStoredRequests([]);
+    expect(restored.holdsRequest("write-1")).toBe(false);
+    // A request the machine still holds is not replaced by a recall.
+    restored.beginRequest("write-2", now(), "hash-2");
+    restored.recallRequest("write-2", { ...stored![1], payloadHash: "hash-x" });
+    expect(restored.beginRequest("write-2", now(), "hash-2")).toEqual({
+      kind: "rejected",
+      code: "REQUEST_IN_PROGRESS",
+    });
+  });
+
+  it("offers an older state's completed writes to be stored apart", () => {
+    const { machine, now, random } = setup();
+    machine.beginRequest("in-flight", now(), "hash-in-flight");
+    const state = machine.serialize();
+    // Saved before completed writes left the state, one before replay modes.
+    state.requestLedger = [
+      [
+        "old-write",
+        {
+          payloadHash: "hash-old",
+          startedAt: now() - 2_000,
+          completedAt: now() - 1_000,
+          replayMode: "write",
+        },
+      ],
+      [
+        "older-write",
+        { payloadHash: "hash-older", startedAt: 1, completedAt: 2 },
+      ],
+      ...state.requestLedger!,
+    ];
+    const restored = AgentSessionMachine.restore(state, random, now());
+    expect(restored.serialize().requestLedger?.map(([id]) => id)).toEqual([
+      "in-flight",
+    ]);
+    const completed = restored.completedRequestsToStore();
+    expect(completed).toEqual([
+      [
+        "old-write",
+        {
+          payloadHash: "hash-old",
+          startedAt: now() - 2_000,
+          completedAt: now() - 1_000,
+        },
+      ],
+      [
+        "older-write",
+        { payloadHash: "hash-older", startedAt: 1, completedAt: 2 },
+      ],
+    ]);
+    expect(restored.beginRequest("older-write", now(), "hash-older")).toEqual({
+      kind: "rejected",
+      code: "REQUEST_RESULT_UNAVAILABLE",
+    });
+    restored.forgetStoredRequests(completed.map(([requestId]) => requestId));
+    expect(restored.holdsRequest("old-write")).toBe(false);
+    expect(restored.holdsRequest("in-flight")).toBe(true);
   });
 
   it("persists only writes and safely reexecutes evicted reads", () => {
