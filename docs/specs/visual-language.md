@@ -145,9 +145,10 @@ resolved, so continuation text cannot shift the anchor or escape export
 bounds.
 
 Derived visual diagnostics cover unplaced or unresolved symbols, symbol and
-label overlap, Routes through symbols, collinear same-Net Route overlap, Route
-departure against a pin's outward direction, terminals resting on another
-Net's Route, short route segments, ambiguous
+label overlap, Routes through symbols, collinear same-Net Route overlap, a
+Route leaving a pin backward or leaving a one-pin symbol from the side where no
+other wire meets it, terminals resting on another Net's Route, short route
+segments, ambiguous
 Junction dots, unsatisfied layout constraints, and optional export-page
 bounds. Diagnostics never mutate geometry. Unresolved symbols and ambiguous
 Junction dots are blocking errors. Arbitrary wire angles are valid authoring

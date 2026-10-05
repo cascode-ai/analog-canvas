@@ -4,6 +4,7 @@ import {
   resolveEndpointConnection,
   visibleSymbolInkBounds,
   type EndpointConnection,
+  type EndpointRoutingGeometry,
   type NetConnectivityContext,
 } from "@icm/derived";
 import {
@@ -25,9 +26,13 @@ export interface ClearPath {
 }
 
 export interface RouteClearance {
-  /** The cheapest path between two endpoints that meets nothing it must
-   * not, or why every tried path does. */
-  path(from: RouteEndpoint, to: RouteEndpoint): ClearPath | string;
+  /** The cheapest path between two ends that meets nothing it must not, or
+   * why every tried path does. An end is an endpoint, or a point: a tap on a
+   * wire of the path's own Net, or an open end. */
+  path(
+    from: RouteEndpoint | Point,
+    to: RouteEndpoint | Point,
+  ): ClearPath | string;
   /** Why a fixed path, from landing to landing, would read as a false
    * connection, or null. `ends` are the endpoints at its two ends. */
   conflict(
@@ -437,20 +442,39 @@ export function createRouteClearance(
 
   const grid = document.presentation.grid;
   const path: RouteClearance["path"] = (from, to) => {
-    const a = connectionOf(from);
-    const b = connectionOf(to);
+    // A point has no pin to leave along, as a Junction has none.
+    const endpointOf = (end: RouteEndpoint | Point) =>
+      "kind" in end ? end : undefined;
+    const geometryOf = (
+      end: RouteEndpoint | Point,
+    ): EndpointRoutingGeometry | undefined =>
+      "kind" in end
+        ? connectionOf(end)
+        : {
+            contactPoint: end,
+            gridLanding: end,
+            escapePath: [],
+            outward: null,
+          };
+    const endText = (end: RouteEndpoint | Point) =>
+      "kind" in end ? endpointText(end) : format(end);
+    const fromEnd = endpointOf(from);
+    const toEnd = endpointOf(to);
+    const a = geometryOf(from);
+    const b = geometryOf(to);
     if (!a || !b) return "an endpoint has no routing landing";
     // No path helps a pin that already sits on another Net's wire.
     for (const [end, connection] of [
-      [from, a],
-      [to, b],
+      [fromEnd, a],
+      [toEnd, b],
     ] as const) {
+      if (!end) continue;
       const sitting = conflict([connection.gridLanding], [end]);
       if (sitting) return `${sitting}; move that wire off the pin first`;
     }
     const start = a.gridLanding;
     const end = b.gridLanding;
-    const axis = (connection: EndpointConnection) => {
+    const axis = (connection: EndpointRoutingGeometry) => {
       const outward = connection.outward;
       if (!outward) return null;
       return Math.abs(outward.x) >= Math.abs(outward.y)
@@ -558,7 +582,7 @@ export function createRouteClearance(
       // read as a bump (each node of an R-2R ladder came out as two), and
       // which of the two came first depended only on how pin IDs sorted.
       const along = (
-        connection: EndpointConnection,
+        connection: EndpointRoutingGeometry,
         from: Point | undefined,
         to: Point | undefined,
       ) => {
@@ -589,11 +613,13 @@ export function createRouteClearance(
     scored.sort((left, right) => left.cost - right.cost);
     let reason: string | null = null;
     for (const entry of scored) {
-      const found = conflict(entry.points, [from, to]);
+      const found = conflict(entry.points, [fromEnd, toEnd]);
       if (found === null) return entry.candidate;
       reason ??= found;
     }
-    return `no clear path from ${endpointText(from)} to ${endpointText(to)}: the direct one ${reason ?? "is blocked"}. Move the parts apart, or give a trunk`;
+    // Textbooks draw a bias line that cannot cross the drawing as a short
+    // labelled stub at each end; say so, or the Agent is left stuck.
+    return `no clear path from ${endText(from)} to ${endText(to)}: the direct one ${reason ?? "is blocked"}. Move the parts apart, give a trunk, or name the Net at each end with a Net Label on a short stub`;
   };
   return { path, conflict };
 }

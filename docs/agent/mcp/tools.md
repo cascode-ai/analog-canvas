@@ -95,9 +95,12 @@ partially transforming a mixed selection.
 `cornerOrder`. The wire passes through every `via` point: points listed
 from `to` back to `from` are followed in that reverse order, and points no
 order can follow without doubling back are refused with a reason rather than
-committed as another path. Between two endpoints the wire also keeps clear of
-other Nets' pins and wires and of parts' bodies: without `via` it detours,
-with `via` that would meet one it is refused with the obstacle named. A
+committed as another path. A wire from a pin or Junction, whether to another,
+to a `net`, to a tap on a wire or to an open `point`, also keeps clear of other
+Nets' pins and wires and of parts' bodies: without `via` it detours, with
+`via` that would meet one it is refused with the obstacle named, and with no
+clear path at all it is refused like `route-net`. A wire drawn between points
+alone is drawn as asked, and may end on another wire to join it. A
 transaction that would put a Junction on another Net's wire is refused too.
 A `route-segment` target uses the Route's stable `legId` and a `point`; the
 server owns splitting and Junction creation.

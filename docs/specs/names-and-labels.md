@@ -236,7 +236,9 @@ Batch operations are explicit and distinct:
 - Agent **arrange-labels** operates on requested Instances, eligible visible
   unrotated/unlocked labels, and still-default positions/styles. It tries
   bounded nearby positions to reduce collisions; it does not reset every
-  label. Its optional first-letter reference style is explicit. The existing
+  label. A part's Reference comes first: no position that clears the value
+  but draws the Reference over a wire, a part or another label is preferred
+  to one that keeps the Reference clear. Its optional first-letter reference style is explicit. The existing
   style-equality eligibility check is retained, not promoted into a general
   definition of whether a user has edited an object.
 

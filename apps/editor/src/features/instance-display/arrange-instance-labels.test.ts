@@ -8,6 +8,7 @@ import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
 import {
   createLabelClearanceContext,
   defaultInstanceLabelPlacement,
+  placeUprightInstanceLabel,
   resolveDocumentStyleProfile,
 } from "@icm/derived";
 import { defaultInstanceDisplayAnnotations } from "./default-instance-display";
@@ -106,6 +107,61 @@ describe("opt-in label arrangement", () => {
       doc.annotations.find((a) => a.id === label.id)!,
     );
     expect(inkOverlaps(after, movedReference!, movedValue!)).toBe(false);
+  });
+  it("keeps a clear Reference where it is rather than move the part's labels to clear the value", () => {
+    // The value's default row is covered twice. Every other side clears the
+    // value but puts the Reference on a label: one conflict against two, so
+    // the whole group used to move and the part's name was drawn over text.
+    const { doc, instance } = fixture();
+    const reference = doc.annotations.find(
+      (a) => a.binding?.kind === "instance-reference",
+    )!;
+    const value = doc.annotations.find(
+      (a) => a.binding?.kind === "instance-value",
+    )!;
+    const context = createLabelClearanceContext(doc, resolver);
+    const style = resolveDocumentStyleProfile(doc.presentation);
+    const resolved = resolver.resolve(instance.symbolId)!;
+    const obstacle = (id: string, position: { x: number; y: number }) =>
+      doc.annotations.push({
+        id,
+        kind: "instance-label",
+        content: { runs: [{ kind: "text", value: "W" }] },
+        anchor: { kind: "free", position },
+        alignment: "middle",
+        rotation: 0,
+        locked: true,
+      });
+    const valueAt = context.measure(value).position;
+    obstacle("value-1", valueAt);
+    obstacle("value-2", { x: valueAt.x + 4, y: valueAt.y });
+    for (const side of ["left", "top", "bottom"] as const) {
+      const placement = placeUprightInstanceLabel(
+        instance,
+        resolved,
+        style,
+        { x: 0, y: 0 },
+        side,
+        doc.presentation.grid,
+      )!;
+      const ink = createLabelClearanceContext(doc, resolver).measure({
+        ...reference,
+        anchor: { kind: "free", position: placement.position },
+        alignment: placement.alignment,
+      }).inkBounds;
+      obstacle(`name-${side}`, {
+        x: ink.x + ink.width / 2,
+        y: ink.y + ink.height,
+      });
+    }
+    const before = context.measure(reference).position;
+
+    apply(doc, arrangeInstanceLabels(doc, resolver, [instance.id], {}));
+
+    const after = createLabelClearanceContext(doc, resolver);
+    const moved = doc.annotations.find((a) => a.id === reference.id)!;
+    expect(after.measure(moved).position).toEqual(before);
+    expect(after.conflicts(moved)).toEqual([]);
   });
   it("compacts a visible value into a hidden reference slot, preserving bindings and undo-sized edits", () => {
     const { doc, instance } = fixture();

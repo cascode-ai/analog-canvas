@@ -56,6 +56,10 @@ targets to avoid full-Snapshot name resolution. Names remain supported when usef
   that line, exact, Ports and their names included. Or use the selection
   `transform` mirror with an explicit center. Neither copies connectivity nor
   installs a persistent symmetry constraint.
+- A Port's lead leaves its circle to the east, as an input at the left edge
+  is drawn. Place an output at the right edge with `mirror:"horizontal"` so
+  its circle ends the wire; otherwise the wire has to hook round the circle
+  to reach the pin (`VISUAL_TERMINAL_DEPARTURE`, "from the side").
   For free drafting text, selection `transform` translation preserves fine
   offsets and formatting. Attached drafting objects follow a selected owner;
   moving one separately requires an explicit anchor edit. Locked targets reject
@@ -147,6 +151,18 @@ not the visual formula as a simulator expression. Raw HTTP uses native
 existing binding and parameters when changing only control. MCP and HTTP use
 the same model and exporter; no alternate electrical protocol is needed.
 
+### Switch clock phases
+
+An Open or Closed switch (`ideal-switch`, `closed-switch`) is clocked by the
+phase its name label shows; a freshly placed `S1` is clocked by a phase called
+`S1`. To share one clock, write the phase on each switch's label with
+`circuit_properties` `set-display-alias {instanceId, text:"Φ_1"}`: the netlist
+then writes `S1 a b PHI1 VSS ideal_switch`, and every switch showing Φ₁ follows
+the same clock. Drive it with a Net named `Φ1` (a Net Label, or the Net of a
+pulse source) or a Cell Pin `Φ1`; until then `SWITCH_PHASE_NOT_DRIVEN` warns.
+Free text beside a switch is drawing only and clocks nothing. A Ctrl SW
+(`externally-controlled-switch`) takes its control from its CTRL pin instead.
+
 Multiple placements, wires, labels, model assignments and annotation moves have
 existing atomic batch paths. Failure commits nothing; success has one undo.
 One transaction takes at most 64 expanded edits. A placed part expands to about
@@ -183,7 +199,11 @@ the netlist does not have. Each guide wire takes the cheapest of a few simple
 paths that avoids them: the plain L, a short lead out of a pin, or a detour
 along a free row or column. When none does, or a pin already sits on another
 Net's wire, the whole operation is refused and the message names the pin, part
-or Route in the way; move parts apart or give a trunk. A trunk and its branches
+or Route in the way; move parts apart or give a trunk. Where a Net cannot
+cross the drawing, such as a cascode bias line reaching both halves of an
+amplifier, name it at each end instead: `connect` the pin to an open
+`{kind:"point"}` a grid step or two out, then `add-label` with the Net's name
+on that stub; Nets of one name in a Cell are one Net. A trunk and its branches
 are checked the same way and refused, not bent. This is not a general
 autorouter: conflicting taps or excess expanded edits also reject the whole
 operation. Ordinary crossings without a Junction remain legal. It does not move
@@ -231,7 +251,9 @@ disconnecting its `P` alone would leave an invalid declared interface.
 For an explicit label cleanup, `circuit_text` / `apply_actions` accepts
 `{kind:"arrange-labels",instanceIds:["…"]}`. It compacts visible default label
 slots and tries a fixed set of nearby collision-avoiding positions in one
-undoable operation. Set `compact:false` or `avoidCollisions:false` to disable
+undoable operation, keeping each Reference clear before its value. Where parts
+sit too close for both, the value is the one left touching a wire; hide values
+with `set-instance-display` or move the parts apart. Set `compact:false` or `avoidCollisions:false` to disable
 either part; `referenceStyle:"first-letter-subscript"` optionally displays
 `RBIAS` as an R with BIAS subscript without changing the Reference. Manual/free,
 locked, hidden and custom-styled labels are preserved. This is not an autorouter

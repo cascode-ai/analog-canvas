@@ -467,6 +467,7 @@ function pushRoutingQualityMetrics(
     );
   // 1. Wire-through-symbol: a Route segment passes through an instance
   //    silhouette that is not one of its terminal endpoints.
+  const backAcrossOwnPart = new Set<string>();
   for (const { route, centerline } of routeCenterlines) {
     const contactTerminalInstances = (endpoint: RouteEndpoint) =>
       new Set(
@@ -497,23 +498,33 @@ function pushRoutingQualityMetrics(
             })
           : [...boundsById].map(([id, bounds]) => ({ id, bounds }));
       for (const { id: instanceId, bounds: box } of candidateBounds) {
-        if (
-          (index === 1 && fromTerminalInstances.has(instanceId)) ||
-          (index === centerline.length - 1 &&
-            toTerminalInstances.has(instanceId))
-        ) {
-          continue;
-        }
-        if (
-          segmentIntersectsRect(from, to, insetRect(box, WIRE_THROUGH_INSET))
-        ) {
+        const inner = insetRect(box, WIRE_THROUGH_INSET);
+        // A wire leaving the part's own pin is judged too: back across the
+        // body is still through it (#1301). Only a pin inside the body, such
+        // as a bulk at a transistor's centre, must start within it.
+        const ownPin =
+          index === 1 && fromTerminalInstances.has(instanceId)
+            ? from
+            : index === centerline.length - 1 &&
+                toTerminalInstances.has(instanceId)
+              ? to
+              : undefined;
+        if (ownPin && pointInsideRect(ownPin, inner)) continue;
+        if (segmentIntersectsRect(from, to, inner)) {
+          // Back across the part a wire starts from is information: drawn
+          // drawings often run a bias line from one gate through its own
+          // transistor to the next (850 in the Gallery of 2026-10-04).
+          if (ownPin)
+            backAcrossOwnPart.add(`${route.id}@${ownPin.x},${ownPin.y}`);
           diagnostics.push({
             code: "VISUAL_WIRE_THROUGH_SYMBOL",
-            severity: "warning",
+            severity: ownPin ? "info" : "warning",
             category: "observation",
             confidence: "low",
             gateEligible: false,
-            message: `Route ${route.id} passes through instance ${instanceId}`,
+            message: ownPin
+              ? `Route ${route.id} runs back across its own part ${instanceId}`
+              : `Route ${route.id} passes through instance ${instanceId}`,
             objectIds: [route.id, instanceId],
             bounds: box,
             parameters: { segmentIndex: index - 1 },
@@ -598,34 +609,66 @@ function pushRoutingQualityMetrics(
     });
   }
 
-  // 3. Terminal departure: the first segment of a terminal-anchored Route
-  //    should leave along the pin's outward direction. Reported as evidence.
+  // 3. Terminal departure: a wire should leave a pin along the pin's outward
+  //    direction, at either end of its Route. Reported as evidence where it
+  //    does not read as drafting: backward, against the pin's direction, or
+  //    out of the side of a one-pin symbol (a port, supply or ground) no
+  //    other wire meets there.
+  //    A bend at the end of a part's lead, or a trunk running past the pin it
+  //    taps, is ordinary drafting: 1,300 of the Gallery's 1,860 findings on
+  //    2026-10-04 were such.
+  const routeEndsAt = new Map<string, number>();
+  for (const { centerline } of routeCenterlines) {
+    for (const point of [centerline[0], centerline.at(-1)]) {
+      if (!point) continue;
+      const key = `${point.x},${point.y}`;
+      routeEndsAt.set(key, (routeEndsAt.get(key) ?? 0) + 1);
+    }
+  }
   for (const { route, centerline } of routeCenterlines) {
-    if (route.start.kind !== "terminal") continue;
     if (centerline.length < 2) continue;
-    const outward =
-      endpointConnections?.get(endpointKey(route.start))?.outward ??
-      resolveEndpointOutwardDirection(document, resolver, route.start);
-    if (!outward) continue;
-    const first = centerline[0]!;
-    const second = centerline[1]!;
-    const departure = {
-      x: Math.sign(second.x - first.x),
-      y: Math.sign(second.y - first.y),
-    };
-    const aligned =
-      (outward.x !== 0 && departure.x === outward.x) ||
-      (outward.y !== 0 && departure.y === outward.y);
-    if (!aligned) {
+    for (const [endpoint, at, next] of [
+      [route.start, centerline[0]!, centerline[1]!],
+      [routeEnd(route), centerline.at(-1)!, centerline.at(-2)!],
+    ] as const) {
+      if (endpoint.kind !== "terminal") continue;
+      const outward =
+        endpointConnections?.get(endpointKey(endpoint))?.outward ??
+        resolveEndpointOutwardDirection(document, resolver, endpoint);
+      if (!outward) continue;
+      const departure = {
+        x: Math.sign(next.x - at.x),
+        y: Math.sign(next.y - at.y),
+      };
+      const leaves = (sense: 1 | -1) =>
+        (outward.x !== 0 && departure.x === sense * outward.x) ||
+        (outward.y !== 0 && departure.y === sense * outward.y);
+      if (leaves(1)) continue;
+      const backward = leaves(-1);
+      // Back across the part itself is already named above.
+      if (backward && backAcrossOwnPart.has(`${route.id}@${at.x},${at.y}`))
+        continue;
+      if (!backward) {
+        const instance = document.instances.find(
+          (item) => item.id === endpoint.instanceId,
+        );
+        const pins = instance
+          ? resolver.resolve(instance.symbolId, instance.symbolVariantId)
+              ?.definition.pins.length
+          : undefined;
+        if (pins !== 1 || routeEndsAt.get(`${at.x},${at.y}`) !== 1) continue;
+      }
       diagnostics.push({
         code: "VISUAL_TERMINAL_DEPARTURE",
         severity: "info",
         category: "observation",
         confidence: "low",
         gateEligible: false,
-        message: `Route ${route.id} does not leave terminal along its pin outward direction`,
+        message: backward
+          ? `Route ${route.id} leaves ${endpoint.instanceId}.${endpoint.pinName} backward, against the pin's direction`
+          : `Route ${route.id} leaves ${endpoint.instanceId}.${endpoint.pinName} from the side`,
         objectIds: [route.id],
-        point: first,
+        point: at,
         parameters: {
           outwardX: outward.x,
           outwardY: outward.y,
@@ -662,6 +705,15 @@ function candidateRoutesAtPoint(
  * latch were reported as through M3 and M4.
  */
 const WIRE_THROUGH_INSET = 1.5;
+
+function pointInsideRect(point: Point, box: Rect): boolean {
+  return (
+    point.x > box.x &&
+    point.x < box.x + box.width &&
+    point.y > box.y &&
+    point.y < box.y + box.height
+  );
+}
 
 function insetRect(box: Rect, inset: number): Rect {
   return {
