@@ -369,6 +369,75 @@ describe("an Agent connect keeps clear of parts and other Nets (#1257)", () => {
     expect(refused).toMatch(/passes through R3/);
     expect(chosen.document.routes).toEqual([]);
   });
+
+  it("keeps a wire to a Net, a tap on a wire or an open end clear too", () => {
+    // R1.1 points right at (20,0). R3 lies across y=0 at x 80..120, and the
+    // trunk from R2.2 runs down x=200 through (200,0). Every target below is
+    // straight ahead through R3; the wire to a Net was drawn so, through four
+    // transistors of an OTA.
+    const drawn = (target: WireIntent["to"], single: boolean) => {
+      const document = createEmptyDocument("doc", "Clearance to a tap");
+      document.instances.push(
+        resistor("R1", 0, 0, 90),
+        resistor("R3", 100, 0, 90),
+        resistor("R2", 200, -80),
+      );
+      const h = history(document);
+      commit(h, [wire("trunk", pin("R2", "2"), free(200, 60))]);
+      const trunkNet = h.document.nets[0]!.id;
+      const intent = wire(
+        "w",
+        pin("R1", "1"),
+        target.kind === "net" ? { kind: "net", net: trunkNet } : target,
+      );
+      const plan = planWireBatch(
+        h.document,
+        resolver,
+        single ? intent : [intent],
+        512,
+        { keepClear: true },
+      );
+      if (typeof plan === "string") throw new Error(plan);
+      const result = h.transact({
+        transactionId: "t",
+        documentId: h.document.id,
+        expectedRevision: h.document.revision,
+        actor: { kind: "agent", id: "test" },
+        edits: plan.edits,
+      });
+      if (!result.ok) throw new Error(JSON.stringify(result));
+      const route = h.document.routes.find(
+        (item) =>
+          item.start.kind === "terminal" && item.start.instanceId === "R1",
+      )!;
+      const points = resolveRouteGeometry(
+        h.document,
+        resolver,
+        route,
+      )!.centerline;
+      const context = deriveNetConnectivityContext(h.document, resolver);
+      const problem = createRouteClearance(h.document, resolver, context, {
+        logicalIds: new Set(
+          h.document.routes.map(
+            (item) =>
+              context.logicalNetResolution.byBaseNetId.get(item.netId)?.id ??
+              item.netId,
+          ),
+        ),
+        endpointKeys: new Set([endpointKey(route.start)]),
+      }).conflict(points, [route.start, undefined]);
+      return { points, problem };
+    };
+    for (const [target, single] of [
+      [{ kind: "net", net: "" }, true],
+      [at(200, 0), false],
+      [free(160, 0), false],
+    ] as const) {
+      const { points, problem } = drawn(target, single);
+      expect(problem, `${target.kind}: ${JSON.stringify(points)}`).toBeNull();
+      expect(points.length).toBeGreaterThan(2);
+    }
+  });
 });
 
 describe("a batch connect from a pin an earlier connect reached (#1304)", () => {

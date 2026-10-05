@@ -552,11 +552,14 @@ only overlap between separately authored Routes.
   revision once.
 - GUI and Agent use the same planners, transaction engine, derived geometry,
   and diagnostics.
-- An Agent `connect` between two endpoints keeps clear of what would read as
+- An Agent `connect` from a pin or Junction keeps clear of what would read as
   a connection the netlist does not have: another Net's pin, a part's body or
-  drawing, another Net's wire. When the planner's own path would meet one, a
-  wire without via points takes the cheapest clear path (the route-net
-  clearance); a wire with via points is refused with what it would meet.
+  drawing, another Net's wire. Its other end may be an endpoint, the
+  conductor a Net selector resolves to, a tap on a wire, or an open point.
+  When the planner's own path would meet one, a wire without via points
+  takes the cheapest clear path (the route-net clearance) or is refused when
+  there is none; a wire with via points is refused with what it would meet.
+  A wire drawn between points alone is drawn as asked.
 - An Agent transaction, or its dry run, that would leave a new Junction on a
   Route of another Net (`VISUAL_AMBIGUOUS_JUNCTION`) is refused before it
   reaches the Document: ambiguous intersections are rejected, not guessed.
