@@ -240,7 +240,7 @@ Batch operations are explicit and distinct:
   or as its value beside a shown Reference, and moves as one; its text is
   the Cell's and is never restyled (#1366). The same arrangement runs on
   its own for the parts whose labels a typed move, an arrange, a pin change
-  or a Cell's changed Pins newly draw a wire over ([connectivity and
+  or a Cell's changed Pins newly draw a wire or a part over ([connectivity and
   routing](connectivity-and-routing.md)). A part's Reference and value move
   together: their default side, then the part's other sides, then the same rows slid along each side to
   the clear place nearest where they stood, while at least half of the

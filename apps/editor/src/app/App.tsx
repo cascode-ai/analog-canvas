@@ -294,6 +294,7 @@ import {
   type SubmissionGateReport,
 } from "@icm/derived";
 import {
+  EDITOR_PROJECT_TRANSACTION_OPTIONS,
   EditorDocumentController,
   useDocumentController,
 } from "../document/document-controller";
@@ -3509,7 +3510,13 @@ function WorkspaceEditor({
     getInteractionState: getCurrentInteractionState,
     transact,
     transactCopy: (plan) => {
-      const committed = commitProjectStructure(applyProjectCopyPlacement(plan));
+      const committed = commitProjectStructure(
+        applyProjectCopyPlacement(
+          plan,
+          undefined,
+          EDITOR_PROJECT_TRANSACTION_OPTIONS,
+        ),
+      );
       return { ok: true, revision: committed.revision };
     },
     commitCellTerminalSelection: removeCellTerminalSelection,
@@ -6602,7 +6609,12 @@ function WorkspaceEditor({
         {
           captureProjectCopy,
           planProjectCopyPlacement,
-          applyProjectCopyPlacement,
+          applyProjectCopyPlacement: (plan, actor) =>
+            applyProjectCopyPlacement(
+              plan,
+              actor,
+              EDITOR_PROJECT_TRANSACTION_OPTIONS,
+            ),
         },
       );
       if ("error" in copied)

@@ -256,19 +256,21 @@ export function planPropertyApply(
     return { kind: "unchanged" };
   if (structureEdits.length > 0) {
     // Merge structural document edits with the draft into one project
-    // transaction and one undo boundary.
+    // transaction and one undo boundary. Labels the draft's redrawn wires
+    // newly run through move clear here too (#1366).
+    const arranged = withStruckLabelsArranged(document, resolver, edits);
     const documentEdit = structureEdits.find(
       (edit) =>
         edit.kind === "transact_document" && edit.documentId === document.id,
     );
     if (documentEdit?.kind === "transact_document")
-      documentEdit.edits.push(...edits);
-    else if (edits.length)
+      documentEdit.edits.push(...arranged);
+    else if (arranged.length)
       structureEdits.push({
         kind: "transact_document",
         documentId: document.id,
         expectedRevision: document.revision,
-        edits,
+        edits: arranged,
       });
     return { kind: "structure", structureEdits };
   }

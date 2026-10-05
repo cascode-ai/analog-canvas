@@ -62,13 +62,6 @@ export function arrangeInstanceLabels(
     compact?: boolean | undefined;
     avoidCollisions?: boolean | undefined;
     referenceStyle?: "preserve" | "first-letter-subscript" | undefined;
-    /**
-     * The parts' symbols before the change being arranged for: a label still
-     * in the default slot its part's former symbol gave it is eligible too.
-     * A Cell whose Pins changed sides can draw its block wider, and its name
-     * then stood five units off the new block's slot, which no pass moved.
-     */
-    formerResolver?: SymbolResolver | undefined;
   },
 ): SchematicEdit[] {
   const ids = new Set(instanceIds);
@@ -97,8 +90,12 @@ export function arrangeInstanceLabels(
       continue;
     if (!partLabels.has(original.id)) continue;
     const ownerId = original.anchor.objectId;
-    ownLabels.set(ownerId, [...(ownLabels.get(ownerId) ?? []), original]);
     const eligible = eligibleLabel(original, ownerId);
+    // A Cell's name moved by hand stays out of its part's group, as it was
+    // before Cell names were arranged: it still takes its space as another
+    // label, but does not hold the Reference to its side.
+    if (!eligible && isCellNameLabel(original)) continue;
+    ownLabels.set(ownerId, [...(ownLabels.get(ownerId) ?? []), original]);
     if (eligible)
       groups.set(ownerId, [...(groups.get(ownerId) ?? []), eligible]);
   }
@@ -139,27 +136,20 @@ export function arrangeInstanceLabels(
     // Only a still-default visual slot is eligible. Manual/free anchors,
     // styles, and labels moved by an earlier pass remain under their
     // author's control.
-    const former = options.formerResolver?.resolve(
-      instance.symbolId,
-      instance.symbolVariantId,
-    );
     if (
-      ![resolved, ...(former ? [former] : [])].some((symbol) =>
-        [
-          defaultInstanceLabelPlacement,
-          uniformRowDefaultInstanceLabelPlacement,
-          previousDefaultInstanceLabelPlacement,
-          legacyDefaultInstanceLabelPlacement,
-        ].some((place) => {
-          const p = place(instance, symbol, style, grid, slot, sizeScale);
-          return (
-            p &&
-            p.alignment === original.alignment &&
-            Math.hypot(p.position.x - current.x, p.position.y - current.y) <
-              0.01
-          );
-        }),
-      )
+      ![
+        defaultInstanceLabelPlacement,
+        uniformRowDefaultInstanceLabelPlacement,
+        previousDefaultInstanceLabelPlacement,
+        legacyDefaultInstanceLabelPlacement,
+      ].some((place) => {
+        const p = place(instance, resolved, style, grid, slot, sizeScale);
+        return (
+          p &&
+          p.alignment === original.alignment &&
+          Math.hypot(p.position.x - current.x, p.position.y - current.y) < 0.01
+        );
+      })
     )
       return null;
     const annotation =

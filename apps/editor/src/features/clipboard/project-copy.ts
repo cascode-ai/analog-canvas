@@ -36,6 +36,7 @@ import {
   referencedSourceFiles,
   type CopyDependencySource,
   type ProjectStructureEdit,
+  type ProjectTransactionOptions,
 } from "@icm/edit-engine";
 import {
   captureDocumentComposition,
@@ -1028,22 +1029,32 @@ export function planProjectCopyPlacement(
   };
 }
 
-/** Install dependencies and placement in one undoable Project revision. */
+/**
+ * Install dependencies and placement in one undoable Project revision.
+ * `options` are the editor's own transaction options: a paste that adds a
+ * Pin to a placed Cell redraws its callers' wires, and the labels those
+ * wires newly run through move clear with them (#1366).
+ */
 export function applyProjectCopyPlacement(
   plan: ReturnType<typeof planProjectCopyPlacement>,
   actor: { kind: "human" | "agent"; id: string } = {
     kind: "human",
     id: "clipboard",
   },
+  options: ProjectTransactionOptions = {},
 ): CircuitProject {
   const project = plan.baseProject;
-  const result = executeProjectTransaction(project, {
-    transactionId: "copy-placement",
-    projectId: project.id,
-    expectedStructureRevision: project.structureRevision,
-    actor,
-    edits: plan.edits,
-  });
+  const result = executeProjectTransaction(
+    project,
+    {
+      transactionId: "copy-placement",
+      projectId: project.id,
+      expectedStructureRevision: project.structureRevision,
+      actor,
+      edits: plan.edits,
+    },
+    options,
+  );
   if (!result.ok)
     throw new Error(result.diagnostics[0]?.message ?? result.error.message);
   return result.project;

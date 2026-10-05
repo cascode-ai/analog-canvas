@@ -13,6 +13,7 @@ import type {
   EditActor,
   EditTransactionResult,
   ProjectTransaction,
+  ProjectTransactionOptions,
   ProjectTransactionResult,
   SchematicEdit,
 } from "@icm/edit-engine";
@@ -277,11 +278,11 @@ export class EditorDocumentController {
     activeDocumentId = this.activeDocumentIdValue,
     historyDocumentId = activeDocumentId,
   ): ProjectTransactionResult {
-    // A caller's labels its Cell's changed Pins newly strike with redrawn
-    // wires move clear (#1366).
-    const result = executeProjectTransaction(this.projectValue, request, {
-      arrangeStruckLabels: arrangeNewlyStruckLabels,
-    });
+    const result = executeProjectTransaction(
+      this.projectValue,
+      request,
+      EDITOR_PROJECT_TRANSACTION_OPTIONS,
+    );
     if (result.ok && result.applied)
       this.commitProjectStructure(
         result.project,
@@ -603,6 +604,15 @@ export class EditorDocumentController {
     }
   }
 }
+
+/**
+ * How the editor runs a Project transaction, wherever it commits one: a
+ * caller's labels its Cell's changed Pins newly draw a redrawn wire over, or
+ * its widened block over, move clear (#1366).
+ */
+export const EDITOR_PROJECT_TRANSACTION_OPTIONS: ProjectTransactionOptions = {
+  arrangeStruckLabels: arrangeNewlyStruckLabels,
+};
 
 export function useDocumentController(
   initialProject: CircuitProject,

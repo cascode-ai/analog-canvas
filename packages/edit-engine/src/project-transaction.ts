@@ -35,6 +35,7 @@ import {
   projectDrawnGeometry,
   redrawStretchedRoutesClear,
 } from "./stretched-route-clearance.js";
+import { planInstanceLabelReflow } from "./caller-label-reflow.js";
 import type {
   AppliedTransaction,
   EditDiagnostic,
@@ -890,19 +891,36 @@ export function executeProjectTransaction(
           (extra) => projectDrawnGeometry(parent, withRedrawn(extra)),
         ),
       );
-      // Labels the redrawn wiring newly strikes move clear (#1366).
-      const followed = options.arrangeStruckLabels ? follow(routeEdits) : null;
+      // The callers' labels keep their place beside the changed block, and
+      // labels its redrawn wiring or its grown block newly cover move clear
+      // (#1366).
+      const reflowed = [
+        ...routeEdits,
+        ...planInstanceLabelReflow(
+          parent,
+          callerIds,
+          originalResolver,
+          resolver,
+        ),
+      ];
+      const followed = follow(reflowed);
       const labelEdits =
-        followed?.ok && options.arrangeStruckLabels
+        followed.ok && options.arrangeStruckLabels
           ? options.arrangeStruckLabels(
               { document: originalParent, resolver: originalResolver },
               followed.document,
               resolver,
             )
           : [];
-      const routeResult = labelEdits.length
-        ? follow([...routeEdits, ...labelEdits])
-        : (followed ?? follow(routeEdits));
+      // A label move the transaction refuses never refuses the Pin change.
+      const labelled = labelEdits.length
+        ? follow([...reflowed, ...labelEdits])
+        : null;
+      const routeResult = labelled?.ok
+        ? labelled
+        : followed.ok
+          ? followed
+          : follow(routeEdits);
       documentResults.push(
         routeResult.ok
           ? withRedrawnCallers(
