@@ -332,6 +332,61 @@ describe("route-net", () => {
     }
   });
 
+  it("draws a node as one straight line with its branches tapped on", () => {
+    // A pipeline stage's hold node: the switch S1.2 (60,0) and the adder's
+    // A (280,0) line up; the hold capacitor's top CH.1 (80,20) and the
+    // sub-ADC's IN (100,80) lie below the line. Joined pin to pin, the line
+    // dipped to CH.1 and came back up beside it, two Junctions a step apart.
+    const document = createEmptyDocument("doc", "Hold node");
+    const part = (id: string, symbolId: string, x: number, y: number) => ({
+      id,
+      reference: id,
+      symbolId,
+      placement: {
+        position: { x, y },
+        rotation: 0 as const,
+        mirror: "none" as const,
+      },
+    });
+    document.instances = [
+      part("S1", "simple-switch", 40, 0),
+      part("CH", "capacitor", 80, 40),
+      part("X1", "adc", 150, 80),
+      part("X3", "adder", 300, 0),
+    ];
+    const next = apply(
+      document,
+      planRouteNet(
+        document,
+        resolver,
+        {
+          target: {
+            kind: "pins",
+            pins: [
+              { instanceId: "S1", pinName: "2" },
+              { instanceId: "CH", pinName: "1" },
+              { instanceId: "X1", pinName: "IN" },
+              { instanceId: "X3", pinName: "A" },
+            ],
+          },
+        },
+        64,
+      ).edits,
+    ).document;
+    const lines = next.routes.map(
+      (route) => resolveRouteGeometry(next, resolver, route)!.centerline,
+    );
+    expect(
+      lines.every((line) => line.length === 2),
+      JSON.stringify(lines),
+    ).toBe(true);
+    expect(
+      next.junctions
+        .map((junction) => `${junction.position.x},${junction.position.y}`)
+        .sort(),
+    ).toEqual(["100,0", "80,0"]);
+  });
+
   it("runs an op-amp's feedback clear of its triangle's corners", () => {
     // An op-amp at (460,10): IN- (420,0), OUT (490,10), and its triangle's
     // corners at (430,-20), (430,40) and (481.96,10). The feedback used to

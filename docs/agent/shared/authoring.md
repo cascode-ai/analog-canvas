@@ -190,9 +190,13 @@ remain available.
 `route-net` (in `apply_actions`, native `command`) fills missing visible connections for a
 current Net ID/name, one member pin, an explicit list of pins to join, or a
 frozen import-reference `sourceNetId`. An import ID is not a current Net ID.
-It reuses the visible connectivity/MST and atomic wire planners, skipping already
+It reuses the visible connectivity and atomic wire planners, skipping already
 connected components. Optional `trunk:{start,end}` specifies one straight
-horizontal/vertical trunk; otherwise follow the shared guide tree. A wire never
+horizontal/vertical trunk. Without one, a node is drawn as a person draws it:
+first a straight trunk between two of its pins that line up with nothing in the
+way, then each other component joined where it is cheapest, at a pin or
+Junction already joined or straight onto a wire already drawn, so branches meet
+the line in T junctions rather than chaining pin to pin. A wire never
 passes over another Net's pin, through a part (its own included) or along its
 drawn leads, or onto another Net's wire, since each would read as a connection
 the netlist does not have. Each guide wire takes the cheapest of a few simple
