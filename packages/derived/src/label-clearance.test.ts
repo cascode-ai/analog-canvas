@@ -336,3 +336,67 @@ it("asks a word's space between labels on a line and a little between lines", ()
   // Clearance findings name wires and parts only, as before.
   expect(diagnoseLabelClearance(doc, resolver)).toEqual([]);
 });
+
+it("keeps a label a line's space off a junction dot, which is its wires' ink", () => {
+  const doc = createEmptyDocument("d", "Dots");
+  doc.nets.push({ id: "n", terminals: [] });
+  doc.junctions.push(
+    { id: "j", netId: "n", position: { x: 100, y: 100 } },
+    { id: "a", netId: "n", position: { x: 40, y: 100 } },
+    { id: "b", netId: "n", position: { x: 160, y: 100 } },
+    { id: "c", netId: "n", position: { x: 100, y: 160 } },
+  );
+  for (const end of ["a", "b", "c"])
+    doc.routes.push(
+      createRoutePath({
+        id: `w${end}`,
+        netId: "n",
+        start: { kind: "junction", junctionId: "j" },
+        end: { kind: "junction", junctionId: end },
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+  doc.annotations.push({
+    id: "name",
+    kind: "instance-label",
+    content: { runs: [{ kind: "text", value: "M2" }] },
+    anchor: { kind: "free", position: { x: 0, y: 0 } },
+    alignment: "start",
+    rotation: 0,
+    locked: false,
+  });
+  const ink = createLabelClearanceContext(doc, resolver).measure(
+    doc.annotations[0]!,
+  ).inkBounds;
+  // The name above the T's wire, its corner `gap` across from the dot.
+  const at = (gap: number) => {
+    doc.annotations[0] = {
+      ...doc.annotations[0]!,
+      anchor: {
+        kind: "free",
+        position: { x: 100 + gap - ink.x, y: 100 - gap - ink.y - ink.height },
+      },
+    };
+    return createLabelClearanceContext(doc, resolver);
+  };
+  const radius = resolveDocumentStyleProfile(doc.presentation).nodes
+    .junctionRadius;
+  // A Schmitt trigger's M2 stood 0.2 units off the dot on its gate.
+  const near = at((radius + 0.2) / Math.SQRT2);
+  const box = near.measure(doc.annotations[0]!).inkBounds;
+  expect(near.dotsAt(box).sort()).toEqual(["wa", "wb", "wc"]);
+  // It crosses no wire, so callers weigh a dot apart from a wire.
+  expect(near.conflictsAt(box, "name")).toEqual([]);
+  expect(diagnoseLabelClearance(doc, resolver)).toEqual([
+    expect.objectContaining({
+      code: "VISUAL_LABEL_CLEARANCE",
+      objectIds: ["name", "wa", "wb", "wc"],
+    }),
+  ]);
+  const clear = at((radius + 1.5) / Math.SQRT2);
+  expect(clear.dotsAt(clear.measure(doc.annotations[0]!).inkBounds)).toEqual(
+    [],
+  );
+  expect(diagnoseLabelClearance(doc, resolver)).toEqual([]);
+});

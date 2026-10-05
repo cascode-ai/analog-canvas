@@ -273,7 +273,10 @@ export function arrangeInstanceLabels(
     /**
      * Conflicts of one label, counting its own siblings as disqualifying.
      * Text drawn over another label counts twice: a name nudged from just
-     * beside a Pin's name to on top of it had cleared a wire for it.
+     * beside a Pin's name to on top of it had cleared a wire for it. A
+     * junction dot within a line's space counts half: M2 of a Schmitt
+     * trigger kept its name against the dot on its gate, but a wire through
+     * the name would be worse.
      */
     const score = (candidate: Annotation, siblings: readonly Annotation[]) => {
       if (siblings.some((sibling) => covers(candidate, sibling)))
@@ -281,9 +284,11 @@ export function arrangeInstanceLabels(
       const ink = box(candidate);
       const others = (ids: readonly string[]) =>
         ids.filter((id) => !groupIds.has(id)).length;
+      const conflicts = context.conflicts(candidate);
       return (
-        others(context.conflicts(candidate)) +
+        others(conflicts) +
         others(context.overlapsAt(ink, candidate.id)) +
+        context.dotsAt(ink).filter((id) => !conflicts.includes(id)).length / 2 +
         cutOff(ink) +
         strayed(ink)
       );
@@ -345,6 +350,7 @@ export function arrangeInstanceLabels(
               !context
                 .conflictsAt(b, arrangement[index]!.id)
                 .some((id) => !groupIds.has(id)) &&
+              !context.dotsAt(b).length &&
               !cutOff(b) &&
               !strayed(b),
           ) && !between(moved)

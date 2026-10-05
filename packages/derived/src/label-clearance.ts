@@ -6,6 +6,10 @@ import {
   resolveAnnotationPresentation,
   type AnnotationPresentation,
 } from "./annotation-presentation.js";
+import {
+  contactRequiresJunctionDot,
+  deriveDocumentContactEvidence,
+} from "./contact.js";
 import { instanceLabelInkBounds } from "./instance-label-placement.js";
 import { resolveDraftingObjectGeometry } from "./drafting-geometry.js";
 import { resolveDocumentLogicalNets } from "./logical-net.js";
@@ -119,6 +123,50 @@ export function createLabelClearanceContext(
     grid * 8,
   );
   const segments = buildDocumentSpatialIndex(document, routing).routeSegments;
+  // A junction dot is wire ink off the wire's line. In a Schmitt trigger
+  // drawn through the Agent, M2's name stood 0.2 units from the dot where
+  // the input trunk met its gate, and M5's W/L ran 0.4 units into the dot
+  // where its output met the feedback gates. A clear label keeps a line's
+  // space from a dot. Dots stay out of conflictsAt: text touching a dot
+  // reads better than text struck through by a wire, and a caller weighs
+  // the two.
+  const railIds = new Set(
+    document.routes
+      .filter((route) => route.presentation === "power-rail")
+      .map((route) => route.id),
+  );
+  const dotReach = style.nodes.junctionRadius + LABEL_LINE_SPACE;
+  const dots = deriveDocumentContactEvidence(
+    document,
+    resolver,
+    routing,
+  ).contacts.flatMap((contact) => {
+    const routeIds = contact.incidents.flatMap((incident) =>
+      incident.kind === "route" ? [incident.objectId] : [],
+    );
+    return contactRequiresJunctionDot(contact) &&
+      !routeIds.some((id) => railIds.has(id))
+      ? [
+          {
+            point: contact.point,
+            ids: routeIds.length ? routeIds : [contact.id],
+          },
+        ]
+      : [];
+  });
+  /** The wires whose junction dots come within a line's space of `box`. */
+  const dotsAt = (box: Rect) => [
+    ...new Set(
+      dots.flatMap((dot) =>
+        Math.hypot(
+          Math.max(0, box.x - dot.point.x, dot.point.x - box.x - box.width),
+          Math.max(0, box.y - dot.point.y, dot.point.y - box.y - box.height),
+        ) < dotReach
+          ? dot.ids
+          : [],
+      ),
+    ),
+  ];
   // A handful of accepted moves in this pass. Avoid rebuilding all geometry
   // for each candidate, and ignore stale index entries for already moved text.
   const moved = new Map<string, Rect>();
@@ -199,6 +247,7 @@ export function createLabelClearanceContext(
     overlapsAt: (box: Rect, annotationId: string) =>
       labelsAt(box, annotationId).sort(),
     wiresAt,
+    dotsAt,
     crossings,
     accept: (a: Annotation) => moved.set(a.id, measure(a).inkBounds),
   };
@@ -220,10 +269,13 @@ export function diagnoseLabelClearance(
   ]);
   return context.visible.flatMap((annotation) => {
     const bounds = context.measure(annotation).inkBounds;
-    // Label/label overlap already has a clustered visual diagnostic.
-    const conflicts = context
-      .conflicts(annotation)
-      .filter((id) => obstacles.has(id));
+    // Label/label overlap already has a clustered visual diagnostic. Text
+    // on a junction dot is on its wires.
+    const conflicts = [
+      ...new Set([...context.conflicts(annotation), ...context.dotsAt(bounds)]),
+    ]
+      .filter((id) => obstacles.has(id))
+      .sort();
     const ownerId =
       annotation.anchor.kind === "object"
         ? annotation.anchor.objectId
