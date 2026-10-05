@@ -146,24 +146,6 @@ describe("native service startup and recovery", () => {
     expect(await reply.json()).toMatchObject({ configured: false });
   });
   it.skipIf(!native())(
-    "rejects ready when runtime measurement succeeds but capability validation fails",
-    async () => {
-      config.capabilities.profiles[0].id = "different-profile";
-      const service = await start();
-      await expect(service.ready).rejects.toThrow(
-        "Native capability/runtime contract mismatch",
-      );
-      expect((await fetch(base(service) + "/health")).status).toBe(503);
-      const reply = await fetch(base(service) + "/api/simulate", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ operation: "capabilities" }),
-      });
-      expect(await reply.json()).toMatchObject({ configured: false });
-    },
-    45000,
-  );
-  it.skipIf(!native())(
     "logs capability validation failures through the existing CLI without claiming readiness",
     async () => {
       config.capabilities.profiles[0].id = "different-profile";

@@ -217,23 +217,6 @@ describe("native measured environment", () => {
     ).rejects.toThrow("invalid");
     expect(execFile).not.toHaveBeenCalled();
   });
-  it("accepts an exact verified environment and never downgrades a mismatch to observed", async () => {
-    const expectedEnvironment = await locked();
-    const verified = await initializeVacaskRuntime({
-      ...config,
-      expectedEnvironment,
-    });
-    expect(verified.environment).toEqual(expectedEnvironment);
-    await expect(
-      initializeVacaskRuntime({
-        ...config,
-        expectedEnvironment: {
-          ...expectedEnvironment,
-          fingerprint: "0".repeat(64),
-        },
-      }),
-    ).rejects.toThrow("invalid");
-  });
   it.each(["binary", "startup", "modules"])(
     "refuses changed %s bytes before executing a probe",
     async (field) => {

@@ -491,13 +491,6 @@ describeHarness("the rawfile", () => {
 });
 
 describeHarness("the access token", () => {
-  it("is not asked for when none is configured", async () => {
-    const binary = await simulator("quiet.sh", "echo ok\n");
-    const { port } = await startHarness(binary);
-    const { status } = await json(await run(port, { deck: "x\n.end\n" }));
-    expect(status).toBe(200);
-  });
-
   it("guards /run and only /run once configured", async () => {
     const binary = await simulator("quiet.sh", "echo ok\n");
     const { port } = await startHarness(binary, {

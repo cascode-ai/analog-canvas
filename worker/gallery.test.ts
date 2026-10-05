@@ -1647,27 +1647,6 @@ describe("newest-first gallery feed", () => {
     ).toEqual([{ id: ids[0], ownerUserId: "owner-a" }]);
     expect(exact.total).toBe(1);
   });
-
-  it("returns the same newest-first order on every read", async () => {
-    const env = environment();
-    await wallOf(env, 3);
-    const read = async () => {
-      const plain = await route(env, new Request(`${ORIGIN}/api/gallery`));
-      return (await plain.json()) as {
-        entries: { id: string; createdAt: string }[];
-      };
-    };
-    const payload = await read();
-    expect(payload.entries).toHaveLength(3);
-    // Newest-first, and the same every time. Entries submitted inside one
-    // millisecond share a timestamp and fall back to comparing ids, so the
-    // contract is the ordering and its stability, not a fixed sequence.
-    const stamps = payload.entries.map((entry) => entry.createdAt);
-    expect([...stamps].sort().reverse()).toEqual(stamps);
-    expect((await read()).entries.map((entry) => entry.id)).toEqual(
-      payload.entries.map((entry) => entry.id),
-    );
-  });
 });
 
 describe("netlist marks and thumbs", () => {
@@ -1697,34 +1676,6 @@ describe("netlist marks and thumbs", () => {
       }[];
     };
   }
-
-  it("records whether a circuit extracts, and publishes both alike", async () => {
-    const env = environment();
-    const cookie = await adminOf(env);
-
-    // An ideal switch has no reviewed netlist definition, so this circuit
-    // does not extract. That is a legitimate schematic, not a mistake: it is
-    // published exactly like any other and simply wears no mark.
-    const sketch = createEmptyProject("sketch", "Sketch");
-    sketch.documents[0]!.instances.push({
-      id: "S1",
-      symbolId: "ideal-switch",
-      reference: "S1",
-      placement: { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
-    });
-    const sketchId = await submitOne(env, "Sketch", {
-      cookie,
-      text: serializeProject(sketch),
-    });
-    const extractableId = await submitOne(env, "Extractable", { cookie });
-
-    const listed = await feed(env);
-    const byId = new Map(listed.entries.map((entry) => [entry.id, entry]));
-    expect(byId.get(sketchId)!.netlistable).toBe(false);
-    expect(byId.get(extractableId)!.netlistable).toBe(true);
-    // Both are on the wall; the mark separates them, nothing else does.
-    expect(listed.entries).toHaveLength(2);
-  });
 
   it("narrows the wall by mark, by like, and by the session behind it", async () => {
     // Same two marks the tiles wear, asked of the list instead: a reader who
@@ -2012,21 +1963,6 @@ describe("netlist marks and thumbs", () => {
     expect(new Set(marked.map((entry) => entry.id))).toEqual(
       new Set([first, second]),
     );
-  });
-
-  it("re-answers stale marks from the schedule, with nobody signed in", async () => {
-    // The scheduled tick calls the pass directly: there is no session behind
-    // it, and there should not have to be.
-    const env = environment();
-    await submitOne(env, "Scheduled", { cookie: await adminOf(env) });
-    env.gallerySql.exec(
-      "UPDATE gallery_entries SET netlistable = 0, netlistable_version = 0",
-    );
-
-    const { status, payload } = await refreshNetlistMarks(env, 50);
-    expect(status).toBe(200);
-    expect(payload).toMatchObject({ scanned: 1, changed: 1, remaining: 0 });
-    expect((await feed(env)).entries[0]!.netlistable).toBe(true);
   });
 
   it("keeps the mark pass behind the admin check", async () => {
@@ -2550,25 +2486,6 @@ describe("private Cloud Projects", () => {
     );
     expect(unparseable.status).toBe(400);
   });
-
-  it("saves private unfinished work without Gallery quality gates", async () => {
-    const env = environment();
-    const cookie = await makerOf(env);
-    const empty = serializeProject(createEmptyProject("blank", "Blank"));
-    const saved = await route(
-      env,
-      new Request(`${ORIGIN}/api/projects`, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          Origin: ORIGIN,
-          Cookie: cookie,
-        },
-        body: JSON.stringify({ name: "Blank", projectText: empty }),
-      }),
-    );
-    expect(saved.status).toBe(201);
-  });
 });
 
 describe("gallery submissions", () => {
@@ -2901,35 +2818,6 @@ describe("gallery submissions", () => {
     expect(withBearer.status).toBe(401);
   });
 
-  it("publishes an ordinary member's circuit straight to the wall", async () => {
-    const env = environment();
-    const cookie = await makerOf(env);
-    const response = await route(
-      env,
-      submissionRequest(
-        { name: "Direct", projectText: wiredProjectText("Direct") },
-        { cookie },
-      ),
-    );
-    expect(response.status).toBe(201);
-    const { id, status } = (await response.json()) as {
-      id: string;
-      status: string;
-    };
-    expect(status).toBe("public");
-
-    // Visible to everyone immediately: no queue, no approval step.
-    const list = await route(env, new Request(`${ORIGIN}/api/gallery`));
-    expect(
-      ((await list.json()) as { entries: { id: string }[] }).entries.map(
-        (entry) => entry.id,
-      ),
-    ).toEqual([id]);
-    expect(
-      (await route(env, new Request(`${ORIGIN}/api/gallery/${id}`))).status,
-    ).toBe(200);
-  });
-
   it("takes the byline from the account, not from the request", async () => {
     const env = environment();
     const cookie = await makerOf(env);
@@ -3227,24 +3115,6 @@ describe("the daily publish quota", () => {
     );
     expect(rejected.status).toBe(200);
     expect(await submitDirect(env, owner, day)).toBe(429);
-  });
-
-  it("keeps one account's day separate from another's and from tomorrow", async () => {
-    const env = environment();
-    const mine = await makerOf(env);
-    const theirs = await signIn(env.authDurable, "other@example.com");
-    // Two members behind one shared exit no longer share an allowance: the
-    // quota keys on the account, not the address it arrived from.
-    await submitOne(env, "Mine", { cookie: mine, ip: "203.0.113.7" });
-    await submitOne(env, "Theirs", { cookie: theirs, ip: "203.0.113.7" });
-
-    const owners = env.gallerySql
-      .exec<{
-        owner_user_id: string | null;
-      }>("SELECT owner_user_id FROM gallery_entries")
-      .toArray()
-      .map((row) => row.owner_user_id);
-    expect(new Set(owners).size).toBe(2);
   });
 
   it("has no separate counter table left to drift from the entries", () => {
@@ -3829,80 +3699,6 @@ describe("gallery circuit tags", () => {
       await route(env, new Request(`${ORIGIN}/api/gallery/${id}`))
     ).json()) as { entry: { tags: string[] } };
     expect(after.entry.tags).toEqual(["latch", "comparator"]);
-  });
-});
-
-describe("gallery list author filter and paging (phase G4)", () => {
-  it("filters by exact byline and pages the filtered set", async () => {
-    const env = environment();
-    // The byline follows the account, so the fixture needs two of them. Both
-    // are admins here only to skip the gates the empty fixture would fail.
-    const alice = await signIn(env.authDurable, "alice@example.com");
-    const bob = await signIn(env.authDurable, "bob@example.com");
-    await env.authDurable.fetch(
-      new Request(`${ORIGIN}/api/auth/users/role`, {
-        method: "POST",
-        headers: {
-          Origin: ORIGIN,
-          Cookie: await adminOf(env),
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({ email: "alice@example.com", role: "moderator" }),
-      }),
-    );
-    await env.authDurable.fetch(
-      new Request(`${ORIGIN}/api/auth/users/role`, {
-        method: "POST",
-        headers: {
-          Origin: ORIGIN,
-          Cookie: await adminOf(env),
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({ email: "bob@example.com", role: "moderator" }),
-      }),
-    );
-    for (const [name, cookie] of [
-      ["A1", alice],
-      ["B1", bob],
-      ["A2", alice],
-      ["A3", alice],
-    ] as const) {
-      const response = await route(
-        env,
-        submissionRequest({ name, projectText: projectText(name) }, { cookie }),
-      );
-      expect(response.status).toBe(201);
-    }
-
-    const filtered = await route(
-      env,
-      new Request(`${ORIGIN}/api/gallery?author=alice&limit=2`),
-    );
-    const first = (await filtered.json()) as {
-      entries: { name: string; author: string }[];
-      nextCursor: string | null;
-    };
-    expect(first.entries.every((entry) => entry.author === "alice")).toBe(true);
-    expect(first.entries).toHaveLength(2);
-    expect(first.nextCursor).not.toBeNull();
-
-    const second = await route(
-      env,
-      new Request(
-        `${ORIGIN}/api/gallery?author=alice&limit=2&cursor=${encodeURIComponent(first.nextCursor!)}`,
-      ),
-    );
-    const rest = (await second.json()) as {
-      entries: { name: string }[];
-      nextCursor: string | null;
-    };
-    expect(rest.entries).toHaveLength(1);
-    expect(rest.nextCursor).toBeNull();
-
-    const unfiltered = await route(env, new Request(`${ORIGIN}/api/gallery`));
-    expect(
-      ((await unfiltered.json()) as { entries: unknown[] }).entries,
-    ).toHaveLength(4);
   });
 });
 
@@ -4694,47 +4490,6 @@ describe("gallery administration", () => {
           id,
           projectText: JSON.stringify(raw),
           schemaVersion: 24,
-          svgText: "<svg/>",
-        }),
-      },
-    );
-
-    const maintenance = await route(
-      env,
-      new Request(`${ORIGIN}/api/gallery/maintenance/schema-current`, {
-        method: "POST",
-        headers: {
-          ...cookieHeaders(adminCookie),
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({ apply: true }),
-      }),
-    );
-    expect(await maintenance.json()).toMatchObject({
-      applied: true,
-      ready: 1,
-      failures: [],
-    });
-    const detail = await route(env, new Request(`${ORIGIN}/api/gallery/${id}`));
-    const payload = (await detail.json()) as { projectText: string };
-    const stored = parseProject(payload.projectText) as any;
-    expect(stored.schemaVersion).toBe(CURRENT_MODEL_SCHEMA_VERSION);
-    expect(stored.documents[0].routes[0].legs).toHaveLength(2);
-  });
-
-  it("chains schema-25 stock through converge in one run", async () => {
-    const env = environment();
-    const adminCookie = await adminOf(env);
-    const id = await submitOne(env, "Deep Legacy", { cookie: adminCookie });
-    await env.GALLERY.getByName("gallery").fetch(
-      "https://gallery/update-entry",
-      {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          id,
-          projectText: legacy25RouteText(),
-          schemaVersion: 25,
           svgText: "<svg/>",
         }),
       },

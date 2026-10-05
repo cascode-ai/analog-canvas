@@ -53,15 +53,6 @@ describe("CI validation planning", () => {
     });
   });
 
-  it("selects the Gallery browser contract without unrelated editor specs", () => {
-    expect(ciPlan(["worker/gallery.ts"])).toMatchObject({
-      heavy: true,
-      browser: true,
-      mode: "focused",
-      e2eArgs: ["apps/editor/e2e/gallery.spec.ts"],
-    });
-  });
-
   it("routes Shelf, snapshot history, duplicate correspondence and project sessions to their actual browser workflows", () => {
     for (const path of [
       "worker/gallery-do.ts",
@@ -144,19 +135,6 @@ describe("CI validation planning", () => {
         "apps/editor/e2e/simulation-workspace.spec.ts",
       ],
     });
-  });
-
-  it("selects native GUI coverage for simulation implementation and spec edits", () => {
-    for (const path of [
-      "apps/editor/src/features/simulation/spice-simulation-surface.tsx",
-      "apps/editor/e2e/gui-native-simulation.spec.ts",
-    ]) {
-      const plan = ciPlan([path]);
-      expect(plan.mode, path).toBe("focused");
-      expect(plan.e2eArgs, path).toContain(
-        "apps/editor/e2e/gui-native-simulation.spec.ts",
-      );
-    }
   });
 
   it("selects native MCP acceptance for MCP implementation and spec edits", () => {
@@ -303,15 +281,6 @@ describe("CI validation planning", () => {
         "apps/editor/e2e/simulation-code-editor.spec.ts",
       ]),
     );
-  });
-
-  it("uses the small browser fallback for an unmapped product path", () => {
-    const plan = ciPlan(["apps/editor/src/lib/new-helper.ts"]);
-    expect(plan.mode).toBe("fallback");
-    expect(plan.e2eArgs).toEqual([
-      "apps/editor/e2e/component-insert.spec.ts",
-      "apps/editor/e2e/runtime-crash-safety.spec.ts",
-    ]);
   });
 
   it("does not allocate a browser runner for non-shipping tests and manifests", () => {

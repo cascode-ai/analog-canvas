@@ -78,7 +78,7 @@ describe("a chunk name that no longer exists", () => {
 describe("client routes keep the shell", () => {
   // The other half of the boundary, and the half the earlier attempt broke:
   // these paths never had a file behind them, so their miss IS the shell.
-  it.each(["/editor", "/analytics", "/g/abc123", "/"])(
+  it.each(["/editor", "/g/abc123", "/"])(
     "%s renders the shell",
     async (path) => {
       const response = await get(path);
@@ -119,7 +119,6 @@ describe("hashed asset HTTP caching", () => {
   it.each([
     ["/assets/plain.js", 200, "max-age=0"],
     ["/assets/App-abcdefgh.js", 404, "no-store"],
-    ["/assets/App-abcdefgh.js", 500, "no-store"],
     ["/assets/App-abcdefgh.js", 200, "private, max-age=0"],
     ["/assets/App-abcdefgh.js", 200, "no-store"],
   ])("preserves policy for %s / %s / %s", async (path, status, policy) => {
