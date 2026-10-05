@@ -172,8 +172,11 @@ function applyPortCase(ir: DesignNetlistIR, portCase: NetlistPortCase): void {
  * Pins with them now extracts; and a Block whose body reads its supplies, in a
  * Cell that draws none, takes the default an unconnected MOS body takes, so a
  * logic figure drawn without supplies now extracts.
+ * 13 reads a Var Cap bound to the SKY130 varactor as the ideal Var Cap it now
+ * opens as (#1298): a circuit that part alone blocked extracts when it kept a
+ * value.
  */
-export const NETLIST_MARK_RULE_VERSION = 12;
+export const NETLIST_MARK_RULE_VERSION = 13;
 
 export function designExtractsNetlist(
   project: CircuitProject,

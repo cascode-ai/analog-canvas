@@ -125,6 +125,12 @@ stable local pins with different names. The released SKY130 resistor maps
 `R0/R1/B` from native `1/2/B`; B is a real `Net.terminals` membership edited
 only in Properties and never a Symbol pin, Route endpoint, or NoConnect. The
 reviewed MIM capacitor maps `C0/C1` from the frozen capacitor pins `1/2`.
+A reviewed mapping names the pins of one symbol and is offered only on it: the
+SKY130 varactor `sky130_fd_pr__cap_var_lvt` also maps `C0/C1` from `1/2` and
+its substrate `B` from Properties, so it is a model of the plain capacitor. The
+variable capacitor (Var Cap, pins `P1/P2`) stands for any tunable capacitance
+— a switched MOM or MIM bank, MOS capacitors, or a varactor — and stays an
+ideal capacitor with no reviewed model; a model target on it is refused.
 
 `Instance.reference` is the authored schematic name. Selecting or clearing a
 reviewed external target preserves it. SPICE extraction adds the invocation

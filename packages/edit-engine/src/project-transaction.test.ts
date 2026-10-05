@@ -29,9 +29,13 @@ import {
   planEditCellTerminalAnnotation,
   planRenameCellTerminal,
   planSetCellSymbolPresentation,
+  planSetDeviceModelTarget,
   createExternalSubcircuitInstance,
 } from "./hierarchy-planner.js";
-import { executeProjectTransaction } from "./project-transaction.js";
+import {
+  executeProjectTransaction,
+  type ProjectStructureEdit,
+} from "./project-transaction.js";
 
 describe("default project entry", () => {
   it("reorders definitions atomically with Top without changing their contents", () => {
@@ -2056,6 +2060,159 @@ describe("Project structural transaction", () => {
     expect(incompatible.project.documents[0]!.instances[0]!.symbolId).toBe(
       externalSubcircuitSymbolId(definition.id),
     );
+  });
+});
+
+describe("a part wired at pins its model does not have (#1298)", () => {
+  const actor = { kind: "agent" as const, id: "test" };
+  const varactor = {
+    id: "external-varactor",
+    name: "sky130_fd_pr__cap_var_lvt",
+    terminals: ["C0", "C1", "B"].map((name, index) => ({
+      id: `external-varactor-${index}`,
+      name,
+      direction: "passive" as const,
+    })),
+    formalParameters: [],
+    interfaceStatus: "declared" as const,
+  };
+
+  /** A wired Var Cap CV1 in Cell "dut" and a capacitor C1 in Cell "Other". */
+  function project(boundVarCap: boolean) {
+    const project = createEmptyProject("project", "Project");
+    project.externalSubcircuitDefinitions.push(structuredClone(varactor));
+    const top = project.documents[0]!;
+    top.instances.push({
+      id: "CV1",
+      reference: "CV1",
+      symbolId: "variable-capacitor",
+      placement: null,
+      netlist: boundVarCap
+        ? {
+            binding: { kind: "external-subcircuit", definitionId: varactor.id },
+            parameters: { w: "5u", l: "500n", vm: "1" },
+          }
+        : {
+            binding: { kind: "primitive", deviceClass: "capacitor" },
+            parameters: { value: "1p" },
+          },
+    });
+    top.nets.push(
+      { id: "net-tune", terminals: [{ instanceId: "CV1", pinName: "P1" }] },
+      { id: "net-ground", terminals: [{ instanceId: "CV1", pinName: "P2" }] },
+    );
+    const other = createEmptyDocument("document-other", "Other");
+    other.instances.push({
+      id: "C1",
+      reference: "C1",
+      symbolId: "capacitor",
+      placement: null,
+      netlist: {
+        binding: { kind: "primitive", deviceClass: "capacitor" },
+        parameters: { value: "1p" },
+      },
+    });
+    project.documents.push(other);
+    return project;
+  }
+
+  function transact(
+    source: ReturnType<typeof project>,
+    edits: ProjectStructureEdit[],
+  ) {
+    return executeProjectTransaction(source, {
+      transactionId: "edit",
+      projectId: source.id,
+      expectedStructureRevision: source.structureRevision,
+      actor,
+      edits,
+    });
+  }
+
+  it("lets unrelated edits through while a Var Cap bound before #1298 is still in the Project", () => {
+    const source = project(true);
+    // A new Cell, a model on a part in another Cell, and an edit beside the
+    // Var Cap in its own Cell: none of them touches CV1.
+    for (const edits of [
+      [
+        {
+          kind: "add_document" as const,
+          document: createEmptyDocument("bias", "Bias"),
+        },
+      ],
+      planSetDeviceModelTarget(
+        source,
+        "document-other",
+        "C1",
+        "sky130_fd_pr__cap_mim_m3_1",
+      ),
+      [
+        {
+          kind: "transact_document" as const,
+          documentId: source.topDocumentId,
+          expectedRevision: source.documents[0]!.revision,
+          edits: [
+            {
+              kind: "add_instance" as const,
+              instance: {
+                id: "R1",
+                reference: "R1",
+                symbolId: "resistor",
+                placement: null,
+                netlist: {
+                  binding: {
+                    kind: "primitive" as const,
+                    deviceClass: "resistor" as const,
+                  },
+                  parameters: { value: "1k" },
+                },
+              },
+            },
+          ],
+        },
+      ],
+    ]) {
+      const result = transact(source, edits);
+      if (!result.ok) throw new Error(result.error.message);
+      expect(result.applied).toBe(true);
+    }
+  });
+
+  it("refuses an edit that wires a part at a pin its model does not have, naming the part, its Cell and the ways out", () => {
+    const source = project(false);
+    const result = transact(source, [
+      {
+        kind: "transact_document",
+        documentId: source.topDocumentId,
+        expectedRevision: source.documents[0]!.revision,
+        edits: [
+          {
+            kind: "bulk_patch_instance_netlist",
+            assignments: [
+              {
+                instanceId: "CV1",
+                binding: {
+                  kind: "external-subcircuit",
+                  definitionId: varactor.id,
+                },
+              },
+            ],
+          },
+        ],
+      },
+    ]);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toEqual({
+      code: "INVALID_RESULT",
+      message:
+        "CV1 in Cell dut uses pin P1, which its model sky130_fd_pr__cap_var_lvt does not have. Disconnect CV1.P1, clear CV1's model, or delete CV1.",
+    });
+    expect(result.diagnostics[0]).toMatchObject({
+      objectIds: ["CV1", "net-tune"],
+      parameters: { documentId: source.topDocumentId, instanceId: "CV1" },
+    });
   });
 });
 

@@ -26,8 +26,8 @@ import {
 } from "./hierarchy-planner.js";
 import { executeProjectTransaction } from "./project-transaction.js";
 
-describe("hierarchy domain planners", () => {
-  it("accepts the reviewed SKY130 varactor on a variable-capacitor", () => {
+describe("a Var Cap is a generic tunable capacitor (#1298)", () => {
+  function varCapProject() {
     const project = createEmptyProject("varactor", "Varactor");
     const document = project.documents[0]!;
     document.instances.push({
@@ -40,17 +40,81 @@ describe("hierarchy domain planners", () => {
         parameters: { value: "500f" },
       },
     });
+    document.nets.push(
+      { id: "net-tune", terminals: [{ instanceId: "CV1", pinName: "P1" }] },
+      { id: "net-ground", terminals: [{ instanceId: "CV1", pinName: "P2" }] },
+    );
+    return project;
+  }
 
+  it("refuses the SKY130 varactor and says which part takes it", () => {
+    const project = varCapProject();
     expect(() =>
       planSetDeviceModelTarget(
         project,
-        document.id,
+        project.topDocumentId,
         "CV1",
         "sky130_fd_pr__cap_var_lvt",
       ),
-    ).not.toThrow();
+    ).toThrow(
+      "sky130_fd_pr__cap_var_lvt is not compatible with the selected variable-capacitor: it is a capacitor model. Place a capacitor to use it.",
+    );
   });
 
+  it("clears the varactor from a Var Cap bound before #1298 and keeps it a Var Cap", () => {
+    // The state #1272 left: bound, wired at P1/P2, substrate set to a Net.
+    const project = varCapProject();
+    project.externalSubcircuitDefinitions.push({
+      id: "external-varactor",
+      name: "sky130_fd_pr__cap_var_lvt",
+      terminals: ["C0", "C1", "B"].map((name, index) => ({
+        id: `external-varactor-${index}`,
+        name,
+        direction: "passive" as const,
+      })),
+      formalParameters: [],
+      interfaceStatus: "declared",
+    });
+    const document = project.documents[0]!;
+    document.instances[0]!.netlist = {
+      binding: {
+        kind: "external-subcircuit",
+        definitionId: "external-varactor",
+      },
+      parameters: { w: "5u", l: "500n", vm: "1" },
+    };
+    document.nets[1]!.terminals.push({ instanceId: "CV1", pinName: "B" });
+
+    const cleared = executeProjectTransaction(project, {
+      transactionId: "clear-varactor",
+      projectId: project.id,
+      expectedStructureRevision: project.structureRevision,
+      actor: { kind: "agent", id: "test" },
+      edits: planSetDeviceModelTarget(
+        project,
+        project.topDocumentId,
+        "CV1",
+        "",
+      ),
+    });
+
+    if (!cleared.ok) throw new Error(cleared.error.message);
+    const repaired = cleared.project.documents[0]!;
+    expect(repaired.instances[0]).toMatchObject({
+      symbolId: "variable-capacitor",
+      netlist: {
+        binding: { kind: "primitive", deviceClass: "capacitor" },
+        parameters: {},
+      },
+    });
+    expect(repaired.nets.map((net) => net.terminals)).toEqual([
+      [{ instanceId: "CV1", pinName: "P1" }],
+      [{ instanceId: "CV1", pinName: "P2" }],
+    ]);
+  });
+});
+
+describe("hierarchy domain planners", () => {
   function railProject(scope: "local" | "global" = "global") {
     const project = createEmptyProject("rail-mode", "Rail mode");
     const document = project.documents[0]!;

@@ -204,6 +204,13 @@ intent or produce a located incompatibility; they cannot guess replacement
 electrical meaning. In particular, ownerless Net-equivalence records are
 rejected, imported spelling becomes non-electrical provenance, and old simulation
 setups become source folders. A failed import leaves the live Project unchanged.
+Every load also returns a part drawn as a built-in ideal device but bound to a
+reviewed PDK device whose drawn pins its symbol lacks — a variable capacitor
+bound to the SKY130 varactor between 2026-10-01 and #1298, which could be
+neither wired nor exported — to that ideal device. The binding, the device's
+parameters and its Net memberships at pins the symbol lacks are dropped; wires,
+labels and any authored `value` stay, and no value is invented. A stored copy
+changes only when it is next saved.
 Compatibility does not create legacy runtime writers or authorize bulk rewriting
 of stored Gallery or Cloud data.
 

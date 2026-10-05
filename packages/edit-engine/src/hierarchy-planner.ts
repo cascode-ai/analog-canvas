@@ -449,7 +449,14 @@ export function planSetDeviceModelTarget(
           instance.netlist.binding.definitionId,
         )
       : undefined;
-  const sourceSymbolId = currentExternal?.binding.symbolId ?? instance.symbolId;
+  // A part drawn with a block symbol returns to the symbol its reviewed
+  // device is drawn with. A part drawn as a built-in device keeps its own:
+  // clearing the model of a Var Cap bound to the varactor before #1298
+  // leaves an ideal Var Cap, not a plain capacitor.
+  const sourceSymbolId =
+    currentExternal && !deviceDescriptor(instance.symbolId)
+      ? currentExternal.binding.symbolId
+      : instance.symbolId;
   const sourceDescriptor = deviceDescriptor(sourceSymbolId);
   if (
     !sourceDescriptor ||
@@ -465,7 +472,7 @@ export function planSetDeviceModelTarget(
   if (targetBinding) {
     if (!reviewedExternalBindingSupportsSymbol(targetBinding, sourceSymbolId)) {
       throw new Error(
-        `${normalizedName} is not compatible with the selected ${sourceSymbolId}`,
+        `${normalizedName} is not compatible with the selected ${sourceSymbolId}: it is a ${targetBinding.symbolId} model. Place a ${targetBinding.symbolId} to use it.`,
       );
     }
     const sameNameDefinition = project.externalSubcircuitDefinitions.find(

@@ -4,6 +4,7 @@ import {
   projectLengthToSky130Micrometres,
   resolveReviewedExternalBinding,
   reviewedExternalBindingForMaster,
+  reviewedExternalBindingSupportsSymbol,
   reviewedExternalModelSuggestions,
   sky130MicrometresToProjectLength,
 } from "./reviewed-external.js";
@@ -104,10 +105,23 @@ describe("reviewed external device bindings", () => {
     ).toBeUndefined();
   });
 
-  it("offers the reviewed varactor to the variable-capacitor symbol", () => {
-    expect(reviewedExternalModelSuggestions("variable-capacitor")).toContain(
+  it("offers the varactor on the plain capacitor and no model on the generic Var Cap (#1298)", () => {
+    // A Var Cap is any tunable capacitance — a switched MOM or MIM bank, MOS
+    // capacitors, or a varactor — and its pins are P1/P2, which the
+    // varactor's C0/C1 (pins 1/2) are not.
+    const varactor = reviewedExternalBindingForMaster(
+      "sky130_fd_pr__cap_var_lvt",
+    )!;
+    expect(reviewedExternalModelSuggestions("capacitor")).toContain(
       "sky130_fd_pr__cap_var_lvt",
     );
+    expect(reviewedExternalBindingSupportsSymbol(varactor, "capacitor")).toBe(
+      true,
+    );
+    expect(reviewedExternalModelSuggestions("variable-capacitor")).toEqual([]);
+    expect(
+      reviewedExternalBindingSupportsSymbol(varactor, "variable-capacitor"),
+    ).toBe(false);
   });
 
   it("draws SKY130's drain-extended devices as DMOS", () => {

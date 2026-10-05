@@ -35,6 +35,7 @@ import {
   upgradeSchema48To49,
 } from "./previous-to-current.js";
 import { repairBoundFormatOverrides } from "./transforms/bound-format-override.js";
+import { repairMisdrawnReviewedBindings } from "./transforms/misdrawn-reviewed-binding.js";
 import { OLDEST_SUPPORTED_PROJECT_SCHEMA_VERSION } from "./version.js";
 import { upgradeSchema49To50 } from "./transforms/simulation-folders.js";
 import { upgradeSchema50To51 } from "./transforms/drafting-shape-paint.js";
@@ -220,7 +221,15 @@ export function tryParseProjectWithMetadata(
   current = repairBoundFormatOverrides(current);
   const validated = tryValidateProject(current);
   if (!validated.ok) return validated;
-  const project = validated.project;
+  // A Var Cap bound to the SKY130 varactor (#1298) could be neither wired nor
+  // exported; it opens as an ideal Var Cap. A repair the schema would refuse
+  // leaves the Project as it was rather than refusing to open it.
+  let project = validated.project;
+  const repaired = repairMisdrawnReviewedBindings(project);
+  if (repaired !== project) {
+    const checked = CircuitProjectSchema.safeParse(repaired);
+    if (checked.success) project = checked.data;
+  }
   if (project.componentDefinitions) {
     const definitions = new Map(
       project.componentDefinitions.map((definition) => [
