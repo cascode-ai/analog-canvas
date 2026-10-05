@@ -227,4 +227,58 @@ describe("labels a change newly strikes with a wire (#1366)", () => {
       restyle,
     ]);
   });
+
+  it("moves a value shown without its Reference off a wire newly across it (#1370)", () => {
+    // A value-only part draws its value in the Reference's slot. One there
+    // with a wire through it was never arranged.
+    const document = createEmptyDocument("d", "Value only");
+    const instance = {
+      id: "R1",
+      reference: "R1",
+      symbolId: "resistor",
+      placement: {
+        position: { x: 100, y: 100 },
+        rotation: 0 as const,
+        mirror: "none" as const,
+      },
+      netlist: { parameters: { value: "1k" } },
+    };
+    document.instances.push(instance);
+    document.annotations.push(
+      ...defaultInstanceDisplayAnnotations(
+        document,
+        instance,
+        builtIn,
+        resolveDocumentStyleProfile(document.presentation),
+        { showValue: true, showDesignator: false },
+      ),
+    );
+    const value = document.annotations.find(
+      (item) => item.binding?.kind === "instance-value",
+    )!;
+    expect(
+      document.annotations.some(
+        (item) => item.binding?.kind === "instance-reference",
+      ),
+    ).toBe(false);
+    const ink = createLabelClearanceContext(document, builtIn).measure(
+      value,
+    ).inkBounds;
+    const after = structuredClone(document);
+    const y = 2 * Math.round((ink.y + ink.height / 2) / 2);
+    wire(after, "w", { x: 110, y }, { x: 200, y });
+    expect(wiresAcross(after, builtIn, value.id)).toEqual(["w"]);
+    const edits = arrangeNewlyStruckLabels(
+      { document, resolver: builtIn },
+      after,
+      builtIn,
+    );
+    expect(
+      edits.map(
+        (edit) =>
+          edit.kind === "upsert_schematic_annotation" && edit.annotation.id,
+      ),
+    ).toEqual([value.id]);
+    expect(wiresAcross(applied(after, edits), builtIn, value.id)).toEqual([]);
+  });
 });

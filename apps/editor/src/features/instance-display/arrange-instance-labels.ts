@@ -133,25 +133,36 @@ export function arrangeInstanceLabels(
     const slot = reference ? "reference" : "value";
     const sizeScale = original.sizeScale ?? 1;
     const current = context.measure(original).position;
+    // A value shown without its Reference stands in the Reference's slot, as
+    // a value-only part is placed and as the edit engine reads it (#1370):
+    // one there with a wire through it was never moved.
+    const alone =
+      !reference &&
+      !context.visible.some(
+        (a) =>
+          a.binding?.kind === "instance-reference" &&
+          a.binding.instanceId === instance.id,
+      );
     // Only a still-default visual slot is eligible. Manual/free anchors,
     // styles, and labels moved by an earlier pass remain under their
     // author's control.
-    if (
-      ![
+    const at = (inSlot: "reference" | "value") =>
+      [
         defaultInstanceLabelPlacement,
         uniformRowDefaultInstanceLabelPlacement,
         previousDefaultInstanceLabelPlacement,
         legacyDefaultInstanceLabelPlacement,
       ].some((place) => {
-        const p = place(instance, resolved, style, grid, slot, sizeScale);
+        const p = place(instance, resolved, style, grid, inSlot, sizeScale);
         return (
           p &&
           p.alignment === original.alignment &&
           Math.hypot(p.position.x - current.x, p.position.y - current.y) < 0.01
         );
-      })
-    )
-      return null;
+      });
+    const inValueRow = at(slot);
+    const inReferenceSlot = !inValueRow && alone && at("reference");
+    if (!inValueRow && !inReferenceSlot) return null;
     const annotation =
       reference &&
       !cellName &&
@@ -162,14 +173,8 @@ export function arrangeInstanceLabels(
             formatOverride: canonicalPortTextDocument(instance.reference!),
           }
         : original;
-    const compact =
-      options.compact !== false &&
-      !reference &&
-      !context.visible.some(
-        (a) =>
-          a.binding?.kind === "instance-reference" &&
-          a.binding.instanceId === instance.id,
-      );
+    // One already in its Reference's slot keeps that row, compact or not.
+    const compact = alone && (options.compact !== false || inReferenceSlot);
     return { original, annotation, slot, compact, sizeScale };
   }
 
