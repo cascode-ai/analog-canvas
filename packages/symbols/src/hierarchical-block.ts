@@ -155,6 +155,8 @@ function drawnPinPlacements(
   if (!positions.length) return [];
   const xs = positions.map((position) => position.x);
   const middle = (Math.min(...xs) + Math.max(...xs)) / 2;
+  const ys = positions.map((position) => position.y);
+  const level = (Math.min(...ys) + Math.max(...ys)) / 2;
   const drawnAt = (terminalId: string) => {
     const terminal = document.netlist?.terminals.find(
       (item) => item.id === terminalId,
@@ -163,38 +165,57 @@ function drawnPinPlacements(
       (instance) => instance.id === terminal?.interfaceInstanceIds[0],
     )?.placement?.position;
   };
-  const sides = { west: [], east: [] } as Record<
-    "west" | "east",
+  const sides = { west: [], east: [], north: [], south: [] } as Record<
+    "west" | "east" | "north" | "south",
     { terminalId: string; x: number; y: number }[]
   >;
   for (const terminal of projectCellSymbolTerminals(document)) {
     if (stored.some((placement) => placement.terminalId === terminal.id))
       continue;
     const at = drawnAt(terminal.id);
-    if (!at || at.x === middle) continue;
-    sides[at.x < middle ? "west" : "east"].push({
-      terminalId: terminal.id,
-      ...at,
-    });
+    if (!at) continue;
+    // A Port drawn on the middle line takes the end it is drawn at. A
+    // differential pair's tail, drawn below the pair, had no side, and the
+    // automatic layout put it between outp and inp, three names in 20 units.
+    sides[
+      at.x < middle
+        ? "west"
+        : at.x > middle
+          ? "east"
+          : at.y > level
+            ? "south"
+            : at.y < level
+              ? "north"
+              : "west"
+    ].push({ terminalId: terminal.id, ...at });
   }
   // The rows sit a little below the middle under a top Pin, a little above
   // it over a bottom one: the body grows evenly from its middle, and a top
   // name needs room above the first row only. A DAC unit with VDD on top
   // and four Pins down its left took 160 high with its rows from the
   // middle up, and 120 with them centred 10 below it.
-  const ends = new Set(stored.map((placement) => placement.side));
+  const ends = new Set([
+    ...stored.map((placement) => placement.side),
+    ...(["north", "south"] as const).filter((side) => sides[side].length),
+  ]);
   const centre =
     ends.has("north") === ends.has("south") ? 0 : ends.has("north") ? 10 : -10;
-  return (["west", "east"] as const).flatMap((side) => {
+  return (["west", "east", "north", "south"] as const).flatMap((side) => {
+    const across = side === "north" || side === "south";
     const taken = new Set(
       stored
         .filter((placement) => placement.side === side)
         .map((placement) => placement.offset),
     );
     const count = sides[side].length;
+    // A top or bottom Pin is centred along its end; the side rows follow the
+    // top and bottom ones.
     let offsets = Array.from(
       { length: count },
-      (_, index) => centre + ROW_PITCH * index - (ROW_PITCH / 2) * (count - 1),
+      (_, index) =>
+        (across ? 0 : centre) +
+        ROW_PITCH * index -
+        (ROW_PITCH / 2) * (count - 1),
     );
     if (offsets.some((offset) => taken.has(offset))) {
       offsets = [];
@@ -205,7 +226,7 @@ function drawnPinPlacements(
       offsets.sort((a, b) => a - b);
     }
     return sides[side]
-      .sort((a, b) => a.y - b.y || a.x - b.x)
+      .sort((a, b) => (across ? a.x - b.x : a.y - b.y || a.x - b.x))
       .map((entry, index) => ({
         terminalId: entry.terminalId,
         side,

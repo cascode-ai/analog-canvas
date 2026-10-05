@@ -168,6 +168,49 @@ describe("hierarchical block formal terminals", () => {
         .pins.find((pin) => pin.name === name)!.at.y;
     expect([at("p"), at("q"), at("r")]).toEqual([0, 20, 10]);
   });
+  it("puts a Port drawn on the middle line at the end of the block it is drawn at", () => {
+    // A differential pair's tail, drawn below the pair, had no side, and the
+    // automatic layout put it between outp and inp: three names in 20 units.
+    const project = createEmptyProject("p", "Top", "top");
+    const cell = createEmptyDocument("pair", "Pair");
+    const port = (name: string, x: number, y: number) => {
+      cell.instances.push({
+        id: `P-${name}`,
+        symbolId: "port",
+        placement: { position: { x, y }, rotation: 0, mirror: "none" },
+      });
+      return {
+        id: `terminal-${name}`,
+        name,
+        netId: `net-${name}`,
+        direction: "inout" as const,
+        interfaceInstanceIds: [`P-${name}`],
+      };
+    };
+    cell.netlist = {
+      name: "pair",
+      formalParameters: [],
+      terminals: [
+        port("inp", -60, 0),
+        port("inn", 160, 0),
+        port("outp", 10, -60),
+        port("outn", 90, -60),
+        port("tail", 50, 60),
+      ],
+    };
+    project.documents.push(cell);
+    const symbol = createProjectHierarchicalSymbols(project).find(
+      (item) => item.id === hierarchicalSymbolId("pair"),
+    )!;
+    const at = (name: string) =>
+      symbol.pins.find((pin) => pin.name === name)!.at;
+    // The tail below the block, in the middle of it.
+    expect(at("tail").x).toBe((at("inp").x + at("inn").x) / 2);
+    expect(at("tail").y).toBeGreaterThan(at("inp").y);
+    // Two rows down each side, a full row apart.
+    expect(at("inp").y - at("outp").y).toBe(20);
+    expect(at("inn").y - at("outn").y).toBe(20);
+  });
   it("derives pins only from the private formal cell interface", () => {
     const symbol = createHierarchicalBlockSymbol({
       name: "Child",
