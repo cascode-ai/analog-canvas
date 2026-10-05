@@ -216,6 +216,9 @@ importers:
       "@icm/derived":
         specifier: workspace:*
         version: link:../derived
+      "@icm/devices":
+        specifier: workspace:*
+        version: link:../devices
       "@icm/edit-engine":
         specifier: workspace:*
         version: link:../edit-engine

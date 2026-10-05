@@ -13,7 +13,7 @@ import {
   stateSnapshotResponse,
   transactSuccessResponse,
 } from "../../../packages/agent-client/src/test-support/fake-relay.js";
-import { testSnapshot } from "../../../packages/agent-client/src/test-support/snapshot-fixture.js";
+import { testSnapshot } from "../../../packages/agent-adapter/src/test-support/snapshot-fixture.js";
 import { callTool, listToolDefinitions } from "./tools.js";
 import type { ToolSessionState } from "./tools.js";
 import otaProject from "../../../netlists/native-ota-library/legacy-source.icproj.json";

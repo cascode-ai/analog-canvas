@@ -65,8 +65,8 @@ import {
   splitIntoCalls,
   type ActionCall,
   type CompiledTransaction,
-} from "./authoring-helper.js";
-import { AuthoringActionSchema } from "./authoring-actions.js";
+} from "@icm/agent-adapter/authoring";
+import { AuthoringActionSchema } from "@icm/agent-adapter/authoring";
 import type { WorkspaceBindingStore } from "./workspace-binding-store.js";
 
 interface ActiveSession {

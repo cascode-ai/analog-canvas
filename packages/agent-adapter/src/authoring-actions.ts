@@ -6,10 +6,12 @@ import {
 } from "@icm/model";
 import {
   AgentAuthoringCommandSchema,
+  AgentPinAnchorSchema,
+} from "./authoring-command.js";
+import {
   AgentSemanticIntentSchema,
   AgentWireAtAnchorSchema,
-  AgentPinAnchorSchema,
-} from "@icm/agent-adapter";
+} from "./schema.js";
 
 /**
  * Compact high-level actions accepted by `apply_actions`. They are a projection

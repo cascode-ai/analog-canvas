@@ -53,13 +53,13 @@ export {
   type CompileContext,
   type SchematicEdit,
   type WireIntent,
-} from "./authoring-helper.js";
+} from "@icm/agent-adapter/authoring";
 export {
   AuthoringActionSchema,
   ObjectRefSchema,
   type AuthoringAction,
   type ObjectRef,
-} from "./authoring-actions.js";
+} from "@icm/agent-adapter/authoring";
 export {
   WorkspaceBindingStore,
   type WorkspaceBinding,
