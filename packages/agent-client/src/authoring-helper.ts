@@ -233,7 +233,10 @@ interface ResolvedDocument {
     position: { x: number; y: number };
   }[];
   annotations: Record<string, unknown>[];
-  noConnects: { id: string }[];
+  noConnects: {
+    id: string;
+    endpoint: { instanceId: string; pinName: string };
+  }[];
   drafting: { object: Record<string, unknown>; id: string }[];
 }
 
@@ -305,7 +308,10 @@ function resolvedDocument(snapshot: AgentSessionSnapshot): ResolvedDocument {
       position: junction.position,
     })),
     annotations: document.annotations as unknown as Record<string, unknown>[],
-    noConnects: document.noConnects.map((noConnect) => ({ id: noConnect.id })),
+    noConnects: document.noConnects.map((noConnect) => ({
+      id: noConnect.id,
+      endpoint: noConnect.endpoint,
+    })),
     drafting: document.drafting.objects.map((entry) => ({
       object: entry.object as unknown as Record<string, unknown>,
       id: entry.object.id,
@@ -690,7 +696,9 @@ export function compileActions(
         compileConnect(index, action, document, allocateId, pushWireIntent);
         break;
       case "disconnect":
-        compileDisconnect(index, action, document, pushEdit);
+        if (action.noConnect !== undefined)
+          compileNoConnect(index, action, document, pushEdit, allocateId);
+        else compileDisconnect(index, action, document, pushEdit);
         break;
       case "move":
         if (action.target.kind === "annotation") {
@@ -1657,6 +1665,85 @@ function compileDisconnect(
     { id: action.target.route },
   );
   pushEdit(index, action.kind, { kind: "cut_connection", routeId: route.id });
+}
+
+/**
+ * A disconnect with noConnect marks or clears a pin's No Connect, as the
+ * GUI's toggle does (#1305). An unused QBAR blocked a PFD's netlist, and
+ * the Agent's only way to mark it was an advanced edit with an ID it had to
+ * invent. Marking a wired pin disconnects it first: the Agent asked to.
+ */
+function compileNoConnect(
+  index: number,
+  action: ActionOfKind<"disconnect">,
+  document: ResolvedDocument,
+  pushEdit: PushEdit,
+  allocateId: AllocateId,
+): void {
+  const target = action.target;
+  if (target.kind !== "pin")
+    throw new ActionCompileError(
+      index,
+      action.kind,
+      "noConnect applies to a pin target, not a route",
+    );
+  const instance = resolveInstance(document, index, action.kind, {
+    kind: "instance",
+    ...(typeof target.instance === "string"
+      ? { reference: target.instance }
+      : target.instance),
+  });
+  const pinName = target.pin;
+  requirePin(index, action.kind, instance, pinName);
+  if (pinName === "P" && document.cellTerminalInstanceIds.has(instance.id))
+    throw new ActionCompileError(
+      index,
+      action.kind,
+      "A formal Cell Pin's P pin is its Net's connection, never No Connect; use remove-cell-terminal or delete-selection instead",
+    );
+  const name = `${instance.reference ?? instance.id}.${pinName}`;
+  const marked = document.noConnects.find(
+    (noConnect) =>
+      noConnect.endpoint.instanceId === instance.id &&
+      noConnect.endpoint.pinName === pinName,
+  );
+  if (!action.noConnect) {
+    if (!marked)
+      throw new ActionCompileError(
+        index,
+        action.kind,
+        `pin ${name} has no No Connect mark`,
+      );
+    pushEdit(index, action.kind, {
+      kind: "remove_no_connect",
+      noConnectId: marked.id,
+    });
+    return;
+  }
+  if (marked)
+    throw new ActionCompileError(
+      index,
+      action.kind,
+      `pin ${name} is already marked No Connect`,
+    );
+  const wired = document.nets.some((candidate) =>
+    candidate.terminals.some(
+      (terminal) =>
+        terminal.instanceId === instance.id && terminal.pinName === pinName,
+    ),
+  );
+  if (wired)
+    pushEdit(index, action.kind, {
+      kind: "disconnect_endpoint",
+      endpoint: terminalEndpoint(instance, pinName),
+    });
+  pushEdit(index, action.kind, {
+    kind: "add_no_connect",
+    noConnect: {
+      id: allocateId("no-connect"),
+      endpoint: terminalEndpoint(instance, pinName),
+    },
+  });
 }
 
 /**

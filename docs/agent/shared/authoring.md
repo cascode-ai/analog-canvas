@@ -224,6 +224,12 @@ Its focused contract is `describe_tool({tool:"apply_actions",operations:["route-
 use it when parameters are unfamiliar, not as a mandatory preflight. Ordinary
 `circuit_wire` keeps its compact connect/disconnect declaration.
 
+A pin left unused on purpose, such as a flip-flop's QBAR or one side of a
+differential output, needs a No Connect mark, or the netlist blocks with
+`MISSING_PIN_NET`: `{kind:"disconnect",target:{kind:"pin",instance:"X1",pin:"QBAR"},noConnect:true}`.
+A wired pin is disconnected first. The pin exports as its own floating node
+(`NC0001`), reported as information. `noConnect:false` removes the mark.
+
 For cleanup, prefer move/mirror/group transforms and route edits. Geometry moves
 do not perform GUI drag-to-connect snapping. `terminalConnectivityChanged` in
 ordinary transaction receipts compares document-local terminal equivalence;

@@ -124,7 +124,7 @@ export type DesignNetlistGeneratedDefinition =
       name: string;
     };
 
-export type NetlistDiagnosticSeverity = "error" | "warning";
+export type NetlistDiagnosticSeverity = "error" | "warning" | "info";
 
 export interface NetlistDiagnostic {
   code: string;

@@ -275,6 +275,12 @@ export const AuthoringActionSchema = z.discriminatedUnion("kind", [
       PinTargetSchema,
       z.strictObject({ kind: z.literal("route"), route: z.string().min(1) }),
     ]),
+    noConnect: z
+      .boolean()
+      .optional()
+      .describe(
+        "For a pin. true: leave it unused, such as a flip-flop's QBAR, marked No Connect as the GUI does (disconnected first if wired); it exports as its own floating node. false: remove its No Connect mark.",
+      ),
   }),
   z
     .strictObject({

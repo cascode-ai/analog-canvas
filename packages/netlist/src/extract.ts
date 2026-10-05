@@ -110,7 +110,7 @@ function diagnostic(
   code: string,
   message: string,
   objectIds: StableId[] = [],
-  severity: "error" | "warning" = "error",
+  severity: NetlistDiagnostic["severity"] = "error",
   parameter?: string,
 ): void {
   diagnostics.push({
@@ -721,13 +721,15 @@ function buildNetContext(
     const key = `${noConnect.endpoint.instanceId}\u0000${noConnect.endpoint.pinName}`;
     noConnectNameByTerminal.set(key, generated);
     noConnectNets.push({ id: noConnect.id, name: generated, scope: "local" });
+    // The author marked this pin unused; its node name is information, not
+    // a problem. As a warning, a PFD's two unused QBAR marks buried the rest.
     diagnostic(
       diagnostics,
       document.id,
       "GENERATED_NO_CONNECT_NODE",
       `Explicit NoConnect ${noConnect.id} exports as floating node ${generated}`,
       [noConnect.id, noConnect.endpoint.instanceId],
-      "warning",
+      "info",
     );
   }
 
@@ -814,7 +816,7 @@ function terminalNetName(
       ? // The fourth node has two authored answers; name both so the
         // report is actionable instead of only true.
         `Required pin ${instance.reference ?? instance.id}.B has no body Net: connect B, or set this Cell's MOS body default`
-      : `Required pin ${instance.reference ?? instance.id}.${pinName} is not connected to an exportable Net`,
+      : `Required pin ${instance.reference ?? instance.id}.${pinName} is not connected to an exportable Net: connect it, or mark it No Connect if it is unused`,
     [instance.id],
   );
   return null;
