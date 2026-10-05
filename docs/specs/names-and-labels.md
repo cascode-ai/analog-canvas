@@ -238,7 +238,9 @@ Batch operations are explicit and distinct:
   bounded nearby positions to reduce collisions; it does not reset every
   label. A part's Reference comes first: no position that clears the value
   but draws the Reference over a wire, a part or another label is preferred
-  to one that keeps the Reference clear. Its optional first-letter reference style is explicit. The existing
+  to one that keeps the Reference clear. A requested Cell Pin's name, while
+  still on one of its own sides, takes the first of them where it meets
+  nothing, as a new Pin's name does. Its optional first-letter reference style is explicit. The existing
   style-equality eligibility check is retained, not promoted into a general
   definition of whether a user has edited an object.
 

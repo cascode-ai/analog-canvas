@@ -257,7 +257,8 @@ For an explicit label cleanup, `circuit_text` / `apply_actions` accepts
 slots and tries a fixed set of nearby collision-avoiding positions in one
 undoable operation, keeping each Reference clear before its value. Where parts
 sit too close for both, the value is the one left touching a wire; hide values
-with `set-instance-display` or move the parts apart. Set `compact:false` or `avoidCollisions:false` to disable
+with `set-instance-display` or move the parts apart. A requested Port's name
+that a part or wire now covers moves to the first clear one of its sides. Set `compact:false` or `avoidCollisions:false` to disable
 either part; `referenceStyle:"first-letter-subscript"` optionally displays
 `RBIAS` as an R with BIAS subscript without changing the Reference. Manual/free,
 locked, hidden and custom-styled labels are preserved. This is not an autorouter

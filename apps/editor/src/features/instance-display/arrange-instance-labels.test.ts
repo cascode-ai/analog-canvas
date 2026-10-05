@@ -163,6 +163,75 @@ describe("opt-in label arrangement", () => {
     expect(after.measure(moved).position).toEqual(before);
     expect(after.conflicts(moved)).toEqual([]);
   });
+  it("moves a Cell Pin's name off a part placed over it, and leaves a name moved by hand", () => {
+    // Port vin at (100,100) faces right; its name stands to its left, where
+    // a resistor placed later now lies.
+    const doc = createEmptyDocument("d", "Pin name");
+    const port = {
+      id: "vin",
+      symbolId: "port",
+      placement: {
+        position: { x: 100, y: 100 },
+        rotation: 0 as const,
+        mirror: "none" as const,
+      },
+    };
+    doc.instances.push(port);
+    doc.netlist = {
+      name: "d",
+      formalParameters: [],
+      terminals: [
+        {
+          id: "terminal-vin",
+          name: "vin",
+          netId: "net-vin",
+          direction: "input",
+          interfaceInstanceIds: ["vin"],
+        },
+      ],
+    };
+    const name = defaultInstanceDisplayAnnotations(
+      doc,
+      port,
+      resolver,
+      resolveDocumentStyleProfile(doc.presentation),
+      { formalTerminalId: "terminal-vin", formalName: "vin" },
+    )[0]!;
+    doc.annotations.push(name);
+    const before = createLabelClearanceContext(doc, resolver);
+    const ink = before.measure(name).inkBounds;
+    doc.instances.push({
+      id: "R9",
+      reference: "R9",
+      symbolId: "resistor",
+      placement: {
+        position: { x: Math.round(ink.x + ink.width / 2), y: 100 },
+        rotation: 90,
+        mirror: "none",
+      },
+      netlist: { parameters: { value: "1k" } },
+    });
+    expect(createLabelClearanceContext(doc, resolver).conflicts(name)).toEqual([
+      "R9",
+    ]);
+
+    const edits = arrangeInstanceLabels(doc, resolver, ["vin"], {});
+    apply(doc, edits);
+    const moved = doc.annotations.find((a) => a.id === name.id)!;
+    expect(moved.alignment).toBe("middle");
+    expect(createLabelClearanceContext(doc, resolver).conflicts(moved)).toEqual(
+      [],
+    );
+
+    // A name its author put somewhere else stays there.
+    const placed = structuredClone(doc);
+    const authored = placed.annotations.find((a) => a.id === name.id)!;
+    Object.assign(authored, {
+      alignment: "end",
+      anchor: { ...name.anchor, localOffset: { x: -13, y: 4 } },
+    });
+    expect(arrangeInstanceLabels(placed, resolver, ["vin"], {})).toEqual([]);
+  });
   it("compacts a visible value into a hidden reference slot, preserving bindings and undo-sized edits", () => {
     const { doc, instance } = fixture();
     const reference = doc.annotations.find(

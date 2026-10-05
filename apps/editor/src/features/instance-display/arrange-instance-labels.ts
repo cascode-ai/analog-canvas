@@ -14,6 +14,7 @@ import {
   instanceValueRowOffset,
   objectStyleProfile,
   placeUprightInstanceLabel,
+  portLabelCandidates,
   resolveDocumentStyleProfile,
   uniformRowDefaultInstanceLabelPlacement,
   type InstanceLabelPlacement,
@@ -322,7 +323,91 @@ export function arrangeInstanceLabels(
       context.accept(next);
     }
   }
+  if (options.avoidCollisions !== false) edits.push(...arrangePinNames());
   return edits;
+
+  /**
+   * A Cell Pin's name takes the first of its sides where it meets nothing,
+   * as a new Pin's does (#1105). Parts placed and wired after it may have
+   * come to sit where it was put: an OTA's input Ports' names lay across its
+   * cascode transistors, and nothing could move them but a hand.
+   */
+  function arrangePinNames(): SchematicEdit[] {
+    const moved: SchematicEdit[] = [];
+    for (const label of context.visible) {
+      if (
+        label.binding?.kind !== "cell-terminal-name" ||
+        label.anchor.kind !== "object" ||
+        !ids.has(label.anchor.objectId) ||
+        label.locked ||
+        label.rotation !== 0
+      )
+        continue;
+      const ownerId = label.anchor.objectId;
+      const instance = document.instances.find((item) => item.id === ownerId);
+      if (
+        !instance?.placement ||
+        (instance.symbolId !== "port" && instance.symbolId !== "port-filled")
+      )
+        continue;
+      const resolved = resolver.resolve(
+        instance.symbolId,
+        instance.symbolVariantId,
+      );
+      if (!resolved) continue;
+      const style = objectStyleProfile(documentProfile, instance);
+      const candidates = portLabelCandidates(instance, resolved, style, grid);
+      const standard = defaultInstanceLabelPlacement(
+        instance,
+        resolved,
+        style,
+        grid,
+        "reference",
+      );
+      const current = context.measure(label).position;
+      // Only a name still on one of its own sides; one put elsewhere by
+      // hand stays where it was put.
+      if (
+        ![...candidates, ...(standard ? [standard] : [])].some(
+          (candidate) =>
+            candidate.alignment === label.alignment &&
+            Math.hypot(
+              candidate.position.x - current.x,
+              candidate.position.y - current.y,
+            ) < 0.01,
+        )
+      )
+        continue;
+      let fewest = context.conflicts(label).length;
+      if (!fewest) continue;
+      const origin = instance.placement.position;
+      let best: Annotation = label;
+      for (const candidate of candidates) {
+        const placed: Annotation = {
+          ...label,
+          alignment: candidate.alignment,
+          anchor: {
+            ...label.anchor,
+            localOffset: {
+              x: candidate.position.x - origin.x,
+              y: candidate.position.y - origin.y,
+            },
+            fallbackPosition: candidate.position,
+          },
+        };
+        const conflicts = context.conflicts(placed).length;
+        if (conflicts < fewest) {
+          best = placed;
+          fewest = conflicts;
+        }
+        if (!conflicts) break;
+      }
+      if (best === label) continue;
+      moved.push({ kind: "upsert_schematic_annotation", annotation: best });
+      context.accept(best);
+    }
+    return moved;
+  }
 }
 
 function overlap(a: Rect, b: Rect): boolean {
