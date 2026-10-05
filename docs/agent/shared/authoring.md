@@ -213,9 +213,10 @@ amplifier, name it at each end instead: `connect` the pin to an open
 and the pin as its target, `{kind:"pin",instance:"M4",pin:"G"}`, which puts the
 label on that stub; Nets of one name in a Cell are one Net. A name that is not
 clear halfway along the stub stands at its open end, reading outward from a
-horizontal stub and beside a vertical one; where that end is crowded too, the
-label stays on the stub and `VISUAL_LABEL_CLEARANCE` says so, so move the
-parts apart. To tie a MOS body to its source, connect B to the source wire a
+horizontal stub and beside a vertical one. A label on a longer wire that is not
+clear where the pin target puts it, such as where another Net's wire crosses,
+slides along the wire to the nearest clear spot. Where nothing is clear, the
+label stays and `VISUAL_LABEL_CLEARANCE` says so, so move the parts apart. To tie a MOS body to its source, connect B to the source wire a
 step or two below the device (`{kind:"wire-at"}`), which taps it with a dot;
 a wire to the S pin itself has to detour around the device's own lead. A trunk and its branches
 are checked the same way and refused, not bent. This is not a general

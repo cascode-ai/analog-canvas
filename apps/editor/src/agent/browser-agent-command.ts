@@ -100,7 +100,7 @@ import {
 import { instanceDisplayEdits } from "../features/instance-display/instance-display-edits";
 import { planDisplayAlias } from "../features/properties/group-naming";
 import { arrangeInstanceLabels } from "../features/instance-display/arrange-instance-labels";
-import { netLabelAtOpenEnd } from "./net-label-open-end";
+import { netLabelAtClearSpot } from "./net-label-clear-spot";
 import { instanceParameterVisibilityEdits } from "../features/instance-display/instance-parameter-display";
 import {
   dragNetLabelAttachmentAtPoint,
@@ -1284,7 +1284,7 @@ export function planBrowserAgentCommand(
             kind: "upsert_schematic_annotation",
             annotation:
               created && createdGeometry
-                ? netLabelAtOpenEnd(
+                ? netLabelAtClearSpot(
                     document,
                     resolver,
                     annotation,
