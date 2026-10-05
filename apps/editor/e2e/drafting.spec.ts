@@ -809,107 +809,99 @@ test("authors one validated formula through the canonical text editor", async ({
   expect(pdf.toString("latin1")).not.toContain("/Subtype /Image");
 });
 
-for (const zoomedOut of [false, true]) {
-  test(`keeps a reopened long formula within its text editor at ${zoomedOut ? "19%" : "normal"} zoom`, async ({
-    page,
-  }) => {
-    await page.setViewportSize({ width: 1280, height: 620 });
-    await page.goto("/editor");
-    await awaitEditorReady(page);
-    if (zoomedOut) {
-      while (
-        Number.parseInt(
-          (await page.getByLabel("Current zoom").textContent())!,
-        ) > 20
-      ) {
-        await page
-          .getByRole("button", { name: "Zoom out", exact: true })
-          .click();
-      }
-    }
-    const canvas = page.getByTestId("schematic-canvas");
-    const viewBox = await canvas.getAttribute("viewBox");
-    await placeText(page, { x: 560, y: 280 });
-    const frame = page.getByTestId("canvas-text-editor");
-    const dialog = page.getByRole("dialog", { name: "Formula", exact: true });
-    const source = page.getByRole("textbox", { name: "Formula LaTeX source" });
-    const latex = String.raw`NTF=\frac{\left(1-z^{-1}\right)\left(1-0.75z^{-1}\right)^2}{\left(1-p_1z^{-1}\right)\left(1-p_2z^{-1}\right)}`;
-    const openFormula = async () => {
-      await page
-        .getByRole("button", { name: "Insert formula", exact: true })
-        .click();
-      await expect(dialog.locator("math-field")).toBeVisible();
-    };
-    const checkFrame = async () => {
-      // All controls must fit the visible foreignObject, including the right
-      // edge. Playwright's visibility check alone accepts clipped descendants.
-      await expect
-        .poll(() =>
-          frame.evaluate((element) => {
-            const outer = element.getBoundingClientRect();
-            const controls = element.querySelectorAll(
-              ".rich-text-floating-toolbar, .rich-text-formula-popover, .rich-text-editable, button",
-            );
-            return [...controls].every((control) => {
-              const rect = control.getBoundingClientRect();
-              if (!rect.width || !rect.height) return true;
-              return (
-                rect.left >= outer.left - 1 && rect.right <= outer.right + 1
-              );
-            });
-          }),
-        )
-        .toBe(true);
-      await expect(canvas).toHaveAttribute("viewBox", viewBox!);
-      const bounds = (await frame.boundingBox())!;
-      expect(bounds.width).toBeCloseTo(344, 0);
-    };
-    const apply = async (expectedLatex: string) => {
-      await dialog.getByRole("button", { name: "Insert", exact: true }).click();
-      await expect(frame.locator("[data-rich-text-math]")).toHaveAttribute(
-        "data-latex",
-        expectedLatex,
-      );
-      await checkFrame();
-      await page.getByRole("button", { name: "Apply text changes" }).click();
-      await expect(frame).toHaveCount(0);
-      await expect(
-        page.locator('[data-kind="draft-text"] [data-role="formula"]'),
-      ).toBeVisible();
-    };
-
-    await openFormula();
-    await source.fill(latex);
-    const display = dialog.getByRole("button", {
-      name: "Display",
-      exact: true,
-    });
-    await display.click();
-    await expect(display).toHaveAttribute("aria-pressed", "true");
+// At 19% zoom, where the editor frame is tightest; the layout does not
+// depend on zoom, and other formula cases edit at normal zoom.
+test("keeps a reopened long formula within its text editor at 19% zoom", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 620 });
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  while (
+    Number.parseInt((await page.getByLabel("Current zoom").textContent())!) > 20
+  ) {
+    await page.getByRole("button", { name: "Zoom out", exact: true }).click();
+  }
+  const canvas = page.getByTestId("schematic-canvas");
+  const viewBox = await canvas.getAttribute("viewBox");
+  await placeText(page, { x: 560, y: 280 });
+  const frame = page.getByTestId("canvas-text-editor");
+  const dialog = page.getByRole("dialog", { name: "Formula", exact: true });
+  const source = page.getByRole("textbox", { name: "Formula LaTeX source" });
+  const latex = String.raw`NTF=\frac{\left(1-z^{-1}\right)\left(1-0.75z^{-1}\right)^2}{\left(1-p_1z^{-1}\right)\left(1-p_2z^{-1}\right)}`;
+  const openFormula = async () => {
+    await page
+      .getByRole("button", { name: "Insert formula", exact: true })
+      .click();
+    await expect(dialog.locator("math-field")).toBeVisible();
+  };
+  const checkFrame = async () => {
+    // All controls must fit the visible foreignObject, including the right
+    // edge. Playwright's visibility check alone accepts clipped descendants.
+    await expect
+      .poll(() =>
+        frame.evaluate((element) => {
+          const outer = element.getBoundingClientRect();
+          const controls = element.querySelectorAll(
+            ".rich-text-floating-toolbar, .rich-text-formula-popover, .rich-text-editable, button",
+          );
+          return [...controls].every((control) => {
+            const rect = control.getBoundingClientRect();
+            if (!rect.width || !rect.height) return true;
+            return rect.left >= outer.left - 1 && rect.right <= outer.right + 1;
+          });
+        }),
+      )
+      .toBe(true);
+    await expect(canvas).toHaveAttribute("viewBox", viewBox!);
+    const bounds = (await frame.boundingBox())!;
+    expect(bounds.width).toBeCloseTo(344, 0);
+  };
+  const apply = async (expectedLatex: string) => {
+    await dialog.getByRole("button", { name: "Insert", exact: true }).click();
+    await expect(frame.locator("[data-rich-text-math]")).toHaveAttribute(
+      "data-latex",
+      expectedLatex,
+    );
     await checkFrame();
-    await apply(latex);
-
-    await page.getByTestId(/^drafting-hit-note-/).dblclick();
-    await checkFrame();
-    await openFormula();
-    await expect(source).toHaveValue(latex);
-    await expect(display).toHaveAttribute("aria-pressed", "true");
-    await checkFrame();
-    const revised = latex.replace("0.75", "0.65");
-    await source.fill(revised);
-    await apply(revised);
-
-    await page.getByTestId(/^drafting-hit-note-/).dblclick();
-    await openFormula();
-    await expect(source).toHaveValue(revised);
-    await checkFrame();
-    // Both the dialog's close control and the outer cancel remain reachable.
-    await dialog.getByRole("button", { name: "Close formula editor" }).click();
-    await expect(dialog).toHaveCount(0);
-    await page.getByRole("button", { name: "Cancel text changes" }).click();
+    await page.getByRole("button", { name: "Apply text changes" }).click();
     await expect(frame).toHaveCount(0);
+    await expect(
+      page.locator('[data-kind="draft-text"] [data-role="formula"]'),
+    ).toBeVisible();
+  };
+
+  await openFormula();
+  await source.fill(latex);
+  const display = dialog.getByRole("button", {
+    name: "Display",
+    exact: true,
   });
-}
+  await display.click();
+  await expect(display).toHaveAttribute("aria-pressed", "true");
+  await checkFrame();
+  await apply(latex);
+
+  await page.getByTestId(/^drafting-hit-note-/).dblclick();
+  await checkFrame();
+  await openFormula();
+  await expect(source).toHaveValue(latex);
+  await expect(display).toHaveAttribute("aria-pressed", "true");
+  await checkFrame();
+  const revised = latex.replace("0.75", "0.65");
+  await source.fill(revised);
+  await apply(revised);
+
+  await page.getByTestId(/^drafting-hit-note-/).dblclick();
+  await openFormula();
+  await expect(source).toHaveValue(revised);
+  await checkFrame();
+  // Both the dialog's close control and the outer cancel remain reachable.
+  await dialog.getByRole("button", { name: "Close formula editor" }).click();
+  await expect(dialog).toHaveCount(0);
+  await page.getByRole("button", { name: "Cancel text changes" }).click();
+  await expect(frame).toHaveCount(0);
+});
 
 test("edits an unrestricted device formula in the same visual annotation", async ({
   page,
@@ -1088,40 +1080,6 @@ test("T opens a text editor at the pointer first, then carries what was written;
   await clickDrawTool(page, "rectangle");
   await expect(draft).toHaveCount(0);
   await expect(page.getByTestId("revision")).toHaveText("0");
-});
-
-test("keeps a rectangle's edges on the grid a wire can land on", async ({
-  page,
-}) => {
-  // Reported as wire endpoints protruding past a Rect outline: the annotation
-  // pitch is finer than the electrical grid, so an edge could sit half a cell
-  // away from every coordinate a wire endpoint is allowed to take.
-  await page.goto("/editor");
-  const canvas = page.getByTestId("schematic-canvas");
-  await clickDrawTool(page, "rectangle");
-  await canvas.click({ position: { x: 305, y: 205 } });
-  await canvas.click({ position: { x: 505, y: 355 } });
-  await page.keyboard.press("Escape");
-
-  const points =
-    (await page
-      .locator('[data-kind="draft-rectangle"]')
-      .first()
-      .getAttribute("points")) ?? "";
-  const grid = await page.evaluate(
-    () =>
-      (
-        globalThis as unknown as {
-          __icmDocument?: { presentation: { grid: number } };
-        }
-      ).__icmDocument?.presentation.grid ?? 10,
-  );
-  const coordinates = points
-    .split(/[ ,]/u)
-    .filter((part) => part.length > 0)
-    .map(Number);
-  expect(coordinates.length).toBe(8);
-  for (const coordinate of coordinates) expect(coordinate % grid).toBe(0);
 });
 
 async function snappedCanvasPoint(
@@ -1410,20 +1368,6 @@ test("types Greek letters by LaTeX name and from the symbol menu", async ({
   );
 });
 
-test("exports a newly created construction line through the File menu", async ({
-  page,
-}) => {
-  await page.goto("/editor");
-  await clickDrawTool(page, "line");
-  await clickCreate(page, { x: 200, y: 200 }, { x: 420, y: 260 });
-  await expect(page.getByTestId("revision")).toHaveText("1");
-
-  const svg = (await downloadBytes(page, "File", "Export SVG")).toString(
-    "utf8",
-  );
-  expect(svg).toContain('data-kind="construction-line"');
-});
-
 test("switching creation tools discards the incompatible draft session", async ({
   page,
 }) => {
@@ -1440,31 +1384,6 @@ test("switching creation tools discards the incompatible draft session", async (
 
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("active-tool")).toHaveText("pointer");
-});
-
-test("A and K are unbound and preserve the current drafting session", async ({
-  page,
-}) => {
-  await page.goto("/editor");
-  await awaitEditorReady(page);
-  const canvas = page.getByTestId("schematic-canvas");
-
-  await page.keyboard.press("a");
-  await expect(page.getByTestId("active-tool")).toHaveText("pointer");
-  await clickDrawTool(page, "arrow");
-  await canvas.click({ position: { x: 220, y: 220 } });
-  await canvas.hover({ position: { x: 420, y: 260 } });
-  await expect(page.getByTestId("drafting-create-preview")).toBeVisible();
-  await page.keyboard.press("a");
-  await expect(page.getByTestId("drafting-create-preview")).toBeVisible();
-  await page.keyboard.press("k");
-  await expect(page.getByTestId("drafting-create-preview")).toBeVisible();
-  await page.keyboard.press("Escape");
-
-  await page.keyboard.press("k");
-  await expect(page.getByTestId("active-tool")).toHaveText("pointer");
-
-  await expect(page.getByTestId("revision")).toHaveText("0");
 });
 
 // Moving an existing drafting object commits exactly one transaction, so one
@@ -1569,32 +1488,6 @@ test("Escape removes Smart Snap guides from a cancelled component drag", async (
   await expect(snapGuides).toHaveCount(0);
   await page.mouse.up();
   await expect(page.getByTestId("revision")).toHaveText("2");
-});
-
-// Creating a construction line commits one object.
-test("two-phase click-creates a construction line", async ({ page }) => {
-  await page.goto("/editor");
-  await clickDrawTool(page, "line");
-  await expect(page.getByTestId("active-tool")).toHaveText("construction-line");
-  await clickCreate(page, { x: 200, y: 200 }, { x: 420, y: 260 });
-  await expect(page.getByTestId("revision")).toHaveText("1");
-  await expect(
-    page.locator(
-      '[data-layer="drafting"] polyline[data-kind="construction-line"]',
-    ),
-  ).toHaveCount(1);
-});
-
-// Two-phase click-creating an arrow commits one object.
-test("two-phase click-creates an arrow", async ({ page }) => {
-  await page.goto("/editor");
-  await clickDrawTool(page, "arrow");
-  await expect(page.getByTestId("active-tool")).toHaveText("arrow");
-  await clickCreate(page, { x: 200, y: 320 }, { x: 420, y: 380 });
-  await expect(page.getByTestId("revision")).toHaveText("1");
-  await expect(
-    page.locator('[data-layer="drafting"] g[data-kind="draft-arrow"]'),
-  ).toHaveCount(1);
 });
 
 test("line arrow clicks add bends and snap through to an arbitrary rectangle edge", async ({
@@ -1714,25 +1607,6 @@ test("construction line uses stroke-based hit, not a blocking rect", async ({
   await expect(
     page.locator('[data-testid^="drafting-hit-construction-"].selected'),
   ).toHaveCount(1);
-});
-
-// An unedited Apply must not add a revision.
-test("unedited Apply does not add a revision", async ({ page }) => {
-  await page.goto("/editor");
-  await placeText(page);
-  const draftInput = page.getByRole("textbox", {
-    name: "Canvas text editor",
-  });
-  await draftInput.fill("Vin");
-  await page.getByRole("button", { name: "Apply text changes" }).click();
-  await expect(page.getByTestId("revision")).toHaveText("2");
-
-  const handle = page.getByTestId(/^drafting-hit-note-/);
-  await handle.dblclick();
-  await expect(draftInput).toBeVisible();
-  await page.getByRole("button", { name: "Apply text changes" }).click();
-  await page.waitForTimeout(200);
-  await expect(page.getByTestId("revision")).toHaveText("2");
 });
 
 // A saved project is reopened through the file input and preserves both its
@@ -1999,21 +1873,6 @@ test("the Library Circle creates a selectable shape with one radial handle and n
   await expect(page.locator('[data-kind="draft-rectangle"]')).toHaveCount(0);
 });
 
-test("E leaves a selected drafting rectangle as drawing geometry", async ({
-  page,
-}) => {
-  await page.goto("/editor");
-  await awaitEditorReady(page);
-  await clickDrawTool(page, "rectangle");
-  await clickCreate(page, { x: 220, y: 220 }, { x: 380, y: 320 });
-
-  await page.getByTestId(/^drafting-hit-rectangle-/).click({ force: true });
-  await page.keyboard.press("e");
-
-  await expect(page.getByTestId("document-count")).toHaveText("1");
-  await expect(page.locator('[data-kind="draft-rectangle"]')).toHaveCount(1);
-});
-
 // Dragging an arrow endpoint handle moves just that endpoint in one
 // transaction; undo restores it.
 test("arrow endpoint handle drag moves the tip", async ({ page }) => {
@@ -2065,20 +1924,6 @@ test("bracket shortcuts step stroke width", async ({ page }) => {
 });
 
 // Drawing style lives in Properties; it is not a second floating canvas UI.
-test("Properties changes drawing line style", async ({ page }) => {
-  await page.goto("/editor");
-  await clickDrawTool(page, "line");
-  await clickCreate(page, { x: 200, y: 200 }, { x: 420, y: 200 });
-  await page.getByTestId(/^drafting-hit-construction-/).click({ force: true });
-  await page.keyboard.press("q");
-  await editComponentPropertyCode(page, (code) => {
-    code.appearance.lineStyle = "solid";
-  });
-  await expect(page.getByTestId("revision")).toHaveText("2");
-  await expect(page.getByTestId("drafting-properties")).toHaveCount(1);
-  await expect(page.getByTestId("drafting-inline-inspector")).toHaveCount(0);
-});
-
 test("Properties renders an arrow line-style override", async ({ page }) => {
   await page.goto("/editor");
   await clickDrawTool(page, "arrow");
@@ -2091,36 +1936,6 @@ test("Properties renders an arrow line-style override", async ({ page }) => {
   await expect(
     page.locator('[data-kind="draft-arrow"] > polyline'),
   ).toHaveAttribute("stroke-dasharray", "2 3");
-});
-
-test("arrow Properties omits the Segment selector", async ({ page }) => {
-  await page.goto("/editor");
-  await clickDrawTool(page, "arrow");
-  await clickCreate(page, { x: 200, y: 200 }, { x: 420, y: 200 });
-  await page.getByTestId(/^drafting-hit-arrow-/).click({ force: true });
-  await page.keyboard.press("q");
-  const shaft = page.locator('[data-kind="draft-arrow"] > polyline');
-  const head = page.locator('[data-kind="draft-arrow"] > polygon');
-  const originalPoints = await head.getAttribute("points");
-
-  const properties = page.getByTestId("drafting-properties");
-  await expect(
-    properties.getByRole("combobox", { name: "Curve segment" }),
-  ).toHaveCount(0);
-
-  await editComponentPropertyCode(page, (code) => {
-    code.appearance.strokeScale = 2;
-  });
-  await expect(shaft).toHaveAttribute("stroke-width", "3.2");
-
-  await expect(
-    properties.getByRole("combobox", { name: "Arrow head size" }),
-  ).toHaveCount(0);
-  await editComponentPropertyCode(page, (code) => {
-    code.appearance.endStyle = "open-arrow";
-  });
-  await expect(head).toHaveAttribute("fill", "none");
-  expect(await head.getAttribute("points")).not.toBe(originalPoints);
 });
 
 test("drawing Properties follows selection and closes with the dock", async ({

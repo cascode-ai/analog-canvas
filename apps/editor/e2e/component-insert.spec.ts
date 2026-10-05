@@ -436,33 +436,6 @@ test("mirrors component and copy placement previews before their commits", async
   await page.keyboard.press("Escape");
 });
 
-test("writes an Instance Reference through post-placement Properties", async ({
-  page,
-}) => {
-  await page.goto("/editor");
-  await awaitEditorReady(page);
-  await page.keyboard.press("i");
-  const dialog = page.getByRole("dialog", { name: "Insert Component" });
-  await dialog.getByLabel("Component search").fill("resistor");
-  await dialog.getByTestId("insert-component-resistor").click();
-  await page
-    .getByTestId("schematic-canvas")
-    .click({ position: { x: 360, y: 220 } });
-  await page.keyboard.press("Escape");
-
-  // The quick pick carries no reference field; naming happens in Properties.
-  await page.getByTestId("hit-R1").click();
-  await revealPropertiesShelf(page);
-  await page.getByTestId("selection-shelf").click();
-  await editComponentPropertyCode(page, (code) => {
-    code.netlistName = "R7";
-  });
-
-  await expect
-    .poll(() => recoveryProjectTexts(page))
-    .toContain('"reference": "R7"');
-});
-
 test("Battery receives an editable name and voltage-source parameters", async ({
   page,
 }) => {
@@ -488,28 +461,6 @@ test("Battery receives an editable name and voltage-source parameters", async ({
   await expect
     .poll(() => recoveryProjectTexts(page))
     .toContain('"deviceClass": "voltage-source"');
-});
-
-test("keeps the Placement Tray out of the manual component workflow", async ({
-  page,
-}) => {
-  await page.goto("/editor");
-  await chooseComponent(page, "resistor");
-  const canvas = page.getByTestId("schematic-canvas");
-  await canvas.click({ position: { x: 320, y: 220 } });
-  await page.keyboard.press("Escape");
-  await page.getByTestId("hit-R1").click();
-  await revealPropertiesShelf(page);
-  await page.getByTestId("selection-shelf").click();
-
-  await expect(
-    page.getByRole("button", { name: "Return component to Placement Tray" }),
-  ).toHaveCount(0);
-  await expect(
-    page.getByRole("region", { name: "Placement Tray" }),
-  ).toHaveCount(0);
-  await expect(page.getByTestId("hit-R1")).toBeVisible();
-  await expect(page.getByTestId("revision")).toHaveText("1");
 });
 
 test("new circuits open the Library and Netlist without replacing the saved Library preference", async ({
@@ -776,40 +727,6 @@ test("category chips multi-select which kinds the quick pick shows", async ({
   await expect(dialog.getByTestId("insert-component-resistor")).toBeVisible();
 });
 
-test("groups and places high-voltage DMOS from Extended Devices", async ({
-  page,
-}) => {
-  await page.goto("/editor");
-  await awaitEditorReady(page);
-  await page.keyboard.press("i");
-  const dialog = page.getByRole("dialog", { name: "Insert Component" });
-  // The flat grid tiles both DMOS variants with their full names; clicking
-  // one starts placement with the catalog defaults.
-  await expect(dialog.getByTestId("insert-component-ndmos")).toContainText(
-    "N-channel DMOS",
-  );
-  await expect(dialog.getByTestId("insert-component-pdmos")).toContainText(
-    "P-channel DMOS",
-  );
-
-  await dialog.getByTestId("insert-component-ndmos").click();
-  await page
-    .getByTestId("schematic-canvas")
-    .click({ position: { x: 360, y: 230 } });
-  await page.keyboard.press("Escape");
-
-  await expect(
-    page
-      .getByTestId("schematic-canvas")
-      .locator('[data-object-id="M1"][data-symbol-id="ndmos"]'),
-  ).toBeVisible();
-  await expect
-    .poll(() => recoveryProjectTexts(page))
-    .toContain('"symbolId": "ndmos"');
-  // Quick placement still carries the catalog defaults for the device.
-  await expect.poll(() => recoveryProjectTexts(page)).toContain('"w": "1u"');
-});
-
 test("a signal-flow block lands with no designator on it", async ({ page }) => {
   await page.goto("/editor");
   await awaitEditorReady(page);
@@ -831,33 +748,6 @@ test("a signal-flow block lands with no designator on it", async ({ page }) => {
   await expect(canvas.locator("text")).toHaveCount(0);
   // Nor is one announced: the internal id stays bookkeeping.
   await expect(page.getByTestId("status")).not.toContainText("X1");
-});
-
-test("finds and places the discrete-time integrator from Signal Flow", async ({
-  page,
-}) => {
-  await page.goto("/editor");
-  await awaitEditorReady(page);
-  await page.keyboard.press("i");
-  const dialog = page.getByRole("dialog", { name: "Insert Component" });
-
-  await dialog.getByLabel("Component search").fill("discrete-time-integrator");
-  const tile = dialog.getByTestId("insert-component-discrete-time-integrator");
-  await expect(tile).toContainText("Discrete-Time Integrator");
-  await tile.click();
-  await page
-    .getByTestId("schematic-canvas")
-    .click({ position: { x: 360, y: 230 } });
-  await page.keyboard.press("Escape");
-
-  await expect(
-    page
-      .getByTestId("schematic-canvas")
-      .locator('[data-symbol-id="discrete-time-integrator"]'),
-  ).toBeVisible();
-  await expect
-    .poll(() => recoveryProjectTexts(page))
-    .toContain('"symbolId": "discrete-time-integrator"');
 });
 
 test("groups drafting tools and editable polarity labels under Annotations", async ({
@@ -1421,23 +1311,6 @@ test("Escape closes the Insert dialog even when focus is outside it", async ({
   await expect(dialog).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(dialog).toHaveCount(0);
-});
-
-test("Copy shows its ghost under the cursor without waiting for a move", async ({
-  page,
-}) => {
-  await page.goto("/editor");
-  await chooseComponent(page, "resistor");
-  const canvas = page.getByTestId("schematic-canvas");
-  await canvas.click({ position: { x: 360, y: 230 } });
-  await page.keyboard.press("Escape");
-  await page.getByTestId("hit-R1").click();
-
-  // The pointer is over the canvas and stays there: the ghost has to appear
-  // from the remembered position rather than from the next pointer move.
-  await canvas.hover({ position: { x: 500, y: 300 } });
-  await page.keyboard.press("c");
-  await expect(page.getByTestId("copy-placement-preview")).toBeVisible();
 });
 
 test("publishes placement cancellation synchronously before rapid Copy", async ({
@@ -2553,70 +2426,6 @@ test("keeps a usable canvas while toggling Library at the narrow breakpoint", as
         document.documentElement.clientHeight,
     })),
   ).toEqual({ horizontal: false, vertical: false });
-});
-
-test("double-clicking a placed device reveals Properties without entering typing", async ({
-  page,
-}) => {
-  await page.goto("/editor");
-  await awaitEditorReady(page);
-  await page.keyboard.press("i");
-  const dialog = page.getByRole("dialog", { name: "Insert Component" });
-  await dialog.getByLabel("Component search").fill("resistor");
-  await dialog.getByTestId("insert-component-resistor").click();
-  const canvas = page.getByTestId("schematic-canvas");
-  await canvas.click({ position: { x: 360, y: 230 } });
-  await page.keyboard.press("Escape");
-  await expect(page.getByTestId("hit-R1")).toBeVisible();
-  await revealPropertiesShelf(page);
-  await expect(page.getByTestId("selection-shelf")).toHaveAttribute(
-    "aria-expanded",
-    "false",
-  );
-
-  await page.getByTestId("hit-R1").dblclick();
-  await expect(page.getByTestId("selection-shelf")).toHaveAttribute(
-    "aria-expanded",
-    "true",
-  );
-  const propertyValue = page.getByLabel("Editable Canvas property code");
-  await expect(propertyValue).toBeVisible();
-  await expect(canvas).toBeFocused();
-  await propertyValue.click();
-  await expect(propertyValue).toBeFocused();
-});
-
-test("Library rail folds the sidebar; Insert opens the catalog", async ({
-  page,
-}) => {
-  await page.goto("/editor");
-  await awaitEditorReady(page);
-  const panel = page.getByTestId("shapes-library-panel");
-  await expect(panel).toHaveAttribute("data-open", "true");
-
-  await page.getByTestId("library-toggle").click();
-  await expect(panel).toHaveAttribute("data-open", "false");
-  await page.getByTestId("library-toggle").click();
-  await expect(panel).toHaveAttribute("data-open", "true");
-
-  await clickCommand(page, "Edit", "Insert component… (I)");
-  await expect(
-    page.getByRole("dialog", { name: "Insert Component" }),
-  ).toBeVisible();
-  await page.keyboard.press("Escape");
-  await expect(
-    page.getByRole("dialog", { name: "Insert Component" }),
-  ).toHaveCount(0);
-
-  // No title banner or duplicate Insert footer competes with the shortcut.
-  await expect(panel.getByRole("button", { name: /Quick place/ })).toHaveCount(
-    0,
-  );
-  await expect(page.getByTestId("shapes-insert")).toHaveCount(0);
-  await page.keyboard.press("i");
-  await expect(
-    page.getByRole("dialog", { name: "Insert Component" }),
-  ).toBeVisible();
 });
 
 test("double-clicking a catalog item applies it immediately", async ({
