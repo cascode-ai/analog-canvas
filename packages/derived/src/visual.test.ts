@@ -340,20 +340,23 @@ describe("visual quality diagnostics", () => {
   });
 
   it("reports a wire leaving a pin backward or from the side of a lone ground, not a bend at a lead's end", () => {
-    // R1 stands at the origin, pin 1 at (0,-20) pointing up; GND at (100,0)
-    // has its one pin at (100,-10), pointing up; PMOS M1 at (200,0) has its
-    // source at (210,-20), pointing up, on the edge of its drawing.
+    // R1 stands at the origin, pin 1 at (0,-20) pointing up; a ground at
+    // (100,0) has its one pin at (100,-10), pointing up; PMOS M1 at (200,0)
+    // has its source at (210,-20), pointing up, on the edge of its drawing;
+    // Cell Pin vout at (300,0) has its pin there, pointing right. Findings
+    // name each by what its author knows it as, not by its ID.
     type End = { instanceId: string; pinName: string } | Point;
     const findings = (...wires: (readonly [End, End])[]) => {
       const document = createEmptyDocument("doc", "Departures");
       document.instances.push(
         {
-          id: "R1",
+          id: "part-r1",
+          reference: "R1",
           symbolId: "resistor",
           placement: { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
         },
         {
-          id: "GND",
+          id: "part-gnd",
           symbolId: "ground",
           placement: {
             position: { x: 100, y: 0 },
@@ -362,7 +365,8 @@ describe("visual quality diagnostics", () => {
           },
         },
         {
-          id: "M1",
+          id: "part-m1",
+          reference: "M1",
           symbolId: "pmos",
           placement: {
             position: { x: 200, y: 0 },
@@ -370,7 +374,29 @@ describe("visual quality diagnostics", () => {
             mirror: "none",
           },
         },
+        {
+          id: "part-vout",
+          symbolId: "port",
+          placement: {
+            position: { x: 300, y: 0 },
+            rotation: 0,
+            mirror: "none",
+          },
+        },
       );
+      document.netlist = {
+        name: "Departures",
+        terminals: [
+          {
+            id: "terminal-vout",
+            name: "vout",
+            netId: "n",
+            direction: "output",
+            interfaceInstanceIds: ["part-vout"],
+          },
+        ],
+        formalParameters: [],
+      };
       const terminals = new Map<
         string,
         { instanceId: string; pinName: string }
@@ -404,8 +430,8 @@ describe("visual quality diagnostics", () => {
         )
         .map((item) => item.message);
     };
-    const r1 = { instanceId: "R1", pinName: "1" };
-    const ground = { instanceId: "GND", pinName: "0" };
+    const r1 = { instanceId: "part-r1", pinName: "1" };
+    const ground = { instanceId: "part-gnd", pinName: "0" };
 
     // A bend at the end of a part's lead is drafting.
     expect(findings([r1, { x: 40, y: -20 }])).toEqual([]);
@@ -416,17 +442,23 @@ describe("visual quality diagnostics", () => {
     ]);
     expect(
       findings([
-        { instanceId: "M1", pinName: "S" },
+        { instanceId: "part-m1", pinName: "S" },
         { x: 210, y: -10 },
       ]),
     ).toEqual(["Route w0 leaves M1.S backward, against the pin's direction"]);
     // A ground hanging off the side of a wire, at either end of its Route.
     expect(findings([ground, { x: 140, y: -10 }])).toEqual([
-      "Route w0 leaves GND.0 from the side",
+      "Route w0 leaves ground.0 from the side",
     ]);
     expect(findings([{ x: 140, y: -10 }, ground])).toEqual([
-      "Route w0 leaves GND.0 from the side",
+      "Route w0 leaves ground.0 from the side",
     ]);
+    expect(
+      findings([
+        { instanceId: "part-vout", pinName: "P" },
+        { x: 300, y: -40 },
+      ]),
+    ).toEqual(["Route w0 leaves vout.P from the side"]);
     // Under a rail that runs on past it, the ground is a tap.
     expect(
       findings([ground, { x: 140, y: -10 }], [ground, { x: 60, y: -10 }]),
