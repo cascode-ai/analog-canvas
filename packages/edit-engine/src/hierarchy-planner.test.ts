@@ -576,10 +576,12 @@ describe("hierarchy domain planners", () => {
     });
   });
 
-  it("keeps the block size a new Cell's Pin names need when it is first placed (#1327)", () => {
-    // An inverter Cell: VDD on top, in and out at the sides. Unplaced, its
-    // block is 80 high, so VDD's name stands above the side names instead of
-    // reading "in V_DDout" on one row. Placed, it would derive 40 again.
+  it("keeps the block a new Cell shows when it is first placed (#1319, #1327)", () => {
+    // An inverter Cell: a VDDA_1V8 supply on top, in drawn left and out
+    // right. Unplaced, its block puts in and out on those sides, one row
+    // below the middle, so the supply's name stands above them instead of
+    // reading "in V_DDout" on one row, and is wide enough for that name.
+    // Placed, it would derive the automatic layout again.
     const transact = (
       source: ReturnType<typeof createEmptyProject>,
       id: string,
@@ -597,8 +599,8 @@ describe("hierarchy domain planners", () => {
     };
     let project = createEmptyProject("project", "inv");
     for (const [id, symbolId, name, direction, x] of [
-      ["P1", "vdd-port", "VDD", "inout", 0],
-      ["P2", "port", "in", "input", 40],
+      ["P1", "vdd-port", "VDDA_1V8", "inout", 0],
+      ["P2", "port", "in", "input", -40],
       ["P3", "port", "out", "output", 80],
     ] as const)
       project = transact(
@@ -634,8 +636,8 @@ describe("hierarchy domain planners", () => {
     const vddAt = (source: typeof project) =>
       createProjectHierarchicalSymbols(source)
         .flatMap((symbol) => symbol.pins)
-        .find((pin) => pin.name === "VDD")!.at;
-    expect(vddAt(project)).toEqual({ x: 0, y: -50 });
+        .find((pin) => pin.name === "VDDA_1V8")!.at;
+    expect(vddAt(project)).toEqual({ x: 0, y: -40 });
 
     const parent = createEmptyDocument("ring", "Ring");
     project = { ...project, documents: [...project.documents, parent] };
@@ -658,11 +660,11 @@ describe("hierarchy domain planners", () => {
         {
           kind: "set_cell_symbol_presentation",
           presentation: {
-            minimumBodySize: { width: 80, height: 80 },
-            // out is drawn right of the Cell's middle (#1319); in is on it.
+            minimumBodySize: { width: 100, height: 60 },
             pinPlacements: [
               ...cell.presentation.cellSymbol!.pinPlacements!,
-              { terminalId: "terminal-P3", side: "east", offset: 0 },
+              { terminalId: "terminal-P2", side: "west", offset: 10 },
+              { terminalId: "terminal-P3", side: "east", offset: 10 },
             ],
           },
         },
@@ -670,7 +672,7 @@ describe("hierarchy domain planners", () => {
     });
     project = transact(project, "place-X1", first);
     // Placed, the block is the one it showed: VDD's pin has not moved.
-    expect(vddAt(project)).toEqual({ x: 0, y: -50 });
+    expect(vddAt(project)).toEqual({ x: 0, y: -40 });
     // A second placement leaves the Cell as it is.
     expect(place(project, "X12")).toHaveLength(1);
   });
