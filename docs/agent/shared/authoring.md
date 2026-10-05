@@ -319,6 +319,24 @@ or a whole-drawing beautifier. Informational label-clearance/owner-distance
 observations may remain and never gate editing. New Net labels use the GUI's
 standard side/alignment; existing explicit label moves retain their semantics.
 
+To give a drawing a textbook figure's labels in one step, `circuit_text` /
+`apply_actions` accepts `{kind:"apply-label-preset",preset:"textbook"}`:
+- every MOS transistor hides its W/L, as `set-instance-display` with
+  `showValue:false` hides it (three- and four-terminal and DMOS alike);
+- resistor, capacitor, inductor and source values stay as they are, and
+  nothing hidden is shown;
+- then the labels are arranged as `arrange-labels` with
+  `referenceStyle:"first-letter-subscript"` arranges them, names in their role
+  look (R_L, I_SS, M_1); the space the hidden W/L took counts as free.
+
+It applies to every placed part of the Cell, or to the parts given as
+`targets` (`[{kind:"instance",reference:"M1"}]`, or `id`; native
+`instanceIds`), in one transaction and one undo. Labels `arrange-labels`
+leaves alone, moved by hand or by an earlier pass, locked or restyled, keep
+their place and look. Parts placed later still show their W/L. Over the edit
+limit, nothing changes and `LIMIT_EXCEEDED` names the leading parts that fit
+(`fittingParts`); apply it to those, then to the rest.
+
 The focused `circuit_text` action `move-annotation` sets an absolute position;
 the legacy `apply_actions` annotation `move` uses the same semantics, while
 `transform` supports translation. These preserve ownership and electrical

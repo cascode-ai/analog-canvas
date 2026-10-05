@@ -87,6 +87,38 @@ describe("planning an action list", () => {
     ).toMatchObject({ kind: "refused", actionIndex: 0, actionKind: "schema" });
   });
 
+  it("sends a label preset for the whole Cell or parts by ID as its command, without the Document (#1350)", () => {
+    expect(
+      planBlind([{ kind: "apply-label-preset", preset: "textbook" }]),
+    ).toMatchObject({
+      kind: "send",
+      readSnapshot: false,
+      payload: { command: { kind: "apply-label-preset", preset: "textbook" } },
+    });
+    expect(
+      planBlind([
+        {
+          kind: "apply-label-preset",
+          preset: "textbook",
+          targets: [
+            { kind: "instance", id: "instance-1" },
+            { kind: "instance", id: "instance-2" },
+          ],
+        },
+      ]),
+    ).toMatchObject({
+      kind: "send",
+      readSnapshot: false,
+      payload: {
+        command: {
+          kind: "apply-label-preset",
+          preset: "textbook",
+          instanceIds: ["instance-1", "instance-2"],
+        },
+      },
+    });
+  });
+
   it("reads the Document for a list that names parts by Reference", () => {
     const snapshot = testSnapshot();
     let reads = 0;

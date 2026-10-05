@@ -241,8 +241,8 @@ Batch operations are explicit and distinct:
   the Cell's and is never restyled (#1366). The same arrangement runs on
   its own for the parts whose labels a typed move, an arrange, a pin change
   or a Cell's changed Pins newly draw a wire over ([connectivity and
-  routing](connectivity-and-routing.md)). A part's Reference and value move together: their default side,
-  then the part's other sides, then the same rows slid along each side to
+  routing](connectivity-and-routing.md)). A part's Reference and value move
+  together: their default side, then the part's other sides, then the same rows slid along each side to
   the clear place nearest where they stood, while at least half of the
   group stays beside the part. A place is clear when the labels meet no
   wire, part, other label or free drawing text, keep a word's space from
@@ -264,6 +264,13 @@ Batch operations are explicit and distinct:
   nothing, as a new Pin's name does. Its optional first-letter reference style is explicit. The existing
   style-equality eligibility check is retained, not promoted into a general
   definition of whether a user has edited an object.
+- Agent **apply-label-preset** `textbook` (#1350) is one transaction over the
+  requested parts, or every placed part of the Cell: it hides each MOS
+  transistor's W/L as the Value visibility toggle does, then runs
+  arrange-labels with the first-letter reference style on the same parts,
+  planned on that result. It shows nothing hidden and changes no other
+  value's visibility. It is not a placement default: parts placed later still
+  show their W/L, and people have no such command.
 
 Creation, editing, rename, reset and arrangement may share construction
 primitives without sharing their authorization or target-selection policy.

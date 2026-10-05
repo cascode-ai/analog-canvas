@@ -289,6 +289,22 @@ export const AgentAuthoringCommandSchema = z.discriminatedUnion("kind", [
     .describe(
       "Opt-in, bounded one-pass placement of visible default Instance labels. Compact/collision avoidance default true. Preserve manually positioned, locked and custom-styled labels, bindings and electrical names; unresolved clashes remain observations.",
     ),
+  // One preset today; the enum leaves room for more (#1350).
+  z
+    .strictObject({
+      kind: z.literal("apply-label-preset"),
+      preset: z
+        .enum(["textbook"])
+        .describe(
+          "textbook: MOS W/L hidden, other values left as they are, names in their role look (R_L, I_SS, M_1) and labels arranged as arrange-labels arranges them.",
+        ),
+      instanceIds: NonemptyIdsSchema.optional().describe(
+        "Left out: every placed part of the Cell.",
+      ),
+    })
+    .describe(
+      "A figure's label convention in one step and one undo. Nothing hidden is shown; labels arrange-labels leaves alone keep their place and look.",
+    ),
   z.strictObject({
     kind: z.literal("batch"),
     commands: z
