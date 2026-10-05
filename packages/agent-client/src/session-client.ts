@@ -1212,8 +1212,9 @@ export class AgentSessionClient {
   /**
    * Send high-level actions for the editor to plan and commit as one atomic
    * transaction, in a single request. The editor plans them against the
-   * Document it holds, so a concurrent human edit surfaces as
-   * `STATE_CHANGED`, never as a blind overwrite. An editor page too old to
+   * Document it holds. Target-resolving actions plan on its current state;
+   * raw transactions, pass-through actions and undo/redo retain their revision
+   * guards. A human edit does not universally imply STATE_CHANGED. A page too old to
    * plan them is asked to reload; nothing is sent.
    */
   async applyActions(

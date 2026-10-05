@@ -63,10 +63,10 @@ assets, whose deterministic default visual variant is
 
 ## Mutation safety
 
-MCP 0.7 targets API and Snapshot 3.0: saved simulation containers and their
-operations use Folder identity, with no parallel Setup writer. This breaking
-rename requires a matching client; older clients receive the existing version
-diagnostic rather than accepting an incompatible Snapshot. Project file loading
+The MCP compatibility exchange targets API and Snapshot 3.0: saved simulation
+containers and their operations use Folder identity, with no parallel Setup writer.
+An incompatible client receives the existing version diagnostic rather than
+accepting an incompatible Snapshot. Project file loading
 remains independently backward-compatible. Additive Snapshot fields
 include Instance `styleOverride` and `signalFlowParameters`, Cell interfaces
 and bulk defaults, and Project external definitions. Local and production
@@ -112,8 +112,9 @@ inference algorithm.
   Cell and formal-interface work uses `structureEdits` plus one
   `expectedStructureRevision`; nested Document changes still carry their exact
   revisions and reuse the same typed edit union.
-- A non-trivial edit is dry-run first; commit uses the same edits only while
-  the revision is unchanged.
+- Dry-run is optional and shares commit validation; it is not a normal-path
+  prerequisite. Raw edits and structure edits retain their revision boundaries;
+  target-resolving high-level actions use the current-Document planning described above.
 - All edits commit or none commit, and a successful commit advances revision
   once.
 - Reuse a `requestId` only for an exact-payload retry. A different payload with
@@ -127,8 +128,9 @@ inference algorithm.
   `remove_simulation_folder`, and nested `transact_document`.
 - GUI and Agent writes cross the same Edit Engine and permission checks.
 
-After commit, render and then request a fresh Snapshot for final verification.
-On a stale revision or uncertain transport result, refresh state and reconcile;
+After commit, use receipt/delta and targeted reads when sufficient. Render or
+request a full Snapshot only when needed for the task. On a stale revision or
+uncertain transport result, refresh affected state and reconcile;
 do not replay a changed or obsolete transaction.
 
 Agent Snapshots expose resolved Logical Nets, so lookup and inspection use the
@@ -143,7 +145,9 @@ Logical-Net representative scoped to that Snapshot Document revision. It is
 not a persistent identity: split, merge, pruning, or Evidence edits may change
 the representative even when some circuit intent remains recognizable. After
 any commit, stale-revision result, or uncertain transport outcome, discard all
-previous Snapshot Net IDs and request a fresh Snapshot. Persisted Base-Net IDs
+previous Snapshot Net IDs; resolve current connectivity before using Net IDs
+again. A full Snapshot is unnecessary for unrelated geometry-only verification.
+Persisted Base-Net IDs
 remain valid only while their objects survive the edit lifecycle and are not
 exposed as an alternate Agent naming protocol.
 

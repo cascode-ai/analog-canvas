@@ -233,9 +233,11 @@ key, and looks it up when a request ID is not in memory. The session state
 value keeps only mutations not yet completed, so it stays the same size
 however many writes a session makes. Ending the session deletes both.
 
-Circuit edits target one exact Document revision. Dry-run and commit share the
-same validation path. On `STALE_REVISION`, uncertain write outcome, reconnect,
-or human revision event, the Agent refreshes Snapshot state and reconciles
+Raw Circuit edits target one exact Document revision. Target-resolving high-level
+actions plan on the current Document and commit in one step; pass-through forms
+and undo/redo retain their revision guards. Dry-run is optional and shares commit
+validation. On `STALE_REVISION`, uncertain write outcome, reconnect,
+or human revision event, the Agent refreshes affected state and reconciles
 before deciding what to do; it never blindly changes and replays a request.
 
 ## Permissions
