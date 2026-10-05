@@ -1,4 +1,5 @@
 import { resolveDocumentRoutingGeometry, sha256Hex } from "@icm/derived";
+import { actionRefusalNaming, planActionsNow } from "./authoring-plan.js";
 import {
   executeTransaction,
   executeProjectTransaction,
@@ -86,6 +87,8 @@ export interface AgentCircuitServiceOptions {
   resolver: SymbolResolver;
   permissions: AgentPermissions;
   limits?: Partial<AgentLimits>;
+  /** The IDs an action list makes; random unless a test fixes them. */
+  allocateId?: (prefix: string) => string;
 }
 
 /**
@@ -106,6 +109,8 @@ export interface AgentCircuitHostServiceOptions {
   simulationResource?: AgentSimulationResourceCapability;
   /** Cloud Project Cell discovery/import sibling. */
   projectResource?: AgentProjectResourceCapability;
+  /** The IDs an action list makes; random unless a test fixes them. */
+  allocateId?: (prefix: string) => string;
 }
 
 export interface AgentCircuitService {
@@ -329,7 +334,10 @@ export function createAgentCircuitService(
     useHost ? null : options
   ) as AgentCircuitServiceOptions | null;
 
-  return {
+  const allocateId =
+    options.allocateId ??
+    ((prefix: string) => `${prefix}-${crypto.randomUUID()}`);
+  const service: AgentCircuitService = {
     limits,
     handle(input: unknown): AgentCircuitResponse {
       const parsed = parseAgentCircuitRequest(input);
@@ -384,7 +392,7 @@ export function createAgentCircuitService(
               "wireIntent",
               "structureEdits",
               ...(semanticControl ? ["semanticIntent"] : []),
-              ...(host?.planAuthoringCommand ? ["command"] : []),
+              ...(host?.planAuthoringCommand ? ["command", "actions"] : []),
             ],
             permissions: productionPermissions,
             limits,
@@ -718,6 +726,141 @@ export function createAgentCircuitService(
                 })(),
               }
             : {}),
+        });
+      }
+
+      if (request.operation === "transact" && request.actions) {
+        // The editor plans the list as the MCP client compiled it, against
+        // the Document it holds, then answers the one transaction it is.
+        if (!host?.planAuthoringCommand)
+          return fail(
+            "transact",
+            "COMMAND_HOST_REQUIRED",
+            "This operation needs the live editor planning adapter",
+            document.revision,
+          );
+        const plan = planActionsNow(request.actions, {
+          allocateId,
+          snapshot: () => {
+            const cached = snapshotCache;
+            const snapshot =
+              cached !== undefined &&
+              cached.project === project &&
+              cached.document === document &&
+              cached.resolver === resolver &&
+              !cached.includeSourceSpans
+                ? cached.snapshot
+                : buildAgentSessionSnapshot({
+                    ...(project ? { project } : {}),
+                    document,
+                    resolver,
+                    includeSourceSpans: false,
+                  });
+            snapshotCache = {
+              project,
+              document,
+              resolver,
+              includeSourceSpans: false,
+              snapshot,
+            };
+            return snapshot;
+          },
+          maxEditsPerTransaction: () => limits.maxTransactionEdits,
+        });
+        if (plan.kind === "refused")
+          return response({
+            apiVersion: request.apiVersion,
+            requestId: request.requestId,
+            operation: "transact",
+            ok: false,
+            // The revision the list was checked against, if it was.
+            ...(plan.readSnapshot ? { revision: document.revision } : {}),
+            error: {
+              code: "ACTION_COMPILE_FAILED",
+              message: plan.message,
+              actionIndex: plan.actionIndex,
+              actionKind: plan.actionKind,
+            },
+            diagnostics: [],
+          });
+        if (plan.kind === "split")
+          return response({
+            apiVersion: request.apiVersion,
+            requestId: request.requestId,
+            operation: "transact",
+            ok: false,
+            revision: document.revision,
+            error: {
+              code: "ACTION_BATCH_NOT_ATOMIC",
+              message: plan.message,
+              calls: plan.calls,
+              transactions: plan.transactions,
+            },
+            diagnostics: [],
+          });
+        if (plan.kind === "nothing")
+          return response({
+            apiVersion: request.apiVersion,
+            requestId: request.requestId,
+            operation: "transact",
+            ok: true,
+            applied: false,
+            revision: document.revision,
+            proposedRevision: document.revision,
+            diff: {
+              documentId,
+              fromRevision: document.revision,
+              toRevision: document.revision,
+              editKinds: [],
+              changedObjectIds: [],
+            },
+            terminalConnectivityChanged: false,
+            diagnostics: diagnosticsFor(project, document, resolver),
+            diagnosticDelta: {
+              added: [],
+              removed: [],
+              ...(request.diagnosticDeltaDetail === "compact"
+                ? { removedIds: [] }
+                : {}),
+            },
+          });
+        const { actions: _actions, ...rest } = request;
+        // The client read the Document again before compiling a list that
+        // needs it, so such a list is planned on the Document held now. A
+        // list that goes through as it is keeps its form's revision checks.
+        const answer = service.handle({
+          ...rest,
+          ...(plan.readSnapshot
+            ? {
+                expectedRevision: document.revision,
+                ...(project && rest.expectedStructureRevision !== undefined
+                  ? { expectedStructureRevision: project.structureRevision }
+                  : {}),
+              }
+            : {}),
+          ...plan.payload,
+        });
+        if (answer.ok) return answer;
+        const firstNamed = answer.diagnostics.find(
+          (diagnostic) =>
+            typeof diagnostic.parameters?.actionIndex === "number",
+        );
+        const naming = actionRefusalNaming(plan, {
+          message: answer.error.message,
+          actionIndex: firstNamed?.parameters?.actionIndex as
+            number | undefined,
+          diagnostics: answer.diagnostics,
+        });
+        if (!naming) return answer;
+        // The refusal names the action in the list it concerns.
+        return response({
+          ...answer,
+          error: {
+            ...answer.error,
+            message: naming.message,
+            actionIndex: naming.actionIndex,
+            ...(naming.actionKind ? { actionKind: naming.actionKind } : {}),
+          },
         });
       }
 
@@ -1452,4 +1595,5 @@ export function createAgentCircuitService(
       }
     },
   };
+  return service;
 }

@@ -93,6 +93,13 @@ export interface AgentSessionClientOptions {
   workspaceBindingStore?: WorkspaceBindingStore;
   /** A one-command process cannot honor an in-memory-only bind. */
   requireDurableWorkspaceBinding?: boolean;
+  /**
+   * Compile action lists here even when the editor plans them. The editor's
+   * plan is the same code; tests compare the two, and a host may pin it.
+   */
+  planActionsLocally?: boolean;
+  /** The IDs a locally compiled action list makes; random by default. */
+  allocateId?: (prefix: string) => string;
 }
 
 export interface ConnectReport {
@@ -173,6 +180,19 @@ function baseRequest(requestId: string): {
  * headers. A revocable connector credential may be persisted by M4 so a new
  * MCP process can resume without another claim-code hand-off.
  */
+/** The action an editor's refusal of an action list names, if it does. */
+function refusedAction(error: {
+  actionIndex?: number | undefined;
+  actionKind?: string | undefined;
+}): { actionIndex?: number; actionKind?: string } {
+  return error.actionIndex === undefined
+    ? {}
+    : {
+        actionIndex: error.actionIndex,
+        ...(error.actionKind ? { actionKind: error.actionKind } : {}),
+      };
+}
+
 export class AgentSessionClient {
   readonly connection: ConnectionTracker;
   private readonly http: AgentHttpClient;
@@ -206,6 +226,8 @@ export class AgentSessionClient {
   private boundWorkspace: { projectId: string; documentIds: string[] } | null =
     null;
   private capabilitiesCache: AgentCapabilitiesResponse | null = null;
+  private readonly planActionsLocally: boolean;
+  private readonly allocateId: (prefix: string) => string;
   private resumePromise: Promise<ActiveSession | null> | null = null;
   private simulationMetadata = new Map<
     string,
@@ -263,6 +285,9 @@ export class AgentSessionClient {
     this.workspaceBindingStore = options.workspaceBindingStore;
     this.requireDurableWorkspaceBinding =
       options.requireDurableWorkspaceBinding ?? false;
+    this.planActionsLocally = options.planActionsLocally ?? false;
+    this.allocateId =
+      options.allocateId ?? ((prefix) => `${prefix}-${crypto.randomUUID()}`);
     this.connection = new ConnectionTracker(this.now);
   }
 
@@ -1340,10 +1365,11 @@ export class AgentSessionClient {
   }
 
   /**
-   * Compile high-level actions against the current clean Snapshot, require one atomic
-   * transaction, then commit it in a single request. The commit validates
-   * atomically, so a concurrent human edit surfaces as `STATE_CHANGED` with
-   * the objects that moved, never as a blind overwrite.
+   * Send high-level actions as one atomic transaction in a single request.
+   * An editor that plans `actions` takes the list as it is; an older one gets
+   * it compiled here, by the same code, against the current clean Snapshot.
+   * The commit validates atomically, so a concurrent human edit surfaces as
+   * `STATE_CHANGED` with the objects that moved, never as a blind overwrite.
    */
   async applyActions(
     actions: readonly unknown[],
@@ -1353,9 +1379,26 @@ export class AgentSessionClient {
       diagnosticDeltaDetail?: "full" | "compact";
     } = {},
   ): Promise<ApplyActionsReport> {
+    if (
+      !this.planActionsLocally &&
+      (await this.capabilities()).capabilities.transactionForms?.includes(
+        "actions",
+      )
+    ) {
+      // The editor plans the list with the same code, against the Document
+      // it holds: one request, and no Snapshot read here.
+      return this.submitTransaction(
+        await this.revisionFor(options.documentId),
+        { actions },
+        {
+          dryRun: options.dryRunOnly ?? false,
+          diagnosticDeltaDetail: options.diagnosticDeltaDetail ?? "full",
+        },
+      );
+    }
     let entry: CachedSnapshot | undefined;
     const plan = await planActions(actions, {
-      allocateId: (prefix) => `${prefix}-${crypto.randomUUID()}`,
+      allocateId: this.allocateId,
       snapshot: async () => {
         entry = await this.snapshot(options.documentId);
         return entry.snapshot;
@@ -1654,7 +1697,30 @@ export class AgentSessionClient {
         response.error.code === "STALE_REVISION" ||
         response.error.code === "STALE_STRUCTURE_REVISION"
       )
-        return this.stateChangedReport(entry, response.error.message);
+        return {
+          ...(await this.stateChangedReport(entry, response.error.message)),
+          ...refusedAction(response.error),
+        };
+      if (
+        response.error.code === "ACTION_COMPILE_FAILED" ||
+        response.error.code === "ACTION_BATCH_NOT_ATOMIC"
+      )
+        // The editor refused the list while planning it: reported as when
+        // the client compiles the list itself.
+        return {
+          ok: false,
+          stage: "compile",
+          code: response.error.code,
+          message: response.error.message,
+          ...refusedAction(response.error),
+          ...(response.revision !== undefined
+            ? { revision: response.revision }
+            : {}),
+          ...(response.error.transactions !== undefined
+            ? { transactions: response.error.transactions }
+            : {}),
+          ...(response.error.calls ? { calls: response.error.calls } : {}),
+        };
       return {
         ok: false,
         stage: "commit",
@@ -1662,6 +1728,9 @@ export class AgentSessionClient {
         message: response.error.message,
         diagnostics: response.diagnostics,
         ...(() => {
+          // The editor names the refused action of a list it planned.
+          if (response.error.actionIndex !== undefined)
+            return refusedAction(response.error);
           const actionIndex = response.diagnostics.find(
             (item) => typeof item.parameters?.actionIndex === "number",
           )?.parameters?.actionIndex;

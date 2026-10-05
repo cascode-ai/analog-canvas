@@ -112,21 +112,21 @@ function compiledActionIndex(
     : undefined;
 }
 
+/** A list that needs the Document: the friendlier forms already native. */
+interface NeedsDocument {
+  kind: "compile";
+  direct: AuthoringAction[];
+}
+
 /**
- * Plan one call's action list into the single transaction that carries it,
- * reading the Document only when the list needs it. A friendlier place-cell,
- * set-model or set-display-alias goes native without the Document (#1301);
- * wires alone, one command, and batchable commands go as they are; anything
- * else compiles against the Document, which allocates the IDs it makes.
+ * The plans that need no Document. A friendlier place-cell, set-model or
+ * set-display-alias goes native without it (#1301); wires alone, one
+ * command, and batchable commands go as they are.
  */
-export async function planActions(
+function planWithoutDocument(
   actions: readonly unknown[],
-  options: {
-    allocateId: (prefix: string) => string;
-    snapshot: () => AgentSessionSnapshot | Promise<AgentSessionSnapshot>;
-    maxEditsPerTransaction: () => number;
-  },
-): Promise<ActionPlan> {
+  allocateId: (prefix: string) => string,
+): ActionPlan | NeedsDocument {
   const parsed = z.array(AuthoringActionSchema).safeParse(actions);
   if (!parsed.success) {
     const issue = parsed.error.issues[0];
@@ -140,16 +140,14 @@ export async function planActions(
       readSnapshot: false,
     };
   }
-  const direct = parsed.data.map((action) =>
-    nativeForm(action, options.allocateId),
-  );
+  const direct = parsed.data.map((action) => nativeForm(action, allocateId));
   if (
     direct.length > 0 &&
     direct.length <= 64 &&
     direct.every((action) => action.kind === "connect")
   ) {
     const wires = direct.map((action) =>
-      directConnectIntent(action, options.allocateId),
+      directConnectIntent(action, allocateId),
     );
     if (wires.every((wire) => wire !== undefined))
       return {
@@ -203,14 +201,26 @@ export async function planActions(
         numberParameter(diagnostics, "actionIndex"),
       naming: "if-unnamed",
     };
+  return { kind: "compile", direct };
+}
 
-  const snapshot = await options.snapshot();
+/**
+ * Compile the list against the Document as read, which allocates the IDs it
+ * makes: one transaction, a no-op, or the calls to split it into.
+ */
+function planOnDocument(
+  actions: readonly unknown[],
+  direct: AuthoringAction[],
+  snapshot: AgentSessionSnapshot,
+  allocateId: (prefix: string) => string,
+  maxEditsPerTransaction: number,
+): ActionPlan {
   let compiled: CompiledTransaction[];
   try {
     compiled = compileActions(actions, {
       snapshot,
-      allocateId: options.allocateId,
-      maxEditsPerTransaction: options.maxEditsPerTransaction(),
+      allocateId,
+      maxEditsPerTransaction,
     });
   } catch (error) {
     if (!(error instanceof ActionCompileError)) throw error;
@@ -281,6 +291,52 @@ export async function planActions(
       compiledActionIndex(transaction, diagnostics),
     naming: "override",
   };
+}
+
+interface PlanOptions<Snapshot> {
+  allocateId: (prefix: string) => string;
+  /** The Document, read only when the list needs it. */
+  snapshot: () => Snapshot;
+  /** Read after the Document, when compiling needs it. */
+  maxEditsPerTransaction: () => number;
+}
+
+/**
+ * Plan one call's action list into the single transaction that carries it,
+ * reading the Document only when the list needs it. The Agent client reads
+ * it over the network.
+ */
+export async function planActions(
+  actions: readonly unknown[],
+  options: PlanOptions<AgentSessionSnapshot | Promise<AgentSessionSnapshot>>,
+): Promise<ActionPlan> {
+  const first = planWithoutDocument(actions, options.allocateId);
+  if (first.kind !== "compile") return first;
+  const snapshot = await options.snapshot();
+  return planOnDocument(
+    actions,
+    first.direct,
+    snapshot,
+    options.allocateId,
+    options.maxEditsPerTransaction(),
+  );
+}
+
+/** planActions for the editor, which holds the Document. */
+export function planActionsNow(
+  actions: readonly unknown[],
+  options: PlanOptions<AgentSessionSnapshot>,
+): ActionPlan {
+  const first = planWithoutDocument(actions, options.allocateId);
+  if (first.kind !== "compile") return first;
+  const snapshot = options.snapshot();
+  return planOnDocument(
+    actions,
+    first.direct,
+    snapshot,
+    options.allocateId,
+    options.maxEditsPerTransaction(),
+  );
 }
 
 /**
