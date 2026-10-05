@@ -2,6 +2,7 @@ import {
   deriveMosBulkRouteFamily,
   derivePowerRailComponent,
   endpointKey,
+  hasExplicitMosBulkRoute,
   isMosBulkRoute,
   isMosBulkTerminal,
   isVisibleEndpoint,
@@ -32,6 +33,7 @@ import {
   type RouteStretchProposal,
 } from "./route-operations.js";
 import type {
+  Instance,
   Point,
   RouteBranch,
   RouteEndpoint,
@@ -2233,6 +2235,26 @@ function endpointNetId(
   }
 }
 
+/**
+ * The MOS whose body `endpoint` is, while that body still follows its Cell's
+ * default: it sits on the default's Net by policy, not by a wire anybody
+ * drew.
+ */
+export function defaultBoundMosBody(
+  document: SchematicDocument,
+  endpoint: RouteEndpoint,
+): Instance | undefined {
+  if (endpoint.kind !== "terminal" || !isMosBulkTerminal(document, endpoint))
+    return undefined;
+  const instance = document.instances.find(
+    (candidate) => candidate.id === endpoint.instanceId,
+  );
+  return instance?.mosBulkBinding &&
+    !hasExplicitMosBulkRoute(document, instance.id)
+    ? instance
+    : undefined;
+}
+
 function endpointWireSource(
   document: SchematicDocument,
   resolver: SymbolResolver,
@@ -2246,11 +2268,21 @@ function endpointWireSource(
       `Wire endpoint is unresolved or has no grid landing: ${JSON.stringify(endpoint)}`
     );
   }
+  // A wire from a MOS body is the GUI's Draw bulk connection: dashed, and a
+  // body still on its Cell's default leaves the default first. An Agent's
+  // wire from such a body joined the default's Net to whatever it reached:
+  // a body wired to its own source put that source on VDD.
+  const body = defaultBoundMosBody(document, endpoint);
   return {
     endpoint,
     connection,
-    netId: endpointNetId(document, endpoint),
-    preludeEdits: [],
+    netId: body ? null : endpointNetId(document, endpoint),
+    preludeEdits: body
+      ? [{ kind: "clear_mos_bulk_default", instanceId: body.id }]
+      : [],
+    ...(isMosBulkTerminal(document, endpoint)
+      ? { routePresentation: "bulk-dashed" as const }
+      : {}),
   };
 }
 

@@ -490,3 +490,90 @@ describe("a batch connect from a pin an earlier connect reached (#1304)", () => 
     ).toEqual(["R1.2", "R2.1", "R3.1", "R4.2"]);
   });
 });
+
+describe("an Agent wire from a MOS body on its Cell's default", () => {
+  const body = (keepClear: boolean) => {
+    const document = createEmptyDocument("body", "Body wire");
+    document.instances.push(
+      {
+        id: "M1",
+        symbolId: "nmos",
+        symbolVariantId: "textbook-3terminal",
+        placement: { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+        mosBulkBinding: { origin: "cell-default", netId: "net-vss" },
+      },
+      {
+        id: "GND1",
+        symbolId: "ground",
+        placement: {
+          position: { x: 200, y: 100 },
+          rotation: 0,
+          mirror: "none",
+        },
+      },
+    );
+    document.nets.push({
+      id: "net-vss",
+      terminals: [
+        { instanceId: "M1", pinName: "B" },
+        { instanceId: "GND1", pinName: "0" },
+      ],
+    });
+    document.connectivityEvidence.push({
+      id: "claim-ground",
+      kind: "name-claim",
+      netId: "net-vss",
+      name: "0",
+      scope: "global",
+      powerDomain: "ground",
+      owner: { kind: "power-marker", objectId: "GND1" },
+    });
+    document.mosBulkDefaults = { nmosNetId: "net-vss" };
+    const h = history(document);
+    const terminal = (pinName: string) => ({
+      kind: "endpoint" as const,
+      endpoint: { kind: "terminal" as const, instanceId: "M1", pinName },
+    });
+    // The body tied to the source, as a source follower is drawn.
+    const plan = planWireBatch(
+      h.document,
+      resolver,
+      [wire("body", terminal("B"), terminal("S"))],
+      512,
+      { keepClear },
+    );
+    if (typeof plan === "string") throw new Error(plan);
+    const result = h.transact({
+      transactionId: "body",
+      documentId: h.document.id,
+      expectedRevision: h.document.revision,
+      actor: { kind: "agent", id: "test" },
+      edits: plan.edits,
+    });
+    expect(result.ok, JSON.stringify(result)).toBe(true);
+    return h.document;
+  };
+
+  it.each([true, false])(
+    "takes the body off the default rather than joining the default's Net (keepClear %s)",
+    (keepClear) => {
+      const document = body(keepClear);
+      const netOf = (instanceId: string, pinName: string) =>
+        document.nets.find((net) =>
+          net.terminals.some(
+            (t) => t.instanceId === instanceId && t.pinName === pinName,
+          ),
+        )?.id;
+      // Joined through the default, the source was on ground.
+      expect(netOf("M1", "B")).toBe(netOf("M1", "S"));
+      expect(netOf("M1", "S")).not.toBe(netOf("GND1", "0"));
+      expect(
+        document.instances.find((i) => i.id === "M1")?.mosBulkBinding,
+      ).toBeUndefined();
+      // Drawn as the GUI's Draw bulk connection draws it.
+      expect(document.routes.map((route) => route.presentation)).toEqual([
+        "bulk-dashed",
+      ]);
+    },
+  );
+});
