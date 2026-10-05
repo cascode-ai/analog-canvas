@@ -862,4 +862,55 @@ describe("opt-in label arrangement", () => {
     const moved = doc.annotations.find((a) => a.id === value.id)!;
     expect(after.conflicts(moved)).toEqual([]);
   });
+  it("moves a name off a junction dot beside it", () => {
+    // A Schmitt trigger's M2 kept its name 0.2 units from the dot on its
+    // gate, where the input trunk met it.
+    const { doc, instance } = fixture();
+    const reference = doc.annotations.find(
+      (a) => a.binding?.kind === "instance-reference",
+    )!;
+    const ink = createLabelClearanceContext(doc, resolver).measure(
+      reference,
+    ).inkBounds;
+    const radius = resolveDocumentStyleProfile(doc.presentation).nodes
+      .junctionRadius;
+    // A T whose dot touches the name's right end; its wires run away from it.
+    const dot = {
+      x: Math.ceil(ink.x + ink.width + radius),
+      y: Math.round(ink.y + ink.height / 2),
+    };
+    doc.nets.push({ id: "t", terminals: [] });
+    doc.junctions.push({ id: "t-dot", netId: "t", position: dot });
+    for (const [end, dx, dy] of [
+      ["right", 60, 0],
+      ["up", 0, -60],
+      ["down", 0, 60],
+    ] as const) {
+      doc.junctions.push({
+        id: `t-${end}`,
+        netId: "t",
+        position: { x: dot.x + dx, y: dot.y + dy },
+      });
+      doc.routes.push(
+        createRoutePath({
+          id: `t-${end}-wire`,
+          netId: "t",
+          start: { kind: "junction", junctionId: "t-dot" },
+          end: { kind: "junction", junctionId: `t-${end}` },
+          bends: [],
+          modes: ["manual"],
+        }),
+      );
+    }
+    const before = createLabelClearanceContext(doc, resolver);
+    expect(before.conflicts(reference)).toEqual([]);
+    expect(before.dotsAt(before.measure(reference).inkBounds)).not.toEqual([]);
+
+    apply(doc, arrangeInstanceLabels(doc, resolver, [instance.id], {}));
+
+    const after = createLabelClearanceContext(doc, resolver);
+    const moved = doc.annotations.find((a) => a.id === reference.id)!;
+    expect(after.conflicts(moved)).toEqual([]);
+    expect(after.dotsAt(after.measure(moved).inkBounds)).toEqual([]);
+  });
 });

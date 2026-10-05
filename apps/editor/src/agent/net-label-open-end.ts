@@ -54,11 +54,16 @@ export function netLabelAtOpenEnd(
   ].sort((a, b) => Math.abs(a - anchor.t) - Math.abs(b - anchor.t));
   if (!ends.length) return label;
   const context = createLabelClearanceContext(document, resolver);
-  const clear = (candidate: Annotation) =>
-    !context.conflictsAt(
-      context.measure({ ...candidate, formatOverride: text }).inkBounds,
-      candidate.id,
-    ).length;
+  const clear = (candidate: Annotation) => {
+    const ink = context.measure({
+      ...candidate,
+      formatOverride: text,
+    }).inkBounds;
+    return (
+      !context.conflictsAt(ink, candidate.id).length &&
+      !context.dotsAt(ink).length
+    );
+  };
   if (clear(label)) return label;
   for (const t of ends) {
     const attachment = { ...anchor, t };

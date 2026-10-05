@@ -242,11 +242,12 @@ Batch operations are explicit and distinct:
   group stays beside the part. A place is clear when the labels meet no
   wire, part, other label or free drawing text, keep a word's space from
   another label or text on their line and a little space between lines,
+  keep that line's space from a junction dot,
   and no wire runs between a
   label and its part or between the Reference and the value, other than
   the part's own wires. Where nothing is clear, text drawn over a wire, a
-  part or other text counts for more than a label too close to text or cut
-  off by a wire. A part's Reference comes first: no position that clears the value
+  part or other text counts for more than a label too close to text or to
+  a junction dot, or cut off by a wire. A part's Reference comes first: no position that clears the value
   but draws the Reference over a wire, a part or another label is preferred
   to one that keeps the Reference clear. A requested Cell Pin's name, while
   still on one of its own sides, takes the first of them where it meets
