@@ -882,7 +882,7 @@ describe("authoring helper compilation", () => {
   it("sends disconnect as Disconnect endpoint, and a wire's as its deletion", () => {
     const transactions = compile([
       { kind: "disconnect", target: { kind: "pin", instance: "R1", pin: "2" } },
-      { kind: "disconnect", target: { kind: "route", route: "route-1" } },
+      { kind: "disconnect", target: { kind: "route", route: "vout-route" } },
     ]);
     expect(transactions.map((transaction) => transaction.command)).toEqual([
       { kind: "disconnect-pin", instanceId: "instance-2", pinName: "2" },
@@ -890,7 +890,7 @@ describe("authoring helper compilation", () => {
         kind: "delete-selection",
         selection: {
           instanceIds: [],
-          routeIds: ["route-1"],
+          routeIds: ["vout-route"],
           junctionIds: [],
           annotationIds: [],
           draftingIds: [],
@@ -1074,10 +1074,11 @@ describe("authoring helper compilation", () => {
         text: "Vout",
       },
     ]);
+    // 20 above vout-route's middle point, the corner at (310, 100).
     expect(transaction?.command).toMatchObject({
       kind: "set-net-label",
-      netId: "net-vout",
-      position: { x: 460, y: 140 },
+      netId: "vout-net",
+      position: { x: 310, y: 80 },
       text: { runs: [{ kind: "text", value: "Vout" }] },
     });
   });
@@ -1120,7 +1121,7 @@ describe("authoring helper compilation", () => {
       [
         {
           kind: "disconnect",
-          target: { kind: "route", route: "route-1" },
+          target: { kind: "route", route: "vout-route" },
           noConnect: true,
         },
       ],
@@ -1158,9 +1159,10 @@ describe("authoring helper compilation", () => {
     ]);
     expect(transaction?.command).toMatchObject({
       kind: "set-net-label",
-      netId: "net-vout",
-      // Halfway along route-1's first segment, from M1.D up to its bend.
-      position: { x: 300, y: 180 },
+      netId: "vout-net",
+      // Halfway along vout-route's first segment, from M1.D (310, 220) up to
+      // its bend (310, 100).
+      position: { x: 310, y: 160 },
     });
     expectCompileError(
       [
@@ -1255,14 +1257,14 @@ describe("authoring helper compilation", () => {
   it("compiles delete for supported kinds and refuses nets", () => {
     const [transaction] = compile([
       { kind: "delete", target: { kind: "instance", reference: "R1" } },
-      { kind: "delete", target: { kind: "route", id: "route-1" } },
+      { kind: "delete", target: { kind: "route", id: "vout-route" } },
       { kind: "delete", target: { kind: "annotation", id: "label-1" } },
     ]);
     expect(transaction?.command).toMatchObject({
       kind: "delete-selection",
       selection: {
         instanceIds: ["instance-2"],
-        routeIds: ["route-1"],
+        routeIds: ["vout-route"],
         annotationIds: ["label-1"],
       },
     });
@@ -1374,7 +1376,7 @@ describe("every action compiles in a mixed call", () => {
 
 describe("placing by pins and by symmetry (#1112)", () => {
   it("places the mirror image of a part about a vertical or horizontal line", () => {
-    // M1 sits at (300, 240), upright and unmirrored, on a 20 grid.
+    // M1 sits at (300, 240), upright and unmirrored, on a 10 grid.
     const [placed] = compile([
       {
         kind: "place-component",
@@ -1411,10 +1413,10 @@ describe("placing by pins and by symmetry (#1112)", () => {
           kind: "place-component",
           symbol: "nmos",
           reference: "M2",
-          mirrorOf: { instance: "M1", x: 405 },
+          mirrorOf: { instance: "M1", x: 403 },
         },
       ],
-      "off placement grid 20",
+      "off placement grid 10",
     );
     expectCompileError(
       [
