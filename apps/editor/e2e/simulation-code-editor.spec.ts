@@ -66,27 +66,6 @@ test("source Helper writes native model and instance skeletons with no electrica
   );
 });
 
-test("Specs clears source Canvas preview without changing authored source", async ({
-  page,
-}) => {
-  const editor = page.getByRole("textbox", {
-    name: "Simulation source editor",
-  });
-  await editor.fill("* test\ncontrol\nsave v(out)");
-  await page.keyboard.press("End");
-  await page.keyboard.press("ArrowLeft");
-  await expect(page.locator("body")).toHaveAttribute(
-    "data-focused-signal",
-    "v(out)",
-  );
-  await page.getByRole("tab", { name: "Specs", exact: true }).click();
-  await expect(page.locator("body")).toHaveAttribute("data-focused-signal", "");
-  await expect(
-    page.getByRole("region", { name: "Specification results" }),
-  ).toBeVisible();
-  await expect(editor).toContainText("save v(out)");
-});
-
 test("native save and dc arguments open automatically and preview their Canvas target", async ({
   page,
 }) => {

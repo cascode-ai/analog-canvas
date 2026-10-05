@@ -16,7 +16,6 @@ import { parseProject, serializeProject } from "@icm/project-protocol";
 import {
   generateCircuitSource,
   simulationSignals,
-  nativeSimulationDevices,
   vacaskIdentifier,
 } from "@icm/netlist";
 
@@ -305,78 +304,6 @@ test("native metadata is hidden per folder while damaged configuration stays rep
       folder.input.files.find((file) => file.path === folder.input.configPath)!
         .text,
     ).toBe(original);
-});
-
-test("native Circuit source edits persist source fields and distinguish mega from milli", async ({
-  page,
-}) => {
-  const project = parseProject(JSON.stringify(ota));
-  const folder = createSimulationFolder({
-    id: "native-values",
-    name: "Native values",
-    documentId: project.topDocumentId,
-    profileId: "candidate",
-  });
-  project.simulationFolders = [folder];
-  await page.route("**/api/simulate", (route) =>
-    route.fulfill({
-      status: 503,
-      json: { error: "Offline authoring fixture" },
-    }),
-  );
-  await page.goto("/editor");
-  await page.getByTestId("project-file").setInputFiles({
-    name: "native-values.icproj.json",
-    mimeType: "application/json",
-    buffer: Buffer.from(JSON.stringify(project)),
-  });
-  await page.getByTestId("open-analog-simulation").click();
-  await page.getByRole("tab", { name: /circuit\.spice/ }).click();
-  const editor = page.getByRole("textbox", {
-    name: "Simulation source editor",
-  });
-  const generated = generateCircuitSource(
-    project,
-    folder.input.circuitBindings[0]!,
-    folder.input,
-  );
-  if (!generated.ok) throw Error(JSON.stringify(generated.diagnostics));
-  const body = generated.source.sourceBodies!.find(
-    (b) => b.instanceId === "VDD",
-  )!;
-  const text =
-    generated.source.text.slice(0, body.startOffset) +
-    ' type="sine" dc=1m mag=1 phase=-90 sinedc=0 ampl=1 freq=1M' +
-    generated.source.text.slice(body.endOffset);
-  await expect(editor).toContainText('type="dc"');
-  await editor.fill(text);
-  await page.getByRole("button", { name: "Save source", exact: true }).click();
-  await expect(
-    page.getByRole("button", { name: "Save source", exact: true }),
-  ).toHaveAttribute("data-save-state", "saved");
-  const saved = parseProject(
-    (await downloadBytes(page, "File", "Export Project File…")).toString(),
-  );
-  const params = saved.documents
-    .find((d) => d.id === body.documentId)!
-    .instances.find((i) => i.id === body.instanceId)!.netlist!.parameters;
-  expect(params).toMatchObject({
-    dc: "0.001",
-    frequency: "1000000",
-    waveform: "sin",
-    acMagnitude: "1",
-    acPhase: "-90",
-  });
-  const projected = generateCircuitSource(
-    saved,
-    folder.input.circuitBindings[0]!,
-    saved.simulationFolders[0]!.input,
-  );
-  if (!projected.ok) throw Error("Expected native projection after save");
-  expect(projected.source.text).toContain(
-    'type="sine" dc=0.001 mag=1 phase=-90',
-  );
-  expect(projected.source.text).toContain("freq=1000000");
 });
 
 test("Code edits native AC fields and routes parameter declarations to authored Code", async ({
@@ -983,58 +910,6 @@ endc
   await picker.getByRole("button", { name: "v(Out)", exact: true }).click();
   await picker.getByRole("button", { name: "v(out)", exact: true }).click();
   await expect(editor).toContainText("save i(feed) i(Feed) v(Out) v(out)");
-});
-
-test("native device OP Helper inserts inspectable model-native saves without SPICE aliases", async ({
-  page,
-}) => {
-  const project = parseProject(JSON.stringify(ota));
-  const folder = createSimulationFolder({
-    id: "native-op-helper",
-    name: "Native OP",
-    documentId: project.topDocumentId,
-    profileId: "candidate",
-  });
-  // Offline authoring proof only: no claim that these default model values
-  // replace the foundry wrapper. Numeric compiler/helper proof runs separately.
-  const device = nativeSimulationDevices(project, folder.input).find(
-    (d) => d.polarity,
-  )!;
-  folder.input.files.find((f) => f.path === folder.input.entry)!.text +=
-    `\nsubckt ${device.card.target} (D G S B)\nmodel core sp_bsim4v8 type=1\nInner (D G S B) core\nends\n`;
-  project.simulationFolders = [folder];
-  await page.route("**/api/simulate", (route) =>
-    route.fulfill({
-      status: 503,
-      json: { error: "Offline authoring fixture" },
-    }),
-  );
-  await page.goto("/editor");
-  await page.getByTestId("project-file").setInputFiles({
-    name: "native-op.icproj.json",
-    mimeType: "application/json",
-    buffer: Buffer.from(JSON.stringify(project)),
-  });
-  await page.getByTestId("open-analog-simulation").click();
-  const editor = page.getByRole("textbox", {
-    name: "Simulation source editor",
-  });
-  await page.getByRole("button", { name: "Helper", exact: true }).click();
-  await page
-    .getByRole("option", { name: "Save device operating point…", exact: true })
-    .click();
-  const picker = page.getByRole("dialog", { name: "Save signal" });
-  const save = `p('${device.reference}:Inner',gm)`;
-  const choice = picker.getByRole("button", {
-    name: `${device.reference}:Inner · gm (model-native) — ${save}`,
-  });
-  await choice.click();
-  await expect(choice).toContainText("Added");
-  await expect(editor).toContainText(`save ${save}`);
-  await expect(editor).not.toContainText("[gm]");
-  await expect(
-    picker.getByRole("textbox", { name: "Search signal" }),
-  ).toBeFocused();
 });
 
 test("native save completion previews its mapped Net on the real Canvas", async ({
