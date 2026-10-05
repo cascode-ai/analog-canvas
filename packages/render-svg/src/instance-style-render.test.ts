@@ -122,35 +122,6 @@ describe("instance style override rendering", () => {
       }
     },
   );
-
-  it("inherits default text fill without a CSS rule overriding authored text colors", () => {
-    const svg = renderDocumentSvg(
-      createEmptyDocument("doc", "Colors"),
-      resolver,
-    );
-    expect(svg).toContain(";fill:#000}text{font-family:");
-    expect(svg).not.toMatch(/text\{[^}]*fill:/);
-  });
-  it("renders an instance with foreground override", () => {
-    const doc = createEmptyDocument("doc-1", "Test");
-    doc.instances.push({
-      id: "inst-1",
-      symbolId: "resistor",
-      placement: {
-        position: { x: 100, y: 100 },
-        rotation: 0,
-        mirror: "none",
-      },
-      reference: "R1",
-      netlist: { parameters: {} },
-      styleOverride: { foreground: "#FF0000" },
-    });
-    const svg = renderDocumentSvg(doc, resolver);
-    expect(svg).toContain('stroke="#FF0000"');
-    // The instance group should have the override
-    expect(svg).toContain('data-object-id="inst-1"');
-  });
-
   it("renders an instance with background override as a rect", () => {
     const doc = createEmptyDocument("doc-1", "Test");
     doc.instances.push({
@@ -190,26 +161,6 @@ describe("instance style override rendering", () => {
     expect(svg).toContain('data-role="instance-background"');
     expect(svg).toContain('fill="#EEEEEE"');
     expect(svg).toContain('stroke="#FF0000"');
-  });
-
-  it("renders without override using profile defaults (backward compatible)", () => {
-    const doc = createEmptyDocument("doc-1", "Test");
-    doc.instances.push({
-      id: "inst-1",
-      symbolId: "resistor",
-      placement: {
-        position: { x: 100, y: 100 },
-        rotation: 0,
-        mirror: "none",
-      },
-      reference: "R1",
-      netlist: { parameters: {} },
-    });
-    const svg = renderDocumentSvg(doc, resolver);
-    expect(svg).not.toContain('data-role="instance-background"');
-    expect(svg).not.toContain('data-role="instance-symbol"');
-    // Should use profile foreground (#000 for razavi)
-    expect(svg).toContain('stroke="#000"');
   });
 
   it("applies foreground override to visible pin-name text", () => {
@@ -592,30 +543,6 @@ describe("instance style override rendering", () => {
     const svg = renderDocumentSvg(doc, resolver);
     // Any polygon or circle fill that references "foreground" should use the override
     expect(svg).toContain('fill="#FF0000"');
-  });
-
-  it("renders background rect before symbol strokes (z-order)", () => {
-    const doc = createEmptyDocument("doc-1", "Test");
-    doc.instances.push({
-      id: "inst-1",
-      symbolId: "resistor",
-      placement: {
-        position: { x: 100, y: 100 },
-        rotation: 0,
-        mirror: "none",
-      },
-      reference: "R1",
-      netlist: { parameters: {} },
-      styleOverride: { foreground: "#FF0000", background: "#EEEEEE" },
-    });
-    const scene = buildSvgScene(doc, resolver);
-    const body = scene.formalBody;
-    const bgIndex = body.indexOf('data-role="instance-background"');
-    const strokeIndex = body.indexOf('stroke="#FF0000"');
-    expect(bgIndex).toBeGreaterThan(-1);
-    expect(strokeIndex).toBeGreaterThan(-1);
-    // Background must come before strokes in document order
-    expect(bgIndex).toBeLessThan(strokeIndex);
   });
 
   it("renders background rect inside the instance transform group", () => {

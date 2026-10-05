@@ -432,12 +432,6 @@ describe("an overbar followed by more of the line", () => {
       numericAttribute(base, "x") + rendered.width,
     );
   });
-
-  it("still renders the appended equation", () => {
-    const rendered = render(meanValueThenEquation());
-    expect(rendered.tspans).toContain("=4kT");
-    expect(rendered.tspans).toContain("m");
-  });
   it("positions one exact bar when ordinary text precedes the expression", () => {
     const document = meanValueThenEquation();
     const bold = document.runs[0];

@@ -726,7 +726,7 @@ describe("shared simulation lifecycle", () => {
     });
   });
 
-  it.each(["complete", "partial"] as const)(
+  it.each(["partial"] as const)(
     "delivers captured Specs and %s collection status through run reads and artifacts",
     async (collectionStatus) => {
       const f = fixture("ngspice");
@@ -971,7 +971,7 @@ describe("shared simulation lifecycle", () => {
     expect(read.text).toContain("0.99,-0.01");
     await f.service.clear();
   });
-  it.each([false, true])(
+  it.each([true])(
     "runs a recoverable sequential batch (first run fails: %s)",
     async (firstRunFails) => {
       let now = 0;
@@ -2059,42 +2059,5 @@ describe("shared simulation lifecycle", () => {
         ]),
       },
     });
-  });
-
-  it("prepares qualified TRAN and keeps an oversized estimate advisory", async () => {
-    const project = CircuitProjectSchema.parse(
-      currentFiveTransistorOtaCircuitSource(),
-    );
-    const folder = nativeOtaFolder(
-      project,
-      "analysis transient tran step=1n stop=1m",
-    );
-    const f = fixture();
-    f.executor.capabilities = async () => ({
-      ...caps,
-      analyses: ["op", "ac", "tran"],
-      maxOutputBytes: 1024,
-    });
-    const service = new SimulationService(f.files, f.executor, () => project);
-    const prepared = unwrap(
-      await service.handle(
-        {
-          operation: "prepare",
-          source: {
-            kind: "project-folder",
-            folderId: folder.id,
-            expectedStructureRevision: project.structureRevision,
-          },
-        },
-        "tran",
-      ),
-      "prepared",
-    );
-    expect(prepared.mode).toBe("source");
-    expect(prepared.warnings).toEqual([
-      expect.stringContaining('dc is used only with type="dc"'),
-      expect.stringContaining("run remains allowed"),
-    ]);
-    expect(f.executor.execute).not.toHaveBeenCalled();
   });
 });

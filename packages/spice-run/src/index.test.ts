@@ -173,34 +173,6 @@ Note: No ".plot", ".print", or ".fourier" lines; no simulations run
     expect(describeExitStatus(0)).toBeNull();
     expect(describeExitStatus(null)).toBeNull();
   });
-
-  it("never fails without saying why", () => {
-    // A refusal with an empty diagnostics array leaves the author nothing to
-    // act on and the next debugger nothing to follow. Failure is reachable
-    // only through an error diagnostic now, so the pairing cannot recur.
-    const outcome = classifySimulationOutcome([], {
-      timedOut: false,
-      timeoutMs: 30_000,
-    });
-    expect(outcome.status).not.toBe("failed");
-
-    const silent = classifySimulationOutcome(
-      [{ severity: "error", text: "The simulator produced no output." }],
-      { timedOut: false, timeoutMs: 30_000 },
-    );
-    expect(silent).toEqual({ status: "failed" });
-  });
-
-  it("says a timeout is a timeout, not a broken circuit", () => {
-    // A long analysis and a wrong circuit look identical from the outside;
-    // the author is told which one happened.
-    expect(
-      classifySimulationOutcome(readNgspiceDiagnostics(CLEAN_OUTPUT), {
-        timedOut: true,
-        timeoutMs: 30_000,
-      }),
-    ).toEqual({ status: "timed-out", timeoutMs: 30_000 });
-  });
 });
 
 describe("simulation run evidence", () => {

@@ -358,39 +358,27 @@ R1 A B 5k
     },
   );
 
+  // From a complete circuit, so the defect alone blocks the export. Open pins,
+  // wrong bindings and incomplete waveforms are refused in current-contract
+  // and source-waveform tests.
   it.each([
-    "open-pin",
-    "unknown-symbol",
-    "missing-cell",
-    "wrong-binding",
-    "invalid-waveform",
-  ])("rejects %s instead of silently omitting circuit data", (defect) => {
-    const project = fixture();
-    const document = project.documents[0]!;
-    if (defect === "open-pin") document.nets[0]!.terminals.shift();
-    if (defect === "unknown-symbol")
-      document.instances[0]!.symbolId = "unreviewed-symbol";
-    if (defect === "missing-cell") document.netlist = undefined;
-    if (defect === "wrong-binding")
-      document.instances[0]!.netlist!.binding = {
-        kind: "primitive",
-        deviceClass: "resistor",
-      };
-    if (defect === "invalid-waveform")
-      document.instances[4]!.netlist!.parameters.waveform = "pulse";
-    const before = structuredClone(project);
-    expect(createDesignNetlistExport(project).status).toBe("blocked");
-    expect(project).toEqual(before);
-  });
-
-  it("does not infer missing waveform fields from a device default", () => {
-    const project = fixture();
-    project.documents[0]!.instances[4]!.netlist!.parameters = {
-      waveform: "pwl",
-      pwlPoints: "broken",
-    };
-    expect(createDesignNetlistExport(project).status).toBe("blocked");
-  });
+    ["unknown-symbol", "MISSING_DEVICE_DEFINITION"],
+    ["missing-cell", "MISSING_CELL_INTERFACE"],
+  ] as const)(
+    "rejects %s instead of silently omitting circuit data",
+    (defect, code) => {
+      const project = completeFixture();
+      const document = project.documents[0]!;
+      if (defect === "unknown-symbol")
+        document.instances[0]!.symbolId = "unreviewed-symbol";
+      if (defect === "missing-cell") document.netlist = undefined;
+      const before = structuredClone(project);
+      const result = createDesignNetlistExport(project);
+      expect(result.status).toBe("blocked");
+      expect(result.diagnostics.map((item) => item.code)).toContain(code);
+      expect(project).toEqual(before);
+    },
+  );
 });
 
 describe("ground as the Cell's own pin", () => {

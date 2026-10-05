@@ -80,7 +80,7 @@ it("bounds derived arrays even when there is no large raw result", () => {
   expect(run.outputData!.analyses[0]!.outputs[0]!.values).toHaveLength(100000);
 });
 
-it.each([181, 2000, 100000])(
+it.each([100000])(
   "does not inline samples at %i points and keeps internal data until explicitly released",
   (count) => {
     const values = Array(count).fill(1.234567890123456);

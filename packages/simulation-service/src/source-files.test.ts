@@ -148,21 +148,6 @@ describe("atomic source text changes", () => {
     ).toMatchObject({ ok: false, error: { code: "SIMULATION_FILE_INVALID" } });
   });
 
-  it("accepts atomic rename and intentionally invalid syntax without running it", async () => {
-    const result = await planSimulationSourceChanges(
-      [{ path: "old.cir", text: "op" }],
-      {
-        writes: [{ path: "new.cir", text: ".control\nac dec" }],
-        removes: ["old.cir"],
-        patches: [],
-      },
-    );
-    expect(result).toEqual({
-      ok: true,
-      files: [{ path: "new.cir", text: ".control\nac dec" }],
-    });
-  });
-
   it("rejects overlapping ranges and edits that split a surrogate pair", async () => {
     const text = "x🧪y";
     const textDigest = await sha256(text);

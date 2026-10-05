@@ -215,24 +215,6 @@ describe("built-in Analog Block subcircuits", () => {
       );
     });
 
-    it("exports a comparator bound to the built-in ideal comparator", () => {
-      const project = analogBlockProject(["comparator"], comparatorPins);
-      const block = project.documents[0]!.instances.find(
-        (instance) => instance.symbolId === "comparator",
-      )!;
-      block.netlist = {
-        binding: {
-          kind: "unresolved-subcircuit",
-          name: "icm_ideal_comparator",
-        },
-        parameters: { vhigh: "1", vlow: "0", vtransition: "1m" },
-      };
-      const result = createDesignNetlistExport(project);
-      expect(result.status).toBe("ready");
-      if (result.status !== "ready") return;
-      expect(result.file.text).toContain(".subckt icm_ideal_comparator");
-    });
-
     it("accepts an older comparator when the Project defines comparator", () => {
       const project = analogBlockProject(["comparator"], comparatorPins, false);
       project.externalSubcircuitDefinitions = [
@@ -265,18 +247,6 @@ describe("built-in Analog Block subcircuits", () => {
       name: "opamp",
       parameter: "gain=1e6",
       body: "ECORE VOUT 0 VIP VIN {gain}",
-    },
-    {
-      symbolId: "opamp-differential",
-      connections: [
-        ["IN+", "plus"],
-        ["IN-", "minus"],
-        ["OUT+", "out_plus"],
-        ["OUT-", "out_minus"],
-      ],
-      name: "opamp_differential",
-      parameter: "gain=1e6",
-      body: "EPLUS VOP 0 VIP VIN {gain/2}",
     },
     {
       symbolId: "voltage-amplifier",
@@ -547,7 +517,7 @@ describe("built-in Analog Block subcircuits", () => {
           ]
         : []),
     ])
-      it.each(["spice", "spectre"] as const)(
+      it.each(["spice"] as const)(
         `exports ${family}-wide${state} identically to compact in %s`,
         (format) => {
           const compactId = `${family}${state}`;

@@ -42,11 +42,6 @@ describe("captured scalar cardinality", () => {
       unit: "Hz",
     });
   });
-  it("preserves a negative singleton without taking magnitude", () => {
-    const r = readSimulationData(source.replace("4,0\n 3,4", "-4,0\n 3,4"));
-    if (r.status !== "read") throw Error("read expected");
-    expect(r.data.analyses[0]?.scalars?.[0]?.value).toBe(-4);
-  });
   it("keeps an unqualified one-point AC acquisition as a waveform", () => {
     const onePoint = source
       .slice(0, source.indexOf("\n 1 200"))

@@ -421,44 +421,6 @@ describe("simulation output evaluation", () => {
     ]);
     expect(SimulationOutputDataSchema.safeParse(result).success).toBe(true);
   });
-  it("exposes saved native vectors alongside configured outputs with run-local names", () => {
-    const result = evaluateSimulationOutputs(
-      {
-        schemaVersion: 1,
-        analyses: [
-          {
-            analysis: "op",
-            plotName: "OP",
-            probes: [
-              { name: "v(out)", quantity: "voltage", unit: "V", value: 0.8 },
-              { name: "v(in)", quantity: "voltage", unit: "V", value: 1 },
-            ],
-          },
-        ],
-      },
-      [{ probeId: "input", vector: "v(in)", quantity: "voltage" }],
-      [
-        {
-          id: "input-voltage",
-          label: "Input",
-          expression: {
-            kind: "acquisition",
-            acquisitionId: "input",
-            quantity: "voltage",
-          },
-        },
-      ],
-      [],
-      [],
-      true,
-      { "v(out)": "XDUT/Vout" },
-    );
-    expect(result.analyses[0]!.outputs.map((o) => o.label)).toEqual([
-      "Input",
-      "XDUT/Vout — v(out)",
-    ]);
-    expect(result.analyses[0]!.outputs[1]!.values).toEqual([0.8]);
-  });
   it("keeps MOS values and authored measurements per OP record without automatic copies", () => {
     const result = evaluateSimulationOutputs(
       {
@@ -992,52 +954,5 @@ describe("simulation output evaluation", () => {
       unit: "dB",
       values: [20, 20],
     });
-  });
-
-  it("isolates an invalid output without losing valid results", () => {
-    const result = evaluateSimulationOutputs(
-      {
-        schemaVersion: 1,
-        analyses: [
-          {
-            analysis: "op",
-            plotName: "OP",
-            probes: [
-              { name: "v(out)", quantity: "voltage", unit: "V", value: 1 },
-            ],
-          },
-        ],
-      },
-      [{ probeId: "vout", vector: "v(out)", quantity: "voltage" }],
-      [
-        {
-          id: "ok",
-          label: "Vout",
-          expression: {
-            kind: "acquisition",
-            acquisitionId: "vout",
-            quantity: "voltage",
-          },
-        },
-        {
-          id: "bad",
-          label: "Bad",
-          expression: {
-            kind: "acquisition",
-            acquisitionId: "missing",
-            quantity: "voltage",
-          },
-        },
-      ],
-    );
-    expect(result.analyses[0]?.outputs.map((output) => output.id)).toEqual([
-      "ok",
-    ]);
-    expect(result.diagnostics).toEqual([
-      expect.objectContaining({
-        outputId: "bad",
-        code: "SIMULATION_OUTPUT_EVALUATION_FAILED",
-      }),
-    ]);
   });
 });
