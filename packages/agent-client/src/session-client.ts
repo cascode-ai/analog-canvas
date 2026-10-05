@@ -54,11 +54,7 @@ import {
   type BootstrapSummary,
   type SnapshotSummary,
 } from "./snapshot-cache.js";
-import {
-  actionRefusalNaming,
-  planActions,
-  type ActionCall,
-} from "@icm/agent-adapter/authoring";
+import type { ActionCall } from "@icm/agent-adapter/authoring";
 import type { WorkspaceBindingStore } from "./workspace-binding-store.js";
 
 interface ActiveSession {
@@ -93,13 +89,6 @@ export interface AgentSessionClientOptions {
   workspaceBindingStore?: WorkspaceBindingStore;
   /** A one-command process cannot honor an in-memory-only bind. */
   requireDurableWorkspaceBinding?: boolean;
-  /**
-   * Compile action lists here even when the editor plans them. The editor's
-   * plan is the same code; tests compare the two, and a host may pin it.
-   */
-  planActionsLocally?: boolean;
-  /** The IDs a locally compiled action list makes; random by default. */
-  allocateId?: (prefix: string) => string;
 }
 
 export interface ConnectReport {
@@ -188,8 +177,7 @@ function refusedAction(error: {
 /**
  * Unified Agent-side Helper (Agent rationale). Owns claim/resume, token and session
  * state, capabilities/revision caches, exact-payload request-ID retry, the
- * Snapshot cache, and sending high-level actions, which it compiles itself
- * only for an editor that does not plan them.
+ * Snapshot cache, and sending high-level actions for the editor to plan.
  * Bearer tokens remain process-local and are sent only in Authorization
  * headers. A revocable connector credential may be persisted by M4 so a new
  * MCP process can resume without another claim-code hand-off.
@@ -227,8 +215,6 @@ export class AgentSessionClient {
   private boundWorkspace: { projectId: string; documentIds: string[] } | null =
     null;
   private capabilitiesCache: AgentCapabilitiesResponse | null = null;
-  private readonly planActionsLocally: boolean;
-  private readonly allocateId: (prefix: string) => string;
   private resumePromise: Promise<ActiveSession | null> | null = null;
   private simulationMetadata = new Map<
     string,
@@ -286,9 +272,6 @@ export class AgentSessionClient {
     this.workspaceBindingStore = options.workspaceBindingStore;
     this.requireDurableWorkspaceBinding =
       options.requireDurableWorkspaceBinding ?? false;
-    this.planActionsLocally = options.planActionsLocally ?? false;
-    this.allocateId =
-      options.allocateId ?? ((prefix) => `${prefix}-${crypto.randomUUID()}`);
     this.connection = new ConnectionTracker(this.now);
   }
 
@@ -1366,11 +1349,11 @@ export class AgentSessionClient {
   }
 
   /**
-   * Send high-level actions as one atomic transaction in a single request.
-   * An editor that plans `actions` takes the list as it is; an older one gets
-   * it compiled here, by the same code, against the current clean Snapshot.
-   * The commit validates atomically, so a concurrent human edit surfaces as
-   * `STATE_CHANGED` with the objects that moved, never as a blind overwrite.
+   * Send high-level actions for the editor to plan and commit as one atomic
+   * transaction, in a single request. The editor plans them against the
+   * Document it holds, so a concurrent human edit surfaces as
+   * `STATE_CHANGED`, never as a blind overwrite. An editor page too old to
+   * plan them is asked to reload; nothing is sent.
    */
   async applyActions(
     actions: readonly unknown[],
@@ -1380,97 +1363,27 @@ export class AgentSessionClient {
       diagnosticDeltaDetail?: "full" | "compact";
     } = {},
   ): Promise<ApplyActionsReport> {
-    if (
-      !this.planActionsLocally &&
-      (await this.capabilities()).capabilities.transactionForms?.includes(
-        "actions",
-      )
-    ) {
-      // The editor plans the list with the same code, against the Document
-      // it holds: one request, and no Snapshot read here.
-      return this.submitTransaction(
-        await this.revisionFor(options.documentId),
-        { actions },
-        {
-          dryRun: options.dryRunOnly ?? false,
-          diagnosticDeltaDetail: options.diagnosticDeltaDetail ?? "full",
-        },
-      );
-    }
-    let entry: CachedSnapshot | undefined;
-    const plan = await planActions(actions, {
-      allocateId: this.allocateId,
-      snapshot: async () => {
-        entry = await this.snapshot(options.documentId);
-        return entry.snapshot;
-      },
-      maxEditsPerTransaction: () =>
-        this.capabilitiesCache?.capabilities.limits.maxTransactionEdits ?? 64,
-    });
-    if (plan.kind === "refused")
+    // A page that could not plan them may have been reloaded since: ask again.
+    const plansActions = async (force: boolean) =>
+      (
+        await this.capabilities({ force })
+      ).capabilities.transactionForms?.includes("actions") ?? false;
+    if (!(await plansActions(false)) && !(await plansActions(true)))
       return {
         ok: false,
         stage: "compile",
-        code: "ACTION_COMPILE_FAILED",
-        message: plan.message,
-        actionIndex: plan.actionIndex,
-        actionKind: plan.actionKind,
-        ...(plan.readSnapshot && entry ? { revision: entry.revision } : {}),
+        code: "EDITOR_OUTDATED",
+        message:
+          "The open editor page runs an older version that cannot plan action lists. Reload the editor page, then retry.",
       };
-    if (plan.kind === "split")
-      return {
-        ok: false,
-        stage: "compile",
-        code: "ACTION_BATCH_NOT_ATOMIC",
-        message: plan.message,
-        revision: entry!.revision,
-        transactions: plan.transactions,
-        calls: plan.calls,
-      };
-    if (plan.kind === "nothing") {
-      const read = entry!;
-      // Content-only no-ops must not create an undo entry. Check authority with
-      // the existing lightweight state read, not another full Snapshot/write.
-      const current = await this.documentState(read.documentId, {
-        refresh: true,
-      });
-      if (
-        current.projectId !== read.snapshot.project.id ||
-        current.revision !== read.revision ||
-        current.structureRevision !== read.snapshot.project.structureRevision
-      )
-        return {
-          ok: false,
-          stage: "compile",
-          code: "STATE_CHANGED",
-          revision: current.revision,
-          message: "Refresh the document before planning",
-        };
-      return {
-        ok: true,
-        stage: "done",
-        projectId: read.snapshot.project.id,
-        documentId: read.documentId,
-        revision: read.revision,
-        applied: false,
-        transactions: 0,
-        changedObjectIds: [],
-        editKinds: [],
-        dryRun: options.dryRunOnly ?? false,
-      };
-    }
-    const report = await this.submitTransaction(
-      plan.readSnapshot && entry
-        ? this.revisionFromSnapshot(entry)
-        : await this.revisionFor(options.documentId),
-      plan.payload,
+    return this.submitTransaction(
+      await this.revisionFor(options.documentId),
+      { actions },
       {
         dryRun: options.dryRunOnly ?? false,
         diagnosticDeltaDetail: options.diagnosticDeltaDetail ?? "full",
       },
     );
-    const naming = report.ok ? undefined : actionRefusalNaming(plan, report);
-    return naming ? { ...report, ...naming } : report;
   }
 
   /** Same four-operation API; the helper only supplies identity and revisions. */

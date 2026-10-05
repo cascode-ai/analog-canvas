@@ -32,7 +32,8 @@ that fails stops the rest, and the calls before it stay applied. `apply_actions`
 refuses such a mix instead (`ACTION_BATCH_NOT_ATOMIC`, naming the calls) and
 retains all actions, including mixed families, Cell structure, reset and history.
 A refusal names the action it refused: `actions[i] (kind): …`, with
-`actionIndex` and `actionKind`.
+`actionIndex` and `actionKind`. The editor plans every list; an editor page
+loaded before it could answers `EDITOR_OUTDATED`: reload the page and retry.
 
 Simulation tools take their arguments flat (`{action, …}`) or in `request`,
 whichever the call uses. `detail` goes where its value belongs: `summary` or
@@ -271,11 +272,11 @@ For example, a formula annotation:
 
 ### How each focused action is planned
 
-No verb is implemented twice. Each action becomes exactly one transaction
-form, planned once in the editor by the code the GUI runs; the client only
-resolves names and shapes arguments.
+No verb is implemented twice. The client sends each call's actions as they
+are; the editor resolves their names, turns each into exactly one
+transaction form and plans it with the code the GUI runs.
 
-| Tool                 | Action                                              | Sent as                              | Planned by                                                                  |
+| Tool                 | Action                                              | Becomes                              | Planned by                                                                  |
 | -------------------- | --------------------------------------------------- | ------------------------------------ | --------------------------------------------------------------------------- |
 | `circuit_place`      | `place-component`                                   | `place-components` command           | GUI insertion: catalog defaults, Process model, naming, default labels      |
 |                      | `place-cell`, `place-existing`                      | command (several `place-cell` batch) | GUI Cell and tray placement                                                 |

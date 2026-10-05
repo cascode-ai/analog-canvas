@@ -32,6 +32,14 @@ export function capabilitiesResponse(requestId: string): AgentCircuitResponse {
       snapshotVersions: ["3.0"],
       operations: ["capabilities", "snapshot", "transact", "render"],
       editKinds: ["add_instance", "move_instance", "connect_endpoints"],
+      // As the editor advertises them: it plans action lists itself.
+      transactionForms: [
+        "edits",
+        "wireIntent",
+        "structureEdits",
+        "command",
+        "actions",
+      ],
       permissions: {
         snapshot: true,
         render: true,

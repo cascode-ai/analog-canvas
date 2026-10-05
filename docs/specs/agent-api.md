@@ -81,9 +81,11 @@ permission and controller boundary. `capabilities` advertises supported
 
 `transact.actions` is a further exclusive form: up to 256 of the high-level
 authoring actions MCP `apply_actions` takes ([authoring](../agent/shared/authoring.md)).
-Where `transactionForms` lists `actions`, the browser plans the list with
-the code the MCP Helper otherwise runs itself, then commits it as the one
-edit batch, wire batch, command or focus operation it is. A list that needs
+Where `transactionForms` lists `actions`, the browser plans the list and
+commits it as the one edit batch, wire batch, command or focus operation it
+is. The MCP Helper sends every `apply_actions` list this way and plans none
+itself: an editor page that does not list `actions` gets `EDITOR_OUTDATED`,
+asking for a reload, and nothing is sent. A list that needs
 several transactions is refused with `ACTION_BATCH_NOT_ATOMIC` and
 `error.calls`, the consecutive calls to send instead. A malformed list, or one
 naming what the Document does not hold, is refused with
