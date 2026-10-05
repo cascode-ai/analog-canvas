@@ -57,7 +57,8 @@ import {
   ToolContractRegistry,
 } from "./tool-contracts.js";
 import { editContract } from "./edit-contracts.js";
-import { focusedTools } from "./focused-tools.js";
+import { focusedTools, FOCUSED_TOOLS } from "./focused-tools.js";
+import { simulationArguments } from "./operation-arguments.js";
 import {
   inputIssues,
   inputIssueDetails,
@@ -71,21 +72,6 @@ import {
  * resource, not a session permission gate.
  */
 type ToolSessionState = OperationSession;
-
-function normalizeDiscriminator(
-  value: unknown,
-  from: "action" | "operation",
-  to: "action" | "operation",
-) {
-  if (!value || typeof value !== "object") return value;
-  const args = value as { request?: unknown };
-  if (!args.request || typeof args.request !== "object") return value;
-  const request = args.request as Record<string, unknown>;
-  if (typeof request[from] !== "string" || request[to] !== undefined)
-    return value;
-  const { [from]: discriminator, ...rest } = request;
-  return { ...args, request: { ...rest, [to]: discriminator } };
-}
 
 const ConnectArgs = z.strictObject({
   claimCode: z
@@ -239,6 +225,11 @@ const SimulationFilesArgs = z.strictObject({
       "Refresh the result directory instead of reusing a complete directory fetched within 30 seconds.",
     ),
 });
+
+// Read the authoritative Zod envelope once, without building JSON discovery
+// schemas on the hot path. Both entry points normalize here before routing.
+const simulationEnvelopeFields = new Set(Object.keys(SimulationArgs.shape));
+const fileEnvelopeFields = new Set(Object.keys(SimulationFilesArgs.shape));
 
 async function localWorkspace(session: ToolSessionState, basePath?: string) {
   const status = await session.client.status();
@@ -824,9 +815,7 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
       },
     },
     handle: async (args, session) => {
-      const parsed = SimulationArgs.parse(
-        normalizeDiscriminator(args, "action", "operation"),
-      );
+      const parsed = SimulationArgs.parse(args);
       const { request, requestId, waitMs = 0, detail = "summary" } = parsed;
       const effectiveRequestId = requestId ?? crypto.randomUUID();
       let runId = "runId" in request ? request.runId : undefined;
@@ -932,9 +921,7 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
       },
     },
     handle: async (args, session) => {
-      const parsed = SimulationFilesArgs.parse(
-        normalizeDiscriminator(args, "operation", "action"),
-      );
+      const parsed = SimulationFilesArgs.parse(args);
       const { request, requestId, outputPath, basePath, detail, refresh } =
         parsed;
       if (request.action === "workspace") {
@@ -1441,10 +1428,19 @@ export async function executeOperation(
   // A session without a network client (offline discovery) has no hops.
   const mark = session.client?.timingMark?.();
   let result: unknown;
+  let input: unknown = args ?? {};
   try {
-    result = await tool.handle(args ?? {}, session);
+    const source =
+      FOCUSED_TOOLS.find((tool) => tool.name === name)?.source ?? name;
+    if (source === "simulation" || source === "simulation_files")
+      input = simulationArguments(
+        input,
+        source === "simulation" ? simulationEnvelopeFields : fileEnvelopeFields,
+        source === "simulation" ? "operation" : "action",
+      );
+    result = await tool.handle(input, session);
   } catch (error) {
-    result = operationError(error, args);
+    result = operationError(error, input);
   }
   return withTiming(
     result,

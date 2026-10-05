@@ -5,64 +5,6 @@ import {
   type ContractTool,
 } from "./tool-contracts.js";
 
-/** The response detail sits outside a request, a file's form inside it. */
-const RESPONSE_DETAIL = new Set(["summary", "full"]);
-const REQUEST_DETAIL = new Set(["text", "mapped"]);
-
-/**
- * One envelope for every simulation tool (#1231): flat arguments, as
- * simulation_folder takes them, are put in the request a request tool
- * reads, and each `detail` goes where its value belongs — summary or full
- * shapes the response, text or mapped a file's projection.
- */
-function simulationEnvelope(args: Record<string, unknown>) {
-  let value = args;
-  if (
-    (!value.request || typeof value.request !== "object") &&
-    (typeof value.action === "string" || typeof value.operation === "string")
-  ) {
-    const { detail, ...request } = value;
-    value =
-      typeof detail === "string" && RESPONSE_DETAIL.has(detail)
-        ? { request, detail }
-        : { request: detail === undefined ? request : { ...request, detail } };
-  }
-  const request = value.request as Record<string, unknown> | undefined;
-  if (!request || typeof request !== "object") return value;
-  if (
-    typeof value.detail === "string" &&
-    REQUEST_DETAIL.has(value.detail) &&
-    request.detail === undefined
-  ) {
-    const { detail, ...rest } = value;
-    return { ...rest, request: { ...request, detail } };
-  }
-  if (
-    typeof request.detail === "string" &&
-    RESPONSE_DETAIL.has(request.detail) &&
-    value.detail === undefined
-  ) {
-    const { detail, ...inner } = request;
-    return { ...value, request: inner, detail };
-  }
-  return value;
-}
-
-function normalizeFocusedArgs(args: unknown, source: string) {
-  if (!args || typeof args !== "object") return args;
-  if (source === "simulation_files" || source === "simulation")
-    args = simulationEnvelope(args as Record<string, unknown>);
-  const value = args as { request?: unknown };
-  if (!value.request || typeof value.request !== "object") return args;
-  const request = value.request as Record<string, unknown>;
-  const from = source === "simulation_files" ? "operation" : "action";
-  const to = from === "action" ? "operation" : "action";
-  if (typeof request[from] !== "string" || request[to] !== undefined)
-    return args;
-  const { [from]: discriminator, ...rest } = request;
-  return { ...value, request: { ...rest, [to]: discriminator } };
-}
-
 export function canonicalSimulationSchema(schema: Record<string, unknown>) {
   const copy = structuredClone(schema) as Record<string, any>;
   const request = copy.properties?.request;
@@ -240,12 +182,8 @@ export function focusedTools<S>(
         },
       },
       async handle(args: unknown, session: S) {
-        // What the call asks for is read after its envelope is settled, so
-        // flat arguments are held to this tool's operations too.
-        const selected = selectedArgumentOperations(
-          inputSchema(),
-          normalizeFocusedArgs(args, source),
-        );
+        // The shared operation boundary has settled aliases and envelopes.
+        const selected = selectedArgumentOperations(inputSchema(), args);
         const invalid = selected.find((operation) => !allowed.has(operation));
         if (invalid) {
           const owner = FOCUSED_TOOLS.find(
@@ -262,15 +200,10 @@ export function focusedTools<S>(
         }
         // Parse and execute with the exact original handler: revision guards,
         // idempotency, atomic planning, offline workspaces and errors stay shared.
-        const result = await original.handle(
-          normalizeFocusedArgs(args, source),
-          session,
-        );
+        const result = await original.handle(args, session);
         const calls = notAtomicCalls(result);
         return source === "apply_actions" && calls
-          ? splitCalls(args, calls, (part) =>
-              original.handle(normalizeFocusedArgs(part, source), session),
-            )
+          ? splitCalls(args, calls, (part) => original.handle(part, session))
           : result;
       },
     };
