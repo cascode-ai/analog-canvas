@@ -21,7 +21,7 @@
     },
     {
       "source": "docs/agent/shared/authoring.md",
-      "sha256": "98fdc4f7f78dfab81978e53053fb95c8dd0e2c5c1c802169097edafca1b2f78c"
+      "sha256": "5c0429c932f99d57734eedc8b259cc6b6a8a417b642d9e75a8b127700c1b90c8"
     },
     {
       "source": "docs/agent/workflow.md",
@@ -69,7 +69,7 @@
     },
     {
       "source": "docs/agent/knowledge/hierarchy-and-large-circuits.md",
-      "sha256": "22701a82e1a8b868454211b33e53d9183f1d6b60af3a7ddd0fd42eb5dfca242d"
+      "sha256": "789ac72299a3715f1d8cfed03a26c9293cd2801261199d173c44a771ca533481"
     },
     {
       "source": "docs/agent/knowledge/pdk-and-symbols.md",
@@ -93,7 +93,7 @@
     },
     {
       "source": "docs/agent/mcp/tools.md",
-      "sha256": "7173bed18eb5c3d8aaba1d6e699c077c8a5048ba0d26bc243dcf0007322e978b"
+      "sha256": "53cddf77c146a4adefe1a92e5c09ec20c114eba3f8095c534389b22b5b88d675"
     },
     {
       "source": "docs/agent/mcp/simulation.md",
@@ -621,7 +621,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/circuit-style-knowledge.md"
       ],
-      "sha256": "8bf5e99468fb09cfd66bfcdec4a1a2c1d92ce7264535f8308a2efeb5de8500a9"
+      "sha256": "736e9dd5c5a898fd807f368368219c79be872293defb40028f970fd9e3e9b4d5"
     },
     {
       "file": "packages/agent-adapter/src/agent-docs.generated.ts",
@@ -650,7 +650,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/circuit-style-knowledge.md"
       ],
-      "sha256": "cbe54331c04f2c3de0f751df1796ccc7ddf4f3a2e28a63e18908901f34150c17"
+      "sha256": "35d42fda9de85bb3edf42130aa7fbfefbbd6329ea4ecfc115477248d07edbb53"
     },
     {
       "file": "packages/agent-adapter/src/agent-api-help.generated.ts",

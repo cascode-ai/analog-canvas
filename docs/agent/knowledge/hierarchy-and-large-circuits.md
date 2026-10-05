@@ -51,6 +51,11 @@ the block; the receipt names those callers and their Cells. This replaces
 rebuilding the low-level `set_cell_symbol_presentation` edit's whole
 `pinPlacements` by terminal ID.
 
+A placed Cell shows its Cell name, not its instance name (`X1`). Probing a
+node inside one of several identical blocks, such as `v(xdut.x1.net0)`, needs
+that name: `set-instance-display` with `showReference:true` shows `X1` above
+the Cell name on the parent, as the Properties Visual annotation switch does.
+
 A reused child is one definition in several parent contexts. Before changing
 its interface or internal meaning, inspect affected references; do not clone it
 merely to simplify reasoning. Use the current `structureRevision` and the typed

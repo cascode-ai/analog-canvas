@@ -230,6 +230,10 @@ Cell upright. `set-model` and `set-display-alias` take a `target`
 owned Port, Net and bound terminal-name display atomically; use the returned
 Instance ID for subsequent wiring. To place an imported Instance, use `place-existing` with
 `instanceId` and `placement` (or `move` from the tray); default labels use the GUI planner.
+A placed Cell shows its Cell name; its instance name (`X1`) is hidden, as
+in the GUI. `set-instance-display` with `showReference:true` shows it above
+the Cell name, as the Properties Visual annotation switch does, for instance
+to tell which block is `x1` when probing `v(xdut.x1.net0)`.
 
 `set-cell-symbol-pins` (in `circuit_transform`) arranges the Pins on the block
 of the call's Cell, its `documentId`, by name:
