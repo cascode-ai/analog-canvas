@@ -2,6 +2,11 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+For the branch trial, read the shared
+[development workflow](docs/development-workflow.md). Project `ac-*` skill
+entries under `.claude/skills/` load the canonical `.agents/skills/` source;
+they do not own another workflow. [AGENTS.md](AGENTS.md) owns working discipline.
+
 ## Project
 
 Analog Canvas is a local-first, connectivity-aware schematic editor for the

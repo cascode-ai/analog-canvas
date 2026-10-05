@@ -16,11 +16,13 @@ archive of completed plans.
 | [Roadmap](roadmap/README.md)                    | Remaining work and acceptance questions                                 |
 | [Deployment](deployment.md)                     | Production delivery, verification, rollback, and retained storage      |
 | [Testing](testing/README.md)                    | Validation policy and contract ownership                                |
+| [Development workflow](development-workflow.md) | Branch trial, shared task records and optional skill entry points        |
 | [Experience](experience/README.md)              | Human-requested, evidence-backed reusable lessons                       |
 
 ## Contributor reading order
 
 1. [Product architecture](overall-product-plan.md) and [working rules](../AGENTS.md).
+   During the branch trial, also read the [development workflow](development-workflow.md).
 2. [Schematic model](specs/schematic-model.md), [Edit Engine](specs/edit-engine.md),
    and [connectivity](specs/connectivity-and-routing.md) for electrical work.
 3. [Visual contract](specs/razavi-visual-contract.md) and
