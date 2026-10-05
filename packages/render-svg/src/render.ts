@@ -23,6 +23,7 @@ import {
   deriveMosBulkRouteFamily,
   resolvePrimitiveStrokeWidth,
   resolveDraftingObjectGeometry,
+  centeredFirstBaselineY,
   resolveEndpointPoint,
   resolveDocumentRoutingGeometry,
   resolveAnnotationPresentation,
@@ -1893,31 +1894,6 @@ function renderDraftText(
     defaultItalic: italic === "italic",
   });
   return `<text data-object-id="${object.id}" data-kind="draft-text"${unresolved} x="${textPosition.x}" y="${baselineY}" text-anchor="${object.alignment}" font-size="${fontSize}" font-weight="${weight}" font-style="${italic}" fill="${color}">${markup}</text>`;
-}
-
-/** Glyph cap height is ~0.7 em; dropping the baseline by 0.35 em sits the
- * capitals optically centered on a line's vertical center. */
-const CENTERED_CAP_BASELINE_RATIO = 0.35;
-
-/**
- * First-line baseline that centers the painted line grid on `centerY`. Line
- * breaks step a constant `lineHeight` em (see renderRuns), so the painted
- * grid spans (lineCount - 1) steps regardless of inline fraction extents.
- */
-function centeredFirstBaselineY(
-  content: RichTextDocument,
-  centerY: number,
-  fontSize: number,
-  profile: SchematicStyleProfile,
-): number {
-  const lineCount =
-    content.runs.filter((run) => run.kind === "line-break").length + 1;
-  const lineStep = fontSize * profile.typography.lineHeight;
-  return (
-    centerY -
-    ((lineCount - 1) / 2) * lineStep +
-    CENTERED_CAP_BASELINE_RATIO * fontSize
-  );
 }
 
 function renderConstructionLine(

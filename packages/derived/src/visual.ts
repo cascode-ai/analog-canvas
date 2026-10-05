@@ -1,5 +1,5 @@
 import { registerDocumentCache } from "./document-caches.js";
-import { routeEnd, transformPoint } from "@icm/model";
+import { flattenRichText, routeEnd, transformPoint } from "@icm/model";
 import type { Point, Rect, RouteEndpoint, SchematicDocument } from "@icm/model";
 import { resolveAdaptiveSignalFlowBlockLayout } from "@icm/symbols";
 import type {
@@ -28,6 +28,7 @@ import {
   isSchematicAnnotationVisible,
   resolveAnnotationPresentation,
 } from "./annotation-presentation.js";
+import { resolveDraftingTextInkBounds } from "./drafting-geometry.js";
 import { pointOnSegment } from "./segment-geometry.js";
 import type { ResolvedDocumentLogicalNets } from "./logical-net.js";
 import {
@@ -923,6 +924,44 @@ export function diagnoseVisualQuality(
       message: `${objectIds.length} measured annotation bounds overlap`,
       objectIds,
       bounds: enclosingBounds(cluster.map((item) => item.bounds))!,
+      parameters: { clusteredObjectCount: objectIds.length },
+    });
+  }
+  // Free drawing text over a label reads as one smudge with it, as two
+  // labels do: a φ2 note written on a switch's name (#1323). Polarity marks
+  // stand at terminals on purpose and are left out.
+  for (const object of document.drafting?.objects ?? []) {
+    if (
+      object.kind !== "text" ||
+      object.polarity ||
+      !flattenRichText(object.content).trim()
+    )
+      continue;
+    const ink = resolveDraftingTextInkBounds(
+      document,
+      resolver,
+      object,
+      routingGeometry,
+    );
+    const covered = annotationBounds.filter((label) =>
+      rectanglesOverlap(ink, label.bounds),
+    );
+    if (!covered.length) continue;
+    const objectIds = [
+      object.id,
+      ...covered
+        .map((label) => label.id)
+        .sort((left, right) => left.localeCompare(right, "en")),
+    ];
+    diagnostics.push({
+      code: "VISUAL_LABEL_OVERLAP",
+      severity: "warning",
+      category: "observation",
+      confidence: "low",
+      gateEligible: false,
+      message: `Free text is drawn over ${covered.length === 1 ? "a label" : `${covered.length} labels`}`,
+      objectIds,
+      bounds: enclosingBounds([ink, ...covered.map((label) => label.bounds)])!,
       parameters: { clusteredObjectCount: objectIds.length },
     });
   }

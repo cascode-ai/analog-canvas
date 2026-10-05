@@ -1,4 +1,4 @@
-import { transformPoint } from "@icm/model";
+import { flattenRichText, transformPoint } from "@icm/model";
 import type { Annotation, Point, Rect, SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 import {
@@ -11,7 +11,10 @@ import {
   deriveDocumentContactEvidence,
 } from "./contact.js";
 import { instanceLabelInkBounds } from "./instance-label-placement.js";
-import { resolveDraftingObjectGeometry } from "./drafting-geometry.js";
+import {
+  resolveDraftingObjectGeometry,
+  resolveDraftingTextInkBounds,
+} from "./drafting-geometry.js";
 import { resolveDocumentLogicalNets } from "./logical-net.js";
 import { resolveDocumentRoutingGeometry } from "./resolved-route-geometry.js";
 import { intersectSegments } from "./segment-geometry.js";
@@ -270,58 +273,102 @@ export function diagnoseLabelClearance(
   document: SchematicDocument,
   resolver: SymbolResolver,
 ): VisualDiagnostic[] {
-  if (!document.annotations.some((a) => a.visible !== false)) return [];
+  const notes = (document.drafting?.objects ?? []).filter(
+    (object) =>
+      object.kind === "text" &&
+      !object.polarity &&
+      flattenRichText(object.content).trim() !== "",
+  );
+  if (!document.annotations.some((a) => a.visible !== false) && !notes.length)
+    return [];
   const context = createLabelClearanceContext(document, resolver);
   const owners = new Map(context.symbols.map((s) => [s.id, s.bounds]));
   const obstacles = new Set([
     ...owners.keys(),
     ...document.routes.map((r) => r.id),
   ]);
-  return context.visible.flatMap((annotation) => {
-    const bounds = context.measure(annotation).inkBounds;
-    // Label/label overlap already has a clustered visual diagnostic. Text
-    // on a junction dot is on its wires.
-    const conflicts = [
-      ...new Set([...context.conflicts(annotation), ...context.dotsAt(bounds)]),
-    ]
-      .filter((id) => obstacles.has(id))
-      .sort();
-    const ownerId =
-      annotation.anchor.kind === "object"
-        ? annotation.anchor.objectId
-        : undefined;
-    const owner = ownerId ? owners.get(ownerId) : undefined;
-    const gap = owner ? rectangleGap(bounds, owner) : 0;
-    const maxGap = document.presentation.grid * 8;
-    const diagnostics: VisualDiagnostic[] = [];
-    if (conflicts.length)
-      diagnostics.push({
-        code: "VISUAL_LABEL_CLEARANCE",
-        severity: "warning",
-        category: "observation",
-        confidence: "low",
-        gateEligible: false,
-        message:
-          "Label text is drawn over a wire or a part's drawing; move the label or the wire",
-        objectIds: [annotation.id, ...conflicts],
-        bounds,
-        parameters: { conflictingObjectCount: conflicts.length },
-      });
-    if (owner && gap > maxGap)
-      diagnostics.push({
-        code: "VISUAL_LABEL_OWNER_DISTANCE",
-        severity: "info",
-        category: "observation",
-        confidence: "low",
-        gateEligible: false,
-        message:
-          "Attached label is far from its owner; this may be intentional",
-        objectIds: [annotation.id, ownerId!],
-        bounds,
-        parameters: { gap, reviewThreshold: maxGap },
-      });
-    return diagnostics;
+  // Free drawing text struck through by a wire, as a label is (#1323). Text
+  // over a part's bounds is left alone: notes inside a block's outline and
+  // marks beside a terminal are drawn there on purpose.
+  const routing = resolveDocumentRoutingGeometry(document, resolver);
+  const struck = notes.flatMap((object): VisualDiagnostic[] => {
+    if (object.kind !== "text") return [];
+    const ink = resolveDraftingTextInkBounds(
+      document,
+      resolver,
+      object,
+      routing,
+    );
+    const wires = context.wiresAt(ink);
+    return wires.length
+      ? [
+          {
+            code: "VISUAL_LABEL_CLEARANCE",
+            severity: "warning",
+            category: "observation",
+            confidence: "low",
+            gateEligible: false,
+            message:
+              "Free text is drawn over a wire; move the text or the wire",
+            objectIds: [object.id, ...wires],
+            bounds: ink,
+            parameters: { conflictingObjectCount: wires.length },
+          },
+        ]
+      : [];
   });
+  return [...labelFindings(), ...struck];
+
+  function labelFindings() {
+    return context.visible.flatMap((annotation) => {
+      const bounds = context.measure(annotation).inkBounds;
+      // Label/label overlap already has a clustered visual diagnostic. Text
+      // on a junction dot is on its wires.
+      const conflicts = [
+        ...new Set([
+          ...context.conflicts(annotation),
+          ...context.dotsAt(bounds),
+        ]),
+      ]
+        .filter((id) => obstacles.has(id))
+        .sort();
+      const ownerId =
+        annotation.anchor.kind === "object"
+          ? annotation.anchor.objectId
+          : undefined;
+      const owner = ownerId ? owners.get(ownerId) : undefined;
+      const gap = owner ? rectangleGap(bounds, owner) : 0;
+      const maxGap = document.presentation.grid * 8;
+      const diagnostics: VisualDiagnostic[] = [];
+      if (conflicts.length)
+        diagnostics.push({
+          code: "VISUAL_LABEL_CLEARANCE",
+          severity: "warning",
+          category: "observation",
+          confidence: "low",
+          gateEligible: false,
+          message:
+            "Label text is drawn over a wire or a part's drawing; move the label or the wire",
+          objectIds: [annotation.id, ...conflicts],
+          bounds,
+          parameters: { conflictingObjectCount: conflicts.length },
+        });
+      if (owner && gap > maxGap)
+        diagnostics.push({
+          code: "VISUAL_LABEL_OWNER_DISTANCE",
+          severity: "info",
+          category: "observation",
+          confidence: "low",
+          gateEligible: false,
+          message:
+            "Attached label is far from its owner; this may be intentional",
+          objectIds: [annotation.id, ownerId!],
+          bounds,
+          parameters: { gap, reviewThreshold: maxGap },
+        });
+      return diagnostics;
+    });
+  }
 }
 
 function overlap(a: Rect, b: Rect): boolean {
