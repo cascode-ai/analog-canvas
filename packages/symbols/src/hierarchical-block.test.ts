@@ -64,10 +64,10 @@ describe("hierarchical block formal terminals", () => {
       createProjectHierarchicalSymbols(source)
         .find((symbol) => symbol.id === hierarchicalSymbolId("bias"))!
         .pins.find((pin) => pin.name === name)!.at;
-    // Body 100 high: VDD's name row clears b at -20, VSS's clears c at 20.
+    // Body 120 high: VDD's name row clears b at -20, VSS's clears c at 20.
     expect(at(project, "b")).toEqual({ x: -50, y: -20 });
-    expect(at(project, "VDD")).toEqual({ x: 0, y: -60 });
-    expect(at(project, "VSS")).toEqual({ x: 0, y: 60 });
+    expect(at(project, "VDD")).toEqual({ x: 0, y: -70 });
+    expect(at(project, "VSS")).toEqual({ x: 0, y: 70 });
 
     // Placed somewhere, the block derives as before (80 high), so drawings
     // made with it keep their wiring.

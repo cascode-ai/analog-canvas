@@ -14,10 +14,13 @@ const MINIMUM_BODY_WIDTH = 80;
 const MINIMUM_BODY_HEIGHT = 40;
 /**
  * Half the body height a top or bottom Pin's name needs beyond the nearest
- * side-Pin row, so that the two names clear each other. Pin names stand 18
- * below the top edge and 10 above the bottom edge.
+ * side-Pin row, so that the two names clear each other by about 3. Pin names
+ * (15.1 high, capitals 10.9) stand on a baseline 18 below the top edge and
+ * 10 above the bottom one, 4 below a side Pin's row. A supply's name is
+ * often drawn V_DD, and its subscript drops 6.7 below the baseline: at 30,
+ * the DD of an inverter's V_DD stood 1.5 above its "out".
  */
-const NAME_ROW_CLEARANCE = 30;
+const NAME_ROW_CLEARANCE = 35;
 /** Room between a top or bottom Pin's name and the body's side edges. */
 const NAME_EDGE_INSET = 4;
 
