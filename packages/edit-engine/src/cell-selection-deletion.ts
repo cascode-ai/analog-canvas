@@ -21,6 +21,16 @@ export function planCellSelectionDeletion(
       edit.kind === "remove_cell_terminal" ? [edit.terminalId] : [],
     ),
   );
+  // Only a Pin label the plan removes takes its terminal along. The movement
+  // closure also counts labels that would merely follow: with the last part
+  // tapped onto a Power Rail deleted, the whole rail looked internal, its
+  // VDD label a follower, and the VDD Pin went while the rail stayed,
+  // unnamed and refused (#1312).
+  const removedAnnotationIds = new Set(
+    routing.edits.flatMap((edit) =>
+      edit.kind === "remove_schematic_annotation" ? [edit.annotationId] : [],
+    ),
+  );
   const terminalIds = (document.netlist?.terminals ?? [])
     .filter(
       (terminal) =>
@@ -29,9 +39,7 @@ export function planCellSelectionDeletion(
           seed.instanceIds.includes(id),
         ) ||
         (terminal.interfaceAnnotationId !== undefined &&
-          routing.affected.electricalAnnotationIds.includes(
-            terminal.interfaceAnnotationId,
-          )),
+          removedAnnotationIds.has(terminal.interfaceAnnotationId)),
     )
     .map((terminal) => terminal.id);
   return { routing, terminalIds };

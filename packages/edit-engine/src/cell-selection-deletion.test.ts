@@ -6,6 +6,8 @@ import { planCellSelectionDeletion } from "./cell-selection-deletion.js";
 import { planRemoveCellTerminals } from "./hierarchy-planner.js";
 import { executeProjectTransaction } from "./project-transaction.js";
 import { gateRoutingOperationPlan } from "./routing-operation-plan.js";
+import { executeTransaction } from "./transaction.js";
+import { planWireBatch } from "./wire-batch-planner.js";
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
 
@@ -160,5 +162,140 @@ describe("Cell selection deletion", () => {
     expect(
       after.nets.flatMap((net) => net.terminals).map((t) => t.instanceId),
     ).not.toContain("Q1");
+  });
+
+  /**
+   * #1312: a local VDD rail drawn with the rail tool, two resistors whose
+   * pin 1 is tapped onto it with `wire-at`, as the Agent's connect does.
+   */
+  function railWithTappedParts() {
+    const project = createEmptyProject("tapped", "Tapped rail");
+    let document = project.documents[0]!;
+    const run = (edits: unknown[]) => {
+      const result = executeTransaction(
+        document,
+        {
+          transactionId: `setup-${document.revision}`,
+          documentId: document.id,
+          expectedRevision: document.revision,
+          actor: { kind: "agent", id: "test" },
+          edits,
+        },
+        { symbolResolver: resolver },
+      );
+      if (!result.ok) throw new Error(result.error.message);
+      document = result.document;
+    };
+    run([
+      {
+        kind: "add_power_rail",
+        netId: "rail-net",
+        routeId: "rail-route",
+        startJunctionId: "rail-start",
+        endJunctionId: "rail-end",
+        labelId: "rail-label",
+        netName: "VDD",
+        scope: "local",
+        powerDomain: "vdd",
+        start: { x: -100, y: -60 },
+        end: { x: 100, y: -60 },
+      },
+      ...(["RA", "RB"] as const).map((id, index) => ({
+        kind: "add_instance",
+        instance: {
+          id,
+          symbolId: "resistor",
+          reference: id,
+          placement: {
+            position: { x: index ? 40 : -40, y: 0 },
+            rotation: 0,
+            mirror: "none",
+          },
+        },
+      })),
+    ]);
+    const plan = planWireBatch(
+      document,
+      resolver,
+      (["RA", "RB"] as const).map((id, index) => ({
+        id: `tap-${id}`,
+        from: {
+          kind: "endpoint" as const,
+          endpoint: { kind: "terminal" as const, instanceId: id, pinName: "1" },
+        },
+        to: {
+          kind: "wire-at" as const,
+          point: { x: index ? 40 : -40, y: -60 },
+        },
+      })),
+      512,
+    );
+    if (typeof plan === "string") throw new Error(plan);
+    run(plan.edits);
+    project.documents[0] = document;
+    return project;
+  }
+
+  function deleteParts(
+    project: ReturnType<typeof railWithTappedParts>,
+    instanceIds: string[],
+  ) {
+    const document = project.documents[0]!;
+    const { routing, terminalIds } = planCellSelectionDeletion(
+      document,
+      resolver,
+      { instanceIds, routeIds: [], junctionIds: [] },
+      1,
+    );
+    expect(terminalIds).toEqual([]);
+    const gate = gateRoutingOperationPlan(document, routing, {
+      symbolResolver: resolver,
+    });
+    if (!gate.ok) throw new Error(gate.message);
+    const result = executeProjectTransaction(project, {
+      transactionId: `delete-${instanceIds.join("-")}`,
+      projectId: project.id,
+      expectedStructureRevision: project.structureRevision,
+      actor: { kind: "human", id: "test" },
+      edits: [
+        {
+          kind: "transact_document",
+          documentId: document.id,
+          expectedRevision: document.revision,
+          edits: [...gate.edits],
+        },
+      ],
+    });
+    if (!result.ok) throw new Error(result.error.message);
+    return result.project;
+  }
+
+  /** The rail drawn after a deletion: every piece on the Net VDD names. */
+  function railStaysNamed(project: ReturnType<typeof railWithTappedParts>) {
+    const after = project.documents[0]!;
+    const rails = after.routes.filter(
+      (route) => route.presentation === "power-rail",
+    );
+    expect(rails.length).toBeGreaterThan(0);
+    const vdd = after.connectivityEvidence.flatMap((evidence) =>
+      evidence.kind === "name-claim" && evidence.name === "VDD"
+        ? [evidence.netId]
+        : [],
+    );
+    expect(new Set(rails.map((route) => route.netId))).toEqual(new Set(vdd));
+  }
+
+  it("deletes both parts tapped onto a Power Rail at once (#1312)", () => {
+    const after = deleteParts(railWithTappedParts(), ["RA", "RB"]);
+    expect(after.documents[0]!.instances).toEqual([]);
+    railStaysNamed(after);
+  });
+
+  it("deletes the last part tapped onto a Power Rail after the first (#1312)", () => {
+    const first = deleteParts(railWithTappedParts(), ["RA"]);
+    railStaysNamed(first);
+    const after = deleteParts(first, ["RB"]);
+    expect(after.documents[0]!.instances).toEqual([]);
+    railStaysNamed(after);
   });
 });
