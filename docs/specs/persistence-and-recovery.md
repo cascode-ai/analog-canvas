@@ -119,7 +119,7 @@ separate durability choices.
 
 A window whose browser tab closed leaves its workspace stored. A fresh window
 with no workspace of its own and no explicit open request (a Gallery or Cloud
-link, an example, New Circuit) offers the newest workspace a closed window
+link, an example, a New Circuit link `/editor?new=1`) offers the newest workspace a closed window
 left, non-modally: "Reopen tabs" or "Not now". Each open window holds a Web
 Lock named after its identity for its page's lifetime, so an open window's
 tabs are never offered; without Web Locks nothing is offered. A workspace is

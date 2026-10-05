@@ -947,10 +947,7 @@ test("the site lands on the full-screen gallery feed", async ({ page }) => {
   await expect(
     page.getByTestId("gallery-bundled-common-source-amplifier"),
   ).toHaveCount(0);
-  await expect(page.getByTestId("gallery-new-circuit")).toHaveAttribute(
-    "href",
-    "/editor?new=1",
-  );
+  await expect(page.getByTestId("gallery-new-circuit")).toHaveCount(0);
   const repositoryLink = page.getByTestId("gallery-repository-link");
   await expect(repositoryLink).toHaveAttribute(
     "href",
@@ -958,11 +955,10 @@ test("the site lands on the full-screen gallery feed", async ({ page }) => {
   );
   await expect(repositoryLink).toHaveAttribute("target", "_blank");
   await expect(repositoryLink.locator("svg")).toBeVisible();
+  // GitHub ends the row: the Editor switch at the left is the way in.
   expect(
-    await repositoryLink.evaluate((link) =>
-      link.nextElementSibling?.getAttribute("data-testid"),
-    ),
-  ).toBe("gallery-new-circuit");
+    await repositoryLink.evaluate((link) => link.nextElementSibling),
+  ).toBeNull();
 });
 
 test("an open Gallery switches to a newly published preview revision", async ({
@@ -1317,6 +1313,33 @@ test("the feed scrolls inside its shell despite the locked app root", async ({
 
   await page.goto("/");
   await expect(page.getByTestId("gallery-tile-s-0")).toBeVisible();
+
+  // Narrowing the window only narrows: in a window this short the header,
+  // the tab row and the search keep their heights and places, each tab its
+  // one line, and the white search panel still meets the open tab.
+  const rows = () =>
+    page.evaluate(() =>
+      [
+        ".gallery-chrome",
+        ".gallery-view-tabs",
+        ".gallery-view-tab",
+        ".gallery-search-input",
+        ".gallery-sidebar-slot",
+      ].map((selector) => {
+        const box = document.querySelector(selector)!.getBoundingClientRect();
+        return selector === ".gallery-sidebar-slot"
+          ? [Math.round(box.top)]
+          : [Math.round(box.top), Math.round(box.height)];
+      }),
+    );
+  await page.setViewportSize({ width: 1200, height: 420 });
+  const wide = await rows();
+  for (const width of [700, 621, 620, 480, 360, 320]) {
+    await page.setViewportSize({ width, height: 420 });
+    expect(await rows(), `at ${width}px`).toEqual(wide);
+  }
+  await page.setViewportSize({ width: 520, height: 420 });
+
   const scrolled = await page.locator(".gallery-shell").evaluate((shell) => {
     shell.scrollTop = 9999;
     return {
@@ -2324,9 +2347,9 @@ test("the account chip sits on the header line and ellipsizes a long name", asyn
   });
   expect(Math.abs(centred)).toBeLessThanOrEqual(1);
 
-  const newCircuit = page.getByTestId("gallery-new-circuit");
+  const reportBug = page.getByTestId("gallery-report-bug");
   const chipBox = (await chip.boundingBox())!;
-  const buttonBox = (await newCircuit.boundingBox())!;
+  const buttonBox = (await reportBug.boundingBox())!;
   expect(
     Math.abs(
       chipBox.y + chipBox.height / 2 - (buttonBox.y + buttonBox.height / 2),
@@ -2890,7 +2913,7 @@ test("the search box reaches metadata and tolerates small typos", async ({
     page.getByTestId("gallery-tag-sidebar").getByTestId("gallery-search"),
   ).toHaveCount(0);
   await expect(page.getByTestId("gallery-tag-search")).toHaveCount(0);
-  await expect(box).toHaveAttribute("placeholder", "Name, author, tag…");
+  await expect(box).toHaveAttribute("placeholder", "Search name, author, tag…");
   await expect(box).toHaveAttribute("aria-label", "Search circuits");
 
   await box.fill("mei");
@@ -3313,13 +3336,12 @@ test("the admin recycle bin restores a recycled entry", async ({ page }) => {
 
   await page.goto("/moderation");
   await expect(page.getByTestId("bin-card-bin-1")).toBeVisible();
-  await page.getByTestId("bin-menu-bin-1").locator("summary").click();
   await page.getByTestId("bin-restore-bin-1").click();
   await expect(page.getByTestId("bin-empty")).toBeVisible();
   expect(restored).toBe(1);
 });
 
-test("the Owner restores rejected work or moves it through the bin before deletion", async ({
+test("the Owner restores, recycles or deletes rejected work in one click each", async ({
   page,
 }) => {
   await page.route("**/api/auth/me", (route) =>
@@ -3348,6 +3370,12 @@ test("the Owner restores rejected work or moves it through the bin before deleti
       name: "Spam",
       rejectReason: "Not a circuit",
       reviewedAt: "2026-08-22T08:00:00.000Z",
+    },
+    {
+      id: "rejected-gone",
+      name: "More spam",
+      rejectReason: "Not a circuit",
+      reviewedAt: "2026-08-22T07:00:00.000Z",
     },
   ];
   let recycled: Array<{ id: string; name: string; recycledAt: string }> = [];
@@ -3382,6 +3410,18 @@ test("the Owner restores rejected work or moves it through the bin before deleti
     recycled = [];
     return route.fulfill({ json: { id: "rejected-delete", deleted: true } });
   });
+  // The server deletes only from the bin, so Delete on a rejected circuit
+  // moves it there and deletes it, in the one click.
+  const gone: string[] = [];
+  await page.route("**/api/gallery/rejected-gone/recycle", (route) => {
+    gone.push("recycle");
+    rejected = rejected.filter((entry) => entry.id !== "rejected-gone");
+    return route.fulfill({ json: { id: "rejected-gone", status: "recycled" } });
+  });
+  await page.route("**/api/gallery/rejected-gone", (route) => {
+    gone.push(route.request().method());
+    return route.fulfill({ json: { id: "rejected-gone", deleted: true } });
+  });
 
   await page.goto("/moderation");
   await expect(
@@ -3390,33 +3430,22 @@ test("the Owner restores rejected work or moves it through the bin before deleti
   await expect(
     page.getByTestId("rejected-open-rejected-restore"),
   ).toHaveAttribute("href", "/g/rejected-restore");
-  await page
-    .getByTestId("rejected-menu-rejected-restore")
-    .locator("summary")
-    .click();
   await page.getByTestId("rejected-restore-rejected-restore").click();
   await expect(page.getByTestId("rejected-card-rejected-restore")).toHaveCount(
     0,
   );
 
-  await page
-    .getByTestId("rejected-menu-rejected-delete")
-    .locator("summary")
-    .click();
+  await page.getByTestId("rejected-delete-rejected-gone").click();
+  await expect(page.getByTestId("rejected-card-rejected-gone")).toHaveCount(0);
+  await expect(page.getByTestId("bin-card-rejected-gone")).toHaveCount(0);
+  expect(gone).toEqual(["recycle", "DELETE"]);
+
   await page.getByTestId("rejected-recycle-rejected-delete").click();
   await expect(page.getByTestId("rejected-empty")).toBeVisible();
   await expect(page.getByTestId("bin-card-rejected-delete")).toBeVisible();
 
-  await page.getByTestId("bin-menu-rejected-delete").locator("summary").click();
+  // Deleting from the bin asks nothing more: the click is the decision.
   await page.getByTestId("bin-delete-rejected-delete").click();
-  await page.getByRole("button", { name: "Keep it", exact: true }).click();
-  expect(deleted).toBe(0);
-  await expect(page.getByTestId("bin-card-rejected-delete")).toBeVisible();
-
-  await page.getByTestId("bin-delete-rejected-delete").click();
-  await page
-    .getByRole("button", { name: "Really delete", exact: true })
-    .click();
   await expect(page.getByTestId("bin-empty")).toBeVisible();
   expect(deleted).toBe(1);
 });
@@ -3555,14 +3584,36 @@ test("the feed offers exactly the enabled sign-in providers and signs in with an
   ]);
 });
 
-test("a signed-in owner renames the display name and signs out", async ({
+test("a signed-in owner opens the account page, renames and signs out", async ({
   page,
 }) => {
   await mockGallery(page, [ENTRY]);
+  await page.route("**/api/gallery/mine", (route) =>
+    route.fulfill({
+      json: {
+        entries: [
+          {
+            id: ENTRY.id,
+            name: ENTRY.name,
+            createdAt: ENTRY.createdAt,
+            previewRevision: ENTRY.previewRevision,
+            status: "public",
+            rejectReason: null,
+          },
+        ],
+      },
+    }),
+  );
+  await page.route("**/api/gallery/rejected", (route) =>
+    route.fulfill({ json: { entries: [] } }),
+  );
+  await page.route("**/api/gallery/recycled", (route) =>
+    route.fulfill({ json: { entries: [] } }),
+  );
   await page.route("**/api/auth/providers", (route) =>
     route.fulfill({ json: { github: true, google: true, email: true } }),
   );
-  const user = {
+  let user: Record<string, unknown> | null = {
     id: "u1",
     displayName: "tz",
     email: "owner@example.com",
@@ -3576,36 +3627,62 @@ test("a signed-in owner renames the display name and signs out", async ({
   await page.route("**/api/auth/profile", (route) => {
     const displayName = String(route.request().postDataJSON().displayName);
     renames.push(displayName);
-    return route.fulfill({ json: { user: { ...user, displayName } } });
+    user = { ...user!, displayName };
+    return route.fulfill({ json: { user } });
   });
   let loggedOut = 0;
   await page.route("**/api/auth/logout", (route) => {
     loggedOut += 1;
+    user = null;
     return route.fulfill({ json: { ok: true } });
   });
 
   await page.goto("/");
-  await expect(page.getByTestId("account-name")).toHaveText("tz");
-  await expect(page.getByTestId("account-owner")).toBeHidden();
-  // The name is the one account button: it opens the account panel.
-  await page.getByTestId("account-name").click();
-  const panel = page.getByTestId("account-panel");
-  // Its stylesheet loads on this route too: it sits over the page.
-  await expect(page.locator(".account-panel-backdrop")).toHaveCSS(
-    "position",
-    "fixed",
-  );
+  const name = page.getByTestId("account-name");
+  await expect(name).toHaveText("tz");
+  await expect(name).toHaveAttribute("href", "/account");
+  // The header holds the name and nothing else of the account.
+  await expect(page.getByTestId("account-delete")).toHaveCount(0);
+  await name.click();
+  await expect(page).toHaveURL(/\/account$/u);
   await expect(page.getByTestId("account-menu-name")).toHaveText("tz");
   await expect(page.getByTestId("account-owner")).toHaveText("Owner");
+  // One click in, the account's circuits are already laid out.
+  await expect(page.getByTestId("account-tab-circuits")).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await expect(page.getByTestId(`mine-card-${ENTRY.id}`)).toBeVisible();
+  // Moderation is the next tab, not a page behind a link.
+  await page.getByTestId("account-tab-moderation").click();
+  await expect(page.getByTestId("rejected-empty")).toBeVisible();
+  await expect(page.getByTestId("bin-empty")).toBeVisible();
+  await page.getByTestId("account-tab-settings").click();
+  await expect(page).toHaveURL(/\/account\?tab=settings$/u);
+  // The address names the tab, so a reload comes back to it.
+  await page.reload();
+  await expect(page.getByTestId("account-panel-settings")).toBeVisible();
   await page.getByTestId("account-rename").click();
   await page.getByTestId("account-rename-input").fill("Token Zhang");
   await page.getByTestId("account-rename-input").press("Enter");
   await expect(page.getByTestId("account-menu-name")).toHaveText("Token Zhang");
+  // The header reads the new name too.
   await expect(page.getByTestId("account-name")).toHaveText("Token Zhang");
   expect(renames).toEqual(["Token Zhang"]);
 
+  // Deleting asks for the name before it can go ahead; Cancel leaves it.
+  await page.getByTestId("account-delete").click();
+  const confirm = page.getByTestId("account-delete-confirm");
+  await expect(confirm).toBeDisabled();
+  await page.getByTestId("account-delete-typed").fill("Token");
+  await expect(confirm).toBeDisabled();
+  await page.getByTestId("account-delete-typed").fill("Token Zhang");
+  await expect(confirm).toBeEnabled();
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("account-delete-dialog")).toHaveCount(0);
+
   await page.getByTestId("account-signout").click();
-  await expect(panel).toHaveCount(0);
+  await expect(page).toHaveURL(/\/$/u);
   await expect(page.getByTestId("account-signin")).toBeVisible();
   expect(loggedOut).toBe(1);
 });
@@ -4264,31 +4341,23 @@ test("moderation uses full-width responsive masonry and keyboard-accessible card
     "href",
     "/g/review-0",
   );
-  const menu = page.getByTestId("rejected-menu-review-0");
-  const trigger = menu.locator("summary");
-  await expect(page.getByTestId("rejected-restore-review-0")).toBeHidden();
-  await trigger.focus();
-  await page.keyboard.press("ArrowDown");
-  await expect(page.getByTestId("rejected-restore-review-0")).toBeFocused();
-  await page.keyboard.press("ArrowDown");
-  await expect(page.getByTestId("rejected-recycle-review-0")).toBeFocused();
-  await page.keyboard.press("Escape");
-  await expect(trigger).toBeFocused();
-  await expect(page.getByTestId("rejected-restore-review-0")).toBeHidden();
-  await page.keyboard.press("ArrowUp");
-  await expect(page.getByTestId("rejected-recycle-review-0")).toBeFocused();
-  await page.keyboard.press("Home");
-  await expect(page.getByTestId("rejected-restore-review-0")).toBeFocused();
-  await page.keyboard.press("Escape");
-  await trigger.click();
-  await page.getByRole("heading", { name: "Rejected entries" }).click();
-  await expect(page.getByTestId("rejected-restore-review-0")).toBeHidden();
+  // Every action is a button in view, in one row, reached with Tab.
+  const actions = ["restore", "recycle", "delete"].map((action) =>
+    page.getByTestId(`rejected-${action}-review-0`),
+  );
+  await actions[0]!.focus();
+  for (const next of actions.slice(1)) {
+    await page.keyboard.press("Tab");
+    await expect(next).toBeFocused();
+  }
+  const tops = await Promise.all(
+    actions.map(async (action) => (await action.boundingBox())!.y),
+  );
+  expect(Math.max(...tops) - Math.min(...tops)).toBeLessThanOrEqual(1);
   await page.setViewportSize({ width: 390, height: 844 });
   await expect.poll(columns).toBe(1);
-  await trigger.click();
-  const popover = await menu.getByRole("menu").boundingBox();
-  expect(popover!.x).toBeGreaterThanOrEqual(0);
-  expect(popover!.x + popover!.width).toBeLessThanOrEqual(390);
+  const last = await actions[2]!.boundingBox();
+  expect(last!.x + last!.width).toBeLessThanOrEqual(390);
   await expect
     .poll(() =>
       page
@@ -4341,17 +4410,9 @@ test("moderation keeps failed actions visible and retries collection loading", a
   await page.getByRole("button", { name: "Retry", exact: true }).click();
   const card = page.getByTestId("rejected-card-retry-entry");
   await expect(card).toBeVisible();
-  await page
-    .getByTestId("rejected-menu-retry-entry")
-    .locator("summary")
-    .click();
   await page.getByTestId("rejected-restore-retry-entry").click();
   await expect(card.getByRole("alert")).toContainText("Please try again");
   restoreFailed = false;
-  await page
-    .getByTestId("rejected-menu-retry-entry")
-    .locator("summary")
-    .click();
   await page.getByTestId("rejected-restore-retry-entry").click();
   await expect(page.getByTestId("rejected-empty")).toBeVisible();
 });
@@ -4373,7 +4434,7 @@ test("an author deletes their own entry from My submissions", async ({
       },
     }),
   );
-  let live = true;
+  let live: "public" | "withdrawn" | false = "public";
   await page.route("**/api/gallery/mine", (route) =>
     route.fulfill({
       json: {
@@ -4383,7 +4444,7 @@ test("an author deletes their own entry from My submissions", async ({
                 id: "mine-9",
                 name: "Draft I regret",
                 createdAt: "2026-08-29T09:00:00.000Z",
-                status: "public",
+                status: live === "public" ? "public" : "recycled",
                 rejectReason: null,
               },
             ]
@@ -4399,20 +4460,19 @@ test("an author deletes their own entry from My submissions", async ({
     return route.fulfill({ json: { id: "mine-9", deleted: true } });
   });
 
+  await page.route("**/api/gallery/mine-9/recycle", (route) => {
+    live = "withdrawn";
+    return route.fulfill({ json: { id: "mine-9", status: "recycled" } });
+  });
+
   await page.goto("/mine");
-  const remove = page.getByTestId("mine-delete-mine-9");
-  await expect(remove).toBeVisible();
+  // A published circuit is withdrawn first; only then can it be deleted.
+  await expect(page.getByTestId("mine-delete-mine-9")).toHaveCount(0);
+  await page.getByTestId("mine-withdraw-mine-9").click();
+  await expect(page.getByTestId("mine-restore-mine-9")).toBeVisible();
 
-  // Irreversible, so it asks first; declining leaves the entry alone.
-  await remove.click();
-  await page.getByRole("button", { name: "Keep it", exact: true }).click();
-  expect(methods).toHaveLength(0);
-  await expect(remove).toBeVisible();
-
-  await remove.click();
-  await page
-    .getByRole("button", { name: "Really delete", exact: true })
-    .click();
+  // The click is the decision: it deletes at once, asking nothing more.
+  await page.getByTestId("mine-delete-mine-9").click();
   await expect(page.getByTestId("mine-notice")).toContainText("Deleted");
   await expect(page.getByTestId("mine-delete-mine-9")).toHaveCount(0);
   expect(methods).toEqual(["DELETE"]);
@@ -4467,7 +4527,7 @@ test("/mine wears the site chrome and links every entry back to the editor", asy
   await page.goto("/mine");
   // The standard chrome is present, not a bare paragraph.
   await expect(page.getByTestId("gallery-editor-link")).toBeVisible();
-  await expect(page.getByTestId("gallery-new-circuit")).toBeVisible();
+  await expect(page.getByTestId("gallery-editor-switch")).toBeVisible();
   await expect(page.getByTestId("mine-reason-mine-1")).toContainText(
     "Label the ports",
   );
@@ -4475,9 +4535,12 @@ test("/mine wears the site chrome and links every entry back to the editor", asy
   await expect(page.getByTestId("mine-card-mine-1")).toContainText(
     "remains hidden until the Owner restores it",
   );
-  await expect(page.getByTestId("mine-edit-mine-2")).toHaveAttribute(
-    "href",
-    "/g/mine-2",
+  // The drawing itself opens the circuit; there is no separate link.
+  await expect(
+    page.getByTestId("mine-card-mine-2").locator(".entry-card-open"),
+  ).toHaveAttribute("href", "/g/mine-2");
+  await expect(page.getByTestId("mine-card-mine-2")).not.toContainText(
+    "Open in editor",
   );
   await expect(page.getByTestId("mine-status-mine-2")).toHaveText("Published");
 });

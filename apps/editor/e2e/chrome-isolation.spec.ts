@@ -214,17 +214,15 @@ test("compacts the editor header at half width and keeps the account role in its
     }
   }
 
-  await page.getByTestId("account-name").click();
+  // Beside the drawing, the name opens the account page in its own tab.
+  const name = page.getByTestId("account-name");
+  await expect(name).toHaveAttribute("href", "/account");
+  await expect(name).toHaveAttribute("target", "_blank");
+  await page.goto("/account");
   await expect(page.getByTestId("account-menu-name")).toHaveText(
     "A Very Long Display Name",
   );
   await expect(page.getByTestId("account-owner")).toHaveText("Owner");
-  // Privacy lives in the status bar; deleting sits apart, below the menu.
-  const panel = page.getByTestId("account-panel");
-  await expect(panel.getByText("Privacy")).toHaveCount(0);
-  await expect(panel.getByTestId("account-delete")).toBeVisible();
-  await page.keyboard.press("Escape");
-  await expect(panel).toHaveCount(0);
 });
 
 test("keeps the account affordance when auth providers are unavailable", async ({

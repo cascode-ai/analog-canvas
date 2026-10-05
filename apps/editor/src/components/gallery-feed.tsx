@@ -284,7 +284,7 @@ export function GalleryCountPanel({
         data-testid="gallery-count-panel"
         aria-label={`${label}. Show contributor leaderboard`}
       >
-        {label}
+        <span className="gallery-count-label">{label}</span>
       </summary>
       <div
         className="gallery-contributor-popover"

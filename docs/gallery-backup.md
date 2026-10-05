@@ -87,3 +87,14 @@ contacting Production. Use
 `--directory PATH` for another private (mode 0700) destination. The helper uses the existing
 GitHub CLI login and never reads or stores the backup token. It keeps each
 dated snapshot separately and never overwrites a prior capture.
+
+## A local replica for development
+
+`pnpm replica:import` copies the newest downloaded snapshot into a private
+local replica beside it (`~/Library/Application Support/Analog Canvas/local-replica/`),
+stored the way the real Worker stores it and without submitters' emails.
+`pnpm dev:replica` then runs the editor against the real Worker on that
+replica, opened as the Owner; Sign out and Sign in lead to a page that signs
+in as any of its accounts. The backup holds no roles, so the accounts that
+reviewed circuits are its Owners. Both exist only on this computer: nothing reaches
+Production, and the switcher answers only loopback requests.

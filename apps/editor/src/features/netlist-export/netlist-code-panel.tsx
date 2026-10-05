@@ -648,11 +648,11 @@ export function NetlistCodePanel({
       ) : null}
       {editError ? <p role="alert">{editError}</p> : null}
       {processError ? <p role="alert">{processError}</p> : null}
-      <p className="netlist-edit-hint">
-        {draftPreview
-          ? "Draft · each ? is something the drawing does not say yet"
-          : "Edit names, models and values · Enter to apply"}
-      </p>
+      {draftPreview ? (
+        <p className="netlist-edit-hint">
+          Draft · each ? is something the drawing does not say yet
+        </p>
+      ) : null}
       {error ? <p role="alert">{error}</p> : null}
       {issues.length ? (
         <div

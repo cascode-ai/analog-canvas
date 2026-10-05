@@ -172,7 +172,7 @@ export default function ComponentDefinitionEditor(
       <header>
         <strong>Edit Component Definition</strong>
         <div className="component-definition-actions">
-          {!user && authReady ? <AccountMenu showGalleryLinks={false} /> : null}
+          {!user && authReady ? <AccountMenu inEditor /> : null}
           <button
             type="button"
             className="primary"

@@ -408,9 +408,8 @@ test("Cloud Save updates one binding while local export stays interchange", asyn
   await expect(page.getByTestId("hit-R1")).toHaveCount(1);
   await expect(page.getByTestId("hit-R2")).toHaveCount(1);
 
-  await page.getByRole("link", { name: "Back to the gallery" }).click();
-  await page.getByTestId("gallery-new-circuit").click();
-  await expect(page).toHaveURL(/\/editor\?new=1$/u);
+  // A New Circuit link opens a blank tab beside the ones brought back.
+  await page.goto("/editor?new=1");
   await expect(page.getByTestId("hit-R1")).toHaveCount(0);
 });
 

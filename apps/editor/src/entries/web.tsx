@@ -28,8 +28,9 @@ export function mountWebEditor() {
   );
   // Unpaired Gallery visitors must not download the Editor/Agent runtime.
   const needsAgentWorkspace =
-    !/^\/(?:analytics|moderation|mine)?\/?$/.test(window.location.pathname) ||
-    hasAgentSessionRecovery(window.sessionStorage);
+    !/^\/(?:analytics|moderation|mine|account)?\/?$/.test(
+      window.location.pathname,
+    ) || hasAgentSessionRecovery(window.sessionStorage);
 
   const container = document.getElementById("root");
 
@@ -128,6 +129,14 @@ export function mountWebEditor() {
     ),
   );
 
+  const AccountPage = lazy(
+    guardedRouteChunk(() =>
+      import("../components/account-page").then((module) => ({
+        default: module.AccountPage,
+      })),
+    ),
+  );
+
   const PrivacyPage = lazy(
     guardedRouteChunk(() =>
       import("../components/privacy-page").then((module) => ({
@@ -187,6 +196,15 @@ export function mountWebEditor() {
           fallback={<div className="analytics-loading">Loading privacy…</div>}
         >
           <PrivacyPage />
+        </Suspense>
+      );
+    }
+    if (/^\/account\/?$/.test(path)) {
+      return (
+        <Suspense
+          fallback={<div className="analytics-loading">Loading account…</div>}
+        >
+          <AccountPage />
         </Suspense>
       );
     }

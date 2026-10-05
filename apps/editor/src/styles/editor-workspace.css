@@ -587,6 +587,34 @@
   min-width: 0;
 }
 
+/* When the bar is short of room the message gives way first, down to
+   nothing, before any chip goes. */
+.statusbar-left > .editor-status {
+  flex-shrink: 1000;
+}
+
+/* Chips that do not fit drop whole onto a hidden second row instead of
+   running under the view controls; the bar keeps its one row. */
+.statusbar-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  align-content: flex-start;
+  gap: 0 var(--icm-space-2);
+  min-width: 0;
+  height: 28px;
+  overflow: hidden;
+}
+
+/* A zero-width strut makes the visible row the full height, so the chips
+   sit centred in it; it gives its share of the gap back. */
+.statusbar-chips::before {
+  width: 0;
+  height: 28px;
+  margin-right: calc(-1 * var(--icm-space-2));
+  content: "";
+}
+
 .statusbar-tool {
   flex: 0 0 auto;
   padding: 2px 8px;

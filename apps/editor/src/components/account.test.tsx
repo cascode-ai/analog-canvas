@@ -9,39 +9,41 @@ import {
   verifyEmailCode,
   type AccountState,
 } from "./account";
-import AccountMenuView, { AccountPanelContent } from "./account-menu-view";
+import AccountMenuView from "./account-menu-view";
+import {
+  AccountDashboard,
+  accountTabFromSearch,
+  type AccountTab,
+} from "./account-page";
 
 function markupFor(
   state: AccountState,
   notice: string | null = null,
-  showGalleryLinks = true,
+  inEditor = false,
 ): string {
   return renderToStaticMarkup(
     createElement(AccountMenuView, {
       state,
       notice,
-      showGalleryLinks,
+      inEditor,
       onEmailStart: async () => ({ ok: true }) as const,
       onEmailVerify: async () => ({ ok: true }) as const,
-      onRename: () => undefined,
-      onSignOut: () => undefined,
-      onDeleteAccount: async () => ({ ok: false, message: "unused" }) as const,
     }),
   );
 }
 
-function panelFor(
+function pageFor(
   user: NonNullable<AccountState["user"]>,
-  showGalleryLinks = true,
+  initialTab?: AccountTab,
 ): string {
   return renderToStaticMarkup(
-    createElement(AccountPanelContent, {
+    createElement(AccountDashboard, {
       user,
-      showGalleryLinks,
+      ...(initialTab ? { initialTab } : {}),
       onRename: () => undefined,
       onSignOut: () => undefined,
-      onClose: () => undefined,
-      onDelete: () => undefined,
+      onDeleteAccount: async () => ({ ok: false, message: "unused" }) as const,
+      onDeleted: () => undefined,
     }),
   );
 }
@@ -77,30 +79,32 @@ describe("AccountMenuView", () => {
     expect(markup).toContain('href="/privacy" data-testid="signin-privacy"');
   });
 
-  it("gives a signed-in member one account button, the name", () => {
-    const markup = markupFor({
-      providers: { github: true, google: false, email: true },
-      user: {
-        id: "u1",
-        displayName: "Ada",
-        email: "ada@example.com",
-        provider: "email",
-        role: "user",
-        isAdmin: false,
-      },
-    });
-    expect(markup).toContain('data-testid="account-name"');
-    expect(markup).toContain('data-initial="A"');
-    expect(markup).toContain('aria-haspopup="dialog"');
-    expect(markup).toContain('aria-expanded="false"');
-    // The menu, the privacy notice and deletion are not in the header.
+  it("makes the signed-in name the one way into the account page", () => {
+    const user = {
+      id: "u1",
+      displayName: "Ada",
+      email: "ada@example.com",
+      provider: "email",
+      role: "user",
+      isAdmin: false,
+    };
+    const providers = { github: true, google: false, email: true };
+    const markup = markupFor({ providers, user });
+    expect(markup).toContain(
+      '<a class="account-name" href="/account" data-testid="account-name" data-initial="A" title="Your account">Ada</a>',
+    );
+    // Nothing else of the account is in the header, deleting least of all.
     for (const absent of [
       "⋯",
-      'data-testid="account-privacy"',
-      'data-testid="account-delete"',
-      'data-testid="account-signout"',
+      "account-privacy",
+      "account-delete",
+      "account-signout",
     ])
       expect(markup).not.toContain(absent);
+    // Beside a drawing, the account opens in a tab of its own.
+    expect(markupFor({ providers, user }, null, true)).toContain(
+      'target="_blank" rel="noreferrer"',
+    );
   });
 
   it("reads each answer the server gives to an account deletion", async () => {
@@ -170,55 +174,103 @@ describe("AccountMenuView", () => {
     ).toEqual({ ok: false, message: "Too many wrong codes — send a new one." });
   });
 
-  it("opens a plain account menu, with deleting kept apart below it", () => {
-    const markup = panelFor({
+  it("opens the account page on the account's circuits, tabs at the side", () => {
+    const owner = {
       id: "u1",
       displayName: "Token Zhang",
       email: "owner@example.com",
       provider: "github",
       role: "user",
       isAdmin: true,
-    });
-    expect(markup).toContain(">Token Zhang</h2>");
+    };
+    const markup = pageFor(owner);
+    expect(markup).toContain(">Token Zhang</h1>");
     expect(markup).toContain("Signed in with GitHub");
     expect(markup).toContain("owner@example.com");
     expect(markup).toContain('data-testid="account-owner">Owner</span>');
-    const menu = markup.slice(
-      markup.indexOf("account-panel-menu"),
-      markup.indexOf("account-panel-danger"),
+    const tabs = [
+      'data-testid="account-tab-circuits"',
+      'data-testid="account-tab-moderation"',
+      'data-testid="account-tab-settings"',
+    ].map((needle) => markup.indexOf(needle));
+    expect(tabs.every((index) => index >= 0)).toBe(true);
+    expect([...tabs].sort((left, right) => left - right)).toEqual(tabs);
+    // One click in, the circuits are already there; nothing else is open.
+    expect(markup).toContain(
+      'aria-selected="true" data-testid="account-tab-circuits"',
     );
-    for (const item of [
-      "account-rename",
-      "account-mine",
-      "account-moderation-link",
-      "account-signout",
-    ])
-      expect(menu).toContain(`data-testid="${item}"`);
-    expect(menu).not.toContain("account-delete");
-    expect(markup.slice(markup.indexOf("account-panel-danger"))).toContain(
-      'data-testid="account-delete"',
-    );
+    expect(markup).toContain('data-testid="account-panel-circuits"');
+    expect(markup).toContain('data-testid="mine-content"');
+    expect(markup).not.toContain('data-testid="account-delete"');
     expect(markup).not.toContain("/privacy");
-    expect(markup).not.toContain("account-signin");
+    // Moderation is a tab of its own, not a page behind a link.
+    expect(pageFor(owner, "moderation")).toContain(
+      'data-testid="rejected-list"',
+    );
   });
 
-  it("can reuse the account panel without exposing Gallery-only links", () => {
-    const markup = panelFor(
+  it("keeps deleting the account last, in Settings", () => {
+    const markup = pageFor(
       {
-        id: "preview-user",
-        displayName: "Preview Tester",
-        email: "tester@example.com",
+        id: "u1",
+        displayName: "Token Zhang",
+        email: null,
+        provider: "email",
+        role: "user",
+        isAdmin: false,
+      },
+      "settings",
+    );
+    const order = [
+      'id="account-profile"',
+      'data-testid="account-rename"',
+      'data-testid="account-signout"',
+      'id="account-danger"',
+      'data-testid="account-delete"',
+    ].map((needle) => markup.indexOf(needle));
+    expect(order.every((index) => index >= 0)).toBe(true);
+    expect([...order].sort((left, right) => left - right)).toEqual(order);
+    expect(markup).not.toContain('data-testid="mine-content"');
+  });
+
+  it("shows Moderation to the Owner alone; a moderator keeps the badge", () => {
+    const member = pageFor(
+      {
+        id: "member",
+        displayName: "Member",
+        email: null,
         provider: "google",
+        role: "user",
+        isAdmin: false,
+      },
+      "moderation",
+    );
+    expect(member).toContain("Signed in with Google");
+    expect(member).not.toContain("account-tab-moderation");
+    expect(member).not.toContain("account-owner");
+    // A link to a tab this account lacks opens the circuits instead.
+    expect(member).toContain('data-testid="account-panel-circuits"');
+    const moderator = pageFor(
+      {
+        id: "mod",
+        displayName: "Mod",
+        email: null,
+        provider: "email",
         role: "moderator",
         isAdmin: false,
       },
-      false,
+      "moderation",
     );
-    expect(markup).toContain("Signed in with Google");
-    expect(markup).toContain('data-testid="account-mod">Moderator</span>');
-    expect(markup).toContain('data-testid="account-signout"');
-    expect(markup).not.toContain('data-testid="account-mine"');
-    expect(markup).not.toContain('data-testid="account-moderation-link"');
+    expect(moderator).toContain('data-testid="account-mod">Moderator</span>');
+    expect(moderator).not.toContain("account-tab-moderation");
+    expect(moderator).toContain('data-testid="account-panel-circuits"');
+  });
+
+  it("reads the open tab from the address", () => {
+    expect(accountTabFromSearch("")).toBe("circuits");
+    expect(accountTabFromSearch("?tab=moderation")).toBe("moderation");
+    expect(accountTabFromSearch("?tab=settings")).toBe("settings");
+    expect(accountTabFromSearch("?tab=elsewhere")).toBe("circuits");
   });
 });
 

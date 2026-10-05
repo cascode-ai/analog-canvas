@@ -99,16 +99,40 @@ export function GalleryTagSidebar({
       style={{ "--gallery-sidebar-width": `${width}px` } as CSSProperties}
     >
       <div className="gallery-sidebar-search">
-        <input
-          className="gallery-search-input"
-          autoComplete="off"
-          type="search"
-          value={search}
-          placeholder="Name, author, tag…"
-          aria-label="Search circuits"
-          data-testid="gallery-search"
-          onChange={(event) => onSearchChange(event.currentTarget.value)}
-        />
+        {/* The magnifier says what the field is; it searches as you type,
+            and a click on the magnifier lands in the field. */}
+        <label className="gallery-search-field">
+          <svg
+            className="gallery-search-icon"
+            viewBox="0 0 16 16"
+            aria-hidden="true"
+          >
+            <circle
+              cx="6.75"
+              cy="6.75"
+              r="4.75"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.6"
+            />
+            <path
+              d="m10.3 10.3 3.7 3.7"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+            />
+          </svg>
+          <input
+            className="gallery-search-input"
+            autoComplete="off"
+            type="search"
+            value={search}
+            placeholder="Search name, author, tag…"
+            aria-label="Search circuits"
+            data-testid="gallery-search"
+            onChange={(event) => onSearchChange(event.currentTarget.value)}
+          />
+        </label>
       </div>
       <button
         type="button"

@@ -110,13 +110,6 @@ export function GalleryChrome({
             />
           </svg>
         </a>
-        <a
-          className="gallery-open-editor"
-          href="/editor?new=1"
-          data-testid="gallery-new-circuit"
-        >
-          New Circuit
-        </a>
       </nav>
     </header>
   );
