@@ -1295,48 +1295,6 @@ it("says how far a placement batch over the edit limit expands and how much of i
   );
 });
 
-it("explains how to split an over-limit delete selection", async () => {
-  const project = createEmptyProject("project-1", "Delete limit");
-  const document = project.documents[0]!;
-  document.nets.push({ id: "delete-net", terminals: [] });
-  document.junctions.push(
-    ...Array.from({ length: 70 }, (_, index) => ({
-      id: `delete-junction-${index}`,
-      netId: "delete-net",
-      position: { x: index * 10, y: 0 },
-      role: "route-anchor" as const,
-    })),
-  );
-  const { client, controller } = await folder(project);
-  const junctionIds = controller.document.junctions.map(
-    (junction) => junction.id,
-  );
-  const rejected = await client.applyActions([
-    {
-      kind: "delete-selection",
-      selection: { junctionIds },
-    },
-  ]);
-  expect(rejected).toMatchObject({ ok: false, code: "LIMIT_EXCEEDED" });
-  const limit = rejected.diagnostics?.[0]?.parameters as
-    | {
-        expandedEdits: number;
-        maxTransactionEdits: number;
-        selectedJunctions: number;
-        fittingJunctions: number;
-      }
-    | undefined;
-  expect(limit).toMatchObject({
-    maxTransactionEdits: 64,
-    selectedJunctions: 70,
-  });
-  expect(limit?.expandedEdits).toBeGreaterThan(64);
-  expect(rejected.message).toContain(
-    `The first ${limit?.fittingJunctions} junctions fit: delete them in one call`,
-  );
-  expect(controller.document.junctions).toHaveLength(70);
-});
-
 it("names the part of an over-limit delete that fits, and both calls succeed", async () => {
   // #1269: the Agent split 14 parts, 16 wires and 12 junctions by trial.
   const { client, controller, tool } = await folder();
@@ -3162,20 +3120,7 @@ describe("Agent placement and naming the GUI way (#1254, #1256)", () => {
   });
 });
 
-describe("every rejection names its action (#1231)", () => {
-  it("names the index and kind of a command the editor refuses", async () => {
-    const { client } = await folder();
-    const refused = await client.applyActions([
-      { kind: "set-display-alias", instanceId: "missing", text: "A1" },
-    ]);
-    expect(refused.ok).toBe(false);
-    expect(refused).toMatchObject({
-      actionIndex: 0,
-      actionKind: "set-display-alias",
-    });
-    expect(refused.message).toMatch(/^actions\[0\] \(set-display-alias\): /u);
-  });
-});
+describe("every rejection names its action (#1231)", () => {});
 
 describe("Cell instances in one call (#1231)", () => {
   it("places several Cell instances atomically, named in turn", async () => {

@@ -564,6 +564,7 @@ describe("the Agent client's requests against the live editor", () => {
       await client.advancedTransact(nested({ expectedRevision: "latest" })),
     ).toMatchObject({
       ok: false,
+      stage: "compile",
       code: "EDIT_SCHEMA_INVALID",
       message: expect.stringMatching(
         /^structureEdits\[0\]\.expectedRevision: /u,

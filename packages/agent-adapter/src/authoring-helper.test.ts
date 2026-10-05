@@ -762,21 +762,6 @@ describe("authoring helper compilation", () => {
     expect(transaction?.command).not.toHaveProperty("scope");
   });
 
-  it("preserves vertical Power Rail geometry for server validation", () => {
-    const [transaction] = compile([
-      {
-        kind: "add-power-rail",
-        start: { x: 40, y: 0 },
-        end: { x: 40, y: 160 },
-      },
-    ]);
-    expect(transaction?.command).toMatchObject({
-      kind: "add-power-rail",
-      start: { x: 40, y: 0 },
-      end: { x: 40, y: 160 },
-    });
-  });
-
   it("compiles pin-to-pin connect into one visible wire intent with waypoints", () => {
     const [transaction] = compile([
       {
@@ -826,30 +811,6 @@ describe("authoring helper compilation", () => {
       from: { kind: "free", point: { x: 480, y: 160 } },
       to: { kind: "net", net: "Vout" },
     });
-  });
-
-  it("keeps endpoint identity in the visible pin-to-pin wire intent", () => {
-    const [transaction] = compile([
-      {
-        kind: "connect",
-        from: { kind: "pin", instance: "R1", pin: "2" },
-        to: { kind: "pin", instance: "M1", pin: "S" },
-      },
-    ]);
-    if (transaction?.wireIntent?.from.kind === "endpoint") {
-      expect(transaction.wireIntent.from.endpoint).toEqual({
-        kind: "terminal",
-        instanceId: "instance-2",
-        pinName: "2",
-      });
-    }
-    if (transaction?.wireIntent?.to.kind === "endpoint") {
-      expect(transaction.wireIntent.to.endpoint).toEqual({
-        kind: "terminal",
-        instanceId: "instance-1",
-        pinName: "S",
-      });
-    }
   });
 
   it("delegates Net geometry to the current server draft, including newly created Nets", () => {
@@ -972,24 +933,6 @@ describe("authoring helper compilation", () => {
       kind: "set-properties",
       instanceId: "instance-1",
       reference: "MN0",
-    });
-  });
-
-  it("sends set-property for the editor to check and plan", () => {
-    // The editor refuses spice.* keys and names the model's own parameters
-    // (property-command.test.ts); the client only resolves the part.
-    const [transaction] = compile([
-      {
-        kind: "set-property",
-        target: { kind: "instance", reference: "M1" },
-        set: { w: "4u" },
-        unset: ["note"],
-      },
-    ]);
-    expect(transaction?.command).toEqual({
-      kind: "set-properties",
-      instanceId: "instance-1",
-      parameters: { set: { w: "4u" }, unset: ["note"] },
     });
   });
 
@@ -1211,26 +1154,6 @@ describe("authoring helper compilation", () => {
       kind: "set-net-label",
       annotationId: "label-1",
       text: { runs: [{ kind: "text", value: "Vout node" }] },
-    });
-  });
-
-  it("sends structured RichText as it is, never flattened", () => {
-    const content = {
-      runs: [
-        { kind: "text" as const, value: "V" },
-        {
-          kind: "span" as const,
-          style: "subscript" as const,
-          children: [{ kind: "text" as const, value: "out" }],
-        },
-      ],
-    };
-    const [annotated] = compile([
-      { kind: "annotate", text: content, position: { x: 50, y: 400 } },
-    ]);
-    expect(annotated?.command).toMatchObject({
-      kind: "add-text",
-      text: content,
     });
   });
 

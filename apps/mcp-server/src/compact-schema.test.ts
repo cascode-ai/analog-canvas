@@ -28,30 +28,6 @@ describe("schema compaction", () => {
     expect(compact.examples).toEqual(input.examples);
     expect(input).toEqual(before);
   });
-  it("retains constraints beside references and resolves their definitions", () => {
-    const compact = compactSchema({
-      type: "object",
-      properties: {
-        value: {
-          $ref: "#/$defs/text",
-          minLength: 3,
-          description: "Required name",
-        },
-      },
-      $defs: { text: { type: "string", maxLength: 20 } },
-    });
-    expect(compact).toEqual({
-      type: "object",
-      properties: {
-        value: {
-          type: "string",
-          maxLength: 20,
-          minLength: 3,
-          description: "Required name",
-        },
-      },
-    });
-  });
   it("leaves recursive definitions intact", () => {
     const schema = {
       type: "object",

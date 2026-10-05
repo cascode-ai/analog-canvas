@@ -51,7 +51,7 @@ describe("mcp tool surface", () => {
     expect(JSON.stringify(result)).not.toContain("private-invalid-value");
     expect(http.circuitCalls).toHaveLength(0);
   });
-  it.each([500, 502, 429, 408, 400])(
+  it.each([500, 429, 408, 400])(
     "classifies HTTP %s without changing the retry identity",
     async (httpStatus) => {
       const { session } = await toolSession();

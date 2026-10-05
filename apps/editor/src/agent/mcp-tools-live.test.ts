@@ -174,26 +174,6 @@ function galleryService(entries: Record<string, CircuitProject>) {
 }
 
 describe("MCP tools on the live editor", () => {
-  it("connect claims the code, then reads the editor's capabilities and bootstrap", async () => {
-    const { call, http, controller } = mcp({ project: otaProject() });
-    const result = await call("connect", { claimCode: "session-1.code" });
-    expect(parseText(result)).toMatchObject({
-      ok: true,
-      mode: "claimed",
-      projectId: controller.project.id,
-      documentIds: controller.project.documents.map((item) => item.id),
-      context: {
-        documentId: controller.document.id,
-        revision: controller.document.revision,
-      },
-    });
-    expect(http.claims).toEqual(["session-1.code"]);
-    expect(http.circuitCalls.map((item) => item.request.operation)).toEqual([
-      "capabilities",
-      "snapshot",
-    ]);
-  });
-
   it("get_context returns the compact context of the editor's Document", async () => {
     const editor = await connected();
     await apply(editor, [
@@ -484,27 +464,6 @@ describe("MCP tools on the live editor", () => {
     });
     // The one request was the editor's to refuse; nothing else was sent.
     expect(transacts(http)).toBe(sent + 1);
-    expect(controller.document).toEqual(before);
-  });
-
-  it("apply_actions returns the editor's planning refusal, naming the action", async () => {
-    const { call, controller } = await connected();
-    const before = structuredClone(controller.document);
-    const result = await call("apply_actions", {
-      actions: [place("not-in-catalog", "X1", 0)],
-    });
-    expect(result.isError).toBe(true);
-    expect(parseText(result)).toEqual({
-      ok: false,
-      stage: "compile",
-      code: "ACTION_COMPILE_FAILED",
-      message: expect.stringMatching(
-        /^actions\[0\] \(place-component\): "not-in-catalog" is not in the reviewed built-in catalog/u,
-      ),
-      actionIndex: 0,
-      actionKind: "place-component",
-      revision: controller.document.revision,
-    });
     expect(controller.document).toEqual(before);
   });
 

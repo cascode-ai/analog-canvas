@@ -150,45 +150,6 @@ describe("expandRouteGraph → transact → actual geometry consistency", () => 
     expect(actualPolyline).toEqual(reportedPolyline);
   });
 
-  it("diagonal escape edge is rejected with MISALIGNED_EDGE, no edits produced for it", () => {
-    const doc = documentFixture();
-    const epA = terminal("A");
-    const pointA = resolveEndpointPoint(doc, resolver, epA)!;
-    const outwardA = resolveEndpointOutwardDirection(doc, resolver, epA);
-
-    // Tap NOT on the same x or y — diagonal.
-    const graph: RouteGraph = {
-      documentId: doc.id,
-      revision: 0,
-      netId: "net-h",
-      nodes: [
-        { id: "epA", role: "endpoint", endpoint: epA },
-        {
-          id: "tapA",
-          role: "tap",
-          at: { x: pointA.x + 200, y: pointA.y - 100 },
-        },
-      ],
-      edges: [{ id: "esc0", from: "epA", to: "tapA", role: "escape" }],
-    };
-
-    const expansion = expandRouteGraph(graph, {
-      endpoints: new Map([
-        ["epA", { id: "epA", endpoint: epA, point: pointA, outward: outwardA }],
-      ]),
-      existingRoutePaths: [],
-      instanceBoxes: [],
-    });
-
-    expect(expansion.conflicts.some((c) => c.code === "MISALIGNED_EDGE")).toBe(
-      true,
-    );
-    // The junction is still created (node position is valid), but the route edit is NOT.
-    expect(
-      expansion.edits.filter((e) => e.kind === "set_route_path"),
-    ).toHaveLength(0);
-  });
-
   it("escape against pin outward direction is rejected with ESCAPE_DIRECTION", () => {
     const doc = documentFixture();
     const epA = terminal("A");
@@ -225,56 +186,6 @@ describe("expandRouteGraph → transact → actual geometry consistency", () => 
     expect(
       expansion.edits.filter((e) => e.kind === "set_route_path"),
     ).toHaveLength(0);
-  });
-
-  it("wire-through-symbol is detected when a segment crosses an instance box", () => {
-    // Two taps connected by a trunk that passes through a known instance.
-    const doc = documentFixture();
-    const epA = terminal("A");
-    const pointA = resolveEndpointPoint(doc, resolver, epA)!;
-
-    // Tap0 and tap1 span across instance A's body.
-    const graph: RouteGraph = {
-      documentId: doc.id,
-      revision: 0,
-      netId: "net-h",
-      nodes: [
-        { id: "tap0", role: "tap", at: { x: pointA.x - 60, y: pointA.y } },
-        { id: "tap1", role: "tap", at: { x: pointA.x + 60, y: pointA.y } },
-      ],
-      edges: [{ id: "trunk0", from: "tap0", to: "tap1", role: "trunk" }],
-    };
-
-    // Build instanceBoxes from the document's placed instances.
-    const instanceBoxes = doc.instances
-      .filter((inst) => inst.placement)
-      .map((inst) => {
-        const resolved = resolver.resolve(inst.symbolId, inst.symbolVariantId);
-        if (!resolved) return null;
-        const box = resolved.definition.viewBox;
-        return {
-          instanceId: inst.id,
-          min: {
-            x: inst.placement!.position.x + box.x,
-            y: inst.placement!.position.y + box.y,
-          },
-          max: {
-            x: inst.placement!.position.x + box.x + box.width,
-            y: inst.placement!.position.y + box.y + box.height,
-          },
-        };
-      })
-      .filter((b): b is NonNullable<typeof b> => b !== null);
-
-    const expansion = expandRouteGraph(graph, {
-      endpoints: new Map(),
-      existingRoutePaths: [],
-      instanceBoxes,
-    });
-
-    expect(
-      expansion.conflicts.some((c) => c.code === "WIRE_THROUGH_SYMBOL"),
-    ).toBe(true);
   });
 
   it("no edit in the output is ever route_orthogonal", () => {

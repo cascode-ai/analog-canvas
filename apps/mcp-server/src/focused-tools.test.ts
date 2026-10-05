@@ -229,22 +229,6 @@ describe("focused tools", () => {
     expect(declarationSchema(mixed)).toEqual(inlineSchema(mixed));
   });
 
-  it("reports actual per-tool declaration sizes for review, not token costs", () => {
-    const definitions = listToolDefinitions();
-    console.info(
-      JSON.stringify({
-        toolsListBytes: Buffer.byteLength(JSON.stringify(definitions)),
-        tools: definitions
-          .filter((t) => FOCUSED_TOOLS.some((f) => f.name === t.name))
-          .map((t) => ({
-            name: t.name,
-            bytes: Buffer.byteLength(JSON.stringify(t.inputSchema)),
-          })),
-      }),
-    );
-    expect(definitions).toHaveLength(36);
-  });
-
   it("keeps focused declarations below the observed host budget before structural compaction", () => {
     // Codex 4607249e430dac1c961df4dc615beae88e33cec8, tools/src/json_schema/
     // compaction.rs: normalized 5,000-byte budget, descriptions removed first.

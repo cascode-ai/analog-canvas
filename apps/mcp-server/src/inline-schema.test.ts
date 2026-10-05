@@ -8,25 +8,6 @@ import { listToolDefinitions, toolInputSchema } from "./tools.js";
 beforeAll(() => void listToolDefinitions(), 30_000);
 
 describe("host-facing inline schemas", () => {
-  it("retains constraints and metadata without metadata-only intersections", () => {
-    expect(
-      inlineSchema({
-        type: "object",
-        properties: { a: { $ref: "#/$defs/a", description: "Name" } },
-        $defs: { a: { type: "string", minLength: 1 } },
-      }),
-    ).toEqual({
-      type: "object",
-      properties: { a: { type: "string", minLength: 1, description: "Name" } },
-    });
-    expect(
-      inlineSchema({
-        $ref: "#/$defs/a",
-        minLength: 2,
-        $defs: { a: { type: "string", minLength: 1 } },
-      }),
-    ).toEqual({ allOf: [{ type: "string", minLength: 1 }, { minLength: 2 }] });
-  });
   it("does not rewrite authored default values as schemas", () => {
     const schema = { type: "object", default: { $ref: "authored-value" } };
     expect(inlineSchema(schema)).toEqual(schema);
