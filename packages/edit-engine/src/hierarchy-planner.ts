@@ -25,10 +25,13 @@ import {
 } from "@icm/devices";
 import {
   builtInSymbols,
+  cellSymbolPinSlots,
   createProjectSymbolResolver,
   externalSubcircuitSymbolId,
+  freeHierarchicalBlockOffsets,
   hierarchicalSymbolId,
   placedCellDocumentIds,
+  projectCellSymbolTerminals,
   unplacedCellSymbol,
 } from "@icm/symbols";
 import {
@@ -1532,6 +1535,138 @@ export function planSetCellSymbolPresentation(
       edits: [{ kind: "set_cell_symbol_presentation", presentation }],
     },
   ];
+}
+
+/** A Pin of a Cell's block, by name, and the side it is to stand on. */
+export interface CellSymbolPinRequest {
+  readonly name: string;
+  readonly side: CellSymbolSide;
+  /**
+   * Along the side from its middle, a multiple of 10. Left out, the Pin
+   * stays put on its own side, or takes the first free slot of a new one.
+   */
+  readonly offset?: number | undefined;
+}
+
+/**
+ * Arrange a Cell's block Pins by name (#1320). A Pin not named keeps where
+ * it stands: the whole current layout is stored (a placed Cell's stored and
+ * automatic slots; an unplaced Cell's, the one its first placement would
+ * store) and only the named Pins change. A named Pin with no offset stays
+ * put when its side does not change; otherwise it takes the first free slot
+ * on its side, in the order the block gives automatic slots. Planned through
+ * planSetCellSymbolPresentation, so callers keep their Nets and the wiring
+ * the change stretches is redrawn clear (#1316).
+ */
+export function planSetCellSymbolPins(
+  project: CircuitProject,
+  documentId: string,
+  pins: readonly CellSymbolPinRequest[],
+): ProjectStructureEdit[] {
+  const document = requireDocument(project, documentId);
+  if (!document.netlist) throw new Error(`Cell does not exist: ${documentId}`);
+  const terminals = projectCellSymbolTerminals(document);
+  const now = new Map(
+    cellSymbolPinSlots(project, document).map((slot) => [
+      slot.terminalId,
+      slot,
+    ]),
+  );
+  const nameOf = (terminalId: string) =>
+    terminals.find((terminal) => terminal.id === terminalId)?.name ??
+    terminalId;
+  const asked = new Map<string, CellSymbolPinRequest>();
+  for (const pin of pins) {
+    const terminal = terminals.find(
+      (item) => foldNetName(item.name) === foldNetName(pin.name),
+    );
+    if (!terminal)
+      throw new Error(
+        `${document.netlist.name} has no Pin "${pin.name}"; its Pins: ${
+          terminals.map((item) => item.name).join(", ") || "none"
+        }. Nothing was changed.`,
+      );
+    if (asked.has(terminal.id))
+      throw new Error(
+        `Pin ${terminal.name} is named twice. Nothing was changed.`,
+      );
+    if (
+      pin.offset !== undefined &&
+      (!Number.isInteger(pin.offset) || pin.offset % 10 !== 0)
+    )
+      throw new Error(
+        `${terminal.name}'s offset ${pin.offset} is not a multiple of 10. Nothing was changed.`,
+      );
+    asked.set(terminal.id, pin);
+  }
+  // Who stands where, side by side: the Pins not named first.
+  const standing = new Map<string, Map<number, string>>();
+  const along = (side: CellSymbolSide) => {
+    let offsets = standing.get(side);
+    if (!offsets) standing.set(side, (offsets = new Map()));
+    return offsets;
+  };
+  for (const terminal of terminals) {
+    const slot = now.get(terminal.id);
+    if (!slot || asked.has(terminal.id)) continue;
+    if (!along(slot.side).has(slot.offset))
+      along(slot.side).set(slot.offset, terminal.id);
+  }
+  const placed = new Map<string, { side: CellSymbolSide; offset: number }>();
+  const stand = (terminalId: string, side: CellSymbolSide, offset: number) => {
+    const other = along(side).get(offset);
+    if (other !== undefined)
+      throw new Error(
+        `${nameOf(terminalId)} and ${nameOf(other)} would stand on one slot, ${side} ${offset}. Free on ${side}, in the order a Pin with no offset takes them: ${freeHierarchicalBlockOffsets(
+          along(side).keys(),
+        )
+          .slice(0, 4)
+          .join(", ")}. Nothing was changed.`,
+      );
+    along(side).set(offset, terminalId);
+    placed.set(terminalId, { side, offset });
+  };
+  // An offset given wins its slot; a Pin staying on its side keeps its
+  // place; the rest take the first free slot, in the order named.
+  for (const [terminalId, pin] of asked)
+    if (pin.offset !== undefined) stand(terminalId, pin.side, pin.offset);
+  for (const [terminalId, pin] of asked) {
+    const slot = now.get(terminalId);
+    if (
+      pin.offset === undefined &&
+      slot?.side === pin.side &&
+      !along(pin.side).has(slot.offset)
+    )
+      stand(terminalId, pin.side, slot.offset);
+  }
+  for (const [terminalId, pin] of asked) {
+    if (placed.has(terminalId)) continue;
+    const offset = freeHierarchicalBlockOffsets(along(pin.side).keys())[0];
+    if (offset === undefined)
+      throw new Error(
+        `No free slot on the ${pin.side} side for ${nameOf(terminalId)}. Nothing was changed.`,
+      );
+    stand(terminalId, pin.side, offset);
+  }
+  if (
+    [...placed].every(([terminalId, slot]) => {
+      const before = now.get(terminalId);
+      return before?.side === slot.side && before.offset === slot.offset;
+    })
+  )
+    return [];
+  const stored = document.presentation.cellSymbol;
+  return planSetCellSymbolPresentation(project, documentId, {
+    ...(stored?.minimumBodySize
+      ? { minimumBodySize: stored.minimumBodySize }
+      : {}),
+    pinPlacements: terminals.flatMap((terminal) => {
+      const slot = placed.get(terminal.id) ?? now.get(terminal.id);
+      return slot
+        ? [{ terminalId: terminal.id, side: slot.side, offset: slot.offset }]
+        : [];
+    }),
+  });
 }
 
 /**

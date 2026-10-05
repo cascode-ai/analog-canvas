@@ -139,6 +139,44 @@ function resolvePinSlots(
   });
 }
 
+/** Where a Pin stands on a block: its side and its offset along that side. */
+export interface HierarchicalBlockPinSlot {
+  readonly terminalId: string;
+  readonly side: CellSymbolSide;
+  readonly offset: number;
+}
+
+/**
+ * Where each Pin stands on the block, in terminal order: at its stored
+ * placement, or at the automatic slot the block gives a Pin without one.
+ */
+export function hierarchicalBlockPinSlots(
+  terminals: readonly HierarchicalBlockTerminal[],
+  presentation?: CellSymbolPresentation,
+): HierarchicalBlockPinSlot[] {
+  return resolvePinSlots(terminals, presentation).map((slot) => ({
+    terminalId: slot.terminal.id,
+    side: slot.side,
+    offset: slot.offset,
+  }));
+}
+
+/**
+ * The offsets along one side a Pin may still take, in the order an automatic
+ * Pin takes them (0, -20, 20, -40, 40, …): those a full row from every
+ * offset in `taken`, so no two Pin names share a row. On the 20-unit rows
+ * the automatic layout uses, that is every slot `taken` leaves free; beside
+ * a Pin drawn between two rows (offset 10), it keeps a row's distance.
+ */
+export function freeHierarchicalBlockOffsets(
+  taken: Iterable<number>,
+): number[] {
+  const held = [...taken];
+  return automaticOffsets().filter((offset) =>
+    held.every((other) => Math.abs(other - offset) >= ROW_PITCH),
+  );
+}
+
 function bodySize(
   slots: readonly PinSlot[],
   minimum: CellSymbolPresentation["minimumBodySize"] | undefined,

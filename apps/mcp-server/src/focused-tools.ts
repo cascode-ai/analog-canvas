@@ -157,6 +157,8 @@ export const FOCUSED_TOOLS = [
   {
     name: "circuit_transform",
     source: "apply_actions",
+    // A Cell's block Pins are arranged here: circuit_properties is at the
+    // host's 5,000-byte declaration budget (#1320).
     operations: [
       "move",
       "rotate",
@@ -165,6 +167,7 @@ export const FOCUSED_TOOLS = [
       "arrange",
       "detach-move",
       "extend-power-rail",
+      "set-cell-symbol-pins",
     ],
   },
   {

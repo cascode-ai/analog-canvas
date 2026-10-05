@@ -28,6 +28,7 @@ import {
   planRenameCellTerminal,
   planRemoveCellTerminal,
   planRemoveCellTerminals,
+  planSetCellSymbolPins,
   planCellSelectionDeletion,
   gateRoutingOperationPlan,
   createRoutingOperationPlan,
@@ -1388,6 +1389,14 @@ export function planBrowserAgentCommand(
           project,
           documentId,
           command.terminalId,
+        ),
+      };
+    case "set-cell-symbol-pins":
+      return {
+        structureEdits: planSetCellSymbolPins(
+          project,
+          documentId,
+          command.pins,
         ),
       };
     case "unplace":

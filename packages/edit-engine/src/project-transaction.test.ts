@@ -2317,4 +2317,52 @@ describe("a Cell symbol's pins change sides (#1316)", () => {
     expect(findings).not.toContain("ERC_OVERLAPPING_NETS");
     expect(findings).not.toContain("VISUAL_WIRE_THROUGH_SYMBOL");
   });
+
+  it("names each caller whose wiring was redrawn beside its wires (#1320)", () => {
+    const { project, child } = wiredCaller();
+    const result = executeProjectTransaction(project, {
+      transactionId: "move-b",
+      projectId: project.id,
+      expectedStructureRevision: project.structureRevision,
+      actor: { kind: "agent", id: "test" },
+      edits: planSetCellSymbolPresentation(project, child.id, {
+        pinPlacements: [
+          { terminalId: "terminal-a", side: "west", offset: -20 },
+          { terminalId: "terminal-b", side: "east", offset: 20 },
+        ],
+      }),
+    });
+    if (!result.ok) throw new Error(result.error.message);
+    const follow = result.documentResults.find(
+      (item) => item.ok && item.diff.documentId === project.documents[0]!.id,
+    );
+    // B's wire is redrawn, and X1, the caller it ends on, is named with it.
+    expect(follow?.ok && follow.diff.changedObjectIds).toEqual(
+      expect.arrayContaining(["X1", "wire-B"]),
+    );
+
+    // A body size the block already has moves no pin: X1 is not named.
+    const unmoved = executeProjectTransaction(project, {
+      transactionId: "same-size",
+      projectId: project.id,
+      expectedStructureRevision: project.structureRevision,
+      actor: { kind: "agent", id: "test" },
+      edits: planSetCellSymbolPresentation(project, child.id, {
+        ...child.presentation.cellSymbol,
+        minimumBodySize: { width: 80, height: 80 },
+      }),
+    });
+    if (!unmoved.ok) throw new Error(unmoved.error.message);
+    // The follow still lays both wires again; neither moved.
+    expect(
+      unmoved.documentResults.flatMap((item) =>
+        item.ok ? item.diff.changedObjectIds : [],
+      ),
+    ).toContain("wire-A");
+    expect(
+      unmoved.documentResults.flatMap((item) =>
+        item.ok ? item.diff.changedObjectIds : [],
+      ),
+    ).not.toContain("X1");
+  });
 });

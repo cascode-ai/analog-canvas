@@ -704,6 +704,7 @@ export function compileActions(
       case "move-junction":
       case "remove-cell-terminal":
       case "rename-cell-terminal":
+      case "set-cell-symbol-pins":
       case "bind-cell-parameter":
       case "rename-cell-parameter":
       case "set-cell-parameter-default":

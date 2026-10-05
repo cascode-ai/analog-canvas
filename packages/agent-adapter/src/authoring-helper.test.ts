@@ -1342,6 +1342,10 @@ describe("every action compiles in a mixed call", () => {
       { kind: "rename-cell-parameter", oldName: "W", newName: "WN" },
       { kind: "set-cell-parameter-default", name: "W", defaultValue: "1u" },
       { kind: "remove-cell-parameter", name: "W" },
+      {
+        kind: "set-cell-symbol-pins",
+        pins: [{ name: "bl", side: "east" }],
+      },
     ];
     for (const command of commands) {
       expect(

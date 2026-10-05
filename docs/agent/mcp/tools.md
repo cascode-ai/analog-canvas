@@ -18,7 +18,7 @@ Focused circuit tools retain the `{documentId?, actions:[...]}` call envelope:
 | -------------------- | ----------------------------------------------------------------- |
 | `circuit_place`      | Built-in symbol, Cell and existing-instance placement; power rail |
 | `circuit_wire`       | Connect, disconnect, and mark unused pins No Connect             |
-| `circuit_transform`  | Individual move/rotate/mirror/set-orientation, arrange, detach-move and rail span |
+| `circuit_transform`  | Individual move/rotate/mirror/set-orientation, arrange, detach-move and rail span; a Cell block's Pin sides |
 | `circuit_selection`  | Selection transform, copy and align                               |
 | `circuit_text`       | Labels, annotations, text changes and annotation movement         |
 | `circuit_properties` | References, parameters, formulas, model selection, display flags and aliases, block supplies |
@@ -230,6 +230,24 @@ Cell upright. `set-model` and `set-display-alias` take a `target`
 owned Port, Net and bound terminal-name display atomically; use the returned
 Instance ID for subsequent wiring. To place an imported Instance, use `place-existing` with
 `instanceId` and `placement` (or `move` from the tray); default labels use the GUI planner.
+
+`set-cell-symbol-pins` (in `circuit_transform`) arranges the Pins on the block
+of the call's Cell, its `documentId`, by name:
+`{kind:"set-cell-symbol-pins",pins:[{name:"bl",side:"east"},{name:"blb",side:"west",offset:0}]}`.
+Sides are `north`, `east`, `south` and `west`; `offset` runs along the side
+from its middle in multiples of 10. A Pin not named stays where its callers
+were drawn with it (for a Cell no parent has placed yet, where its first
+placement would put it). A named Pin without `offset` stays put if its side
+does not change, and otherwise takes the first free slot on its new side (0,
+-20, 20, …, a full row from the Pins there). An unknown name is refused with
+the Cell's Pin names, two Pins on one slot with that side's free slots.
+Callers keep their Nets and the wiring the change stretches is redrawn clear;
+the receipt's `projectStructure.changedDocumentIds` names the Cell and each
+Cell whose callers were redrawn, and `changedObjectIds` those callers (a
+caller with a wire on a Pin that moved) and their wires.
+No terminal IDs or whole `pinPlacements` list are needed, as the low-level
+`set_cell_symbol_presentation` edit takes them.
+
 `place-component` batches use the browser's native display factory: references
 and displayable values are object-attached, and power markers own electrical
 power claims. Use `set-instance-display` with `instanceIds`, `showReference`
@@ -295,6 +313,7 @@ transaction form and plans it with the code the GUI runs.
 |                      | `rotate`, `mirror`, `set-orientation`               | `set-properties` command             | Properties rotation and mirror fields                                       |
 |                      | `arrange`                                           | `arrange-instances` command          | Origins on one coordinate; the GUI's own Align is `circuit_selection` `align` |
 |                      | `detach-move`, `extend-power-rail`                  | command                              | GUI move and rail planners                                                  |
+|                      | `set-cell-symbol-pins`                              | command                              | Cell symbol presentation planner: every Pin's current place kept, the named ones moved; callers keep their Nets and their stretched wiring is redrawn clear |
 | `circuit_selection`  | `transform`, `copy`, `align`                        | command                              | GUI selection transform, copy and alignment                                 |
 | `circuit_text`       | `add-label`, Net Label `edit-text`, `set-net-label` | `set-net-label` command              | GUI Net Label planner                                                       |
 |                      | `edit-text`                                         | `set-text` command                   | GUI text commit: a name label renames its part, a value label sets its value; the same characters in a new look only restyle |

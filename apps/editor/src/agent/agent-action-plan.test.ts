@@ -3,7 +3,12 @@ import { createAgentCircuitService } from "@icm/agent-adapter";
 import { diagnoseVisualQuality, resolveMosBulkConnection } from "@icm/derived";
 import { createEmptyProject } from "@icm/model";
 import { createDesignNetlistExport } from "@icm/netlist";
-import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
+import {
+  InMemorySymbolResolver,
+  builtInSymbols,
+  createProjectHierarchicalSymbols,
+  hierarchicalSymbolId,
+} from "@icm/symbols";
 import { AgentSessionClient } from "../../../../packages/agent-client/src/session-client";
 import { FakeAgentHttp } from "../../../../packages/agent-client/src/test-support/fake-relay";
 import { EditorDocumentController } from "../document/document-controller";
@@ -474,6 +479,182 @@ describe("the editor plans an Agent's action list", () => {
     ).toHaveLength(1);
     expect(findings()).toEqual([]);
   });
+
+  /**
+   * sram6t drawn as a textbook draws it, bl and wl left, blb right, VDD
+   * above and VSS below, placed once in the top Cell as X1 and wired to the
+   * top Cell's own Pins VDD, VSS, bl, blb and wl0.
+   */
+  async function sramArray() {
+    const harness = await editor();
+    const { controller, client } = harness;
+    const apply = async (actions: unknown[], documentId?: string) => {
+      const report = await client.applyActions(
+        actions,
+        documentId ? { documentId } : {},
+      );
+      expect(report.ok, report.message).toBe(true);
+      return report;
+    };
+    const port = (reference: string, x: number, y: number, right = false) => ({
+      kind: "place-component",
+      symbol: "port",
+      reference,
+      position: { x, y },
+      direction: "inout",
+      ...(right ? { mirror: "horizontal" } : {}),
+    });
+    await apply([{ kind: "create-cell", id: "sram6t", name: "sram6t" }]);
+    await apply(
+      [
+        port("VDD", 200, 0),
+        port("VSS", 200, 300),
+        port("bl", 0, 100),
+        port("blb", 400, 100, true),
+        port("wl", 0, 200),
+      ],
+      "sram6t",
+    );
+    await apply([
+      {
+        kind: "place-cell",
+        childDocumentId: "sram6t",
+        reference: "X1",
+        placement: { position: { x: 400, y: 400 } },
+      },
+    ]);
+    await apply([
+      port("VDD", 400, 200),
+      port("VSS", 400, 600),
+      port("bl", 200, 340),
+      port("wl0", 200, 460),
+      port("blb", 600, 400, true),
+    ]);
+    const main = () =>
+      controller.project.documents.find((item) => item.id === "main")!;
+    const id = (name: string) =>
+      main().instances.find(
+        (item) =>
+          item.reference === name ||
+          main().netlist?.terminals.some(
+            (terminal) =>
+              terminal.name === name &&
+              terminal.interfaceInstanceIds.includes(item.id),
+          ),
+      )!.id;
+    for (const [pin, name] of [
+      ["VDD", "VDD"],
+      ["VSS", "VSS"],
+      ["bl", "bl"],
+      ["blb", "blb"],
+      ["wl", "wl0"],
+    ])
+      await apply([
+        {
+          kind: "connect",
+          from: { kind: "pin", instance: "X1", pin },
+          to: {
+            kind: "pin",
+            instance: { kind: "instance", id: id(name!) },
+            pin: "P",
+          },
+        },
+      ]);
+    return { ...harness, main, id };
+  }
+
+  it(
+    "swaps a placed Cell's bl and blb in one call; its caller keeps its Nets and netlist line (#1320)",
+    { timeout: 30_000 },
+    async () => {
+      const { controller, client, main, id } = await sramArray();
+      const members = () =>
+        main()
+          .nets.map((net) =>
+            net.terminals
+              .map((terminal) => `${terminal.instanceId}.${terminal.pinName}`)
+              .sort()
+              .join(" "),
+          )
+          .sort();
+      const callLine = () => {
+        const exported = createDesignNetlistExport(controller.project, {
+          format: "spice",
+        });
+        expect(exported.status, JSON.stringify(exported)).toBe("ready");
+        return exported.status === "ready"
+          ? exported.file.text.split("\n").find((line) => /^X1 /u.test(line))
+          : undefined;
+      };
+      const sides = () =>
+        Object.fromEntries(
+          createProjectHierarchicalSymbols(controller.project)
+            .find((symbol) => symbol.id === hierarchicalSymbolId("sram6t"))!
+            .pins.map((pin) => [pin.name, pin.direction]),
+        );
+      expect(sides()).toMatchObject({ bl: "west", blb: "east" });
+      expect(callLine()).toBe("X1 VDD VSS bl blb wl0 sram6t");
+      const nets = members();
+
+      const report = await client.applyActions(
+        [
+          {
+            kind: "set-cell-symbol-pins",
+            pins: [
+              { name: "bl", side: "east" },
+              { name: "blb", side: "west" },
+            ],
+          },
+        ],
+        { documentId: "sram6t" },
+      );
+      expect(report.ok, report.message).toBe(true);
+      expect(sides()).toEqual({
+        VDD: "north",
+        VSS: "south",
+        bl: "east",
+        blb: "west",
+        wl: "west",
+      });
+      expect(members()).toEqual(nets);
+      expect(callLine()).toBe("X1 VDD VSS bl blb wl0 sram6t");
+      // The receipt names the caller whose wiring was redrawn, and its Cell.
+      expect(report.projectStructure?.changedDocumentIds).toContain("main");
+      expect(report.changedObjectIds).toContain(id("X1"));
+      // Its stretched wires are drawn around the block, not through it.
+      expect(
+        diagnoseVisualQuality(main(), controller.resolver).map(
+          (finding) => finding.code,
+        ),
+      ).not.toContain("VISUAL_WIRE_THROUGH_SYMBOL");
+    },
+  );
+
+  it(
+    "refuses a Pin the Cell has not, naming the action and the Cell's Pins (#1320)",
+    { timeout: 30_000 },
+    async () => {
+      const { controller, client } = await sramArray();
+      const before = structuredClone(controller.project.documents);
+      const report = await client.applyActions(
+        [
+          {
+            kind: "set-cell-symbol-pins",
+            pins: [{ name: "bll", side: "west" }],
+          },
+        ],
+        { documentId: "sram6t" },
+      );
+      expect(report).toMatchObject({
+        ok: false,
+        actionIndex: 0,
+        actionKind: "set-cell-symbol-pins",
+        message:
+          'actions[0] (set-cell-symbol-pins): sram6t has no Pin "bll"; its Pins: VDD, VSS, bl, blb, wl. Nothing was changed.',
+      });
+      expect(controller.project.documents).toEqual(before);
+    },
+  );
 
   it("leaves the Document alone for a list that changes nothing", async () => {
     const { controller, client, instance } = await editor();

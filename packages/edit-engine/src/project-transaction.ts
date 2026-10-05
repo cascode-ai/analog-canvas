@@ -7,16 +7,19 @@ import {
   flattenRichText,
   plainNameDocument,
   type CircuitProject,
+  type RouteEndpoint,
   type SchematicDocument,
 } from "@icm/model";
 import { routeEnd } from "@icm/model";
 import { resolveReviewedExternalBinding } from "@icm/devices";
+import { resolveEndpointPoint } from "@icm/derived";
 import {
   builtInSymbols,
   createProjectSymbolResolver,
   externalSubcircuitSymbolId,
   hierarchicalSymbolId,
   resolvePdkSymbolMappingForTerminalOrder,
+  type SymbolResolver,
 } from "@icm/symbols";
 import { z } from "zod";
 
@@ -30,6 +33,7 @@ import { executeTransaction } from "./transaction.js";
 import { planInstanceSymbolGeometryRouteFollow } from "./transaction-route-follow.js";
 import { redrawStretchedRoutesClear } from "./pin-change-route-clearance.js";
 import type {
+  AppliedTransaction,
   EditDiagnostic,
   EditTransactionResult,
 } from "./transaction-result.js";
@@ -325,6 +329,45 @@ function introducedExternalCallerFailure(
     externalCallerValidationFailures(before).map((failure) => failure.key),
   );
   return failures.find((failure) => !existing.has(failure.key)) ?? null;
+}
+
+/**
+ * A caller's wiring follow, naming beside its wires each caller with a wire
+ * on a pin that moved (#1320). The pins moved with the Cell's symbol, though
+ * the Instance itself is unchanged, so a receipt that listed only the wires
+ * left out which blocks they belong to.
+ */
+function withRedrawnCallers(
+  result: AppliedTransaction,
+  before: { document: SchematicDocument; resolver: SymbolResolver },
+  resolver: SymbolResolver,
+  callerIds: ReadonlySet<string>,
+): AppliedTransaction {
+  const changed = new Set(result.diff.changedObjectIds);
+  const moved = (end: RouteEndpoint) => {
+    const from = resolveEndpointPoint(before.document, before.resolver, end);
+    const to = resolveEndpointPoint(result.document, resolver, end);
+    return !from || !to || from.x !== to.x || from.y !== to.y;
+  };
+  const callers = result.document.routes.flatMap((route) =>
+    changed.has(route.id)
+      ? [route.start, routeEnd(route)].flatMap((end) =>
+          end.kind === "terminal" && callerIds.has(end.instanceId) && moved(end)
+            ? [end.instanceId]
+            : [],
+        )
+      : [],
+  );
+  if (!callers.length) return result;
+  return {
+    ...result,
+    diff: {
+      ...result.diff,
+      changedObjectIds: [
+        ...new Set([...result.diff.changedObjectIds, ...callers]),
+      ].sort(),
+    },
+  };
 }
 
 /**
@@ -825,7 +868,16 @@ export function executeProjectTransaction(
         ),
       );
       const routeResult = follow(routeEdits);
-      documentResults.push(routeResult);
+      documentResults.push(
+        routeResult.ok
+          ? withRedrawnCallers(
+              routeResult,
+              { document: originalParent, resolver: originalResolver },
+              resolver,
+              callerIds,
+            )
+          : routeResult,
+      );
       if (!routeResult.ok) {
         return rejectProjectTransaction(
           project,

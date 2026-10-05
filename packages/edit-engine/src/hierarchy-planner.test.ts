@@ -7,6 +7,7 @@ import type { Annotation, RichTextDocument } from "@icm/model";
 import {
   createHierarchicalBlockSymbol,
   createProjectHierarchicalSymbols,
+  hierarchicalSymbolId,
 } from "@icm/symbols";
 
 import {
@@ -20,11 +21,15 @@ import {
   planReorderCellPort,
   planReorderCellTerminal,
   planRenameCellTerminal,
+  planSetCellSymbolPins,
   planSetDeviceModelTarget,
   planSetVddConnectionMode,
   planUpdateCellPortDirection,
 } from "./hierarchy-planner.js";
-import { executeProjectTransaction } from "./project-transaction.js";
+import {
+  executeProjectTransaction,
+  type ProjectStructureEdit,
+} from "./project-transaction.js";
 
 describe("a Var Cap is a generic tunable capacitor (#1298)", () => {
   function varCapProject() {
@@ -1804,5 +1809,200 @@ describe("reviewed external MOS model targets", () => {
       expect(
         result.project.documents[0]!.instances.map((i) => i.reference),
       ).toEqual(["M1", "XM1"]);
+  });
+});
+
+describe("arranging a Cell's block Pins by name (#1320)", () => {
+  type Project = ReturnType<typeof createEmptyProject>;
+  function commit(project: Project, edits: readonly ProjectStructureEdit[]) {
+    const result = executeProjectTransaction(project, {
+      transactionId: "edit",
+      projectId: project.id,
+      expectedStructureRevision: project.structureRevision,
+      actor: { kind: "agent", id: "test" },
+      edits,
+    });
+    if (!result.ok) throw new Error(result.error.message);
+    return result.project;
+  }
+  /**
+   * An SRAM cell drawn as a textbook draws it: bl and wl on the left, blb on
+   * the right, VDD above and VSS below. Unplaced, its block shows VDD north
+   * 0, VSS south 0, bl west -10, wl west 10 and blb east 0 (#1319).
+   */
+  function sram(): Project {
+    const empty = createEmptyProject("project", "Array");
+    let project: Project = {
+      ...empty,
+      documents: [...empty.documents, createEmptyDocument("sram6t", "sram6t")],
+    };
+    for (const [id, symbolId, name, x, y] of [
+      ["P-VDD", "vdd-port", "VDD", 100, 0],
+      ["P-VSS", "port", "VSS", 100, 300],
+      ["P-bl", "port", "bl", 0, 100],
+      ["P-blb", "port", "blb", 200, 100],
+      ["P-wl", "port", "wl", 0, 200],
+    ] as const)
+      project = commit(
+        project,
+        planCreateCellPin(project, "sram6t", {
+          instance: {
+            id,
+            symbolId,
+            placement: { position: { x, y }, rotation: 0, mirror: "none" },
+          },
+          connectionEdits: [
+            {
+              kind: "connect_endpoints",
+              from: { kind: "terminal", instanceId: id, pinName: "P" },
+              to: { kind: "terminal", instanceId: id, pinName: "P" },
+              newNetId: `net-${name}`,
+            },
+          ],
+          terminal: {
+            id: `terminal-${name}`,
+            name,
+            netId: `net-${name}`,
+            direction: "inout",
+            interfaceInstanceIds: [id],
+          },
+        }),
+      );
+    return project;
+  }
+  function placed(): Project {
+    const project = sram();
+    return commit(
+      project,
+      planPlaceCellInstance(
+        project,
+        project.topDocumentId,
+        createHierarchyInstance("X1", project.documents[1]!, {
+          position: { x: 400, y: 400 },
+          rotation: 0,
+          mirror: "none",
+        }),
+      ),
+    );
+  }
+  /** The block's Pins by name: the side each faces and its offset. */
+  const block = (project: Project) =>
+    Object.fromEntries(
+      createProjectHierarchicalSymbols(project)
+        .find((symbol) => symbol.id === hierarchicalSymbolId("sram6t"))!
+        .pins.map((pin) => [
+          pin.name,
+          `${pin.direction} ${
+            pin.direction === "west" || pin.direction === "east"
+              ? pin.at.y
+              : pin.at.x
+          }`,
+        ]),
+    );
+  const pins = (
+    project: Project,
+    request: Parameters<typeof planSetCellSymbolPins>[2],
+  ) => planSetCellSymbolPins(project, "sram6t", request);
+
+  it("swaps two Pins' sides on a placed Cell and leaves the rest where they stood", () => {
+    const project = placed();
+    expect(block(project)).toEqual({
+      VDD: "north 0",
+      VSS: "south 0",
+      bl: "west -10",
+      blb: "east 0",
+      wl: "west 10",
+    });
+    const swapped = commit(
+      project,
+      pins(project, [
+        { name: "bl", side: "east", offset: 0 },
+        { name: "blb", side: "west", offset: -10 },
+      ]),
+    );
+    expect(block(swapped)).toEqual({
+      VDD: "north 0",
+      VSS: "south 0",
+      bl: "east 0",
+      blb: "west -10",
+      wl: "west 10",
+    });
+    // Every Pin is stored, so no later rule moves the ones not named.
+    expect(
+      swapped.documents[1]!.presentation.cellSymbol!.pinPlacements,
+    ).toHaveLength(5);
+  });
+
+  it("gives a Pin with no offset the first free slot on its new side, and keeps one that stays on its side", () => {
+    // Unplaced, the layout its first placement would store is kept.
+    const project = sram();
+    // The east side is empty, so bl takes 0. West 0 lies half a row from
+    // wl at 10, so blb takes -20, a full row from it; wl stays.
+    expect(
+      block(
+        commit(
+          project,
+          pins(project, [
+            { name: "bl", side: "east" },
+            { name: "blb", side: "west" },
+            { name: "wl", side: "west" },
+          ]),
+        ),
+      ),
+    ).toEqual({
+      VDD: "north 0",
+      VSS: "south 0",
+      bl: "east 0",
+      blb: "west -20",
+      wl: "west 10",
+    });
+    // An offset given takes its slot before the free ones are handed out.
+    expect(
+      block(
+        commit(
+          project,
+          pins(project, [
+            { name: "bl", side: "east" },
+            { name: "wl", side: "east", offset: -20 },
+          ]),
+        ),
+      ),
+    ).toMatchObject({ blb: "east 0", wl: "east -20", bl: "east 20" });
+    // Naming Pins where they already stand changes nothing.
+    expect(
+      pins(project, [
+        { name: "bl", side: "west" },
+        { name: "BLB", side: "east" },
+      ]),
+    ).toEqual([]);
+  });
+
+  it("refuses an unknown name, a shared slot, a Pin named twice and an offset off the grid", () => {
+    const project = placed();
+    expect(() => pins(project, [{ name: "bll", side: "west" }])).toThrow(
+      'sram6t has no Pin "bll"; its Pins: VDD, VSS, bl, blb, wl. Nothing was changed.',
+    );
+    expect(() =>
+      pins(project, [{ name: "blb", side: "west", offset: 10 }]),
+    ).toThrow(
+      "blb and wl would stand on one slot, west 10. Free on west, in the order a Pin with no offset takes them: -40, 40, -60, 60. Nothing was changed.",
+    );
+    expect(() =>
+      pins(project, [
+        { name: "bl", side: "east", offset: 20 },
+        { name: "wl", side: "east", offset: 20 },
+      ]),
+    ).toThrow(
+      "wl and bl would stand on one slot, east 20. Free on east, in the order a Pin with no offset takes them: -20, -40, 40, -60. Nothing was changed.",
+    );
+    expect(() =>
+      pins(project, [
+        { name: "bl", side: "east" },
+        { name: "BL", side: "west" },
+      ]),
+    ).toThrow("Pin bl is named twice. Nothing was changed.");
+    expect(() =>
+      pins(project, [{ name: "bl", side: "east", offset: 15 }]),
+    ).toThrow("bl's offset 15 is not a multiple of 10. Nothing was changed.");
   });
 });

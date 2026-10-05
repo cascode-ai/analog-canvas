@@ -19,7 +19,7 @@ export const agentToolHelp = {
   circuit_wire:
     "Connect/disconnect in an atomic batch; via gives interior points, all passed through (in either listed order) or refused. Explicit instance IDs avoid a full-Snapshot name lookup; server routing/validation is unchanged. Artwork contact is not connectivity.",
   circuit_transform:
-    "Move/rotate/mirror individual targets, set an absolute orientation (set-orientation), arrange or detach-move instances, or extend a Power Rail. mirror axis reflects a part in place as the selection transform does (y left-right, x top-bottom); mirror's older absolute state is still accepted. Preserves original planner boundaries and topology semantics; actions that cannot share one transaction are sent as consecutive calls and reported under split.",
+    "Move/rotate/mirror individual targets, set an absolute orientation (set-orientation), arrange or detach-move instances, extend a Power Rail, or arrange the call's Cell's block Pins by name (set-cell-symbol-pins: Pins not named stay; callers keep their Nets, their wiring is redrawn). mirror axis reflects a part in place as the selection transform does (y left-right, x top-bottom); mirror's older absolute state is still accepted. Preserves original planner boundaries and topology semantics; actions that cannot share one transaction are sent as consecutive calls and reported under split.",
   circuit_selection:
     "Translate/rotate/mirror/copy/align a selection. Uses original selection IDs, topology rules and atomic planner. For individual targets use circuit_transform; for mixed families use apply_actions.",
   circuit_text:
