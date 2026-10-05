@@ -1,4 +1,8 @@
-import { createEmptyDocument, type SchematicDocument } from "@icm/model";
+import {
+  createEmptyDocument,
+  createRoutePath,
+  type SchematicDocument,
+} from "@icm/model";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 import {
   deriveNetConnectivityContext,
@@ -576,6 +580,76 @@ describe("an Agent wire from a MOS body on its Cell's default", () => {
       ]);
     },
   );
+
+  it("still joins the pin it was asked to when the other end's wire runs along the last leg", () => {
+    // R1's Net has a wire standing at x = 100 where the wire to R2 comes
+    // up into R2's lower pin. Ending on that wire would leave R2 unjoined.
+    const document = createEmptyDocument("other-net", "Other end's wire");
+    for (const [id, y] of [
+      ["R1", 80],
+      ["R2", 0],
+    ] as const)
+      document.instances.push({
+        id,
+        symbolId: "resistor",
+        placement: {
+          position: { x: id === "R1" ? 0 : 100, y },
+          rotation: 0,
+          mirror: "none",
+        },
+      });
+    document.nets.push({
+      id: "a",
+      terminals: [{ instanceId: "R1", pinName: "1" }],
+    });
+    document.junctions.push(
+      { id: "a-top", netId: "a", position: { x: 100, y: 30 } },
+      { id: "a-bottom", netId: "a", position: { x: 100, y: 90 } },
+    );
+    document.routes.push(
+      createRoutePath({
+        id: "a-wire",
+        netId: "a",
+        start: { kind: "junction", junctionId: "a-top" },
+        end: { kind: "junction", junctionId: "a-bottom" },
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+    const h = history(document);
+    const terminal = (instanceId: string, pinName: string) => ({
+      kind: "endpoint" as const,
+      endpoint: { kind: "terminal" as const, instanceId, pinName },
+    });
+    const plan = planWireBatch(
+      h.document,
+      resolver,
+      [
+        wire("join", terminal("R1", "1"), terminal("R2", "2"), [
+          { x: 100, y: 60 },
+        ]),
+      ],
+      512,
+      { keepClear: true },
+    );
+    if (typeof plan === "string") throw new Error(plan);
+    const result = h.transact({
+      transactionId: "join",
+      documentId: h.document.id,
+      expectedRevision: h.document.revision,
+      actor: { kind: "agent", id: "test" },
+      edits: plan.edits,
+    });
+    expect(result.ok, JSON.stringify(result)).toBe(true);
+    const netOf = (instanceId: string, pinName: string) =>
+      h.document.nets.find((net) =>
+        net.terminals.some(
+          (t) => t.instanceId === instanceId && t.pinName === pinName,
+        ),
+      )?.id;
+    expect(netOf("R2", "2")).toBeDefined();
+    expect(netOf("R2", "2")).toBe(netOf("R1", "1"));
+  });
 
   it("taps the source's output wire instead of running along it (#1337)", () => {
     // A source follower whose output leaves the source to the right: the
