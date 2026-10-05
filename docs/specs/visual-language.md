@@ -146,7 +146,9 @@ bounds.
 
 Derived visual diagnostics cover unplaced or unresolved symbols, symbol and
 label overlap (free drawing text over a label included, measured by the ink
-its words draw; polarity marks are left out), Routes through symbols,
+its words draw; polarity marks are left out), labels and free text struck
+through by a wire (text over a part's outline is not reported: notes inside
+a block are drawn there on purpose), Routes through symbols,
 collinear same-Net Route overlap, a
 Route leaving a pin backward or leaving a one-pin symbol from the side where no
 other wire meets it, terminals resting on another Net's Route, short route

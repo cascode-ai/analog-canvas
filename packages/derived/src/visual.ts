@@ -1,5 +1,5 @@
 import { registerDocumentCache } from "./document-caches.js";
-import { flattenRichText, routeEnd, transformPoint } from "@icm/model";
+import { routeEnd, transformPoint } from "@icm/model";
 import type { Point, Rect, RouteEndpoint, SchematicDocument } from "@icm/model";
 import {
   resolveAdaptiveSignalFlowBlockLayout,
@@ -31,7 +31,10 @@ import {
   isSchematicAnnotationVisible,
   resolveAnnotationPresentation,
 } from "./annotation-presentation.js";
-import { resolveDraftingTextInkBounds } from "./drafting-geometry.js";
+import {
+  drawnFreeTexts,
+  resolveDraftingTextInkBounds,
+} from "./drafting-geometry.js";
 import { pointOnSegment } from "./segment-geometry.js";
 import type { ResolvedDocumentLogicalNets } from "./logical-net.js";
 import {
@@ -928,15 +931,8 @@ export function diagnoseVisualQuality(
     });
   }
   // Free drawing text over a label reads as one smudge with it, as two
-  // labels do: a φ2 note written on a switch's name (#1323). Polarity marks
-  // stand at terminals on purpose and are left out.
-  for (const object of document.drafting?.objects ?? []) {
-    if (
-      object.kind !== "text" ||
-      object.polarity ||
-      !flattenRichText(object.content).trim()
-    )
-      continue;
+  // labels do: a φ2 note written on a switch's name (#1323).
+  for (const object of drawnFreeTexts(document)) {
     const ink = resolveDraftingTextInkBounds(
       document,
       resolver,

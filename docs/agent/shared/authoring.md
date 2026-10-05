@@ -234,7 +234,8 @@ label on that stub; Nets of one name in a Cell are one Net. A name that is not
 clear halfway along the stub stands at its open end, reading outward from a
 horizontal stub and beside a vertical one. A label on a longer wire that is not
 clear where the pin target puts it, such as where another Net's wire crosses,
-slides along the wire to the nearest clear spot. Where nothing is clear, the
+slides along that straight run of the wire to the nearest clear spot. Where
+nothing is clear, the
 label stays and `VISUAL_LABEL_CLEARANCE` says so, so move the parts apart. A
 wire whose last leg into a pin, or first leg out of one, would run along a
 wire of its own Net there ends where it meets that wire, with a dot: to tie a

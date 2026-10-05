@@ -8,7 +8,7 @@ import type { SchematicDocument } from "@icm/model";
 import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 
-import { planPinChangeRouteClearance } from "./pin-change-route-clearance.js";
+import { planPinChangeRouteClearance } from "./stretched-route-clearance.js";
 import type { SchematicEdit } from "./edit-schema.js";
 import { executeTransaction } from "./transaction.js";
 

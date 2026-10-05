@@ -1,4 +1,4 @@
-import { flattenRichText, transformPoint } from "@icm/model";
+import { transformPoint } from "@icm/model";
 import type { Annotation, Point, Rect, SchematicDocument } from "@icm/model";
 import { resolveInstanceSymbol, type SymbolResolver } from "@icm/symbols";
 import {
@@ -12,6 +12,7 @@ import {
 } from "./contact.js";
 import { instanceLabelInkBounds } from "./instance-label-placement.js";
 import {
+  drawnFreeTexts,
   resolveDraftingObjectGeometry,
   resolveDraftingTextInkBounds,
 } from "./drafting-geometry.js";
@@ -239,6 +240,8 @@ export function createLabelClearanceContext(
   };
   return {
     visible,
+    /** The Document's wire geometry this context measured against. */
+    routing,
     symbols,
     measure,
     conflicts: (annotation: Annotation) =>
@@ -271,12 +274,7 @@ export function diagnoseLabelClearance(
   document: SchematicDocument,
   resolver: SymbolResolver,
 ): VisualDiagnostic[] {
-  const notes = (document.drafting?.objects ?? []).filter(
-    (object) =>
-      object.kind === "text" &&
-      !object.polarity &&
-      flattenRichText(object.content).trim() !== "",
-  );
+  const notes = drawnFreeTexts(document);
   if (!document.annotations.some((a) => a.visible !== false) && !notes.length)
     return [];
   const context = createLabelClearanceContext(document, resolver);
@@ -288,14 +286,12 @@ export function diagnoseLabelClearance(
   // Free drawing text struck through by a wire, as a label is (#1323). Text
   // over a part's bounds is left alone: notes inside a block's outline and
   // marks beside a terminal are drawn there on purpose.
-  const routing = resolveDocumentRoutingGeometry(document, resolver);
   const struck = notes.flatMap((object): VisualDiagnostic[] => {
-    if (object.kind !== "text") return [];
     const ink = resolveDraftingTextInkBounds(
       document,
       resolver,
       object,
-      routing,
+      context.routing,
     );
     const wires = context.wiresAt(ink);
     return wires.length

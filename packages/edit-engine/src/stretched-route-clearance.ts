@@ -89,9 +89,13 @@ export function redrawStretchedRoutesClear(
 ): SchematicEdit[] {
   const judged = drawn ?? preview;
   const joins = drawn ? pinGroups : membership;
-  let result = preview([]);
   let working = judged([]);
-  if (!result || !working) return [];
+  if (!working) return [];
+  // What the change alone leaves, previewed only once a redraw has to be
+  // compared with it: most moves stretch no wire onto anything.
+  let result: SchematicDocument | null | undefined = drawn
+    ? undefined
+    : working;
   const extra: SchematicEdit[] = [];
   // Wires still to be looked at are no obstacles yet: two pins that traded
   // places each sit on the other's stretched wire, and neither could leave.
@@ -183,7 +187,8 @@ export function redrawStretchedRoutesClear(
     const next = preview([...extra, edit]);
     // A redraw changes where a wire runs, never what it joins: one that
     // brought a wire onto another Net's open end would merge the two.
-    if (!next || joins(next) !== joins(result)) continue;
+    if (result === undefined) result = preview([]);
+    if (!next || !result || joins(next) !== joins(result)) continue;
     const nextDrawn = judged([...extra, edit]);
     if (!nextDrawn) continue;
     extra.push(edit);
@@ -212,6 +217,29 @@ function projectDrawnGeometry(
         edit.kind === "remove_route_geometry",
     ),
   );
+}
+
+/** The Document `edits` and then `extra` leave, or null when it is refused. */
+function previewEdits(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  edits: readonly SchematicEdit[],
+  transactionId: string,
+): (extra: readonly SchematicEdit[]) => SchematicDocument | null {
+  return (extra) => {
+    const result = executeTransaction(
+      document,
+      {
+        transactionId,
+        documentId: document.id,
+        expectedRevision: document.revision,
+        actor: { kind: "human", id: transactionId },
+        edits: [...edits, ...extra],
+      },
+      { symbolResolver: resolver },
+    );
+    return result.ok ? result.document : null;
+  };
 }
 
 /**
@@ -245,20 +273,7 @@ export function planMoveRouteClearance(
     { document, resolver },
     resolver,
     routeIds,
-    (extra) => {
-      const result = executeTransaction(
-        document,
-        {
-          transactionId: "move-route-clearance",
-          documentId: document.id,
-          expectedRevision: document.revision,
-          actor: { kind: "human", id: "move-route-clearance" },
-          edits: [...edits, ...extra],
-        },
-        { symbolResolver: resolver },
-      );
-      return result.ok ? result.document : null;
-    },
+    previewEdits(document, resolver, edits, "move-route-clearance"),
     // Judged as stretched: the comparator's IN− wire, slid down along the
     // resistor under its tap, merged there with the resistor's own wire, and
     // what was left ran from the resistor's lower pin.
@@ -310,19 +325,6 @@ export function planPinChangeRouteClearance(
     { document, resolver },
     resolver,
     routeIds,
-    (extra) => {
-      const result = executeTransaction(
-        document,
-        {
-          transactionId: "pin-change-route-clearance",
-          documentId: document.id,
-          expectedRevision: document.revision,
-          actor: { kind: "human", id: "pin-change-route-clearance" },
-          edits: [...edits, ...extra],
-        },
-        { symbolResolver: resolver },
-      );
-      return result.ok ? result.document : null;
-    },
+    previewEdits(document, resolver, edits, "pin-change-route-clearance"),
   );
 }

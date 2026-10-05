@@ -399,10 +399,11 @@ export function arrangeInstanceLabels(
               !context.dotsAt(b).length &&
               !cutOff(b) &&
               !strayed(b) &&
-              !mistaken(b, arrangement[index]!, [
-                ...fixed.map(box),
-                ...moved.filter((_, other) => other !== index),
-              ]),
+              !mistaken(
+                b,
+                arrangement[index]!,
+                moved.filter((_, other) => other !== index),
+              ),
           ) && !between(moved)
         );
       };

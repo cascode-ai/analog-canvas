@@ -31,7 +31,7 @@ import {
 } from "./edit-schema.js";
 import { executeTransaction } from "./transaction.js";
 import { planInstanceSymbolGeometryRouteFollow } from "./transaction-route-follow.js";
-import { redrawStretchedRoutesClear } from "./pin-change-route-clearance.js";
+import { redrawStretchedRoutesClear } from "./stretched-route-clearance.js";
 import type {
   AppliedTransaction,
   EditDiagnostic,

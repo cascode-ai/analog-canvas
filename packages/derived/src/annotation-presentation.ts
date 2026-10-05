@@ -11,7 +11,7 @@ import type { SymbolResolver } from "@icm/symbols";
 
 import { resolveVisualAnchor, type ResolvedAnchor } from "./anchor.js";
 import { resolveAnnotationText } from "./annotation-text.js";
-import { LABEL_CAP_HEIGHT_EM } from "./instance-label-placement.js";
+import { labelInkDescentEm, uprightTextInkBounds } from "./text-ink.js";
 import {
   resolveDocumentRoutingGeometry,
   type ResolvedDocumentRoutingGeometry,
@@ -98,34 +98,7 @@ export function isSchematicAnnotationVisible(
   );
 }
 
-/** Descent of g, j, p, q and y below the baseline, in em of the label font. */
-const DESCENDER_EM = 0.24;
-
-/**
- * How far a label's ink reaches below its baseline, in em of its font: a
- * subscript's or a fraction's figures, a descender (g, p, y), or nothing.
- */
-export function labelInkDescentEm(
-  content: RichTextDocument,
-  typography: SchematicStyleProfile["typography"],
-): number {
-  let subscript = false;
-  let descender = false;
-  const visit = (runs: RichTextDocument["runs"]): void => {
-    for (const run of runs) {
-      if (run.kind === "text") {
-        if (/[gjpqy]/u.test(run.value)) descender = true;
-      } else if (run.kind === "span") {
-        if (run.style === "subscript") subscript = true;
-        visit(run.children);
-      } else if (run.kind === "fraction") subscript = true;
-    }
-  };
-  visit(content.runs);
-  if (subscript)
-    return typography.subscriptScale * typography.subscriptBaselineShiftEm;
-  return descender ? DESCENDER_EM : 0;
-}
+export { labelInkDescentEm };
 
 export function resolveAnnotationPresentation(
   document: SchematicDocument,
@@ -202,7 +175,6 @@ export function resolveAnnotationPresentation(
           anchor.position,
           annotation.rotation,
         );
-  const capHeight = fontSize * LABEL_CAP_HEIGHT_EM;
   // A Net Label stands as close over its wire as its own text allows
   // (#1300), so its ink reaches only as low as that text does. A part's
   // labels keep the subscript row their placement rules reserve.
@@ -213,16 +185,15 @@ export function resolveAnnotationPresentation(
         styleProfile.typography.subscriptBaselineShiftEm;
   const unrotatedInk = formula
     ? unrotatedBounds
-    : {
-        x: left,
-        y: anchor.position.y - capHeight - fractionExtraAscent,
+    : uprightTextInkBounds({
+        left,
         width,
-        height:
-          capHeight +
-          fractionExtraAscent +
-          fontSize * descentEm +
-          Math.max(0, textLayout.height - fontSize * 1.35),
-      };
+        baseline: anchor.position.y,
+        fontSize,
+        fractionAscent: fractionExtraAscent,
+        descentEm,
+        layoutHeight: textLayout.height,
+      });
   return {
     anchor,
     position: anchor.position,

@@ -464,6 +464,22 @@ it("reports free text struck through by a wire or drawn over a label (#1323)", (
       (d) => d.code === "VISUAL_LABEL_OVERLAP",
     ),
   ).toEqual([]);
+
+  // Over a part's outline, as a note inside a block is drawn on purpose.
+  doc.annotations = [];
+  doc.instances.push({
+    id: "r",
+    symbolId: "resistor",
+    placement: { position: { x: 300, y: 40 }, rotation: 0, mirror: "none" },
+  });
+  doc.drafting!.objects = [note("inside", 296, 44)];
+  doc.revision += 1;
+  expect(diagnoseLabelClearance(doc, resolver)).toEqual([]);
+  expect(
+    diagnoseVisualQuality(doc, resolver).filter(
+      (d) => d.code === "VISUAL_LABEL_OVERLAP",
+    ),
+  ).toEqual([]);
 });
 
 it("keeps a label off an adder's sign marks, which are its ink (#1324)", () => {
