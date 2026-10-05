@@ -25,6 +25,7 @@ import {
   projectCellSymbolTerminals,
 } from "@icm/symbols";
 
+import { arrangeNewlyStruckLabels } from "../features/instance-display/struck-label-arrangement";
 import {
   replaceProjectDocument,
   resolveActiveDocument,
@@ -276,7 +277,11 @@ export class EditorDocumentController {
     activeDocumentId = this.activeDocumentIdValue,
     historyDocumentId = activeDocumentId,
   ): ProjectTransactionResult {
-    const result = executeProjectTransaction(this.projectValue, request);
+    // A caller's labels its Cell's changed Pins newly strike with redrawn
+    // wires move clear (#1366).
+    const result = executeProjectTransaction(this.projectValue, request, {
+      arrangeStruckLabels: arrangeNewlyStruckLabels,
+    });
     if (result.ok && result.applied)
       this.commitProjectStructure(
         result.project,

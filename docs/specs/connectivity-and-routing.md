@@ -183,7 +183,15 @@ Undo restores the whole committed document, including the derived membership.
   part or over another Net's pin or wire, along the path the Agent's
   `connect` takes, keeping its ends, Net and style; a wire with no clear
   path keeps the stretch. A drag keeps the stretch as dragged, since the
-  person dragging sees it (#1344).
+  person dragging sees it (#1344). The path keeps clear of parts, pins and
+  other Nets, not of labels: labels move, and wires are the drawing's
+  structure. So a part whose label was clear before the change and is drawn
+  over by a wire after it has its labels arranged as `arrange-labels` places
+  them, in the same transaction and undo (#1366). This holds for a typed
+  move or turn, an Agent's `arrange`, a pin change in Properties, and a
+  caller whose wires follow its Cell's changed Pins. Only labels still in a
+  default slot move, a placed Cell's name under its block included; a label
+  already drawn over before the change stays.
 - Placement and an explicitly snapped instance move use the same engine contact
   planner. Every moved visible pin is checked against the final transformed
   geometry; multiple Net joins are folded before Route splits are compiled.

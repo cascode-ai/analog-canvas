@@ -336,8 +336,10 @@ To arrange the Pins on a Cell's block, address the Cell (the call's
 `{kind:"set-cell-symbol-pins",pins:[{name:"bl",side:"east"},{name:"blb",side:"west",offset:0}]}`.
 Pins not named keep their place, a named Pin without `offset` takes the first
 free slot on a new side, and callers keep their Nets while the wiring the
-change stretches is redrawn; an unknown name or a shared slot is refused with
-the names or free slots. Other Cell interface/symbol edits use
+change stretches is redrawn; a caller's label the redrawn wiring newly runs
+through, such as the Cell's name under its block, moves clear as
+`arrange-labels` would place it. An unknown name or a shared slot is refused
+with the names or free slots. Other Cell interface/symbol edits use
 `structureEdits` with a nested `transact_document`, not top-level `edits`,
 such as the low-level `set_cell_symbol_presentation`, which takes the whole
 `pinPlacements` list by terminal ID; the per-kind contract supplies that

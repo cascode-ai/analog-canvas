@@ -102,6 +102,7 @@ import {
 import { instanceDisplayEdits } from "../features/instance-display/instance-display-edits";
 import { planDisplayAlias } from "../features/properties/group-naming";
 import { arrangeInstanceLabels } from "../features/instance-display/arrange-instance-labels";
+import { withStruckLabelsArranged } from "../features/instance-display/struck-label-arrangement";
 import { netLabelAtClearSpot } from "./net-label-clear-spot";
 import { instanceParameterVisibilityEdits } from "../features/instance-display/instance-parameter-display";
 import {
@@ -347,9 +348,10 @@ export function planBrowserAgentCommand(
         },
       ];
       // Lined up by coordinates, as a typed move is: its stretched wires are
-      // drawn clear of what they would cross (#1344).
+      // drawn clear of what they would cross (#1344), and labels they newly
+      // strike move clear (#1366).
       return {
-        edits: [
+        edits: withStruckLabelsArranged(document, resolver, [
           ...edits,
           ...planMoveRouteClearance(
             document,
@@ -357,7 +359,7 @@ export function planBrowserAgentCommand(
             command.instanceIds,
             edits,
           ),
-        ],
+        ]),
       };
     }
     case "disconnect-pin": {

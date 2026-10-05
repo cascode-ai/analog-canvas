@@ -236,7 +236,12 @@ Batch operations are explicit and distinct:
 - Agent **arrange-labels** operates on requested Instances, eligible visible
   unrotated/unlocked labels, and still-default positions/styles. It tries
   bounded nearby positions to reduce collisions; it does not reset every
-  label. A part's Reference and value move together: their default side,
+  label. A placed Cell's name under its block counts as the part's name,
+  or as its value beside a shown Reference, and moves as one; its text is
+  the Cell's and is never restyled (#1366). The same arrangement runs on
+  its own for the parts whose labels a typed move, an arrange, a pin change
+  or a Cell's changed Pins newly draw a wire over ([connectivity and
+  routing](connectivity-and-routing.md)). A part's Reference and value move together: their default side,
   then the part's other sides, then the same rows slid along each side to
   the clear place nearest where they stood, while at least half of the
   group stays beside the part. A place is clear when the labels meet no

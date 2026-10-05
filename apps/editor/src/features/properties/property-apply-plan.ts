@@ -24,6 +24,7 @@ import { snapCoordinate } from "../../snap/engine";
 import { instanceLabelAnnotationFor } from "../instance-display/default-instance-display";
 import { instanceDisplayEdits } from "../instance-display/instance-display-edits";
 import { instanceParameterVisibilityEdits } from "../instance-display/instance-parameter-display";
+import { withStruckLabelsArranged } from "../instance-display/struck-label-arrangement";
 import { instanceValueAnnotation } from "../wiring/route-interaction-geometry";
 import type { ComponentPropertyCodeValue } from "./component-property-code";
 import { planComponentPropertyCodeEdits } from "./component-property-code-edits";
@@ -281,12 +282,16 @@ export function planPropertyApply(
   );
   if (contactMove && !contactMove.ok)
     return { kind: "rejected", message: contactMove.message };
+  // Labels the moved or changed part's wires newly strike move clear (#1366).
   return contactMove
     ? {
         kind: "connectivity",
         intent: contactMove.intent,
-        edits: contactMove.edits,
+        edits: withStruckLabelsArranged(document, resolver, contactMove.edits),
         expectedElectricalEffect: contactMove.expectedElectricalEffect,
       }
-    : { kind: "edits", edits };
+    : {
+        kind: "edits",
+        edits: withStruckLabelsArranged(document, resolver, edits),
+      };
 }
