@@ -179,6 +179,40 @@ the boundary has moved.
 - Report unresolved questions in the commit message or a review note; do not
   leave them only in an untracked working note.
 
+## Diagnosing a Hard Defect
+
+Most defects show their cause in the report and the code: fix them and add
+the test that protects the behavior, as usual. A defect is hard when the
+cause is not evident: it comes and goes, crosses layers, shows only on
+Production or in Gallery drawings, or a first fix did not hold. Work a hard
+one in this order, adapted from the
+[diagnosing-bugs](https://github.com/mattpocock/skills/blob/main/skills/engineering/diagnosing-bugs/SKILL.md)
+skill by Matt Pocock (MIT):
+
+1. **A loop that goes red.** One command, already run, that drives the real
+   code path and fails on the reported symptom: the same verdict every run,
+   in seconds, with no person in it. Here that is a unit test at the seam
+   (`pnpm test:local <file> -t <name>`), a throwaway
+   `apps/editor/e2e/zz-*.spec.ts` on an isolated server, editor-only cases
+   against Production through `ICM_E2E_BASE_URL`, the Gallery census for real
+   drawings, or `git bisect run` between a good and a bad commit. Without a
+   loop, say so, list what was tried, and ask for the drawing, file or steps;
+   do not build a theory from reading code alone.
+2. **Shrink it** until removing anything more makes it pass.
+3. **Rank three to five causes**, each with a prediction that can fail ("if
+   X, then changing Y makes it pass"), and show the list to the user before
+   testing them; carry on if they are away.
+4. **Probe one prediction at a time.** Tag temporary logs `[DEBUG-<id>]` so
+   one search removes them all.
+5. **Lock it at the right seam.** Where a test reproduces the real pattern,
+   with the real editor and Edit Engine and never a hand-written imitation,
+   turn the shrunken loop into that test, watch it fail, fix, watch it pass,
+   and run the original loop again. Where no such seam exists, say so in the
+   commit: that is a finding about the code.
+6. **Close.** Remove the tagged logs and throwaway specs, and state the
+   confirmed cause, with any ruled-out cause worth knowing, in the commit and
+   the pull request.
+
 ## Circuit Asset Rules
 
 - For accepted Symbol geometry or pin-position changes, historical drawing
@@ -251,7 +285,9 @@ Before a non-document change is merged or pushed to `main`:
    - every unit test that imports a changed file (`vitest related`). A leaf
      change runs a few tests and a core package most of the suite, so the
      run neither guesses the touched areas (a guess once missed a stale
-     example test in another package) nor runs the whole suite every time;
+     example test in another package) nor runs the whole suite every time.
+     When the change edits a test file the run is strict, so a `describe`
+     emptied by deleting its last case fails here as it does in the queue;
    - the browser cases the change adds or edits, by `file:line`, with 4
      workers. A change above a spec file's first test, which its tests share,
      runs that file.
@@ -271,8 +307,12 @@ Before a non-document change is merged or pushed to `main`:
    check then fails, repair it and queue again, rather than going back to
    running more locally.
 
-4. Push a review branch, open the pull request and run `gh pr merge <number>`
-   right away. On the pull request itself CI only plans the change scope and
+4. Push a review branch and open the pull request, described by
+   `.github/pull_request_template.md`: why, the shape of the change,
+   before-and-after evidence, and its merge risk. Queue it right away with
+   `gh pr merge <number> --match-head-commit <pushed-sha>`: a queue entry
+   made just after a push once tested the previous head, and the flag
+   refuses that instead. On the pull request itself CI only plans the change scope and
    checks the Test-Impact trailers; its two required checks are skipped, which
    GitHub counts as passing. The merge queue then runs them once, on the
    candidate merged with current `main`, and squash-merges it when both pass.

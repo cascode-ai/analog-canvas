@@ -10,17 +10,6 @@ import {
   sceneSnapTargetsExcluding,
 } from "./candidates";
 
-function expectPointsCloseTo(
-  actual: Array<{ x: number; y: number }>,
-  expected: Array<{ x: number; y: number }>,
-): void {
-  expect(actual).toHaveLength(expected.length);
-  actual.forEach((point, index) => {
-    expect(point.x).toBeCloseTo(expected[index]!.x);
-    expect(point.y).toBeCloseTo(expected[index]!.y);
-  });
-}
-
 describe("snap candidate builder", () => {
   it("projects to arbitrary rectangle edges without adding visible anchors", () => {
     const document = createEmptyDocument("doc", "Snap");
@@ -130,97 +119,86 @@ describe("snap candidate builder", () => {
     );
   });
 
-  it("builds the requested fractional Wire anchors on every rectangle edge", () => {
+  function rectangleAnchors(
+    rectangle: { width: number; height: number; rotation?: number },
+    center = { x: 100, y: 100 },
+  ) {
     const document = createEmptyDocument("doc", "Snap");
     document.drafting = {
       objects: [
         {
-          id: "rectangle-1",
+          id: "block",
           kind: "rectangle",
           locked: false,
           zIndex: 0,
-          anchor: { kind: "free", position: { x: 100, y: 100 } },
-          center: { x: 100, y: 100 },
-          width: 40,
-          height: 20,
-          rotation: 0,
+          anchor: { kind: "free", position: center },
+          center,
+          width: rectangle.width,
+          height: rectangle.height,
+          rotation: rectangle.rotation ?? 0,
           lineStyle: "solid",
         },
       ],
     };
-
-    const targets = buildRectangleEdgeSnapAnchors(
+    return buildRectangleEdgeSnapAnchors(
       document,
       new InMemorySymbolResolver(builtInSymbols),
     );
+  }
 
-    expect(targets).toHaveLength(20);
-    expect(targets.map((target) => target.id)).toEqual(
-      [0, 1, 2, 3].flatMap((edge) =>
-        ["quarter", "third", "center", "two-thirds", "three-quarters"].map(
-          (fraction) => `drafting:rectangle-1:edge-${edge}:${fraction}`,
-        ),
-      ),
-    );
-    expectPointsCloseTo(
-      targets.slice(0, 5).map((target) => target.point),
-      [
-        { x: 90, y: 90 },
-        { x: 80 + 40 / 3, y: 90 },
-        { x: 100, y: 90 },
-        { x: 80 + 80 / 3, y: 90 },
-        { x: 110, y: 90 },
-      ],
-    );
-    expectPointsCloseTo(
-      targets.slice(5, 10).map((target) => target.point),
-      [
-        { x: 120, y: 95 },
-        { x: 120, y: 90 + 20 / 3 },
-        { x: 120, y: 100 },
-        { x: 120, y: 90 + 40 / 3 },
-        { x: 120, y: 105 },
-      ],
-    );
-    expect(targets.every((target) => target.kind === "drafting")).toBe(true);
-    expect(targets.every((target) => target.electrical === undefined)).toBe(
+  it("offers a block's wire entries at the grid points nearest its thirds and middle", () => {
+    // 100 wide by 60 tall on the grid of 10: the top edge runs 50..150, so
+    // its thirds at 83.3 and 116.7 land on 80 and 120.
+    const anchors = rectangleAnchors({ width: 100, height: 60 });
+    expect(anchors.map((anchor) => anchor.point)).toEqual([
+      { x: 80, y: 70 },
+      { x: 100, y: 70 },
+      { x: 120, y: 70 },
+      { x: 150, y: 90 },
+      { x: 150, y: 100 },
+      { x: 150, y: 110 },
+      { x: 120, y: 130 },
+      { x: 100, y: 130 },
+      { x: 80, y: 130 },
+      { x: 50, y: 110 },
+      { x: 50, y: 100 },
+      { x: 50, y: 90 },
+    ]);
+    expect(anchors[0]).toEqual({
+      id: "drafting:block:edge-0:third",
+      point: { x: 80, y: 70 },
+      kind: "drafting",
+    });
+    // Geometry only: none of them is an electrical target.
+    expect(anchors.every((anchor) => anchor.electrical === undefined)).toBe(
       true,
     );
   });
 
-  it("derives fractional anchors from rotated rectangle edges", () => {
-    const document = createEmptyDocument("doc", "Snap");
-    document.drafting = {
-      objects: [
-        {
-          id: "rectangle-rotated",
-          kind: "rectangle",
-          locked: false,
-          zIndex: 0,
-          anchor: { kind: "free", position: { x: 100, y: 100 } },
-          center: { x: 100, y: 100 },
-          width: 40,
-          height: 20,
-          rotation: 90,
-          lineStyle: "solid",
-        },
-      ],
-    };
-
-    const targets = buildRectangleEdgeSnapAnchors(
-      document,
-      new InMemorySymbolResolver(builtInSymbols),
+  it("drops entries that round onto each other or a corner, and slanted edges", () => {
+    // A 20-tall edge has one entry, its middle; a 10-tall one has none.
+    expect(
+      rectangleAnchors({ width: 40, height: 20 })
+        .filter((anchor) => anchor.point.x === 120)
+        .map((anchor) => anchor.point.y),
+    ).toEqual([100]);
+    expect(
+      rectangleAnchors({ width: 40, height: 10 }, { x: 100, y: 105 }).filter(
+        (anchor) => anchor.point.x === 120,
+      ),
+    ).toEqual([]);
+    // A quarter turn keeps every edge straight on the grid.
+    expect(
+      rectangleAnchors({ width: 100, height: 60, rotation: 90 }),
+    ).toHaveLength(12);
+    // A slanted edge, or one whose line sits off the grid, takes no wire end.
+    expect(rectangleAnchors({ width: 100, height: 60, rotation: 30 })).toEqual(
+      [],
     );
-
-    expectPointsCloseTo(
-      targets.slice(0, 5).map((target) => target.point),
-      [
-        { x: 110, y: 90 },
-        { x: 110, y: 80 + 40 / 3 },
-        { x: 110, y: 100 },
-        { x: 110, y: 80 + 80 / 3 },
-        { x: 110, y: 110 },
-      ],
-    );
+    expect(
+      rectangleAnchors({ width: 100, height: 60 }, { x: 105, y: 100 }).every(
+        (anchor) => anchor.point.y === 70 || anchor.point.y === 130,
+      ),
+    ).toBe(true);
   });
 });

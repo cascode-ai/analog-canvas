@@ -7,6 +7,7 @@ import {
   changedBrowserCases,
   changedLines,
   formattedPaths,
+  strictUnitRun,
   testStartLines,
   unitSourcePaths,
 } from "./verify-pr-selection.mjs";
@@ -55,6 +56,10 @@ describe("verify:pr selection", () => {
       "apps/editor/src/features/component-insert/use-component-placement.ts",
       "scripts/verify-pr.mjs",
     ]);
+    // A changed test file runs strictly, so a describe its edit emptied
+    // fails here as it would in the merge queue.
+    expect(strictUnitRun(unitSourcePaths(changed))).toBe(true);
+    expect(strictUnitRun(["scripts/verify-pr.mjs"])).toBe(false);
   });
 
   it("names the census for placement and netlist code, not their tests", () => {

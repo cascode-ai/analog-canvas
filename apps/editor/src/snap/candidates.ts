@@ -9,7 +9,7 @@ import { resolveInstanceSymbol, type SymbolResolver } from "@icm/symbols";
 
 import { closestPointOnSegment } from "../canvas/canvas-geometry";
 import { instanceVisibleHitBox } from "../canvas/instance-geometry";
-import type { SnapAnchor, SnapTargetKind } from "./engine";
+import { snapCoordinate, type SnapAnchor, type SnapTargetKind } from "./engine";
 
 function boundsAnchors(prefix: string, bounds: Rect): SnapAnchor[] {
   const center = {
@@ -131,20 +131,33 @@ export function buildDraftingAnchors(
   });
 }
 
+const EDGE_ENTRY_FRACTIONS = [
+  { id: "third", value: 1 / 3 },
+  { id: "center", value: 1 / 2 },
+  { id: "two-thirds", value: 2 / 3 },
+] as const;
+
+/**
+ * Where a wire enters a drafted block: on each horizontal or vertical edge of
+ * a drafting rectangle, the grid points nearest a third, the middle and two
+ * thirds of the way along. A wire end stays on the electrical grid, so a
+ * slanted edge, or one whose own line is off the grid, offers none. On a short
+ * edge the points can round onto each other or onto a corner, which the grid
+ * already reaches; those are dropped. Geometry only: landing here connects
+ * nothing.
+ */
 export function buildRectangleEdgeSnapAnchors(
   document: SchematicDocument,
   resolver: SymbolResolver,
 ): SnapAnchor[] {
-  const fractions = [
-    { id: "quarter", value: 1 / 4 },
-    { id: "third", value: 1 / 3 },
-    { id: "center", value: 1 / 2 },
-    { id: "two-thirds", value: 2 / 3 },
-    { id: "three-quarters", value: 3 / 4 },
-  ] as const;
+  const rectangles = (document.drafting?.objects ?? []).filter(
+    (object) => object.kind === "rectangle",
+  );
+  if (rectangles.length === 0) return [];
+  const grid = document.presentation.grid;
+  const epsilon = 1e-6;
   const routingGeometry = resolveDocumentRoutingGeometry(document, resolver);
-  return (document.drafting?.objects ?? []).flatMap((object) => {
-    if (object.kind !== "rectangle") return [];
+  return rectangles.flatMap((object) => {
     const geometry = resolveDraftingObjectGeometry(
       document,
       resolver,
@@ -154,14 +167,32 @@ export function buildRectangleEdgeSnapAnchors(
     if (geometry.kind !== "rectangle") return [];
     return geometry.corners.flatMap((corner, index): SnapAnchor[] => {
       const next = geometry.corners[(index + 1) % geometry.corners.length]!;
-      return fractions.map(({ id, value }) => ({
-        id: `drafting:${object.id}:edge-${index}:${id}`,
-        point: {
-          x: corner.x + (next.x - corner.x) * value,
-          y: corner.y + (next.y - corner.y) * value,
-        },
-        kind: "drafting",
-      }));
+      const vertical = Math.abs(next.x - corner.x) < epsilon;
+      const horizontal = Math.abs(next.y - corner.y) < epsilon;
+      if (vertical === horizontal) return [];
+      const line = vertical ? corner.x : corner.y;
+      const gridLine = snapCoordinate(line, grid);
+      if (Math.abs(line - gridLine) > epsilon) return [];
+      const from = vertical ? corner.y : corner.x;
+      const to = vertical ? next.y : next.x;
+      const low = Math.min(from, to);
+      const high = Math.max(from, to);
+      const taken = new Set<number>();
+      return EDGE_ENTRY_FRACTIONS.flatMap(({ id, value }): SnapAnchor[] => {
+        const along = snapCoordinate(from + (to - from) * value, grid);
+        if (along <= low + epsilon || along >= high - epsilon) return [];
+        if (taken.has(along)) return [];
+        taken.add(along);
+        return [
+          {
+            id: `drafting:${object.id}:edge-${index}:${id}`,
+            point: vertical
+              ? { x: gridLine, y: along }
+              : { x: along, y: gridLine },
+            kind: "drafting",
+          },
+        ];
+      });
     });
   });
 }
