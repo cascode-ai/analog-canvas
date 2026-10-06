@@ -745,14 +745,24 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
     batch?.items.filter((item) =>
       ["finished", "failed", "cancelled", "lost"].includes(item.state),
     ).length ?? 0;
+  // The folder status is its newest run of any owner. Project runs are kept
+  // in start order; a newer one than the run shown here, such as an Agent's,
+  // sets the status without replacing the shown result.
+  const newestFolderRun = sharedRuns.findLast(
+    (item) => item.presentation.folderId === selectedFolder?.id,
+  );
+  const statusRun =
+    newestFolderRun && newestFolderRun.id !== run?.id
+      ? newestFolderRun
+      : run && { state: run.state, outcome: run.result?.outcome.status };
   const statusLabel = busy
     ? "Preparing…"
     : batch
       ? `Batch ${batch.state} · ${finishedBatchItems}/${batch.items.length}`
-      : run
-        ? run.state === "finished"
-          ? (run.result?.outcome.status ?? run.state)
-          : run.state
+      : statusRun
+        ? statusRun.state === "finished"
+          ? (statusRun.outcome ?? statusRun.state)
+          : statusRun.state
         : prepared
           ? "Deck prepared"
           : "No run yet";
@@ -1275,7 +1285,7 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
         </button>
       )}
       <span
-        className={`simulation-status-chip simulation-status-${batch?.state ?? run?.state ?? (prepared ? "prepared" : "idle")}`}
+        className={`simulation-status-chip simulation-status-${batch?.state ?? statusRun?.state ?? (prepared ? "prepared" : "idle")}`}
         role="status"
       >
         {activeDirty ? "Source changed" : statusLabel}

@@ -67,15 +67,20 @@ export function dividerFolder(
   };
 }
 
-/** The executor's answer for one run, assembled from a captured divider run. */
-async function capturedDividerRun(input: ExecutionInput) {
+/**
+ * The executor's answer for one run, assembled from a captured divider run,
+ * or, `failed`, from VACASK exiting on a source it could not run.
+ */
+async function capturedDividerRun(input: ExecutionInput, failed = false) {
   const output = await assembleNativeExecutionOutput(
     input,
     {
       execution: {
-        stdout: "Running analysis 'divider_op'.\n  Elapsed time: 0.001\n",
-        stderr: "",
-        exitCode: 0,
+        stdout: failed
+          ? ""
+          : "Running analysis 'divider_op'.\n  Elapsed time: 0.001\n",
+        stderr: failed ? "Error: unknown model 'rbad'.\n" : "",
+        exitCode: failed ? 1 : 0,
         signal: null,
         timedOut: false,
         cancelled: false,
@@ -83,7 +88,9 @@ async function capturedDividerRun(input: ExecutionInput) {
         durationMs: 1,
       },
       timeoutMs: 1000,
-      rawfiles: [{ path: "divider_op.raw", text: dividerRawfile }],
+      rawfiles: failed
+        ? []
+        : [{ path: "divider_op.raw", text: dividerRawfile }],
       executedFiles: input.files,
       diagnostics: [],
       truncated: false,
@@ -110,6 +117,12 @@ export class HostedSimulationService {
   private gate: Promise<void> = Promise.resolve();
   private open = () => {};
   private repliesLost = false;
+  private failures = 0;
+
+  /** The next execution fails as VACASK does on a source it cannot run. */
+  failNext(): void {
+    this.failures++;
+  }
 
   /** Executions started from now on wait for release(). */
   hold(): void {
@@ -140,9 +153,14 @@ export class HostedSimulationService {
           return Response.json({ accepted: true });
         this.executions++;
         this.maxActive = Math.max(this.maxActive, ++this.active);
+        const failed = this.failures > 0;
+        if (failed) this.failures--;
         try {
           await gate;
-          return await capturedDividerRun(JSON.parse(String(run?.body)));
+          return await capturedDividerRun(
+            JSON.parse(String(run?.body)),
+            failed,
+          );
         } finally {
           this.active--;
         }

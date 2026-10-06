@@ -2,6 +2,7 @@ import type { CircuitProject } from "@icm/model";
 import { SimulationFiles } from "@icm/simulation-service/files";
 import type { ProjectSimulationFileHost } from "@icm/simulation-service/files";
 import type {
+  Run,
   SimulationOperation,
   SimulationReply,
 } from "@icm/simulation-service/contract";
@@ -149,7 +150,9 @@ export class BrowserSimulationSession {
       const sourceProject =
         (operation.operation === "prepare" ||
           operation.operation === "prepare-batch" ||
-          operation.operation === "prepare-sweep") &&
+          operation.operation === "prepare-sweep" ||
+          (operation.operation === "run" &&
+            operation.source.kind === "project-folder")) &&
         this.options.runHistory
           ? structuredClone(this.options.getProject())
           : undefined;
@@ -160,17 +163,36 @@ export class BrowserSimulationSession {
       const projectFile = sourceProject
         ? unchangedProjectSnapshot(sourceProject, this.options.getProject())
         : "";
-      if (
-        generation === this.generation &&
-        this.options.runHistory &&
-        reply.ok
-      ) {
+      const history = this.options.runHistory;
+      if (generation === this.generation && history && reply.ok) {
+        // The Project's observer polls every owner's run to its handoff.
+        const track = (
+          run: Run,
+          handoff: Omit<
+            Parameters<ProjectRunHistory["track"]>[0],
+            "owner" | "run" | "files" | "read" | "active"
+          >,
+        ) =>
+          history.track({
+            ...handoff,
+            owner: this.options.owner ?? "human",
+            run,
+            files: this.files,
+            read: () =>
+              service.handle(
+                { operation: "read", runId: run.id },
+                crypto.randomUUID(),
+              ),
+            active: () =>
+              generation === this.generation &&
+              this.options.getProjectSessionId() === this.projectSessionId,
+          });
         if (
           operation.operation === "history-delete" &&
           "deletion" in reply &&
           reply.deletion.deleted
         )
-          this.options.runHistory.forgetRun(operation.runId);
+          history.forgetRun(operation.runId);
         if (
           (operation.operation === "prepare-batch" ||
             operation.operation === "prepare-sweep") &&
@@ -210,20 +232,23 @@ export class BrowserSimulationSession {
         }
         if (operation.operation === "start" && "run" in reply) {
           const prepared = this.presentations.get(reply.run.preparedId);
-          if (prepared)
-            this.options.runHistory.track({
-              ...prepared,
-              owner: this.options.owner ?? "human",
-              run: reply.run,
-              files: this.files,
-              read: () =>
-                service.handle(
-                  { operation: "read", runId: reply.run.id },
-                  crypto.randomUUID(),
-                ),
-              active: () =>
-                generation === this.generation &&
-                this.options.getProjectSessionId() === this.projectSessionId,
+          if (prepared) track(reply.run, prepared);
+        }
+        // A direct submission prepares and starts in one request; its
+        // prepared input arrives with the run's evidence.
+        if (
+          operation.operation === "run" &&
+          operation.source.kind === "project-folder" &&
+          "run" in reply
+        ) {
+          const folderId = operation.source.folderId;
+          const folder = sourceProject?.simulationFolders.find(
+            (item) => item.id === folderId,
+          );
+          if (folder)
+            track(reply.run, {
+              presentation: sourcePresentation(folder),
+              projectFile,
             });
         }
         if (
@@ -239,20 +264,7 @@ export class BrowserSimulationSession {
               crypto.randomUUID(),
             );
             if (!runReply.ok || !("run" in runReply)) continue;
-            this.options.runHistory.track({
-              ...prepared,
-              owner: this.options.owner ?? "human",
-              run: runReply.run,
-              files: this.files,
-              read: () =>
-                service.handle(
-                  { operation: "read", runId: runReply.run.id },
-                  crypto.randomUUID(),
-                ),
-              active: () =>
-                generation === this.generation &&
-                this.options.getProjectSessionId() === this.projectSessionId,
-            });
+            track(runReply.run, prepared);
           }
           const batchId = reply.batch.id;
           if (

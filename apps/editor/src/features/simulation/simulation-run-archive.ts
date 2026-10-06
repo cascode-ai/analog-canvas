@@ -172,6 +172,59 @@ export async function captureSimulationRunArchive(
   };
 }
 
+/** Roles of the prepared input files a run carries before its own output. */
+const PREPARED_INPUT_ROLES = new Set<ArtifactRef["role"]>([
+  "source",
+  "prepared",
+  "source-map",
+  "execution-input",
+]);
+
+/**
+ * The Prepared view of a direct submission (`run`), which prepares and starts
+ * in one request and publishes its prepared input with the run instead:
+ * `preparation.json` holds the view, and the input files are the run's
+ * preparation-role artifacts, as a prepare→start run lists them.
+ */
+export async function preparedFromRunEvidence(
+  files: SimulationFiles,
+  run: Run,
+): Promise<ArchiveResult<Prepared>> {
+  const evidence = run.artifacts.find(
+    (artifact) =>
+      artifact.name === "preparation.json" && artifact.role === "prepared",
+  );
+  if (!evidence)
+    return archiveProblem(
+      "SIMULATION_ARCHIVE_PREPARED_MISSING",
+      "The run's prepared input is unavailable; export its files instead",
+    );
+  const read = await readSimulationArtifact(files, evidence);
+  if (!read.ok) return read;
+  try {
+    const prepared = PreparedSchema.parse(JSON.parse(read.content.text));
+    if (
+      prepared.id === run.preparedId &&
+      prepared.inputRevision === run.inputRevision
+    )
+      return {
+        ok: true,
+        value: {
+          ...prepared,
+          artifacts: run.artifacts.filter((artifact) =>
+            PREPARED_INPUT_ROLES.has(artifact.role),
+          ),
+        },
+      };
+  } catch {
+    // Not a Prepared view, so it does not describe this run either.
+  }
+  return archiveProblem(
+    "SIMULATION_ARCHIVE_PREPARED_INVALID",
+    "The run's prepared input does not describe this run; export its files instead",
+  );
+}
+
 function parseJsonArtifact<T>(
   artifacts: readonly ArchivedArtifact[],
   name: string,
