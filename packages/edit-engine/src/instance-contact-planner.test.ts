@@ -189,6 +189,46 @@ function routeBetween(
 }
 
 describe("dropping a two-pin part over the end of a Wire", () => {
+  it("keeps exact terminal ownership when Instance and pin names contain colons", () => {
+    const custom = {
+      ...structuredClone(resolver.resolve("resistor")!.definition),
+      id: "colon-pin-resistor",
+      pins: resolver.resolve("resistor")!.definition.pins.map((pin) => ({
+        ...pin,
+        name: pin.name === "2" ? "1:2" : pin.name,
+      })),
+    };
+    const symbols = new InMemorySymbolResolver([...builtInSymbols, custom]);
+    const document = createEmptyDocument("main", "Main");
+    const first = resistor("R:1", { x: 0, y: 0 });
+    const second = { ...resistor("R", { x: 200, y: 0 }), symbolId: custom.id };
+    document.instances.push(first, second);
+    document.nets.push(
+      { id: "first", terminals: [{ instanceId: first.id, pinName: "2" }] },
+      { id: "second", terminals: [{ instanceId: second.id, pinName: "1:2" }] },
+      {
+        id: "later-claim",
+        terminals: [{ instanceId: second.id, pinName: "1:2" }],
+      },
+    );
+    const context = createPlacementContactContext(document, symbols);
+    const sources = placementWireSources(document, symbols, second, context);
+    expect(
+      sources.find(
+        (source) =>
+          source.endpoint.kind === "terminal" &&
+          source.endpoint.pinName === "1:2",
+      )?.netId,
+    ).toBe("second");
+    expect(sources).toEqual(placementWireSources(document, symbols, second));
+    expect(
+      placementWireSources(document, symbols, first, context).find(
+        (source) =>
+          source.endpoint.kind === "terminal" &&
+          source.endpoint.pinName === "2",
+      )?.netId,
+    ).toBe("first");
+  });
   it("reads a replaced instance's new position, not the snapshot lookup", () => {
     const document = wireEndingInATee();
     const context = createPlacementContactContext(document, resolver);

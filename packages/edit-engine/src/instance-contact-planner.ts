@@ -77,11 +77,17 @@ export function createPlacementContactContext(
       return (logicalNets ??= resolveDocumentLogicalNets(document));
     },
   };
-  const netsByEndpoint = new Map<string, string>();
+  // Match the previous field-by-field search exactly: a display-style endpoint
+  // key can alias ("R:1", "2") with ("R", "1:2").
+  const netsByInstance = new Map<string, Map<string, string>>();
   for (const net of document.nets)
     for (const terminal of net.terminals) {
-      const key = endpointKey({ kind: "terminal", ...terminal });
-      if (!netsByEndpoint.has(key)) netsByEndpoint.set(key, net.id);
+      let pins = netsByInstance.get(terminal.instanceId);
+      if (!pins) {
+        pins = new Map();
+        netsByInstance.set(terminal.instanceId, pins);
+      }
+      if (!pins.has(terminal.pinName)) pins.set(terminal.pinName, net.id);
     }
   const routingGeometry = () =>
     (geometry ??= resolveDocumentRoutingGeometry(document, resolver));
@@ -102,7 +108,9 @@ export function createPlacementContactContext(
         );
     },
     lookup,
-    netsByEndpoint,
+    netForTerminal(endpoint: Extract<RouteEndpoint, { kind: "terminal" }>) {
+      return netsByInstance.get(endpoint.instanceId)?.get(endpoint.pinName);
+    },
     routesById: new Map(document.routes.map((route) => [route.id, route])),
     get logicalNets() {
       return lookup.logicalNets!;
@@ -200,7 +208,7 @@ export function placementWireSources(
             endpoint,
             netId:
               (context
-                ? context.netsByEndpoint.get(endpointKey(endpoint))
+                ? context.netForTerminal(endpoint)
                 : document.nets.find((n) =>
                     n.terminals.some(
                       (t) =>
