@@ -14,6 +14,8 @@ import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 
 import {
+  createInsertedInstanceConnectionContext,
+  planInsertedInstanceConnections,
   proposePlacementContact,
   proposedStandalonePowerConnection,
   proposedSupplyPortRename,
@@ -63,6 +65,78 @@ function transaction(expectedRevision: number, edits: unknown[]) {
 }
 
 describe("component placement electrical contacts", () => {
+  it("shares reads only on one insertion snapshot and excludes pasted peers", () => {
+    const existing = createEmptyDocument("main", "Main");
+    existing.instances.push({
+      id: "R0",
+      symbolId: "resistor",
+      placement: { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+    });
+    const document = structuredClone(existing);
+    document.instances.push(
+      ...["R1", "R2"].map((id) => ({
+        id,
+        symbolId: "resistor",
+        placement: {
+          position: { x: 500, y: 500 },
+          rotation: 0 as const,
+          mirror: "none" as const,
+        },
+      })),
+    );
+    const snapshot = structuredClone(document);
+    const context = createInsertedInstanceConnectionContext(
+      document,
+      resolver,
+      existing,
+    );
+    expect(
+      context.endpoints.every(
+        (source) =>
+          source.endpoint.kind === "terminal" &&
+          source.endpoint.instanceId === "R0",
+      ),
+    ).toBe(true);
+    for (const instance of document.instances.slice(1)) {
+      const shared = planInsertedInstanceConnections(
+        document,
+        resolver,
+        instance,
+        undefined,
+        { existing, context },
+      );
+      expect(shared).toEqual(
+        planInsertedInstanceConnections(
+          document,
+          resolver,
+          instance,
+          undefined,
+          { existing },
+        ),
+      );
+      expect(shared.contact.matched).toBe(false);
+    }
+    expect(document).toEqual(snapshot);
+    expect(() =>
+      planInsertedInstanceConnections(
+        structuredClone(document),
+        resolver,
+        document.instances[1]!,
+        undefined,
+        { existing, context },
+      ),
+    ).toThrow("different snapshot");
+    expect(() =>
+      planInsertedInstanceConnections(
+        document,
+        resolver,
+        document.instances[1]!,
+        undefined,
+        { existing: structuredClone(existing), context },
+      ),
+    ).toThrow("different destination");
+  });
+
   it.each([
     "simple-switch",
     "ideal-switch",

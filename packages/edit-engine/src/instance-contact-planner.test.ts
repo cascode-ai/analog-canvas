@@ -11,6 +11,7 @@ import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 
 import {
+  createPlacementContactContext,
   placementWireSources,
   proposePlacementContact,
 } from "./instance-contact-planner.js";
@@ -188,6 +189,40 @@ function routeBetween(
 }
 
 describe("dropping a two-pin part over the end of a Wire", () => {
+  it("reads a replaced instance's new position, not the snapshot lookup", () => {
+    const document = wireEndingInATee();
+    const context = createPlacementContactContext(document, resolver);
+    const original = document.instances[0]!;
+    const moved = {
+      ...original,
+      placement: { ...original.placement!, position: { x: 200, y: 200 } },
+    };
+    expect(placementWireSources(document, resolver, original, context)).toEqual(
+      placementWireSources(document, resolver, original),
+    );
+    expect(placementWireSources(document, resolver, moved, context)).toEqual(
+      placementWireSources(document, resolver, moved),
+    );
+    const placed = resistor("R1", { x: 0, y: 20 });
+    const targets = dropTargets(document, placed);
+    expect(
+      proposePlacementContact(document, resolver, placed, targets, { context }),
+    ).toEqual(proposePlacementContact(document, resolver, placed, targets));
+    expect(() =>
+      proposePlacementContact(
+        structuredClone(document),
+        resolver,
+        placed,
+        targets,
+        { context },
+      ),
+    ).toThrow("different snapshot");
+    document.revision++;
+    expect(() =>
+      placementWireSources(document, resolver, original, context),
+    ).toThrow("different snapshot");
+  });
+
   it("puts it in series when one pin lands inside the Wire and the other on the T-Junction that ends it", () => {
     const document = wireEndingInATee();
     // Pin 1 at (0,60) inside the stem, pin 2 at (0,100) on the Junction.

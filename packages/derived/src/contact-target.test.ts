@@ -1,8 +1,11 @@
 import { createEmptyDocument, createRoutePath } from "@icm/model";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { resolveElectricalContactTargets } from "./contact-target.js";
+import {
+  createElectricalContactResolver,
+  resolveElectricalContactTargets,
+} from "./contact-target.js";
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
 
@@ -78,6 +81,43 @@ function candidates() {
 }
 
 describe("electrical contact target collapse", () => {
+  it("does no derived work when the point has no candidates", () => {
+    const resolve = vi.fn(() => {
+      throw new Error("unexpected symbol lookup");
+    });
+    const document = fixture();
+    document.instances.push({
+      id: "R1",
+      symbolId: "resistor",
+      placement: { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+    });
+    expect(resolveElectricalContactTargets(document, { resolve }, [])).toEqual(
+      [],
+    );
+    expect(createElectricalContactResolver(document, { resolve })([])).toEqual(
+      [],
+    );
+    expect(resolve).not.toHaveBeenCalled();
+  });
+
+  it.each([false, true])(
+    "reuses conductor lookups without changing grouped candidates (vertical=%s)",
+    (vertical) => {
+      const document = fixture(vertical);
+      const resolve = createElectricalContactResolver(document, resolver);
+      for (const hits of [
+        [],
+        candidates(),
+        candidates().slice(0, 1),
+        [...candidates()].reverse(),
+      ]) {
+        expect(resolve(hits)).toEqual(
+          resolveElectricalContactTargets(document, resolver, hits),
+        );
+      }
+    },
+  );
+
   it("treats stale collinear same-Net overlap as one selectable conductor", () => {
     expect(
       resolveElectricalContactTargets(fixture(), resolver, candidates()),
