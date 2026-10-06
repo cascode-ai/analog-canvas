@@ -6,6 +6,7 @@ import {
   planNetlistCodeEdit,
   netlistInstanceAtLine,
   netlistInstanceRanges,
+  createNetlistCodeEditSession,
 } from "./netlist-code-edit";
 
 async function fixture(format: NetlistFormat) {
@@ -37,6 +38,49 @@ X1 A B leaf
   if (baseline.status !== "ready") throw new Error(JSON.stringify(baseline));
   return { project, baseline };
 }
+
+it("shares draft analysis across selection and apply, and fences a replacement snapshot", async () => {
+  const { project, baseline } = await fixture("spice");
+  const session = createNetlistCodeEditSession(project, baseline);
+  const draft = baseline.file.text.replace("10k", "33k");
+  const before = structuredClone(project);
+  const focused = session.analyze(draft);
+  expect(focused.ok).toBe(true);
+  expect(session.analyze(draft)).toBe(focused);
+  const plan = session.plan(draft);
+  if (!plan.ok || !focused.ok) throw new Error("Expected valid draft");
+  expect(plan.instances).toBe(focused.instances);
+  expect(plan).toEqual(planNetlistCodeEdit(project, baseline, draft));
+  expect(project).toEqual(before);
+  expect(session.analyze(draft.replace("33k", ""))).toMatchObject({
+    ok: false,
+  });
+  expect(session.plan(draft)).toEqual(plan);
+  const committed = executeProjectTransaction(project, {
+    transactionId: "session",
+    projectId: project.id,
+    expectedStructureRevision: project.structureRevision,
+    actor: { kind: "human", id: "test" },
+    edits: plan.edits,
+  });
+  if (!committed.ok) throw new Error(committed.error.message);
+  const next = createDesignNetlistExport(committed.project, {
+    format: "spice",
+    includeLocations: true,
+  });
+  if (next.status !== "ready") throw new Error(JSON.stringify(next));
+  expect(
+    createNetlistCodeEditSession(committed.project, next).plan(next.file.text),
+  ).toMatchObject({ ok: true, edits: [] });
+  const stale = executeProjectTransaction(committed.project, {
+    transactionId: "stale",
+    projectId: project.id,
+    expectedStructureRevision: project.structureRevision,
+    actor: { kind: "human", id: "test" },
+    edits: plan.edits,
+  });
+  expect(stale.ok).toBe(false);
+});
 
 it.each<NetlistFormat>(["spice", "spectre"])(
   "edits a large %s netlist without compiling a document-wide regexp",

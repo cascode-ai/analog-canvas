@@ -13,7 +13,7 @@ import {
   type ProjectStructureEdit,
 } from "@icm/edit-engine";
 import {
-  planNetlistCodeEdit,
+  createNetlistCodeEditSession,
   netlistInstanceAtLine,
   netlistInstanceRanges,
 } from "./netlist-code-edit";
@@ -216,6 +216,13 @@ export function NetlistCodePanel({
       : null;
   const exportRoot = rootDocumentId ?? project.topDocumentId;
   const source = result?.status === "ready" ? result.file.text : "";
+  const editSession = useMemo(
+    () =>
+      result?.status === "ready"
+        ? createNetlistCodeEditSession(project, result)
+        : null,
+    [project, result],
+  );
   const [draft, setDraft] = useState(source);
   const [editBaseline, setEditBaseline] = useState(source);
   const [applyError, setApplyError] = useState<string | null>(null);
@@ -259,7 +266,7 @@ export function NetlistCodePanel({
       options.dropUnwritable &&
       (conflict ||
         result?.status !== "ready" ||
-        !planNetlistCodeEdit(project, result, draftRef.current).ok)
+        !editSession!.analyze(draftRef.current).ok)
     ) {
       writesDraft = false;
       setDraft(source);
@@ -272,7 +279,7 @@ export function NetlistCodePanel({
     let working = project;
     if (writesDraft) {
       if (result?.status !== "ready") return false;
-      const plan = planNetlistCodeEdit(project, result, draftRef.current);
+      const plan = editSession!.plan(draftRef.current);
       if (!plan.ok) {
         setApplyError(plan.message);
         return false;
@@ -346,7 +353,7 @@ export function NetlistCodePanel({
         ),
       );
     if (result?.status !== "ready") return focusInstance(null);
-    const plan = planNetlistCodeEdit(project, result, draftRef.current);
+    const plan = editSession!.analyze(draftRef.current);
     focusInstance(
       plan.ok
         ? netlistInstanceAtLine(draftRef.current, position, plan.instances)
@@ -368,7 +375,7 @@ export function NetlistCodePanel({
     if (draftPreview) instances = draftPreview.locations.instances;
     else {
       if (result?.status !== "ready") return [];
-      const plan = planNetlistCodeEdit(project, result, draft);
+      const plan = editSession!.analyze(draft);
       if (!plan.ok) return [];
       instances = plan.instances;
     }
@@ -391,7 +398,7 @@ export function NetlistCodePanel({
         tone: "warning" as const,
       })),
     ];
-  }, [project, result, draft, draftPreview, selectionKey, cursorInstance]);
+  }, [editSession, result, draft, draftPreview, selectionKey, cursorInstance]);
   const editError = conflict
     ? "The canvas or Agent changed the netlist. Reload before applying your draft."
     : applyError;
