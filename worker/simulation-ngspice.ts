@@ -664,6 +664,10 @@ export async function routeNgspiceSimulationRequest(
         collection,
         execution,
         runToken: body.runToken,
+        // The deck and these files are everything this run sent; the
+        // Profile's library is mounted beside them. Without them every
+        // notice about a library model card would count as dropped input.
+        files,
       }),
     );
   } catch (error) {

@@ -262,6 +262,51 @@ describe("large ngspice output handoff", () => {
       ]),
     ).toBe("completed-with-dropped-input");
   });
+  it("judges model-card notices the same way on the Worker's direct route (#1400)", async () => {
+    // A direct /api/simulate run gets a legacy reply, which the Worker
+    // assembles itself; the request's own text is the run's source.
+    const log = [
+      "Circuit: * NPN stage",
+      "",
+      "Warning: Model issue on line 1286 :",
+      "  .model xdut.xq1:sky130_fd_pr__npn_05v5_w1p00l1p00_model npn level=1 tref ...",
+      "unrecognized parameter (dcap) - ignored",
+      "",
+      "No. of Data Rows : 31",
+    ].join("\n");
+    const outcome = async (files) => {
+      const response = await throughWorker(
+        Response.json({
+          ...raw(null),
+          log,
+          stdout: log,
+          rawfileName: null,
+          rawfileFormat: null,
+          rawfileRequested: false,
+          collection: { rawfile: null },
+        }),
+        { collection: { rawfile: null }, files },
+      );
+      return (await response.json()).outcome?.status;
+    };
+    // The Profile's mounted library defines this card, not the request.
+    expect(
+      await outcome([
+        {
+          path: "dut.cir",
+          text: ".subckt dut c b e\nxq1 c b e 0 sky130_fd_pr__npn_05v5_W1p00L1p00\n.ends\n",
+        },
+      ]),
+    ).toBe("completed");
+    expect(
+      await outcome([
+        {
+          path: "models.cir",
+          text: ".model sky130_fd_pr__npn_05v5_W1p00L1p00_model npn dcap=2\n",
+        },
+      ]),
+    ).toBe("completed-with-dropped-input");
+  });
   it("withholds oversized legacy replies instead of delivering shortened files", async () => {
     const response = await ngspiceResultResponse(
       outputInput,
