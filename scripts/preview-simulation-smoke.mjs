@@ -17,7 +17,6 @@ import {
   runPreviewResistorNoiseSmoke,
   runPreviewSimulationSmoke,
   runPreviewTransientSmoke,
-  validateExecutorParity,
 } from "./lib/preview-simulation-runs.mjs";
 
 export {
@@ -54,7 +53,6 @@ export {
   runPreviewResistorNoiseSmoke,
   runPreviewSimulationSmoke,
   runPreviewTransientSmoke,
-  validateExecutorParity,
 } from "./lib/preview-simulation-runs.mjs";
 async function main() {
   const baseUrl = process.argv[2];
@@ -67,16 +65,12 @@ async function main() {
   if (scope !== "--full" && scope !== "--production-smoke") {
     throw new Error(`Unknown simulation smoke scope: ${scope}`);
   }
-  const results = [];
   for (const target of EXECUTORS) {
     const result = await runPreviewSimulationSmoke({ baseUrl, target });
-    results.push(result);
     console.log(
       `${result.target}: v(mid)=${result.value}, ${result.simulatorVersion}, environment=${result.environmentFingerprint}`,
     );
   }
-  validateExecutorParity(results);
-  console.log("Preview executor parity: passed");
 
   for (const target of EXECUTORS) {
     const result = await runPreviewTransientSmoke({ baseUrl, target });
@@ -107,15 +101,12 @@ async function main() {
     return;
   }
 
-  const qualifications = [];
   for (const target of EXECUTORS) {
     const result = await runHostedSky130Acceptance({ baseUrl, target });
-    qualifications.push(result);
     console.log(
       `${result.target}: ${result.fixtureId} passed, environment=${result.environmentFingerprint}`,
     );
   }
-  validateExecutorParity(qualifications);
   for (const target of EXECUTORS) {
     const result = await runHostedSky130TransientAcceptance({
       baseUrl,

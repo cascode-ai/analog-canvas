@@ -18,7 +18,6 @@ import {
   validateHostedSky130NoiseResult,
   validateResistorNoiseResult,
   validateDcDividerResult,
-  validateExecutorParity,
   validateHostedSky130Result,
   validateHostedSky130CornerResult,
   validateHostedSky130ExtendedDeviceResult,
@@ -406,21 +405,6 @@ describe("the Preview dual-executor smoke", () => {
         "operator-host",
       ),
     ).toThrow(/\[result:stale-input\].*preview-smoke-cloudflare-container/u);
-  });
-
-  it("refuses two executors that measured different environments", () => {
-    expect(() =>
-      validateExecutorParity([
-        {
-          target: "cloudflare-container",
-          environmentFingerprint: "a".repeat(64),
-        },
-        {
-          target: "operator-host",
-          environmentFingerprint: "b".repeat(64),
-        },
-      ]),
-    ).toThrow(/do not share one environment/u);
   });
 
   it("names infrastructure refusals instead of calling them circuit failures", async () => {

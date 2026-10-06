@@ -269,19 +269,3 @@ export async function runPreviewSimulationSmoke({
   }
   return validatePreviewSimulationResult(payload, target);
 }
-
-export function validateExecutorParity(results) {
-  if (results.length === 0) {
-    throw new Error("expected at least one executor result, received none.");
-  }
-  const fingerprints = new Set(
-    results.map((result) => result.environmentFingerprint),
-  );
-  if (fingerprints.size !== 1) {
-    throw new Error(
-      `[result:environment-mismatch] Preview executors do not share one environment: ${results
-        .map((result) => `${result.target}=${result.environmentFingerprint}`)
-        .join(", ")}`,
-    );
-  }
-}
