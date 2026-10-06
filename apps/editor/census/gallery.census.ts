@@ -290,17 +290,11 @@ function labelsAtDefault(
     // Above its part a name over its value stands a row further out (#1384).
     const slots =
       annotation.kind === "instance-value"
-        ? ([
-            ["value", false],
-            ["reference", false],
-          ] as const)
-        : ([
-            ["reference", false],
-            ["reference", true],
-          ] as const);
+        ? (["value", "reference"] as const)
+        : (["reference", "reference-over-value"] as const);
     const atDefault = [...new Set([annotation.sizeScale ?? 1, 1])].some(
       (sizeScale) =>
-        slots.some(([slot, overValue]) => {
+        slots.some((slot) => {
           const expected = defaultInstanceLabelPlacement(
             instance,
             resolved,
@@ -308,7 +302,6 @@ function labelsAtDefault(
             document.presentation.grid,
             slot,
             sizeScale,
-            overValue,
           );
           return (
             expected !== null &&

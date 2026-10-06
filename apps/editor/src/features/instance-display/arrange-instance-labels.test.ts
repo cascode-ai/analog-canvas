@@ -9,8 +9,8 @@ import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
 import {
   createLabelClearanceContext,
   defaultInstanceLabelPlacement,
-  instanceValueRowOffset,
   outwardDefaultInstanceLabelPlacement,
+  outwardPlaceUprightInstanceLabel,
   placeUprightInstanceLabel,
   resolveDocumentStyleProfile,
 } from "@icm/derived";
@@ -225,9 +225,7 @@ describe("opt-in label arrangement", () => {
         side,
         doc.presentation.grid,
         1,
-        0,
-        false,
-        instanceValueRowOffset(instance.symbolId, style, doc.presentation.grid),
+        "reference-over-value",
       )!;
       const ink = createLabelClearanceContext(doc, resolver).measure({
         ...reference,
@@ -497,8 +495,7 @@ describe("opt-in label arrangement", () => {
       // Both rows moved above the resistor, together.
       expect(after.measure(annotation).position.y).toBeLessThan(-60);
     }
-    // R_F reads first and its value under it, nearest the resistor; "10k"
-    // had stood over R_F (#1384).
+    // R_F reads first and its value under it, nearest the resistor (#1384).
     const [name, value] = (
       ["instance-reference", "instance-value"] as const
     ).map((kind) =>
@@ -511,7 +508,7 @@ describe("opt-in label arrangement", () => {
   });
   it("puts a value an earlier rule stacked over its name above a part under it (#1384)", () => {
     // A Miller op amp's compensation capacitor, turned so its labels stand
-    // above it, where the rule until #1384 left "1p" over C_C.
+    // above it in the outward rule's rows: "1p" over C_C.
     const doc = createEmptyDocument("d", "Miller compensation");
     const style = resolveDocumentStyleProfile(doc.presentation);
     const instance = {
@@ -581,9 +578,7 @@ describe("opt-in label arrangement", () => {
         resolved,
         style,
         doc.presentation.grid,
-        "reference",
-        1,
-        true,
+        "reference-over-value",
       )!.position,
     );
     expect(at("value-cc")).toEqual(
@@ -595,6 +590,74 @@ describe("opt-in label arrangement", () => {
         "value",
       )!.position,
     );
+  });
+  it("takes up a group an earlier arrangement stacked value first above its part, and leaves one placed by hand (#1384)", () => {
+    // A feedback resistor across the top of an op amp, its labels above it
+    // exactly where the outward placer stacks a group there: 10k over R_F.
+    const stacked = (slide: number) => {
+      const { doc, instance } = fixture();
+      instance.placement = {
+        position: { x: 260, y: -60 },
+        rotation: 90,
+        mirror: "none",
+      };
+      doc.instances.push({
+        id: "x3",
+        symbolId: "opamp",
+        placement: {
+          position: { x: 260, y: 0 },
+          rotation: 0,
+          mirror: "none",
+        },
+      });
+      const style = resolveDocumentStyleProfile(doc.presentation);
+      const resolved = resolver.resolve("resistor")!;
+      for (const annotation of doc.annotations) {
+        // Turned a quarter, the resistor's left side faces up the drawing.
+        const placed = outwardPlaceUprightInstanceLabel(
+          instance,
+          resolved,
+          style,
+          { x: 0, y: 0 },
+          "left",
+          doc.presentation.grid,
+          1,
+          annotation.binding?.kind === "instance-value" ? "value" : "reference",
+        )!;
+        const position = { x: placed.position.x + slide, y: placed.position.y };
+        annotation.alignment = placed.alignment;
+        annotation.anchor = {
+          kind: "object",
+          objectId: instance.id,
+          localOffset: { x: position.x - 260, y: position.y + 60 },
+          fallbackPosition: position,
+        };
+      }
+      return { doc, instance };
+    };
+    const { doc, instance } = stacked(0);
+    const ink = (kind: string) =>
+      createLabelClearanceContext(doc, resolver).measure(
+        doc.annotations.find((a) => a.binding?.kind === kind)!,
+      ).inkBounds;
+    expect(ink("instance-value").y).toBeLessThan(ink("instance-reference").y);
+
+    apply(doc, arrangeInstanceLabels(doc, resolver, [instance.id], {}));
+
+    // R_F over 10k, above the resistor and clear of the op amp.
+    const name = ink("instance-reference");
+    const value = ink("instance-value");
+    expect(name.y + name.height).toBeLessThanOrEqual(value.y);
+    expect(value.y + value.height).toBeLessThan(-60);
+    const after = createLabelClearanceContext(doc, resolver);
+    for (const annotation of doc.annotations)
+      expect(after.conflicts(annotation)).toEqual([]);
+
+    // Slid off those rows, the group counts as placed by hand and stays.
+    const moved = stacked(4);
+    expect(
+      arrangeInstanceLabels(moved.doc, resolver, [moved.instance.id], {}),
+    ).toEqual([]);
   });
   it("keeps a value with its Reference instead of hopping across a wire (#1307)", () => {
     // A vertical resistor whose value row is crossed by a wire leaving to

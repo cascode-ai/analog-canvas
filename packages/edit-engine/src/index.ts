@@ -23,6 +23,7 @@ export { transformMaySeparateDirectContact } from "./transaction-direct-contact.
 export {
   canonicalInstanceLabelRow,
   followAttachedAnnotations,
+  instanceValueAnnotation,
 } from "./transaction-instance-annotations.js";
 export * from "./routing-operation-plan.js";
 export * from "./routing-transform-planner.js";

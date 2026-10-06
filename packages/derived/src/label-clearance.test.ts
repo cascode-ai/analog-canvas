@@ -114,9 +114,7 @@ it("does not report a default label against its own part", () => {
         resolved,
         profile,
         doc.presentation.grid,
-        slot,
-        1,
-        slot === "reference",
+        slot === "reference" ? "reference-over-value" : slot,
       )!;
       doc.annotations.push({
         id: `${id}-${slot}`,
@@ -167,9 +165,7 @@ function placeDefaultLabels(
       resolved,
       profile,
       doc.presentation.grid,
-      slot,
-      1,
-      slot === "reference",
+      slot === "reference" ? "reference-over-value" : slot,
     )!;
     doc.annotations.push({
       id: `${instance.id}-${slot}`,

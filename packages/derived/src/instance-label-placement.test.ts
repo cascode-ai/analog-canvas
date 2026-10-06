@@ -415,15 +415,13 @@ describe("instance label placement", () => {
       undefined,
       "value",
     );
-    const name = defaultInstanceLabelPlacement(
-      instance,
-      resolved,
-      profile,
-      10,
-      "reference",
-      1,
-      true,
-    )!;
+    const name = placedDefaultLabel(
+      "resistor",
+      270,
+      "none",
+      undefined,
+      "reference-over-value",
+    );
     // The name a row over its value, which takes the row nearest the part,
     // where a name or a value shown alone stands.
     expect(name.alignment).toBe("middle");
@@ -432,8 +430,8 @@ describe("instance label placement", () => {
     expect(value.position.y - name.position.y).toBe(20);
     expect(value.position).toEqual(alone.position);
     expect(value.position.y).toBeLessThan(100);
-    // Where the rule until now stacked the value, over its name, still
-    // reads as an untouched default.
+    // The outward rule's value, over its name, stands where the name does
+    // now, and still reads as an untouched default.
     expect(
       outwardDefaultInstanceLabelPlacement(
         instance,
@@ -450,6 +448,12 @@ describe("instance label placement", () => {
     // turned, through the upright placer.
     const resolved = resolver.resolve("capacitor")!;
     const row = instanceValueRowOffset("capacitor", profile, 10);
+    const facing = {
+      right: { x: 1, y: 0 },
+      left: { x: -1, y: 0 },
+      top: { x: 0, y: -1 },
+      bottom: { x: 0, y: 1 },
+    } as const;
     for (const [rotation, mirror] of [
       [0, "none"],
       [90, "vertical"],
@@ -461,7 +465,7 @@ describe("instance label placement", () => {
         placement: { position: { x: 100, y: 100 }, rotation, mirror },
       };
       for (const side of ["right", "left", "top", "bottom"] as const) {
-        const place = (rowOffset: number, rowsBelow: number) =>
+        const place = (slot: InstanceLabelSlot) =>
           placeUprightInstanceLabel(
             instance,
             resolved,
@@ -470,19 +474,23 @@ describe("instance label placement", () => {
             side,
             10,
             1,
-            rowOffset,
-            false,
-            rowsBelow,
+            slot,
           )!;
-        const alone = place(0, 0);
-        const name = place(0, row);
-        const value = place(row, 0);
+        const alone = place("reference");
+        const name = place("reference-over-value");
+        const value = place("value");
         const where = `${rotation} ${mirror} ${side}`;
         expect(value.position.x, where).toBe(name.position.x);
         expect(value.position.y - name.position.y, where).toBe(row);
         // Above the part the value keeps a lone label's place; elsewhere
-        // the name does.
-        const above = alone.alignment === "middle" && alone.position.y < 100;
+        // the name does. The side faces up the drawing when the turned and
+        // mirrored part sends its outward direction up.
+        const outward = transformPoint(
+          facing[side],
+          { x: 0, y: 0 },
+          { rotation, mirror },
+        );
+        const above = Math.abs(outward.x) < 0.5 && outward.y < 0;
         expect(above ? value.position : name.position, where).toEqual(
           alone.position,
         );

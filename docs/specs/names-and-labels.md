@@ -234,7 +234,9 @@ Batch operations are explicit and distinct:
   they are not pure visual formatting. Preserve this behavior pending a
   separate product decision, including existing complement semantics.
 - Agent **arrange-labels** operates on requested Instances, eligible visible
-  unrotated/unlocked labels, and still-default positions/styles. It tries
+  unrotated/unlocked labels, and still-default positions/styles, which
+  include a name and value standing exactly where an earlier arrangement
+  stacked the value over the name above the part (#1384). It tries
   bounded nearby positions to reduce collisions; it does not reset every
   label. A placed Cell's name under its block counts as the part's name,
   or as its value beside a shown Reference, and moves as one; its text is

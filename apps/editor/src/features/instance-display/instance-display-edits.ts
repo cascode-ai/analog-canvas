@@ -1,14 +1,16 @@
 import {
   defaultInstanceLabelPlacement,
-  instanceValueRowOffset,
+  instanceGroupLabel,
+  instanceLabelGroupSeat,
   objectStyleProfile,
-  outwardPlaceUprightInstanceLabel,
-  placeUprightInstanceLabel,
+  offsetFromPlacement,
   resolveDocumentStyleProfile,
-  type InstanceLabelPlacement,
-  type InstanceLabelSide,
+  seatedInstanceLabelGroup,
 } from "@icm/derived";
-import { canonicalInstanceLabelRow } from "@icm/edit-engine";
+import {
+  canonicalInstanceLabelRow,
+  instanceValueAnnotation,
+} from "@icm/edit-engine";
 import type { SchematicEdit } from "@icm/edit-engine";
 import type { Annotation, SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
@@ -19,7 +21,6 @@ import {
 import {
   defaultInstanceLabel,
   defaultInstanceValue,
-  instanceValueAnnotation,
 } from "../wiring/route-interaction-geometry";
 
 /** Shared GUI/MCP visibility policy. Reuse authored projections, including
@@ -138,18 +139,15 @@ export function instanceDisplayEdits(
   return edits;
 }
 
-const SIDES: readonly InstanceLabelSide[] = ["right", "left", "bottom", "top"];
-
 /**
- * A part's name and value moved as the group they stand in, for what now
- * shows (#1384): a value shown without its name takes the name's slot and
- * gives it back when the name shows, and above the part a name over its
- * value stands a row further out, coming down to the part when the value
+ * A part's name and value seated as the group they stand in, for what shows
+ * (#1384): a value shown without its name takes the name's slot and goes
+ * back under it when the name shows, and above the part a name over a shown
+ * value stands a row further out and comes down to the part when the value
  * hides. The group keeps its side and any slide along it, so labels an
- * arrangement put on another side move there: R_F's 10k, arranged above
- * the resistor, had stayed a row away from it when its name was hidden.
- * Null when the two do not stand as one group, as when a person moved
- * either; an empty map when nothing has to move.
+ * arrangement put on another side stay on it. Null when the two do not
+ * stand as one group, as when a person moved either; otherwise the labels
+ * that move.
  */
 function regroupedLabels(
   document: SchematicDocument,
@@ -165,109 +163,49 @@ function regroupedLabels(
   const origin = instance.placement?.position;
   if (!resolved || !origin || name.rotation !== 0 || value.rotation !== 0)
     return null;
-  const documentStyle = resolveDocumentStyleProfile(document.presentation);
+  const nameLabel = instanceGroupLabel(document, name, origin);
+  const valueLabel = instanceGroupLabel(document, value, origin);
+  if (!nameLabel || !valueLabel) return null;
   const grid = document.presentation.grid;
-  const rowOf = (label: Annotation) =>
-    instanceValueRowOffset(
-      instance.symbolId,
-      objectStyleProfile(documentStyle, label),
+  const seat = instanceLabelGroupSeat(
+    instance,
+    resolved,
+    grid,
+    nameLabel,
+    valueLabel,
+  );
+  const seated =
+    seat &&
+    seatedInstanceLabelGroup(
+      instance,
+      resolved,
       grid,
+      seat,
+      nameLabel,
+      valueLabel,
     );
-  /** How far a label stands from `slot`: only along the side it is on. */
-  const shiftFrom = (
-    label: Annotation,
-    slot: InstanceLabelPlacement | null,
-  ) => {
-    if (!slot || label.anchor.kind !== "object") return null;
-    if (slot.alignment !== label.alignment) return null;
-    const shift = {
-      x: origin.x + label.anchor.localOffset.x - slot.position.x,
-      y: origin.y + label.anchor.localOffset.y - slot.position.y,
-    };
-    return Math.abs(slot.alignment === "middle" ? shift.y : shift.x) < 0.01
-      ? shift
-      : null;
-  };
-  for (const side of SIDES) {
-    const slot = (
-      label: Annotation,
-      rowOffset: number,
-      rowsBelow: number,
-      place = placeUprightInstanceLabel,
-    ) =>
-      place(
-        instance,
-        resolved,
-        objectStyleProfile(documentStyle, label),
-        { x: 0, y: 0 },
-        side,
-        grid,
-        label.sizeScale ?? 1,
-        rowOffset,
-        false,
-        rowsBelow,
-      );
-    const nameAlone = slot(name, 0, 0);
-    const nameOver = slot(name, 0, rowOf(name));
-    const valueAlone = slot(value, 0, 0);
-    const valueUnder = slot(value, rowOf(value), 0);
-    // Above the part an arrangement before #1384 stood the value over its
-    // name.
-    const valueOver = slot(
-      value,
-      rowOf(value),
-      0,
-      outwardPlaceUprightInstanceLabel,
-    );
-    for (const [nameSlot, valueSlot] of [
-      [nameOver, valueUnder],
-      [nameAlone, valueUnder],
-      [nameAlone, valueAlone],
-      [nameAlone, valueOver],
-    ] as const) {
-      const shift = shiftFrom(name, nameSlot);
-      const valueShift = shiftFrom(value, valueSlot);
-      if (
-        !shift ||
-        !valueShift ||
-        Math.hypot(shift.x - valueShift.x, shift.y - valueShift.y) >= 0.01
-      )
-        continue;
-      const moved = new Map<"reference" | "value", Annotation>();
-      const seat = (
-        field: "reference" | "value",
-        label: Annotation,
-        target: InstanceLabelPlacement | null,
-      ) => {
-        if (!target || label.anchor.kind !== "object") return;
-        const position = {
-          x: target.position.x + shift.x,
-          y: target.position.y + shift.y,
-        };
-        const localOffset = {
-          x: position.x - origin.x,
-          y: position.y - origin.y,
-        };
-        if (
-          target.alignment === label.alignment &&
-          localOffset.x === label.anchor.localOffset.x &&
-          localOffset.y === label.anchor.localOffset.y
-        )
-          return;
-        moved.set(field, {
-          ...label,
-          alignment: target.alignment,
-          anchor: { ...label.anchor, localOffset, fallbackPosition: position },
-        });
-      };
-      const nameShows = name.visible !== false;
-      const valueShows = value.visible !== false;
-      if (nameShows) seat("reference", name, valueShows ? nameOver : nameAlone);
-      if (valueShows) seat("value", value, nameShows ? valueUnder : valueAlone);
-      return moved;
-    }
+  if (!seated) return null;
+  const moved = new Map<"reference" | "value", Annotation>();
+  for (const [field, label, drawn, target] of [
+    ["reference", name, nameLabel, seated.name],
+    ["value", value, valueLabel, seated.value],
+  ] as const) {
+    if (label.anchor.kind !== "object" || offsetFromPlacement(drawn, target))
+      continue;
+    moved.set(field, {
+      ...label,
+      alignment: target.alignment,
+      anchor: {
+        ...label.anchor,
+        localOffset: {
+          x: target.position.x - origin.x,
+          y: target.position.y - origin.y,
+        },
+        fallbackPosition: target.position,
+      },
+    });
   }
-  return null;
+  return moved;
 }
 
 /** The value label moved into `slot`, or null when it is there already or a

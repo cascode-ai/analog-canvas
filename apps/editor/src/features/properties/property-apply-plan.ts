@@ -1,5 +1,6 @@
 import {
   gateRoutingOperationPlan,
+  instanceValueAnnotation,
   planPinChangeRouteClearance,
   planRenameCellTerminal,
   planSetDeviceModelTarget,
@@ -25,7 +26,6 @@ import { instanceLabelAnnotationFor } from "../instance-display/default-instance
 import { instanceDisplayEdits } from "../instance-display/instance-display-edits";
 import { instanceParameterVisibilityEdits } from "../instance-display/instance-parameter-display";
 import { withStruckLabelsArranged } from "../instance-display/struck-label-arrangement";
-import { instanceValueAnnotation } from "../wiring/route-interaction-geometry";
 import type { ComponentPropertyCodeValue } from "./component-property-code";
 import { planComponentPropertyCodeEdits } from "./component-property-code-edits";
 import { planElectricalMarkerName } from "./electrical-marker-name";

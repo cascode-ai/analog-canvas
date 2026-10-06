@@ -573,7 +573,11 @@ when the mirror reverses the axis the text reads along. A label on a rigidly
 mirrored Route keeps its point along the Route (`t`) and takes the mirrored
 side, so a label above a wire lands below it in a top-to-bottom mirror with
 the same clearance. Labels anchored to a mirrored Instance follow that
-Instance's own mirror. Drafting lines, arrows and shapes reflect outright; an
+Instance's own mirror. A part's name and value standing as a group in their
+slots, by default or arranged, stay one through a top-to-bottom mirror: they
+take the mirrored side, slid as far the mirrored way, with the name first and
+its value under it (#1384); a label moved by hand mirrors. Drafting lines,
+arrows and shapes reflect outright; an
 arrow keeps which end carries its head, and a turned rectangle takes the
 opposite turn. An end attached to a mirrored host mirrors its offset from it;
 an end attached to anything else stays with that host. The whole mirror is

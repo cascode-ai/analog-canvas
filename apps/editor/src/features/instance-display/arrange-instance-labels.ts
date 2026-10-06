@@ -9,18 +9,21 @@ import {
 import {
   createLabelClearanceContext,
   defaultInstanceLabelPlacement,
+  instanceGroupLabel,
+  instanceLabelGroupSeat,
+  INSTANCE_LABEL_SIDES,
   legacyDefaultInstanceLabelPlacement,
   previousDefaultInstanceLabelPlacement,
   instanceLabelRowOffset,
-  instanceValueRowOffset,
   objectStyleProfile,
+  offsetFromPlacement,
   outwardDefaultInstanceLabelPlacement,
   placeUprightInstanceLabel,
   portLabelCandidates,
   resolveDocumentStyleProfile,
   uniformRowDefaultInstanceLabelPlacement,
   type InstanceLabelPlacement,
-  type InstanceLabelSide,
+  type InstanceLabelSlot,
 } from "@icm/derived";
 import { referenceDeviceLetter } from "@icm/devices";
 import type { SchematicEdit } from "@icm/edit-engine";
@@ -38,12 +41,25 @@ interface EligibleLabel {
   readonly sizeScale: number;
 }
 
-const LOCAL_SIDES: readonly InstanceLabelSide[] = [
-  "right",
-  "left",
-  "bottom",
-  "top",
+/** Where the current and every earlier rule put an untouched label. */
+const DEFAULT_RULES: readonly (typeof defaultInstanceLabelPlacement)[] = [
+  defaultInstanceLabelPlacement,
+  outwardDefaultInstanceLabelPlacement,
+  uniformRowDefaultInstanceLabelPlacement,
+  previousDefaultInstanceLabelPlacement,
+  legacyDefaultInstanceLabelPlacement,
 ];
+
+/**
+ * Where an untouched label of either slot stands in a default rule's rows:
+ * a name alone or over its value, or a value under its name.
+ */
+const DEFAULT_SLOTS: Readonly<
+  Record<"reference" | "value", readonly InstanceLabelSlot[]>
+> = {
+  reference: ["reference", "reference-over-value"],
+  value: ["value"],
+};
 
 /**
  * Explicit one-pass operation, not a new placement default or autorouter.
@@ -82,6 +98,46 @@ export function arrangeInstanceLabels(
       return part ? [[label.id, part] as const] : [];
     }),
   );
+
+  /**
+   * A part's name and value standing exactly where the outward placer
+   * stacks a group above the part, the value over the name: an earlier
+   * arrangement put them there, so this pass takes them up and puts the
+   * name first. Labels anywhere else there count as placed by hand.
+   */
+  const valueFirstGroups = new Map<string, ReadonlySet<string>>();
+  const stackedValueFirst = (instanceId: string): ReadonlySet<string> => {
+    const known = valueFirstGroups.get(instanceId);
+    if (known) return known;
+    const instance = document.instances.find((i) => i.id === instanceId);
+    const resolved =
+      instance && resolver.resolve(instance.symbolId, instance.symbolVariantId);
+    const labelOf = (kind: "instance-reference" | "instance-value") =>
+      context.visible.find((label) => {
+        const part = partLabels.get(label.id);
+        return part?.instanceId === instanceId && part.kind === kind;
+      });
+    const name = labelOf("instance-reference");
+    const value = labelOf("instance-value");
+    const origin = instance?.placement?.position;
+    const nameLabel =
+      origin && name && instanceGroupLabel(document, name, origin);
+    const valueLabel =
+      origin && value && instanceGroupLabel(document, value, origin);
+    const stacked =
+      instance &&
+      resolved &&
+      nameLabel &&
+      valueLabel &&
+      instanceLabelGroupSeat(instance, resolved, grid, nameLabel, valueLabel, {
+        stacks: "value-over-name",
+        slides: false,
+      });
+    const ids: ReadonlySet<string> =
+      stacked && name && value ? new Set([name.id, value.id]) : new Set();
+    valueFirstGroups.set(instanceId, ids);
+    return ids;
+  };
 
   // Every visible Reference and value of the parts, eligible or not: a
   // label this pass may not move still takes its space from its siblings.
@@ -145,40 +201,25 @@ export function arrangeInstanceLabels(
           a.binding?.kind === "instance-reference" &&
           a.binding.instanceId === instance.id,
       );
-    // Only a still-default visual slot is eligible. Manual/free anchors,
-    // styles, and labels moved by an earlier pass remain under their
-    // author's control. A name over its value stands a row further out
-    // above the part than one shown alone (#1384).
-    const rules: readonly (typeof defaultInstanceLabelPlacement)[] = [
-      defaultInstanceLabelPlacement,
-      outwardDefaultInstanceLabelPlacement,
-      uniformRowDefaultInstanceLabelPlacement,
-      previousDefaultInstanceLabelPlacement,
-      legacyDefaultInstanceLabelPlacement,
-    ];
+    // Only a still-default visual slot is eligible, or a group standing
+    // exactly where an earlier arrangement stacked a value over its name
+    // above the part. Manual/free anchors, styles, and labels otherwise
+    // moved by an earlier pass remain under their author's control.
+    const drawn = { position: current, alignment: original.alignment };
     const at = (inSlot: "reference" | "value") =>
-      rules.some((place) =>
-        [false, true].some((overValue) => {
-          const p = place(
-            instance,
-            resolved,
-            style,
-            grid,
-            inSlot,
-            sizeScale,
-            overValue,
-          );
-          return (
-            p &&
-            p.alignment === original.alignment &&
-            Math.hypot(p.position.x - current.x, p.position.y - current.y) <
-              0.01
-          );
-        }),
+      DEFAULT_RULES.some((place) =>
+        DEFAULT_SLOTS[inSlot].some((placeSlot) =>
+          offsetFromPlacement(
+            drawn,
+            place(instance, resolved, style, grid, placeSlot, sizeScale),
+          ),
+        ),
       );
     // Above the part a lone value's row is also the Reference's slot.
     const inReferenceSlot = alone && at("reference");
-    const inValueRow = !inReferenceSlot && at(slot);
+    const inValueRow =
+      !inReferenceSlot &&
+      (at(slot) || stackedValueFirst(instance.id).has(original.id));
     if (!inValueRow && !inReferenceSlot) return null;
     const annotation =
       reference &&
@@ -220,22 +261,20 @@ export function arrangeInstanceLabels(
     });
     const styleOf = (label: EligibleLabel) =>
       objectStyleProfile(documentProfile, label.original);
-    const rowOf = (label: EligibleLabel) =>
-      label.slot === "value" && !label.compact
-        ? instanceValueRowOffset(instance.symbolId, styleOf(label), grid)
-        : 0;
     /**
-     * A name with its value under it. Above the part the value takes the row
-     * nearest it and the name stands a row further out, so the group reads
-     * name first there too (#1384): "1p" had stood over C_C.
+     * The slot a label takes in its group: a value under its name, a name
+     * over a value moved with it, and a label alone in the Reference's slot.
+     * Above the part the value takes the row nearest it and its name stands
+     * a row further out, so the group reads name first there too (#1384).
      */
-    const overValue = (label: EligibleLabel) =>
-      label.slot === "reference" &&
-      group.some((other) => other.slot === "value" && !other.compact);
-    const rowsBelowOf = (label: EligibleLabel) =>
-      overValue(label)
-        ? instanceValueRowOffset(instance.symbolId, styleOf(label), grid)
-        : 0;
+    const slotOf = (label: EligibleLabel): InstanceLabelSlot =>
+      label.compact
+        ? "reference"
+        : label.slot === "value"
+          ? "value"
+          : group.some((other) => other.slot === "value" && !other.compact)
+            ? "reference-over-value"
+            : "reference";
     const covers = (a: Annotation, b: Annotation) => overlap(box(a), box(b));
     const owner = context.symbols.find((s) => s.id === instance.id)?.bounds;
     const ownWires = document.routes
@@ -478,9 +517,8 @@ export function arrangeInstanceLabels(
           resolved,
           styleOf(label),
           grid,
-          label.compact ? "reference" : label.slot,
+          slotOf(label),
           label.sizeScale,
-          overValue(label),
         )!,
       ),
     );
@@ -488,7 +526,7 @@ export function arrangeInstanceLabels(
     let best = total(preferred);
     const sides: Annotation[][] = [];
     if (options.avoidCollisions !== false && !clear(best) && !fixed.length)
-      for (const side of LOCAL_SIDES) {
+      for (const side of INSTANCE_LABEL_SIDES) {
         const arrangement: Annotation[] = [];
         for (const label of group) {
           const placement = placeUprightInstanceLabel(
@@ -499,9 +537,7 @@ export function arrangeInstanceLabels(
             side,
             grid,
             label.sizeScale,
-            rowOf(label),
-            false,
-            rowsBelowOf(label),
+            slotOf(label),
           );
           if (!placement) break;
           arrangement.push(at(label, placement));
@@ -623,17 +659,15 @@ export function arrangeInstanceLabels(
         grid,
         "reference",
       );
-      const current = context.measure(label).position;
+      const drawn = {
+        position: context.measure(label).position,
+        alignment: label.alignment,
+      };
       // Only a name still on one of its own sides; one put elsewhere by
       // hand stays where it was put.
       if (
-        ![...candidates, ...(standard ? [standard] : [])].some(
-          (candidate) =>
-            candidate.alignment === label.alignment &&
-            Math.hypot(
-              candidate.position.x - current.x,
-              candidate.position.y - current.y,
-            ) < 0.01,
+        ![...candidates, standard].some((candidate) =>
+          offsetFromPlacement(drawn, candidate),
         )
       )
         continue;
