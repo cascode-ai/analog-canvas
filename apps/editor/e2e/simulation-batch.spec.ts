@@ -320,8 +320,9 @@ test("a saved Run Plan prepares without executing and Run starts its ordinary ba
   await expect(
     history.getByRole("button", { name: "Open result" }),
   ).toHaveCount(6);
+  // A finished run's row reads as its outcome.
   await expect(
-    history.getByRole("listitem").filter({ hasText: "finished" }),
+    history.getByRole("listitem").filter({ hasText: "completed" }),
   ).toHaveCount(6);
   await expect(
     history.getByRole("button", { name: "Open result" }).last(),

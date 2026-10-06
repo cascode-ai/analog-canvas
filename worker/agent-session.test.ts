@@ -451,7 +451,10 @@ describe("public Agent session routes", () => {
       "simulation",
       "simulation",
     ]);
-    expect(service.executions).toBe(1);
+    // The start's receipt comes back once the run is accepted; its execution
+    // reaches the simulator just after. The repeated start never reached the
+    // editor (three requests above), so it cannot add a second execution.
+    await expect.poll(() => service.executions).toBe(1);
     expect(
       (await post(path, { ...start, requestId: "other" }, "wrong-token"))!
         .status,
