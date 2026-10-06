@@ -457,6 +457,10 @@ export {
   type SimulationSpecResult,
   type SimulationSpecCondition,
 } from "./spec-contract.js";
+export {
+  simulationSpecAnnotationDiagnostics,
+  type SimulationSpecAnnotationDiagnostic,
+} from "./spec-annotation.js";
 
 export const SimulationOutputDataSchema = z.strictObject({
   schemaVersion: z.literal(1),

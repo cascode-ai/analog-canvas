@@ -70,6 +70,12 @@ layouts. No HTML or new markup language is interpreted. The
 machine measurement name is unchanged. Invalid metadata is `invalid-spec`.
 Optional labels are captured in reports, not read back from live source.
 
+An `invalid-spec` result's `detail` names each offending token and the form
+accepted instead, for example `Bound "9.0m" is not a decimal or scientific
+number; write 9.0e-3.` The Code editor shows the same message on the
+annotation's line as you type, before any run; it comes from the parser the
+run uses.
+
 The compact four-column table uses engineering prefixes for base electrical
 units (e.g. `36.27 MΩ`, `4.39 fF`) and the same scale for a row's expected value.
 Unit `1` explicitly means dimensionless; absent units have no visible suffix.
@@ -99,12 +105,11 @@ judgment, reason and logLine. Retrieve artifacts through the existing authorized
 file API; no new authority or UI interaction is required. Report-only VACASK
 results use optional `source.kind: "log"`, `path: "log.txt"` and the actual Console
 line/text, not an invented input location. Historical sources without `kind`
-still mean authored input. `specs.csv` appends `source kind` (`input` or `log`)
-without changing the existing column positions. Report-only names/units with a
-formula-leading prefix are escaped in CSV, without altering JSON identities.
-`specs.csv` preserves
-the result and provenance for external tools, with an appended plain-text label
-column and optional group column (formula-leading labels/groups are escaped for spreadsheet safety). Raw and
+still mean authored input. `specs.csv` preserves the result and provenance for
+external tools, with appended plain-text label, optional group, `source kind`
+(`input` or `log`) and detail columns; earlier columns never move. Formula-leading
+labels, groups, details and report-only names/units are escaped for spreadsheet
+safety, without altering JSON identities. Raw and
 analysis CSV remain intact. Clients consuming strict report schemas must support
 the optional RichText `label` and plain-text `group` fields before receiving
 newly annotated reports. Publish a compatible MCP package with grouped-report

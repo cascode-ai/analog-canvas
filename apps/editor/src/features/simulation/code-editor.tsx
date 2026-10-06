@@ -51,6 +51,7 @@ import { linter, lintGutter, type Diagnostic } from "@codemirror/lint";
 import { searchKeymap } from "@codemirror/search";
 import type { SimulationSourceDiagnostic } from "@icm/netlist";
 import { inspectSimulationSource } from "@icm/spice";
+import { simulationSpecAnnotationDiagnostics } from "@icm/simulation-service/contract";
 import {
   spiceCodeLanguage,
   spiceCompletion,
@@ -770,19 +771,24 @@ function sourceExtensions(
         const local =
           current.mode === "json"
             ? []
-            : (current.mode === "ngspice"
-                ? inspectSimulationSource(
-                    {
-                      id: current.path,
-                      path: current.path,
-                      text,
-                      hash: "",
-                      encoding: "utf-8",
-                    },
-                    current.entry,
-                  )
-                : inspectNativeLanguage(current.path, text, current.entry)
-              ).diagnostics;
+            : [
+                ...(current.mode === "ngspice"
+                  ? inspectSimulationSource(
+                      {
+                        id: current.path,
+                        path: current.path,
+                        text,
+                        hash: "",
+                        encoding: "utf-8",
+                      },
+                      current.entry,
+                    )
+                  : inspectNativeLanguage(current.path, text, current.entry)
+                ).diagnostics,
+                // A run reads Spec annotations with this parser; its
+                // invalid-spec detail shows on the line before any run.
+                ...simulationSpecAnnotationDiagnostics(current.path, text),
+              ];
         const diagnostics: Diagnostic[] = (
           current.mode === "json" ? jsonParseLinter()(editor) : []
         ) as Diagnostic[];
