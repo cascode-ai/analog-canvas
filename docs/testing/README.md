@@ -174,8 +174,28 @@ or placement (`apps/editor/src/features/clipboard/`,
 `apps/editor/src/features/component-insert/`), instance labels
 (`packages/derived/src/instance-label-placement.ts`,
 `packages/edit-engine/src/transaction-instance-annotations.ts`) or netlist
-extraction (`packages/netlist/src/`). Use the newest private snapshot:
+extraction/structural printing (`packages/netlist/src/`). The executable
+selection in `scripts/lib/verify-pr-selection.mjs` also covers the Gallery
+import and Agent copy entry points. It excludes test files and simulation-only
+`simulation-*`/`vacask-*` modules: the census exports drawings as SPICE, and
+cannot certify VACASK compilation, source assertions or result parsing. Unknown
+design helpers retain the conservative netlist check. Simulation changes still
+require their relevant source/engine regressions and any named original case;
+that case may be a Project file or testbench, not necessarily a Gallery entry.
+Use the newest private snapshot:
 `node scripts/gallery-private-snapshot.mjs --cached`.
+
+For an operator-provided local snapshot, run
+`node scripts/gallery-private-snapshot.mjs --local <snapshot-directory>` then
+`pnpm gallery:census -- --backup <snapshot-directory>/gallery.sqlite` with the
+required base/checks. Local validation makes no GitHub calls; it checks private
+directory access (POSIX permissions or Windows ACL), regular unlinked files,
+the recorded consistent-capture/offline-restore flags, and SQLite integrity.
+These flags are operator evidence, not cryptographic authentication of a backup.
+Ordinary Agent/GUI tests isolate the external Gallery service and exercise the
+real Editor. They do not require private snapshots or live Gallery credentials.
+Unavailable private data must be recorded and explicitly accepted as a delivery
+limitation, never counted as a census pass.
 
 The census rejects new drawing failures, netlist text changes, labels that
 stop following parts and changed Gallery marks while `NETLIST_MARK_RULE_VERSION`

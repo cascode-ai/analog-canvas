@@ -37,7 +37,7 @@ export const agentToolHelp = {
   project_cells:
     "Cloud Cell discovery/import; workspace list/bind-workspace/activate/open/save/new/rename/copy. Bind an open workspace to work without selecting the human's tab; open and new support background:true; rename names a copy's Project. Live tabs include unsaved work; Cloud reads saved versions. Copy reuses GUI transactions and dependencies. Details: analog-canvas://reference/mcp-tools.",
   gallery_circuits:
-    "Page through every public Gallery circuit, then read one or up to 12 entries' complete Project Code and generated SPICE/Spectre netlist. Follow nextCursor until null and any remainingEntryIds until empty; pass netlistFormat:null when only Project Code is needed. read with render:svg|png adds the figure; open makes a working copy in one call.",
+    "Read the signed-in Community Gallery: list/read/read-many, render:svg|png, or open a working copy. insert copies a source Cell drawing and dependencies into targetDocumentId at position in the bound workspace, in one undo; no new tab or project replacement. Default source is the top Cell. Existing import/edit scopes apply; login failure means sign in to the Editor, not another Claim. Missing expected revisions are read automatically. Follow nextCursor and remainingEntryIds; netlistFormat:null reads only Project Code.",
   project_code:
     "Read or atomically replace the open Project's complete canonical Project Code. Replacement uses the live Project structure revision and the same validated, undoable commit path as the Editor's Project Code panel.",
   netlist_code:

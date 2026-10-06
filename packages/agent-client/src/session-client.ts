@@ -632,6 +632,7 @@ export class AgentSessionClient {
     request = structuredClone(request);
     const changesProject =
       request.operation === "import-cell" ||
+      request.operation === "insert-gallery-entry" ||
       request.operation === "replace-project-code" ||
       request.operation === "replace-netlist" ||
       (request.operation === "workspace" && request.request.action !== "list");

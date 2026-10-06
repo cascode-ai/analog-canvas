@@ -5,11 +5,8 @@ import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 import { normalizeImportedProject } from "../../document/project-import-normalization";
 import type { ReplaceProjectOptions } from "../../document/use-project-file-lifecycle";
 import type { LibraryProjectExample } from "../../examples/library-examples";
-import {
-  clipboardPlacementAnchor,
-  type SchematicClipboard,
-} from "../clipboard/clipboard";
-import { captureProjectCopy } from "../clipboard/project-copy";
+import type { SchematicClipboard } from "../clipboard/clipboard";
+import { captureGalleryDrawing } from "./gallery-import";
 
 export interface GalleryEntryContext {
   id: string;
@@ -102,17 +99,11 @@ export function createGalleryExampleCommands({
     imported: CircuitProject,
     label: string,
   ): boolean => {
-    const normalized = repairOnOpen(imported);
-    const importedDocument = normalized.documents.find(
-      (candidate) => candidate.id === normalized.topDocumentId,
-    );
-    if (!importedDocument) return false;
-    const clipboard = captureProjectCopy(normalized, importedDocument);
-    const anchor = clipboard ? clipboardPlacementAnchor(clipboard) : null;
-    if (!clipboard || !anchor) return false;
+    const drawing = captureGalleryDrawing(imported);
+    if (!drawing) return false;
     try {
       cancelAllTransientInteraction();
-      beginCopyPlacement(clipboard, anchor);
+      beginCopyPlacement(drawing.clipboard, drawing.anchor);
     } catch (error) {
       setStatus(
         `Cannot copy ${label}: ${error instanceof Error ? error.message : String(error)}`,

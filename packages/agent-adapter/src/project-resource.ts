@@ -16,6 +16,18 @@ const NetlistFormatSchema = z.enum(["spice", "spectre"]);
 const NetlistNamingProfileSchema = z.enum(["native", "cadence-bang"]);
 const NetlistPortCaseSchema = z.enum(["lower", "upper"]);
 const ProjectNameSchema = z.string().min(1).max(256);
+const CopyPlacementResultSchema = z.strictObject({
+  structureRevision: z.number().int().nonnegative(),
+  revision: z.number().int().nonnegative(),
+  instanceIds: z.array(StableIdSchema),
+  importedDocumentIds: z.array(StableIdSchema),
+  importedFileIds: z.array(StableIdSchema),
+  mapping: z.strictObject({
+    objects: z.record(z.string(), z.record(z.string(), z.string())),
+    cells: z.record(z.string(), z.string()),
+    files: z.record(z.string(), z.string()),
+  }),
+});
 
 export const AgentWorkspaceActionSchema = z.discriminatedUnion("action", [
   z.strictObject({ action: z.literal("list") }),
@@ -90,6 +102,18 @@ export const AgentProjectResourceRequestSchema = z.discriminatedUnion(
       cloudProjectId: StableIdSchema,
       sourceDocumentId: StableIdSchema,
       expectedStructureRevision: z.number().int().nonnegative(),
+    }),
+    ProjectRequestBaseSchema.extend({
+      operation: z.literal("insert-gallery-entry"),
+      galleryEntryId: StableIdSchema,
+      sourceDocumentId: StableIdSchema.optional(),
+      targetDocumentId: StableIdSchema,
+      expectedRevision: z.number().int().nonnegative(),
+      expectedStructureRevision: z.number().int().nonnegative(),
+      position: z.strictObject({
+        x: z.number().finite(),
+        y: z.number().finite(),
+      }),
     }),
     ProjectRequestBaseSchema.extend({
       operation: z.literal("list-gallery"),
@@ -258,16 +282,7 @@ export const AgentProjectResourceResponseSchema = z.union([
       }),
       z.strictObject({
         action: z.literal("copy"),
-        structureRevision: z.number().int(),
-        revision: z.number().int(),
-        instanceIds: z.array(StableIdSchema),
-        importedDocumentIds: z.array(StableIdSchema),
-        importedFileIds: z.array(StableIdSchema),
-        mapping: z.strictObject({
-          objects: z.record(z.string(), z.record(z.string(), z.string())),
-          cells: z.record(z.string(), z.string()),
-          files: z.record(z.string(), z.string()),
-        }),
+        ...CopyPlacementResultSchema.shape,
       }),
     ]),
   }),
@@ -292,6 +307,14 @@ export const AgentProjectResourceResponseSchema = z.union([
     rootDocumentId: StableIdSchema,
     importedDocumentIds: z.array(StableIdSchema),
     structureRevision: z.number().int().nonnegative(),
+  }),
+  ProjectResponseBaseSchema.extend({
+    operation: z.literal("insert-gallery-entry"),
+    ok: z.literal(true),
+    galleryEntryId: StableIdSchema,
+    sourceDocumentId: StableIdSchema,
+    targetDocumentId: StableIdSchema,
+    ...CopyPlacementResultSchema.shape,
   }),
   ProjectResponseBaseSchema.extend({
     operation: z.literal("list-gallery"),
@@ -347,6 +370,7 @@ export const AgentProjectResourceResponseSchema = z.union([
       "list-gallery",
       "read-gallery-entry",
       "read-gallery-entries",
+      "insert-gallery-entry",
       "read-project-code",
       "replace-project-code",
       "read-netlist",

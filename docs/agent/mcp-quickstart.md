@@ -22,6 +22,13 @@ Other inspections reuse the clean full Snapshot after its first load;
 `refresh:true` forces a reread after a known human change or for reconciliation.
 MCP manages credentials, request IDs and expected revisions.
 
+To reuse a Gallery drawing, use `gallery_circuits` `action:"insert"` with its
+entry ID, `targetDocumentId` and `position`. It copies into the existing Circuit
+in one undo, without opening a tab. Bind another workspace first when needed;
+see [tool details](mcp/tools.md). Gallery requires the Editor's account login,
+not an extra Agent permission or another Claim. Simulation testing does not
+require a Gallery Cell: reproducible authored/imported circuits are valid inputs.
+
 Choose only the guidance needed for the task:
 
 Use a focused tool's displayed parameters directly. For a hidden or unfamiliar

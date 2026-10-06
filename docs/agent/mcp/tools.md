@@ -159,6 +159,25 @@ the top Cell's figure as an image, drawn by the same exporter as `export_file`.
 leaves the human's tab selected) and returns its `workspaceId`; no local file
 is involved. Reading copies nothing into the active Project.
 
+`insert` copies the top Cell's drawing, or `sourceDocumentId`, into
+`targetDocumentId` at `position:{x,y}`. Position is the GUI's grab point (the
+first placed Instance, or the existing clipboard anchor for drawing-only Cells),
+not an offset from the source coordinates. It imports required child Cells and
+source/model files through the same copy planner and commits one undoable edit.
+It does not open a tab, activate a workspace, replace the target or edit the
+Gallery publication. Use the existing `project_cells` workspace binding to
+select another target Project. This is drawing insertion, not placement of a
+single hierarchy Instance; Cloud `import-cell` remains a separate operation.
+Supply `expectedRevision` and `expectedStructureRevision` from inspected state,
+or omit them for the MCP client's fresh target read. The Editor rechecks both
+and the bound Project after download. The receipt contains source/target Cell
+IDs, target revisions, copied object mapping and imported Cell/file IDs.
+An empty source rejects with `COPY_EMPTY`, never opens it instead.
+Gallery login is the Editor's login: `SIGN_IN_REQUIRED` asks to sign in;
+`SESSION_NOT_FOUND` asks to pair again. A stale target needs new context and a
+new plan, not a new Claim. Existing `project.import` and geometry/connectivity/
+presentation edit scopes apply; there is no extra Gallery privilege.
+
 Use `project_code` to read or replace the complete open Project. A replacement
 is parsed and committed through the same revision-guarded, undoable Project
 Code path as the Editor panel, so adding, updating or removing Cells and

@@ -47,15 +47,35 @@ export function strictUnitRun(paths) {
  * Paths for which AGENTS.md runs the Gallery census: copying, placement,
  * instance labels and netlist extraction.
  */
+function censusGroup(path) {
+  if (/\.(?:test|spec)\.[cm]?[jt]sx?$/u.test(path)) return null;
+  if (
+    path.startsWith("apps/editor/src/features/clipboard/") ||
+    path.startsWith("apps/editor/src/features/component-insert/") ||
+    path === "apps/editor/src/features/editor-shell/gallery-import.ts" ||
+    path ===
+      "apps/editor/src/features/editor-shell/gallery-example-commands.ts" ||
+    path === "apps/editor/src/agent/browser-agent-project-host.ts" ||
+    path === "apps/editor/src/agent/workspace-copy.ts"
+  )
+    return "copy";
+  if (
+    path === "packages/derived/src/instance-label-placement.ts" ||
+    path === "packages/edit-engine/src/transaction-instance-annotations.ts"
+  )
+    return "transform";
+  // The census exports historical drawings as SPICE, not simulation source or
+  // VACASK results. Unknown design helpers still get the conservative check.
+  if (
+    path.startsWith("packages/netlist/src/") &&
+    !/^packages\/netlist\/src\/(?:simulation-|vacask-)/u.test(path)
+  )
+    return "netlist";
+  return null;
+}
+
 export function censusPaths(paths) {
-  return paths.filter(
-    (path) =>
-      path.startsWith("apps/editor/src/features/clipboard/") ||
-      path.startsWith("apps/editor/src/features/component-insert/") ||
-      path === "packages/derived/src/instance-label-placement.ts" ||
-      path === "packages/edit-engine/src/transaction-instance-annotations.ts" ||
-      (path.startsWith("packages/netlist/src/") && !/\.test\.ts$/u.test(path)),
-  );
+  return paths.filter((path) => censusGroup(path) !== null);
 }
 
 /**
@@ -66,10 +86,9 @@ export function censusPaths(paths) {
  */
 export function censusChecks(paths) {
   const checks = new Set();
-  for (const path of censusPaths(paths)) {
-    if (path.startsWith("packages/netlist/src/")) checks.add("netlist");
-    else if (path.startsWith("apps/editor/src/features/")) checks.add("copy");
-    else checks.add("transform");
+  for (const path of paths) {
+    const group = censusGroup(path);
+    if (group) checks.add(group);
   }
   return [...checks].sort();
 }

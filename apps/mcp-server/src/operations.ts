@@ -140,6 +140,18 @@ const ProjectCellsArgs = z.discriminatedUnion("action", [
 ]);
 const GalleryCircuitsArgs = z.discriminatedUnion("action", [
   z.strictObject({
+    action: z.literal("insert"),
+    galleryEntryId: z.string().min(1).max(256),
+    sourceDocumentId: z.string().min(1).max(256).optional(),
+    targetDocumentId: z.string().min(1).max(256),
+    position: z.strictObject({
+      x: z.number().finite(),
+      y: z.number().finite(),
+    }),
+    expectedRevision: z.number().int().nonnegative().optional(),
+    expectedStructureRevision: z.number().int().nonnegative().optional(),
+  }),
+  z.strictObject({
     action: z.literal("list"),
     cursor: z.string().min(1).optional(),
     limit: z.number().int().min(1).max(60).optional(),
@@ -705,6 +717,33 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
           parsed.galleryEntryId,
           parsed.background === true,
         );
+      if (parsed.action === "insert") {
+        const current =
+          parsed.expectedRevision === undefined ||
+          parsed.expectedStructureRevision === undefined
+            ? (
+                await session.client.snapshot(parsed.targetDocumentId, {
+                  refresh: true,
+                })
+              ).snapshot
+            : null;
+        return session.client.projectResource({
+          apiVersion: AGENT_API_VERSION,
+          requestId: crypto.randomUUID(),
+          operation: "insert-gallery-entry",
+          galleryEntryId: parsed.galleryEntryId,
+          ...(parsed.sourceDocumentId
+            ? { sourceDocumentId: parsed.sourceDocumentId }
+            : {}),
+          targetDocumentId: parsed.targetDocumentId,
+          position: parsed.position,
+          expectedRevision:
+            parsed.expectedRevision ?? current!.document.revision,
+          expectedStructureRevision:
+            parsed.expectedStructureRevision ??
+            current!.project.structureRevision,
+        });
+      }
       const common = {
         apiVersion: AGENT_API_VERSION,
         requestId: crypto.randomUUID(),
