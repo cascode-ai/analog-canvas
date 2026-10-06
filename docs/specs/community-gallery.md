@@ -87,15 +87,21 @@ asks the AuthDO once.
   circuit names, authors, descriptions and tags without changing the tag list.
   Narrow mobile layouts keep that search visible while collapsing the filters
   and tag groups behind a Search & filters button. An empty tag selection result
-  does not substitute unfiltered examples. With `q` the tag counts are those of
-  the circuits the search finds.
+  does not substitute unfiltered examples. The counts follow every filter of
+  the wall except the tag choice itself (author or `owner`, netlist, liked,
+  Needs attention and its reason, sizes, and `q`), so no tag claims more
+  circuits than the narrowed wall holds; with `q` they are those of the
+  circuits the search finds.
 - `GET /api/gallery/authors` — non-empty public bylines with their currently
   visible circuit counts, ranked by count and then author name. This endpoint
   remains the unfiltered public ranking. The clickable wall count instead uses
   the `authors` aggregate returned by `GET /api/gallery`: the same author,
   tags, netlist, liked and authorized Needs attention filters as its cards,
   counted before pagination. Empty results show no contributors. Selecting an
-  author retains the other active filters.
+  author retains the other active filters. While the wall is narrowed to one
+  author, the menu opens with "Circuits by <author>" and an All authors
+  button, the same control as the one beside the wall's author line; it
+  clears the author and keeps every other filter.
 - `GET /api/gallery?q=<words>` — the server searches every public circuit's
   name, byline, description and tags, never its Project Code or preview, with
   the rule the browser uses (`apps/editor/src/gallery-search.ts`):

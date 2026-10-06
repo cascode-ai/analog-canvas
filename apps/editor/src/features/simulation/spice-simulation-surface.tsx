@@ -53,6 +53,7 @@ import {
   type SimulationArtifactContent,
 } from "./simulation-artifact-files";
 import { createBrowserSimulationArchiveStore } from "./browser-simulation-archive-store";
+import { archivedRunStatus, folderRunStatus } from "./project-run-history";
 import {
   captureSimulationRunArchive,
   restoreSimulationRunArchive,
@@ -753,22 +754,18 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
     batch?.items.filter((item) =>
       ["finished", "failed", "cancelled", "lost"].includes(item.state),
     ).length ?? 0;
-  // The folder status is its newest run of any owner. Project runs are kept
-  // in start order; a newer one than the run shown here, such as an Agent's,
-  // sets the status without replacing the shown result.
-  const newestFolderRun = sharedRuns.findLast(
-    (item) => item.presentation.folderId === selectedFolder?.id,
+  const folderStatus = folderRunStatus(
+    selectedFolder?.id,
+    sharedRuns,
+    run,
+    archives,
   );
-  const statusRun =
-    newestFolderRun && newestFolderRun.id !== run?.id
-      ? newestFolderRun
-      : run && { state: run.state, outcome: run.result?.outcome.status };
   const statusLabel = busy
     ? "Preparing…"
     : batch
       ? `Batch ${batch.state} · ${finishedBatchItems}/${batch.items.length}`
-      : statusRun
-        ? runStateLabel(statusRun)
+      : folderStatus
+        ? runStateLabel(folderStatus)
         : prepared
           ? "Deck prepared"
           : "No run yet";
@@ -1119,8 +1116,8 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
                   <span>
                     {item.retention === "cache" ? "Auto · " : "Saved · "}
                     {item.origin === "agent" ? "Agent · " : ""}
-                    {item.folderName} · {item.state ?? "saved"} ·{" "}
-                    {new Date(item.createdAt).toLocaleString()}
+                    {item.folderName} · {runStateLabel(archivedRunStatus(item))}{" "}
+                    · {new Date(item.createdAt).toLocaleString()}
                   </span>
                   <button
                     type="button"
@@ -1291,7 +1288,7 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
         </button>
       )}
       <span
-        className={`simulation-status-chip simulation-status-${batch?.state ?? statusRun?.state ?? (prepared ? "prepared" : "idle")}`}
+        className={`simulation-status-chip simulation-status-${batch?.state ?? folderStatus?.state ?? (prepared ? "prepared" : "idle")}`}
         role="status"
       >
         {activeDirty ? "Source changed" : statusLabel}

@@ -1144,6 +1144,27 @@ function requestedParts(url: URL): string[] {
     .slice(0, 16);
 }
 
+/**
+ * The filters a wall request names, read once for the wall and the tag counts
+ * beside it, so every filter the wall gains narrows those counts too.
+ */
+function wallFilters(url: URL) {
+  return {
+    author: url.searchParams.get("author"),
+    ownerUserId: url.searchParams.get("owner"),
+    attention: url.searchParams.get("attention") === "1",
+    attentionKind: url.searchParams.get("reason"),
+    // Two marks the reader can narrow by. "Liked" is answered against the
+    // session, so signed out it selects nothing rather than everything.
+    netlistable: url.searchParams.get("netlistable") === "1",
+    liked: url.searchParams.get("liked") === "1",
+    // Sizes by part count; several mean any of them.
+    parts: requestedParts(url),
+    // Words over names, bylines, descriptions and tags.
+    q: url.searchParams.get("q"),
+  };
+}
+
 export async function refreshNetlistMarks(
   env: GalleryEnv,
   limit?: number,
@@ -1646,28 +1667,18 @@ export async function routeGalleryRequest(
     // Signed in, the feed says which circuits this account has already
     // thumbed; signed out it simply carries the counts.
     const viewer = await sessionUserOf(request, env);
-    if (url.searchParams.get("attention") === "1" && !viewer)
+    const filters = wallFilters(url);
+    if (filters.attention && !viewer)
       return Response.json({ error: "unauthorized" }, { status: 401 });
     const { payload } = await callGallery(env, "list", {
+      ...filters,
       isAdmin: viewer?.isAdmin === true,
-      attention: url.searchParams.get("attention") === "1",
-      attentionKind: url.searchParams.get("reason"),
       viewerId: viewer?.id ?? "",
       limit: url.searchParams.get("limit"),
       cursor: url.searchParams.get("cursor"),
-      author: url.searchParams.get("author"),
-      ownerUserId: url.searchParams.get("owner"),
       tags: (url.searchParams.get("tags") ?? "")
         .split(",")
         .filter((tag) => tag.length > 0),
-      // Two marks the reader can narrow by. "Liked" is answered against the
-      // session, so signed out it selects nothing rather than everything.
-      netlistable: url.searchParams.get("netlistable") === "1",
-      liked: url.searchParams.get("liked") === "1",
-      // Sizes by part count; several mean any of them.
-      parts: requestedParts(url),
-      // Words over names, bylines, descriptions and tags.
-      q: url.searchParams.get("q"),
     });
     return Response.json(payload, {
       headers: { "cache-control": "no-store" },
@@ -1917,23 +1928,19 @@ export async function routeGalleryRequest(
     segments[0] === "tags" &&
     request.method === "GET"
   ) {
-    // Tag counts follow the wall's filters. The personal two need the
-    // session; the public counts stay a plain read.
-    const attention = url.searchParams.get("attention") === "1";
-    const liked = url.searchParams.get("liked") === "1";
+    // Tag counts follow every filter of the wall except its tag choice. The
+    // personal two need the session; the public counts stay a plain read.
+    const filters = wallFilters(url);
     const viewer =
-      attention || liked ? await sessionUserOf(request, env) : null;
-    if (attention && !viewer)
+      filters.attention || filters.liked
+        ? await sessionUserOf(request, env)
+        : null;
+    if (filters.attention && !viewer)
       return Response.json({ error: "unauthorized" }, { status: 401 });
     const { payload } = await callGallery(env, "tags", {
+      ...filters,
       isAdmin: viewer?.isAdmin === true,
       viewerId: viewer?.id ?? "",
-      attention,
-      attentionKind: url.searchParams.get("reason"),
-      liked,
-      netlistable: url.searchParams.get("netlistable") === "1",
-      parts: requestedParts(url),
-      q: url.searchParams.get("q"),
     });
     return Response.json(payload, { headers: { "cache-control": "no-store" } });
   }

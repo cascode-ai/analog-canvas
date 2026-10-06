@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createEmptyProject } from "@icm/model";
+import { createEmptyProject, createSimulationFolder } from "@icm/model";
 import { networkFailure } from "../../../../packages/agent-client/src/errors";
 import { FOCUSED_TOOLS } from "../../../mcp-server/src/focused-tools";
 import { runHttpCommand } from "../../../mcp-server/src/http-cli";
@@ -424,6 +424,105 @@ describe.each(["compatibility", "focused", "cli"] as const)(
       expect(localIndex.runs[0].runId).toBe(started.run.id);
       expect(localIndex.runs[0].files[0].sha256).toBeDefined();
       expect(http.claims).toHaveLength(1);
+    });
+
+    it("warns about an invalid @spec line in a file it saved, and the file is saved as written (#1398)", async () => {
+      const project = emptyAgentProject();
+      project.simulationFolders = [
+        createSimulationFolder({
+          id: "wien",
+          name: "Wien",
+          profileId: "ngspice",
+          engine: "ngspice",
+        }),
+      ];
+      const editor = liveAgentEditor({ project });
+      const tool = tools({ client: editor.client });
+      await tool("connect", { claimCode: "session-1.code" });
+      // #1311: ngspice reads 40m, but a Spec bound takes no SPICE suffix.
+      const source = (bounds: string) =>
+        [
+          "Wien-bridge oscillator",
+          ".tran 1u 40m",
+          ".meas tran per10 trig v(out) val=0 rise=2 targ v(out) val=0 rise=12",
+          `* @spec per10 range ${bounds} unit=s`,
+          ".end",
+          "",
+        ].join("\n");
+      const save = (expectedRevision: number, bounds: string) =>
+        tool("simulation_files", {
+          request: {
+            action: "update",
+            owner: { kind: "project-folder", folderId: "wien" },
+            expectedRevision,
+            writes: [{ path: "run.cir", text: source(bounds) }],
+          },
+        });
+      const saved = () =>
+        editor.controller.project.simulationFolders[0]!.input.files.find(
+          (file) => file.path === "run.cir",
+        )!.text;
+      const first = editor.controller.project.structureRevision;
+      const calls = editor.http.fileCalls.length;
+      const warned = await save(first, "9.0m 11.1m");
+      expect(warned).toMatchObject({
+        ok: true,
+        update: {
+          changed: true,
+          files: [{ path: "run.cir", action: "updated" }],
+        },
+      });
+      expect(warned.specWarnings).toEqual([
+        {
+          path: "run.cir",
+          line: 4,
+          message: expect.stringMatching(/"9\.0m".*write 9\.0e-3/u),
+        },
+      ]);
+      // A warning, not a refusal; checked from the request, nothing reread.
+      expect(saved()).toBe(source("9.0m 11.1m"));
+      expect(editor.http.fileCalls).toHaveLength(calls + 1);
+      // A refused update wrote nothing, so it warns about nothing.
+      const refused = await save(first, "9.0m 11.1m");
+      expect(refused).toMatchObject({
+        ok: false,
+        error: { code: "PROJECT_REVISION_CONFLICT" },
+      });
+      expect(refused).not.toHaveProperty("specWarnings");
+      const valid = await save(warned.source.revision, "9.0e-3 11.1e-3");
+      expect(valid).toMatchObject({ ok: true, update: { changed: true } });
+      expect(valid).not.toHaveProperty("specWarnings");
+      expect(saved()).toBe(source("9.0e-3 11.1e-3"));
+      // An edit sends only its fragment, so the file it changed is read back
+      // once and checked whole.
+      const beforeEdit = editor.http.fileCalls.length;
+      const edited = await tool("simulation_files", {
+        request: {
+          action: "update",
+          owner: { kind: "project-folder", folderId: "wien" },
+          expectedRevision: valid.source.revision,
+          replacements: [
+            {
+              path: "run.cir",
+              textDigest: valid.update.files[0].textDigest,
+              oldText: "range 9.0e-3",
+              newText: "range 9.0m",
+            },
+          ],
+        },
+      });
+      expect(edited.specWarnings).toEqual([
+        {
+          path: "run.cir",
+          line: 4,
+          message: expect.stringMatching(/"9\.0m".*write 9\.0e-3/u),
+        },
+      ]);
+      expect(saved()).toBe(source("9.0m 11.1e-3"));
+      expect(editor.http.fileCalls.slice(beforeEdit)).toMatchObject([
+        { input: { action: "update" } },
+        { input: { action: "read", path: "run.cir", offset: 0 } },
+      ]);
     });
   },
 );

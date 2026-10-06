@@ -16,8 +16,12 @@ import { preparedSummary } from "./prepared-summary.js";
 import {
   SimulationOperationSchema,
   ArtifactRefSchema,
+  simulationSpecAnnotationDiagnostics,
 } from "@icm/simulation-service/contract";
-import { SimulationFileOperationSchema } from "@icm/simulation-service/files";
+import {
+  SimulationFileOperationSchema,
+  type SimulationFileOwner,
+} from "@icm/simulation-service/files";
 import {
   AGENT_API_VERSION,
   AGENT_MCP_VERSION,
@@ -242,6 +246,51 @@ const SimulationFilesArgs = z.strictObject({
 // schemas on the hot path. Both entry points normalize here before routing.
 const simulationEnvelopeFields = new Set(Object.keys(SimulationArgs.shape));
 const fileEnvelopeFields = new Set(Object.keys(SimulationFilesArgs.shape));
+
+/**
+ * The text a save left in a source file, read back page by page. Undefined
+ * when a read is refused or fails, or when the file no longer holds the text
+ * the save left (`textDigest`), so a later edit is never checked as this one.
+ */
+async function savedSourceText(
+  session: ToolSessionState,
+  owner: SimulationFileOwner,
+  path: string,
+  textDigest: string | undefined,
+): Promise<string | undefined> {
+  let text = "";
+  try {
+    for (let offset: number | null = 0; offset !== null;) {
+      const response = await session.client.fileResource({
+        apiVersion: AGENT_API_VERSION,
+        requestId: crypto.randomUUID(),
+        operation: "simulation-input",
+        input: {
+          action: "read",
+          owner,
+          path,
+          offset,
+          maxChars: 65536,
+          detail: "text",
+        },
+      });
+      if (
+        !response.ok ||
+        response.operation !== "simulation-input" ||
+        !response.result.ok ||
+        !("textDigest" in response.result) ||
+        (textDigest !== undefined && response.result.textDigest !== textDigest)
+      )
+        return undefined;
+      text += response.result.text;
+      offset = response.result.nextOffset;
+    }
+  } catch {
+    // The save stands; a check that cannot read it back stays silent.
+    return undefined;
+  }
+  return text;
+}
 
 async function localWorkspace(session: ToolSessionState, basePath?: string) {
   const status = await session.client.status();
@@ -1089,6 +1138,40 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
           basePath: workspace.basePath,
           indexPath: workspace.indexPath,
         };
+      }
+      if (
+        request.action === "update" &&
+        response.result.ok &&
+        "source" in response.result
+      ) {
+        // The editor's receipt is a strict published schema, so the client
+        // checks what it saved, with the parser a run uses (#1398): a file
+        // written whole from the request, a file an edit changed read back
+        // once. A warning, not a refusal: the file is saved and the run
+        // proceeds.
+        const saved = new Map(
+          request.writes.map(({ path, text }) => [path, text]),
+        );
+        for (const file of response.result.update?.files ?? []) {
+          if (file.action === "removed" || saved.has(file.path)) continue;
+          const text = await savedSourceText(
+            session,
+            request.owner,
+            file.path,
+            file.textDigest,
+          );
+          if (text !== undefined) saved.set(file.path, text);
+        }
+        const specWarnings = [...saved].flatMap(([path, text]) =>
+          simulationSpecAnnotationDiagnostics(path, text).map(
+            ({ sourceRef, message }) => ({
+              path,
+              line: sourceRef.start.line,
+              message,
+            }),
+          ),
+        );
+        if (specWarnings.length) return { ...response.result, specWarnings };
       }
       return response.result;
     },

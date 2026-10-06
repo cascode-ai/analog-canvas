@@ -10,6 +10,7 @@ import { createBrowserSimulationArtifactStore } from "./browser-simulation-artif
 import {
   captureSimulationRunArchive,
   restoreSimulationRunArchive,
+  summarizeSimulationRunArchive,
 } from "./simulation-run-archive";
 
 const folder = createSimulationFolder({
@@ -180,6 +181,48 @@ describe("simulation run archive", () => {
       expect(again).toEqual(restored);
     },
   );
+  it("lists a finished run by the simulator's verdict", async () => {
+    const source = new SimulationFiles();
+    const result = {
+      outcome: { status: "completed-with-dropped-input" },
+    } as NonNullable<Run["result"]>;
+    const report = await source.put(
+      "result.json",
+      "application/json",
+      JSON.stringify(result),
+    );
+    const captured = await captureSimulationRunArchive(source, {
+      projectId: "project",
+      presentation,
+      prepared: {
+        id: "prep",
+        digest: "a".repeat(64),
+        inputRevision: "rev",
+        expiresAt: 100,
+        mode: "source",
+        environment: { profileId: "test" },
+        vectors: [],
+        outputs: [],
+        deviceOperatingPoints: [],
+        artifacts: [],
+        warnings: [],
+      },
+      run: {
+        id: "run",
+        preparedId: "prep",
+        inputRevision: "rev",
+        state: "finished",
+        result,
+        artifacts: [report],
+      },
+    });
+    if (!captured.ok) throw Error(captured.error.message);
+    // The listing needs no result.json decoded to say how the run ended.
+    expect(summarizeSimulationRunArchive(captured.value)).toMatchObject({
+      state: "finished",
+      outcome: "completed-with-dropped-input",
+    });
+  });
   it("remaps populated dataset representations and rejects missing references before restoring", async () => {
     const source = new SimulationFiles();
     const raw = await source.put(

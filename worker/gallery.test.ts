@@ -3542,7 +3542,7 @@ describe("gallery version history", () => {
 });
 
 describe("gallery circuit tags", () => {
-  it("scopes tag and deduplicated group counts to the netlist mark without exposing hidden entries", async () => {
+  it("scopes tag and deduplicated group counts to the netlist mark and the contributor without exposing hidden entries", async () => {
     const env = environment();
     const cookie = await adminOf(env);
     const sketch = createEmptyProject("sketch", "Sketch");
@@ -3589,6 +3589,26 @@ describe("gallery circuit tags", () => {
       groups: [{ group: "Amplifiers", count: 1 }],
     });
     expect(await summary("?netlistable=0")).toEqual(all);
+    env.gallerySql.exec(
+      "UPDATE gallery_entries SET author = 'Bob', owner_user_id = 'owner-bob' WHERE name = 'Sketch'",
+    );
+    const bob = {
+      tags: [
+        { tag: "amplifier", count: 1 },
+        { tag: "comparator", count: 1 },
+      ],
+      groups: [
+        { group: "Amplifiers", count: 1 },
+        { group: "Conversion", count: 1 },
+      ],
+    };
+    expect(await summary("?owner=owner-bob")).toEqual(bob);
+    // A byline alone, as an older link names a contributor.
+    expect(await summary("?author=Bob")).toEqual(bob);
+    expect(await summary("?owner=owner-bob&netlistable=1")).toEqual({
+      tags: [],
+      groups: [],
+    });
   });
 
   it("normalizes tags on write, filters as an OR-union, and aggregates", async () => {
