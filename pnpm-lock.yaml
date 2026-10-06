@@ -382,15 +382,6 @@ importers:
         specifier: workspace:*
         version: link:../spice-run
 
-  packages/platform-node:
-    dependencies:
-      "@icm/model":
-        specifier: workspace:*
-        version: link:../model
-      "@icm/project-protocol":
-        specifier: workspace:*
-        version: link:../project-protocol
-
   packages/project-protocol:
     dependencies:
       "@icm/derived":

@@ -168,8 +168,6 @@ and [delivery cadence](docs/deployment.md#development-and-delivery-cadence).
 - `packages/simulation-service/` and `packages/spice-run/`: shared simulation
   preparation, run lifecycle, and artifacts, plus simulator request and result
   contracts.
-- `packages/platform-node/`: Node filesystem storage and recovery adapters with
-  no current in-repository consumer.
 - `packages/agent-adapter/`, `packages/agent-client/`, and
   `packages/agent-routing/`: shared Agent contract, client, and routing logic.
 - `worker/`: Cloudflare Worker host and Durable Objects for static hosting,

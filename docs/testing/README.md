@@ -54,8 +54,8 @@ to preflight, affected, and final gates. Shared-core, production-boundary,
 unknown non-documentation, and gate-policy changes select the conservative
 branch/full fallback for local planning. The PR planner separately translates
 shipped product paths into focused browser contracts. Unit tests, package
-manifests, the Node-only local host and Node platform package stay in Core
-contracts instead of allocating a browser. An unmapped browser path gets a
+manifests and the Node-only local host stay in Core contracts instead of
+allocating a browser. An unmapped browser path gets a
 small insertion/runtime-safety fallback alongside all mapped contracts; an
 unmapped path never removes another changed path's selected tests. CI never
 runs the complete browser suite; `pnpm test:e2e` runs it locally.

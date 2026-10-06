@@ -1,5 +1,4 @@
-import { mkdtemp, mkdir, readFile, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { performance } from "node:perf_hooks";
 
@@ -10,11 +9,7 @@ import {
   createEmptyProject,
   createRoutePath,
 } from "../packages/model/dist/index.js";
-import {
-  saveProject,
-  serializeProject,
-} from "../packages/project-protocol/dist/index.js";
-import { RootedProjectStorage } from "../packages/platform-node/dist/index.js";
+import { serializeProject } from "../packages/project-protocol/dist/index.js";
 import { renderDocumentSvg } from "../packages/render-svg/dist/index.js";
 import { importSpiceSources } from "../packages/spice/dist/index.js";
 import {
@@ -31,7 +26,6 @@ const budgets = {
   connectivityIndex: 1000,
   connectivityRenderSvg: 2000,
   spiceImport: 2000,
-  atomicSave: 1000,
 };
 
 async function measure(action) {
@@ -188,15 +182,6 @@ const imported = await measure(async () =>
     "core.cir",
   ),
 );
-const storageRoot = await mkdtemp(resolve(tmpdir(), "icm-performance-"));
-const saved = await measure(() =>
-  saveProject(
-    new RootedProjectStorage(storageRoot),
-    "large.icproj.json",
-    project,
-  ),
-);
-
 const measurements = {
   generateProject: generated.milliseconds,
   serialize: serialized.milliseconds,
@@ -206,7 +191,6 @@ const measurements = {
   connectivityIndex: connectivityIndex.milliseconds,
   connectivityRenderSvg: connectivityRender.milliseconds,
   spiceImport: imported.milliseconds,
-  atomicSave: saved.milliseconds,
 };
 const failures = Object.entries(measurements).filter(
   ([name, value]) => value > budgets[name],
