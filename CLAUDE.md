@@ -2,9 +2,9 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-Optional upstream development and writing skills are indexed in
-[the reference sources](references/README.md#development-skill-references).
-They are registered for study; workflow alignment remains pending.
+Original upstream development and writing skills are installed for branch trials.
+See [the source index and Claude registration command](references/README.md#development-skill-references).
+Workflow alignment and effectiveness evaluation remain pending.
 
 ## Project
 

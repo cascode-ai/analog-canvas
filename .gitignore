@@ -10,6 +10,8 @@ test-results/
 output/
 tmp/
 .reference-src/
+# Local Claude registration points at the checked-in original skills.
+.claude/skills
 *.tsbuildinfo
 .vite/
 .wrangler/

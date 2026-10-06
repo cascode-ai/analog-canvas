@@ -62,17 +62,17 @@
       "repository": "https://github.com/mattpocock/skills.git",
       "revision": "4588b32ecab9ecc9fc8cc6b6c5e7d675b6004b0d",
       "declaredLicense": "MIT",
-      "usage": "workflow-reference-only",
+      "usage": "workflow-original-trial",
       "defaultFetch": false,
       "allowedScope": [
+        "selected workflow skills and complete original dependencies for branch evaluation",
         "original requirement, specification, ticket and implementation skills",
         "original code-review, PR, architecture and retrospective skills",
         "linked interview, domain-modeling, design and testing guidance"
       ],
       "excludedScope": [
-        "automatic skill installation or invocation",
-        "mandatory repository workflow",
-        "changes to validation or delivery policy",
+        "mandatory workflow adoption before evaluation",
+        "automatic changes to validation or delivery policy",
         "product runtime dependency"
       ]
     },
@@ -81,28 +81,27 @@
       "repository": "https://github.com/humanlayer/skills.git",
       "revision": "ca7c8088db69e315a8b2deea43820270457f8f3c",
       "declaredLicense": "MIT",
-      "usage": "workflow-reference-only",
+      "usage": "workflow-original-trial",
       "defaultFetch": false,
-      "allowedScope": ["original show-me visual explanation skill"],
-      "excludedScope": [
-        "automatic skill or plugin installation",
-        "mandatory PR format",
-        "product runtime dependency"
-      ]
+      "allowedScope": [
+        "complete unmodified show-me installation for branch evaluation"
+      ],
+      "excludedScope": ["mandatory PR format", "product runtime dependency"]
     },
     {
       "name": "unslop",
       "repository": "https://github.com/theclaymethod/unslop.git",
       "revision": "17ed39c9d0b522f44190ff0c6233867eadee192a",
       "declaredLicense": "MIT (declared in SKILL.md)",
-      "usage": "writing-reference-only",
+      "usage": "writing-original-trial",
       "defaultFetch": false,
       "allowedScope": [
+        "complete unmodified skill installation for branch evaluation",
         "original English prose audit and rewrite skill",
         "linked behavior contracts, commands, examples and presets"
       ],
       "excludedScope": [
-        "automatic skill installation or document rewriting",
+        "automatic document rewriting",
         "mandatory publication checks",
         "product runtime dependency"
       ]
