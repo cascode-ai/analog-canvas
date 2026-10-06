@@ -21,7 +21,7 @@ import type { NetlistDiagnostic, PrintedNetlistInstance } from "@icm/netlist";
 import type { CircuitProject, ObjectLocator } from "@icm/model";
 import {
   inferNetlistProcess,
-  netlistProcessPendingInstances,
+  prepareNetlistProcess,
   netlistFamilyTarget,
   planNetlistProcess,
 } from "./netlist-process";
@@ -138,8 +138,11 @@ export function NetlistCodePanel({
     next: NetlistExportProfile,
     options: Parameters<typeof planNetlistProcess>[2] = {},
   ) {
+    return applyProcessPlan(() => planNetlistProcess(project, next, options));
+  }
+  function applyProcessPlan(plan: () => ProjectStructureEdit[]) {
     try {
-      const edits = planNetlistProcess(project, next, options);
+      const edits = plan();
       if (edits.length && !onApply(edits))
         throw new Error(
           "Could not apply device mappings. The circuit has not changed.",
@@ -157,14 +160,15 @@ export function NetlistCodePanel({
   // chosen, or before the editor bound them at all, remain blocked until the
   // defaults are authored. Counting is the same plan the button applies, so
   // the number and the action cannot disagree.
-  const pendingDefaults = useMemo(() => {
-    if (configurationError) return 0;
+  const preparedDefaults = useMemo(() => {
+    if (configurationError) return null;
     try {
-      return netlistProcessPendingInstances(project, profile);
+      return prepareNetlistProcess(project, profile, { onlyMissing: true });
     } catch {
-      return 0;
+      return null;
     }
   }, [project, profile, configurationError]);
+  const pendingDefaults = preparedDefaults?.instanceCount ?? 0;
   const result = useMemo(
     () =>
       configurationError
@@ -619,7 +623,10 @@ export function NetlistCodePanel({
               title={`Fill missing models and values on the ${pendingDefaults} ${
                 pendingDefaults === 1 ? "device" : "devices"
               } using the ${NETLIST_PROFILE_LABELS[process]} defaults`}
-              onClick={() => applyProcess(profile, { onlyMissing: true })}
+              onClick={() => {
+                if (preparedDefaults)
+                  applyProcessPlan(() => preparedDefaults.edits);
+              }}
             >
               Fill {pendingDefaults}{" "}
               {pendingDefaults === 1 ? "device" : "devices"}
