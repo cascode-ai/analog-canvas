@@ -14,6 +14,7 @@ import { switchBehavioralDefinition } from "./ideal-switch-model.js";
 import type { NetlistFormat } from "./net-name-codec.js";
 import { normalizeIndependentSource } from "./source-waveform.js";
 import { signedControlGain } from "./controlled-current.js";
+import { printedParameterConversion } from "./parameter-projection.js";
 import type {
   DesignNetlistLocations,
   PrintedNetlistInstance,
@@ -713,6 +714,10 @@ export function locateDesignNetlist(
             kind,
             rawValue,
             ...(parameter ? { parameter } : {}),
+            ...(parameter &&
+            printedParameterConversion(instance, parameter) !== "identity"
+              ? { conversion: printedParameterConversion(instance, parameter) }
+              : {}),
             startOffset: offset + at,
             endOffset: offset + at + marker.length,
           });

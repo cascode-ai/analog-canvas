@@ -144,6 +144,11 @@ Imported X names remain valid and are never rewritten by a process switch. All
 authored References remain case-insensitively unique per Cell. Reviewed SKY130 `l/w` values are stored canonically as metre-valued SPICE strings and
 projected to plain micrometre numbers by extraction for both SPICE and Spectre
 output.
+Editable design-netlist geometry maps those printed numbers and expressions
+back to canonical Project lengths before committing. Ordinary Netlist also
+retains SI-suffixed literal input; generated simulation Circuit keeps its
+existing plain-micrometre input policy. Printed parameter keys map back to the
+authored key case, and untouched fields keep their original Project spelling.
 
 External-master parameters are deliberately open: declared formal parameters
 provide authoring metadata, requiredness, and defaults, while additional raw

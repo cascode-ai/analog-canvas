@@ -426,3 +426,108 @@ it.each([
     expect(next.file.text).not.toContain("XXM_load");
   },
 );
+
+it.each<NetlistFormat>(["spice", "spectre"])(
+  "round-trips reviewed geometry without changing units, expressions or authored keys (%s)",
+  async (format) => {
+    const { project } = await fixture(format);
+    const { planSetDeviceModelTarget } = await import("@icm/edit-engine");
+    const leaf = project.documents.find((d) => d.netlist?.name === "leaf")!;
+    const mos = leaf.instances.find((i) => i.reference === "M1")!;
+    const mapped = executeProjectTransaction(project, {
+      transactionId: "geometry-map",
+      projectId: project.id,
+      expectedStructureRevision: project.structureRevision,
+      actor: { kind: "human", id: "test" },
+      edits: planSetDeviceModelTarget(
+        project,
+        leaf.id,
+        mos.id,
+        "sky130_fd_pr__nfet_01v8",
+      ),
+    });
+    if (!mapped.ok) throw new Error(mapped.error.message);
+    // A printer-normalized parameter name must still write the authored key.
+    const owner = mapped.project.documents
+      .find((d) => d.id === leaf.id)!
+      .instances.find((i) => i.id === mos.id)!;
+    owner.netlist!.parameters.W = owner.netlist!.parameters.w!;
+    delete owner.netlist!.parameters.w;
+    const baseline = createDesignNetlistExport(mapped.project, {
+      format,
+      includeLocations: true,
+    });
+    if (baseline.status !== "ready") throw new Error(JSON.stringify(baseline));
+    const field = baseline.locations.fields.find(
+      (f) => f.instanceId === mos.id && f.parameter === "w",
+    )!;
+    for (const [typed, stored, printed] of [
+      ["2", "2u", "2"],
+      ["250n", "250n", "0.25"],
+      ["{WIDTH}", "{(WIDTH) * 1u}", "{WIDTH}"],
+    ]) {
+      const draft =
+        baseline.file.text.slice(0, field.startOffset) +
+        typed +
+        baseline.file.text.slice(field.endOffset);
+      const plan = planNetlistCodeEdit(mapped.project, baseline, draft);
+      if (!plan.ok) throw new Error(plan.message);
+      const result = executeProjectTransaction(mapped.project, {
+        transactionId: "geometry-edit",
+        projectId: project.id,
+        expectedStructureRevision: mapped.project.structureRevision,
+        actor: { kind: "human", id: "test" },
+        edits: plan.edits,
+      });
+      if (!result.ok) throw new Error(result.error.message);
+      const updated = result.project.documents
+        .find((d) => d.id === leaf.id)!
+        .instances.find((i) => i.id === mos.id)!;
+      expect(updated.netlist!.parameters.W).toBe(stored);
+      expect(updated.netlist!.parameters).not.toHaveProperty("w");
+      expect(updated.placement).toEqual(owner.placement);
+      const next = createDesignNetlistExport(result.project, {
+        format,
+        includeLocations: true,
+      });
+      if (next.status !== "ready") throw new Error(JSON.stringify(next));
+      expect(
+        next.locations.fields.find(
+          (f) => f.instanceId === mos.id && f.parameter === "w",
+        )!.rawValue,
+      ).toBe(printed);
+      expect(
+        planNetlistCodeEdit(result.project, next, next.file.text),
+      ).toMatchObject({ ok: true, edits: [] });
+    }
+    for (const equivalent of ["1.0", "1u"]) {
+      const same =
+        baseline.file.text.slice(0, field.startOffset) +
+        equivalent +
+        baseline.file.text.slice(field.endOffset);
+      expect(planNetlistCodeEdit(mapped.project, baseline, same)).toMatchObject(
+        { ok: true, edits: [] },
+      );
+      const mixed = planNetlistCodeEdit(
+        mapped.project,
+        baseline,
+        same.replace("10k", "20k"),
+      );
+      if (!mixed.ok) throw new Error(mixed.message);
+      const applied = executeProjectTransaction(mapped.project, {
+        transactionId: "mixed-equivalent",
+        projectId: project.id,
+        expectedStructureRevision: mapped.project.structureRevision,
+        actor: { kind: "human", id: "test" },
+        edits: mixed.edits,
+      });
+      expect(applied.ok).toBe(true);
+      if (!applied.ok) throw new Error(applied.error.message);
+      expect(
+        applied.project.documents
+          .find((d) => d.id === leaf.id)!
+          .instances.find((i) => i.id === mos.id)!.netlist!.parameters.W,
+      ).toBe("1u");
+    }
+  },
+);

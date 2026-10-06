@@ -9,6 +9,7 @@ import type {
   PrintedNetlistInstance,
 } from "@icm/netlist";
 import { expressionIsStructurallyValid } from "@icm/spice";
+import { restorePrintedParameter } from "@icm/netlist";
 import type { z } from "zod";
 
 type ReadyExport = Extract<DesignNetlistExportResult, { status: "ready" }>;
@@ -177,7 +178,27 @@ export function planNetlistCodeEdit(
           ok: false,
           message: `Invalid ${field.parameter} value: ${value}`,
         };
-      assignment.set = { ...assignment.set, [field.parameter!]: value };
+      const parameter =
+        Object.keys(instance.netlist?.parameters ?? {}).find(
+          (name) => name.toLowerCase() === field.parameter!.toLowerCase(),
+        ) ?? field.parameter!;
+      try {
+        const restored = restorePrintedParameter(
+          value,
+          field.conversion ?? "identity",
+          true,
+        );
+        if (restored !== instance.netlist?.parameters[parameter])
+          assignment.set = { ...assignment.set, [parameter]: restored };
+      } catch (error) {
+        return {
+          ok: false,
+          message:
+            error instanceof Error
+              ? error.message
+              : `Invalid ${parameter} value`,
+        };
+      }
     } else {
       if (!/^[A-Za-z_][A-Za-z0-9_.$!]*$/u.test(value))
         return { ok: false, message: `Invalid model name: ${value}` };
@@ -206,20 +227,29 @@ export function planNetlistCodeEdit(
       assignment.binding = next;
     }
   }
-  const edits: ProjectStructureEdit[] = [...documents].map(
-    ([documentId, assignments]) => ({
-      kind: "transact_document",
-      documentId,
-      expectedRevision: project.documents.find(
-        (item) => item.id === documentId,
-      )!.revision,
-      edits: [
-        {
-          kind: "bulk_patch_instance_netlist",
-          assignments: [...assignments.values()],
-        },
-      ],
-    }),
+  const edits: ProjectStructureEdit[] = [...documents].flatMap(
+    ([documentId, assignments]) => {
+      const changed = [...assignments.values()].filter(
+        (a) => Object.keys(a).length > 1,
+      );
+      return changed.length
+        ? [
+            {
+              kind: "transact_document",
+              documentId,
+              expectedRevision: project.documents.find(
+                (item) => item.id === documentId,
+              )!.revision,
+              edits: [
+                {
+                  kind: "bulk_patch_instance_netlist",
+                  assignments: changed,
+                },
+              ],
+            },
+          ]
+        : [];
+    },
   );
   const instances = baseline.locations.instances.map((instance) => {
     const ownerFields = fields.flatMap((field, index) =>
