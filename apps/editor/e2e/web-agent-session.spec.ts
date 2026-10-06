@@ -22,6 +22,126 @@ import {
 // fully parallel.
 test.describe.configure({ mode: "default" });
 
+test("Agent Gallery Insert copies into a background Circuit and is one GUI undo", async ({
+  page,
+  baseURL,
+}) => {
+  test.setTimeout(90000);
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  await page.getByTestId("open-agent").click();
+  const panel = page.getByTestId("connect-agent-panel");
+  const message = panel.getByTestId("agent-copy-text");
+  await expect(message).toHaveValue(/Claim: /, { timeout: 45000 });
+  const { claimCode } = JSON.parse(
+    /^Claim: (.+)$/mu.exec(await message.inputValue())![1]!,
+  );
+  const client = new AgentSessionClient({
+    http: new AgentHttpClient({ baseUrl: baseURL! }),
+  });
+  await client.connect(claimCode);
+  await panel.getByRole("button", { name: "Close Agent dialog" }).click();
+  const placed = await client.applyActions([
+    {
+      kind: "place-component",
+      symbol: "resistor",
+      reference: "R1",
+      position: { x: 100, y: 100 },
+      parameters: { value: "1k" },
+    },
+    {
+      kind: "place-component",
+      symbol: "capacitor",
+      reference: "C1",
+      position: { x: 250, y: 100 },
+      parameters: { value: "2p" },
+    },
+  ]);
+  expect(placed.ok, placed.message).toBe(true);
+  expect(
+    (
+      await client.applyActions([
+        {
+          kind: "connect",
+          from: { kind: "pin", instance: "R1", pin: "2" },
+          to: { kind: "pin", instance: "C1", pin: "1" },
+        },
+      ])
+    ).ok,
+  ).toBe(true);
+  const source = await client.projectResource({
+    apiVersion: "3.0",
+    requestId: "gallery-source",
+    operation: "read-project-code",
+  });
+  if (!source.ok || source.operation !== "read-project-code")
+    throw new Error(JSON.stringify(source));
+  await page.route("**/api/gallery/e2e-insert", (route) =>
+    route.fulfill({ json: { projectText: source.projectCode } }),
+  );
+  const opened = await client.projectResource({
+    apiVersion: "3.0",
+    requestId: "gallery-target",
+    operation: "workspace",
+    request: { action: "new", name: "Gallery insert target", background: true },
+  });
+  if (
+    !opened.ok ||
+    opened.operation !== "workspace" ||
+    opened.result.action !== "new"
+  )
+    throw new Error(JSON.stringify(opened));
+  await client.bindWorkspace(opened.result.workspaceId!);
+  const target = (await client.refreshSnapshot()).snapshot;
+  const receipt = await client.projectResource({
+    apiVersion: "3.0",
+    requestId: "gallery-insert",
+    operation: "insert-gallery-entry",
+    galleryEntryId: "e2e-insert",
+    targetDocumentId: target.document.id,
+    expectedRevision: target.document.revision,
+    expectedStructureRevision: target.project.structureRevision,
+    position: { x: 400, y: 300 },
+  });
+  expect(receipt).toMatchObject({
+    ok: true,
+    instanceIds: [expect.any(String), expect.any(String)],
+  });
+  // Replay the identical write ID, not another insert after an uncertain reply.
+  expect(
+    await client.projectResource({
+      apiVersion: "3.0",
+      requestId: "gallery-insert",
+      operation: "insert-gallery-entry",
+      galleryEntryId: "e2e-insert",
+      targetDocumentId: target.document.id,
+      expectedRevision: target.document.revision,
+      expectedStructureRevision: target.project.structureRevision,
+      position: { x: 400, y: 300 },
+    }),
+  ).toEqual(receipt);
+  expect(
+    (await client.refreshSnapshot()).snapshot.document.instances,
+  ).toHaveLength(2);
+  const tabs = page.getByRole("tab");
+  await expect(tabs).toHaveCount(2);
+  await expect(tabs.first()).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByTestId("active-instance-count")).toHaveText("2");
+  await tabs.last().click();
+  await expect(page.getByTestId("active-instance-count")).toHaveText("2");
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect(page.getByTestId("active-instance-count")).toHaveText("0");
+  await tabs.first().click();
+  await client.bindWorkspace(null);
+  expect(
+    await client.projectResource({
+      apiVersion: "3.0",
+      requestId: "gallery-source-after",
+      operation: "read-project-code",
+    }),
+  ).toMatchObject({ ok: true, projectCode: source.projectCode });
+});
+
 test("Agent text editing preserves the GUI's effective font and native insertion defaults", async ({
   page,
   baseURL,

@@ -1272,6 +1272,13 @@ function WorkspaceEditor({
   const browserAgentProjectHost = useMemo(
     () =>
       new BrowserAgentProjectHost({
+        projectTransactionOptions: EDITOR_PROJECT_TRANSACTION_OPTIONS,
+        isProjectAvailable: () =>
+          projectTabs
+            .entries()
+            .some(
+              (entry) => entry.session.controller === editorDocumentController,
+            ),
         workspace: (request) => agentWorkspaceRef.current(request),
         getProjectSessionId: () => editorDocumentController.projectSessionId,
         getProject: () => editorDocumentController.project,
@@ -6732,6 +6739,7 @@ function WorkspaceEditor({
         transport: simulationTransport,
       });
     const projectHost = new BrowserAgentProjectHost({
+      projectTransactionOptions: EDITOR_PROJECT_TRANSACTION_OPTIONS,
       workspace: (request) => agentWorkspaceRef.current(request, workspaceId),
       getProjectSessionId: () =>
         available() ? controller.projectSessionId : "closed",

@@ -152,6 +152,21 @@ it("authorizes Gallery, Project Code and Netlist operations by their real effect
     );
   expect(scopes({ operation: "list-gallery" })).toEqual(["circuit.snapshot"]);
   expect(
+    scopes({
+      operation: "insert-gallery-entry",
+      galleryEntryId: "g1",
+      targetDocumentId: "main",
+      expectedRevision: 0,
+      expectedStructureRevision: 0,
+      position: { x: 0, y: 0 },
+    }),
+  ).toEqual([
+    "project.import",
+    "circuit.edit.geometry",
+    "circuit.edit.connectivity",
+    "circuit.edit.presentation",
+  ]);
+  expect(
     scopes({ operation: "read-gallery-entries", galleryEntryIds: ["g1"] }),
   ).toEqual(["circuit.snapshot"]);
   expect(scopes({ operation: "read-project-code" })).toEqual([

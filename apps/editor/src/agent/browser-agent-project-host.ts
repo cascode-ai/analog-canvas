@@ -12,6 +12,7 @@ import {
 import type {
   ProjectStructureEdit,
   ProjectTransactionResult,
+  ProjectTransactionOptions,
 } from "@icm/edit-engine";
 import { planProjectCellImport } from "@icm/edit-engine";
 import { createBrowserFormalExportSource } from "@icm/exporters";
@@ -32,12 +33,19 @@ import { GALLERY_SIGN_IN_REQUIRED, loadGalleryFeed } from "../gallery-client";
 import { planNetlistCodeEdit } from "../features/netlist-export/netlist-code-edit";
 import { importChunk } from "../components/chunk-import";
 import { prepareDocumentFormulaArtifacts } from "../features/text-editing/formula-artifacts";
+import { captureGalleryDrawing } from "../features/editor-shell/gallery-import";
+import {
+  planProjectCopyPlacement,
+  applyProjectCopyPlacement,
+} from "../features/clipboard/project-copy";
 
 /** Signed out, the Gallery answers nothing, the Agent included. */
 const GALLERY_SIGN_IN_MESSAGE =
   "The Community Gallery is for signed-in members; sign in to the Editor first";
 
 export interface BrowserAgentProjectHostOptions {
+  projectTransactionOptions?: ProjectTransactionOptions;
+  isProjectAvailable?: () => boolean;
   loadProjectCode?: () => Promise<
     typeof import("../features/project-code/project-code")
   >;
@@ -125,9 +133,9 @@ export class BrowserAgentProjectHost {
       if (page === GALLERY_SIGN_IN_REQUIRED) {
         return this.error(
           request,
-          "GALLERY_UNAVAILABLE",
+          "SIGN_IN_REQUIRED",
           GALLERY_SIGN_IN_MESSAGE,
-          "retry",
+          "sign-in",
         );
       }
       if (!page) {
@@ -148,8 +156,11 @@ export class BrowserAgentProjectHost {
         total: page.total,
       };
     }
-    if (request.operation === "read-gallery-entry") {
-      return this.readGalleryEntry(request);
+    if (
+      request.operation === "read-gallery-entry" ||
+      request.operation === "insert-gallery-entry"
+    ) {
+      return this.handleGalleryEntry(request);
     }
     if (request.operation === "read-gallery-entries") {
       return this.readGalleryEntries(request);
@@ -342,10 +353,10 @@ export class BrowserAgentProjectHost {
     };
   }
 
-  private async readGalleryEntry(
+  private async handleGalleryEntry(
     request: Extract<
       AgentProjectResourceRequest,
-      { operation: "read-gallery-entry" }
+      { operation: "read-gallery-entry" | "insert-gallery-entry" }
     >,
   ): Promise<AgentProjectResourceResponse> {
     let response: Response;
@@ -367,19 +378,35 @@ export class BrowserAgentProjectHost {
         request,
         response.status === 404
           ? "GALLERY_ENTRY_NOT_FOUND"
-          : "GALLERY_UNAVAILABLE",
+          : response.status === 401
+            ? "SIGN_IN_REQUIRED"
+            : "GALLERY_UNAVAILABLE",
         response.status === 404
           ? "The Gallery entry does not exist"
           : response.status === 401
             ? GALLERY_SIGN_IN_MESSAGE
             : `The Gallery entry could not be read (${response.status})`,
-        response.status === 404 ? "fix-input" : "retry",
+        response.status === 404
+          ? "fix-input"
+          : response.status === 401
+            ? "sign-in"
+            : "retry",
       );
     }
-    const payload = (await response.json()) as {
+    let payload: {
       entry?: Partial<AgentGalleryEntrySummary>;
       projectText?: unknown;
     };
+    try {
+      payload = await response.json();
+    } catch {
+      return this.error(
+        request,
+        "GALLERY_ENTRY_INVALID",
+        "The Gallery entry is not valid JSON",
+        "fix-input",
+      );
+    }
     if (typeof payload.projectText !== "string") {
       return this.error(
         request,
@@ -398,6 +425,9 @@ export class BrowserAgentProjectHost {
         error instanceof Error ? error.message : String(error),
         "retry",
       );
+    }
+    if (request.operation === "insert-gallery-entry") {
+      return this.insertGalleryDrawing(request, project);
     }
     const entry = this.gallerySummary({
       id: request.galleryEntryId,
@@ -441,6 +471,116 @@ export class BrowserAgentProjectHost {
               portCase: request.portCase,
             }),
     };
+  }
+
+  private insertGalleryDrawing(
+    request: Extract<
+      AgentProjectResourceRequest,
+      { operation: "insert-gallery-entry" }
+    >,
+    imported: CircuitProject,
+  ): AgentProjectResourceResponse {
+    // The Gallery download must not retarget a write to a replacement Project.
+    if (
+      this.options.isProjectAvailable?.() === false ||
+      this.options.getProjectSessionId() !== this.boundProjectSessionId
+    )
+      return this.error(
+        request,
+        "PROJECT_REPLACED",
+        "The target Project was replaced or closed while reading the Gallery",
+        "refresh",
+      );
+    const before = this.options.getProject();
+    const target = before.documents.find(
+      (item) => item.id === request.targetDocumentId,
+    );
+    if (!target)
+      return this.error(
+        request,
+        "TARGET_CELL_NOT_FOUND",
+        "The target Cell no longer exists",
+        "refresh",
+      );
+    if (
+      before.structureRevision !== request.expectedStructureRevision ||
+      target.revision !== request.expectedRevision
+    )
+      return this.error(
+        request,
+        "PROJECT_CONTEXT_STALE",
+        "The target changed while reading the Gallery; inspect it and re-plan the insert",
+        "refresh",
+      );
+    try {
+      const drawing = captureGalleryDrawing(imported, request.sourceDocumentId);
+      if (!drawing)
+        return this.error(
+          request,
+          "COPY_EMPTY",
+          "The Gallery Cell has no placeable drawing; nothing inserted",
+          "fix-input",
+        );
+      const plan = planProjectCopyPlacement(
+        before,
+        target,
+        drawing.clipboard,
+        {
+          x: request.position.x - drawing.anchor.x,
+          y: request.position.y - drawing.anchor.y,
+        },
+        1,
+      );
+      const next = applyProjectCopyPlacement(
+        plan,
+        { kind: "agent", id: "gallery-insert" },
+        this.options.projectTransactionOptions,
+      );
+      try {
+        this.options.commitProjectStructure(
+          next,
+          this.options.getActiveDocumentId(),
+        );
+      } catch (error) {
+        // A notification can fail after the controller has committed. Inspect
+        // current state before deciding whether a new insert is necessary.
+        return this.error(
+          request,
+          "GALLERY_INSERT_COMMIT_FAILED",
+          `Insert commit could not be confirmed; refresh the target before retrying: ${error instanceof Error ? error.message : String(error)}`,
+          "refresh",
+        );
+      }
+      return {
+        apiVersion: AGENT_API_VERSION,
+        requestId: request.requestId,
+        operation: request.operation,
+        ok: true,
+        galleryEntryId: request.galleryEntryId,
+        sourceDocumentId: drawing.sourceDocumentId,
+        targetDocumentId: target.id,
+        structureRevision: next.structureRevision,
+        revision: next.documents.find((item) => item.id === target.id)!
+          .revision,
+        instanceIds: [...plan.instanceIds],
+        mapping: plan.mapping,
+        importedDocumentIds: next.documents
+          .filter((item) => !before.documents.some((old) => old.id === item.id))
+          .map((item) => item.id),
+        importedFileIds: next.source.files
+          .filter(
+            (item) => !before.source.files.some((old) => old.id === item.id),
+          )
+          .map((item) => item.id),
+      };
+    } catch (error) {
+      return this.error(
+        request,
+        "GALLERY_INSERT_FAILED",
+        error instanceof Error ? error.message : String(error),
+        "fix-input",
+      );
+    }
   }
 
   /** The top Cell, drawn by the same formal exporter as a file export. */
@@ -497,7 +637,7 @@ export class BrowserAgentProjectHost {
   ): Promise<AgentProjectResourceResponse> {
     const results = await Promise.all(
       request.galleryEntryIds.map((galleryEntryId, index) =>
-        this.readGalleryEntry({
+        this.handleGalleryEntry({
           apiVersion: AGENT_API_VERSION,
           requestId: `${request.requestId}-${index + 1}`,
           operation: "read-gallery-entry",

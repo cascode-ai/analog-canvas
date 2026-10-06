@@ -89,6 +89,18 @@ dependency/placement planner and one undoable transaction. Cloud discovery and
 `import-cell` remain separate from live working-copy discovery; they read saved
 Cloud versions, not unsaved tab contents. No separate copy engine is introduced.
 
+`insert-gallery-entry` reads through the Editor's signed-in Gallery access and
+copies a selected source Cell (top Cell by default) into the target Cell of the
+workspace selected by the existing envelope binding. It shares GUI import
+normalization, clipboard anchor and dependency/placement transactions. Explicit
+position locates that anchor; required Document and structure revisions and
+bound Project identity are rechecked after download. No tab switch, Project
+replacement or publication mutation occurs. Empty sources reject. One undo
+removes the whole insertion and imported dependency closure. Scopes are
+`project.import` and all three existing circuit-edit scopes. Source/target IDs,
+target revisions, object mapping and dependency IDs form the response receipt;
+the existing write replay contract prevents duplicate application of one ID.
+
 ## Credential lifetimes and rotation
 
 The deployed defaults are part of the accepted transport contract:

@@ -503,6 +503,13 @@ export function projectOperationScopes(
   request: AgentProjectResourceRequest,
 ): AgentSessionScope[] {
   switch (request.operation) {
+    case "insert-gallery-entry":
+      return [
+        "project.import",
+        "circuit.edit.geometry",
+        "circuit.edit.connectivity",
+        "circuit.edit.presentation",
+      ];
     case "workspace":
       return request.request.action === "list"
         ? ["circuit.snapshot"]

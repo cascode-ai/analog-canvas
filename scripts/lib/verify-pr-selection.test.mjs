@@ -80,6 +80,25 @@ describe("verify:pr selection", () => {
     expect(censusChecks(["apps/editor/src/app/App.tsx"])).toEqual([]);
   });
 
+  it("does not require Gallery drawings for simulation source, assertion and result changes", () => {
+    expect(
+      censusChecks([
+        "packages/netlist/src/simulation-source-vacask.ts",
+        "packages/netlist/src/vacask-language.ts",
+        "packages/netlist/src/vacask-postprocess.ts",
+        "packages/netlist/src/simulation-diagnostic.ts",
+      ]),
+    ).toEqual([]);
+    expect(
+      censusChecks([
+        "packages/netlist/src/printers.ts",
+        "packages/netlist/src/unknown-design-helper.ts",
+        "apps/editor/src/features/editor-shell/gallery-import.ts",
+        "apps/editor/src/agent/browser-agent-project-host.ts",
+      ]),
+    ).toEqual(["copy", "netlist"]);
+  });
+
   it("runs only the browser cases a change adds or edits", () => {
     expect(browserSpecPaths(changed)).toEqual([
       "apps/editor/e2e/gallery.spec.ts",

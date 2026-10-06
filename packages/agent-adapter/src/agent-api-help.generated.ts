@@ -13,7 +13,7 @@ export const agentApiHelp = {
   agentSessionSimulationResource:
     "Discover Profiles/help; run submits a revisioned source once, including preparation. Optional prepare/start supports inspection and reuse. Read/cancel or catalog/export runs and batches; history and history-usage discover retained evidence. history-delete targets one completed run, supports dryRun, and requires includeSaved for saved archives. Preserve request ID/payload for uncertain writes. Execution failure does not revoke authorization.",
   agentSessionProjectResource:
-    "Page through the public Gallery, read complete Gallery Project Code and generated netlists, read or replace the open Project Code and editable netlist fields, and discover/import Cells from signed-in Cloud Projects through the live editor transaction boundary.",
+    "Read the signed-in Community Gallery and insert-gallery-entry: source Cell drawing and dependency closure into targetDocumentId at position, guarded by expectedRevision and expectedStructureRevision, in one undoable edit of the bound workspace. No new tab or project replacement; requires project.import plus existing edit scopes. Also read or replace Project Code/netlists and discover/import saved Cloud Cells.",
   agentSessionArtifactDownload:
     "Stream immutable bytes using the simulation.run bearer. Get paths via File simulation-input download or downloads (1–32 IDs); each batch entry independently reports ready/pending/error. Retry pending descriptors with fresh IDs after retryAfterMs, never restart execution. Range/If-Range support resume. No cookies or tokens in URLs. Authorized published transfers survive temporary browser offline; local files survive revocation.",
 };

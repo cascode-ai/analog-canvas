@@ -6,6 +6,7 @@ import {
   type CircuitProject,
 } from "@icm/model";
 import { parseProject, serializeProject } from "@icm/project-protocol";
+import { importSpiceSources } from "@icm/spice";
 import type { Capabilities } from "@icm/simulation-service/contract";
 import { callTool, type ToolSessionState } from "../../../mcp-server/src/tools";
 import { compareExpectedNetlist } from "../../../mcp-server/src/netlist-comparison";
@@ -177,6 +178,277 @@ function galleryService(entries: Record<string, CircuitProject>) {
 }
 
 describe("MCP tools on the live editor", () => {
+  it("inserts a Gallery drawing into the target Cell without opening or replacing a Project", async () => {
+    const source = await connected();
+    await apply(source, [
+      place("port", "I", 50),
+      place("resistor", "R1", 100, { parameters: { value: "1k" } }),
+      place("port", "O", 250),
+    ]);
+    await apply(source, [
+      { kind: "connect", from: cellPin(source, "I"), to: pin("R1", "1") },
+      { kind: "connect", from: pin("R1", "2"), to: cellPin(source, "O") },
+    ]);
+    const sourceCode = serializeProject(source.controller.project);
+    const editor = await connected({
+      projectHost: { fetch: galleryService({ g1: source.controller.project }) },
+    });
+    const receipt = await editor.tool("gallery_circuits", {
+      action: "insert",
+      galleryEntryId: "g1",
+      targetDocumentId: "main",
+      position: { x: 300, y: 200 },
+    });
+    expect(receipt).toMatchObject({
+      ok: true,
+      operation: "insert-gallery-entry",
+      galleryEntryId: "g1",
+      sourceDocumentId: "main",
+      targetDocumentId: "main",
+      instanceIds: [expect.any(String), expect.any(String), expect.any(String)],
+    });
+    const read = await editor.client.refreshSnapshot();
+    expect(read.snapshot.project.id).toBe("project-1");
+    expect(read.snapshot.document.instances).toHaveLength(3);
+    expect(editor.controller.document.routes).toHaveLength(2);
+    expect(editor.controller.document.annotations.length).toBeGreaterThan(0);
+    expect(
+      editor.controller.document.instances[0]!.placement?.position,
+    ).toEqual({ x: 300, y: 200 });
+    expect(serializeProject(source.controller.project)).toBe(sourceCode);
+    for (const format of ["spice", "spectre"]) {
+      expect(
+        await editor.tool("netlist_code", { action: "read", format }),
+      ).toMatchObject({
+        ok: true,
+        netlist: { status: "ready", text: expect.stringContaining("R1") },
+      });
+    }
+    await apply(editor, [{ kind: "undo" }]);
+    expect(editor.controller.document.instances).toHaveLength(0);
+  });
+  it("reports Gallery login separately without replacing the target", async () => {
+    const editor = await connected({
+      projectHost: { fetch: async () => new Response(null, { status: 401 }) },
+    });
+    const before = serializeProject(editor.controller.project);
+    expect(
+      await editor.tool("gallery_circuits", {
+        action: "insert",
+        galleryEntryId: "g1",
+        targetDocumentId: "main",
+        position: { x: 100, y: 100 },
+      }),
+    ).toMatchObject({
+      ok: false,
+      error: { code: "SIGN_IN_REQUIRED", recovery: "sign-in" },
+    });
+    expect(serializeProject(editor.controller.project)).toBe(before);
+  });
+  it.each([
+    ["missing", "GALLERY_ENTRY_NOT_FOUND"],
+    ["empty", "COPY_EMPTY"],
+  ])(
+    "rejects %s Gallery insertion without opening or editing a Project",
+    async (galleryEntryId, code) => {
+      const editor = await connected({
+        projectHost: { fetch: galleryService({ empty: emptyAgentProject() }) },
+      });
+      const before = serializeProject(editor.controller.project);
+      expect(
+        await editor.tool("gallery_circuits", {
+          action: "insert",
+          galleryEntryId,
+          targetDocumentId: "main",
+          position: { x: 100, y: 100 },
+        }),
+      ).toMatchObject({ ok: false, error: { code } });
+      expect(serializeProject(editor.controller.project)).toBe(before);
+    },
+  );
+  it.each(["revision", "structure", "session", "closed"])(
+    "rechecks target %s after the Gallery download",
+    async (change) => {
+      const source = await connected();
+      await apply(source, [place("resistor", "R1", 100)]);
+      let finish!: (response: Response) => void;
+      let available = true;
+      let started!: () => void;
+      const reading = new Promise<void>((resolve) => {
+        started = resolve;
+      });
+      const editor = await connected({
+        projectHost: {
+          isProjectAvailable: () => available,
+          fetch: async () => {
+            started();
+            return new Promise<Response>((resolve) => {
+              finish = resolve;
+            });
+          },
+        },
+      });
+      const pending = editor.tool("gallery_circuits", {
+        action: "insert",
+        galleryEntryId: "g1",
+        targetDocumentId: "main",
+        position: { x: 300, y: 200 },
+      });
+      await reading;
+      if (change === "session")
+        editor.controller.replaceProject(emptyAgentProject("Replacement"));
+      else if (change === "closed") available = false;
+      else if (change === "structure") {
+        const renamed = structuredClone(editor.controller.project);
+        renamed.name = "Changed while downloading";
+        expect(
+          await editor.tool("project_code", {
+            action: "replace",
+            projectCode: serializeProject(renamed),
+          }),
+        ).toMatchObject({ ok: true });
+      } else await apply(editor, [place("resistor", "R2", 100)]);
+      const expected = serializeProject(editor.controller.project);
+      finish(
+        Response.json({
+          projectText: serializeProject(source.controller.project),
+        }),
+      );
+      expect(await pending).toMatchObject({
+        ok: false,
+        error: {
+          code:
+            change === "session" || change === "closed"
+              ? "PROJECT_REPLACED"
+              : "PROJECT_CONTEXT_STALE",
+        },
+      });
+      expect(serializeProject(editor.controller.project)).toBe(expected);
+    },
+  );
+  it("reports an uncertain commit as refresh, not permission to repeat the insert", async () => {
+    const source = await connected();
+    await apply(source, [place("resistor", "R1", 100)]);
+    let editor!: Awaited<ReturnType<typeof connected>>;
+    editor = await connected({
+      projectHost: {
+        fetch: galleryService({ g1: source.controller.project }),
+        commitProjectStructure: (project, documentId) => {
+          editor.controller.commitProjectStructure(project, documentId);
+          throw new Error("commit notification failed");
+        },
+      },
+    });
+    expect(
+      await editor.tool("gallery_circuits", {
+        action: "insert",
+        galleryEntryId: "g1",
+        targetDocumentId: "main",
+        position: { x: 300, y: 200 },
+      }),
+    ).toMatchObject({
+      ok: false,
+      error: { code: "GALLERY_INSERT_COMMIT_FAILED", recovery: "refresh" },
+    });
+    expect(editor.controller.document.instances).toHaveLength(1);
+    await apply(editor, [{ kind: "undo" }]);
+    expect(editor.controller.document.instances).toHaveLength(0);
+  });
+  it("inserts a Gallery hierarchy with its model files and rolls the whole closure back in one undo", async () => {
+    const modelText = ".subckt leaf A B\nR0 A B 1k\n.ends leaf\n";
+    const imported = await importSpiceSources(
+      [
+        {
+          path: "main.cir",
+          bytes: new TextEncoder().encode(
+            "* Gallery hierarchy\n.include models.lib\n.subckt child IN OUT\nXLEAF IN OUT leaf\n.ends child\nX1 IN OUT child\nVIN IN 0 1\nRL OUT 0 1k\n.end\n",
+          ),
+        },
+        { path: "models.lib", bytes: new TextEncoder().encode(modelText) },
+      ],
+      "main.cir",
+    );
+    expect(
+      imported.diagnostics.filter((item) => item.severity === "error"),
+    ).toEqual([]);
+    const source = imported.project!;
+    const editor = await connected({
+      projectHost: { fetch: galleryService({ ota: source }) },
+    });
+    const receipt = await editor.tool("gallery_circuits", {
+      action: "insert",
+      galleryEntryId: "ota",
+      targetDocumentId: "main",
+      position: { x: 500, y: 300 },
+    });
+    expect(receipt, JSON.stringify(receipt)).toMatchObject({
+      ok: true,
+      importedDocumentIds: [expect.any(String), expect.any(String)],
+    });
+    expect(editor.controller.project.documents).toHaveLength(3);
+    expect(
+      editor.controller.document.instances.some(
+        (item) => item.netlist?.binding?.kind === "subcircuit",
+      ),
+    ).toBe(true);
+    const files = editor.controller.project.source.files;
+    expect(receipt.importedFileIds).toHaveLength(2);
+    expect(files.map((file) => file.content?.text)).toContain(modelText);
+    for (const format of ["spice", "spectre"]) {
+      expect(
+        await editor.tool("netlist_code", { action: "read", format }),
+      ).toMatchObject({
+        ok: true,
+        netlist: { status: "ready", text: expect.stringContaining("child") },
+      });
+    }
+    await apply(editor, [{ kind: "undo" }]);
+    expect(editor.controller.project.documents).toHaveLength(1);
+    expect(editor.controller.document.instances).toHaveLength(0);
+    expect(editor.controller.project.source.files).toHaveLength(0);
+    const child = source.documents.find((item) => item.name === "child")!;
+    const selected = await editor.tool("gallery_circuits", {
+      action: "insert",
+      galleryEntryId: "ota",
+      sourceDocumentId: child.id,
+      targetDocumentId: "main",
+      position: { x: 500, y: 300 },
+    });
+    expect(selected).toMatchObject({
+      ok: true,
+      sourceDocumentId: child.id,
+      importedDocumentIds: [expect.any(String)],
+    });
+    expect(editor.controller.project.documents).toHaveLength(2);
+    expect(
+      editor.controller.document.instances.some(
+        (item) => item.reference === "XLEAF",
+      ),
+    ).toBe(true);
+  });
+  it("rejects a legacy Gallery drawing with broken Route label anchors atomically", async () => {
+    const editor = await connected({
+      projectHost: { fetch: galleryService({ legacy: otaProject() }) },
+    });
+    const before = serializeProject(editor.controller.project);
+    expect(
+      await editor.tool("gallery_circuits", {
+        action: "insert",
+        galleryEntryId: "legacy",
+        targetDocumentId: "main",
+        position: { x: 500, y: 300 },
+      }),
+    ).toMatchObject({
+      ok: false,
+      error: {
+        code: "GALLERY_INSERT_FAILED",
+        message: expect.stringContaining(
+          "references a Leg outside its copied Route",
+        ),
+      },
+    });
+    expect(serializeProject(editor.controller.project)).toBe(before);
+  });
   it("normalizes flat and wrapped inputs identically through the shared MCP/CLI boundary", async () => {
     const editor = await connected({
       simulationService: profileService({ id: "test", engine: "ngspice" }),
