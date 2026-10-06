@@ -32,8 +32,9 @@ local work or silently move a pin.
 
 ## Development skill references
 
-Status: the [unified workflow](../docs/development-workflow.md) is deployed on
-the trial branch; real-task effectiveness remains under evaluation.
+Status: the [unified workflow](../docs/development-workflow.md) rules are
+configured on the trial branch. Native loading has partial runtime evidence;
+two-client workflow acceptance and real-task effectiveness remain outstanding.
 The checked-in [.agents/skills/](../.agents/skills/)
 contains the 9 workflow entries below and 6 required dependency/setup skills:
 15 skills with their original names, invocation policies, and complete supporting
@@ -91,6 +92,17 @@ and no automatic upstream updates. Start a session in this trial checkout to
 load the skills; installation does not prove that their methods are effective.
 See [Codex skill locations](https://learn.chatgpt.com/docs/build-skills#where-to-save-skills)
 and [Claude project skills](https://code.claude.com/docs/en/skills#where-skills-live).
+
+Controlled native probes on this checkout resolved `pr` in both clients and
+loaded `grill-with-docs` plus both original dependencies. Claude's session
+catalog listed all 15 project entries and its `Skill` tool invoked `pr`,
+`grilling`, and `domain-modeling`. Codex loaded the original dependency files
+through its local skill mechanism; this is not evidence of a Claude-style
+`Skill` tool call. The probes produced drafts and a first question round,
+not a completed interview, published Spec, implementation, or delivery.
+Native Spec publication and isolated review in both clients still need
+acceptance with real work. Current scope and evidence are recorded in
+[Issue #1358](https://github.com/cascode-ai/analog-canvas/issues/1358).
 
 The original
 [`setup-matt-pocock-skills`](../.agents/skills/setup-matt-pocock-skills/SKILL.md)
