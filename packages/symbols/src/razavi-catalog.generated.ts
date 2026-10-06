@@ -1532,7 +1532,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Fully differential textbook body; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-differential.json",
     assetHash:
-      "1d4eee3e2b079170002b4d3e284d8fc97bed88e8b50a2e22f15f1d12272a3a58",
+      "31e9a96bf32a85d620cc2bd60f320b53971e72a19de8f36c8a3431eb82995ed3",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1552,7 +1552,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       referencePath:
         "fixtures/visual-reference/razavi-reference-v1/differential-opamp-vector-source.json",
       converterPath: "scripts/generate-razavi-opamp-asset.mjs",
-      converterVersion: 8,
+      converterVersion: 9,
       bodyNormalization: "equilateral-triangle",
     },
   },
@@ -1568,7 +1568,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Fully differential textbook body; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-differential-wide.json",
     assetHash:
-      "07c560fddad4f6b852b2591d94a8fcb6161cb872201f975d71d89a584afddd95",
+      "7ff369cab4f5dd8358b6bbb59ac32d5a1772c9bf1f7fca6c460825663dff48ce",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1600,7 +1600,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Fully differential textbook body; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-differential-lettered.json",
     assetHash:
-      "bef9362bf5c0b8d1a8df62acb8a5dec489b242a54f57a6db1bd6919e2ff6bc9f",
+      "5115d30d6d62c84ecfa3fde255638b96eec98398cb38f136b1e744eb7097ff0c",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1632,7 +1632,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Fully differential textbook body; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-differential-wide-lettered.json",
     assetHash:
-      "b761113eec3e29978fd31f0952fe7d3faaeb471b1e741b0f5869f4c654cbaee1",
+      "6fcf2147a2759f448effaf4f6e5f1c2ed032b2bc53688f53f1831c09ef99fee9",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1664,7 +1664,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Fully differential textbook body; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-differential-lettered-inputs-swapped.json",
     assetHash:
-      "328a10002dda0b22cd0ffdbb16751b692f2146044c31249802e7b7d929543f57",
+      "d93244df0156ce88f5f2342784cb0ea76ccd0bad3746c204fb293f00dcb072ad",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1696,7 +1696,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Fully differential textbook body; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-differential-wide-lettered-inputs-swapped.json",
     assetHash:
-      "d290687d971123b563bb0bbd61b4ae275e71f834ea5b6580f8677c1afbb28794",
+      "d2cee0ec295be15ef40e0a7af94385733dc96d487029c4f5ebdcdd5e7181eec0",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1728,7 +1728,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Fully differential textbook body; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-differential-inputs-swapped.json",
     assetHash:
-      "c188124e213e88eefad2fcd1948ce7e63b3d1343094ca46dd0fd7f896e542509",
+      "0d982b2e73a6ca4618baf007b83bd059a48d01d3fbd8ac368d1812885b91d8d0",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1760,7 +1760,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Fully differential textbook body; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-differential-wide-inputs-swapped.json",
     assetHash:
-      "d7f4c40145208ac9fdf6bbe1e495a80cf8d66efb2143e0a5605b87aafcf39020",
+      "c313c63ea0b46dd923961879e071812b3fe171ccfb488b858109181118cbbe99",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1792,7 +1792,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Output-polarity sibling of opamp-differential; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-differential-crossed.json",
     assetHash:
-      "1ea3722d8aab64646feeb2b412bdd4e5efd1b069c528b88975a7248dd6b007e4",
+      "a7aa6c0af136aeb441fc9733cff2b878632afb7da035ff0fb745d1c14a2c1260",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1812,7 +1812,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       referencePath:
         "fixtures/visual-reference/razavi-reference-v1/differential-opamp-vector-source.json",
       converterPath: "scripts/generate-razavi-opamp-asset.mjs",
-      converterVersion: 8,
+      converterVersion: 9,
       bodyNormalization: "equilateral-triangle",
     },
   },
@@ -1828,7 +1828,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Output-polarity sibling of opamp-differential; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-differential-wide-crossed.json",
     assetHash:
-      "e90bebfb0a31ee06beca585a50f9e4549bbd16d4c66751fd491f406f7b245030",
+      "d0dc1d79bad6b4a6dbb7598aaa36143ac2de12d67a794d352d345166b4ff1e35",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1860,7 +1860,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Output-polarity sibling of opamp-differential; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-differential-crossed-lettered.json",
     assetHash:
-      "4c87d24de295eb053e2b8f2872fa4219ff1c33b3ddf99292c09f811914f710ab",
+      "e1a90a288ae57c904828d3fe2ad6412c58beee94bfa048d876bcf47b5d8696ef",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1892,7 +1892,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Output-polarity sibling of opamp-differential; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-differential-wide-crossed-lettered.json",
     assetHash:
-      "04c1b6db68dcbfc9c2ad87d7d899b2c658e55ca9cd55aad389cd134a6104b0a7",
+      "33a0b92d7c1b5961e561da68bc13a626bf0ba1bfbb9adc9932ce56b39f3f633d",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1924,7 +1924,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Output-polarity sibling of opamp-differential; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-differential-crossed-lettered-inputs-swapped.json",
     assetHash:
-      "1dd83deeba85105fc123efbc41bf3e672c237027c338b9b3178bf4cf2d5d3d69",
+      "25589e66614ff9f5c7f688e18bd703d0bc4d105f539d9c7bd6708ffb90be0c81",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1956,7 +1956,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Output-polarity sibling of opamp-differential; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-differential-wide-crossed-lettered-inputs-swapped.json",
     assetHash:
-      "96df6ce11b5b3279202ca76f43c97c40f5cf3987e3809e77cf306c57d1ec01fc",
+      "e76801d8405998072db11bac17fa02ef9c8005c30150a95487ca3718a2e0f4e1",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1988,7 +1988,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Output-polarity sibling of opamp-differential; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-differential-crossed-inputs-swapped.json",
     assetHash:
-      "fa131e118543dc70514ed7e1ce1d44f73eaefd31f20e753725036192d387c39e",
+      "769dfc584b2e44441a4d2a86f60482dbee6856522358ef7b7eade16122ab110b",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -2020,7 +2020,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Output-polarity sibling of opamp-differential; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-differential-wide-crossed-inputs-swapped.json",
     assetHash:
-      "3698c98649eb194b3a15b541147ee73c426ded326635bfb37b0be24527c44046",
+      "0d2cf01759b6bae5cbb343ca970288f91ed1bc4cb5bb9a197f24e1e3a4bd8e2b",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -10807,28 +10807,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "line",
         from: {
           x: -23.75,
-          y: -11,
+          y: 11,
         },
         to: {
           x: -23.75,
-          y: -17,
-        },
-        part: "input-polarity",
-        style: {
-          strokeRole: "normal",
-          lineCap: "round",
-          lineJoin: "round",
-        },
-      },
-      {
-        kind: "line",
-        from: {
-          x: -26.75,
-          y: -14,
-        },
-        to: {
-          x: -20.75,
-          y: -14,
+          y: 17,
         },
         part: "input-polarity",
         style: {
@@ -10846,6 +10829,23 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         to: {
           x: -20.75,
           y: 14,
+        },
+        part: "input-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -26.75,
+          y: -14,
+        },
+        to: {
+          x: -20.75,
+          y: -14,
         },
         part: "upright-input-polarity-negative",
         style: {
@@ -11061,28 +11061,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "line",
         from: {
           x: -23.75,
-          y: -11,
+          y: 11,
         },
         to: {
           x: -23.75,
-          y: -17,
-        },
-        part: "input-polarity",
-        style: {
-          strokeRole: "normal",
-          lineCap: "round",
-          lineJoin: "round",
-        },
-      },
-      {
-        kind: "line",
-        from: {
-          x: -26.75,
-          y: -14,
-        },
-        to: {
-          x: -20.75,
-          y: -14,
+          y: 17,
         },
         part: "input-polarity",
         style: {
@@ -11100,6 +11083,23 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         to: {
           x: -20.75,
           y: 14,
+        },
+        part: "input-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -26.75,
+          y: -14,
+        },
+        to: {
+          x: -20.75,
+          y: -14,
         },
         part: "upright-input-polarity-negative",
         style: {
@@ -11315,28 +11315,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "line",
         from: {
           x: -23.75,
-          y: -11,
+          y: 11,
         },
         to: {
           x: -23.75,
-          y: -17,
-        },
-        part: "input-polarity",
-        style: {
-          strokeRole: "normal",
-          lineCap: "round",
-          lineJoin: "round",
-        },
-      },
-      {
-        kind: "line",
-        from: {
-          x: -26.75,
-          y: -14,
-        },
-        to: {
-          x: -20.75,
-          y: -14,
+          y: 17,
         },
         part: "input-polarity",
         style: {
@@ -11354,6 +11337,23 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         to: {
           x: -20.75,
           y: 14,
+        },
+        part: "input-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -26.75,
+          y: -14,
+        },
+        to: {
+          x: -20.75,
+          y: -14,
         },
         part: "upright-input-polarity-negative",
         style: {
@@ -11578,28 +11578,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "line",
         from: {
           x: -23.75,
-          y: -11,
+          y: 11,
         },
         to: {
           x: -23.75,
-          y: -17,
-        },
-        part: "input-polarity",
-        style: {
-          strokeRole: "normal",
-          lineCap: "round",
-          lineJoin: "round",
-        },
-      },
-      {
-        kind: "line",
-        from: {
-          x: -26.75,
-          y: -14,
-        },
-        to: {
-          x: -20.75,
-          y: -14,
+          y: 17,
         },
         part: "input-polarity",
         style: {
@@ -11617,6 +11600,23 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         to: {
           x: -20.75,
           y: 14,
+        },
+        part: "input-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -26.75,
+          y: -14,
+        },
+        to: {
+          x: -20.75,
+          y: -14,
         },
         part: "upright-input-polarity-negative",
         style: {
@@ -11841,28 +11841,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "line",
         from: {
           x: -23.75,
-          y: 11,
+          y: -11,
         },
         to: {
           x: -23.75,
-          y: 17,
-        },
-        part: "input-polarity",
-        style: {
-          strokeRole: "normal",
-          lineCap: "round",
-          lineJoin: "round",
-        },
-      },
-      {
-        kind: "line",
-        from: {
-          x: -26.75,
-          y: 14,
-        },
-        to: {
-          x: -20.75,
-          y: 14,
+          y: -17,
         },
         part: "input-polarity",
         style: {
@@ -11880,6 +11863,23 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         to: {
           x: -20.75,
           y: -14,
+        },
+        part: "input-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -26.75,
+          y: 14,
+        },
+        to: {
+          x: -20.75,
+          y: 14,
         },
         part: "upright-input-polarity-negative",
         style: {
@@ -12104,28 +12104,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "line",
         from: {
           x: -23.75,
-          y: 11,
+          y: -11,
         },
         to: {
           x: -23.75,
-          y: 17,
-        },
-        part: "input-polarity",
-        style: {
-          strokeRole: "normal",
-          lineCap: "round",
-          lineJoin: "round",
-        },
-      },
-      {
-        kind: "line",
-        from: {
-          x: -26.75,
-          y: 14,
-        },
-        to: {
-          x: -20.75,
-          y: 14,
+          y: -17,
         },
         part: "input-polarity",
         style: {
@@ -12143,6 +12126,23 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         to: {
           x: -20.75,
           y: -14,
+        },
+        part: "input-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -26.75,
+          y: 14,
+        },
+        to: {
+          x: -20.75,
+          y: 14,
         },
         part: "upright-input-polarity-negative",
         style: {
@@ -12367,28 +12367,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "line",
         from: {
           x: -23.75,
-          y: 11,
+          y: -11,
         },
         to: {
           x: -23.75,
-          y: 17,
-        },
-        part: "input-polarity",
-        style: {
-          strokeRole: "normal",
-          lineCap: "round",
-          lineJoin: "round",
-        },
-      },
-      {
-        kind: "line",
-        from: {
-          x: -26.75,
-          y: 14,
-        },
-        to: {
-          x: -20.75,
-          y: 14,
+          y: -17,
         },
         part: "input-polarity",
         style: {
@@ -12406,6 +12389,23 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         to: {
           x: -20.75,
           y: -14,
+        },
+        part: "input-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -26.75,
+          y: 14,
+        },
+        to: {
+          x: -20.75,
+          y: 14,
         },
         part: "upright-input-polarity-negative",
         style: {
@@ -12621,28 +12621,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "line",
         from: {
           x: -23.75,
-          y: 11,
+          y: -11,
         },
         to: {
           x: -23.75,
-          y: 17,
-        },
-        part: "input-polarity",
-        style: {
-          strokeRole: "normal",
-          lineCap: "round",
-          lineJoin: "round",
-        },
-      },
-      {
-        kind: "line",
-        from: {
-          x: -26.75,
-          y: 14,
-        },
-        to: {
-          x: -20.75,
-          y: 14,
+          y: -17,
         },
         part: "input-polarity",
         style: {
@@ -12660,6 +12643,23 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         to: {
           x: -20.75,
           y: -14,
+        },
+        part: "input-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -26.75,
+          y: 14,
+        },
+        to: {
+          x: -20.75,
+          y: 14,
         },
         part: "upright-input-polarity-negative",
         style: {
@@ -12875,28 +12875,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "line",
         from: {
           x: -23.75,
-          y: -11,
+          y: 11,
         },
         to: {
           x: -23.75,
-          y: -17,
-        },
-        part: "input-polarity",
-        style: {
-          strokeRole: "normal",
-          lineCap: "round",
-          lineJoin: "round",
-        },
-      },
-      {
-        kind: "line",
-        from: {
-          x: -26.75,
-          y: -14,
-        },
-        to: {
-          x: -20.75,
-          y: -14,
+          y: 17,
         },
         part: "input-polarity",
         style: {
@@ -12914,6 +12897,23 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         to: {
           x: -20.75,
           y: 14,
+        },
+        part: "input-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -26.75,
+          y: -14,
+        },
+        to: {
+          x: -20.75,
+          y: -14,
         },
         part: "upright-input-polarity-negative",
         style: {
@@ -13129,28 +13129,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "line",
         from: {
           x: -23.75,
-          y: -11,
+          y: 11,
         },
         to: {
           x: -23.75,
-          y: -17,
-        },
-        part: "input-polarity",
-        style: {
-          strokeRole: "normal",
-          lineCap: "round",
-          lineJoin: "round",
-        },
-      },
-      {
-        kind: "line",
-        from: {
-          x: -26.75,
-          y: -14,
-        },
-        to: {
-          x: -20.75,
-          y: -14,
+          y: 17,
         },
         part: "input-polarity",
         style: {
@@ -13168,6 +13151,23 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         to: {
           x: -20.75,
           y: 14,
+        },
+        part: "input-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -26.75,
+          y: -14,
+        },
+        to: {
+          x: -20.75,
+          y: -14,
         },
         part: "upright-input-polarity-negative",
         style: {
@@ -13383,28 +13383,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "line",
         from: {
           x: -23.75,
-          y: -11,
+          y: 11,
         },
         to: {
           x: -23.75,
-          y: -17,
-        },
-        part: "input-polarity",
-        style: {
-          strokeRole: "normal",
-          lineCap: "round",
-          lineJoin: "round",
-        },
-      },
-      {
-        kind: "line",
-        from: {
-          x: -26.75,
-          y: -14,
-        },
-        to: {
-          x: -20.75,
-          y: -14,
+          y: 17,
         },
         part: "input-polarity",
         style: {
@@ -13422,6 +13405,23 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         to: {
           x: -20.75,
           y: 14,
+        },
+        part: "input-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -26.75,
+          y: -14,
+        },
+        to: {
+          x: -20.75,
+          y: -14,
         },
         part: "upright-input-polarity-negative",
         style: {
@@ -13646,28 +13646,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "line",
         from: {
           x: -23.75,
-          y: -11,
+          y: 11,
         },
         to: {
           x: -23.75,
-          y: -17,
-        },
-        part: "input-polarity",
-        style: {
-          strokeRole: "normal",
-          lineCap: "round",
-          lineJoin: "round",
-        },
-      },
-      {
-        kind: "line",
-        from: {
-          x: -26.75,
-          y: -14,
-        },
-        to: {
-          x: -20.75,
-          y: -14,
+          y: 17,
         },
         part: "input-polarity",
         style: {
@@ -13685,6 +13668,23 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         to: {
           x: -20.75,
           y: 14,
+        },
+        part: "input-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -26.75,
+          y: -14,
+        },
+        to: {
+          x: -20.75,
+          y: -14,
         },
         part: "upright-input-polarity-negative",
         style: {
@@ -13909,28 +13909,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "line",
         from: {
           x: -23.75,
-          y: 11,
+          y: -11,
         },
         to: {
           x: -23.75,
-          y: 17,
-        },
-        part: "input-polarity",
-        style: {
-          strokeRole: "normal",
-          lineCap: "round",
-          lineJoin: "round",
-        },
-      },
-      {
-        kind: "line",
-        from: {
-          x: -26.75,
-          y: 14,
-        },
-        to: {
-          x: -20.75,
-          y: 14,
+          y: -17,
         },
         part: "input-polarity",
         style: {
@@ -13948,6 +13931,23 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         to: {
           x: -20.75,
           y: -14,
+        },
+        part: "input-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -26.75,
+          y: 14,
+        },
+        to: {
+          x: -20.75,
+          y: 14,
         },
         part: "upright-input-polarity-negative",
         style: {
@@ -14172,28 +14172,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "line",
         from: {
           x: -23.75,
-          y: 11,
+          y: -11,
         },
         to: {
           x: -23.75,
-          y: 17,
-        },
-        part: "input-polarity",
-        style: {
-          strokeRole: "normal",
-          lineCap: "round",
-          lineJoin: "round",
-        },
-      },
-      {
-        kind: "line",
-        from: {
-          x: -26.75,
-          y: 14,
-        },
-        to: {
-          x: -20.75,
-          y: 14,
+          y: -17,
         },
         part: "input-polarity",
         style: {
@@ -14211,6 +14194,23 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         to: {
           x: -20.75,
           y: -14,
+        },
+        part: "input-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -26.75,
+          y: 14,
+        },
+        to: {
+          x: -20.75,
+          y: 14,
         },
         part: "upright-input-polarity-negative",
         style: {
@@ -14435,28 +14435,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "line",
         from: {
           x: -23.75,
-          y: 11,
+          y: -11,
         },
         to: {
           x: -23.75,
-          y: 17,
-        },
-        part: "input-polarity",
-        style: {
-          strokeRole: "normal",
-          lineCap: "round",
-          lineJoin: "round",
-        },
-      },
-      {
-        kind: "line",
-        from: {
-          x: -26.75,
-          y: 14,
-        },
-        to: {
-          x: -20.75,
-          y: 14,
+          y: -17,
         },
         part: "input-polarity",
         style: {
@@ -14474,6 +14457,23 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         to: {
           x: -20.75,
           y: -14,
+        },
+        part: "input-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -26.75,
+          y: 14,
+        },
+        to: {
+          x: -20.75,
+          y: 14,
         },
         part: "upright-input-polarity-negative",
         style: {
@@ -14689,28 +14689,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "line",
         from: {
           x: -23.75,
-          y: 11,
+          y: -11,
         },
         to: {
           x: -23.75,
-          y: 17,
-        },
-        part: "input-polarity",
-        style: {
-          strokeRole: "normal",
-          lineCap: "round",
-          lineJoin: "round",
-        },
-      },
-      {
-        kind: "line",
-        from: {
-          x: -26.75,
-          y: 14,
-        },
-        to: {
-          x: -20.75,
-          y: 14,
+          y: -17,
         },
         part: "input-polarity",
         style: {
@@ -14728,6 +14711,23 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         to: {
           x: -20.75,
           y: -14,
+        },
+        part: "input-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -26.75,
+          y: 14,
+        },
+        to: {
+          x: -20.75,
+          y: 14,
         },
         part: "upright-input-polarity-negative",
         style: {

@@ -176,8 +176,10 @@ function applyPortCase(ir: DesignNetlistIR, portCase: NetlistPortCase): void {
  * 13 reads a Var Cap bound to the SKY130 varactor as the ideal Var Cap it now
  * opens as (#1298): a circuit that part alone blocked extracts when it kept a
  * value.
+ * 14 refuses invalid portable component interfaces and calls that contradict
+ * a generated built-in model's fixed port order or pin mapping (#1393).
  */
-export const NETLIST_MARK_RULE_VERSION = 13;
+export const NETLIST_MARK_RULE_VERSION = 14;
 
 export function designExtractsNetlist(
   project: CircuitProject,

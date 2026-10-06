@@ -1,5 +1,6 @@
 import {
   deriveStableId,
+  componentInterfaceIssues,
   foldNetName,
   projectCellInterface,
   routeEndpoints,
@@ -40,12 +41,15 @@ import {
   IDEAL_COMPARATOR_BODIES,
   IDEAL_COMPARATOR_SUPPLY_TARGET,
   adderInputSigns,
+  adderBodySigns,
   builtInModelContract,
   createReferenceIndex,
   deviceDescriptor,
   HIGH_LEVEL_PARAMETER,
   callsIdealComparatorBody,
   idealComparatorBodyPorts,
+  idealComparatorBodyContract,
+  isIdealComparatorBody,
   instanceBuiltInSubcircuit,
   isSupplyHighLevel,
   nextReference,
@@ -2881,6 +2885,26 @@ function analyzeDesign(
   options: DesignNetlistAnalysisOptions,
   authoring: boolean,
 ): DesignNetlistAnalysisResult {
+  const interfaceDiagnostics: NetlistDiagnostic[] = [];
+  for (const definition of project.componentDefinitions ?? []) {
+    const callerDocument = project.documents.find((document) =>
+      document.instances.some(
+        (instance) => instance.symbolId === definition.symbol.id,
+      ),
+    );
+    for (const issue of componentInterfaceIssues(definition))
+      diagnostic(
+        interfaceDiagnostics,
+        callerDocument?.id ?? options.rootDocumentId ?? project.topDocumentId,
+        "INVALID_COMPONENT_INTERFACE",
+        `Component ${definition.symbol.id}: ${issue.message}`,
+        callerDocument?.instances
+          .filter((instance) => instance.symbolId === definition.symbol.id)
+          .map((instance) => instance.id) ?? [],
+      );
+  }
+  if (interfaceDiagnostics.length)
+    return { ir: null, diagnostics: interfaceDiagnostics };
   const resolvedOptions: ResolvedDesignNetlistAnalysisOptions = {
     format: options.format ?? "spice",
     namingProfile: options.namingProfile ?? "native",
@@ -3142,6 +3166,38 @@ function analyzeDesign(
         ? subcircuitDescriptor(sourceInstance.symbolId, project)
         : undefined;
       const target = instance.target.toLowerCase();
+      const emittedPorts = isIdealComparatorBody(target)
+        ? idealComparatorBodyContract(target).ports
+        : builtInModelContract(adderBodySigns(target) ? ADDER_TARGET : target)
+            ?.ports;
+      const callPorts =
+        descriptor && callsIdealComparatorBody(descriptor, target)
+          ? idealComparatorBodyPorts(target, descriptor.ports)
+          : descriptor?.ports;
+      // A generated body has a fixed positional interface. A Project-local
+      // replacement is valid only against its own declared master, not the
+      // unrelated built-in body with the same target spelling.
+      if (
+        emittedPorts &&
+        descriptor &&
+        !projectNames.has(target) &&
+        (instance.nodes.length !== emittedPorts.length ||
+          instance.nodes.some(
+            (node, index) => node.pinName !== emittedPorts[index]?.name,
+          ) ||
+          callPorts?.some(
+            (port, index) =>
+              port.pinName !== emittedPorts[index]?.pinName ||
+              port.supply !== emittedPorts[index]?.supply,
+          ))
+      )
+        diagnostic(
+          diagnostics,
+          cell.id,
+          "COMPONENT_MODEL_INTERFACE_MISMATCH",
+          `${instance.reference} calls built-in ${instance.target} with a different ordered interface; restore its interface or declare a custom target`,
+          [instance.id],
+        );
       // A backend's call-only contract still exports: the call is written,
       // and a warning says the reader's libraries must define it.
       if (

@@ -17,6 +17,26 @@ before import or Cloud Save. Compatibility and migration failure rules belong to
 supported historical content before current-schema validation; all writers emit
 the current schema. Persistence does not maintain a separate migration policy.
 
+Portable component interfaces are validated together with the Project. Missing,
+duplicate or unknown pin mappings, duplicate formal port names and conflicting
+primitive/subcircuit contracts reject the candidate without replacing the live
+Project. Diagnostics identify the definition and offending field; recoverable
+source text remains available under the existing failed-import/recovery rules.
+
+The protocol also applies polarity snapshot repair v1, independent of Project
+schema version. It recognizes sixteen complete differential-amplifier Symbol
+snapshots from converter v8 by historical content signatures and reflects only
+their incorrect input marks. Pins, electrical contracts, bindings, Nets, Routes,
+models and parameters remain unchanged. Repaired loads report migration, and
+canonical serialization retains the corrected snapshot; repeated loads are
+idempotent. File, Project Code, Cloud and Gallery consumers use this same protocol.
+The website catalog does not overwrite project-owned component definitions.
+
+Unknown customizations and generated Cell symbols are preserved. Such artwork
+requires inspection through Project Code/component definitions and an explicit
+artwork correction; resemblance to a built-in ID alone never authorizes repair.
+This bounded repair does not bulk-edit published Gallery source content.
+
 Recovery state is a non-authoritative browser safety copy. It may restore a
 complete schema-65 Project or a supported historical record that validates
 after the chained upgrade, associated with a recorded working-copy session.

@@ -153,28 +153,11 @@
         "kind": "line",
         "from": {
           "x": -23.75,
-          "y": -11
+          "y": 11
         },
         "to": {
           "x": -23.75,
-          "y": -17
-        },
-        "part": "input-polarity",
-        "style": {
-          "strokeRole": "normal",
-          "lineCap": "round",
-          "lineJoin": "round"
-        }
-      },
-      {
-        "kind": "line",
-        "from": {
-          "x": -26.75,
-          "y": -14
-        },
-        "to": {
-          "x": -20.75,
-          "y": -14
+          "y": 17
         },
         "part": "input-polarity",
         "style": {
@@ -192,6 +175,23 @@
         "to": {
           "x": -20.75,
           "y": 14
+        },
+        "part": "input-polarity",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "round",
+          "lineJoin": "round"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -26.75,
+          "y": -14
+        },
+        "to": {
+          "x": -20.75,
+          "y": -14
         },
         "part": "upright-input-polarity-negative",
         "style": {
@@ -318,7 +318,7 @@
       "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
       "referencePath": "fixtures/visual-reference/razavi-reference-v1/differential-opamp-vector-source.json",
       "converterPath": "scripts/generate-razavi-opamp-asset.mjs",
-      "converterVersion": 8,
+      "converterVersion": 9,
       "bodyNormalization": "equilateral-triangle"
     }
   }

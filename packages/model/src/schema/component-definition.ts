@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { componentInterfaceIssues } from "../component-interface.js";
 import { StableIdSchema } from "./common.js";
 import { NetlistDeviceClassSchema } from "./instance.js";
 import { SymbolDefinitionSchema } from "./symbol-definition.js";
@@ -102,34 +103,7 @@ export const ComponentDefinitionSchema = z
     subcircuit: ComponentSubcircuitSchema.optional(),
   })
   .superRefine((definition, ctx) => {
-    const pins = new Set(definition.symbol.pins.map((pin) => pin.name));
-    for (const key of ["electrical", "subcircuit"] as const) {
-      const contract = definition[key];
-      if (contract && contract.symbolId !== definition.symbol.id)
-        ctx.addIssue({
-          code: "custom",
-          path: [key, "symbolId"],
-          message: "Electrical and visual Symbol identities must agree",
-        });
-    }
-    const ordered = definition.electrical?.pinOrder;
-    if (
-      ordered &&
-      (new Set(ordered).size !== ordered.length ||
-        ordered.some((pin) => !pins.has(pin)) ||
-        ordered.length !== pins.size)
-    )
-      ctx.addIssue({
-        code: "custom",
-        path: ["electrical", "pinOrder"],
-        message: "Electrical pinOrder must name each Symbol pin exactly once",
-      });
-    for (const [index, port] of (definition.subcircuit?.ports ?? []).entries())
-      if ("pinName" in port && !pins.has(port.pinName))
-        ctx.addIssue({
-          code: "custom",
-          path: ["subcircuit", "ports", index],
-          message: "Subcircuit port references an unknown Symbol pin",
-        });
+    for (const issue of componentInterfaceIssues(definition))
+      ctx.addIssue({ code: "custom", ...issue });
   });
 export type ComponentDefinition = z.infer<typeof ComponentDefinitionSchema>;

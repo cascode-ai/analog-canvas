@@ -2,6 +2,8 @@ import { createHash } from "node:crypto";
 import { readFile, readdir, writeFile } from "node:fs/promises";
 import { basename, dirname, resolve } from "node:path";
 import { format } from "prettier";
+import { validateAmplifierPolarity } from "./amplifier-polarity.mjs";
+import { componentInterfaceIssues } from "../../packages/model/src/component-interface.ts";
 
 export const componentRoot = resolve(
   import.meta.dirname,
@@ -39,6 +41,7 @@ export function validateComponentDefinition(component, id) {
     fail(`${id}: invalid Symbol`);
   const pins = symbol.pins.map((pin) => pin.name);
   if (new Set(pins).size !== pins.length) fail(`${id}: duplicate pin names`);
+  validateAmplifierPolarity(symbol);
   for (const pin of symbol.pins) {
     if (
       !Number.isFinite(pin.at?.x) ||
@@ -69,8 +72,6 @@ export function validateComponentDefinition(component, id) {
     if (new Set(names).size !== names.length)
       fail(`${id}: duplicate electrical parameters`);
   }
-  if (electrical !== null && subcircuit !== undefined)
-    fail(`${id}: a component cannot be both a primitive and a subcircuit`);
   if (subcircuit !== undefined) {
     if (
       subcircuit?.id !== id ||
@@ -81,18 +82,13 @@ export function validateComponentDefinition(component, id) {
     ) {
       fail(`${id}: invalid subcircuit identity, target, or ports`);
     }
-    const portNames = new Set();
-    const mappedPins = new Set();
     for (const port of subcircuit.ports) {
-      const portKey = port?.name?.toLowerCase();
       if (
         !/^[A-Za-z_][A-Za-z0-9_]*$/.test(port?.name ?? "") ||
-        !["input", "output", "inout", "passive"].includes(port?.direction) ||
-        portNames.has(portKey)
+        !["input", "output", "inout", "passive"].includes(port?.direction)
       ) {
         fail(`${id}: invalid or duplicate subcircuit port ${port?.name}`);
       }
-      portNames.add(portKey);
       const hasPin = typeof port.pinName === "string";
       const hasSupply = port.supply === "VDD" || port.supply === "VSS";
       if (hasPin === hasSupply) {
@@ -101,17 +97,6 @@ export function validateComponentDefinition(component, id) {
       if (hasSupply && port.name !== port.supply) {
         fail(`${id}: supply port ${port.name} must retain its canonical name`);
       }
-      if (hasPin) {
-        if (!pins.includes(port.pinName) || mappedPins.has(port.pinName)) {
-          fail(
-            `${id}: port ${port.name} maps an unknown or duplicate pin ${port.pinName}`,
-          );
-        }
-        mappedPins.add(port.pinName);
-      }
-    }
-    if (!same([...mappedPins].sort(), [...pins].sort())) {
-      fail(`${id}: subcircuit ports must map every Symbol pin exactly once`);
     }
     if (
       subcircuit.ports[0]?.supply !== "VDD" ||
@@ -120,6 +105,9 @@ export function validateComponentDefinition(component, id) {
       fail(`${id}: subcircuit supplies must be ordered VDD, VSS first`);
     }
   }
+  const interfaceIssues = componentInterfaceIssues(component);
+  if (interfaceIssues.length)
+    fail(`${id}: ${interfaceIssues.map((issue) => issue.message).join("; ")}`);
   return component;
 }
 

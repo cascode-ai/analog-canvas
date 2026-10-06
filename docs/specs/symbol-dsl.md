@@ -68,6 +68,14 @@ Runtime resolves the exact contact and the landing as one
   these facts. The symbol projection owns artwork and anchors. Pin parity is
   enforced across those generated consumers.
 
-The application ships the compiled catalog and a Project persists only exact
-symbol and optional variant IDs plus its library lock. Generated catalog tests
-prove every advertised asset resolves and that retired IDs and aliases fail.
+The application ships the compiled catalog. Instances retain exact Symbol and
+optional variant IDs; portable Projects capture the definitions they use.
+Project-owned definitions take precedence over the current compiled catalog,
+so a catalog update alone does not repair previously captured artwork.
+Generated catalog tests prove every advertised asset resolves and that retired
+IDs and aliases fail.
+
+For signed amplifier families, positive and negative strokes must appear beside
+the corresponding named input/output pins. Family generation derives their
+positions from semantic pins, and registration verifies the strokes separately.
+This presentation rule does not grant artwork electrical authority.

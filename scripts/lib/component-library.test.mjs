@@ -61,6 +61,41 @@ async function fixture() {
 }
 
 describe("one-file component library", () => {
+  it("does not accept two coincident minus bars as a positive sign", async () => {
+    const invalid = await component("opamp");
+    const indices = invalid.symbol.primitives.flatMap((primitive, index) =>
+      primitive.part === "input-polarity" ? [index] : [],
+    );
+    invalid.symbol.primitives[indices[0]] = structuredClone(
+      invalid.symbol.primitives[indices[1]],
+    );
+    expect(() => validateComponentDefinition(invalid, "opamp")).toThrow(
+      /polarity/,
+    );
+  });
+
+  it("rejects signed artwork that contradicts semantic amplifier pins", async () => {
+    for (const id of [
+      "opamp-differential",
+      "opamp-differential-crossed",
+      "differential-transconductance",
+    ]) {
+      const invalid = await component(id);
+      invalid.symbol.primitives = invalid.symbol.primitives.map((primitive) =>
+        primitive.kind === "line" && primitive.part?.includes("input-polarity")
+          ? {
+              ...primitive,
+              from: { ...primitive.from, y: -primitive.from.y },
+              to: { ...primitive.to, y: -primitive.to.y },
+            }
+          : primitive,
+      );
+      expect(() => validateComponentDefinition(invalid, id)).toThrow(
+        /polarity/,
+      );
+    }
+  });
+
   it("projects every complete canonical definition into the unchanged runtime boundaries", async () => {
     const { components, byId, index } = await loadComponentLibrary();
     expect(new Set(components.map((c) => c.symbol.id))).toEqual(

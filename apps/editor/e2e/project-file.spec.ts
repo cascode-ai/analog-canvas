@@ -2,11 +2,15 @@ import { parseSavedProject } from "./editor-fixtures";
 import { expect, test, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { subcircuitDescriptor } from "@icm/devices";
+import { createDesignNetlistExport } from "@icm/netlist";
+import { parseProject } from "@icm/project-protocol";
 import { AgentHttpClient } from "../../../packages/agent-client/src/http-client.js";
 import {
   createEmptyProject,
   CURRENT_MODEL_SCHEMA_VERSION,
   type CircuitProject,
+  type SymbolDefinition,
 } from "@icm/model";
 
 import { AGENT_SESSION_RECOVERY_STORAGE_KEY } from "../src/agent/session-recovery";
@@ -82,6 +86,114 @@ async function mockCloudProjects(page: Page) {
   });
   return { stored: () => stored };
 }
+
+test("opens a recognized old booster symbol with correct marks and keeps them after export and reopen", async ({
+  page,
+}) => {
+  const symbol = JSON.parse(
+    readFileSync(
+      "fixtures/components/opamp-differential-wide-inputs-swapped-v8.json",
+      "utf8",
+    ),
+  ) as SymbolDefinition;
+  const source = createEmptyProject("old-booster", "Old booster", "dut");
+  const descriptor = subcircuitDescriptor(symbol.id)!;
+  source.componentDefinitions = [
+    {
+      symbol,
+      subcircuit: {
+        ...descriptor,
+        ports: descriptor.ports.map((port) => ({ ...port })),
+      },
+    },
+  ];
+  const document = source.documents[0]!;
+  document.instances.push({
+    id: "X1",
+    reference: "X1",
+    symbolId: symbol.id,
+    placement: { position: { x: 200, y: 200 }, rotation: 0, mirror: "none" },
+    netlist: { parameters: { gain: "20" } },
+  });
+  for (const [index, pin] of symbol.pins.entries()) {
+    const name = `N${index}`;
+    document.nets.push({
+      id: name,
+      terminals: [{ instanceId: "X1", pinName: pin.name }],
+    });
+    document.connectivityEvidence.push({
+      id: `hint-${name}`,
+      kind: "net-name-hint",
+      netId: name,
+      sourceName: name,
+      origin: "spice-import",
+    });
+  }
+  const electrical = createDesignNetlistExport(source);
+  expect(electrical.status).toBe("ready");
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  await page.getByTestId("project-file").setInputFiles({
+    name: "old-booster.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(source)),
+  });
+  // Positive marks are ordinary line geometry; only the page-upright minus
+  // exposes a data-part. Inspect the actual SVG at the known input mark x.
+  const positive = page.locator(
+    '[data-layer="symbols"] [data-object-id="X1"] line[x1="-23.75"][x2="-23.75"]',
+  );
+  const centers = () =>
+    positive.evaluateAll((lines) =>
+      lines.map(
+        (line) =>
+          (Number(line.getAttribute("y1")) + Number(line.getAttribute("y2"))) /
+          2,
+      ),
+    );
+  await expect.poll(centers).toEqual([-14]);
+  await expect(
+    page.locator(
+      '[data-object-id="X1"] line[data-part="upright-input-polarity-negative"]',
+    ),
+  ).toHaveAttribute("y1", "14");
+  const svg = (await downloadBytes(page, "File", "Export SVG")).toString(
+    "utf8",
+  );
+  expect(svg).toContain('data-part="upright-input-polarity-negative"');
+  const saved = await downloadBytes(page, "File", "Export Project File…");
+  const reopened = parseProject(saved.toString("utf8"));
+  expect(createDesignNetlistExport(reopened)).toEqual(electrical);
+  expect(reopened.documents[0]!.nets).toEqual(document.nets);
+  await page.getByTestId("project-file").setInputFiles({
+    name: "repaired-booster.icproj.json",
+    mimeType: "application/json",
+    buffer: saved,
+  });
+  await expect(page.getByTestId("status")).toContainText(
+    "repaired-booster.icproj.json",
+  );
+  expect(await centers()).toEqual([-14]);
+  const invalid = structuredClone(reopened);
+  const ports = invalid.componentDefinitions![0]!.subcircuit!.ports;
+  const minus = ports.find(
+    (port) => "pinName" in port && port.pinName === "IN-",
+  )!;
+  if ("pinName" in minus) minus.pinName = "IN+";
+  await page.getByTestId("project-file").setInputFiles({
+    name: "invalid-interface.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(invalid)),
+  });
+  await expect(page.getByTestId("status")).toContainText("INVALID_PROJECT");
+  const retained = parseProject(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(
+      "utf8",
+    ),
+  );
+  expect(retained).toEqual(reopened);
+  expect(await centers()).toEqual([-14]);
+});
 
 async function mockFullCloudProjectList(page: Page) {
   await page.route("**/api/auth/me", (route) =>
