@@ -1,8 +1,8 @@
 import {
   reviewedExternalDeviceBindings,
+  projectLengthToSky130Micrometres,
   sky130MicrometresToProjectLength,
 } from "@icm/devices";
-import { parseSpiceNumber } from "@icm/spice";
 import type { DesignNetlistInstance } from "./ir.js";
 
 /** Internal value projection, not an editable-policy or persisted contract. */
@@ -34,9 +34,11 @@ export function restorePrintedParameter(
   allowSiLiteral = false,
 ): string {
   if (conversion === "identity") return value;
-  if (allowSiLiteral) {
-    const number = parseSpiceNumber(value);
-    if (number?.suffix) return value;
+  if (allowSiLiteral && /[a-z]$/iu.test(value.trim())) {
+    // Use the same geometry grammar as forward export, including "250 n".
+    // A suffix candidate is not proof: the owner rejects invalid/unknown units.
+    projectLengthToSky130Micrometres(value);
+    return value;
   }
   return sky130MicrometresToProjectLength(value);
 }

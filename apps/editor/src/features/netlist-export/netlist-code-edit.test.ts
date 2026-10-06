@@ -508,6 +508,9 @@ it.each<NetlistFormat>(["spice", "spectre"])(
     for (const [typed, stored, printed] of [
       ["2", "2u", "2"],
       ["250n", "250n", "0.25"],
+      ["2 u", "2 u", "2"],
+      ["250 n", "250 n", "0.25"],
+      ["1e-3 m", "1e-3 m", "1"],
       ["{WIDTH}", "{(WIDTH) * 1u}", "{WIDTH}"],
     ]) {
       const draft =
@@ -543,6 +546,15 @@ it.each<NetlistFormat>(["spice", "spectre"])(
       expect(
         planNetlistCodeEdit(result.project, next, next.file.text),
       ).toMatchObject({ ok: true, edits: [] });
+    }
+    for (const invalid of ["2 q", "2 u m"]) {
+      const draft =
+        baseline.file.text.slice(0, field.startOffset) +
+        invalid +
+        baseline.file.text.slice(field.endOffset);
+      expect(planNetlistCodeEdit(mapped.project, baseline, draft).ok).toBe(
+        false,
+      );
     }
     for (const equivalent of ["1.0", "1u"]) {
       const same =
