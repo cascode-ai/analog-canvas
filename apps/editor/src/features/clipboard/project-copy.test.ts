@@ -167,6 +167,72 @@ function externalFixture() {
   return source;
 }
 describe("one Project copy path", () => {
+  it("lets a later pasted part contact an existing endpoint after an earlier Wire split", () => {
+    const source = createEmptyProject("source", "Source");
+    const document = source.documents[0]!;
+    document.instances.push(
+      ...[100, 0].map((x, index) => ({
+        id: `R${index + 1}`,
+        symbolId: "resistor",
+        placement: {
+          position: { x, y: 100 },
+          rotation: 0 as const,
+          mirror: "none" as const,
+        },
+      })),
+    );
+    const resolver = new InMemorySymbolResolver(builtInSymbols);
+    const top = resolveEndpointPoint(document, resolver, {
+      kind: "terminal",
+      instanceId: "R1",
+      pinName: "1",
+    })!;
+    const target = createEmptyProject("target", "Target");
+    const destination = target.documents[0]!;
+    destination.nets.push({ id: "wire-net", terminals: [] });
+    destination.junctions.push(
+      ...[0, 300].map((x, index) => ({
+        id: `J${index}`,
+        netId: "wire-net",
+        position: { x, y: 0 },
+        role: "route-anchor" as const,
+      })),
+    );
+    destination.routes.push(
+      createRoutePath({
+        id: "wire",
+        netId: "wire-net",
+        start: { kind: "junction", junctionId: "J0" },
+        end: { kind: "junction", junctionId: "J1" },
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+    const clipboard = captureProjectCopy(
+      source,
+      document,
+      selection(["R1", "R2"]),
+    )!;
+    const plan = planProjectCopyPlacement(
+      target,
+      destination,
+      clipboard,
+      { x: 0, y: -top.y },
+      0,
+    );
+    const result = applyProjectCopyPlacement(plan).documents[0]!;
+    expect(result.routes).toHaveLength(2);
+    expect(result.nets.find((net) => net.id === "wire-net")!.terminals).toEqual(
+      [...plan.instanceIds]
+        .reverse()
+        .map((instanceId) => ({ instanceId, pinName: "1" })),
+    );
+    expect(
+      plan.edits.filter((edit) => edit.kind === "transact_document"),
+    ).toHaveLength(3);
+    expect(destination.routes).toHaveLength(1);
+  });
+
   it("uses the destination bulk default instead of inheriting the source circuit", () => {
     const source = createEmptyProject("source", "Source");
     const document = source.documents[0]!;
