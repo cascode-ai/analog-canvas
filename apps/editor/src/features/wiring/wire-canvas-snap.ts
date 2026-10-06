@@ -7,12 +7,16 @@ import type { WireSource } from "@icm/edit-engine";
 import type { Point, RouteBranch, SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
-import { endpointSnapAnchor } from "../../snap/candidates";
+import {
+  buildRectangleEdgeSnapAnchors,
+  endpointSnapAnchor,
+} from "../../snap/candidates";
 import { closestPointOnSegment } from "../../canvas/canvas-geometry";
 import {
   resolvePointSnap,
   SNAP_PROFILES,
   snapCoordinate,
+  type SnapAnchor,
   type SnapGuideLine,
 } from "../../snap/engine";
 import { routeTapPoint } from "./route-interaction-geometry";
@@ -34,8 +38,11 @@ export interface WireCanvasSnapIndex {
   readonly cellSize: number;
   readonly endpointTargets: readonly IndexedEndpointTarget[];
   readonly routeSegments: readonly IndexedRouteSegment[];
+  /** Where a wire enters a drafted block: geometry only, never a contact. */
+  readonly entryAnchors: readonly SnapAnchor[];
   readonly endpointBuckets: ReadonlyMap<string, readonly number[]>;
   readonly routeBuckets: ReadonlyMap<string, readonly number[]>;
+  readonly entryBuckets: ReadonlyMap<string, readonly number[]>;
 }
 
 function bucketKey(x: number, y: number): string {
@@ -68,6 +75,7 @@ function cellsForBounds(from: Point, to: Point, cellSize: number): string[] {
 export function buildWireCanvasSnapIndex(
   wiringEndpoints: readonly WireSource[],
   routeGeometryRecords: WireCanvasSnapContext["routeGeometryRecords"],
+  entryAnchors: readonly SnapAnchor[] = [],
   cellSize = 100,
 ): WireCanvasSnapIndex {
   const endpointTargets = wiringEndpoints.map((source) => ({
@@ -83,16 +91,15 @@ export function buildWireCanvasSnapIndex(
       to: geometry.centerline[segmentIndex + 1]!,
     })),
   );
+  const pointBucket = (point: Point) =>
+    bucketKey(Math.floor(point.x / cellSize), Math.floor(point.y / cellSize));
   const endpointBuckets = new Map<string, number[]>();
   endpointTargets.forEach((target, index) => {
-    addToBucket(
-      endpointBuckets,
-      bucketKey(
-        Math.floor(target.anchor.point.x / cellSize),
-        Math.floor(target.anchor.point.y / cellSize),
-      ),
-      index,
-    );
+    addToBucket(endpointBuckets, pointBucket(target.anchor.point), index);
+  });
+  const entryBuckets = new Map<string, number[]>();
+  entryAnchors.forEach((anchor, index) => {
+    addToBucket(entryBuckets, pointBucket(anchor.point), index);
   });
   const routeBuckets = new Map<string, number[]>();
   routeSegments.forEach((segment, index) => {
@@ -104,8 +111,10 @@ export function buildWireCanvasSnapIndex(
     cellSize,
     endpointTargets,
     routeSegments,
+    entryAnchors,
     endpointBuckets,
     routeBuckets,
+    entryBuckets,
   };
 }
 
@@ -178,7 +187,11 @@ export function resolveWireCanvasSnap(
     : null;
   const index =
     snapIndex ??
-    buildWireCanvasSnapIndex(wiringEndpoints, routeGeometryRecords);
+    buildWireCanvasSnapIndex(
+      wiringEndpoints,
+      routeGeometryRecords,
+      buildRectangleEdgeSnapAnchors(document, resolver),
+    );
   const routeTargets = nearbyIndices(
     index.routeBuckets,
     point,
@@ -221,6 +234,18 @@ export function resolveWireCanvasSnap(
           target.anchor.point.y - point.y,
         ) <= captureTolerance,
     );
+  const entryTargets = nearbyIndices(
+    index.entryBuckets,
+    point,
+    captureTolerance,
+    index.cellSize,
+  )
+    .map((entryIndex) => index.entryAnchors[entryIndex]!)
+    .filter(
+      (anchor) =>
+        Math.hypot(anchor.point.x - point.x, anchor.point.y - point.y) <=
+        captureTolerance,
+    );
   const activeSourceAnchorId = wireSource
     ? endpointSnapAnchor(wireSource).id
     : null;
@@ -229,6 +254,7 @@ export function resolveWireCanvasSnap(
     [
       ...endpointTargets.map((candidate) => candidate.anchor),
       ...routeTargets.map((candidate) => candidate.anchor),
+      ...entryTargets,
     ],
     {
       grid: document.presentation.grid,

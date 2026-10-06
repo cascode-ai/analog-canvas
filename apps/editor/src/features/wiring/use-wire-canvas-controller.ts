@@ -20,6 +20,7 @@ import {
   type EditorTool,
   type WireDraftTarget,
 } from "../../interaction/interaction-state";
+import { buildRectangleEdgeSnapAnchors } from "../../snap/candidates";
 import type { SnapGuideLine } from "../../snap/engine";
 import type { VisualSelection } from "../selection/visual-selection";
 import { planSelectionMove } from "../selection/selection-move-plan";
@@ -163,8 +164,13 @@ export function useWireCanvasController({
     cornerOrder: WireCornerOrder;
   }>({ routingMode: "orthogonal", cornerOrder: "auto" });
   const wireCanvasSnapIndex = useMemo(
-    () => buildWireCanvasSnapIndex(wiringEndpoints, routeGeometryRecords),
-    [routeGeometryRecords, wiringEndpoints],
+    () =>
+      buildWireCanvasSnapIndex(
+        wiringEndpoints,
+        routeGeometryRecords,
+        buildRectangleEdgeSnapAnchors(document, resolver),
+      ),
+    [document, resolver, routeGeometryRecords, wiringEndpoints],
   );
 
   useEffect(() => {

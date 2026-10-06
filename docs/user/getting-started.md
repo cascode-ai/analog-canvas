@@ -107,6 +107,10 @@ recognize such a network, so both are placed by hand.
 - While wiring, click blank canvas to fix bends; double-click blank canvas or
   press `Enter` to finish at any grid point. `Backspace` removes the latest
   uncommitted bend and `Escape` cancels the session.
+- A wire end near a drawn rectangle's straight edge is pulled to the grid point
+  nearest a third, the middle or two thirds of that edge, so inputs and outputs
+  meet a block diagram's boxes evenly. The box stays drawing geometry: landing
+  on it connects nothing.
 - Select any route segment to expose its movement handle. Drag the handle
   perpendicular to that segment to stretch adjacent geometry without rerouting
   the rest of the wire. If the moved segment lands exactly on a component pin,

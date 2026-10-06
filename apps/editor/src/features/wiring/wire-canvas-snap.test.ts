@@ -401,4 +401,45 @@ describe("wire canvas snap", () => {
     expect(result.endpoint).toBeUndefined();
     expect(result.point).toEqual({ x: 0, y: 40 });
   });
+  it("pulls a wire end onto a drafted block's entry and connects nothing there", () => {
+    const document = createEmptyDocument("block-entry", "Block entry");
+    // Edges at x 50 and 150, y 70 and 130: the left edge's entries are the
+    // grid points (50, 90), (50, 100) and (50, 110).
+    document.drafting = {
+      objects: [
+        {
+          id: "block",
+          kind: "rectangle",
+          locked: false,
+          zIndex: 0,
+          anchor: { kind: "free", position: { x: 100, y: 100 } },
+          center: { x: 100, y: 100 },
+          width: 100,
+          height: 60,
+          rotation: 0,
+          lineStyle: "solid",
+        },
+      ],
+    };
+    const context: WireCanvasSnapContext = {
+      document,
+      resolver,
+      wiringEndpoints: [],
+      routeGeometryRecords: [],
+      contactComponents: [],
+      wireSource: null,
+      wireWaypoints: [],
+      captureTolerance: 7,
+    };
+    // Plain grid rounding would take (50, 80); the entry a third of the way
+    // down the edge is within reach and wins.
+    const entry = resolveWireCanvasSnap(context, { x: 53, y: 84.5 }, false);
+    expect(entry.point).toEqual({ x: 50, y: 90 });
+    expect(entry.endpoint).toBeUndefined();
+    expect(entry.route).toBeUndefined();
+    // Away from the block the grid decides as before.
+    expect(
+      resolveWireCanvasSnap(context, { x: 74, y: 41 }, false).point,
+    ).toEqual({ x: 70, y: 40 });
+  });
 });
