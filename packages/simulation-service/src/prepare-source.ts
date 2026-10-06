@@ -6,55 +6,18 @@ import type {
 import {
   nativeSimulationDevices,
   compileNativeDeviceOperatingPoints,
-  type SimulationSourceDiagnostic,
 } from "@icm/netlist";
 import { resolveSourceSimulationContext } from "./source-context.js";
-import { problem, type Capabilities, type Problem } from "./contract.js";
+import { problem, type Capabilities } from "./contract.js";
 import type { ExecutionInput } from "./executor.js";
 import { sha256 } from "./content-digest.js";
+import { sourceCompilationProblem } from "./source-compilation-problem.js";
 import { netlistRunWarnings } from "./netlist-warnings.js";
 import { sourceInputRevision } from "./input-identity.js";
 import { inspectNativeAnalyses } from "./native-source-analysis.js";
 import { outputVolumeWarning } from "./result-volume.js";
 import { prepareNgspiceExecutionInput } from "./prepare-ngspice.js";
 import { resolveSimulationEngine } from "./profile-engine.js";
-
-async function sourceCompilationProblem(
-  diagnostics: SimulationSourceDiagnostic[],
-  folder: ProjectSimulationFolder,
-): Promise<{ ok: false; error: Problem }> {
-  return {
-    ok: false,
-    error: {
-      code: "SIMULATION_COMPILE_REFUSED",
-      message: "Correct the located input and prepare again",
-      stage: "prepare",
-      recovery: "fix-input",
-      diagnostics: await Promise.all(
-        diagnostics.map(async (diagnostic) => {
-          const file = folder.input.files.find(
-            (file) =>
-              file.path === (diagnostic.sourceRef?.fileId ?? diagnostic.path),
-          );
-          if (!file) return diagnostic;
-          const start = diagnostic.sourceRef?.start;
-          return {
-            ...diagnostic,
-            source: {
-              scope: "authored" as const,
-              path: file.path,
-              textDigest: await sha256(file.text),
-              startOffset: start?.offset ?? 0,
-              endOffset: diagnostic.sourceRef?.end.offset ?? 0,
-              line: start?.line ?? 1,
-              column: start?.column ?? 1,
-            },
-          };
-        }),
-      ),
-    },
-  };
-}
 
 /** Public native Prepare: same source authority for GUI, MCP and session folders. */
 export async function prepareSourceExecutionInput(
