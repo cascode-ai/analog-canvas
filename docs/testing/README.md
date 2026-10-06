@@ -46,8 +46,8 @@ pnpm gate:preflight -- --base <base-ref>
 pnpm gate:affected -- --base <base-ref>
 ```
 
-Use the current target's base for local checks and the mainline base for batch
-delivery, as described below.
+Use the current target's fixed base for local checks and the mainline base for
+the entire delivery candidate, as described below.
 
 The versioned catalog at `config/validation-gates.json` maps repository paths
 to preflight, affected, and final gates. Shared-core, production-boundary,
@@ -63,12 +63,12 @@ runs the complete browser suite; `pnpm test:e2e` runs it locally.
 `gate:preflight` runs cheap static contracts and cross-checks the commit's test
 impact declaration. `gate:affected` runs the catalog's bounded unit, focused
 browser, release, or branch checks. Review the printed reasons before
-execution. When the plan selects `full-delivery`, that complete gate
-supersedes static, unit, focused-browser, release, and branch verification:
-at batch delivery, run `gate:preflight` for the independent Test-Impact
-declaration, skip the empty affected stage, and run `gate:full` once. Run
-`pnpm setup:e2e` once per machine or Playwright version instead of paying for a
-browser installation on every full check.
+execution. `full-delivery` records the broad delivery obligations rather than
+requiring the aggregate command after every edit. Record how final local tests,
+additional risk checks and required queue checks fulfill them. Avoid adding
+`gate:full` mechanically when its checks are already covered. Remote checks
+remain required; local success does not exempt a merged candidate. Run
+`pnpm setup:e2e` once per machine or Playwright version.
 
 Every `apps/editor/e2e/*.spec.ts` file must belong to a focused path group and
 select itself. The gate-planner tests enumerate the directory so adding a spec
@@ -100,12 +100,35 @@ per-runner Chromium contention.
 The packaged Windows desktop preview is accepted by its release workflow when
 a preview is released, not in the merge queue; no merge ships it.
 
-## Local iteration and batch validation
+## Validation timing
 
-Day-to-day changes accumulate on a local batch branch. Use the development
-server and the smallest checks that prove each target's behavior and direct
-dependencies, then commit it locally. Do not start a full delivery run, PR, or
-deployment merely because one small target is complete.
+The [development workflow](../development-workflow.md) selects the stage.
+Iterate at the confirmed public seam with focused unit/browser checks and
+regular typechecking. Before selected affected, build or release gates, run
+the target-base preflight and refresh the advisory plan from the real diff.
+
+At the end of each original `implement` invocation, run the complete suites
+once, then its code-review and commit stages:
+
+```powershell
+pnpm test:local
+pnpm test:e2e:local
+```
+
+For this trial, these commands define the original's final full suite as all
+Vitest and Playwright tests. The original does not specify runner scope; this
+is a deliberate conservative repository choice. It supersedes the previous
+policy against routine final local browser sweeps and costs more. Required
+merge checks still protect the merged candidate. Record extra findings and
+time so the human can later decide whether to change this interpretation.
+
+An unchanged candidate needs no repeated final local run. Repair or rebase
+that changes behavior can invalidate evidence; validate the actual changes
+and affected risks again. Each separately invoked ticket retains its own
+final original check, rather than silently deferring all tests to the last
+ticket. Documentation and mechanical maintenance outside `implement` use
+their relevant deterministic checks; executable tooling and gate changes are
+validated according to their actual risk, not their directory name.
 
 Keep validation scope distinct from publication scope. Before a local commit,
 `pnpm gate:plan -- --base HEAD` describes its uncommitted delta. After one
@@ -117,17 +140,16 @@ affected, build, or release gates. A target needing broad validation should get
 it, but a `full-delivery` entry records a batch delivery
 obligation rather than requiring full delivery after each local edit.
 
-A delivered pull request may carry one change or a batch. Before publishing it,
+A delivered pull request may carry one change or a related batch. Before publishing it,
 refresh the mainline base, regenerate the gate plan for the combined diff
-against `origin/main`, and follow the
-[mainline delivery gate](../../AGENTS.md#mainline-delivery-gate). This checks
+against `origin/main`, and follow
+[delivery checks](../deployment.md#development-and-delivery-cadence). This checks
 interactions and shared contracts across everything the pull request carries.
 An unchanged candidate does not need its already-passing local checks repeated
 while remote CI runs; new edits or unresolved failures can require fresh
 verification.
 
-This changes when delivery validation runs, not the required GitHub checks.
-The [deployment guide](../deployment.md#development-and-publication-cadence)
+The [deployment guide](../deployment.md#development-and-delivery-cadence)
 owns the local-to-Production handoff and rollback.
 
 ## Gallery census
@@ -147,11 +169,20 @@ With `--base <ref>` it runs the same census on the mainline base, in a
 temporary worktree, and lists every drawing that behaves differently. The
 harness is `apps/editor/census/gallery.census.ts`. The census reads user
 drawings, so it runs only locally and never in CI, and its reports stay in the
-untracked `plan/`. [AGENTS.md](../../AGENTS.md#during-work) says which changes
-must run it. A defect it finds also gets a small synthetic test in the
-ordinary suite.
+untracked `plan/`. Run it before acceptance or delivery for changes to copying
+or placement (`apps/editor/src/features/clipboard/`,
+`apps/editor/src/features/component-insert/`), instance labels
+(`packages/derived/src/instance-label-placement.ts`,
+`packages/edit-engine/src/transaction-instance-annotations.ts`) or netlist
+extraction (`packages/netlist/src/`). Use the newest private snapshot:
+`node scripts/gallery-private-snapshot.mjs --cached`.
 
-## Batch pull-request checks
+The census rejects new drawing failures, netlist text changes, labels that
+stop following parts and changed Gallery marks while `NETLIST_MARK_RULE_VERSION`
+is unchanged. Fix each finding or explain an accepted change in the commit.
+A real-data defect also gets a small synthetic regression in the ordinary suite.
+
+## Pull-request checks
 
 Every implementation change keeps two required checks, run once in the merge
 queue:
@@ -170,7 +201,8 @@ queue:
   directly because the Core job already owns the production build.
 
 Nothing runs on a schedule, and CI has no full browser audit. Run
-`pnpm test:e2e` locally when a change calls for the complete browser suite.
+the final local suite through `test:e2e:local` for original implementation;
+`pnpm test:e2e` also remains available for auditing the browser map.
 On the pull request itself, CI only plans the change scope and checks the
 Test-Impact trailers; the two required checks are skipped there, which GitHub
 counts as passing, so the pull request can enter the merge queue at once. The
@@ -226,3 +258,29 @@ few facts are relevant.
 Coverage is diagnostic evidence, not a merge threshold. Use it to find an
 unexercised critical boundary, then add a behavior-level test. Do not retain
 large, brittle tests solely to preserve a percentage.
+
+## Circuit/model and fixture validation
+
+Keep each circuit fixture in `netlists/<circuit-name>/`. Preserve explicit
+`.subckt` interfaces and instance pin order; interface changes check every
+caller. Keep local models beside the netlist unless the target introduces a
+deliberate shared library. Preserve vendor/foundry data and distinguish
+simplified models and topology-only fixtures.
+
+Electrical behavior changes report simulator, models, analyses, corners and
+acceptance criteria, or the reason simulation is blocked. Syntax inspection
+alone cannot establish electrical correctness.
+
+Accepted Symbol geometry/pin changes explain known drawing impacts. Historical
+layouts may need manual repair; completing the target does not require a
+general migration. Use a bounded one-off repair only when a few clear
+deterministic rules suffice. Protect user drawings, binary assets and generated
+authorities.
+
+For unclear, intermittent, cross-layer or real-data defects, read the complete
+fixed-version diagnosing-bugs reference from the development workflow.
+Raise intermittent reproduction rates; measure performance before bisecting.
+Without an effective feedback loop report attempted methods and missing input.
+A missing correct regression seam is an architecture finding. Clean probes and
+record the confirmed cause; redact private artifacts and obtain authorization
+for environment access or production instrumentation.

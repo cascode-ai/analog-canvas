@@ -9,10 +9,10 @@ fails ([Deployment rationale](adr/deployment.md)). A `v*` tag or manual
 `Deploy Cloudflare` dispatch may redeploy a selected commit that is already on
 `main`.
 
-Batching is optional: several changes may share one pull request, but a small
-fix does not have to wait for others. Keep the current working list in
-`plan/local-batch.md` when a batch is in progress, with the durable intent and
-evidence in each commit and pull request.
+Follow the [development workflow](development-workflow.md). One target or a
+related batch may share a PR; scratch lists are optional and stay in ignored
+`plan/`. Commits carry intent, validation and limitations. Local implementation
+and Production acceptance are distinct completion boundaries.
 
 Local commits do not publish the hosted site. A requested remote branch backup
 also remains local-stage work. Review the combined risk of everything a pull
@@ -26,10 +26,36 @@ first; only a real conflict needs a manual update. The required Core and Browser
 checks protect the merge; Production's own verification and rollback protect
 the hosted release.
 
-Prepare any release version before merging so the deployed candidate needs no
-follow-up code change. See
-[working rules](../AGENTS.md#development-and-delivery) and
-[validation timing](testing/README.md#local-iteration-and-batch-validation).
+Before normal delivery:
+
+1. Confirm the requested scope, mainline base and intended release version.
+   Start from `pnpm install --frozen-lockfile`; install matching Playwright
+   Chromium once per machine/version when needed.
+2. Refresh the candidate's gate plan and preflight. Run `pnpm verify:pr -- --base
+<base-ref>` and any unfulfilled affected/build/release obligations. Build and
+   release checks apply when rendering, export, Symbols or packaging can move.
+   Final original-suite checks follow [validation timing](testing/README.md#validation-timing).
+3. Use original pr's Summary / Evidence / Merge Danger template. State before
+   and after evidence, local results and pending queue/deployed verification.
+4. Push the candidate, open/update its PR and immediately queue the exact pushed
+   SHA with `gh pr merge <number> --match-head-commit <pushed-sha>`.
+5. Wait for required checks and merge. On failure, inspect logs, repair,
+   revalidate and queue again. Real conflicts need resolution; normal mainline
+   movement alone does not require manual branch updates.
+6. Inspect the deployment for that merge SHA and verify the changed live
+   behavior. Close accepted tasks; a parent closes only after its whole scope
+   is accepted. Use PR references where automatic closure would precede
+   Production acceptance.
+
+Prepare any release version before merging. Missing local evidence is reported
+and requires corresponding remote results; required checks are not weakened
+to complete delivery. Explicit local-only and branch-trial scope stops at its
+requested boundary. Document-only changes with no deployment finish their
+relevant document acceptance.
+
+The local full-suite trial does not change queue jobs. Separate desktop, MCP or
+simulator-host releases follow their own acceptance surfaces; a website merge
+does not publish all of them.
 
 ## Hosted channels and retained Preview data
 
@@ -209,7 +235,9 @@ delete Production or retained Preview data while cleaning up retired entrances.
 ## When Production is broken
 
 Restoring service outranks the normal delivery route while service is actually
-degraded. Follow the incident exception in [AGENTS.md](../AGENTS.md): use the
-bounded recovery action needed, then record what was broken, what shipped, and
-which checks were bypassed. A push to `main` starts a Production deployment;
+degraded. Use a bounded recovery action, including a direct main push when it
+shortens the outage. After restoration, record what was broken, what shipped,
+which checks were bypassed and subsequent verification in the follow-up commit
+or PR. This exception applies to actual degraded service, not ordinary urgency.
+A push to `main` starts a Production deployment;
 verify that run rather than treating the push itself as recovery.

@@ -32,8 +32,9 @@ local work or silently move a pin.
 
 ## Development skill references
 
-Status: selected original skills installed for branch trials; effectiveness and
-workflow alignment remain pending. The checked-in [.agents/skills/](../.agents/skills/)
+Status: the [unified workflow](../docs/development-workflow.md) is deployed on
+the trial branch; real-task effectiveness remains under evaluation.
+The checked-in [.agents/skills/](../.agents/skills/)
 contains the 9 workflow entries below and 6 required dependency/setup skills:
 15 skills with their original names, invocation policies, and complete supporting
 files. Unrelated skills are not installed. The full upstream repositories remain
@@ -42,22 +43,20 @@ available in the ignored reference checkouts.
 The earlier rewritten `ac-*` skills have been removed. Installation precedes
 evaluation: test the original methods, compare their outcomes and cost, then
 decide whether a skill, a local rule, or both should change. Do not silently
-shorten an upstream procedure to make it fit existing policy. Actual repository
-operations still follow [AGENTS.md](../AGENTS.md) and the user's trial scope;
-conflicts are inputs to the alignment discussion rather than evidence that the
-old workflow is better. Earlier decisions and review findings remain in
+shorten an upstream procedure to make it fit existing policy. The new
+[Agent entry](../AGENTS.md) and workflow replace the former management process;
+the user's trial scope remains in effect. Earlier decisions and review findings remain in
 [Issue #1358](https://github.com/cascode-ai/analog-canvas/issues/1358) and Git history.
 
 [Issue #1378](https://github.com/cascode-ai/analog-canvas/issues/1378) describes
 mainline changes already drawn from these sources: the PR template, hard-defect
 diagnosis, stricter changed-test validation, and queueing against the pushed
 commit. It also explains lean testing and tests against the real editor.
-Alignment should compare the originals with that current baseline, not create a
-second delivery or testing process. The earlier `ac-pr` mentioned there has
-been withdrawn. The original `pr` format differs from the mainline template,
-and `implement` asks for a full final test run where mainline relies on the merge
-queue; both differences remain explicit evaluation questions. This installation
-does not add another diagnosis skill, CI check, or PR format requirement.
+The new process reuses those tool checks and real-counterpart tests. It adopts
+original pr's three columns, the complete pinned diagnosis reference and a
+deliberate final local full-suite trial. These replace the former format and
+validation-timing rules; required queue jobs remain. The earlier `ac-pr`
+mentioned there has been withdrawn. No diagnosis entry or CI job is added.
 
 The manifest pins Matt Pocock's skills at `4588b32` and HumanLayer's skills at
 `ca7c808`. Both are optional fetches. Follow the original relative references
@@ -93,15 +92,14 @@ load the skills; installation does not prove that their methods are effective.
 See [Codex skill locations](https://learn.chatgpt.com/docs/build-skills#where-to-save-skills)
 and [Claude project skills](https://code.claude.com/docs/en/skills#where-skills-live).
 
-Before the first engineering flow, use the original
-[`setup-matt-pocock-skills`](../.agents/skills/setup-matt-pocock-skills/SKILL.md).
-It asks for repository configuration and confirmation before writing it.
-GitHub Issues is already the user's chosen tracker; domain documentation layout
-remains to be discussed. Setup has not been run as part of installation. The
-subset excludes `triage`, so setup skips its label configuration; `to-spec` and
-`to-tickets` still expect a label vocabulary. This needs resolving in the setup
-discussion before publishing specifications or tickets, without changing the
-original files. The upstream
+The original
+[`setup-matt-pocock-skills`](../.agents/skills/setup-matt-pocock-skills/SKILL.md)
+has been applied using the user-approved configuration:
+[GitHub Issues and ready-for-agent](../docs/agents/issue-tracker.md), and
+[single-context domain documents](../docs/agents/domain.md). No empty glossary
+or historical ADR copies are created. Triage is absent; only the publication
+label needed by to-spec/to-tickets is configured. Configuration can be edited
+directly; rerun setup when switching tracker or layout. The upstream
 [`ask-matt`](https://github.com/mattpocock/skills/blob/4588b32ecab9ecc9fc8cc6b6c5e7d675b6004b0d/skills/engineering/ask-matt/SKILL.md)
 explains how the skills compose and remains a reference rather than an installed
 entry.
