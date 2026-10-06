@@ -3,7 +3,12 @@ import { validGalleryAttention } from "./gallery-curation";
 // Public Gallery HTTP policy and rendering. Durable storage lives in
 // gallery-do.ts; this module only authenticates and maps API requests.
 
-import { prepareDocumentFormulaArtifacts, sha256Hex } from "@icm/derived";
+import {
+  diagnoseLabelClearance,
+  diagnoseVisualQuality,
+  prepareDocumentFormulaArtifacts,
+  sha256Hex,
+} from "@icm/derived";
 import { referenceDeviceLetter } from "@icm/devices";
 import { createDesignNetlistExport, designExtractsNetlist } from "@icm/netlist";
 import { galleryComponentCount } from "./gallery-components";
@@ -22,6 +27,7 @@ import {
   CircuitProjectSchema,
   labelLookChanges,
   type CircuitProject,
+  type RichTextDocument,
 } from "@icm/model";
 
 import { sessionUserOf, type SessionUser } from "./auth";
@@ -372,8 +378,46 @@ async function recoverFormulaPreview(
 const LABEL_LOOK_BATCH = 20;
 /** A planner may move a restyled label this far to keep its clearance. */
 const LABEL_LOOK_NUDGE = { x: 16, y: 12 };
+/**
+ * When the label standards took effect (#1052). `legacyLooks` restyles only
+ * content saved before; in a later drawing a slanted script is the author's
+ * choice (names-and-labels.md).
+ */
+const LABEL_STANDARDS_SINCE = Date.parse("2026-09-24T09:55:19Z");
+
+/**
+ * What each label is drawn over, as `label → other ids`: wires and parts
+ * (label clearance) and other labels (label overlap). The visual pass is
+ * read uncached, since the document is edited in place between readings.
+ */
+function labelConflicts(
+  document: CircuitProject["documents"][number],
+  resolver: SymbolResolver,
+): Map<string, Set<string>> {
+  const conflicts = new Map<string, Set<string>>();
+  const add = (label: string, others: readonly string[]) =>
+    conflicts.set(
+      label,
+      new Set([
+        ...(conflicts.get(label) ?? []),
+        ...others.filter((other) => other !== label),
+      ]),
+    );
+  for (const diagnostic of diagnoseLabelClearance(document, resolver))
+    if (diagnostic.code === "VISUAL_LABEL_CLEARANCE")
+      add(diagnostic.objectIds[0]!, diagnostic.objectIds.slice(1));
+  for (const diagnostic of diagnoseVisualQuality(document, resolver, {
+    minimumSegmentLength: document.presentation.grid,
+  }))
+    if (diagnostic.code === "VISUAL_LABEL_OVERLAP")
+      for (const label of diagnostic.objectIds)
+        add(label, diagnostic.objectIds);
+  return conflicts;
+}
 
 type LabelLookNudge = { label: string; dx: number; dy: number };
+const LABEL_LOOK_TABLES = ["galleryEntries", "galleryEntryVersions"] as const;
+type LabelLookTable = (typeof LABEL_LOOK_TABLES)[number];
 
 /** Names a drawing exposes electrically; a look change must keep all of them. */
 function electricalNames(project: CircuitProject): string {
@@ -414,16 +458,33 @@ async function labelLookEntry(
     nudges: LabelLookNudge[];
     keep: string[];
     legacyLooks: boolean;
+    /** Current entries, or the retained versions they keep as history. */
+    table: LabelLookTable;
   },
 ): Promise<Record<string, unknown>> {
-  const read = await callGallery<{ status?: string; projectText?: string }>(
-    env,
-    "label-looks-read",
-    { id },
-  );
+  const read = await callGallery<{
+    status?: string;
+    projectText?: string;
+    savedAt?: string;
+    entryId?: string;
+  }>(env, "label-looks-read", { id, table: options.table });
   const originalProjectText = read.payload.projectText;
   if (read.status !== 200 || typeof originalProjectText !== "string")
     return { id, skipped: "not-found" };
+  // The public Gallery only: a withdrawn or rejected entry, and the history
+  // it keeps, are left as they are.
+  const where = {
+    id,
+    status: read.payload.status,
+    ...(read.payload.entryId ? { entryId: read.payload.entryId } : {}),
+    savedAt: read.payload.savedAt,
+  };
+  if (read.payload.status !== "public")
+    return { ...where, skipped: "not-public" };
+  // A missing date reads as later: legacy looks stay unless known older.
+  const legacyLooks =
+    options.legacyLooks &&
+    Date.parse(read.payload.savedAt ?? "") < LABEL_STANDARDS_SINCE;
   const sha = sha256Hex(originalProjectText);
   let before: CircuitProject;
   let project: CircuitProject;
@@ -431,10 +492,11 @@ async function labelLookEntry(
     before = parseProject(originalProjectText);
     project = parseProject(originalProjectText);
   } catch {
-    return { id, sha, skipped: "unreadable" };
+    return { ...where, sha, skipped: "unreadable" };
   }
   const labels: {
     id: string;
+    documentId: string;
     name: string;
     kind: "standard" | "upright";
     role?: string;
@@ -446,9 +508,16 @@ async function labelLookEntry(
   const keep = new Set(options.keep);
   const kept: string[] = [];
   const uprightDocuments: string[] = [];
+  const resolver = createProjectSymbolResolver(project, builtInSymbols);
+  // Annotation ids are unique within a Document only.
+  const key = (documentId: string, annotationId: string) =>
+    `${documentId}\u0000${annotationId}`;
+  /** What each restyled label was drawn over before, by document. */
+  const clearBefore = new Map<string, Map<string, Set<string>>>();
+  const originalLooks = new Map<string, RichTextDocument | undefined>();
   for (const document of project.documents) {
     const changes = labelLookChanges(document, {
-      legacyLooks: options.legacyLooks,
+      legacyLooks,
       deviceLetterOf: (annotation) => {
         const binding = annotation.binding;
         if (binding?.kind !== "instance-reference") return undefined;
@@ -469,11 +538,20 @@ async function labelLookEntry(
       const annotation = document.annotations.find(
         (candidate) => candidate.id === change.annotationId,
       )!;
-      annotation.formatOverride = change.format;
       // Only a new standard look changes a label's extent, so only it moves.
-      if (change.kind === "standard") changed.set(annotation.id, annotation);
+      if (change.kind === "standard") {
+        if (!clearBefore.has(document.id))
+          clearBefore.set(document.id, labelConflicts(document, resolver));
+        originalLooks.set(
+          key(document.id, annotation.id),
+          annotation.formatOverride,
+        );
+        changed.set(annotation.id, annotation);
+      }
+      annotation.formatOverride = change.format;
       labels.push({
         id: annotation.id,
+        documentId: document.id,
         name: change.name,
         kind: change.kind,
         ...(change.role ? { role: change.role } : {}),
@@ -485,16 +563,8 @@ async function labelLookEntry(
     }
   }
   const unknownKeep = options.keep.find((label) => !kept.includes(label));
-  if (unknownKeep) return { id, sha, skipped: `invalid-keep:${unknownKeep}` };
-  if (!labels.length && !uprightDocuments.length)
-    return {
-      id,
-      sha,
-      status: read.payload.status,
-      labels,
-      kept: kept.length,
-      changed: false,
-    };
+  if (unknownKeep)
+    return { ...where, sha, skipped: `invalid-keep:${unknownKeep}` };
   for (const nudge of options.nudges) {
     const annotation = changed.get(nudge.label);
     if (
@@ -505,7 +575,7 @@ async function labelLookEntry(
       Math.abs(nudge.dy) > LABEL_LOOK_NUDGE.y ||
       (annotation.anchor.kind !== "object" && annotation.anchor.kind !== "free")
     )
-      return { id, sha, skipped: `invalid-nudge:${nudge.label}` };
+      return { ...where, sha, skipped: `invalid-nudge:${nudge.label}` };
     if (annotation.anchor.kind === "object") {
       annotation.anchor.localOffset = {
         x: annotation.anchor.localOffset.x + nudge.dx,
@@ -522,26 +592,65 @@ async function labelLookEntry(
       };
     }
   }
+  // A restyle may not draw a label over anything it cleared before. Such a
+  // label keeps its look, for manual repair; a nudge that leaves it over
+  // something refuses the row. Putting one back can crowd a neighbour that
+  // kept its new look, so this repeats until nothing more goes back.
+  const nudged = new Set(options.nudges.map((nudge) => nudge.label));
+  const restored = new Set<string>();
+  const clearanceKept: string[] = [];
+  for (let again = true; again;) {
+    again = false;
+    for (const document of project.documents) {
+      const had = clearBefore.get(document.id);
+      if (!had) continue;
+      const now = labelConflicts(document, resolver);
+      for (const annotation of document.annotations) {
+        const at = key(document.id, annotation.id);
+        if (!originalLooks.has(at) || restored.has(at)) continue;
+        const clear = had.get(annotation.id) ?? new Set<string>();
+        if (![...(now.get(annotation.id) ?? [])].some((o) => !clear.has(o)))
+          continue;
+        if (nudged.has(annotation.id))
+          return { ...where, sha, skipped: `unclear-nudge:${annotation.id}` };
+        const look = originalLooks.get(at);
+        if (look === undefined) delete annotation.formatOverride;
+        else annotation.formatOverride = look;
+        restored.add(at);
+        clearanceKept.push(annotation.id);
+        again = true;
+      }
+    }
+  }
+  const restyled = labels.filter(
+    (label) => !restored.has(key(label.documentId, label.id)),
+  );
+  const summary = {
+    ...where,
+    sha,
+    labels: restyled,
+    clearanceKept,
+    ...(options.legacyLooks && !legacyLooks ? { legacyWithheld: true } : {}),
+    kept: kept.length,
+  };
+  if (!restyled.length && !uprightDocuments.length)
+    return { ...summary, changed: false };
   let projectText: string;
   let stored: CircuitProject;
   try {
     projectText = serializeProject(CircuitProjectSchema.parse(project));
     stored = parseProject(projectText);
   } catch {
-    return { id, sha, skipped: "invalid-result" };
+    return { ...where, sha, skipped: "invalid-result" };
   }
   if (new TextEncoder().encode(projectText).length > GALLERY_MAX_PROJECT_BYTES)
-    return { id, sha, skipped: "too-large" };
+    return { ...where, sha, skipped: "too-large" };
   const namesUnchanged = electricalNames(before) === electricalNames(stored);
   const netlistUnchanged = designNetlists(before) === designNetlists(stored);
   const report = {
-    id,
-    sha,
-    status: read.payload.status,
-    labels,
+    ...summary,
     uprightDocuments,
     nudged: options.nudges.length,
-    kept: kept.length,
     namesUnchanged,
     netlistUnchanged,
   };
@@ -558,6 +667,7 @@ async function labelLookEntry(
     "label-looks-store",
     {
       id,
+      table: options.table,
       originalProjectText,
       projectText,
       svgText,
@@ -592,9 +702,12 @@ async function handleLabelLooks(
     nudges?: unknown;
     keep?: unknown;
     legacyLooks?: unknown;
+    table?: unknown;
   } | null;
   const ids = body?.ids;
+  const table = body?.table ?? "galleryEntries";
   if (
+    !LABEL_LOOK_TABLES.includes(table as LabelLookTable) ||
     !Array.isArray(ids) ||
     ids.length === 0 ||
     ids.length > LABEL_LOOK_BATCH ||
@@ -636,6 +749,7 @@ async function handleLabelLooks(
           ? (keep[id] as unknown[]).map((label) => String(label))
           : [],
         legacyLooks: body?.legacyLooks === true,
+        table: table as LabelLookTable,
       }),
     );
   }

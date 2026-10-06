@@ -222,7 +222,21 @@ owns the exact fields, including the `ngspice`/`vacask` engine identity;
 and fingerprint checks.
 
 Input digests identify the authored and executed bytes. `inputRevision` is
-opaque caller state for freshness, not a durable Project identity.
+opaque caller state for freshness, not a durable Project identity. For a
+native source run:
+
+- `netlistSha256` is the SHA-256 of the drawn circuit as sent: the generated
+  circuit file, or several joined by newlines in compile order. A source with
+  no drawn circuit records the digest of an empty netlist. So does an ngspice
+  run whose serialized input would exceed the input budget with that second
+  copy, and a VACASK run until its executor accepts the circuit text.
+- `testbenchSha256` and `deckSha256` both cover the entry file as executed,
+  including lines the compiler generates into it (such as probe `.save`
+  lines), since a raw run's testbench is its deck.
+- Every other file a run sends is listed with its own SHA-256 in the run's
+  catalog (`catalog.files`). That list, not these three fields, is the
+  per-file provenance.
+
 Environment facts identify the simulator, platform, models, startup policy
 and Profile. A hosted executor reports `pinned` only after matching its
 qualified Profile; an explicitly configured local adapter reports its actual
