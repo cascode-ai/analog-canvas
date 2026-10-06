@@ -138,6 +138,54 @@ function junctionNetIds(document: SchematicDocument): Record<string, string> {
 }
 
 describe("physical contact license", () => {
+  it("rebuilds the contact broad phase after each split in one draft revision", () => {
+    const document = fixture({
+      keepInstances: ["A", "B"],
+      parkedJunctionX: 350,
+    });
+    const result = executeTransaction(
+      document,
+      transaction(
+        document,
+        [
+          {
+            kind: "add_junction",
+            junctionId: "J1",
+            netId: "net-1",
+            position: { x: 200, y: 300 },
+          },
+          {
+            kind: "add_junction",
+            junctionId: "J3",
+            netId: "net-1",
+            position: { x: 400, y: 300 },
+          },
+        ],
+        "two-splits",
+      ),
+      context,
+    );
+    if (!result.ok) throw new Error(result.error.message);
+    expect(result.document.routes).toHaveLength(3);
+    for (const junctionId of ["J1", "J3"]) {
+      expect(
+        result.document.routes.filter((route) =>
+          [route.start, routeEnd(route)].some(
+            (endpoint) =>
+              endpoint.kind === "junction" &&
+              endpoint.junctionId === junctionId,
+          ),
+        ),
+      ).toHaveLength(2);
+    }
+    expect(junctionNetIds(result.document)).toEqual({
+      J1: "net-1",
+      J2: "net-2",
+      J3: "net-1",
+    });
+    expect(document.routes).toHaveLength(1);
+  });
+
   it("does no whole-Document contact search without an explicit license", () => {
     const document = fixture({
       keepInstances: ["A", "B"],

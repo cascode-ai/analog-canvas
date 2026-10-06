@@ -280,9 +280,16 @@ export function nextPhysicalContactOperation(
   }
 
   const geometry = resolveDocumentRoutingGeometry(document, resolver);
+  // A draft can split/merge Routes without advancing its revision. Keep this
+  // broad phase local to this normalization round, never to that revision.
+  const spatialIndex = buildDocumentSpatialIndex(document, geometry);
   for (const { endpoint, point } of positioned) {
     const endpointIsLicensed = endpointLicensed(endpoint);
-    for (const address of findRouteSegmentsAtPoint(geometry, point)) {
+    for (const address of findRouteSegmentsAtPoint(
+      geometry,
+      point,
+      spatialIndex,
+    )) {
       const route = document.routes.find(
         (candidate) => candidate.id === address.routeId,
       );

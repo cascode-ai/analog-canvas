@@ -17,6 +17,7 @@ import type { ExpectedElectricalEffect } from "./routing-operation-plan.js";
 import type { SchematicEdit } from "./edit-schema.js";
 import { deviceDescriptor } from "@icm/devices";
 import {
+  buildDocumentSpatialIndex,
   endpointKey,
   isVisibleEndpoint,
   isMosBulkTerminal,
@@ -263,6 +264,7 @@ export function proposePlacementContact(
   const contacts: PlacementContact[] = [];
   let ambiguous = false;
   const routingGeometry = resolveDocumentRoutingGeometry(document, resolver);
+  const spatialIndex = buildDocumentSpatialIndex(document, routingGeometry);
   const sources = (options.instances ?? [instance]).flatMap((item) =>
     placementWireSources(document, resolver, item),
   );
@@ -287,6 +289,7 @@ export function proposePlacementContact(
     for (const address of findRouteSegmentsAtPoint(
       routingGeometry,
       source.connection.contactPoint,
+      spatialIndex,
     )) {
       const route = document.routes.find(
         (candidate) => candidate.id === address.routeId,
