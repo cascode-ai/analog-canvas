@@ -17,6 +17,8 @@ import { GalleryTopologyCheck } from "./gallery-topology-check";
 
 /** Suggested tags shown before the "+ …" chip opens the rest. */
 const FOLDED_TAG_PRESETS = 5;
+/** Suggested tags the open list shows at most. */
+const TAG_PRESET_LIMIT = 12;
 
 export interface PublishGalleryDialogProps {
   defaultName: string;
@@ -188,7 +190,7 @@ export function PublishGalleryDialog({
         !tags.includes(preset) &&
         preset.includes(tagDraft.trim().toLowerCase()),
     )
-    .slice(0, 12);
+    .slice(0, TAG_PRESET_LIMIT);
 
   function addTag(raw: string): void {
     const tag = raw.replace(/\s+/gu, " ").trim().toLowerCase();

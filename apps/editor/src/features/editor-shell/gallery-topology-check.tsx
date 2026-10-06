@@ -94,7 +94,7 @@ export function GalleryTopologyCheck({ project }: { project: CircuitProject }) {
           Unconfirmed results are not proof of a different topology.
         </p>
       ) : null}
-      {snapshot && (otherCell || historical) ? (
+      {snapshot && historical ? (
         <p
           className="publish-duplicate-message"
           data-testid="gallery-topology-snapshot"
