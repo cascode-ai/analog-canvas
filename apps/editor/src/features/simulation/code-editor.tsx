@@ -569,10 +569,15 @@ export default function SimulationCodeEditor(props: SimulationCodeEditorProps) {
                           editor.state.selection.main.head,
                         );
                         const prefix = line.text.trim() ? "\n" : "";
-                        // Each engine's own comment: VACASK rejects `*`.
-                        const marker = props.mode === "ngspice" ? "*" : "//";
-                        const insert = `${prefix}${marker} @spec measurement <= 1 unit=V`;
                         const from = line.text.trim() ? line.to : line.from;
+                        // The language's own line comment: `*` for SPICE,
+                        // `//` for VACASK, which rejects `*`.
+                        const marker =
+                          editor.state.languageDataAt<{ line?: string }>(
+                            "commentTokens",
+                            from,
+                          )[0]?.line ?? "*";
+                        const insert = `${prefix}${marker} @spec measurement <= 1 unit=V`;
                         const anchor =
                           from + prefix.length + `${marker} @spec `.length;
                         editor.dispatch({
