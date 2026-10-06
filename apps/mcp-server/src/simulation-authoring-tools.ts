@@ -1,6 +1,6 @@
 import { agentToolHelp } from "./guidance.generated.js";
 import { z } from "zod";
-import { createSimulationStarter } from "@icm/netlist";
+import { createSimulationStarter, newFolderProfile } from "@icm/netlist";
 import { parseProject } from "@icm/project-protocol";
 import { AGENT_API_VERSION } from "@icm/agent-adapter";
 import { lazyContract } from "./input-contract.js";
@@ -12,6 +12,7 @@ import {
   SimulationSourceExpressionSchema,
   SimulationMeasurementSpecSchema,
   SimulationSourceDeviceOperatingPointSchema,
+  type CircuitProject,
   type ProjectSimulationFolder,
   type SimulationExperimentConfig,
 } from "@icm/model";
@@ -42,7 +43,9 @@ const FolderArgs = z.discriminatedUnion("action", [
     folderId: Id.optional(),
     name: Name,
     rootDocumentId: Id.optional(),
-    profileId: Id,
+    profileId: Id.optional().describe(
+      "Omit to take the one Profile whose listed qualified devices include every reviewed PDK device the root Cell uses; a Profile listing none (VACASK) is never the default. Otherwise create refuses with error.candidates.",
+    ),
     template: z.enum(["op", "ac", "tran"]).optional(),
     dut: z
       .strictObject({
@@ -134,6 +137,8 @@ const failure = (code: string, message: string) => ({
   ok: false,
   error: { code, message, recovery: "fix-input" },
 });
+const ENGINE_REQUIRED =
+  "The selected Profile must advertise its engine before creating a template. Existing source remains editable.";
 function tool<T extends z.ZodType>(
   name: string,
   description: string,
@@ -315,18 +320,22 @@ export const simulationAuthoringTools: readonly Entry[] = [
         );
       let next: ProjectSimulationFolder;
       let dut: { name: string; ports: string[]; subckt: string } | undefined;
+      let chosen:
+        { profileId: string; engine: "ngspice" | "vacask" } | undefined;
       if (parsed.action === "create") {
         if (parsed.dut && !parsed.rootDocumentId)
           return failure(
             "SIMULATION_DUT_CELL_REQUIRED",
             "A DUT template needs rootDocumentId; omit dut for text-only input.",
           );
+        // Without a profileId the default reads each Profile's qualified
+        // devices, which only the full discovery lists (#1349).
         const discovery = await session.client.simulationMetadataResource(
           {
             apiVersion: "3.0",
             requestId: crypto.randomUUID(),
             operation: "capabilities",
-            detail: "summary",
+            detail: parsed.profileId ? "summary" : "full",
           },
           { refresh: parsed.refresh },
         );
@@ -336,14 +345,16 @@ export const simulationAuthoringTools: readonly Entry[] = [
             "SIMULATION_PROFILE_UNAVAILABLE",
             "Expected simulation Profile discovery",
           );
-        const profile = discovery.capabilities.profiles.find(
-          (item) => item.id === parsed.profileId,
-        );
-        if (!profile?.engine)
-          return failure(
-            "SIMULATION_PROFILE_UNAVAILABLE",
-            "The selected Profile must advertise its engine before creating a template. Existing source remains editable.",
-          );
+        const profiles = discovery.capabilities.profiles;
+        // A named Profile is checked before the Project is read.
+        let profile = parsed.profileId
+          ? profiles.find((item) => item.id === parsed.profileId)
+          : undefined;
+        if (parsed.profileId && !profile?.engine)
+          return failure("SIMULATION_PROFILE_UNAVAILABLE", ENGINE_REQUIRED);
+        // The whole Project, for the DUT's interface and the devices the
+        // default Profile must qualify.
+        let cell: { project: CircuitProject; documentId: string } | undefined;
         if (parsed.rootDocumentId) {
           const code = await session.client.projectResource({
             apiVersion: AGENT_API_VERSION,
@@ -360,18 +371,44 @@ export const simulationAuthoringTools: readonly Entry[] = [
               "SIMULATION_DUT_STALE",
               "Project changed while resolving the DUT; refresh and create again",
             );
-          const starter = createSimulationStarter(
-            parseProject(code.projectCode),
-            {
-              id: parsed.folderId ?? crypto.randomUUID(),
-              name: parsed.name,
-              profileId: parsed.profileId,
-              engine: profile.engine,
-              documentId: parsed.rootDocumentId,
-              mode: "dut",
-              ...(parsed.template ? { template: parsed.template } : {}),
-            },
-          );
+          cell = {
+            project: parseProject(code.projectCode),
+            documentId: parsed.rootDocumentId,
+          };
+        }
+        if (!profile) {
+          if (!profiles.length)
+            return failure(
+              "SIMULATION_PROFILE_UNAVAILABLE",
+              "No simulation Profile is advertised.",
+            );
+          const choice = newFolderProfile(profiles, cell);
+          if (!choice.ok)
+            return {
+              ok: false,
+              error: {
+                code: "SIMULATION_PROFILE_REQUIRED",
+                message: `${choice.message} Name one in profileId: ${choice.candidates.join(", ")}.`,
+                recovery: "fix-input",
+                candidates: choice.candidates,
+              },
+            };
+          profile = profiles.find((item) => item.id === choice.profileId);
+        }
+        if (!profile?.engine)
+          return failure("SIMULATION_PROFILE_UNAVAILABLE", ENGINE_REQUIRED);
+        chosen = { profileId: profile.id, engine: profile.engine };
+        const profileId = profile.id;
+        if (cell) {
+          const starter = createSimulationStarter(cell.project, {
+            id: parsed.folderId ?? crypto.randomUUID(),
+            name: parsed.name,
+            profileId,
+            engine: profile.engine,
+            documentId: cell.documentId,
+            mode: "dut",
+            ...(parsed.template ? { template: parsed.template } : {}),
+          });
           if (!starter.ok || !starter.dut)
             return failure(
               "SIMULATION_DUT_INTERFACE_BLOCKED",
@@ -417,7 +454,7 @@ export const simulationAuthoringTools: readonly Entry[] = [
         next = createSimulationFolder({
           id: parsed.folderId ?? crypto.randomUUID(),
           name: parsed.name,
-          profileId: parsed.profileId,
+          profileId,
           engine: profile.engine,
           ...(dut ? { dut } : {}),
           ...(parsed.template ? { template: parsed.template } : {}),
@@ -452,7 +489,13 @@ export const simulationAuthoringTools: readonly Entry[] = [
       );
       return result.ok
         ? {
-            folder: { id: next.id, name: next.name, entry: next.input.entry },
+            folder: {
+              id: next.id,
+              name: next.name,
+              entry: next.input.entry,
+              // A new folder names the Profile and engine its code is for.
+              ...chosen,
+            },
             ...(dut
               ? {
                   dut: {

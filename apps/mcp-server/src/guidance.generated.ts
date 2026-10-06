@@ -65,7 +65,7 @@ export const agentToolHelp = {
   render:
     "Render the current document to SVG and return it as an image content block (image/svg+xml) plus a compact text summary (revision, sha256, byteLength).",
   simulation_folder:
-    "Manage saved experiments. List is metadata-only. rootDocumentId binds a drawn Cell; dut generates a testbench with its exported name/port order. Edit native code with simulation_edit. refresh:true reconciles external changes.",
+    "Manage saved experiments. List is metadata-only. rootDocumentId binds a drawn Cell; dut generates a testbench with its exported name/port order. create without profileId takes the one Profile listing every reviewed PDK device the root Cell uses (never VACASK, which lists none) and the receipt names it and its engine; else error.candidates lists the choices. Edit native code with simulation_edit. refresh:true reconciles external changes.",
   simulation_output:
     "Legacy config v1 only: manage output ASTs. Native Code uses simulation_files for saves and postprocess Python; this tool cannot add parallel JSON rules. See analog-canvas://reference/mcp-simulation. Exact expression schema: analog-canvas://contract/tools/simulation_output.",
   simulation_measurement:

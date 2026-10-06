@@ -5,11 +5,18 @@
 Use the focused tool's displayed arguments directly. Query `describe_tool` for
 an unfamiliar field only; no full-contract or authoring-help prerequisite.
 
-1. Discover `simulation_run` capabilities once; choose an advertised Profile
-   and its engine. Read `netlist_code`/the relevant Cell interface for a drawn DUT,
+1. Discover `simulation_run` capabilities once when you need another Profile
+   than the default (VACASK, say) or its engine's facts. Read
+   `netlist_code`/the relevant Cell interface for a drawn DUT,
    not the entire drawing. Profile-managed model loads need no duplicate `.lib`.
    Full capabilities (optionally `profileId`) are for detailed model facts.
 2. Create a saved `simulation_folder`, or reuse the current folder.
+   Without `profileId`, create takes the one Profile whose listed qualified
+   devices include every reviewed PDK device the root Cell uses (SKY130 ngspice
+   on Production; a folder without a Cell uses no PDK device). A Profile that
+   lists none, as VACASK, is never the default. The receipt names the Profile
+   and its engine; without exactly one, create refuses with
+   `SIMULATION_PROFILE_REQUIRED` and `error.candidates`.
    Creation returns its source owner, revision and paths. Use `simulation_edit`
    for native code; `simulation_source` read `detail:"text"` reads code without
    generated parameter mappings. Use `detail:"mapped"` for mapped Circuit edits.

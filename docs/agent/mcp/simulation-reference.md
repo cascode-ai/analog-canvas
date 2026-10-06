@@ -11,6 +11,12 @@ evidence details.
    collection support and resource limits without starting an execution.
 2. `simulation_folder` lists, gets, creates, clones, renames and removes saved
    source experiments. Omit the root Cell to create a graphless experiment.
+   Omit `profileId` to take the one Profile whose listed qualified devices
+   include every reviewed PDK device the root Cell and its sub-Cells use; a
+   folder without a root Cell uses no PDK device. A Profile that lists no
+   devices (VACASK) is never the default. The receipt's `folder` names the
+   Profile and engine. With several such Profiles or none, create refuses with
+   `SIMULATION_PROFILE_REQUIRED` and `error.candidates`.
    A saved setup v4 owns authored files, its entry/config paths, generated
    Circuit bindings and declared dependencies. It does not contain another
    structured analyses list. Ordinary Project edits own DUTs, formal ports,

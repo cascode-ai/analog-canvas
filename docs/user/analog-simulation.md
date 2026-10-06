@@ -39,7 +39,10 @@ is the Run target even while viewing another file. Invalid SPICE or JSON can
 be saved; preparation reports what needs repair rather than losing the draft.
 
 **New experiment** asks for a name and, when multiple Profiles are available,
-an environment. It uses the current Canvas Cell and an OP starter.
+an environment. It uses the selected Cell and an OP starter. The environment
+starts on the one Profile qualified for every PDK device that Cell uses, as an
+Agent's new folder does (SKY130 ngspice on Production); to use VACASK, choose
+it under Environment.
 Helper offers analysis commands and argument hints without adding
 text to the saved file until you explicitly insert or type it.
 

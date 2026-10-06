@@ -1,7 +1,11 @@
 import { describe, it, expect } from "vitest";
 import { parseProject } from "@icm/project-protocol";
 import ota from "../../../netlists/native-ota-library/legacy-source.icproj.json";
-import { createSimulationStarter } from "./simulation-starter.js";
+import hostedSky130 from "../../../containers/ngspice/hosted-sky130-profile.json";
+import {
+  createSimulationStarter,
+  newFolderProfile,
+} from "./simulation-starter.js";
 import { compileSourceSimulation } from "./simulation-source-compile.js";
 import { compileNgspiceSourceSimulation } from "./simulation-source-ngspice.js";
 import { inspectVacaskSourceGraph } from "./vacask-source.js";
@@ -148,5 +152,75 @@ describe("simulation starting points", () => {
     ).list();
     expect(scopes).toEqual([{ bindingId: "circuit", callPath: ["XDUT"] }]);
     expect(JSON.stringify(project)).toBe(before);
+  });
+});
+
+describe("the Profile a new folder starts from (#1349)", () => {
+  // As Production advertises them: ngspice names its qualified SKY130
+  // devices, VACASK names none.
+  const ngspice = {
+    id: hostedSky130.id,
+    devices: hostedSky130.qualifiedScope.devices,
+  };
+  const vacask = { id: "vacask-sky130-candidate" };
+  // The testbench reaches the OTA's SKY130 transistors through its Cell.
+  const testbench = { project, documentId: "document-ota-5t-testbench" };
+  /** The testbench with one more part, bound to `name`. */
+  const withPart = (name: string) => {
+    const p = structuredClone(project);
+    p.documents
+      .find((document) => document.id === testbench.documentId)!
+      .instances.push({
+        id: "added",
+        reference: "X9",
+        symbolId: "capacitor",
+        placement: null,
+        netlist: {
+          binding: { kind: "model", deviceClass: "capacitor", name },
+          parameters: {},
+        },
+      });
+    return { project: p, documentId: testbench.documentId };
+  };
+
+  it("takes the one Profile that qualifies every PDK device the Cell uses", () => {
+    expect(newFolderProfile([vacask, ngspice], testbench)).toEqual({
+      ok: true,
+      profileId: ngspice.id,
+    });
+    // A model name outside the reviewed PDK devices does not count.
+    expect(newFolderProfile([vacask, ngspice], withPart("nch_mac"))).toEqual({
+      ok: true,
+      profileId: ngspice.id,
+    });
+    // A folder without a Cell uses no PDK device.
+    expect(newFolderProfile([vacask, ngspice])).toEqual({
+      ok: true,
+      profileId: ngspice.id,
+    });
+  });
+
+  it("asks for a Profile when none or several qualify", () => {
+    expect(
+      newFolderProfile(
+        [ngspice, vacask],
+        withPart("sky130_fd_pr__cap_var_lvt"),
+      ),
+    ).toEqual({
+      ok: false,
+      candidates: [ngspice.id, vacask.id],
+      message: "No Profile qualifies sky130_fd_pr__cap_var_lvt.",
+    });
+    const copy = { ...ngspice, id: "sky130-copy" };
+    expect(newFolderProfile([ngspice, copy, vacask], testbench)).toEqual({
+      ok: false,
+      candidates: [ngspice.id, copy.id],
+      message: "Several Profiles qualify every PDK device this folder uses.",
+    });
+    // A Profile that lists no qualified devices is never the default.
+    expect(newFolderProfile([vacask], testbench)).toMatchObject({
+      ok: false,
+      candidates: [vacask.id],
+    });
   });
 });
