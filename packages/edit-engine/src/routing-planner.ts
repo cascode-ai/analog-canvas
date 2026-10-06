@@ -2142,22 +2142,13 @@ export function createRouteWireAnchor(
   point: Point,
   segmentIndex: number,
   grid: number,
-  suffixOrIds:
-    | number
-    | {
-        junctionId: string;
-        firstRouteId: string;
-        secondRouteId: string;
-      },
+  ids: {
+    junctionId: string;
+    firstRouteId: string;
+    secondRouteId: string;
+  },
   resolver?: SymbolResolver,
 ): WireSource {
-  const ids =
-    typeof suffixOrIds === "number"
-      ? {
-          junctionId: `junction-ui-${suffixOrIds}`,
-          ...splitRoutePieceIds(route.id, suffixOrIds),
-        }
-      : suffixOrIds;
   const junctionId = ids.junctionId;
   // Preserve a fine-grid tap only when the conductor itself has a fine-grid
   // endpoint. A normal conductor tapped at x=196 must still land at x=200.

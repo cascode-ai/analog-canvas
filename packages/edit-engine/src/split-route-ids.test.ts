@@ -8,7 +8,7 @@ const agentMarker = (n: number) =>
   `wire-${n.toString(16).padStart(8, "0")}-7c3e-4f8a-9b1d-2e6f0a4c8d17-to`;
 
 describe("split Route piece IDs", () => {
-  it("keeps today's readable IDs for a short parent", () => {
+  it("names a short parent's pieces in the readable form", () => {
     expect(splitRoutePieceIds("route-ui-3", 7)).toEqual({
       firstRouteId: "route-ui-3-a-7",
       secondRouteId: "route-ui-3-b-7",
@@ -20,8 +20,7 @@ describe("split Route piece IDs", () => {
   });
 
   it("keeps the readable form up to 128 characters, and no further", () => {
-    // The compatibility bound: up to 128 characters, a split names its pieces
-    // exactly as it always has.
+    // Up to 128 characters a split names its pieces in the readable form.
     expect(splitRoutePieceIds("r".repeat(124), "m")).toEqual({
       firstRouteId: `${"r".repeat(124)}-a-m`,
       secondRouteId: `${"r".repeat(124)}-b-m`,
