@@ -112,6 +112,16 @@ export function generateCircuitSource(
         const original = Object.entries(instance.netlist.parameters).find(
           ([name]) => name.toLowerCase() === definition.name.toLowerCase(),
         );
+        // A keyword (a comparator's vhigh=VDD) chooses the generated body
+        // and is not a call parameter: never print it back onto the call.
+        if (
+          !present &&
+          original &&
+          definition.keywords?.some(
+            (word) => word.toLowerCase() === original[1].trim().toLowerCase(),
+          )
+        )
+          continue;
         if (!present && !definition.required && !original) continue;
         if (present?.rawValue.trim()) continue;
         const rawValue = original?.[1].trim() || `<${definition.name}>`;

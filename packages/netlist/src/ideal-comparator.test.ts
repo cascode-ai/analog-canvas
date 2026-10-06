@@ -5,6 +5,7 @@ import { IDEAL_COMPARATOR_TARGET } from "@icm/devices";
 
 import { createDesignNetlistExport } from "./export.js";
 import { analyzeDesignNetlist } from "./extract.js";
+import { generateCircuitSource } from "./simulation-circuit-source.js";
 import { printVacaskWithLocations } from "./vacask-printer.js";
 
 function comparatorProject(parameters: Record<string, string> = {}) {
@@ -42,6 +43,31 @@ function comparatorProject(parameters: Record<string, string> = {}) {
 }
 
 describe("ideal comparator", () => {
+  it.each(["ngspice", "vacask"] as const)(
+    "shows a VDD comparator's %s call in the Circuit source as the deck has it",
+    (engine) => {
+      // vhigh=VDD chooses the supply body; it is not a call parameter, so
+      // the editing projection must not print it back onto the call.
+      const generated = generateCircuitSource(
+        comparatorProject({ vhigh: "VDD", vlow: "0", vtransition: "1m" }),
+        {
+          id: "b",
+          path: "circuit.spice",
+          documentId: "dut",
+          emission: "top-level",
+        },
+        undefined,
+        engine,
+      );
+      if (!generated.ok) throw Error(JSON.stringify(generated.diagnostics));
+      const call = generated.source.text
+        .split("\n")
+        .find((line) => /^X1\b/u.test(line.trim()));
+      expect(call).toContain("icm_ideal_comparator_vdd");
+      expect(call).not.toMatch(/vhigh/iu);
+    },
+  );
+
   it("emits one signal-only ngspice body without inventing VDD/VSS", () => {
     const project = comparatorProject({
       vhigh: "2",
