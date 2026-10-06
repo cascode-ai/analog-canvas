@@ -15,6 +15,7 @@ import type {
   PrintedNetlistParameter,
 } from "./printed-netlist.js";
 import { normalizeIndependentSource } from "./source-waveform.js";
+import { generatedBehavioralDefinition } from "./generated-models.js";
 import { nativeBehavioralModel } from "./native-generated-models.js";
 import { switchBehavioralDefinition } from "./ideal-switch-model.js";
 
@@ -182,17 +183,12 @@ export function printVacaskWithLocations(
       ...(ir.externalMasters ?? []),
       ...(ir.generatedDefinitions ?? []).map((definition) => ({
         name: definition.name,
+        // A generated body declares its own parameters: the comparator body
+        // that reads VDD takes no vhigh.
         formalParameters:
           definition.kind === "magnetic"
             ? definition.formalParameters
-            : (builtInModelContract(definition.name)?.parameters ?? []).map(
-                (p) => ({
-                  name: p.name,
-                  ...(p.defaultValue !== undefined
-                    ? { defaultValue: p.defaultValue }
-                    : {}),
-                }),
-              ),
+            : generatedBehavioralDefinition(definition.name).parameters,
       })),
     ].map((master) => [master.name, master]),
   );

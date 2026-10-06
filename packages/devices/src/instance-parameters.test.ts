@@ -132,6 +132,52 @@ describe("instanceParameterContract", () => {
       ]);
   });
 
+  it("takes VDD or a number as the ideal comparator's high level (#1306)", () => {
+    const contract = instanceParameterContract(
+      {},
+      {
+        symbolId: "comparator",
+        netlist: {
+          binding: {
+            kind: "unresolved-subcircuit",
+            name: "icm_ideal_comparator",
+          },
+        },
+      },
+    );
+    const check = (parameters: Record<string, string>) =>
+      validateDeviceParameters(
+        { parameters: contract!.definitions },
+        parameters,
+        { open: contract!.open },
+      );
+    for (const vhigh of ["VDD", "vdd", " Vdd ", "3.3", "1"])
+      expect(check({ vhigh }), vhigh).toEqual([]);
+    // VDD is stored as typed.
+    expect(
+      canonicalParameterValues(
+        { parameters: contract!.definitions },
+        { vhigh: "vdd" },
+      ),
+    ).toEqual({ vhigh: "vdd" });
+    // Anything else is refused, with what it takes named. Export checks the
+    // levels are numbers, so an expression in braces is refused as well, and
+    // vlow stays a number.
+    for (const vhigh of ["VSS", "VDD2", "{vdd/2}"])
+      expect(check({ vhigh }), vhigh).toEqual([
+        {
+          kind: "number",
+          name: "vhigh",
+          value: vhigh,
+          keywords: ["VDD"],
+          expressions: false,
+        },
+      ]);
+    expect(check({ vlow: "VDD" })).toEqual([
+      { kind: "number", name: "vlow", value: "VDD", expressions: false },
+    ]);
+  });
+
   it("gives a built-in part its descriptor", () => {
     expect(
       names(instanceParameterContract({}, { symbolId: "resistor" })),

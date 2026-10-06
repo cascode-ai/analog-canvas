@@ -222,9 +222,44 @@ The signal-flow and converter blocks have bodies too
   carries the code as that voltage, so an ADC into a DAC reproduces the
   quantized input. `bits` defaults to 8 and is edited in Properties.
 
+The ideal comparator, which every placed comparator is bound to
+(`icm_ideal_comparator`), is V(VOUT) = vlow + (high − vlow)·½(1 +
+tanh(V(VIP, VIN)/`vtransition`)) from ground
+([`@icm/devices`](../../packages/devices/src/ideal-comparator.ts),
+[body](../../packages/netlist/src/generated-models.ts)). Properties and an
+Agent edit three parameters:
+
+- `vhigh`, the high level: `VDD`, the default, in any case, or a number in
+  volts. `VDD` is the comparator's own VDD terminal, resolved as a logic
+  block's supply is (below): explicit binding, then the one drawn positive
+  supply, then the Cell's default VDD pin, with `MISSING_BLOCK_SUPPLY` when
+  two compete. The logic a comparator drives reads a high above half its
+  supply, which a fixed 1 V never reaches at a VDD of 2 V or more (#1306).
+  A comparator with no `vhigh` has the default, as Properties shows it.
+- `vlow`, the low level, a number in volts from ground; the default is `0`.
+- `vtransition`, the width of the tanh step, a positive number; the default
+  is `1m`.
+
+The high level chooses the body at the call, as an adder's signs choose its
+body; one equation serves both and every backend (SPICE, Spectre, VACASK).
+`VDD` calls `icm_ideal_comparator_vdd`, whose interface is `VDD VIP VIN VOUT`
+and whose call carries `vlow` and `vtransition` but no `vhigh`; it reads VDD
+and never VSS, so a Cell that draws no supply, and a Cell calling it, gain a
+VDD pin and no ground pin for it. A number calls `icm_ideal_comparator`
+(`VIP VIN VOUT`) with the parameters as stored, byte for byte as before `VDD`
+existed: comparators placed before it store `vhigh=1`, and they are not
+migrated. Any other
+`vhigh`, a `vlow` that is not a number, or a `vtransition` that is not a
+positive number blocks export with `INVALID_IDEAL_COMPARATOR_PARAMETER`. A
+level that is no number at all, a word other than `VDD` or an expression in
+braces, is also an ERC diagnostic of the Cell that names the forms it takes,
+and an Agent's `set-property` refuses it at once.
+
 An authored Cell or a declared external definition with the same name replaces
-the ordinary built-in body. Comparator's reserved master still rejects authored
-shadowing. SPICE and native VACASK include all reviewed built-in models.
+the ordinary built-in body. The ideal comparator's two bodies still reject
+authored shadowing: a Cell or an external definition named after either one
+beside an ideal comparator is `IDEAL_COMPARATOR_NAME_COLLISION`. SPICE and
+native VACASK include all reviewed built-in models.
 Spectre also includes Comparator and every combinational gate, projecting their
 shared equations into `bsource` and the same RC output delay. DFF, multiplier
 and converter Spectre exports retain their existing call-only behavior and
@@ -244,8 +279,9 @@ own explicit implementation selectors, family, backend availability and complete
 parameter metadata/defaults. Their ordered interfaces come from the canonical
 component subcircuit definitions; family factories consume them rather than
 redeclaring port arrays or target inventories. Artwork aliases share the same
-master interface. The isolated comparator selects only the canonical signal
-ports, without changing the historical five-port external comparator. Internal
+master interface. The ideal comparator's numeric body selects only the
+canonical signal ports and its VDD body adds VDD, without changing the
+historical five-port external comparator. Internal
 switch control ports and magnetic lowering remain separate electrical interfaces,
 not inferred from visible Symbol pins. Family factories own equations, and
 backend printers own syntax. Known model parameters are editable in Circuit
@@ -618,10 +654,13 @@ choice with `circuit_properties` `set-block-supply {target, supply, net}`;
 `net: null` returns to Auto.
 
 Some built-in bodies never read their supplies: the ideal amplifiers and the
-adder in either format, and the multiplier and the ideal comparator in SPICE. When such a Block has
-neither a selected nor a drawn supply, the unused port is tied to node `0`
-and nothing blocks. A textbook switched-capacitor integrator therefore exports
-without a supply drawn. An authored Cell or a declared external definition of
+adder in either format, and the multiplier and the ideal comparator with a
+numeric high level in SPICE. When such a Block has neither a selected nor a
+drawn supply, the unused port is tied to node `0` and nothing blocks. A
+textbook switched-capacitor integrator therefore exports without a supply
+drawn. The ideal comparator whose high level is `VDD` reads VDD alone: it
+takes the default VDD described above, but no default ground. An authored
+Cell or a declared external definition of
 the same name replaces the body and may use its supplies, so the rule above
 applies to it again, as it does to every Block whose body uses VDD and VSS.
 Export never silently declares `.global VDD VSS`; a default supply is a Cell

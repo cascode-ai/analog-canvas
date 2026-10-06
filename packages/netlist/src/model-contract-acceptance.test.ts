@@ -375,7 +375,12 @@ describe("shared built-in model acceptance", () => {
         metadata.family === "linear";
       const { project, folder, ports } = fixture(
         symbol,
-        voltageGain ? { gain: "100" } : {},
+        voltageGain
+          ? { gain: "100" }
+          : // The comparator's numeric body: the fixture wires no supply.
+            symbol === "comparator"
+            ? { vhigh: "1" }
+            : {},
       );
       folder.input.entry = "run.sim";
       folder.input.circuitBindings[0]!.path = "circuit.sim";

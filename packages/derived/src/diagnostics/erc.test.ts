@@ -1256,6 +1256,43 @@ describe("ERC engine", () => {
     );
   });
 
+  it("names the forms an ideal comparator's levels take (#1306)", () => {
+    const project = emptyProject();
+    const comparator = {
+      id: "X1",
+      symbolId: "comparator",
+      reference: "X1",
+      placement: {
+        position: { x: 0, y: 0 },
+        rotation: 0 as const,
+        mirror: "none" as const,
+      },
+      netlist: {
+        binding: {
+          kind: "unresolved-subcircuit" as const,
+          name: "icm_ideal_comparator",
+        },
+        parameters: { vhigh: "VSS", vlow: "{low}", vtransition: "1m" },
+      },
+    };
+    project.documents[0]!.instances = [comparator];
+    const findings = () =>
+      run(project)
+        .filter((item) => item.code === "ERC_INVALID_DEVICE_PARAMETER")
+        .map((item) => item.message);
+    // Export checks numbers, so neither level takes an expression.
+    expect(findings()).toEqual([
+      'Instance X1 parameter vhigh is "VSS", which is neither a SPICE number nor VDD',
+      'Instance X1 parameter vlow is "{low}", which is not a SPICE number',
+    ]);
+    comparator.netlist.parameters = {
+      vhigh: "vdd",
+      vlow: "0",
+      vtransition: "1m",
+    };
+    expect(findings()).toEqual([]);
+  });
+
   it("checks a part bound to a reviewed SKY130 model against that model's parameters", () => {
     // Issue #1274: a SKY130 resistor carries w, l and mult, not value.
     const project = emptyProject();

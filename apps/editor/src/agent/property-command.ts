@@ -4,6 +4,7 @@ import type {
 } from "@icm/agent-adapter";
 import {
   instanceParameterContract,
+  quantityForms,
   subcircuitDescriptor,
   validateDeviceParameters,
 } from "@icm/devices";
@@ -55,7 +56,7 @@ function parameterIssue(
         issue.suggestion ? `; did you mean "${issue.suggestion}"?` : ""
       }; allowed parameters: ${allowedText}`;
     case "number":
-      return `Parameter "${issue.name}" must be a SPICE number such as 1k or 2.5n, or an expression in braces such as {vdd/2}; received "${issue.value}"${
+      return `Parameter "${issue.name}" must be ${quantityForms(issue)}; received "${issue.value}"${
         /[µμ]/u.test(issue.value) ? " (SPICE writes micro as u)" : ""
       }`;
     case "duplicate":

@@ -160,12 +160,14 @@ describe("netlist authoring", () => {
     ).toMatchObject({
       parameters: { gm: "2m" },
     });
+    // A comparator's output swings up to its own VDD, as the logic it
+    // drives switches at half of it (#1306), never to a fixed 1 V.
     expect(initialInstanceNetlist("comparator", {})).toEqual({
       binding: {
         kind: "unresolved-subcircuit",
         name: "icm_ideal_comparator",
       },
-      parameters: { vhigh: "1", vlow: "0", vtransition: "1m" },
+      parameters: { vhigh: "VDD", vlow: "0", vtransition: "1m" },
     });
     expect(initialInstanceNetlist("comparator-inputs-swapped", {})).toEqual(
       initialInstanceNetlist("comparator", {}),

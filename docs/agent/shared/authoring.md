@@ -121,11 +121,24 @@ targets to avoid full-Snapshot name resolution. Names remain supported when usef
 - `place-component` and `set-property` refuse a parameter the part does not
   take (naming the one it most likely meant), a value outside a choice list,
   and a quantity that is neither a SPICE number (`1k`, `2.5n`, `9kΩ`) nor an
-  expression in braces (`{vdd/2}`). Write micro as `u`. The same checks run
-  on stored values, as Cell diagnostics.
+  expression in braces (`{vdd/2}`), nor a word it takes, such as a
+  comparator's `vhigh:"VDD"`. Write micro as `u`. The same checks run on
+  stored values, as Cell diagnostics.
 - An adder input subtracts by its sign, a choice: `signA`/`signB` `"-"`
   (default `"+"`), so V_hold − V_DAC is one adder with `signB:"-"`, drawn
   with its + and − marks, not an adder after a −1 gain block.
+- A comparator is the ideal comparator, V(OUT) = `vlow` + (high − `vlow`) ·
+  ½(1 + tanh(V(IN+, IN−)/`vtransition`)) from ground. `vhigh` is `"VDD"` (the
+  default, any case), the comparator's own VDD resolved as a logic block's
+  (bound with `set-block-supply`, else the one drawn positive supply, else a
+  default VDD Cell Pin), or a number in volts; `vlow` is a number (default
+  `"0"`); `vtransition` is the positive tanh width (default `"1m"`). None
+  takes an expression in braces. Keep `vhigh:"VDD"` when the output drives
+  a gate or flip-flop, which reads a high above half its supply: a fixed
+  `vhigh:"1"`, what comparators placed before `VDD` existed store, never
+  switches logic at VDD ≥ 2 V. A number exports the numeric body with all
+  three parameters; `VDD` calls the body that reads VDD, and the call carries
+  no `vhigh`.
 - Three-terminal MOS artwork still has an electrical B pin. Read `mosBulk` and
   `mosBulkDefaults`; ordinary devices reuse defaults. A body on no Net
   (`mosBulk.status: "unresolved"`) takes the conventional VDD or ground; a

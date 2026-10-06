@@ -13,6 +13,7 @@ import {
 import {
   canonicalParameterValues,
   instanceParameterContract,
+  quantityForms,
   subcircuitDescriptor,
   validateDeviceParameters,
 } from "@icm/devices";
@@ -1365,7 +1366,9 @@ function validateActionParameters(
       : issue.kind === "number"
         ? 'Parameter "' +
           issue.name +
-          '" must be a SPICE number such as 1k or 2.5n, or an expression in braces such as {vdd/2}; received "' +
+          '" must be ' +
+          quantityForms(issue) +
+          '; received "' +
           issue.value +
           '"' +
           (/[µμ]/u.test(issue.value) ? " (SPICE writes micro as u)" : "")

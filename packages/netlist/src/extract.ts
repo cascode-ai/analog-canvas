@@ -37,12 +37,17 @@ import type {
 import {
   ADDER_SIGNED_INPUTS,
   ADDER_TARGET,
-  IDEAL_COMPARATOR_TARGET,
+  IDEAL_COMPARATOR_BODIES,
+  IDEAL_COMPARATOR_SUPPLY_TARGET,
   adderInputSigns,
   builtInModelContract,
   createReferenceIndex,
   deviceDescriptor,
+  HIGH_LEVEL_PARAMETER,
+  callsIdealComparatorBody,
+  idealComparatorBodyPorts,
   instanceBuiltInSubcircuit,
+  isSupplyHighLevel,
   nextReference,
   projectLengthToSky130Micrometres,
   requiredParameterNames,
@@ -73,7 +78,7 @@ import {
 } from "./net-name-codec.js";
 import { normalizeIndependentSource } from "./source-waveform.js";
 import {
-  bodyIgnoresSupplies,
+  bodySupplies,
   implicitSupplyNetId,
   withImplicitMosSupplies,
 } from "./implicit-mos-supplies.js";
@@ -1308,10 +1313,8 @@ function extractBuiltInSubcircuitInstance(
       [instance.id],
     );
   }
-  if (
-    definition.target === "comparator" &&
-    target === IDEAL_COMPARATOR_TARGET
-  ) {
+  const idealComparator = callsIdealComparatorBody(definition, target);
+  if (idealComparator) {
     const seenParameters = new Set<string>();
     for (const [name, rawValue] of parameters) {
       const folded = name.toLowerCase();
@@ -1339,6 +1342,8 @@ function extractBuiltInSubcircuitInstance(
         );
         continue;
       }
+      if (folded === HIGH_LEVEL_PARAMETER && isSupplyHighLevel(rawValue))
+        continue;
       const parsed = parseSpiceNumber(rawValue.trim());
       if (
         parsed &&
@@ -1350,36 +1355,21 @@ function extractBuiltInSubcircuitInstance(
         diagnostics,
         document.id,
         "INVALID_IDEAL_COMPARATOR_PARAMETER",
-        `Ideal comparator ${reference} requires numeric ${name}${folded === "vtransition" ? " > 0" : ""}`,
+        folded === HIGH_LEVEL_PARAMETER
+          ? `Ideal comparator ${reference} requires ${name} to be a number or VDD`
+          : `Ideal comparator ${reference} requires numeric ${name}${folded === "vtransition" ? " > 0" : ""}`,
         [instance.id],
         "error",
         name,
       );
     }
-    const nodes = definition.ports
-      .filter((port) => !port.supply)
-      .map((port) => ({
-        pinName: port.name,
-        netName:
-          terminalNetName(
-            document,
-            instance,
-            port.pinName,
-            context,
-            diagnostics,
-          ) ?? `<unconnected:${port.name}>`,
-      }));
-    return {
-      id: instance.id,
-      reference,
-      invocationKind: "subcircuit",
-      deviceClass: "hierarchical",
-      target,
-      nodes,
-      parameters: parameters.map(([name, rawValue]) => ({ name, rawValue })),
-    };
   }
-  const nodes = definition.ports.flatMap((port) => {
+  // The ideal comparator's call lowers only the ports its body reads.
+  const nodes = (
+    idealComparator
+      ? idealComparatorBodyPorts(target, definition.ports)
+      : definition.ports
+  ).flatMap((port) => {
     if (port.supply) {
       // A property-only terminal is an explicit electrical binding even
       // though the Symbol exposes no canvas pin. Its identity wins over any
@@ -1439,9 +1429,16 @@ function extractBuiltInSubcircuitInstance(
     deviceClass: "hierarchical",
     target,
     nodes,
-    parameters: parameters
-      .sort(([a], [b]) => compareText(a, b))
-      .map(([name, rawValue]) => ({ name, rawValue })),
+    // A comparator's call keeps the authored order. Its body that reads VDD
+    // takes no vhigh, so that call carries none.
+    parameters: (idealComparator
+      ? parameters.filter(
+          ([name]) =>
+            target !== IDEAL_COMPARATOR_SUPPLY_TARGET ||
+            name.toLowerCase() !== HIGH_LEVEL_PARAMETER,
+        )
+      : parameters.sort(([a], [b]) => compareText(a, b))
+    ).map(([name, rawValue]) => ({ name, rawValue })),
   };
 }
 
@@ -2762,11 +2759,11 @@ function extractCell(
           options,
           diagnostics,
           projectNames,
-          bodyIgnoresSupplies(
+          bodySupplies(
             builtInBlockCallTarget(instance, builtInSubcircuit, projectNames),
             projectNames,
             options.format,
-          ),
+          ).length === 0,
         )
       : binding?.kind === "subcircuit"
         ? extractHierarchyInstance(
@@ -3027,25 +3024,38 @@ function analyzeDesign(
         magneticSubcircuits.set(name, magneticSubcircuit(network, definition));
     }
   }
-  const comparatorCell = cellNames.get(IDEAL_COMPARATOR_TARGET);
-  const comparatorExternal = externalNames.get(IDEAL_COMPARATOR_TARGET);
-  if (comparatorCell || comparatorExternal) {
+  // Each generated comparator body reserves its name while an ideal
+  // comparator is used, whichever body its high level chooses: a Cell or an
+  // external subcircuit of that name would shadow it.
+  const comparatorConflicts = IDEAL_COMPARATOR_BODIES.flatMap((name) => {
+    const cell = cellNames.get(name);
+    const external = externalNames.get(name);
+    return cell || external
+      ? [
+          `${cell ? `Cell ${cell.authoredName}` : `external subcircuit ${external}`} named ${name}`,
+        ]
+      : [];
+  });
+  if (comparatorConflicts.length) {
     for (const document of documents) {
       for (const instance of document.instances) {
         const descriptor = subcircuitDescriptor(instance.symbolId, project);
         if (
-          descriptor?.target !== "comparator" ||
-          instance.netlist?.binding?.kind !== "unresolved-subcircuit" ||
-          instance.netlist.binding.name !== IDEAL_COMPARATOR_TARGET
+          !descriptor ||
+          !callsIdealComparatorBody(
+            descriptor,
+            builtInBlockCallTarget(instance, descriptor, projectNames),
+          )
         )
           continue;
-        diagnostic(
-          diagnostics,
-          document.id,
-          "IDEAL_COMPARATOR_NAME_COLLISION",
-          `Ideal comparator ${instance.reference ?? instance.id} conflicts with ${comparatorCell ? `Cell ${comparatorCell.authoredName}` : `external subcircuit ${comparatorExternal}`} named ${IDEAL_COMPARATOR_TARGET}`,
-          [instance.id],
-        );
+        for (const conflict of comparatorConflicts)
+          diagnostic(
+            diagnostics,
+            document.id,
+            "IDEAL_COMPARATOR_NAME_COLLISION",
+            `Ideal comparator ${instance.reference ?? instance.id} conflicts with ${conflict}`,
+            [instance.id],
+          );
       }
     }
   }
@@ -3115,11 +3125,11 @@ function analyzeDesign(
       definition.name.toLowerCase(),
     ),
     ...Array.from(magneticSubcircuits.keys(), (name) => name.toLowerCase()),
-    // Only icm_ideal_comparator has a generated body. A comparator placed
+    // Only the ideal comparator has generated bodies. A comparator placed
     // today is bound to it; one with no binding (an older drawing) falls
     // back to the bare target `comparator`, which nothing defines unless
     // the Project declares an external definition of that name.
-    IDEAL_COMPARATOR_TARGET,
+    ...IDEAL_COMPARATOR_BODIES,
   ]);
   for (const cell of cells) {
     for (const instance of cell.instances) {
@@ -3234,11 +3244,7 @@ function analyzeDesign(
     const descriptor = instanceBuiltInSubcircuit(project, instance);
     if (!descriptor) continue;
     const target = builtInBlockCallTarget(instance, descriptor, projectNames);
-    if (
-      descriptor.target === "comparator" &&
-      target === IDEAL_COMPARATOR_TARGET
-    )
-      continue;
+    if (callsIdealComparatorBody(descriptor, target)) continue;
     externalMasters.set(`builtin:${target.toLowerCase()}`, {
       id: descriptor.id,
       name: target,
@@ -3305,14 +3311,13 @@ function analyzeDesign(
       topCellId: resolvedOptions.rootDocumentId,
       cells: [...idealCells, ...cells],
       generatedDefinitions: [
-        ...(!projectNames.has(IDEAL_COMPARATOR_TARGET.toLowerCase()) &&
-        cells.some((cell) =>
-          cell.instances.some(
-            (instance) => instance.target === IDEAL_COMPARATOR_TARGET,
-          ),
-        )
-          ? [{ kind: "behavioral" as const, name: IDEAL_COMPARATOR_TARGET }]
-          : []),
+        ...IDEAL_COMPARATOR_BODIES.filter(
+          (name) =>
+            !projectNames.has(name.toLowerCase()) &&
+            cells.some((cell) =>
+              cell.instances.some((instance) => instance.target === name),
+            ),
+        ).map((name) => ({ kind: "behavioral" as const, name })),
         ...behaviouralBodies.map((name) => ({
           kind: "behavioral" as const,
           name,
