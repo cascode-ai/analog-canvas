@@ -569,9 +569,12 @@ export default function SimulationCodeEditor(props: SimulationCodeEditorProps) {
                           editor.state.selection.main.head,
                         );
                         const prefix = line.text.trim() ? "\n" : "";
-                        const insert = `${prefix}* @spec measurement <= 1 unit=V`;
+                        // Each engine's own comment: VACASK rejects `*`.
+                        const marker = props.mode === "ngspice" ? "*" : "//";
+                        const insert = `${prefix}${marker} @spec measurement <= 1 unit=V`;
                         const from = line.text.trim() ? line.to : line.from;
-                        const anchor = from + prefix.length + 8;
+                        const anchor =
+                          from + prefix.length + `${marker} @spec `.length;
                         editor.dispatch({
                           changes: { from, insert },
                           selection: { anchor, head: anchor + 11 },
