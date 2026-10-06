@@ -91,8 +91,21 @@ New experiments use this strict minimal configuration:
 }
 ```
 
-Use the Profile advertised by the executor. SPICE owns `.param`, `.temp`,
-`.lib`, analyses, `save`/`.probe`, `let`, `meas` and control loops.
+Use the Profile advertised by the executor. A new experiment that names no
+Profile takes the one whose qualified `devices` include every reviewed PDK
+device its Cell and that Cell's sub-Cells are bound to. An experiment without
+a Cell uses no PDK device. No Profile qualifies ideal blocks, the generic diode
+or authored models, so they do not count. A Profile that lists no qualified
+devices is never the default. With several such Profiles, or none, the author
+names one: the Agent's `simulation_folder` create refuses with
+`SIMULATION_PROFILE_REQUIRED` and the candidates, and the GUI's new-experiment
+dialog keeps its first environment. The GUI waits for the advertised
+environments before it asks; only offline does it fall back to the VACASK
+candidate. On Production the default is the SKY130 ngspice Profile; VACASK is
+chosen explicitly.
+
+SPICE owns `.param`, `.temp`, `.lib`, analyses, `save`/`.probe`, `let`, `meas`
+and control loops.
 They have no duplicate editable JSON fields. The valid version-2 sidecar is
 hidden in the normal Explorer and file tabs but retained in complete backups.
 Legacy, malformed and pending-draft configuration remains visible for repair.

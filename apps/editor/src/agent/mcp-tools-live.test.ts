@@ -120,12 +120,15 @@ async function apply(editor: LiveEditor, actions: unknown[]) {
 
 /**
  * The simulation service the editor's Simulation resource calls over the
- * network. Only its answer is scripted: it offers one Profile.
+ * network. Only its answer is scripted: it offers these Profiles.
  */
-function profileService(profile: {
-  id: string;
-  engine: "ngspice" | "vacask";
-}): typeof fetch {
+function profileService(
+  ...profiles: {
+    id: string;
+    engine: "ngspice" | "vacask";
+    devices?: string[];
+  }[]
+): typeof fetch {
   return (async (_input: RequestInfo | URL, init?: RequestInit) => {
     const body = JSON.parse(String(init?.body)) as { operation?: string };
     if (body.operation !== "capabilities")
@@ -135,7 +138,7 @@ function profileService(profile: {
       inputs: ["source"],
       analyses: ["op"],
       parsedAnalyses: ["op"],
-      profiles: [{ ...profile, corners: [] }],
+      profiles: profiles.map((profile) => ({ ...profile, corners: [] })),
       maxTimeoutMs: 1000,
       maxInputBytes: 10000,
       maxOutputBytes: 10000,
@@ -665,6 +668,69 @@ describe("MCP tools on the live editor", () => {
       expect(controller.project).toEqual(after);
     },
   );
+
+  it("creates a folder on the Profile qualified for its Cell's devices when none is named (#1349)", async () => {
+    // The SIN testbench also holds a varactor no Profile qualifies.
+    const project = otaProject();
+    project.documents
+      .find((document) => document.id === "document-ota-5t-testbench-sin")!
+      .instances.push({
+        id: "varactor",
+        reference: "C9",
+        symbolId: "capacitor",
+        placement: null,
+        netlist: {
+          binding: {
+            kind: "model",
+            deviceClass: "capacitor",
+            name: "sky130_fd_pr__cap_var_lvt",
+          },
+          parameters: {},
+        },
+      });
+    // As Production advertises them: ngspice names the SKY130 devices it
+    // qualifies, VACASK names none.
+    const { tool, controller } = await connected({
+      project,
+      simulationService: profileService(
+        { id: "vacask", engine: "vacask" },
+        {
+          id: "sky130",
+          engine: "ngspice",
+          devices: ["sky130_fd_pr__nfet_01v8", "sky130_fd_pr__pfet_01v8"],
+        },
+      ),
+    });
+    const created = await tool("simulation_folder", {
+      action: "create",
+      name: "Bias",
+      rootDocumentId: dutDocumentId,
+    });
+    expect(created).toMatchObject({
+      ok: true,
+      folder: { name: "Bias", profileId: "sky130", engine: "ngspice" },
+    });
+    const folder = controller.project.simulationFolders.find(
+      (item) => item.id === created.folder.id,
+    )!;
+    const config = readSimulationExperimentConfig(folder);
+    expect(config.ok && config.config.environment.profileId).toBe("sky130");
+    const before = structuredClone(controller.project);
+    expect(
+      await tool("simulation_folder", {
+        action: "create",
+        name: "SIN",
+        rootDocumentId: "document-ota-5t-testbench-sin",
+      }),
+    ).toMatchObject({
+      ok: false,
+      error: {
+        code: "SIMULATION_PROFILE_REQUIRED",
+        candidates: ["vacask", "sky130"],
+      },
+    });
+    expect(controller.project).toEqual(before);
+  });
 
   it("manages source experiments without replacing authored bytes during rename/clone", async () => {
     const project = otaProject();

@@ -21,6 +21,8 @@ interface NameRequest {
   label: string;
   initial: string;
   profiles?: readonly { id: string; name: string }[];
+  /** The Profile preselected for a Cell; the first listed when none. */
+  profileFor?(documentId: string): string | undefined;
   validate?(name: string): string | undefined;
   cellSelection?: {
     initial: string;
@@ -280,7 +282,13 @@ function NameInput() {
   const interaction = useWorkspaceInteractions();
   const request = interaction.edit!;
   const [value, setValue] = useState(request.initial);
-  const [profileId, setProfileId] = useState(request.profiles?.[0]?.id ?? "");
+  const profileFor = (cell: string) =>
+    request.profileFor?.(cell) ?? request.profiles?.[0]?.id ?? "";
+  const [profileId, setProfileId] = useState(() =>
+    profileFor(request.cellSelection?.initial ?? ""),
+  );
+  // An environment the author picked stays when the Cell changes.
+  const profilePicked = useRef(false);
   const [documentId, setDocumentId] = useState(
     request.cellSelection?.initial ?? "",
   );
@@ -354,7 +362,10 @@ function NameInput() {
           <select
             aria-label="Simulation environment"
             value={profileId}
-            onChange={(event) => setProfileId(event.currentTarget.value)}
+            onChange={(event) => {
+              profilePicked.current = true;
+              setProfileId(event.currentTarget.value);
+            }}
           >
             {request.profiles.map((profile) => (
               <option key={profile.id} value={profile.id}>
@@ -373,6 +384,8 @@ function NameInput() {
             value={documentId}
             onChange={(event) => {
               setDocumentId(event.currentTarget.value);
+              if (!profilePicked.current)
+                setProfileId(profileFor(event.currentTarget.value));
               setError(undefined);
             }}
             onKeyDown={(event) => {

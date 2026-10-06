@@ -12,7 +12,7 @@ import {
   readSimulationExperimentConfig,
   type SimulationRunPlanAxis,
 } from "@icm/model";
-import { createSimulationStarter } from "@icm/netlist";
+import { createSimulationStarter, newFolderProfile } from "@icm/netlist";
 import { profileEngine } from "@icm/simulation-service";
 import type { SimulationCodeWorkspaceProps } from "./code-workspace";
 import type {
@@ -884,6 +884,16 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
     }
     // Folder management must preserve unfinished code, not require a runnable deck.
     if (codeRef.current && !(await codeRef.current.save())) return;
+    // A folder set up before the environments arrived took the offline
+    // candidate, VACASK, unasked (#1349). Wait for them; offline it still does.
+    let environments = capabilities;
+    if (action === "new" && !environments) {
+      const reply = await session.handle({ operation: "capabilities" });
+      if (reply.ok && "capabilities" in reply) {
+        environments = reply.capabilities;
+        setCapabilities(environments);
+      }
+    }
     const latestProject = session.currentProject();
     if (!latestProject) return;
     const current = latestProject.simulationFolders.find(
@@ -900,12 +910,21 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
       kind: "folder",
       ...(action === "rename" && current ? { folderId: current.id } : {}),
       label: action === "rename" ? "Folder name" : "New simulation folder name",
-      ...(action === "new" && capabilities?.profiles.length
+      ...(action === "new" && environments?.profiles.length
         ? {
-            profiles: capabilities.profiles.map((profile) => ({
+            profiles: environments.profiles.map((profile) => ({
               id: profile.id,
               name: profile.label ?? profile.id,
             })),
+            // The Profile an Agent's new folder for the Cell takes (#1349).
+            profileFor: (documentId: string) => {
+              const project = session.currentProject() ?? latestProject;
+              const choice = newFolderProfile(
+                environments.profiles,
+                documentId ? { project, documentId } : undefined,
+              );
+              return choice.ok ? choice.profileId : undefined;
+            },
           }
         : {}),
       ...(action === "new"
@@ -978,10 +997,10 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
         return;
       }
       const profile =
-        capabilities?.profiles.find((p) => p.id === selection.profileId) ??
-        capabilities?.profiles[0];
+        environments?.profiles.find((p) => p.id === selection.profileId) ??
+        environments?.profiles[0];
       const engine = profile
-        ? profileEngine(profile, capabilities?.rawfileCollection)
+        ? profileEngine(profile, environments?.rawfileCollection)
         : "vacask";
       if (!engine) {
         setProblem(
