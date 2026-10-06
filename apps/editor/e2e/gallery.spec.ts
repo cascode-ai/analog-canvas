@@ -687,9 +687,8 @@ test("Publish checks exact and nearest duplicates without adding a Gallery contr
   await check.click();
   await expect.poll(() => detailRequests).toBe(3);
   await expect(check).toBeDisabled();
-  await expect(dialog.getByTestId("gallery-topology-snapshot")).toContainText(
-    "still publish",
-  );
+  // A running check of this Cell explains nothing; Publish simply stays open.
+  await expect(dialog.getByTestId("gallery-topology-snapshot")).toHaveCount(0);
   await expect(publish).toBeEnabled();
   await dialog
     .getByRole("button", { name: "Cancel", exact: true })
@@ -3710,6 +3709,12 @@ test("a signed-in member publishes directly, bylined by the account", async ({
 
   await dialog.getByLabel("Circuit name").fill("Session Publish");
   await dialog.getByTestId("publish-preset-amplifier").click();
+  // Five suggestions show; "+ …" opens the rest (#1385).
+  const presets = dialog.locator('[data-testid^="publish-preset-"]');
+  await expect(presets).toHaveCount(5);
+  await dialog.getByTestId("publish-presets-more").click();
+  await expect(dialog.getByTestId("publish-presets-more")).toHaveCount(0);
+  await expect.poll(() => presets.count()).toBeGreaterThan(5);
   await dialog.getByLabel("Add tag").fill("Latch");
   await dialog.getByLabel("Add tag").press("Enter");
   await expect(dialog.getByTestId("publish-tag-latch")).toBeVisible();

@@ -107,6 +107,24 @@ describe("PublishGalleryDialog", () => {
     );
   });
 
+  it("opens on the title alone and folds the tag suggestions", () => {
+    const markup = renderToStaticMarkup(
+      createElement(PublishGalleryDialog, {
+        defaultName: "Ring Oscillator",
+        session: { displayName: "Visitor", isAdmin: false, role: "user" },
+        publish: () => Promise.resolve({ status: "unauthorized" as const }),
+        onPublished: () => undefined,
+        onClose: () => undefined,
+      }),
+    );
+    expect(markup).toContain(">Publish to Gallery</h2>");
+    expect(markup).not.toContain("public wall");
+    // Five suggestions, then one chip that opens the rest (#1385).
+    expect(markup.match(/data-testid="publish-preset-/gu)).toHaveLength(5);
+    expect(markup).toContain('data-testid="publish-presets-more"');
+    expect(markup).toContain('aria-label="More tag suggestions"');
+  });
+
   it("never asks for the byline: the account supplies it", () => {
     const markup = renderToStaticMarkup(
       createElement(PublishGalleryDialog, {

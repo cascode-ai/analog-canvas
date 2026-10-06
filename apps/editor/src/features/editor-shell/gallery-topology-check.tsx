@@ -94,16 +94,14 @@ export function GalleryTopologyCheck({ project }: { project: CircuitProject }) {
           Unconfirmed results are not proof of a different topology.
         </p>
       ) : null}
-      {snapshot ? (
+      {snapshot && (otherCell || historical) ? (
         <p
           className="publish-duplicate-message"
           data-testid="gallery-topology-snapshot"
         >
           {otherCell
             ? `Historical check for another Project or Cell: “${snapshot.name}”. Click Check Again to check this Cell.`
-            : historical
-              ? `Canvas changed. Historical results use “${snapshot.name}” captured when you clicked Check Duplicate. Click Check Again to check the current Cell.`
-              : "Comparing a snapshot of this Cell. You can still publish while the check runs."}
+            : `Canvas changed. Historical results use “${snapshot.name}” captured when you clicked Check Duplicate. Click Check Again to check the current Cell.`}
         </p>
       ) : null}
       <span role="status" className="publish-duplicate-status">

@@ -15,6 +15,9 @@ import {
 } from "./gallery-publish";
 import { GalleryTopologyCheck } from "./gallery-topology-check";
 
+/** Suggested tags shown before the "+ …" chip opens the rest. */
+const FOLDED_TAG_PRESETS = 5;
+
 export interface PublishGalleryDialogProps {
   defaultName: string;
   publicationLinkLoading?: boolean;
@@ -119,6 +122,7 @@ export function PublishGalleryDialog({
     draft?.editedFields?.tags ?? !!draft?.tags.length,
   );
   const [tagDraft, setTagDraft] = useState("");
+  const [presetsOpen, setPresetsOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [linkInput, setLinkInput] = useState("");
   const [linkBusy, setLinkBusy] = useState(false);
@@ -177,6 +181,14 @@ export function PublishGalleryDialog({
     tags.length > 0 ||
     tagDraft.trim().length > 0 ||
     name.trim() !== defaultName.trim();
+
+  const presets = [...new Set(Object.values(taxonomy.tagsByGroup).flat())]
+    .filter(
+      (preset) =>
+        !tags.includes(preset) &&
+        preset.includes(tagDraft.trim().toLowerCase()),
+    )
+    .slice(0, 12);
 
   function addTag(raw: string): void {
     const tag = raw.replace(/\s+/gu, " ").trim().toLowerCase();
@@ -240,7 +252,6 @@ export function PublishGalleryDialog({
         data-testid="publish-gallery-dialog"
       >
         <header className="publish-gallery-header">
-          <p>Share this circuit on the public wall</p>
           <h2 id="publish-gallery-title">Publish to Gallery</h2>
         </header>
         {signedOut ? (
@@ -456,23 +467,30 @@ export function PublishGalleryDialog({
                   }}
                 />
                 <div className="publish-gallery-tag-presets">
-                  {[...new Set(Object.values(taxonomy.tagsByGroup).flat())]
-                    .filter(
-                      (preset) =>
-                        !tags.includes(preset) &&
-                        preset.includes(tagDraft.trim().toLowerCase()),
-                    )
-                    .slice(0, 12)
-                    .map((preset) => (
-                      <button
-                        key={preset}
-                        type="button"
-                        data-testid={`publish-preset-${preset.replace(/\s/gu, "-")}`}
-                        onClick={() => addTag(preset)}
-                      >
-                        + {galleryTagLabel(preset)}
-                      </button>
-                    ))}
+                  {(presetsOpen
+                    ? presets
+                    : presets.slice(0, FOLDED_TAG_PRESETS)
+                  ).map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      data-testid={`publish-preset-${preset.replace(/\s/gu, "-")}`}
+                      onClick={() => addTag(preset)}
+                    >
+                      + {galleryTagLabel(preset)}
+                    </button>
+                  ))}
+                  {!presetsOpen && presets.length > FOLDED_TAG_PRESETS ? (
+                    <button
+                      type="button"
+                      aria-label="More tag suggestions"
+                      title="More tag suggestions"
+                      data-testid="publish-presets-more"
+                      onClick={() => setPresetsOpen(true)}
+                    >
+                      + …
+                    </button>
+                  ) : null}
                 </div>
               </div>
             </div>

@@ -20,6 +20,12 @@ describe("galleryTagLabel", () => {
     expect(galleryTagLabel("custom legacy tag")).toBe("Custom Legacy Tag");
   });
 
+  it("keeps a mixed-case term's capitals inside a longer tag", () => {
+    expect(galleryTagLabel("r-2r ladder")).toBe("R-2R Ladder");
+    expect(galleryTagLabel("dc-dc converter")).toBe("DC–DC Converter");
+    expect(galleryTagLabel("power amplifier")).toBe("Power Amplifier");
+  });
+
   it("sorts by the displayed label instead of popularity", () => {
     expect(
       ["logic", "latch", "inverter", "cml", "nand"].sort(

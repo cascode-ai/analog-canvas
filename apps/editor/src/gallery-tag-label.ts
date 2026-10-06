@@ -24,6 +24,9 @@ const TAG_WORD_LABELS: Record<string, string> = {
   ctle: "CTLE",
   d: "D",
   dac: "DAC",
+  // Inside a longer tag too: "r-2r ladder" reads "R-2R Ladder", not "R-2r Ladder".
+  dcdc: "DC–DC",
+  "dc-dc": "DC–DC",
   dfe: "DFE",
   dll: "DLL",
   dram: "DRAM",
@@ -39,6 +42,7 @@ const TAG_WORD_LABELS: Record<string, string> = {
   pll: "PLL",
   pmos: "PMOS",
   ptat: "PTAT",
+  "r-2r": "R-2R",
   rf: "RF",
   rc: "RC",
   sar: "SAR",
