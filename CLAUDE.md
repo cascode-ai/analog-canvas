@@ -86,11 +86,13 @@ Regeneration order when symbol data changes:
 - **Validation is risk-proportional**: run the smallest deterministic checks that cover the change (documentation-only → `pnpm docs:check`); full suites only when breadth, risk, or policy justifies them. Every target closes with `git diff --check`, `git status --short --branch`, and a commit message that stands alone: what changed, why, the validation and chosen gates, and the trailer.
 - **Mainline delivery gate**: follow the selected gates and the required `Core contracts` and `Browser tests` checks in [AGENTS.md](AGENTS.md); [deployment](docs/deployment.md) owns Production release and recovery. The local check before a pull request is one command, `pnpm verify:pr -- --base <base-ref>`:
   - typecheck, and Prettier on the changed files;
-  - every unit test that imports a changed file (`vitest related`);
+  - every unit test that imports a changed file (`vitest related`), strictly when a test file changed, so an emptied `describe` fails here;
   - the browser cases the change adds or edits (`file:line`), on the built editor with 4 workers.
 
   The merge queue owns `ci:static`, the full unit suite, `release:verify` and the specs `scripts/ci-plan.mjs` maps, and runs them in minutes; `verify:pr -- --mapped` runs the map locally only when a queue failure would cost more. Run build and release verification locally only for rendering, export, symbol or packaging changes. Never run every browser spec locally: the full local runs found nothing the mapped specs missed.
 
+- **Pull requests**: describe them with `.github/pull_request_template.md` (why, change outline, before/after evidence, merge risk) and queue with `gh pr merge <number> --match-head-commit <pushed-sha>`.
+- **Hard defects** (cause not evident): follow AGENTS.md's diagnosis loop — a command that goes red first, three to five ranked falsifiable causes shown to the user, and a failing test before the fix only at a seam that reproduces the real pattern. Simple defects: fix and test as usual.
 - **Circuit assets**: one circuit per `netlists/<name>/` directory; `.subckt` interfaces and instance pin order are shared contracts (check every caller before changing); never claim electrical correctness from syntax inspection alone; never silently replace vendor/foundry model data with illustrative values.
 - Commit subjects use conventional scopes: `feat(editor):`, `fix(netlist):`, `docs(specs):`, `test(editor):`.
 

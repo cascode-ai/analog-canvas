@@ -8,7 +8,9 @@
  * 2. Prettier on the changed files it formats;
  * 3. every unit test that imports a changed file (`vitest related`): a leaf
  *    change runs a few, a core package most of the suite, so neither a guess
- *    at the "touched areas" nor the whole suite;
+ *    at the "touched areas" nor the whole suite. A change to a test file runs
+ *    strictly, so a describe its deletions emptied fails here, not in the
+ *    merge queue;
  * 4. the browser cases the change adds or edits, by `file:line`, on the built
  *    editor with 4 workers (a change a spec file's tests share runs that
  *    file). `--mapped` runs every spec the merge queue maps instead.
@@ -35,6 +37,7 @@ import {
   changedBrowserCases,
   changedLines,
   formattedPaths,
+  strictUnitRun,
   unitSourcePaths,
 } from "./lib/verify-pr-selection.mjs";
 
@@ -114,7 +117,7 @@ if (sources.length)
     "related",
     "--run",
     "--maxWorkers=2",
-    "--passWithNoTests",
+    strictUnitRun(sources) ? "--no-passWithNoTests" : "--passWithNoTests",
     ...sources,
   ]);
 else skip("unit", "no changed source or test file");

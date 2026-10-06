@@ -33,6 +33,17 @@ export function unitSourcePaths(paths) {
 }
 
 /**
+ * Whether the unit step runs strictly. `vitest related` passes when it finds
+ * no test, as a change no test imports needs, but that also passes a
+ * describe left empty by deleting its last case, which the full run in the
+ * merge queue fails ("No test found in suite"). A changed test file is
+ * always found, so a change with one runs strictly.
+ */
+export function strictUnitRun(paths) {
+  return paths.some((path) => /\.test\.[cm]?[jt]sx?$/u.test(path));
+}
+
+/**
  * Paths for which AGENTS.md runs the Gallery census: copying, placement,
  * instance labels and netlist extraction.
  */
