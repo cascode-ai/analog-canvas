@@ -9,6 +9,9 @@ When `installation.available` is true, follow its verified installation flow.
 Check the downloaded archive's digest before executing it. The installer tests
 local stdio readiness before updating the named host configuration, preserving
 unrelated settings. Startup uses the installed local bundle; updating is explicit.
+The launch names the Node that ran the installer; a Homebrew Node is named
+through its formula's `opt` link, which follows `brew upgrade` of that formula.
+Re-run the installer to replace a launch written with a versioned Cellar path.
 
 For a host without direct installer support, use the manifest's configuration
 mode and returned launch configuration. Do not infer flags from another version.
