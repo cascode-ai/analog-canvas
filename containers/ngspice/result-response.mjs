@@ -45,6 +45,9 @@ export async function ngspiceResultResponse(input, raw, streaming) {
     collection: input.collection,
     timeoutMs: raw.limits.timeoutMs,
     runToken: input.runToken,
+    // The deck and these files are everything this run wrote; the Profile's
+    // model library is mounted beside them, not sent.
+    files: input.files ?? [],
   });
   const collectionStatus =
     raw.truncatedOutputs?.includes("rawfile") ||

@@ -9,6 +9,78 @@ const DROPPED_INPUT_PATTERNS = [
   /ignored\s*!?$/iu,
 ];
 
+/**
+ * ngspice 46 reports a model card it only partly understood as one block:
+ *
+ *     Warning: Model issue on line 28 :
+ *       .model xdut.xq1:sky130_fd_pr__npn_05v5_w1p00l1p00__model npn level=1.0 t ...
+ *     unrecognized parameter (dcap) - ignored
+ *
+ * The second line echoes the card as ngspice holds it: lowercased, renamed
+ * `xpath:name` inside a subcircuit, cut at 72 characters and ended with "...".
+ */
+const MODEL_ISSUE_PATTERN = /^warning:\s*model issue on line \d+\s*:?$/iu;
+const MODEL_ECHO_PATTERN = /^\.model\s+(.*)$/iu;
+const MODEL_PARAMETER_NOTICE_PATTERN =
+  /^unrecognized parameter \(.*\) - ignored$/iu;
+
+interface ModelCardEcho {
+  /** Lowercased, as ngspice prints it, including any `xpath:` prefix. */
+  readonly name: string;
+  /** False when the echo ends inside the name, leaving only its prefix. */
+  readonly complete: boolean;
+}
+
+function readModelCardEcho(text: string): ModelCardEcho | undefined {
+  const body = MODEL_ECHO_PATTERN.exec(text)?.[1]?.replace(/\s*\.\.\.$/u, "");
+  const [name, ...rest] = body?.split(/[\s(]+/u) ?? [];
+  return name
+    ? { name: name.toLowerCase(), complete: rest.some(Boolean) }
+    : undefined;
+}
+
+/**
+ * The names of the `.model` cards the run's own sources define, lowercased as
+ * ngspice prints them. A `+` line continues the card above it, past any
+ * comment between them, so a name on a continuation line still counts.
+ */
+function definedModelNames(sources: readonly string[]): Set<string> {
+  const names = new Set<string>();
+  for (const source of sources) {
+    const cards: string[] = [];
+    for (const line of source.split(/\r?\n/u)) {
+      const text = line.trim();
+      if (text.length === 0 || text.startsWith("*")) continue;
+      if (text.startsWith("+") && cards.length > 0)
+        cards[cards.length - 1] += ` ${text.slice(1)}`;
+      else cards.push(text);
+    }
+    for (const card of cards) {
+      const name = /^\.model\s+([^\s(]+)/iu.exec(card)?.[1];
+      if (name) names.add(name.toLowerCase());
+    }
+  }
+  return names;
+}
+
+/**
+ * Whether the run's own sources define the card ngspice complained about.
+ * The `x…:` prefix ngspice adds inside a subcircuit is not part of the name.
+ * An echo cut inside the name leaves a prefix, which counts when a defined
+ * name starts with it; one cut inside the `xpath` names no card at all, so it
+ * stays the author's.
+ */
+function definesModelCard(
+  echo: ModelCardEcho,
+  defined: ReadonlySet<string>,
+): boolean {
+  const local = echo.name.replace(/^x[^:]*:/u, "");
+  if (echo.complete) return defined.has(local);
+  if (local === echo.name && local.startsWith("x")) return true;
+  for (const name of defined) if (name.startsWith(local)) return true;
+  return false;
+}
+
 const ERROR_PATTERNS = [
   /^\s*error[: ]/iu,
   /simulation interrupted/iu,
@@ -39,10 +111,13 @@ const EMPTY_NETLIST_PATTERN = /^error:\s*incomplete or empty netlist/iu;
 const CONSTANTS_PLOT_PATTERN = /"constants" plot/iu;
 
 function diagnosticKey(diagnostic: SimulationDiagnostic): string {
+  // The same notice can be dropped input for the author's card and not for
+  // the Profile library's; counting one into the other would lose the first.
   return JSON.stringify([
     diagnostic.severity,
     diagnostic.text,
     diagnostic.location ?? null,
+    diagnostic.droppedInput === true,
   ]);
 }
 
@@ -69,13 +144,35 @@ function appendDiagnostic(
  * then solving the circuit that remains. Trusting the status there would
  * report a clean success for numbers describing a circuit the author never
  * drew.
+ *
+ * `sources` are the run's own source texts: the deck and every file submitted
+ * with it, Canvas-generated ones included. The Profile's model library is
+ * not among them. When they are given, a parameter ngspice ignored on a model
+ * card none of them defines is no longer dropped input: the qualified SKY130
+ * NPN card prints `unrecognized parameter (dcap) - ignored` on every run
+ * (#1313), and its author cannot change it. The line stays, as information.
+ * Without them, every ignored line still counts, since a card in an unknown
+ * file cannot be told apart from the author's own.
  */
-export function readNgspiceDiagnostics(output: string): SimulationDiagnostic[] {
+export function readNgspiceDiagnostics(
+  output: string,
+  sources?: readonly string[],
+): SimulationDiagnostic[] {
   const diagnostics: SimulationDiagnostic[] = [];
   const lines = output.split(/\r?\n/u);
+  const defined =
+    sources === undefined ? undefined : definedModelNames(sources);
+  let modelCard: ModelCardEcho | "header" | undefined;
   for (const raw of lines) {
     const text = raw.trim();
-    if (text.length === 0) continue;
+    if (text.length === 0) {
+      modelCard = undefined;
+      continue;
+    }
+    if (MODEL_ISSUE_PATTERN.test(text)) modelCard = "header";
+    else if (modelCard === "header") modelCard = readModelCardEcho(text);
+    else if (modelCard && !MODEL_PARAMETER_NOTICE_PATTERN.test(text))
+      modelCard = undefined;
     const location = text.match(LOCATION_PATTERN);
     if (location) {
       const previous = diagnostics[diagnostics.length - 1];
@@ -87,12 +184,17 @@ export function readNgspiceDiagnostics(output: string): SimulationDiagnostic[] {
         continue;
       }
     }
-    const dropped = DROPPED_INPUT_PATTERNS.some((pattern) =>
-      pattern.test(text),
-    );
+    const libraryNotice =
+      defined !== undefined &&
+      typeof modelCard === "object" &&
+      MODEL_PARAMETER_NOTICE_PATTERN.test(text) &&
+      !definesModelCard(modelCard, defined);
+    const dropped =
+      !libraryNotice &&
+      DROPPED_INPUT_PATTERNS.some((pattern) => pattern.test(text));
     const isError = ERROR_PATTERNS.some((pattern) => pattern.test(text));
     const isWarning = /^\s*warning/iu.test(text);
-    if (!dropped && !isError && !isWarning) continue;
+    if (!dropped && !isError && !isWarning && !libraryNotice) continue;
     appendDiagnostic(diagnostics, {
       severity: isError ? "error" : isWarning ? "warning" : "info",
       text,
@@ -268,14 +370,15 @@ export function hasNgspiceExecutionEvidence(output: string): boolean {
  * a deck that requested vectors must return readable vectors; a deck that did
  * not must at least show that ngspice accepted the deck. The exit code remains
  * diagnostic because supported ngspice builds can exit non-zero after
- * producing every requested result.
+ * producing every requested result. `sources` are the run's own source texts;
+ * `readNgspiceDiagnostics` says what they change.
  */
 export function evaluateSimulationRun(
   expectations: SimulationRunExpectations,
   observation: SimulationExecutionObservation,
-  options: { timeoutMs: number },
+  options: { timeoutMs: number; sources?: readonly string[] | undefined },
 ): EvaluatedSimulationRun {
-  const diagnostics = readNgspiceDiagnostics(observation.log);
+  const diagnostics = readNgspiceDiagnostics(observation.log, options.sources);
 
   if (
     !observation.timedOut &&
