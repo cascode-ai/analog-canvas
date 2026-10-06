@@ -187,6 +187,8 @@ describe("source Spec v1", () => {
     ],
     ["> 10kOhm", "write 10e3."],
     ["<= 1M", "write 1e-3 (SPICE reads M as milli) or 1e6 for mega."],
+    // Every suffix the SPICE reader knows, atto included.
+    ["<= 5a", 'Bound "5a" is not a decimal or scientific number; write 5e-18.'],
     ["<= NaN", 'Bound "NaN" is not a decimal or scientific number such as'],
     ["<= 1e999", 'Bound "1e999" is too large to be a finite number.'],
     [

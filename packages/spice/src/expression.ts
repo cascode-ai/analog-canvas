@@ -23,6 +23,11 @@ const SCALE_FACTORS: Record<string, number> = {
 const SPICE_NUMBER_PATTERN =
   /^([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?)(meg|mil|[tgkmunpfa])?([a-z]*)$/iu;
 
+/** What a SPICE scale suffix multiplies by (`m` 1e-3, `mil` 25.4e-6). */
+export function spiceScaleFactor(suffix: string): number | undefined {
+  return SCALE_FACTORS[suffix.toLowerCase()];
+}
+
 export function parseSpiceNumber(raw: string): SpiceNumber | null {
   const match = SPICE_NUMBER_PATTERN.exec(raw.trim());
   if (!match) return null;

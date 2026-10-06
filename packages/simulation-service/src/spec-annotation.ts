@@ -1,4 +1,6 @@
 import type { SourceSpan } from "@icm/model";
+import type { SimulationSourceDiagnostic } from "@icm/netlist";
+import { parseSpiceNumber, spiceScaleFactor } from "@icm/spice";
 import {
   SimulationSpecLabelSchema,
   SimulationSpecResultSchema,
@@ -38,38 +40,22 @@ export interface SimulationSpecAnnotation {
   problems: string[];
 }
 
-/** SPICE scale suffixes as powers of ten; a SPICE number ignores letters after one. */
-const SPICE_SCALES: Readonly<Record<string, number>> = {
-  t: 12,
-  g: 9,
-  meg: 6,
-  k: 3,
-  m: -3,
-  u: -6,
-  n: -9,
-  p: -12,
-  f: -15,
-};
+const SPICE_NUMERIC = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?/iu;
 
 /** The same number in the notation a Spec accepts, for a SPICE-suffixed one. */
 function spiceSuffixReplacement(token: string): string | undefined {
-  const match =
-    /^([+-]?(?:\d+(?:\.\d*)?|\.\d+))(?:e([+-]?\d+))?(meg|mil|[tgkmunpf])[a-z]*$/iu.exec(
-      token,
-    );
-  if (!match) return undefined;
-  const mantissa = match[1]!;
-  const exponent = Number(match[2] ?? 0);
-  const suffix = match[3]!;
-  const scaled = (power: number) => `${mantissa}e${exponent + power}`;
-  if (suffix.toLowerCase() === "mil")
-    return String(
-      Number((Number(`${mantissa}e${exponent}`) * 25.4e-6).toPrecision(12)),
-    );
+  const parsed = parseSpiceNumber(token);
+  if (!parsed?.suffix) return undefined;
+  if (parsed.suffix === "mil")
+    return String(Number(parsed.value.toPrecision(12)));
+  const numeric = SPICE_NUMERIC.exec(token)![0];
+  const [mantissa, exponent = "0"] = numeric.split(/e/iu);
+  const scaled = (power: number) => `${mantissa}e${Number(exponent) + power}`;
+  const power = Math.round(Math.log10(spiceScaleFactor(parsed.suffix)!));
   // SPICE reads M as milli; most other tools, VACASK among them, as mega.
-  if (suffix === "M")
-    return `${scaled(-3)} (SPICE reads M as milli) or ${scaled(6)} for mega`;
-  return scaled(SPICE_SCALES[suffix.toLowerCase()]!);
+  if (parsed.suffix === "m" && token[numeric.length] === "M")
+    return `${scaled(power)} (SPICE reads M as milli) or ${scaled(6)} for mega`;
+  return scaled(power);
 }
 
 function numberProblem(role: string, token: string): string[] {
@@ -87,43 +73,80 @@ function numberProblem(role: string, token: string): string[] {
 const CONDITIONS =
   "< N, <= N, > N, >= N, range MIN MAX or target VALUE tol TOLERANCE";
 
-/** Why the tokens after the name are not a condition; never empty. */
-function conditionProblems(tokens: readonly string[]): string[] {
+const LIMIT_OPERATORS = ["<", "<=", ">", ">="] as const;
+type LimitOperator = (typeof LIMIT_OPERATORS)[number];
+const isLimitOperator = (op: string): op is LimitOperator =>
+  (LIMIT_OPERATORS as readonly string[]).includes(op);
+
+/**
+ * Read the tokens after the name as one condition, or say why they are not
+ * one. Each form is read once, so what a run accepts and what it explains
+ * cannot drift apart.
+ */
+function parseCondition(tokens: readonly string[]): {
+  condition: SimulationSpecCondition | null;
+  problems: string[];
+} {
+  const refuse = (...problems: string[]) => ({ condition: null, problems });
   const misplaced = tokens.find((token) => token.startsWith("unit="));
   if (misplaced)
-    return [
+    return refuse(
       `${quote(misplaced)} is out of place; declare the unit once, after the condition.`,
-    ];
+    );
   const [op = "", a = "", b = "", c = ""] = tokens;
   const written = quote(tokens.join(" "));
   const glued = /^(<=|>=|<|>)([^=].*)$/u.exec(op);
   if (glued && tokens.length === 1)
-    return [
+    return refuse(
       `Condition ${written} needs a space after ${glued[1]}: write ${glued[1]} ${glued[2]}.`,
-    ];
-  let problems: string[];
-  let otherwise = `Condition ${written} is not one of ${CONDITIONS}.`;
-  if (["<", "<=", ">", ">="].includes(op)) {
+    );
+  if (isLimitOperator(op)) {
     if (tokens.length !== 2)
-      return [
+      return refuse(
         `Condition ${written} is not ${op} N; write one bound after ${op}.`,
-      ];
-    problems = numberProblem("Bound", a);
-  } else if (op === "range") {
+      );
+    const problems = numberProblem("Bound", a);
+    if (problems.length) return refuse(...problems);
+    return {
+      condition: { kind: "limit", operator: op, value: number(a)! },
+      problems: [],
+    };
+  }
+  if (op === "range") {
     if (tokens.length !== 3)
-      return [`Condition ${written} is not range MIN MAX.`];
-    problems = [...numberProblem("Bound", a), ...numberProblem("Bound", b)];
-    otherwise = `Range ${a} ${b} has its minimum above its maximum; write range ${b} ${a}.`;
-  } else if (op === "target") {
+      return refuse(`Condition ${written} is not range MIN MAX.`);
+    const problems = [
+      ...numberProblem("Bound", a),
+      ...numberProblem("Bound", b),
+    ];
+    if (problems.length) return refuse(...problems);
+    const minimum = number(a)!;
+    const maximum = number(b)!;
+    if (minimum > maximum)
+      return refuse(
+        `Range ${a} ${b} has its minimum above its maximum; write range ${b} ${a}.`,
+      );
+    return { condition: { kind: "range", minimum, maximum }, problems: [] };
+  }
+  if (op === "target") {
     if (tokens.length !== 4 || b !== "tol")
-      return [`Condition ${written} is not target VALUE tol TOLERANCE.`];
-    problems = [
+      return refuse(`Condition ${written} is not target VALUE tol TOLERANCE.`);
+    const problems = [
       ...numberProblem("Target", a),
       ...numberProblem("Tolerance", c),
     ];
-    otherwise = `Tolerance ${c} is negative; write the absolute tolerance ${c.replace(/^-/u, "")}.`;
-  } else return [`${quote(op)} does not start a condition; use ${CONDITIONS}.`];
-  return problems.length ? problems : [otherwise];
+    if (problems.length) return refuse(...problems);
+    const tolerance = number(c)!;
+    if (tolerance < 0)
+      return refuse(
+        `Tolerance ${c} is negative; write the absolute tolerance ${c.replace(/^-/u, "")}.`,
+      );
+    return {
+      condition: { kind: "target", value: number(a)!, tolerance },
+      problems: [],
+    };
+  }
+  return refuse(`${quote(op)} does not start a condition; use ${CONDITIONS}.`);
 }
 
 function labelProblem(
@@ -224,38 +247,8 @@ export function parseSimulationSpecAnnotation(
     unit = tokens.pop()!.slice(5);
     unitDeclared = true;
   }
-  const [op, a, b, c] = tokens;
-  const first = number(a),
-    second = number(b),
-    tolerance = number(c);
-  let expected: SimulationSpecCondition | null = null;
-  if (
-    tokens.length === 2 &&
-    ["<", "<=", ">", ">="].includes(op ?? "") &&
-    first !== null
-  )
-    expected = {
-      kind: "limit",
-      operator: op as "<" | "<=" | ">" | ">=",
-      value: first,
-    };
-  if (
-    tokens.length === 3 &&
-    op === "range" &&
-    first !== null &&
-    second !== null &&
-    first <= second
-  )
-    expected = { kind: "range", minimum: first, maximum: second };
-  if (
-    tokens.length === 4 &&
-    op === "target" &&
-    first !== null &&
-    b === "tol" &&
-    tolerance !== null &&
-    tolerance >= 0
-  )
-    expected = { kind: "target", value: first, tolerance };
+  const parsedCondition = tokens.length ? parseCondition(tokens) : null;
+  const expected = parsedCondition?.condition ?? null;
 
   if (!/^[A-Za-z_][A-Za-z0-9_]*$/u.test(name))
     nameProblems.push(
@@ -266,7 +259,7 @@ export function parseSimulationSpecAnnotation(
           : `Name ${quote(name)} is not a measurement name; use letters, digits and underscores, starting with a letter or underscore.`,
     );
   if (!expected) {
-    if (tokens.length) conditionIssues.push(...conditionProblems(tokens));
+    if (parsedCondition) conditionIssues.push(...parsedCondition.problems);
     // A measurement-only annotation needs a unit, group or label. An invalid
     // label or group already says what is wrong with it.
     else if (
@@ -309,13 +302,12 @@ export function parseSimulationSpecAnnotation(
 }
 
 /** A Spec annotation the run will refuse, located on its line. */
-export interface SimulationSpecAnnotationDiagnostic {
+export type SimulationSpecAnnotationDiagnostic = SimulationSourceDiagnostic & {
   code: "SIMULATION_SPEC_INVALID";
   severity: "warning";
-  message: string;
   path: string;
   sourceRef: SourceSpan;
-}
+};
 
 /**
  * Check one source file's Spec annotations with the parser a run uses, so a
