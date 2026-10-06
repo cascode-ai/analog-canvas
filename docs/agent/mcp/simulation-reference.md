@@ -137,6 +137,15 @@ replacement failures also identify the replacement array index and match count
 when applicable. Revision conflicts return expected/current revisions when
 available. Invalid native code can still be saved; prepare performs validation.
 
+A successful `update` checks the `* @spec` / `// @spec` lines of each file it
+saved with the parser a run uses: a file in `writes` from its text, a file that
+`replacements` or `patches` changed read back once after the save. Each invalid
+line is listed in `specWarnings:[{path,line,message}]`, omitted when there is
+none; `message` is in the run's own words, its `invalid-spec` detail. It is a
+warning, not a refusal: the file is saved and the run proceeds. An edited file
+that cannot be read back as saved, for example because it changed again, is
+not checked, so a reply without `specWarnings` does not vouch for it.
+
 For a graphless session workspace, call File `create`, then
 `update` with `owner:{kind:"session-workspace",workspaceId}`,
 `expectedRevision`, `entry`, and authored files including a valid config.
