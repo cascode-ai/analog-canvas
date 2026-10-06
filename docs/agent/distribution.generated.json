@@ -89,7 +89,7 @@
     },
     {
       "source": "docs/agent/simulation-result-handoff.md",
-      "sha256": "3b60a565d03a3c57900f68a9be30847f08bca93286730675c1703863c69427b3"
+      "sha256": "84d4f478a9f01e082bf39e1399f30d87c4a3c888a95f35cc62f3c81794c6fc72"
     },
     {
       "source": "docs/agent/mcp/tools.md",
@@ -573,7 +573,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/circuit-style-knowledge.md"
       ],
-      "sha256": "e237817eb4987022b82c90cbe68f8688f28f1f295f01f470b6f86623d1545606"
+      "sha256": "2b839be06d6b918d332183a899da2848183bb5c89be3cf618f18654dd5d0cf58"
     },
     {
       "file": "packages/agent-adapter/src/agent-docs.generated.ts",
@@ -602,7 +602,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/circuit-style-knowledge.md"
       ],
-      "sha256": "279446714392eeeaea1d7f10d101e4a02954ab8b99cb315c1410a92ba95a8f47"
+      "sha256": "2064ffc3754f45f470162765e03d94a783ca64de7740ccb0099696344c41803a"
     },
     {
       "file": "packages/agent-adapter/src/agent-api-help.generated.ts",

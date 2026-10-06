@@ -7,6 +7,7 @@ import type { SimulationFiles } from "@icm/simulation-service/files";
 import type { BrowserSimulationArchiveStore } from "./browser-simulation-archive-store";
 import type {
   SimulationArchivePresentation,
+  SimulationOutcomeStatus,
   SimulationRunArchiveSummary,
   SimulationRunArchiveV1,
 } from "./simulation-run-archive";
@@ -17,11 +18,57 @@ export interface ProjectRunRecord {
   presentation: SimulationArchivePresentation;
   state: Run["state"];
   /** The simulator's verdict, once the run reports one. */
-  outcome?: NonNullable<Run["result"]>["outcome"]["status"];
+  outcome?: SimulationOutcomeStatus;
   archive?: SimulationRunArchiveSummary;
   /** Only retained when persistence fails; durable history holds metadata. */
   memoryArchive?: SimulationRunArchiveV1;
   error?: string;
+}
+
+/** How a folder's runs stand: a run's state and, once finished, its verdict. */
+export interface FolderRunStatus {
+  state: Run["state"] | "saved";
+  outcome?: SimulationOutcomeStatus | undefined;
+}
+
+/** An archived run's status; archives older than recorded states read saved. */
+export function archivedRunStatus(
+  archive: SimulationRunArchiveSummary,
+): FolderRunStatus {
+  return { state: archive.state ?? "saved", outcome: archive.outcome };
+}
+
+/**
+ * A folder's status: its newest run of any owner, whichever result is shown.
+ * The Project runs of this page are kept in start order and are newer than
+ * its archives; after a reload there are none, and the folder's newest result
+ * archived in this browser answers (`archives` newest first, as the archive
+ * lists them). The shown run answers only when it is that newest run, with
+ * its live state, or when the folder has no other.
+ */
+export function folderRunStatus(
+  folderId: string | undefined,
+  projectRuns: readonly ProjectRunRecord[],
+  shown: Run | undefined,
+  archives: readonly SimulationRunArchiveSummary[],
+): FolderRunStatus | undefined {
+  const shownStatus = shown && {
+    state: shown.state,
+    outcome: shown.result?.outcome.status,
+  };
+  const newestRun = projectRuns.findLast(
+    (item) => item.presentation.folderId === folderId,
+  );
+  if (newestRun)
+    return newestRun.id === shown?.id
+      ? shownStatus
+      : { state: newestRun.state, outcome: newestRun.outcome };
+  const newestArchive = archives.find((item) => item.folderId === folderId);
+  if (newestArchive)
+    return shown && newestArchive.runId === shown.id
+      ? shownStatus
+      : archivedRunStatus(newestArchive);
+  return shownStatus;
 }
 
 /** Project-scoped read-only result handoff. Execution/cancellation stays with

@@ -49,6 +49,11 @@ type ArchivedRun = Omit<
   "artifacts" | "result" | "outputData" | "inputStatus" | "resultPreview"
 >;
 
+/** The simulator's verdict on a finished run. */
+export type SimulationOutcomeStatus = NonNullable<
+  Run["result"]
+>["outcome"]["status"];
+
 /** Portable browser archive payload. Large numeric arrays live once in the
  * captured result artifacts and are decoded only when the archive is opened. */
 export interface SimulationRunArchiveV1 {
@@ -62,12 +67,18 @@ export interface SimulationRunArchiveV1 {
   readonly presentation: SimulationArchivePresentation;
   readonly prepared: ArchivedPrepared;
   readonly run: ArchivedRun;
+  /**
+   * The simulator's verdict, kept beside the evidence so a listing need not
+   * decode result.json. Missing on archives saved before it was kept.
+   */
+  readonly outcome?: SimulationOutcomeStatus;
   readonly artifacts: readonly ArchivedArtifact[];
   readonly byteLength: number;
 }
 
 export interface SimulationRunArchiveSummary {
   readonly state?: Run["state"];
+  readonly outcome?: SimulationOutcomeStatus;
   readonly origin?: "agent" | "human";
   readonly id: string;
   readonly projectId: string;
@@ -168,6 +179,7 @@ export async function captureSimulationRunArchive(
         artifactIds: preparedArtifacts.map((artifact) => artifact.id),
       },
       run: structuredClone(run),
+      ...(input.run.result ? { outcome: input.run.result.outcome.status } : {}),
       artifacts,
       byteLength,
     },
@@ -391,6 +403,7 @@ export function summarizeSimulationRunArchive(
     byteLength: archive.byteLength,
     environment: archive.prepared.environment,
     state: archive.run.state,
+    ...(archive.outcome ? { outcome: archive.outcome } : {}),
     ...(archive.presentation.origin
       ? { origin: archive.presentation.origin }
       : {}),

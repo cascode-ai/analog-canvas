@@ -1592,7 +1592,9 @@ test("human simulation uses saved folder, survives minimizing, recovers a bad in
   await expect(
     panel.getByRole("textbox", { name: "Simulation source editor" }),
   ).toContainText(".temp 30");
-  await expect(panel.getByRole("status")).toHaveText("No run yet");
+  // The folder's status outlives the reload: its newest run, the cancelled
+  // one, now read from the browser archive.
+  await expect(panel.getByRole("status")).toHaveText("cancelled");
   await panel.locator(".simulation-run-history > summary").click();
   const savedArchives = panel.getByRole("region", {
     name: "Saved folder results",
@@ -1602,11 +1604,13 @@ test("human simulation uses saved folder, survives minimizing, recovers a bad in
   // explicitly archived above. Reopen a completed result, not the cancelled run.
   await savedArchives
     .getByRole("listitem")
-    .filter({ hasText: "finished" })
+    .filter({ hasText: "completed" })
     .first()
     .getByRole("button", { name: "Open result", exact: true })
     .click();
-  await expect(panel.getByRole("status")).toHaveText("completed");
+  // The older result shows; the status stays with the folder's newest run.
+  await expect(measurementRow).toContainText("Pass");
+  await expect(panel.getByRole("status")).toHaveText("cancelled");
   expect(executions).toBe(3);
 });
 

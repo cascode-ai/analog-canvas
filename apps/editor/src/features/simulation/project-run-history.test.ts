@@ -4,7 +4,9 @@ import type { Prepared, Run } from "@icm/simulation-service/contract";
 import { SimulationFiles } from "@icm/simulation-service/files";
 import { createBrowserSimulationArchiveStore } from "./browser-simulation-archive-store";
 import { restoreSimulationRunArchive } from "./simulation-run-archive";
-import { ProjectRunHistory } from "./project-run-history";
+import { folderRunStatus, ProjectRunHistory } from "./project-run-history";
+import type { ProjectRunRecord } from "./project-run-history";
+import type { SimulationRunArchiveSummary } from "./simulation-run-archive";
 
 async function fixture() {
   const files = new SimulationFiles();
@@ -253,5 +255,102 @@ describe("Project result handoff", () => {
     });
     expect(input.read).not.toHaveBeenCalled();
     history.dispose();
+  });
+});
+
+describe("folder status", () => {
+  const presentation = (folderId: string) => ({
+    folderId,
+    folderName: folderId,
+    analysisLabel: "AC",
+    outputs: [],
+  });
+  const projectRun = (
+    id: string,
+    folderId: string,
+    state: Run["state"],
+    outcome?: ProjectRunRecord["outcome"],
+  ): ProjectRunRecord => ({
+    id,
+    owner: "agent",
+    presentation: presentation(folderId),
+    state,
+    ...(outcome ? { outcome } : {}),
+  });
+  const archived = (
+    id: string,
+    folderId: string,
+    fields: Partial<SimulationRunArchiveSummary> = {},
+  ): SimulationRunArchiveSummary => ({
+    id,
+    projectId: "project",
+    folderId,
+    folderName: folderId,
+    analysisLabel: "AC",
+    createdAt: "2026-10-06T10:00:00.000Z",
+    byteLength: 1,
+    environment: { profileId: "test" },
+    ...fields,
+  });
+  const shown: Run = {
+    id: "shown",
+    preparedId: "prep",
+    inputRevision: "rev",
+    state: "finished",
+    result: { outcome: { status: "failed" } } as NonNullable<Run["result"]>,
+    artifacts: [],
+  };
+  // Newest first, as the browser archive lists them.
+  const archives = [
+    archived("other", "b", { state: "finished", outcome: "failed" }),
+    archived("newer", "a", { state: "finished", outcome: "completed" }),
+    archived("older", "a", { state: "finished", outcome: "failed" }),
+  ];
+
+  it("is the folder's newest run of any owner, after a reload its newest archived result", () => {
+    // After a reload the page holds no run of the folder.
+    expect(folderRunStatus("a", [], undefined, archives)).toEqual({
+      state: "finished",
+      outcome: "completed",
+    });
+    // Archived before verdicts were kept, or before states were.
+    expect(
+      folderRunStatus("a", [], undefined, [
+        archived("legacy", "a", { state: "finished" }),
+      ]),
+    ).toEqual({ state: "finished" });
+    expect(
+      folderRunStatus("a", [], undefined, [archived("legacy", "a")]),
+    ).toEqual({ state: "saved" });
+    expect(folderRunStatus("c", [], undefined, archives)).toBeUndefined();
+    // An older result opened from the archive shows, but the status stays
+    // with the newest run; the newest run shown answers with its live state.
+    expect(folderRunStatus("a", [], shown, archives)).toEqual({
+      state: "finished",
+      outcome: "completed",
+    });
+    expect(
+      folderRunStatus("a", [], shown, [
+        archived("shown", "a", { runId: "shown", state: "finished" }),
+      ]),
+    ).toEqual({ state: "finished", outcome: "failed" });
+    expect(folderRunStatus("c", [], shown, archives)).toEqual({
+      state: "finished",
+      outcome: "failed",
+    });
+    // A run of this page is newer than any archive: the one shown, or a
+    // newer one of the folder such as an Agent's.
+    const runs = [
+      projectRun("shown", "a", "finished", "failed"),
+      projectRun("agent", "a", "running"),
+      projectRun("elsewhere", "b", "finished", "completed"),
+    ];
+    expect(folderRunStatus("a", runs, shown, archives)).toEqual({
+      state: "running",
+    });
+    expect(folderRunStatus("a", runs.slice(0, 1), shown, archives)).toEqual({
+      state: "finished",
+      outcome: "failed",
+    });
   });
 });
