@@ -87,24 +87,6 @@
         "complete unmodified show-me installation for branch evaluation"
       ],
       "excludedScope": ["mandatory PR format", "product runtime dependency"]
-    },
-    {
-      "name": "unslop",
-      "repository": "https://github.com/theclaymethod/unslop.git",
-      "revision": "17ed39c9d0b522f44190ff0c6233867eadee192a",
-      "declaredLicense": "MIT (declared in SKILL.md)",
-      "usage": "writing-original-trial",
-      "defaultFetch": false,
-      "allowedScope": [
-        "complete unmodified skill installation for branch evaluation",
-        "original English prose audit and rewrite skill",
-        "linked behavior contracts, commands, examples and presets"
-      ],
-      "excludedScope": [
-        "automatic document rewriting",
-        "mandatory publication checks",
-        "product runtime dependency"
-      ]
     }
   ]
 }
