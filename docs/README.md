@@ -6,21 +6,24 @@ archive of completed plans.
 
 ## Documentation map
 
-| Area                                            | Purpose                                                                 |
-| ----------------------------------------------- | ----------------------------------------------------------------------- |
-| [User guides](user/getting-started.md)          | Editing, hierarchy, simulation, saving, compatibility, and known limits |
-| [Product architecture](overall-product-plan.md) | System boundaries and sources of truth                                  |
-| [Specifications](specs/README.md)               | Current data, interaction, API, execution, and export contracts         |
-| [Architecture decisions](adr/README.md)         | Optional rationale for consequential architectural choices              |
-| [Agent guide](agent/README.md)                  | Authorized workflows and on-demand knowledge                            |
-| [Roadmap](roadmap/README.md)                    | Remaining work and acceptance questions                                 |
-| [Deployment](deployment.md)                     | Production delivery, verification, rollback, and retained storage      |
-| [Testing](testing/README.md)                    | Validation policy and contract ownership                                |
-| [Experience](experience/README.md)              | Human-requested, evidence-backed reusable lessons                       |
+| Area                                                                     | Purpose                                                                 |
+| ------------------------------------------------------------------------ | ----------------------------------------------------------------------- |
+| [User guides](user/getting-started.md)                                   | Editing, hierarchy, simulation, saving, compatibility, and known limits |
+| [Product architecture](overall-product-plan.md)                          | System boundaries and sources of truth                                  |
+| [Specifications](specs/README.md)                                        | Current data, interaction, API, execution, and export contracts         |
+| [Architecture decisions](adr/README.md)                                  | Optional rationale for consequential architectural choices              |
+| [Agent guide](agent/README.md)                                           | Authorized workflows and on-demand knowledge                            |
+| [Roadmap](roadmap/README.md)                                             | Remaining work and acceptance questions                                 |
+| [Deployment](deployment.md)                                              | Production delivery, verification, rollback, and retained storage       |
+| [Testing](testing/README.md)                                             | Validation policy and contract ownership                                |
+| [Development workflow](development-workflow.md)                          | Original-skill stages, handoff and completion boundaries                |
+| [Skill references](../references/README.md#development-skill-references) | Fixed originals, setup, installation and updates                        |
+| [Experience](experience/README.md)                                       | Human-requested, evidence-backed reusable lessons                       |
 
 ## Contributor reading order
 
-1. [Product architecture](overall-product-plan.md) and [working rules](../AGENTS.md).
+1. [Development workflow](development-workflow.md), [Agent entry](../AGENTS.md),
+   and [product architecture](overall-product-plan.md).
 2. [Schematic model](specs/schematic-model.md), [Edit Engine](specs/edit-engine.md),
    and [connectivity](specs/connectivity-and-routing.md) for electrical work.
 3. [Visual contract](specs/razavi-visual-contract.md) and
@@ -56,10 +59,11 @@ about the current system. Reuse the existing topic owner before creating a file.
 - **Specs:** one authoritative location per contract. Define current boundaries,
   invariants and failure behavior. Link executable schemas for exact shapes;
   do not maintain another complete copy. Put short design reasons beside the rule.
-- **ADRs:** optional, only for important cross-module trade-offs whose rationale
-  cannot be explained adequately beside the spec. Decision summarizes the choice
-  and links the spec; Context and Rationale add only unique constraints, reasons
-  and accepted costs. No independent contract, migration plan or test checklist.
+- **ADRs:** apply the original three-part decision test and numbered format in
+  [Architecture decisions](adr/README.md). A short paragraph can record context,
+  choice and reason; add sections only when useful. Link accepted contracts;
+  an ADR does not become a second contract or validation checklist. Existing
+  topic explanations retain useful background.
 - **Guides:** explain actions for their audience and link contracts. Do not
   maintain separate field definitions, limits or safety rules.
 - **Roadmaps:** unresolved outcomes and acceptance boundaries only. Local task

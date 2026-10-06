@@ -56,6 +56,37 @@
       "defaultFetch": false,
       "allowedScope": ["interaction study", "wire editing study"],
       "excludedScope": ["source-code migration", "runtime dependency"]
+    },
+    {
+      "name": "mattpocock-skills",
+      "repository": "https://github.com/mattpocock/skills.git",
+      "revision": "4588b32ecab9ecc9fc8cc6b6c5e7d675b6004b0d",
+      "declaredLicense": "MIT",
+      "usage": "workflow-original-trial",
+      "defaultFetch": false,
+      "allowedScope": [
+        "selected workflow skills and complete original dependencies for repository use and effectiveness evaluation",
+        "original requirement, specification, ticket and implementation skills",
+        "original code-review, PR, architecture and retrospective skills",
+        "linked interview, domain-modeling, design and testing guidance"
+      ],
+      "excludedScope": [
+        "mandatory workflow adoption without maintainer authorization",
+        "automatic changes to validation or delivery policy",
+        "product runtime dependency"
+      ]
+    },
+    {
+      "name": "humanlayer-skills",
+      "repository": "https://github.com/humanlayer/skills.git",
+      "revision": "ca7c8088db69e315a8b2deea43820270457f8f3c",
+      "declaredLicense": "MIT",
+      "usage": "workflow-original-trial",
+      "defaultFetch": false,
+      "allowedScope": [
+        "complete unmodified show-me installation for branch evaluation"
+      ],
+      "excludedScope": ["mandatory PR format", "product runtime dependency"]
     }
   ]
 }

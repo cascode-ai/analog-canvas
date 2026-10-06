@@ -1,8 +1,8 @@
-# Architecture Rationale
+# Architecture Decisions
 
-Specs own current rules. These topic documents explain consequential choices
-and accepted costs; they do not repeat schemas, operation lists or release
-history. Start with the topic, then follow its Decision links to the contracts.
+Specs own current rules. ADRs explain consequential choices and accepted costs.
+New decisions follow the original domain-modeling format; the existing topic
+documents below retain useful background and link their owning contracts.
 
 | Topic                 | Rationale                                                                            |
 | --------------------- | ------------------------------------------------------------------------------------ |
@@ -19,23 +19,26 @@ history. Start with the topic, then follow its Decision links to the contracts.
 
 ## Retention test
 
-Would removal lose an important, current design reason?
+Offer a new ADR only when all original criteria hold:
 
-- No: remove it and repair incoming references.
-- A short reason fits beside the rule: put it in the owning spec.
-- A consequential cross-module trade-off needs explanation: keep it in the
-  existing topic here. Add a topic only for a genuinely distinct boundary.
+1. The choice is hard to reverse.
+2. It would be surprising without its context.
+3. It resulted from a real trade-off between alternatives.
+
+Create records lazily, not to fill a directory or reconstruct every past choice.
+Retain existing explanations while they preserve an important current reason;
+update their incoming references when their content is actually superseded.
 
 ## Shape and lifecycle
 
-Follow [documentation policy](../README.md) and the [template](adr.template.md):
-Decision links the owning spec; Context states the constraint; Rationale
-explains the choice and its cost. Keep only a title, status and accountable
-owner before those sections.
+New ADRs use `0001-slug.md`, incrementing the highest existing number. Follow
+the [original format](../../.agents/skills/domain-modeling/ADR-FORMAT.md) and
+[template](adr.template.md): a title and one to three sentences for context,
+choice and reason can be sufficient. Status, alternatives and consequences are
+optional. A new numbered record need not add a row to this background index.
 
-Update a topic in place instead of adding an amendment ADR. Git owns chronology.
-Do not retain superseded bodies, copied field definitions, compatibility-step
-histories, validation checklists or archive indexes. Unresolved behavior belongs
-in the roadmap, not an accepted rationale. Use short, descriptive lowercase
-kebab-case filenames without numeric prefixes; titles name the topic, not a
-decision number. References use the topic name and link to its document.
+Existing unnumbered topic explanations keep their indexed names and status.
+Link them when a new decision reopens a relevant trade-off; do not copy their
+whole body or create numbered copies just to change format. Link accepted
+contracts rather than duplicating schemas or operation lists. Unresolved
+product behavior belongs in its Issue, not an accepted decision.

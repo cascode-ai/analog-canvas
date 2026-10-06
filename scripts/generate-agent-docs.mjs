@@ -236,28 +236,6 @@ export async function compile(registry, repoRoot = root) {
     "apps/editor/src/agent/connection-guidance.generated.ts",
     `const template=${JSON.stringify(template)};\nexport function renderAgentConnectionInstructions(origin:string,claimCode:string):string {const values:Record<string,string>={origin,claim:JSON.stringify({claimCode}),kitUrl:origin+"/api/agent/kit",manifestUrl:origin+"/api/agent/mcp-manifest.json"}; return template.replace(/\\{\\{(origin|claim|kitUrl|manifestUrl)\\}\\}/g,(_,key:string)=>values[key]!);}`,
   );
-  const skill = await read(registry.templates.skill);
-  outputs.set(
-    "skills/circuit-layout/SKILL.md",
-    skill.replace(/^(---\n[\s\S]*?\n---\n)/, `$1\n<!-- ${marker} -->\n`),
-  );
-  outputs.set(
-    "skills/circuit-layout/agents/openai.yaml",
-    `# ${marker}\n${await read(registry.templates.skillMetadata)}`,
-  );
-  outputs.set(
-    "skills/circuit-layout/references/manifest.md",
-    `<!-- ${marker} -->\n# Circuit task reading map\n\nSelect your transport first. Read only the task-relevant rows; reading is not a permission gate.\n\n| Task | Load | Source |\n| --- | --- | --- |\n` +
-      registry.documents
-        .filter(
-          (d) => d.consumers.includes("repo-skill") && d.kind !== "catalog",
-        )
-        .map(
-          (d) => `| ${d.task} | ${d.load} | [${d.id}](../../../${d.source}) |`,
-        )
-        .join("\n") +
-      "\n",
-  );
   const inputs = {
     "packages/agent-adapter/src/agent-api-help.generated.ts": [
       registry.templates.apiHelp,
@@ -275,11 +253,6 @@ export async function compile(registry, repoRoot = root) {
     "apps/editor/src/agent/connection-guidance.generated.ts": [
       registry.templates.connect,
     ],
-    "skills/circuit-layout/SKILL.md": [registry.templates.skill],
-    "skills/circuit-layout/agents/openai.yaml": [
-      registry.templates.skillMetadata,
-    ],
-    "skills/circuit-layout/references/manifest.md": [],
   };
   const report = {
     format: registry.format,

@@ -74,7 +74,9 @@ automatically rerunning it. File / Save and Ctrl+S remain save-only.
   [troubleshooting](docs/user/troubleshooting.md).
 - **Understand the product:** [current architecture](docs/overall-product-plan.md)
   and [documentation map](docs/README.md).
-- **Develop or contribute:** [working rules](AGENTS.md),
+- **Develop or contribute:** [development workflow](docs/development-workflow.md),
+  [Agent entry](AGENTS.md),
+  [original skills and setup](references/README.md#development-skill-references),
   [current development reading set](docs/README.md#contributor-reading-order), and
   [test system](docs/testing/README.md).
 
@@ -134,10 +136,10 @@ also ends local sessions;
 after restarting it, create a new connection. Cloud account, Gallery, and
 hosted simulation services are not started by this local relay.
 
-Development follows two stages: iterate locally with focused checks and local
-commits, then deliver a pull request whose merge deploys directly to
-Production. See the
-[working rules](AGENTS.md#development-and-delivery)
+Development follows the [original-skill workflow](docs/development-workflow.md):
+confirm requirements, implement and review, then deliver through a pull request
+and verify Production. Explicit local-only and branch-trial scopes stop at
+their requested boundary. See [validation timing](docs/testing/README.md#validation-timing)
 and [delivery cadence](docs/deployment.md#development-and-delivery-cadence).
 
 ## What the repository contains
@@ -181,9 +183,8 @@ and [delivery cadence](docs/deployment.md#development-and-delivery-cadence).
 - `scripts/` and `config/`: build, generation, validation-gate, release, and
   deployment tooling, with the gate catalog and pinned MCP and VACASK
   declarations.
-- `tools/`, `skills/`, and `references/`: manual Razavi calibration and PDF
-  extraction tools, the repository-local `circuit-layout` Agent Skill, and the
-  pinned external research-source manifest.
+- `tools/` and `references/`: manual Razavi calibration and PDF extraction
+  tools, and the pinned external research-source manifest.
 - `docs/`: current architecture, user guides, normative contracts, ADRs, and
   delivery plans.
 

@@ -61,16 +61,22 @@ const adrFiles = (await collectMarkdown(adrRoot)).filter(
 );
 for (const file of adrFiles) {
   const name = basename(file);
-  if (!/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*\.md$/u.test(name)) {
+  const numbered = /^\d{4,}-[a-z][a-z0-9]*(?:-[a-z0-9]+)*\.md$/u.test(name);
+  if (!numbered && !/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*\.md$/u.test(name)) {
     failures.push(
-      `${name} must use a descriptive kebab-case filename without a numeric prefix`,
+      `${name} must use a numbered decision or descriptive topic filename`,
     );
   }
 
   const text = await readFile(file, "utf8");
-  if (!/^#\s+\S/mu.test(text) || /^#\s+(?:ADR\s+)?\d+(?:\s|:|-)/mu.test(text)) {
+  if (!/^#\s+\S/mu.test(text)) {
+    failures.push(`${name} must have a title`);
+  } else if (!numbered && /^#\s+(?:ADR\s+)?\d+(?:\s|:|-)/mu.test(text)) {
     failures.push(`${name} must have an unnumbered topic title`);
   }
+  // Original numbered ADRs can be a paragraph with optional status and no index.
+  // Existing topic explanations keep their established status and navigation.
+  if (numbered) continue;
   const status = /^Status:\s*`?(accepted|proposed)`?\s*$/imu.exec(text)?.[1];
   if (!status) {
     failures.push(`${name} must have Status: accepted or proposed`);
