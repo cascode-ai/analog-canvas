@@ -6,6 +6,7 @@ import {
   announceGalleryChange,
   galleryCountLabel,
   galleryAuthorsOf,
+  galleryNarrowedByline,
   removeGalleryAuthorEntry,
   galleryFeedQueryKey,
   galleryPreviewUrl,
@@ -476,10 +477,13 @@ export function GalleryFeed({
     const handle = window.setTimeout(() => setServerSearch(next), 250);
     return () => window.clearTimeout(handle);
   }, [searchQuery, serverSearch]);
+  // An account narrows by its id. Its byline is then only the label, and
+  // possibly a former one, so rewriting it must not reload the wall.
+  const queriedAuthor = ownerUserId ? null : author;
   // One query for the first page, every later page and the landing preload.
   const feedQuery = useMemo<GalleryFeedQuery>(
     () => ({
-      author,
+      author: queriedAuthor,
       ownerUserId,
       tags: selectedTags,
       netlistable: netlistableOnly,
@@ -490,7 +494,7 @@ export function GalleryFeed({
       ...(serverSearch ? { q: serverSearch } : {}),
     }),
     [
-      author,
+      queriedAuthor,
       ownerUserId,
       selectedTags,
       netlistableOnly,
@@ -1121,6 +1125,15 @@ export function GalleryFeed({
   const authors = localAuthors
     ? galleryAuthorsOf(visibleEntries)
     : state.authors!;
+  const narrowedToAuthor = author !== null || ownerUserId !== null;
+  const byline = galleryNarrowedByline({ author, ownerUserId }, authors);
+  const authorName = byline ?? "this contributor";
+  // A remembered filter or an older link may carry the account's former
+  // byline; once its contributors name it, the wall remembers the current one.
+  useEffect(() => {
+    if (ownerUserId && byline && byline !== author)
+      updateFilters({ author: byline });
+  }, [ownerUserId, author, byline]);
   const localQuickCounts = searchingLoaded || !state.filterCounts;
   const quickCounts = localQuickCounts
     ? {
@@ -1249,7 +1262,7 @@ export function GalleryFeed({
             filtered={galleryFiltersNarrowQuery(filters)}
             authors={authors}
             partial={localAuthors && state.nextCursor !== null}
-            author={author}
+            author={narrowedToAuthor ? authorName : null}
             onSelectAuthor={selectContributor}
             onShowAllAuthors={() => selectAuthor(null)}
             searched={searchAnswered}
@@ -1446,9 +1459,9 @@ export function GalleryFeed({
             }
           />
           <div className="gallery-main">
-            {author ? (
+            {narrowedToAuthor ? (
               <div className="gallery-filter" data-testid="gallery-filter">
-                <span>Circuits by {author}</span>
+                <span>Circuits by {authorName}</span>
                 <button
                   type="button"
                   data-testid="gallery-filter-clear"
@@ -1690,7 +1703,7 @@ export function GalleryFeed({
                 />
                 {entries.length === 0 &&
                 selectedTags.length > 0 &&
-                author === null ? (
+                !narrowedToAuthor ? (
                   <p
                     className="gallery-status"
                     data-testid="gallery-tags-empty"
@@ -1698,16 +1711,16 @@ export function GalleryFeed({
                     No circuits match the selected tags.
                   </p>
                 ) : null}
-                {entries.length === 0 && author !== null ? (
+                {entries.length === 0 && narrowedToAuthor ? (
                   <p
                     className="gallery-status"
                     data-testid="gallery-filter-empty"
                   >
-                    No public circuits by {author} yet.
+                    No public circuits by {authorName} yet.
                   </p>
                 ) : null}
                 {entries.length === 0 &&
-                author === null &&
+                !narrowedToAuthor &&
                 selectedTags.length === 0 &&
                 !netlistableOnly &&
                 !likedOnly &&
@@ -1720,7 +1733,7 @@ export function GalleryFeed({
                   </p>
                 ) : null}
                 {entries.length === 0 &&
-                author === null &&
+                !narrowedToAuthor &&
                 (netlistableOnly || likedOnly) ? (
                   <p
                     className="gallery-status"

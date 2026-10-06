@@ -86,9 +86,13 @@ it("requests tag counts for the wall's filters, leaving out its tag choice", asy
     netlistable: true,
   });
   expect(fetchLike).toHaveBeenLastCalledWith(
-    "/api/gallery/tags?author=Singh&owner=user-1&netlistable=1",
+    "/api/gallery/tags?owner=user-1&netlistable=1",
     { credentials: "same-origin" },
   );
+  await loadGalleryTagSummary(fetchLike, { author: "Singh" });
+  expect(fetchLike).toHaveBeenLastCalledWith("/api/gallery/tags?author=Singh", {
+    credentials: "same-origin",
+  });
 });
 
 it("asks the server to search, and counts tags for the same search", async () => {

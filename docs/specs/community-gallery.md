@@ -101,7 +101,12 @@ asks the AuthDO once.
   author retains the other active filters. While the wall is narrowed to one
   author, the menu opens with "Circuits by <author>" and an All authors
   button, the same control as the one beside the wall's author line; it
-  clears the author and keeps every other filter.
+  clears the author and keeps every other filter. A wall narrowed to one
+  account names it by the account's current byline once its contributors
+  answer, even when a remembered filter or an older link carries a former
+  name; the wall then remembers the current byline, and requests narrowed to
+  an account send only `owner`. A link naming only the account shows the same
+  line, as "this contributor" until a contributor answers.
 - `GET /api/gallery?q=<words>` — the server searches every public circuit's
   name, byline, description and tags, never its Project Code or preview, with
   the rule the browser uses (`apps/editor/src/gallery-search.ts`):
