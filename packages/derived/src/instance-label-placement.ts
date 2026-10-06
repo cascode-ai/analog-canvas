@@ -1,14 +1,29 @@
 import { deviceDescriptor } from "@icm/devices";
 import { transformPoint } from "@icm/model";
-import type { Point, Rect, SchematicDocument } from "@icm/model";
+import type {
+  Annotation,
+  Point,
+  Rect,
+  RichTextDocument,
+  SchematicDocument,
+} from "@icm/model";
 import type { ResolvedSymbol } from "@icm/symbols";
 import { getRazaviCatalogEntry, withInputSigns } from "@icm/symbols";
 
-import type { SchematicStyleProfile } from "./style-profile.js";
+import {
+  objectStyleProfile,
+  resolveDocumentStyleProfile,
+  type SchematicStyleProfile,
+} from "./style-profile.js";
 import { visibleSymbolInkBounds } from "./visual.js";
 import { magneticDisplayParameters } from "./instance-value.js";
-import { fractionGeometry, fractionPartScale } from "./rich-text-layout.js";
-import { LABEL_CAP_HEIGHT_EM } from "./text-ink.js";
+import {
+  fractionGeometry,
+  fractionPartScale,
+  measureRichTextDocument,
+  richTextMetrics,
+} from "./rich-text-layout.js";
+import { LABEL_CAP_HEIGHT_EM, uprightTextInkBounds } from "./text-ink.js";
 
 export interface InstanceLabelPlacement {
   readonly position: Point;
@@ -17,8 +32,22 @@ export interface InstanceLabelPlacement {
 
 export type InstanceLabelSide = "left" | "right" | "top" | "bottom";
 
-/** The two upright text slots that share an instance's label side. */
-export type InstanceLabelSlot = "reference" | "value";
+/** A part's sides in the order labels try them. */
+export const INSTANCE_LABEL_SIDES: readonly InstanceLabelSide[] = [
+  "right",
+  "left",
+  "bottom",
+  "top",
+];
+
+/**
+ * The upright rows of a part's name and value on one side of it, the name
+ * read first and its value under it (#1384): the Reference's slot, which a
+ * name or a value shown alone takes; the value's, under the Reference; and
+ * the Reference's over a shown value, a value row further out above the
+ * part and the Reference's slot elsewhere.
+ */
+export type InstanceLabelSlot = "reference" | "value" | "reference-over-value";
 
 /**
  * Vertical distance between the reference row and the value row: the
@@ -425,24 +454,156 @@ export function instanceLabelMetrics(
  * the subscript's descent is cleared first, so M₂ or R₂ over a part never
  * touches it. The position is not snapped to the connection grid: rounding
  * the gap to a grid step is what left gates, registers and blocks 10 to 26
- * units away while devices sat at 5. A value row stacks away from the body
- * (below a lower label, above an upper one).
+ * units away while devices sat at 5.
+ *
+ * A name reads before its value on every side (#1384). Beside or below the
+ * part the value's row is under the name's. Above it the group stands on
+ * its last row, the one nearest the part: the value, or a label shown
+ * alone, stands there, a W/L fraction far enough out to clear the part, and
+ * a name over its value stands a value row further out.
  */
 export function placeUprightInstanceLabel(
   instance: SchematicDocument["instances"][number],
   resolved: ResolvedSymbol,
   profile: SchematicStyleProfile,
-  _localAnchor: Point,
+  localAnchor: Point,
   localSide: InstanceLabelSide,
-  _grid: number,
+  grid: number,
   sizeScale = 1,
-  rowOffset = 0,
-  /**
-   * Keep the label beside the symbol through every quarter turn. Upright text
-   * above or below a rotated Port reads as the label having flipped over, so
-   * such a Symbol swaps between left and right instead.
-   */
-  horizontalSidesOnly = false,
+  slot: InstanceLabelSlot = "reference",
+): InstanceLabelPlacement | null {
+  return nameFirstPlacer(
+    instance,
+    resolved,
+    profile,
+    localAnchor,
+    localSide,
+    grid,
+    sizeScale,
+    slot,
+    instanceValueRowOffset(instance.symbolId, profile, grid),
+  );
+}
+
+/**
+ * The upright placer until 2026-10-06: above the part a value row stood a
+ * row further out than its name (#1384). Labels still where it put them,
+ * by default or by an arrangement, count as untouched.
+ */
+export function outwardPlaceUprightInstanceLabel(
+  instance: SchematicDocument["instances"][number],
+  resolved: ResolvedSymbol,
+  profile: SchematicStyleProfile,
+  localAnchor: Point,
+  localSide: InstanceLabelSide,
+  grid: number,
+  sizeScale = 1,
+  slot: InstanceLabelSlot = "reference",
+): InstanceLabelPlacement | null {
+  return outwardPlacer(
+    instance,
+    resolved,
+    profile,
+    localAnchor,
+    localSide,
+    grid,
+    sizeScale,
+    slot,
+    instanceValueRowOffset(instance.symbolId, profile, grid),
+  );
+}
+
+/** Places one label of a part's group, its value `valueRow` under its name. */
+type UprightPlacer = (
+  instance: SchematicDocument["instances"][number],
+  resolved: ResolvedSymbol,
+  profile: SchematicStyleProfile,
+  localAnchor: Point,
+  localSide: InstanceLabelSide,
+  grid: number,
+  sizeScale: number,
+  slot: InstanceLabelSlot,
+  valueRow: number,
+) => InstanceLabelPlacement | null;
+
+const nameFirstPlacer: UprightPlacer = (
+  instance,
+  resolved,
+  profile,
+  _localAnchor,
+  localSide,
+  _grid,
+  sizeScale,
+  slot,
+  valueRow,
+) => {
+  const lift =
+    slot === "reference"
+      ? 0
+      : stackedValueLift(instance.symbolId, profile, sizeScale);
+  return placeUpright(
+    instance,
+    resolved,
+    profile,
+    localSide,
+    sizeScale,
+    (side) =>
+      side === "top"
+        ? (slot === "reference-over-value" ? valueRow : 0) + lift
+        : slot === "value"
+          ? valueRow
+          : 0,
+  );
+};
+
+const outwardPlacer: UprightPlacer = (
+  instance,
+  resolved,
+  profile,
+  _localAnchor,
+  localSide,
+  _grid,
+  sizeScale,
+  slot,
+  valueRow,
+) =>
+  placeUpright(instance, resolved, profile, localSide, sizeScale, () =>
+    slot === "value" ? valueRow : 0,
+  );
+
+const legacyPlacer: UprightPlacer = (
+  instance,
+  resolved,
+  profile,
+  localAnchor,
+  localSide,
+  grid,
+  sizeScale,
+  slot,
+  valueRow,
+) =>
+  legacyPlaceUprightInstanceLabel(
+    instance,
+    resolved,
+    profile,
+    localAnchor,
+    localSide,
+    grid,
+    sizeScale,
+    slot === "value" ? valueRow : 0,
+  );
+
+/**
+ * Upright text on one side of a part's drawn ink, `rowsOn` that side units
+ * lower beside or below it and higher above it.
+ */
+function placeUpright(
+  instance: SchematicDocument["instances"][number],
+  resolved: ResolvedSymbol,
+  profile: SchematicStyleProfile,
+  localSide: InstanceLabelSide,
+  sizeScale: number,
+  rowsOn: (worldSide: InstanceLabelSide) => number,
 ): InstanceLabelPlacement | null {
   if (!instance.placement) return null;
   const worldBounds = transformedBounds(
@@ -452,21 +613,61 @@ export function placeUprightInstanceLabel(
     ),
     instance,
   );
-  const rotatedSide = transformedSide(localSide, instance);
-  const worldSide =
-    horizontalSidesOnly && (rotatedSide === "top" || rotatedSide === "bottom")
-      ? horizontalSideAwayFromPin(instance, resolved)
-      : rotatedSide;
+  const worldSide = transformedSide(localSide, instance);
   if (!worldBounds || !worldSide) return null;
   return placeBesideBounds(
     worldBounds,
     worldSide,
     instanceLabelMetrics(profile, sizeScale),
-    rowOffset,
+    rowsOn(worldSide),
   );
 }
 
-/** Upright text beside drawn ink, on one world side of it. */
+/** Any stacked W/L fraction, for measuring the ink a MOS value draws. */
+const STACKED_VALUE: RichTextDocument = {
+  runs: [
+    {
+      kind: "fraction",
+      numerator: { runs: [{ kind: "text", value: "W" }] },
+      denominator: { runs: [{ kind: "text", value: "L" }] },
+    },
+  ],
+};
+
+/**
+ * How much further out than a name a part's value stands in the row nearest
+ * the part above it. A label there clears a subscript's descent; a stacked
+ * W/L fraction is one tall line whose ink, as labels are measured, reaches
+ * lower, so its row stands out by the difference.
+ */
+function stackedValueLift(
+  symbolId: string,
+  profile: SchematicStyleProfile,
+  sizeScale: number,
+): number {
+  if (!valueIsStackedFraction(symbolId)) return 0;
+  const { subscriptDrop } = instanceLabelMetrics(profile, sizeScale);
+  const fontSize = profile.typography.instanceFontSize * sizeScale;
+  const layout = measureRichTextDocument(STACKED_VALUE, {
+    ...richTextMetrics(profile, "label", sizeScale),
+    fontSize,
+  });
+  const ink = uprightTextInkBounds({
+    left: 0,
+    width: 0,
+    baseline: 0,
+    fontSize,
+    fractionAscent: 0,
+    descentEm: subscriptDrop / fontSize,
+    layoutHeight: layout.height,
+  });
+  return Math.max(0, ink.y + ink.height - subscriptDrop);
+}
+
+/**
+ * Upright text beside drawn ink, on one world side of it, `rowOffset` units
+ * lower beside or below the ink and higher above it.
+ */
 function placeBesideBounds(
   worldBounds: Rect,
   worldSide: InstanceLabelSide,
@@ -781,7 +982,8 @@ export function legacyPortLabelPlacement(
 
 /**
  * Supplies canonical placement for renderer-owned instance labels, for a
- * label of the given size (a label a person made smaller sits closer).
+ * label of the given size (a label a person made smaller sits closer), in
+ * one of its group's slots on the part's default side.
  */
 export function defaultInstanceLabelPlacement(
   instance: SchematicDocument["instances"][number],
@@ -792,7 +994,34 @@ export function defaultInstanceLabelPlacement(
   sizeScale = 1,
 ): InstanceLabelPlacement | null {
   return defaultPlacementWith(
-    placeUprightInstanceLabel,
+    nameFirstPlacer,
+    (rowProfile, rowGrid, symbolId) =>
+      instanceValueRowOffset(symbolId, rowProfile, rowGrid),
+    instance,
+    resolved,
+    profile,
+    grid,
+    slot,
+    sizeScale,
+  );
+}
+
+/**
+ * Where the rule until 2026-10-06 put an untouched value above its part: a
+ * row further out than its name, so it read before the name (#1384). Beside
+ * and below a part it is the current rule. Such a value still counts as
+ * untouched, so an orientation edit or an arrangement puts it under its name.
+ */
+export function outwardDefaultInstanceLabelPlacement(
+  instance: SchematicDocument["instances"][number],
+  resolved: ResolvedSymbol,
+  profile: SchematicStyleProfile,
+  grid: number,
+  slot: InstanceLabelSlot = "reference",
+  sizeScale = 1,
+): InstanceLabelPlacement | null {
+  return defaultPlacementWith(
+    outwardPlacer,
     (rowProfile, rowGrid, symbolId) =>
       instanceValueRowOffset(symbolId, rowProfile, rowGrid),
     instance,
@@ -807,8 +1036,9 @@ export function defaultInstanceLabelPlacement(
 /**
  * Where the rule until 2026-10-05 put an untouched value: the current sides
  * and one text row under the reference for every part, a stacked W/L
- * fraction included (#1299). Such a value still counts as untouched, so an
- * orientation edit moves it to the current row.
+ * fraction included (#1299); above a part, a row further out than its name.
+ * Such a value still counts as untouched, so an orientation edit moves it to
+ * the current row.
  */
 export function uniformRowDefaultInstanceLabelPlacement(
   instance: SchematicDocument["instances"][number],
@@ -819,7 +1049,7 @@ export function uniformRowDefaultInstanceLabelPlacement(
   sizeScale = 1,
 ): InstanceLabelPlacement | null {
   return defaultPlacementWith(
-    placeUprightInstanceLabel,
+    outwardPlacer,
     instanceLabelRowOffset,
     instance,
     resolved,
@@ -843,7 +1073,7 @@ export function previousDefaultInstanceLabelPlacement(
   sizeScale = 1,
 ): InstanceLabelPlacement | null {
   return defaultPlacementWith(
-    placeUprightInstanceLabel,
+    outwardPlacer,
     previousInstanceLabelRowOffset,
     instance,
     resolved,
@@ -868,7 +1098,7 @@ export function legacyDefaultInstanceLabelPlacement(
   sizeScale = 1,
 ): InstanceLabelPlacement | null {
   return defaultPlacementWith(
-    legacyPlaceUprightInstanceLabel,
+    legacyPlacer,
     previousInstanceLabelRowOffset,
     instance,
     resolved,
@@ -880,7 +1110,7 @@ export function legacyDefaultInstanceLabelPlacement(
 }
 
 function defaultPlacementWith(
-  place: typeof placeUprightInstanceLabel,
+  place: UprightPlacer,
   rows: InstanceLabelRowRule,
   instance: SchematicDocument["instances"][number],
   symbol: ResolvedSymbol,
@@ -903,53 +1133,274 @@ function defaultPlacementWith(
   const compactSideGap = grid;
   // The value slot is the second upright row under the reference on the same
   // side; see instanceLabelRowOffset.
-  const rowOffset =
-    slot === "value" ? rows(profile, grid, instance.symbolId) : 0;
+  const valueRow = rows(profile, grid, instance.symbolId);
 
   if (instance.symbolId === "port" || instance.symbolId === "port-filled") {
-    return portLabelPlacement(instance, resolved, profile, grid, rowOffset);
+    return portLabelPlacement(
+      instance,
+      resolved,
+      profile,
+      grid,
+      slot === "value" ? valueRow : 0,
+    );
   }
 
-  if (
+  const [anchor, side]: [Point, InstanceLabelSide] =
     isMosSymbol(resolved) ||
     isBjtSymbol(resolved) ||
     SIDE_LABEL_SYMBOLS.has(instance.symbolId)
-  ) {
-    return place(
-      instance,
-      resolved,
-      profile,
-      { x: middleX, y: middleY },
-      "right",
-      grid,
-      sizeScale,
-      rowOffset,
-    );
-  }
-
-  if (TOP_LABEL_SYMBOLS.has(instance.symbolId)) {
-    return place(
-      instance,
-      resolved,
-      profile,
-      { x: middleX, y: localBounds.y - compactSideGap },
-      "top",
-      grid,
-      sizeScale,
-      rowOffset,
-    );
-  }
-
+      ? [{ x: middleX, y: middleY }, "right"]
+      : TOP_LABEL_SYMBOLS.has(instance.symbolId)
+        ? [{ x: middleX, y: localBounds.y - compactSideGap }, "top"]
+        : [
+            {
+              x: middleX,
+              y: localBounds.y + localBounds.height + compactSideGap,
+            },
+            "bottom",
+          ];
   return place(
     instance,
     resolved,
     profile,
-    { x: middleX, y: localBounds.y + localBounds.height + compactSideGap },
-    "bottom",
+    anchor,
+    side,
     grid,
     sizeScale,
-    rowOffset,
+    slot,
+    valueRow,
   );
+}
+
+/** Positions closer than this stand in the same place. */
+const SAME_PLACE = 0.01;
+
+/**
+ * How far a label stands from `placement`, or null when it stands
+ * elsewhere: it keeps the placement's alignment and stands on it, or, with
+ * `slides`, anywhere along the side of the part the placement is on.
+ */
+export function offsetFromPlacement(
+  label: InstanceLabelPlacement,
+  placement: InstanceLabelPlacement | null,
+  slides = false,
+): Point | null {
+  if (!placement || placement.alignment !== label.alignment) return null;
+  const offset = {
+    x: label.position.x - placement.position.x,
+    y: label.position.y - placement.position.y,
+  };
+  const off = slides
+    ? Math.abs(placement.alignment === "middle" ? offset.y : offset.x)
+    : Math.hypot(offset.x, offset.y);
+  return off < SAME_PLACE ? offset : null;
+}
+
+const INSTANCE_LABEL_SLOTS: readonly InstanceLabelSlot[] = [
+  "reference",
+  "value",
+  "reference-over-value",
+];
+
+/**
+ * The side of its part and the slot of its group a label of this size
+ * stands in, as the upright placer puts it, or null.
+ */
+export function instanceLabelSlotAt(
+  instance: SchematicDocument["instances"][number],
+  resolved: ResolvedSymbol,
+  profile: SchematicStyleProfile,
+  grid: number,
+  label: InstanceLabelPlacement,
+  sizeScale = 1,
+): { side: InstanceLabelSide; slot: InstanceLabelSlot } | null {
+  for (const side of INSTANCE_LABEL_SIDES)
+    for (const slot of INSTANCE_LABEL_SLOTS)
+      if (
+        offsetFromPlacement(
+          label,
+          placeUprightInstanceLabel(
+            instance,
+            resolved,
+            profile,
+            { x: 0, y: 0 },
+            side,
+            grid,
+            sizeScale,
+            slot,
+          ),
+        )
+      )
+        return { side, slot };
+  return null;
+}
+
+/** A part's name or value as drawn, read as one of its group. */
+export interface InstanceGroupLabel extends InstanceLabelPlacement {
+  readonly profile: SchematicStyleProfile;
+  readonly sizeScale: number;
+  readonly shows: boolean;
+}
+
+/**
+ * A part's name or value annotation read as one of its group, its part
+ * placed at `partPosition`, or null for one not attached to its part.
+ */
+export function instanceGroupLabel(
+  document: SchematicDocument,
+  annotation: Annotation,
+  partPosition: Point,
+): InstanceGroupLabel | null {
+  if (annotation.anchor.kind !== "object") return null;
+  return {
+    position: {
+      x: partPosition.x + annotation.anchor.localOffset.x,
+      y: partPosition.y + annotation.anchor.localOffset.y,
+    },
+    alignment: annotation.alignment,
+    profile: objectStyleProfile(
+      resolveDocumentStyleProfile(document.presentation),
+      annotation,
+    ),
+    sizeScale: annotation.sizeScale ?? 1,
+    shows: annotation.visible !== false,
+  };
+}
+
+/**
+ * Where a part's name and value stand together: the side of the part, as
+ * drawn, and how far they are slid along it.
+ */
+export interface InstanceLabelGroupSeat {
+  readonly side: InstanceLabelSide;
+  readonly shift: Point;
+}
+
+/**
+ * The slots a name and its value take together, name first: both shown,
+ * one of them alone in the name's slot with the other where it stands when
+ * shown, and both alone.
+ */
+const NAME_FIRST_STACKS = [
+  ["reference-over-value", "value"],
+  ["reference", "value"],
+  ["reference-over-value", "reference"],
+  ["reference", "reference"],
+] as const;
+
+/**
+ * The seat of a part's name and value when they stand as one group in the
+ * slots the upright placer gives them on a side of the part, slid alike
+ * along it with `slides`, or null when either stands anywhere else.
+ * `stacks` reads a name first and its value under it, or a value standing
+ * over its name above the part as the outward placer stacked them, or
+ * either.
+ */
+export function instanceLabelGroupSeat(
+  instance: SchematicDocument["instances"][number],
+  resolved: ResolvedSymbol,
+  grid: number,
+  name: InstanceGroupLabel,
+  value: InstanceGroupLabel,
+  {
+    stacks = "any",
+    slides = true,
+  }: {
+    stacks?: "any" | "value-over-name";
+    slides?: boolean;
+  } = {},
+): InstanceLabelGroupSeat | null {
+  for (const localSide of INSTANCE_LABEL_SIDES) {
+    const side = transformedSide(localSide, instance);
+    if (!side) continue;
+    const at = (
+      label: InstanceGroupLabel,
+      slot: InstanceLabelSlot,
+      placer: UprightPlacer = nameFirstPlacer,
+    ) =>
+      placer(
+        instance,
+        resolved,
+        label.profile,
+        { x: 0, y: 0 },
+        localSide,
+        grid,
+        label.sizeScale,
+        slot,
+        instanceValueRowOffset(instance.symbolId, label.profile, grid),
+      );
+    const pairs = [
+      ...(stacks === "any"
+        ? NAME_FIRST_STACKS.map(
+            ([nameSlot, valueSlot]) =>
+              [at(name, nameSlot), at(value, valueSlot)] as const,
+          )
+        : []),
+      ...(side === "top"
+        ? [[at(name, "reference"), at(value, "value", outwardPlacer)] as const]
+        : []),
+    ];
+    for (const [nameSlot, valueSlot] of pairs) {
+      const shift = offsetFromPlacement(name, nameSlot, slides);
+      const valueShift = offsetFromPlacement(value, valueSlot, slides);
+      if (
+        shift &&
+        valueShift &&
+        Math.hypot(shift.x - valueShift.x, shift.y - valueShift.y) < SAME_PLACE
+      )
+        return { side, shift };
+    }
+  }
+  return null;
+}
+
+/**
+ * Where a part's name and value stand on `seat`, name first and its value
+ * under it: a label shown without the other takes the name's slot, and a
+ * hidden one waits where it stands when shown. Null when no side of the
+ * part faces the seat's side.
+ */
+export function seatedInstanceLabelGroup(
+  instance: SchematicDocument["instances"][number],
+  resolved: ResolvedSymbol,
+  grid: number,
+  seat: InstanceLabelGroupSeat,
+  name: InstanceGroupLabel,
+  value: InstanceGroupLabel,
+): { name: InstanceLabelPlacement; value: InstanceLabelPlacement } | null {
+  const localSide = INSTANCE_LABEL_SIDES.find(
+    (side) => transformedSide(side, instance) === seat.side,
+  );
+  if (!localSide) return null;
+  const at = (label: InstanceGroupLabel, slot: InstanceLabelSlot) => {
+    const placed = placeUprightInstanceLabel(
+      instance,
+      resolved,
+      label.profile,
+      { x: 0, y: 0 },
+      localSide,
+      grid,
+      label.sizeScale,
+      slot,
+    );
+    return placed
+      ? {
+          alignment: placed.alignment,
+          position: {
+            x: placed.position.x + seat.shift.x,
+            y: placed.position.y + seat.shift.y,
+          },
+        }
+      : null;
+  };
+  const placedName = at(
+    name,
+    value.shows ? "reference-over-value" : "reference",
+  );
+  const placedValue = at(value, name.shows ? "value" : "reference");
+  return placedName && placedValue
+    ? { name: placedName, value: placedValue }
+    : null;
 }
 
 /** Independent magnetic values stack outside the world-space symbol ink. */

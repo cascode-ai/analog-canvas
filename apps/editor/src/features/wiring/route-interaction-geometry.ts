@@ -17,11 +17,13 @@ import {
 } from "@icm/derived";
 import type {
   EndpointObjectLookup,
+  InstanceLabelSlot,
   ResolvedDocumentLogicalNets,
   ResolvedDocumentRoutingGeometry,
   ResolvedRouteGeometry,
   SchematicStyleProfile,
 } from "@icm/derived";
+import { instanceValueAnnotation } from "@icm/edit-engine";
 import type {
   Annotation,
   Point,
@@ -776,12 +778,13 @@ export function instanceHitBox(
   return resolved ? instanceVisibleHitBox(instance, resolved) : null;
 }
 
+/** The part's default name label, in `slot` of its group. */
 export function defaultInstanceLabel(
   document: SchematicDocument,
   instance: SchematicDocument["instances"][number],
   resolver: SymbolResolver,
   styleProfile: SchematicStyleProfile,
-  slot: "reference" | "value" = "reference",
+  slot: InstanceLabelSlot = "reference",
 ): Annotation | null {
   if (!instance.placement) return null;
   if (
@@ -832,24 +835,6 @@ export function defaultInstanceLabel(
       ? { documentStyle: structuredClone(instance.documentStyle) }
       : {}),
   };
-}
-
-export function instanceValueAnnotation(
-  document: SchematicDocument,
-  instanceId: string,
-): Annotation | null {
-  return (
-    document.annotations.find(
-      (annotation) =>
-        annotation.kind === "instance-value" &&
-        !(
-          annotation.binding?.kind === "instance-value" &&
-          annotation.binding.parameter
-        ) &&
-        annotation.anchor.kind === "object" &&
-        annotation.anchor.objectId === instanceId,
-    ) ?? null
-  );
 }
 
 /**

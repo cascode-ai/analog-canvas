@@ -287,10 +287,11 @@ function labelsAtDefault(
       instance && resolver.resolve(instance.symbolId, instance.symbolVariantId);
     if (!instance?.placement || !resolved) return [];
     const placement = instance.placement;
+    // Above its part a name over its value stands a row further out (#1384).
     const slots =
       annotation.kind === "instance-value"
         ? (["value", "reference"] as const)
-        : (["reference"] as const);
+        : (["reference", "reference-over-value"] as const);
     const atDefault = [...new Set([annotation.sizeScale ?? 1, 1])].some(
       (sizeScale) =>
         slots.some((slot) => {

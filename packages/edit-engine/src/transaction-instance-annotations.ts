@@ -26,16 +26,23 @@ import {
   defaultVddPowerLabelPlacement,
   displayableInstanceValue,
   inferInstanceLabelSide,
+  instanceGroupLabel,
+  instanceLabelGroupSeat,
   instanceLabelRowOffset,
   instanceValueRowOffset,
+  outwardDefaultInstanceLabelPlacement,
   previousInstanceLabelRowOffset,
+  seatedInstanceLabelGroup,
   uniformRowDefaultInstanceLabelPlacement,
   objectStyleProfile,
   placeUprightInstanceLabel,
   resolveAnnotationPresentation,
   resolveDocumentStyleProfile,
   visibleSymbolInkBounds,
+  type InstanceLabelGroupSeat,
   type InstanceLabelPlacement,
+  type InstanceLabelSide,
+  type InstanceLabelSlot,
 } from "@icm/derived";
 import { referenceDeviceLetter } from "@icm/devices";
 import type { SymbolResolver } from "@icm/symbols";
@@ -339,6 +346,54 @@ export function isCanonicalInstanceLabel(
 }
 
 /**
+ * The part's own value label, or a placed Cell's name, which stands in its
+ * row; not a named parameter's.
+ */
+export function instanceValueAnnotation(
+  document: SchematicDocument,
+  instanceId: string,
+): Annotation | null {
+  return (
+    document.annotations.find(
+      (annotation) =>
+        annotation.kind === "instance-value" &&
+        !(
+          annotation.binding?.kind === "instance-value" &&
+          annotation.binding.parameter
+        ) &&
+        annotation.anchor.kind === "object" &&
+        annotation.anchor.objectId === instanceId,
+    ) ?? null
+  );
+}
+
+/**
+ * Whether the part shows its value in the untouched row under its name, so
+ * that above the part the name stands a row further out (#1384).
+ */
+export function valueShownUnderName(
+  document: SchematicDocument,
+  instance: SchematicDocument["instances"][number],
+  resolved: NonNullable<ReturnType<SymbolResolver["resolve"]>>,
+  position: Point,
+  orientation: Orientation,
+): boolean {
+  const value = instanceValueAnnotation(document, instance.id);
+  return (
+    value !== null &&
+    value.visible !== false &&
+    (canonicalInstanceLabelRow(
+      value,
+      instance,
+      resolved,
+      document,
+      position,
+      orientation,
+    ) ?? 0) > 0
+  );
+}
+
+/**
  * The row an untouched instance label sits in, or null when a person moved
  * it. 0 is the Reference's slot, which a value or a Cell's name also takes
  * while no Reference is shown (#1105); otherwise it is the row distance of
@@ -399,7 +454,7 @@ export function canonicalInstanceLabelRow(
   const sizeScales = [...new Set([annotation.sizeScale ?? 1, 1])];
   const placedBy = (
     rule: typeof defaultInstanceLabelPlacement,
-    inSlot: "reference" | "value" = slot,
+    inSlot: InstanceLabelSlot = slot,
     symbol: NonNullable<ReturnType<SymbolResolver["resolve"]>> = resolved,
   ) =>
     sizeScales.some((sizeScale) =>
@@ -415,7 +470,27 @@ export function canonicalInstanceLabelRow(
       ),
     );
   if (slot === "value") {
-    if (placedBy(defaultInstanceLabelPlacement))
+    // A value, or a Cell's name, shown without a Reference sits in the
+    // Reference's slot. Above the part that is also the value's own row
+    // (#1384), so whether a name shows tells the two apart.
+    const inReferenceSlot =
+      placedBy(defaultInstanceLabelPlacement, "reference") ||
+      placedBy(legacyDefaultInstanceLabelPlacement, "reference");
+    if (
+      inReferenceSlot &&
+      !document.annotations.some(
+        (other) =>
+          other.kind === "instance-label" &&
+          other.visible !== false &&
+          other.anchor.kind === "object" &&
+          other.anchor.objectId === instance.id,
+      )
+    )
+      return 0;
+    if (
+      placedBy(defaultInstanceLabelPlacement) ||
+      placedBy(outwardDefaultInstanceLabelPlacement)
+    )
       return instanceValueRowOffset(instance.symbolId, profile, grid);
     // A label an earlier rule put down is just as untouched; the next
     // orientation edit moves it with the current rule.
@@ -426,15 +501,10 @@ export function canonicalInstanceLabelRow(
       placedBy(legacyDefaultInstanceLabelPlacement)
     )
       return previousInstanceLabelRowOffset(profile, grid);
-    // A value, or a Cell's name, shown without a Reference sits in the
-    // Reference's slot.
-    if (
-      placedBy(defaultInstanceLabelPlacement, "reference") ||
-      placedBy(legacyDefaultInstanceLabelPlacement, "reference")
-    )
-      return 0;
+    if (inReferenceSlot) return 0;
   } else if (
     placedBy(defaultInstanceLabelPlacement) ||
+    placedBy(defaultInstanceLabelPlacement, "reference-over-value") ||
     placedBy(legacyDefaultInstanceLabelPlacement)
   )
     return 0;
@@ -463,6 +533,22 @@ export function canonicalInstanceLabelRow(
 }
 
 /**
+ * The slot an untouched label takes again in its `row`: a value in its row
+ * stays under its name, a name stands over a value shown under it, and any
+ * other takes the Reference's slot.
+ */
+export function canonicalLabelSlot(
+  slot: "reference" | "value",
+  row: number,
+  nameOverValue: boolean,
+): InstanceLabelSlot {
+  if (row) return "value";
+  return slot === "reference" && nameOverValue
+    ? "reference-over-value"
+    : "reference";
+}
+
+/**
  * Keep untouched machine-managed labels outside an adaptive presentation
  * frame when formula text or an authored minimum size changes. User-moved
  * labels retain their authored object-relative offsets.
@@ -483,6 +569,14 @@ export function reflowCanonicalInstanceLabelsAfterPresentationChange(
     instance.symbolVariantId,
   );
   if (!resolved) return;
+  // Read before any label moves.
+  const nameOverValue = valueShownUnderName(
+    draft,
+    before,
+    resolved,
+    before.placement.position,
+    before.placement,
+  );
   for (const annotation of draft.annotations) {
     const slot = instanceAnnotationSlot(annotation);
     if (
@@ -521,7 +615,7 @@ export function reflowCanonicalInstanceLabelsAfterPresentationChange(
           resolved,
           profile,
           draft.presentation.grid,
-          row === 0 ? "reference" : slot,
+          canonicalLabelSlot(slot, row, nameOverValue),
         );
     if (!next) continue;
     annotation.anchor = {
@@ -624,6 +718,30 @@ export function followAttachedAnnotations(
     oldOrientation.mirror !== newOrientation.mirror;
   const oldMirror = mirrorScale(oldOrientation.mirror);
   const newMirror = mirrorScale(newOrientation.mirror);
+  const horizontal = oldMirror.x * newMirror.x;
+  const vertical = oldMirror.y * newMirror.y;
+  // Read before any label moves: a name over its value stays over it, and a
+  // name and value standing as a group stay one, name first.
+  const nameOverValue =
+    !reflection && instance && resolved
+      ? valueShownUnderName(
+          draft,
+          instance,
+          resolved,
+          oldPosition,
+          oldOrientation,
+        )
+      : false;
+  const group =
+    reflection && vertical < 0 && instance && resolved
+      ? instanceLabelGroup(
+          draft,
+          instance,
+          resolved,
+          oldPosition,
+          oldOrientation,
+        )
+      : null;
   for (const annotation of draft.annotations) {
     if (
       annotation.anchor.kind !== "object" ||
@@ -632,13 +750,12 @@ export function followAttachedAnnotations(
       continue;
     }
     if (reflection) {
-      // Mirror the authored text attachment in screen space, including the
-      // value-row offset. Re-running default placement would pin power and
-      // magnetic labels to the right and keep values below their references.
+      // Mirror the authored text attachment in screen space. Re-running
+      // default placement would pin power and magnetic labels to the right.
+      // A part's name and value standing as a group are seated again below,
+      // so the name still reads first.
       // Glyphs retain their readable orientation; horizontal alignment changes
       // with the side on which the text extends from its anchor.
-      const horizontal = oldMirror.x * newMirror.x;
-      const vertical = oldMirror.y * newMirror.y;
       const localOffset = {
         x: annotation.anchor.localOffset.x * horizontal,
         y:
@@ -816,15 +933,8 @@ export function followAttachedAnnotations(
       );
       // Upright rows stack along world y regardless of orientation, so the
       // row the label was placed in is stripped from the recovered anchor in
-      // world space before side inference, and the upright placer adds the
-      // current row distance back.
-      const rowOffset = row
-        ? instanceValueRowOffset(
-            instance.symbolId,
-            styleProfile,
-            draft.presentation.grid,
-          )
-        : 0;
+      // world space before side inference, and the upright placer puts the
+      // label back in its slot on the new side.
       const slotAnchor = row
         ? { x: visiblePosition.x, y: visiblePosition.y - row }
         : visiblePosition;
@@ -847,7 +957,7 @@ export function followAttachedAnnotations(
             localSide,
             draft.presentation.grid,
             annotation.sizeScale,
-            rowOffset,
+            canonicalLabelSlot(slot, row, nameOverValue),
           );
           if (placement) {
             position = placement.position;
@@ -909,4 +1019,95 @@ export function followAttachedAnnotations(
     }
     changedObjectIds.add(annotation.id);
   }
+  const nameLabel = group && instanceGroupLabel(draft, group.name, newPosition);
+  const valueLabel =
+    group && instanceGroupLabel(draft, group.value, newPosition);
+  if (group && nameLabel && valueLabel && instance && resolved) {
+    // On the mirrored side, slid as far the mirrored way.
+    const seated = seatedInstanceLabelGroup(
+      { ...instance, placement: { position: newPosition, ...newOrientation } },
+      resolved,
+      draft.presentation.grid,
+      {
+        side: reflectedSide(group.seat.side, horizontal, vertical),
+        shift: {
+          x: group.seat.shift.x * horizontal,
+          y: group.seat.shift.y * vertical,
+        },
+      },
+      nameLabel,
+      valueLabel,
+    );
+    if (seated)
+      for (const [annotation, target] of [
+        [group.name, seated.name],
+        [group.value, seated.value],
+      ] as const) {
+        if (annotation.anchor.kind !== "object") continue;
+        annotation.anchor = {
+          ...annotation.anchor,
+          localOffset: {
+            x: target.position.x - newPosition.x,
+            y: target.position.y - newPosition.y,
+          },
+          fallbackPosition: target.position,
+        };
+        annotation.alignment = target.alignment;
+        changedObjectIds.add(annotation.id);
+      }
+  }
+}
+
+/** The side a mirror puts a side of the drawing on. */
+function reflectedSide(
+  side: InstanceLabelSide,
+  horizontal: number,
+  vertical: number,
+): InstanceLabelSide {
+  if (vertical < 0 && (side === "top" || side === "bottom"))
+    return side === "top" ? "bottom" : "top";
+  if (horizontal < 0 && (side === "left" || side === "right"))
+    return side === "left" ? "right" : "left";
+  return side;
+}
+
+/**
+ * A part's name and its value with the seat they stand on as a group, the
+ * part at `position` and `orientation`, or null when they do not stand as
+ * one: either missing, turned, or moved by hand.
+ */
+function instanceLabelGroup(
+  document: SchematicDocument,
+  instance: SchematicDocument["instances"][number],
+  resolved: NonNullable<ReturnType<SymbolResolver["resolve"]>>,
+  position: Point,
+  orientation: Orientation,
+): {
+  name: Annotation;
+  value: Annotation;
+  seat: InstanceLabelGroupSeat;
+} | null {
+  const names = document.annotations.filter(
+    (annotation) =>
+      annotation.kind === "instance-label" &&
+      annotation.anchor.kind === "object" &&
+      annotation.anchor.objectId === instance.id,
+  );
+  const name = names.find((label) => label.visible !== false) ?? names[0];
+  const value = instanceValueAnnotation(document, instance.id);
+  if (!name || !value || name.rotation !== 0 || value.rotation !== 0)
+    return null;
+  const nameLabel = instanceGroupLabel(document, name, position);
+  const valueLabel = instanceGroupLabel(document, value, position);
+  const seat =
+    nameLabel && valueLabel
+      ? instanceLabelGroupSeat(
+          { ...instance, placement: { position, ...orientation } },
+          resolved,
+          document.presentation.grid,
+          nameLabel,
+          valueLabel,
+        )
+      : null;
+  return seat ? { name, value, seat } : null;
 }

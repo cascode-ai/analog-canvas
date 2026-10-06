@@ -22,6 +22,7 @@ import {
   resolveAnnotationPresentation,
   resolveDocumentStyleProfile,
   uniformRowDefaultInstanceLabelPlacement,
+  type InstanceLabelSlot,
 } from "@icm/derived";
 import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
@@ -708,7 +709,7 @@ describe("value labels as a part turns (#1105)", () => {
   const profile = resolveDocumentStyleProfile(
     createEmptyDocument("p", "P").presentation,
   );
-  const rule = (rotation: 0 | 90 | 180 | 270, slot: "reference" | "value") =>
+  const rule = (rotation: 0 | 90 | 180 | 270, slot: InstanceLabelSlot) =>
     defaultInstanceLabelPlacement(
       {
         id: "R1",
@@ -804,6 +805,41 @@ describe("value labels as a part turns (#1105)", () => {
     expect(current(0).position.y - uniform.position.y).toBe(10);
   });
 
+  it("keeps the name over its value when the part turns its labels above it, and back (#1384)", () => {
+    const { document, annotation: value } = valueAt(rule(0, "value"), 0);
+    const reference = rule(0, "reference");
+    const name: Annotation = {
+      id: "name-r1",
+      kind: "instance-label",
+      binding: { kind: "instance-reference", instanceId: "R1" },
+      anchor: {
+        kind: "object",
+        objectId: "R1",
+        localOffset: {
+          x: reference.position.x - position.x,
+          y: reference.position.y - position.y,
+        },
+        fallbackPosition: reference.position,
+      },
+      alignment: reference.alignment,
+      rotation: 0,
+      locked: false,
+    };
+    document.annotations.push(name);
+    const at = (label: Annotation) =>
+      label.anchor.kind === "object" ? label.anchor.fallbackPosition : null;
+
+    turn(document, 0, 270);
+    expect(at(name)).toEqual(rule(270, "reference-over-value").position);
+    expect(at(value)).toEqual(rule(270, "value").position);
+    expect(at(value)!.y - at(name)!.y).toBe(20);
+    expect(at(value)!.y).toBeLessThan(position.y);
+
+    turn(document, 270, 0);
+    expect(at(name)).toEqual(reference.position);
+    expect(at(value)).toEqual(rule(0, "value").position);
+  });
+
   it("keeps a value shown without a Reference in the Reference's slot", () => {
     const { document, annotation } = valueAt(rule(90, "reference"), 90);
     for (const [from, to] of [
@@ -818,5 +854,136 @@ describe("value labels as a part turns (#1105)", () => {
       });
       expect(annotation.alignment).toBe(rule(to, "reference").alignment);
     }
+  });
+});
+
+describe("a part's name and value through a top-bottom flip (#1384)", () => {
+  const position = { x: 200, y: 200 };
+  const resolved = resolver.resolve("resistor")!;
+  const profile = resolveDocumentStyleProfile(
+    createEmptyDocument("p", "P").presentation,
+  );
+  const placed = (
+    rotation: 0 | 90 | 180 | 270,
+    mirror: Orientation["mirror"],
+    slot: InstanceLabelSlot,
+  ) =>
+    defaultInstanceLabelPlacement(
+      {
+        id: "R1",
+        symbolId: "resistor",
+        placement: { position, rotation, mirror },
+      },
+      resolved,
+      profile,
+      10,
+      slot,
+    )!;
+  /** A resistor showing its name and value where the rule puts them. */
+  function resistor(rotation: 0 | 90 | 180 | 270) {
+    const document = createEmptyDocument("flip", "Flip");
+    document.instances.push({
+      id: "R1",
+      symbolId: "resistor",
+      reference: "R1",
+      placement: { position, rotation, mirror: "none" },
+      netlist: { parameters: { value: "1k" } },
+    });
+    const label = (
+      id: string,
+      kind: "instance-label" | "instance-value",
+      at: { position: Point; alignment: Annotation["alignment"] },
+    ): Annotation => ({
+      id,
+      kind,
+      binding:
+        kind === "instance-label"
+          ? { kind: "instance-reference", instanceId: "R1" }
+          : { kind: "instance-value", instanceId: "R1" },
+      anchor: {
+        kind: "object",
+        objectId: "R1",
+        localOffset: {
+          x: at.position.x - position.x,
+          y: at.position.y - position.y,
+        },
+        fallbackPosition: at.position,
+      },
+      alignment: at.alignment,
+      rotation: 0,
+      locked: false,
+    });
+    const name = label(
+      "name-r1",
+      "instance-label",
+      placed(rotation, "none", "reference-over-value"),
+    );
+    const value = label(
+      "value-r1",
+      "instance-value",
+      placed(rotation, "none", "value"),
+    );
+    document.annotations.push(name, value);
+    return { document, name, value };
+  }
+  function flip(
+    document: SchematicDocument,
+    rotation: 0 | 90 | 180 | 270,
+    from: Orientation["mirror"],
+    to: Orientation["mirror"],
+  ) {
+    document.instances[0]!.placement = { position, rotation, mirror: to };
+    followAttachedAnnotations(
+      document,
+      "R1",
+      position,
+      { rotation, mirror: from },
+      position,
+      { rotation, mirror: to },
+      new Set(),
+      resolver,
+    );
+  }
+  const at = (label: Annotation) =>
+    label.anchor.kind === "object" ? label.anchor.fallbackPosition : null;
+
+  it.each([
+    ["below the part to above it", 90],
+    ["above the part to below it", 270],
+  ] as const)(
+    "keeps the name over its value when they flip from %s, and back",
+    (_, rotation) => {
+      const { document, name, value } = resistor(rotation);
+      const before = structuredClone([name, value]);
+
+      flip(document, rotation, "none", "vertical");
+      expect(at(name)).toEqual(
+        placed(rotation, "vertical", "reference-over-value").position,
+      );
+      expect(at(value)).toEqual(placed(rotation, "vertical", "value").position);
+      expect(at(value)!.y - at(name)!.y).toBe(20);
+      // The labels changed sides with the flip.
+      expect(at(value)!.y < position.y).toBe(rotation === 90);
+
+      flip(document, rotation, "vertical", "none");
+      expect([name, value]).toEqual(before);
+    },
+  );
+
+  it("still mirrors a value a person moved", () => {
+    const { document, value } = resistor(90);
+    if (value.anchor.kind !== "object") throw new Error("object anchor");
+    value.anchor.localOffset.x += 30;
+    value.anchor.fallbackPosition.x += 30;
+    const centerBefore = boxCenterBelow(document, value, position);
+    const x = at(value)!.x;
+
+    flip(document, 90, "none", "vertical");
+
+    // Its ink lands as far on the other side of the part's origin.
+    expect(
+      Math.abs(boxCenterBelow(document, value, position) + centerBefore),
+    ).toBeLessThanOrEqual(0.5);
+    expect(at(value)!.x).toBe(x);
   });
 });

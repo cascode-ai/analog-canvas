@@ -1,12 +1,12 @@
 import {
   defaultInstanceLabelPlacement,
   defaultInstanceParameterLabelPlacement,
-  instanceValueRowOffset,
+  instanceLabelSlotAt,
   objectStyleProfile,
+  offsetFromPlacement,
   placeUprightInstanceLabel,
   resolveDocumentStyleProfile,
   type InstanceLabelPlacement,
-  type InstanceLabelSide,
 } from "@icm/derived";
 import type { SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
@@ -14,10 +14,10 @@ import type { SymbolResolver } from "@icm/symbols";
 import type { SchematicEdit } from "./edit-schema.js";
 import {
   canonicalInstanceLabelRow,
+  canonicalLabelSlot,
   instanceAnnotationSlot,
+  valueShownUnderName,
 } from "./transaction-instance-annotations.js";
-
-const SIDES: readonly InstanceLabelSide[] = ["right", "left", "bottom", "top"];
 
 /**
  * A caller's labels, moved from where its Cell's former block put them to
@@ -66,17 +66,13 @@ export function planInstanceLabelReflow(
     const profile = objectStyleProfile(documentProfile, annotation);
     const sizeScale = annotation.sizeScale ?? 1;
     const position = instance.placement.position;
-    const visible = {
-      x: position.x + anchor.localOffset.x,
-      y: position.y + anchor.localOffset.y,
+    const drawn: InstanceLabelPlacement = {
+      position: {
+        x: position.x + anchor.localOffset.x,
+        y: position.y + anchor.localOffset.y,
+      },
+      alignment: annotation.alignment,
     };
-    const at = (candidate: InstanceLabelPlacement | null) =>
-      candidate !== null &&
-      candidate.alignment === annotation.alignment &&
-      Math.hypot(
-        candidate.position.x - visible.x,
-        candidate.position.y - visible.y,
-      ) < 0.01;
     const parameter =
       annotation.binding?.kind === "instance-value"
         ? annotation.binding.parameter
@@ -104,31 +100,42 @@ export function planInstanceLabelReflow(
             current,
             profile,
             grid,
-            row === 0 ? "reference" : slot,
+            canonicalLabelSlot(
+              slot,
+              row,
+              valueShownUnderName(
+                document,
+                instance,
+                former,
+                position,
+                instance.placement,
+              ),
+            ),
             sizeScale,
           );
-    else if (!parameter)
-      search: for (const side of SIDES)
-        for (const rowOffset of [
-          0,
-          instanceValueRowOffset(instance.symbolId, profile, grid),
-        ]) {
-          const placed = (symbol: typeof current) =>
-            placeUprightInstanceLabel(
-              instance,
-              symbol,
-              profile,
-              { x: 0, y: 0 },
-              side,
-              grid,
-              sizeScale,
-              rowOffset,
-            );
-          if (!at(placed(former))) continue;
-          next = placed(current);
-          break search;
-        }
-    if (!next || at(next)) continue;
+    else if (!parameter) {
+      const found = instanceLabelSlotAt(
+        instance,
+        former,
+        profile,
+        grid,
+        drawn,
+        sizeScale,
+      );
+      next =
+        found &&
+        placeUprightInstanceLabel(
+          instance,
+          current,
+          profile,
+          { x: 0, y: 0 },
+          found.side,
+          grid,
+          sizeScale,
+          found.slot,
+        );
+    }
+    if (!next || offsetFromPlacement(drawn, next)) continue;
     edits.push({
       kind: "upsert_schematic_annotation",
       annotation: {

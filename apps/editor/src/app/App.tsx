@@ -80,6 +80,7 @@ import type {
   AgentHostSemanticIntentResult,
 } from "@icm/agent-adapter";
 import {
+  instanceValueAnnotation,
   planProjectCellImport,
   planSetVddConnectionMode,
   planRenameCellTerminal,
@@ -431,7 +432,6 @@ import type { VisualSelectionKind } from "../features/selection/visual-selection
 import { planSelectionMove } from "../features/selection/selection-move-plan";
 import {
   annotationHitBox,
-  instanceValueAnnotation,
   isRoutedMarker,
   netLabelPlacementTargetAtPoint,
   netLabelPlacementTargetForText,

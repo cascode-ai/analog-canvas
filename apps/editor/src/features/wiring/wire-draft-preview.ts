@@ -4,6 +4,7 @@ import {
   createRouteWireAnchor,
   normalizeRouteGeometry,
   proposeWireCommitThroughContacts,
+  splitRoutePieceIds,
   type SchematicEdit,
   type WireCornerOrder,
   type WireDraftStep,
@@ -35,8 +36,7 @@ export function wireDraftTargetIdsForSuffix(
   const routeId = target.kind === "route" ? target.routeId : "route-ui";
   return {
     junctionId: `junction-ui-${suffix}`,
-    firstRouteId: `${routeId}-a-${suffix}`,
-    secondRouteId: `${routeId}-b-${suffix}`,
+    ...splitRoutePieceIds(routeId, suffix),
     newNetId: `net-ui-${suffix}`,
   };
 }

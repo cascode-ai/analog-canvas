@@ -6,6 +6,7 @@ export * from "./route-geometry-edit.js";
 export * from "./angled-wire-repair.js";
 export * from "./route-operations.js";
 export * from "./routing-planner.js";
+export * from "./split-route-ids.js";
 export * from "./wire-batch-planner.js";
 export * from "./stretched-route-clearance.js";
 export * from "./caller-label-reflow.js";
@@ -22,6 +23,7 @@ export { transformMaySeparateDirectContact } from "./transaction-direct-contact.
 export {
   canonicalInstanceLabelRow,
   followAttachedAnnotations,
+  instanceValueAnnotation,
 } from "./transaction-instance-annotations.js";
 export * from "./routing-operation-plan.js";
 export * from "./routing-transform-planner.js";

@@ -234,7 +234,9 @@ Batch operations are explicit and distinct:
   they are not pure visual formatting. Preserve this behavior pending a
   separate product decision, including existing complement semantics.
 - Agent **arrange-labels** operates on requested Instances, eligible visible
-  unrotated/unlocked labels, and still-default positions/styles. It tries
+  unrotated/unlocked labels, and still-default positions/styles, which
+  include a name and value standing exactly where an earlier arrangement
+  stacked the value over the name above the part (#1384). It tries
   bounded nearby positions to reduce collisions; it does not reset every
   label. A placed Cell's name under its block counts as the part's name,
   or as its value beside a shown Reference, and moves as one; its text is
@@ -244,7 +246,9 @@ Batch operations are explicit and distinct:
   routing](connectivity-and-routing.md)). A part's Reference and value move
   together: their default side, then the part's other sides, then the same rows slid along each side to
   the clear place nearest where they stood, while at least half of the
-  group stays beside the part. A place is clear when the labels meet no
+  group stays beside the part. On every side the name comes first and its
+  value under it; above the part the value takes the row nearest it and the
+  name stands a row over it (#1384). A place is clear when the labels meet no
   wire, part, other label or free drawing text, keep a word's space from
   another label or text on their line and a little space between lines,
   keep that line's space from a junction dot,

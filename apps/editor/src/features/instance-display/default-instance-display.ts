@@ -105,13 +105,52 @@ export function defaultInstanceDisplayAnnotations(
     }
     return annotations;
   }
-  const label = defaultInstanceLabel(
+  const alone = defaultInstanceLabel(
     document,
     instance,
     resolver,
     styleProfile,
   );
-  const showsDesignator = options.showDesignator !== false && Boolean(label);
+  const showsDesignator = options.showDesignator !== false && Boolean(alone);
+  // The value, or the Cell's name, shown with the part: under its name, or
+  // in the name's slot when no name shows.
+  const under = options.masterName
+    ? defaultMasterNameAnnotation(
+        document,
+        instance,
+        resolver,
+        styleProfile,
+        options.masterName,
+        showsDesignator ? "value" : "reference",
+      )
+    : options.showValue &&
+        displayableInstanceValue(instance).kind === "displayable"
+      ? defaultInstanceValue(
+          document,
+          instance,
+          resolver,
+          styleProfile,
+          // Only an explicitly value-only new projection occupies the first
+          // slot. Existing annotations and ordinary visibility toggles keep
+          // their layout.
+          options.showDesignator === false &&
+            !instanceLabelAnnotationFor(document, instance.id)
+            ? "reference"
+            : "value",
+        )
+      : null;
+  // A name stands over the value shown under it: above the part, a row
+  // further out (#1384).
+  const label =
+    showsDesignator && under
+      ? defaultInstanceLabel(
+          document,
+          instance,
+          resolver,
+          styleProfile,
+          "reference-over-value",
+        )
+      : alone;
   if (showsDesignator && label) {
     if (LINEAR_CONTROLLED_SOURCE_KINDS.has(instance.symbolId)) {
       annotations.push({
@@ -142,34 +181,7 @@ export function defaultInstanceDisplayAnnotations(
       });
     }
   }
-  if (options.masterName) {
-    const master = defaultMasterNameAnnotation(
-      document,
-      instance,
-      resolver,
-      styleProfile,
-      options.masterName,
-      showsDesignator ? "value" : "reference",
-    );
-    if (master) annotations.push(master);
-  } else if (
-    options.showValue &&
-    displayableInstanceValue(instance).kind === "displayable"
-  ) {
-    const value = defaultInstanceValue(
-      document,
-      instance,
-      resolver,
-      styleProfile,
-      // Only an explicitly value-only new projection occupies the first slot.
-      // Existing annotations and ordinary visibility toggles keep their layout.
-      options.showDesignator === false &&
-        !instanceLabelAnnotationFor(document, instance.id)
-        ? "reference"
-        : "value",
-    );
-    if (value) annotations.push(value);
-  }
+  if (under) annotations.push(under);
   return annotations;
 }
 

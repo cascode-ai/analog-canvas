@@ -43,9 +43,10 @@ targets to avoid full-Snapshot name resolution. Names remain supported when usef
 - A placed Cell shows its Cell name; its instance name (`X1`, `X2`, …), which
   the netlist calls it by, is hidden. To show it, for instance to tell which
   block is `x1` when probing `v(xdut.x1.net0)`, use `set-instance-display`
-  with `instanceIds` and `showReference:true`: `X1` takes the Cell name's
-  place and the name moves a row below, as the Properties Visual annotation
-  switch does. `showReference:false` hides it again.
+  with `instanceIds` and `showReference:true`: `X1` reads first with the
+  Cell name a row under it, as the Properties Visual annotation switch does
+  (above a turned block the Cell name keeps the row nearest the block and
+  `X1` stands over it). `showReference:false` hides it again.
 - For exact pin placement, `place-component` accepts `pinAnchor:{pinName,position}`
   instead of origin `position`; rotation/mirror still apply. It uses the shared
   routing landing (including variants and fine-pitch pins), not artwork contact,

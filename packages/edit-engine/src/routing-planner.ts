@@ -60,6 +60,7 @@ import { routeHasExternalOwner } from "./direct-contact-route-normalization.js";
 import { rebuildRoutePath } from "./route-leg-mutation.js";
 import { planPowerRailPinContacts } from "./power-rail-contact-planner.js";
 import type { ExpectedElectricalEffect } from "./routing-operation-plan.js";
+import { splitRoutePieceIds } from "./split-route-ids.js";
 import { resolveWireIntentTarget } from "./wire-intent-target.js";
 
 export interface WireEndpointGeometry {
@@ -146,10 +147,8 @@ export function proposeEndpointRouteAttachment(
       sourceNetId: endpointNetId,
     });
   }
-  const routeIds = [
-    `${route.id}-a-${suffix}`,
-    `${route.id}-b-${suffix}`,
-  ] as const;
+  const pieces = splitRoutePieceIds(route.id, suffix);
+  const routeIds = [pieces.firstRouteId, pieces.secondRouteId] as const;
   edits.push({
     kind: "attach_endpoint_to_route",
     endpoint,
@@ -257,9 +256,10 @@ export function proposeEndpointsRouteAttachment(
   let currentRouteId = route.id;
   const tailRouteIds: string[] = [];
   ordered.forEach((entry, index) => {
-    const marker = `${suffix}-p${index + 1}`;
-    const firstRouteId = `${route.id}-a-${marker}`;
-    const secondRouteId = `${route.id}-b-${marker}`;
+    const { firstRouteId, secondRouteId } = splitRoutePieceIds(
+      route.id,
+      `${suffix}-p${index + 1}`,
+    );
     edits.push({
       kind: "attach_endpoint_to_route",
       endpoint: entry.request.endpoint,
@@ -2142,23 +2142,13 @@ export function createRouteWireAnchor(
   point: Point,
   segmentIndex: number,
   grid: number,
-  suffixOrIds:
-    | number
-    | {
-        junctionId: string;
-        firstRouteId: string;
-        secondRouteId: string;
-      },
+  ids: {
+    junctionId: string;
+    firstRouteId: string;
+    secondRouteId: string;
+  },
   resolver?: SymbolResolver,
 ): WireSource {
-  const ids =
-    typeof suffixOrIds === "number"
-      ? {
-          junctionId: `junction-ui-${suffixOrIds}`,
-          firstRouteId: `${route.id}-a-${suffixOrIds}`,
-          secondRouteId: `${route.id}-b-${suffixOrIds}`,
-        }
-      : suffixOrIds;
   const junctionId = ids.junctionId;
   // Preserve a fine-grid tap only when the conductor itself has a fine-grid
   // endpoint. A normal conductor tapped at x=196 must still land at x=200.
@@ -2395,8 +2385,7 @@ export function proposeWireIntent(
         document.presentation.grid,
         {
           junctionId: `${intent.id}-${side}-junction`,
-          firstRouteId: `${route.id}-a-${intent.id}-${side}`,
-          secondRouteId: `${route.id}-b-${intent.id}-${side}`,
+          ...splitRoutePieceIds(route.id, `${intent.id}-${side}`),
         },
         resolver,
       );

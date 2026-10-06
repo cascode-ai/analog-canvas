@@ -573,7 +573,11 @@ when the mirror reverses the axis the text reads along. A label on a rigidly
 mirrored Route keeps its point along the Route (`t`) and takes the mirrored
 side, so a label above a wire lands below it in a top-to-bottom mirror with
 the same clearance. Labels anchored to a mirrored Instance follow that
-Instance's own mirror. Drafting lines, arrows and shapes reflect outright; an
+Instance's own mirror. A part's name and value standing as a group in their
+slots, by default or arranged, stay one through a top-to-bottom mirror: they
+take the mirrored side, slid as far the mirrored way, with the name first and
+its value under it (#1384); a label moved by hand mirrors. Drafting lines,
+arrows and shapes reflect outright; an
 arrow keeps which end carries its head, and a turned rectangle takes the
 opposite turn. An end attached to a mirrored host mirrors its offset from it;
 an end attached to anything else stays with that host. The whole mirror is
@@ -792,7 +796,14 @@ label exists. Visual annotation display is a Properties toggle for one or many
 selected components: hiding sets the annotation's optional `visible: false`
 flag, which renderers and hit/marquee surfaces skip while the annotation stays
 in the Project, so hiding is recoverable and a missing label can be re-created
-from the same toggle. Component value display is the paired `Value` toggle on
+from the same toggle. A part's name and value stand as one group, the name
+first and its value under it, on the side where they were placed or
+arranged: hiding the name moves a value still in its row into the name's
+slot, and showing the name puts the value back under it; above the part,
+where the value takes the row nearest it, hiding the value brings the name
+down to that row and showing it lifts the name again (#1384). A label a
+person moved stays where it is.
+Component value display is the paired `Value` toggle on
 the same control row: MOS devices project `W/L` as a stacked fraction with a
 fraction bar, passives and independent sources project their scalar parameter,
 and every projected value is upright bold text preserving authored spelling

@@ -207,8 +207,12 @@ active symbol variant's visible geometry and clusters repeated overlaps.
   on whichever side it sits, the same for devices, gates, registers,
   converters and Analog Blocks. Beside the Symbol its capitals are centred on
   the body; below it they start one gap under the artwork; above it the
-  subscript's descent is cleared first, so R₂ over a part never touches it. A
-  value row stacks away from the body. Label coordinates are whole units, not
+  subscript's descent is cleared first, so R₂ over a part never touches it.
+  On every side a name reads first and its value under it (#1384): beside or
+  below the part the value row is under the name's, and above it the value
+  takes the row nearest the part, a W/L fraction far enough out to clear it,
+  and the name stands a row over it. A name or a value shown alone takes the
+  row nearest the part. Label coordinates are whole units, not
   connection-grid rounded; saved, authored placements are retained, and a
   label still exactly where an earlier rule placed it counts as untouched.
 - Visual goldens use original project fixtures, not copied textbook artwork.
