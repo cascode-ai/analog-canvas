@@ -273,15 +273,17 @@ text together. Deleting the label removes its owned claim, not the physical wire
 
 `connection_status` probes the current session; closing a panel is not a disconnect.
 
-Every result that reached the relay carries `timing`: the whole call, and for
-each request its round trip, the relay's forward to the editor (`relayMs`), the
-editor's own work (`editorMs`) and its tab's visibility; a one-shot CLI process
-adds `startupMs`, its time before the first request, which a busy machine
-stretches. An editor tab in the background, or a forward over 5 s, adds
-`timing.warning` `EDITOR_BACKGROUND` with the fix, and the Agent panel says
-requests waited in the background. `connection_status` lists this process's
-last requests the same way, and `inspect {target:{kind:"activity"}}` returns
-the session's last 32 requests from any process, as the relay recorded them.
+Results with HTTP activity carry `timing`: tool/call duration and up to eight
+recent request attempts, correlated by requestId/resource/operation. Header wait
+and consumed JSON/validation are measured separately; the request total includes
+both. Retry delays are separate. Relay phases cover restoration (within pre-forward),
+pre-forward, forwarding and completion; legacy `relayMs` includes forwarding and
+completion, not pure socket time. Byte streams stop this timing at headers.
+Editor work and visibility are observations; hidden is not a latency diagnosis.
+`SLOW_RELAY` asks to inspect phases, not to refresh blindly. A one-shot CLI adds
+`startupMs`. `connection_status` lists recent local attempts; activity inspection
+adds up to 32 records from the current live relay instance, not persistent audit
+history. No payloads or credentials are logged.
 `analog-canvas-mcp --http batch` runs one call per JSON line
 (`{"tool": "...", "args": {...}}`), each as it arrives, on one session (one
 connector resume, one Snapshot cache), and answers each with one line.
@@ -359,8 +361,9 @@ inspection for pins, Nets and connectivity. `get_context` and
 and diagnostic items. `simulation_folder` list reads folder metadata without
 source bodies; get/edit still load the required Project. An older Editor may
 fall back to the full read while the deployment rolls out.
-`target:{kind:"activity"}` returns recent successful receipts in the current
-MCP process, not persistent history or other people's edits.
+`target:{kind:"activity"}` returns recent local receipts and relay records;
+the relay list can include failures/cache hits and can disappear on instance
+replacement. Neither list is durable history or other people's edits.
 `search` with `scope:"project"` searches currently authorized Cells.
 `inspect` with `target:{kind:"trace",netId:"…"}` returns the GUI's canonical
 cross-Cell/global-Net trace. Supply `hierarchyPath` for a particular reused

@@ -1,11 +1,14 @@
 import {
   AGENT_FILE_RESOURCE_MAX_BYTES,
   AGENT_SIMULATION_MAX_TIMEOUT_MS,
+  AgentSimulationResourceCapabilitySchema,
   type AgentCircuitHostServiceOptions,
   type AgentOperationHost,
   type AgentPermissions,
   type AgentSessionScope,
 } from "@icm/agent-adapter";
+const simulationOperations =
+  AgentSimulationResourceCapabilitySchema.shape.operations.element.options;
 
 /** What a paired session may do, as its granted scopes say. */
 export function permissionsFromScopes(
@@ -64,19 +67,7 @@ export function agentCircuitServiceOptions(options: {
             ? {
                 simulationResource: {
                   path: "/api/agent/sessions/{sessionId}/simulation" as const,
-                  operations: [
-                    "capabilities",
-                    "prepare",
-                    "start",
-                    "read",
-                    "cancel",
-                    "export",
-                    "prepare-batch",
-                    "start-batch",
-                    "read-batch",
-                    "cancel-batch",
-                    "prepare-sweep",
-                  ] as const,
+                  operations: simulationOperations,
                   analyses: ["op", "dc", "ac", "tran", "noise"] as const,
                   maxTimeoutMs: AGENT_SIMULATION_MAX_TIMEOUT_MS,
                   synchronous: false as const,

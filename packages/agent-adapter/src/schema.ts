@@ -37,6 +37,7 @@ import {
   SchematicEditSchema,
 } from "@icm/edit-engine";
 import { z } from "zod";
+import { SimulationOperationSchema } from "@icm/simulation-service/contract";
 
 import { lazyJsonSchema } from "./lazy-json-schema.js";
 import { AgentAuthoringCommandSchema } from "./authoring-command.js";
@@ -96,19 +97,11 @@ export const AgentFileResourceCapabilitySchema = z.strictObject({
 export const AgentSimulationResourceCapabilitySchema = z.strictObject({
   path: z.literal("/api/agent/sessions/{sessionId}/simulation"),
   operations: z.array(
-    z.enum([
-      "prepare",
-      "start",
-      "read",
-      "cancel",
-      "export",
-      "capabilities",
-      "prepare-batch",
-      "start-batch",
-      "read-batch",
-      "cancel-batch",
-      "prepare-sweep",
-    ]),
+    z.enum(
+      SimulationOperationSchema.options.map(
+        (schema) => schema.shape.operation.value,
+      ),
+    ),
   ),
   analyses: z.array(z.enum(["op", "dc", "ac", "tran", "noise"])),
   maxTimeoutMs: z.number().int().positive(),

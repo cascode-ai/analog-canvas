@@ -59,6 +59,52 @@ const pin = (instance: string, name: string) => ({
 });
 
 describe("the editor plans an Agent's action list", () => {
+  it(
+    "keeps repeated medium-document edits to one dispatch each",
+    { timeout: 30_000 },
+    async () => {
+      const { controller, client, http, instance } = await editor();
+      const started = performance.now();
+      // Placement expands to several edits per device; stay within the
+      // existing atomic edit budget instead of asking to raise it for a probe.
+      for (let start = 0; start < 120; start += 20) {
+        const placed = await client.applyActions(
+          Array.from({ length: 20 }, (_, i) =>
+            place("resistor", `R${start + i + 1}`, 100 + (start + i) * 200),
+          ),
+        );
+        expect(placed.ok, placed.message).toBe(true);
+      }
+      const calls = http.circuitCalls.length;
+      const revision = controller.document.revision;
+      const samples: number[] = [];
+      for (let i = 0; i < 16; i++) {
+        const before = performance.now();
+        const result = await client.applyActions([
+          {
+            kind: "set-property",
+            target: { kind: "instance", reference: "R1" },
+            set: { value: `${i + 100}k` },
+          },
+        ]);
+        samples.push(performance.now() - before);
+        expect(result.ok, result.message).toBe(true);
+      }
+      expect(
+        http.circuitCalls.slice(calls).map(({ request }) => request.operation),
+      ).toEqual(Array(16).fill("transact"));
+      expect(controller.document.revision).toBe(revision + 16);
+      expect(instance("R1")?.netlist?.parameters.value).toBe("115k");
+      // Evidence, not a machine-specific performance gate or network estimate.
+      console.info(
+        JSON.stringify({
+          probe: "120-device-16-edits",
+          setupAndEditsMs: Math.round(performance.now() - started),
+          editMs: samples.map(Math.round),
+        }),
+      );
+    },
+  );
   // Ten calls through the live editor, the first loading it cold: beside a
   // busy run it outlasts 5 s.
   it(

@@ -928,6 +928,17 @@ describe("public Agent session routes", () => {
     expect(await response!.json()).toMatchObject({
       error: { code: "EDITOR_DISCONNECTED" },
     });
+    for (const name of [
+      "server",
+      "restore",
+      "pre-forward",
+      "forward",
+      "post-forward",
+    ])
+      expect(
+        Number(response!.headers.get(`x-agent-${name}-ms`)),
+      ).toBeGreaterThanOrEqual(0);
+    expect(response!.headers.has("x-agent-forward-ms")).toBe(true);
   });
 
   it("acknowledges a session-bound browser heartbeat outside business dispatch", async () => {
@@ -1287,6 +1298,44 @@ describe("public Agent session routes", () => {
       snapshot: { document: { id: "document-main" } },
     });
     expect(browser.families).toEqual(["circuit"]);
+    const phase = (name: string) => {
+      expect(snapshot!.headers.has(`x-agent-${name}-ms`)).toBe(true);
+      return Number(snapshot!.headers.get(`x-agent-${name}-ms`));
+    };
+    expect(
+      Math.abs(
+        phase("server") -
+          phase("pre-forward") -
+          phase("forward") -
+          phase("post-forward"),
+      ),
+    ).toBeLessThanOrEqual(2);
+    expect(phase("restore")).toBeLessThanOrEqual(phase("pre-forward"));
+    // Exact replay is a cache hit, not a second editor dispatch; its timings
+    // describe this request, never the first request's editor measurements.
+    const cached = await routeAgentSessionRequest(
+      new Request(
+        `https://editor.example/api/agent/sessions/${created.session.sessionId}/circuit`,
+        {
+          method: "POST",
+          headers: {
+            authorization: `Bearer ${claim.agentToken}`,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({
+            apiVersion: "3.0",
+            requestId: "snapshot-1",
+            operation: "snapshot",
+            documentId: "document-main",
+          }),
+        },
+      ),
+      env,
+    );
+    expect(cached!.headers.get("x-agent-cache")).toBe("hit");
+    expect(cached!.headers.get("x-agent-forward-ms")).toBe("0");
+    expect(cached!.headers.has("x-agent-editor-ms")).toBe(false);
+    expect(browser.families).toEqual(["circuit"]);
     // Where the time went, beside an unchanged body (#1227).
     expect(snapshot!.headers.get("x-agent-editor-ms")).toBe("42");
     expect(snapshot!.headers.get("x-agent-editor-visibility")).toBe("hidden");
@@ -1313,6 +1362,7 @@ describe("public Agent session routes", () => {
           revision: 0,
           editorVisibility: "hidden",
         },
+        { requestId: "snapshot-1", cache: "hit", forwardMs: 0 },
       ],
     });
     const anonymous = await routeAgentSessionRequest(
@@ -1637,7 +1687,7 @@ describe("Agent idle expiry", () => {
 
 describe("Agent request ledger", () => {
   /** A claimed session whose editor answers every Circuit request. */
-  async function session() {
+  async function session(onForward: () => void = () => {}) {
     const storage = new MemoryStorage();
     const created = AgentSessionMachine.create({
       sessionId: "ledger-session",
@@ -1661,6 +1711,9 @@ describe("Agent request ledger", () => {
         scopes: ["circuit.snapshot", "circuit.edit.geometry"],
       }),
       () => object,
+      (envelope) => {
+        if (envelope.kind === "circuit-request") onForward();
+      },
     );
     const socket = browser.socket;
     /** A fresh object on the same storage, as after eviction or a deploy. */
@@ -1692,6 +1745,33 @@ describe("Agent request ledger", () => {
       );
     return { storage, open, edit, forwarded: () => browser.families.length };
   }
+
+  it.each([-60_000, 60_000])(
+    "keeps elapsed relay timings stable when the wall clock jumps by %d ms",
+    async (jump) => {
+      let wall = Date.now();
+      let elapsed = 100;
+      const s = await session(() => {
+        wall += jump;
+        elapsed += 50;
+      });
+      const wallClock = vi.spyOn(Date, "now").mockImplementation(() => wall);
+      const elapsedClock = vi
+        .spyOn(performance, "now")
+        .mockImplementation(() => elapsed);
+      try {
+        const response = await s.edit("clock-jump");
+        expect(response.status).toBe(200);
+        expect(response.headers.get("x-agent-relay-ms")).toBe("50");
+        expect(response.headers.get("x-agent-forward-ms")).toBe("50");
+        expect(response.headers.get("x-agent-server-ms")).toBe("50");
+        expect(s.forwarded()).toBe(1);
+      } finally {
+        wallClock.mockRestore();
+        elapsedClock.mockRestore();
+      }
+    },
+  );
 
   it("stores each completed write once under its own key and keeps the session state small", async () => {
     const s = await session();

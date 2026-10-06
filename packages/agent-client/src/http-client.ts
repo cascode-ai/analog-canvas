@@ -170,7 +170,7 @@ export class AgentHttpClient {
     if (!response.ok)
       throw this.transportError(
         response.status,
-        await response.json().catch(() => null),
+        await this.consume(response, (body) => body),
       );
     return response;
   }
@@ -185,9 +185,10 @@ export class AgentHttpClient {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ claimCode }),
     });
-    const body: unknown = await response.json().catch(() => null);
-    if (response.ok) return this.parseCredential(body, "Claim");
-    throw this.transportError(response.status, body);
+    return this.consume(response, (body) => {
+      if (response.ok) return this.parseCredential(body, "Claim");
+      throw this.transportError(response.status, body);
+    });
   }
 
   /** Resume a prior browser-approved pairing and mint a fresh bearer. */
@@ -200,9 +201,10 @@ export class AgentHttpClient {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ sessionId, connectorToken }),
     });
-    const body: unknown = await response.json().catch(() => null);
-    if (response.ok) return this.parseCredential(body, "Connector resume");
-    throw this.transportError(response.status, body);
+    return this.consume(response, (body) => {
+      if (response.ok) return this.parseCredential(body, "Connector resume");
+      throw this.transportError(response.status, body);
+    });
   }
 
   /**
@@ -214,6 +216,7 @@ export class AgentHttpClient {
     sessionId: string,
     agentToken: string,
     request: AgentCircuitRequest,
+    attempts?: AgentHttpAttempts,
   ): Promise<AgentCircuitResponse> {
     const response = await this.send(
       `/api/agent/sessions/${encodeURIComponent(sessionId)}/circuit`,
@@ -225,27 +228,32 @@ export class AgentHttpClient {
         },
         body: JSON.stringify(request),
       },
+      this.timeoutMs,
+      request,
+      attempts,
     );
-    const body: unknown = await response.json().catch(() => null);
-    if (!response.ok) {
-      throw this.transportError(response.status, body);
-    }
-    const parsed = AgentCircuitResponseSchema.safeParse(body);
-    if (!parsed.success) {
-      throw invalidResponseFailure(
-        `Circuit response failed schema validation: ${responseIssueSummary(parsed.error.issues)}. Check the server MCP manifest and reload a compatible adapter. Do not repeat a mutation blindly: it may already have committed. The connector remains valid unless the server revokes it.`,
-      );
-    }
-    if (parsed.data.ok && request.operation === "snapshot")
-      this.contextRevision =
-        response.headers.get("x-agent-context") ?? this.contextRevision;
-    return parsed.data;
+    return this.consume(response, (body) => {
+      if (!response.ok) {
+        throw this.transportError(response.status, body);
+      }
+      const parsed = AgentCircuitResponseSchema.safeParse(body);
+      if (!parsed.success) {
+        throw invalidResponseFailure(
+          `Circuit response failed schema validation: ${responseIssueSummary(parsed.error.issues)}. Check the server MCP manifest and reload a compatible adapter. Do not repeat a mutation blindly: it may already have committed. The connector remains valid unless the server revokes it.`,
+        );
+      }
+      if (parsed.data.ok && request.operation === "snapshot")
+        this.contextRevision =
+          response.headers.get("x-agent-context") ?? this.contextRevision;
+      return parsed.data;
+    });
   }
 
   async files(
     sessionId: string,
     agentToken: string,
     request: AgentFileResourceRequest,
+    attempts?: AgentHttpAttempts,
   ): Promise<AgentFileResourceResponse> {
     const response = await this.send(
       `/api/agent/sessions/${encodeURIComponent(sessionId)}/files`,
@@ -257,14 +265,18 @@ export class AgentHttpClient {
         },
         body: JSON.stringify(request),
       },
+      this.timeoutMs,
+      request,
+      attempts,
     );
-    const body: unknown = await response.json().catch(() => null);
-    if (!response.ok) throw this.transportError(response.status, body);
-    const parsed = AgentFileResourceResponseSchema.safeParse(body);
-    if (!parsed.success) {
-      throw invalidResponseFailure("File response failed schema validation");
-    }
-    return parsed.data;
+    return this.consume(response, (body) => {
+      if (!response.ok) throw this.transportError(response.status, body);
+      const parsed = AgentFileResourceResponseSchema.safeParse(body);
+      if (!parsed.success) {
+        throw invalidResponseFailure("File response failed schema validation");
+      }
+      return parsed.data;
+    });
   }
 
   /**
@@ -279,6 +291,7 @@ export class AgentHttpClient {
     sessionId: string,
     agentToken: string,
     request: AgentSimulationResourceRequest,
+    attempts?: AgentHttpAttempts,
   ): Promise<AgentSimulationResourceResponse> {
     const response = await this.send(
       `/api/agent/sessions/${encodeURIComponent(sessionId)}/simulation`,
@@ -290,22 +303,27 @@ export class AgentHttpClient {
         },
         body: JSON.stringify(request),
       },
+      this.timeoutMs,
+      request,
+      attempts,
     );
-    const body: unknown = await response.json().catch(() => null);
-    if (!response.ok) throw this.transportError(response.status, body);
-    const parsed = AgentSimulationResourceResponseSchema.safeParse(body);
-    if (!parsed.success) {
-      throw invalidResponseFailure(
-        `Simulation response failed schema validation: ${responseIssueSummary(parsed.error.issues)}. Check the server MCP manifest and reload a compatible adapter; use the published HTTP Agent Kit if unavailable. The connector remains valid unless the server revokes it.`,
-      );
-    }
-    return parsed.data;
+    return this.consume(response, (body) => {
+      if (!response.ok) throw this.transportError(response.status, body);
+      const parsed = AgentSimulationResourceResponseSchema.safeParse(body);
+      if (!parsed.success) {
+        throw invalidResponseFailure(
+          `Simulation response failed schema validation: ${responseIssueSummary(parsed.error.issues)}. Check the server MCP manifest and reload a compatible adapter; use the published HTTP Agent Kit if unavailable. The connector remains valid unless the server revokes it.`,
+        );
+      }
+      return parsed.data;
+    });
   }
 
   async projects(
     sessionId: string,
     agentToken: string,
     request: AgentProjectResourceRequest,
+    attempts?: AgentHttpAttempts,
   ): Promise<AgentProjectResourceResponse> {
     const response = await this.send(
       `/api/agent/sessions/${encodeURIComponent(sessionId)}/projects`,
@@ -317,16 +335,20 @@ export class AgentHttpClient {
         },
         body: JSON.stringify(request),
       },
+      this.timeoutMs,
+      request,
+      attempts,
     );
-    const body: unknown = await response.json().catch(() => null);
-    if (!response.ok) throw this.transportError(response.status, body);
-    const parsed = AgentProjectResourceResponseSchema.safeParse(body);
-    if (!parsed.success) {
-      throw invalidResponseFailure(
-        `Project response failed schema validation: ${responseIssueSummary(parsed.error.issues)}`,
-      );
-    }
-    return parsed.data;
+    return this.consume(response, (body) => {
+      if (!response.ok) throw this.transportError(response.status, body);
+      const parsed = AgentProjectResourceResponseSchema.safeParse(body);
+      if (!parsed.success) {
+        throw invalidResponseFailure(
+          `Project response failed schema validation: ${responseIssueSummary(parsed.error.issues)}`,
+        );
+      }
+      return parsed.data;
+    });
   }
 
   async disconnect(sessionId: string, agentToken: string): Promise<void> {
@@ -338,8 +360,9 @@ export class AgentHttpClient {
       },
     );
     if (!response.ok) {
-      const body: unknown = await response.json().catch(() => null);
-      throw this.transportError(response.status, body);
+      return this.consume(response, (body) => {
+        throw this.transportError(response.status, body);
+      });
     }
   }
 
@@ -352,13 +375,14 @@ export class AgentHttpClient {
       { method: "GET", headers: { authorization: `Bearer ${agentToken}` } },
       3_000,
     );
-    const body: unknown = await response.json().catch(() => null);
-    if (!response.ok) throw this.transportError(response.status, body);
-    const parsed = AgentSessionStatusResponseSchema.safeParse(body);
-    if (!parsed.success)
-      throw invalidResponseFailure("Session status failed schema validation");
-    this.contextRevision = parsed.data.contextRevision;
-    return parsed.data;
+    return this.consume(response, (body) => {
+      if (!response.ok) throw this.transportError(response.status, body);
+      const parsed = AgentSessionStatusResponseSchema.safeParse(body);
+      if (!parsed.success)
+        throw invalidResponseFailure("Session status failed schema validation");
+      this.contextRevision = parsed.data.contextRevision;
+      return parsed.data;
+    });
   }
 
   /** The session's last answered requests, kept by the relay (#1227). */
@@ -371,20 +395,24 @@ export class AgentHttpClient {
       { method: "GET", headers: { authorization: `Bearer ${agentToken}` } },
       3_000,
     );
-    const body = (await response.json().catch(() => null)) as {
-      ok?: unknown;
-      operations?: unknown;
-    } | null;
-    if (!response.ok) throw this.transportError(response.status, body);
-    if (body?.ok !== true || !Array.isArray(body.operations))
-      throw invalidResponseFailure("Session activity is not readable");
-    return body.operations as AgentRelayOperation[];
+    return this.consume(response, (value) => {
+      const body = value as {
+        ok?: unknown;
+        operations?: unknown;
+      } | null;
+      if (!response.ok) throw this.transportError(response.status, body);
+      if (body?.ok !== true || !Array.isArray(body.operations))
+        throw invalidResponseFailure("Session activity is not readable");
+      return body.operations as AgentRelayOperation[];
+    });
   }
 
   private async send(
     path: string,
     init: RequestInit,
     timeoutMs = this.timeoutMs,
+    identity?: { requestId: string; operation: string },
+    attempts: AgentHttpAttempts = { count: 0 },
   ): Promise<Response> {
     if (
       this.contextRevision &&
@@ -404,14 +432,32 @@ export class AgentHttpClient {
     }
     for (let attempt = 0; ; attempt += 1) {
       let response: Response;
+      const requestAttempt = ++attempts.count;
       const started = performance.now();
       try {
         response = await this.fetchImpl(joinUrl(this.baseUrl, path), {
           ...init,
           signal: AbortSignal.timeout(timeoutMs),
         });
-        this.noteTiming(path, started, response);
+        attempts.last = this.noteTiming(
+          path,
+          started,
+          requestAttempt,
+          identity,
+          response,
+        );
       } catch (error) {
+        attempts.last = this.noteTiming(
+          path,
+          started,
+          requestAttempt,
+          identity,
+          undefined,
+          error instanceof Error &&
+            (error.name === "TimeoutError" || error.name === "AbortError")
+            ? "timeout"
+            : "network-error",
+        );
         throw networkFailure(
           error instanceof Error ? error.message : "Network request failed",
         );
@@ -432,7 +478,14 @@ export class AgentHttpClient {
       // Do not wait indefinitely or retry earlier than the server permits.
       if (delay > timeoutMs) return response;
       await response.body?.cancel();
+      const timing = this.responseTimings.get(response);
+      if (timing) timing.record.outcome = "retry";
+      const backoffStarted = performance.now();
       await this.sleep(delay);
+      if (timing)
+        timing.record.retryDelayMs = Math.round(
+          performance.now() - backoffStarted,
+        );
     }
   }
 
@@ -477,11 +530,49 @@ export class AgentHttpClient {
 
   /**
    * Where each request's time went, newest last (#1227): the whole round
-   * trip, and for a request the editor answered, the relay's forward and
-   * the editor's own work, with its tab's visibility. Bounded.
+   * trip including consumed JSON and validation; header wait, body work,
+   * relay phases and editor observations remain distinct. Bounded. Byte
+   * downloads measure through headers only; the stream consumer owns transfer.
    */
   readonly requestTimings: AgentRequestTiming[] = [];
   private timingCount = 0;
+  private readonly responseTimings = new WeakMap<
+    Response,
+    { started: number; record: AgentRequestTiming }
+  >();
+
+  /** Body transfer, JSON parse and canonical validation share one completion. */
+  private async consume<T>(
+    response: Response,
+    parse: (body: unknown) => T,
+  ): Promise<T> {
+    const started = performance.now();
+    const timing = this.responseTimings.get(response);
+    let bodyFailure: "timeout" | "network-error" | undefined;
+    try {
+      const body: unknown = await response.json().catch((error: unknown) => {
+        if (error instanceof Error) {
+          if (error.name === "TimeoutError" || error.name === "AbortError")
+            bodyFailure = "timeout";
+          else if (error.name === "TypeError") bodyFailure = "network-error";
+        }
+        // Retain the established parse/null and public error/retry behavior.
+        return null;
+      });
+      return parse(body);
+    } catch (error) {
+      if (timing && response.ok && !bodyFailure)
+        timing.record.outcome = "invalid-response";
+      throw error;
+    } finally {
+      if (timing) {
+        if (bodyFailure) timing.record.outcome = bodyFailure;
+        timing.record.bodyMs = Math.round(performance.now() - started);
+        timing.record.totalMs = Math.round(performance.now() - timing.started);
+        this.responseTimings.delete(response);
+      }
+    }
+  }
 
   /** A mark to read the timings of the requests made after it. */
   timingMark(): number {
@@ -493,29 +584,80 @@ export class AgentHttpClient {
     return count > 0 ? this.requestTimings.slice(-count) : [];
   }
 
-  private noteTiming(path: string, started: number, response: Response) {
+  private noteTiming(
+    path: string,
+    started: number,
+    attempt: number,
+    identity?: { requestId: string; operation: string },
+    response?: Response,
+    failure?: "timeout" | "network-error",
+  ) {
     const header = (name: string) => {
-      const value = Number(response.headers.get(name));
-      return response.headers.has(name) && Number.isFinite(value)
+      const value = Number(response?.headers.get(name));
+      return response?.headers.has(name) && Number.isFinite(value) && value >= 0
         ? value
         : undefined;
     };
     const relayMs = header("x-agent-relay-ms");
     const editorMs = header("x-agent-editor-ms");
-    const visibility = response.headers.get("x-agent-editor-visibility");
+    const visibility = response?.headers.get("x-agent-editor-visibility");
+    const headerMs = Math.round(performance.now() - started);
     this.timingCount += 1;
-    this.requestTimings.push({
-      request: path.split("/").filter(Boolean).at(-1) ?? path,
+    const resource =
+      path.match(
+        /\/sessions\/[^/]+\/(circuit|files|simulation|projects|status|activity|artifacts)(?:\/|$)/,
+      )?.[1] ??
+      path.split("/").filter(Boolean).at(-1) ??
+      "request";
+    const phases = Object.fromEntries(
+      ["server", "restore", "pre-forward", "forward", "post-forward"].flatMap(
+        (name) => {
+          const value = header(`x-agent-${name}-ms`);
+          return value === undefined
+            ? []
+            : [
+                [
+                  name.replace(/-([a-z])/g, (_, letter: string) =>
+                    letter.toUpperCase(),
+                  ) + "Ms",
+                  value,
+                ],
+              ];
+        },
+      ),
+    );
+    const cache = response?.headers.get("x-agent-cache");
+    const record: AgentRequestTiming = {
+      request: resource,
+      resource,
+      ...(identity
+        ? { requestId: identity.requestId, operation: identity.operation }
+        : {}),
+      attempt,
+      ...(response ? { status: response.status } : {}),
+      outcome: failure ?? (response?.ok ? "ok" : "http-error"),
       startedAtMs: Math.round(started),
-      totalMs: Math.round(performance.now() - started),
+      totalMs: headerMs,
+      headerMs,
+      ...phases,
+      ...(cache === "hit" ? { cache: "hit" as const } : {}),
       ...(relayMs !== undefined ? { relayMs } : {}),
       ...(editorMs !== undefined ? { editorMs } : {}),
       ...(visibility === "visible" || visibility === "hidden"
         ? { editorVisibility: visibility }
         : {}),
-    });
+    };
+    this.requestTimings.push(record);
+    if (response) this.responseTimings.set(response, { started, record });
     if (this.requestTimings.length > 64) this.requestTimings.shift();
+    return record;
   }
+}
+
+/** Ephemeral telemetry for one dispatch; shared by HTTP and session retries. */
+export interface AgentHttpAttempts {
+  count: number;
+  last?: AgentRequestTiming;
 }
 
 /** One request's time, hop by hop; see AgentHttpClient.requestTimings. */
@@ -524,9 +666,32 @@ export interface AgentRequestTiming {
   request: string;
   /** When it started, in ms since this process started. */
   startedAtMs: number;
-  /** Agent to Worker and back, as this process measured it. */
+  /** Through consumed JSON + validation; byte streams stop at headers. */
   totalMs: number;
-  /** Worker to editor and back, for a request the editor answered. */
+  /** Fetch through headers; totalMs additionally includes consumed JSON/validation. */
+  headerMs?: number;
+  bodyMs?: number;
+  resource?: string;
+  requestId?: string;
+  operation?: string;
+  attempt?: number;
+  status?: number;
+  outcome?:
+    | "ok"
+    | "http-error"
+    | "invalid-response"
+    | "timeout"
+    | "network-error"
+    | "retry";
+  retryDelayMs?: number;
+  cache?: "hit";
+  serverMs?: number;
+  /** Restore is included in preForwardMs, not additive. */
+  restoreMs?: number;
+  preForwardMs?: number;
+  forwardMs?: number;
+  postForwardMs?: number;
+  /** Legacy Worker forward + post-forward time; not pure socket time. */
   relayMs?: number;
   /** The editor's own work, from receipt to reply. */
   editorMs?: number;
@@ -543,4 +708,11 @@ export interface AgentRelayOperation {
   ok: boolean;
   revision?: number;
   editorVisibility?: "visible" | "hidden";
+  editorMs?: number;
+  serverMs?: number;
+  restoreMs?: number;
+  preForwardMs?: number;
+  forwardMs?: number;
+  postForwardMs?: number;
+  cache?: "hit";
 }

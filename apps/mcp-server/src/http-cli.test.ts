@@ -55,6 +55,12 @@ describe("HTTP executable adapter", () => {
       ],
       ["circuit_wire", { actions: [{ kind: "connect" }] }],
       ["missing-tool", {}],
+      ["simulation_source", { operation: "list", refresh: "wrong-type" }],
+      ["simulation_run", { action: "read", runId: "r", waitMs: 20_001 }],
+      [
+        "simulation_run",
+        { action: "read", operation: "start", requestId: "r" },
+      ],
     ] as const) {
       const plain = await executeOperation(name, args, server.toolSession);
       const mcp = await server.handler.callTool(name, args);

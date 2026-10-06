@@ -174,6 +174,45 @@ function galleryService(entries: Record<string, CircuitProject>) {
 }
 
 describe("MCP tools on the live editor", () => {
+  it("normalizes flat and wrapped inputs identically through the shared MCP/CLI boundary", async () => {
+    const editor = await connected({
+      simulationService: profileService({ id: "test", engine: "ngspice" }),
+    });
+    const { executeOperation } =
+      await import("../../../mcp-server/src/operations");
+    const wrapped = await editor.tool("simulation_run", {
+      request: { action: "capabilities" },
+      requestId: "cap-wrapped",
+      detail: "summary",
+    });
+    const flat = (await executeOperation(
+      "simulation_run",
+      { operation: "capabilities", requestId: "cap-flat", detail: "summary" },
+      editor.session,
+    )) as any;
+    expect({ ...flat, requestId: wrapped.requestId }).toEqual(wrapped);
+    expect(editor.http.simulationCalls.map((r) => r.requestId)).toEqual([
+      "cap-wrapped",
+      "cap-flat",
+    ]);
+    const listWrapped = await editor.tool("simulation_source", {
+      request: { operation: "list" },
+      requestId: "list-wrapped",
+      refresh: true,
+    });
+    const listFlat = (await executeOperation(
+      "simulation_source",
+      { action: "list", requestId: "list-flat", refresh: true },
+      editor.session,
+    )) as any;
+    expect({ ...listFlat, requestId: listWrapped.requestId }).toEqual(
+      listWrapped,
+    );
+    expect(editor.http.fileCalls.map((r) => r.requestId)).toEqual([
+      "list-wrapped",
+      "list-flat",
+    ]);
+  });
   it("get_context returns the compact context of the editor's Document", async () => {
     const editor = await connected();
     await apply(editor, [

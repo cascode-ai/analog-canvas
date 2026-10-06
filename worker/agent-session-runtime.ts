@@ -92,7 +92,7 @@ export function relayHeaders(allowedOrigin: string | null): Headers {
     "cache-control": "no-store",
     "content-type": "application/json; charset=utf-8",
     "access-control-expose-headers":
-      "x-agent-context, x-agent-relay-ms, x-agent-editor-ms, x-agent-editor-visibility",
+      "x-agent-context, x-agent-relay-ms, x-agent-editor-ms, x-agent-editor-visibility, x-agent-server-ms, x-agent-restore-ms, x-agent-pre-forward-ms, x-agent-forward-ms, x-agent-post-forward-ms, x-agent-cache",
   });
   if (allowedOrigin !== null) {
     headers.set("access-control-allow-origin", allowedOrigin);

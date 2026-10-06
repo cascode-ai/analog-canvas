@@ -18641,17 +18641,23 @@
                             "items": {
                               "type": "string",
                               "enum": [
+                                "authoring-help",
+                                "capabilities",
                                 "prepare",
+                                "run",
                                 "start",
                                 "read",
+                                "catalog",
+                                "history",
+                                "history-usage",
+                                "history-delete",
                                 "cancel",
-                                "export",
-                                "capabilities",
                                 "prepare-batch",
+                                "prepare-sweep",
                                 "start-batch",
                                 "read-batch",
                                 "cancel-batch",
-                                "prepare-sweep"
+                                "export"
                               ]
                             }
                           },

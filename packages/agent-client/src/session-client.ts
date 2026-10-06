@@ -36,6 +36,7 @@ type AgentTransactResponse = z.infer<typeof AgentTransactSuccessResponseSchema>;
 import { AgentSessionError } from "./errors.js";
 import {
   AgentHttpClient,
+  type AgentHttpAttempts,
   type AgentRelayOperation,
   type AgentRequestTiming,
   type ClaimSuccess,
@@ -505,8 +506,16 @@ export class AgentSessionClient {
         request.input.action === "update" &&
         request.input.owner.kind === "project-folder");
     try {
-      const response = await this.resourceRequest("files", request, (session) =>
-        this.http.files(session.sessionId, session.agentToken, request),
+      const response = await this.resourceRequest(
+        "files",
+        request,
+        (session, attempts) =>
+          this.http.files(
+            session.sessionId,
+            session.agentToken,
+            request,
+            attempts,
+          ),
       );
       if (response.ok && response.operation === "open")
         await this.status({ refresh: true }).catch(() => {});
@@ -587,8 +596,13 @@ export class AgentSessionClient {
     const response = await this.resourceRequest(
       "simulation",
       request,
-      (session) =>
-        this.http.simulation(session.sessionId, session.agentToken, request),
+      (session, attempts) =>
+        this.http.simulation(
+          session.sessionId,
+          session.agentToken,
+          request,
+          attempts,
+        ),
     );
     const reusable =
       response.ok &&
@@ -622,8 +636,16 @@ export class AgentSessionClient {
       request.operation === "replace-netlist" ||
       (request.operation === "workspace" && request.request.action !== "list");
     try {
-      return await this.resourceRequest("projects", request, (session) =>
-        this.http.projects(session.sessionId, session.agentToken, request),
+      return await this.resourceRequest(
+        "projects",
+        request,
+        (session, attempts) =>
+          this.http.projects(
+            session.sessionId,
+            session.agentToken,
+            request,
+            attempts,
+          ),
       );
     } finally {
       // A lost reply may follow a committed edit or workspace switch.
@@ -1212,8 +1234,9 @@ export class AgentSessionClient {
   /**
    * Send high-level actions for the editor to plan and commit as one atomic
    * transaction, in a single request. The editor plans them against the
-   * Document it holds, so a concurrent human edit surfaces as
-   * `STATE_CHANGED`, never as a blind overwrite. An editor page too old to
+   * Document it holds. Target-resolving actions plan on its current state;
+   * raw transactions, pass-through actions and undo/redo retain their revision
+   * guards. A human edit does not universally imply STATE_CHANGED. A page too old to
    * plan them is asked to reload; nothing is sent.
    */
   async applyActions(
@@ -1615,15 +1638,23 @@ export class AgentSessionClient {
     request: AgentCircuitRequest,
   ): Promise<AgentCircuitResponse> {
     request = structuredClone(request);
-    return this.resourceRequest("circuit", request, (session) =>
-      this.http.circuit(session.sessionId, session.agentToken, request),
+    return this.resourceRequest("circuit", request, (session, attempts) =>
+      this.http.circuit(
+        session.sessionId,
+        session.agentToken,
+        request,
+        attempts,
+      ),
     );
   }
 
   private async resourceRequest<T>(
     resource: string,
     request: { requestId: string },
-    operation: (session: ActiveSession) => Promise<T>,
+    operation: (
+      session: ActiveSession,
+      attempts: AgentHttpAttempts,
+    ) => Promise<T>,
   ): Promise<T> {
     const existing = this.inflight.get(request.requestId);
     const payload = JSON.stringify([resource, this.http.workspaceId, request]);
@@ -1644,8 +1675,12 @@ export class AgentSessionClient {
   }
 
   private async dispatch<T>(
-    operation: (session: ActiveSession) => Promise<T>,
+    operation: (
+      session: ActiveSession,
+      attempts: AgentHttpAttempts,
+    ) => Promise<T>,
   ): Promise<T> {
+    const httpAttempts: AgentHttpAttempts = { count: 0 };
     let attempts = 0;
     let offlineAttempts = 0;
     let ownerSessionId: string | undefined;
@@ -1673,7 +1708,7 @@ export class AgentSessionClient {
             );
           ownerSessionId = session.sessionId;
           ownerContext = this.http.contextRevision;
-          return operation(session);
+          return operation(session, httpAttempts);
         });
         const failure = response as { ok?: boolean; error?: { code?: string } };
         if (ownerContext !== this.http.contextRevision) {
@@ -1713,6 +1748,7 @@ export class AgentSessionClient {
         ) {
           attempts += 1;
           this.connection.apply("transport-interrupted", error.code);
+          if (httpAttempts.last) httpAttempts.last.retryDelayMs = 0;
           continue;
         }
         if (error.category === "editor-offline") {
@@ -1721,7 +1757,11 @@ export class AgentSessionClient {
           // Never turn an uncertain mutation/start into a new request ID.
           const delay = this.offlineRetryDelaysMs[offlineAttempts++];
           if (error.code === "EDITOR_OFFLINE" && delay !== undefined) {
+            const timing = httpAttempts.last;
+            const started = performance.now();
             await this.sleep(delay);
+            if (timing)
+              timing.retryDelayMs = Math.round(performance.now() - started);
             continue;
           }
           throw error;

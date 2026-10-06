@@ -57,7 +57,8 @@ import {
   ToolContractRegistry,
 } from "./tool-contracts.js";
 import { editContract } from "./edit-contracts.js";
-import { focusedTools } from "./focused-tools.js";
+import { focusedTools, FOCUSED_TOOLS } from "./focused-tools.js";
+import { simulationArguments } from "./operation-arguments.js";
 import {
   inputIssues,
   inputIssueDetails,
@@ -71,21 +72,6 @@ import {
  * resource, not a session permission gate.
  */
 type ToolSessionState = OperationSession;
-
-function normalizeDiscriminator(
-  value: unknown,
-  from: "action" | "operation",
-  to: "action" | "operation",
-) {
-  if (!value || typeof value !== "object") return value;
-  const args = value as { request?: unknown };
-  if (!args.request || typeof args.request !== "object") return value;
-  const request = args.request as Record<string, unknown>;
-  if (typeof request[from] !== "string" || request[to] !== undefined)
-    return value;
-  const { [from]: discriminator, ...rest } = request;
-  return { ...args, request: { ...rest, [to]: discriminator } };
-}
 
 const ConnectArgs = z.strictObject({
   claimCode: z
@@ -239,6 +225,11 @@ const SimulationFilesArgs = z.strictObject({
       "Refresh the result directory instead of reusing a complete directory fetched within 30 seconds.",
     ),
 });
+
+// Read the authoritative Zod envelope once, without building JSON discovery
+// schemas on the hot path. Both entry points normalize here before routing.
+const simulationEnvelopeFields = new Set(Object.keys(SimulationArgs.shape));
+const fileEnvelopeFields = new Set(Object.keys(SimulationFilesArgs.shape));
 
 async function localWorkspace(session: ToolSessionState, basePath?: string) {
   const status = await session.client.status();
@@ -532,7 +523,7 @@ export function operationError(error: unknown, input?: unknown): unknown {
         message: "Tool arguments do not match the input contract.",
         recovery: "fix-input",
         issues: inputIssues(error.issues, input),
-        details: inputIssueDetails(error.issues),
+        details: inputIssueDetails(error.issues, input),
       },
     };
   }
@@ -824,9 +815,7 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
       },
     },
     handle: async (args, session) => {
-      const parsed = SimulationArgs.parse(
-        normalizeDiscriminator(args, "action", "operation"),
-      );
+      const parsed = SimulationArgs.parse(args);
       const { request, requestId, waitMs = 0, detail = "summary" } = parsed;
       const effectiveRequestId = requestId ?? crypto.randomUUID();
       let runId = "runId" in request ? request.runId : undefined;
@@ -932,9 +921,7 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
       },
     },
     handle: async (args, session) => {
-      const parsed = SimulationFilesArgs.parse(
-        normalizeDiscriminator(args, "operation", "action"),
-      );
+      const parsed = SimulationFilesArgs.parse(args);
       const { request, requestId, outputPath, basePath, detail, refresh } =
         parsed;
       if (request.action === "workspace") {
@@ -1441,34 +1428,45 @@ export async function executeOperation(
   // A session without a network client (offline discovery) has no hops.
   const mark = session.client?.timingMark?.();
   let result: unknown;
+  let input: unknown = args ?? {};
   try {
-    result = await tool.handle(args ?? {}, session);
+    const source =
+      FOCUSED_TOOLS.find((tool) => tool.name === name)?.source ?? name;
+    if (source === "simulation" || source === "simulation_files")
+      input = simulationArguments(
+        input,
+        source === "simulation" ? simulationEnvelopeFields : fileEnvelopeFields,
+        source === "simulation" ? "operation" : "action",
+      );
+    result = await tool.handle(input, session);
   } catch (error) {
-    result = operationError(error, args);
+    result = operationError(error, input);
   }
   return withTiming(
     result,
     performance.now() - started,
     mark === undefined ? [] : session.client.timingsSince(mark),
     options.reportStartup === true,
+    name,
   );
 }
 
-/** A forward slower than this reads as an editor that is not answering. */
+/** Legacy relay segment threshold; it includes completion, not only editor work. */
 const SLOW_EDITOR_MS = 5000;
 
 /**
  * Where a call's time went (#1227): the whole call, each request hop by hop
  * (relay forward, editor work and its tab's visibility), and for a one-shot
  * CLI process its startup before the first request, which a CPU-starved
- * host stretches. An editor in the background or slow to answer adds
- * EDITOR_BACKGROUND with the fix.
+ * host stretches. Visibility is an observation; latency warnings remain
+ * neutral until the phase measurements identify a cause.
  */
 export function withTiming(
   result: unknown,
   totalMs: number,
   requests: readonly AgentRequestTiming[],
   reportStartup: boolean,
+  operation?: string,
 ): unknown {
   if (
     !requests.length ||
@@ -1485,17 +1483,28 @@ export function withTiming(
     ...result,
     timing: {
       totalMs: Math.round(totalMs),
-      ...(reportStartup ? { startupMs: requests[0]!.startedAtMs } : {}),
-      requests: requests.map(
-        ({ startedAtMs: _startedAtMs, ...request }) => request,
-      ),
+      ...(operation ? { operation } : {}),
+      ...(reportStartup && requests.length
+        ? { startupMs: requests[0]!.startedAtMs }
+        : {}),
+      ...(requests.length > 8
+        ? {
+            requestCount: requests.length,
+            requestsOmitted: requests.length - 8,
+          }
+        : {}),
+      requests: requests
+        .slice(-8)
+        .map(({ startedAtMs: _startedAtMs, ...request }) => request),
       ...(hidden || slowest > SLOW_EDITOR_MS
         ? {
             warning: {
-              code: "EDITOR_BACKGROUND",
-              message: hidden
-                ? "The Analog Canvas tab was in the background while it answered; bring it to the front for prompt replies."
-                : `The editor took ${Math.round(slowest / 1000)} s to answer; bring the Analog Canvas tab to the front, or check that its machine is not busy.`,
+              code:
+                slowest > SLOW_EDITOR_MS ? "SLOW_RELAY" : "EDITOR_BACKGROUND",
+              message:
+                slowest > SLOW_EDITOR_MS
+                  ? `Relay forwarding and completion took ${Math.round(slowest / 1000)} s; inspect the phase timings to locate the delay. Tab visibility alone does not establish its cause.`
+                  : "The Analog Canvas tab reported hidden while answering. This is a visibility observation, not a latency diagnosis.",
             },
           }
         : {}),

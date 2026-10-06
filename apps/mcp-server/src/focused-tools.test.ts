@@ -10,6 +10,7 @@ import { selectToolSchema, contractOperations } from "./tool-contracts.js";
 import { inlineSchema } from "./inline-schema.js";
 import { declarationSchema } from "./declaration-schema.js";
 import { describeToolContract } from "./tools.js";
+import { simulationArguments } from "./operation-arguments.js";
 
 // The first tool listing builds every tool's contract: about a second
 // alone, and past the 5 s a test gets beside the full suite on a CI runner.
@@ -176,7 +177,7 @@ describe("focused tools", () => {
     });
   });
 
-  it("accepts action and operation aliases across sibling simulation tools", async () => {
+  it("routes already normalized simulation operations without another conversion", async () => {
     const calls: unknown[] = [];
     const originals = [
       ...new Set(FOCUSED_TOOLS.map((entry) => entry.source)),
@@ -194,10 +195,10 @@ describe("focused tools", () => {
     const tools = focusedTools(originals, () => "focused");
     await tools
       .find((tool) => tool.definition.name === "simulation_run")!
-      .handle({ request: { action: "capabilities" } }, {});
+      .handle({ request: { operation: "capabilities" } }, {});
     await tools
       .find((tool) => tool.definition.name === "simulation_source")!
-      .handle({ request: { operation: "list" } }, {});
+      .handle({ request: { action: "list" } }, {});
     expect(calls).toEqual([
       { request: { operation: "capabilities" } },
       { request: { action: "list" } },
@@ -407,7 +408,17 @@ describe("one envelope for simulation tools (#1231)", () => {
     const tool = focusedTools(originals, () => "focused").find(
       (entry) => entry.definition.name === "simulation_source",
     )!;
-    return { tool, calls };
+    // Pure routing fixture: use the same normalization function as execution.
+    const fields = new Set(
+      Object.keys((toolInputSchema("simulation_files") as any).properties),
+    );
+    return {
+      tool: {
+        handle: (args: unknown, session: object) =>
+          tool.handle(simulationArguments(args, fields, "action"), session),
+      },
+      calls,
+    };
   }
 
   it("puts flat arguments in the request and each detail where it belongs", async () => {

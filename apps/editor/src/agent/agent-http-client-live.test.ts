@@ -344,6 +344,12 @@ describe("the Agent HTTP client reading the live editor", () => {
                   "x-agent-relay-ms": "830",
                   "x-agent-editor-ms": "120",
                   "x-agent-editor-visibility": "hidden",
+                  "x-agent-server-ms": "910",
+                  "x-agent-restore-ms": "10",
+                  "x-agent-pre-forward-ms": "80",
+                  "x-agent-forward-ms": "800",
+                  "x-agent-post-forward-ms": "30",
+                  "x-agent-cache": "hit",
                 }
               : {}),
           },
@@ -357,6 +363,18 @@ describe("the Agent HTTP client reading the live editor", () => {
     expect(rest).toEqual([]);
     expect(timing).toMatchObject({
       request: "circuit",
+      resource: "circuit",
+      requestId: snapshotRequest.requestId,
+      operation: "snapshot",
+      attempt: 1,
+      status: 200,
+      outcome: "ok",
+      serverMs: 910,
+      restoreMs: 10,
+      preForwardMs: 80,
+      forwardMs: 800,
+      postForwardMs: 30,
+      cache: "hit",
       relayMs: 830,
       editorMs: 120,
       editorVisibility: "hidden",
@@ -365,6 +383,186 @@ describe("the Agent HTTP client reading the live editor", () => {
     expect(timing!.startedAtMs).toBeGreaterThan(0);
     // A response without the relay's headers records the round trip alone.
     expect(http.requestTimings[0]).not.toHaveProperty("relayMs");
+  });
+
+  it("counts header wait separately from body transfer and validation, without logging payloads", async () => {
+    const { service } = liveAgentEditor();
+    let clock = 100;
+    const now = vi.spyOn(performance, "now").mockImplementation(() => clock);
+    try {
+      const http = new AgentHttpClient({
+        baseUrl: BASE,
+        fetch: async () => {
+          clock += 40;
+          const response = Response.json(service.handle(snapshotRequest));
+          const json = response.json.bind(response);
+          response.json = async () => {
+            clock += 70;
+            return json();
+          };
+          return response;
+        },
+      });
+      await http.circuit("s", TOKEN, snapshotRequest);
+      expect(http.requestTimings[0]).toMatchObject({
+        headerMs: 40,
+        bodyMs: 70,
+        totalMs: 110,
+        requestId: snapshotRequest.requestId,
+        outcome: "ok",
+      });
+      expect(JSON.stringify(http.requestTimings)).not.toContain(TOKEN);
+      expect(http.requestTimings[0]).not.toHaveProperty("body");
+      for (let i = 0; i < 70; i++)
+        await http.circuit("s", TOKEN, {
+          ...snapshotRequest,
+          requestId: `read-${i}`,
+        });
+      expect(http.requestTimings).toHaveLength(64);
+      expect(http.requestTimings[0]!.requestId).toBe("read-6");
+    } finally {
+      now.mockRestore();
+    }
+  });
+
+  it.each([
+    ["TimeoutError", "timeout"],
+    ["AbortError", "timeout"],
+    ["TypeError", "network-error"],
+    ["SyntaxError", "invalid-response"],
+  ])(
+    "records body-stage %s without changing public recovery",
+    async (name, outcome) => {
+      const { service } = liveAgentEditor();
+      const http = new AgentHttpClient({
+        baseUrl: BASE,
+        fetch: async () => {
+          const response = Response.json(service.handle(snapshotRequest));
+          response.json = async () => {
+            throw new DOMException("body-transfer-fault", name);
+          };
+          return response;
+        },
+      });
+      await expect(
+        http.circuit("s", TOKEN, snapshotRequest),
+      ).rejects.toMatchObject({
+        code: "INVALID_RESPONSE",
+        category: "request-rejected",
+      });
+      expect(http.requestTimings).toHaveLength(1);
+      expect(http.requestTimings[0]).toMatchObject({
+        requestId: snapshotRequest.requestId,
+        status: 200,
+        outcome,
+        bodyMs: expect.any(Number),
+        totalMs: expect.any(Number),
+      });
+      expect(JSON.stringify(http.requestTimings)).not.toMatch(
+        /body-transfer-fault|token-012345/,
+      );
+    },
+  );
+
+  it("correlates rate-limit and session-offline retries without changing their payload or backoff", async () => {
+    const live = liveAgentEditor();
+    const credential = await live.http.claim("session-1.code");
+    let clock = 100;
+    const now = vi.spyOn(performance, "now").mockImplementation(() => clock);
+    const posted: AgentCircuitRequest[] = [];
+    const writes: AgentCircuitRequest[] = [];
+    const delays: number[] = [];
+    let capabilityAttempts = 0;
+    const http = new AgentHttpClient({
+      baseUrl: BASE,
+      sleep: async (ms) => {
+        clock += ms;
+      },
+      fetch: async (url, init) => {
+        clock += 10;
+        if (String(url).endsWith("/claims"))
+          return Response.json({ ok: true, ...credential });
+        const request = JSON.parse(String(init?.body)) as AgentCircuitRequest;
+        if (request.operation === "transact") {
+          writes.push(request);
+          if (writes.length === 1) throw new TypeError("network-write-fault");
+        }
+        if (request.operation === "capabilities") {
+          posted.push(request);
+          capabilityAttempts++;
+          if (capabilityAttempts === 1)
+            return Response.json(
+              {},
+              { status: 429, headers: { "retry-after": "0" } },
+            );
+          if (capabilityAttempts < 5)
+            return Response.json(
+              { error: { code: "EDITOR_OFFLINE", message: "waiting" } },
+              { status: 503 },
+            );
+        }
+        return Response.json(live.service.handle(request));
+      },
+    });
+    const client = new AgentSessionClient({
+      http,
+      sleep: async (ms) => {
+        delays.push(ms);
+        clock += ms;
+      },
+    });
+    try {
+      expect((await client.connect("session-1.code")).mode).toBe("claimed");
+      const timings = http.requestTimings.filter(
+        ({ operation }) => operation === "capabilities",
+      );
+      expect(timings.map(({ attempt }) => attempt)).toEqual([1, 2, 3, 4, 5]);
+      expect(timings.map(({ retryDelayMs }) => retryDelayMs)).toEqual([
+        0,
+        500,
+        1000,
+        2000,
+        undefined,
+      ]);
+      expect(timings.map(({ outcome }) => outcome)).toEqual([
+        "retry",
+        "http-error",
+        "http-error",
+        "http-error",
+        "ok",
+      ]);
+      expect(delays).toEqual([500, 1000, 2000]);
+      expect(
+        new Set(posted.map((request) => JSON.stringify(request))).size,
+      ).toBe(1);
+      expect(new Set(timings.map(({ requestId }) => requestId)).size).toBe(1);
+      await client.request({
+        apiVersion: "3.0",
+        requestId: "uncertain-write",
+        operation: "transact",
+        documentId: "main",
+        transactionId: "uncertain-write",
+        expectedRevision: 0,
+        edits: [{ kind: "noop" }],
+      });
+      const writeTimings = http.requestTimings.filter(
+        ({ requestId }) => requestId === "uncertain-write",
+      );
+      expect(writeTimings.map(({ attempt }) => attempt)).toEqual([1, 2]);
+      expect(writeTimings.map(({ outcome }) => outcome)).toEqual([
+        "network-error",
+        "ok",
+      ]);
+      expect(writeTimings.map(({ retryDelayMs }) => retryDelayMs)).toEqual([
+        0,
+        undefined,
+      ]);
+      expect(
+        new Set(writes.map((request) => JSON.stringify(request))).size,
+      ).toBe(1);
+    } finally {
+      now.mockRestore();
+    }
   });
 });
 
