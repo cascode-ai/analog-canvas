@@ -101,6 +101,12 @@ may support exploration but is not a reviewed regression baseline.
   then translation.
 - A symbol family has one canonical shared body geometry; polarity, arrow,
   hidden-pin presentation, and other semantic differences remain separate.
+- Signed amplifier marks follow the existing named semantic pins. The converter
+  v9 correction removes a stale input-mark reflection in sixteen differential
+  forms; body geometry, pin anchors, output semantics and electrical connectivity
+  stay fixed. Registration checks plus/minus strokes independently of generator
+  equality. Historical reference evidence remains the source witness; a generated
+  candidate does not replace it as its own visual authority.
 - A geometry change must satisfy every registered orientation, sample, and
   reviewed variant for the affected asset.
 - Extending a primitive beyond the previous bounds requires an explicit

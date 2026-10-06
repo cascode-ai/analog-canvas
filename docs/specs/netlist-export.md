@@ -61,6 +61,20 @@ Every emitted token has exactly one authority:
 Retired `spice.name`, `spice.target`, `spice.pin.Pn`, and `spice.param.*`
 properties are invalid. Export extraction and printers do not read them.
 
+Portable definitions use the same structural interface validation as canonical
+component authoring. A malformed definition blocks both strict export and
+authoring analysis with `INVALID_COMPONENT_INTERFACE`, including when a caller
+bypasses Project loading. Subcircuit ports map every Symbol pin exactly once,
+with unique formal names and one pin-or-supply source per port; primitive pin
+order covers each pin once. Geometry cannot supply a missing mapping.
+
+When a portable descriptor calls a generated built-in model, its positional
+pin/supply mapping must match that model's interface. A structurally valid but
+incompatible mapping blocks export with `COMPONENT_MODEL_INTERFACE_MISMATCH`.
+Declared custom masters retain their explicitly ordered interfaces and supply
+names. Cell hierarchy retains its existing child-interface ownership and
+identity-based call projection.
+
 ## Persisted data model
 
 The Project model supplies these normalized facts:

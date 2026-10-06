@@ -36,6 +36,7 @@ import {
 } from "./previous-to-current.js";
 import { repairBoundFormatOverrides } from "./transforms/bound-format-override.js";
 import { repairMisdrawnReviewedBindings } from "./transforms/misdrawn-reviewed-binding.js";
+import { repairAmplifierPolaritySnapshots } from "./transforms/amplifier-polarity.js";
 import { OLDEST_SUPPORTED_PROJECT_SCHEMA_VERSION } from "./version.js";
 import { upgradeSchema49To50 } from "./transforms/simulation-folders.js";
 import { upgradeSchema50To51 } from "./transforms/drafting-shape-paint.js";
@@ -115,11 +116,12 @@ export function tryValidateProject(input: unknown): ProjectLoadResult {
         ),
       })),
     };
+  const project = repairAmplifierPolaritySnapshots(result.data);
   return {
     ok: true,
-    project: result.data,
+    project,
     sourceSchemaVersion: CURRENT_MODEL_SCHEMA_VERSION,
-    migrated: false,
+    migrated: project !== result.data,
   };
 }
 
@@ -273,7 +275,7 @@ export function tryParseProjectWithMetadata(
     ok: true,
     project,
     sourceSchemaVersion,
-    migrated,
+    migrated: migrated || validated.migrated,
   };
 }
 

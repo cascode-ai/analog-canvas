@@ -6,8 +6,10 @@ The core authoring model has two levels:
    geometry and electrical rules, together in one canonical file.
 2. **Canvas Documents** in `@icm/model`: Instances reference the stable symbol
    ID and own placement, actual parameter values and styling; Documents own
-   Nets, Routes, Annotations and hierarchy. Project JSON does not embed another
-   copy of the built-in component library.
+   Nets, Routes, Annotations and hierarchy. Portable Project JSON captures the
+   component definitions it uses, including their artwork and electrical
+   interfaces; it does not copy the entire built-in library. Project-owned
+   definitions take precedence over the website's current catalog.
 
 每个元件只有一份完整定义文件。`symbol` 定义怎么画，`electrical` 定义电气规则；
 画布中的 M1、M2 保存各自的位置、参数取值和连接，不属于元件库。
@@ -31,6 +33,18 @@ IDs follow the same rule.
 `electrical: null` does not claim simulation support. Conversely, a non-null
 descriptor with `targetPolicy: "none"` may provide naming/authoring semantics
 without a netlist implementation (for example, compound magnetic symbols).
+
+Primitive pin order must cover each Symbol pin exactly once. Subcircuit formal
+port names are unique ignoring case; each port maps one pin or one supply,
+and pin mappings cover each Symbol pin exactly once. These structural rules
+are shared by authoring validation, portable Project validation and netlist
+preflight. A portable descriptor calling a built-in model must also retain
+that model's positional pin/supply mapping. A deliberately different interface
+requires its own declared master, rather than reusing an incompatible body.
+
+Signed amplifier artwork follows the named semantic pins. Generators derive
+the plus/minus rows from those pins; registration independently checks the
+actual strokes. Drawing marks never determine electrical connectivity.
 
 `catalog.json` lists IDs in established display/registration order and owns
 library-wide identity and semantic primitives. It contains no duplicate device

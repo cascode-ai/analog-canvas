@@ -53,7 +53,11 @@ const MARK_HALF_SIZE = 3;
 
 // Use the differential gm block's square +/- construction for every analog
 // triangle. Scaling the PDF's axes separately distorted the FD Amp marks.
-function polarityPair(x, side) {
+function polarityPair(x, side, positivePin) {
+  // Presentation follows the semantic pin, not an independently maintained
+  // "top/bottom" assumption. Crossed outputs select OUT+ before drawing.
+  const orientation = Math.sign(positivePin.at.y);
+  const positiveY = orientation * MARK_ROW_Y;
   const mark = (from, to, part) => ({
     kind: "line",
     from,
@@ -63,18 +67,18 @@ function polarityPair(x, side) {
   });
   return [
     mark(
-      { x, y: MARK_ROW_Y - MARK_HALF_SIZE },
-      { x, y: MARK_ROW_Y + MARK_HALF_SIZE },
+      { x, y: positiveY - orientation * MARK_HALF_SIZE },
+      { x, y: positiveY + orientation * MARK_HALF_SIZE },
       `${side}-polarity`,
     ),
     mark(
-      { x: x - MARK_HALF_SIZE, y: MARK_ROW_Y },
-      { x: x + MARK_HALF_SIZE, y: MARK_ROW_Y },
+      { x: x - MARK_HALF_SIZE, y: positiveY },
+      { x: x + MARK_HALF_SIZE, y: positiveY },
       `${side}-polarity`,
     ),
     mark(
-      { x: x - MARK_HALF_SIZE, y: -MARK_ROW_Y },
-      { x: x + MARK_HALF_SIZE, y: -MARK_ROW_Y },
+      { x: x - MARK_HALF_SIZE, y: -positiveY },
+      { x: x + MARK_HALF_SIZE, y: -positiveY },
       `upright-${side}-polarity-negative`,
     ),
   ];
@@ -177,10 +181,16 @@ const symbol = {
         miterLimit: 4,
       },
     },
-    ...polarityPair(INPUT_MARK_X, "input"),
   ],
   variants: [],
 };
+symbol.primitives.push(
+  ...polarityPair(
+    INPUT_MARK_X,
+    "input",
+    symbol.pins.find((pin) => pin.role === "non-inverting-input"),
+  ),
+);
 const assetSource = normalize(
   await format(JSON.stringify(symbol, null, 2), { parser: "json" }),
 );
@@ -226,11 +236,6 @@ if (
 
 const scaledDifferentialTriangle = ANALOG_TRIANGLE;
 const differentialTrianglePathData = ANALOG_TRIANGLE_PATH;
-const acrossAxis = (primitive) => ({
-  ...primitive,
-  from: { ...primitive.from, y: -primitive.from.y },
-  to: { ...primitive.to, y: -primitive.to.y },
-});
 const CONNECTION_GRID = 10;
 const pinOneGridOutsideBody = (contact, pin, direction) => ({
   ...pin,
@@ -292,8 +297,6 @@ const outputLead = (contact, pin) => ({
   to: pin.at,
   style: normal,
 });
-const sourceInputMarks = polarityPair(INPUT_MARK_X, "input");
-const sourceOutputMarks = polarityPair(OUTPUT_MARK_X, "output");
 const differentialSymbol = (id, name, plusOutputAtBottom) => {
   const topInput = pinOneGridOutsideBody(
     inputLeadContact(-OUTPUT_PAIR_OFFSET),
@@ -351,10 +354,12 @@ const differentialSymbol = (id, name, plusOutputAtBottom) => {
           miterLimit: 4,
         },
       },
-      ...sourceInputMarks.map(acrossAxis),
-      ...(plusOutputAtBottom
-        ? sourceOutputMarks
-        : sourceOutputMarks.map(acrossAxis)),
+      ...polarityPair(INPUT_MARK_X, "input", bottomInput),
+      ...polarityPair(
+        OUTPUT_MARK_X,
+        "output",
+        outputPins.find((pin) => pin.name === "OUT+"),
+      ),
     ],
     variants: [],
   };
@@ -396,7 +401,7 @@ const differentialGeneration = {
   referencePath:
     "fixtures/visual-reference/razavi-reference-v1/differential-opamp-vector-source.json",
   converterPath: "scripts/generate-razavi-opamp-asset.mjs",
-  converterVersion: 8,
+  converterVersion: 9,
   bodyNormalization: "equilateral-triangle",
 };
 const differentialAuthorityPaths = [
