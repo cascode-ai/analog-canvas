@@ -19,7 +19,11 @@ import {
   type SchematicEdit,
   type WireSource,
 } from "@icm/edit-engine";
-import { resolveEndpointConnection, supplyMarkerForSymbol } from "@icm/derived";
+import {
+  resolveDocumentLogicalNets,
+  resolveEndpointConnection,
+  supplyMarkerForSymbol,
+} from "@icm/derived";
 import type { Instance, RouteEndpoint, SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 import { planInitialMosBulkDefault } from "./mos-bulk-defaults";
@@ -40,12 +44,21 @@ export function createInsertedInstanceConnectionContext(
     ? new Set(existing.junctions.map((item) => item.id))
     : null;
   let endpoints: readonly WireSource[] | undefined;
+  let bulkEdits: SchematicEdit[] | undefined;
   return {
     existing,
     contactContext,
     routeIds: existing
       ? new Set(existing.routes.map((route) => route.id))
       : undefined,
+    get bulkEdits(): SchematicEdit[] {
+      bulkEdits ??= razaviManualBulkConnectionEdits(
+        document,
+        document.instances,
+        contactContext.logicalNets,
+      );
+      return structuredClone(bulkEdits);
+    },
     get endpoints(): readonly WireSource[] {
       return (endpoints ??= [
         ...document.instances
@@ -203,16 +216,15 @@ export function planInsertedInstanceConnections(
             "VDD",
         })
       : null;
-  const projectedDocument = structuredClone(document);
-  if (
-    !projectedDocument.instances.some(
-      (candidate) => candidate.id === instance.id,
-    )
+  const instances = document.instances.some(
+    (candidate) => candidate.id === instance.id,
   )
-    projectedDocument.instances.push(instance);
+    ? document.instances
+    : [...document.instances, instance];
+  const addedNets: SchematicDocument["nets"] = [];
   for (const edit of [...contact.edits, ...standalonePower.edits]) {
     if (edit.kind !== "connect_endpoints" || !edit.newNetId) continue;
-    projectedDocument.nets.push({
+    addedNets.push({
       id: edit.newNetId,
       terminals: [edit.from, edit.to]
         .filter(
@@ -232,14 +244,23 @@ export function planInsertedInstanceConnections(
         ),
     });
   }
+  // Read-only overlay for bulk policy. Mutable consumers still receive an
+  // isolated Document below; copy planning only reads the resulting edits.
+  const projection =
+    instances === document.instances && addedNets.length === 0
+      ? document
+      : { ...document, instances, nets: [...document.nets, ...addedNets] };
   const edits: SchematicEdit[] = [
     ...contact.edits,
     ...standalonePower.edits,
     ...initialBulkDefaultEdits,
-    ...razaviManualBulkConnectionEdits(
-      projectedDocument,
-      projectedDocument.instances,
-    ),
+    ...(projection === document
+      ? context.bulkEdits
+      : razaviManualBulkConnectionEdits(
+          projection,
+          projection.instances,
+          resolveDocumentLogicalNets(projection),
+        )),
     ...(vddPowerLabel &&
     !document.annotations.some(
       (annotation) =>
@@ -255,5 +276,12 @@ export function planInsertedInstanceConnections(
         ]
       : []),
   ];
-  return { edits, contact, projectedDocument };
+  let projectedDocument: SchematicDocument | undefined;
+  return {
+    edits,
+    contact,
+    get projectedDocument(): SchematicDocument {
+      return (projectedDocument ??= structuredClone(projection));
+    },
+  };
 }

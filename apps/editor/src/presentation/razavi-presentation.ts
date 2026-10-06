@@ -5,6 +5,8 @@ import {
   mosBulkShouldBeVisible,
   resolveDetachedMosBulkDefault,
   resolveMosBulkConnection,
+  resolveDocumentLogicalNets,
+  type ResolvedDocumentLogicalNets,
 } from "@icm/derived";
 import { replaceProjectDocument } from "../document/editor-session";
 import type { CircuitProject, SchematicDocument } from "@icm/model";
@@ -41,10 +43,18 @@ export function razaviHiddenBulkRisk(
 export function razaviManualBulkConnectionEdits(
   document: SchematicDocument,
   instances: readonly SchematicDocument["instances"][number][],
+  precomputedLogicalNets?: ResolvedDocumentLogicalNets,
 ): SchematicEdit[] {
+  let logicalNets = precomputedLogicalNets;
   const instanceIds = instances
     .filter((instance) => {
-      const resolution = resolveMosBulkConnection(document, instance);
+      const resolution = resolveMosBulkConnection(
+        document,
+        instance,
+        mosBulkKind(instance)
+          ? (logicalNets ??= resolveDocumentLogicalNets(document))
+          : undefined,
+      );
       if (hasExplicitMosBulkRoute(document, instance.id)) {
         return instance.mosBulkBinding !== undefined;
       }

@@ -65,6 +65,82 @@ function transaction(expectedRevision: number, edits: unknown[]) {
 }
 
 describe("component placement electrical contacts", () => {
+  it("keeps full-document bulk repair on a resistor copy and isolates projection/edit consumers", () => {
+    const document = createEmptyDocument("main", "Main");
+    document.nets.push({ id: "ground", terminals: [] });
+    document.mosBulkDefaults = { nmosNetId: "ground" };
+    document.instances.push(
+      {
+        id: "Mlegacy",
+        symbolId: "nmos",
+        placement: { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+      },
+      {
+        id: "Rcopy",
+        symbolId: "resistor",
+        placement: {
+          position: { x: 500, y: 500 },
+          rotation: 0,
+          mirror: "none",
+        },
+      },
+    );
+    const before = structuredClone(document);
+    const context = createInsertedInstanceConnectionContext(document, resolver);
+    const plan = () =>
+      planInsertedInstanceConnections(
+        document,
+        resolver,
+        document.instances[1]!,
+        [],
+        { context },
+      );
+    const first = plan();
+    expect(first.edits).toEqual([
+      { kind: "reconcile_mos_bulk", instanceIds: ["Mlegacy"] },
+    ]);
+    const repair = first.edits[0]!;
+    if (repair.kind === "reconcile_mos_bulk")
+      repair.instanceIds!.push("corrupted-consumer");
+    expect(plan().edits).toEqual([
+      { kind: "reconcile_mos_bulk", instanceIds: ["Mlegacy"] },
+    ]);
+    expect(first.projectedDocument).toBe(first.projectedDocument);
+    first.projectedDocument.instances[0]!.placement!.position.x = 900;
+    first.projectedDocument.nets[0]!.terminals.push({
+      instanceId: "Mlegacy",
+      pinName: "B",
+    });
+    expect(document).toEqual(before);
+    expect(plan().projectedDocument).toEqual(before);
+  });
+
+  it("isolates fresh-instance and new-supply overlays without mutating inputs", () => {
+    const document = createEmptyDocument("main", "Main");
+    const instance = {
+      id: "VDD1",
+      symbolId: "vdd-port",
+      placement: {
+        position: { x: 100, y: 100 },
+        rotation: 0 as const,
+        mirror: "none" as const,
+      },
+    };
+    const plan = planInsertedInstanceConnections(
+      document,
+      resolver,
+      instance,
+      [],
+    );
+    expect(plan.projectedDocument.instances).toEqual([instance]);
+    expect(plan.projectedDocument.nets).toHaveLength(1);
+    plan.projectedDocument.instances[0]!.placement!.position.x = 200;
+    plan.projectedDocument.nets[0]!.terminals.length = 0;
+    expect(instance.placement.position.x).toBe(100);
+    expect(document.instances).toEqual([]);
+    expect(document.nets).toEqual([]);
+  });
+
   it("shares reads only on one insertion snapshot and excludes pasted peers", () => {
     const existing = createEmptyDocument("main", "Main");
     existing.instances.push({
