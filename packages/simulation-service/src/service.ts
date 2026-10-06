@@ -6,6 +6,7 @@ import { nativeAuthoringHelp } from "@icm/netlist";
 import { simulationLanguageHelp, NGSPICE_LANGUAGE_REFERENCE } from "@icm/spice";
 import { profileEngine } from "./profile-engine.js";
 import {
+  PREPARATION_VIEW_ARTIFACT,
   SimulationOperationSchema,
   problem,
   type ArtifactRef,
@@ -1225,7 +1226,7 @@ export class SimulationService {
       warnings,
     };
     const summary: InputArtifact = {
-      name: "preparation.json",
+      name: PREPARATION_VIEW_ARTIFACT,
       mediaType: "application/json",
       text: JSON.stringify(view),
       metadata: { role: "prepared" },

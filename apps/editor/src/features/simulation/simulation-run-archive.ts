@@ -4,6 +4,8 @@ import {
   RunSchema,
   SimulationOutputDataSchema,
   SimulationSpecReportSchema,
+  PREPARATION_VIEW_ARTIFACT,
+  PREPARED_INPUT_ROLES,
   type ArtifactRef,
   type Prepared,
   type Problem,
@@ -172,14 +174,6 @@ export async function captureSimulationRunArchive(
   };
 }
 
-/** Roles of the prepared input files a run carries before its own output. */
-const PREPARED_INPUT_ROLES = new Set<ArtifactRef["role"]>([
-  "source",
-  "prepared",
-  "source-map",
-  "execution-input",
-]);
-
 /**
  * The Prepared view of a direct submission (`run`), which prepares and starts
  * in one request and publishes its prepared input with the run instead:
@@ -192,7 +186,8 @@ export async function preparedFromRunEvidence(
 ): Promise<ArchiveResult<Prepared>> {
   const evidence = run.artifacts.find(
     (artifact) =>
-      artifact.name === "preparation.json" && artifact.role === "prepared",
+      artifact.name === PREPARATION_VIEW_ARTIFACT &&
+      artifact.role === "prepared",
   );
   if (!evidence)
     return archiveProblem(
