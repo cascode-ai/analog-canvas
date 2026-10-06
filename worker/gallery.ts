@@ -26,10 +26,6 @@ import {
 
 import { sessionUserOf, type SessionUser } from "./auth";
 import {
-  previewAcceptanceUserOf,
-  type PreviewAcceptanceEnv,
-} from "./preview-acceptance";
-import {
   GALLERY_MAX_AUTHOR_LENGTH,
   GALLERY_MAX_DESCRIPTION_LENGTH,
   GALLERY_MAX_NAME_LENGTH,
@@ -673,15 +669,13 @@ function publicationBindingFields(body: {
 /** Private, stable Cloud Projects. Save updates a bound Project in place. */
 async function handleCloudProjects(
   request: Request,
-  env: GalleryEnv & PreviewAcceptanceEnv,
+  env: GalleryEnv,
   projectId: string | null,
 ): Promise<Response> {
   if (request.method !== "GET" && !sameOrigin(request)) {
     return Response.json({ error: "forbidden" }, { status: 403 });
   }
-  const user =
-    previewAcceptanceUserOf(request, env) ??
-    (await sessionUserOf(request, env));
+  const user = await sessionUserOf(request, env);
   if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
 
   if (request.method === "GET") {
@@ -797,16 +791,14 @@ async function handleCloudProjects(
 /** Private save history uses the same account boundary and revision gate as Save. */
 async function handleCloudProjectHistory(
   request: Request,
-  env: GalleryEnv & PreviewAcceptanceEnv,
+  env: GalleryEnv,
   projectId: string,
   versionId?: string,
   action?: string,
 ): Promise<Response> {
   if (request.method !== "GET" && !sameOrigin(request))
     return Response.json({ error: "forbidden" }, { status: 403 });
-  const user =
-    previewAcceptanceUserOf(request, env) ??
-    (await sessionUserOf(request, env));
+  const user = await sessionUserOf(request, env);
   if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
   const headers = { "cache-control": "private, no-store" };
   const result = await callGallery(env, "cloud-project-versions", {
@@ -860,12 +852,10 @@ async function handleCloudProjectHistory(
  */
 async function handleCloudProjectPreview(
   request: Request,
-  env: GalleryEnv & PreviewAcceptanceEnv,
+  env: GalleryEnv,
   projectId: string,
 ): Promise<Response> {
-  const user =
-    previewAcceptanceUserOf(request, env) ??
-    (await sessionUserOf(request, env));
+  const user = await sessionUserOf(request, env);
   if (!user) {
     return Response.json(
       { error: "unauthorized" },
@@ -1525,7 +1515,7 @@ async function directGalleryResource(
 
 export async function routeGalleryRequest(
   request: Request,
-  env: GalleryEnv & PreviewAcceptanceEnv,
+  env: GalleryEnv,
   runtime: GalleryRouteRuntime = {},
 ): Promise<Response | null> {
   const url = new URL(request.url);

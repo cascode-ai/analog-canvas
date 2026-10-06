@@ -27,15 +27,6 @@ import {
   type SimulationOperationsEnv,
   type SimulationQueueBatch,
 } from "./simulation-operations";
-import {
-  channelResponse,
-  markPreviewResponse,
-  previewGalleryReadThrough,
-  previewGalleryWriteRefusal,
-  previewRobotsResponse,
-  releaseChannel,
-  type ChannelEnv,
-} from "./channel";
 import { routeAuthRequest, type AuthNamespaceLike } from "./auth";
 import {
   routeComponentLibraryRequest,
@@ -52,8 +43,7 @@ export { SimulationControlDO } from "./simulation-control-do";
 type Env = TopologyTaskEnv &
   ComponentLibraryEnv &
   SimulationEnv &
-  SimulationOperationsEnv &
-  ChannelEnv & {
+  SimulationOperationsEnv & {
     ASSETS: { fetch(request: Request): Promise<Response> };
     AGENT_SESSION: AgentSessionNamespaceLike;
     AGENT_ALLOWED_ORIGIN?: string;
@@ -72,8 +62,7 @@ type Env = TopologyTaskEnv &
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
-    // Every preview response is stamped noindex on the way out (Deployment rationale).
-    return markPreviewResponse(await route(request, env), env);
+    return route(request, env);
   },
   async queue(
     batch: SimulationQueueBatch<SimulationJobMessage>,
@@ -100,20 +89,6 @@ async function route(request: Request, env: Env): Promise<Response> {
 
   const conversion = await handleNetlistConversionRequest(request);
   if (conversion) return conversion;
-
-  // The channel is a fact about the deployment, answered before anything
-  // that depends on it; the preview's robots answer and its refusal of
-  // shared-store writes sit here so no later handler can forget them.
-  if (url.pathname === "/api/channel" && request.method === "GET") {
-    return channelResponse(env);
-  }
-  if (url.pathname === "/robots.txt" && releaseChannel(env) === "preview") {
-    return previewRobotsResponse();
-  }
-  const readOnlyRefusal = previewGalleryWriteRefusal(request, env);
-  if (readOnlyRefusal) return readOnlyRefusal;
-  const galleryReadThrough = await previewGalleryReadThrough(request, env);
-  if (galleryReadThrough) return galleryReadThrough;
 
   const agentResponse = await routeAgentSessionRequest(request, env);
   if (agentResponse) return agentResponse;
