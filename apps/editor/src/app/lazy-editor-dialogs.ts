@@ -69,10 +69,10 @@ export const LazyVersionHistoryDialog = lazyChunk("dialog", () =>
   })),
 );
 
-export const LazyProjectPropertiesDialog = lazyChunk("dialog", () =>
-  import("../features/editor-shell/project-properties-dialog").then(
-    (module) => ({ default: module.ProjectPropertiesDialog }),
-  ),
+export const LazyProjectInfoDialog = lazyChunk("dialog", () =>
+  import("../features/editor-shell/project-info-dialog").then((module) => ({
+    default: module.ProjectInfoDialog,
+  })),
 );
 
 export const LazyReplaceGuardDialog = lazyChunk("dialog", () =>

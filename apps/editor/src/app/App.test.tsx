@@ -127,13 +127,13 @@ describe("editor shell", () => {
     );
     expect(menu("project-menu")).toContain('role="group" aria-label="File"');
     // File says New Project once. The project's name and details live in
-    // Project Properties…, and the open projects are the tabs; the name is
+    // Project Info…, and the open projects are the tabs; the name is
     // only the menu's tooltip.
     const file = menu("project-menu");
     const fileCommands = file.slice(file.indexOf("project-menu-popover"));
     expect(file).toContain('title="Smoke Project"');
     expect(fileCommands.split(">New Project<")).toHaveLength(2);
-    expect(fileCommands).toContain(">Project Properties…</button>");
+    expect(fileCommands).toContain(">Project Info…</button>");
     expect(fileCommands).not.toContain("Smoke Project");
     expect(fileCommands).not.toContain("Project name");
     expect(fileCommands).not.toContain("Open projects");

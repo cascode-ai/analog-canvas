@@ -943,6 +943,18 @@ replaced by its letter, consuming the Space; an unknown name stays as typed.
 
 ## Project sessions
 
+The project tabs are the editor's sole project-name editing surface. Single
+click activates a tab; double-click its name edits in place without resizing
+the header or taking focus when a new `New Circuit` tab opens. Enter or blur
+commits a nonempty changed name as one existing `rename_project` edit; Escape,
+blank text and unchanged text make no edit. Typing belongs to the input, not
+the canvas. Input accepts up to 120 characters, matching Cloud/Shelf naming;
+opening or canceling an older longer name does not truncate it. Renaming marks
+work dirty and is undoable, but never saves automatically, changes a Cell name
+or file binding, or republishes a Gallery entry. Explicit Save uses the same
+Cloud Project or native file binding as before. File's Project Info is read-only;
+Shelf Rename remains a command for managing the saved Cloud Project.
+
 Opening an independent project tab, activating an existing tab and replacing
 the current Project are distinct session operations, not Document edits.
 Tab activation retains the other tabs' controllers, content and Undo histories;

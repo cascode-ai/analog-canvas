@@ -8,11 +8,28 @@ current helper from `simulation` / `authoring-help` with name `embed`, then
 execute it through native `postprocess`. ngspice instead uses native `meas` or
 `.meas`. Never translate those commands literally between engines.
 
-The annotation grammar below is the existing SPICE-comment extraction contract.
-It is not a promise that VACASK accepts SPICE comments or that every native
-include is traversed by that extractor. Inspect the captured `specs.json` and
-diagnostics: a scalar report alone is not an evaluated acceptance rule. Do not
-claim a native rule was applied unless the captured report contains it.
+Author standalone `* @spec` comments for ngspice and standalone `// @spec`
+comments for VACASK. The selected execution engine chooses its source adapter;
+there is no extension-based guessing or SPICE fallback. VACASK's native literal
+includes and selected sections are traversed case-sensitively. Strings, embedded
+Python, block comments and unreachable files are not annotation sources. Do not
+hide `* @spec` in Python strings to work around the native grammar.
+
+VACASK measurement names are case-sensitive (`Gain` and `gain` are distinct);
+ngspice measurement names keep their case-insensitive native semantics. Both
+adapters feed the same evaluation/report path. Inspect captured `specs.json`:
+a scalar report alone is not an evaluated acceptance rule.
+
+```text
+// @spec q_w1 > 1.6 unit=V
+// @spec delay target 1e-6 tol 1e-8 unit=s
+```
+
+Without a rule, each valid VACASK `report_measurement` value still appears in
+`specs.json`/`specs.csv` as `unconstrained`. Its unit is the postprocessor's declared
+unit (not inferred). Unavailable reports retain their failure and Console line;
+partial/dropped-input runs cannot certify reported values. No extra native scalar
+payload is added to run receipts.
 
 ## SPICE annotations
 
@@ -31,7 +48,8 @@ evaluates specifications from the captured execution input, never live edits.
 * @spec cin unit=F label={"runs":[{"kind":"text","value":"C"},{"kind":"span","style":"subscript","children":[{"kind":"text","value":"in"}]}]}
 ```
 
-The grammar is `* @spec NAME [CONDITION] [unit=UNIT] [group=NAME] [label=JSON]`. Conditions are `< N`,
+The grammar is `* @spec NAME [CONDITION] [unit=UNIT] [group=NAME] [label=JSON]`
+(replace `*` with `//` for VACASK). Conditions are `< N`,
 `<= N`, `> N`, `>= N`, `range MIN MAX` (inclusive), or
 `target VALUE tol ABSOLUTE_TOLERANCE`. Numbers use decimal/scientific notation;
 SPICE suffixes, expressions and implicit conversions are deliberately unsupported.
@@ -58,7 +76,7 @@ Unit `1` explicitly means dimensionless; absent units have no visible suffix.
 Small/large unknown-unit values use scientific notation without rescaling.
 Hover explains missing units; they are never guessed from measurement names. Hover exposes the original
 unrounded numerical value and declared unit. Clicking a name still opens its
-source. Rendering/rounding does not change evaluation or the stored numbers.
+source; a report-only measurement opens Console instead. Rendering/rounding does not change evaluation or the stored numbers.
 Historical reports without labels keep their original names and units.
 
 Acceptance conditions and unresolved issues are shown first. Measurements without
@@ -78,7 +96,13 @@ The `specs.json` artifact (materialized as GUI `outputData.specs`) contains the 
 report: runId, preparedId, inputDigest and results with source path/line/text,
 measurement name, occurrence, numeric value, unit, structured expected condition,
 judgment, reason and logLine. Retrieve artifacts through the existing authorized
-file API; no new authority or UI interaction is required. `specs.csv` preserves
+file API; no new authority or UI interaction is required. Report-only VACASK
+results use optional `source.kind: "log"`, `path: "log.txt"` and the actual Console
+line/text, not an invented input location. Historical sources without `kind`
+still mean authored input. `specs.csv` appends `source kind` (`input` or `log`)
+without changing the existing column positions. Report-only names/units with a
+formula-leading prefix are escaped in CSV, without altering JSON identities.
+`specs.csv` preserves
 the result and provenance for external tools, with an appended plain-text label
 column and optional group column (formula-leading labels/groups are escaped for spreadsheet safety). Raw and
 analysis CSV remain intact. Clients consuming strict report schemas must support

@@ -349,7 +349,11 @@ function fixture(engine: "ngspice" | "vacask" = "vacask", now = Date.now) {
   const service = new SimulationService(files, executor, () => project, now);
   return { files, executor, service, project, release };
 }
-async function prepareRaw(f: ReturnType<typeof fixture>, source = deck) {
+async function prepareRaw(
+  f: ReturnType<typeof fixture>,
+  source = deck,
+  extraFiles: { path: string; text: string }[] = [],
+) {
   const created = await f.files.handle({ action: "create" });
   if (!created.ok || !("workspace" in created)) throw Error("create");
   await f.files.handle({
@@ -359,6 +363,7 @@ async function prepareRaw(f: ReturnType<typeof fixture>, source = deck) {
     entry: "deck.cir",
     writes: [
       { path: "deck.cir", text: source },
+      ...extraFiles,
       {
         path: "experiment.json",
         text: JSON.stringify({
@@ -385,6 +390,282 @@ async function prepareRaw(f: ReturnType<typeof fixture>, source = deck) {
   return { prepared, workspaceId: created.workspace.id };
 }
 describe("shared simulation lifecycle", () => {
+  it.each(["completed", "completed-with-dropped-input", "failed"] as const)(
+    "never certifies unavailable or incomplete VACASK measurements (%s)",
+    async (status) => {
+      const f = fixture();
+      vi.mocked(f.executor.execute).mockImplementation(async (input) => {
+        const output = await result(input);
+        output.result.outcome = { status };
+        output.result.log = [
+          'ICM_MEASUREMENT_V1 {"name":"value","status":"available","value":2,"unit":"V"}',
+          'ICM_MEASUREMENT_V1 {"name":"missing","status":"unavailable","detail":"No crossing","unit":"s"}',
+          'ICM_MEASUREMENT_V1 {"name":"bad","status":"available","value":null}',
+        ].join("\n");
+        return output;
+      });
+      const { prepared } = await prepareRaw(
+        f,
+        deck + "\n// @spec value >= 1 unit=V\n// @spec bad >= 0\n",
+      );
+      const started = unwrap(
+        await f.service.handle(
+          {
+            operation: "start",
+            preparedId: prepared.id,
+            digest: prepared.digest,
+          },
+          "incomplete-start",
+        ),
+        "run",
+      );
+      await vi.waitFor(async () => {
+        const finished = unwrap(
+          await f.service.handle(
+            { operation: "read", runId: started.id },
+            "incomplete-read",
+          ),
+          "run",
+        );
+        expect(finished.state).toBe("finished");
+        const saved = await f.files.readArtifact(
+          finished.artifacts.find((a) => a.name === "specs.json")!.id,
+        );
+        if (!saved.ok) throw Error("Missing partial report");
+        const rows = JSON.parse(saved.text).results;
+        expect(rows).toMatchObject([
+          {
+            name: "value",
+            value: status === "completed-with-dropped-input" ? null : 2,
+            judgment: status === "completed" ? "pass" : "not-evaluated",
+            reason: status === "completed" ? "satisfied" : "run-incomplete",
+          },
+          {
+            name: "bad",
+            value: null,
+            judgment: "not-evaluated",
+            reason:
+              status === "completed" ? "measurement-missing" : "run-incomplete",
+          },
+          {
+            name: "missing",
+            value: null,
+            judgment: "not-evaluated",
+            reason:
+              status === "completed" ? "measurement-missing" : "run-incomplete",
+            source: {
+              kind: "log",
+              line: 2,
+              text: 'ICM_MEASUREMENT_V1 {"name":"missing","status":"unavailable","detail":"No crossing","unit":"s"}',
+            },
+          },
+        ]);
+        const diagnostics = await f.files.readArtifact(
+          finished.artifacts.find((a) => a.name === "outputs.json")!.id,
+        );
+        if (!diagnostics.ok) throw Error("Missing report diagnostics");
+        expect(JSON.parse(diagnostics.text).diagnostics).toContainEqual(
+          expect.objectContaining({ code: "VACASK_MEASUREMENT_INVALID" }),
+        );
+      });
+    },
+  );
+  it("uses VACASK include sections and exact names, not embedded or unreachable Spec text", async () => {
+    const f = fixture();
+    vi.mocked(f.executor.execute).mockImplementation(async (input) => {
+      const output = await result(input);
+      output.result.log = [
+        'ICM_MEASUREMENT_V1 {"name":"Gain","status":"available","value":4}',
+        'ICM_MEASUREMENT_V1 {"name":"gain","status":"available","value":2}',
+        'ICM_MEASUREMENT_V1 {"name":"Gain","status":"available","value":5}',
+      ].join("\n");
+      return output;
+    });
+    const source =
+      deck.replace("\n", '\ninclude "rules.inc" section=TT\n') +
+      '\nembed "fake.py" <<<PYTHON\n* @spec Gain < 0\n// @spec Gain < 0\n>>>PYTHON\n';
+    const { prepared, workspaceId } = await prepareRaw(f, source, [
+      {
+        path: "rules.inc",
+        text: 'section tt\n// @spec Gain < 0\nendsection\nsection TT\n// @spec Gain >= 4\n// @spec gain <= 2\ninclude "nested.inc"\nendsection\n',
+      },
+      { path: "nested.inc", text: "// @spec Missing > 0\n" },
+      { path: "unreachable.inc", text: "// @spec Gain < 0\n" },
+    ]);
+    // The evaluator must use the prepared snapshot, not this later author edit.
+    await f.files.handle({
+      action: "update",
+      owner: { kind: "session-workspace", workspaceId },
+      expectedRevision: 1,
+      writes: [{ path: "rules.inc", text: "// @spec Gain < 0\n" }],
+    });
+    const started = unwrap(
+      await f.service.handle(
+        {
+          operation: "start",
+          preparedId: prepared.id,
+          digest: prepared.digest,
+        },
+        "sections-start",
+      ),
+      "run",
+    );
+    await vi.waitFor(async () => {
+      const finished = unwrap(
+        await f.service.handle(
+          { operation: "read", runId: started.id },
+          "sections-read",
+        ),
+        "run",
+      );
+      expect(finished.state).toBe("finished");
+      const saved = await f.files.readArtifact(
+        finished.artifacts.find((a) => a.name === "specs.json")!.id,
+      );
+      if (!saved.ok) throw Error("Missing captured report");
+      expect(JSON.parse(saved.text).results).toMatchObject([
+        {
+          name: "Gain",
+          value: 4,
+          judgment: "pass",
+          occurrence: 1,
+          source: { path: "rules.inc", line: 5 },
+        },
+        { name: "Gain", value: 5, judgment: "pass", occurrence: 2, logLine: 3 },
+        {
+          name: "gain",
+          value: 2,
+          judgment: "pass",
+          source: { path: "rules.inc", line: 6 },
+        },
+        {
+          name: "Missing",
+          value: null,
+          judgment: "not-evaluated",
+          reason: "measurement-missing",
+          source: { path: "nested.inc", line: 1 },
+        },
+      ]);
+    });
+  });
+  it("publishes VACASK measurements without Specs with actual Console provenance", async () => {
+    const f = fixture();
+    vi.mocked(f.executor.execute).mockImplementation(async (input) => {
+      const output = await result(input);
+      output.result.log =
+        'Running analysis\nICM_MEASUREMENT_V1 {"name":"Gain","status":"available","value":4,"unit":"V"}\nICM_MEASUREMENT_V1 {"name":"gain","status":"available","value":2,"unit":"V"}\nICM_MEASUREMENT_V1 {"name":"=1+1","status":"available","value":7,"unit":"@unit"}';
+      return output;
+    });
+    const { prepared } = await prepareRaw(f);
+    const started = unwrap(
+      await f.service.handle(
+        {
+          operation: "start",
+          preparedId: prepared.id,
+          digest: prepared.digest,
+        },
+        "native-values-start",
+      ),
+      "run",
+    );
+    await vi.waitFor(async () => {
+      const finished = unwrap(
+        await f.service.handle(
+          { operation: "read", runId: started.id },
+          "native-values-read",
+        ),
+        "run",
+      );
+      expect(finished.state).toBe("finished");
+      const saved = await f.files.readArtifact(
+        finished.artifacts.find((a) => a.name === "specs.json")!.id,
+      );
+      if (!saved.ok) throw Error("Missing measurement report");
+      expect(JSON.parse(saved.text).results).toMatchObject([
+        {
+          name: "Gain",
+          value: 4,
+          unit: "V",
+          judgment: "unconstrained",
+          source: { kind: "log", path: "log.txt", line: 2 },
+          logLine: 2,
+        },
+        {
+          name: "gain",
+          value: 2,
+          unit: "V",
+          judgment: "unconstrained",
+          source: { kind: "log", path: "log.txt", line: 3 },
+          logLine: 3,
+        },
+        {
+          name: "=1+1",
+          value: 7,
+          unit: "@unit",
+          judgment: "unconstrained",
+          source: { kind: "log", line: 4 },
+          logLine: 4,
+        },
+      ]);
+      const csv = await f.files.readArtifact(
+        finished.artifacts.find((a) => a.name === "specs.csv")!.id,
+      );
+      if (!csv.ok) throw Error("Missing measurement CSV");
+      expect(csv.text).toContain(
+        '"Gain","4","—","unconstrained","V","1","no-spec","log.txt","2"',
+      );
+      expect(csv.text).toContain('"\'=1+1","7","—","unconstrained","\'@unit"');
+    });
+  });
+  it("evaluates native VACASK comment Specs in the captured file report", async () => {
+    const f = fixture();
+    vi.mocked(f.executor.execute).mockImplementation(async (input) => {
+      const output = await result(input);
+      output.result.log =
+        'ICM_MEASUREMENT_V1 {"name":"peak","status":"available","value":1.8,"unit":"V"}';
+      return output;
+    });
+    const { prepared } = await prepareRaw(
+      f,
+      deck + "\n// @spec peak <= 2 unit=V\n",
+    );
+    const started = unwrap(
+      await f.service.handle(
+        {
+          operation: "start",
+          preparedId: prepared.id,
+          digest: prepared.digest,
+        },
+        "native-spec-start",
+      ),
+      "run",
+    );
+    await vi.waitFor(async () => {
+      const finished = unwrap(
+        await f.service.handle(
+          { operation: "read", runId: started.id },
+          "native-spec-read",
+        ),
+        "run",
+      );
+      expect(finished.state).toBe("finished");
+      const file = finished.artifacts.find((a) => a.name === "specs.json")!;
+      const saved = await f.files.readArtifact(file.id);
+      if (!saved.ok) throw Error("Missing native Spec artifact");
+      expect(JSON.parse(saved.text)).toMatchObject({
+        runId: started.id,
+        inputDigest: prepared.digest,
+        results: [
+          {
+            name: "peak",
+            value: 1.8,
+            judgment: "pass",
+            source: { path: "deck.cir", text: "// @spec peak <= 2 unit=V" },
+          },
+        ],
+      });
+    });
+  });
   it("retains failed direct-run input and retries only evidence publication", async () => {
     const f = fixture();
     saveSource(f.project, {

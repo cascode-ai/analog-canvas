@@ -45,6 +45,7 @@ export function vacaskMeasurementResults(log: string, numbersAllowed = true) {
           ...base,
           status: "unavailable",
           occurrence: 0,
+          logLine: index + 1,
           detail:
             report.status === "unavailable"
               ? report.detail
