@@ -19,6 +19,7 @@ import {
   deviceDescriptor,
   instanceParameterContract,
   validateDeviceParameters,
+  type QuantityForms,
 } from "@icm/devices";
 import type { RoutedComponent } from "../connectivity.js";
 import { endpointKey } from "../endpoint.js";
@@ -33,6 +34,21 @@ import { supplyMarkerForSymbol } from "../supply-marker.js";
 /** Compatibility aliases for ERC consumers; their protocol is Diagnostic. */
 export type ErcSeverity = DiagnosticSeverity;
 export type ErcDiagnostic = Diagnostic & { domain: "erc" };
+
+/**
+ * "neither a SPICE number nor an expression in braces", or the forms a
+ * quantity takes instead: a comparator's high level is a number or VDD.
+ */
+function notAQuantity(forms: QuantityForms): string {
+  const named = [
+    "a SPICE number",
+    ...(forms.expressions === false ? [] : ["an expression in braces"]),
+    ...(forms.keywords ?? []),
+  ];
+  return named.length > 1
+    ? `neither ${named.slice(0, -1).join(", ")} nor ${named.at(-1)}`
+    : `not ${named[0]}`;
+}
 
 function terminalLocator(
   documentId: string,
@@ -255,7 +271,7 @@ export function runErcChecks(
                   : issue.kind === "select"
                     ? `Instance ${instance.reference ?? instance.id} parameter ${issue.name} must be one of: ${issue.allowed.join(", ")}`
                     : issue.kind === "number"
-                      ? `Instance ${instance.reference ?? instance.id} parameter ${issue.name} is "${issue.value}", which is neither a SPICE number nor an expression in braces`
+                      ? `Instance ${instance.reference ?? instance.id} parameter ${issue.name} is "${issue.value}", which is ${notAQuantity(issue)}`
                       : `Instance ${instance.reference ?? instance.id} parameter ${issue.name} must be a finite decimal number`;
             diagnostics.push({
               id: `erc:device-parameter:${document.id}:${instance.id}:${issue.kind}:${issue.name}`,

@@ -215,6 +215,28 @@ describe("Project result handoff", () => {
     ).toMatchObject({ ok: true });
     history.dispose();
   });
+  it("keeps a direct submission listed, with the reason, when its prepared input is missing", async () => {
+    const { prepared: _prepared, ...input } = await fixture();
+    const store = createBrowserSimulationArchiveStore({
+      idbFactory: new IDBFactory(),
+    });
+    const save = vi.spyOn(store, "save");
+    const history = new ProjectRunHistory("project", store);
+    history.track(input);
+    await vi.waitFor(() =>
+      expect(history.snapshot()).toEqual([
+        expect.objectContaining({
+          owner: "agent",
+          state: "finished",
+          error:
+            "The run's prepared input is unavailable; export its files instead",
+        }),
+      ]),
+    );
+    expect(history.snapshot()[0]?.archive).toBeUndefined();
+    expect(save).not.toHaveBeenCalled();
+    history.dispose();
+  });
   it("stops polling a revoked owner without calling another owner or deleting completed results", async () => {
     const input = await fixture();
     const history = new ProjectRunHistory(

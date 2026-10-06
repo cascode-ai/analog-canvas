@@ -17,6 +17,12 @@ export interface NgspiceOutputContext {
   collection?: { rawfile?: unknown } | undefined;
   runToken?: unknown;
   execution?: { target: "cloudflare-container" | "operator-host" };
+  /**
+   * Every file submitted with the deck. Given only by a caller that holds
+   * the run's complete source; with it, notices about model cards none of
+   * these texts define (the Profile's library) are not dropped input.
+   */
+  files?: readonly { path: string; text: string }[] | undefined;
 }
 
 export interface NgspiceRawOutput {
@@ -55,6 +61,7 @@ export async function assembleNgspiceOutput(
     collection,
     runToken,
     execution,
+    files,
   } = context;
   const environment = await verifySimulationEnvironmentMetadata(
     raw.environment,
@@ -113,7 +120,12 @@ export async function assembleNgspiceOutput(
           : null,
       rawfileTruncated: truncatedOutputs.includes("rawfile"),
     },
-    { timeoutMs },
+    {
+      timeoutMs,
+      // The deck holds the netlist and testbench; the files hold the rest.
+      sources:
+        files === undefined ? undefined : [deck, ...files.map((f) => f.text)],
+    },
   );
   const result: SimulationResult & {
     execution?: NgspiceOutputContext["execution"];

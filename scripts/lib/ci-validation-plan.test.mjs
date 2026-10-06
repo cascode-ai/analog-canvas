@@ -289,7 +289,6 @@ describe("CI validation planning", () => {
         "apps/editor/src/app/App.test.tsx",
         "apps/local-host/src/local-host.test.ts",
         "apps/editor/package.json",
-        "packages/platform-node/package.json",
         "package.json",
       ]),
     ).toMatchObject({

@@ -1,5 +1,14 @@
-import type { DeviceDescriptor } from "./contract.js";
+import type {
+  DeviceDescriptor,
+  DeviceParameterDefinition,
+} from "./contract.js";
 import { parameterExpressionBody } from "./parameter-expression.js";
+
+/** The forms a quantity takes besides a SPICE number, as its definition says. */
+export type QuantityForms = Pick<
+  DeviceParameterDefinition,
+  "keywords" | "expressions"
+>;
 
 export type DeviceParameterIssue =
   | {
@@ -25,10 +34,14 @@ export type DeviceParameterIssue =
       value: string;
     }
   | {
-      /** A quantity that is neither a SPICE number nor an expression. */
+      /** A quantity in none of the forms it takes. */
       kind: "number";
       name: string;
       value: string;
+      /** The words it takes besides a number, such as a comparator's `VDD`. */
+      keywords?: readonly string[];
+      /** False when it takes no expression in braces either. */
+      expressions?: false;
     };
 
 const DECIMAL = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/u;
@@ -42,14 +55,46 @@ const SPICE_NUMBER =
 /** Point lists are read by the source compiler, not as one number. */
 const LIST_PARAMETERS = new Set(["pwlpoints"]);
 
-/** A quantity field holds a number, an expression, or nothing yet. */
-function isQuantity(value: string): boolean {
+/** Whether a value, as typed, is one of these words: trimmed, in any case. */
+export function isKeyword(
+  value: string,
+  keywords: readonly string[] = [],
+): boolean {
+  const text = value.trim().toUpperCase();
+  return keywords.some((word) => word.toUpperCase() === text);
+}
+
+/**
+ * A quantity field holds a number, an expression unless it takes none, one
+ * of the words it takes, or nothing yet.
+ */
+function isQuantity(value: string, forms: QuantityForms): boolean {
   const text = value.trim();
   return (
     text === "" ||
     SPICE_NUMBER.test(text) ||
-    parameterExpressionBody(text) !== undefined
+    (forms.expressions !== false &&
+      parameterExpressionBody(text) !== undefined) ||
+    isKeyword(text, forms.keywords)
   );
+}
+
+/**
+ * The forms a quantity takes, as a refusal names them: a SPICE number, an
+ * expression in braces unless it takes none, and the words it takes, such
+ * as a comparator's VDD.
+ */
+export function quantityForms(forms: QuantityForms): string {
+  const named = [
+    "a SPICE number such as 1k or 2.5n",
+    ...(forms.expressions === false
+      ? []
+      : ["an expression in braces such as {vdd/2}"]),
+    ...(forms.keywords ?? []),
+  ];
+  return named.length > 1
+    ? `${named.slice(0, -1).join(", ")}, or ${named.at(-1)}`
+    : named[0]!;
 }
 
 function editDistance(left: string, right: string): number {
@@ -156,9 +201,19 @@ export function validateDeviceParameters(
       definition.editor === "text" &&
       definition.unitHint !== undefined &&
       !LIST_PARAMETERS.has(folded) &&
-      !isQuantity(rawValue)
+      !isQuantity(rawValue, definition)
     ) {
-      issues.push({ kind: "number", name, value: rawValue });
+      issues.push({
+        kind: "number",
+        name,
+        value: rawValue,
+        ...(definition.keywords?.length
+          ? { keywords: definition.keywords }
+          : {}),
+        ...(definition.expressions === false
+          ? { expressions: false as const }
+          : {}),
+      });
     }
   }
   return issues;

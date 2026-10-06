@@ -112,6 +112,15 @@ export const ArtifactRefSchema = z.strictObject({
   analysisIndex: z.number().int().nonnegative().optional(),
 });
 export type ArtifactRef = z.infer<typeof ArtifactRefSchema>;
+/** The run artifact holding a preparation's Prepared view. */
+export const PREPARATION_VIEW_ARTIFACT = "preparation.json";
+/** Roles of the prepared input a run publishes ahead of its own output. */
+export const PREPARED_INPUT_ROLES: ReadonlySet<ArtifactRef["role"]> = new Set([
+  "source",
+  "prepared",
+  "source-map",
+  "execution-input",
+]);
 export const SimulationSignalTargetsSchema = z.record(
   z.string(),
   z.array(
@@ -457,6 +466,10 @@ export {
   type SimulationSpecResult,
   type SimulationSpecCondition,
 } from "./spec-contract.js";
+export {
+  simulationSpecAnnotationDiagnostics,
+  type SimulationSpecAnnotationDiagnostic,
+} from "./spec-annotation.js";
 
 export const SimulationOutputDataSchema = z.strictObject({
   schemaVersion: z.literal(1),

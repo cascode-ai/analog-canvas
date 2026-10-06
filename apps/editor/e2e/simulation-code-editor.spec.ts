@@ -151,7 +151,7 @@ test("flat Helper finds an analysis by purpose and ghost arguments never enter s
   );
 });
 
-test("Spec Helper inserts an ordinary editable source comment", async ({
+test("Spec Helper inserts an ordinary VACASK source comment", async ({
   page,
 }) => {
   const editor = page.getByRole("textbox", {
@@ -165,10 +165,24 @@ test("Spec Helper inserts an ordinary editable source comment", async ({
   await page.getByRole("option", { name: "Spec acceptance rule…" }).click();
   await page.keyboard.insertText("peak");
   await page.keyboard.press("ControlOrMeta+s");
+  // VACASK rejects a SPICE `*` comment; `//` is its comment (#1315).
   await expect(page.getByTestId("saved-source")).toContainText(
-    "* @spec peak <= 1 unit=V",
+    "// @spec peak <= 1 unit=V",
   );
   await expect(editor).toContainText("meas tran peak MAX v(out)");
+});
+
+test("an invalid Spec is explained on its line before any run", async ({
+  page,
+}) => {
+  // The run's parser checks the annotation as it is written (#1311).
+  await page
+    .getByRole("textbox", { name: "Simulation source editor" })
+    .fill("Wien bridge\n// @spec per10 range 9.0m 11.1m unit=s\n");
+  await page.locator(".cm-lintRange").first().hover();
+  await expect(page.locator(".cm-tooltip-lint")).toContainText(
+    'Bound "9.0m" is not a decimal or scientific number; write 9.0e-3.',
+  );
 });
 
 test("unknown input offers explicit help and Escape suppresses parameter ghosts", async ({

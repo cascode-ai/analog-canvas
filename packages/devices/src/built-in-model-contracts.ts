@@ -4,6 +4,13 @@ import type {
   DeviceParameterDefinition,
 } from "./contract.js";
 import { IDEAL_COMPARATOR_TARGET } from "./contract.js";
+import {
+  HIGH_LEVEL_PARAMETER,
+  IDEAL_COMPARATOR_SUPPLY_TARGET,
+  idealComparatorBodyPorts,
+  SUPPLY_HIGH_LEVEL,
+  type IdealComparatorBody,
+} from "./ideal-comparator.js";
 import { builtInSubcircuitDescriptors } from "./registry.js";
 
 export type ModelBackend = "spice" | "spectre" | "vacask";
@@ -145,21 +152,20 @@ const logic = [
     "One-pole output delay; not a digital event propagation delay.",
   ),
 ];
-const comparator = [
-  parameter(
-    "vhigh",
-    "High output",
-    "1",
-    "V",
-    "Supply-independent high output level.",
-  ),
-  parameter(
-    "vlow",
-    "Low output",
-    "0",
-    "V",
-    "Supply-independent low output level.",
-  ),
+// The ideal comparator's export checks that each level is a number, so none
+// takes an expression in braces.
+const comparator: readonly DeviceParameterDefinition[] = [
+  {
+    ...parameter(
+      HIGH_LEVEL_PARAMETER,
+      "High output",
+      SUPPLY_HIGH_LEVEL,
+      "V",
+      "VDD, the comparator's own supply, or a level in volts from ground. The logic it drives reads a high above half its supply.",
+    ),
+    keywords: [SUPPLY_HIGH_LEVEL],
+  },
+  parameter("vlow", "Low output", "0", "V", "Low output level from ground."),
   parameter(
     "vtransition",
     "Transition width",
@@ -167,7 +173,7 @@ const comparator = [
     "V",
     "Positive smooth comparator transition width.",
   ),
-];
+].map((definition) => ({ ...definition, expressions: false }));
 
 const recipes: Readonly<Record<string, BuiltInModelRecipe>> = {
   opamp: { family: "linear", implementation: "opamp" },
@@ -218,11 +224,12 @@ function contract(target: string): BuiltInModelContract | undefined {
     ...recipe,
     target,
     symbolId: descriptor.symbolId,
-    // The isolated comparator deliberately lowers only signal ports. Its
+    // The ideal comparator's numeric body lowers only signal ports; the body
+    // its VDD high level chooses adds VDD (ideal-comparator.ts). Its
     // historical five-port external master is not a generated model.
     ports:
       target === IDEAL_COMPARATOR_TARGET
-        ? descriptor.ports.filter((port) => !port.supply)
+        ? idealComparatorBodyPorts(IDEAL_COMPARATOR_TARGET, descriptor.ports)
         : descriptor.ports,
     parameters:
       family === "logic"
@@ -272,4 +279,48 @@ export function builtInModelDefaults(target: string): Record<string, string> {
       p.defaultValue === undefined ? [] : [[p.name, p.defaultValue]],
     ),
   );
+}
+
+/** One generated ideal comparator body: what its equation reads and declares. */
+export interface IdealComparatorBodyContract {
+  readonly name: IdealComparatorBody;
+  /** Its high level is V(VDD), in place of a `vhigh` parameter. */
+  readonly readsSupply: boolean;
+  /** The comparator interface's ports the body takes, in order. */
+  readonly ports: readonly BuiltInSubcircuitPort[];
+  /** The parameters the body declares, with the defaults it prints. */
+  readonly parameters: readonly {
+    readonly name: string;
+    readonly defaultValue: string;
+  }[];
+}
+
+/**
+ * The numeric body's own `vhigh` default: the level every comparator placed
+ * before VDD became the catalog default stores, so that body prints as it
+ * always has.
+ */
+const NUMERIC_BODY_HIGH_LEVEL = "1";
+
+/** The ideal comparator's model facts as one of its bodies takes them. */
+export function idealComparatorBodyContract(
+  body: IdealComparatorBody,
+): IdealComparatorBodyContract {
+  const model = builtInModelContract(IDEAL_COMPARATOR_TARGET)!;
+  const readsSupply = body === IDEAL_COMPARATOR_SUPPLY_TARGET;
+  const descriptor = builtInSubcircuitDescriptors.find(
+    (candidate) => candidate.symbolId === model.symbolId,
+  )!;
+  return {
+    name: body,
+    readsSupply,
+    ports: idealComparatorBodyPorts(body, descriptor.ports),
+    parameters: model.parameters.flatMap((p) =>
+      p.name !== HIGH_LEVEL_PARAMETER
+        ? [{ name: p.name, defaultValue: p.defaultValue! }]
+        : readsSupply
+          ? []
+          : [{ name: p.name, defaultValue: NUMERIC_BODY_HIGH_LEVEL }],
+    ),
+  };
 }

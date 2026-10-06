@@ -173,7 +173,9 @@ recognize such a network, so both are placed by hand.
   their authored Pins and order. A drawing that needs a supply it does not
   draw — a MOS body left unconnected, or a logic gate, flip-flop or converter
   whose model reads VDD and VSS — gets a `VDD` Pin and ground in the netlist,
-  never in the drawing; an exported module states ground as its `VSS` Pin.
+  never in the drawing; an exported module states ground as its `VSS` Pin. A
+  comparator's output swings up to its own VDD (`vhigh` `VDD`, the default),
+  so it gets the `VDD` Pin alone; a number in `vhigh` sets a fixed level.
   Explicitly Global supplies stay global, and separate supplies such as `AVDD`
   and `DVDD` retain their connections: when several compete, choose one in
   Properties.

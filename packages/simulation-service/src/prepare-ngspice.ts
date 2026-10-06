@@ -16,9 +16,10 @@ import {
   deckNeedsModelLibrary,
   formatModelLibrarySelection,
 } from "@icm/spice-run";
-import { problem, type Capabilities, type Problem } from "./contract.js";
+import { problem, type Capabilities } from "./contract.js";
 import type { ExecutionInput } from "./executor.js";
 import { sha256 } from "./content-digest.js";
+import { sourceCompilationProblem } from "./source-compilation-problem.js";
 import { netlistRunWarnings } from "./netlist-warnings.js";
 import { sourceInputRevision } from "./input-identity.js";
 import {
@@ -40,46 +41,6 @@ function librarySectionRange(
   if (!match || match[1]!.toLowerCase() !== section?.toLowerCase()) return null;
   const start = startOffset + match[0].length - match[1]!.length;
   return { start, end: start + match[1]!.length };
-}
-
-async function sourceCompilationProblem(
-  diagnostics: SimulationSourceDiagnostic[],
-  folder: ProjectSimulationFolder,
-): Promise<{
-  ok: false;
-  error: Problem;
-}> {
-  return {
-    ok: false,
-    error: {
-      code: "SIMULATION_COMPILE_REFUSED",
-      message: "Correct the located input and prepare again",
-      stage: "prepare",
-      recovery: "fix-input",
-      diagnostics: await Promise.all(
-        diagnostics.map(async (diagnostic) => {
-          const file = folder.input.files.find(
-            (file) =>
-              file.path === (diagnostic.sourceRef?.fileId ?? diagnostic.path),
-          );
-          if (!file) return diagnostic;
-          const start = diagnostic.sourceRef?.start;
-          return {
-            ...diagnostic,
-            source: {
-              scope: "authored" as const,
-              path: file.path,
-              textDigest: await sha256(file.text),
-              startOffset: start?.offset ?? 0,
-              endOffset: diagnostic.sourceRef?.end.offset ?? 0,
-              line: start?.line ?? 1,
-              column: start?.column ?? 1,
-            },
-          };
-        }),
-      ),
-    },
-  };
 }
 
 /** Shared source adapter. No execution, Project mutation or private GUI deck path. */

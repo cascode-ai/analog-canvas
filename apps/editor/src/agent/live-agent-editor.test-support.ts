@@ -16,6 +16,7 @@ import {
   type FakeRelayOptions,
 } from "../../../../packages/agent-client/src/test-support/fake-relay";
 import { EditorDocumentController } from "../document/document-controller";
+import type { ProjectRunHistory } from "../features/simulation/project-run-history";
 import { agentCircuitServiceOptions } from "./agent-service-options";
 import type { BrowserAgentPlanningContext } from "./browser-agent-command";
 import { BrowserAgentFileHost } from "./browser-agent-file-host";
@@ -52,6 +53,11 @@ export interface LiveAgentEditorOptions {
    * service's side, not the editor's.
    */
   simulationService?: typeof fetch;
+  /**
+   * The Project's run history the Simulation panel lists, which the App gives
+   * the Agent's Simulation resource (`ProjectRunHistory`).
+   */
+  runHistory?: ProjectRunHistory;
   client?: Partial<AgentSessionClientOptions>;
 }
 
@@ -100,6 +106,7 @@ export function liveAgentEditor(options: LiveAgentEditorOptions = {}) {
   });
   const simulationHost = options.simulationService
     ? new BrowserAgentSimulationHost({
+        ...(options.runHistory ? { runHistory: options.runHistory } : {}),
         owner: "agent",
         files: fileHost.simulationFiles,
         getProjectSessionId: () => controller.projectSessionId,

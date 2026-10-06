@@ -16,6 +16,8 @@ export interface ProjectRunRecord {
   owner: "agent" | "human";
   presentation: SimulationArchivePresentation;
   state: Run["state"];
+  /** The simulator's verdict, once the run reports one. */
+  outcome?: NonNullable<Run["result"]>["outcome"]["status"];
   archive?: SimulationRunArchiveSummary;
   /** Only retained when persistence fails; durable history holds metadata. */
   memoryArchive?: SimulationRunArchiveV1;
@@ -60,7 +62,9 @@ export class ProjectRunHistory {
   }
   track(input: {
     owner: "agent" | "human";
-    prepared: Prepared;
+    /** Absent for a direct submission (`run`), which publishes its prepared
+     * input with the run; the archive reads it from that evidence. */
+    prepared?: Prepared;
     presentation: SimulationArchivePresentation;
     run: Run;
     files: SimulationFiles;
@@ -86,6 +90,7 @@ export class ProjectRunHistory {
     const update = async (run: Run): Promise<void> => {
       if (this.disposed) return;
       record.state = run.state;
+      if (run.result) record.outcome = run.result.outcome.status;
       this.notify();
       if (["finished", "cancelled", "lost", "failed"].includes(run.state)) {
         if (!run.result && !run.outputData) {
@@ -100,6 +105,7 @@ export class ProjectRunHistory {
           {
             captureSimulationRunArchive,
             MAX_SIMULATION_ARCHIVE_BYTES,
+            preparedFromRunEvidence,
             summarizeSimulationRunArchive,
           },
           { createBrowserSimulationArchiveStore },
@@ -109,10 +115,19 @@ export class ProjectRunHistory {
         ]);
         if (this.disposed) return;
         this.store ??= createBrowserSimulationArchiveStore();
+        const prepared = input.prepared
+          ? { ok: true as const, value: input.prepared }
+          : await preparedFromRunEvidence(input.files, run);
+        if (this.disposed) return;
+        if (!prepared.ok) {
+          record.error = prepared.error.message;
+          this.notify();
+          return;
+        }
         const captured = await captureSimulationRunArchive(input.files, {
           projectId: this.projectId,
           presentation: { ...input.presentation, origin: input.owner },
-          prepared: input.prepared,
+          prepared: prepared.value,
           run,
         });
         if (this.disposed) return;

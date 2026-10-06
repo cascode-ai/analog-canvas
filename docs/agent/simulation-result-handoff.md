@@ -49,12 +49,14 @@ existing single `download`, bearer authorization and byte-range transport remain
 
 ## GUI handoff and archives
 
-Project-folder simulations share a read-only run history with the GUI. Starting
+Project-folder simulations share a read-only run history with the GUI, whether
+an Agent submits them with `run` or with `prepare` and `start`. Starting
 an Agent run does not open the simulation panel, change its active folder, or
 replace a human run. In the selected folder's results area, **Project runs**
 shows the owner and state; **Open result** restores a completed result into the
-GUI without executing it again. Run history defaults to all Project folders;
-the folder filter remains available.
+GUI without executing it again. The folder's status follows its newest run of
+any owner without replacing the result a person is viewing. Run history
+defaults to all Project folders; the folder filter remains available.
 
 The originating session still owns execution and cancellation. A project-scoped
 observer polls individual and batch runs even if the Agent does not call read.

@@ -423,6 +423,12 @@ test("HTTP Kit alone authors native objects and hands off a Project-folder run",
     records.getByRole("button", { name: "Open result" }),
   ).toBeEnabled();
   await records.getByRole("button", { name: "Open result" }).click();
+  // The folder status follows the newest run, so it does not say when the
+  // opened result is restored; the button, busy meanwhile, does. A menu
+  // opened during the restore would keep its download disabled.
+  await expect(
+    records.getByRole("button", { name: "Open result" }),
+  ).toBeEnabled();
   await expect(
     page.getByRole("region", { name: "Analog simulation" }).getByRole("status"),
   ).toHaveText("completed");
@@ -801,6 +807,12 @@ test("Agent project-folder simulation recovers errors, exports and hands off pro
     records.getByRole("button", { name: "Open result" }),
   ).toBeEnabled();
   await records.getByRole("button", { name: "Open result" }).click();
+  // The folder status follows the newest run, so it does not say when the
+  // opened result is restored; the button, busy meanwhile, does. A menu
+  // opened during the restore would keep its download disabled.
+  await expect(
+    records.getByRole("button", { name: "Open result" }),
+  ).toBeEnabled();
   await expect(
     page.getByRole("region", { name: "Analog simulation" }).getByRole("status"),
   ).toHaveText("completed");

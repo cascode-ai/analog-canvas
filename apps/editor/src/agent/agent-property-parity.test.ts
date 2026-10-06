@@ -236,6 +236,57 @@ describe("Agent property actions are planned as Apply in Properties", () => {
     ).toContain('must be one of: +, -; received "–"');
   });
 
+  it("takes VDD as a comparator's high level, as Properties does (#1306)", async () => {
+    const { controller, apply, refuse, instance } = await session();
+    await apply([place("comparator", "X1", 100)]);
+    // Without parameters a comparator lands as from the GUI: its output
+    // swings up to its own VDD, as the logic it drives reads it.
+    expect(instance("X1").netlist?.parameters).toEqual({
+      vhigh: "VDD",
+      vlow: "0",
+      vtransition: "1m",
+    });
+    const target = { kind: "instance", reference: "X1" };
+    await apply([{ kind: "set-property", target, set: { vhigh: "3.3" } }]);
+    expect(instance("X1").netlist?.parameters.vhigh).toBe("3.3");
+    const before = structuredClone(controller.project);
+    const x1 = instance("X1");
+    // VDD in any case, kept as typed.
+    await apply([{ kind: "set-property", target, set: { vhigh: "vdd" } }]);
+    expect(instance("X1").netlist?.parameters).toEqual({
+      vhigh: "vdd",
+      vlow: "0",
+      vtransition: "1m",
+    });
+    // The same value applied in Properties.
+    const document = before.documents[0]!;
+    const plan = planPropertyApply(
+      {
+        project: before,
+        document,
+        resolver: createProjectSymbolResolver(before, builtInSymbols),
+        instance: document.instances.find((item) => item.id === x1.id)!,
+      },
+      {
+        parameters: { vhigh: "vdd", vlow: "0", vtransition: "1m" },
+        placement: { coordinate: [100, 100], rotation: 0, mirror: "none" },
+        appearance: { color: "auto" },
+      },
+    );
+    expect(plan.kind).toBe("edits");
+    const gui = new EditorDocumentController(before);
+    if (plan.kind === "edits") expect(gui.transact(plan.edits).ok).toBe(true);
+    expect(controller.document.instances).toEqual(gui.document.instances);
+    // Anything else is refused, with the forms it takes named; export
+    // checks a number, so not an expression either.
+    for (const vhigh of ["VSS", "{vdd/2}"])
+      expect(
+        await refuse([{ kind: "set-property", target, set: { vhigh } }]),
+      ).toContain(
+        `must be a SPICE number such as 1k or 2.5n, or VDD; received "${vhigh}"`,
+      );
+  });
+
   it("refuses spice.* keys and names the parameters the model owns", async () => {
     const { apply, refuse } = await session();
     await apply([place("nmos", "M1", 100)]);

@@ -87,6 +87,14 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
     </WorkspaceInteractions>
   );
 }
+/** A run's state as the panel names it: a finished run by its outcome. */
+function runStateLabel(run: {
+  state: string;
+  outcome?: string | undefined;
+}): string {
+  return run.state === "finished" ? (run.outcome ?? run.state) : run.state;
+}
+
 function SimulationSurface(props: SpiceSimulationSurfaceProps) {
   const interaction = useWorkspaceInteractions();
   const { session, project, open } = props;
@@ -745,14 +753,22 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
     batch?.items.filter((item) =>
       ["finished", "failed", "cancelled", "lost"].includes(item.state),
     ).length ?? 0;
+  // The folder status is its newest run of any owner. Project runs are kept
+  // in start order; a newer one than the run shown here, such as an Agent's,
+  // sets the status without replacing the shown result.
+  const newestFolderRun = sharedRuns.findLast(
+    (item) => item.presentation.folderId === selectedFolder?.id,
+  );
+  const statusRun =
+    newestFolderRun && newestFolderRun.id !== run?.id
+      ? newestFolderRun
+      : run && { state: run.state, outcome: run.result?.outcome.status };
   const statusLabel = busy
     ? "Preparing…"
     : batch
       ? `Batch ${batch.state} · ${finishedBatchItems}/${batch.items.length}`
-      : run
-        ? run.state === "finished"
-          ? (run.result?.outcome.status ?? run.state)
-          : run.state
+      : statusRun
+        ? runStateLabel(statusRun)
         : prepared
           ? "Deck prepared"
           : "No run yet";
@@ -1144,7 +1160,7 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
                   <span>
                     {item.owner === "agent" ? "Agent" : "You"} ·{" "}
                     {item.presentation.folderName} ·{" "}
-                    {item.presentation.analysisLabel} · {item.state}
+                    {item.presentation.analysisLabel} · {runStateLabel(item)}
                     {item.error ? (
                       <small role="status">{item.error}</small>
                     ) : null}
@@ -1275,7 +1291,7 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
         </button>
       )}
       <span
-        className={`simulation-status-chip simulation-status-${batch?.state ?? run?.state ?? (prepared ? "prepared" : "idle")}`}
+        className={`simulation-status-chip simulation-status-${batch?.state ?? statusRun?.state ?? (prepared ? "prepared" : "idle")}`}
         role="status"
       >
         {activeDirty ? "Source changed" : statusLabel}

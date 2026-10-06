@@ -11,13 +11,10 @@ import {
 } from "@icm/model";
 import {
   ProjectFormatError,
-  loadProject,
   parseProject,
   parseProjectWithMetadata,
   PREVIOUS_PROJECT_SCHEMA_VERSION,
-  saveProject,
   serializeProject,
-  type ProjectStorage,
   upgradeSchema24To25WithReport,
   upgradeSchema25To26,
   upgradeSchema25To26WithReport,
@@ -29,20 +26,6 @@ import {
   upgradeSchema31To32,
   upgradeSchema32To33,
 } from "./index.js";
-
-class MemoryStorage implements ProjectStorage {
-  readonly files = new Map<string, string>();
-
-  async readText(path: string): Promise<string> {
-    const content = this.files.get(path);
-    if (content === undefined) throw new Error(`Missing file: ${path}`);
-    return content;
-  }
-
-  async writeTextAtomically(path: string, content: string): Promise<void> {
-    this.files.set(path, content);
-  }
-}
 
 describe("Project persistence", () => {
   it("accepts the canonical fixture and rejects the invalid fixture", () => {
@@ -56,24 +39,13 @@ describe("Project persistence", () => {
     );
     const validText = readFileSync(validPath, "utf8");
     expect(serializeProject(parseProject(validText))).toBe(validText);
+    expect(validText.endsWith("\n")).toBe(true);
     expect(() => parseProject(readFileSync(rejectedPath, "utf8"))).toThrow(
       /Unknown top document/,
     );
   });
 
-  it("is canonical across save, load, and save", async () => {
-    const storage = new MemoryStorage();
-    const project = createEmptyProject("project-test", "Test Project");
-    await saveProject(storage, "project.icproj.json", project);
-    const first = storage.files.get("project.icproj.json");
-    const loaded = await loadProject(storage, "project.icproj.json");
-    await saveProject(storage, "project.icproj.json", loaded);
-    expect(storage.files.get("project.icproj.json")).toBe(first);
-    expect(first?.endsWith("\n")).toBe(true);
-  });
-
-  it("round-trips annotation textColor through persistence", async () => {
-    const storage = new MemoryStorage();
+  it("round-trips annotation textColor through persistence", () => {
     const project = createEmptyProject("project-text-color", "Text color");
     project.documents[0]!.annotations.push({
       id: "note-1",
@@ -87,11 +59,11 @@ describe("Project persistence", () => {
       textColor: "#224488",
     });
 
-    await saveProject(storage, "project.icproj.json", project);
-    const loaded = await loadProject(storage, "project.icproj.json");
+    const text = serializeProject(project);
+    const loaded = parseProject(text);
 
     expect(loaded.documents[0]!.annotations[0]!.textColor).toBe("#224488");
-    expect(storage.files.get("project.icproj.json")).toContain("textColor");
+    expect(text).toContain("textColor");
   });
 
   it("rejects invalid JSON with a typed diagnostic", () => {

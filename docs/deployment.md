@@ -80,7 +80,10 @@ The retirement is reversible at the storage boundary:
 Reactivating Preview is a deliberate future migration, not part of ordinary
 delivery. It requires restoring a public route and assets, queue bindings,
 credentials, current application compatibility, and hosted verification before
-the old data is exposed again.
+the old data is exposed again. The Worker code no longer has a Preview mode
+(the channel endpoint, the read-only Gallery read-through and the private
+acceptance identity were removed on 2026-10-06), so a reactivation also
+restores whatever isolation from Production it needs.
 
 Production builds a deployment candidate from the selected `main` commit using
 `.github/actions/build-deployment-candidate`, verifies its source declaration

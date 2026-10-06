@@ -1,7 +1,9 @@
 import type { NetlistDeviceClass, StableId } from "@icm/model";
 
-/** New ngspice comparator instances use an isolated signal-only model target.
- * The historical `comparator` target remains the five-port external interface. */
+/** A placed comparator is bound to the ideal comparator, whose call names the
+ * body its high level chooses (ideal-comparator.ts); a numeric one calls this
+ * signal-only body. The historical `comparator` target remains the five-port
+ * external interface. */
 export const IDEAL_COMPARATOR_TARGET = "icm_ideal_comparator";
 
 export type DeviceNetlistTargetPolicy =
@@ -34,6 +36,17 @@ export interface DeviceParameterDefinition {
   /** Keep inactive source fields authored but out of the ordinary editor. */
   readonly visibleForSourceWaveforms?: readonly ("pulse" | "sin" | "pwl")[];
   readonly unitHint?: string;
+  /**
+   * Words a quantity takes in place of a number, matched in any case and
+   * stored as typed: a comparator's high level takes `VDD`, its own supply.
+   * Any other word is still refused.
+   */
+  readonly keywords?: readonly string[];
+  /**
+   * Whether a quantity also takes an expression in braces; absent, it does.
+   * The ideal comparator's levels take none: its export checks numbers.
+   */
+  readonly expressions?: boolean;
   readonly placeholder: string;
   readonly help: string;
   /**

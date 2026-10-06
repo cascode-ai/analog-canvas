@@ -5,7 +5,11 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { IDEAL_COMPARATOR_TARGET, subcircuitDescriptor } from "@icm/devices";
-import { createEmptyProject, type CircuitProject } from "@icm/model";
+import {
+  createEmptyDocument,
+  createEmptyProject,
+  type CircuitProject,
+} from "@icm/model";
 
 import { createDesignNetlistExport } from "./export.js";
 
@@ -123,20 +127,142 @@ describe("blocks whose body never reads its supplies", () => {
     expect(result.file.text).toContain("X1 VDD VSS VIP VIN VOUT opamp");
   });
 
-  it("export an ideal comparator with no supply drawn and no VDD pin", () => {
+  it("export an ideal comparator with a numeric high level and no VDD pin", () => {
     // A flash ADC drawn with ground and no VDD gained a VDD Cell Pin that
-    // nothing inside used: the ideal comparator's call has no supply nodes.
+    // nothing inside used: the numeric comparator's call has no supply
+    // nodes. Every comparator placed before VDD was the default stores 1,
+    // and exports byte for byte as it did.
     const project = unpoweredBlock("comparator");
-    project.documents[0]!.instances[0]!.netlist!.binding = {
-      kind: "unresolved-subcircuit",
-      name: IDEAL_COMPARATOR_TARGET,
+    project.documents[0]!.instances[0]!.netlist = {
+      binding: { kind: "unresolved-subcircuit", name: IDEAL_COMPARATOR_TARGET },
+      parameters: { vhigh: "1", vlow: "0", vtransition: "1m" },
     };
     const result = createDesignNetlistExport(project);
     expect(result.status).toBe("ready");
     if (result.status !== "ready") return;
-    expect(result.file.text).toMatch(/^\.subckt dut VIP VIN VOUT$/mu);
-    expect(result.file.text).toMatch(
-      /^X1 VIP VIN VOUT icm_ideal_comparator$/mu,
+    expect(result.file.text).toBe(
+      [
+        "",
+        ".subckt icm_ideal_comparator VIP VIN VOUT params: vhigh=1 vlow=0 vtransition=1m",
+        "Bcmp VOUT 0 V={vlow+(vhigh-vlow)*0.5*(1+tanh((V(VIP)-V(VIN))/vtransition))}",
+        ".ends icm_ideal_comparator",
+        "",
+        ".subckt dut VIP VIN VOUT",
+        "X1 VIP VIN VOUT icm_ideal_comparator vhigh=1 vlow=0 vtransition=1m",
+        ".ends dut",
+        "",
+      ].join("\n"),
+    );
+  });
+
+  it("give a comparator whose high level is VDD the default VDD alone", () => {
+    // Its body reads VDD, not VSS: no ground pin either.
+    const project = unpoweredBlock("comparator");
+    project.documents[0]!.instances[0]!.netlist = {
+      binding: { kind: "unresolved-subcircuit", name: IDEAL_COMPARATOR_TARGET },
+      parameters: { vhigh: "VDD" },
+    };
+    for (const [format, header, card] of [
+      [
+        "spice",
+        ".subckt dut VDD VIP VIN VOUT",
+        "X1 VDD VIP VIN VOUT icm_ideal_comparator_vdd",
+      ],
+      [
+        "spectre",
+        "subckt dut (VDD VIP VIN VOUT)",
+        "X1 (VDD VIP VIN VOUT) icm_ideal_comparator_vdd",
+      ],
+    ] as const) {
+      const result = createDesignNetlistExport(project, { format });
+      expect(result.status, format).toBe("ready");
+      if (result.status !== "ready") continue;
+      expect(result.file.text.split("\n")).toEqual(
+        expect.arrayContaining([header, card]),
+      );
+      expect(result.file.text).not.toMatch(/VSS|global/u);
+    }
+    // A Cell that calls it, drawing no supply either, passes that VDD on
+    // and gains no ground pin that nothing would use.
+    const parent = createEmptyDocument("top", "top");
+    parent.netlist!.name = "top";
+    parent.instances.push({
+      id: "XD",
+      symbolId: "dut-symbol",
+      reference: "XD",
+      placement: null,
+      netlist: {
+        binding: { kind: "subcircuit", childDocumentId: "dut" },
+        parameters: {},
+      },
+    });
+    for (const name of ["VIP", "VIN", "VOUT"]) {
+      parent.nets.push({
+        id: `top-${name}`,
+        terminals: [{ instanceId: "XD", pinName: name }],
+      });
+      parent.connectivityEvidence.push({
+        id: `top-${name}-name`,
+        kind: "net-name-hint",
+        netId: `top-${name}`,
+        sourceName: name.toLowerCase(),
+        origin: "spice-import",
+      });
+    }
+    project.documents.push(parent);
+    project.topDocumentId = parent.id;
+    const called = createDesignNetlistExport(project);
+    expect(called.status).toBe("ready");
+    if (called.status !== "ready") return;
+    expect(called.file.text.split("\n")).toEqual(
+      expect.arrayContaining([".subckt top VDD", "XD VDD vip vin vout dut"]),
+    );
+    expect(called.file.text).not.toMatch(/VSS|global/u);
+  });
+
+  it("resolve that comparator's VDD as a logic block's: chosen between two supplies", () => {
+    const project = unpoweredBlock("comparator");
+    const document = project.documents[0]!;
+    document.instances[0]!.netlist = {
+      binding: { kind: "unresolved-subcircuit", name: IDEAL_COMPARATOR_TARGET },
+      parameters: { vhigh: "VDD" },
+    };
+    for (const name of ["VDDA", "VDDB"]) {
+      document.instances.push({
+        id: name,
+        symbolId: "vdd-port",
+        placement: null,
+      });
+      document.nets.push({
+        id: `net-${name}`,
+        terminals: [{ instanceId: name, pinName: "P" }],
+      });
+      document.connectivityEvidence.push({
+        id: `${name}-claim`,
+        kind: "name-claim",
+        netId: `net-${name}`,
+        name,
+        scope: "global",
+        powerDomain: "vdd",
+        owner: { kind: "power-marker", objectId: name },
+      });
+    }
+    const ambiguous = createDesignNetlistExport(project);
+    expect(ambiguous.status).toBe("blocked");
+    expect(
+      ambiguous.diagnostics.filter(
+        (item) => item.code === "MISSING_BLOCK_SUPPLY",
+      ),
+    ).toHaveLength(1);
+    // The Net chosen in Properties, as set-block-supply binds it.
+    document.nets
+      .find((net) => net.id === "net-VDDB")!
+      .terminals.push({ instanceId: "block", pinName: "VDD" });
+    const chosen = createDesignNetlistExport(project);
+    expect(chosen.status).toBe("ready");
+    if (chosen.status !== "ready") return;
+    expect(chosen.file.text).toMatch(
+      /^X1 VDDB VIP VIN VOUT icm_ideal_comparator_vdd$/mu,
     );
   });
 
@@ -160,6 +286,23 @@ function ngspiceOnPath(): boolean {
   return spawnSync("ngspice", ["--version"], { encoding: "utf8" }).status === 0;
 }
 
+/** Every `v(vout) = …` an ngspice batch run of this deck prints, in order. */
+function printedVout(deck: string): number[] {
+  const directory = mkdtempSync(join(tmpdir(), "icm-unpowered-"));
+  try {
+    writeFileSync(join(directory, "deck.cir"), deck, "utf8");
+    const output = execFileSync("ngspice", ["-b", "deck.cir"], {
+      cwd: directory,
+      encoding: "utf8",
+    });
+    return Array.from(output.matchAll(/v\(vout\)\s*=\s*(\S+)/gu), (match) =>
+      Number(match[1]),
+    );
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+}
+
 /** Skips cleanly where ngspice is absent; the hosted gate never skips. */
 describe.skipIf(!ngspiceOnPath())(
   "an unpowered ideal op-amp under ngspice",
@@ -180,19 +323,46 @@ describe.skipIf(!ngspiceOnPath())(
         ".endc",
         ".end",
       ].join("\n");
-      const directory = mkdtempSync(join(tmpdir(), "icm-unpowered-"));
-      try {
-        writeFileSync(join(directory, "deck.cir"), deck, "utf8");
-        const output = execFileSync("ngspice", ["-b", "deck.cir"], {
-          cwd: directory,
-          encoding: "utf8",
-        });
-        // Open-loop gain 1e6 times 1 µV.
-        const vout = Number(/v\(vout\)\s*=\s*(\S+)/u.exec(output)?.[1]);
-        expect(vout).toBeCloseTo(1, 6);
-      } finally {
-        rmSync(directory, { recursive: true, force: true });
-      }
+      // Open-loop gain 1e6 times 1 µV.
+      expect(printedVout(deck)[0]).toBeCloseTo(1, 6);
+    });
+  },
+);
+
+describe.skipIf(!ngspiceOnPath())(
+  "an ideal comparator whose high level is VDD under ngspice",
+  () => {
+    it("swings from vlow up to the VDD its Cell is given (#1306)", () => {
+      // A 5 V supply, which a fixed 1 V high level never switched logic at.
+      const project = unpoweredBlock("comparator");
+      project.documents[0]!.instances[0]!.netlist = {
+        binding: {
+          kind: "unresolved-subcircuit",
+          name: IDEAL_COMPARATOR_TARGET,
+        },
+        parameters: { vhigh: "VDD", vlow: "0", vtransition: "1m" },
+      };
+      const result = createDesignNetlistExport(project);
+      if (result.status !== "ready") throw new Error("comparator blocked");
+      const deck = [
+        "* ideal comparator to its own VDD",
+        result.file.text,
+        "VS vdd 0 5",
+        "VP vip 0 1",
+        "VN vin 0 0.9",
+        "XD vdd vip vin vout dut",
+        ".control",
+        "op",
+        "print v(vout)",
+        "alter VP dc=0.8",
+        "op",
+        "print v(vout)",
+        ".endc",
+        ".end",
+      ].join("\n");
+      const [high, low] = printedVout(deck);
+      expect(high).toBeCloseTo(5, 6);
+      expect(low).toBeCloseTo(0, 6);
     });
   },
 );

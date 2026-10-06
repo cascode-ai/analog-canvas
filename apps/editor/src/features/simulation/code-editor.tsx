@@ -51,6 +51,7 @@ import { linter, lintGutter, type Diagnostic } from "@codemirror/lint";
 import { searchKeymap } from "@codemirror/search";
 import type { SimulationSourceDiagnostic } from "@icm/netlist";
 import { inspectSimulationSource } from "@icm/spice";
+import { simulationSpecAnnotationDiagnostics } from "@icm/simulation-service/contract";
 import {
   spiceCodeLanguage,
   spiceCompletion,
@@ -568,9 +569,17 @@ export default function SimulationCodeEditor(props: SimulationCodeEditorProps) {
                           editor.state.selection.main.head,
                         );
                         const prefix = line.text.trim() ? "\n" : "";
-                        const insert = `${prefix}* @spec measurement <= 1 unit=V`;
                         const from = line.text.trim() ? line.to : line.from;
-                        const anchor = from + prefix.length + 8;
+                        // The language's own line comment: `*` for SPICE,
+                        // `//` for VACASK, which rejects `*`.
+                        const marker =
+                          editor.state.languageDataAt<{ line?: string }>(
+                            "commentTokens",
+                            from,
+                          )[0]?.line ?? "*";
+                        const insert = `${prefix}${marker} @spec measurement <= 1 unit=V`;
+                        const anchor =
+                          from + prefix.length + `${marker} @spec `.length;
                         editor.dispatch({
                           changes: { from, insert },
                           selection: { anchor, head: anchor + 11 },
@@ -770,19 +779,24 @@ function sourceExtensions(
         const local =
           current.mode === "json"
             ? []
-            : (current.mode === "ngspice"
-                ? inspectSimulationSource(
-                    {
-                      id: current.path,
-                      path: current.path,
-                      text,
-                      hash: "",
-                      encoding: "utf-8",
-                    },
-                    current.entry,
-                  )
-                : inspectNativeLanguage(current.path, text, current.entry)
-              ).diagnostics;
+            : [
+                ...(current.mode === "ngspice"
+                  ? inspectSimulationSource(
+                      {
+                        id: current.path,
+                        path: current.path,
+                        text,
+                        hash: "",
+                        encoding: "utf-8",
+                      },
+                      current.entry,
+                    )
+                  : inspectNativeLanguage(current.path, text, current.entry)
+                ).diagnostics,
+                // A run reads Spec annotations with this parser; its
+                // invalid-spec detail shows on the line before any run.
+                ...simulationSpecAnnotationDiagnostics(current.path, text),
+              ];
         const diagnostics: Diagnostic[] = (
           current.mode === "json" ? jsonParseLinter()(editor) : []
         ) as Diagnostic[];

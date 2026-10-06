@@ -7,127 +7,23 @@ import { flattenRichText } from "@icm/model";
 import type { SimulationOutputData } from "./contract.js";
 import {
   formatSimulationSpec,
-  SimulationSpecLabelSchema,
-  SimulationSpecResultSchema,
   type SimulationSpecCondition,
   type SimulationSpecReport,
   type SimulationSpecResult,
 } from "./spec-contract.js";
+import {
+  parseSimulationSpecAnnotation,
+  type SimulationSpecAnnotation,
+} from "./spec-annotation.js";
 
-const number = (text: string | undefined): number | null =>
-  text &&
-  /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i.test(text) &&
-  Number.isFinite(Number(text))
-    ? Number(text)
-    : null;
 type Source = SimulationSpecResult["source"];
-type Declaration = {
-  name: string;
-  source: Source;
-  unit: string;
-  expected: SimulationSpecCondition | null;
-  invalid: boolean;
-  label?: SimulationSpecResult["label"];
-  group?: string;
-};
+type Declaration = SimulationSpecAnnotation & { source: Source };
 
-/** v1 deliberately has no executable expressions or inferred unit conversions. */
+/** One annotation line, read by the parser the editor's check uses too. */
 function declaration(source: Source): Declaration {
-  // One optional JSON label at the end; reuse the canonical RichText contract,
-  // never interpret authored HTML or introduce another markup dialect.
-  const labelStart = [
-    ...source.text.matchAll(/"(?:\\.|[^"\\])*"|\s+label=/gu),
-  ].find((match) => /^\s+label=$/u.test(match[0]));
-  let label: SimulationSpecResult["label"];
-  let invalidLabel = false;
-  if (labelStart) {
-    try {
-      const value: unknown = JSON.parse(
-        source.text.slice(labelStart.index + labelStart[0].length),
-      );
-      const parsed = SimulationSpecLabelSchema.safeParse(
-        typeof value === "string" ? { runs: [{ kind: "text", value }] } : value,
-      );
-      if (parsed.success) label = parsed.data;
-      else invalidLabel = true;
-    } catch {
-      invalidLabel = true;
-    }
-  }
-  let group: string | undefined;
-  let invalidGroup = false;
-  let groupCount = 0;
-  const metadataText = (
-    labelStart ? source.text.slice(0, labelStart.index) : source.text
-  ).replace(/\s+group=("(?:\\.|[^"\\])*"|[^\s]+)/gu, (_match, text: string) => {
-    groupCount++;
-    try {
-      const parsed = SimulationSpecResultSchema.shape.group.safeParse(
-        text.startsWith('"') ? JSON.parse(text) : text,
-      );
-      if (parsed.success) group = parsed.data;
-      else invalidGroup = true;
-    } catch {
-      invalidGroup = true;
-    }
-    return "";
-  });
-  const tokens = metadataText
-    .trim()
-    .replace(/^(?:\*|\/\/)\s*@spec\b/i, "")
-    .trim()
-    .split(/\s+/);
-  const name = tokens.shift() ?? "";
-  let unit = "";
-  if (tokens.at(-1)?.startsWith("unit=")) unit = tokens.pop()!.slice(5);
-  const [op, a, b, c] = tokens;
-  const first = number(a),
-    second = number(b),
-    tolerance = number(c);
-  let expected: SimulationSpecCondition | null = null;
-  if (
-    tokens.length === 2 &&
-    ["<", "<=", ">", ">="].includes(op ?? "") &&
-    first !== null
-  )
-    expected = {
-      kind: "limit",
-      operator: op as "<" | "<=" | ">" | ">=",
-      value: first,
-    };
-  if (
-    tokens.length === 3 &&
-    op === "range" &&
-    first !== null &&
-    second !== null &&
-    first <= second
-  )
-    expected = { kind: "range", minimum: first, maximum: second };
-  if (
-    tokens.length === 4 &&
-    op === "target" &&
-    first !== null &&
-    b === "tol" &&
-    tolerance !== null &&
-    tolerance >= 0
-  )
-    expected = { kind: "target", value: first, tolerance };
-  return {
-    name,
-    source,
-    unit,
-    expected,
-    ...(label ? { label } : {}),
-    ...(group ? { group } : {}),
-    invalid:
-      invalidLabel ||
-      invalidGroup ||
-      groupCount > 1 ||
-      (!expected && !(tokens.length === 0 && (unit || label || group))) ||
-      !/^[A-Za-z_][A-Za-z0-9_]*$/.test(name) ||
-      !/^[A-Za-z0-9_/%°µΩ.-]*$/.test(unit),
-  };
+  return { ...parseSimulationSpecAnnotation(source.text), source };
 }
+
 function satisfies(value: number, rule: SimulationSpecCondition): boolean {
   if (rule.kind === "range")
     return value >= rule.minimum && value <= rule.maximum;
@@ -265,7 +161,7 @@ export function simulationSpecReport(
         source: sources[0]!,
         unit: "",
         expected: null,
-        invalid: false,
+        problems: [],
       });
   const logLines = context.log.split(/\r?\n/);
   const logSource = (m: (typeof measurements)[number]): Source => ({
@@ -284,7 +180,7 @@ export function simulationSpecReport(
         source: logSource(m),
         unit: m.unit ?? "",
         expected: null,
-        invalid: false,
+        problems: [],
       });
     }
   }
@@ -318,11 +214,8 @@ export function simulationSpecReport(
         reason,
         detail,
       });
-      if (d.invalid)
-        return unavailable(
-          "invalid-spec",
-          "Use name [condition] [unit=unit] [group=name or JSON string] [label=JSON string or RichText document]. A measurement-only annotation needs a unit, group or label. Conditions use decimal/scientific numbers.",
-        );
+      if (d.problems.length)
+        return unavailable("invalid-spec", d.problems.join(" "));
       if (definitions.filter((other) => nameKey(other.name) === key).length > 1)
         return unavailable(
           "duplicate-spec",
@@ -385,6 +278,7 @@ export function simulationSpecsToCsv(report: SimulationSpecReport): string {
         "label",
         "group",
         "source kind",
+        "detail",
       ],
       ...report.results.map((r) => [
         r.source.kind === "log" ? csvText(r.name) : r.name,
@@ -402,6 +296,9 @@ export function simulationSpecsToCsv(report: SimulationSpecReport): string {
         r.label ? csvText(flattenRichText(r.label)) : "",
         r.group ? csvText(r.group) : "",
         r.source.kind ?? "input",
+        // Appended, so no earlier column moves. A measurement-missing
+        // detail can be the author's own text.
+        csvText(r.detail),
       ]),
     ]
       .map((row) => row.map(cell).join(","))

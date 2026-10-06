@@ -5,6 +5,8 @@ import {
   adderBodySigns,
   adderInputSigns,
   builtInModelContract,
+  callsIdealComparatorBody,
+  idealComparatorBodyFor,
   type BuiltInSubcircuitDescriptor,
   type InputSign,
 } from "@icm/devices";
@@ -30,13 +32,15 @@ export function projectSubcircuitNames(
 }
 
 /**
- * The master a built-in block's call names. An authored target wins: a
- * comparator's isolated model, or any subcircuit the author retargeted the
- * block to. An adder left on its own body calls the body its input signs
- * choose, unless the Project defines `adder` itself: a Cell or an external
- * definition of that name replaces every built-in adder body, so the call
- * keeps calling it, whatever the signs. An invalid sign leaves the adder on
- * `adder`, for export to refuse.
+ * The master a built-in block's call names. An authored target wins: any
+ * subcircuit the author retargeted the block to. A comparator bound to the
+ * ideal comparator, under either body's name, calls the body its high level
+ * chooses: the one reading its own VDD, or the numeric one. An adder left on
+ * its own body calls the body its input signs choose, unless the Project
+ * defines `adder` itself: a Cell or an external definition of that name
+ * replaces every built-in adder body, so the call keeps calling it, whatever
+ * the signs. An invalid sign leaves the adder on `adder`, for export to
+ * refuse.
  */
 export function builtInBlockCallTarget(
   instance: {
@@ -59,6 +63,8 @@ export function builtInBlockCallTarget(
     typeof binding.name === "string"
       ? binding.name
       : descriptor.target;
+  if (callsIdealComparatorBody(descriptor, target))
+    return idealComparatorBodyFor(instance.netlist?.parameters);
   if (
     descriptor.target !== ADDER_TARGET ||
     target.toLowerCase() !== ADDER_TARGET ||
