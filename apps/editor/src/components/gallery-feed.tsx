@@ -258,7 +258,9 @@ export function GalleryCountPanel({
   search = null,
   authors = [],
   partial = false,
+  author = null,
   onSelectAuthor = () => undefined,
+  onShowAllAuthors = () => undefined,
 }: {
   total: number | null;
   filtered?: boolean;
@@ -266,7 +268,10 @@ export function GalleryCountPanel({
   search?: { visible: number; settled: boolean } | null;
   authors?: GalleryAuthorOption[];
   partial?: boolean;
+  /** The byline the wall is narrowed to, if any. */
+  author?: string | null;
   onSelectAuthor?: (option: GalleryAuthorOption) => void;
+  onShowAllAuthors?: () => void;
 }) {
   const label = galleryCountLabel(total, { filtered, search, searched });
   const rootRef = useRef<HTMLDetailsElement | null>(null);
@@ -296,6 +301,23 @@ export function GalleryCountPanel({
             {partial ? " so far" : ""}
           </span>
         </div>
+        {author ? (
+          // Narrowed to one byline, the board lists only that author; the
+          // way back to everyone sits where readers look for the others.
+          <div className="gallery-contributor-status">
+            <p>Circuits by {author}</p>
+            <button
+              type="button"
+              data-testid="gallery-contributor-all"
+              onClick={() => {
+                rootRef.current?.removeAttribute("open");
+                onShowAllAuthors();
+              }}
+            >
+              All authors
+            </button>
+          </div>
+        ) : null}
         {authors.length === 0 ? (
           <p className="gallery-contributor-status">
             {partial
@@ -497,14 +519,7 @@ export function GalleryFeed({
   // Which wall filters the shown tag counts answer; counts for any other
   // combination show as loading rather than as stale numbers.
   const [tagCountsScope, setTagCountsScope] = useState<string | null>(null);
-  const tagScope = galleryTagScope({
-    q: serverSearch,
-    netlistable: netlistableOnly,
-    liked: likedOnly,
-    attention: attentionOnly,
-    attentionKind,
-    parts: selectedParts,
-  });
+  const tagScope = galleryTagScope(feedQuery);
   const [refreshSignal, setRefreshSignal] = useState(0);
   // A like taken back under Liked removes its drawing from the wall without
   // reloading it; this recounts the tags beside it.
@@ -565,30 +580,17 @@ export function GalleryFeed({
     };
   }, []);
 
+  // Keyed by the scope, not the query: choosing a tag changes the wall but
+  // not the counts beside it.
   useEffect(() => {
     let cancelled = false;
-    const scope = galleryTagScope({
-      q: serverSearch,
-      netlistable: netlistableOnly,
-      liked: likedOnly,
-      attention: attentionOnly,
-      attentionKind,
-      parts: selectedParts,
-    });
     const request =
       refreshSignal === 0 &&
       tagCountsRefresh === 0 &&
       preload &&
-      (preload.tagsScope ?? "") === scope
+      (preload.tagsScope ?? "") === tagScope
         ? preload.tags
-        : loadGalleryTagSummary(fetch, {
-            q: serverSearch,
-            netlistable: netlistableOnly,
-            liked: likedOnly,
-            attention: attentionOnly,
-            attentionKind,
-            parts: selectedParts,
-          });
+        : loadGalleryTagSummary(fetch, feedQuery);
     void request.then((payload) => {
       if (!cancelled) {
         setTagOptions(payload.tags);
@@ -597,23 +599,13 @@ export function GalleryFeed({
             payload.groups.map(({ group, count }) => [group, count]),
           ),
         );
-        setTagCountsScope(scope);
+        setTagCountsScope(tagScope);
       }
     });
     return () => {
       cancelled = true;
     };
-  }, [
-    preload,
-    refreshSignal,
-    tagCountsRefresh,
-    serverSearch,
-    netlistableOnly,
-    likedOnly,
-    attentionOnly,
-    attentionKind,
-    selectedParts,
-  ]);
+  }, [preload, refreshSignal, tagCountsRefresh, tagScope]);
   const [state, setState] = useState<GalleryFeedState>({
     status: "loading",
     entries: [],
@@ -1257,7 +1249,9 @@ export function GalleryFeed({
             filtered={galleryFiltersNarrowQuery(filters)}
             authors={authors}
             partial={localAuthors && state.nextCursor !== null}
+            author={author}
             onSelectAuthor={selectContributor}
+            onShowAllAuthors={() => selectAuthor(null)}
             searched={searchAnswered}
             search={
               searchingLoaded
@@ -1460,7 +1454,7 @@ export function GalleryFeed({
                   data-testid="gallery-filter-clear"
                   onClick={() => selectAuthor(null)}
                 >
-                  Show everyone
+                  All authors
                 </button>
               </div>
             ) : null}

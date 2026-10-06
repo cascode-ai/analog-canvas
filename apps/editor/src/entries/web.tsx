@@ -50,13 +50,6 @@ export function mountWebEditor() {
       window.location.search,
       storedFilters,
     );
-    const tagFilters = {
-      netlistable: filters.netlistable,
-      liked: filters.liked,
-      attention: filters.attention,
-      parts: filters.parts,
-    };
-    const tags = loadGalleryTagSummary(fetch, tagFilters);
     // "View in Gallery" links one circuit on the whole, unfiltered wall.
     const focusId = galleryFocusEntryId(window.location.search);
     // The wall's first page starts here for the filters it will open with,
@@ -73,8 +66,9 @@ export function mountWebEditor() {
       parts: filters.parts,
     };
     return {
-      tags,
-      tagsScope: galleryTagScope(tagFilters),
+      // The tags beside that page are counted for the same filters.
+      tags: loadGalleryTagSummary(fetch, query),
+      tagsScope: galleryTagScope(query),
       feed: loadGalleryFeed(fetch, query),
       feedQuery: galleryFeedQueryKey(query),
       ...(focusId
@@ -83,10 +77,9 @@ export function mountWebEditor() {
     };
   }
 
-  // Start public Gallery data beside the route chunk, before React mounts. A
-  // remembered or linked filter still waits for GalleryFeed to request its exact
-  // query; the default wall, and a link to one circuit on it, reuse the
-  // unfiltered request. That linked circuit is looked up at the same time.
+  // Start public Gallery data beside the route chunk, before React mounts: the
+  // first page and tag counts for the filters the wall opens with, and the
+  // circuit a "View in Gallery" link names.
   const initialGalleryPreload = galleryLandingPreload();
 
   const EditorApp = lazy(
