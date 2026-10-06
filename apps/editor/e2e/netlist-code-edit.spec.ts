@@ -64,6 +64,82 @@ function fixture() {
 const label = (page: import("@playwright/test").Page) =>
   page.locator('[data-layer="annotations"] [data-object-id="label-R1"]');
 
+test("large live netlist stays editable through format changes, apply and undo", async ({
+  page,
+}) => {
+  const { importSpiceSources } = await import("@icm/spice");
+  const { createDesignNetlistExport } = await import("@icm/netlist");
+  const imported = await importSpiceSources(
+    [
+      {
+        path: "large.spi",
+        bytes: new TextEncoder().encode(
+          [
+            ".model NMOS NMOS (level=1)",
+            ".subckt dut D G S B",
+            ...Array.from(
+              { length: 600 },
+              (_, i) => `M${i + 1} D G S B NMOS w=1u l=150n nf=1 m=1`,
+            ),
+            ".ends dut",
+          ].join("\n"),
+        ),
+      },
+    ],
+    "large.spi",
+  );
+  expect(imported.successful).toBe(true);
+  const project = imported.project!;
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  await page.getByTestId("project-file").setInputFiles({
+    name: "large-netlist.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  const code = page.getByLabel("Netlist code", { exact: true });
+  await expect(code).toBeVisible();
+  await page
+    .getByLabel("Netlist format", { exact: true })
+    .selectOption("spectre");
+  await expect(code).toContainText("simulator lang=spectre");
+  const baseline = createDesignNetlistExport(project, {
+    format: "spectre",
+    includeLocations: true,
+  });
+  if (baseline.status !== "ready") throw new Error("Expected ready netlist");
+  const last = baseline.locations.fields.find(
+    (field) =>
+      field.instanceId === baseline.locations.instances.at(-1)!.instanceId &&
+      field.kind === "parameter" &&
+      field.parameter === "w",
+  )!;
+  await code.fill(
+    baseline.file.text.slice(0, last.startOffset) +
+      "20u" +
+      baseline.file.text.slice(last.endOffset),
+  );
+  await code.press("Enter");
+  const saved = parseSavedProject(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(),
+  );
+  const value = (savedProject: typeof saved) =>
+    savedProject.documents
+      .find((d: { id: string }) => d.id === last.documentId)!
+      .instances.find((i: { id: string }) => i.id === last.instanceId)!.netlist
+      .parameters.w;
+  expect(value(saved)).toBe("20u");
+  await page.getByTestId("draw-tool-undo").click();
+  const undone = parseSavedProject(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(),
+  );
+  expect(value(undone)).toBe("1u");
+  await expect(page.getByTestId("schematic-canvas")).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
 async function choosePropertyPreview(
   page: import("@playwright/test").Page,
   label: string,

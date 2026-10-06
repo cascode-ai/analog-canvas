@@ -28,6 +28,66 @@ const literal = (text: string) =>
     .replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")
     .replace(/\s+/gu, (space) => (/[\r\n]/u.test(space) ? "\\s*" : "[ \\t]+"));
 
+/** Each printed field stays on one physical line (including SPICE's + lines).
+ * Never compile all cards into one regexp: even a valid 600-MOS edit overflows
+ * V8's regexp stack. Match the fixed scaffold a line at a time instead, retaining
+ * absolute capture ranges for code/canvas selection. Blank lines, indentation,
+ * horizontal spacing and CRLF do not change the circuit scaffold.
+ */
+function matchPrintedFields(baseline: ReadyExport, source: string) {
+  const lines = (text: string) =>
+    [...text.matchAll(/[^\r\n]+/gu)].filter((line) => line[0].trim());
+  const before = lines(baseline.file.text);
+  const after = lines(source);
+  if (before.length !== after.length) return null;
+  const values: string[] = [];
+  const ranges: [number, number][] = [];
+  const fields = baseline.locations.fields;
+  let fieldIndex = 0;
+  for (let lineIndex = 0; lineIndex < before.length; lineIndex++) {
+    const line = before[lineIndex]!;
+    const edited = after[lineIndex]!;
+    const end = line.index + line[0].length;
+    let cursor = line.index;
+    const firstField = fieldIndex;
+    const pattern: string[] = [];
+    while (fields[fieldIndex] && fields[fieldIndex]!.startOffset < end) {
+      const field = fields[fieldIndex]!;
+      if (field.startOffset < cursor || field.endOffset > end) return null;
+      const fixed = baseline.file.text.slice(cursor, field.startOffset);
+      pattern.push(
+        literal(fieldIndex === firstField ? fixed.trimStart() : fixed),
+        "([^\\n\\r]*?)",
+      );
+      cursor = field.endOffset;
+      fieldIndex++;
+    }
+    const tail = baseline.file.text.slice(cursor, end);
+    pattern.push(
+      literal(firstField === fieldIndex ? tail.trim() : tail.trimEnd()),
+    );
+    let match: RegExpExecArray | null;
+    try {
+      match = new RegExp(`^[ \\t]*${pattern.join("")}[ \\t]*$`, "du").exec(
+        edited[0],
+      );
+    } catch (error) {
+      // A pathological single card must be a rejected draft, not a render crash.
+      if (error instanceof SyntaxError || error instanceof RangeError)
+        return null;
+      throw error;
+    }
+    if (!match) return null;
+    for (let index = firstField; index < fieldIndex; index++) {
+      const capture = index - firstField + 1;
+      values.push(match[capture]!);
+      const [start, finish] = match.indices![capture]!;
+      ranges.push([edited.index + start, edited.index + finish]);
+    }
+  }
+  return fieldIndex === fields.length ? { values, ranges } : null;
+}
+
 /** Only printed fields write back; circuit identity and wiring never come from
  * reimporting a text file. All Cells apply together through one transaction.
  */
@@ -39,17 +99,7 @@ export function planNetlistCodeEdit(
   if (source === baseline.file.text)
     return { ok: true, edits: [], instances: baseline.locations.instances };
   const fields = baseline.locations.fields;
-  let cursor = 0;
-  const pattern: string[] = [];
-  for (const field of fields) {
-    pattern.push(
-      literal(baseline.file.text.slice(cursor, field.startOffset)),
-      "([^\\n\\r]*?)",
-    );
-    cursor = field.endOffset;
-  }
-  pattern.push(literal(baseline.file.text.slice(cursor)));
-  const match = new RegExp(`^${pattern.join("")}$`, "du").exec(source);
+  const match = matchPrintedFields(baseline, source);
   if (!match)
     return {
       ok: false,
@@ -60,7 +110,7 @@ export function planNetlistCodeEdit(
   const seen = new Map<string, string>();
   for (let index = 0; index < fields.length; index++) {
     const field = fields[index]!;
-    const value = match[index + 1]!.trim();
+    const value = match.values[index]!.trim();
     const key = JSON.stringify([
       field.documentId,
       field.instanceId,
@@ -181,9 +231,9 @@ export function planNetlistCodeEdit(
     const reference = ownerFields.find(
       (index) => fields[index]!.kind === "reference",
     )!;
-    const startOffset = match.indices![reference + 1]![0];
+    const startOffset = match.ranges[reference]![0];
     const lastFieldEnd = Math.max(
-      ...ownerFields.map((index) => match.indices![index + 1]![1]),
+      ...ownerFields.map((index) => match.ranges[index]![1]),
     );
     const newline = source.indexOf("\n", lastFieldEnd);
     return {

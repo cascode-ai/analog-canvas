@@ -38,6 +38,83 @@ X1 A B leaf
   return { project, baseline };
 }
 
+it.each<NetlistFormat>(["spice", "spectre"])(
+  "edits a large %s netlist without compiling a document-wide regexp",
+  async (format) => {
+    const count = 600;
+    const imported = await importSpiceSources(
+      [
+        {
+          path: "large.spi",
+          bytes: new TextEncoder().encode(
+            [
+              ".model NMOS NMOS (level=1)",
+              ".subckt dut D G S B",
+              ...Array.from(
+                { length: count },
+                (_, i) => `M${i + 1} D G S B NMOS w=1u l=150n nf=1 m=1`,
+              ),
+              ".ends dut",
+            ].join("\n"),
+          ),
+        },
+      ],
+      "large.spi",
+    );
+    expect(imported.successful).toBe(true);
+    const project = imported.project!;
+    const baseline = createDesignNetlistExport(project, {
+      format,
+      includeLocations: true,
+    });
+    if (baseline.status !== "ready") throw new Error("Expected ready export");
+    expect(baseline.locations.instances).toHaveLength(count);
+    const last = baseline.locations.fields.find(
+      (field) =>
+        field.kind === "parameter" &&
+        field.parameter === "w" &&
+        field.instanceId === baseline.locations.instances.at(-1)!.instanceId,
+    )!;
+    const source =
+      baseline.file.text.slice(0, last.startOffset) +
+      "20u" +
+      baseline.file.text.slice(last.endOffset);
+    const before = structuredClone(project);
+    const plan = planNetlistCodeEdit(project, baseline, source);
+    if (!plan.ok) throw new Error(plan.message);
+    expect(plan.edits).toHaveLength(1);
+    expect(plan.edits[0]).toMatchObject({
+      kind: "transact_document",
+      edits: [
+        {
+          kind: "bulk_patch_instance_netlist",
+          assignments: [{ instanceId: last.instanceId, set: { w: "20u" } }],
+        },
+      ],
+    });
+    expect(
+      netlistInstanceAtLine(source, source.indexOf("w=20u"), plan.instances)
+        ?.instanceId,
+    ).toBe(last.instanceId);
+    expect(project).toEqual(before);
+    const result = executeProjectTransaction(project, {
+      transactionId: "large-netlist-edit",
+      projectId: project.id,
+      expectedStructureRevision: project.structureRevision,
+      actor: { kind: "human", id: "test" },
+      edits: plan.edits,
+    });
+    expect(result.ok).toBe(true);
+    expect(
+      planNetlistCodeEdit(
+        project,
+        baseline,
+        source.replace("D G S B", "D BAD S B"),
+      ).ok,
+    ).toBe(false);
+  },
+);
+
 it("maps wrapped SPICE parameter lines after title removal", async () => {
   const { project } = await fixture("spice");
   const mos = project.documents
@@ -105,6 +182,49 @@ it("finds where a Cell's selected parts are printed, not a namesake in another C
 describe.each<NetlistFormat>(["spice", "spectre"])(
   "%s netlist editing",
   (format) => {
+    it("retains expression edits and absolute card ranges with CRLF, blanks and indentation", async () => {
+      const { project, baseline } = await fixture(format);
+      const source =
+        "\r\n" +
+        baseline.file.text
+          .replace("10k", "{20k + 10k}")
+          .split("\n")
+          .map((line) => `\t${line}  `)
+          .join("\r\n\r\n") +
+        "\r\n";
+      const plan = planNetlistCodeEdit(project, baseline, source);
+      if (!plan.ok) throw new Error(plan.message);
+      expect(plan.edits).toMatchObject([
+        {
+          kind: "transact_document",
+          edits: [
+            {
+              kind: "bulk_patch_instance_netlist",
+              assignments: [{ set: { value: "{20k + 10k}" } }],
+            },
+          ],
+        },
+      ]);
+      expect(plan.instances).toHaveLength(baseline.locations.instances.length);
+      for (const range of plan.instances) {
+        const reference = project.documents
+          .find((d) => d.id === range.documentId)!
+          .instances.find((i) => i.id === range.instanceId)!.reference!;
+        expect(source.slice(range.startOffset)).toMatch(
+          new RegExp(`^${reference} `),
+        );
+        expect(
+          netlistInstanceAtLine(source, range.startOffset + 1, plan.instances),
+        ).toEqual(range);
+      }
+      expect(
+        planNetlistCodeEdit(
+          project,
+          baseline,
+          baseline.file.text.replace("10k", "10\nk"),
+        ).ok,
+      ).toBe(false);
+    });
     it("maps each printed card and cursor line to stable Cell/instance IDs", async () => {
       const { project, baseline } = await fixture(format);
       expect(baseline.locations.instances).toHaveLength(4);
