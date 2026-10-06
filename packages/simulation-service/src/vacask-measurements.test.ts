@@ -80,6 +80,7 @@ describe("native VACASK postprocessor scalar evidence", () => {
         status: "unavailable",
         occurrence: 0,
         unit: "V",
+        logLine: 1,
         origin: "postprocessor",
         detail: "Reported value withheld because the simulator dropped input.",
       },

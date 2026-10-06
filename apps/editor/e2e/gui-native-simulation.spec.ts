@@ -1,13 +1,88 @@
 import { test, expect } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { parseProject } from "@icm/project-protocol";
+import { createSimulationFolder } from "@icm/model";
 import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 import { normalizeImportedProject } from "../src/document/project-import-normalization";
 import { downloadBytes } from "./editor-fixtures.js";
 import {
   agentNativeProfile,
+  agentNativeSource,
   createAgentNativeExecutor,
 } from "./native-simulation-executor.mjs";
+
+test("GUI shows unruled VACASK measurements and opens their Console evidence", async ({
+  page,
+}) => {
+  const project = parseProject(
+    await readFile(
+      "apps/editor/src/examples/simulation-rc.icproj.json",
+      "utf8",
+    ),
+  );
+  const folder = createSimulationFolder({
+    id: "native-specs",
+    name: "Native measurements",
+    profileId: agentNativeProfile,
+  });
+  folder.input.entry = "run.sim";
+  folder.input.circuitBindings = [];
+  folder.input.files = [
+    {
+      path: "experiment.json",
+      text: JSON.stringify({
+        version: 2,
+        environment: { profileId: agentNativeProfile },
+      }),
+    },
+    { path: "run.sim", text: agentNativeSource },
+  ];
+  project.simulationFolders = [folder];
+  const executor = await createAgentNativeExecutor();
+  try {
+    await page.route("**/api/simulate", async (route) => {
+      const input = route.request().postDataJSON();
+      if (input.operation === "capabilities")
+        return route.fulfill({ json: executor.capabilities });
+      const result = await executor.execute(input);
+      // Only the external process report is scripted; the Editor, service,
+      // collector, artifact materialization and navigation are real.
+      result.log +=
+        '\nICM_MEASUREMENT_V1 {"name":"native_gain","status":"available","value":2,"unit":"V"}';
+      return route.fulfill({ json: result });
+    });
+    await page.goto("/editor");
+    await page.getByTestId("project-file").setInputFiles({
+      name: "native-specs.icproj.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(JSON.stringify(project)),
+    });
+    await page.getByTestId("open-analog-simulation").click();
+    const panel = page.getByRole("region", { name: "Analog simulation" });
+    await panel.getByRole("button", { name: "Run", exact: true }).click();
+    await expect(panel.getByRole("status")).toHaveText("completed");
+    await panel.getByRole("tab", { name: "Specs", exact: true }).click();
+    await panel.locator(".simulation-spec-other summary").click();
+    const measurement = panel.getByRole("button", {
+      name: "native_gain",
+      exact: true,
+    });
+    await expect(measurement).toHaveAttribute("title", /log\.txt:/);
+    await expect(panel.locator(".simulation-spec-other")).toContainText(
+      "Measured only",
+    );
+    await measurement.click();
+    await expect(
+      panel.getByRole("tab", { name: "Console", exact: true }),
+    ).toHaveAttribute("aria-selected", "true");
+    await expect(panel.locator(".simulation-console-view")).toContainText(
+      '"name":"native_gain"',
+    );
+    await expect(panel).not.toContainText("earlier source snapshot");
+  } finally {
+    await executor.close();
+  }
+});
 
 for (const [profileId, engine] of [
   [undefined, "vacask"],

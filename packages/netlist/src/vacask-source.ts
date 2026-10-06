@@ -24,7 +24,7 @@ export interface VacaskSourceStatement {
 export function inspectVacaskSource(path: string, text: string, entry = false) {
   const statements: VacaskSourceStatement[] = [];
   const diagnostics: SimulationSourceDiagnostic[] = [];
-  const comments: { start: number; end: number }[] = [];
+  const comments: { start: number; end: number; sourceRef: SourceSpan }[] = [];
   const starts = [0];
   for (let i = 0; i < text.length; i++)
     if (text[i] === "\n") starts.push(i + 1);
@@ -90,13 +90,23 @@ export function inspectVacaskSource(path: string, text: string, entry = false) {
     }
     if (text.startsWith("//", cursor)) {
       const end = text.indexOf("\n", cursor);
-      comments.push({ start: cursor, end: end < 0 ? text.length : end });
+      const stop = end < 0 ? text.length : end;
+      comments.push({
+        start: cursor,
+        end: stop,
+        sourceRef: span(cursor, stop),
+      });
       cursor = end < 0 ? text.length : end;
       continue;
     }
     if (text.startsWith("/*", cursor)) {
       const end = text.indexOf("*/", cursor + 2);
-      comments.push({ start: cursor, end: end < 0 ? text.length : end + 2 });
+      const stop = end < 0 ? text.length : end + 2;
+      comments.push({
+        start: cursor,
+        end: stop,
+        sourceRef: span(cursor, stop),
+      });
       if (end < 0) {
         fail("Unterminated block comment");
         cursor = text.length;
@@ -220,7 +230,10 @@ export function inspectVacaskSource(path: string, text: string, entry = false) {
 
 /** Native includes use the same ownership graph as the existing compiler.
  * No SPICE-to-native fallback, extension-based language guessing or host reads. */
-export function inspectVacaskSourceGraph(input: SimulationSourceInput) {
+export function inspectVacaskSourceGraph(
+  input: SimulationSourceInput,
+  options: { includeComments?: boolean } = {},
+) {
   return inspectSourceFileGraph(
     input,
     (path, text, entry) => {
@@ -280,6 +293,23 @@ export function inspectVacaskSourceGraph(input: SimulationSourceInput) {
             );
           return item;
         });
+      // Optional lexical comments use the same include/section traversal as
+      // executable statements. Embedded strings never appear in this list.
+      if (options.includeComments) {
+        for (const comment of parsed.comments) {
+          items.push({
+            sourceRef: comment.sourceRef,
+            statement: {
+              rawText: text.slice(comment.start, comment.end),
+              sourceRef: comment.sourceRef,
+              tokens: [],
+            },
+          });
+        }
+        items.sort(
+          (a, b) => a.sourceRef.start.offset - b.sourceRef.start.offset,
+        );
+      }
       return { items, diagnostics };
     },
     { sectionKey: (name) => name, rootFallback: true, flatSections: true },
