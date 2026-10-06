@@ -1033,10 +1033,15 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
   };
   const createFolder = () => void folderAction("new", []);
   const revealSpec = async (source: {
+    kind?: "log";
     path: string;
     line: number;
     text: string;
   }) => {
+    if (source.kind === "log") {
+      setResultTab("console");
+      return;
+    }
     const file = selectedFolder?.input.files.find(
       (f) => f.path === source.path,
     );

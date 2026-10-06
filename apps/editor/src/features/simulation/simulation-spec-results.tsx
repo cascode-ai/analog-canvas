@@ -9,7 +9,7 @@ type Props = {
   report: SimulationSpecReport | undefined;
   hasRun: boolean;
   stale: boolean;
-  onSource(source: { path: string; line: number; text: string }): void;
+  onSource(source: SimulationSpecReport["results"][number]["source"]): void;
 };
 type Row = SimulationSpecReport["results"][number];
 

@@ -478,6 +478,7 @@ export const SimulationOutputDataSchema = z.strictObject({
           name: z.string(),
           occurrence: z.literal(0),
           status: z.literal("unavailable"),
+          logLine: z.number().int().positive().optional(),
           detail: z.string(),
           unit: z.string().optional(),
           origin: z.literal("postprocessor").optional(),

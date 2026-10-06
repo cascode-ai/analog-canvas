@@ -1405,6 +1405,13 @@ export class SimulationService {
           inputDigest: run.prepared.digest,
         },
         output.result.outcome.status === "completed" && !output.cancelled,
+        {
+          engine:
+            output.result.metadata.environment.simulator.name === "vacask"
+              ? "vacask"
+              : "ngspice",
+          log: output.result.log,
+        },
       );
       // Raw numeric data lives in result.data. Keep legacy output fields readable
       // for archives, but never produce a second waveform or automatic metrics.

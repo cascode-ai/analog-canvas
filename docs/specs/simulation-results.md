@@ -229,8 +229,13 @@ the corrected result.
 
 ### Authored measurements
 
-Native `meas` computes authored scalar metrics. Optional `* @spec` source comments
+ngspice native `meas` and VACASK authored Python `report_measurement` compute scalar
+metrics. Optional standalone `* @spec` (ngspice) or `// @spec` (VACASK) comments
 declare acceptance limits, inclusive ranges or targets with absolute tolerance.
+The engine's source adapter owns reachable includes, selected sections and name
+identity; strings/embedded programs are not native annotation sources. Both feed
+one shared evaluator. VACASK values without rules use the same report with actual
+`source.kind: "log"` Console provenance and postprocessor-declared units.
 The shared Spec report evaluates captured input only; missing/ambiguous metrics
 are not-evaluated, and metrics without rules are unconstrained. Legacy JSON
 measurement configuration and historical output schemas remain readable, but

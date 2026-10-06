@@ -75,6 +75,8 @@ export const SimulationSpecResultSchema = z.strictObject({
     .optional(),
   occurrence: z.number().int().nonnegative(),
   source: z.strictObject({
+    // Absence retains the historical authored-input location contract.
+    kind: z.literal("log").optional(),
     path: z.string(),
     line: z.number().int().positive(),
     text: z.string(),
