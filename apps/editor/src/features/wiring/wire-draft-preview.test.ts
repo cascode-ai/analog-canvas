@@ -1,5 +1,6 @@
 import {
   endpointKey,
+  findRouteSegmentsAtPoint,
   isVisibleEndpoint,
   resolveDocumentRoutingGeometry,
   resolveEndpointConnection,
@@ -16,6 +17,7 @@ import {
 import {
   createEmptyDocument,
   createRoutePath,
+  StableIdSchema,
   type Point,
   type RouteEndpoint,
   type SchematicDocument,
@@ -27,6 +29,7 @@ import type { WireDraftTarget } from "../../interaction/interaction-state";
 import { resolveWireDraftShape } from "./wire-draft-shape";
 import {
   resolveWireDraftPreview,
+  wireDraftTargetIdsForSuffix,
   wirePassThroughContacts,
   wireSourceForTarget,
 } from "./wire-draft-preview";
@@ -111,19 +114,17 @@ interface Draft {
 }
 
 /**
- * The centreline the editor actually draws once the wire is committed.
- *
- * This runs the real commit path — the same planner call `commitWire` makes,
- * through the real transaction, read back through the same
- * `resolveDocumentRoutingGeometry` the canvas renders from. Nothing here is a
- * restatement of the preview: it is what lands on the sheet.
+ * Commit one gesture on the real commit path: the same planner call
+ * `commitWire` makes, with the routing suffix it takes from the session,
+ * through the real transaction.
  */
-function committedCenterline(
+function commitGesture(
   document: SchematicDocument,
   source: WireSource,
   to: WireSource,
   draft: Draft,
-): Point[] {
+  suffix = 1,
+): { document: SchematicDocument; authored: string[] } {
   const { steps, cornerOrder } = resolveWireDraftShape(
     document,
     resolver,
@@ -143,13 +144,13 @@ function committedCenterline(
       to,
       steps,
     }),
-    1,
+    suffix,
     { steps, routingMode: draft.routingMode ?? "orthogonal", cornerOrder },
   );
   const authored = proposal.edits.flatMap((edit: SchematicEdit) =>
     edit.kind === "set_route_path" ? [edit.route.id] : [],
   );
-  if (authored.length === 0) return [];
+  if (authored.length === 0) return { document, authored };
   const result = executeTransaction(
     document,
     {
@@ -166,7 +167,30 @@ function committedCenterline(
       `Commit rejected: ${result.error.message} ${JSON.stringify(result.diagnostics)}`,
     );
   }
-  const geometry = resolveDocumentRoutingGeometry(result.document, resolver);
+  return { document: result.document, authored };
+}
+
+/**
+ * The centreline the editor actually draws once the wire is committed.
+ *
+ * This runs the real commit path, read back through the same
+ * `resolveDocumentRoutingGeometry` the canvas renders from. Nothing here is a
+ * restatement of the preview: it is what lands on the sheet.
+ */
+function committedCenterline(
+  document: SchematicDocument,
+  source: WireSource,
+  to: WireSource,
+  draft: Draft,
+): Point[] {
+  const { document: committed, authored } = commitGesture(
+    document,
+    source,
+    to,
+    draft,
+  );
+  if (authored.length === 0) return [];
+  const geometry = resolveDocumentRoutingGeometry(committed, resolver);
   const centerlines = authored.map((routeId) => {
     const resolved = geometry.routes.get(routeId);
     expect(resolved, `committed route ${routeId} has no geometry`).toBeTruthy();
@@ -568,6 +592,91 @@ describe("the wire a draft preview promises is the wire that lands", () => {
         segmentIndex: 0,
       }),
     ).toEqual({ points: [], contacts: [] });
+  });
+});
+
+describe("tapping one wire again and again", () => {
+  it("commits every tap with Route IDs within the ID limit (#1383)", () => {
+    // Four Agent taps left this rail piece a 226-character ID on Production,
+    // each split appending to the last. Tapped a dozen more times in the
+    // editor, left to right, each tap splits the piece the one before left.
+    const railId = `route-agent-rail-c81a48cce04ef203-rail${[1, 2, 3, 4]
+      .map(
+        (n) =>
+          `-b-wire-${n.toString(16).padStart(8, "0")}-7c3e-4f8a-9b1d-2e6f0a4c8d17-to`,
+      )
+      .join("")}`;
+    let document = createEmptyDocument("main", "Main");
+    document.nets.push({ id: "net-rail", terminals: [] });
+    document.junctions.push(
+      {
+        id: "rail-a",
+        netId: "net-rail",
+        position: { x: 0, y: 500 },
+        role: "route-anchor",
+      },
+      {
+        id: "rail-b",
+        netId: "net-rail",
+        position: { x: 1400, y: 500 },
+        role: "route-anchor",
+      },
+    );
+    document.routes.push(
+      createRoutePath({
+        id: railId,
+        netId: "net-rail",
+        start: { kind: "junction", junctionId: "rail-a" },
+        end: { kind: "junction", junctionId: "rail-b" },
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+    const taps = 12;
+    // Each drain sits straight below the point its wire taps.
+    for (let k = 1; k <= taps; k += 1)
+      nmos(document, `M${k}`, { x: 100 * k - 10, y: 700 });
+    // The session counter the editor names a gesture's objects with.
+    let counter = 0;
+    const nextSuffix = () => (counter += 1);
+
+    for (let k = 1; k <= taps; k += 1) {
+      const point = { x: 100 * k, y: 500 };
+      const [hit] = findRouteSegmentsAtPoint(
+        resolveDocumentRoutingGeometry(document, resolver),
+        point,
+      );
+      const target: WireDraftTarget = {
+        kind: "route",
+        point,
+        routeId: hit!.routeId,
+        segmentIndex: hit!.segmentIndex,
+      };
+      const to = wireSourceForTarget(
+        document,
+        target,
+        null,
+        () => wireDraftTargetIdsForSuffix(target, nextSuffix()),
+        resolver,
+      )!;
+      document = commitGesture(
+        document,
+        wireSource(document, terminal(`M${k}`, "D")),
+        to,
+        {},
+        nextSuffix(),
+      ).document;
+    }
+
+    // Every drain joined the rail, each at a Junction of its own.
+    expect(document.nets.map((net) => net.terminals.length)).toEqual([taps]);
+    expect(document.junctions).toHaveLength(taps + 2);
+    // Every piece is still a valid ID (at most 256 characters).
+    expect(
+      document.routes
+        .map((route) => route.id)
+        .filter((id) => !StableIdSchema.safeParse(id).success),
+    ).toEqual([]);
   });
 });
 

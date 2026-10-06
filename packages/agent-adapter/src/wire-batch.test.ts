@@ -1,4 +1,4 @@
-import { createEmptyDocument } from "@icm/model";
+import { createEmptyDocument, StableIdSchema } from "@icm/model";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 import { expect, it } from "vitest";
 import { createAgentCircuitService } from "./service.js";
@@ -243,6 +243,48 @@ it("rebases two taps on one original route within a single atomic batch", () => 
   expect(f.document.junctions).toHaveLength(2);
   expect(f.document.nets).toHaveLength(1);
   expect(f.document.nets[0]!.terminals).toHaveLength(4);
+});
+it("taps one wire again and again, one transaction per tap, within the ID limit (#1383)", () => {
+  // An Agent connects pin after pin to one rail, left to right, each connect
+  // its own transaction with a `wire-<uuid>` intent. Every tap splits the
+  // piece the previous tap left, so the pieces' IDs derive from IDs that
+  // earlier taps derived. The fifth such tap used to be refused.
+  const taps = 12;
+  const f = fixture(64, [
+    [0, 100],
+    ...Array.from({ length: taps }, (_, index) => [100 * (index + 1), 200]),
+    [100 * (taps + 1), 100],
+  ]);
+  const agentWireId = (n: number) =>
+    `wire-${n.toString(16).padStart(8, "0")}-7c3e-4f8a-9b1d-2e6f0a4c8d17`;
+  expect(
+    f.submit([f.wire(agentWireId(0), "R0", `R${taps + 1}`)]),
+  ).toMatchObject({ ok: true, applied: true });
+  for (let index = 1; index <= taps; index += 1) {
+    const result = f.submit([
+      {
+        id: agentWireId(index),
+        from: {
+          kind: "endpoint",
+          endpoint: { kind: "terminal", instanceId: `R${index}`, pinName: "1" },
+        },
+        to: { kind: "wire-at", point: { x: 100 * index, y: 80 } },
+      },
+    ]);
+    expect(result, `tap ${index}: ${JSON.stringify(result)}`).toMatchObject({
+      ok: true,
+      applied: true,
+    });
+  }
+  expect(f.document.nets).toHaveLength(1);
+  expect(f.document.nets[0]!.terminals).toHaveLength(taps + 2);
+  expect(f.document.junctions).toHaveLength(taps);
+  // Every piece is still a valid ID (at most 256 characters).
+  expect(
+    f.document.routes
+      .map((route) => route.id)
+      .filter((id) => !StableIdSchema.safeParse(id).success),
+  ).toEqual([]);
 });
 it("resolves Net attachment near the actual free point, not the page origin", () => {
   const f = fixture();

@@ -6,6 +6,7 @@ export * from "./route-geometry-edit.js";
 export * from "./angled-wire-repair.js";
 export * from "./route-operations.js";
 export * from "./routing-planner.js";
+export * from "./split-route-ids.js";
 export * from "./wire-batch-planner.js";
 export * from "./stretched-route-clearance.js";
 export * from "./caller-label-reflow.js";
