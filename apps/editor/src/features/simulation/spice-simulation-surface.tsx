@@ -87,6 +87,14 @@ export function SpiceSimulationSurface(props: SpiceSimulationSurfaceProps) {
     </WorkspaceInteractions>
   );
 }
+/** A run's state as the panel names it: a finished run by its outcome. */
+function runStateLabel(run: {
+  state: string;
+  outcome?: string | undefined;
+}): string {
+  return run.state === "finished" ? (run.outcome ?? run.state) : run.state;
+}
+
 function SimulationSurface(props: SpiceSimulationSurfaceProps) {
   const interaction = useWorkspaceInteractions();
   const { session, project, open } = props;
@@ -760,9 +768,7 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
     : batch
       ? `Batch ${batch.state} · ${finishedBatchItems}/${batch.items.length}`
       : statusRun
-        ? statusRun.state === "finished"
-          ? (statusRun.outcome ?? statusRun.state)
-          : statusRun.state
+        ? runStateLabel(statusRun)
         : prepared
           ? "Deck prepared"
           : "No run yet";
@@ -1154,7 +1160,7 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
                   <span>
                     {item.owner === "agent" ? "Agent" : "You"} ·{" "}
                     {item.presentation.folderName} ·{" "}
-                    {item.presentation.analysisLabel} · {item.state}
+                    {item.presentation.analysisLabel} · {runStateLabel(item)}
                     {item.error ? (
                       <small role="status">{item.error}</small>
                     ) : null}

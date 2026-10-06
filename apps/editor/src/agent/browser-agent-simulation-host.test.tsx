@@ -167,13 +167,14 @@ describe("an Agent's runs of a Project folder in the Simulation panel", () => {
       await handedOff(tab, [completed]);
       expect(panel(tab)).toEqual({
         status: "completed",
+        // A finished run reads as its outcome, as the folder status does.
         projectRuns: [
           {
-            row: expect.stringMatching(/^Agent · OP · .+ · finished$/u),
+            row: expect.stringMatching(/^Agent · OP · .+ · failed$/u),
             openResult: true,
           },
           {
-            row: expect.stringMatching(/^Agent · OP · .+ · finished$/u),
+            row: expect.stringMatching(/^Agent · OP · .+ · completed$/u),
             openResult: true,
           },
         ],
@@ -204,11 +205,11 @@ describe("an Agent's runs of a Project folder in the Simulation panel", () => {
           expect.objectContaining({ row: expect.stringMatching(/^Agent · /u) }),
           expect.objectContaining({ row: expect.stringMatching(/^Agent · /u) }),
           {
-            row: expect.stringMatching(/^You · OP · .+ · finished$/u),
+            row: expect.stringMatching(/^You · OP · .+ · completed$/u),
             openResult: true,
           },
           {
-            row: expect.stringMatching(/^Agent · OP · .+ · finished$/u),
+            row: expect.stringMatching(/^Agent · OP · .+ · completed$/u),
             openResult: true,
           },
         ],
