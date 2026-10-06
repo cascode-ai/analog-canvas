@@ -2,10 +2,9 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-For the branch trial, read the shared
-[development workflow](docs/development-workflow.md). Project `ac-*` skill
-entries under `.claude/skills/` load the canonical `.agents/skills/` source;
-they do not own another workflow. [AGENTS.md](AGENTS.md) owns working discipline.
+Optional upstream development and writing skills are indexed in
+[the reference sources](references/README.md#development-skill-references).
+They are registered for study; workflow alignment remains pending.
 
 ## Project
 

@@ -75,7 +75,7 @@ automatically rerunning it. File / Save and Ctrl+S remain save-only.
 - **Understand the product:** [current architecture](docs/overall-product-plan.md)
   and [documentation map](docs/README.md).
 - **Develop or contribute:** [working rules](AGENTS.md),
-  [development workflow trial](docs/development-workflow.md),
+  [optional skill references](references/README.md#development-skill-references),
   [current development reading set](docs/README.md#contributor-reading-order), and
   [test system](docs/testing/README.md).
 

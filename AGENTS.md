@@ -9,18 +9,6 @@ Notes you keep while working — scratch plans, checklists, drafts — belong in
 the untracked `plan/` directory. They are a local working area and are not
 published.
 
-## Development workflow trial
-
-The user-requested branch trial follows the
-[development workflow](docs/development-workflow.md). It applies to every kind
-of repository change, with depth selected by risk. GitHub Issues hold shared
-requirements and task dependencies; `plan/` remains local scratch. The guide
-adds requirement and review completion criteria and owns the skill routing.
-Existing domain, validation and deployment contracts remain authoritative.
-Complete trial targets with validation and explanatory branch commits; defer
-mainline delivery until the human ends the branch-only trial. Report branch
-completion separately from Production acceptance.
-
 ## Development and Delivery
 
 The cadence is local iteration followed by a delivered pull request. A request
