@@ -4,11 +4,13 @@ import {
   chooseComponent,
   downloadBytes,
   openMenu,
-  openProjectProperties,
+  openProjectInfo,
   parseSavedProject,
+  renameProject,
 } from "./editor-fixtures";
 import { createEmptyProject, type CircuitProject } from "@icm/model";
 import { serializeProject } from "@icm/project-protocol";
+import { AgentHttpClient } from "../../../packages/agent-client/src/http-client.js";
 
 async function insert(page: Page, symbol: string, x: number, y: number) {
   await chooseComponent(page, symbol);
@@ -750,7 +752,281 @@ for (const modifier of ["Control", "Meta"]) {
   });
 }
 
-test("File holds commands only and Project Properties renames without widening the header", async ({
+test("tab names edit in place as one undoable change", async ({ page }) => {
+  await page.goto("/editor?new=1");
+  await awaitEditorReady(page);
+  const tab = page.getByRole("tab", { selected: true });
+  await tab.dblclick();
+  const name = page.getByRole("textbox", { name: "Project name", exact: true });
+  await expect(name).toBeFocused();
+  await name.fill("OTA input stage");
+  await name.press("Enter");
+  await expect(name).toBeHidden();
+  await expect(tab).toContainText("OTA input stage");
+  await expect(tab.getByLabel("Unsaved")).toBeVisible();
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect(tab).toContainText("New Circuit");
+});
+
+test("name blur commits to the owning tab and text keys stay out of the canvas", async ({
+  page,
+}) => {
+  await page.goto("/editor?new=1");
+  await awaitEditorReady(page);
+  await renameProject(page, "Project A");
+  await page
+    .getByRole("button", { name: "New project tab", exact: true })
+    .click();
+  await expect(page.getByRole("tab", { selected: true })).toContainText(
+    "New Circuit",
+  );
+  await renameProject(page, "Project B");
+  const first = page.getByRole("tab", { includeHidden: true }).first();
+  const second = page.getByRole("tab", { includeHidden: true }).nth(1);
+  await first.click();
+  await expect(first).toHaveAttribute("aria-selected", "true");
+  await insert(page, "resistor", 260, 220);
+  await first.dblclick();
+  const name = page.getByRole("textbox", { name: "Project name", exact: true });
+  await name.fill("Project A revised");
+  await name.press("Home");
+  await name.press("ArrowRight");
+  await name.press("w");
+  await name.press("r");
+  await name.press("Delete");
+  await expect(name).toBeFocused();
+  await expect(first).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByTestId("hit-R1")).toHaveCount(1);
+  await name.fill("Project A revised");
+  await second.click();
+  await expect(name).toBeHidden();
+  await expect(second).toHaveAttribute("aria-selected", "true");
+  await expect(first).toContainText("Project A revised");
+  await expect(second).toContainText("Project B");
+  await first.click();
+  await expect(first).toHaveAttribute("aria-selected", "true");
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect(first).toContainText("Project A");
+  await expect(page.getByTestId("hit-R1")).toHaveCount(1);
+});
+
+test("double-clicking another project's name activates it before inline editing", async ({
+  page,
+}) => {
+  await page.goto("/editor?new=1");
+  await awaitEditorReady(page);
+  await renameProject(page, "Project A");
+  await page
+    .getByRole("button", { name: "New project tab", exact: true })
+    .click();
+  await expect(page.getByRole("tab", { selected: true })).toContainText(
+    "New Circuit",
+  );
+  await renameProject(page, "Project B");
+  await page.getByRole("tab", { name: /Project A/ }).dblclick();
+  const name = page.getByRole("textbox", { name: "Project name", exact: true });
+  await expect(name).toBeFocused();
+  await expect(name).toHaveValue("Project A");
+  await name.fill("Revised A");
+  await name.press("Enter");
+  await expect(page.getByRole("tab", { selected: true })).toContainText(
+    "Revised A",
+  );
+  await expect(page.getByRole("tab", { name: /Project B/ })).toBeVisible();
+});
+
+test("tab-bar New and Close actions keep their clicked target while a name commits", async ({
+  page,
+}) => {
+  await page.goto("/editor?new=1");
+  await awaitEditorReady(page);
+  await page.getByRole("tab", { selected: true }).dblclick();
+  const name = page.getByRole("textbox", { name: "Project name", exact: true });
+  await name.fill("A circuit name that expands on commit");
+  await page
+    .getByRole("button", { name: "New project tab", exact: true })
+    .click();
+  await expect(page.getByRole("tab")).toHaveCount(2);
+  await expect(page.getByRole("tab").first()).toContainText(
+    "A circuit name that expands on commit",
+  );
+  await expect(page.getByRole("tab", { selected: true })).toContainText(
+    "New Circuit",
+  );
+  await page.getByRole("tab", { selected: true }).dblclick();
+  await name.fill("Another renamed circuit");
+  await page
+    .getByRole("button", { name: "Close tab New Circuit", exact: true })
+    .click();
+  await expect(page.getByTestId("project-tab-close-decision")).toBeVisible();
+  await expect(page.getByRole("tab")).toHaveCount(2);
+  await page.getByRole("button", { name: "Keep open", exact: true }).click();
+  await expect(page.getByRole("tab", { selected: true })).toContainText(
+    "Another renamed circuit",
+  );
+});
+
+test("closing a clean tab does not borrow the renamed tab's unsaved decision", async ({
+  page,
+}) => {
+  await page.goto("/editor?new=1");
+  await awaitEditorReady(page);
+  await page
+    .getByRole("button", { name: "New project tab", exact: true })
+    .click();
+  await expect(page.getByRole("tab")).toHaveCount(2);
+  await page.getByRole("tab").first().click();
+  await expect(page.getByRole("tab").first()).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await page.getByRole("tab", { selected: true }).dblclick();
+  const name = page.getByRole("textbox", { name: "Project name", exact: true });
+  await name.fill("Edited project");
+  await page
+    .getByRole("button", { name: "Close tab New Circuit", exact: true })
+    .nth(1)
+    .click();
+  await expect(page.getByRole("tab")).toHaveCount(1);
+  await expect(page.getByTestId("project-tab-close-decision")).toHaveCount(0);
+  await expect(page.getByRole("tab", { selected: true })).toContainText(
+    "Edited project",
+  );
+});
+
+test("external tab activation cannot discard the focused name draft", async ({
+  page,
+  baseURL,
+}) => {
+  await page.goto("/editor?new=1");
+  await awaitEditorReady(page);
+  await renameProject(page, "Project A");
+  await page
+    .getByRole("button", { name: "New project tab", exact: true })
+    .click();
+  await expect(page.getByRole("tab", { selected: true })).toContainText(
+    "New Circuit",
+  );
+  await renameProject(page, "Project B");
+  await page.getByTestId("open-agent").click();
+  const panel = page.getByTestId("connect-agent-panel");
+  const message = panel.getByTestId("agent-copy-text");
+  await expect(message).toHaveValue(/Claim: /);
+  const { claimCode } = JSON.parse(
+    /^Claim: (.+)$/mu.exec(await message.inputValue())![1]!,
+  );
+  const client = new AgentHttpClient({ baseUrl: baseURL! });
+  const session = await client.claim(claimCode);
+  await expect(panel.getByTestId("agent-status")).toHaveText("Connected");
+  await panel.getByRole("button", { name: "Close Agent dialog" }).click();
+  const list = await client.projects(session.sessionId, session.agentToken, {
+    apiVersion: "3.0",
+    requestId: "rename-workspaces",
+    operation: "workspace",
+    request: { action: "list" },
+  });
+  if (
+    !list.ok ||
+    list.operation !== "workspace" ||
+    list.result.action !== "list"
+  )
+    throw new Error("Could not read the real editor's workspaces");
+  const activeWorkspaceId = list.result.activeWorkspaceId;
+  const target = list.result.projects.find(
+    (item) => item.workspaceId !== activeWorkspaceId,
+  )!;
+  await page.getByRole("tab", { selected: true }).dblclick();
+  const name = page.getByRole("textbox", { name: "Project name", exact: true });
+  await name.fill("Pending B");
+  // The external caller is real; observations stay at the editor UI seam.
+  await client.projects(session.sessionId, session.agentToken, {
+    apiVersion: "3.0",
+    requestId: "activate-while-naming",
+    operation: "workspace",
+    request: { action: "activate", workspaceId: target.workspaceId },
+  });
+  await expect(name).toBeFocused();
+  await expect(name).toHaveValue("Pending B");
+  await expect(
+    page.getByRole("tab", { includeHidden: true, selected: true }),
+  ).toHaveAttribute("title", "Project B");
+  await name.press("Enter");
+  await client.projects(session.sessionId, session.agentToken, {
+    apiVersion: "3.0",
+    requestId: "activate-after-naming",
+    operation: "workspace",
+    request: { action: "activate", workspaceId: target.workspaceId },
+  });
+  await expect(page.getByRole("tab", { selected: true })).toContainText(
+    "Project A",
+  );
+  await expect(page.getByRole("tab", { name: /Pending B/ })).toBeVisible();
+});
+
+test("unchanged imported whitespace names make no edit on Enter or blur", async ({
+  page,
+}) => {
+  const project = createEmptyProject("spaced-name", "  Preserved name  ");
+  await page.goto("/editor?new=1");
+  await awaitEditorReady(page);
+  await page.getByTestId("project-file").setInputFiles({
+    name: "spaced.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(serializeProject(project)),
+  });
+  const tab = page.getByRole("tab", { selected: true });
+  await expect(tab).toHaveAttribute("title", project.name);
+  const before = await saved(page);
+  for (const method of ["Enter", "blur"]) {
+    await tab.dblclick();
+    const name = page.getByRole("textbox", {
+      name: "Project name",
+      exact: true,
+    });
+    await expect(name).toHaveValue(project.name);
+    if (method === "Enter") await name.press("Enter");
+    else await page.getByTestId("project-menu-toggle").click();
+    await expect(name).toBeHidden();
+    await expect(tab).toHaveAttribute("title", project.name);
+    await expect(tab.getByLabel("Unsaved")).toHaveCount(0);
+    expect(await saved(page)).toEqual(before);
+  }
+});
+
+test("unchanged legacy names survive the Cloud-length input limit and IME Enter", async ({
+  page,
+}) => {
+  const project = createEmptyProject("legacy-name", "A".repeat(124));
+  await page.goto("/editor?new=1");
+  await awaitEditorReady(page);
+  await page.getByTestId("project-file").setInputFiles({
+    name: "legacy.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(serializeProject(project)),
+  });
+  const tab = page.getByRole("tab", { selected: true });
+  await expect(tab).toContainText(project.name);
+  const name = page.getByRole("textbox", { name: "Project name", exact: true });
+  for (const key of ["Escape", "Enter"]) {
+    await tab.dblclick();
+    await expect(name).toHaveValue(project.name);
+    await expect(name).toHaveAttribute("maxlength", "120");
+    await name.press(key);
+    await expect(name).toBeHidden();
+    await expect(tab).toContainText(project.name);
+  }
+  await tab.dblclick();
+  await name.fill("放大器");
+  await name.dispatchEvent("keydown", { key: "Enter", isComposing: true });
+  await expect(name).toBeFocused();
+  await expect(name).toHaveValue("放大器");
+  await name.press("Enter");
+  await expect(tab).toContainText("放大器");
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect(tab).toContainText(project.name);
+});
+
+test("tab rename keeps header geometry and File has read-only Project Info", async ({
   page,
 }) => {
   await page.goto("/editor?new=1");
@@ -758,7 +1034,7 @@ test("File holds commands only and Project Properties renames without widening t
   const toggle = page.getByTestId("project-menu-toggle");
   const fileMenu = await openMenu(page, "File");
   // One New Project and no second list of the tabs: the tabs choose the
-  // project, and the name is edited in Project Properties.
+  // project, and the name is edited in its tab.
   await expect(
     fileMenu.getByRole("button", { name: "New Project" }),
   ).toHaveCount(1);
@@ -769,14 +1045,18 @@ test("File holds commands only and Project Properties renames without widening t
 
   const longName =
     "Voltage regulator with a very long circuit name for temperature and supply characterization";
-  const dialog = await openProjectProperties(page);
-  const name = dialog.getByRole("textbox", { name: "Project name" });
+  const tab = page.getByRole("tab", { selected: true });
+  await tab.dblclick();
+  const name = page.getByRole("textbox", { name: "Project name", exact: true });
   await expect(name).toBeFocused();
   await expect(name).toHaveValue("New Circuit");
-  await expect(dialog).toContainText("Current Cell");
+  const before = (await page.getByTestId("schematic-canvas").boundingBox())!;
   await name.fill(longName);
+  expect(await page.getByTestId("schematic-canvas").boundingBox()).toEqual(
+    before,
+  );
   await name.press("Enter");
-  await expect(dialog).toBeHidden();
+  await expect(name).toBeHidden();
   await expect(page.getByTestId("project-name")).toHaveText(longName);
   // The tab shows the name. The header's File menu keeps its short label
   // with the whole name as its tooltip, so a long name never widens it.
@@ -791,29 +1071,25 @@ test("File holds commands only and Project Properties renames without widening t
     const trigger = (await toggle.boundingBox())!;
     expect(trigger.x).toBeGreaterThanOrEqual(brand.x + brand.width);
     expect(trigger.width).toBeLessThanOrEqual(96);
-    await openProjectProperties(page);
-    await expect(name).toHaveValue(longName);
+    const dialog = await openProjectInfo(page);
+    await expect(dialog).toContainText(longName);
+    await expect(dialog).toContainText("Current Cell");
+    await expect(dialog.getByRole("textbox")).toHaveCount(0);
     const bounds = (await dialog.boundingBox())!;
     expect(bounds.x).toBeGreaterThanOrEqual(0);
     expect(bounds.x + bounds.width).toBeLessThanOrEqual(width);
-    await page.screenshot({ path: `plan/project-properties-${width}.png` });
+    await page.screenshot({ path: `plan/project-info-${width}.png` });
     await page.keyboard.press("Escape");
     await expect(dialog).toBeHidden();
   }
-  // Escape and Cancel leave the name as it was, and a blank name cannot be
-  // applied.
-  await openProjectProperties(page);
+  // Escape cancels, and a blank name leaves the old name intact.
+  await tab.dblclick();
   await name.fill("Uncommitted rename");
   await page.keyboard.press("Escape");
-  await expect(dialog).toBeHidden();
-  await openProjectProperties(page);
-  await name.fill("Cancelled rename");
-  await dialog.getByRole("button", { name: "Cancel" }).click();
-  await expect(dialog).toBeHidden();
-  await openProjectProperties(page);
+  await expect(name).toBeHidden();
+  await tab.dblclick();
   await name.fill("  ");
-  await expect(dialog.getByRole("button", { name: "OK" })).toBeDisabled();
-  await page.keyboard.press("Escape");
+  await name.press("Enter");
   await expect(toggle).toHaveAttribute("title", longName);
   // A rename is an ordinary edit: one Undo restores the old name.
   await page.keyboard.press("ControlOrMeta+z");
@@ -823,6 +1099,7 @@ test("File holds commands only and Project Properties renames without widening t
   await page
     .getByRole("button", { name: "New project tab", exact: true })
     .click();
+  await expect(name).toHaveCount(0);
   await insert(page, "capacitor", 340, 260);
   await page.getByRole("tab").first().click();
   await expect(page.getByTestId("hit-R1")).toHaveCount(1);

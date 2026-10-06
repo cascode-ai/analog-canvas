@@ -79,13 +79,15 @@ recognize such a network, so both are placed by hand.
   **Circuit**, and three actions: **Simulate**, **Agent** and **Publish**.
   **File** holds the file commands only. **New Project** replaces the circuit
   in the current tab with a blank one, asking first if it has unsaved work.
-  **File → Project Properties…** shows the full circuit name, the current Cell
-  and any Gallery contributor and notes. Edit the name there: Enter or **OK**
-  applies it as one undoable edit, and Escape or **Cancel** leaves it. The open
+  **File → Project Info…** shows the full circuit name, the current Cell
+  and any Gallery contributor and notes without editing them. Double-click a
+  project tab's name to rename it in place: Enter or clicking outside applies
+  one undoable edit; Escape cancels. An empty name leaves the old name intact.
+  Rename marks the project unsaved; **Save** still saves explicitly. The open
   projects are the tabs below the header. **Circuit** holds **Hierarchy** (the
   Cell Manager) and **Netlist**. A long name never widens the header: it is
   the tooltip of **File** and shown whole in its tab and in Project
-  Properties. **Report bug**, the GitHub repository and the credit stay in
+  Info. **Report bug**, the GitHub repository and the credit stay in
   view beside your account.
 - The compact project tab bar opens several independent circuits in one editor.
   Use **+** for a new project, **Open file in new tab** for a local file, or

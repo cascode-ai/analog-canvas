@@ -21,7 +21,7 @@ import {
   downloadBytes,
   parseSavedProject,
   openMenu,
-  openProjectProperties,
+  openProjectInfo,
 } from "./editor-fixtures.js";
 import { galleryEntryMatchesQuery } from "../src/gallery-search";
 
@@ -3404,11 +3404,10 @@ test("a gallery tile opens its circuit in the editor", async ({ page }) => {
     `Opened gallery circuit: ${ENTRY.name}`,
   );
   // Variable-length names and contributor notes are read in File →
-  // Project Properties.
-  const galleryInformation = await openProjectProperties(page);
-  await expect(
-    galleryInformation.getByRole("textbox", { name: "Project name" }),
-  ).toHaveValue(ENTRY.name);
+  // Project Info.
+  const galleryInformation = await openProjectInfo(page);
+  await expect(galleryInformation).toContainText(ENTRY.name);
+  await expect(galleryInformation.getByRole("textbox")).toHaveCount(0);
   await expect(galleryInformation).toContainText("Contributor");
   await expect(galleryInformation).toContainText(ENTRY.author);
   await expect(galleryInformation).toContainText("Notes");

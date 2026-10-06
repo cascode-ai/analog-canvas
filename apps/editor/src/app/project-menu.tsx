@@ -13,9 +13,8 @@ export interface ProjectMenuProps {
 }
 
 /**
- * The header's File menu. It holds commands only: the project's name and
- * details live in File → Project Properties…, and the open projects are the
- * tabs.
+ * The header's File menu holds commands and read-only Project Info.
+ * Project tabs select projects and edit their names.
  */
 export function ProjectMenu({
   label,

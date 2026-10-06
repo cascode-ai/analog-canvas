@@ -1069,7 +1069,8 @@ function WorkspaceEditor({
       ? netlistEntry.documentId
       : undefined;
   const [documentSettingsOpen, setDocumentSettingsOpen] = useState(false);
-  const [projectPropertiesOpen, setProjectPropertiesOpen] = useState(false);
+  const [projectInfoOpen, setProjectInfoOpen] = useState(false);
+  const projectNameEditing = useRef(false);
   const [publishGalleryOpen, setPublishGalleryOpen] = useState(false);
   const [publishedNotice, setPublishedNotice] =
     useState<GalleryPublishedNoticeState | null>(null);
@@ -1476,8 +1477,8 @@ function WorkspaceEditor({
       setImportReport(null);
       setImportReviewOpen(false);
       setGalleryEntryContext(null);
-      // Its name draft belongs to the outgoing Project.
-      setProjectPropertiesOpen(false);
+      // Project Info belongs to the outgoing Project.
+      setProjectInfoOpen(false);
       const nextDocument = replaceProject(nextProject);
       documentViewBoxes.current = new Map();
       setDocumentStack([]);
@@ -5217,18 +5218,19 @@ function WorkspaceEditor({
   useLayoutEffect(() => {
     function onKeyDown(event: KeyboardEvent): void {
       if (versionHistoryOpen) return;
-      // Project Properties is modal: its name field owns typing and Enter.
+      // Project Info is modal: the canvas never handles its keys.
       // This router sees Escape first, so it closes the dialog here.
-      if (projectPropertiesOpen) {
+      if (projectInfoOpen) {
         if (event.key === "Escape") {
           event.preventDefault();
-          setProjectPropertiesOpen(false);
+          setProjectInfoOpen(false);
         }
         return;
       }
       if (
         event.target instanceof Element &&
-        (event.target.closest(".gallery-topology-comparison") ||
+        (event.target.closest(".project-tab-name-input") ||
+          event.target.closest(".gallery-topology-comparison") ||
           (event.target.closest(".project-menu") &&
             ["Escape", "ArrowUp", "ArrowDown", "Home", "End"].includes(
               event.key,
@@ -5720,7 +5722,7 @@ function WorkspaceEditor({
     setAgentFileCandidate(null);
     setImportReport(null);
     setImportReviewOpen(false);
-    setProjectPropertiesOpen(false);
+    setProjectInfoOpen(false);
     setCanvasContextMenu(null);
     setNetlistFocusedInstance(null);
     setHighlightedNetOrigin(null);
@@ -6000,7 +6002,8 @@ function WorkspaceEditor({
         componentEditor ||
         documentSettingsOpen ||
         versionHistoryOpen ||
-        projectPropertiesOpen ||
+        projectInfoOpen ||
+        projectNameEditing.current ||
         textEditing ||
         codeDraftDirty
       ) {
@@ -6290,7 +6293,8 @@ function WorkspaceEditor({
       return { status: "failed", message: "Local storage is unavailable" };
     if (id === projectTabs.activeId) {
       if (
-        projectPropertiesOpen ||
+        projectInfoOpen ||
+        projectNameEditing.current ||
         textEditing ||
         componentEditor ||
         documentSettingsOpen ||
@@ -6326,7 +6330,8 @@ function WorkspaceEditor({
       nativeOperation.current ||
       nativeWorkspaceSaving.current,
     pendingEdits:
-      projectPropertiesOpen ||
+      projectInfoOpen ||
+      projectNameEditing.current ||
       !!textEditing ||
       !!componentEditor ||
       documentSettingsOpen ||
@@ -6834,8 +6839,12 @@ function WorkspaceEditor({
                 projectTabs.busy ||
                 (nativeProjectStore !== undefined && (nativeBusy || saveBusy))
               }
-              onSelect={(id) => {
-                void projectTabs.select(id);
+              onSelect={projectTabs.select}
+              onRename={(id, name) => {
+                if (id === projectTabs.activeId) renameProject(name);
+              }}
+              onEditingChange={(editing) => {
+                projectNameEditing.current = editing;
               }}
               onClose={(id) => {
                 if (nativeProjectStore) void closeNativeTab(id);
@@ -6986,7 +6995,7 @@ function WorkspaceEditor({
           onExportRaster: (format) => void exportRaster(format),
           onRevert: revertToSavedProjectBaseline,
           onOpenRecovery: openRecoveryDialog,
-          onOpenProperties: () => setProjectPropertiesOpen(true),
+          onOpenInfo: () => setProjectInfoOpen(true),
         }}
         searchOpen={searchOpen}
         selectionFilterOpen={selectionFilterOpen}
@@ -7265,14 +7274,13 @@ function WorkspaceEditor({
               }
             : null
         }
-        projectProperties={
-          projectPropertiesOpen
+        projectInfo={
+          projectInfoOpen
             ? {
                 name: project.name,
                 documentName: document.name,
                 publication: galleryEntryContext,
-                onRename: renameProject,
-                onClose: () => setProjectPropertiesOpen(false),
+                onClose: () => setProjectInfoOpen(false),
               }
             : null
         }

@@ -186,9 +186,8 @@ export function EditorAppChrome({
               <span>Gallery</span>
             </a>
           ) : null}
-          {/* Three menus. File holds the file commands; the project's name
-              and details are in its Project Properties…, and the open
-              projects are the tabs. */}
+          {/* File holds commands and read-only Project Info; project tabs
+              select projects and edit their names. */}
           <ProjectMenu
             label="File"
             name={projectName}

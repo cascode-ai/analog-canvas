@@ -192,9 +192,9 @@
   }
 }
 
-/* File → Project Properties…: the project's name and a few facts about it,
+/* File → Project Info…: the project's name and a few facts about it,
    in the same quiet card as the unsaved-changes guard. */
-.project-properties-dialog {
+.project-info-dialog {
   width: min(26rem, 100%);
   padding: 1.15rem 1.25rem 1rem;
   border: 1px solid var(--icm-border);
@@ -203,65 +203,46 @@
   box-shadow: var(--icm-shadow-lg);
 }
 
-.project-properties-dialog h2 {
+.project-info-dialog h2 {
   margin: 0 0 0.9rem;
   font-size: 15px;
   line-height: 1.3;
 }
 
-.project-properties-dialog form {
-  display: grid;
-  gap: 0.9rem;
-}
-
-.project-properties-name {
-  display: grid;
-  gap: 6px;
-}
-
-.project-properties-name > span,
-.project-properties-details dt {
+.project-info-details dt {
   color: var(--icm-text-muted);
   font-size: var(--icm-font-xs);
   font-weight: 500;
 }
 
-.project-properties-name input {
-  box-sizing: border-box;
-  width: 100%;
-  min-width: 0;
-  padding: 7px 9px;
-  font-size: var(--icm-font-md);
-}
-
-.project-properties-details {
+.project-info-details {
   display: grid;
   gap: 8px;
   margin: 0;
 }
 
-.project-properties-details > div {
+.project-info-details > div {
   display: grid;
   grid-template-columns: 6rem minmax(0, 1fr);
   gap: 8px;
   align-items: baseline;
 }
 
-.project-properties-details dd {
+.project-info-details dd {
   margin: 0;
   font-size: var(--icm-font-sm);
   overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
 
-.project-properties-actions {
+.project-info-actions {
   display: flex;
   justify-content: flex-end;
   gap: 0.5rem;
-  margin-top: 0.2rem;
+  margin-top: 0.9rem;
 }
 
-.project-properties-actions button {
+.project-info-actions button {
   height: var(--icm-control-h);
   padding: 0 0.95rem;
   border: 1px solid var(--icm-border);
@@ -273,25 +254,8 @@
   cursor: pointer;
 }
 
-.project-properties-actions button:hover:not(:disabled) {
+.project-info-actions button:hover:not(:disabled) {
   background: var(--icm-surface-hover);
-}
-
-.project-properties-actions .project-properties-ok {
-  border-color: var(--icm-accent);
-  background: var(--icm-accent);
-  color: #fff;
-  font-weight: 600;
-}
-
-.project-properties-actions .project-properties-ok:hover:not(:disabled) {
-  background: var(--icm-accent);
-  filter: brightness(1.05);
-}
-
-.project-properties-actions button:disabled {
-  opacity: 0.55;
-  cursor: default;
 }
 
 .replace-guard-warning {
