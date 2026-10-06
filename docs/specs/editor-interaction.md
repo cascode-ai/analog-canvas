@@ -792,7 +792,14 @@ label exists. Visual annotation display is a Properties toggle for one or many
 selected components: hiding sets the annotation's optional `visible: false`
 flag, which renderers and hit/marquee surfaces skip while the annotation stays
 in the Project, so hiding is recoverable and a missing label can be re-created
-from the same toggle. Component value display is the paired `Value` toggle on
+from the same toggle. A part's name and value stand as one group, the name
+first and its value under it, on the side where they were placed or
+arranged: hiding the name moves a value still in its row into the name's
+slot, and showing the name puts the value back under it; above the part,
+where the value takes the row nearest it, hiding the value brings the name
+down to that row and showing it lifts the name again (#1384). A label a
+person moved stays where it is.
+Component value display is the paired `Value` toggle on
 the same control row: MOS devices project `W/L` as a stacked fraction with a
 fraction bar, passives and independent sources project their scalar parameter,
 and every projected value is upright bold text preserving authored spelling

@@ -141,12 +141,13 @@ describe("default instance display annotations", () => {
       const profile = resolveSchematicStyleProfile(
         document.presentation.styleProfileId,
       );
-      const all = defaultInstanceDisplayAnnotations(
+      // The slot a name shown alone takes; above the part, a name with its
+      // value under it stands a row further out (#1384).
+      const [nameAlone] = defaultInstanceDisplayAnnotations(
         document,
         instance,
         resolver,
         profile,
-        { showValue: true },
       );
       const onlyValue = defaultInstanceDisplayAnnotations(
         document,
@@ -158,8 +159,8 @@ describe("default instance display annotations", () => {
       expect(onlyValue).toHaveLength(1);
       expect(onlyValue[0]).toMatchObject({
         kind: "instance-value",
-        anchor: all[0]!.anchor,
-        alignment: all[0]!.alignment,
+        anchor: nameAlone!.anchor,
+        alignment: nameAlone!.alignment,
       });
       document.annotations.push({
         ...onlyValue[0]!,

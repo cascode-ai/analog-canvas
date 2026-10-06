@@ -28,6 +28,7 @@ import {
   inferInstanceLabelSide,
   instanceLabelRowOffset,
   instanceValueRowOffset,
+  outwardDefaultInstanceLabelPlacement,
   previousInstanceLabelRowOffset,
   uniformRowDefaultInstanceLabelPlacement,
   objectStyleProfile,
@@ -339,6 +340,52 @@ export function isCanonicalInstanceLabel(
 }
 
 /**
+ * The part's own value label (or a placed Cell's name, which stands in its
+ * row), not a named parameter's.
+ */
+function instanceValueLabel(
+  document: SchematicDocument,
+  instanceId: string,
+): Annotation | undefined {
+  return document.annotations.find(
+    (annotation) =>
+      annotation.kind === "instance-value" &&
+      !(
+        annotation.binding?.kind === "instance-value" &&
+        annotation.binding.parameter
+      ) &&
+      annotation.anchor.kind === "object" &&
+      annotation.anchor.objectId === instanceId,
+  );
+}
+
+/**
+ * Whether the part shows its value in the untouched row under its name, so
+ * that above the part the name stands a row further out (#1384).
+ */
+export function valueShownUnderName(
+  document: SchematicDocument,
+  instance: SchematicDocument["instances"][number],
+  resolved: NonNullable<ReturnType<SymbolResolver["resolve"]>>,
+  position: Point,
+  orientation: Orientation,
+): boolean {
+  const value = instanceValueLabel(document, instance.id);
+  return (
+    value !== undefined &&
+    value.visible !== false &&
+    (canonicalInstanceLabelRow(
+      value,
+      instance,
+      resolved,
+      document,
+      position,
+      orientation,
+    ) ?? 0) > 0
+  );
+}
+
+/**
  * The row an untouched instance label sits in, or null when a person moved
  * it. 0 is the Reference's slot, which a value or a Cell's name also takes
  * while no Reference is shown (#1105); otherwise it is the row distance of
@@ -401,6 +448,7 @@ export function canonicalInstanceLabelRow(
     rule: typeof defaultInstanceLabelPlacement,
     inSlot: "reference" | "value" = slot,
     symbol: NonNullable<ReturnType<SymbolResolver["resolve"]>> = resolved,
+    overValue = false,
   ) =>
     sizeScales.some((sizeScale) =>
       matches(
@@ -411,11 +459,32 @@ export function canonicalInstanceLabelRow(
           grid,
           inSlot,
           sizeScale,
+          overValue,
         ),
       ),
     );
   if (slot === "value") {
-    if (placedBy(defaultInstanceLabelPlacement))
+    // A value, or a Cell's name, shown without a Reference sits in the
+    // Reference's slot. Above the part that is also the value's own row
+    // (#1384), so whether a name shows tells the two apart.
+    const inReferenceSlot =
+      placedBy(defaultInstanceLabelPlacement, "reference") ||
+      placedBy(legacyDefaultInstanceLabelPlacement, "reference");
+    if (
+      inReferenceSlot &&
+      !document.annotations.some(
+        (other) =>
+          other.kind === "instance-label" &&
+          other.visible !== false &&
+          other.anchor.kind === "object" &&
+          other.anchor.objectId === instance.id,
+      )
+    )
+      return 0;
+    if (
+      placedBy(defaultInstanceLabelPlacement) ||
+      placedBy(outwardDefaultInstanceLabelPlacement)
+    )
       return instanceValueRowOffset(instance.symbolId, profile, grid);
     // A label an earlier rule put down is just as untouched; the next
     // orientation edit moves it with the current rule.
@@ -426,15 +495,11 @@ export function canonicalInstanceLabelRow(
       placedBy(legacyDefaultInstanceLabelPlacement)
     )
       return previousInstanceLabelRowOffset(profile, grid);
-    // A value, or a Cell's name, shown without a Reference sits in the
-    // Reference's slot.
-    if (
-      placedBy(defaultInstanceLabelPlacement, "reference") ||
-      placedBy(legacyDefaultInstanceLabelPlacement, "reference")
-    )
-      return 0;
+    if (inReferenceSlot) return 0;
   } else if (
     placedBy(defaultInstanceLabelPlacement) ||
+    // A name over its value, above the part (#1384).
+    placedBy(defaultInstanceLabelPlacement, slot, resolved, true) ||
     placedBy(legacyDefaultInstanceLabelPlacement)
   )
     return 0;
@@ -483,6 +548,14 @@ export function reflowCanonicalInstanceLabelsAfterPresentationChange(
     instance.symbolVariantId,
   );
   if (!resolved) return;
+  // Read before any label moves.
+  const nameOverValue = valueShownUnderName(
+    draft,
+    before,
+    resolved,
+    before.placement.position,
+    before.placement,
+  );
   for (const annotation of draft.annotations) {
     const slot = instanceAnnotationSlot(annotation);
     if (
@@ -522,6 +595,8 @@ export function reflowCanonicalInstanceLabelsAfterPresentationChange(
           profile,
           draft.presentation.grid,
           row === 0 ? "reference" : slot,
+          1,
+          slot === "reference" && nameOverValue,
         );
     if (!next) continue;
     annotation.anchor = {
@@ -624,6 +699,17 @@ export function followAttachedAnnotations(
     oldOrientation.mirror !== newOrientation.mirror;
   const oldMirror = mirrorScale(oldOrientation.mirror);
   const newMirror = mirrorScale(newOrientation.mirror);
+  // Read before any label moves: a name over its value stays over it.
+  const nameOverValue =
+    !reflection && instance && resolved
+      ? valueShownUnderName(
+          draft,
+          instance,
+          resolved,
+          oldPosition,
+          oldOrientation,
+        )
+      : false;
   for (const annotation of draft.annotations) {
     if (
       annotation.anchor.kind !== "object" ||
@@ -825,6 +911,16 @@ export function followAttachedAnnotations(
             draft.presentation.grid,
           )
         : 0;
+      // Above the part a name over its value stands a value row further
+      // out, and the value in the row nearest the part (#1384).
+      const rowsBelow =
+        slot === "reference" && nameOverValue
+          ? instanceValueRowOffset(
+              instance.symbolId,
+              styleProfile,
+              draft.presentation.grid,
+            )
+          : 0;
       const slotAnchor = row
         ? { x: visiblePosition.x, y: visiblePosition.y - row }
         : visiblePosition;
@@ -848,6 +944,8 @@ export function followAttachedAnnotations(
             draft.presentation.grid,
             annotation.sizeScale,
             rowOffset,
+            false,
+            rowsBelow,
           );
           if (placement) {
             position = placement.position;

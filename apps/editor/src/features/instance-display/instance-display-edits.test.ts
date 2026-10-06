@@ -1,10 +1,18 @@
-import { createEmptyDocument, roleLabelFormat } from "@icm/model";
+import {
+  createEmptyDocument,
+  createRoutePath,
+  roleLabelFormat,
+} from "@icm/model";
 import type { Annotation, SchematicDocument } from "@icm/model";
 import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 
-import { resolveDocumentStyleProfile } from "@icm/derived";
+import {
+  outwardDefaultInstanceLabelPlacement,
+  resolveDocumentStyleProfile,
+} from "@icm/derived";
 
+import { arrangeInstanceLabels } from "./arrange-instance-labels";
 import { defaultInstanceDisplayAnnotations } from "./default-instance-display";
 import { instanceDisplayEdits } from "./instance-display-edits";
 
@@ -177,6 +185,181 @@ describe("a value takes the Reference's slot while no Reference is shown (#1105)
       "instance-label",
     ]);
     expect(at(document, "instance-value")).toEqual(placed);
+  });
+
+  it("takes the name's place beside its part, where an arrangement put the two, when the name is hidden (#1384)", () => {
+    // A resistor whose value row a wire crosses: the arrangement moves its
+    // name and value to its free left side.
+    const document = resistorDocument();
+    document.instances[0]!.placement = {
+      position: { x: -60, y: 0 },
+      rotation: 0,
+      mirror: "none",
+    };
+    document.annotations = [];
+    document.annotations.push(
+      ...defaultInstanceDisplayAnnotations(
+        document,
+        document.instances[0]!,
+        resolver,
+        style,
+        { showValue: true },
+      ),
+    );
+    document.nets.push({ id: "n", terminals: [] });
+    document.junctions.push(
+      { id: "a", netId: "n", position: { x: -60, y: 25 } },
+      { id: "b", netId: "n", position: { x: 60, y: 25 } },
+    );
+    document.routes.push(
+      createRoutePath({
+        id: "w",
+        netId: "n",
+        start: { kind: "junction", junctionId: "a" },
+        end: { kind: "junction", junctionId: "b" },
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+    apply(document, arrangeInstanceLabels(document, resolver, ["R1"], {}));
+    const nameSlot = at(document, "instance-label");
+    const valueRow = at(document, "instance-value");
+    expect(nameSlot.x).toBeLessThan(-60);
+    expect(valueRow).toEqual({ x: nameSlot.x, y: nameSlot.y + 20 });
+    const arranged = structuredClone(document);
+
+    apply(
+      document,
+      instanceDisplayEdits(document, resolver, ["R1"], {
+        showReference: false,
+      }),
+    );
+    expect(at(document, "instance-value")).toEqual(nameSlot);
+    apply(
+      document,
+      instanceDisplayEdits(document, resolver, ["R1"], { showReference: true }),
+    );
+    expect(at(document, "instance-label")).toEqual(nameSlot);
+    expect(at(document, "instance-value")).toEqual(valueRow);
+
+    // A value a person moved off its row stays where it was put.
+    const moved = arranged.annotations.find(
+      (item) => item.kind === "instance-value",
+    )!;
+    if (moved.anchor.kind !== "object") throw new Error("object anchor");
+    moved.anchor.localOffset.y += 3;
+    moved.anchor.fallbackPosition.y += 3;
+    expect(
+      upserted(
+        instanceDisplayEdits(arranged, resolver, ["R1"], {
+          showReference: false,
+        }),
+      ).map((annotation) => annotation.kind),
+    ).toEqual(["instance-label"]);
+  });
+
+  it("brings a value an arrangement stacked over its name down into the name's slot when the name is hidden (#1384)", () => {
+    // R_F of an R-2R DAC, its labels arranged above it and slid along it
+    // before #1384, "10k" over R_F. Hiding R_F left 10k a row off the
+    // resistor with an empty row between.
+    const document = resistorDocument();
+    const instance = document.instances[0]!;
+    instance.placement = {
+      position: { x: 200, y: 200 },
+      rotation: 270,
+      mirror: "none",
+    };
+    const resolved = resolver.resolve("resistor")!;
+    const slide = 6;
+    for (const annotation of document.annotations) {
+      const slot = annotation.kind === "instance-label" ? "reference" : "value";
+      const placed = outwardDefaultInstanceLabelPlacement(
+        instance,
+        resolved,
+        style,
+        10,
+        slot,
+      )!;
+      const position = { x: placed.position.x + slide, y: placed.position.y };
+      annotation.alignment = placed.alignment;
+      annotation.anchor = {
+        kind: "object",
+        objectId: "R1",
+        localOffset: { x: position.x - 200, y: position.y - 200 },
+        fallbackPosition: position,
+      };
+    }
+    const nameSlot = at(document, "instance-label");
+    expect(at(document, "instance-value").y).toBe(nameSlot.y - 20);
+    // A drawing already left that way, R_F hidden, comes right when it is
+    // hidden again.
+    const stranded = structuredClone(document);
+    stranded.annotations.find(
+      (item) => item.kind === "instance-label",
+    )!.visible = false;
+
+    apply(
+      document,
+      instanceDisplayEdits(document, resolver, ["R1"], {
+        showReference: false,
+      }),
+    );
+    expect(at(document, "instance-value")).toEqual(nameSlot);
+    apply(
+      stranded,
+      instanceDisplayEdits(stranded, resolver, ["R1"], {
+        showReference: false,
+      }),
+    );
+    expect(at(stranded, "instance-value")).toEqual(nameSlot);
+
+    // Shown again, R_F reads first: a row over 10k, which keeps the row
+    // nearest the resistor.
+    apply(
+      document,
+      instanceDisplayEdits(document, resolver, ["R1"], { showReference: true }),
+    );
+    expect(at(document, "instance-value")).toEqual(nameSlot);
+    expect(at(document, "instance-label")).toEqual({
+      x: nameSlot.x,
+      y: nameSlot.y - 20,
+    });
+  });
+
+  it("brings a name over its value above the part down to it when the value is hidden, and back up when it shows (#1384)", () => {
+    const document = resistorDocument();
+    const instance = document.instances[0]!;
+    instance.placement = {
+      position: { x: 200, y: 200 },
+      rotation: 270,
+      mirror: "none",
+    };
+    document.annotations = [];
+    document.annotations.push(
+      ...defaultInstanceDisplayAnnotations(
+        document,
+        instance,
+        resolver,
+        style,
+        { showValue: true },
+      ),
+    );
+    const name = at(document, "instance-label");
+    const value = at(document, "instance-value");
+    expect(value).toEqual({ x: name.x, y: name.y + 20 });
+
+    apply(
+      document,
+      instanceDisplayEdits(document, resolver, ["R1"], { showValue: false }),
+    );
+    expect(at(document, "instance-label")).toEqual(value);
+
+    apply(
+      document,
+      instanceDisplayEdits(document, resolver, ["R1"], { showValue: true }),
+    );
+    expect(at(document, "instance-label")).toEqual(name);
+    expect(at(document, "instance-value")).toEqual(value);
   });
 
   it("gives a shown Reference its own row under a Cell's name instead of printing over it", () => {

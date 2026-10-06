@@ -18,6 +18,8 @@ import {
   instanceLabelMetrics,
   isBjtSymbol,
   isMosSymbol,
+  outwardDefaultInstanceLabelPlacement,
+  placeUprightInstanceLabel,
   previousPortLabelPlacement,
 } from "./instance-label-placement.js";
 import type { InstanceLabelSlot } from "./instance-label-placement.js";
@@ -393,8 +395,19 @@ describe("instance label placement", () => {
     ).toEqual(defaultInstanceLabelPlacement(instance, resolved, profile, 10));
   });
 
-  it("stacks the value row away from the part when the label sits above it", () => {
-    const reference = placedDefaultLabel("resistor", 270);
+  it("reads the name before its value above a part, the value nearest the part (#1384)", () => {
+    // A resistor turned so its labels stand above it.
+    const resolved = resolver.resolve("resistor")!;
+    const instance = {
+      id: "resistor-1",
+      symbolId: "resistor",
+      placement: {
+        position: { x: 100, y: 100 },
+        rotation: 270 as const,
+        mirror: "none" as const,
+      },
+    };
+    const alone = placedDefaultLabel("resistor", 270);
     const value = placedDefaultLabel(
       "resistor",
       270,
@@ -402,9 +415,79 @@ describe("instance label placement", () => {
       undefined,
       "value",
     );
-    expect(reference.alignment).toBe("middle");
-    expect(value.position.x).toBe(reference.position.x);
-    expect(reference.position.y - value.position.y).toBe(20);
+    const name = defaultInstanceLabelPlacement(
+      instance,
+      resolved,
+      profile,
+      10,
+      "reference",
+      1,
+      true,
+    )!;
+    // The name a row over its value, which takes the row nearest the part,
+    // where a name or a value shown alone stands.
+    expect(name.alignment).toBe("middle");
+    expect(value.alignment).toBe("middle");
+    expect(name.position.x).toBe(value.position.x);
+    expect(value.position.y - name.position.y).toBe(20);
+    expect(value.position).toEqual(alone.position);
+    expect(value.position.y).toBeLessThan(100);
+    // Where the rule until now stacked the value, over its name, still
+    // reads as an untouched default.
+    expect(
+      outwardDefaultInstanceLabelPlacement(
+        instance,
+        resolved,
+        profile,
+        10,
+        "value",
+      )!.position,
+    ).toEqual(name.position);
+  });
+
+  it("puts a name over its value on every side, and moves only a name above the part (#1384)", () => {
+    // The arrangement places a group on each side of a part, however it is
+    // turned, through the upright placer.
+    const resolved = resolver.resolve("capacitor")!;
+    const row = instanceValueRowOffset("capacitor", profile, 10);
+    for (const [rotation, mirror] of [
+      [0, "none"],
+      [90, "vertical"],
+      [270, "none"],
+    ] as const) {
+      const instance = {
+        id: "C1",
+        symbolId: "capacitor",
+        placement: { position: { x: 100, y: 100 }, rotation, mirror },
+      };
+      for (const side of ["right", "left", "top", "bottom"] as const) {
+        const place = (rowOffset: number, rowsBelow: number) =>
+          placeUprightInstanceLabel(
+            instance,
+            resolved,
+            profile,
+            { x: 0, y: 0 },
+            side,
+            10,
+            1,
+            rowOffset,
+            false,
+            rowsBelow,
+          )!;
+        const alone = place(0, 0);
+        const name = place(0, row);
+        const value = place(row, 0);
+        const where = `${rotation} ${mirror} ${side}`;
+        expect(value.position.x, where).toBe(name.position.x);
+        expect(value.position.y - name.position.y, where).toBe(row);
+        // Above the part the value keeps a lone label's place; elsewhere
+        // the name does.
+        const above = alone.alignment === "middle" && alone.position.y < 100;
+        expect(above ? value.position : name.position, where).toEqual(
+          alone.position,
+        );
+      }
+    }
   });
 
   it("keeps a mirrored MOS value slot beside the mirrored channel side", () => {

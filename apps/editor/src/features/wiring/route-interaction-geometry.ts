@@ -776,12 +776,17 @@ export function instanceHitBox(
   return resolved ? instanceVisibleHitBox(instance, resolved) : null;
 }
 
+/**
+ * The part's default name label. `overValue` places it over the value the
+ * part shows under it, which above the part is a row further out (#1384).
+ */
 export function defaultInstanceLabel(
   document: SchematicDocument,
   instance: SchematicDocument["instances"][number],
   resolver: SymbolResolver,
   styleProfile: SchematicStyleProfile,
   slot: "reference" | "value" = "reference",
+  overValue = false,
 ): Annotation | null {
   if (!instance.placement) return null;
   if (
@@ -809,6 +814,8 @@ export function defaultInstanceLabel(
     objectStyleProfile(styleProfile, instance),
     document.presentation.grid,
     slot,
+    1,
+    overValue,
   );
   if (!placement) return null;
   const position = placement.position;

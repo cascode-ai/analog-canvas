@@ -108,12 +108,15 @@ it("does not report a default label against its own part", () => {
     const resolved = resolver.resolve("resistor")!;
     const profile = resolveDocumentStyleProfile(doc.presentation);
     for (const slot of ["reference", "value"] as const) {
+      // The name over the value shown under it (#1384).
       const placement = defaultInstanceLabelPlacement(
         doc.instances.at(-1)!,
         resolved,
         profile,
         doc.presentation.grid,
         slot,
+        1,
+        slot === "reference",
       )!;
       doc.annotations.push({
         id: `${id}-${slot}`,
@@ -158,12 +161,15 @@ function placeDefaultLabels(
   if (value.kind !== "displayable") throw new Error(value.reason);
   const at = instance.placement!.position;
   for (const slot of ["reference", "value"] as const) {
+    // The name over the value shown under it (#1384).
     const placement = defaultInstanceLabelPlacement(
       instance,
       resolved,
       profile,
       doc.presentation.grid,
       slot,
+      1,
+      slot === "reference",
     )!;
     doc.annotations.push({
       id: `${instance.id}-${slot}`,

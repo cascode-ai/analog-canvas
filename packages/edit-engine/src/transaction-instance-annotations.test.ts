@@ -804,6 +804,50 @@ describe("value labels as a part turns (#1105)", () => {
     expect(current(0).position.y - uniform.position.y).toBe(10);
   });
 
+  it("keeps the name over its value when the part turns its labels above it, and back (#1384)", () => {
+    const { document, annotation: value } = valueAt(rule(0, "value"), 0);
+    const reference = rule(0, "reference");
+    const name: Annotation = {
+      id: "name-r1",
+      kind: "instance-label",
+      binding: { kind: "instance-reference", instanceId: "R1" },
+      anchor: {
+        kind: "object",
+        objectId: "R1",
+        localOffset: {
+          x: reference.position.x - position.x,
+          y: reference.position.y - position.y,
+        },
+        fallbackPosition: reference.position,
+      },
+      alignment: reference.alignment,
+      rotation: 0,
+      locked: false,
+    };
+    document.annotations.push(name);
+    const at = (label: Annotation) =>
+      label.anchor.kind === "object" ? label.anchor.fallbackPosition : null;
+
+    turn(document, 0, 270);
+    const over = defaultInstanceLabelPlacement(
+      document.instances[0]!,
+      resolved,
+      profile,
+      10,
+      "reference",
+      1,
+      true,
+    )!;
+    expect(at(name)).toEqual(over.position);
+    expect(at(value)).toEqual(rule(270, "value").position);
+    expect(at(value)!.y - at(name)!.y).toBe(20);
+    expect(at(value)!.y).toBeLessThan(position.y);
+
+    turn(document, 270, 0);
+    expect(at(name)).toEqual(reference.position);
+    expect(at(value)).toEqual(rule(0, "value").position);
+  });
+
   it("keeps a value shown without a Reference in the Reference's slot", () => {
     const { document, annotation } = valueAt(rule(90, "reference"), 90);
     for (const [from, to] of [

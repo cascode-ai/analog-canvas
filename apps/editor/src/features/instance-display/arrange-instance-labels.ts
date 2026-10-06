@@ -14,6 +14,7 @@ import {
   instanceLabelRowOffset,
   instanceValueRowOffset,
   objectStyleProfile,
+  outwardDefaultInstanceLabelPlacement,
   placeUprightInstanceLabel,
   portLabelCandidates,
   resolveDocumentStyleProfile,
@@ -48,7 +49,8 @@ const LOCAL_SIDES: readonly InstanceLabelSide[] = [
  * Explicit one-pass operation, not a new placement default or autorouter.
  *
  * The labels of one part move as a group: the Reference and its value stay
- * together on one side of the part, in their default rows. When the default
+ * together on one side of the part, in their default rows, the name read
+ * first and its value under it on every side (#1384). When the default
  * side is crowded the group tries the part's other sides; a label left in
  * conflict then tries a few nearby positions. No candidate may cover another
  * label of the same part, so a value is never stacked onto its own Reference
@@ -145,23 +147,38 @@ export function arrangeInstanceLabels(
       );
     // Only a still-default visual slot is eligible. Manual/free anchors,
     // styles, and labels moved by an earlier pass remain under their
-    // author's control.
+    // author's control. A name over its value stands a row further out
+    // above the part than one shown alone (#1384).
+    const rules: readonly (typeof defaultInstanceLabelPlacement)[] = [
+      defaultInstanceLabelPlacement,
+      outwardDefaultInstanceLabelPlacement,
+      uniformRowDefaultInstanceLabelPlacement,
+      previousDefaultInstanceLabelPlacement,
+      legacyDefaultInstanceLabelPlacement,
+    ];
     const at = (inSlot: "reference" | "value") =>
-      [
-        defaultInstanceLabelPlacement,
-        uniformRowDefaultInstanceLabelPlacement,
-        previousDefaultInstanceLabelPlacement,
-        legacyDefaultInstanceLabelPlacement,
-      ].some((place) => {
-        const p = place(instance, resolved, style, grid, inSlot, sizeScale);
-        return (
-          p &&
-          p.alignment === original.alignment &&
-          Math.hypot(p.position.x - current.x, p.position.y - current.y) < 0.01
-        );
-      });
-    const inValueRow = at(slot);
-    const inReferenceSlot = !inValueRow && alone && at("reference");
+      rules.some((place) =>
+        [false, true].some((overValue) => {
+          const p = place(
+            instance,
+            resolved,
+            style,
+            grid,
+            inSlot,
+            sizeScale,
+            overValue,
+          );
+          return (
+            p &&
+            p.alignment === original.alignment &&
+            Math.hypot(p.position.x - current.x, p.position.y - current.y) <
+              0.01
+          );
+        }),
+      );
+    // Above the part a lone value's row is also the Reference's slot.
+    const inReferenceSlot = alone && at("reference");
+    const inValueRow = !inReferenceSlot && at(slot);
     if (!inValueRow && !inReferenceSlot) return null;
     const annotation =
       reference &&
@@ -205,6 +222,18 @@ export function arrangeInstanceLabels(
       objectStyleProfile(documentProfile, label.original);
     const rowOf = (label: EligibleLabel) =>
       label.slot === "value" && !label.compact
+        ? instanceValueRowOffset(instance.symbolId, styleOf(label), grid)
+        : 0;
+    /**
+     * A name with its value under it. Above the part the value takes the row
+     * nearest it and the name stands a row further out, so the group reads
+     * name first there too (#1384): "1p" had stood over C_C.
+     */
+    const overValue = (label: EligibleLabel) =>
+      label.slot === "reference" &&
+      group.some((other) => other.slot === "value" && !other.compact);
+    const rowsBelowOf = (label: EligibleLabel) =>
+      overValue(label)
         ? instanceValueRowOffset(instance.symbolId, styleOf(label), grid)
         : 0;
     const covers = (a: Annotation, b: Annotation) => overlap(box(a), box(b));
@@ -451,6 +480,7 @@ export function arrangeInstanceLabels(
           grid,
           label.compact ? "reference" : label.slot,
           label.sizeScale,
+          overValue(label),
         )!,
       ),
     );
@@ -470,6 +500,8 @@ export function arrangeInstanceLabels(
             grid,
             label.sizeScale,
             rowOf(label),
+            false,
+            rowsBelowOf(label),
           );
           if (!placement) break;
           arrangement.push(at(label, placement));

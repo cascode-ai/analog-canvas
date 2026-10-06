@@ -105,11 +105,21 @@ export function defaultInstanceDisplayAnnotations(
     }
     return annotations;
   }
+  // A name with a value, or a Cell's name, shown under it stands a row
+  // further out above the part, so it reads first there too (#1384).
+  const overValue =
+    options.showDesignator !== false &&
+    (options.masterName
+      ? options.masterName.trim() !== ""
+      : options.showValue === true &&
+        displayableInstanceValue(instance).kind === "displayable");
   const label = defaultInstanceLabel(
     document,
     instance,
     resolver,
     styleProfile,
+    "reference",
+    overValue,
   );
   const showsDesignator = options.showDesignator !== false && Boolean(label);
   if (showsDesignator && label) {

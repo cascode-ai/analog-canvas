@@ -15,6 +15,7 @@ import type { SchematicEdit } from "./edit-schema.js";
 import {
   canonicalInstanceLabelRow,
   instanceAnnotationSlot,
+  valueShownUnderName,
 } from "./transaction-instance-annotations.js";
 
 const SIDES: readonly InstanceLabelSide[] = ["right", "left", "bottom", "top"];
@@ -90,6 +91,7 @@ export function planInstanceLabelReflow(
       position,
       instance.placement,
     );
+    const valueRow = instanceValueRowOffset(instance.symbolId, profile, grid);
     if (row !== null)
       next = parameter
         ? defaultInstanceParameterLabelPlacement(
@@ -106,13 +108,24 @@ export function planInstanceLabelReflow(
             grid,
             row === 0 ? "reference" : slot,
             sizeScale,
+            slot === "reference" &&
+              valueShownUnderName(
+                document,
+                instance,
+                former,
+                position,
+                instance.placement,
+              ),
           );
     else if (!parameter)
       search: for (const side of SIDES)
-        for (const rowOffset of [
-          0,
-          instanceValueRowOffset(instance.symbolId, profile, grid),
-        ]) {
+        // A label's row, and above the part a name's place over its value
+        // (#1384), which is also where a value stood over its name before.
+        for (const [rowOffset, rowsBelow] of [
+          [0, 0],
+          [valueRow, 0],
+          [0, valueRow],
+        ] as const) {
           const placed = (symbol: typeof current) =>
             placeUprightInstanceLabel(
               instance,
@@ -123,6 +136,8 @@ export function planInstanceLabelReflow(
               grid,
               sizeScale,
               rowOffset,
+              false,
+              rowsBelow,
             );
           if (!at(placed(former))) continue;
           next = placed(current);
