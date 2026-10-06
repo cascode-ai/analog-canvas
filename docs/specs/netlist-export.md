@@ -302,7 +302,11 @@ This requires the patched native runtime, not stock upstream 0.3.4; see the
 [runtime patch and qualification](../../containers/vacask/patches/README.md).
 A diode placed in a Process with no diode of its own (Abstract, SKY130, IHP
 SG13G2, Custom) is bound to the generic model `DIODE`, which no library
-defines. Every Cell whose diodes name it, a Zener's included, carries one
+defines. A placed Zener is not, and Apply process leaves it alone too: the
+generic model has no breakdown, so a Zener's model is the one its BV builds
+or one its author names, and without either the export keeps reporting
+`MISSING_MODEL_TARGET`. Every Cell whose diodes name `DIODE`, a Zener bound to
+it by hand included, carries one
 `.model DIODE D(IS=1e-14 N=1)` card in its own body: SPICE's default
 junction, its saturation current and emission coefficient stated. The export
 reports `GENERIC_DIODE_MODEL` as information for that Cell, naming the

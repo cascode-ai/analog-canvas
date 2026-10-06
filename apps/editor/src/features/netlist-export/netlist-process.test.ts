@@ -368,6 +368,31 @@ describe("a part placed into a Process (#1251)", () => {
     expect(target("sky130", "resistor")).toBeUndefined();
   });
 
+  it("leaves a placed Zener's model to its BV or its author", () => {
+    const project = createEmptyProject("zener", "Zener");
+    const fill = (symbolId: string, parameters: Record<string, string>) => {
+      const edit = place(symbolId, parameters);
+      return placementProcessFill(
+        project,
+        preferences("sky130"),
+        project.topDocumentId,
+        [
+          {
+            ...edit,
+            instance: { ...edit.instance, id: "D1", reference: "D1" },
+          },
+        ],
+      );
+    };
+    // A plain diode takes the generic model. A Zener's BV builds its own
+    // model in the netlist, which the generic one would refuse.
+    expect(fill("diode", {})).toBeDefined();
+    expect(fill("zener-diode", { bv: "5.6" })).toBeUndefined();
+    expect(
+      processPlacementTarget(project, preferences("sky130"), "zener-diode"),
+    ).toBeUndefined();
+  });
+
   it("places IHP SG13G2 transistors and HBTs as the PDK's own X calls", () => {
     const sg13g2 = preferences("sg13g2");
     let project = createEmptyProject("ihp", "IHP");

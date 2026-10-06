@@ -243,6 +243,9 @@ export const NETLIST_HIGH_VOLTAGE_TARGETS: Partial<
 export function netlistDeviceFamily(
   symbolId: string,
 ): NetlistDeviceFamily | undefined {
+  // A Zener's model is its own: BV builds one, or the author names one. The
+  // diode family's generic model has no breakdown and would refuse BV.
+  if (symbolId === "zener-diode") return undefined;
   const descriptor = deviceDescriptor(symbolId);
   if (descriptor?.mosBulkClass) return descriptor.mosBulkClass;
   if (descriptor?.deviceClass === "bjt")
