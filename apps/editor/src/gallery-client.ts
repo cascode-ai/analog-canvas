@@ -327,6 +327,21 @@ export function galleryAuthorsOf(
   return rankContributors([...authors.values()]);
 }
 
+/**
+ * The name a wall narrowed to one contributor shows: the account's current
+ * byline once the contributors answer for it, since a remembered filter or an
+ * older link keeps the name the account had then; otherwise the filter's.
+ */
+export function galleryNarrowedByline(
+  filter: { author: string | null; ownerUserId: string | null },
+  authors: readonly GalleryAuthorOption[],
+): string | null {
+  const current = filter.ownerUserId
+    ? authors.find((option) => option.ownerUserId === filter.ownerUserId)
+    : undefined;
+  return current?.author ?? filter.author;
+}
+
 /** Keep full-page aggregates current while a local removal awaits a refresh. */
 export function removeGalleryAuthorEntry(
   authors: readonly GalleryAuthorOption[],
@@ -370,7 +385,9 @@ function galleryFeedParams(query: GalleryFeedQuery): URLSearchParams {
   if (query.attention) params.set("attention", "1");
   if (query.attention && query.attentionKind)
     params.set("reason", query.attentionKind);
-  if (query.author) params.set("author", query.author);
+  // An account narrows by its id; its byline then only labels the wall and
+  // may be a former one, so it is sent only on its own.
+  if (query.author && !query.ownerUserId) params.set("author", query.author);
   if (query.ownerUserId) params.set("owner", query.ownerUserId);
   if (query.tags && query.tags.length > 0) {
     params.set("tags", query.tags.join(","));
