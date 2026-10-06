@@ -32,9 +32,10 @@ local work or silently move a pin.
 
 ## Development skill references
 
-Status: the [unified workflow](../docs/development-workflow.md) rules are
-configured on the trial branch. Native loading has partial runtime evidence;
-two-client workflow acceptance and real-task effectiveness remain outstanding.
+Status: the [unified workflow](../docs/development-workflow.md) rules and
+selected original skills are checked in for repository use. Native loading has
+partial runtime evidence; two-client workflow acceptance and real-task
+effectiveness remain under evaluation in Issue #1358.
 The checked-in [.agents/skills/](../.agents/skills/)
 contains the 9 workflow entries below and 6 required dependency/setup skills:
 15 skills with their original names, invocation policies, and complete supporting
@@ -45,8 +46,9 @@ The earlier rewritten `ac-*` skills have been removed. Installation precedes
 evaluation: test the original methods, compare their outcomes and cost, then
 decide whether a skill, a local rule, or both should change. Do not silently
 shorten an upstream procedure to make it fit existing policy. The new
-[Agent entry](../AGENTS.md) and workflow replace the former management process;
-the user's trial scope remains in effect. Earlier decisions and review findings remain in
+[Agent entry](../AGENTS.md) and workflow replace the former management process.
+The user has authorized mainline adoption; original-method effectiveness
+trials remain open. Earlier decisions and review findings remain in
 [Issue #1358](https://github.com/cascode-ai/analog-canvas/issues/1358) and Git history.
 
 [Issue #1378](https://github.com/cascode-ai/analog-canvas/issues/1378) describes
@@ -88,8 +90,8 @@ ln -s ../.agents/skills .claude/skills
 ```
 
 The local link is ignored by Git. There is one source copy, no global install,
-and no automatic upstream updates. Start a session in this trial checkout to
-load the skills; installation does not prove that their methods are effective.
+and no automatic upstream updates. Start a session in a checkout containing
+the installed skills; installation does not prove that their methods are effective.
 See [Codex skill locations](https://learn.chatgpt.com/docs/build-skills#where-to-save-skills)
 and [Claude project skills](https://code.claude.com/docs/en/skills#where-skills-live).
 

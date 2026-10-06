@@ -65,13 +65,13 @@
       "usage": "workflow-original-trial",
       "defaultFetch": false,
       "allowedScope": [
-        "selected workflow skills and complete original dependencies for branch evaluation",
+        "selected workflow skills and complete original dependencies for repository use and effectiveness evaluation",
         "original requirement, specification, ticket and implementation skills",
         "original code-review, PR, architecture and retrospective skills",
         "linked interview, domain-modeling, design and testing guidance"
       ],
       "excludedScope": [
-        "mandatory workflow adoption before evaluation",
+        "mandatory workflow adoption without maintainer authorization",
         "automatic changes to validation or delivery policy",
         "product runtime dependency"
       ]

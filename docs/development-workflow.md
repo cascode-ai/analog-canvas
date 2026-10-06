@@ -18,6 +18,12 @@
 | 交付     | pr              | 经审查的候选与证据             | PR，再由交付设施验证并发布      |
 | 回顾     | retro           | 指定会话来源                   | 待人工选择的改进候选            |
 
+显式调用：Codex 输入 `$grill-with-docs`、`$to-spec` 等 Skill 名称，CLI / IDE 也可
+用 `/skills` 选择；Claude Code 输入 `/grill-with-docs`、`/to-spec` 等。会话所在的
+checkout 必须包含 `.agents/skills/`；其他 worktree 不会继承尚未合入的文件。
+Claude 的本地链接与客户端发现方式见 references/README.md。新增后未显示时，
+重新启动会话或客户端；不复制一套全局版本。
+
 需求明确的小任务使用已有来源直接实施。拆票用于多人、多会话或真实阻塞；每票
 交付一条可验证的纵向行为，不按文件夹切成纯 schema/API/UI 三份工作。宽机械
 重构按原版 expand–contract 例外处理。
@@ -42,7 +48,16 @@
 实现，内部协作者使用真实实现，外部服务按接口隔离。
 
 按 docs/testing/README.md 完成聚焦检查、最终完整测试和额外风险义务，然后
-执行原版 code-review。每路审查使用独立上下文：
+执行原版 code-review。
+
+审查输入按候选状态绑定：已提交候选使用原版 `git diff <base>...HEAD`；本次目标
+尚未提交时，先仅暂存其目标文件（包括新增文件），两路都读取
+`git diff --cached <target-base> -- <owned-paths>`。这是提交前场景的仓库执行绑定，
+替代只比较 HEAD 的命令，保留先审查后提交的顺序与原版双轴过程。不得覆盖其他
+人的暂存内容。修复后重新暂存并复核修改；提交须包含审查过的目标内容，不能
+混入其他暂存文件或审查后的额外修改。
+
+每路审查使用独立上下文：
 
 - Standards：固定 diff/commit、CODING_STANDARDS、相关工程标准、原版完整
   气味基线和定义。遵守原版项目标准优先、启发式需判断、跳过工具已检查事项。
