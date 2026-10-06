@@ -6,7 +6,8 @@ import {
 } from "./extract.js";
 import type { DesignNetlistIR, NetlistDiagnostic } from "./ir.js";
 import {
-  locateDesignNetlist,
+  printDesignNetlistWithLocations,
+  shiftDesignNetlistLocations,
   printDesignNetlist,
   type NetlistFileDescriptor,
 } from "./printers.js";
@@ -226,7 +227,11 @@ export function createDesignNetlistExport(
   // question, and `unfinishedDrawingDiagnostics` is how a caller asks it.
   const deadEnds = deadEndNodeDiagnostics(project, ir, analysis.diagnostics);
   if (options.portCase) applyPortCase(ir, options.portCase);
-  const file = printDesignNetlist(format, ir);
+  const printed = options.includeLocations
+    ? printDesignNetlistWithLocations(format, ir)
+    : null;
+  const file = printed?.file ?? printDesignNetlist(format, ir);
+  const originalLength = file.text.length;
   // Presentation export omits the strict printer's title. Keep that printer
   // unchanged for simulation/source offsets; a blank SPICE title below keeps
   // the first directive intact when this structural file is used as an entry.
@@ -236,8 +241,11 @@ export function createDesignNetlistExport(
     status: "ready",
     diagnostics: [...analysis.diagnostics, ...deadEnds],
     file,
-    locations: options.includeLocations
-      ? locateDesignNetlist(format, ir, file.text)
+    locations: printed
+      ? shiftDesignNetlistLocations(
+          printed.locations,
+          file.text.length - originalLength,
+        )
       : { instances: [], fields: [] },
     cellCount: ir.cells.length,
     externalMasterCount: ir.externalMasters?.length ?? 0,

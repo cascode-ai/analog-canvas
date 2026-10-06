@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import type { DesignNetlistIR, DesignNetlistInstance } from "./ir.js";
 import {
   printDesignNetlist,
+  printDesignNetlistWithLocations,
   printSpectreNetlist,
   printSpiceNetlist,
   printSpiceWithLocations,
@@ -105,6 +106,174 @@ function fixture(name: string): string {
 }
 
 describe("design netlist printers", () => {
+  it("preserves authored assignment values and the existing first/last scalar lookup rules", () => {
+    const ir = structuralIr();
+    ir.cells[1]!.instances = [
+      device("r", "R1", "resistor", ["a", "0"], null, [
+        ["value", "1"],
+        ["VALUE", "2"],
+        ["extra", "3"],
+        ["EXTRA", "4"],
+      ]),
+      device("v", "V1", "voltage-source", ["a", "0"], null, [
+        ["dc", "1"],
+        ["DC", "2"],
+        ["extra", "3"],
+        ["EXTRA", "4"],
+      ]),
+    ];
+    expect(printSpiceNetlist(ir)).toContain("R1 a 0 1 extra=3 EXTRA=4");
+    expect(printSpiceNetlist(ir)).toContain("V1 a 0 DC 2 extra=3 EXTRA=4");
+    expect(printSpectreNetlist(ir)).toContain(
+      "R1 (a 0) resistor r=1 extra=3 EXTRA=4",
+    );
+    expect(printSpectreNetlist(ir)).toContain(
+      "V1 (a 0) vsource dc=2 extra=3 EXTRA=4",
+    );
+  });
+  it.each(["spice", "spectre"] as const)(
+    "keeps field ownership when nodes, masters and wrapped values look identical (%s)",
+    (format) => {
+      const ir = structuralIr();
+      const instance = ir.cells[0]!.instances[0]!;
+      instance.reference = "M_SAME";
+      instance.target = "SAME";
+      instance.nodes.forEach((node) => (node.netName = "SAME"));
+      instance.parameters = Array.from({ length: 12 }, (_, index) => ({
+        name: `parameter_${index}`,
+        rawValue: "SAME",
+      }));
+      instance.parameters.push({ name: "expression", rawValue: "{α + β}" });
+      const { file, locations } = printDesignNetlistWithLocations(format, ir);
+      expect(file).toEqual(printDesignNetlist(format, ir));
+      const fields = locations.fields.filter((f) => f.instanceId === "m1");
+      expect(
+        fields.map((f) => [f.kind, f.parameter ?? null, f.rawValue]),
+      ).toEqual([
+        ["reference", null, "M_SAME"],
+        ["target", null, "SAME"],
+        ...instance.parameters.map((p) => ["parameter", p.name, p.rawValue]),
+      ]);
+      for (const field of locations.fields)
+        expect(file.text.slice(field.startOffset, field.endOffset)).toBe(
+          field.rawValue,
+        );
+      const card = locations.instances.find(
+        (span) => span.instanceId === "m1",
+      )!;
+      expect(file.text.slice(card.startOffset, card.endOffset)).toMatch(
+        /^M_SAME /u,
+      );
+      if (format === "spice") {
+        expect(file.text.slice(card.startOffset, card.endOffset)).toContain(
+          "\n+ ",
+        );
+        // Public Circuit parameter locations retain authored order, independently
+        // of the print order of value-first primitive cards.
+        const circuit = printSpiceWithLocations(ir, true);
+        expect(
+          circuit.parameters
+            .filter((p) => p.instanceId === "r1")
+            .map((p) => p.parameter),
+        ).toEqual(["temp", "value"]);
+      }
+    },
+  );
+
+  it.each(["spice", "spectre"] as const)(
+    "maps only reversible waveform and signed gain fields (%s)",
+    (format) => {
+      const ir = structuralIr();
+      const root = ir.cells[1]!;
+      root.instances = [
+        device("pulse", "VP", "voltage-source", ["1", "0"], null, [
+          ["waveform", "pulse"],
+          ["low", "0"],
+          ["high", "1"],
+          ["delay", "1"],
+          ["rise", "1"],
+          ["fall", "1"],
+          ["width", "1"],
+          ["period", "1"],
+          ["acMagnitude", " 1 "],
+        ]),
+        device("sin", "VS", "voltage-source", ["0", "0"], null, [
+          ["waveform", "sin"],
+          ["offset", "0"],
+          ["amplitude", "1"],
+          ["frequency", "1"],
+        ]),
+        device("pwl", "VW", "voltage-source", ["0", "0"], null, [
+          ["waveform", "pwl"],
+          ["pwlPoints", "0 0, 1 1"],
+        ]),
+        {
+          ...device("gain", "F1", "cccs", ["0", "0"], null, [["gain", "2"]]),
+          controlSourceReference: "VS",
+          controlCurrentSign: -1,
+        },
+        {
+          ...device("braced", "F2", "cccs", ["0", "0"], null, [
+            ["gain", "{g + 1}"],
+          ]),
+          controlSourceReference: "VS",
+          controlCurrentSign: -1,
+        },
+      ];
+      const { file, locations } = printDesignNetlistWithLocations(format, ir);
+      expect(file).toEqual(printDesignNetlist(format, ir));
+      const parameters = (id: string) =>
+        locations.fields
+          .filter((f) => f.instanceId === id && f.kind === "parameter")
+          .map((f) => f.parameter);
+      expect(parameters("pulse")).toEqual([
+        "low",
+        "high",
+        "delay",
+        "rise",
+        "fall",
+        "width",
+        "period",
+      ]);
+      expect(parameters("sin")).toEqual(["offset", "amplitude", "frequency"]);
+      expect(parameters("pwl")).toEqual([]);
+      expect(parameters("gain")).toEqual(["gain"]);
+      expect(parameters("braced")).toEqual([]);
+      for (const field of locations.fields)
+        expect(file.text.slice(field.startOffset, field.endOffset)).toBe(
+          field.rawValue,
+        );
+    },
+  );
+
+  it.each(["spice", "spectre"] as const)(
+    "keeps compiler-owned model names protected and authored model names editable (%s)",
+    (format) => {
+      const ir = structuralIr();
+      const cell = ir.cells[1]!;
+      cell.models = [
+        { name: "OWN", type: "D", parameters: [] },
+        { name: "AUTHORED", type: "D", parameters: [], authoredName: true },
+      ];
+      cell.instances = [
+        device("own", "D1", "diode", ["a", "0"], "OWN", []),
+        device("authored", "D2", "diode", ["a", "0"], "AUTHORED", []),
+      ];
+      const { file, locations } = printDesignNetlistWithLocations(format, ir);
+      expect(file).toEqual(printDesignNetlist(format, ir));
+      expect(
+        locations.fields
+          .filter((f) => f.kind === "target")
+          .map((f) => f.instanceId),
+      ).toEqual(["m1", "authored"]);
+      expect(
+        locations.instances
+          .filter((f) => f.documentId === "top")
+          .map((f) => f.instanceId),
+      ).toEqual(["own", "authored"]);
+    },
+  );
+
   it("prints stable SPICE structural output accepted by the SPICE parser", () => {
     const text = printSpiceNetlist(structuralIr());
     expect(text).toBe(fixture("structural.spi"));
