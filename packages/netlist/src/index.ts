@@ -7,6 +7,7 @@ export * from "./topology-correspondence.js";
 export * from "./net-name-codec.js";
 export * from "./printers.js";
 export * from "./printed-netlist.js";
+export * from "./parameter-projection.js";
 export * from "./vacask-printer.js";
 export * from "./vacask-source.js";
 export * from "./vacask-source-scopes.js";

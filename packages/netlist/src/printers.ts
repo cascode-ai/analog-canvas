@@ -3,7 +3,6 @@ import type {
   DesignNetlistIR,
   DesignNetlistInstance,
   DesignNetlistMagneticSubcircuit,
-  DesignNetlistParameter,
 } from "./ir.js";
 import {
   generatedBehavioralModel,
@@ -12,12 +11,12 @@ import {
 import { printSpectreBehavioralModel } from "./behavioral-model.js";
 import { switchBehavioralDefinition } from "./ideal-switch-model.js";
 import type { NetlistFormat } from "./net-name-codec.js";
-import { normalizeIndependentSource } from "./source-waveform.js";
-import { signedControlGain } from "./controlled-current.js";
+import { printInstanceCard } from "./printed-card.js";
 import type {
   DesignNetlistLocations,
   PrintedNetlistInstance,
   PrintedNetlistParameter,
+  PrintedNetlistField,
 } from "./printed-netlist.js";
 
 export type { NetlistFormat } from "./net-name-codec.js";
@@ -26,117 +25,6 @@ export interface NetlistFileDescriptor {
   extension: ".spi" | ".scs";
   mediaType: "application/x-spice" | "application/x-spectre";
   text: string;
-}
-
-function parameter(
-  parameters: readonly DesignNetlistParameter[],
-  name: string,
-): string | undefined {
-  return parameters.find(
-    (candidate) => candidate.name.toLowerCase() === name.toLowerCase(),
-  )?.rawValue;
-}
-
-function assignments(
-  parameters: readonly DesignNetlistParameter[],
-  excluded: readonly string[] = [],
-): string[] {
-  const folded = new Set(excluded.map((name) => name.toLowerCase()));
-  return parameters
-    .filter((item) => !folded.has(item.name.toLowerCase()))
-    .map((item) => `${item.name}=${item.rawValue}`);
-}
-
-function spiceSourceTokens(instance: DesignNetlistInstance): string[] {
-  const source = normalizeIndependentSource(instance.parameters);
-  const transient = source.transient;
-  return [
-    ...(source.dc === undefined ? [] : ["DC", source.dc]),
-    ...(source.ac ? ["AC", source.ac.magnitude, source.ac.phase] : []),
-    ...(transient.kind === "pulse"
-      ? [
-          `PULSE(${[
-            transient.low,
-            transient.high,
-            transient.delay,
-            transient.rise,
-            transient.fall,
-            transient.width,
-            transient.period,
-          ].join(" ")})`,
-        ]
-      : transient.kind === "sin"
-        ? [
-            `SIN(${[
-              transient.offset,
-              transient.amplitude,
-              transient.frequency,
-              transient.delay,
-              transient.damping,
-              transient.phase,
-            ].join(" ")})`,
-          ]
-        : transient.kind === "pwl"
-          ? [
-              `PWL(${transient.points
-                .flatMap((point) => [point.time, point.value])
-                .join(" ")})`,
-            ]
-          : []),
-    ...assignments(source.extraParameters),
-  ];
-}
-
-function spectreSourceValues(instance: DesignNetlistInstance): string[] {
-  const source = normalizeIndependentSource(instance.parameters);
-  const transient = source.transient;
-  const ac = source.ac
-    ? [`mag=${source.ac.magnitude}`, `phase=${source.ac.phase}`]
-    : [];
-  if (transient.kind === "pulse") {
-    return [
-      "type=pulse",
-      `val0=${transient.low}`,
-      `val1=${transient.high}`,
-      `delay=${transient.delay}`,
-      `rise=${transient.rise}`,
-      `fall=${transient.fall}`,
-      `width=${transient.width}`,
-      `period=${transient.period}`,
-      ...(source.dc === undefined ? [] : [`dc=${source.dc}`]),
-      ...ac,
-      ...assignments(source.extraParameters),
-    ];
-  }
-  if (transient.kind === "sin") {
-    return [
-      "type=sine",
-      `dc=${transient.offset}`,
-      `ampl=${transient.amplitude}`,
-      `freq=${transient.frequency}`,
-      `delay=${transient.delay}`,
-      `damp=${transient.damping}`,
-      `sinephase=${transient.phase}`,
-      ...ac,
-      ...assignments(source.extraParameters),
-    ];
-  }
-  if (transient.kind === "pwl") {
-    return [
-      "type=pwl",
-      `wave=[${transient.points
-        .flatMap((point) => [point.time, point.value])
-        .join(" ")}]`,
-      ...(source.dc === undefined ? [] : [`dc=${source.dc}`]),
-      ...ac,
-      ...assignments(source.extraParameters),
-    ];
-  }
-  return [
-    ...(source.dc === undefined ? [] : [`dc=${source.dc}`]),
-    ...ac,
-    ...assignments(source.extraParameters),
-  ];
 }
 
 function wrapSpice(tokens: readonly string[], width = 100): string[] {
@@ -156,76 +44,7 @@ function wrapSpice(tokens: readonly string[], width = 100): string[] {
 }
 
 function spiceInstance(instance: DesignNetlistInstance): string[] {
-  const nodes = instance.nodes.map((node) => node.netName);
-  const reference = instance.reference;
-  let tokens: string[];
-  switch (instance.deviceClass) {
-    case "resistor":
-    case "capacitor":
-    case "inductor":
-      tokens = [
-        reference,
-        ...nodes,
-        parameter(instance.parameters, "value")!,
-        ...assignments(instance.parameters, ["value"]),
-      ];
-      break;
-    case "voltage-source":
-    case "current-source":
-      tokens = [reference, ...nodes, ...spiceSourceTokens(instance)];
-      break;
-    case "vcvs":
-    case "vccs":
-      tokens = [
-        reference,
-        ...nodes,
-        parameter(
-          instance.parameters,
-          instance.deviceClass === "vccs" ? "gm" : "gain",
-        )!,
-      ];
-      break;
-    case "cccs":
-    case "ccvs":
-      tokens = [
-        reference,
-        ...nodes,
-        instance.controlSourceReference!,
-        signedControlGain(
-          parameter(
-            instance.parameters,
-            instance.deviceClass === "ccvs" ? "rm" : "gain",
-          )!,
-          instance.controlCurrentSign,
-          "spice",
-        ),
-      ];
-      break;
-    case "mos":
-    case "diode":
-    case "bjt":
-    // `S<ref> n+ n- nc+ nc- MODEL`: nodes then the model card, the same shape
-    // as every other model-bearing primitive.
-    case "switch":
-      tokens = [
-        reference,
-        ...nodes,
-        instance.target!,
-        ...assignments(instance.parameters),
-      ];
-      break;
-    case "hierarchical":
-      tokens = [
-        reference,
-        ...nodes,
-        instance.target!,
-        ...assignments(instance.parameters),
-      ];
-      break;
-    case "net-marker":
-      return [];
-  }
-  return wrapSpice(tokens);
+  return printInstanceCard(instance, "spice").lines;
 }
 
 /** A Cell's own model cards, each `.model NAME TYPE(PARAM=VALUE …)`. */
@@ -271,7 +90,11 @@ function spiceMagneticSubcircuit(
 
 function spiceCell(
   cell: DesignNetlistCell,
-  onInstance?: (instance: DesignNetlistInstance, offset: number) => void,
+  onInstance?: (
+    instance: DesignNetlistInstance,
+    offset: number,
+    card: ReturnType<typeof printInstanceCard>,
+  ) => void,
 ): string[] {
   const lines = wrapSpice([
     ".subckt",
@@ -290,10 +113,10 @@ function spiceCell(
   lines.push(...spiceModels(cell));
   let offset = lines.join("\n").length + 1;
   for (const instance of cell.instances) {
-    onInstance?.(instance, offset);
-    const cards = spiceInstance(instance);
-    lines.push(...cards);
-    offset += cards.reduce((total, line) => total + line.length + 1, 0);
+    const card = printInstanceCard(instance, "spice", Boolean(onInstance));
+    onInstance?.(instance, offset, card);
+    lines.push(...card.lines);
+    offset += card.lines.reduce((total, line) => total + line.length + 1, 0);
   }
   lines.push(`.ends ${cell.name}`);
   return lines;
@@ -321,7 +144,8 @@ export function printSpiceWithLocations(
   parameters: PrintedNetlistParameter[];
   instances: PrintedNetlistInstance[];
 } {
-  return renderSpice(ir, rootAsTopLevel, true);
+  const { text, parameters, instances } = renderSpice(ir, rootAsTopLevel, true);
+  return { text, parameters, instances };
 }
 
 function renderSpice(
@@ -332,6 +156,7 @@ function renderSpice(
   text: string;
   parameters: PrintedNetlistParameter[];
   instances: PrintedNetlistInstance[];
+  fields: PrintedNetlistField[];
 } {
   const lines = ["* Generated by Analog Canvas netlist-export/1.0"];
   const parameters: PrintedNetlistParameter[] = [];
@@ -343,53 +168,8 @@ function renderSpice(
       length += line.length + 1;
     }
   };
-  const locate = (
-    documentId: string,
-    instance: DesignNetlistInstance,
-    offset: number,
-  ) => {
-    if (!locations) return;
-    const original = spiceInstance(instance).join("\n");
-    if (original.length)
-      instances.push({
-        documentId,
-        instanceId: instance.id,
-        startOffset: offset,
-        endOffset: offset + original.length,
-      });
-    for (const parameter of instance.parameters) {
-      if (!parameter.rawValue.length) continue;
-      // A same-length marker leaves wrapping intact. Prove the mapping by
-      // round-tripping through the real printer, including waveform fields.
-      const marker = "\ue000".repeat(parameter.rawValue.length);
-      if (original.includes(marker)) continue;
-      let marked: string;
-      try {
-        marked = spiceInstance({
-          ...instance,
-          parameters: instance.parameters.map((p) =>
-            p === parameter ? { ...p, rawValue: marker } : p,
-          ),
-        }).join("\n");
-      } catch {
-        continue;
-      }
-      if (marked.replaceAll(marker, parameter.rawValue) !== original) continue;
-      for (
-        let at = marked.indexOf(marker);
-        at >= 0;
-        at = marked.indexOf(marker, at + marker.length)
-      )
-        parameters.push({
-          documentId,
-          instanceId: instance.id,
-          parameter: parameter.name,
-          rawValue: parameter.rawValue,
-          startOffset: offset + at,
-          endOffset: offset + at + marker.length,
-        });
-    }
-  };
+  const fields: PrintedNetlistField[] = [];
+  const locate = cardRecorder(ir, { instances, fields }, parameters);
   const globals = ir.globals.filter((name) => name !== "0");
   if (globals.length) append(...wrapSpice([".global", ...globals]));
   for (const definition of ir.generatedDefinitions ?? []) {
@@ -408,7 +188,8 @@ function renderSpice(
       ...spiceCell(
         cell,
         locations
-          ? (instance, relative) => locate(cell.id, instance, offset + relative)
+          ? (instance, relative, card) =>
+              locate(cell, instance, offset + relative, card)
           : undefined,
       ),
     );
@@ -431,81 +212,17 @@ function renderSpice(
     if (root) {
       append(...spiceModels(root));
       for (const instance of root.instances) {
-        locate(root.id, instance, length + 1);
-        append(...spiceInstance(instance));
+        const card = printInstanceCard(instance, "spice", locations);
+        if (locations) locate(root, instance, length + 1, card);
+        append(...card.lines);
       }
     }
   }
-  return { text: `${lines.join("\n")}\n`, parameters, instances };
+  return { text: `${lines.join("\n")}\n`, parameters, instances, fields };
 }
 
 export function printSpiceNetlist(ir: DesignNetlistIR): string {
   return renderSpice(ir, false, false).text;
-}
-
-function spectreInstance(instance: DesignNetlistInstance): string {
-  const prefix = `${instance.reference} (${instance.nodes
-    .map((node) => node.netName)
-    .join(" ")})`;
-  let master: string;
-  let values: string[];
-  switch (instance.deviceClass) {
-    case "resistor":
-      master = "resistor";
-      values = [
-        `r=${parameter(instance.parameters, "value")!}`,
-        ...assignments(instance.parameters, ["value"]),
-      ];
-      break;
-    case "capacitor":
-      master = "capacitor";
-      values = [
-        `c=${parameter(instance.parameters, "value")!}`,
-        ...assignments(instance.parameters, ["value"]),
-      ];
-      break;
-    case "inductor":
-      master = "inductor";
-      values = [
-        `l=${parameter(instance.parameters, "value")!}`,
-        ...assignments(instance.parameters, ["value"]),
-      ];
-      break;
-    case "voltage-source":
-      master = "vsource";
-      values = spectreSourceValues(instance);
-      break;
-    case "current-source":
-      master = "isource";
-      values = spectreSourceValues(instance);
-      break;
-    case "vcvs":
-    case "vccs":
-      master = instance.deviceClass;
-      values = [
-        `${instance.deviceClass === "vccs" ? "gm" : "gain"}=${parameter(instance.parameters, instance.deviceClass === "vccs" ? "gm" : "gain")!}`,
-      ];
-      break;
-    case "cccs":
-    case "ccvs":
-      master = instance.deviceClass;
-      values = [
-        `gain=${signedControlGain(parameter(instance.parameters, instance.deviceClass === "ccvs" ? "rm" : "gain")!, instance.controlCurrentSign, "spectre")}`,
-        `probe=${instance.controlSourceReference!}`,
-      ];
-      break;
-    case "mos":
-    case "diode":
-    case "bjt":
-    case "switch":
-    case "hierarchical":
-      master = instance.target!;
-      values = assignments(instance.parameters);
-      break;
-    case "net-marker":
-      return "";
-  }
-  return [prefix, master, ...values].join(" ");
 }
 
 /** The Spectre form of a drawn magnetic device's coupled windings. */
@@ -533,7 +250,11 @@ function spectreMagneticSubcircuit(
 
 function spectreCell(
   cell: DesignNetlistCell,
-  onInstance?: (instance: DesignNetlistInstance, offset: number) => void,
+  onInstance?: (
+    instance: DesignNetlistInstance,
+    offset: number,
+    card: ReturnType<typeof printInstanceCard>,
+  ) => void,
 ): string[] {
   const portNames = cell.ports.map((port) => port.name);
   const lines = [
@@ -554,11 +275,11 @@ function spectreCell(
   }
   let offset = lines.join("\n").length + 1;
   for (const instance of cell.instances) {
-    const line = spectreInstance(instance);
-    if (line) {
-      onInstance?.(instance, offset);
-      lines.push(line);
-      offset += line.length + 1;
+    const card = printInstanceCard(instance, "spectre", Boolean(onInstance));
+    if (card.text) {
+      onInstance?.(instance, offset, card);
+      lines.push(card.text);
+      offset += card.text.length + 1;
     }
   }
   lines.push(`ends ${cell.name}`);
@@ -571,12 +292,15 @@ function renderSpectre(
 ): {
   text: string;
   instances: PrintedNetlistInstance[];
+  fields: PrintedNetlistField[];
 } {
   const lines = [
     "// Generated by Analog Canvas netlist-export/1.0",
     "simulator lang=spectre",
   ];
   const instances: PrintedNetlistInstance[] = [];
+  const fields: PrintedNetlistField[] = [];
+  const locate = cardRecorder(ir, { instances, fields });
   const globals = ir.globals.filter((name) => name !== "0");
   if (globals.length) lines.push(`global ${globals.join(" ")}`);
   for (const definition of ir.generatedDefinitions ?? [])
@@ -594,20 +318,14 @@ function renderSpectre(
     const cellLines = spectreCell(
       cell,
       locations
-        ? (instance, relative) => {
-            instances.push({
-              documentId: cell.id,
-              instanceId: instance.id,
-              startOffset: offset + relative,
-              endOffset: offset + relative + spectreInstance(instance).length,
-            });
-          }
+        ? (instance, relative, card) =>
+            locate(cell, instance, offset + relative, card)
         : undefined,
     );
     lines.push("", ...cellLines);
     length += 2 + cellLines.join("\n").length;
   }
-  return { text: `${lines.join("\n")}\n`, instances };
+  return { text: `${lines.join("\n")}\n`, instances, fields };
 }
 
 export function printSpectreNetlist(ir: DesignNetlistIR): string {
@@ -631,113 +349,127 @@ export function printDesignNetlist(
       };
 }
 
-/** Locate the exact cards emitted by this printer, including continuation lines.
- * The IR owns the identities; duplicate References in different Cells are safe.
- * Called on the final export text so stripping the title cannot shift offsets.
- */
+/** Record a card at its final file offset. Compiler-owned targets stay locked. */
+function cardRecorder(
+  ir: DesignNetlistIR,
+  result: DesignNetlistLocations,
+  parameters?: PrintedNetlistParameter[],
+) {
+  const generated = new Set((ir.generatedDefinitions ?? []).map((d) => d.name));
+  const ownModels = new Map(
+    ir.cells.map((cell) => [
+      cell.id,
+      new Set(
+        (cell.models ?? []).filter((m) => !m.authoredName).map((m) => m.name),
+      ),
+    ]),
+  );
+  return (
+    cell: DesignNetlistCell,
+    instance: DesignNetlistInstance,
+    offset: number,
+    card: ReturnType<typeof printInstanceCard>,
+  ) => {
+    if (!card.text) return;
+    const owner = { documentId: cell.id, instanceId: instance.id };
+    result.instances.push({
+      ...owner,
+      startOffset: offset,
+      endOffset: offset + card.text.length,
+    });
+    const byParameter = new Map<string, PrintedNetlistParameter[]>();
+    for (const field of card.fields) {
+      const span = {
+        ...owner,
+        ...field,
+        startOffset: offset + field.startOffset,
+        endOffset: offset + field.endOffset,
+      };
+      if (
+        field.kind !== "target" ||
+        !(
+          generated.has(field.rawValue) ||
+          ownModels.get(cell.id)!.has(field.rawValue)
+        )
+      )
+        result.fields.push(span);
+      if (parameters && field.kind === "parameter") {
+        const parameter = {
+          ...owner,
+          parameter: field.parameter!,
+          rawValue: field.rawValue,
+          startOffset: span.startOffset,
+          endOffset: span.endOffset,
+        };
+        const existing = byParameter.get(parameter.parameter);
+        if (existing) existing.push(parameter);
+        else byParameter.set(parameter.parameter, [parameter]);
+      }
+    }
+    if (parameters)
+      for (const p of instance.parameters)
+        parameters.push(...(byParameter.get(p.name) ?? []));
+  };
+}
+
+/** Both dialects emit their text and field provenance in the same pass. */
+export function printDesignNetlistWithLocations(
+  format: NetlistFormat,
+  ir: DesignNetlistIR,
+): { file: NetlistFileDescriptor; locations: DesignNetlistLocations } {
+  const printed =
+    format === "spice" ? renderSpice(ir, false, true) : renderSpectre(ir, true);
+  return {
+    file: {
+      extension: format === "spice" ? ".spi" : ".scs",
+      mediaType:
+        format === "spice" ? "application/x-spice" : "application/x-spectre",
+      text: printed.text,
+    },
+    locations: {
+      instances: printed.instances,
+      fields: printed.fields.toSorted((a, b) => a.startOffset - b.startOffset),
+    },
+  };
+}
+
+/** Presentation adds/removes only a leading title; coordinates remain UTF-16
+ * string offsets, matching CodeMirror and every existing source consumer. */
+export function shiftDesignNetlistLocations(
+  locations: DesignNetlistLocations,
+  offset: number,
+): DesignNetlistLocations {
+  const shift = <T extends PrintedNetlistInstance>(span: T): T => ({
+    ...span,
+    startOffset: span.startOffset + offset,
+    endOffset: span.endOffset + offset,
+  });
+  return {
+    instances: locations.instances.map(shift),
+    fields: locations.fields.map(shift),
+  };
+}
+
+/** Compatibility entry for callers that already have presentation text. Main
+ * export/draft paths use the single-pass result directly, never reprint here. */
 export function locateDesignNetlist(
   format: NetlistFormat,
   ir: DesignNetlistIR,
   text: string,
 ): DesignNetlistLocations {
-  const result: DesignNetlistLocations = { instances: [], fields: [] };
-  const card = (instance: DesignNetlistInstance) =>
-    format === "spice"
-      ? spiceInstance(instance).join("\n")
-      : spectreInstance(instance);
-  const printed =
-    format === "spice" ? printSpiceWithLocations(ir) : renderSpectre(ir, true);
-  const strippedTitleLength = printed.text.length - text.length;
-  const offsets = new Map(
-    printed.instances.map((instance) => [
-      JSON.stringify([instance.documentId, instance.instanceId]),
-      instance.startOffset - strippedTitleLength,
-    ]),
+  const printed = printDesignNetlistWithLocations(format, ir);
+  const locations = shiftDesignNetlistLocations(
+    printed.locations,
+    text.length - printed.file.text.length,
   );
-  for (const cell of ir.cells) {
-    // A card the Cell prints itself, such as the ideal switch, is not a model
-    // binding anyone authored, so its name is not an editable field. Nor is
-    // the subcircuit a T-coil or transformer calls: the Symbol decides it.
-    // The generic diode's card stands in for a name a binding gave, which
-    // stays editable: naming another model there replaces the card.
-    const ownModels = new Set([
-      ...(cell.models ?? []).flatMap((model) =>
-        model.authoredName ? [] : [model.name],
-      ),
-      ...(ir.generatedDefinitions ?? []).map((definition) => definition.name),
-    ]);
-    for (const instance of cell.instances) {
-      const original = card(instance);
-      if (!original) continue;
-      const offset = offsets.get(JSON.stringify([cell.id, instance.id])) ?? -1;
-      if (
-        offset < 0 ||
-        text.slice(offset, offset + original.length) !== original
-      )
-        throw new Error("Printed design card is missing from its source");
-      const owner = { documentId: cell.id, instanceId: instance.id };
-      result.instances.push({
-        ...owner,
-        startOffset: offset,
-        endOffset: offset + original.length,
-      });
-      result.fields.push({
-        ...owner,
-        kind: "reference",
-        rawValue: instance.reference,
-        startOffset: offset,
-        endOffset: offset + instance.reference.length,
-      });
-      const locate = (
-        rawValue: string,
-        kind: "target" | "parameter",
-        replace: (marker: string) => DesignNetlistInstance,
-        parameter?: string,
-      ) => {
-        if (!rawValue) return;
-        const marker = "\ue000".repeat(rawValue.length);
-        let marked: string;
-        try {
-          marked = card(replace(marker));
-        } catch {
-          return;
-        }
-        if (marked.replaceAll(marker, rawValue) !== original) return;
-        for (
-          let at = marked.indexOf(marker);
-          at >= 0;
-          at = marked.indexOf(marker, at + marker.length)
-        ) {
-          result.fields.push({
-            ...owner,
-            kind,
-            rawValue,
-            ...(parameter ? { parameter } : {}),
-            startOffset: offset + at,
-            endOffset: offset + at + marker.length,
-          });
-        }
-      };
-      if (instance.target && !ownModels.has(instance.target))
-        locate(instance.target, "target", (target) => ({
-          ...instance,
-          target,
-        }));
-      for (const parameter of instance.parameters) {
-        locate(
-          parameter.rawValue,
-          "parameter",
-          (rawValue) => ({
-            ...instance,
-            parameters: instance.parameters.map((item) =>
-              item === parameter ? { ...item, rawValue } : item,
-            ),
-          }),
-          parameter.name,
-        );
-      }
-    }
+  for (const [index, span] of locations.instances.entries()) {
+    const before = printed.locations.instances[index]!;
+    if (
+      span.startOffset < 0 ||
+      text.slice(span.startOffset, span.endOffset) !==
+        printed.file.text.slice(before.startOffset, before.endOffset)
+    )
+      throw new Error("Printed design card is missing from its source");
   }
-  result.fields.sort((a, b) => a.startOffset - b.startOffset);
-  return result;
+  return locations;
 }

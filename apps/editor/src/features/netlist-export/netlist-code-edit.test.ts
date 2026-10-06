@@ -6,6 +6,7 @@ import {
   planNetlistCodeEdit,
   netlistInstanceAtLine,
   netlistInstanceRanges,
+  createNetlistCodeEditSession,
 } from "./netlist-code-edit";
 
 async function fixture(format: NetlistFormat) {
@@ -37,6 +38,126 @@ X1 A B leaf
   if (baseline.status !== "ready") throw new Error(JSON.stringify(baseline));
   return { project, baseline };
 }
+
+it("shares draft analysis across selection and apply, and fences a replacement snapshot", async () => {
+  const { project, baseline } = await fixture("spice");
+  const session = createNetlistCodeEditSession(project, baseline);
+  const draft = baseline.file.text.replace("10k", "33k");
+  const before = structuredClone(project);
+  const focused = session.analyze(draft);
+  expect(focused.ok).toBe(true);
+  expect(session.analyze(draft)).toBe(focused);
+  const plan = session.plan(draft);
+  if (!plan.ok || !focused.ok) throw new Error("Expected valid draft");
+  expect(plan.instances).toBe(focused.instances);
+  expect(plan).toEqual(planNetlistCodeEdit(project, baseline, draft));
+  expect(project).toEqual(before);
+  expect(session.analyze(draft.replace("33k", ""))).toMatchObject({
+    ok: false,
+  });
+  expect(session.plan(draft)).toEqual(plan);
+  const committed = executeProjectTransaction(project, {
+    transactionId: "session",
+    projectId: project.id,
+    expectedStructureRevision: project.structureRevision,
+    actor: { kind: "human", id: "test" },
+    edits: plan.edits,
+  });
+  if (!committed.ok) throw new Error(committed.error.message);
+  const next = createDesignNetlistExport(committed.project, {
+    format: "spice",
+    includeLocations: true,
+  });
+  if (next.status !== "ready") throw new Error(JSON.stringify(next));
+  expect(
+    createNetlistCodeEditSession(committed.project, next).plan(next.file.text),
+  ).toMatchObject({ ok: true, edits: [] });
+  const stale = executeProjectTransaction(committed.project, {
+    transactionId: "stale",
+    projectId: project.id,
+    expectedStructureRevision: project.structureRevision,
+    actor: { kind: "human", id: "test" },
+    edits: plan.edits,
+  });
+  expect(stale.ok).toBe(false);
+});
+
+it.each<NetlistFormat>(["spice", "spectre"])(
+  "edits a large %s netlist without compiling a document-wide regexp",
+  async (format) => {
+    const count = 600;
+    const imported = await importSpiceSources(
+      [
+        {
+          path: "large.spi",
+          bytes: new TextEncoder().encode(
+            [
+              ".model NMOS NMOS (level=1)",
+              ".subckt dut D G S B",
+              ...Array.from(
+                { length: count },
+                (_, i) => `M${i + 1} D G S B NMOS w=1u l=150n nf=1 m=1`,
+              ),
+              ".ends dut",
+            ].join("\n"),
+          ),
+        },
+      ],
+      "large.spi",
+    );
+    expect(imported.successful).toBe(true);
+    const project = imported.project!;
+    const baseline = createDesignNetlistExport(project, {
+      format,
+      includeLocations: true,
+    });
+    if (baseline.status !== "ready") throw new Error("Expected ready export");
+    expect(baseline.locations.instances).toHaveLength(count);
+    const last = baseline.locations.fields.find(
+      (field) =>
+        field.kind === "parameter" &&
+        field.parameter === "w" &&
+        field.instanceId === baseline.locations.instances.at(-1)!.instanceId,
+    )!;
+    const source =
+      baseline.file.text.slice(0, last.startOffset) +
+      "20u" +
+      baseline.file.text.slice(last.endOffset);
+    const before = structuredClone(project);
+    const plan = planNetlistCodeEdit(project, baseline, source);
+    if (!plan.ok) throw new Error(plan.message);
+    expect(plan.edits).toHaveLength(1);
+    expect(plan.edits[0]).toMatchObject({
+      kind: "transact_document",
+      edits: [
+        {
+          kind: "bulk_patch_instance_netlist",
+          assignments: [{ instanceId: last.instanceId, set: { w: "20u" } }],
+        },
+      ],
+    });
+    expect(
+      netlistInstanceAtLine(source, source.indexOf("w=20u"), plan.instances)
+        ?.instanceId,
+    ).toBe(last.instanceId);
+    expect(project).toEqual(before);
+    const result = executeProjectTransaction(project, {
+      transactionId: "large-netlist-edit",
+      projectId: project.id,
+      expectedStructureRevision: project.structureRevision,
+      actor: { kind: "human", id: "test" },
+      edits: plan.edits,
+    });
+    expect(result.ok).toBe(true);
+    expect(
+      planNetlistCodeEdit(
+        project,
+        baseline,
+        source.replace("D G S B", "D BAD S B"),
+      ).ok,
+    ).toBe(false);
+  },
+);
 
 it("maps wrapped SPICE parameter lines after title removal", async () => {
   const { project } = await fixture("spice");
@@ -105,6 +226,49 @@ it("finds where a Cell's selected parts are printed, not a namesake in another C
 describe.each<NetlistFormat>(["spice", "spectre"])(
   "%s netlist editing",
   (format) => {
+    it("retains expression edits and absolute card ranges with CRLF, blanks and indentation", async () => {
+      const { project, baseline } = await fixture(format);
+      const source =
+        "\r\n" +
+        baseline.file.text
+          .replace("10k", "{20k + 10k}")
+          .split("\n")
+          .map((line) => `\t${line}  `)
+          .join("\r\n\r\n") +
+        "\r\n";
+      const plan = planNetlistCodeEdit(project, baseline, source);
+      if (!plan.ok) throw new Error(plan.message);
+      expect(plan.edits).toMatchObject([
+        {
+          kind: "transact_document",
+          edits: [
+            {
+              kind: "bulk_patch_instance_netlist",
+              assignments: [{ set: { value: "{20k + 10k}" } }],
+            },
+          ],
+        },
+      ]);
+      expect(plan.instances).toHaveLength(baseline.locations.instances.length);
+      for (const range of plan.instances) {
+        const reference = project.documents
+          .find((d) => d.id === range.documentId)!
+          .instances.find((i) => i.id === range.instanceId)!.reference!;
+        expect(source.slice(range.startOffset)).toMatch(
+          new RegExp(`^${reference} `),
+        );
+        expect(
+          netlistInstanceAtLine(source, range.startOffset + 1, plan.instances),
+        ).toEqual(range);
+      }
+      expect(
+        planNetlistCodeEdit(
+          project,
+          baseline,
+          baseline.file.text.replace("10k", "10\nk"),
+        ).ok,
+      ).toBe(false);
+    });
     it("maps each printed card and cursor line to stable Cell/instance IDs", async () => {
       const { project, baseline } = await fixture(format);
       expect(baseline.locations.instances).toHaveLength(4);
@@ -304,5 +468,122 @@ it.each([
       `${authoredName.startsWith("X") ? "" : prefix}${authoredName} `,
     );
     expect(next.file.text).not.toContain("XXM_load");
+  },
+);
+
+it.each<NetlistFormat>(["spice", "spectre"])(
+  "round-trips reviewed geometry without changing units, expressions or authored keys (%s)",
+  async (format) => {
+    const { project } = await fixture(format);
+    const { planSetDeviceModelTarget } = await import("@icm/edit-engine");
+    const leaf = project.documents.find((d) => d.netlist?.name === "leaf")!;
+    const mos = leaf.instances.find((i) => i.reference === "M1")!;
+    const mapped = executeProjectTransaction(project, {
+      transactionId: "geometry-map",
+      projectId: project.id,
+      expectedStructureRevision: project.structureRevision,
+      actor: { kind: "human", id: "test" },
+      edits: planSetDeviceModelTarget(
+        project,
+        leaf.id,
+        mos.id,
+        "sky130_fd_pr__nfet_01v8",
+      ),
+    });
+    if (!mapped.ok) throw new Error(mapped.error.message);
+    // A printer-normalized parameter name must still write the authored key.
+    const owner = mapped.project.documents
+      .find((d) => d.id === leaf.id)!
+      .instances.find((i) => i.id === mos.id)!;
+    owner.netlist!.parameters.W = owner.netlist!.parameters.w!;
+    delete owner.netlist!.parameters.w;
+    const baseline = createDesignNetlistExport(mapped.project, {
+      format,
+      includeLocations: true,
+    });
+    if (baseline.status !== "ready") throw new Error(JSON.stringify(baseline));
+    const field = baseline.locations.fields.find(
+      (f) => f.instanceId === mos.id && f.parameter === "w",
+    )!;
+    for (const [typed, stored, printed] of [
+      ["2", "2u", "2"],
+      ["250n", "250n", "0.25"],
+      ["2 u", "2 u", "2"],
+      ["250 n", "250 n", "0.25"],
+      ["1e-3 m", "1e-3 m", "1"],
+      ["{WIDTH}", "{(WIDTH) * 1u}", "{WIDTH}"],
+    ]) {
+      const draft =
+        baseline.file.text.slice(0, field.startOffset) +
+        typed +
+        baseline.file.text.slice(field.endOffset);
+      const plan = planNetlistCodeEdit(mapped.project, baseline, draft);
+      if (!plan.ok) throw new Error(plan.message);
+      const result = executeProjectTransaction(mapped.project, {
+        transactionId: "geometry-edit",
+        projectId: project.id,
+        expectedStructureRevision: mapped.project.structureRevision,
+        actor: { kind: "human", id: "test" },
+        edits: plan.edits,
+      });
+      if (!result.ok) throw new Error(result.error.message);
+      const updated = result.project.documents
+        .find((d) => d.id === leaf.id)!
+        .instances.find((i) => i.id === mos.id)!;
+      expect(updated.netlist!.parameters.W).toBe(stored);
+      expect(updated.netlist!.parameters).not.toHaveProperty("w");
+      expect(updated.placement).toEqual(owner.placement);
+      const next = createDesignNetlistExport(result.project, {
+        format,
+        includeLocations: true,
+      });
+      if (next.status !== "ready") throw new Error(JSON.stringify(next));
+      expect(
+        next.locations.fields.find(
+          (f) => f.instanceId === mos.id && f.parameter === "w",
+        )!.rawValue,
+      ).toBe(printed);
+      expect(
+        planNetlistCodeEdit(result.project, next, next.file.text),
+      ).toMatchObject({ ok: true, edits: [] });
+    }
+    for (const invalid of ["2 q", "2 u m"]) {
+      const draft =
+        baseline.file.text.slice(0, field.startOffset) +
+        invalid +
+        baseline.file.text.slice(field.endOffset);
+      expect(planNetlistCodeEdit(mapped.project, baseline, draft).ok).toBe(
+        false,
+      );
+    }
+    for (const equivalent of ["1.0", "1u"]) {
+      const same =
+        baseline.file.text.slice(0, field.startOffset) +
+        equivalent +
+        baseline.file.text.slice(field.endOffset);
+      expect(planNetlistCodeEdit(mapped.project, baseline, same)).toMatchObject(
+        { ok: true, edits: [] },
+      );
+      const mixed = planNetlistCodeEdit(
+        mapped.project,
+        baseline,
+        same.replace("10k", "20k"),
+      );
+      if (!mixed.ok) throw new Error(mixed.message);
+      const applied = executeProjectTransaction(mapped.project, {
+        transactionId: "mixed-equivalent",
+        projectId: project.id,
+        expectedStructureRevision: mapped.project.structureRevision,
+        actor: { kind: "human", id: "test" },
+        edits: mixed.edits,
+      });
+      expect(applied.ok).toBe(true);
+      if (!applied.ok) throw new Error(applied.error.message);
+      expect(
+        applied.project.documents
+          .find((d) => d.id === leaf.id)!
+          .instances.find((i) => i.id === mos.id)!.netlist!.parameters.W,
+      ).toBe("1u");
+    }
   },
 );

@@ -11,6 +11,7 @@ import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 
 import {
+  createPlacementContactContext,
   placementWireSources,
   proposePlacementContact,
 } from "./instance-contact-planner.js";
@@ -188,6 +189,80 @@ function routeBetween(
 }
 
 describe("dropping a two-pin part over the end of a Wire", () => {
+  it("keeps exact terminal ownership when Instance and pin names contain colons", () => {
+    const custom = {
+      ...structuredClone(resolver.resolve("resistor")!.definition),
+      id: "colon-pin-resistor",
+      pins: resolver.resolve("resistor")!.definition.pins.map((pin) => ({
+        ...pin,
+        name: pin.name === "2" ? "1:2" : pin.name,
+      })),
+    };
+    const symbols = new InMemorySymbolResolver([...builtInSymbols, custom]);
+    const document = createEmptyDocument("main", "Main");
+    const first = resistor("R:1", { x: 0, y: 0 });
+    const second = { ...resistor("R", { x: 200, y: 0 }), symbolId: custom.id };
+    document.instances.push(first, second);
+    document.nets.push(
+      { id: "first", terminals: [{ instanceId: first.id, pinName: "2" }] },
+      { id: "second", terminals: [{ instanceId: second.id, pinName: "1:2" }] },
+      {
+        id: "later-claim",
+        terminals: [{ instanceId: second.id, pinName: "1:2" }],
+      },
+    );
+    const context = createPlacementContactContext(document, symbols);
+    const sources = placementWireSources(document, symbols, second, context);
+    expect(
+      sources.find(
+        (source) =>
+          source.endpoint.kind === "terminal" &&
+          source.endpoint.pinName === "1:2",
+      )?.netId,
+    ).toBe("second");
+    expect(sources).toEqual(placementWireSources(document, symbols, second));
+    expect(
+      placementWireSources(document, symbols, first, context).find(
+        (source) =>
+          source.endpoint.kind === "terminal" &&
+          source.endpoint.pinName === "2",
+      )?.netId,
+    ).toBe("first");
+  });
+  it("reads a replaced instance's new position, not the snapshot lookup", () => {
+    const document = wireEndingInATee();
+    const context = createPlacementContactContext(document, resolver);
+    const original = document.instances[0]!;
+    const moved = {
+      ...original,
+      placement: { ...original.placement!, position: { x: 200, y: 200 } },
+    };
+    expect(placementWireSources(document, resolver, original, context)).toEqual(
+      placementWireSources(document, resolver, original),
+    );
+    expect(placementWireSources(document, resolver, moved, context)).toEqual(
+      placementWireSources(document, resolver, moved),
+    );
+    const placed = resistor("R1", { x: 0, y: 20 });
+    const targets = dropTargets(document, placed);
+    expect(
+      proposePlacementContact(document, resolver, placed, targets, { context }),
+    ).toEqual(proposePlacementContact(document, resolver, placed, targets));
+    expect(() =>
+      proposePlacementContact(
+        structuredClone(document),
+        resolver,
+        placed,
+        targets,
+        { context },
+      ),
+    ).toThrow("different snapshot");
+    document.revision++;
+    expect(() =>
+      placementWireSources(document, resolver, original, context),
+    ).toThrow("different snapshot");
+  });
+
   it("puts it in series when one pin lands inside the Wire and the other on the T-Junction that ends it", () => {
     const document = wireEndingInATee();
     // Pin 1 at (0,60) inside the stem, pin 2 at (0,100) on the Junction.

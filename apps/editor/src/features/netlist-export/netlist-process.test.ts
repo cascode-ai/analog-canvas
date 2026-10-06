@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import * as engine from "@icm/edit-engine";
 import {
   createEmptyProject,
   createSimulationFolder,
@@ -22,6 +23,7 @@ import {
 } from "./netlist-process-presets";
 import {
   planNetlistProcess,
+  prepareNetlistProcess,
   inferNetlistProcess,
   instanceModelTarget,
   netlistProcessPendingInstances,
@@ -60,6 +62,56 @@ function exported(
 }
 
 describe("what the process still owes a circuit", () => {
+  it("prepares many devices with one complete validation, preserving the exact Fill plan", () => {
+    const project = createEmptyProject(
+      "dense-preparation",
+      "Dense preparation",
+    );
+    for (let index = 0; index < 120; index++)
+      project.documents[0]!.instances.push({
+        id: `M${index + 1}`,
+        reference: `M${index + 1}`,
+        symbolId: "nmos",
+        placement: null,
+        netlist: { parameters: { w: "7u", l: "240n", m: "4" } },
+      });
+    const before = structuredClone(project);
+    const execute = vi.spyOn(engine, "executeProjectTransaction");
+    try {
+      const prepared = prepareNetlistProcess(
+        project,
+        createNetlistExportProfile("tsmc28"),
+        { onlyMissing: true },
+      );
+      expect(execute).toHaveBeenCalledTimes(1);
+      expect(prepared.instanceCount).toBe(120);
+      expect(project).toEqual(before);
+      const result = executeProjectTransaction(project, {
+        transactionId: "prepared-fill",
+        projectId: project.id,
+        expectedStructureRevision: project.structureRevision,
+        actor: { kind: "human", id: "test" },
+        edits: prepared.edits,
+      });
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      for (const instance of result.project.documents[0]!.instances)
+        expect(instance.netlist!.parameters).toMatchObject({
+          w: "7u",
+          l: "240n",
+          multi: "4",
+        });
+      expect(
+        prepareNetlistProcess(
+          result.project,
+          createNetlistExportProfile("tsmc28"),
+          { onlyMissing: true },
+        ),
+      ).toEqual({ edits: [], instanceCount: 0 });
+    } finally {
+      execute.mockRestore();
+    }
+  });
   function twoBareDevices(): CircuitProject {
     const project = createEmptyProject("bare", "Bare");
     project.documents[0]!.instances.push(

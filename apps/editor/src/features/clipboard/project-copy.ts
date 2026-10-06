@@ -46,7 +46,10 @@ import {
   type SchematicClipboard,
 } from "./clipboard";
 
-import { planInsertedInstanceConnections } from "../component-insert/placement-connectivity";
+import {
+  createInsertedInstanceConnectionContext,
+  planInsertedInstanceConnections,
+} from "../component-insert/placement-connectivity";
 import type { NetLabelPlacementTarget } from "../wiring/route-interaction-geometry";
 import {
   copiedNetLabelAttachmentEdits,
@@ -977,6 +980,8 @@ export function planProjectCopyPlacement(
         nets: { ...objectMapping.nets, [copiedLabel.netId]: route.netId },
       };
     }
+    let connectionContext:
+      ReturnType<typeof createInsertedInstanceConnectionContext> | undefined;
     for (const id of proposal.instanceIds) {
       const instance = projected.instances.find(
         (candidate) => candidate.id === id,
@@ -989,7 +994,15 @@ export function planProjectCopyPlacement(
         prepared.resolver,
         instance,
         undefined,
-        { existing: document },
+        {
+          existing: document,
+          context: (connectionContext ??=
+            createInsertedInstanceConnectionContext(
+              projected,
+              prepared.resolver,
+              document,
+            )),
+        },
       );
       if (!connections.edits.length) continue;
       // Contact planning reads canonical endpoint bonds after insertion. Keep
@@ -1013,6 +1026,9 @@ export function planProjectCopyPlacement(
       );
       if (!result.ok) throw new Error(result.error.message);
       projected = result.document;
+      // Every accepted contact can change pin visibility, owners and Route
+      // segment identities. No read context crosses this transaction boundary.
+      connectionContext = undefined;
       edits.push(step);
     }
   }

@@ -11,6 +11,10 @@ import {
   BROWSER_PERFORMANCE_COUNTS,
   createBrowserPerformanceProject,
 } from "./performance-fixture.js";
+import {
+  createDenseCopyPerformanceProject,
+  DENSE_COPY_COUNTS,
+} from "../src/features/clipboard/test-support/dense-copy-fixture.js";
 
 /**
  * Browser-side latency harness for the editor.
@@ -55,6 +59,178 @@ test.describe("editor latency on a large Project", () => {
 
   test.afterAll(async () => {
     await server?.close();
+  });
+
+  test("records copy-to-ghost and drop-to-next-ghost on a dense Project", async ({
+    page,
+  }) => {
+    test.setTimeout(180_000);
+    await page.setViewportSize({ width: 1600, height: 1000 });
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    await page.addInitScript(() => {
+      const state = {
+        tasks: [] as { start: number; duration: number }[],
+        events: [] as { kind: string; start: number }[],
+      };
+      (window as unknown as { __copyPerf: typeof state }).__copyPerf = state;
+      new PerformanceObserver((list) => {
+        for (const entry of list.getEntries())
+          state.tasks.push({
+            start: entry.startTime,
+            duration: entry.duration,
+          });
+      }).observe({ entryTypes: ["longtask"] });
+      for (const kind of ["keydown", "pointerdown"])
+        window.addEventListener(
+          kind,
+          () => state.events.push({ kind, start: performance.now() }),
+          true,
+        );
+    });
+    const projectPath = process.env.ICM_PERF_PROJECT;
+    const bytes = projectPath
+      ? readFileSync(projectPath)
+      : Buffer.from(JSON.stringify(createDenseCopyPerformanceProject()));
+    await page.goto(`${origin}editor`);
+    await page.getByTestId("project-file").setInputFiles({
+      name: "copy-performance.icproj.json",
+      mimeType: "application/json",
+      buffer: bytes,
+    });
+    await awaitEditorReady(page);
+    const netlist = page.getByTestId("netlist-panel-toggle");
+    if ((await netlist.getAttribute("aria-pressed")) === "true")
+      await netlist.click();
+    const hits = page.locator('[data-canvas-hit-kind="instance"]');
+    const originalCount = await hits.count();
+    if (!projectPath) expect(originalCount).toBe(DENSE_COPY_COUNTS.instances);
+    process.stdout.write(`\ncopy fixture loaded: ${originalCount} instances\n`);
+    await page.waitForTimeout(1000);
+    const painted = () =>
+      page.evaluate(
+        () =>
+          new Promise<number>((resolve) =>
+            requestAnimationFrame(() =>
+              requestAnimationFrame(() => resolve(performance.now())),
+            ),
+          ),
+      );
+    const samples = Number(process.env.ICM_PERF_COPY_SAMPLES ?? "5");
+    if (!Number.isInteger(samples) || samples < 2)
+      throw new Error("ICM_PERF_COPY_SAMPLES must include cold + warm samples");
+    const measurements: {
+      ghostMs: number;
+      dropMs: number;
+      tasks: { start: number; duration: number }[];
+    }[] = [];
+    for (let sample = 0; sample < samples; sample++) {
+      // Selection setup is outside measurement. At Fit scale these artificial
+      // shorted tiles' Wire/flightline hit areas cover the bodies; the ordinary
+      // copy gesture specs own physical hit-testing. Dispatch the existing
+      // selection handler, then measure real keyboard and pointer input.
+      await hits.first().dispatchEvent("click");
+      await expect(hits.first()).toHaveClass(/selected/);
+      await page.getByTestId("schematic-canvas").focus();
+      const points = await page.evaluate(() => {
+        const r = document
+          .querySelector('[data-testid="schematic-canvas"]')!
+          .getBoundingClientRect();
+        let drop: { x: number; y: number } | undefined;
+        for (const fx of [0.85, 0.65, 0.45, 0.3, 0.1])
+          for (const fy of [0.85, 0.75, 0.55, 0.1]) {
+            const x = r.x + r.width * fx,
+              y = r.y + r.height * fy;
+            const el = document.elementFromPoint(x, y);
+            if (
+              !drop &&
+              el?.closest('[data-testid="schematic-canvas"]') &&
+              !el.closest("[data-canvas-hit-kind]")
+            )
+              drop = { x, y };
+          }
+        return { drop };
+      });
+      if (!points.drop)
+        throw new Error(`No unoccluded drop point: ${JSON.stringify(points)}`);
+      // The ghost is pointer-local; keyboard focus alone does not establish a
+      // canvas pointer position after file import.
+      await page.mouse.move(points.drop.x, points.drop.y);
+      await painted();
+      const start = await painted();
+      await page.keyboard.press("c");
+      await expect(page.getByTestId("copy-placement-preview")).toBeVisible();
+      const ghost = await painted();
+      await page.mouse.move(points.drop.x, points.drop.y);
+      await painted();
+      const beforeDrop = await painted();
+      await page.mouse.click(points.drop.x, points.drop.y);
+      await expect(hits).toHaveCount(originalCount + 1);
+      await expect(page.getByTestId("copy-placement-preview")).toBeVisible();
+      const end = await painted();
+      measurements.push(
+        await page.evaluate(
+          ({ start, ghost, beforeDrop, end }) => {
+            const state = (
+              window as unknown as {
+                __copyPerf: {
+                  tasks: { start: number; duration: number }[];
+                  events: { kind: string; start: number }[];
+                };
+              }
+            ).__copyPerf;
+            const event = (kind: string, from: number) =>
+              state.events.find(
+                (event) => event.kind === kind && event.start >= from,
+              )!.start;
+            return {
+              ghostMs: ghost - event("keydown", start),
+              dropMs: end - event("pointerdown", beforeDrop),
+              tasks: state.tasks.filter(
+                (task) => task.start >= start && task.start <= end,
+              ),
+            };
+          },
+          { start, ghost, beforeDrop, end },
+        ),
+      );
+      await page.keyboard.press("Escape");
+      await page.keyboard.press("ControlOrMeta+z");
+      await expect(hits).toHaveCount(originalCount);
+      process.stdout.write(`copy sample ${sample + 1}/${samples} complete\n`);
+    }
+    expect(errors).toEqual([]);
+    const warm = measurements.slice(1);
+    const quantile = (key: "ghostMs" | "dropMs", fraction: number) => {
+      const sorted = warm.map((item) => item[key]).sort((a, b) => a - b);
+      return sorted[Math.max(0, Math.ceil(sorted.length * fraction) - 1)];
+    };
+    const report = {
+      commit: execFileSync("git", ["rev-parse", "HEAD"], {
+        encoding: "utf8",
+      }).trim(),
+      browser: page.context().browser()?.version(),
+      viewport: page.viewportSize(),
+      source: projectPath ? basename(projectPath) : DENSE_COPY_COUNTS,
+      originalCount,
+      measurements,
+      summary: {
+        ghostMedianMs: quantile("ghostMs", 0.5),
+        ghostP95Ms: quantile("ghostMs", 0.95),
+        dropMedianMs: quantile("dropMs", 0.5),
+        dropP95Ms: quantile("dropMs", 0.95),
+      },
+      note: "Production build; input-to-double-rAF includes assertion polling and the next copy ghost. Undo restores object count each sample; revisions/sequence advance. No timing gate or payload hashing.",
+    };
+    const dir = resolve(process.cwd(), "output/performance");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      resolve(dir, `editor-copy-${Date.now()}.json`),
+      JSON.stringify(report, null, 2),
+    );
+    process.stdout.write(
+      `\ncopy latency\n${JSON.stringify(report, null, 2)}\n`,
+    );
   });
 
   test("records pan and drag frame cost", async ({ page }) => {

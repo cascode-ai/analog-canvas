@@ -10,6 +10,7 @@ export {
 } from "@icm/edit-engine";
 
 import {
+  createPlacementContactContext,
   powerConnectionForSymbol,
   placementWireSources,
   proposePlacementContact,
@@ -29,6 +30,84 @@ import { planInitialMosBulkDefault } from "./mos-bulk-defaults";
 import { vddPowerLabelAnnotation } from "./vdd-power-label";
 import { razaviManualBulkConnectionEdits } from "../../presentation/razavi-presentation";
 
+/** Shared reads for one immutable insertion snapshot, not a persistent cache. */
+export function createInsertedInstanceConnectionContext(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  existing?: SchematicDocument,
+) {
+  const contactContext = createPlacementContactContext(document, resolver);
+  const existingInstances = existing
+    ? new Set(existing.instances.map((item) => item.id))
+    : null;
+  const existingJunctions = existing
+    ? new Set(existing.junctions.map((item) => item.id))
+    : null;
+  let endpoints: readonly WireSource[] | undefined;
+  let bulkEdits: SchematicEdit[] | undefined;
+  return {
+    existing,
+    contactContext,
+    routeIds: existing
+      ? new Set(existing.routes.map((route) => route.id))
+      : undefined,
+    get bulkEdits(): SchematicEdit[] {
+      bulkEdits ??= razaviManualBulkConnectionEdits(
+        document,
+        document.instances,
+        contactContext.logicalNets,
+      );
+      return structuredClone(bulkEdits);
+    },
+    get endpoints(): readonly WireSource[] {
+      return (endpoints ??= [
+        ...document.instances
+          .filter(
+            (candidate) =>
+              !existingInstances || existingInstances.has(candidate.id),
+          )
+          .flatMap((candidate) =>
+            placementWireSources(document, resolver, candidate, contactContext),
+          ),
+        ...document.junctions
+          .filter(
+            (junction) =>
+              (!junction.role ||
+                junction.role === "branch" ||
+                junction.role === "route-anchor") &&
+              (!existingJunctions || existingJunctions.has(junction.id)),
+          )
+          .flatMap((junction) => {
+            const endpoint = {
+              kind: "junction" as const,
+              junctionId: junction.id,
+            };
+            const connection = resolveEndpointConnection(
+              document,
+              resolver,
+              endpoint,
+              contactContext.lookup,
+            );
+            return connection
+              ? [
+                  {
+                    endpoint,
+                    connection,
+                    netId: junction.netId,
+                    preludeEdits: [],
+                  },
+                ]
+              : [];
+          }),
+      ]);
+    },
+  };
+}
+
+type InsertedInstanceConnectionContext = ReturnType<
+  typeof createInsertedInstanceConnectionContext
+>;
+
 /** Fresh Insert and Copy drops establish connections from the destination only. */
 export function planInsertedInstanceConnections(
   document: SchematicDocument,
@@ -40,45 +119,25 @@ export function planInsertedInstanceConnections(
    * are all a pasted part may contact; how the pasted parts join one another
    * is what the copy carried, not where their drawings touch.
    */
-  options: { existing?: SchematicDocument } = {},
+  options: {
+    existing?: SchematicDocument;
+    context?: InsertedInstanceConnectionContext;
+  } = {},
 ) {
   const existing = options.existing;
-  const existingInstances = existing
-    ? new Set(existing.instances.map((item) => item.id))
-    : null;
-  const existingJunctions = existing
-    ? new Set(existing.junctions.map((item) => item.id))
-    : null;
-  const endpoints = visibleEndpoints ?? [
-    ...document.instances
-      .filter(
-        (candidate) =>
-          candidate.id !== instance.id &&
-          (!existingInstances || existingInstances.has(candidate.id)),
-      )
-      .flatMap((candidate) =>
-        placementWireSources(document, resolver, candidate),
-      ),
-    ...document.junctions
-      .filter(
-        (junction) =>
-          (!junction.role ||
-            junction.role === "branch" ||
-            junction.role === "route-anchor") &&
-          (!existingJunctions || existingJunctions.has(junction.id)),
-      )
-      .flatMap((junction) => {
-        const endpoint = { kind: "junction" as const, junctionId: junction.id };
-        const connection = resolveEndpointConnection(
-          document,
-          resolver,
-          endpoint,
-        );
-        return connection
-          ? [{ endpoint, connection, netId: junction.netId, preludeEdits: [] }]
-          : [];
-      }),
-  ];
+  const context =
+    options.context ??
+    createInsertedInstanceConnectionContext(document, resolver, existing);
+  context.contactContext.assertSnapshot(document, resolver);
+  if (context.existing !== existing)
+    throw new Error("Insertion context belongs to a different destination");
+  const endpoints =
+    visibleEndpoints ??
+    context.endpoints.filter(
+      (source) =>
+        source.endpoint.kind !== "terminal" ||
+        source.endpoint.instanceId !== instance.id,
+    );
   // A formal Cell Pin is named by its Cell terminal, never by a supply claim.
   const cellPin = document.netlist?.terminals.some((terminal) =>
     terminal.interfaceInstanceIds.includes(instance.id),
@@ -89,10 +148,9 @@ export function planInsertedInstanceConnections(
     instance,
     endpoints,
     {
+      context: context.contactContext,
       ...(cellPin ? { powerMarker: false } : {}),
-      ...(existing
-        ? { routeIds: new Set(existing.routes.map((route) => route.id)) }
-        : {}),
+      ...(context.routeIds ? { routeIds: context.routeIds } : {}),
     },
   );
   if (contact.ambiguous) {
@@ -134,7 +192,7 @@ export function planInsertedInstanceConnections(
   const unnamedCopy =
     existingPowerNet !== undefined &&
     !contact.matched &&
-    !resolveDocumentLogicalNets(document).byBaseNetId.get(existingPowerNet.id)
+    !context.contactContext.logicalNets.byBaseNetId.get(existingPowerNet.id)
       ?.name;
   // A pasted marker reads as its source did: the copy carries its label if
   // the source showed one, and adds none the source did not show.
@@ -152,22 +210,21 @@ export function planInsertedInstanceConnections(
           grid: document.presentation.grid,
           // An existing supply keeps its name; a fresh marker claims its own.
           name:
-            resolveDocumentLogicalNets(document).byBaseNetId.get(powerNetId)
+            context.contactContext.logicalNets.byBaseNetId.get(powerNetId)
               ?.name ??
             supplyMarkerForSymbol(instance.symbolId)?.name ??
             "VDD",
         })
       : null;
-  const projectedDocument = structuredClone(document);
-  if (
-    !projectedDocument.instances.some(
-      (candidate) => candidate.id === instance.id,
-    )
+  const instances = document.instances.some(
+    (candidate) => candidate.id === instance.id,
   )
-    projectedDocument.instances.push(instance);
+    ? document.instances
+    : [...document.instances, instance];
+  const addedNets: SchematicDocument["nets"] = [];
   for (const edit of [...contact.edits, ...standalonePower.edits]) {
     if (edit.kind !== "connect_endpoints" || !edit.newNetId) continue;
-    projectedDocument.nets.push({
+    addedNets.push({
       id: edit.newNetId,
       terminals: [edit.from, edit.to]
         .filter(
@@ -187,14 +244,23 @@ export function planInsertedInstanceConnections(
         ),
     });
   }
+  // Read-only overlay for bulk policy. Mutable consumers still receive an
+  // isolated Document below; copy planning only reads the resulting edits.
+  const projection =
+    instances === document.instances && addedNets.length === 0
+      ? document
+      : { ...document, instances, nets: [...document.nets, ...addedNets] };
   const edits: SchematicEdit[] = [
     ...contact.edits,
     ...standalonePower.edits,
     ...initialBulkDefaultEdits,
-    ...razaviManualBulkConnectionEdits(
-      projectedDocument,
-      projectedDocument.instances,
-    ),
+    ...(projection === document
+      ? context.bulkEdits
+      : razaviManualBulkConnectionEdits(
+          projection,
+          projection.instances,
+          resolveDocumentLogicalNets(projection),
+        )),
     ...(vddPowerLabel &&
     !document.annotations.some(
       (annotation) =>
@@ -210,5 +276,12 @@ export function planInsertedInstanceConnections(
         ]
       : []),
   ];
-  return { edits, contact, projectedDocument };
+  let projectedDocument: SchematicDocument | undefined;
+  return {
+    edits,
+    contact,
+    get projectedDocument(): SchematicDocument {
+      return (projectedDocument ??= structuredClone(projection));
+    },
+  };
 }

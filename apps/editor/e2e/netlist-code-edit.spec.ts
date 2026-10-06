@@ -64,6 +64,82 @@ function fixture() {
 const label = (page: import("@playwright/test").Page) =>
   page.locator('[data-layer="annotations"] [data-object-id="label-R1"]');
 
+test("large live netlist stays editable through format changes, apply and undo", async ({
+  page,
+}) => {
+  const { importSpiceSources } = await import("@icm/spice");
+  const { createDesignNetlistExport } = await import("@icm/netlist");
+  const imported = await importSpiceSources(
+    [
+      {
+        path: "large.spi",
+        bytes: new TextEncoder().encode(
+          [
+            ".model NMOS NMOS (level=1)",
+            ".subckt dut D G S B",
+            ...Array.from(
+              { length: 600 },
+              (_, i) => `M${i + 1} D G S B NMOS w=1u l=150n nf=1 m=1`,
+            ),
+            ".ends dut",
+          ].join("\n"),
+        ),
+      },
+    ],
+    "large.spi",
+  );
+  expect(imported.successful).toBe(true);
+  const project = imported.project!;
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  await page.getByTestId("project-file").setInputFiles({
+    name: "large-netlist.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  const code = page.getByLabel("Netlist code", { exact: true });
+  await expect(code).toBeVisible();
+  await page
+    .getByLabel("Netlist format", { exact: true })
+    .selectOption("spectre");
+  await expect(code).toContainText("simulator lang=spectre");
+  const baseline = createDesignNetlistExport(project, {
+    format: "spectre",
+    includeLocations: true,
+  });
+  if (baseline.status !== "ready") throw new Error("Expected ready netlist");
+  const last = baseline.locations.fields.find(
+    (field) =>
+      field.instanceId === baseline.locations.instances.at(-1)!.instanceId &&
+      field.kind === "parameter" &&
+      field.parameter === "w",
+  )!;
+  await code.fill(
+    baseline.file.text.slice(0, last.startOffset) +
+      "20u" +
+      baseline.file.text.slice(last.endOffset),
+  );
+  await code.press("Enter");
+  const saved = parseSavedProject(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(),
+  );
+  const value = (savedProject: typeof saved) =>
+    savedProject.documents
+      .find((d: { id: string }) => d.id === last.documentId)!
+      .instances.find((i: { id: string }) => i.id === last.instanceId)!.netlist
+      .parameters.w;
+  expect(value(saved)).toBe("20u");
+  await page.getByTestId("draw-tool-undo").click();
+  const undone = parseSavedProject(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(),
+  );
+  expect(value(undone)).toBe("1u");
+  await expect(page.getByTestId("schematic-canvas")).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
 async function choosePropertyPreview(
   page: import("@playwright/test").Page,
   label: string,
@@ -77,6 +153,86 @@ async function choosePropertyPreview(
     .getByRole("option", { name: option })
     .click();
 }
+
+test("reviewed W/L edits preserve micrometre meaning in both live formats and undo", async ({
+  page,
+}) => {
+  const { importSpiceSources } = await import("@icm/spice");
+  const { createDesignNetlistExport } = await import("@icm/netlist");
+  const { executeProjectTransaction, planSetDeviceModelTarget } =
+    await import("@icm/edit-engine");
+  const imported = await importSpiceSources(
+    [
+      {
+        path: "geometry.spi",
+        bytes: new TextEncoder().encode(
+          ".model NMOS NMOS (level=1)\n.subckt dut D G S B\nM1 D G S B NMOS w=1u l=150n\n.ends dut\n",
+        ),
+      },
+    ],
+    "geometry.spi",
+  );
+  if (!imported.project) throw new Error(JSON.stringify(imported.diagnostics));
+  const initial = imported.project;
+  const doc = initial.documents.find((d) =>
+    d.instances.some((i) => i.reference === "M1"),
+  )!;
+  const mos = doc.instances.find((i) => i.reference === "M1")!;
+  const mapped = executeProjectTransaction(initial, {
+    transactionId: "map",
+    projectId: initial.id,
+    expectedStructureRevision: initial.structureRevision,
+    actor: { kind: "human", id: "test" },
+    edits: planSetDeviceModelTarget(
+      initial,
+      doc.id,
+      mos.id,
+      "sky130_fd_pr__nfet_01v8",
+    ),
+  });
+  if (!mapped.ok) throw new Error(mapped.error.message);
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  await page.getByTestId("project-file").setInputFiles({
+    name: "geometry.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(mapped.project)),
+  });
+  const code = page.getByLabel("Netlist code", { exact: true });
+  for (const format of ["spice", "spectre"] as const) {
+    await page
+      .getByLabel("Netlist format", { exact: true })
+      .selectOption(format);
+    const baseline = createDesignNetlistExport(mapped.project, {
+      format,
+      includeLocations: true,
+    });
+    if (baseline.status !== "ready") throw new Error(JSON.stringify(baseline));
+    const field = baseline.locations.fields.find(
+      (f) => f.instanceId === mos.id && f.parameter === "w",
+    )!;
+    await expect(code).toContainText("w=1");
+    await code.fill(
+      baseline.file.text.slice(0, field.startOffset) +
+        "2" +
+        baseline.file.text.slice(field.endOffset),
+    );
+    await code.press("Enter");
+    const saved = parseSavedProject(
+      (await downloadBytes(page, "File", "Export Project File…")).toString(),
+    );
+    expect(
+      saved.documents
+        .find((d: { id: string }) => d.id === doc.id)!
+        .instances.find((i: { id: string }) => i.id === mos.id)!.netlist
+        .parameters.w,
+    ).toBe("2u");
+    await expect(code).toContainText("w=2");
+    await expect(code).not.toContainText("2000000");
+    await page.getByTestId("draw-tool-undo").click();
+    await expect(code).toContainText("w=1");
+  }
+});
 
 async function expectPropertyPreviewSelected(
   page: import("@playwright/test").Page,

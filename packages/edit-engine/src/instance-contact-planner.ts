@@ -17,6 +17,8 @@ import type { ExpectedElectricalEffect } from "./routing-operation-plan.js";
 import type { SchematicEdit } from "./edit-schema.js";
 import { deviceDescriptor } from "@icm/devices";
 import {
+  buildDocumentSpatialIndex,
+  createElectricalContactResolver,
   endpointKey,
   isVisibleEndpoint,
   isMosBulkTerminal,
@@ -24,13 +26,16 @@ import {
   resolveDocumentLogicalNets,
   resolveEndpointConnection,
   resolveDocumentRoutingGeometry,
-  resolveElectricalContactTargets,
   supplyMarkerForSymbol,
 } from "@icm/derived";
 import type {
   ElectricalContactCandidate,
   ElectricalContactTarget,
   SupplyMarker,
+  EndpointObjectLookup,
+  ResolvedDocumentLogicalNets,
+  ResolvedDocumentRoutingGeometry,
+  DocumentSpatialIndex,
 } from "@icm/derived";
 import { deriveStableId, routeEndpoints } from "@icm/model";
 import type { Instance, RouteEndpoint, SchematicDocument } from "@icm/model";
@@ -55,6 +60,79 @@ export interface PlacementContactProposal {
   netId?: string;
   expectedElectricalEffect?: ExpectedElectricalEffect;
 }
+
+/** Local read context only; discard after ANY edit or resolver change. */
+export function createPlacementContactContext(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+) {
+  const revision = document.revision;
+  let logicalNets: ResolvedDocumentLogicalNets | undefined;
+  let geometry: ResolvedDocumentRoutingGeometry | undefined;
+  let index: DocumentSpatialIndex | undefined;
+  const lookup: EndpointObjectLookup = {
+    instancesById: new Map(document.instances.map((item) => [item.id, item])),
+    junctionsById: new Map(document.junctions.map((item) => [item.id, item])),
+    get logicalNets() {
+      return (logicalNets ??= resolveDocumentLogicalNets(document));
+    },
+  };
+  // Match the previous field-by-field search exactly: a display-style endpoint
+  // key can alias ("R:1", "2") with ("R", "1:2").
+  const netsByInstance = new Map<string, Map<string, string>>();
+  for (const net of document.nets)
+    for (const terminal of net.terminals) {
+      let pins = netsByInstance.get(terminal.instanceId);
+      if (!pins) {
+        pins = new Map();
+        netsByInstance.set(terminal.instanceId, pins);
+      }
+      if (!pins.has(terminal.pinName)) pins.set(terminal.pinName, net.id);
+    }
+  const routingGeometry = () =>
+    (geometry ??= resolveDocumentRoutingGeometry(document, resolver));
+  return {
+    document,
+    resolver,
+    assertSnapshot(
+      current: SchematicDocument,
+      currentResolver: SymbolResolver,
+    ) {
+      if (
+        current !== document ||
+        currentResolver !== resolver ||
+        current.revision !== revision
+      )
+        throw new Error(
+          "Placement contact context belongs to a different snapshot",
+        );
+    },
+    lookup,
+    netForTerminal(endpoint: Extract<RouteEndpoint, { kind: "terminal" }>) {
+      return netsByInstance.get(endpoint.instanceId)?.get(endpoint.pinName);
+    },
+    routesById: new Map(document.routes.map((route) => [route.id, route])),
+    get logicalNets() {
+      return lookup.logicalNets!;
+    },
+    get routingGeometry() {
+      return routingGeometry();
+    },
+    get spatialIndex() {
+      return (index ??= buildDocumentSpatialIndex(document, routingGeometry()));
+    },
+    resolveContacts: createElectricalContactResolver(
+      document,
+      resolver,
+      undefined,
+      routingGeometry,
+    ),
+  };
+}
+
+export type PlacementContactContext = ReturnType<
+  typeof createPlacementContactContext
+>;
 
 function standalonePowerNetId(
   document: SchematicDocument,
@@ -86,20 +164,31 @@ export function placementWireSources(
   document: SchematicDocument,
   resolver: SymbolResolver,
   instance: Instance,
+  context?: PlacementContactContext,
 ): readonly WireSource[] {
+  context?.assertSnapshot(document, resolver);
   if (!instance.placement) return [];
   const resolved = resolver.resolve(
     instance.symbolId,
     instance.symbolVariantId,
   );
   if (!resolved) return [];
-  const placedDocument = {
-    ...document,
-    instances: [
-      ...document.instances.filter((candidate) => candidate.id !== instance.id),
-      instance,
-    ],
-  };
+  const alreadyPlaced = context
+    ? context.lookup.instancesById.get(instance.id) === instance
+    : document.instances.includes(instance);
+  const placedDocument = alreadyPlaced
+    ? document
+    : {
+        ...document,
+        instances: [
+          ...document.instances.filter(
+            (candidate) => candidate.id !== instance.id,
+          ),
+          instance,
+        ],
+      };
+  // A moved/replaced instance must not use a lookup of its old placement.
+  const lookup = alreadyPlaced ? context?.lookup : undefined;
   return resolved.definition.pins.flatMap((pin): WireSource[] => {
     const endpoint = {
       kind: "terminal" as const,
@@ -110,17 +199,22 @@ export function placementWireSources(
       placedDocument,
       resolver,
       endpoint,
+      lookup,
     );
-    return connection && isVisibleEndpoint(placedDocument, resolver, endpoint)
+    return connection &&
+      isVisibleEndpoint(placedDocument, resolver, endpoint, lookup)
       ? [
           {
             endpoint,
             netId:
-              document.nets.find((n) =>
-                n.terminals.some(
-                  (t) => t.instanceId === instance.id && t.pinName === pin.name,
-                ),
-              )?.id ?? null,
+              (context
+                ? context.netForTerminal(endpoint)
+                : document.nets.find((n) =>
+                    n.terminals.some(
+                      (t) =>
+                        t.instanceId === instance.id && t.pinName === pin.name,
+                    ),
+                  )?.id) ?? null,
             connection,
             preludeEdits: [],
             ...(isMosBulkTerminal(placedDocument, endpoint)
@@ -258,13 +352,19 @@ export function proposePlacementContact(
     powerMarker?: boolean;
     /** The only Wires a pin may land on; every Wire when omitted. */
     routeIds?: ReadonlySet<string>;
+    /** Only for the immutable Document passed to this call, never a draft. */
+    context?: PlacementContactContext;
   } = {},
 ): PlacementContactProposal {
   const contacts: PlacementContact[] = [];
   let ambiguous = false;
-  const routingGeometry = resolveDocumentRoutingGeometry(document, resolver);
+  const context =
+    options.context ?? createPlacementContactContext(document, resolver);
+  context.assertSnapshot(document, resolver);
+  const routingGeometry = context.routingGeometry;
+  const spatialIndex = context.spatialIndex;
   const sources = (options.instances ?? [instance]).flatMap((item) =>
-    placementWireSources(document, resolver, item),
+    placementWireSources(document, resolver, item, context),
   );
   for (const source of sources) {
     const sourceKey = endpointKey(source.endpoint);
@@ -287,10 +387,9 @@ export function proposePlacementContact(
     for (const address of findRouteSegmentsAtPoint(
       routingGeometry,
       source.connection.contactPoint,
+      spatialIndex,
     )) {
-      const route = document.routes.find(
-        (candidate) => candidate.id === address.routeId,
-      );
+      const route = context.routesById.get(address.routeId);
       if (
         !route ||
         (options.routeIds && !options.routeIds.has(route.id)) ||
@@ -306,11 +405,7 @@ export function proposePlacementContact(
         segmentIndex: address.segmentIndex,
       });
     }
-    const groups = resolveElectricalContactTargets(
-      document,
-      resolver,
-      candidates,
-    );
+    const groups = context.resolveContacts(candidates);
     if (groups.length === 1) {
       const target = groups[0]!;
       // Returning to an existing endpoint bond is a preserve transform, not

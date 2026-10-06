@@ -6,11 +6,14 @@ import type {
 import {
   instanceParameterContract,
   parameterExpressionBody,
-  reviewedExternalDeviceBindings,
-  sky130MicrometresToProjectLength,
   type DeviceParameterDefinition,
 } from "@icm/devices";
 import { parseSpiceNumber } from "@icm/spice";
+import {
+  printedParameterConversion,
+  restorePrintedParameter,
+  type PrintedParameterConversion,
+} from "./parameter-projection.js";
 import {
   analyzeDesignNetlistForAuthoring,
   SIMULATION_DECK_GROUND,
@@ -42,7 +45,7 @@ interface EditableSourceBody {
 export interface EditableCircuitParameter extends PrintedNetlistParameter {
   descriptor: DeviceParameterDefinition;
   originalValue: string;
-  conversion: "identity" | "sky130-micrometres";
+  conversion: PrintedParameterConversion;
   documentRevision: number;
 }
 export interface GeneratedCircuitSource {
@@ -184,14 +187,7 @@ export function generateCircuitSource(
         descriptor.authoringVisibility === "compatibility"
       )
         return [];
-      const reviewed = reviewedExternalDeviceBindings.find(
-        (item) => item.id === generated.reviewedExternalBindingId,
-      );
-      const conversion =
-        reviewed?.parameters.find((p) => p.name === descriptor.name)
-          ?.targetUnit === "micrometre"
-          ? "sky130-micrometres"
-          : "identity";
+      const conversion = printedParameterConversion(generated, descriptor.name);
       return [
         {
           ...span,
@@ -490,7 +486,7 @@ export function planCircuitSourceEdit(
           throw Error(
             "Reviewed SKY130 geometry uses plain micrometre numbers, not an SI-suffixed value.",
           );
-        value = sky130MicrometresToProjectLength(projectValue);
+        value = restorePrintedParameter(projectValue, span.conversion);
       }
     } catch (error) {
       invalid ??= fail(

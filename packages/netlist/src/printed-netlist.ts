@@ -1,3 +1,5 @@
+import type { PrintedParameterConversion } from "./parameter-projection.js";
+
 /** Character ranges in generated circuit source; independent of simulator syntax. */
 export interface PrintedNetlistInstance {
   documentId: string;
@@ -17,6 +19,8 @@ export interface PrintedNetlistField extends PrintedNetlistInstance {
   kind: "reference" | "target" | "parameter";
   parameter?: string;
   rawValue: string;
+  /** Optional for identity projections and existing callers. */
+  conversion?: PrintedParameterConversion;
 }
 
 export interface DesignNetlistLocations {

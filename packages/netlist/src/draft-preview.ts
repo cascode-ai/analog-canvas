@@ -5,7 +5,10 @@ import {
   type DesignNetlistAnalysisOptions,
 } from "./extract.js";
 import type { DesignNetlistInstance, NetlistDiagnostic } from "./ir.js";
-import { locateDesignNetlist, printDesignNetlist } from "./printers.js";
+import {
+  printDesignNetlistWithLocations,
+  shiftDesignNetlistLocations,
+} from "./printers.js";
 import type {
   DesignNetlistLocations,
   PrintedNetlistInstance,
@@ -97,12 +100,16 @@ export function createDraftNetlistPreview(
   let text: string;
   let locations: DesignNetlistLocations;
   try {
-    const printed = printDesignNetlist(format, ir).text;
+    const projection = printDesignNetlistWithLocations(format, ir);
+    const printed = projection.file.text;
     const body = printed.slice(printed.indexOf("\n") + 1).trimStart();
     text = `${comment} Draft: each ${DRAFT_NETLIST_PLACEHOLDER} is something the drawing does not say yet\n${body}`;
     // Offsets are measured on the text as printed; anything appended after
     // them must come after locating.
-    locations = locateDesignNetlist(format, ir, text);
+    locations = shiftDesignNetlistLocations(
+      projection.locations,
+      text.length - printed.length,
+    );
   } catch {
     return null;
   }

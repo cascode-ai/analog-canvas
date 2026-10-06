@@ -6,8 +6,8 @@ import {
   reviewedExternalBindingSupportsSymbol,
   resolveReviewedExternalBinding,
 } from "@icm/devices";
-import { resolveDocumentLogicalNets } from "@icm/derived";
 import {
+  createNetlistPlanningProjection,
   executeProjectTransaction,
   planSetDeviceModelTarget,
   type ProjectStructureEdit,
@@ -323,7 +323,7 @@ export function planNetlistProcess(
     instanceIds?: ReadonlySet<string>;
   } = {},
 ): ProjectStructureEdit[] {
-  let working = project;
+  const projection = createNetlistPlanningProjection(project);
   const definitions = new Map<
     string,
     Extract<
@@ -334,24 +334,15 @@ export function planNetlistProcess(
   const documents = new Map<string, SchematicEdit[]>();
   function stage(edits: ProjectStructureEdit[]) {
     if (!edits.length) return;
-    const result = executeProjectTransaction(working, {
-      transactionId: "plan-netlist-process",
-      projectId: working.id,
-      expectedStructureRevision: working.structureRevision,
-      actor: { kind: "human", id: "netlist-process" },
-      edits,
-    });
-    if (!result.ok) throw new Error(result.error.message);
-    working = result.project;
+    projection.stage(edits);
     for (const edit of edits) {
       if (edit.kind === "upsert_external_subcircuit_definition")
         definitions.set(edit.definition.id, edit);
-      else if (edit.kind === "transact_document")
-        documents.set(edit.documentId, [
-          ...(documents.get(edit.documentId) ?? []),
-          ...edit.edits,
-        ]);
-      else throw new Error(`Unsupported process edit: ${edit.kind}`);
+      else if (edit.kind === "transact_document") {
+        const accumulated = documents.get(edit.documentId) ?? [];
+        accumulated.push(...edit.edits);
+        documents.set(edit.documentId, accumulated);
+      } else throw new Error(`Unsupported process edit: ${edit.kind}`);
     }
   }
   function transact(documentId: string, edits: SchematicEdit[]) {
@@ -360,7 +351,7 @@ export function planNetlistProcess(
         {
           kind: "transact_document",
           documentId,
-          expectedRevision: working.documents.find(
+          expectedRevision: projection.project.documents.find(
             (document) => document.id === documentId,
           )!.revision,
           edits,
@@ -439,7 +430,9 @@ export function planNetlistProcess(
             netlist: originalNetlist,
           },
         ]);
-      let document = working.documents.find((item) => item.id === documentId)!;
+      let document = projection.project.documents.find(
+        (item) => item.id === documentId,
+      )!;
       let instance = document.instances.find(
         (item) => item.id === original.id,
       )!;
@@ -447,10 +440,17 @@ export function planNetlistProcess(
         instance.netlist!.binding?.kind === "external-subcircuit";
       if (target || external || descriptor.targetPolicy === "required-model") {
         stage(
-          planSetDeviceModelTarget(working, documentId, instance.id, target),
+          planSetDeviceModelTarget(
+            projection.project,
+            documentId,
+            instance.id,
+            target,
+          ),
         );
       }
-      document = working.documents.find((item) => item.id === documentId)!;
+      document = projection.project.documents.find(
+        (item) => item.id === documentId,
+      )!;
       instance = document.instances.find((item) => item.id === original.id)!;
       const parameters = { ...instance.netlist!.parameters };
       // TSMC 28 names the parallel-device count multi; preserve its value on
@@ -526,7 +526,9 @@ export function planNetlistProcess(
       for (const terminal of reviewed?.terminals.filter(
         (item) => item.interaction === "property",
       ) ?? []) {
-        document = working.documents.find((item) => item.id === documentId)!;
+        document = projection.project.documents.find(
+          (item) => item.id === documentId,
+        )!;
         if (
           document.nets.some((net) =>
             net.terminals.some(
@@ -537,7 +539,7 @@ export function planNetlistProcess(
           )
         )
           continue;
-        const logical = resolveDocumentLogicalNets(document);
+        const logical = projection.logicalNets(documentId);
         const ground =
           rule.substrate === "0" || rule.substrate.toUpperCase() === "VSS";
         let netId =
@@ -608,7 +610,7 @@ export function planNetlistProcess(
       }
     }
   }
-  return [
+  const edits: ProjectStructureEdit[] = [
     ...definitions.values(),
     ...[...documents].map(([documentId, edits]) => ({
       kind: "transact_document" as const,
@@ -619,6 +621,20 @@ export function planNetlistProcess(
       edits,
     })),
   ];
+  // Preparation does not commit its projection. Validate the complete real
+  // edits once; the GUI retains its existing authoritative commit and history.
+  if (edits.length) {
+    const validated = executeProjectTransaction(project, {
+      transactionId: "plan-netlist-process",
+      projectId: project.id,
+      expectedStructureRevision: project.structureRevision,
+      actor: { kind: "human", id: "netlist-process" },
+      edits,
+      dryRun: true,
+    });
+    if (!validated.ok) throw new Error(validated.error.message);
+  }
+  return edits;
 }
 
 /**
@@ -633,10 +649,19 @@ export function netlistProcessPendingInstances(
   project: CircuitProject,
   profile: NetlistExportProfile,
 ): number {
+  return prepareNetlistProcess(project, profile, { onlyMissing: true })
+    .instanceCount;
+}
+
+/** One prepared snapshot consumed by both the exact count and its action. */
+export function prepareNetlistProcess(
+  project: CircuitProject,
+  profile: NetlistExportProfile,
+  options: Parameters<typeof planNetlistProcess>[2] = {},
+) {
+  const edits = planNetlistProcess(project, profile, options);
   const filled = new Set<string>();
-  for (const edit of planNetlistProcess(project, profile, {
-    onlyMissing: true,
-  })) {
+  for (const edit of edits) {
     if (edit.kind !== "transact_document") continue;
     for (const item of edit.edits) {
       if (item.kind === "set_instance_netlist")
@@ -646,7 +671,7 @@ export function netlistProcessPendingInstances(
           filled.add(`${edit.documentId}:${assignment.instanceId}`);
     }
   }
-  return filled.size;
+  return { edits, instanceCount: filled.size };
 }
 
 /** Defaults belong to creating an example, never to mounting a reader of a saved Project. */

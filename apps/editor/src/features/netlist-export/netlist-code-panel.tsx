@@ -13,7 +13,7 @@ import {
   type ProjectStructureEdit,
 } from "@icm/edit-engine";
 import {
-  planNetlistCodeEdit,
+  createNetlistCodeEditSession,
   netlistInstanceAtLine,
   netlistInstanceRanges,
 } from "./netlist-code-edit";
@@ -21,7 +21,7 @@ import type { NetlistDiagnostic, PrintedNetlistInstance } from "@icm/netlist";
 import type { CircuitProject, ObjectLocator } from "@icm/model";
 import {
   inferNetlistProcess,
-  netlistProcessPendingInstances,
+  prepareNetlistProcess,
   netlistFamilyTarget,
   planNetlistProcess,
 } from "./netlist-process";
@@ -138,8 +138,11 @@ export function NetlistCodePanel({
     next: NetlistExportProfile,
     options: Parameters<typeof planNetlistProcess>[2] = {},
   ) {
+    return applyProcessPlan(() => planNetlistProcess(project, next, options));
+  }
+  function applyProcessPlan(plan: () => ProjectStructureEdit[]) {
     try {
-      const edits = planNetlistProcess(project, next, options);
+      const edits = plan();
       if (edits.length && !onApply(edits))
         throw new Error(
           "Could not apply device mappings. The circuit has not changed.",
@@ -157,14 +160,15 @@ export function NetlistCodePanel({
   // chosen, or before the editor bound them at all, remain blocked until the
   // defaults are authored. Counting is the same plan the button applies, so
   // the number and the action cannot disagree.
-  const pendingDefaults = useMemo(() => {
-    if (configurationError) return 0;
+  const preparedDefaults = useMemo(() => {
+    if (configurationError) return null;
     try {
-      return netlistProcessPendingInstances(project, profile);
+      return prepareNetlistProcess(project, profile, { onlyMissing: true });
     } catch {
-      return 0;
+      return null;
     }
   }, [project, profile, configurationError]);
+  const pendingDefaults = preparedDefaults?.instanceCount ?? 0;
   const result = useMemo(
     () =>
       configurationError
@@ -216,6 +220,13 @@ export function NetlistCodePanel({
       : null;
   const exportRoot = rootDocumentId ?? project.topDocumentId;
   const source = result?.status === "ready" ? result.file.text : "";
+  const editSession = useMemo(
+    () =>
+      result?.status === "ready"
+        ? createNetlistCodeEditSession(project, result)
+        : null,
+    [project, result],
+  );
   const [draft, setDraft] = useState(source);
   const [editBaseline, setEditBaseline] = useState(source);
   const [applyError, setApplyError] = useState<string | null>(null);
@@ -259,7 +270,7 @@ export function NetlistCodePanel({
       options.dropUnwritable &&
       (conflict ||
         result?.status !== "ready" ||
-        !planNetlistCodeEdit(project, result, draftRef.current).ok)
+        !editSession!.analyze(draftRef.current).ok)
     ) {
       writesDraft = false;
       setDraft(source);
@@ -272,7 +283,7 @@ export function NetlistCodePanel({
     let working = project;
     if (writesDraft) {
       if (result?.status !== "ready") return false;
-      const plan = planNetlistCodeEdit(project, result, draftRef.current);
+      const plan = editSession!.plan(draftRef.current);
       if (!plan.ok) {
         setApplyError(plan.message);
         return false;
@@ -346,7 +357,7 @@ export function NetlistCodePanel({
         ),
       );
     if (result?.status !== "ready") return focusInstance(null);
-    const plan = planNetlistCodeEdit(project, result, draftRef.current);
+    const plan = editSession!.analyze(draftRef.current);
     focusInstance(
       plan.ok
         ? netlistInstanceAtLine(draftRef.current, position, plan.instances)
@@ -368,7 +379,7 @@ export function NetlistCodePanel({
     if (draftPreview) instances = draftPreview.locations.instances;
     else {
       if (result?.status !== "ready") return [];
-      const plan = planNetlistCodeEdit(project, result, draft);
+      const plan = editSession!.analyze(draft);
       if (!plan.ok) return [];
       instances = plan.instances;
     }
@@ -391,7 +402,7 @@ export function NetlistCodePanel({
         tone: "warning" as const,
       })),
     ];
-  }, [project, result, draft, draftPreview, selectionKey, cursorInstance]);
+  }, [editSession, result, draft, draftPreview, selectionKey, cursorInstance]);
   const editError = conflict
     ? "The canvas or Agent changed the netlist. Reload before applying your draft."
     : applyError;
@@ -612,7 +623,10 @@ export function NetlistCodePanel({
               title={`Fill missing models and values on the ${pendingDefaults} ${
                 pendingDefaults === 1 ? "device" : "devices"
               } using the ${NETLIST_PROFILE_LABELS[process]} defaults`}
-              onClick={() => applyProcess(profile, { onlyMissing: true })}
+              onClick={() => {
+                if (preparedDefaults)
+                  applyProcessPlan(() => preparedDefaults.edits);
+              }}
             >
               Fill {pendingDefaults}{" "}
               {pendingDefaults === 1 ? "device" : "devices"}
