@@ -77,7 +77,7 @@
     },
     {
       "source": "docs/agent/mcp-install.md",
-      "sha256": "674084ceb39528e6a2fefe6430aa143b8fdf9a488a4a38e14d8d916b7b93a81a"
+      "sha256": "6003e3bc050c8b05cb5b852eafb3d4c9fcc1a7232ccf772023f44ad8069c8ac3"
     },
     {
       "source": "docs/agent/api-usage.md",
@@ -573,7 +573,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/circuit-style-knowledge.md"
       ],
-      "sha256": "3dda2a527b7ffe3f51ff67520adc8f091d9251757c4312006bc0deb7f27f2fdf"
+      "sha256": "6144ea011617af0dde977207d29d5fb90e83afc2356b16a946056cf4a2f6aed4"
     },
     {
       "file": "packages/agent-adapter/src/agent-docs.generated.ts",
