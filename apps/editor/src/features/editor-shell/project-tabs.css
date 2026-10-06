@@ -27,6 +27,7 @@
   scrollbar-width: thin;
 }
 .project-tab {
+  position: relative;
   display: flex;
   flex: 0 0 auto;
   max-width: 220px;
@@ -59,6 +60,26 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   text-align: left;
+}
+.project-tabs [role="tab"][data-editing="true"] {
+  visibility: hidden;
+}
+.project-tab-name-input {
+  position: absolute;
+  top: 0;
+  left: 0;
+  box-sizing: border-box;
+  height: 28px;
+  min-width: 0;
+  border: 0;
+  border-radius: 0;
+  padding: 3px 8px;
+  background: var(--icm-surface);
+  color: var(--icm-text);
+  font: inherit;
+  font-size: 12px;
+  outline: 1px solid var(--icm-accent);
+  outline-offset: -1px;
 }
 .project-tabs button:hover,
 .project-tabs summary:hover {

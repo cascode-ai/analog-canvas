@@ -14,6 +14,8 @@ export function ProjectTabs({
   activeId,
   busy,
   onSelect,
+  onRename,
+  onEditingChange,
   onClose,
   onSaveClose,
   onNew,
@@ -26,7 +28,9 @@ export function ProjectTabs({
   tabs: { id: string; name: string; dirty: boolean }[];
   activeId: string;
   busy: boolean;
-  onSelect(id: string): void;
+  onSelect(id: string): Promise<boolean>;
+  onRename(id: string, name: string): void;
+  onEditingChange(editing: boolean): void;
   onClose(id: string): void;
   onSaveClose?(id: string): Promise<boolean>;
   onNew(): void;
@@ -36,13 +40,54 @@ export function ProjectTabs({
   onOpenShelf(id: string): void;
 }) {
   const list = useRef<HTMLDivElement>(null);
+  const [editing, setEditing] = useState<{
+    id: string;
+    original: string;
+    width: number;
+  } | null>(null);
+  const renameSession = useRef(editing);
+  const nameInput = useRef<HTMLInputElement>(null);
+  const renamedByClick = useRef<string | null>(null);
+  const finishRename = (value: string | null) => {
+    const session = renameSession.current;
+    if (!session) return false;
+    renameSession.current = null;
+    setEditing(null);
+    onEditingChange(false);
+    if (value === session.original) return false;
+    const name = value?.trim();
+    if (name && name !== session.original && name.length <= 120) {
+      onRename(session.id, name);
+      return true;
+    }
+    return false;
+  };
+  useEffect(() => {
+    if (editing) {
+      nameInput.current?.focus({ preventScroll: true });
+      nameInput.current?.select();
+    }
+  }, [editing]);
   const [closing, setClosing] = useState<string | null>(null);
+  const selecting = useRef<{ id: string; promise: Promise<boolean> } | null>(
+    null,
+  );
+  const selectTab = (id: string) => {
+    if (busy) return;
+    finishRename(nameInput.current?.value ?? null);
+    setClosing(null);
+    const request = { id, promise: onSelect(id) };
+    selecting.current = request;
+    void request.promise.finally(() => {
+      if (selecting.current === request) selecting.current = null;
+    });
+  };
   const closeTrigger = useRef<HTMLButtonElement | null>(null);
   const closeTarget = tabs.find((tab) => tab.id === closing);
   useEffect(() => setClosing(null), [activeId]);
   const keyboardFocus = useRef(false);
   useEffect(() => {
-    if (busy) return;
+    if (busy || renameSession.current) return;
     const focused =
       keyboardFocus.current || list.current?.contains(document.activeElement);
     keyboardFocus.current = false;
@@ -55,7 +100,27 @@ export function ProjectTabs({
       ?.scrollIntoView({ block: "nearest", inline: "nearest" });
   }, [activeId, tabs.length, busy]);
   return (
-    <div className="project-tabs-workspace">
+    <div
+      className="project-tabs-workspace"
+      onPointerDownCapture={(event) => {
+        // Keep the click target stable: focus-induced blur must not resize a
+        // tab between pointer down and click. Outside the bar blur is normal.
+        if (
+          event.button === 0 &&
+          renameSession.current &&
+          event.target !== nameInput.current
+        )
+          event.preventDefault();
+      }}
+      onClickCapture={(event) => {
+        const owner = renameSession.current?.id;
+        renamedByClick.current =
+          event.target !== nameInput.current &&
+          finishRename(nameInput.current?.value ?? null)
+            ? (owner ?? null)
+            : null;
+      }}
+    >
       <div className="project-tabs" data-testid="project-tabs">
         <div role="tablist" aria-label="Open projects" ref={list}>
           {tabs.map((tab) => (
@@ -69,11 +134,29 @@ export function ProjectTabs({
                 role="tab"
                 aria-selected={tab.id === activeId}
                 tabIndex={tab.id === activeId ? 0 : -1}
-                disabled={busy}
+                disabled={busy && selecting.current?.id !== tab.id}
                 title={tab.name}
-                onClick={() => {
-                  setClosing(null);
-                  onSelect(tab.id);
+                aria-description="Double-click to rename"
+                data-editing={editing?.id === tab.id}
+                onClick={() => selectTab(tab.id)}
+                onDoubleClick={(event) => {
+                  const button = event.currentTarget;
+                  const selected =
+                    selecting.current?.id === tab.id
+                      ? selecting.current.promise
+                      : Promise.resolve(!busy && tab.id === activeId);
+                  const session = {
+                    id: tab.id,
+                    original: tab.name,
+                    width: button.getBoundingClientRect().width,
+                  };
+                  void selected.then((applied) => {
+                    if (!applied || !button.isConnected) return;
+                    setClosing(null);
+                    renameSession.current = session;
+                    onEditingChange(true);
+                    setEditing(session);
+                  });
                 }}
                 onKeyDown={(event) => {
                   const index = tabs.findIndex((item) => item.id === tab.id);
@@ -91,19 +174,48 @@ export function ProjectTabs({
                     event.preventDefault();
                     event.stopPropagation();
                     keyboardFocus.current = true;
-                    onSelect(tabs[next]!.id);
+                    selectTab(tabs[next]!.id);
                   }
                 }}
               >
                 {tab.dirty ? <span aria-label="Unsaved">● </span> : null}
                 {tab.name}
               </button>
+              {editing?.id === tab.id ? (
+                <input
+                  ref={nameInput}
+                  className="project-tab-name-input"
+                  aria-label="Project name"
+                  autoComplete="off"
+                  maxLength={120}
+                  defaultValue={editing.original}
+                  style={{ width: editing.width }}
+                  onBlur={(event) => finishRename(event.currentTarget.value)}
+                  onKeyDown={(event) => {
+                    event.stopPropagation();
+                    if (event.nativeEvent.isComposing) return;
+                    if (event.key === "Enter" || event.key === "Escape") {
+                      event.preventDefault();
+                      finishRename(
+                        event.key === "Enter"
+                          ? event.currentTarget.value
+                          : null,
+                      );
+                      list.current
+                        ?.querySelector<HTMLButtonElement>(
+                          '[aria-selected="true"]',
+                        )
+                        ?.focus({ preventScroll: true });
+                    }
+                  }}
+                />
+              ) : null}
               <button
                 type="button"
                 aria-label={`Close tab ${tab.name}`}
                 disabled={busy}
                 onClick={(event) => {
-                  if (tab.dirty) {
+                  if (tab.dirty || renamedByClick.current === tab.id) {
                     closeTrigger.current = event.currentTarget;
                     setClosing(tab.id);
                   } else onClose(tab.id);

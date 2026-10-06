@@ -13,11 +13,11 @@ import { AGENT_SESSION_RECOVERY_STORAGE_KEY } from "../src/agent/session-recover
 import { WORKING_COPY_STORAGE_KEY } from "../src/document/recovery-coordinator";
 import { CLOUD_PROJECT_LIMIT } from "../src/features/editor-shell/cloud-projects";
 import {
+  awaitEditorReady,
   chooseComponent,
   clickNetlistWorkflowCommand,
   downloadBytes,
   openMenu,
-  openProjectProperties,
   recoveryProjectTexts,
 } from "./editor-fixtures.js";
 
@@ -913,21 +913,36 @@ test("the circuit name drives Cloud Save and portable export", async ({
 }) => {
   const cloud = await mockCloudProjects(page);
   await page.goto("/editor");
-  const name = (await openProjectProperties(page)).getByRole("textbox", {
-    name: "Project name",
-  });
+  await awaitEditorReady(page);
+  await page.getByRole("tab", { selected: true }).dblclick();
+  const name = page.getByRole("textbox", { name: "Project name", exact: true });
   await expect(name).toHaveAttribute("autocomplete", "off");
   await name.fill("Bandgap Reference");
   await name.press("Enter");
   const fileMenu = await openMenu(page, "File");
   await fileMenu.getByRole("button", { name: "Save", exact: true }).click();
   await expect.poll(() => cloud.stored()?.name).toBe("Bandgap Reference");
+  // Renaming is local until Save and retains the same Cloud identity.
+  const originalCloudId = cloud.stored()!.id;
+  await page.getByRole("tab", { selected: true }).dblclick();
+  await name.fill("Bandgap characterization");
+  await name.press("Enter");
+  expect(cloud.stored()!.name).toBe("Bandgap Reference");
+  await expect(
+    page.getByRole("tab", { selected: true }).getByLabel("Unsaved"),
+  ).toBeVisible();
+  await page.keyboard.press("ControlOrMeta+s");
+  await expect
+    .poll(() => cloud.stored()?.name)
+    .toBe("Bandgap characterization");
+  expect(cloud.stored()!.id).toBe(originalCloudId);
+  expect(cloud.stored()!.revision).toBe(2);
   const exported = parseSavedProject(
     (await downloadBytes(page, "File", "Export Project File…")).toString(
       "utf8",
     ),
   ) as { name?: string };
-  expect(exported.name).toBe("Bandgap Reference");
+  expect(exported.name).toBe("Bandgap characterization");
 });
 
 test("native cross-page clipboard preserves an editable circuit and text-field shortcuts", async ({
