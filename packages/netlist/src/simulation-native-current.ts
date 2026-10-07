@@ -1,5 +1,5 @@
 import type { CircuitProject, SimulationSourceInput } from "@icm/model";
-import { reviewedExternalDeviceBindings } from "@icm/devices";
+import { reviewedExternalBindingById } from "@icm/devices";
 import type { SimulationSignalTarget } from "./simulation-signal-names.js";
 import { sha256Hex } from "@icm/derived";
 import type { DesignNetlistCell, DesignNetlistInstance } from "./ir.js";
@@ -129,8 +129,8 @@ export function nativeTerminalCurrent(
 ):
   | { ok: true; vectors: string[]; directives: string[] }
   | { ok: false; message: string } {
-  const reviewed = reviewedExternalDeviceBindings.find(
-    (item) => item.id === device.card.reviewedExternalBindingId,
+  const reviewed = reviewedExternalBindingById(
+    device.card.reviewedExternalBindingId,
   );
   const pin =
     reviewed?.terminals.find((t) => t.pinName === pinName)?.targetName ??
@@ -197,8 +197,8 @@ export function nativeTerminalSignals(
       (b) => b.id === device.circuit.bindingId,
     );
     if (!document || !instance || !binding) continue;
-    const reviewed = reviewedExternalDeviceBindings.find(
-      (r) => r.id === device.card.reviewedExternalBindingId,
+    const reviewed = reviewedExternalBindingById(
+      device.card.reviewedExternalBindingId,
     );
     for (const sense of device.currentSenses) {
       const pinName =

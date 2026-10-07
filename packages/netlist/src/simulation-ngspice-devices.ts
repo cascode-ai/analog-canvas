@@ -3,7 +3,7 @@ import type {
   SimulationCircuitScope,
   SimulationSourceInput,
 } from "@icm/model";
-import { reviewedExternalDeviceBindings } from "@icm/devices";
+import { reviewedExternalBindingById } from "@icm/devices";
 import { mosBulkKind } from "@icm/derived";
 import { analyzeDesignNetlist, SIMULATION_DECK_GROUND } from "./extract.js";
 import type { DesignNetlistCell, DesignNetlistInstance } from "./ir.js";
@@ -62,8 +62,8 @@ export function ngspiceSimulationDevices(
           const reference = [...path, card.reference.toLowerCase()].join(".");
           const authored = document.instances.find((i) => i.id === card.id);
           const polarity = authored ? mosBulkKind(authored) : undefined;
-          const reviewed = reviewedExternalDeviceBindings.find(
-            (item) => item.id === card.reviewedExternalBindingId,
+          const reviewed = reviewedExternalBindingById(
+            card.reviewedExternalBindingId,
           );
           // A reviewed SKY130 MOS wrapper holds one m<masterName> primitive,
           // or names the one it nests. This mapping is deliberately not applied
@@ -135,8 +135,8 @@ export function nativeTerminalCurrent(
 ):
   | { ok: true; vectors: string[]; directives: string[] }
   | { ok: false; message: string } {
-  const reviewed = reviewedExternalDeviceBindings.find(
-    (item) => item.id === device.card.reviewedExternalBindingId,
+  const reviewed = reviewedExternalBindingById(
+    device.card.reviewedExternalBindingId,
   );
   const pin =
     reviewed?.terminals.find((t) => t.pinName === pinName)?.targetName ??

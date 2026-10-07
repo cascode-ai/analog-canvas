@@ -1,5 +1,5 @@
 import {
-  reviewedExternalDeviceBindings,
+  reviewedExternalBindingById,
   projectLengthToSky130Micrometres,
   sky130MicrometresToProjectLength,
 } from "@icm/devices";
@@ -8,17 +8,13 @@ import type { DesignNetlistInstance } from "./ir.js";
 /** Internal value projection, not an editable-policy or persisted contract. */
 export type PrintedParameterConversion = "identity" | "sky130-micrometres";
 
-const reviewedById = new Map(
-  reviewedExternalDeviceBindings.map((binding) => [binding.id, binding]),
-);
-
 export function printedParameterConversion(
   instance: Pick<DesignNetlistInstance, "reviewedExternalBindingId">,
   parameter: string,
 ): PrintedParameterConversion {
-  const binding = instance.reviewedExternalBindingId
-    ? reviewedById.get(instance.reviewedExternalBindingId)
-    : undefined;
+  const binding = reviewedExternalBindingById(
+    instance.reviewedExternalBindingId,
+  );
   return binding?.parameters.find(
     (p) => p.name.toLowerCase() === parameter.toLowerCase(),
   )?.targetUnit === "micrometre"

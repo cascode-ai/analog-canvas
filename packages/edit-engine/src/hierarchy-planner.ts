@@ -20,9 +20,12 @@ import {
 import type { PortLabelFormatOptions } from "@icm/model";
 import {
   deviceDescriptor,
+  instanceParameterContract,
   resolveReviewedExternalBinding,
   reviewedExternalBindingForMaster,
   reviewedExternalBindingSupportsSymbol,
+  reviewedExternalModelSuggestions,
+  subcircuitDescriptor,
 } from "@icm/devices";
 import {
   builtInSymbols,
@@ -542,7 +545,61 @@ export function planSetDeviceModelTarget(
       ? currentExternal.binding.symbolId
       : instance.symbolId;
   const sourceDescriptor = deviceDescriptor(sourceSymbolId);
-  if (
+  // A Library logic gate has no device descriptor; its reviewed targets are
+  // standard cells of its function, and clearing returns it to its ideal
+  // body with that body's parameters (#1450).
+  const gate = sourceDescriptor
+    ? undefined
+    : subcircuitDescriptor(sourceSymbolId, project);
+  const gateTargets = gate
+    ? reviewedExternalModelSuggestions(sourceSymbolId)
+    : [];
+  if (gate && gateTargets.length > 0) {
+    if (!targetBinding && normalizedName) {
+      throw new Error(
+        `${normalizedName} is not a reviewed standard cell for ${sourceSymbolId}; use ${gateTargets.join(", ")}`,
+      );
+    }
+    if (!targetBinding) {
+      // The gate's VDD/VSS Nets are its own supply choice and stay.
+      const binding = {
+        kind: "unresolved-subcircuit" as const,
+        name: gate.target,
+      };
+      if (
+        JSON.stringify(instance.netlist.binding ?? null) ===
+        JSON.stringify(binding)
+      )
+        return [];
+      const set = Object.fromEntries(
+        (
+          instanceParameterContract(project, {
+            symbolId: sourceSymbolId,
+            netlist: { binding },
+          })?.definitions ?? []
+        ).flatMap((parameter) =>
+          instance.netlist!.parameters[parameter.name] === undefined &&
+          parameter.defaultValue !== undefined
+            ? [[parameter.name, parameter.defaultValue]]
+            : [],
+        ),
+      );
+      return [
+        transactDocument(project, documentId, [
+          {
+            kind: "bulk_patch_instance_netlist",
+            assignments: [
+              {
+                instanceId,
+                binding,
+                ...(Object.keys(set).length ? { set } : {}),
+              },
+            ],
+          },
+        ]),
+      ];
+    }
+  } else if (
     !sourceDescriptor ||
     (!targetBinding &&
       !currentExternal &&
@@ -660,6 +717,12 @@ export function planSetDeviceModelTarget(
     ];
   }
 
+  // Only a device reaches here: a gate's target is bound or cleared above.
+  if (!sourceDescriptor) {
+    throw new Error(
+      "The selected device does not accept an explicit model target",
+    );
+  }
   const symbolId = sourceSymbolId;
   if (normalizedName && sourceDescriptor.targetPolicy !== "required-model") {
     throw new Error(

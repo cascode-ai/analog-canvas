@@ -125,6 +125,15 @@ targets to avoid full-Snapshot name resolution. Names remain supported when usef
   reuse the GUI binding path, preserve terminal mapping and export the
   required `X` subcircuit invocation. Any other name is a raw model binding,
   for custom definitions; it leaves the Project's Process as Custom.
+- A Library logic gate (`inverter`, `buffer`, `nand-gate`, … `xnor-gate-4`)
+  takes a standard cell of its function and input count through `set-model`:
+  SKY130 HD (`sky130_fd_sc_hd__nand2_1`), IHP SG13G2 (`sg13g2_nand2_1`) or
+  TSMC 28 HPC+ 12-track (`ND2D1BWP12T30P140`, `…LVT`), at any drive strength
+  or variant of the library. The gate keeps its symbol and pins; the SPICE
+  netlist calls the cell in the library's pin order with the gate's VDD/VSS
+  Nets on its rails (Auto as before), and the library's own `.include`
+  defines it. A name of another function is refused with the cells that fit;
+  an empty model returns the gate to its ideal body.
 - `place-component` without `parameters` places a part as the GUI library
   does: each parameter's catalog default, and for a transistor the model of
   the Process the Netlist panel shows. A BJT in a SKY130 Project arrives as

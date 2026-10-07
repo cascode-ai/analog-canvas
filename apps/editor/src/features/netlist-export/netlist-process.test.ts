@@ -671,6 +671,13 @@ describe("persisted netlist process authoring", () => {
       )!.netlist!.parameters,
     ).toMatchObject({ w: "7u", l: "240n", multi: "4" });
     expect(exported(project)).toContain("pch_ulvt_mac");
+    // Its gates are offered TSMC 28's standard cells (#1450).
+    expect(
+      processReviewedLibrary(project, {
+        ...createDefaultNetlistExportPreferences(),
+        selected: "tsmc28",
+      }),
+    ).toBe("tcbn28hpcplusbwp12t30p140");
     project = apply(project, createNetlistExportProfile("tsmc180"));
     const params = project.documents[0]!.instances.find(
       (instance) => instance.id === mos.id,

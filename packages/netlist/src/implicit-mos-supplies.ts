@@ -18,6 +18,7 @@ import {
   IDEAL_COMPARATOR_SUPPLY_TARGET,
   IDEAL_COMPARATOR_TARGET,
   instanceBuiltInSubcircuit,
+  resolveReviewedExternalBinding,
 } from "@icm/devices";
 import type { DesignNetlistAnalysisOptions } from "./extract.js";
 import {
@@ -133,6 +134,47 @@ export interface ImplicitMosSupplyProjection {
   placedBodies: ReadonlyMap<string, PlacedMosBodies>;
 }
 
+/**
+ * The rails of a gate bound to a standard cell (#1450) that no Net was
+ * chosen for. The cell has no ideal body to read a drawn supply at export, so
+ * each rail joins the Cell's drawn supply of its domain, or the conventional
+ * one, here, the way an unbound gate's supply resolves.
+ */
+function standardCellSuppliesToDefault(source: CircuitProject): {
+  documentId: string;
+  instanceId: string;
+  supply: "VDD" | "VSS";
+}[] {
+  return source.documents.flatMap((document) =>
+    document.instances.flatMap((instance) => {
+      const binding = instance.netlist?.binding;
+      if (binding?.kind !== "external-subcircuit") return [];
+      const definition = source.externalSubcircuitDefinitions.find(
+        (candidate) => candidate.id === binding.definitionId,
+      );
+      if (!definition || definition.implementation) return [];
+      const reviewed = resolveReviewedExternalBinding(
+        definition.name,
+        definition.terminals.map((terminal) => terminal.name),
+      );
+      const rails = new Set(
+        reviewed?.terminals.flatMap((terminal) =>
+          terminal.supply ? [terminal.supply] : [],
+        ),
+      );
+      return [...rails].flatMap((supply) =>
+        document.nets.some((net) =>
+          net.terminals.some(
+            (pin) => pin.instanceId === instance.id && pin.pinName === supply,
+          ),
+        )
+          ? []
+          : [{ documentId: document.id, instanceId: instance.id, supply }],
+      );
+    }),
+  );
+}
+
 /** A read-only electrical projection for schematic MOS bodies with no authored
  * connection. Supply symbols are not required to express the default substrate.
  * Existing body wiring, Cell defaults and explicit NoConnect remain authoritative.
@@ -142,6 +184,7 @@ export function withImplicitMosSupplies(
   options: DesignNetlistAnalysisOptions,
 ): ImplicitMosSupplyProjection {
   const blockSupplies = blockSuppliesToDefault(source, options);
+  const cellRails = standardCellSuppliesToDefault(source);
   const missing = source.documents.flatMap((document) => {
     const logical = resolveDocumentLogicalNets(document);
     return document.instances.flatMap((instance) =>
@@ -153,7 +196,7 @@ export function withImplicitMosSupplies(
     );
   });
   const placedBodies = new Map<string, Map<string, PlacedMosBody>>();
-  if (!missing.length && !blockSupplies.length)
+  if (!missing.length && !blockSupplies.length && !cellRails.length)
     return { project: source, placedBodies };
   const project = structuredClone(source);
   const addedVddPorts = new Set<string>();
@@ -264,6 +307,13 @@ export function withImplicitMosSupplies(
     // MOS body's are. A body that reads VDD alone, the comparator whose high
     // level is its own VDD, gives a Cell drawn without ground no VSS pin.
     for (const read of item.reads) defaultSupply(document, read === "VDD");
+    defaultSupply(document, item.supply === "VDD").terminals.push({
+      instanceId: item.instanceId,
+      pinName: item.supply,
+    });
+  }
+  for (const item of cellRails) {
+    const document = project.documents.find((d) => d.id === item.documentId)!;
     defaultSupply(document, item.supply === "VDD").terminals.push({
       instanceId: item.instanceId,
       pinName: item.supply,
