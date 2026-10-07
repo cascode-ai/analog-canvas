@@ -721,8 +721,9 @@ Results of a check of another Project or Cell are not shown in that Cell's
 dialog, only that the last check was of that circuit; a check of the same Cell
 since edited stays, marked historical.
 
-The hosted result retains the best 20 matches within an 8 MiB result budget;
-omissions and incomplete coverage remain explicit. Access does not expose another
+The hosted result shows what the local check shows (below), at most 20
+matches within an 8 MiB result budget; omissions and incomplete coverage
+remain explicit. Access does not expose another
 owner's snapshot. A match names its circuit, scores and correspondences and
 the preview revision it was compared at, never the drawing itself: Compare on
 canvas opens that circuit as an ordinary read (one of the day's opens) and
@@ -754,9 +755,11 @@ side, with equal values scoring 1, missing values or different signs scoring 0.
 Symbolic expressions require literal equality. This contributes 80% of the
 parameter/model score, with 20% from matching model and invocation identity.
 Overall score is `structure × (0.85 + 0.15 × parameter/model score)`. Results
-sort by this score; only confirmed full netlist equality displays 100%. The local
-fallback retains all exact topology matches and at most five partial matches;
-hosted tasks apply the bounded retention above. A similarity
+sort by this score; only confirmed full netlist equality displays 100%. Both the
+local fallback and hosted tasks select every exact topology match and at most
+three close partial matches, those scoring 50% or more (a hosted task then
+applies its bounds above), and count the close ones left out; a circuit with
+none reads "No close match", never a list of unrelated nearest circuits. A similarity
 percentage is not a simulation-equivalence guarantee.
 
 **Compare on canvas** renders frozen source and candidate Projects side by

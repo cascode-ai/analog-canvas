@@ -24,7 +24,7 @@ function circuit(name = "Frozen source") {
   }));
   return project;
 }
-function harness() {
+function harness(publicProject = circuit("Public")) {
   const database = new DatabaseSync(":memory:");
   let time = 1_000_000;
   let alarm: number | null = null;
@@ -77,7 +77,7 @@ function harness() {
               schemaVersion: 1,
               previewRevision: "rev-1",
             },
-            projectText: serializeProject(circuit("Public")),
+            projectText: serializeProject(publicProject),
           });
         },
       }),
@@ -158,6 +158,62 @@ describe("durable topology tasks", () => {
     h.advance(8 * 24 * 60 * 60_000);
     await object.alarm();
     expect((await read(object)).job).toBeNull();
+  });
+  it("shows no candidate for a circuit with no close relative, as the browser check does (#1443)", async () => {
+    // Six resistors share one device with the source's one: comparable,
+    // far from close.
+    const unrelated = circuit("Public ladder");
+    const resistor = unrelated.documents[0]!.instances[0]!;
+    unrelated.documents[0]!.instances = Array.from({ length: 6 }, (_, n) => ({
+      ...resistor,
+      id: `R${n + 1}`,
+      reference: `R${n + 1}`,
+    }));
+    unrelated.documents[0]!.nets = Array.from({ length: 7 }, (_, n) => ({
+      id: `net-${n}`,
+      terminals: [
+        ...(n > 0 ? [{ instanceId: `R${n}`, pinName: "2" }] : []),
+        ...(n < 6 ? [{ instanceId: `R${n + 1}`, pinName: "1" }] : []),
+      ],
+    }));
+    const h = harness(unrelated);
+    const object = h.create();
+    await start(object);
+    for (let run = 0; run < 3; run++) await object.alarm();
+    expect((await read(object)).job.report).toMatchObject({
+      complete: true,
+      comparable: 7,
+      exactMatches: 0,
+      matches: [],
+      omittedMatches: 0,
+    });
+  });
+  it("shows three close candidates and counts the rest as omitted (#1443)", async () => {
+    // Two resistors in series against the source's one: close, not exact.
+    const pair = circuit("Public pair");
+    const resistor = pair.documents[0]!.instances[0]!;
+    pair.documents[0]!.instances = [
+      resistor,
+      { ...resistor, id: "R2", reference: "R2" },
+    ];
+    pair.documents[0]!.nets = [
+      { id: "a", terminals: [{ instanceId: "R1", pinName: "1" }] },
+      {
+        id: "mid",
+        terminals: [
+          { instanceId: "R1", pinName: "2" },
+          { instanceId: "R2", pinName: "1" },
+        ],
+      },
+      { id: "b", terminals: [{ instanceId: "R2", pinName: "2" }] },
+    ];
+    const object = harness(pair).create();
+    await start(object);
+    for (let run = 0; run < 3; run++) await object.alarm();
+    const { report } = (await read(object)).job;
+    expect(report).toMatchObject({ complete: true, exactMatches: 0 });
+    expect(report.matches).toHaveLength(3);
+    expect(report.omittedMatches).toBe(4);
   });
   it("preserves Unicode snapshots across SQLite chunk boundaries", async () => {
     const h = harness(),

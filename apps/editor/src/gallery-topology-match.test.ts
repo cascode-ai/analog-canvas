@@ -7,6 +7,7 @@ import {
 import { createEmptyProject } from "@icm/model";
 import { parseProject, serializeProject } from "@icm/project-protocol";
 import { projectWithTopologyRoot } from "./features/editor-shell/gallery-topology-project";
+import { CLOSE_MATCH_SIMILARITY } from "./gallery-topology-selection";
 import {
   comparisonCandidate,
   scanGalleryTopologyMatches,
@@ -124,6 +125,57 @@ describe("current Gallery topology matching", () => {
         .parameters.value,
     ).toBe("2k");
     expect(report.matches[2]!.similarity).toBeLessThan(1);
+  });
+
+  it("reports a few close candidates and none that are barely alike (#1443)", async () => {
+    // Four close relatives, banks of three resistors, and a bank of 20 that
+    // shares a part type and little else.
+    const banks = new Map([
+      ["a", resistorProject("1k", 3)],
+      ["b", resistorProject("2k", 3)],
+      ["c", resistorProject("3k", 3)],
+      ["d", resistorProject("4k", 3)],
+      ["far", resistorProject("1k", 20)],
+    ]);
+    const report = await scanGalleryTopologyMatches(
+      resistorProject(),
+      () => {},
+      async (input) => {
+        const url = new URL(String(input), "https://test.invalid");
+        if (url.pathname === "/api/gallery")
+          return json({
+            entries: [...banks.keys()].map(entry),
+            nextCursor: null,
+          });
+        const id = url.pathname.split("/").pop()!;
+        return json({
+          status: "public",
+          entry: entry(id),
+          projectText: serializeProject(banks.get(id)!),
+        });
+      },
+    );
+    expect(report.comparable).toBe(banks.size);
+    expect(report.matches).toHaveLength(3);
+    // The fourth close bank is counted, the far one is not.
+    expect(report.omittedMatches).toBe(1);
+    expect(
+      report.matches.every(
+        ({ exact, similarity }) =>
+          !exact && similarity >= CLOSE_MATCH_SIMILARITY,
+      ),
+    ).toBe(true);
+    const graph = (project: ReturnType<typeof resistorProject>) => {
+      const result = projectElectricalGraph(project);
+      if (result.status !== "ready") throw new Error(result.reason);
+      return result.graph;
+    };
+    expect(
+      compareTopologyCorrespondence(
+        graph(resistorProject()),
+        graph(banks.get("far")!),
+      ).similarity,
+    ).toBeLessThan(CLOSE_MATCH_SIMILARITY);
   });
 
   it("ranks close parameter values ahead of distant values regardless of listing order", async () => {

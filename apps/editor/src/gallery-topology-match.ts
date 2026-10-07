@@ -7,6 +7,7 @@ import {
 } from "@icm/netlist";
 import { parseProject } from "@icm/project-protocol";
 import { dailyOpenLimitMessage, type GalleryFeedEntry } from "./gallery-client";
+import { closeTopologyMatches } from "./gallery-topology-selection";
 
 export interface GalleryTopologyMatch extends TopologyCorrespondence {
   entry: GalleryFeedEntry;
@@ -67,8 +68,6 @@ export interface GalleryTopologyMatchReport {
   error?: string;
 }
 
-const NEAREST_LIMIT = 5;
-
 /** Compare one current Cell against the whole public Gallery, on demand. */
 export async function scanGalleryTopologyMatches(
   project: CircuitProject,
@@ -98,17 +97,11 @@ export async function scanGalleryTopologyMatches(
   let cursor: string | null = null;
   const request = (url: string) => requestGalleryScan(url, fetchLike, signal);
   const publish = () => {
-    const ordered = [...candidates].sort(
-      (left, right) =>
-        right.similarity - left.similarity ||
-        Number(right.exact) - Number(left.exact) ||
-        left.entry.name.localeCompare(right.entry.name) ||
-        left.entry.id.localeCompare(right.entry.id),
-    );
-    let nearest = 0;
-    report.matches = ordered.filter(
-      (item) => item.exact || nearest++ < NEAREST_LIMIT,
-    );
+    // Only shown matches are kept between steps, so each step adds the
+    // close ones it leaves out.
+    const shown = closeTopologyMatches(candidates);
+    report.matches = shown.matches;
+    report.omittedMatches = (report.omittedMatches ?? 0) + shown.omitted;
     // Only visible results retain drawing snapshots between progress updates.
     candidates.splice(0, candidates.length, ...report.matches);
     onProgress(structuredClone(report));
