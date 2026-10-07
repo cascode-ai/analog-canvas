@@ -1,10 +1,4 @@
-import {
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type ButtonHTMLAttributes,
-} from "react";
+import { useEffect, useRef, useState, type ButtonHTMLAttributes } from "react";
 
 /** A local second step, not a modal: keep the decision beside its trigger. */
 export function InlineConfirm({
@@ -30,48 +24,6 @@ export function InlineConfirm({
   const cancel = useRef<HTMLButtonElement>(null);
   const running = useRef(false);
   const open = controlledOpen ?? localOpen;
-  useLayoutEffect(() => {
-    if (!open) return;
-    // Expanded decisions can be taller than their menu. Fit the owner menu,
-    // not the buttons individually, so its edges remain reachable on resize.
-    const menu = root.current?.closest<HTMLElement>(
-      "[data-inline-confirm-menu]",
-    );
-    if (!menu) return;
-    const previous = {
-      translate: menu.style.translate,
-      maxWidth: menu.style.maxWidth,
-      maxHeight: menu.style.maxHeight,
-      overflow: menu.style.overflow,
-    };
-    const fit = () => {
-      menu.style.translate = "none";
-      menu.style.maxWidth = `${Math.max(0, window.innerWidth - 24)}px`;
-      menu.style.maxHeight = `${Math.max(0, window.innerHeight - 24)}px`;
-      menu.style.overflow = "auto";
-      const rect = menu.getBoundingClientRect();
-      const x = Math.max(
-        12 - rect.left,
-        Math.min(0, window.innerWidth - 12 - rect.right),
-      );
-      const y = Math.max(
-        12 - rect.top,
-        Math.min(0, window.innerHeight - 12 - rect.bottom),
-      );
-      menu.style.translate = `${x}px ${y}px`;
-    };
-    fit();
-    const observer = new ResizeObserver(fit);
-    observer.observe(menu);
-    window.addEventListener("resize", fit);
-    window.addEventListener("scroll", fit, true);
-    return () => {
-      observer.disconnect();
-      window.removeEventListener("resize", fit);
-      window.removeEventListener("scroll", fit, true);
-      Object.assign(menu.style, previous);
-    };
-  }, [open]);
   const change = (next: boolean) => {
     setLocalOpen(next);
     onOpenChange?.(next);

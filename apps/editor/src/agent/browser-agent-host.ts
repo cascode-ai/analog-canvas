@@ -31,7 +31,7 @@ import {
  * `onTransactionCommitted` is invoked after a successful commit so the host
  * owner (the React hook in `App.tsx`) can synchronize UI state and stage
  * recovery — exactly as a human commit does. The commit also marks the
- * controller Agent-edited, which publishing reads to suggest the AI mark.
+ * controller Agent-edited, which the Publish dialog notes beside the AI mark.
  *
  * This lets the full capabilities/snapshot/transact/render feature run
  * against the live browser document inside one process, with no network, token,

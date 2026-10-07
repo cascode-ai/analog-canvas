@@ -186,17 +186,13 @@ export function EditorAppChrome({
               <span>Gallery</span>
             </a>
           ) : null}
-          {/* File holds commands and read-only Project Info; project tabs
-              select projects and edit their names. */}
+          {/* File holds Project Info and the file commands; project tabs
+              select projects. */}
           <ProjectMenu
             label="File"
             name={projectName}
             dirty={hasUnsavedWork}
-            onOpen={() => {
-              fileCommands.nativeFiles?.refresh();
-              if (fileCommands.cloudEnabled !== false)
-                fileCommands.onRefreshCloudProjects();
-            }}
+            onOpen={() => fileCommands.nativeFiles?.refresh()}
           >
             <FileCommandMenu {...fileCommands} embedded />
           </ProjectMenu>

@@ -66,7 +66,7 @@ import {
 } from "@icm/project-protocol";
 import { type CircuitProject } from "@icm/model";
 
-import type { AuthNamespaceLike } from "./auth";
+import { AI_ACCOUNT_PROVIDER, AI_SEATS, type AuthNamespaceLike } from "./auth";
 import {
   galleryEntryMatchesQuery,
   normalizeGallerySearchText,
@@ -192,6 +192,32 @@ export const GALLERY_MAX_DESCRIPTION_LENGTH = 1000;
  * campus or office exit spent the allowance for everyone behind it.
  */
 export const GALLERY_DAILY_SUBMISSION_LIMIT = 100;
+/** Publishes an AI account (an Owner's seat) may make in a UTC day. */
+export const GALLERY_AI_SEAT_DAILY_LIMIT = 500;
+
+/**
+ * Whether an entry is an AI account's: its owner is listed in AI_SEATS and
+ * its byline is that seat's name, now or before it became one. A person's
+ * account under a listed id, which AuthDO leaves alone, keeps its own.
+ */
+export function isAiSeatEntry(
+  ownerUserId: string | null | undefined,
+  author: string | null | undefined,
+): boolean {
+  return AI_SEATS.some(
+    ({ userId, displayName, formerName }) =>
+      userId === ownerUserId &&
+      (author === displayName || author === formerName),
+  );
+}
+
+/** The day's allowance of the account a session belongs to. */
+export function dailySubmissionLimit(user: { provider: string }): number {
+  return user.provider === AI_ACCOUNT_PROVIDER
+    ? GALLERY_AI_SEAT_DAILY_LIMIT
+    : GALLERY_DAILY_SUBMISSION_LIMIT;
+}
+
 /**
  * Recycle-bin retention. The quota deliberately refunds a withdrawal
  * (recycling counts as taking work down), which leaves publish->recycle
@@ -476,15 +502,6 @@ const MAGIC_LI_LEGACY_BYLINE = "3187863239-netizen";
 const MAGIC_LI_BYLINE = "Magic Li";
 const VERSION_RETENTION_MIGRATION = "2026-08-27-gallery-version-retention-2";
 const PREVIEW_DIMENSIONS_MIGRATION = "2026-09-02-gallery-preview-dimensions";
-/**
- * 2026-10-07: the holder of the "Opus 5.5" account, under which this project's
- * Agent publishes its drawings, asked once for the account's existing circuits
- * to carry the AI mark. A one-time request, not a rule: every other entry
- * carries what its publisher chose.
- */
-const OPUS_AI_MARK_MIGRATION = "2026-10-07-opus-5-5-ai-mark";
-const OPUS_AI_MARK_OWNER = "b183aa15-078d-4476-be33-93c34f4bd95c";
-
 /**
  * A part count as stored: with this build's rule version when the writer
  * counted it, or unversioned, so the scheduled refresh counts it, when not.
@@ -794,6 +811,7 @@ export class GalleryDO {
       ON gallery_entries(status, owner_user_id, author, netlistable, tags,
         curation_json, component_count)
     `);
+    this.syncAiSeatBylines();
     this.sql.exec(`
       CREATE TABLE IF NOT EXISTS data_migrations (
         id TEXT PRIMARY KEY,
@@ -892,25 +910,6 @@ export class GalleryDO {
       this.sql.exec(
         "INSERT INTO data_migrations(id, applied_at) VALUES (?, ?)",
         VERSION_RETENTION_MIGRATION,
-        new Date().toISOString(),
-      );
-    });
-    this.state.storage.transactionSync(() => {
-      const applied = this.sql
-        .exec<{ id: string }>(
-          "SELECT id FROM data_migrations WHERE id = ?",
-          OPUS_AI_MARK_MIGRATION,
-        )
-        .toArray();
-      if (applied.length > 0) return;
-      // Marked once, so a mark the author clears later stays cleared.
-      this.sql.exec(
-        "UPDATE gallery_entries SET ai_generated = 1 WHERE owner_user_id = ?",
-        OPUS_AI_MARK_OWNER,
-      );
-      this.sql.exec(
-        "INSERT INTO data_migrations(id, applied_at) VALUES (?, ?)",
-        OPUS_AI_MARK_MIGRATION,
         new Date().toISOString(),
       );
     });
@@ -1210,7 +1209,11 @@ export class GalleryDO {
     const outcome = this.state.storage.transactionSync(() => {
       if (enforceLimit) {
         const used = this.submissionsOn(entry.owner_user_id ?? "", day);
-        if (used >= GALLERY_DAILY_SUBMISSION_LIMIT) {
+        const limit =
+          typeof body.limit === "number"
+            ? body.limit
+            : GALLERY_DAILY_SUBMISSION_LIMIT;
+        if (used >= limit) {
           return { status: "rate-limited" as const };
         }
       }
@@ -1771,6 +1774,42 @@ export class GalleryDO {
       id: row.id,
       status: String(body.status),
       previewRevision,
+    });
+  }
+
+  /**
+   * An AI account's circuits (isAiSeatEntry) carry the name AI_SEATS gives
+   * it, the model's official one, on every entry and saved version, and the
+   * AI mark. Cheap when they already do, so it runs whenever the Gallery
+   * starts and after a restore.
+   */
+  private syncAiSeatBylines(): void {
+    this.state.storage.transactionSync(() => {
+      for (const { userId, displayName, formerName } of AI_SEATS) {
+        const former = formerName ?? displayName;
+        this.sql.exec(
+          `UPDATE gallery_entry_versions SET author = ?
+           WHERE author <> ? AND entry_id IN (
+             SELECT id FROM gallery_entries
+             WHERE owner_user_id = ? AND author IN (?, ?)
+           )`,
+          displayName,
+          displayName,
+          userId,
+          displayName,
+          former,
+        );
+        this.sql.exec(
+          `UPDATE gallery_entries SET author = ?, ai_generated = 1
+           WHERE owner_user_id = ? AND author IN (?, ?)
+             AND (author <> ? OR ai_generated <> 1)`,
+          displayName,
+          userId,
+          displayName,
+          former,
+          displayName,
+        );
+      }
     });
   }
 
@@ -2575,6 +2614,8 @@ export class GalleryDO {
         )
         .one().count;
     });
+    // A backup from before an AI account was one names it as it was.
+    this.syncAiSeatBylines();
     const retainedCloudVersions = this.sql
       .exec<{ count: number }>(
         "SELECT COUNT(*) AS count FROM cloud_project_versions",

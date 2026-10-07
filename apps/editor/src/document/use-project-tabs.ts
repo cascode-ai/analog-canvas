@@ -1,14 +1,19 @@
 import { useEffect, useRef, useState } from "react";
 import { createId } from "@icm/model";
 
-/** The tab that takes over when `id` leaves: the one before it, else the
- * next; undefined when no other tab remains. */
+/** The tab that takes over when `id` leaves, with any others `leaving`:
+ * the nearest one left before it, else the first after it; undefined when
+ * no other tab remains. */
 export function tabAfterLeaving(
   ids: readonly string[],
   id: string,
+  leaving: ReadonlySet<string> = new Set([id]),
 ): string | undefined {
-  const remaining = ids.filter((candidate) => candidate !== id);
-  return remaining[Math.max(0, ids.indexOf(id) - 1)];
+  const at = ids.indexOf(id);
+  const stays = (candidate: string) => !leaving.has(candidate);
+  return (
+    ids.slice(0, at).reverse().find(stays) ?? ids.slice(at + 1).find(stays)
+  );
 }
 
 /** Only the active editor renders. Inactive tabs retain their actual controller
@@ -140,6 +145,40 @@ export function useProjectTabs<Session>(options: {
     id === active.current
       ? Promise.resolve(true)
       : transition(() => activate(id));
+  /**
+   * Close several tabs at once, as Close Others and Close All do. When the
+   * active tab closes, tabAfterLeaving takes over, else a new tab from
+   * `createEmpty`.
+   */
+  const closeMany = async (
+    closing: readonly string[],
+    createEmpty: () => Session,
+  ) => {
+    if (transitioning.current) return;
+    const gone = new Set(closing);
+    const drop = (remaining: string[]) => {
+      for (const id of gone) sessions.current.delete(id);
+      liveIds.current = remaining;
+      setIds(remaining);
+    };
+    if (!gone.has(active.current)) {
+      drop(liveIds.current.filter((id) => !gone.has(id)));
+      return;
+    }
+    await transition(() => {
+      const before = liveIds.current;
+      const remaining = before.filter((id) => !gone.has(id));
+      const next = tabAfterLeaving(before, active.current, gone);
+      if (next) activate(next);
+      else {
+        const emptyId = createId("tab");
+        sessions.current.set(emptyId, createEmpty());
+        remaining.push(emptyId);
+        activate(emptyId);
+      }
+      drop(remaining);
+    });
+  };
   return {
     activeId,
     busy,
@@ -226,29 +265,10 @@ export function useProjectTabs<Session>(options: {
         activate((added.find(({ wasActive }) => wasActive) ?? added[0]!).id);
         if (replaceActive) sessions.current.delete(outgoing);
       }),
-    close: async (id: string, createEmpty: () => Session) => {
-      if (transitioning.current) return;
-      // The tab strip owns the inline user decision before invoking close.
-      if (id !== active.current) {
-        sessions.current.delete(id);
-        setIds((previous) => previous.filter((candidate) => candidate !== id));
-        return;
-      }
-      await transition(() => {
-        const remaining = ids.filter((candidate) => candidate !== id);
-        if (id === active.current) {
-          if (remaining.length) activate(tabAfterLeaving(ids, id)!);
-          else {
-            const emptyId = createId("tab");
-            sessions.current.set(emptyId, createEmpty());
-            remaining.push(emptyId);
-            activate(emptyId);
-          }
-        }
-        sessions.current.delete(id);
-        setIds(remaining);
-      });
-    },
+    /** Close one tab; the tab strip owns the user's decision first. */
+    close: (id: string, createEmpty: () => Session) =>
+      closeMany([id], createEmpty),
+    closeMany,
     /**
      * Drop a tab whose edits the person chose not to keep (#1288). Unlike
      * close, nothing of it is captured, prepared or staged first, so its

@@ -3,31 +3,17 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 import { FileCommandMenu } from "./file-command-menu";
-import { CLOUD_PROJECT_LIMIT } from "./cloud-projects";
 
 describe("FileCommandMenu", () => {
   it("presents one Cloud Save protocol and explicit local interchange", () => {
     const markup = renderToStaticMarkup(
       <FileCommandMenu
-        cloudProjects={[
-          {
-            id: "cloud-1",
-            name: "Saved Circuit",
-            updatedAt: "2026-08-28T10:00:00.000Z",
-            revision: 3,
-            schemaVersion: 28,
-          },
-        ]}
-        activeCloudProjectId={null}
         canRevert
         hasRecoverySessions
         checkAndSave={{ enabled: true, execute: vi.fn() }}
         projectInputRef={createRef<HTMLInputElement>()}
         onNewProject={vi.fn()}
         onSave={vi.fn()}
-        onRefreshCloudProjects={vi.fn()}
-        onOpenCloudProject={vi.fn()}
-        onDeleteCloudProject={vi.fn()}
         onImportProject={vi.fn()}
         onImportSpice={vi.fn()}
         onExportProject={vi.fn()}
@@ -40,14 +26,14 @@ describe("FileCommandMenu", () => {
     );
 
     expect(markup.split(">New Project<")).toHaveLength(2);
-    expect(markup).toContain('aria-haspopup="dialog">Project Info…</button>');
+    // Project Info comes first; Cloud Projects are listed elsewhere.
+    expect(markup.indexOf(">Project Info<")).toBeGreaterThan(0);
+    expect(markup.indexOf(">Project Info<")).toBeLessThan(
+      markup.indexOf(">New Project<"),
+    );
     expect(markup).not.toContain("Save as Cloud Copy");
-    expect(markup).toContain(`Cloud Projects (1/${CLOUD_PROJECT_LIMIT})`);
-    expect(markup).toContain('data-testid="file-cloud-project-list"');
-    expect(markup).toContain('aria-labelledby="file-cloud-projects-label"');
-    expect(markup).toContain("Saved Circuit");
-    expect(markup).toContain('class="cloud-project-time"');
-    expect(markup).toContain("cloud-project-cloud-1");
+    expect(markup).not.toContain("Cloud Projects (");
+    expect(markup).not.toContain("file-cloud-project-list");
     expect(markup).toContain(">Import<");
     expect(markup).toContain("Project File…");
     expect(markup).toContain("SPICE / SCS…");

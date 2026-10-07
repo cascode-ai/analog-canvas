@@ -886,12 +886,6 @@
   min-width: 0;
   max-width: 100%;
 }
-.cloud-project-command:has(.inline-confirm[data-expanded]) {
-  grid-template-columns: minmax(0, 1fr);
-}
-.cloud-project-command > .inline-confirm {
-  align-self: center;
-}
 
 .command-popover .cloud-project-open {
   display: grid;
@@ -902,19 +896,12 @@
   white-space: normal;
 }
 
-.cloud-project-name,
-.cloud-project-time {
+.cloud-project-name {
   display: block;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.cloud-project-time {
-  color: var(--icm-text-muted);
-  font-size: var(--icm-font-sm);
-  font-weight: 400;
 }
 
 .command-popover .cloud-project-command > button:last-child {
@@ -1516,6 +1503,15 @@
   text-decoration: none;
   white-space: nowrap;
   cursor: pointer;
+}
+
+/* Beside an AI account's name: as tall as the name, and as short. */
+.app-chrome-actions .account-switch-back {
+  margin-left: 0;
+  min-height: var(--icm-control-h);
+  max-width: 8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .app-chrome-actions .account-name:hover,

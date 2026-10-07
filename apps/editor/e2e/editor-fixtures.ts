@@ -108,9 +108,9 @@ export async function clickCommand(
   await details.getByRole("button", { name: button, exact: true }).click();
 }
 
-/** Read the current Cell and publication metadata from File → Project Info…. */
+/** Read the current Cell and publication metadata from File → Project Info. */
 export async function openProjectInfo(page: Page): Promise<Locator> {
-  await clickCommand(page, "File", "Project Info…");
+  await clickCommand(page, "File", "Project Info");
   const dialog = page.getByRole("dialog", { name: "Project Info" });
   await expect(dialog).toBeVisible();
   return dialog;

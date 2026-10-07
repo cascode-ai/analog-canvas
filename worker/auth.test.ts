@@ -2,7 +2,9 @@ import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
 
 import {
+  AI_SEATS,
   AUTH_DISPLAY_NAME_MAX,
+  AUTH_SESSION_TTL_SECONDS,
   AUTH_EMAIL_DAILY_LIMIT,
   AUTH_LOGIN_CODE_ATTEMPTS,
   AuthDO,
@@ -50,8 +52,12 @@ function sqliteState() {
 
 type FakeRoute = (url: string, init?: RequestInit) => Response | null;
 
-function harness(env: Partial<AuthEnv> = {}, routes: FakeRoute[] = []) {
-  const durable = new AuthDO(sqliteState(), {
+function harness(
+  env: Partial<AuthEnv> = {},
+  routes: FakeRoute[] = [],
+  state = sqliteState(),
+) {
+  const durable = new AuthDO(state, {
     AUTH: undefined as never,
     ...env,
   });
@@ -185,7 +191,7 @@ describe("account data migrations", () => {
     expect(
       state.storage.sql
         .exec<{ id: string; display_name: string }>(
-          "SELECT id, display_name FROM users ORDER BY id",
+          "SELECT id, display_name FROM users WHERE provider <> 'ai' ORDER BY id",
         )
         .toArray(),
     ).toEqual([
@@ -236,7 +242,7 @@ describe("account data migrations", () => {
     expect(
       state.storage.sql
         .exec<{ id: string; display_name: string }>(
-          "SELECT id, display_name FROM users ORDER BY id",
+          "SELECT id, display_name FROM users WHERE provider <> 'ai' ORDER BY id",
         )
         .toArray(),
     ).toEqual([
@@ -773,6 +779,271 @@ describe("moderator appointment", () => {
     });
     expect(revoked.status).toBe(200);
     expect((await me(auth, reviewerCookie))?.role).toBe("user");
+  });
+});
+
+describe("AI accounts", () => {
+  async function owner(state = sqliteState()) {
+    const auth = harness(
+      { RESEND_API_KEY: "rk", ADMIN_EMAILS: "owner@example.com" },
+      [],
+      state,
+    );
+    return { auth, adminCookie: await emailSignIn(auth, "owner@example.com") };
+  }
+  const post = (
+    auth: ReturnType<typeof harness>,
+    path: string,
+    body: unknown,
+    cookie?: string,
+  ) =>
+    auth.call(path, {
+      method: "POST",
+      ...(cookie === undefined ? {} : { cookie }),
+      body: JSON.stringify(body),
+    });
+  /** The cookies a response set over those kept, as a Cookie header. */
+  function cookiesOf(response: Response, kept: string[] = []): string {
+    const jar = new Map(
+      kept.map((pair) => pair.split("=") as [string, string]),
+    );
+    for (const header of response.headers.getSetCookie()) {
+      const [pair] = header.split(";");
+      const [name, value] = pair!.split("=") as [string, string];
+      if (value) jar.set(name, value);
+      else jar.delete(name);
+    }
+    return [...jar].map(([name, value]) => `${name}=${value}`).join("; ");
+  }
+  const seat = AI_SEATS[0]!;
+  const switchTo = async (
+    auth: ReturnType<typeof harness>,
+    adminCookie: string,
+  ) => {
+    const switched = await post(
+      auth,
+      "/api/auth/ai-accounts/switch",
+      { userId: seat.userId },
+      adminCookie,
+    );
+    expect(switched.status).toBe(200);
+    return { switched, browser: cookiesOf(switched, [adminCookie]) };
+  };
+
+  it("makes each seat, converting an Agent's account in place", async () => {
+    const state = sqliteState();
+    new AuthDO(state, {} as AuthEnv);
+    const sql = state.storage.sql;
+    sql.exec("DELETE FROM users");
+    // The first seat's account signed in through a person's Google identity
+    // and was once made a moderator.
+    sql.exec(
+      `INSERT INTO users
+       (id, provider, provider_id, email, display_name, role, created_at)
+       VALUES (?, 'google', 'google-sub', 'person@example.com', ?,
+         'moderator', '2026-09-20T00:00:00.000Z')`,
+      seat.userId,
+      seat.formerName,
+    );
+    new AuthDO(state, {} as AuthEnv);
+    const rows = () =>
+      sql
+        .exec<{
+          id: string;
+          provider: string;
+          provider_id: string;
+          email: string | null;
+          display_name: string;
+          role: string;
+        }>(
+          "SELECT id, provider, provider_id, email, display_name, role FROM users",
+        )
+        .toArray();
+    expect(rows()).toEqual(
+      expect.arrayContaining(
+        AI_SEATS.map(({ seat: name, userId, displayName }) => ({
+          id: userId,
+          provider: "ai",
+          provider_id: name,
+          email: null,
+          display_name: displayName,
+          role: "user",
+        })),
+      ),
+    );
+    expect(rows()).toHaveLength(AI_SEATS.length);
+    // The listed name is the model's: starting again restores it.
+    sql.exec(
+      "UPDATE users SET display_name = 'Renamed' WHERE id = ?",
+      seat.userId,
+    );
+    new AuthDO(state, {} as AuthEnv);
+    expect(rows().find(({ id }) => id === seat.userId)?.display_name).toBe(
+      seat.displayName,
+    );
+    // A person's account under a listed id, by another name, is left alone.
+    const second = AI_SEATS[1]!;
+    sql.exec("DELETE FROM users WHERE id = ?", second.userId);
+    sql.exec(
+      `INSERT INTO users
+       (id, provider, provider_id, email, display_name, role, created_at)
+       VALUES (?, 'email', 'someone@example.com', 'someone@example.com',
+         'Someone', 'user', '2026-09-20T00:00:00.000Z')`,
+      second.userId,
+    );
+    new AuthDO(state, {} as AuthEnv);
+    expect(rows().find(({ id }) => id === second.userId)).toMatchObject({
+      provider: "email",
+      display_name: "Someone",
+    });
+    // The released email signs in to a new account of its own.
+    const auth = harness({ RESEND_API_KEY: "rk" }, [], state);
+    const person = await me(
+      auth,
+      await emailSignIn(auth, "person@example.com"),
+    );
+    expect(person?.id).not.toBe(seat.userId);
+  });
+
+  it("lists the seats to the super-admin alone", async () => {
+    const { auth, adminCookie } = await owner();
+    const memberCookie = await emailSignIn(auth, "member@example.com");
+    for (const cookie of [undefined, memberCookie])
+      expect(
+        (
+          await auth.call(
+            "/api/auth/ai-accounts",
+            cookie === undefined ? {} : { cookie },
+          )
+        ).status,
+      ).toBe(401);
+    const listed = await auth.call("/api/auth/ai-accounts", {
+      cookie: adminCookie,
+    });
+    expect(listed.headers.get("cache-control")).toBe("no-store");
+    expect(await listed.json()).toEqual({
+      accounts: AI_SEATS.map(({ seat: name, userId, displayName }) => ({
+        id: userId,
+        seat: name,
+        displayName,
+      })),
+    });
+  });
+
+  it("switches a browser to a seat and back in one click, for the super-admin alone", async () => {
+    const { auth, adminCookie } = await owner();
+    const memberCookie = await emailSignIn(auth, "member@example.com");
+    expect(
+      (
+        await post(
+          auth,
+          "/api/auth/ai-accounts/switch",
+          { userId: seat.userId },
+          memberCookie,
+        )
+      ).status,
+    ).toBe(401);
+    // A request from another site cannot switch the owner's browser.
+    const crossSite = await auth.durable.fetch(
+      new Request(`${ORIGIN}/api/auth/ai-accounts/switch`, {
+        method: "POST",
+        headers: { Origin: "https://elsewhere.test", Cookie: adminCookie },
+        body: JSON.stringify({ userId: seat.userId }),
+      }),
+    );
+    expect(crossSite.status).toBe(403);
+
+    const { switched, browser } = await switchTo(auth, adminCookie);
+    expect(
+      switched.headers
+        .getSetCookie()
+        .find((header) => header.startsWith("icm_owner_session=")),
+    ).toContain("Path=/api/auth; HttpOnly");
+    expect(await me(auth, browser)).toMatchObject({
+      id: seat.userId,
+      displayName: seat.displayName,
+      provider: "ai",
+      seat: seat.seat,
+      email: null,
+      isAdmin: false,
+      switchedFrom: { displayName: "owner" },
+    });
+    // As the seat, the browser holds no owner's power, and cannot delete
+    // the seat.
+    expect(
+      (await auth.call("/api/auth/ai-accounts", { cookie: browser })).status,
+    ).toBe(401);
+    expect(
+      (
+        await post(
+          auth,
+          "/api/auth/account/delete",
+          { confirm: "delete-account" },
+          browser,
+        )
+      ).status,
+    ).toBe(409);
+    // Its name is the model's, kept in AI_SEATS.
+    expect(
+      (await post(auth, "/api/auth/profile", { displayName: "Other" }, browser))
+        .status,
+    ).toBe(409);
+
+    const returned = await post(
+      auth,
+      "/api/auth/ai-accounts/return",
+      {},
+      browser,
+    );
+    expect(returned.status).toBe(200);
+    const back = cookiesOf(returned, browser.split("; "));
+    expect(back).not.toContain("icm_owner_session");
+    expect((await me(auth, back))?.isAdmin).toBe(true);
+    // The seat's session in this browser ended with the return.
+    expect(await me(auth, browser.split("; ")[0])).toBeNull();
+    // A second tab's ↩, after the first switched back, keeps the owner in.
+    const again = await post(auth, "/api/auth/ai-accounts/return", {}, back);
+    expect(again.status).toBe(200);
+    expect((await me(auth, back))?.isAdmin).toBe(true);
+  });
+
+  it("keeps the way back as long as the seat's session, and signs a stranded browser out", async () => {
+    const { auth, adminCookie } = await owner();
+    const start = Date.now();
+    // Switched on the 29th day of the owner's session ...
+    auth.durable.now = () =>
+      new Date(start + (AUTH_SESSION_TTL_SECONDS - 86_400) * 1000);
+    const { browser } = await switchTo(auth, adminCookie);
+    // ... the way back still works two days later.
+    auth.durable.now = () =>
+      new Date(start + (AUTH_SESSION_TTL_SECONDS + 86_400) * 1000);
+    expect((await me(auth, browser))?.switchedFrom).toEqual({
+      displayName: "owner",
+    });
+
+    // Without a live owner's session there is nothing to return to, and
+    // the browser is signed out rather than left as the seat.
+    const seatOnly = browser.split("; ")[0]!;
+    const refused = await post(
+      auth,
+      "/api/auth/ai-accounts/return",
+      {},
+      seatOnly,
+    );
+    expect(refused.status).toBe(401);
+    expect(cookiesOf(refused, [seatOnly])).toBe("");
+    expect(await me(auth, seatOnly)).toBeNull();
+  });
+
+  it("signs a switched browser out of both accounts", async () => {
+    const { auth, adminCookie } = await owner();
+    const { browser } = await switchTo(auth, adminCookie);
+    const signedOut = await post(auth, "/api/auth/logout", {}, browser);
+    expect(cookiesOf(signedOut, browser.split("; "))).toBe("");
+    for (const pair of browser.split("; "))
+      expect(
+        await me(auth, pair.replace("icm_owner_session=", "icm_session=")),
+      ).toBeNull();
   });
 });
 

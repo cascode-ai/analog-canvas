@@ -30,10 +30,11 @@ import {
   type RichTextDocument,
 } from "@icm/model";
 
-import { sessionUserOf, type SessionUser } from "./auth";
+import { AI_ACCOUNT_PROVIDER, sessionUserOf, type SessionUser } from "./auth";
 import { sameOrigin } from "./same-origin";
 import {
-  GALLERY_DAILY_SUBMISSION_LIMIT,
+  dailySubmissionLimit,
+  isAiSeatEntry,
   GALLERY_MAX_AUTHOR_LENGTH,
   GALLERY_MAX_DESCRIPTION_LENGTH,
   GALLERY_MAX_NAME_LENGTH,
@@ -1134,6 +1135,7 @@ async function handleSubmission(
     userId: user.id,
     day: now.toISOString().slice(0, 10),
     enforceLimit: !privileged,
+    limit: dailySubmissionLimit(user),
     entry: {
       // The id is drawn inside the Durable Object, which is the only place
       // that can tell whether one is already taken.
@@ -1142,9 +1144,11 @@ async function handleSubmission(
       // published exactly the same way, it simply does not wear the badge.
       netlistable: designExtractsNetlist(project) ? 1 : 0,
       component_count: galleryComponentCount(project),
-      // The publisher's word, never inferred here: the editor suggests it
-      // when an Agent drew in the Project, and the author may change it.
-      ai_generated: aiGenerated ? 1 : 0,
+      // The publisher's word, never inferred here, except that what an AI
+      // account publishes is always AI-generated. An Agent's publish asks
+      // for it; a person publishing by hand ticks it themselves.
+      ai_generated:
+        aiGenerated || user.provider === AI_ACCOUNT_PROVIDER ? 1 : 0,
       name,
       author,
       description,
@@ -1267,8 +1271,13 @@ async function handleEntryUpdate(
     componentCount: galleryComponentCount(project),
     status: nextStatus,
     tags: wrapTags(sanitizeGalleryTags(body.tags)),
-    // Absent leaves the stored mark as it is.
-    ...(aiGenerated === undefined ? {} : { aiGenerated }),
+    // Absent leaves the stored mark as it is; an AI account's entry always
+    // keeps it, whoever updates it.
+    ...(isAiSeatEntry(existing.payload.ownerUserId, author)
+      ? { aiGenerated: true }
+      : aiGenerated === undefined
+        ? {}
+        : { aiGenerated }),
   });
   return Response.json(payload, { status });
 }
@@ -2114,11 +2123,12 @@ export async function routeGalleryRequest(
       day: now.toISOString().slice(0, 10),
     });
     const used = payload.used ?? 0;
+    const limit = dailySubmissionLimit(user);
     return Response.json(
       {
-        limit: GALLERY_DAILY_SUBMISSION_LIMIT,
+        limit,
         used,
-        remaining: Math.max(0, GALLERY_DAILY_SUBMISSION_LIMIT - used),
+        remaining: Math.max(0, limit - used),
         // The day is the UTC calendar day a submission is counted in.
         resetsAt: new Date(
           Date.UTC(

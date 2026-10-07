@@ -160,6 +160,8 @@ export interface PublishSessionUser {
   isAdmin: boolean;
   /** "user" or "moderator"; moderators bypass the quality gates. */
   role?: string;
+  /** An AI account's seat: all it publishes carries the AI mark. */
+  seat?: string;
 }
 
 export type GalleryPublishOutcome =

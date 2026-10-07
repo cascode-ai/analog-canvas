@@ -28,6 +28,7 @@ function markupFor(
       inEditor,
       onEmailStart: async () => ({ ok: true }) as const,
       onEmailVerify: async () => ({ ok: true }) as const,
+      onReturnToOwner: () => undefined,
     }),
   );
 }
@@ -104,6 +105,23 @@ describe("AccountMenuView", () => {
     // Beside a drawing, the account opens in a tab of its own.
     expect(markupFor({ providers, user }, null, true)).toContain(
       'target="_blank" rel="noreferrer"',
+    );
+    expect(markup).not.toContain("account-switch-back");
+    // A browser the Owner switched to an AI account shows the way back.
+    const seat = markupFor({
+      providers,
+      user: {
+        ...user,
+        displayName: "Claude Opus 5.5",
+        email: null,
+        provider: "ai",
+        seat: "ai-designer-1",
+        switchedFrom: { displayName: "Token Zhang" },
+      },
+    });
+    expect(seat).toContain(">Claude Opus 5.5</a>");
+    expect(seat).toMatch(
+      /data-testid="account-switch-back" title="Switch this browser back to Token Zhang">↩ Token Zhang<\/button>/u,
     );
   });
 
@@ -190,7 +208,9 @@ describe("AccountMenuView", () => {
     expect(markup).toContain('data-testid="account-owner">Owner</span>');
     const tabs = [
       'data-testid="account-tab-circuits"',
+      'data-testid="account-tab-projects"',
       'data-testid="account-tab-moderation"',
+      'data-testid="account-tab-ai"',
       'data-testid="account-tab-settings"',
     ].map((needle) => markup.indexOf(needle));
     expect(tabs.every((index) => index >= 0)).toBe(true);
@@ -247,6 +267,7 @@ describe("AccountMenuView", () => {
     );
     expect(member).toContain("Signed in with Google");
     expect(member).not.toContain("account-tab-moderation");
+    expect(member).not.toContain("account-tab-ai");
     expect(member).not.toContain("account-owner");
     // A link to a tab this account lacks opens the circuits instead.
     expect(member).toContain('data-testid="account-panel-circuits"');
@@ -266,9 +287,29 @@ describe("AccountMenuView", () => {
     expect(moderator).toContain('data-testid="account-panel-circuits"');
   });
 
+  it("names an AI account by its seat and keeps its deletion with the Owner", () => {
+    const markup = pageFor(
+      {
+        id: "ai-1",
+        displayName: "Claude Opus 5.5",
+        email: null,
+        provider: "ai",
+        role: "user",
+        isAdmin: false,
+        seat: "ai-designer-1",
+      },
+      "settings",
+    );
+    expect(markup).toContain("AI account ai-designer-1");
+    expect(markup).toContain('data-testid="account-signout"');
+    expect(markup).not.toContain('data-testid="account-delete"');
+  });
+
   it("reads the open tab from the address", () => {
     expect(accountTabFromSearch("")).toBe("circuits");
+    expect(accountTabFromSearch("?tab=projects")).toBe("projects");
     expect(accountTabFromSearch("?tab=moderation")).toBe("moderation");
+    expect(accountTabFromSearch("?tab=ai")).toBe("ai");
     expect(accountTabFromSearch("?tab=settings")).toBe("settings");
     expect(accountTabFromSearch("?tab=elsewhere")).toBe("circuits");
   });

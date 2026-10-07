@@ -1263,7 +1263,7 @@ test("restores the same paired working copy through refresh and Gallery without 
     .toBe("attached");
 });
 
-test("publishing what an Agent drew, opened or had approved starts with the AI mark", async ({
+test("publishing by hand notes what an Agent drew, opened or had approved, leaving the AI mark to the person", async ({
   page,
   baseURL,
 }) => {
@@ -1292,14 +1292,16 @@ test("publishing what an Agent drew, opened or had approved starts with the AI m
   await expect(panel.getByTestId("agent-status")).toHaveText("Connected");
   await panel.getByRole("button", { name: "Close Agent dialog" }).click();
   const dialog = page.getByTestId("publish-gallery-dialog");
-  const expectAiMark = async (ticked: boolean) => {
+  const expectAgentNote = async (noted: boolean) => {
     await page.getByTestId("publish-gallery-button").click();
-    if (ticked) await expect(dialog.getByLabel("AI-generated")).toBeChecked();
-    else await expect(dialog.getByLabel("AI-generated")).not.toBeChecked();
+    await expect(dialog.getByLabel("AI-generated")).not.toBeChecked();
+    await expect(dialog.locator("#publish-gallery-ai-note")).toHaveText(
+      noted ? "An Agent worked on this Project" : "Shows an AI tag on the card",
+    );
     await dialog.getByRole("button", { name: "Cancel" }).click();
   };
   // Pairing alone is not the Agent's work.
-  await expectAiMark(false);
+  await expectAgentNote(false);
 
   await client.circuit(session.sessionId, session.agentToken, {
     apiVersion: "3.0",
@@ -1324,10 +1326,7 @@ test("publishing what an Agent drew, opened or had approved starts with the AI m
     ],
   });
   await expect(page.getByTestId("active-instance-count")).toHaveText("1");
-  await page.getByTestId("publish-gallery-button").click();
-  await expect(dialog.getByLabel("AI-generated")).toBeChecked();
-  await expect(dialog).toContainText("An Agent worked on this Project");
-  await dialog.getByRole("button", { name: "Cancel" }).click();
+  await expectAgentNote(true);
 
   const stage = async (requestId: string) => {
     const bytes = Buffer.from(
@@ -1367,7 +1366,7 @@ test("publishing what an Agent drew, opened or had approved starts with the AI m
   ).toMatchObject({ ok: true, operation: "open" });
   await expect(tabs).toHaveCount(2);
   await expect(tabs.last()).toHaveAttribute("aria-selected", "true");
-  await expectAiMark(true);
+  await expectAgentNote(true);
   // The Agent follows the selected tab and reads its context first.
   await expect
     .poll(
@@ -1387,7 +1386,7 @@ test("publishing what an Agent drew, opened or had approved starts with the AI m
   ).toMatchObject({ ok: true, approval: "pending-human" });
   await page.getByTestId("agent-file-approve").click();
   await expect(page.getByTestId("status")).toContainText("Accepted Agent");
-  await expectAiMark(true);
+  await expectAgentNote(true);
 
   // A blank Project the Agent opens is not its work yet; renaming it is.
   const workspace = (
@@ -1425,17 +1424,17 @@ test("publishing what an Agent drew, opened or had approved starts with the AI m
   ).toMatchObject({ ok: true });
   await expect(tabs).toHaveCount(3);
   await expect(tabs.last()).toHaveAttribute("aria-selected", "true");
-  await expectAiMark(false);
+  await expectAgentNote(false);
   expect(
     await workspace("rename-blank", { action: "rename", name: "Named" }),
   ).toMatchObject({ ok: true, result: { action: "rename", applied: true } });
-  await expectAiMark(true);
+  await expectAgentNote(true);
 
   // The tab remembers it with the Project.
   page.on("dialog", (prompt) => void prompt.accept());
   await page.reload();
   await expect(tabs).toHaveCount(3);
-  await expectAiMark(true);
+  await expectAgentNote(true);
 });
 
 test("keeps pairing across Project tabs, rejects old writes and copies through the workspace transaction", async ({

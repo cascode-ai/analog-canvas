@@ -328,7 +328,53 @@ test("tab file opening is additive and closing unsaved projects can be cancelled
   await expect(page.getByTestId("active-instance-count")).toHaveText("1");
 });
 
-test("Cloud File menu appends a tab, and Shelf deduplicates and saves Cloud identities", async ({
+test("a tab's right-click menu closes the others or all, asking once for unsaved ones", async ({
+  page,
+}) => {
+  await page.goto("/editor?new=1");
+  await awaitEditorReady(page);
+  const newTab = page.getByRole("button", {
+    name: "New project tab",
+    exact: true,
+  });
+  const tabs = page.getByRole("tab");
+  const menu = page.getByTestId("project-tab-menu");
+  await newTab.click();
+  await insert(page, "resistor", 300, 240);
+  await newTab.click();
+  await expect(tabs).toHaveCount(3);
+
+  // Close Others keeps the tab right-clicked; clean tabs go without asking.
+  await tabs.nth(1).click({ button: "right" });
+  await expect(menu.getByRole("menuitem")).toHaveText([
+    "Close",
+    "Close Others",
+    "Close All",
+  ]);
+  await menu.getByRole("menuitem", { name: "Close Others" }).click();
+  await expect(tabs).toHaveCount(1);
+  await expect(tabs).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByTestId("active-instance-count")).toHaveText("1");
+
+  // Close All asks once for the unsaved tabs, then leaves one blank tab.
+  await newTab.click();
+  await insert(page, "capacitor", 300, 240);
+  await tabs.first().click({ button: "right" });
+  await menu.getByRole("menuitem", { name: "Close All" }).click();
+  const strip = page.getByTestId("project-tab-close-decision");
+  await expect(strip).toContainText("Close 2 tabs? 2 have unsaved changes.");
+  await strip.getByRole("button", { name: "Keep open", exact: true }).click();
+  await expect(tabs).toHaveCount(2);
+  await tabs.first().click({ button: "right" });
+  await menu.getByRole("menuitem", { name: "Close All" }).click();
+  await strip
+    .getByRole("button", { name: "Close without saving", exact: true })
+    .click();
+  await expect(tabs).toHaveCount(1);
+  await expect(page.getByTestId("active-instance-count")).toHaveText("0");
+});
+
+test("the Shelf appends a Cloud Project tab, deduplicates and saves Cloud identities", async ({
   page,
 }) => {
   const { createEmptyProject } = await import("@icm/model");
@@ -375,13 +421,8 @@ test("Cloud File menu appends a tab, and Shelf deduplicates and saves Cloud iden
   });
   await page.goto("/editor?new=1");
   const blankProjectId = (await saved(page)).id;
-  const fileMenu = await openMenu(page, "File");
-  await fileMenu.getByTestId("cloud-project-cloud-0").click();
+  await shelf("Alpha");
   await expect(page.getByRole("tab")).toHaveCount(2);
-  await expect(page.getByRole("tab", { name: /Alpha$/ })).toHaveAttribute(
-    "aria-selected",
-    "true",
-  );
   async function shelf(name: string) {
     await page.getByLabel("Open Shelf project in tab", { exact: true }).click();
     await page
@@ -1026,7 +1067,7 @@ test("unchanged legacy names survive the Cloud-length input limit and IME Enter"
   await expect(tab).toContainText(project.name);
 });
 
-test("tab rename keeps header geometry and File has read-only Project Info", async ({
+test("tab rename keeps header geometry and Project Info renames the circuit and its Cell", async ({
   page,
 }) => {
   await page.goto("/editor?new=1");
@@ -1072,12 +1113,15 @@ test("tab rename keeps header geometry and File has read-only Project Info", asy
     expect(trigger.x).toBeGreaterThanOrEqual(brand.x + brand.width);
     expect(trigger.width).toBeLessThanOrEqual(96);
     const dialog = await openProjectInfo(page);
-    await expect(dialog).toContainText(longName);
+    await expect(
+      dialog.getByRole("textbox", { name: "Name", exact: true }),
+    ).toHaveValue(longName);
     await expect(dialog).toContainText("Current Cell");
-    await expect(dialog.getByRole("textbox")).toHaveCount(0);
+    // About two thirds of the window.
     const bounds = (await dialog.boundingBox())!;
     expect(bounds.x).toBeGreaterThanOrEqual(0);
     expect(bounds.x + bounds.width).toBeLessThanOrEqual(width);
+    expect(Math.abs(bounds.width - (width * 2) / 3)).toBeLessThanOrEqual(2);
     await page.screenshot({ path: `plan/project-info-${width}.png` });
     await page.keyboard.press("Escape");
     await expect(dialog).toBeHidden();
@@ -1094,6 +1138,34 @@ test("tab rename keeps header geometry and File has read-only Project Info", asy
   // A rename is an ordinary edit: one Undo restores the old name.
   await page.keyboard.press("ControlOrMeta+z");
   await expect(page.getByTestId("project-name")).toHaveText("New Circuit");
+
+  // Project Info names the circuit and its Cell as one undoable edit.
+  const info = await openProjectInfo(page);
+  const cellField = info.getByRole("textbox", {
+    name: "Current Cell",
+    exact: true,
+  });
+  const cellName = await cellField.inputValue();
+  await info
+    .getByRole("textbox", { name: "Name", exact: true })
+    .fill("Bandgap reference");
+  await cellField.fill("bandgap_core");
+  await cellField.press("Enter");
+  await expect(info).toBeHidden();
+  await expect(page.getByTestId("project-name")).toHaveText(
+    "Bandgap reference",
+  );
+  await expect(page.getByRole("tab", { selected: true })).toContainText(
+    "Bandgap reference",
+  );
+  await openProjectInfo(page);
+  await expect(cellField).toHaveValue("bandgap_core");
+  await page.keyboard.press("Escape");
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect(page.getByTestId("project-name")).toHaveText("New Circuit");
+  await openProjectInfo(page);
+  await expect(cellField).toHaveValue(cellName);
+  await page.keyboard.press("Escape");
 
   // Projects are switched with the tabs.
   await page

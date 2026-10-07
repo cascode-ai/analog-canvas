@@ -947,17 +947,30 @@ replaced by its letter, consuming the Space; an unknown name stays as typed.
 
 ## Project sessions
 
-The project tabs are the editor's sole project-name editing surface. Single
-click activates a tab; double-click its name edits in place without resizing
-the header or taking focus when a new `New Circuit` tab opens. Enter or blur
-commits a nonempty changed name as one existing `rename_project` edit; Escape,
-blank text and unchanged text make no edit. Typing belongs to the input, not
-the canvas. Input accepts up to 120 characters, matching Cloud/Shelf naming;
-opening or canceling an older longer name does not truncate it. Renaming marks
-work dirty and is undoable, but never saves automatically, changes a Cell name
-or file binding, or republishes a Gallery entry. Explicit Save uses the same
-Cloud Project or native file binding as before. File's Project Info is read-only;
-Shelf Rename remains a command for managing the saved Cloud Project.
+Project names are edited in the project tabs and in File's Project Info.
+Single click activates a tab; double-click its name edits in place without
+resizing the header or taking focus when a new `New Circuit` tab opens. Enter
+or blur commits a nonempty changed name as one existing `rename_project` edit;
+Escape, blank text and unchanged text make no edit. Typing belongs to the
+input, not the canvas. Input accepts up to 120 characters, matching
+Cloud/Shelf naming; opening or canceling an older longer name does not
+truncate it. Renaming marks work dirty and is undoable, but never saves
+automatically, changes a Cell name or file binding, or republishes a Gallery
+entry. Explicit Save uses the same Cloud Project or native file binding as
+before. File's Project Info, the first File command, edits the circuit's name
+and the name of the Cell on screen together and saves them as one undoable
+edit (`rename_project` and `rename_document`); blank names refuse, and a
+Gallery contributor and notes are shown, not edited. It is about two thirds of
+the window wide. Shelf Rename remains a command for managing the saved Cloud
+Project. File does not list the private Cloud Projects: the project tabs'
+Shelf opens them in a tab, and the account page's Cloud Projects tab opens,
+renames and deletes them.
+
+A project tab's right-click menu offers Close, Close Others and Close All.
+Clean tabs close at once; when any tab to close holds unsaved work, one
+decision strip names how many and asks before closing them without saving.
+Close Others keeps and activates the right-clicked tab; Close All leaves one
+blank tab, as closing the last tab does.
 
 Opening an independent project tab, activating an existing tab and replacing
 the current Project are distinct session operations, not Document edits.
@@ -1031,7 +1044,7 @@ one concise application dialog with Stay, Save to Cloud and continue, and
 Continue without saving. The dialog states the destination and distinguishes
 Cloud Save (private Cloud Projects, up to a per-account limit) from local
 Project-file export without exposing browser-recovery internals. The limit it
-shows is the editor's shared Cloud Project limit, the same value the File menu
+shows is the editor's shared Cloud Project limit, the same value the Shelf
 counts against, not a figure written into the dialog text. A startup recovery
 offer is a non-modal overlay and never silently
 replaces the active Project.

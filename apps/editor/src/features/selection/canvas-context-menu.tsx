@@ -1,5 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
-
+import { ContextMenu } from "../../components/context-menu";
 import {
   EDGE_ALIGNMENT_MODES,
   type EdgeAlignmentMode,
@@ -23,6 +22,8 @@ export interface CanvasContextMenuProps {
 /**
  * Shared right-click menu for visual selection. It stays deliberately small:
  * only operations that act directly on the current selection belong here.
+ * An outside press both closes it and reaches the canvas, including
+ * marquee/Alt framing and middle-button pan gestures.
  */
 export function CanvasContextMenu({
   position,
@@ -31,56 +32,12 @@ export function CanvasContextMenu({
   actions,
   onClose,
 }: CanvasContextMenuProps) {
-  const menuRef = useRef<HTMLDivElement | null>(null);
-  const [placed, setPlaced] = useState(position);
   const availableActions = actions.filter((action) => action.enabled);
-
-  useLayoutEffect(() => {
-    const menu = menuRef.current;
-    if (!menu) return;
-    const bounds = menu.getBoundingClientRect();
-    setPlaced({
-      x: Math.max(
-        4,
-        Math.min(position.x, window.innerWidth - bounds.width - 4),
-      ),
-      y: Math.max(
-        4,
-        Math.min(position.y, window.innerHeight - bounds.height - 4),
-      ),
-    });
-  }, [position]);
-
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    const onPointerDown = (event: PointerEvent) => {
-      if (
-        event.target instanceof Node &&
-        !menuRef.current?.contains(event.target)
-      )
-        onClose();
-    };
-    window.addEventListener("keydown", onKeyDown);
-    // Non-modal dismissal: the same outside press still reaches the canvas,
-    // including marquee/Alt framing and middle-button pan gestures.
-    window.addEventListener("pointerdown", onPointerDown, true);
-    return () => {
-      window.removeEventListener("keydown", onKeyDown);
-      window.removeEventListener("pointerdown", onPointerDown, true);
-    };
-  }, [onClose]);
-
   return (
-    <div
-      ref={menuRef}
-      className="canvas-context-menu"
-      data-testid="canvas-context-menu"
-      role="menu"
-      style={{ left: placed.x, top: placed.y }}
-      onPointerDown={(event) => event.stopPropagation()}
-      onContextMenu={(event) => event.preventDefault()}
+    <ContextMenu
+      position={position}
+      testId="canvas-context-menu"
+      onClose={onClose}
     >
       {alignmentEnabled ? (
         <div className="context-menu-section">
@@ -120,6 +77,6 @@ export function CanvasContextMenu({
           ))}
         </div>
       ) : null}
-    </div>
+    </ContextMenu>
   );
 }

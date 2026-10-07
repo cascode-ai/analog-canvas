@@ -192,10 +192,11 @@
   }
 }
 
-/* File → Project Info…: the project's name and a few facts about it,
-   in the same quiet card as the unsaved-changes guard. */
+/* File → Project Info: the circuit's and the Cell's names to edit and a few
+   facts, in the same quiet card as the unsaved-changes guard, about two
+   thirds of the window wide and never narrower than the form needs. */
 .project-info-dialog {
-  width: min(26rem, 100%);
+  width: min(calc(100vw - 2rem), max(66.667vw, 28rem));
   padding: 1.15rem 1.25rem 1rem;
   border: 1px solid var(--icm-border);
   border-radius: var(--icm-radius-lg);
@@ -209,23 +210,40 @@
   line-height: 1.3;
 }
 
-.project-info-details dt {
+.project-info-details dt,
+.project-info-details label > span {
   color: var(--icm-text-muted);
   font-size: var(--icm-font-xs);
   font-weight: 500;
 }
 
-.project-info-details {
+.project-info-details,
+.project-info-details dl {
   display: grid;
   gap: 8px;
   margin: 0;
 }
 
-.project-info-details > div {
+.project-info-details label,
+.project-info-details dl > div {
   display: grid;
   grid-template-columns: 6rem minmax(0, 1fr);
   gap: 8px;
   align-items: baseline;
+}
+
+.project-info-details input {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  height: var(--icm-control-h);
+  padding: 0 0.5rem;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
+  background: var(--icm-surface);
+  color: var(--icm-text);
+  font: inherit;
+  font-size: var(--icm-font-sm);
 }
 
 .project-info-details dd {
@@ -256,6 +274,22 @@
 
 .project-info-actions button:hover:not(:disabled) {
   background: var(--icm-surface-hover);
+}
+
+.project-info-actions .primary {
+  border-color: var(--icm-accent);
+  color: #fff;
+  background: var(--icm-accent);
+}
+
+.project-info-actions .primary:hover:not(:disabled) {
+  background: var(--icm-accent);
+  filter: brightness(1.08);
+}
+
+.project-info-actions button:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .replace-guard-warning {

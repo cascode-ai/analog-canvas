@@ -13,8 +13,8 @@ export interface ProjectMenuProps {
 }
 
 /**
- * The header's File menu holds commands and read-only Project Info.
- * Project tabs select projects and edit their names.
+ * The header's File menu holds Project Info, where the circuit and its Cell
+ * are named, and the file commands. Project tabs select projects.
  */
 export function ProjectMenu({
   label,

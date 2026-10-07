@@ -29,6 +29,7 @@ import {
   GALLERY_NETLIST_PAGE_CHARACTERS,
 } from "./gallery-do";
 import {
+  GALLERY_AI_SEAT_DAILY_LIMIT,
   GALLERY_DAILY_SUBMISSION_LIMIT,
   galleryReadableDocument,
   refreshNetlistMarks,
@@ -41,7 +42,7 @@ import {
   type GalleryEnv,
   type GalleryPreviewCache,
 } from "./gallery";
-import { AuthDO, type AuthEnv } from "./auth";
+import { AI_SEATS, AuthDO, type AuthEnv } from "./auth";
 import workerEntry, {
   AuthDO as DeployedAuthDO,
   GalleryDO as DeployedGalleryDO,
@@ -961,6 +962,23 @@ function makerOf(env: Harness): Promise<string> {
   return signIn(env.authDurable, "maker@example.com");
 }
 
+/** A browser the Owner switched to an AI account (seat). */
+async function seatOf(env: Harness): Promise<string> {
+  const admin = await adminOf(env);
+  return (
+    await env.authDurable.fetch(
+      new Request(`${ORIGIN}/api/auth/ai-accounts/switch`, {
+        method: "POST",
+        headers: { Origin: ORIGIN, Cookie: admin },
+        body: JSON.stringify({ userId: AI_SEATS[0]!.userId }),
+      }),
+    )
+  ).headers
+    .getSetCookie()
+    .find((cookie) => cookie.startsWith("icm_session="))!
+    .split(";")[0]!;
+}
+
 async function submitOne(
   env: Harness,
   name: string,
@@ -988,6 +1006,75 @@ async function submitOne(
   expect(payload.previewRevision).toMatch(/^[a-f0-9]{64}$/u);
   return payload.id;
 }
+
+describe("AI account bylines", () => {
+  it("gives an AI account's circuits and versions its listed name and the AI mark when the Gallery starts", () => {
+    const state = sqliteState();
+    new GalleryDO(state);
+    const sql = state.storage.sql;
+    const seat = AI_SEATS[0]!;
+    const at = "2026-10-01T00:00:00.000Z";
+    const second = AI_SEATS[1]!;
+    for (const [id, owner, author] of [
+      ["seat-entry", seat.userId, seat.formerName!],
+      ["person-entry", "person", seat.formerName!],
+      // A person's account under a listed id, which AuthDO leaves alone.
+      ["unconverted-entry", second.userId, "Someone"],
+    ])
+      sql.exec(
+        `INSERT INTO gallery_entries
+         (id, name, author, description, created_at, schema_version, status,
+          owner_user_id, project_text, svg_text)
+         VALUES (?, ?, ?, '', ?, ?, 'public', ?, ?, '<svg/>')`,
+        id,
+        id,
+        author,
+        at,
+        CURRENT_PROJECT_FILE_VERSION,
+        owner,
+        projectText(id),
+      );
+    sql.exec(
+      `INSERT INTO gallery_entry_versions
+       (id, entry_id, version_no, name, author, description,
+        schema_version, project_text, svg_text, created_at)
+       VALUES ('seat-v1', 'seat-entry', 1, 'seat-entry', ?, '', ?, ?,
+         '<svg/>', ?)`,
+      seat.formerName,
+      CURRENT_PROJECT_FILE_VERSION,
+      projectText("seat-entry"),
+      at,
+    );
+    new GalleryDO(state);
+    const authors = (table: string) =>
+      sql
+        .exec<{ id: string; author: string }>(
+          `SELECT id, author FROM ${table} ORDER BY id`,
+        )
+        .toArray();
+    expect(authors("gallery_entries")).toEqual([
+      // A person who happens to use the same byline keeps it.
+      { id: "person-entry", author: seat.formerName },
+      { id: "seat-entry", author: seat.displayName },
+      { id: "unconverted-entry", author: "Someone" },
+    ]);
+    // An AI account's circuits carry the AI mark too.
+    expect(
+      sql
+        .exec<{ id: string; ai_generated: number }>(
+          "SELECT id, ai_generated FROM gallery_entries ORDER BY id",
+        )
+        .toArray(),
+    ).toEqual([
+      { id: "person-entry", ai_generated: 0 },
+      { id: "seat-entry", ai_generated: 1 },
+      { id: "unconverted-entry", ai_generated: 0 },
+    ]);
+    expect(authors("gallery_entry_versions")).toEqual([
+      { id: "seat-v1", author: seat.displayName },
+    ]);
+  });
+});
 
 describe("account deletion", () => {
   it("removes the account's circuits, likes and Cloud Projects, and nobody else's", async () => {
@@ -1369,66 +1456,6 @@ describe("gallery data migrations", () => {
         .exec<{ count: number }>("SELECT COUNT(*) AS count FROM gallery_likes")
         .one().count,
     ).toBe(0);
-  });
-
-  it("marks the circuits on the Opus 5.5 account as AI once", () => {
-    const state = sqliteState();
-    new GalleryDO(state);
-    const row = (id: string, status: string, owner: string | null) => [
-      id,
-      id,
-      owner ? "Opus 5.5" : "Someone",
-      "",
-      "2026-10-01T00:00:00.000Z",
-      CURRENT_PROJECT_FILE_VERSION,
-      status,
-      owner,
-      projectText(id),
-      "<svg/>",
-    ];
-    state.storage.sql.exec(
-      `INSERT INTO gallery_entries
-       (id, name, author, description, created_at, schema_version, status,
-        owner_user_id, project_text, svg_text)
-       VALUES ${Array(4).fill("(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").join(", ")}`,
-      ...row("agent-public", "public", "b183aa15-078d-4476-be33-93c34f4bd95c"),
-      ...row(
-        "agent-recycled",
-        "recycled",
-        "b183aa15-078d-4476-be33-93c34f4bd95c",
-      ),
-      ...row("legacy-unowned", "public", null),
-      ...row("person-public", "public", "someone-else"),
-    );
-    state.storage.sql.exec(
-      "DELETE FROM data_migrations WHERE id LIKE '%ai-mark%'",
-    );
-    const marks = () =>
-      state.storage.sql
-        .exec<{ id: string; ai_generated: number }>(
-          "SELECT id, ai_generated FROM gallery_entries ORDER BY id",
-        )
-        .toArray();
-
-    new GalleryDO(state);
-    expect(marks()).toEqual([
-      { id: "agent-public", ai_generated: 1 },
-      { id: "agent-recycled", ai_generated: 1 },
-      { id: "legacy-unowned", ai_generated: 0 },
-      { id: "person-public", ai_generated: 0 },
-    ]);
-
-    // Once only: a mark the author clears later stays cleared.
-    state.storage.sql.exec(
-      "UPDATE gallery_entries SET ai_generated = 0 WHERE id = 'agent-public'",
-    );
-    new GalleryDO(state);
-    expect(marks()).toEqual([
-      { id: "agent-public", ai_generated: 0 },
-      { id: "agent-recycled", ai_generated: 1 },
-      { id: "legacy-unowned", ai_generated: 0 },
-      { id: "person-public", ai_generated: 0 },
-    ]);
   });
 });
 
@@ -2310,6 +2337,54 @@ describe("AI marks", () => {
         .status,
     ).toBe(200);
     expect((await marks(env))[id]).toBeUndefined();
+  });
+
+  it("keeps an AI account's mark whoever updates its entry, and allows it 500 a day", async () => {
+    const env = environment();
+    const seat = await seatOf(env);
+    const id = await submitOne(env, "Seat Amplifier", { cookie: seat });
+    const mark = () =>
+      env.gallerySql
+        .exec<{ ai_generated: number }>(
+          "SELECT ai_generated FROM gallery_entries WHERE id = ?",
+          id,
+        )
+        .one().ai_generated;
+    for (const cookie of [seat, await adminOf(env)]) {
+      expect(
+        (await route(env, updateRequest(id, cookie, { aiGenerated: false })))
+          .status,
+      ).toBe(200);
+      expect(mark()).toBe(1);
+    }
+    // With the day's 500th already standing, the next is refused.
+    const today = new Date().toISOString();
+    for (let index = 0; index < GALLERY_AI_SEAT_DAILY_LIMIT - 2; index += 1)
+      env.gallerySql.exec(
+        `INSERT INTO gallery_entries
+         (id, name, author, description, created_at, schema_version, status,
+          owner_user_id, project_text, svg_text)
+         VALUES (?, ?, 'x', '', ?, ?, 'public', ?, ?, '<svg/>')`,
+        `seeded-${index}`,
+        `seeded-${index}`,
+        today,
+        CURRENT_PROJECT_FILE_VERSION,
+        AI_SEATS[0]!.userId,
+        projectText(`seeded-${index}`),
+      );
+    await submitOne(env, "The 500th", { cookie: seat });
+    const refused = await route(
+      env,
+      submissionRequest(
+        {
+          name: "The 501st",
+          description: "d",
+          projectText: projectText("The 501st"),
+        },
+        { cookie: seat },
+      ),
+    );
+    expect(refused.status).toBe(429);
   });
 
   it("refuses an AI mark that is not true or false", async () => {
@@ -3290,6 +3365,42 @@ describe("the daily publish quota", () => {
       exempt: true,
     });
     expect((await quota()).status).toBe(401);
+  });
+
+  it("gives an AI account 500 a day and marks all it publishes AI-generated", async () => {
+    const env = environment();
+    const cookie = await seatOf(env);
+    const response = await route(
+      env,
+      submissionRequest(
+        {
+          name: "Seat circuit",
+          description: "d",
+          projectText: projectText("Seat circuit"),
+          aiGenerated: false,
+        },
+        { cookie },
+      ),
+    );
+    expect(response.status).toBe(201);
+    expect(
+      env.gallerySql
+        .exec<{ ai_generated: number }>(
+          "SELECT ai_generated FROM gallery_entries",
+        )
+        .one().ai_generated,
+    ).toBe(1);
+    const quota = await route(
+      env,
+      new Request(`${ORIGIN}/api/gallery/quota`, {
+        headers: cookieHeaders(cookie),
+      }),
+    );
+    expect(await quota.json()).toMatchObject({
+      limit: GALLERY_AI_SEAT_DAILY_LIMIT,
+      used: 1,
+      remaining: GALLERY_AI_SEAT_DAILY_LIMIT - 1,
+    });
   });
 
   it("counts an account's own entries, so removing work returns the allowance", async () => {

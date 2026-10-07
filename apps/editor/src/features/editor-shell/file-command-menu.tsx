@@ -1,6 +1,4 @@
 import {
-  lazy,
-  Suspense,
   useLayoutEffect,
   useRef,
   useState,
@@ -10,16 +8,7 @@ import {
   type RefObject,
 } from "react";
 
-import {
-  CLOUD_PROJECT_LIMIT,
-  type CloudProjectSummary,
-} from "./cloud-projects";
 import type { RecentProjectFile } from "../../hosts/native-project-store";
-const InlineConfirm = lazy(() =>
-  import("../../components/inline-confirm").then((module) => ({
-    default: module.InlineConfirm,
-  })),
-);
 
 export interface FileCommandMenuProps {
   NativeFileCommands?: ComponentType<
@@ -36,17 +25,12 @@ export interface FileCommandMenuProps {
     forget(id: string): void;
   };
   cloudEnabled?: boolean;
-  cloudProjects: readonly CloudProjectSummary[];
-  activeCloudProjectId: string | null;
   canRevert: boolean;
   hasRecoverySessions: boolean;
   checkAndSave: { enabled: boolean; execute: () => void };
   projectInputRef: RefObject<HTMLInputElement | null>;
   onNewProject: () => void;
   onSave: () => void;
-  onRefreshCloudProjects: () => void;
-  onOpenCloudProject: (project: CloudProjectSummary) => void;
-  onDeleteCloudProject: (project: CloudProjectSummary) => void | Promise<void>;
   onImportProject: (file: File | null) => void;
   onImportSpice: (
     files: FileList | null,
@@ -57,11 +41,12 @@ export interface FileCommandMenuProps {
   onExportRaster: (format: "png" | "pdf") => void;
   onRevert: () => void;
   onOpenRecovery: () => void;
-  /** Opens read-only Project Info. Names are edited in project tabs. */
+  /** Opens Project Info, where the circuit and its Cell are named. */
   onOpenInfo?: () => void;
   /**
    * Drawn as the File group inside another menu (the header's File menu),
-   * which refreshes the lists when it opens, not as a menu of its own.
+   * which refreshes the native file list when it opens, not as a menu of its
+   * own.
    */
   embedded?: boolean;
 }
@@ -147,17 +132,12 @@ export function FileCommandMenu({
   NativeFileCommands,
   nativeFiles,
   cloudEnabled = true,
-  cloudProjects,
-  activeCloudProjectId,
-  onOpenCloudProject,
-  onDeleteCloudProject,
   canRevert,
   hasRecoverySessions,
   checkAndSave,
   projectInputRef,
   onNewProject,
   onSave,
-  onRefreshCloudProjects,
   onImportProject,
   onImportSpice,
   onExportProject,
@@ -168,26 +148,9 @@ export function FileCommandMenu({
   onOpenInfo,
   embedded = false,
 }: FileCommandMenuProps) {
-  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [openSubmenu, setOpenSubmenu] = useState<"import" | "export" | null>(
     null,
   );
-  const cloudProjectList = useRef<HTMLDivElement>(null);
-  useLayoutEffect(() => {
-    if (!deletingId) return;
-    const list = cloudProjectList.current;
-    const decision = list?.querySelector<HTMLElement>(
-      ".inline-confirm[data-expanded]",
-    );
-    const row = decision?.closest<HTMLElement>(".cloud-project-command");
-    if (!list || !row) return;
-    const listBounds = list.getBoundingClientRect();
-    const rowBounds = row.getBoundingClientRect();
-    if (rowBounds.bottom > listBounds.bottom)
-      list.scrollTop += rowBounds.bottom - listBounds.bottom;
-    else if (rowBounds.top < listBounds.top)
-      list.scrollTop += rowBounds.top - listBounds.top;
-  }, [deletingId]);
   const activateFileLabel = (
     event: ReactKeyboardEvent<HTMLLabelElement>,
   ): void => {
@@ -195,8 +158,15 @@ export function FileCommandMenu({
     event.preventDefault();
     event.currentTarget.querySelector("input")?.click();
   };
+  // Private Cloud Projects are listed on the account page and in the
+  // project tabs' Shelf, not here.
   const commands = (
     <>
+      {onOpenInfo ? (
+        <button type="button" aria-haspopup="dialog" onClick={onOpenInfo}>
+          Project Info
+        </button>
+      ) : null}
       <button type="button" onClick={onNewProject}>
         New Project
       </button>
@@ -222,62 +192,6 @@ export function FileCommandMenu({
           >
             Check and Save
           </button>
-          <span className="command-group-label" id="file-cloud-projects-label">
-            Cloud Projects ({cloudProjects.length}/{CLOUD_PROJECT_LIMIT})
-          </span>
-          <div
-            ref={cloudProjectList}
-            className="cloud-project-list"
-            role="region"
-            aria-labelledby="file-cloud-projects-label"
-            tabIndex={cloudProjects.length ? 0 : undefined}
-            data-testid="file-cloud-project-list"
-          >
-            {cloudProjects.map((project) => (
-              <div className="cloud-project-command" key={project.id}>
-                <button
-                  type="button"
-                  className="cloud-project-open"
-                  data-testid={`cloud-project-${project.id}`}
-                  title={`Open revision ${project.revision}`}
-                  disabled={project.id === activeCloudProjectId}
-                  onClick={() => onOpenCloudProject(project)}
-                >
-                  <span className="cloud-project-name">{project.name}</span>
-                  <time
-                    className="cloud-project-time"
-                    dateTime={project.updatedAt}
-                  >
-                    {new Date(project.updatedAt).toLocaleString(undefined, {
-                      dateStyle: "short",
-                      timeStyle: "short",
-                    })}
-                  </time>
-                </button>
-                <Suspense fallback={<button disabled>Delete</button>}>
-                  <InlineConfirm
-                    aria-label={`Delete Cloud Project ${project.name}`}
-                    title="Delete this Cloud Project"
-                    disabled={project.id === activeCloudProjectId}
-                    open={deletingId === project.id}
-                    onOpenChange={(open) => {
-                      if (open) setOpenSubmenu(null);
-                      setDeletingId((current) =>
-                        open
-                          ? project.id
-                          : current === project.id
-                            ? null
-                            : current,
-                      );
-                    }}
-                    onConfirm={() => onDeleteCloudProject(project)}
-                  >
-                    Delete
-                  </InlineConfirm>
-                </Suspense>
-              </div>
-            ))}
-          </div>
         </>
       ) : null}
       <div>
@@ -286,7 +200,6 @@ export function FileCommandMenu({
           title="Import"
           open={openSubmenu === "import"}
           onToggle={() => {
-            setDeletingId(null);
             setOpenSubmenu((current) =>
               current === "import" ? null : "import",
             );
@@ -347,7 +260,6 @@ export function FileCommandMenu({
           title="Export"
           open={openSubmenu === "export"}
           onToggle={() => {
-            setDeletingId(null);
             setOpenSubmenu((current) =>
               current === "export" ? null : "export",
             );
@@ -390,21 +302,11 @@ export function FileCommandMenu({
           Recover Unsaved Work…
         </button>
       ) : null}
-      {onOpenInfo ? (
-        <button type="button" aria-haspopup="dialog" onClick={onOpenInfo}>
-          Project Info…
-        </button>
-      ) : null}
     </>
   );
   if (embedded)
     return (
-      <div
-        className="command-section"
-        role="group"
-        aria-label="File"
-        data-inline-confirm-menu
-      >
+      <div className="command-section" role="group" aria-label="File">
         {/* The File menu's own summary names these commands. */}
         {commands}
       </div>
@@ -415,17 +317,11 @@ export function FileCommandMenu({
       name="editor-command-menu"
       onToggle={(event) => {
         if (event.currentTarget.open) nativeFiles?.refresh();
-        if (event.currentTarget.open && cloudEnabled) onRefreshCloudProjects();
         else setOpenSubmenu(null);
       }}
     >
       <summary>File</summary>
-      <div
-        className="command-popover file-command-popover"
-        data-inline-confirm-menu
-      >
-        {commands}
-      </div>
+      <div className="command-popover file-command-popover">{commands}</div>
     </details>
   );
 }

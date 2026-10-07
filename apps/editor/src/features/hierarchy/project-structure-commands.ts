@@ -740,10 +740,32 @@ export function createProjectStructureCommands({
     }
   };
 
+  /**
+   * Project Info's Save: the circuit's name and the Cell's on screen, as one
+   * undoable edit. Blank names refuse; unchanged ones make no edit. False
+   * when nothing was committed that should have been.
+   */
+  const editProjectInfo = (input: { name: string; cellName: string }) => {
+    const name = input.name.trim();
+    const cellName = input.cellName.trim();
+    if (!name || !cellName) return false;
+    const edits: ProjectStructureEdit[] = [
+      ...(name === project.name
+        ? []
+        : [{ kind: "rename_project" as const, name }]),
+      ...planRenameCell(project, activeDocument.id, cellName),
+    ];
+    if (!edits.length) return true;
+    if (!commitStructure("edit-project-info", edits)) return false;
+    setStatus("Updated Project Info");
+    return true;
+  };
+
   return {
     setTopCell,
     createCell,
     renameCell,
+    editProjectInfo,
     deleteCell,
     updateCellPinDirection,
     updateCellPortDirection,

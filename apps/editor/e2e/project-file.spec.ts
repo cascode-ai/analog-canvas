@@ -195,126 +195,12 @@ test("opens a recognized old booster symbol with correct marks and keeps them af
   expect(await centers()).toEqual([-14]);
 });
 
-async function mockFullCloudProjectList(page: Page) {
-  await page.route("**/api/auth/me", (route) =>
-    route.fulfill({
-      json: {
-        user: {
-          id: "u1",
-          displayName: "Circuit Author",
-          email: "author@example.com",
-          provider: "github",
-          isAdmin: false,
-        },
-      },
-    }),
-  );
-  await page.route("**/api/projects", (route) =>
-    route.fulfill({
-      json: {
-        projects: Array.from({ length: CLOUD_PROJECT_LIMIT }, (_, index) => ({
-          id: `cloud-${index + 1}`,
-          name: `Circuit ${String(index + 1).padStart(2, "0")}`,
-          updatedAt: "2026-09-24T08:00:00.000Z",
-          revision: 1,
-          schemaVersion: CURRENT_MODEL_SCHEMA_VERSION,
-        })),
-      },
-    }),
-  );
-}
-
-// 720×600 covers the short window: the File popover has the same fixed width
-// from 720 to 1536, so a wide short window adds nothing.
-for (const { width, height } of [
-  { width: 1536, height: 825 },
-  { width: 720, height: 600 },
-]) {
-  test(`File commands remain reachable with 20 Cloud Projects at ${width}×${height}`, async ({
-    page,
-  }) => {
-    await page.setViewportSize({ width, height });
-    await mockFullCloudProjectList(page);
-    await page.goto("/editor");
-    const fileMenu = await openMenu(page, "File");
-    const list = fileMenu.getByTestId("file-cloud-project-list");
-    await expect(list.locator(".cloud-project-command")).toHaveCount(
-      CLOUD_PROJECT_LIMIT,
-    );
-    expect(
-      await list.evaluate(
-        (element) => element.scrollHeight > element.clientHeight,
-      ),
-    ).toBe(true);
-
-    // The File commands are a group in the header's one menu, which fits the
-    // window and scrolls within it.
-    const popover = page
-      .getByTestId("project-menu")
-      .locator(".project-menu-popover");
-    const bounds = await popover.boundingBox();
-    expect(bounds).not.toBeNull();
-    expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(height - 6);
-    const importTrigger = fileMenu.getByRole("button", {
-      name: "Import",
-      exact: true,
-    });
-    const exportTrigger = fileMenu.getByRole("button", {
-      name: "Export",
-      exact: true,
-    });
-    await importTrigger.scrollIntoViewIfNeeded();
-    await expect(importTrigger).toBeInViewport();
-    await exportTrigger.scrollIntoViewIfNeeded();
-    await expect(exportTrigger).toBeInViewport();
-    await importTrigger.click();
-    const importOption = fileMenu.getByText("SPICE / SCS…");
-    await expect(importOption).toBeInViewport();
-    const importBounds = await importOption.boundingBox();
-    expect(importBounds!.x + importBounds!.width).toBeLessThanOrEqual(
-      width - 6,
-    );
-    await exportTrigger.click();
-    const exportOption = fileMenu.getByRole("button", {
-      name: "Export Project File…",
-    });
-    await expect(exportOption).toBeInViewport();
-    const exportBounds = await exportOption.boundingBox();
-    expect(exportBounds!.x + exportBounds!.width).toBeLessThanOrEqual(
-      width - 6,
-    );
-
-    await list.scrollIntoViewIfNeeded();
-    await list.hover();
-    await page.mouse.wheel(0, 1200);
-    await expect
-      .poll(() => list.evaluate((element) => element.scrollTop))
-      .toBeGreaterThan(0);
-    const lastProject = fileMenu.getByTestId(
-      `cloud-project-cloud-${CLOUD_PROJECT_LIMIT}`,
-    );
-    await expect(lastProject).toBeInViewport();
-    await list.evaluate((element) => {
-      element.scrollTop = 0;
-    });
-    await lastProject.focus();
-    await expect(lastProject).toBeInViewport();
-    await fileMenu
-      .getByRole("button", { name: "Delete Cloud Project Circuit 20" })
-      .click();
-    const keep = fileMenu.getByRole("button", { name: "Keep it" });
-    await expect(keep).toBeInViewport();
-    await keep.click();
-    await exportTrigger.scrollIntoViewIfNeeded();
-    await expect(exportTrigger).toBeInViewport();
-  });
-}
-
 test("File menu falls back to one scroll area in a short viewport", async ({
   page,
 }) => {
-  await page.setViewportSize({ width: 720, height: 360 });
-  await mockFullCloudProjectList(page);
+  // Short enough that even the File commands alone overflow it.
+  const height = 240;
+  await page.setViewportSize({ width: 720, height });
   await page.goto("/editor");
   const fileMenu = await openMenu(page, "File");
   const popover = page
@@ -328,7 +214,7 @@ test("File menu falls back to one scroll area in a short viewport", async ({
     )
     .toBe(true);
   const bounds = await popover.boundingBox();
-  expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(360);
+  expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(height);
   await fileMenu.getByRole("button", { name: "Export", exact: true }).click();
   const exportOption = fileMenu.getByRole("button", {
     name: "Export Project File…",
@@ -494,28 +380,11 @@ test("Cloud Save updates one binding while local export stays interchange", asyn
   await expect(page.getByTestId("project-unsaved-indicator")).toHaveCount(0);
   const reopenedMenu = await openMenu(page, "File");
   await expect(
-    reopenedMenu.getByText(`Cloud Projects (1/${CLOUD_PROJECT_LIMIT})`),
-  ).toBeVisible();
-  await expect(
     reopenedMenu.getByRole("button", { name: "Save", exact: true }),
   ).toHaveCount(1);
-  const cloudProjectButton = reopenedMenu.getByTestId("cloud-project-cloud-1");
-  // The Project already open is not offered again.
-  await expect(cloudProjectButton).toBeDisabled();
-  const cloudProjectTime = cloudProjectButton.locator("time");
-  await expect(cloudProjectTime).toBeVisible();
-  expect(
-    await cloudProjectTime.evaluate(
-      (element) => getComputedStyle(element).overflow,
-    ),
-  ).toBe("hidden");
-  const buttonBounds = await cloudProjectButton.boundingBox();
-  const timeBounds = await cloudProjectTime.boundingBox();
-  expect(buttonBounds).not.toBeNull();
-  expect(timeBounds).not.toBeNull();
-  expect(timeBounds!.x + timeBounds!.width).toBeLessThanOrEqual(
-    buttonBounds!.x + buttonBounds!.width,
-  );
+  // Saved Cloud Projects are listed in the tabs' Shelf, not in File.
+  await expect(reopenedMenu.getByText("Cloud Projects (")).toHaveCount(0);
+  await page.keyboard.press("Escape");
   await page.getByRole("link", { name: "Back to the gallery" }).click();
   await expect(page).toHaveURL(/\/$/u);
   await page.goto("/editor");
@@ -689,99 +558,6 @@ test("Continue without saving to the Gallery drops the edits without a second br
   await returnToEditor();
   await expect(page.getByTestId("active-instance-count")).toHaveText("1");
   await expect(page.getByTestId("project-unsaved-indicator")).toHaveCount(0);
-});
-
-test("File deletion stays inline, bounded and retryable without native dialogs", async ({
-  page,
-}) => {
-  const name = "LongCircuitName".repeat(7);
-  const summary = {
-    id: "delete-target",
-    name,
-    revision: 1,
-    schemaVersion: CURRENT_MODEL_SCHEMA_VERSION,
-    updatedAt: "2026-09-22T00:00:00Z",
-  };
-  let deleted = false;
-  let attempts = 0;
-  let release!: () => void;
-  const waiting = new Promise<void>((resolve) => {
-    release = resolve;
-  });
-  const dialogs: string[] = [];
-  page.on("dialog", (dialog) => {
-    dialogs.push(dialog.type());
-    void dialog.dismiss();
-  });
-  await page.route("**/api/projects", (route) =>
-    route.fulfill({ json: { projects: deleted ? [] : [summary] } }),
-  );
-  await page.route("**/api/projects/delete-target", async (route) => {
-    attempts++;
-    if (attempts === 1) {
-      await waiting;
-      await route.fulfill({
-        status: 503,
-        json: { error: "Temporarily unavailable" },
-      });
-    } else {
-      deleted = true;
-      await route.fulfill({ json: { deleted: true } });
-    }
-  });
-  await page.setViewportSize({ width: 360, height: 500 });
-  await page.goto("/editor?new=1");
-  await openMenu(page, "File");
-  const trigger = page.getByRole("button", {
-    name: `Delete Cloud Project ${name}`,
-    exact: true,
-  });
-  await trigger.click();
-  await expect(
-    page.getByRole("button", { name: "Keep it", exact: true }),
-  ).toBeFocused();
-  expect(attempts).toBe(0);
-  await page.keyboard.press("Escape");
-  await expect(trigger).toBeFocused();
-  await trigger.click();
-  for (const width of [360, 320]) {
-    await expect(page.locator(".inline-confirm-decision")).toHaveText(
-      "Really deleteKeep it",
-    );
-    await page.setViewportSize({ width, height: 400 });
-    await expect
-      .poll(async () =>
-        page.locator("[data-inline-confirm-menu]").evaluate((menu) => {
-          const rect = menu.getBoundingClientRect();
-          return (
-            rect.left >= 0 &&
-            rect.top >= 0 &&
-            rect.right <= innerWidth &&
-            rect.bottom <= innerHeight
-          );
-        }),
-      )
-      .toBe(true);
-  }
-  await page.screenshot({ path: "plan/inline-file-delete-narrow.png" });
-  await page
-    .getByRole("button", { name: "Really delete", exact: true })
-    .click();
-  await expect(
-    page.getByRole("button", { name: "Working…", exact: true }),
-  ).toBeDisabled();
-  await expect(
-    page.getByRole("button", { name: "Keep it", exact: true }),
-  ).toBeDisabled();
-  release();
-  await expect(page.locator(".inline-confirm [role=alert]")).toBeVisible();
-  expect(attempts).toBe(1);
-  await page
-    .getByRole("button", { name: "Really delete", exact: true })
-    .click();
-  await expect(trigger).toHaveCount(0);
-  expect(attempts).toBe(2);
-  expect(dialogs).toEqual([]);
 });
 
 test("imports and upgrades a portable Project before explicit export", async ({
