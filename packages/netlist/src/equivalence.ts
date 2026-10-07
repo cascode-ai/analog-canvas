@@ -185,7 +185,9 @@ export function electricalGraphFromIR(
           continue;
         }
         const reviewed =
-          instance.invocationKind === "subcircuit" && instance.target
+          instance.invocationKind === "subcircuit" &&
+          instance.target &&
+          !externalMasters.get(instance.target)?.implementationKind
             ? resolveReviewedExternalBinding(
                 instance.target,
                 instance.nodes.map((node) => node.pinName),

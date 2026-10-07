@@ -31,7 +31,7 @@ export function createSimulationProjectFileHost(options: {
   };
   return {
     read,
-    commit(expected, folder, parameters = []) {
+    commit(expected, folder, parameters = [], modelUpdates = []) {
       const project = options.getProject();
       const fail = (code: string, message: string) => ({
         ok: false as const,
@@ -111,6 +111,16 @@ export function createSimulationProjectFileHost(options: {
         documents.set(document.id, target);
       }
       const edits: ProjectStructureEdit[] = [
+        ...modelUpdates.map((source): ProjectStructureEdit => ({
+          kind: "apply_model_source",
+          source,
+          definitions: project.externalSubcircuitDefinitions.flatMap((d) =>
+            d.implementation?.kind === "source" &&
+            d.implementation.sourceId === source.id
+              ? [{ definitionId: d.id, entry: d.implementation.entry }]
+              : [],
+          ),
+        })),
         { kind: "upsert_simulation_folder", folder },
         ...[...documents].map(([documentId, value]) => ({
           kind: "transact_document" as const,

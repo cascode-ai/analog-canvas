@@ -43,6 +43,7 @@ import {
 import { SimulationSpecResults } from "./simulation-spec-results";
 import { sha256 } from "@icm/simulation-service/files";
 import { SimulationProblemView } from "./simulation-problem-view";
+import { modelSourceDiagnosticLocation } from "./model-source-location";
 import { SimulationRunDetails } from "./simulation-run-details";
 import { SimulationActionIcon } from "./simulation-action-icon";
 import {
@@ -566,6 +567,63 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
     );
     if (result.status === "failed")
       setProblem(uiProblem("ARTIFACT_DOWNLOAD_FAILED", result.message));
+  };
+  const openModelDiagnostic = async (
+    diagnosticRun: Run,
+    location: { file: string; line: number },
+  ) => {
+    const unavailable = (message: string) =>
+      setProblem(uiProblem("MODEL_LOCATION_UNAVAILABLE", message));
+    const matches = diagnosticRun.artifacts.filter(
+      (a) =>
+        a.sourcePath &&
+        (a.sourcePath === location.file ||
+          location.file.endsWith("/" + a.sourcePath)),
+    );
+    const sourceMap = diagnosticRun.artifacts.find(
+      (a) => a.name === "source-map.json",
+    );
+    const modelSnapshot = diagnosticRun.artifacts.find(
+      (a) => a.name === "model-sources.json",
+    );
+    if (matches.length !== 1 || !sourceMap || !modelSnapshot) {
+      unavailable(
+        "This diagnostic has no unique model mapping. Inspect the retained run artifacts.",
+      );
+      return;
+    }
+    try {
+      const reads = await Promise.all(
+        [matches[0]!, sourceMap, modelSnapshot].map((a) =>
+          readSimulationArtifact(session.files, a),
+        ),
+      );
+      if (reads.some((r) => !r.ok)) {
+        unavailable(
+          "The original model evidence is unavailable. Inspect this run's retained artifacts.",
+        );
+        return;
+      }
+      const text = reads.map((r) => (r.ok ? r.content.text : ""));
+      const resolved = await modelSourceDiagnosticLocation(
+        location,
+        text[0]!,
+        JSON.parse(text[1]!),
+        JSON.parse(text[2]!),
+      );
+      if (!resolved) {
+        unavailable(
+          "This line is outside an exact model span. Inspect its source artifact.",
+        );
+        return;
+      }
+      setResultsMaximized(false);
+      await codeRef.current?.reveal(resolved);
+    } catch {
+      unavailable(
+        "The saved mapping is unreadable. Inspect the original artifacts.",
+      );
+    }
   };
   const preview = async (artifact: ArtifactRef) => {
     const request = ++artifactRequest.current;
@@ -1230,13 +1288,32 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
               />
             ) : null}
             {run?.result ? (
-              <pre>
-                {run.result.diagnostics
-                  .map((diagnostic) => diagnostic.text)
-                  .join("\n")}
-                {"\n"}
-                {run.result.log}
-              </pre>
+              <>
+                {props.onOpenModelSource &&
+                run.artifacts.some((a) => a.name === "model-sources.json")
+                  ? run.result.diagnostics
+                      .filter((d) => d.location)
+                      .map((diagnostic, index) => (
+                        <button
+                          key={index}
+                          type="button"
+                          onClick={() =>
+                            void openModelDiagnostic(run, diagnostic.location!)
+                          }
+                        >
+                          Open model source at {diagnostic.location!.file}:
+                          {diagnostic.location!.line}
+                        </button>
+                      ))
+                  : null}
+                <pre>
+                  {run.result.diagnostics
+                    .map((diagnostic) => diagnostic.text)
+                    .join("\n")}
+                  {"\n"}
+                  {run.result.log}
+                </pre>
+              </>
             ) : null}
             {!activeProblem && !run?.result ? (
               <p className="simulation-empty-result">
@@ -1501,6 +1578,7 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
             onAction: (action, ids) => void folderAction(action, ids),
           }}
           onHistoryBoundary={props.onHistoryBoundary}
+          onOpenModelSource={props.onOpenModelSource}
         />
       ) : (
         <div className="simulation-start-workspace">

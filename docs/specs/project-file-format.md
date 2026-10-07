@@ -2,16 +2,16 @@
 
 Status: `accepted`
 
-Portable file schema: `65`; normalized editor model schema: `58`.
+Portable file schema: `66`; normalized editor model schema: `58`.
 
 Primary owner: `packages/project-protocol` (portable source and codec).
 `packages/model` validates the normalized editor indexes used by rendering,
 connectivity and transactions. The normalized indexes are decoded working data;
-serialization always writes the one schema-65 authoring representation.
+serialization always writes the one schema-66 authoring representation.
 
 An `.icproj.json` file contains a complete Project. The public `parseProject`
-boundary reads file schemas 24 through 65. Historical schemas pass through the
-existing explicit upgrades; schemas 59 through 65 decode through the
+boundary reads file schemas 24 through 66. Historical schemas pass through the
+existing explicit upgrades; schemas 59 through 66 decode through the
 owned-object codec. Schema 60 introduced derived network membership from
 connection facts. Schema 62 lets a Symbol's body text keep an authored look. Both return the same validated editor model. File/envelope
 metadata must use `CURRENT_PROJECT_FILE_VERSION`, not the internal model
@@ -37,6 +37,22 @@ source and target style defaults differ, so the copy draws like its source
 Document. Files of schema 63 and earlier cannot carry it.
 
 ## Instance-owned source
+
+Schema 66 adds optional Project `modelSources` and external-definition
+`implementation` bindings. A native SPICE owner retains exact relative-file
+text, its entry path, pinned dependency identities/digests, applied revision and
+optional saved draft. A source binding selects one parsed subcircuit entry;
+an explicit placeholder has no applied implementation and may retain a draft
+owner. Parsed headers must agree with persisted interface projections. Earlier
+file versions cannot carry these fields. The editor model stays at 58 because
+these are optional additions; portable writers always emit 66.
+
+Owned sources and drafts travel through Cloud Save, recovery, Project Code,
+portable export/reload, Cell import and cross-Project copy. Import provenance
+`source.files` remains a separate archive. Legacy declarations and
+simulation-folder bodies are retained; loading does not guess or promote their
+implementation. Compatible copy reuse compares native files, drafts and pinned
+dependencies; conflicting implementations refuse without selecting a substitute.
 
 Schema 65 preserves an instance's optional `control`, independently of its
 visual annotation: voltage controls retain positive/negative Base-Net IDs,
@@ -244,9 +260,9 @@ file codec preserves these contracts rather than redefining them.
 ## Read and write
 
 ```text
-import text -> parse JSON -> require Project file schema 24 through 65
--> migrate old files or decode 59–65 -> strict runtime model validation -> install unbound
-export -> validate -> encode file schema 65 -> readable canonical JSON -> download
+import text -> parse JSON -> require Project file schema 24 through 66
+-> migrate old files or decode 59–66 -> strict runtime model validation -> install unbound
+export -> validate -> encode file schema 66 -> readable canonical JSON -> download
 ```
 
 An invalid candidate never replaces the current browser Project. File Resource
@@ -269,7 +285,7 @@ open, and recovery remain exact.
 Canonical serialization ends with one newline and is byte-stable across
 serialize/parse/serialize. The current corpus is listed in
 `fixtures/projects/compatibility-corpus.json`; its `current` entries must all be
-already canonical Project file schema 65. Explicit `migrated` witnesses retain
+already canonical Project file schema 66. Explicit `migrated` witnesses retain
 their source bytes and declared source version; loading and saving must produce
 a byte-stable current Project. The rejected corpus names expected validation
 failures. These are test inventory categories, not new Project fields.

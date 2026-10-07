@@ -13,6 +13,7 @@ export interface SimulationSourceDiagnostic {
   related?: { message: string; sourceRef: SourceSpan }[];
   path?: string;
   field?: string;
+  modelSource?: { sourceId: string; revision: number };
   primary?: Omit<ObjectLocator, "hierarchyPath"> & {
     hierarchyPath: ObjectLocator["hierarchyPath"][number][];
   };
@@ -34,6 +35,15 @@ export interface SourceFileGraph<T> {
   /** Repeated includes remain repeated, in execution order. */
   paths: string[];
   diagnostics: SimulationSourceDiagnostic[];
+}
+
+/** Bindings are executable owners only when the entry's include graph reaches them. */
+export function reachableCircuitBindings(
+  input: SimulationSourceInput,
+  graph: Pick<SourceFileGraph<unknown>, "paths">,
+) {
+  const paths = new Set(graph.paths);
+  return input.circuitBindings.filter((binding) => paths.has(binding.path));
 }
 
 /** One virtual-file ownership/expansion boundary. Syntax adapters supply events;

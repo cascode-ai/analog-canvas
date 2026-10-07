@@ -314,12 +314,13 @@ export function createProjectHierarchicalSymbols(
   });
   const external = (project.externalSubcircuitDefinitions ?? []).flatMap(
     (definition) => {
-      const mapping = definition.presentation
-        ? undefined
-        : resolvePdkSymbolMappingForTerminalOrder(
-            definition.name,
-            definition.terminals.map((terminal) => terminal.name),
-          );
+      const mapping =
+        definition.presentation || definition.implementation
+          ? undefined
+          : resolvePdkSymbolMappingForTerminalOrder(
+              definition.name,
+              definition.terminals.map((terminal) => terminal.name),
+            );
       const mappedDefinition = mapping
         ? baseDefinitions.find((candidate) => candidate.id === mapping.symbolId)
         : undefined;
@@ -337,7 +338,10 @@ export function createProjectHierarchicalSymbols(
       return [
         createBlockSymbol({
           id: externalSubcircuitSymbolId(definition.id),
-          name: definition.name,
+          name:
+            definition.implementation?.kind === "placeholder"
+              ? `${definition.name} [unimplemented]`
+              : definition.name,
           terminals: definition.terminals,
           presentation: definition.presentation,
         }),

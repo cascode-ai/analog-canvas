@@ -13,6 +13,7 @@ export * from "./simulation-source.js";
 export * from "./validation.js";
 export * from "./document.js";
 export * from "./project.js";
+export * from "./model-source.js";
 export * from "./types.js";
 export * from "./symbol-definition.js";
 export * from "./component-definition.js";

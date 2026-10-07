@@ -17,7 +17,6 @@ import {
 import {
   builtInSymbols,
   createProjectSymbolResolver,
-  externalSubcircuitSymbolId,
   hierarchicalSymbolId,
   projectCellSymbolTerminals,
 } from "@icm/symbols";
@@ -1951,7 +1950,7 @@ describe("Project structural transaction", () => {
     },
   );
 
-  it("preserves a canonical MOS caller while its reviewed external definition stays compatible", () => {
+  it("preserves a canonical MOS caller and refuses an in-place reviewed interface change", () => {
     const project = createEmptyProject("project", "Project");
     const definition = {
       id: "sky130-nfet",
@@ -2010,10 +2009,14 @@ describe("Project structural transaction", () => {
         },
       ],
     });
-    expect(incompatible.ok).toBe(true);
-    if (!incompatible.ok) return;
-    expect(incompatible.project.documents[0]!.instances[0]!.symbolId).toBe(
-      externalSubcircuitSymbolId(definition.id),
+    // #1401 keeps reviewed library semantics fixed at the shared transaction
+    // boundary. The former implicit conversion to a generic master is retired;
+    // an alternative model must receive a new definition identity.
+    expect(incompatible.ok).toBe(false);
+    if (!incompatible.ok)
+      expect(incompatible.error.message).toContain("Reviewed");
+    expect(compatible.project.documents[0]!.instances[0]!.symbolId).toBe(
+      "nmos",
     );
   });
 });

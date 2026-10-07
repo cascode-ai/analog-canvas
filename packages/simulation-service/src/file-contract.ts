@@ -154,6 +154,18 @@ export const SimulationFileResultSchema = z.union([
     text: z.string(),
     offset: Revision,
     nextOffset: Revision.nullable(),
+    modelSources: z
+      .array(
+        z.strictObject({
+          sourceId: Id,
+          revision: Revision,
+          path: SimulationInputPathSchema,
+          startOffset: Revision,
+          endOffset: Revision,
+          sourceOffset: Revision,
+        }),
+      )
+      .optional(),
     instances: z
       .array(
         z.strictObject({

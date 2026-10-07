@@ -3,7 +3,15 @@ import {
   createProjectSymbolResolver,
   builtInSymbols,
 } from "@icm/symbols";
-import type { CircuitProject, SchematicDocument } from "@icm/model";
+import type {
+  CircuitProject,
+  SchematicDocument,
+  ProjectModelSource,
+} from "@icm/model";
+import {
+  reviewedExternalDefinitionEditIssue,
+  introducedExternalCallerFailure,
+} from "@icm/edit-engine";
 import { CircuitProjectSchema, labelTypography } from "@icm/model";
 import { applyLabelSubscriptCase } from "../text-editing/label-subscript-case";
 import {
@@ -79,7 +87,31 @@ function projectWithoutManagedRevisions(
     ...project,
     structureRevision: 0,
     documents: project.documents.map(documentWithoutRevision),
+    modelSources: project.modelSources?.map(modelSourceWithoutRevisions),
   };
+}
+
+function modelSourceWithoutRevisions(
+  source: ProjectModelSource,
+): ProjectModelSource {
+  return {
+    ...source,
+    revision: 0,
+    ...(source.draft ? { draft: { ...source.draft, baseRevision: 0 } } : {}),
+  };
+}
+
+function sameAppliedModel(
+  left: ProjectModelSource,
+  right: ProjectModelSource,
+): boolean {
+  const applied = (source: ProjectModelSource) => ({
+    language: source.language,
+    entry: source.entry,
+    files: source.files,
+    dependencies: source.dependencies,
+  });
+  return JSON.stringify(applied(left)) === JSON.stringify(applied(right));
 }
 
 function sameAuthoredProject(
@@ -107,6 +139,41 @@ export function planProjectCodeCommit(
   const parsed = readProjectCode(source);
   if (!parsed.ok) return parsed;
   let candidate = { ...parsed.project, id: current.id };
+  // Source and definition identities survive a full drawing paste. A foreign
+  // Project id cannot bypass protection for identities already in this session.
+  for (const definition of candidate.externalSubcircuitDefinitions) {
+    const issue = reviewedExternalDefinitionEditIssue(
+      current.externalSubcircuitDefinitions.find((d) => d.id === definition.id),
+      definition,
+    );
+    if (issue) return { ok: false, message: issue };
+  }
+  candidate = {
+    ...candidate,
+    modelSources: candidate.modelSources?.map((source) => {
+      const previous = current.modelSources?.find((s) => s.id === source.id);
+      if (!previous) return source;
+      const revision =
+        previous.revision + (sameAppliedModel(previous, source) ? 0 : 1);
+      const draftUnchanged =
+        JSON.stringify(modelSourceWithoutRevisions(previous).draft) ===
+        JSON.stringify(modelSourceWithoutRevisions(source).draft);
+      return {
+        ...source,
+        revision,
+        ...(source.draft
+          ? {
+              draft: {
+                ...source.draft,
+                baseRevision: draftUnchanged
+                  ? previous.draft!.baseRevision
+                  : revision,
+              },
+            }
+          : {}),
+      };
+    }),
+  };
   try {
     for (const document of parsed.project.documents) {
       // A complete drawing pasted from another Project carries its own manual
@@ -164,6 +231,8 @@ export function planProjectCodeCommit(
     structureRevision: current.structureRevision + 1,
     documents,
   });
+  const callerFailure = introducedExternalCallerFailure(current, project);
+  if (callerFailure) return { ok: false, message: callerFailure.message };
   return {
     ok: true,
     changed: true,

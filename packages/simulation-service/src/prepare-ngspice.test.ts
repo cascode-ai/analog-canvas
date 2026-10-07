@@ -1,7 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { CircuitProjectSchema, createSimulationFolder } from "@icm/model";
+import {
+  CircuitProjectSchema,
+  createSimulationFolder,
+  createEmptyProject,
+} from "@icm/model";
+import {
+  executeProjectTransaction,
+  createExternalSubcircuitInstance,
+} from "../../edit-engine/src/index.js";
 import { currentFiveTransistorOtaCircuitSource } from "../../../apps/editor/src/examples/five-transistor-ota.test-support.js";
-import { locateSimulationText } from "@icm/netlist";
+import { locateSimulationText, createDesignNetlistExport } from "@icm/netlist";
 import { CapabilitiesSchema } from "./contract.js";
 import { ProjectInputIdentity } from "./input-identity.js";
 import { prepareNgspiceExecutionInput } from "./prepare-ngspice.js";
@@ -51,6 +59,264 @@ function nativeSweepFixture() {
 }
 
 describe("ngspice authored input identity", () => {
+  it.each([false, true])(
+    "protects global device models while respecting a testbench's local scope (%s)",
+    async (local) => {
+      const project = createEmptyProject("diode", "Diode");
+      const definition = {
+        id: "amp",
+        name: "amp",
+        interfaceStatus: "declared" as const,
+        formalParameters: [],
+        terminals: [{ id: "a", name: "A", direction: "passive" as const }],
+        implementation: {
+          kind: "source" as const,
+          sourceId: "diode",
+          entry: "amp",
+        },
+      };
+      project.externalSubcircuitDefinitions.push(definition);
+      project.modelSources = [
+        {
+          id: "diode",
+          language: "spice",
+          entry: "diode.spice",
+          revision: 1,
+          dependencies: [],
+          files: [
+            {
+              path: "diode.spice",
+              text: ".model shared D(Is=1e-14)\n.subckt amp A\nD1 A 0 shared\n.ends amp\n",
+            },
+          ],
+        },
+      ];
+      project.documents[0]!.instances.push(
+        createExternalSubcircuitInstance("X1", definition, {
+          position: { x: 0, y: 0 },
+          rotation: 0,
+          mirror: "none",
+        }),
+      );
+      project.documents[0]!.noConnects.push({
+        id: "nc",
+        endpoint: { kind: "terminal", instanceId: "X1", pinName: "A" },
+      });
+      const folder = createSimulationFolder({
+        id: "diode",
+        name: "Diode",
+        engine: "ngspice",
+        profileId: "ngspice",
+        documentId: project.topDocumentId,
+      });
+      const entry = folder.input.files.find(
+        (f) => f.path === folder.input.entry,
+      )!;
+      const card = ".model SHARED D(Is=1e-9)\n";
+      entry.text = entry.text.replace(
+        ".control",
+        (local
+          ? `.subckt tb_helper A\n${card}D1 A 0 SHARED\n.ends tb_helper\n`
+          : card) + ".control",
+      );
+      const { caps } = nativeSweepFixture();
+      const prepared = await prepareNgspiceExecutionInput(
+        project,
+        folder,
+        caps,
+      );
+      expect(prepared.ok, JSON.stringify(prepared)).toBe(local);
+      if (!prepared.ok)
+        expect(prepared.error.diagnostics).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              code: "MODEL_SOURCE_SHADOW",
+              path: folder.input.entry,
+              sourceRef: expect.any(Object),
+            }),
+          ]),
+        );
+    },
+  );
+  it("refuses a missing legacy implementation despite an unused available dependency", async () => {
+    const project = createEmptyProject("legacy", "Legacy");
+    const definition = {
+      id: "missing",
+      name: "missing",
+      interfaceStatus: "declared" as const,
+      formalParameters: [],
+      terminals: [{ id: "a", name: "A", direction: "passive" as const }],
+    };
+    project.externalSubcircuitDefinitions.push(definition);
+    project.documents[0]!.instances.push(
+      createExternalSubcircuitInstance("X1", definition, {
+        position: { x: 0, y: 0 },
+        rotation: 0,
+        mirror: "none",
+      }),
+    );
+    project.documents[0]!.noConnects.push({
+      id: "nc",
+      endpoint: { kind: "terminal", instanceId: "X1", pinName: "A" },
+    });
+    const folder = createSimulationFolder({
+      id: "legacy",
+      name: "Legacy",
+      engine: "ngspice",
+      profileId: "ngspice",
+      documentId: project.topDocumentId,
+    });
+    const { caps } = nativeSweepFixture();
+    folder.input.dependencies = [
+      { id: "models", mountPath: "models.lib", sha256: "a".repeat(64) },
+    ];
+    const prepared = await prepareNgspiceExecutionInput(project, folder, caps);
+    expect(prepared.ok).toBe(false);
+    if (!prepared.ok)
+      expect(prepared.error.diagnostics).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ code: "MODEL_IMPLEMENTATION_MISSING" }),
+        ]),
+      );
+  });
+  it("exports and prepares distinct selected sections in one owned library without a false cycle", async () => {
+    const initial = createEmptyProject("sections", "Sections");
+    const applied = executeProjectTransaction(initial, {
+      projectId: initial.id,
+      expectedStructureRevision: 0,
+      transactionId: "sections",
+      actor: { kind: "human", id: "test" },
+      edits: [
+        {
+          kind: "apply_model_source",
+          source: {
+            id: "sections",
+            language: "spice",
+            entry: "main.spice",
+            revision: 0,
+            dependencies: [],
+            files: [
+              { path: "main.spice", text: '.lib "models.lib" COMMON\n' },
+              {
+                path: "models.lib",
+                text: '.lib common\n.lib "models.lib" HeLpEr\n.subckt amp A\nX1 A leaf\n.ends amp\n.endl common\n.lib helper\n.subckt leaf A\nR1 A 0 1k\n.ends leaf\n.endl helper\n',
+              },
+            ],
+          },
+          definitions: [{ definitionId: "amp", entry: "amp" }],
+        },
+      ],
+    });
+    if (!applied.ok) throw Error(JSON.stringify(applied));
+    const project = applied.project;
+    project.documents[0]!.instances.push(
+      createExternalSubcircuitInstance(
+        "X1",
+        project.externalSubcircuitDefinitions[0]!,
+        { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+      ),
+    );
+    project.documents[0]!.noConnects.push({
+      id: "nc",
+      endpoint: { kind: "terminal", instanceId: "X1", pinName: "A" },
+    });
+    const exported = createDesignNetlistExport(project, { format: "spice" });
+    expect(exported.status).toBe("ready");
+    if (exported.status !== "ready") return;
+    expect(exported.file.text.match(/\.subckt leaf A/gu)).toHaveLength(1);
+    const folder = createSimulationFolder({
+      id: "sections",
+      name: "Sections",
+      engine: "ngspice",
+      profileId: "ngspice",
+      documentId: project.topDocumentId,
+    });
+    const { caps } = nativeSweepFixture();
+    const prepared = await prepareNgspiceExecutionInput(project, folder, caps);
+    expect(prepared.ok, JSON.stringify(prepared)).toBe(true);
+    if (prepared.ok)
+      expect(
+        prepared.input.files
+          .map((f) => f.text)
+          .join("\n")
+          .match(/\.subckt leaf A/gu),
+      ).toHaveLength(1);
+  });
+  it("resolves a model-owned dependency and corner without copying or editing its source", async () => {
+    const initial = createEmptyProject("owned-dependency", "Owned dependency");
+    const applied = executeProjectTransaction(initial, {
+      projectId: initial.id,
+      expectedStructureRevision: 0,
+      transactionId: "define",
+      actor: { kind: "human", id: "test" },
+      edits: [
+        {
+          kind: "apply_model_source",
+          source: {
+            id: "native",
+            language: "spice",
+            entry: "owned/main.spice",
+            files: [
+              {
+                path: "owned/main.spice",
+                text: '.lib "../vendor/models.lib" ss\n.subckt native A\nR1 A 0 1k\n.ends native\n',
+              },
+            ],
+            dependencies: [
+              {
+                id: "models",
+                mountPath: "vendor/models.lib",
+                sha256: "a".repeat(64),
+              },
+            ],
+            revision: 0,
+          },
+          definitions: [{ definitionId: "native", entry: "native" }],
+        },
+      ],
+    });
+    if (!applied.ok) throw Error(JSON.stringify(applied));
+    const project = applied.project;
+    project.documents[0]!.instances.push(
+      createExternalSubcircuitInstance(
+        "X1",
+        project.externalSubcircuitDefinitions[0]!,
+        { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+      ),
+    );
+    project.documents[0]!.noConnects.push({
+      id: "nc",
+      endpoint: { kind: "terminal", instanceId: "X1", pinName: "A" },
+    });
+    const folder = createSimulationFolder({
+      id: "sim",
+      name: "Sim",
+      engine: "ngspice",
+      profileId: "ngspice",
+      documentId: project.documents[0]!.id,
+    });
+    const { caps } = nativeSweepFixture();
+    const before = structuredClone(project);
+    const nominal = await prepareNgspiceExecutionInput(project, folder, caps);
+    const corner = await prepareNgspiceExecutionInput(project, folder, caps, {
+      environment: { corner: "ff" },
+    });
+    expect(nominal.ok && corner.ok, JSON.stringify({ nominal, corner })).toBe(
+      true,
+    );
+    if (!nominal.ok || !corner.ok) return;
+    expect(nominal.input.dependencies).toEqual(
+      project.modelSources![0]!.dependencies,
+    );
+    expect(nominal.input.files.map((f) => f.text).join("\n")).toContain(
+      '.lib "vendor/models.lib" ss',
+    );
+    expect(corner.input.files.map((f) => f.text).join("\n")).toContain(
+      '.lib "vendor/models.lib" ff',
+    );
+    expect(corner.input.inputRevision).not.toBe(nominal.input.inputRevision);
+    expect(project).toEqual(before);
+  });
   it("projects native corner, temperature and exact Canvas parameters into one immutable run", async () => {
     const { project, folder, entry, caps } = nativeSweepFixture();
     const document = project.documents.find((item) =>

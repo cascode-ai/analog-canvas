@@ -5,6 +5,11 @@ import {
   canonicalConnectionIndexes,
 } from "@icm/project-protocol";
 import { generateCircuitSource } from "@icm/netlist";
+import { createEmptyProject, createSimulationFolder } from "@icm/model";
+import {
+  executeProjectTransaction,
+  createExternalSubcircuitInstance,
+} from "@icm/edit-engine";
 import { SimulationFiles, sha256 } from "@icm/simulation-service/files";
 import ota from "../../../../../netlists/native-ota-library/legacy-source.icproj.json";
 import { EditorDocumentController } from "../../document/document-controller";
@@ -52,6 +57,130 @@ function fixture(actor: "human" | "agent" = "human") {
   };
 }
 describe("shared human/Agent generated Circuit File Resource", () => {
+  it("writes a mapped model body to its undoable shared owner across experiments", async () => {
+    const project = createEmptyProject("file-model", "File model");
+    const applied = executeProjectTransaction(project, {
+      projectId: project.id,
+      expectedStructureRevision: 0,
+      transactionId: "define",
+      actor: { kind: "agent", id: "test" },
+      edits: [
+        {
+          kind: "apply_model_source",
+          source: {
+            id: "source",
+            language: "spice",
+            entry: "model.spice",
+            files: [
+              {
+                path: "model.spice",
+                text: ".subckt finite_gain A OUT params: gain=20\nB1 OUT 0 V={gain*v(A)}\n.ends finite_gain\n",
+              },
+            ],
+            dependencies: [],
+            revision: 0,
+          },
+          definitions: [{ definitionId: "gain", entry: "finite_gain" }],
+        },
+      ],
+    });
+    if (!applied.ok) throw Error(JSON.stringify(applied));
+    const owned = applied.project;
+    owned.documents[0]!.instances.push(
+      createExternalSubcircuitInstance(
+        "X1",
+        owned.externalSubcircuitDefinitions[0]!,
+        { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+      ),
+    );
+    owned.documents[0]!.noConnects.push(
+      ...["A", "OUT"].map((pinName) => ({
+        id: `nc-${pinName}`,
+        endpoint: { kind: "terminal" as const, instanceId: "X1", pinName },
+      })),
+    );
+    owned.simulationFolders = ["op", "ac"].map((id) =>
+      createSimulationFolder({
+        id,
+        name: id,
+        engine: "ngspice",
+        profileId: "ngspice",
+        documentId: owned.documents[0]!.id,
+      }),
+    );
+    const controller = new EditorDocumentController(owned);
+    const host = createSimulationProjectFileHost({
+      getProject: () => controller.project,
+      getProjectSessionId: () => controller.projectSessionId,
+      dispatch: (request) => controller.dispatchProjectTransaction(request),
+      actor: { kind: "agent", id: "test" },
+    });
+    const files = new SimulationFiles(Date.now, host, async () => "ngspice");
+    const owner = { kind: "project-folder" as const, folderId: "op" };
+    const read = await files.handle({
+      action: "read",
+      owner,
+      path: "circuit.spice",
+    });
+    if (!read.ok || !("textDigest" in read)) throw Error(JSON.stringify(read));
+    expect(read).toMatchObject({
+      modelSources: [
+        expect.objectContaining({
+          sourceId: "source",
+          revision: 1,
+          path: "model.spice",
+        }),
+      ],
+    });
+    const folderBefore = structuredClone(controller.project.simulationFolders);
+    const update = await files.handle({
+      action: "update",
+      owner,
+      expectedRevision: controller.project.structureRevision,
+      circuitEdits: [
+        {
+          path: "circuit.spice",
+          textDigest: read.textDigest,
+          text: read.text.replace("gain=20", "gain=35"),
+        },
+      ],
+    });
+    expect(update).toMatchObject({ ok: true });
+    expect(controller.project.modelSources![0]!.files[0]!.text).toContain(
+      "gain=35",
+    );
+    expect(controller.project.simulationFolders).toEqual(folderBefore);
+    const second = await files.handle({
+      action: "read",
+      owner: { ...owner, folderId: "ac" },
+      path: "circuit.spice",
+    });
+    expect(second).toMatchObject({
+      ok: true,
+      text: expect.stringContaining("gain=35"),
+    });
+    const stale = await files.handle({
+      action: "update",
+      owner,
+      expectedRevision: controller.project.structureRevision,
+      circuitEdits: [
+        {
+          path: "circuit.spice",
+          textDigest: read.textDigest,
+          text: read.text.replace("gain=20", "gain=50"),
+        },
+      ],
+    });
+    expect(stale.ok).toBe(false);
+    controller.transact([{ kind: "undo" }]);
+    expect(controller.project.modelSources![0]!.files[0]!.text).toContain(
+      "gain=20",
+    );
+    controller.transact([{ kind: "redo" }]);
+    expect(controller.project.modelSources![0]!.files[0]!.text).toContain(
+      "gain=35",
+    );
+  });
   it("adds and unsets source clauses through the same atomic undoable transaction", async () => {
     const f = fixture();
     const before = f.controller.project;

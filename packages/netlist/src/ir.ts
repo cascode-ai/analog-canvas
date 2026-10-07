@@ -81,6 +81,8 @@ export interface DesignNetlistCell {
 /** Referenced external interfaces deliberately do not produce an empty body. */
 export interface DesignNetlistExternalMaster {
   id: StableId;
+  /** Explicit Project-owned models cannot acquire reviewed semantics by spelling. */
+  implementationKind?: "source" | "placeholder";
   name: string;
   terminals: Array<{
     id: StableId;

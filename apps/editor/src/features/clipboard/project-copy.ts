@@ -608,6 +608,14 @@ export function captureProjectCopy(
     externalSubcircuitDefinitions: project.externalSubcircuitDefinitions.filter(
       (d) => externalIds.has(d.id),
     ),
+    modelSources:
+      project.modelSources?.filter((source) =>
+        project.externalSubcircuitDefinitions.some(
+          (definition) =>
+            externalIds.has(definition.id) &&
+            definition.implementation?.sourceId === source.id,
+        ),
+      ) ?? [],
     documents: [...documents.values()],
     presentation: document.presentation,
     componentDefinitions: componentProject.componentDefinitions,
@@ -813,6 +821,7 @@ export function prepareProjectCopy(
           source.externalSubcircuitDefinitions = structuredClone(
             context.externalSubcircuitDefinitions,
           );
+          source.modelSources = structuredClone(context.modelSources ?? []);
           const plan = planProjectCellImport(prepared, source, sourceId, {
             sharedSnapshot: true,
           });

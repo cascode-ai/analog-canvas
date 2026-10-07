@@ -46,6 +46,7 @@ export type CellParameterChange =
 export interface ExternalDefinitionResult {
   ok: boolean;
   message: string;
+  definitionId?: string;
 }
 
 export interface ProjectStructureCommandDependencies {
@@ -760,4 +761,26 @@ export function createProjectStructureCommands({
     setCellSymbolPortPlacement,
     renameProject,
   };
+}
+/** Advisory placement refusal; the Project transaction also enforces acyclic hierarchy. */
+export function cellPlacementIssue(
+  project: CircuitProject,
+  parentId: string,
+  childId: string,
+): string | undefined {
+  if (parentId === childId) return "A Cell cannot contain itself";
+  const visited = new Set<string>();
+  const reachesParent = (id: string): boolean => {
+    if (id === parentId) return true;
+    if (visited.has(id)) return false;
+    visited.add(id);
+    return (project.documents.find((d) => d.id === id)?.instances ?? []).some(
+      (i) =>
+        i.netlist?.binding?.kind === "subcircuit" &&
+        reachesParent(i.netlist.binding.childDocumentId),
+    );
+  };
+  if (reachesParent(childId))
+    return "Placing this Cell would create a hierarchy cycle";
+  return undefined;
 }

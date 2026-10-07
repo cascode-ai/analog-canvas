@@ -11,10 +11,22 @@ import {
   type LegacySimulationSetup as SimulationFolderInput,
   type SimulationSourceExpression,
   type SimulationRunVariant,
+  type ProjectModelSource,
+  type SimulationRawDependency,
 } from "@icm/model";
 import { projectSourceSimulation } from "./simulation-source-projection.js";
+import {
+  collectProjectModelSources,
+  projectModelReachability,
+  projectModelText,
+  renderProjectModelSource,
+  inspectProjectModelSource,
+  type ProjectModelSourceLocation,
+} from "./project-model-source.js";
 import { simulationNetlistDiagnostic } from "./simulation-diagnostic.js";
+import { reachableCircuitBindings } from "./source-file-graph.js";
 import { sha256Hex } from "@icm/derived";
+import { resolveReviewedExternalBinding } from "@icm/devices";
 import {
   mapSimulationFile,
   insertSimulationText,
@@ -31,6 +43,7 @@ import {
 } from "./simulation-compile.js";
 import { printSpiceWithLocations } from "./printers.js";
 import type { PrintedNetlistParameter as PrintedSpiceParameter } from "./printed-netlist.js";
+import type { PrintedNetlistInstance } from "./printed-netlist.js";
 import type {
   DesignNetlistCell,
   DesignNetlistGeneratedDefinition,
@@ -61,6 +74,8 @@ export interface NgspiceGeneratedSimulationFile {
   path: string;
   text: string;
   parameters: PrintedSpiceParameter[];
+  instances: PrintedNetlistInstance[];
+  modelSources?: ProjectModelSourceLocation[];
 }
 export type NgspiceSourceSimulationCompilation =
   | { ok: false; diagnostics: SimulationSourceDiagnostic[] }
@@ -82,6 +97,8 @@ export type NgspiceSourceSimulationCompilation =
       electricalHash: string;
       sourceMaps: SimulationFileSourceMap[];
       includes: SimulationSourceGraph["includes"];
+      modelSources?: ProjectModelSource[];
+      modelDependencies?: SimulationRawDependency[];
     };
 
 /** Author text stays native. Canvas extraction, instrumentation and output math remain shared. */
@@ -127,6 +144,84 @@ export function compileNgspiceSourceSimulation(
       })),
     };
   const authoredGraph = inspectSimulationSourceGraph(folder.input);
+  const modelReachability = projectModelReachability(
+    project,
+    reachableCircuitBindings(folder.input, authoredGraph).map(
+      (b) => b.documentId,
+    ),
+  );
+  const projectModels = collectProjectModelSources(
+    project,
+    modelReachability.definitionIds,
+    {
+      format: "spice",
+      requireImplementation: true,
+      reservedNames: project.documents
+        .filter((d) => modelReachability.documentIds.includes(d.id))
+        .map((d) => d.netlist?.name)
+        .filter((n): n is string => Boolean(n)),
+    },
+  );
+  diagnostics.push(...projectModels.diagnostics);
+  const loadedDependency = folder.input.dependencies.some((d) =>
+    authoredGraph.paths.includes(d.mountPath),
+  );
+  for (const id of modelReachability.definitionIds) {
+    const definition = project.externalSubcircuitDefinitions.find(
+      (d) => d.id === id,
+    );
+    if (
+      !definition ||
+      definition.implementation ||
+      resolveReviewedExternalBinding(
+        definition.name,
+        definition.terminals.map((t) => t.name),
+      )
+    )
+      continue;
+    const declaration = authoredGraph.statements.find(
+      ({ statement }) =>
+        statement.kind === "subckt_start" &&
+        statement.name.toLowerCase() === definition.name.toLowerCase(),
+    );
+    if (!declaration && !loadedDependency)
+      diagnostics.push({
+        code: "MODEL_IMPLEMENTATION_MISSING",
+        severity: "error",
+        message: `Legacy model ${definition.name} has no resolvable implementation in this experiment. Define its source in Cell Manager`,
+      });
+  }
+  const modelNames = new Set(
+    projectModels.sources.flatMap((s) =>
+      inspectProjectModelSource(s).entries.map((e) => e.name.toLowerCase()),
+    ),
+  );
+  const deviceModelNames = new Set(
+    projectModels.sources.flatMap((s) =>
+      inspectProjectModelSource(s).globalModels.map((m) =>
+        m.name.toLowerCase(),
+      ),
+    ),
+  );
+  let authoredSubcircuit = false;
+  for (const { statement, path } of authoredGraph.statements) {
+    if (statement.kind === "subckt_start") authoredSubcircuit = true;
+    else if (statement.kind === "subckt_end") authoredSubcircuit = false;
+    if (
+      (statement.kind === "subckt_start" &&
+        modelNames.has(statement.name.toLowerCase())) ||
+      (statement.kind === "model" &&
+        !authoredSubcircuit &&
+        deviceModelNames.has(statement.name.toLowerCase()))
+    )
+      diagnostics.push({
+        code: "MODEL_SOURCE_SHADOW",
+        severity: "error",
+        message: `Experiment cannot override Project model ${statement.name}; edit its shared model source`,
+        path,
+        sourceRef: statement.sourceRef,
+      });
+  }
   diagnostics.push(...authoredGraph.diagnostics);
   const authoredNames = prepareNgspiceAuthoredNames(authoredGraph);
   diagnostics.push(...authoredNames.diagnostics);
@@ -245,6 +340,7 @@ export function compileNgspiceSourceSimulation(
   const deckSources = preparedFiles
     .filter((file) => reachable.has(file.path))
     .map((file) => file.text);
+  deckSources.push(...projectModels.sources.map(projectModelText));
   for (const [id, intent] of intents) {
     const plan = buildSimulationPlan(effective, intent, {
       nativeControl: true,
@@ -379,6 +475,23 @@ export function compileNgspiceSourceSimulation(
     },
   );
   const vectors: CompiledSimulationVector[] = [];
+  if (projectModels.sources.length && generated[0]) {
+    const file = generated[0];
+    file.modelSources = [];
+    for (const source of projectModels.sources) {
+      const model = renderProjectModelSource(source, { outputPath: file.path });
+      file.text += `\n* Project model: applied version ${source.revision}\n`;
+      const offset = file.text.length;
+      file.text += model.text;
+      file.modelSources.push(
+        ...model.segments.map((s) => ({
+          ...s,
+          startOffset: s.startOffset + offset,
+          endOffset: s.endOffset + offset,
+        })),
+      );
+    }
+  }
   const capture = new Set<string>();
   const scopes = new Map<
     string,
@@ -554,13 +667,48 @@ export function compileNgspiceSourceSimulation(
     return { ok: false, diagnostics };
   const mappedFiles = [
     ...projection.mappedFiles,
-    ...generated.map(({ path, text, bindingId }) =>
-      mapSimulationFile(path, text, {
+    ...generated.map(({ path, text, bindingId, modelSources }) => {
+      const file = mapSimulationFile(path, text, {
         kind: "generated",
         purpose: "canvas-circuit",
         bindingId,
-      }),
-    ),
+      });
+      if (modelSources?.length) {
+        file.segments = [];
+        let offset = 0;
+        for (const s of modelSources) {
+          if (offset < s.startOffset)
+            file.segments.push({
+              startOffset: offset,
+              endOffset: s.startOffset,
+              origin: {
+                kind: "generated",
+                purpose: "canvas-circuit",
+                bindingId,
+              },
+            });
+          file.segments.push({
+            startOffset: s.startOffset,
+            endOffset: s.endOffset,
+            origin: {
+              kind: "model-source",
+              sourceId: s.sourceId,
+              revision: s.revision,
+              path: s.path,
+              startOffset: s.sourceOffset,
+            },
+          });
+          offset = s.endOffset;
+        }
+        if (offset < text.length)
+          file.segments.push({
+            startOffset: offset,
+            endOffset: text.length,
+            origin: { kind: "generated", purpose: "canvas-circuit", bindingId },
+          });
+      }
+      return file;
+    }),
   ];
   if (capture.size) {
     const index = mappedFiles.findIndex((f) => f.path === folder.input.entry);
@@ -592,11 +740,33 @@ export function compileNgspiceSourceSimulation(
     files: mappedFiles.map(({ path, text }) => ({ path, text })),
     sourceMaps: mappedFiles.map(({ path, segments }) => ({ path, segments })),
     includes: graph.includes,
+    ...(projectModels.sources.length
+      ? {
+          modelSources: projectModels.sources.map(
+            ({ draft: _draft, ...source }) => structuredClone(source),
+          ),
+          modelDependencies: projectModels.sources.flatMap(
+            (s) => s.dependencies,
+          ),
+        }
+      : {}),
     electricalHash: sha256Hex(
       JSON.stringify(
-        [...plans]
-          .sort(([a], [b]) => a.localeCompare(b))
-          .map(([id, plan]) => ({ bindingId: id, circuit: plan.circuit })),
+        projectModels.sources.length
+          ? {
+              models: projectModels.sources.map(
+                ({ draft: _draft, ...source }) => source,
+              ),
+              circuits: [...plans]
+                .sort(([a], [b]) => a.localeCompare(b))
+                .map(([id, plan]) => ({
+                  bindingId: id,
+                  circuit: plan.circuit,
+                })),
+            }
+          : [...plans]
+              .sort(([a], [b]) => a.localeCompare(b))
+              .map(([id, plan]) => ({ bindingId: id, circuit: plan.circuit })),
       ),
     ),
     entry: folder.input.entry,

@@ -301,6 +301,19 @@ describe("electrical topology similarity", () => {
     const b = ready(electricalGraphFromIR(wrapped));
     expect(compareElectricalGraphs(a, b)).toBe("different");
     expect(compareElectricalTopologies(a, b)).toBe("equal");
+    wrapped.externalMasters = [
+      {
+        id: "owned",
+        name: instance.target!,
+        implementationKind: "source",
+        terminals: [],
+        formalParameters: [],
+      },
+    ];
+    expect(
+      compareElectricalTopologies(a, ready(electricalGraphFromIR(wrapped))),
+    ).toBe("different");
+    delete wrapped.externalMasters;
     instance.target = "sky130_fd_pr__pfet_01v8";
     expect(
       compareElectricalTopologies(a, ready(electricalGraphFromIR(wrapped))),

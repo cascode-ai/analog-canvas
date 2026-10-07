@@ -23,7 +23,9 @@ export const Id = z.string().min(1).max(256);
 export const Digest = z.string().regex(/^[a-f0-9]{64}$/u);
 export const EnvironmentSchema = SimulationEnvironmentSelectionSchema;
 export const SimulationSourceLocationSchema = z.strictObject({
-  scope: z.enum(["authored", "generated", "prepared"]),
+  scope: z.enum(["authored", "generated", "prepared", "model-source"]),
+  sourceId: Id.optional(),
+  revision: z.number().int().nonnegative().optional(),
   path: z.string(),
   textDigest: Digest,
   startOffset: z.number().int().nonnegative(),
@@ -70,6 +72,12 @@ export const ProblemSchema = z.strictObject({
         path: z.string().optional(),
         sourceRef: SourceSpanSchema.optional(),
         source: SimulationSourceLocationSchema.optional(),
+        modelSource: z
+          .strictObject({
+            sourceId: Id,
+            revision: z.number().int().nonnegative(),
+          })
+          .optional(),
       }),
     )
     .optional(),

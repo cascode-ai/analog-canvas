@@ -1,15 +1,30 @@
 import { parseSavedProject } from "./editor-fixtures";
 import { expect, test } from "@playwright/test";
-import { analyzeDesignNetlist } from "@icm/netlist";
+import {
+  analyzeDesignNetlist,
+  compileNgspiceSourceSimulation,
+} from "@icm/netlist";
+import {
+  createSimulationEnvironmentMetadata,
+  createSimulationInputMetadata,
+} from "@icm/spice-run";
+import { profile } from "./simulation-e2e-fixtures.js";
 import { reviewedExternalBindingForMaster } from "@icm/devices";
 import {
   createEmptyDocument,
   createEmptyProject,
   createRoutePath,
+  createSimulationFolder,
+  routeEnd,
   type CircuitProject,
 } from "@icm/model";
 import { hierarchicalSymbolId } from "@icm/symbols";
 import { hierarchyParameterFixture } from "../../../netlists/hierarchy-parameters/fixture";
+import {
+  executeProjectTransaction,
+  createExternalSubcircuitInstance,
+} from "@icm/edit-engine";
+import { serializeProject } from "@icm/project-protocol";
 
 import {
   revealPropertiesShelf,
@@ -22,6 +37,625 @@ import {
   openMenu,
 } from "./editor-fixtures.js";
 import { placeComponent } from "./manual-editor-fixtures.js";
+
+test("defines a native external model in Manager and places its parsed interface", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await openCellManager(page);
+  const manager = page.getByRole("dialog", { name: "Cell Manager" });
+  await manager
+    .getByRole("button", { name: "External Circuit Defs", exact: true })
+    .click();
+  await manager
+    .getByLabel("External model netlist")
+    .fill(
+      ".subckt user_booster INP INN OUT VSS params: gain=20\nBOUT OUT VSS V={gain*(v(INP,VSS)-v(INN,VSS))}\n.ends user_booster\n",
+    );
+  await manager
+    .getByRole("button", { name: "Apply model", exact: true })
+    .click();
+  await expect(manager.getByLabel("Parsed model interface")).toContainText(
+    "INP",
+  );
+  await manager.getByRole("button", { name: "Place", exact: true }).click();
+  await expect(manager).toHaveCount(0);
+  await page
+    .getByTestId("schematic-canvas")
+    .click({ position: { x: 360, y: 250 } });
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("active-instance-count")).toHaveText("1");
+  await expect(page.locator('[data-pin-name="OUT"]')).toBeVisible();
+});
+
+test("migrates a wired model terminal explicitly in Manager without losing its identity", async ({
+  page,
+}) => {
+  const empty = createEmptyProject("wired-model", "Wired model");
+  const created = executeProjectTransaction(empty, {
+    projectId: empty.id,
+    expectedStructureRevision: empty.structureRevision,
+    transactionId: "define",
+    actor: { kind: "human", id: "test" },
+    edits: [
+      {
+        kind: "apply_model_source",
+        source: {
+          id: "model",
+          language: "spice",
+          entry: "model.spice",
+          files: [
+            {
+              path: "model.spice",
+              text: ".subckt wired A B\nR1 A B 1k\n.ends wired\n",
+            },
+          ],
+          dependencies: [],
+          revision: 0,
+        },
+        definitions: [{ definitionId: "wired", entry: "wired" }],
+      },
+    ],
+  });
+  if (!created.ok) throw Error(JSON.stringify(created));
+  const project = created.project;
+  const definition = project.externalSubcircuitDefinitions[0]!;
+  const terminalId = definition.terminals[0]!.id;
+  const document = project.documents[0]!;
+  document.instances.push(
+    createExternalSubcircuitInstance("X1", definition, {
+      position: { x: 200, y: 200 },
+      rotation: 0,
+      mirror: "none",
+    }),
+  );
+  document.nets.push({
+    id: "signal",
+    terminals: [{ instanceId: "X1", pinName: "A" }],
+  });
+  document.junctions.push({
+    id: "end",
+    netId: "signal",
+    position: { x: 0, y: 200 },
+    role: "route-anchor",
+  });
+  document.routes.push(
+    createRoutePath({
+      id: "wire",
+      netId: "signal",
+      start: { kind: "junction", junctionId: "end" },
+      end: { kind: "terminal", instanceId: "X1", pinName: "A" },
+      bends: [],
+      modes: ["manual"],
+    }),
+  );
+  document.noConnects.push({
+    id: "nc",
+    endpoint: { kind: "terminal", instanceId: "X1", pinName: "B" },
+  });
+  await page.goto("/editor?new=1");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "wired.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(serializeProject(project)),
+  });
+  await openCellManager(page);
+  const manager = page.getByRole("dialog", { name: "Cell Manager" });
+  await manager
+    .getByRole("button", { name: "External Circuit Defs", exact: true })
+    .click();
+  await manager
+    .locator(".cell-manager-list-item")
+    .filter({ hasText: "wired" })
+    .click();
+  await manager
+    .getByLabel("External model netlist")
+    .fill(".subckt wired B INPUT\nR1 INPUT B 1k\n.ends wired\n");
+  await manager
+    .getByRole("button", { name: "Apply model", exact: true })
+    .click();
+  await expect(manager.getByRole("alert")).toContainText("A");
+  await manager
+    .getByLabel("Migrate wired.A", { exact: true })
+    .selectOption("INPUT");
+  await manager
+    .getByRole("button", { name: "Apply model", exact: true })
+    .click();
+  await expect(manager).toContainText("Applied version 2");
+  await manager.getByLabel("Close Cell Manager").click();
+  const saved: CircuitProject = parseSavedProject(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(),
+  );
+  expect(
+    saved.externalSubcircuitDefinitions[0]!.terminals.map((t) => t.name),
+  ).toEqual(["B", "INPUT"]);
+  expect(saved.externalSubcircuitDefinitions[0]!.terminals[1]!.id).toBe(
+    terminalId,
+  );
+  expect(routeEnd(saved.documents[0]!.routes[0]!)).toEqual({
+    kind: "terminal",
+    instanceId: "X1",
+    pinName: "INPUT",
+  });
+  await page.keyboard.press("Control+z");
+  const undone: CircuitProject = parseSavedProject(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(),
+  );
+  expect(routeEnd(undone.documents[0]!.routes[0]!)).toEqual({
+    kind: "terminal",
+    instanceId: "X1",
+    pinName: "A",
+  });
+});
+
+test("shares multiple model entries, explicitly forks and reopens an undoable portable Project", async ({
+  page,
+}) => {
+  let executions = 0;
+  await page.route("**/api/simulate", (route) => {
+    executions++;
+    return route.abort();
+  });
+  await page.goto("/editor?new=1");
+  await openCellManager(page);
+  let manager = page.getByRole("dialog", { name: "Cell Manager" });
+  await manager
+    .getByRole("button", { name: "External Circuit Defs", exact: true })
+    .click();
+  const text =
+    ".subckt first A B\nR1 A B 1k\n.ends first\n.subckt second A B\nR1 A B 2k\n.ends second\n";
+  await manager.getByLabel("External model netlist").fill(text);
+  await manager
+    .getByLabel("External model entry", { exact: true })
+    .selectOption("first");
+  await manager
+    .getByRole("button", { name: "Apply model", exact: true })
+    .click();
+  await manager
+    .getByRole("button", { name: "New External Circuit Def", exact: true })
+    .click();
+  await manager
+    .getByLabel("External model source owner", { exact: true })
+    .selectOption({ label: "model.spice · version 1" });
+  await manager
+    .getByLabel("External model entry", { exact: true })
+    .selectOption("second");
+  await manager
+    .getByRole("button", { name: "Apply model", exact: true })
+    .click();
+  await expect(manager).toContainText("Applied version 2");
+  await expect(manager).toContainText("Shared by first, second");
+  await manager
+    .getByRole("button", { name: "Fork model…", exact: true })
+    .click();
+  await manager
+    .getByLabel("External model netlist")
+    .fill(
+      text
+        .replaceAll("first", "fork_first")
+        .replaceAll("second", "fork_second"),
+    );
+  await manager
+    .getByLabel("External model entry", { exact: true })
+    .selectOption("fork_first");
+  await manager
+    .getByRole("button", { name: "Apply model", exact: true })
+    .click();
+  await manager.getByLabel("Close Cell Manager").click();
+  await page.keyboard.press("Control+z");
+  await openCellManager(page);
+  manager = page.getByRole("dialog", { name: "Cell Manager" });
+  await manager
+    .getByRole("button", { name: "External Circuit Defs", exact: true })
+    .click();
+  await expect(manager.locator(".cell-manager-list-item")).toHaveCount(2);
+  await manager.getByLabel("Close Cell Manager").click();
+  await page.keyboard.press("Control+Shift+z");
+  const saved: CircuitProject = parseSavedProject(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(),
+  );
+  expect(saved.modelSources).toHaveLength(2);
+  expect(saved.externalSubcircuitDefinitions).toHaveLength(3);
+  expect(
+    saved.externalSubcircuitDefinitions
+      .slice(0, 2)
+      .map((d) => d.implementation!.sourceId),
+  ).toEqual([saved.modelSources![0]!.id, saved.modelSources![0]!.id]);
+  await page.getByTestId("project-file").setInputFiles({
+    name: "owned.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(serializeProject(saved)),
+  });
+  await openCellManager(page);
+  manager = page.getByRole("dialog", { name: "Cell Manager" });
+  await manager
+    .getByRole("button", { name: "External Circuit Defs", exact: true })
+    .click();
+  await manager
+    .locator(".cell-manager-list-item")
+    .filter({ hasText: "fork_first" })
+    .click();
+  await expect(manager.getByLabel("External model netlist")).toContainText(
+    ".subckt fork_first A B",
+  );
+  expect(executions).toBe(0);
+});
+
+test("imports a long-named Cloud Cell with a child and owned model into the original parent", async ({
+  page,
+}) => {
+  const source = hierarchyParameterFixture();
+  source.name =
+    "Source Project with a deliberately long name for narrow viewport import";
+  const defined = executeProjectTransaction(source, {
+    projectId: source.id,
+    expectedStructureRevision: source.structureRevision,
+    transactionId: "define",
+    actor: { kind: "human", id: "test" },
+    edits: [
+      {
+        kind: "apply_model_source",
+        source: {
+          id: "cloud-model",
+          language: "spice",
+          entry: "model.spice",
+          files: [
+            {
+              path: "model.spice",
+              text: ".subckt imported_model A B\nR1 A B 7k\n.ends imported_model\n",
+            },
+          ],
+          dependencies: [],
+          revision: 0,
+        },
+        definitions: [{ definitionId: "model", entry: "imported_model" }],
+      },
+    ],
+  });
+  if (!defined.ok) throw Error(JSON.stringify(defined));
+  const reusable = defined.project;
+  const child = reusable.documents.find(
+    (d) => d.id !== reusable.topDocumentId,
+  )!;
+  child.instances.push(
+    createExternalSubcircuitInstance(
+      "XMODEL",
+      reusable.externalSubcircuitDefinitions[0]!,
+      { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+    ),
+  );
+  child.noConnects.push(
+    ...["A", "B"].map((pinName) => ({
+      id: `nc-${pinName}`,
+      endpoint: { kind: "terminal" as const, instanceId: "XMODEL", pinName },
+    })),
+  );
+  const record = {
+    id: "cloud-source",
+    name: source.name,
+    revision: 1,
+    schemaVersion: 66,
+    updatedAt: "2026-10-07T00:00:00Z",
+    projectText: serializeProject(reusable),
+  };
+  await page.route("**/api/auth/me", (route) =>
+    route.fulfill({
+      json: {
+        user: {
+          id: "author",
+          displayName: "Author",
+          email: "author@example.com",
+          role: "user",
+          provider: "github",
+          isAdmin: false,
+        },
+      },
+    }),
+  );
+  await page.route("**/api/projects", (route) =>
+    route.fulfill({ json: { projects: [record] } }),
+  );
+  let unavailable = true;
+  await page.route("**/api/projects/cloud-source", (route) =>
+    unavailable
+      ? route.fulfill({
+          status: 503,
+          json: { error: "temporarily unavailable" },
+        })
+      : route.fulfill({ json: { project: record } }),
+  );
+  await page.setViewportSize({ width: 800, height: 600 });
+  await page.goto("/editor?new=1");
+  await openCellManager(page);
+  const manager = page.getByRole("dialog", { name: "Cell Manager" });
+  await manager
+    .getByRole("button", { name: "Import Cell", exact: true })
+    .click();
+  const dialog = page.getByRole("dialog", {
+    name: "Import Cloud Cell",
+    exact: true,
+  });
+  await dialog.getByLabel("Source Project").selectOption("cloud-source");
+  await expect(
+    dialog.getByRole("button", { name: "Import", exact: true }),
+  ).toBeDisabled();
+  await expect(dialog.getByRole("status")).toBeVisible();
+  unavailable = false;
+  await dialog.getByLabel("Source Project").selectOption("");
+  await dialog.getByLabel("Source Project").selectOption("cloud-source");
+  const bounds = await dialog.boundingBox();
+  expect(bounds!.x).toBeGreaterThanOrEqual(0);
+  expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(800);
+  expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(600);
+  await dialog.getByRole("button", { name: "Import", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(
+    manager.getByRole("button", { name: "Place", exact: true }),
+  ).toBeEnabled();
+  await manager.getByRole("button", { name: "Place", exact: true }).click();
+  await page
+    .getByTestId("schematic-canvas")
+    .click({ position: { x: 280, y: 200 } });
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("active-instance-count")).toHaveText("1");
+  const saved: CircuitProject = parseSavedProject(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(),
+  );
+  expect(
+    saved.documents.find((d) => d.id === saved.topDocumentId)!.instances,
+  ).toHaveLength(1);
+  expect(saved.documents).toHaveLength(3);
+  expect(saved.modelSources![0]!.files[0]!.text).toContain("R1 A B 7k");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "imported.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(serializeProject(saved)),
+  });
+  await openCellManager(page);
+  await page
+    .getByRole("dialog", { name: "Cell Manager" })
+    .getByRole("button", { name: "External Circuit Defs", exact: true })
+    .click();
+  await page
+    .getByRole("dialog", { name: "Cell Manager" })
+    .locator(".cell-manager-list-item")
+    .filter({ hasText: "imported_model" })
+    .click();
+  await expect(page.getByLabel("External model netlist")).toContainText(
+    "R1 A B 7k",
+  );
+});
+
+test("places a selected local Cell directly from Manager and explains self placement", async ({
+  page,
+}) => {
+  const project = createEmptyProject("manager-placement", "Manager placement");
+  project.documents.push(createEmptyDocument("child", "Child"));
+  await page.goto("/editor");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "cells.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  await openCellManager(page);
+  const manager = page.getByRole("dialog", { name: "Cell Manager" });
+  await expect(
+    manager.getByRole("button", { name: "Place", exact: true }),
+  ).toBeDisabled();
+  await expect(manager).toContainText("A Cell cannot contain itself");
+  await manager
+    .locator(".cell-manager-list-item")
+    .filter({ hasText: "Child" })
+    .click();
+  await manager.getByRole("button", { name: "Place", exact: true }).click();
+  await expect(manager).toHaveCount(0);
+  await page
+    .getByTestId("schematic-canvas")
+    .click({ position: { x: 350, y: 220 } });
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("active-instance-count")).toHaveText("1");
+});
+
+test("retains an unfinished external model draft after closing Manager", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await openCellManager(page);
+  let manager = page.getByRole("dialog", { name: "Cell Manager" });
+  await manager
+    .getByRole("button", { name: "External Circuit Defs", exact: true })
+    .click();
+  await manager
+    .getByLabel("External model netlist")
+    .fill(".subckt unfinished A B\nB1 B 0 V={");
+  await manager
+    .getByRole("button", { name: "Save draft", exact: true })
+    .click();
+  await expect(manager).toContainText("Unimplemented");
+  await manager.getByLabel("Close Cell Manager").click();
+  await openCellManager(page);
+  manager = page.getByRole("dialog", { name: "Cell Manager" });
+  await manager
+    .getByRole("button", { name: "External Circuit Defs", exact: true })
+    .click();
+  await manager
+    .locator(".cell-manager-list-item")
+    .filter({ hasText: "unfinished" })
+    .click();
+  await expect(manager.getByLabel("External model netlist")).toContainText(
+    ".subckt unfinished A B",
+  );
+  await expect(manager.getByLabel("External model netlist")).toContainText(
+    "B1 B 0 V={",
+  );
+  await manager
+    .getByLabel("External model netlist")
+    .fill(".subckt unfinished A B\nR1 A B 2k\n.ends unfinished\n");
+  await manager
+    .getByRole("button", { name: "Apply model", exact: true })
+    .click();
+  await expect(manager.getByLabel("Parsed model interface")).toContainText(
+    "A · B",
+  );
+  await expect(manager).toContainText("Applied version 1");
+});
+
+test("a runtime diagnostic opens the exact applied helper file while retaining its saved draft", async ({
+  page,
+}) => {
+  const empty = createEmptyProject("runtime-model", "Runtime model");
+  const helper =
+    "* original helper\n.subckt failing A\nB1 A 0 V={unknown_function(0)}\n.ends failing\n";
+  const created = executeProjectTransaction(empty, {
+    projectId: empty.id,
+    expectedStructureRevision: empty.structureRevision,
+    transactionId: "define",
+    actor: { kind: "human", id: "test" },
+    edits: [
+      {
+        kind: "apply_model_source",
+        source: {
+          id: "source",
+          language: "spice",
+          entry: "main.spice",
+          revision: 0,
+          files: [
+            { path: "main.spice", text: '.include "helper.spice"\n' },
+            { path: "helper.spice", text: helper },
+          ],
+          dependencies: [],
+        },
+        definitions: [{ definitionId: "failing", entry: "failing" }],
+      },
+    ],
+  });
+  if (!created.ok) throw Error(JSON.stringify(created));
+  const project = created.project;
+  project.modelSources![0]!.draft = {
+    entry: "main.spice",
+    baseRevision: 1,
+    files: [{ path: "main.spice", text: ".subckt unfinished A\nB1 A 0 V={" }],
+    dependencies: [],
+  };
+  project.documents[0]!.instances.push(
+    createExternalSubcircuitInstance(
+      "X1",
+      project.externalSubcircuitDefinitions[0]!,
+      { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+    ),
+  );
+  project.documents[0]!.noConnects.push({
+    id: "nc",
+    endpoint: { kind: "terminal", instanceId: "X1", pinName: "A" },
+  });
+  const folder = createSimulationFolder({
+    id: "runtime",
+    name: "Runtime",
+    engine: "ngspice",
+    documentId: project.topDocumentId,
+    profileId: profile.id,
+  });
+  project.simulationFolders = [folder];
+  const compiled = compileNgspiceSourceSimulation(project, folder);
+  if (!compiled.ok) throw Error(JSON.stringify(compiled));
+  const file = compiled.generated[0]!;
+  const location = {
+    file: file.path,
+    line: file.text.slice(0, file.text.indexOf("B1 A 0")).split("\n").length,
+  };
+  await page.route("**/api/simulate", async (route) => {
+    const request = route.request().postDataJSON();
+    if (request.operation === "capabilities")
+      return route.fulfill({
+        json: {
+          configured: true,
+          rawfileCollection: "declared-single-ascii",
+          maxOutputBytes: 1048576,
+          inputs: ["source", "raw"],
+          analyses: ["op", "ac", "tran", "noise"],
+          parsedAnalyses: ["op", "ac", "tran", "noise"],
+          profiles: [
+            {
+              id: profile.id,
+              corners: ["tt"],
+              dependencies: [
+                { id: profile.models.id, sha256: profile.models.contentSha256 },
+              ],
+            },
+          ],
+          maxTimeoutMs: 120000,
+          maxInputBytes: 1048576,
+          cancel: true,
+        },
+      });
+    await route.fulfill({
+      json: {
+        outcome: { status: "failed" },
+        diagnostics: [
+          { severity: "error", text: "Error: unknown_function", location },
+        ],
+        log: "Error: unknown_function",
+        durationMs: 1,
+        metadata: {
+          schemaVersion: 1,
+          input: await createSimulationInputMetadata({
+            inputRevision: request.inputRevision,
+            netlist: request.netlist,
+            testbench: request.testbench,
+            deck: request.preparedDeck,
+          }),
+          configuration: { modelLibrary: null },
+          environment: await createSimulationEnvironmentMetadata({
+            executor: "local-host",
+            reproducibility: "observed",
+            profileId: profile.id,
+            platform: "linux/x64",
+            simulator: {
+              name: "ngspice",
+              version: profile.simulator.version,
+              binarySha256: null,
+            },
+            models: null,
+            startupSha256: null,
+          }),
+        },
+      },
+    });
+  });
+  await page.goto("/editor?new=1");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "runtime.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(serializeProject(project)),
+  });
+  await page.getByTestId("open-analog-simulation").click();
+  const panel = page.getByRole("region", { name: "Analog simulation" });
+  await panel.getByRole("button", { name: "Run", exact: true }).click();
+  await panel
+    .getByRole("button", {
+      name: `Open model source at ${location.file}:${location.line}`,
+      exact: true,
+    })
+    .click();
+  const manager = page.getByRole("dialog", { name: "Cell Manager" });
+  const editor = manager.getByLabel("External model netlist");
+  await expect(editor).toContainText("B1 A 0 V={unknown_function(0)}");
+  await expect(editor).toHaveAttribute("aria-readonly", "true");
+  await expect(manager.locator(".cm-code-highlight")).toContainText("B1 A 0");
+  await manager
+    .getByRole("button", { name: "Open saved draft", exact: true })
+    .click();
+  await expect(editor).toContainText(".subckt unfinished A");
+  await expect(editor).toHaveAttribute("aria-readonly", "false");
+  await manager.getByLabel("Close Cell Manager").click();
+  const saved: CircuitProject = parseSavedProject(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(),
+  );
+  expect(saved.modelSources![0]!.files[1]!.text).toBe(helper);
+  expect(saved.modelSources![0]!.draft!.files[0]!.text).toBe(
+    project.modelSources![0]!.draft!.files[0]!.text,
+  );
+});
 
 async function runCellCommand(
   page: import("@playwright/test").Page,
@@ -581,7 +1215,27 @@ test("protects reviewed External interfaces and navigates their callers", async 
   page,
 }) => {
   const reviewed = reviewedExternalBindingForMaster("sky130_fd_pr__nfet_01v8")!;
+  const libraryProject = createEmptyProject(
+    "reviewed-library",
+    "Reviewed library",
+  );
+  libraryProject.externalSubcircuitDefinitions.push({
+    id: "reviewed",
+    name: reviewed.masterName,
+    terminals: reviewed.terminals.map((t, index) => ({
+      id: `pin-${index}`,
+      name: t.targetName,
+      direction: "passive",
+    })),
+    formalParameters: [],
+    interfaceStatus: "declared",
+  });
   await page.goto("/editor");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "library.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(serializeProject(libraryProject)),
+  });
   await runCellCommand(page, "Hierarchy");
   const manager = page.getByRole("dialog", { name: "Cell Manager" });
   await manager
@@ -589,13 +1243,8 @@ test("protects reviewed External interfaces and navigates their callers", async 
     .getByRole("button", { name: "External Circuit Defs", exact: true })
     .click();
   await manager
-    .getByLabel("External subcircuit target")
-    .fill(reviewed.masterName);
-  await manager
-    .getByLabel("External subcircuit terminals")
-    .fill(reviewed.terminals.map((item) => item.targetName).join(", "));
-  await manager
-    .getByRole("button", { name: "Create External Circuit Def", exact: true })
+    .locator(".cell-manager-list-item")
+    .filter({ hasText: reviewed.masterName })
     .click();
   await expect(
     manager.getByLabel("External subcircuit target"),
@@ -648,6 +1297,9 @@ test("manages external declarations independently of local Cell interfaces", asy
     manager.getByRole("button", { name: "Open", exact: true }),
   ).toHaveCount(0);
   await expect(manager.getByText("Reset Cell", { exact: true })).toHaveCount(0);
+  await manager
+    .getByRole("button", { name: "Create placeholder…", exact: true })
+    .click();
   await manager.getByLabel("External subcircuit target").fill("amplifier");
   await manager
     .getByLabel("External subcircuit terminals")
@@ -749,6 +1401,9 @@ test("creates and places an external interface with connected netlist semantics"
     name: "Create External Circuit Def",
     exact: true,
   });
+  await manager
+    .getByRole("button", { name: "Create placeholder…", exact: true })
+    .click();
   await create.click();
   await expect(manager.getByRole("alert")).toContainText("target name");
   await manager.getByLabel("External subcircuit target").fill("external_load");
@@ -762,6 +1417,9 @@ test("creates and places an external interface with connected netlist semantics"
   ).toBeVisible();
   await manager
     .getByRole("button", { name: "New External Circuit Def", exact: true })
+    .click();
+  await manager
+    .getByRole("button", { name: "Create placeholder…", exact: true })
     .click();
   await expect(manager.getByLabel("External subcircuit target")).toHaveValue(
     "",

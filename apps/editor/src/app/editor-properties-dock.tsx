@@ -33,6 +33,7 @@ interface ComponentPropertiesModel {
   cellSymbolLayout: ComponentProps<typeof CellSymbolLayoutProperties> | null;
   identity: ComponentProps<typeof ComponentIdentityProperties>;
   signalFlow: boolean;
+  onOpenModel?: (() => void) | undefined;
   parameters: NonNullable<
     ComponentProps<typeof ComponentPropertyCodeEditor>["details"]
   >["parameters"];
@@ -160,6 +161,11 @@ export function EditorPropertiesDock({
                 </Suspense>
                 {component.cellSymbolLayout ? (
                   <CellSymbolLayoutProperties {...component.cellSymbolLayout} />
+                ) : null}
+                {component.onOpenModel ? (
+                  <button type="button" onClick={component.onOpenModel}>
+                    Open shared model source…
+                  </button>
                 ) : null}
                 {component.identity.propertyTerminal ? (
                   <ComponentIdentityProperties

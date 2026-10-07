@@ -1,6 +1,7 @@
 import {
   createProjectSymbolResolver,
   withProjectComponentDefinitions,
+  externalSubcircuitSymbolId,
 } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 import {
@@ -10,6 +11,8 @@ import {
 } from "@icm/model";
 import { createRoutingDemoProject } from "../../demos/routing-demo";
 import { EditorDocumentController } from "../../document/document-controller";
+import { executeProjectTransaction } from "@icm/edit-engine";
+import { reviewedExternalBindingForMaster } from "@icm/devices";
 
 import {
   formatProjectCode,
@@ -18,6 +21,193 @@ import {
 } from "./project-code";
 
 describe("Project Code", () => {
+  it("refuses an orphaned model pin and accepts an explicit caller repair in the same code commit", () => {
+    const current = createEmptyProject("connections", "Connections");
+    current.modelSources = [
+      {
+        id: "model",
+        language: "spice",
+        entry: "model.spice",
+        revision: 1,
+        dependencies: [],
+        files: [
+          {
+            path: "model.spice",
+            text: ".subckt amp A B\nR1 A B 1k\n.ends amp\n",
+          },
+        ],
+      },
+    ];
+    current.externalSubcircuitDefinitions.push({
+      id: "amp",
+      name: "amp",
+      interfaceStatus: "declared",
+      formalParameters: [],
+      terminals: ["A", "B"].map((name) => ({
+        id: `pin-${name}`,
+        name,
+        direction: "passive",
+      })),
+      implementation: { kind: "source", sourceId: "model", entry: "amp" },
+    });
+    current.documents[0]!.instances.push({
+      id: "X1",
+      reference: "X1",
+      symbolId: externalSubcircuitSymbolId("amp"),
+      placement: { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+      netlist: {
+        binding: { kind: "external-subcircuit", definitionId: "amp" },
+        parameters: {},
+      },
+    });
+    current.documents[0]!.nets.push({
+      id: "signal",
+      terminals: [{ instanceId: "X1", pinName: "A" }],
+    });
+    const candidate = structuredClone(current);
+    candidate.modelSources![0]!.files[0]!.text =
+      ".subckt amp B\nR1 B 0 1k\n.ends amp\n";
+    candidate.externalSubcircuitDefinitions[0]!.terminals =
+      candidate.externalSubcircuitDefinitions[0]!.terminals.filter(
+        (t) => t.name === "B",
+      );
+    const refused = planProjectCodeCommit(
+      current,
+      formatProjectCode(candidate),
+      current.topDocumentId,
+    );
+    expect(refused.ok).toBe(false);
+    if (!refused.ok) expect(refused.message).toContain("X1");
+    expect(current.documents[0]!.nets[0]!.terminals[0]!.pinName).toBe("A");
+    candidate.documents[0]!.nets[0]!.terminals[0]!.pinName = "B";
+    expect(
+      planProjectCodeCommit(
+        current,
+        formatProjectCode(candidate),
+        current.topDocumentId,
+      ).ok,
+    ).toBe(true);
+  });
+  it.each([false, true])(
+    "advances the shared model revision and ignores typed concurrency tokens (foreign Project id: %s)",
+    (foreignProjectId) => {
+      const empty = createEmptyProject("models", "Models");
+      const source = {
+        id: "model",
+        language: "spice" as const,
+        entry: "model.spice",
+        revision: 0,
+        files: [
+          {
+            path: "model.spice",
+            text: ".subckt amp A B\nR1 A B 1k\n.ends amp\n",
+          },
+        ],
+        dependencies: [],
+      };
+      const applied = executeProjectTransaction(empty, {
+        projectId: empty.id,
+        expectedStructureRevision: 0,
+        transactionId: "define",
+        actor: { kind: "human", id: "test" },
+        edits: [
+          {
+            kind: "apply_model_source",
+            source,
+            definitions: [{ definitionId: "amp", entry: "amp" }],
+          },
+        ],
+      });
+      if (!applied.ok) throw Error(JSON.stringify(applied));
+      const current = applied.project;
+      const candidate = structuredClone(current);
+      if (foreignProjectId) candidate.id = "pasted-project";
+      candidate.modelSources![0]!.files[0]!.text =
+        source.files[0]!.text.replace("1k", "2k");
+      candidate.modelSources![0]!.revision = 999;
+      const plan = planProjectCodeCommit(
+        current,
+        formatProjectCode(candidate),
+        current.topDocumentId,
+      );
+      expect(plan.ok, JSON.stringify(plan)).toBe(true);
+      if (!plan.ok) return;
+      expect(plan.project.modelSources![0]!.revision).toBe(2);
+      expect(current.modelSources![0]!.revision).toBe(1);
+      const stale = executeProjectTransaction(plan.project, {
+        projectId: current.id,
+        expectedStructureRevision: plan.project.structureRevision,
+        transactionId: "stale",
+        actor: { kind: "agent", id: "test" },
+        edits: [
+          {
+            kind: "apply_model_source",
+            source: current.modelSources![0]!,
+            definitions: [{ definitionId: "amp", entry: "amp" }],
+          },
+        ],
+      });
+      expect(stale.ok).toBe(false);
+      const tokensOnly = structuredClone(current);
+      tokensOnly.modelSources![0]!.revision = 999;
+      const ignored = planProjectCodeCommit(
+        current,
+        formatProjectCode(tokensOnly),
+        current.topDocumentId,
+      );
+      expect(ignored).toMatchObject({ ok: true, changed: false });
+    },
+  );
+  it.each([false, true])(
+    "refuses reviewed implementation replacement through Project Code (foreign Project id: %s)",
+    (foreignProjectId) => {
+      const project = createEmptyProject("library", "Library");
+      const reviewed = reviewedExternalBindingForMaster(
+        "sky130_fd_pr__nfet_01v8",
+      )!;
+      project.externalSubcircuitDefinitions.push({
+        id: "library",
+        name: reviewed.masterName,
+        terminals: reviewed.terminals.map((t, i) => ({
+          id: `pin-${i}`,
+          name: t.targetName,
+          direction: "passive",
+        })),
+        formalParameters: [],
+        interfaceStatus: "declared",
+      });
+      const candidate = structuredClone(project);
+      if (foreignProjectId) candidate.id = "pasted-project";
+      candidate.modelSources = [
+        {
+          id: "source",
+          language: "spice",
+          entry: "model.spice",
+          revision: 1,
+          files: [
+            {
+              path: "model.spice",
+              text: `.subckt ${reviewed.masterName} ${reviewed.terminals.map((t) => t.targetName).join(" ")}\nR1 D S 1k\n.ends ${reviewed.masterName}\n`,
+            },
+          ],
+          dependencies: [],
+        },
+      ];
+      candidate.externalSubcircuitDefinitions[0]!.implementation = {
+        kind: "source",
+        sourceId: "source",
+        entry: reviewed.masterName,
+      };
+      const plan = planProjectCodeCommit(
+        project,
+        formatProjectCode(candidate),
+        project.topDocumentId,
+      );
+      expect(plan.ok).toBe(false);
+      if (!plan.ok) expect(plan.message).toContain("Reviewed");
+    },
+  );
+
   it("applies edited label settings to existing authored labels in the same undoable commit", () => {
     const current = createEmptyProject("labels", "Labels");
     const document = current.documents[0]!;

@@ -453,6 +453,20 @@ analysis, PDK path, or renderer state. A Cell may carry the model cards only
 its own instances use, such as the ideal switch. The IR also carries the
 coupled-winding subcircuits its drawn T-coils and transformers call.
 
+Project-owned external text is composed after the structural printer through
+the shared model-source inventory. Reachable owners emit once, including owned
+helper-file closure; declared environment libraries retain rebased relative
+references and pinned identities. SPICE copy, panel and export use this same
+composition. Unsupported native body conversion refuses explicitly.
+
+Printed body spans map to owner ID, applied revision, file and exact offset.
+Supported body/default edits write back through explicit Apply to that owner.
+Interface, dependency and cross-owner edits require the definition editor,
+reachable from the panel. They cannot introduce folder-local overrides. Saved
+drafts do not replace applied bytes; output identifies the applied version and
+pending draft. Placeholders export calls with a missing-implementation warning
+and cannot prepare for execution.
+
 ## Printer contracts
 
 Printers are pure functions over a validated Export IR. They cannot access the
@@ -685,8 +699,10 @@ geometry; an ideal value is never reinterpreted as physical geometry during
 export. Reviewed geometry stays in canonical metres until strict extraction
 emits a wrapper's required units in either dialect. Unknown custom subcircuits
 and unresolved hierarchy retain their original interfaces and validation.
-Design-netlist export adds no model-library include. Libraries, sections and
-corners belong to authored simulation source and its selected execution Profile.
+Design-netlist export injects no environment model library. Explicit loads
+declared by a reachable Project model source remain in its portable closure.
+Execution Profile libraries and corner overrides belong to the authored
+experiment and its selected environment.
 
 ### Missing models and values
 

@@ -2,6 +2,7 @@ import {
   ProjectSimulationFolderSchema,
   type ProjectSimulationFolder,
   type CircuitProject,
+  type ProjectModelSource,
 } from "@icm/model";
 import {
   generateCircuitSource,
@@ -39,6 +40,7 @@ export interface ProjectSimulationFileHost {
     >,
     folder: ProjectSimulationFolder,
     parameters?: CircuitParameterChange[],
+    modelUpdates?: ProjectModelSource[],
   ):
     | { ok: true; snapshot: ProjectSourceSnapshot }
     | { ok: false; error: Problem };
@@ -162,6 +164,7 @@ export async function handleProjectSourceFiles(
     let file = before.folder.input.files.find((f) => f.path === op.path);
     let editableParameters;
     let instances;
+    let modelSources;
     const binding = before.folder.input.circuitBindings.find(
       (b) => b.path === op.path,
     );
@@ -182,6 +185,7 @@ export async function handleProjectSourceFiles(
       file = { path: binding.path, text: result.source.text };
       if (op.detail !== "text") {
         instances = result.source.instances;
+        modelSources = result.source.modelLocations;
         editableParameters = result.source.parameters.map((p) => ({
           from: p.startOffset,
           to: p.endOffset,
@@ -218,6 +222,7 @@ export async function handleProjectSourceFiles(
       nextOffset: end < file.text.length ? end : null,
       ...(editableParameters ? { editableParameters } : {}),
       ...(instances ? { instances } : {}),
+      ...(modelSources ? { modelSources } : {}),
     };
   }
   if (op.expectedRevision !== before.structureRevision) return conflict();
@@ -257,6 +262,7 @@ export async function handleProjectSourceFiles(
   );
   if (!planned.ok) return planned;
   const parameters = new Map<string, CircuitParameterChange>();
+  const modelUpdates = new Map<string, ProjectModelSource>();
   const editedPaths = new Set<string>();
   for (const edit of op.circuitEdits) {
     if (editedPaths.has(edit.path))
@@ -289,6 +295,16 @@ export async function handleProjectSourceFiles(
       return conflict();
     const mapped = planCircuitSourceEdit(generated.source, edit.text);
     if (!mapped.ok) return problem(mapped.code, mapped.message, "input");
+    for (const model of mapped.modelUpdates ?? []) {
+      const prior = modelUpdates.get(model.id);
+      if (prior && JSON.stringify(prior) !== JSON.stringify(model))
+        return problem(
+          "MODEL_SOURCE_EDIT_CONFLICT",
+          "Repeated views must assign the same shared model body",
+          "input",
+        );
+      modelUpdates.set(model.id, model);
+    }
     for (const change of mapped.changes) {
       const key = JSON.stringify([
         change.documentId,
@@ -338,15 +354,24 @@ export async function handleProjectSourceFiles(
   const update = await sourceUpdateReceipt(input.files, next.data.input.files);
   // Sorting by the planner is not an authored change on an untouched folder.
   if (!update.files.length) next.data.input.files = input.files;
-  if (parameters.size) update.mappedCircuitPaths = [...editedPaths];
+  if (parameters.size || modelUpdates.size)
+    update.mappedCircuitPaths = [...editedPaths];
   update.changed =
     parameters.size > 0 ||
+    modelUpdates.size > 0 ||
     JSON.stringify(next.data) !==
       JSON.stringify(ProjectSimulationFolderSchema.parse(before.folder));
   if (!unchanged()) return conflict();
   // Do not parse SPICE/JSON here: broken text and missing references are saveable.
   if (!update.changed) return { ...listProjectSource(before), update };
-  const committed = host.commit(before, next.data, [...parameters.values()]);
+  const committed = modelUpdates.size
+    ? host.commit(
+        before,
+        next.data,
+        [...parameters.values()],
+        [...modelUpdates.values()],
+      )
+    : host.commit(before, next.data, [...parameters.values()]);
   return committed.ok
     ? { ...listProjectSource(committed.snapshot), update }
     : committed;

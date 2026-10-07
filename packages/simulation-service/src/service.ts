@@ -1192,6 +1192,19 @@ export class SimulationService {
         text: JSON.stringify(preparation.sourceMaps, null, 2),
         metadata: { role: "source-map" as const },
       },
+      ...("modelSources" in preparation && preparation.modelSources?.length
+        ? [
+            {
+              name: "model-sources.json",
+              mediaType: "application/json",
+              text: JSON.stringify(preparation.modelSources, null, 2),
+              metadata: {
+                role: "source" as const,
+                sourcePath: "model-sources.json",
+              },
+            },
+          ]
+        : []),
       {
         name: "prepared.json",
         mediaType: "application/json",

@@ -54,6 +54,9 @@ export type CellNetlistTerminal = z.infer<
 export type ExternalSubcircuitDefinition = z.infer<
   typeof Schema.ExternalSubcircuitDefinitionSchema
 >;
+export type ProjectModelSource = z.infer<
+  typeof Schema.ProjectModelSourceSchema
+>;
 export type MosBulkBinding = z.infer<typeof Schema.MosBulkBindingSchema>;
 export type InstanceStyleOverride = z.infer<
   typeof Schema.InstanceStyleOverrideSchema

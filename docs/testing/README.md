@@ -291,6 +291,14 @@ Electrical behavior changes report simulator, models, analyses, corners and
 acceptance criteria, or the reason simulation is blocked. Syntax inspection
 alone cannot establish electrical correctness.
 
+Project-owned native model acceptance can use
+`node scripts/model-source-smoke.mjs <HTTPS executor origin>` after `pnpm build`.
+This operator-run check uses the actual Apply, export and preparation boundaries,
+then a qualified ngspice executor; it does not belong to offline CI. Its finite
+gain, single-pole model checks OP and complex AC values against analytic results,
+changes the shared gain, and checks model revision and input identity. It verifies
+the source pipeline, not transistor-level amplifier performance.
+
 Accepted Symbol geometry/pin changes explain known drawing impacts. Historical
 layouts may need manual repair; completing the target does not require a
 general migration. Use a bounded one-off repair only when a few clear

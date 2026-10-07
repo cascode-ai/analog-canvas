@@ -14,6 +14,11 @@ import {
 import type { NetlistPortCase } from "./net-name-codec.js";
 
 import type { DesignNetlistLocations } from "./printed-netlist.js";
+import {
+  collectProjectModelSources,
+  renderProjectModelSource,
+  type ProjectModelSourceLocation,
+} from "./project-model-source.js";
 
 export type DesignNetlistExportResult = {
   diagnostics: NetlistDiagnostic[];
@@ -224,6 +229,26 @@ export function createDesignNetlistExport(
 
   const ir = analysis.ir;
   if (!ir) return blocked;
+  const models = collectProjectModelSources(
+    project,
+    (ir.externalMasters ?? []).map((m) => m.id),
+    { format, reservedNames: ir.cells.map((c) => c.name) },
+  );
+  const modelDiagnostics: NetlistDiagnostic[] = models.diagnostics.map((d) => ({
+    code: d.code,
+    severity: d.severity,
+    message: d.path
+      ? `${d.path}${d.sourceRef ? ":" + d.sourceRef.start.line : ""}: ${d.message}`
+      : d.message,
+    documentId: ir.topCellId,
+    objectIds: [],
+    primary: directObjectLocator(ir.topCellId, "document", ir.topCellId),
+  }));
+  if (modelDiagnostics.some((d) => d.severity === "error"))
+    return {
+      status: "blocked",
+      diagnostics: [...analysis.diagnostics, ...modelDiagnostics],
+    };
   // Reported, not refused. This printer's job is to say what the drawing
   // says; whether the drawing is finished enough to hand out is the caller's
   // question, and `unfinishedDrawingDiagnostics` is how a caller asks it.
@@ -239,16 +264,30 @@ export function createDesignNetlistExport(
   // the first directive intact when this structural file is used as an entry.
   file.text = file.text.slice(file.text.indexOf("\n") + 1).trimStart();
   if (format === "spice") file.text = `\n${file.text}`;
+  const shift = file.text.length - originalLength;
+  const modelLocations: ProjectModelSourceLocation[] = [];
+  for (const source of models.sources) {
+    const model = renderProjectModelSource(source);
+    file.text += `\n* Project model: applied version ${source.revision}${source.draft ? " (draft pending)" : ""}\n`;
+    const offset = file.text.length;
+    file.text += model.text;
+    modelLocations.push(
+      ...model.segments.map((s) => ({
+        ...s,
+        startOffset: s.startOffset + offset,
+        endOffset: s.endOffset + offset,
+      })),
+    );
+  }
+  const locations = printed
+    ? shiftDesignNetlistLocations(printed.locations, shift)
+    : { instances: [], fields: [] };
+  if (modelLocations.length) locations.modelSources = modelLocations;
   return {
     status: "ready",
-    diagnostics: [...analysis.diagnostics, ...deadEnds],
+    diagnostics: [...analysis.diagnostics, ...deadEnds, ...modelDiagnostics],
     file,
-    locations: printed
-      ? shiftDesignNetlistLocations(
-          printed.locations,
-          file.text.length - originalLength,
-        )
-      : { instances: [], fields: [] },
+    locations,
     cellCount: ir.cells.length,
     externalMasterCount: ir.externalMasters?.length ?? 0,
   };

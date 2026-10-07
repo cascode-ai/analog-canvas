@@ -692,12 +692,13 @@ function buildNetContext(
           binding?.kind === "external-subcircuit"
             ? externalDefinitionsById.get(binding.definitionId)
             : undefined;
-        const reviewed = externalDefinition
-          ? resolveReviewedExternalBinding(
-              externalDefinition.name,
-              externalDefinition.terminals.map((terminal) => terminal.name),
-            )
-          : undefined;
+        const reviewed =
+          externalDefinition && !externalDefinition.implementation
+            ? resolveReviewedExternalBinding(
+                externalDefinition.name,
+                externalDefinition.terminals.map((terminal) => terminal.name),
+              )
+            : undefined;
         const allowedPins = child?.netlist
           ? projectCellInterface(child.netlist).ports.map((port) => port.name)
           : reviewed
@@ -1032,10 +1033,12 @@ function extractExternalSubcircuitInstance(
     diagnostics,
     { allowAdditional: true },
   );
-  const reviewed = resolveReviewedExternalBinding(
-    definition.name,
-    definition.terminals.map((terminal) => terminal.name),
-  );
+  const reviewed = definition.implementation
+    ? undefined
+    : resolveReviewedExternalBinding(
+        definition.name,
+        definition.terminals.map((terminal) => terminal.name),
+      );
   const terminalBindings = reviewed
     ? reviewed.terminals
     : definition.terminals.map((terminal) => ({
@@ -3282,6 +3285,9 @@ function analyzeDesign(
       if (definition) {
         externalMasters.set(`external:${definition.id}`, {
           id: definition.id,
+          ...(definition.implementation
+            ? { implementationKind: definition.implementation.kind }
+            : {}),
           name: definition.name,
           terminals: definition.terminals.map((terminal) => ({
             id: terminal.id,

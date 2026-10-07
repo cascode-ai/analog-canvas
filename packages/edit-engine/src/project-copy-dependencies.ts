@@ -3,14 +3,41 @@ import {
   type CircuitProject,
   type ExternalSubcircuitDefinition,
   type Instance,
+  type ProjectModelSource,
 } from "@icm/model";
 import { externalSubcircuitSymbolId } from "@icm/symbols";
 import type { ProjectStructureEdit } from "./project-transaction.js";
 
 export type CopyDependencySource = Pick<
   CircuitProject,
-  "id" | "symbolLibrary" | "source" | "externalSubcircuitDefinitions"
+  | "id"
+  | "symbolLibrary"
+  | "source"
+  | "externalSubcircuitDefinitions"
+  | "modelSources"
 >;
+
+function modelSourceShape(source: ProjectModelSource): string {
+  return JSON.stringify({
+    language: source.language,
+    entry: source.entry,
+    files: [...source.files].sort((a, b) => a.path.localeCompare(b.path)),
+    dependencies: [...source.dependencies].sort((a, b) =>
+      a.mountPath.localeCompare(b.mountPath),
+    ),
+    draft: source.draft
+      ? {
+          entry: source.draft.entry,
+          files: [...source.draft.files].sort((a, b) =>
+            a.path.localeCompare(b.path),
+          ),
+          dependencies: [
+            ...(source.draft.dependencies ?? source.dependencies),
+          ].sort((a, b) => a.mountPath.localeCompare(b.mountPath)),
+        }
+      : undefined,
+  });
+}
 
 function definitionShape(definition: ExternalSubcircuitDefinition): unknown {
   const names = new Map(definition.terminals.map((t) => [t.id, t.name]));
@@ -33,6 +60,15 @@ function definitionShape(definition: ExternalSubcircuitDefinition): unknown {
           ),
         }
       : undefined,
+    implementation:
+      definition.implementation?.kind === "source"
+        ? { kind: "source", entry: definition.implementation.entry }
+        : definition.implementation
+          ? {
+              kind: "placeholder",
+              hasDraftOwner: Boolean(definition.implementation.sourceId),
+            }
+          : undefined,
   };
 }
 
@@ -110,11 +146,13 @@ export function planExternalCopyDependencies(
 ) {
   const externalIds = new Map<string, string>();
   const fileIds = new Map<string, string>();
+  const modelIds = new Map<string, string>();
   const edits: ProjectStructureEdit[] = [];
   const occupied = new Set(
     [
       ...destination.externalSubcircuitDefinitions,
       ...destination.source.files,
+      ...(destination.modelSources ?? []),
     ].map((item) => item.id),
   );
   const fresh = (id: string): string => {
@@ -142,6 +180,44 @@ export function planExternalCopyDependencies(
     const existing = destination.externalSubcircuitDefinitions.find(
       (d) => d.name.toLowerCase() === definition.name.toLowerCase(),
     );
+    const implementation = definition.implementation;
+    let copiedSourceId: string | undefined;
+    if (implementation?.sourceId) {
+      const model = source.modelSources?.find(
+        (s) => s.id === implementation.sourceId,
+      );
+      if (!model)
+        throw new Error(
+          `Source is missing model implementation ${definition.name}`,
+        );
+      const existingImplementation = existing?.implementation;
+      const existingModel = existingImplementation?.sourceId
+        ? destination.modelSources?.find(
+            (s) => s.id === existingImplementation.sourceId,
+          )
+        : undefined;
+      if (
+        existing &&
+        (!existingModel ||
+          modelSourceShape(existingModel) !== modelSourceShape(model))
+      )
+        throw new Error(
+          `External subcircuit ${definition.name} has an incompatible implementation or model dependencies in the destination`,
+        );
+      copiedSourceId = modelIds.get(model.id);
+      if (!copiedSourceId) {
+        const reusable = destination.modelSources?.find(
+          (s) => modelSourceShape(s) === modelSourceShape(model),
+        );
+        copiedSourceId = reusable?.id ?? fresh(model.id);
+        modelIds.set(model.id, copiedSourceId);
+        if (!reusable)
+          edits.push({
+            kind: "upsert_model_source",
+            source: { ...structuredClone(model), id: copiedSourceId },
+          });
+      }
+    }
     if (existing && !compatibleExternalDefinition(existing, definition))
       throw new Error(
         `External subcircuit ${definition.name} has an incompatible interface, parameters or presentation in the destination`,
@@ -151,6 +227,8 @@ export function planExternalCopyDependencies(
     if (!existing) {
       const clone = structuredClone(definition);
       clone.id = id;
+      if (clone.implementation?.sourceId)
+        clone.implementation.sourceId = copiedSourceId!;
       const terminals = new Map(
         clone.terminals.map((t) => [
           t.id,

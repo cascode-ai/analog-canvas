@@ -4,6 +4,10 @@ import {
   SourceFileRecordSchema,
   SchematicDocumentSchema,
   ProjectSimulationFolderSchema,
+  ProjectModelSourceSchema,
+  SimulationInputPathSchema,
+  SimulationRawFileSchema,
+  SimulationRawDependencySchema,
   flattenRichText,
   plainNameDocument,
   type CircuitProject,
@@ -22,6 +26,9 @@ import {
   type SymbolResolver,
 } from "@icm/symbols";
 import { z } from "zod";
+import { collectProjectModelSources } from "@icm/netlist";
+import { planModelSourceApply } from "./model-source-planner.js";
+import { reviewedExternalDefinitionEditIssue } from "./hierarchy-planner.js";
 
 import {
   MAX_SCHEMATIC_EDITS_PER_TRANSACTION,
@@ -43,6 +50,34 @@ import type {
 } from "./transaction-result.js";
 
 export const ProjectStructureEditSchema = z.discriminatedUnion("kind", [
+  z.strictObject({
+    kind: z.literal("apply_model_source"),
+    source: ProjectModelSourceSchema,
+    definitions: z
+      .array(
+        z.strictObject({
+          definitionId: z.string().min(1),
+          entry: z.string().min(1),
+          portMap: z
+            .record(z.string().min(1), z.string().min(1).nullable())
+            .optional(),
+        }),
+      )
+      .min(1)
+      .max(256),
+  }),
+  z.strictObject({
+    kind: z.literal("upsert_model_source"),
+    source: ProjectModelSourceSchema,
+  }),
+  z.strictObject({
+    kind: z.literal("save_model_source_draft"),
+    sourceId: z.string().min(1),
+    expectedRevision: z.number().int().nonnegative(),
+    entry: SimulationInputPathSchema,
+    files: z.array(SimulationRawFileSchema).min(1).max(256),
+    dependencies: z.array(SimulationRawDependencySchema).max(256),
+  }),
   z.strictObject({
     kind: z.literal("reorder_documents"),
     documentIds: z.array(z.string().min(1)).min(1),
@@ -215,12 +250,13 @@ function externalCallerValidationFailures(
       if (binding?.kind !== "external-subcircuit") continue;
       const definition = definitions.get(binding.definitionId);
       if (!definition) continue;
-      const reviewed = definition.presentation
-        ? undefined
-        : resolveReviewedExternalBinding(
-            definition.name,
-            definition.terminals.map((terminal) => terminal.name),
-          );
+      const reviewed =
+        definition.presentation || definition.implementation
+          ? undefined
+          : resolveReviewedExternalBinding(
+              definition.name,
+              definition.terminals.map((terminal) => terminal.name),
+            );
       const allowed = new Set(
         (reviewed
           ? reviewed.terminals.map((terminal) => terminal.pinName)
@@ -323,7 +359,7 @@ function externalCallerValidationFailures(
  * every unrelated Project edit, in other Cells included. An edit that makes a
  * caller wrong is still refused.
  */
-function introducedExternalCallerFailure(
+export function introducedExternalCallerFailure(
   before: CircuitProject,
   after: CircuitProject,
 ): ExternalCallerFailure | null {
@@ -441,8 +477,51 @@ export function executeProjectTransaction(
   const cellSymbolChangedDocumentIds = new Set<string>();
   const externalSymbolChangedIds = new Set<string>();
   let structuralChange = false;
+  // Only the shared Apply planner may replace an existing executable owner.
+  const plannedModelWrites = new Set<ProjectStructureEdit>();
 
-  for (const [editIndex, edit] of transaction.edits.entries()) {
+  for (
+    let editIndex = 0;
+    editIndex < transaction.edits.length;
+    editIndex += 1
+  ) {
+    const edit = transaction.edits[editIndex]!;
+    if (edit.kind === "save_model_source_draft") {
+      const source = candidate.modelSources?.find(
+        (s) => s.id === edit.sourceId,
+      );
+      if (!source || source.revision !== edit.expectedRevision)
+        return rejectProjectTransaction(
+          project,
+          "EDIT_PRECONDITION",
+          "Model source revision is stale or missing; draft was not saved",
+        );
+      source.draft = {
+        entry: edit.entry,
+        files: structuredClone(edit.files),
+        dependencies: structuredClone(edit.dependencies),
+        baseRevision: edit.expectedRevision,
+      };
+      structuralChange = true;
+      continue;
+    }
+    if (edit.kind === "apply_model_source") {
+      try {
+        const planned = planModelSourceApply(candidate, edit);
+        for (const write of planned)
+          if (write.kind === "upsert_model_source")
+            plannedModelWrites.add(write);
+        transaction.edits.splice(editIndex, 1, ...planned);
+        editIndex -= 1;
+      } catch (error) {
+        return rejectProjectTransaction(
+          project,
+          "EDIT_PRECONDITION",
+          error instanceof Error ? error.message : String(error),
+        );
+      }
+      continue;
+    }
     if (edit.kind === "reorder_documents") {
       const byId = new Map(candidate.documents.map((cell) => [cell.id, cell]));
       if (
@@ -621,11 +700,43 @@ export function executeProjectTransaction(
       continue;
     }
 
+    if (edit.kind === "upsert_model_source") {
+      structuralChange = true;
+      const source = structuredClone(edit.source);
+      candidate.modelSources ??= [];
+      const index = candidate.modelSources.findIndex((s) => s.id === source.id);
+      if (index >= 0 && !plannedModelWrites.has(edit)) {
+        if (
+          JSON.stringify(candidate.modelSources[index]) ===
+          JSON.stringify(source)
+        )
+          continue;
+        return rejectProjectTransaction(
+          project,
+          "EDIT_PRECONDITION",
+          "Replace an existing model through Apply; use Save draft for unapplied text",
+        );
+      }
+      if (index < 0) candidate.modelSources.push(source);
+      else candidate.modelSources[index] = source;
+      continue;
+    }
+
     if (edit.kind === "upsert_external_subcircuit_definition") {
       externalSymbolChangedIds.add(edit.definition.id);
       const index = candidate.externalSubcircuitDefinitions.findIndex(
         (definition) => definition.id === edit.definition.id,
       );
+      const reviewedIssue = reviewedExternalDefinitionEditIssue(
+        candidate.externalSubcircuitDefinitions[index],
+        edit.definition,
+      );
+      if (reviewedIssue)
+        return rejectProjectTransaction(
+          project,
+          "EDIT_PRECONDITION",
+          reviewedIssue,
+        );
       if (index < 0) {
         candidate.externalSubcircuitDefinitions.push(
           structuredClone(edit.definition),
@@ -635,12 +746,13 @@ export function executeProjectTransaction(
           edit.definition,
         );
       }
-      const reviewedMapping = edit.definition.presentation
-        ? undefined
-        : resolvePdkSymbolMappingForTerminalOrder(
-            edit.definition.name,
-            edit.definition.terminals.map((terminal) => terminal.name),
-          );
+      const reviewedMapping =
+        edit.definition.presentation || edit.definition.implementation
+          ? undefined
+          : resolvePdkSymbolMappingForTerminalOrder(
+              edit.definition.name,
+              edit.definition.terminals.map((terminal) => terminal.name),
+            );
       const externalSymbolId = externalSubcircuitSymbolId(edit.definition.id);
       for (const document of candidate.documents) {
         let changed = false;
@@ -974,6 +1086,29 @@ export function executeProjectTransaction(
         },
       ],
     );
+  }
+  const modelFailure = collectProjectModelSources(
+    candidate,
+    candidate.externalSubcircuitDefinitions.map((d) => d.id),
+  ).diagnostics.find((d) => d.severity === "error");
+  if (modelFailure) {
+    const file = modelFailure.path ?? modelFailure.sourceRef?.fileId;
+    const line = modelFailure.sourceRef?.start.line;
+    const message = `${file ? file + (line ? ":" + line : "") + ": " : ""}${modelFailure.message}`;
+    return rejectProjectTransaction(project, "EDIT_PRECONDITION", message, [
+      {
+        code: modelFailure.code,
+        severity: "error",
+        message,
+        parameters: {
+          ...modelFailure.modelSource,
+          ...(file ? { file } : {}),
+          ...(line
+            ? { line, column: modelFailure.sourceRef!.start.column }
+            : {}),
+        },
+      },
+    ]);
   }
   const validated = CircuitProjectSchema.safeParse(candidate);
   if (!validated.success) {

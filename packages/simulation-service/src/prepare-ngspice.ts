@@ -51,7 +51,7 @@ export async function prepareNgspiceExecutionInput(
   variant?: SimulationRunVariant,
 ) {
   const compilationProblem = (diagnostics: SimulationSourceDiagnostic[]) =>
-    sourceCompilationProblem(diagnostics, folder);
+    sourceCompilationProblem(diagnostics, folder, project);
   const compiled = compileNgspiceSourceSimulation(project, folder, variant);
   if (!compiled.ok) return compilationProblem(compiled.diagnostics);
   // Profile resolution belongs to the execution receipt, not authored input
@@ -83,6 +83,30 @@ export async function prepareNgspiceExecutionInput(
       "retry-after",
     );
   const dependencies = structuredClone(folder.input.dependencies);
+  for (const model of compiled.modelDependencies ?? []) {
+    const prior = dependencies.find(
+      (d) => d.id === model.id || d.mountPath === model.mountPath,
+    );
+    if (prior && JSON.stringify(prior) !== JSON.stringify(model))
+      return compilationProblem([
+        {
+          code: "MODEL_DEPENDENCY_CONFLICT",
+          severity: "error",
+          message: `Conflicting model dependency ${model.id}`,
+          path: model.mountPath,
+        },
+      ]);
+    if (compiled.files.some((f) => f.path === model.mountPath))
+      return compilationProblem([
+        {
+          code: "MODEL_DEPENDENCY_CONFLICT",
+          severity: "error",
+          message: `Model dependency collides with authored file ${model.mountPath}`,
+          path: model.mountPath,
+        },
+      ]);
+    if (!prior) dependencies.push(structuredClone(model));
+  }
   const available = new Map(
     (profile.dependencies ?? []).map((item) => [item.id, item.sha256]),
   );
@@ -100,6 +124,13 @@ export async function prepareNgspiceExecutionInput(
     );
   const files = structuredClone(compiled.files);
   const sourceMaps = structuredClone(compiled.sourceMaps);
+  const projectedGraph = () =>
+    inspectSimulationSourceGraph({
+      ...folder.input,
+      files,
+      dependencies,
+      circuitBindings: [],
+    });
   const entryIndex = files.findIndex((file) => file.path === compiled.entry);
   const entry = files[entryIndex]!;
   const needsCanvasModels = compiled.generated.some((file) =>
@@ -141,7 +172,7 @@ export async function prepareNgspiceExecutionInput(
         "This run has no declared Profile model library to receive the requested corner",
         "prepare",
       );
-    const existingLoads = compiled.includes.filter(
+    const existingLoads = projectedGraph().includes.filter(
       (include) => include.target === dependency.mountPath,
     );
     const selectedCorner =
@@ -191,6 +222,8 @@ export async function prepareNgspiceExecutionInput(
       const projectedLoads = inspectSimulationSourceGraph({
         ...folder.input,
         files,
+        dependencies,
+        circuitBindings: [],
       }).includes.filter((load) => load.target === dependency.mountPath);
       const uniqueLoads = new Map(
         projectedLoads.map((load) => [
@@ -220,10 +253,14 @@ export async function prepareNgspiceExecutionInput(
             "prepare",
           );
         const origin = locateSimulationText(map, range.start);
-        if (origin?.kind !== "authored")
+        const modelLoad =
+          origin?.kind === "generated" &&
+          origin.purpose === "canvas-circuit" &&
+          compiled.modelDependencies?.some((d) => d.mountPath === load.target);
+        if (origin?.kind !== "authored" && !modelLoad)
           return problem(
             "SIMULATION_CORNER_SOURCE_RANGE",
-            "The Profile .lib section is not an authored source token",
+            "The Profile .lib section is not an authored or declared model dependency token",
             "prepare",
           );
         const mapped = replaceSimulationText(
@@ -236,8 +273,14 @@ export async function prepareNgspiceExecutionInput(
             purpose: "run-variant",
             nominal: {
               path: file.path,
-              startOffset: origin.startOffset,
-              endOffset: origin.startOffset + range.end - range.start,
+              startOffset:
+                origin?.kind === "authored" ? origin.startOffset : range.start,
+              endOffset:
+                (origin?.kind === "authored"
+                  ? origin.startOffset
+                  : range.start) +
+                range.end -
+                range.start,
             },
           },
         );
@@ -380,5 +423,8 @@ export async function prepareNgspiceExecutionInput(
     authoredFiles: compiled.authoredFiles,
     generated: compiled.generated,
     sourceMaps,
+    ...(compiled.modelSources?.length
+      ? { modelSources: compiled.modelSources }
+      : {}),
   };
 }

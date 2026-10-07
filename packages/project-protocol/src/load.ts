@@ -1,5 +1,6 @@
 import { CircuitProjectSchema, CURRENT_MODEL_SCHEMA_VERSION } from "@icm/model";
 import type { CircuitProject } from "@icm/model";
+import { collectProjectModelSources } from "@icm/netlist";
 
 import {
   ProjectFormatError,
@@ -117,6 +118,19 @@ export function tryValidateProject(input: unknown): ProjectLoadResult {
       })),
     };
   const project = repairAmplifierPolaritySnapshots(result.data);
+  const modelDiagnostics = collectProjectModelSources(
+    project,
+    project.externalSubcircuitDefinitions.map((d) => d.id),
+  ).diagnostics.filter((d) => d.severity === "error");
+  if (modelDiagnostics.length)
+    return {
+      ok: false,
+      diagnostics: modelDiagnostics.map((d) => ({
+        code: "INVALID_PROJECT" as const,
+        message: d.message,
+        path: ["modelSources"],
+      })),
+    };
   return {
     ok: true,
     project,
@@ -185,6 +199,22 @@ export function tryParseProjectWithMetadata(
 
   let current: Record<string, unknown>;
   try {
+    if (
+      sourceSchemaVersion < 66 &&
+      (Object.hasOwn(parsed, "modelSources") ||
+        (Array.isArray(parsed.externalSubcircuitDefinitions) &&
+          parsed.externalSubcircuitDefinitions.some(
+            (d: unknown) => isRecord(d) && Object.hasOwn(d, "implementation"),
+          )))
+    ) {
+      throw new ProjectFormatError([
+        {
+          code: "INVALID_PROJECT",
+          message: "Project model source ownership requires Project schema 66",
+          path: ["modelSources"],
+        },
+      ]);
+    }
     if (sourceSchemaVersion < 64) rejectKeptDocumentStyle(parsed);
     current = sourceSchemaVersion >= 59 ? decodeProjectFile(parsed) : parsed;
     for (

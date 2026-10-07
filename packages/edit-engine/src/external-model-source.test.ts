@@ -1,0 +1,859 @@
+import {
+  createEmptyProject,
+  createSimulationFolder,
+  createRoutePath,
+  routeEnd,
+} from "@icm/model";
+import {
+  createDesignNetlistExport,
+  compileNgspiceSourceSimulation,
+  compileSourceSimulation,
+  generateCircuitSource,
+  planCircuitSourceEdit,
+} from "@icm/netlist";
+import { describe, expect, it } from "vitest";
+import { executeProjectTransaction } from "./project-transaction.js";
+import { createExternalSubcircuitInstance } from "./hierarchy-planner.js";
+import { planProjectCellImport } from "./project-cell-import.js";
+import { reviewedExternalBindingForMaster } from "@icm/devices";
+import type {
+  CircuitProject,
+  ProjectModelSource,
+  ExternalSubcircuitDefinition,
+} from "@icm/model";
+import type { ProjectStructureEdit } from "./project-transaction.js";
+
+describe("Project-owned external model source", () => {
+  it.each(["ngspice", "vacask"] as const)(
+    "ignores unincluded model bindings in %s execution and the active circuit view",
+    (engine) => {
+      const project = createEmptyProject("reachable", "Reachable");
+      project.documents[0]!.instances.push({
+        id: "R1",
+        reference: "R1",
+        symbolId: "resistor",
+        placement: { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+        netlist: {
+          binding: { kind: "primitive", deviceClass: "resistor" },
+          parameters: { value: "1k" },
+        },
+      });
+      project.documents[0]!.noConnects.push(
+        ...["1", "2"].map((pinName) => ({
+          id: `nc-${pinName}`,
+          endpoint: { kind: "terminal" as const, instanceId: "R1", pinName },
+        })),
+      );
+      const folder = createSimulationFolder({
+        id: "sim",
+        name: "Sim",
+        engine,
+        profileId: engine,
+        documentId: project.topDocumentId,
+      });
+      const compile = () =>
+        engine === "ngspice"
+          ? compileNgspiceSourceSimulation(project, folder)
+          : compileSourceSimulation(project, folder);
+      const baseline = compile();
+      expect(baseline.ok, JSON.stringify(baseline)).toBe(true);
+      const unused = createEmptyProject("unused", "Unused").documents[0]!;
+      unused.id = "unused-cell";
+      unused.netlist!.name = "unused_cell";
+      project.documents.push(unused);
+      const definition: ExternalSubcircuitDefinition = {
+        id: "unused-model",
+        name: "unused_model",
+        interfaceStatus: "declared",
+        formalParameters: [],
+        terminals: [{ id: "a", name: "A", direction: "passive" }],
+        implementation: {
+          kind: "source",
+          sourceId: "unused-source",
+          entry: "unused_model",
+        },
+      };
+      project.modelSources = [
+        {
+          id: "unused-source",
+          language: "spice",
+          entry: "model.spice",
+          revision: 1,
+          dependencies: [],
+          files: [
+            {
+              path: "model.spice",
+              text: ".subckt unused_model A\nR1 A 0 1k\n.ends unused_model\n",
+            },
+          ],
+        },
+      ];
+      project.externalSubcircuitDefinitions.push(definition);
+      unused.instances.push(
+        createExternalSubcircuitInstance("X_UNUSED", definition, {
+          position: { x: 0, y: 0 },
+          rotation: 0,
+          mirror: "none",
+        }),
+      );
+      folder.input.circuitBindings.push({
+        ...folder.input.circuitBindings[0]!,
+        id: "unused-binding",
+        documentId: unused.id,
+        path: engine === "ngspice" ? "unused.spice" : "unused.sim",
+      });
+      const actual = compile();
+      expect(actual.ok, JSON.stringify(actual)).toBe(true);
+      if (actual.ok && baseline.ok)
+        expect(actual.files).toEqual(baseline.files);
+      const preview = generateCircuitSource(
+        project,
+        folder.input.circuitBindings[0]!,
+        folder.input,
+        engine,
+      );
+      expect(preview.ok, JSON.stringify(preview)).toBe(true);
+      if (preview.ok) expect(preview.source.text).not.toContain("unused_model");
+      if (engine === "ngspice") {
+        unused.noConnects.push({
+          id: "unused-nc",
+          endpoint: { kind: "terminal", instanceId: "X_UNUSED", pinName: "A" },
+        });
+        const entry = folder.input.files.find(
+          (f) => f.path === folder.input.entry,
+        )!;
+        const original = entry.text;
+        entry.text = entry.text.replace(
+          ".control",
+          '.include "unused.spice"\n.control',
+        );
+        const included = generateCircuitSource(
+          project,
+          folder.input.circuitBindings[0]!,
+          folder.input,
+          engine,
+        );
+        expect(included.ok, JSON.stringify(included)).toBe(true);
+        if (included.ok) {
+          expect(included.source.text).toContain("unused_model");
+          const edit = planCircuitSourceEdit(
+            included.source,
+            included.source.text.replace("R1 A 0 1k", "R1 A 0 2k"),
+          );
+          expect(edit.ok, JSON.stringify(edit)).toBe(true);
+          if (edit.ok) expect(edit.modelUpdates?.[0]?.id).toBe("unused-source");
+          project.modelSources![0]!.draft = {
+            entry: "model.spice",
+            files: [{ path: "model.spice", text: ".subckt unfinished\n" }],
+            baseRevision: 1,
+          };
+          const withDraft = generateCircuitSource(
+            project,
+            folder.input.circuitBindings[0]!,
+            folder.input,
+            engine,
+          );
+          expect(withDraft.ok).toBe(true);
+          if (withDraft.ok) {
+            const refused = planCircuitSourceEdit(
+              withDraft.source,
+              withDraft.source.text.replace("R1 A 0 1k", "R1 A 0 2k"),
+            );
+            expect(refused.ok).toBe(false);
+            if (!refused.ok)
+              expect(refused.message).toContain("saved model draft");
+          }
+        }
+        entry.text = original;
+      }
+      definition.implementation = { kind: "placeholder" };
+      expect(compile().ok).toBe(true);
+    },
+  );
+  it.each([false, true])(
+    "refuses conflicting global device models while retaining subcircuit-local scope (%s)",
+    (local) => {
+      let project = createEmptyProject("device-models", "Device models");
+      for (const name of ["first", "second"]) {
+        const card = `.model shared D(Is=${name === "first" ? "1e-14" : "1e-9"})\n`;
+        const text = `${local ? "" : card}.subckt ${name} A B\n${local ? card : ""}D1 A B shared\n.ends ${name}\n`;
+        const result = executeProjectTransaction(project, {
+          projectId: project.id,
+          expectedStructureRevision: project.structureRevision,
+          transactionId: name,
+          actor: { kind: "human", id: "test" },
+          edits: [
+            {
+              kind: "apply_model_source",
+              source: {
+                id: name,
+                language: "spice",
+                entry: `${name}.spice`,
+                revision: 0,
+                dependencies: [],
+                files: [{ path: `${name}.spice`, text }],
+              },
+              definitions: [{ definitionId: name, entry: name }],
+            },
+          ],
+        });
+        if (name === "second" && !local) {
+          expect(result.ok).toBe(false);
+          if (!result.ok) {
+            expect(result.error.message).toContain("shared");
+            expect(result.error.message).toContain("second.spice:1");
+            expect(result.diagnostics).toEqual(
+              expect.arrayContaining([
+                expect.objectContaining({
+                  code: "MODEL_SOURCE_NAME_CONFLICT",
+                  parameters: expect.objectContaining({
+                    sourceId: "second",
+                    revision: 1,
+                    file: "second.spice",
+                    line: 1,
+                  }),
+                }),
+              ]),
+            );
+          }
+          expect(project.modelSources).toHaveLength(1);
+        } else {
+          expect(result.ok, JSON.stringify(result)).toBe(true);
+          if (result.ok) project = result.project;
+        }
+      }
+    },
+  );
+  it("protects reviewed library implementations at the raw Project transaction boundary", () => {
+    const project = createEmptyProject("reviewed", "Reviewed");
+    const reviewed = reviewedExternalBindingForMaster(
+      "sky130_fd_pr__nfet_01v8",
+    )!;
+    const definition = {
+      id: "library",
+      name: reviewed.masterName,
+      terminals: reviewed.terminals.map((t, i) => ({
+        id: `pin-${i}`,
+        name: t.targetName,
+        direction: "passive" as const,
+      })),
+      formalParameters: [],
+      interfaceStatus: "declared" as const,
+    };
+    project.externalSubcircuitDefinitions.push(definition);
+    const original = structuredClone(project);
+    const replacement = executeProjectTransaction(project, {
+      projectId: project.id,
+      expectedStructureRevision: project.structureRevision,
+      transactionId: "replace-library",
+      actor: { kind: "agent", id: "test" },
+      edits: [
+        {
+          kind: "upsert_model_source",
+          source: {
+            id: "replacement",
+            language: "spice",
+            entry: "model.spice",
+            revision: 1,
+            files: [
+              {
+                path: "model.spice",
+                text: `.subckt ${definition.name} ${definition.terminals.map((t) => t.name).join(" ")}\nR1 D S 1k\n.ends ${definition.name}\n`,
+              },
+            ],
+            dependencies: [],
+          },
+        },
+        {
+          kind: "upsert_external_subcircuit_definition",
+          definition: {
+            ...definition,
+            implementation: {
+              kind: "source",
+              sourceId: "replacement",
+              entry: definition.name,
+            },
+          },
+        },
+      ],
+    });
+    expect(replacement.ok).toBe(false);
+    if (!replacement.ok)
+      expect(replacement.error.message).toContain("Reviewed");
+    expect(project).toEqual(original);
+  });
+
+  it("updates multiple entries and callers atomically from one native source", () => {
+    const initial = createEmptyProject("entries", "Entries");
+    const source = {
+      id: "models",
+      language: "spice" as const,
+      entry: "model.spice",
+      files: [
+        {
+          path: "model.spice",
+          text: ".subckt first A\nR1 A 0 1k\n.ends first\n.subckt second A\nR1 A 0 2k\n.ends second\n",
+        },
+      ],
+      dependencies: [],
+      revision: 0,
+    };
+    const request = (
+      project: CircuitProject,
+      source: ProjectModelSource,
+      definitions: {
+        definitionId: string;
+        entry: string;
+        portMap?: Record<string, string | null>;
+      }[],
+    ) =>
+      executeProjectTransaction(project, {
+        projectId: project.id,
+        expectedStructureRevision: project.structureRevision,
+        transactionId: "entries",
+        actor: { kind: "human", id: "test" },
+        edits: [{ kind: "apply_model_source", source, definitions }],
+      });
+    const first = request(initial, source, [
+      { definitionId: "first", entry: "first" },
+      { definitionId: "second", entry: "second" },
+    ]);
+    if (!first.ok) throw Error(JSON.stringify(first));
+    const project = first.project;
+    for (const [
+      i,
+      definition,
+    ] of project.externalSubcircuitDefinitions.entries()) {
+      const instanceId = `X${i}`;
+      project.documents[0]!.instances.push(
+        createExternalSubcircuitInstance(instanceId, definition, {
+          position: { x: i * 200, y: 0 },
+          rotation: 0,
+          mirror: "none",
+        }),
+      );
+      project.documents[0]!.noConnects.push({
+        id: `nc-${i}`,
+        endpoint: { kind: "terminal", instanceId, pinName: "A" },
+      });
+    }
+    const updated = request(
+      project,
+      {
+        ...source,
+        revision: 1,
+        files: [
+          {
+            path: "model.spice",
+            text: source.files[0]!.text.replaceAll(" A", " INPUT"),
+          },
+        ],
+      },
+      [
+        { definitionId: "first", entry: "first", portMap: { A: "INPUT" } },
+        { definitionId: "second", entry: "second", portMap: { A: "INPUT" } },
+      ],
+    );
+    expect(updated.ok, JSON.stringify(updated)).toBe(true);
+    if (updated.ok)
+      expect(
+        updated.project.documents[0]!.noConnects.map((n) => n.endpoint.pinName),
+      ).toEqual(["INPUT", "INPUT"]);
+  });
+  it("keeps invalid drafts out of executable bytes and rejects stale Apply atomically", () => {
+    const project = createEmptyProject("draft", "Draft");
+    const source = {
+      id: "model",
+      language: "spice" as const,
+      entry: "model.spice",
+      files: [
+        { path: "model.spice", text: ".subckt amp A\nR1 A 0 1k\n.ends amp\n" },
+      ],
+      dependencies: [],
+      revision: 0,
+    };
+    const transact = (project: CircuitProject, edits: ProjectStructureEdit[]) =>
+      executeProjectTransaction(project, {
+        projectId: project.id,
+        expectedStructureRevision: project.structureRevision,
+        transactionId: "draft",
+        actor: { kind: "agent", id: "test" },
+        edits,
+      });
+    const first = transact(project, [
+      {
+        kind: "apply_model_source",
+        source,
+        definitions: [{ definitionId: "amp", entry: "amp" }],
+      },
+    ]);
+    if (!first.ok) throw Error(JSON.stringify(first));
+    const saved = transact(first.project, [
+      {
+        kind: "save_model_source_draft",
+        sourceId: "model",
+        expectedRevision: 1,
+        entry: "model.spice",
+        files: [{ path: "model.spice", text: ".subckt broken" }],
+        dependencies: [],
+      },
+    ]);
+    expect(saved.ok, JSON.stringify(saved)).toBe(true);
+    if (!saved.ok) return;
+    expect(saved.project.modelSources?.[0]?.files[0]?.text).toBe(
+      source.files[0]!.text,
+    );
+    expect(saved.project.modelSources?.[0]?.draft?.files[0]?.text).toBe(
+      ".subckt broken",
+    );
+    const before = structuredClone(saved.project);
+    expect(
+      transact(saved.project, [
+        {
+          kind: "apply_model_source",
+          source,
+          definitions: [{ definitionId: "amp", entry: "amp" }],
+        },
+      ]).ok,
+    ).toBe(false);
+    expect(saved.project).toEqual(before);
+    const bypass = transact(first.project, [
+      {
+        kind: "upsert_model_source",
+        source: {
+          ...first.project.modelSources![0]!,
+          files: [
+            {
+              path: "model.spice",
+              text: source.files[0]!.text.replace("1k", "9k"),
+            },
+          ],
+        },
+      },
+    ]);
+    expect(bypass.ok).toBe(false);
+    first.project.documents[0]!.instances.push(
+      createExternalSubcircuitInstance(
+        "X1",
+        first.project.externalSubcircuitDefinitions[0]!,
+        { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+      ),
+    );
+    saved.project.documents[0]!.instances = structuredClone(
+      first.project.documents[0]!.instances,
+    );
+    first.project.documents[0]!.noConnects.push({
+      id: "nc",
+      endpoint: { kind: "terminal", instanceId: "X1", pinName: "A" },
+    });
+    saved.project.documents[0]!.noConnects = structuredClone(
+      first.project.documents[0]!.noConnects,
+    );
+    const folder = createSimulationFolder({
+      id: "sim",
+      name: "Simulation",
+      profileId: "test",
+      engine: "ngspice",
+      documentId: first.project.documents[0]!.id,
+    });
+    const baseline = compileNgspiceSourceSimulation(first.project, folder);
+    const drafted = compileNgspiceSourceSimulation(saved.project, folder);
+    expect(
+      baseline.ok && drafted.ok,
+      JSON.stringify({ baseline, drafted }),
+    ).toBe(true);
+    if (baseline.ok && drafted.ok) {
+      expect(drafted.files).toEqual(baseline.files);
+      expect(drafted.electricalHash).toBe(baseline.electricalHash);
+      expect(
+        drafted.warnings.some((d) => d.code === "MODEL_SOURCE_DRAFT_PENDING"),
+      ).toBe(true);
+    }
+  });
+  it("preserves wired port identity across reorder and requires explicit rename or disconnection", () => {
+    const initial = createEmptyProject("migration", "Migration");
+    const apply = (
+      project: typeof initial,
+      ports: string,
+      portMap?: Record<string, string | null>,
+    ) =>
+      executeProjectTransaction(project, {
+        projectId: project.id,
+        expectedStructureRevision: project.structureRevision,
+        transactionId: "apply",
+        actor: { kind: "human", id: "test" },
+        edits: [
+          {
+            kind: "apply_model_source",
+            source: {
+              id: "model",
+              language: "spice",
+              entry: "model.spice",
+              files: [
+                {
+                  path: "model.spice",
+                  text: `.subckt amp ${ports}\nR1 A 0 1k\n.ends amp\n`,
+                },
+              ],
+              dependencies: [],
+              revision: project.modelSources?.[0]?.revision ?? 0,
+            },
+            definitions: [
+              {
+                definitionId: "amp",
+                entry: "amp",
+                ...(portMap ? { portMap } : {}),
+              },
+            ],
+          },
+        ],
+      });
+    const first = apply(initial, "A B");
+    if (!first.ok) throw Error(JSON.stringify(first));
+    const project = first.project;
+    const definition = project.externalSubcircuitDefinitions[0]!;
+    const pinId = definition.terminals[0]!.id;
+    const doc = project.documents[0]!;
+    doc.instances.push(
+      createExternalSubcircuitInstance("X1", definition, {
+        position: { x: 200, y: 200 },
+        rotation: 0,
+        mirror: "none",
+      }),
+    );
+    doc.nets.push({
+      id: "signal",
+      terminals: [{ instanceId: "X1", pinName: "A" }],
+    });
+    doc.junctions.push({
+      id: "wire-end",
+      netId: "signal",
+      position: { x: 0, y: 200 },
+      role: "route-anchor",
+    });
+    doc.routes.push(
+      createRoutePath({
+        id: "wire",
+        netId: "signal",
+        start: { kind: "junction", junctionId: "wire-end" },
+        end: { kind: "terminal", instanceId: "X1", pinName: "A" },
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+    const reordered = apply(project, "B A");
+    expect(reordered.ok, JSON.stringify(reordered)).toBe(true);
+    if (!reordered.ok) return;
+    expect(
+      reordered.project.externalSubcircuitDefinitions[0]!.terminals[1]!.id,
+    ).toBe(pinId);
+    expect(reordered.project.documents[0]!.nets[0]!.terminals).toEqual(
+      doc.nets[0]!.terminals,
+    );
+    expect(apply(reordered.project, "B INPUT").ok).toBe(false);
+    const renamed = apply(reordered.project, "B INPUT", { A: "INPUT" });
+    expect(renamed.ok, JSON.stringify(renamed)).toBe(true);
+    if (!renamed.ok) return;
+    expect(
+      renamed.project.externalSubcircuitDefinitions[0]!.terminals[1]!.id,
+    ).toBe(pinId);
+    expect(routeEnd(renamed.project.documents[0]!.routes[0]!)).toMatchObject({
+      kind: "terminal",
+      pinName: "INPUT",
+    });
+    const detached = apply(renamed.project, "B", { INPUT: null });
+    expect(detached.ok, JSON.stringify(detached)).toBe(true);
+    if (!detached.ok) return;
+    expect(detached.project.documents[0]!.routes).toHaveLength(1);
+    expect(routeEnd(detached.project.documents[0]!.routes[0]!).kind).toBe(
+      "junction",
+    );
+    expect(
+      detached.project.documents[0]!.nets.flatMap((n) => n.terminals),
+    ).toEqual([]);
+  });
+  it("transfers a Cell's owned model implementation through the real import transaction", () => {
+    const source = createEmptyProject("source-project", "Source");
+    const defined = executeProjectTransaction(source, {
+      projectId: source.id,
+      expectedStructureRevision: 0,
+      transactionId: "define",
+      actor: { kind: "human", id: "local" },
+      edits: [
+        {
+          kind: "apply_model_source",
+          source: {
+            id: "owned-source",
+            language: "spice",
+            entry: "owned.spice",
+            files: [
+              {
+                path: "owned.spice",
+                text: ".subckt owned A B\nR1 A B 7k\n.ends owned\n",
+              },
+            ],
+            dependencies: [],
+            revision: 0,
+          },
+          definitions: [{ definitionId: "owned", entry: "owned" }],
+        },
+      ],
+    });
+    if (!defined.ok) throw new Error(JSON.stringify(defined));
+    const project = defined.project;
+    const definition = project.externalSubcircuitDefinitions[0]!;
+    const document = project.documents[0]!;
+    document.instances.push(
+      createExternalSubcircuitInstance("X1", definition, {
+        position: { x: 0, y: 0 },
+        rotation: 0,
+        mirror: "none",
+      }),
+    );
+    document.noConnects.push(
+      ...definition.terminals.map((pin) => ({
+        id: `nc-${pin.name}`,
+        endpoint: {
+          kind: "terminal" as const,
+          instanceId: "X1",
+          pinName: pin.name,
+        },
+      })),
+    );
+    const destination = createEmptyProject(
+      "destination-project",
+      "Destination",
+    );
+    const plan = planProjectCellImport(destination, project, document.id);
+    expect(plan.ok, JSON.stringify(plan)).toBe(true);
+    if (!plan.ok || plan.status === "already-imported") return;
+    const imported = executeProjectTransaction(destination, {
+      projectId: destination.id,
+      expectedStructureRevision: 0,
+      transactionId: "import",
+      actor: { kind: "human", id: "local" },
+      edits: [...plan.edits],
+    });
+    expect(imported.ok, JSON.stringify(imported)).toBe(true);
+    if (!imported.ok) return;
+    const output = createDesignNetlistExport(imported.project, {
+      rootDocumentId: plan.rootDocumentId,
+    });
+    expect(output.status, JSON.stringify(output)).toBe("ready");
+    if (output.status === "ready")
+      expect(output.file.text).toContain("R1 A B 7k");
+    expect(imported.project.modelSources).toHaveLength(1);
+  });
+  it("includes the portable helper-file closure once instead of exporting a browser-only path", () => {
+    const initial = createEmptyProject("helper-model", "Helper model");
+    const helper =
+      "* exact helper comment\n.subckt model_helper A B\nR1 A B 1k\n.ends model_helper\n";
+    const text =
+      '.include "helper.spice"\n.subckt composite A B\nXHELP A B model_helper\n.ends composite\n';
+    const result = executeProjectTransaction(initial, {
+      projectId: initial.id,
+      expectedStructureRevision: 0,
+      transactionId: "helper",
+      actor: { kind: "agent", id: "agent" },
+      edits: [
+        {
+          kind: "apply_model_source",
+          source: {
+            id: "source",
+            language: "spice",
+            entry: "main.spice",
+            files: [
+              { path: "main.spice", text },
+              { path: "helper.spice", text: helper },
+            ],
+            dependencies: [],
+            revision: 0,
+          },
+          definitions: [{ definitionId: "composite", entry: "composite" }],
+        },
+      ],
+    });
+    expect(result.ok, JSON.stringify(result)).toBe(true);
+    if (!result.ok) return;
+    const project = result.project;
+    const definition = project.externalSubcircuitDefinitions[0]!;
+    const document = project.documents[0]!;
+    document.instances.push(
+      createExternalSubcircuitInstance("X1", definition, {
+        position: { x: 0, y: 0 },
+        rotation: 0,
+        mirror: "none",
+      }),
+    );
+    document.noConnects.push(
+      ...definition.terminals.map((pin) => ({
+        id: `nc-${pin.name}`,
+        endpoint: {
+          kind: "terminal" as const,
+          instanceId: "X1",
+          pinName: pin.name,
+        },
+      })),
+    );
+    const output = createDesignNetlistExport(project);
+    expect(output.status, JSON.stringify(output)).toBe("ready");
+    if (output.status !== "ready") return;
+    expect(output.file.text).toContain(helper.trim());
+    expect(output.file.text).not.toContain('.include "helper.spice"');
+    expect(output.file.text.match(/\.subckt model_helper\b/gu)).toHaveLength(1);
+    const simulation = compileNgspiceSourceSimulation(
+      project,
+      createSimulationFolder({
+        id: "sim",
+        name: "Simulation",
+        profileId: "test",
+        engine: "ngspice",
+        documentId: document.id,
+      }),
+    );
+    expect(simulation.ok, JSON.stringify(simulation)).toBe(true);
+    if (simulation.ok)
+      expect(simulation.files.map((f) => f.text).join("\n")).toContain(
+        helper.trim(),
+      );
+  });
+  it("applies one behavioral definition used by design export and source simulation", () => {
+    const initial = createEmptyProject("owned-model", "Owned model");
+    const text = [
+      ".subckt booster INP INN OUT VSS params: gain=20",
+      "BOUT OUT VSS V={gain*(v(INP,VSS)-v(INN,VSS))}",
+      ".ends booster",
+      "",
+    ].join("\n");
+    const applied = executeProjectTransaction(initial, {
+      projectId: initial.id,
+      expectedStructureRevision: initial.structureRevision,
+      transactionId: "define",
+      actor: { kind: "human", id: "local" },
+      edits: [
+        {
+          kind: "apply_model_source",
+          source: {
+            id: "booster-source",
+            language: "spice",
+            entry: "booster.spice",
+            files: [{ path: "booster.spice", text }],
+            dependencies: [],
+            revision: 0,
+          },
+          definitions: [
+            { definitionId: "booster-definition", entry: "booster" },
+          ],
+        },
+      ],
+    });
+    expect(applied.ok, JSON.stringify(applied)).toBe(true);
+    if (!applied.ok) return;
+    expect(applied.applied).toBe(true);
+    const project = applied.project;
+    const definition = project.externalSubcircuitDefinitions[0]!;
+    expect(definition.terminals.map((pin) => pin.name)).toEqual([
+      "INP",
+      "INN",
+      "OUT",
+      "VSS",
+    ]);
+    const document = project.documents[0]!;
+    document.instances.push(
+      createExternalSubcircuitInstance("X1", definition, {
+        position: { x: 0, y: 0 },
+        rotation: 0,
+        mirror: "none",
+      }),
+    );
+    document.noConnects.push(
+      ...definition.terminals.map((pin) => ({
+        id: `nc-${pin.name}`,
+        endpoint: {
+          kind: "terminal" as const,
+          instanceId: "X1",
+          pinName: pin.name,
+        },
+      })),
+    );
+    const direct = createDesignNetlistExport(project, {
+      format: "spice",
+      includeLocations: true,
+    });
+    expect(direct.status, JSON.stringify(direct)).toBe("ready");
+    if (direct.status !== "ready") return;
+    expect(direct.file.text).toContain(text.trim());
+    for (const field of direct.locations.fields)
+      expect(direct.file.text.slice(field.startOffset, field.endOffset)).toBe(
+        field.rawValue,
+      );
+    expect(direct.locations.modelSources?.[0]?.sourceId).toBe("booster-source");
+    const folder = createSimulationFolder({
+      id: "sim",
+      name: "Simulation",
+      profileId: "ngspice-test",
+      engine: "ngspice",
+      documentId: document.id,
+    });
+    const simulation = compileNgspiceSourceSimulation(project, folder);
+    expect(simulation.ok, JSON.stringify(simulation)).toBe(true);
+    if (!simulation.ok) return;
+    const models = simulation.files.map((file) => file.text).join("\n");
+    expect(models).toContain(text.trim());
+    expect(models.match(/\.subckt booster\b/gu)).toHaveLength(1);
+    expect(
+      simulation.sourceMaps
+        .flatMap((f) => f.segments)
+        .some(
+          (s) =>
+            s.origin.kind === "model-source" &&
+            s.origin.sourceId === "booster-source",
+        ),
+    ).toBe(true);
+    const converted = createDesignNetlistExport(project, { format: "spectre" });
+    expect(converted.status).toBe("blocked");
+    expect(
+      converted.diagnostics.find((d) => d.code === "MODEL_SOURCE_DIALECT")
+        ?.message,
+    ).toContain("booster.spice");
+    expect(
+      converted.diagnostics.some((d) => d.code === "MODEL_SOURCE_DIALECT"),
+    ).toBe(true);
+    folder.input.files.find((f) => f.path === folder.input.entry)!.text =
+      folder.input.files
+        .find((f) => f.path === folder.input.entry)!
+        .text.replace(".control", text + ".control");
+    const shadow = compileNgspiceSourceSimulation(project, folder);
+    expect(shadow.ok).toBe(false);
+    if (!shadow.ok)
+      expect(
+        shadow.diagnostics.some(
+          (d) =>
+            d.code === "MODEL_SOURCE_SHADOW" &&
+            d.path === folder.input.entry &&
+            d.sourceRef,
+        ),
+      ).toBe(true);
+    const placeholder = structuredClone(project);
+    placeholder.externalSubcircuitDefinitions[0]!.implementation = {
+      kind: "placeholder",
+    };
+    const unresolved = compileNgspiceSourceSimulation(
+      placeholder,
+      createSimulationFolder({
+        id: "missing",
+        name: "Missing",
+        engine: "ngspice",
+        profileId: "test",
+        documentId: document.id,
+      }),
+    );
+    expect(unresolved.ok).toBe(false);
+    if (!unresolved.ok)
+      expect(
+        unresolved.diagnostics.some(
+          (d) => d.code === "MODEL_IMPLEMENTATION_MISSING",
+        ),
+      ).toBe(true);
+  });
+});

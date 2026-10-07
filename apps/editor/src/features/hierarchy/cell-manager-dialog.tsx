@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { resolveReviewedExternalBinding } from "@icm/devices";
 import type { ProjectCellSummary } from "@icm/derived";
 
 import type {
@@ -11,10 +12,14 @@ import type { CloudProjectSummary } from "../editor-shell/cloud-projects";
 
 import { CellInterfaceEditor } from "./cell-interface-dialog";
 import { ExternalCircuitEditor } from "./external-circuit-editor";
+import type { ApplyModelSourceEdit } from "./external-model-source-editor";
+import type { SimulationSourceLocation } from "@icm/simulation-service/contract";
+import type { ProjectStructureEdit } from "@icm/edit-engine";
 import type {
   CellParameterChange,
   ExternalDefinitionResult,
 } from "./project-structure-commands";
+import { cellPlacementIssue } from "./project-structure-commands";
 
 function CellName({
   name,
@@ -60,6 +65,8 @@ export function CellManagerDialog({
   hierarchyCalls,
   onOpenOccurrence,
   activeDocumentId,
+  initialExternalId,
+  initialModelLocation,
   onClose,
   onCreate,
   onOpen,
@@ -74,6 +81,9 @@ export function CellManagerDialog({
   onSetExternalDefinition,
   onRemoveExternalDefinition,
   onPlaceExternal,
+  onPlaceCell,
+  onApplyModelSource,
+  onSaveModelDraft,
   cloudProjects,
   activeCloudProjectId,
   onLoadCloudProject,
@@ -85,6 +95,8 @@ export function CellManagerDialog({
   hierarchyCalls: readonly HierarchyFrame[];
   onOpenOccurrence(documentId: string, path: readonly HierarchyFrame[]): void;
   activeDocumentId: string;
+  initialExternalId?: string | null;
+  initialModelLocation?: SimulationSourceLocation | undefined;
   onClose(): void;
   onCreate(name: string): void;
   onOpen(documentId: string): void;
@@ -108,6 +120,12 @@ export function CellManagerDialog({
     definition: ExternalSubcircuitDefinition,
   ): ExternalDefinitionResult;
   onPlaceExternal(definitionId: string): void;
+  onPlaceCell(documentId: string): void;
+  onApplyModelSource(edit: ApplyModelSourceEdit): ExternalDefinitionResult;
+  onSaveModelDraft(
+    edits: ProjectStructureEdit[],
+    definitionId: string,
+  ): ExternalDefinitionResult;
   onRemoveExternalDefinition(definitionId: string): ExternalDefinitionResult;
   cloudProjects: readonly CloudProjectSummary[];
   activeCloudProjectId: string | null;
@@ -142,7 +160,8 @@ export function CellManagerDialog({
   useEffect(() => {
     if (open) {
       setSelectedId(activeDocumentId);
-      setResourceKind("local");
+      setResourceKind(initialExternalId ? "external" : "local");
+      if (initialExternalId) setExternalId(initialExternalId);
       return;
     }
     setDraftName("");
@@ -154,7 +173,7 @@ export function CellManagerDialog({
     setImportCellId("");
     setImportBusy(false);
     setImportMessage("");
-  }, [activeDocumentId, open]);
+  }, [activeDocumentId, open, initialExternalId]);
 
   const selectedEntry =
     cells.find((cell) => cell.id === selectedId) ?? cells[0];
@@ -177,6 +196,9 @@ export function CellManagerDialog({
   const selectedDocument = project.documents.find(
     (document) => document.id === selectedEntry?.id,
   );
+  const placementIssue = selectedDocument
+    ? cellPlacementIssue(project, activeDocumentId, selectedDocument.id)
+    : "Select a Cell";
   const selectedExternal = externalDefinitions.find(
     (definition) => definition.id === externalId,
   );
@@ -416,7 +438,19 @@ export function CellManagerDialog({
                       <strong>{definition.name}</strong>
                       <em>External</em>
                     </span>
-                    <small>{definition.terminals.length} ports</small>
+                    <small>
+                      {definition.terminals.length} ports
+                      {definition.implementation?.kind === "placeholder"
+                        ? " · Unimplemented"
+                        : definition.implementation?.kind === "source"
+                          ? " · Project model"
+                          : resolveReviewedExternalBinding(
+                                definition.name,
+                                definition.terminals.map((t) => t.name),
+                              )
+                            ? " · Reviewed library"
+                            : " · Legacy: implementation unverified"}
+                    </small>
                   </button>
                 ))}
               </div>
@@ -455,6 +489,23 @@ export function CellManagerDialog({
                 <ExternalCircuitEditor
                   key={selectedExternal?.id ?? `new-${externalDraft}`}
                   definition={selectedExternal}
+                  initialLocation={
+                    selectedExternal?.id === initialExternalId
+                      ? initialModelLocation
+                      : undefined
+                  }
+                  project={project}
+                  onSaveModelDraft={(edits, definitionId) => {
+                    const result = onSaveModelDraft(edits, definitionId);
+                    if (result.ok) setExternalId(definitionId);
+                    return result;
+                  }}
+                  onApplyModelSource={(edit) => {
+                    const result = onApplyModelSource(edit);
+                    if (result.ok)
+                      setExternalId(edit.definitions[0]!.definitionId);
+                    return result;
+                  }}
                   onRemoveExternalDefinition={(id) => {
                     const result = onRemoveExternalDefinition(id);
                     if (result.ok) setExternalId(null);
@@ -480,6 +531,23 @@ export function CellManagerDialog({
                     </div>
                   </div>
                   <div className="cell-manager-actions">
+                    <button
+                      type="button"
+                      disabled={Boolean(placementIssue)}
+                      title={
+                        placementIssue ??
+                        "Place this Cell in the current drawing"
+                      }
+                      onClick={() => onPlaceCell(selectedEntry.id)}
+                    >
+                      Place
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onOpen(selectedEntry.id)}
+                    >
+                      Open
+                    </button>
                     {!selectedEntry.isTop ? (
                       <button
                         type="button"
@@ -505,6 +573,10 @@ export function CellManagerDialog({
                     </button>
                   </div>
                 </header>
+
+                {placementIssue ? (
+                  <p className="cell-interface-empty">{placementIssue}</p>
+                ) : null}
 
                 <CellInterfaceEditor
                   cell={selectedDocument}
@@ -640,7 +712,7 @@ export function CellManagerDialog({
                         return;
                       }
                       dismissActionDialog();
-                      if (outcome.documentId) onOpen(outcome.documentId);
+                      if (outcome.documentId) setSelectedId(outcome.documentId);
                     }}
                   >
                     {importBusy ? "Importing…" : "Import"}
@@ -736,3 +808,5 @@ export function CellManagerDialog({
     </div>
   );
 }
+
+/** Advisory placement check. The atomic Project transaction also rejects cycles. */

@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 
 import { createEmptyProject } from "@icm/model";
 import { serializeProject } from "@icm/project-protocol";
+import { externalSubcircuitSymbolId } from "@icm/symbols";
 
 import { AgentHttpClient } from "../../../packages/agent-client/src/http-client.js";
 import { AgentSessionClient } from "../../../packages/agent-client/src/session-client.js";
@@ -21,6 +22,181 @@ import {
 // server. Keep this file in one worker while unrelated browser specs stay
 // fully parallel.
 test.describe.configure({ mode: "default" });
+
+test("Agent and GUI apply the same owned model and preserve atomic refusal", async ({
+  page,
+  baseURL,
+}) => {
+  test.setTimeout(90_000);
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  await page.getByTestId("open-agent").click();
+  const panel = page.getByTestId("connect-agent-panel");
+  const message = panel.getByTestId("agent-copy-text");
+  await expect(message).toHaveValue(/Claim: /, { timeout: 45_000 });
+  const { claimCode } = JSON.parse(
+    /^Claim: (.+)$/mu.exec(await message.inputValue())![1]!,
+  );
+  const client = new AgentSessionClient({
+    http: new AgentHttpClient({ baseUrl: baseURL! }),
+  });
+  await client.connect(claimCode);
+  await panel.getByRole("button", { name: "Close Agent dialog" }).click();
+  const source = {
+    id: "agent-model",
+    language: "spice" as const,
+    entry: "amp.spice",
+    files: [
+      {
+        path: "amp.spice",
+        text: ".subckt agent_amp A B\nR1 A B 7k\n.ends agent_amp\n",
+      },
+    ],
+    dependencies: [],
+    revision: 0,
+  };
+  const applied = await client.advancedTransact({
+    structureEdits: [
+      {
+        kind: "apply_model_source",
+        source,
+        definitions: [{ definitionId: "agent-amp", entry: "agent_amp" }],
+      },
+    ],
+  });
+  expect(applied.ok, applied.message).toBe(true);
+  const snapshot = await client.snapshot(undefined, { refresh: true });
+  expect(snapshot.snapshot.project.modelSources?.[0]?.files[0]?.text).toContain(
+    "R1 A B 7k",
+  );
+  const placed = await client.advancedTransact([
+    {
+      kind: "add_instance",
+      instance: {
+        id: "XAMP",
+        reference: "XAMP",
+        symbolId: externalSubcircuitSymbolId("agent-amp"),
+        placement: {
+          position: { x: 200, y: 200 },
+          rotation: 0,
+          mirror: "none",
+        },
+        netlist: {
+          binding: { kind: "external-subcircuit", definitionId: "agent-amp" },
+          parameters: {},
+        },
+      },
+    },
+    {
+      kind: "add_no_connect",
+      noConnect: {
+        id: "nc-a",
+        endpoint: { kind: "terminal", instanceId: "XAMP", pinName: "A" },
+      },
+    },
+  ]);
+  expect(placed.ok, placed.message).toBe(true);
+  const refused = await client.advancedTransact({
+    structureEdits: [
+      {
+        kind: "apply_model_source",
+        source: {
+          ...source,
+          revision: 1,
+          files: [
+            {
+              path: "amp.spice",
+              text: ".subckt agent_amp B\nR1 B 0 9k\n.ends agent_amp\n",
+            },
+          ],
+        },
+        definitions: [{ definitionId: "agent-amp", entry: "agent_amp" }],
+      },
+    ],
+  });
+  expect(refused.ok).toBe(false);
+  expect(refused.message).toContain("explicit remap or disconnect");
+  await openCellManager(page);
+  const manager = page.getByRole("dialog", { name: "Cell Manager" });
+  await manager
+    .getByRole("button", { name: "External Circuit Defs", exact: true })
+    .click();
+  await manager
+    .locator(".cell-manager-list-item")
+    .filter({ hasText: "agent_amp" })
+    .click();
+  await expect(manager.getByLabel("External model netlist")).toContainText(
+    "R1 A B 7k",
+  );
+  await manager
+    .getByLabel("External model netlist")
+    .fill(".subckt agent_amp A B\nR1 A B 11k\n.ends agent_amp\n");
+  await manager
+    .getByRole("button", { name: "Apply model", exact: true })
+    .click();
+  await manager.getByLabel("Close Cell Manager").click();
+  const updated = await client.snapshot(undefined, { refresh: true });
+  expect(updated.snapshot.project.modelSources?.[0]?.revision).toBe(2);
+  expect(updated.snapshot.project.modelSources?.[0]?.files[0]?.text).toContain(
+    "11k",
+  );
+  await openCellManager(page);
+  await manager
+    .getByRole("button", { name: "External Circuit Defs", exact: true })
+    .click();
+  await manager
+    .locator(".cell-manager-list-item")
+    .filter({ hasText: "agent_amp" })
+    .click();
+  await manager
+    .getByLabel("External model netlist")
+    .fill(".subckt agent_amp A B\nR1 A B 13k\n.ends agent_amp\n");
+  const code = await client.projectResource({
+    apiVersion: "3.0",
+    requestId: "model-code-read",
+    operation: "read-project-code",
+  });
+  if (!code.ok || code.operation !== "read-project-code")
+    throw Error(JSON.stringify(code));
+  const candidate = JSON.parse(code.projectCode);
+  // A pasted Project id cannot suppress revisions for retained model owners.
+  candidate.id = "foreign-project";
+  candidate.modelSources[0].files[0].text =
+    ".subckt agent_amp A B\nR1 A B 17k\n.ends agent_amp\n";
+  candidate.modelSources[0].revision = 999;
+  const changed = await client.projectResource({
+    apiVersion: "3.0",
+    requestId: "model-code-edit",
+    operation: "replace-project-code",
+    projectCode: JSON.stringify(candidate),
+    expectedStructureRevision: code.structureRevision,
+  });
+  expect(changed.ok, JSON.stringify(changed)).toBe(true);
+  await expect(manager.getByLabel("External model netlist")).toContainText(
+    "13k",
+  );
+  await manager
+    .getByRole("button", { name: "Apply model", exact: true })
+    .click();
+  await expect(manager).toContainText("Model source revision is stale");
+  expect(
+    (await client.refreshSnapshot()).snapshot.project.modelSources?.[0]
+      ?.revision,
+  ).toBe(3);
+  await manager
+    .getByRole("button", {
+      name: "Keep my draft on the latest version",
+      exact: true,
+    })
+    .click();
+  await manager
+    .getByRole("button", { name: "Apply model", exact: true })
+    .click();
+  const rebased = (await client.refreshSnapshot()).snapshot.project
+    .modelSources?.[0];
+  expect(rebased?.revision).toBe(4);
+  expect(rebased?.files[0]?.text).toContain("13k");
+});
 
 test("Agent Gallery Insert copies into a background Circuit and is one GUI undo", async ({
   page,
@@ -133,13 +309,15 @@ test("Agent Gallery Insert copies into a background Circuit and is one GUI undo"
   await expect(page.getByTestId("active-instance-count")).toHaveText("0");
   await tabs.first().click();
   await client.bindWorkspace(null);
-  expect(
-    await client.projectResource({
-      apiVersion: "3.0",
-      requestId: "gallery-source-after",
-      operation: "read-project-code",
-    }),
-  ).toMatchObject({ ok: true, projectCode: source.projectCode });
+  const sourceAfter = await client.projectResource({
+    apiVersion: "3.0",
+    requestId: "gallery-source-after",
+    operation: "read-project-code",
+  });
+  expect(sourceAfter, JSON.stringify(sourceAfter)).toMatchObject({
+    ok: true,
+    projectCode: source.projectCode,
+  });
 });
 
 test("Agent text editing preserves the GUI's effective font and native insertion defaults", async ({

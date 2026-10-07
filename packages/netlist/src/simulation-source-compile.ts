@@ -33,9 +33,14 @@ import type {
 } from "./printed-netlist.js";
 import { inspectVacaskSourceGraph } from "./vacask-source.js";
 import type { SimulationSourceDiagnostic } from "./source-file-graph.js";
+import { reachableCircuitBindings } from "./source-file-graph.js";
 import { applySimulationParameter } from "./simulation-parameter-target.js";
 import { projectVacaskRunVariables } from "./vacask-run-variables.js";
 import { projectVacaskRunTemperature } from "./vacask-run-temperature.js";
+import {
+  collectProjectModelSources,
+  projectModelDefinitionIds,
+} from "./project-model-source.js";
 import {
   compileNativeDeviceOperatingPoints,
   nativeSimulationDevices,
@@ -130,6 +135,16 @@ export function compileSourceSimulation(
   }
   variant = parsedVariant.data;
   const graph = inspectVacaskSourceGraph(folder.input);
+  diagnostics.push(
+    ...collectProjectModelSources(
+      project,
+      projectModelDefinitionIds(
+        project,
+        reachableCircuitBindings(folder.input, graph).map((b) => b.documentId),
+      ),
+      { format: "vacask", requireImplementation: true },
+    ).diagnostics,
+  );
   diagnostics.push(...graph.diagnostics);
   if (diagnostics.some((d) => d.severity === "error"))
     return { ok: false, diagnostics };

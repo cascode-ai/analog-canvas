@@ -365,6 +365,60 @@
   scrollbar-width: thin;
 }
 
+.external-model-workbench {
+  display: grid;
+  gap: var(--icm-space-3);
+  min-width: 0;
+}
+
+.external-model-files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--icm-space-1);
+}
+.external-model-files button[aria-pressed="true"] {
+  background: var(--icm-surface-active);
+}
+.external-model-symbol {
+  max-width: 220px;
+  height: 110px;
+}
+.external-model-workbench label {
+  display: grid;
+  gap: var(--icm-space-1);
+  min-width: 0;
+}
+.external-model-workbench select,
+.external-model-workbench input {
+  min-width: 0;
+  width: 100%;
+}
+.external-model-dependency {
+  display: grid;
+  gap: var(--icm-space-2);
+  margin-block: var(--icm-space-2);
+}
+
+.external-model-workbench .project-source-editor {
+  height: clamp(10rem, 26vh, 16rem);
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-md);
+}
+
+.external-model-workbench .cm-editor,
+.external-model-workbench .cm-scroller {
+  height: 100%;
+}
+
+.external-model-interface {
+  display: grid;
+  gap: var(--icm-space-1);
+  overflow-wrap: anywhere;
+  font-size: var(--icm-font-sm);
+}
+
 .cell-manager-detail-header {
   margin-bottom: var(--icm-space-3);
 }
@@ -681,6 +735,9 @@
   display: grid;
   gap: var(--icm-space-4);
   width: min(25rem, calc(100vw - 2.5rem));
+  max-height: calc(100dvh - 3rem);
+  min-height: 0;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   padding: var(--icm-space-4);
   border: 1px solid var(--icm-border-strong);
   border-radius: var(--icm-radius-lg);
@@ -711,6 +768,19 @@
 .editor-action-dialog-body {
   display: grid;
   gap: var(--icm-space-3);
+  overflow: auto;
+  min-width: 0;
+}
+
+.editor-action-dialog-body > label {
+  display: grid;
+  gap: var(--icm-space-1);
+  min-width: 0;
+}
+.editor-action-dialog-body select {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--icm-control-h-lg);
 }
 
 .editor-action-dialog-body p {
