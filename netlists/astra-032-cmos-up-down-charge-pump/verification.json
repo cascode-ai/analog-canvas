@@ -1,0 +1,89 @@
+{
+  "simulator": "ngspice-46",
+  "models": "Generic educational Level-1 MOS",
+  "temperatureC": 27,
+  "localSpecs": [
+    {
+      "metric": "reset_low",
+      "min": -0.01,
+      "max": 0.01,
+      "value": 6.12963e-10,
+      "passed": true
+    },
+    {
+      "metric": "charged",
+      "min": 0.85,
+      "max": 1.15,
+      "value": 1.03297,
+      "passed": true
+    },
+    {
+      "metric": "hold_up",
+      "min": 0.85,
+      "max": 1.15,
+      "value": 1.06035,
+      "passed": true
+    },
+    {
+      "metric": "discharged",
+      "min": 0.35,
+      "max": 0.65,
+      "value": 0.560379,
+      "passed": true
+    },
+    {
+      "metric": "hold_down",
+      "min": 0.35,
+      "max": 0.65,
+      "value": 0.560356,
+      "passed": true
+    },
+    {
+      "metric": "both_on",
+      "min": 0.3,
+      "max": 0.7,
+      "value": 0.591476,
+      "passed": true
+    },
+    {
+      "metric": "hold_up_span",
+      "min": 0,
+      "max": 0.003,
+      "value": 4.23406e-05,
+      "passed": true
+    },
+    {
+      "metric": "hold_down_span",
+      "min": 0,
+      "max": 0.003,
+      "value": 2.23135e-05,
+      "passed": true
+    }
+  ],
+  "nativeDiagnostics": 0,
+  "canonicalExportMatches": true,
+  "prototypeConnectivityAndParametersMatch": true,
+  "limitations": "Nominal functional verification only; no PVT, noise, mismatch or foundry qualification.",
+  "hosted": {
+    "runId": "cf21f381-aa5e-4879-ba72-09ef40633d7a",
+    "specs": {
+      "available": true,
+      "total": 8,
+      "passed": 8,
+      "failed": 0,
+      "notEvaluated": 0,
+      "unconstrained": 0
+    },
+    "execution": "completed"
+  },
+  "layoutRevision": {
+    "change": "Move the UP inverter beside the bias stage to clear adjacent supply/ground artwork.",
+    "hostedInputsUnchanged": true,
+    "inputSha256": {
+      "circuit.spice": "1e7d3de41132b12a3f39f14ae1632b598eec1be8b69552b8c49350273f8edc2e",
+      "models.spice": "5a01fb44e06db2503e0ac47b00444e1709ba7d83b12cef766860602175f44735",
+      "run.cir": "d0f68a6239f3271624e3ff769e7ec75aea4d3f8e707d12cfb80f6227f56eda1b"
+    },
+    "localRerunPassed": 8
+  }
+}

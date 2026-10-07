@@ -1,0 +1,42 @@
+
+Note: No compatibility mode selected!
+
+
+Circuit: cmos up/down charge pump
+
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+Initial Transient Solution
+--------------------------
+
+Node                                   Voltage
+----                                   -------
+vdd                                        3.3
+iref                                  0.821792
+up                                           0
+dn                                           0
+reset                                      3.3
+out                                6.12963e-10
+xdut.net1                              2.47464
+xdut.net2                                  3.3
+xdut.upb                                   3.3
+xdut.net0                         -1.56688e-27
+vr#branch                                    0
+vdn#branch                                   0
+vup#branch                                   0
+vdd#branch                        -2.03252e-05
+
+
+No. of Data Rows : 7416
+reset_low           =  6.12963e-10
+charged             =  1.03297e+00
+hold_up             =  1.06035e+00
+discharged          =  5.60379e-01
+hold_down           =  5.60356e-01
+both_on             =  5.91476e-01
+hold_up_span        =  4.23406e-05 from=  2.20000e-06 to=  3.00000e-06
+hold_down_span      =  2.23135e-05 from=  4.20000e-06 to=  5.00000e-06
+ASCII raw file "out.raw"
+ngspice-46 done

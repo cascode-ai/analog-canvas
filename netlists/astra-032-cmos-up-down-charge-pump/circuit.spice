@@ -1,0 +1,15 @@
+
+.subckt astra_032_cmos_up_down_charge_pump vdd VSS iref dn up reset out
+CP out VSS 20p
+M1 iref iref VSS VSS ANMOS l=1u w=2u
+M10 out reset VSS VSS ANMOS l=1u w=10u
+M2 net1 iref VSS VSS ANMOS l=1u w=2u
+M3 net1 net1 vdd vdd APMOS l=1u w=5u
+M4 net2 net1 vdd vdd APMOS l=1u w=5u
+M5 out upb net2 vdd APMOS l=1u w=20u
+M6 out dn net0 VSS ANMOS l=1u w=10u
+M7 net0 iref VSS VSS ANMOS l=1u w=2u
+M8 upb up vdd vdd APMOS l=1u w=20u
+M9 upb up VSS VSS ANMOS l=1u w=10u
+RL out VSS 1G
+.ends astra_032_cmos_up_down_charge_pump

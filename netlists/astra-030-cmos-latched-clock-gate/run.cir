@@ -1,0 +1,28 @@
+CMOS latched clock gate
+.include "circuit.spice"
+.include "models.spice"
+VDD vdd 0 3.3
+VCLK clk 0 PULSE(0 3.3 20n 100p 100p 19.9n 40n)
+VEN en 0 PWL(0 0 30n 0 30.1n 3.3 70n 3.3 70.1n 0 110n 0 110.1n 3.3 150n 3.3 150.1n 0 190n 0)
+XDUT vdd 0 en clk gclk astra_030_cmos_latched_clock_gate
+.temp 27
+.options method=gear reltol=1e-5
+* @spec blocked_first range -0.01 0.01 unit=V
+* @spec full_first range 3.2 3.4 unit=V
+* @spec low_first range -0.01 0.01 unit=V
+* @spec blocked_second range -0.01 0.01 unit=V
+* @spec full_second range 3.2 3.4 unit=V
+* @spec low_second range -0.01 0.01 unit=V
+.control
+set filetype=ascii
+tran 10p 190n
+meas tran blocked_first MAX v(gclk) FROM=22n TO=39n
+meas tran full_first MIN v(gclk) FROM=62n TO=79n
+meas tran low_first MAX v(gclk) FROM=82n TO=99n
+meas tran blocked_second MAX v(gclk) FROM=102n TO=119n
+meas tran full_second MIN v(gclk) FROM=142n TO=159n
+meas tran low_second MAX v(gclk) FROM=162n TO=179n
+write out.raw
+quit
+.endc
+.end

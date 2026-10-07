@@ -1,0 +1,43 @@
+
+.subckt astra_031_cmos_enabled_two_to_four_decoder vdd VSS en y0 y1 y2 y3 a b
+C0 y0 VSS 200f
+C1 y1 VSS 200f
+C2 y2 VSS 200f
+C3 y3 VSS 200f
+M1 ab a vdd vdd APMOS l=1u w=20u
+M10 net5 bb VSS VSS ANMOS l=1u w=10u
+M11 y0 net0 vdd vdd APMOS l=1u w=20u
+M12 y0 net0 VSS VSS ANMOS l=1u w=10u
+M13 net1 en vdd vdd APMOS l=1u w=20u
+M14 net1 a vdd vdd APMOS l=1u w=20u
+M15 net1 bb vdd vdd APMOS l=1u w=20u
+M16 net1 en net6 VSS ANMOS l=1u w=10u
+M17 net6 a net7 VSS ANMOS l=1u w=10u
+M18 net7 bb VSS VSS ANMOS l=1u w=10u
+M19 y1 net1 vdd vdd APMOS l=1u w=20u
+M2 ab a VSS VSS ANMOS l=1u w=10u
+M20 y1 net1 VSS VSS ANMOS l=1u w=10u
+M21 net2 en vdd vdd APMOS l=1u w=20u
+M22 net2 ab vdd vdd APMOS l=1u w=20u
+M23 net2 b vdd vdd APMOS l=1u w=20u
+M24 net2 en net8 VSS ANMOS l=1u w=10u
+M25 net8 ab net9 VSS ANMOS l=1u w=10u
+M26 net9 b VSS VSS ANMOS l=1u w=10u
+M27 y2 net2 vdd vdd APMOS l=1u w=20u
+M28 y2 net2 VSS VSS ANMOS l=1u w=10u
+M29 net3 en vdd vdd APMOS l=1u w=20u
+M3 bb b vdd vdd APMOS l=1u w=20u
+M30 net3 a vdd vdd APMOS l=1u w=20u
+M31 net3 b vdd vdd APMOS l=1u w=20u
+M32 net3 en net10 VSS ANMOS l=1u w=10u
+M33 net10 a net11 VSS ANMOS l=1u w=10u
+M34 net11 b VSS VSS ANMOS l=1u w=10u
+M35 y3 net3 vdd vdd APMOS l=1u w=20u
+M36 y3 net3 VSS VSS ANMOS l=1u w=10u
+M4 bb b VSS VSS ANMOS l=1u w=10u
+M5 net0 en vdd vdd APMOS l=1u w=20u
+M6 net0 ab vdd vdd APMOS l=1u w=20u
+M7 net0 bb vdd vdd APMOS l=1u w=20u
+M8 net0 en net4 VSS ANMOS l=1u w=10u
+M9 net4 ab net5 VSS ANMOS l=1u w=10u
+.ends astra_031_cmos_enabled_two_to_four_decoder

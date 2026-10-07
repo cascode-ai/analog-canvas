@@ -1,0 +1,11 @@
+{
+  "name": "CMOS differential commutating mixer",
+  "description": "Four transmission gates alternately pass and reverse a differential input; a CMOS inverter generates the complementary LO. Ten MOS devices, two 40 kohm loads referenced to 1.65 V and two 100 fF capacitors are explicit. The saved experiment mixes a 1.1 MHz, 200 mV differential input with a 1 MHz square-wave LO. Coherent 100 kHz quadrature averages check the translated component, with DC and unconverted-RF rejection checks. The output also contains switching harmonics and needs filtering in an application. Educational Level-1 nominal behavior; no noise, linearity, RF parasitic or PVT qualification.",
+  "tags": [
+    "CMOS",
+    "Mixer",
+    "Commutation",
+    "Frequency Conversion",
+    "Transmission Gate"
+  ]
+}

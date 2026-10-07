@@ -1,0 +1,11 @@
+{
+  "name": "CMOS UP/DOWN charge pump",
+  "description": "Ten MOS devices form mirrored source and sink paths, a complementary UP driver and reset switch. A 10 uA external reference programs both nominal currents; UP adds charge to a 20 pF capacitor and DN removes it. A 1 Gohm load models leakage. The saved transient checks reset, charging, discharging, hold intervals and simultaneous-UP/DN behavior. This is an educational PLL charge-pump building block, not a complete PLL; current matching, output compliance, dead zone and PVT performance are not qualified.",
+  "tags": [
+    "CMOS",
+    "Charge Pump",
+    "PLL",
+    "Current Mirror",
+    "Mixed Signal"
+  ]
+}

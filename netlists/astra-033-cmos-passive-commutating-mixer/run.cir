@@ -1,0 +1,30 @@
+CMOS differential commutating mixer
+.include "circuit.spice"
+.include "models.spice"
+VDD vdd 0 3.3
+VCM vcm 0 1.65
+VIP vip 0 SIN(1.65 0.1 1.1meg)
+VIM vim 0 SIN(1.65 -0.1 1.1meg)
+VLO lo 0 PULSE(0 3.3 0 1n 1n 499n 1u)
+XDUT vdd 0 vip vim vcm outp outm lo astra_033_cmos_passive_commutating_mixer
+.temp 27
+.options method=gear reltol=1e-5
+* @spec if_cos range 0.05 0.075 unit=V
+* @spec if_sin range -0.008 0.008 unit=V
+* @spec dc_offset range -0.005 0.005 unit=V
+* @spec rf_leak range -0.008 0.008 unit=V
+.control
+set filetype=ascii
+tran 2n 120u
+let vd = v(outp)-v(outm)
+let ic = vd*cos(2*pi*100k*time)
+let iq = vd*sin(2*pi*100k*time)
+let rf = vd*sin(2*pi*1.1meg*time)
+meas tran if_cos AVG ic FROM=20u TO=120u
+meas tran if_sin AVG iq FROM=20u TO=120u
+meas tran dc_offset AVG vd FROM=20u TO=120u
+meas tran rf_leak AVG rf FROM=20u TO=120u
+write out.raw
+quit
+.endc
+.end

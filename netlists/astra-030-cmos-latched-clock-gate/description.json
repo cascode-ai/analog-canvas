@@ -1,0 +1,11 @@
+{
+  "name": "CMOS latched clock gate",
+  "description": "A sixteen-MOS clock gate combines a low-transparent enable latch with a static clock AND. Enable changes while clk is high are deferred until a low phase, so the tested output pulses are neither introduced nor truncated mid-cycle. The saved 3.3 V transient checks disabled windows, complete enabled high pulses and intervening low phases with asynchronous enable transitions. Nominal educational models; no clock-tree, setup/hold boundary, jitter or PVT qualification.",
+  "tags": [
+    "CMOS",
+    "Clock Gating",
+    "Clock Timing",
+    "Latch",
+    "Low Power"
+  ]
+}

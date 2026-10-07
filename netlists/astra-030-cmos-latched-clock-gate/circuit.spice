@@ -1,0 +1,21 @@
+
+.subckt astra_030_cmos_latched_clock_gate vdd VSS en clk gclk
+CE el VSS 100f
+CO gclk VSS 500f
+M1 clkb clk vdd vdd APMOS l=1u w=20u
+M10 el net1 VSS VSS ANMOS l=1u w=10u
+M11 net2 clk vdd vdd APMOS l=1u w=20u
+M12 net2 el vdd vdd APMOS l=1u w=20u
+M13 net2 clk net3 VSS ANMOS l=1u w=10u
+M14 net3 el VSS VSS ANMOS l=1u w=10u
+M15 gclk net2 vdd vdd APMOS l=1u w=20u
+M16 gclk net2 VSS VSS ANMOS l=1u w=10u
+M2 clkb clk VSS VSS ANMOS l=1u w=10u
+M3 en clk net0 vdd APMOS l=1u w=20u
+M4 en clkb net0 VSS ANMOS l=1u w=10u
+M5 net1 net0 vdd vdd APMOS l=1u w=20u
+M6 net1 net0 VSS VSS ANMOS l=1u w=10u
+M7 el clkb net0 vdd APMOS l=1u w=20u
+M8 el clk net0 VSS ANMOS l=1u w=10u
+M9 el net1 vdd vdd APMOS l=1u w=20u
+.ends astra_030_cmos_latched_clock_gate

@@ -1,0 +1,17 @@
+
+.subckt astra_033_cmos_passive_commutating_mixer vdd VSS vip vim vcm outp outm lo
+CM outm VSS 100f
+CP outp VSS 100f
+M1 vip lob outp vdd APMOS l=1u w=20u
+M10 lob lo VSS VSS ANMOS l=1u w=10u
+M2 vip lo outp VSS ANMOS l=1u w=10u
+M3 vim lo outp vdd APMOS l=1u w=20u
+M4 vim lob outp VSS ANMOS l=1u w=10u
+M5 vip lo outm vdd APMOS l=1u w=20u
+M6 vip lob outm VSS ANMOS l=1u w=10u
+M7 vim lob outm vdd APMOS l=1u w=20u
+M8 vim lo outm VSS ANMOS l=1u w=10u
+M9 lob lo vdd vdd APMOS l=1u w=20u
+RM outm vcm 40k
+RP outp vcm 40k
+.ends astra_033_cmos_passive_commutating_mixer

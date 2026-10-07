@@ -1,0 +1,11 @@
+{
+  "name": "CMOS enabled 2-to-4 decoder",
+  "description": "Thirty-six explicit MOS devices implement an enabled two-to-four decoder. Two input inverters provide complements; four three-input NAND networks and restoring inverters assert exactly one output when en is high, and none while disabled. The saved 3.3 V transient exercises all eight input/enable combinations and checks every output, for 32 truth-table checks. The address is 2*b+a. Steady-state logic only; hazard-free switching, fanout and process-corner timing are not claimed.",
+  "tags": [
+    "CMOS",
+    "Decoder",
+    "One Hot",
+    "Combinational Logic",
+    "Address Decode"
+  ]
+}

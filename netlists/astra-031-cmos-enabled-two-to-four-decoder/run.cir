@@ -1,0 +1,81 @@
+CMOS enabled 2-to-4 decoder
+.include "circuit.spice"
+.include "models.spice"
+VDD vdd 0 3.3
+VA a 0 PULSE(0 3.3 40n 100p 100p 39.9n 80n)
+VB b 0 PULSE(0 3.3 80n 100p 100p 79.9n 160n)
+VEN en 0 PULSE(0 3.3 160n 100p 100p 159.9n 320n)
+XDUT vdd 0 en y0 y1 y2 y3 a b astra_031_cmos_enabled_two_to_four_decoder
+.temp 27
+.options method=gear reltol=1e-5
+* @spec c0y0 range -0.01 0.01 unit=V
+* @spec c1y0 range -0.01 0.01 unit=V
+* @spec c2y0 range -0.01 0.01 unit=V
+* @spec c3y0 range -0.01 0.01 unit=V
+* @spec c4y0 range 3.2 3.4 unit=V
+* @spec c5y0 range -0.01 0.01 unit=V
+* @spec c6y0 range -0.01 0.01 unit=V
+* @spec c7y0 range -0.01 0.01 unit=V
+* @spec c0y1 range -0.01 0.01 unit=V
+* @spec c1y1 range -0.01 0.01 unit=V
+* @spec c2y1 range -0.01 0.01 unit=V
+* @spec c3y1 range -0.01 0.01 unit=V
+* @spec c4y1 range -0.01 0.01 unit=V
+* @spec c5y1 range 3.2 3.4 unit=V
+* @spec c6y1 range -0.01 0.01 unit=V
+* @spec c7y1 range -0.01 0.01 unit=V
+* @spec c0y2 range -0.01 0.01 unit=V
+* @spec c1y2 range -0.01 0.01 unit=V
+* @spec c2y2 range -0.01 0.01 unit=V
+* @spec c3y2 range -0.01 0.01 unit=V
+* @spec c4y2 range -0.01 0.01 unit=V
+* @spec c5y2 range -0.01 0.01 unit=V
+* @spec c6y2 range 3.2 3.4 unit=V
+* @spec c7y2 range -0.01 0.01 unit=V
+* @spec c0y3 range -0.01 0.01 unit=V
+* @spec c1y3 range -0.01 0.01 unit=V
+* @spec c2y3 range -0.01 0.01 unit=V
+* @spec c3y3 range -0.01 0.01 unit=V
+* @spec c4y3 range -0.01 0.01 unit=V
+* @spec c5y3 range -0.01 0.01 unit=V
+* @spec c6y3 range -0.01 0.01 unit=V
+* @spec c7y3 range 3.2 3.4 unit=V
+.control
+set filetype=ascii
+tran 20p 320n
+meas tran c0y0 FIND v(y0) AT=20n
+meas tran c1y0 FIND v(y0) AT=60n
+meas tran c2y0 FIND v(y0) AT=100n
+meas tran c3y0 FIND v(y0) AT=140n
+meas tran c4y0 FIND v(y0) AT=180n
+meas tran c5y0 FIND v(y0) AT=220n
+meas tran c6y0 FIND v(y0) AT=260n
+meas tran c7y0 FIND v(y0) AT=300n
+meas tran c0y1 FIND v(y1) AT=20n
+meas tran c1y1 FIND v(y1) AT=60n
+meas tran c2y1 FIND v(y1) AT=100n
+meas tran c3y1 FIND v(y1) AT=140n
+meas tran c4y1 FIND v(y1) AT=180n
+meas tran c5y1 FIND v(y1) AT=220n
+meas tran c6y1 FIND v(y1) AT=260n
+meas tran c7y1 FIND v(y1) AT=300n
+meas tran c0y2 FIND v(y2) AT=20n
+meas tran c1y2 FIND v(y2) AT=60n
+meas tran c2y2 FIND v(y2) AT=100n
+meas tran c3y2 FIND v(y2) AT=140n
+meas tran c4y2 FIND v(y2) AT=180n
+meas tran c5y2 FIND v(y2) AT=220n
+meas tran c6y2 FIND v(y2) AT=260n
+meas tran c7y2 FIND v(y2) AT=300n
+meas tran c0y3 FIND v(y3) AT=20n
+meas tran c1y3 FIND v(y3) AT=60n
+meas tran c2y3 FIND v(y3) AT=100n
+meas tran c3y3 FIND v(y3) AT=140n
+meas tran c4y3 FIND v(y3) AT=180n
+meas tran c5y3 FIND v(y3) AT=220n
+meas tran c6y3 FIND v(y3) AT=260n
+meas tran c7y3 FIND v(y3) AT=300n
+write out.raw
+quit
+.endc
+.end

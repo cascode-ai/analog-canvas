@@ -1,0 +1,51 @@
+{
+  "simulator": "ngspice-46",
+  "models": "Generic educational Level-1 MOS",
+  "temperatureC": 27,
+  "localSpecs": [
+    {
+      "metric": "if_cos",
+      "min": 0.05,
+      "max": 0.075,
+      "value": 0.0630927,
+      "passed": true
+    },
+    {
+      "metric": "if_sin",
+      "min": -0.008,
+      "max": 0.008,
+      "value": -0.000259607,
+      "passed": true
+    },
+    {
+      "metric": "dc_offset",
+      "min": -0.005,
+      "max": 0.005,
+      "value": -5.04092e-10,
+      "passed": true
+    },
+    {
+      "metric": "rf_leak",
+      "min": -0.008,
+      "max": 0.008,
+      "value": 0.00000420799,
+      "passed": true
+    }
+  ],
+  "nativeDiagnostics": 0,
+  "canonicalExportMatches": true,
+  "prototypeConnectivityAndParametersMatch": true,
+  "limitations": "Nominal functional verification only; no PVT, noise, mismatch or foundry qualification.",
+  "hosted": {
+    "runId": "bfb46284-33b1-4c8c-b53e-5e48c07e431c",
+    "specs": {
+      "available": true,
+      "total": 4,
+      "passed": 4,
+      "failed": 0,
+      "notEvaluated": 0,
+      "unconstrained": 0
+    },
+    "execution": "completed"
+  }
+}

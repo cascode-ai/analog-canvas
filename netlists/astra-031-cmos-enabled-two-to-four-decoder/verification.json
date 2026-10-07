@@ -1,0 +1,247 @@
+{
+  "simulator": "ngspice-46",
+  "models": "Generic educational Level-1 MOS",
+  "temperatureC": 27,
+  "localSpecs": [
+    {
+      "metric": "c0y0",
+      "min": -0.01,
+      "max": 0.01,
+      "value": 6.12963e-10,
+      "passed": true
+    },
+    {
+      "metric": "c1y0",
+      "min": -0.01,
+      "max": 0.01,
+      "value": 6.12967e-10,
+      "passed": true
+    },
+    {
+      "metric": "c2y0",
+      "min": -0.01,
+      "max": 0.01,
+      "value": 6.12964e-10,
+      "passed": true
+    },
+    {
+      "metric": "c3y0",
+      "min": -0.01,
+      "max": 0.01,
+      "value": 6.12966e-10,
+      "passed": true
+    },
+    {
+      "metric": "c4y0",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "c5y0",
+      "min": -0.01,
+      "max": 0.01,
+      "value": 6.13792e-10,
+      "passed": true
+    },
+    {
+      "metric": "c6y0",
+      "min": -0.01,
+      "max": 0.01,
+      "value": 6.17243e-10,
+      "passed": true
+    },
+    {
+      "metric": "c7y0",
+      "min": -0.01,
+      "max": 0.01,
+      "value": 6.13377e-10,
+      "passed": true
+    },
+    {
+      "metric": "c0y1",
+      "min": -0.01,
+      "max": 0.01,
+      "value": 6.12963e-10,
+      "passed": true
+    },
+    {
+      "metric": "c1y1",
+      "min": -0.01,
+      "max": 0.01,
+      "value": 6.12963e-10,
+      "passed": true
+    },
+    {
+      "metric": "c2y1",
+      "min": -0.01,
+      "max": 0.01,
+      "value": 6.12964e-10,
+      "passed": true
+    },
+    {
+      "metric": "c3y1",
+      "min": -0.01,
+      "max": 0.01,
+      "value": 6.12964e-10,
+      "passed": true
+    },
+    {
+      "metric": "c4y1",
+      "min": -0.01,
+      "max": 0.01,
+      "value": 6.1379e-10,
+      "passed": true
+    },
+    {
+      "metric": "c5y1",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "c6y1",
+      "min": -0.01,
+      "max": 0.01,
+      "value": 6.13378e-10,
+      "passed": true
+    },
+    {
+      "metric": "c7y1",
+      "min": -0.01,
+      "max": 0.01,
+      "value": 6.12963e-10,
+      "passed": true
+    },
+    {
+      "metric": "c0y2",
+      "min": -0.01,
+      "max": 0.01,
+      "value": 6.12963e-10,
+      "passed": true
+    },
+    {
+      "metric": "c1y2",
+      "min": -0.01,
+      "max": 0.01,
+      "value": 6.12966e-10,
+      "passed": true
+    },
+    {
+      "metric": "c2y2",
+      "min": -0.01,
+      "max": 0.01,
+      "value": 6.12963e-10,
+      "passed": true
+    },
+    {
+      "metric": "c3y2",
+      "min": -0.01,
+      "max": 0.01,
+      "value": 6.12967e-10,
+      "passed": true
+    },
+    {
+      "metric": "c4y2",
+      "min": -0.01,
+      "max": 0.01,
+      "value": 6.17229e-10,
+      "passed": true
+    },
+    {
+      "metric": "c5y2",
+      "min": -0.01,
+      "max": 0.01,
+      "value": 6.13377e-10,
+      "passed": true
+    },
+    {
+      "metric": "c6y2",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "c7y2",
+      "min": -0.01,
+      "max": 0.01,
+      "value": 6.13792e-10,
+      "passed": true
+    },
+    {
+      "metric": "c0y3",
+      "min": -0.01,
+      "max": 0.01,
+      "value": 6.12963e-10,
+      "passed": true
+    },
+    {
+      "metric": "c1y3",
+      "min": -0.01,
+      "max": 0.01,
+      "value": 6.12963e-10,
+      "passed": true
+    },
+    {
+      "metric": "c2y3",
+      "min": -0.01,
+      "max": 0.01,
+      "value": 6.12963e-10,
+      "passed": true
+    },
+    {
+      "metric": "c3y3",
+      "min": -0.01,
+      "max": 0.01,
+      "value": 6.12963e-10,
+      "passed": true
+    },
+    {
+      "metric": "c4y3",
+      "min": -0.01,
+      "max": 0.01,
+      "value": 6.13376e-10,
+      "passed": true
+    },
+    {
+      "metric": "c5y3",
+      "min": -0.01,
+      "max": 0.01,
+      "value": 6.12963e-10,
+      "passed": true
+    },
+    {
+      "metric": "c6y3",
+      "min": -0.01,
+      "max": 0.01,
+      "value": 6.1379e-10,
+      "passed": true
+    },
+    {
+      "metric": "c7y3",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    }
+  ],
+  "nativeDiagnostics": 0,
+  "canonicalExportMatches": true,
+  "prototypeConnectivityAndParametersMatch": true,
+  "limitations": "Nominal functional verification only; no PVT, noise, mismatch or foundry qualification.",
+  "hosted": {
+    "runId": "14e3168e-8ac0-469e-ab81-0af4b3705700",
+    "specs": {
+      "available": true,
+      "total": 32,
+      "passed": 32,
+      "failed": 0,
+      "notEvaluated": 0,
+      "unconstrained": 0
+    },
+    "execution": "completed"
+  }
+}

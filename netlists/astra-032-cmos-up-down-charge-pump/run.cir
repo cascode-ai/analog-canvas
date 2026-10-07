@@ -1,0 +1,34 @@
+CMOS UP/DOWN charge pump
+.include "circuit.spice"
+.include "models.spice"
+VDD vdd 0 3.3
+IREF vdd iref 10u
+VUP up 0 PWL(0 0 100n 0 101n 3.3 2100n 3.3 2101n 0 5100n 0 5101n 3.3 6100n 3.3 6101n 0 7u 0)
+VDN dn 0 PWL(0 0 3100n 0 3101n 3.3 4100n 3.3 4101n 0 5100n 0 5101n 3.3 6100n 3.3 6101n 0 7u 0)
+VR reset 0 PWL(0 3.3 50n 3.3 51n 0 7u 0)
+XDUT vdd 0 iref dn up reset out astra_032_cmos_up_down_charge_pump
+.temp 27
+.options method=gear reltol=1e-5
+* @spec reset_low range -0.01 0.01 unit=V
+* @spec charged range 0.85 1.15 unit=V
+* @spec hold_up range 0.85 1.15 unit=V
+* @spec discharged range 0.35 0.65 unit=V
+* @spec hold_down range 0.35 0.65 unit=V
+* @spec both_on range 0.3 0.7 unit=V
+* @spec hold_up_span range 0 0.003 unit=V
+* @spec hold_down_span range 0 0.003 unit=V
+.control
+set filetype=ascii
+tran 1n 7u
+meas tran reset_low FIND v(out) AT=40n
+meas tran charged FIND v(out) AT=2050n
+meas tran hold_up FIND v(out) AT=3000n
+meas tran discharged FIND v(out) AT=4200n
+meas tran hold_down FIND v(out) AT=5000n
+meas tran both_on FIND v(out) AT=6050n
+meas tran hold_up_span PP v(out) FROM=2200n TO=3000n
+meas tran hold_down_span PP v(out) FROM=4200n TO=5000n
+write out.raw
+quit
+.endc
+.end
