@@ -19,12 +19,13 @@ import {
 } from "@icm/model";
 import type { PortLabelFormatOptions } from "@icm/model";
 import {
+  builtInModelDefaults,
   deviceDescriptor,
-  instanceParameterContract,
   resolveReviewedExternalBinding,
   reviewedExternalBindingForMaster,
   reviewedExternalBindingSupportsSymbol,
   reviewedExternalModelSuggestions,
+  standardCellBindingForMaster,
   subcircuitDescriptor,
 } from "@icm/devices";
 import {
@@ -526,9 +527,6 @@ export function planSetDeviceModelTarget(
     throw new Error(`Netlisted Instance does not exist: ${instanceId}`);
   }
   const normalizedName = modelName.trim();
-  const targetBinding = normalizedName
-    ? reviewedExternalBindingForMaster(normalizedName)
-    : undefined;
   const currentExternal =
     instance.netlist.binding?.kind === "external-subcircuit"
       ? matchingReviewedExternalDefinition(
@@ -554,6 +552,14 @@ export function planSetDeviceModelTarget(
   const gateTargets = gate
     ? reviewedExternalModelSuggestions(sourceSymbolId)
     : [];
+  // A gate's target may be any standard cell, so that one of another
+  // function is refused by name below.
+  const targetBinding = normalizedName
+    ? (reviewedExternalBindingForMaster(normalizedName) ??
+      (gateTargets.length > 0
+        ? standardCellBindingForMaster(normalizedName)
+        : undefined))
+    : undefined;
   if (gate && gateTargets.length > 0) {
     if (!targetBinding && normalizedName) {
       throw new Error(
@@ -572,16 +578,8 @@ export function planSetDeviceModelTarget(
       )
         return [];
       const set = Object.fromEntries(
-        (
-          instanceParameterContract(project, {
-            symbolId: sourceSymbolId,
-            netlist: { binding },
-          })?.definitions ?? []
-        ).flatMap((parameter) =>
-          instance.netlist!.parameters[parameter.name] === undefined &&
-          parameter.defaultValue !== undefined
-            ? [[parameter.name, parameter.defaultValue]]
-            : [],
+        Object.entries(builtInModelDefaults(gate.target)).filter(
+          ([name]) => instance.netlist!.parameters[name] === undefined,
         ),
       );
       return [
@@ -644,6 +642,7 @@ export function planSetDeviceModelTarget(
         : resolveReviewedExternalBinding(
             definition.name,
             definition.terminals.map((terminal) => terminal.name),
+            sourceSymbolId,
           );
     if (
       !verified ||

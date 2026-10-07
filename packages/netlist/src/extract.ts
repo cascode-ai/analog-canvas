@@ -700,6 +700,7 @@ function buildNetContext(
             ? resolveReviewedExternalBinding(
                 externalDefinition.name,
                 externalDefinition.terminals.map((terminal) => terminal.name),
+                instance.symbolId,
               )
             : undefined;
         const allowedPins = child?.netlist
@@ -1041,6 +1042,7 @@ function extractExternalSubcircuitInstance(
     : resolveReviewedExternalBinding(
         definition.name,
         definition.terminals.map((terminal) => terminal.name),
+        instance.symbolId,
       );
   const terminalBindings = reviewed
     ? reviewed.terminals
@@ -1107,14 +1109,38 @@ function extractExternalSubcircuitInstance(
       );
     }
   }
+  // A standard cell's rail with no Net chosen reads the Cell's one drawn
+  // supply of its domain, as an unbound gate does; a Cell that drew none took
+  // the conventional supply before extraction (#1450).
+  const railsAsked = new Set<string>();
+  const railNetName = (rail: "VDD" | "VSS") => {
+    const drawn = drawnSupplyNet(document, rail === "VDD" ? "vdd" : "ground");
+    const drawnName = drawn ? context.nameByNetId.get(drawn.id) : undefined;
+    if (!drawnName && !railsAsked.has(rail)) {
+      railsAsked.add(rail);
+      diagnostic(
+        diagnostics,
+        document.id,
+        "MISSING_BLOCK_SUPPLY",
+        `Analog Block ${instance.reference!} has no unambiguous ${rail} Net; select one in Properties or draw a unique ${rail === "VDD" ? "positive supply" : "ground"}`,
+        [instance.id],
+      );
+    }
+    return drawnName ?? null;
+  };
   const nodes = terminalBindings.map((terminal) => {
-    const netName = terminalNetName(
-      document,
-      instance,
-      terminal.pinName,
-      context,
-      diagnostics,
-    );
+    const rail = "supply" in terminal ? terminal.supply : undefined;
+    const netName =
+      rail &&
+      !context.netByTerminal.has(`${instance.id}\u0000${terminal.pinName}`)
+        ? railNetName(rail)
+        : terminalNetName(
+            document,
+            instance,
+            terminal.pinName,
+            context,
+            diagnostics,
+          );
     return {
       pinName: terminal.targetName,
       ...(terminal.targetName !== terminal.pinName

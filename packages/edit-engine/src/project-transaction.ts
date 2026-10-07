@@ -261,6 +261,7 @@ function externalCallerValidationFailures(
           : resolveReviewedExternalBinding(
               definition.name,
               definition.terminals.map((terminal) => terminal.name),
+              instance.symbolId,
             );
       const allowed = new Set(
         (reviewed

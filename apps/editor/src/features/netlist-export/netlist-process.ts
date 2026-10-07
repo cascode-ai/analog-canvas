@@ -5,6 +5,7 @@ import {
   reviewedExternalBindingForMaster,
   reviewedExternalBindingSupportsSymbol,
   resolveReviewedExternalBinding,
+  type ReviewedExternalDeviceBinding,
 } from "@icm/devices";
 import {
   createNetlistPlanningProjection,
@@ -267,7 +268,7 @@ export function processReviewedLibrary(
     selected: NetlistProfileId;
     profiles: Record<NetlistProfileId, NetlistExportProfile>;
   },
-): "sky130_fd_pr" | "sg13g2_pr" | "tcbn28hpcplusbwp12t30p140" | undefined {
+): ReviewedExternalDeviceBinding["libraryId"] | undefined {
   const process =
     preferences.selected === "custom"
       ? "custom"

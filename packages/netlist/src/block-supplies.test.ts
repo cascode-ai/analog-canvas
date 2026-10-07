@@ -282,6 +282,72 @@ describe("blocks whose body never reads its supplies", () => {
   });
 });
 
+describe("a gate bound to a standard cell (#1450)", () => {
+  it("resolves its rails as the unbound gate's: the drawn supply, else asked", () => {
+    const project = unpoweredBlock("nand-gate");
+    project.externalSubcircuitDefinitions.push({
+      id: "cell",
+      name: "sky130_fd_sc_hd__nand2_1",
+      terminals: ["A", "B", "VGND", "VNB", "VPB", "VPWR", "Y"].map(
+        (name, index) => ({ id: `cell-${index}`, name, direction: "passive" }),
+      ),
+      formalParameters: [],
+      interfaceStatus: "declared",
+    });
+    const document = project.documents[0]!;
+    document.instances[0]!.netlist = {
+      binding: { kind: "external-subcircuit", definitionId: "cell" },
+      parameters: {},
+    };
+    const drawVdd = (name: string) => {
+      document.instances.push({
+        id: name,
+        symbolId: "vdd-port",
+        placement: null,
+      });
+      document.nets.push({
+        id: `net-${name}`,
+        terminals: [{ instanceId: name, pinName: "P" }],
+      });
+      document.connectivityEvidence.push({
+        id: `${name}-claim`,
+        kind: "name-claim",
+        netId: `net-${name}`,
+        name,
+        scope: "global",
+        powerDomain: "vdd",
+        owner: { kind: "power-marker", objectId: name },
+      });
+    };
+    drawVdd("VDDA");
+    const drawn = createDesignNetlistExport(project);
+    expect(drawn.status).toBe("ready");
+    if (drawn.status !== "ready") return;
+    expect(drawn.file.text).toMatch(
+      /^X1 A B VSS VSS VDDA VDDA Y sky130_fd_sc_hd__nand2_1$/mu,
+    );
+
+    drawVdd("VDDB");
+    const ambiguous = createDesignNetlistExport(project);
+    expect(ambiguous.status).toBe("blocked");
+    expect(
+      ambiguous.diagnostics.filter(
+        (item) => item.code === "MISSING_BLOCK_SUPPLY",
+      ),
+    ).toHaveLength(1);
+    // The Net chosen in Properties feeds both of the domain's rails.
+    document.nets
+      .find((net) => net.id === "net-VDDB")!
+      .terminals.push({ instanceId: "block", pinName: "VDD" });
+    const chosen = createDesignNetlistExport(project);
+    expect(chosen.status).toBe("ready");
+    if (chosen.status !== "ready") return;
+    expect(chosen.file.text).toMatch(
+      /^X1 A B VSS VSS VDDB VDDB Y sky130_fd_sc_hd__nand2_1$/mu,
+    );
+  });
+});
+
 function ngspiceOnPath(): boolean {
   return spawnSync("ngspice", ["--version"], { encoding: "utf8" }).status === 0;
 }

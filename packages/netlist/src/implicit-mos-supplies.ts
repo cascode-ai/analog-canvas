@@ -135,18 +135,25 @@ export interface ImplicitMosSupplyProjection {
 }
 
 /**
- * The rails of a gate bound to a standard cell (#1450) that no Net was
- * chosen for. The cell has no ideal body to read a drawn supply at export, so
- * each rail joins the Cell's drawn supply of its domain, or the conventional
- * one, here, the way an unbound gate's supply resolves.
+ * The rails of a gate bound to a standard cell (#1450) that no Net was chosen
+ * for, in a Cell that drew no supply of that domain: each joins the
+ * conventional supply, as an unbound gate's does. A drawn supply is read at
+ * export, or asked for when several were drawn (MISSING_BLOCK_SUPPLY).
  */
 function standardCellSuppliesToDefault(source: CircuitProject): {
   documentId: string;
   instanceId: string;
   supply: "VDD" | "VSS";
 }[] {
-  return source.documents.flatMap((document) =>
-    document.instances.flatMap((instance) => {
+  return source.documents.flatMap((document) => {
+    let logical: ReturnType<typeof resolveDocumentLogicalNets> | undefined;
+    const domainDrawn = (supply: "VDD" | "VSS") =>
+      drawsSupply(
+        document,
+        supply === "VDD" ? "vdd" : "ground",
+        (logical ??= resolveDocumentLogicalNets(document)),
+      );
+    return document.instances.flatMap((instance) => {
       const binding = instance.netlist?.binding;
       if (binding?.kind !== "external-subcircuit") return [];
       const definition = source.externalSubcircuitDefinitions.find(
@@ -156,6 +163,7 @@ function standardCellSuppliesToDefault(source: CircuitProject): {
       const reviewed = resolveReviewedExternalBinding(
         definition.name,
         definition.terminals.map((terminal) => terminal.name),
+        instance.symbolId,
       );
       const rails = new Set(
         reviewed?.terminals.flatMap((terminal) =>
@@ -167,12 +175,12 @@ function standardCellSuppliesToDefault(source: CircuitProject): {
           net.terminals.some(
             (pin) => pin.instanceId === instance.id && pin.pinName === supply,
           ),
-        )
+        ) || domainDrawn(supply)
           ? []
           : [{ documentId: document.id, instanceId: instance.id, supply }],
       );
-    }),
-  );
+    });
+  });
 }
 
 /** A read-only electrical projection for schematic MOS bodies with no authored

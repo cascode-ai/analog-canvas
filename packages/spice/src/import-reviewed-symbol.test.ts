@@ -149,3 +149,32 @@ it("says which .model card a device of unknown type needs", async () => {
     'M1 uses model mystery, which no .model card declares, so its device type is unknown. Add ".model mystery nmos" or ".model mystery pmos".',
   );
 });
+
+it("imports a standard-cell call as the external block it declares, not a Library gate (#1450)", async () => {
+  // A cell is reviewed only behind a gate someone bound it to: its four rails
+  // have no place on the gate's symbol.
+  const text = [
+    "* standard cell",
+    ".subckt top a b y vdd vss",
+    "X1 a b vss vss vdd vdd y sky130_fd_sc_hd__nand2_1",
+    ".ends top",
+    ".end",
+    "",
+  ].join("\n");
+  const result = await importSpiceSources(
+    [input("cell.spi", text)],
+    "cell.spi",
+  );
+  expect(result.diagnostics.filter((d) => d.severity === "error")).toEqual([]);
+  const top = result.project!.documents.find((d) => d.name === "top")!;
+  const cell = top.instances.find((instance) => instance.reference === "X1")!;
+  expect(cell.symbolId).not.toBe("nand-gate");
+  expect(cell.netlist?.binding?.kind).toBe("external-subcircuit");
+  const pins = top.nets.flatMap((net) =>
+    net.terminals
+      .filter((terminal) => terminal.instanceId === cell.id)
+      .map((terminal) => terminal.pinName),
+  );
+  // Seven pins of its own, each on its node: the rails stay apart.
+  expect(new Set(pins).size).toBe(7);
+});

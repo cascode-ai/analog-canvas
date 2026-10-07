@@ -787,7 +787,7 @@ interface GateCell {
  * gate's function (#1450). A cell is read from its name alone, at any drive
  * strength or variant, so no cell list ships; the drive strength is the
  * library's to resolve. Each rule was checked against its library's full
- * SPICE netlist (standard-cells.test.ts, with ICM_STD_CELL_SPICE).
+ * SPICE netlist (reviewed-external.test.ts, with ICM_STD_CELL_SPICE).
  */
 interface StandardCellRule {
   readonly libraryId: StandardCellLibraryId;
@@ -797,45 +797,46 @@ interface StandardCellRule {
   readonly pins: (fn: GateFunction, inputs: number) => readonly CellPin[];
   /** The function's weakest common cell, offered as a suggestion. */
   readonly example: (fn: GateFunction, inputs: number) => string;
-  /** The most inputs the library builds a function with, where fewer than four. */
-  readonly widest: Partial<Record<GateFunction, number>>;
+  /** The most inputs the library builds a function with; four where unlisted. */
+  readonly maxInputs: Partial<Record<GateFunction, number>>;
 }
 
-/** Inverters and buffers take one input and name no count; the others name two to four. */
-const gateCell = (
-  masterName: string,
-  fn: GateFunction,
-  count: string,
-): GateCell | undefined => {
-  const single = fn === "inv" || fn === "buf";
-  return single === (count === "")
-    ? { masterName, fn, inputs: single ? 1 : Number(count) }
-    : undefined;
-};
+const builds = (rule: StandardCellRule, fn: GateFunction, inputs: number) =>
+  inputs <= (rule.maxInputs[fn] ?? 4);
 
-/** <prefix><function><inputs>_<drive>, as SKY130 and IHP spell their cells. */
-const readLowerCaseGate = (prefix: string) => {
-  const pattern = new RegExp(
-    `^${prefix}(inv|buf|nand|nor|and|or|xor|xnor)([234]?)_\\d+$`,
-    "u",
-  );
-  return (name: string) => {
-    const masterName = name.toLowerCase();
-    const match = pattern.exec(masterName);
-    return match
-      ? gateCell(masterName, match[1] as GateFunction, match[2]!)
-      : undefined;
+/**
+ * Reads a cell name by a library's pattern: a one-input cell matches group
+ * `inv` or `buf`, any other gate `fn` (spelled as `functions` names it) and
+ * `inputs`.
+ */
+const readGateCell =
+  (
+    pattern: RegExp,
+    canonical: (name: string) => string,
+    functions: Readonly<Record<string, GateFunction>>,
+  ) =>
+  (name: string): GateCell | undefined => {
+    const masterName = canonical(name);
+    const groups = pattern.exec(masterName)?.groups;
+    if (!groups) return undefined;
+    if (groups.inv) return { masterName, fn: "inv", inputs: 1 };
+    if (groups.buf) return { masterName, fn: "buf", inputs: 1 };
+    const fn = functions[groups.fn!];
+    return fn ? { masterName, fn, inputs: Number(groups.inputs) } : undefined;
   };
+const LOWER_CASE_FUNCTIONS: Readonly<Record<string, GateFunction>> = {
+  nand: "nand",
+  nor: "nor",
+  and: "and",
+  or: "or",
+  xor: "xor",
+  xnor: "xnor",
 };
 const lowerCaseExample =
   (prefix: string) => (fn: GateFunction, inputs: number) =>
     `${prefix}${fn}${inputs > 1 ? inputs : ""}_1`;
 
 const TSMC28_FUNCTIONS: Readonly<Record<string, GateFunction>> = {
-  INV: "inv",
-  N: "inv",
-  BUFF: "buf",
-  B: "buf",
   ND: "nand",
   NR: "nor",
   AN: "and",
@@ -856,9 +857,14 @@ const TSMC28_STEMS: Readonly<Record<GateFunction, string>> = {
 
 const STANDARD_CELL_RULES: readonly StandardCellRule[] = [
   {
-    // sky130_fd_sc_hd__nand2_1: inputs A–D, VGND VNB VPB VPWR, then the output.
+    // sky130_fd_sc_hd__nand2_1: inputs A–D, VGND VNB VPB VPWR, then the
+    // output. Clock, delay and probe buffers and inverters have the same pins.
     libraryId: "sky130_fd_sc_hd",
-    read: readLowerCaseGate("sky130_fd_sc_hd__"),
+    read: readGateCell(
+      /^sky130_fd_sc_hd__(?:(?<inv>inv|clkinv|clkinvlp|bufinv)|(?<buf>buf|bufbuf|clkbuf|clkdlybuf4s\d\d|dlygate4sd\d|dlymetal6s\ds|probec?_p)|(?<fn>nand|nor|and|or|xor|xnor)(?<inputs>[234]))_\d+$/u,
+      (name) => name.toLowerCase(),
+      LOWER_CASE_FUNCTIONS,
+    ),
     pins: (fn, inputs) => [
       ...GATE_INPUTS.slice(0, inputs).map((pin): CellPin => [pin, pin]),
       ["VGND", "VSS", "VSS"],
@@ -870,12 +876,17 @@ const STANDARD_CELL_RULES: readonly StandardCellRule[] = [
       [INVERTING.has(fn) && !(fn === "xnor" && inputs === 3) ? "Y" : "X", "Y"],
     ],
     example: lowerCaseExample("sky130_fd_sc_hd__"),
-    widest: { xor: 3, xnor: 3 },
+    maxInputs: { xor: 3, xnor: 3 },
   },
   {
-    // sg13g2_nand2_1: the output first (Y inverting, X not), inputs A–D, VDD VSS.
+    // sg13g2_nand2_1: the output first (Y inverting, X not), inputs A–D,
+    // VDD VSS; the delay gates are buffers.
     libraryId: "sg13g2_stdcell",
-    read: readLowerCaseGate("sg13g2_"),
+    read: readGateCell(
+      /^sg13g2_(?:(?<inv>inv)|(?<buf>buf|dlygate4sd\d)|(?<fn>nand|nor|and|or|xor|xnor)(?<inputs>[234]))_\d+$/u,
+      (name) => name.toLowerCase(),
+      LOWER_CASE_FUNCTIONS,
+    ),
     pins: (fn, inputs) => [
       [INVERTING.has(fn) ? "Y" : "X", "Y"],
       ...GATE_INPUTS.slice(0, inputs).map((pin): CellPin => [pin, pin]),
@@ -883,22 +894,19 @@ const STANDARD_CELL_RULES: readonly StandardCellRule[] = [
       ["VSS", "VSS", "VSS"],
     ],
     example: lowerCaseExample("sg13g2_"),
-    widest: { xor: 2, xnor: 2 },
+    maxInputs: { xor: 2, xnor: 2 },
   },
   {
-    // ND2D1BWP12T30P140[LVT]: [CK]<function><inputs>[X|OPT…]D<drive>, with
-    // the clock inverter and buffer CKN and CKB; input I or A1–A4, output ZN
-    // inverting and Z not, then VDD VSS.
+    // ND2D1BWP12T30P140[LVT]: [CK]<function><inputs>[X|OPT…]D<drive>; the
+    // clock (CK, DCCK), delay (DEL), ECO (G…MCO) and level-shifting (LVLHL)
+    // buffers and inverters too. Input I or A1–A4, output ZN inverting and Z
+    // not, then VDD VSS.
     libraryId: "tcbn28hpcplusbwp12t30p140",
-    read: (name) => {
-      const masterName = name.toUpperCase();
-      const match =
-        /^(?:CK(N|B)|(?:CK)?(INV|BUFF|ND|NR|AN|OR|XOR|XNR))([234]?)(?:X|OPT[A-Z]*)?D\d+(?:P\d+)?BWP12T30P140(?:LVT)?$/u.exec(
-          masterName,
-        );
-      const fn = match && TSMC28_FUNCTIONS[match[1] ?? match[2]!];
-      return fn ? gateCell(masterName, fn, match[3]!) : undefined;
-    },
+    read: readGateCell(
+      /^(?:(?<inv>INV|CKN|DCCKN|GINVMCO)|(?<buf>BUFFX?|CKB|DCCKB|DEL\d{3}|GBUFFMCO|LVLHL)|(?:CK)?(?<fn>ND|NR|AN|OR|XOR|XNR)(?<inputs>[234])(?:X|OPT[A-Z]*)?)D\d+(?:P\d+)?BWP12T30P140(?:LVT)?$/u,
+      (name) => name.toUpperCase(),
+      TSMC28_FUNCTIONS,
+    ),
     pins: (fn, inputs) => [
       ...(inputs === 1
         ? [["I", "A"] as const]
@@ -912,18 +920,23 @@ const STANDARD_CELL_RULES: readonly StandardCellRule[] = [
     ],
     example: (fn, inputs) =>
       `${TSMC28_STEMS[fn]}${inputs > 1 ? inputs : ""}D1BWP12T30P140`,
-    widest: {},
+    maxInputs: {},
   },
 ];
 
-const STANDARD_CELL_ID = "std-cell-";
+/** A standard cell's binding id: this prefix and the cell's name. */
+const STANDARD_CELL_ID_PREFIX = "std-cell-";
+/** Cells read so far, so a cell keeps one binding object; bounded, since any drive number reads. */
 const standardCellBindings = new Map<string, ReviewedExternalDeviceBinding>();
 
 /**
- * A standard cell behind a Library gate (#1450), read from its name: the gate
- * keeps its pins, and its VDD/VSS property terminals feed each domain's rails.
+ * A standard cell of a Library gate's function (#1450), read from its name,
+ * whichever gate that is: the gate keeps its pins, and its VDD/VSS property
+ * terminals feed each domain's rails. Only a gate's own model choice asks for
+ * any cell; elsewhere a cell is reviewed only behind its gate (see
+ * {@link reviewedExternalBindingForMaster}).
  */
-function standardCellBinding(
+export function standardCellBindingForMaster(
   name: string,
 ): ReviewedExternalDeviceBinding | undefined {
   const key = name.toLowerCase();
@@ -932,12 +945,12 @@ function standardCellBinding(
   for (const rule of STANDARD_CELL_RULES) {
     const cell = rule.read(name);
     const symbolId =
-      cell && cell.inputs <= (rule.widest[cell.fn] ?? 4)
+      cell && builds(rule, cell.fn, cell.inputs)
         ? GATE_SYMBOLS[cell.fn][cell.inputs]
         : undefined;
     if (!cell || !symbolId) continue;
     const binding: ReviewedExternalDeviceBinding = {
-      id: `${STANDARD_CELL_ID}${cell.masterName}`,
+      id: `${STANDARD_CELL_ID_PREFIX}${cell.masterName}`,
       libraryId: rule.libraryId,
       masterName: cell.masterName,
       invocationKind: "external-subcircuit",
@@ -953,6 +966,7 @@ function standardCellBinding(
         ),
       parameters: [],
     };
+    if (standardCellBindings.size >= 256) standardCellBindings.clear();
     standardCellBindings.set(key, binding);
     return binding;
   }
@@ -966,15 +980,23 @@ const reviewedById = new Map(
   ]),
 );
 
+/**
+ * The reviewed device of a master name. `symbolId` is the symbol the part is
+ * drawn with: a standard cell is reviewed only behind the Library gate of its
+ * function (#1450). Without it, as when importing a netlist or drawing a
+ * definition's block, a cell is an ordinary external subcircuit.
+ */
 export function reviewedExternalBindingForMaster(
   masterName: string,
+  symbolId?: string,
 ): ReviewedExternalDeviceBinding | undefined {
   const normalized = masterName.toLowerCase();
-  return (
-    reviewedExternalDeviceBindings.find(
-      (binding) => binding.masterName.toLowerCase() === normalized,
-    ) ?? standardCellBinding(masterName)
+  const device = reviewedExternalDeviceBindings.find(
+    (binding) => binding.masterName.toLowerCase() === normalized,
   );
+  if (device || !symbolId || !GATE_OF_SYMBOL.has(symbolId)) return device;
+  const cell = standardCellBindingForMaster(masterName);
+  return cell?.symbolId === symbolId ? cell : undefined;
 }
 
 /** The binding a netlisted Instance recorded, standard cells included. */
@@ -984,8 +1006,8 @@ export function reviewedExternalBindingById(
   if (!id) return undefined;
   return (
     reviewedById.get(id) ??
-    (id.startsWith(STANDARD_CELL_ID)
-      ? standardCellBinding(id.slice(STANDARD_CELL_ID.length))
+    (id.startsWith(STANDARD_CELL_ID_PREFIX)
+      ? standardCellBindingForMaster(id.slice(STANDARD_CELL_ID_PREFIX.length))
       : undefined)
   );
 }
@@ -998,12 +1020,16 @@ export function reviewedExternalBindingForTerminalCount(
   return binding?.terminals.length === terminalCount ? binding : undefined;
 }
 
-/** Exact master and exact public terminal order are both required. */
+/**
+ * Exact master and exact public terminal order are both required; `symbolId`
+ * as in {@link reviewedExternalBindingForMaster}.
+ */
 export function resolveReviewedExternalBinding(
   masterName: string,
   terminalNames: readonly string[],
+  symbolId?: string,
 ): ReviewedExternalDeviceBinding | undefined {
-  const binding = reviewedExternalBindingForMaster(masterName);
+  const binding = reviewedExternalBindingForMaster(masterName, symbolId);
   return binding &&
     binding.terminals.length === terminalNames.length &&
     binding.terminals.every(
@@ -1015,15 +1041,34 @@ export function resolveReviewedExternalBinding(
     : undefined;
 }
 
-/** The process a reviewed library belongs to: a PDK's standard cells ride with its primitives. */
-const libraryProcess = (
-  libraryId: ReviewedExternalDeviceBinding["libraryId"],
-) =>
-  libraryId.startsWith("sky130")
-    ? "sky130"
-    : libraryId.startsWith("sg13g2")
-      ? "sg13g2"
-      : libraryId;
+/**
+ * Whether a definition declares a reviewed library interface, a PDK device or
+ * a standard cell (#1450) in its exact pin order, whichever symbol draws it:
+ * the library supplies its body, so the Project need not.
+ */
+export function isReviewedLibraryInterface(
+  masterName: string,
+  terminalNames: readonly string[],
+): boolean {
+  return Boolean(
+    resolveReviewedExternalBinding(
+      masterName,
+      terminalNames,
+      standardCellBindingForMaster(masterName)?.symbolId,
+    ),
+  );
+}
+
+/** The process each reviewed library belongs to: a PDK's standard cells ride with its primitives. */
+const LIBRARY_PROCESS: Readonly<
+  Record<ReviewedExternalDeviceBinding["libraryId"], string>
+> = {
+  sky130_fd_pr: "sky130",
+  sky130_fd_sc_hd: "sky130",
+  sg13g2_pr: "sg13g2",
+  sg13g2_stdcell: "sg13g2",
+  tcbn28hpcplusbwp12t30p140: "tsmc28",
+};
 
 /** Reviewed masters a part may take, from one PDK's libraries or all of them. */
 export function reviewedExternalModelSuggestions(
@@ -1031,15 +1076,14 @@ export function reviewedExternalModelSuggestions(
   libraryId?: ReviewedExternalDeviceBinding["libraryId"],
 ): readonly string[] {
   const sameProcess = (id: ReviewedExternalDeviceBinding["libraryId"]) =>
-    !libraryId || libraryProcess(id) === libraryProcess(libraryId);
+    !libraryId || LIBRARY_PROCESS[id] === LIBRARY_PROCESS[libraryId];
   // A gate is offered each library's weakest cell of its function; any other
   // drive strength or variant of the library is accepted as well.
   const gate = GATE_OF_SYMBOL.get(symbolId);
   if (gate)
     return STANDARD_CELL_RULES.filter(
       (rule) =>
-        sameProcess(rule.libraryId) &&
-        gate.inputs <= (rule.widest[gate.fn] ?? 4),
+        sameProcess(rule.libraryId) && builds(rule, gate.fn, gate.inputs),
     ).map((rule) => rule.example(gate.fn, gate.inputs));
   return reviewedExternalDeviceBindings
     .filter(

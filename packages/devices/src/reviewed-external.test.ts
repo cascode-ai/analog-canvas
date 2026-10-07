@@ -3,6 +3,7 @@ import { delimiter } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
+  isReviewedLibraryInterface,
   projectLengthToSky130Micrometres,
   resolveReviewedExternalBinding,
   reviewedExternalBindingById,
@@ -10,6 +11,7 @@ import {
   reviewedExternalBindingSupportsSymbol,
   reviewedExternalModelSuggestions,
   sky130MicrometresToProjectLength,
+  standardCellBindingForMaster,
 } from "./reviewed-external.js";
 
 describe("reviewed external device bindings", () => {
@@ -309,7 +311,7 @@ describe("reviewed external device bindings", () => {
 
 describe("standard cells behind Library gates (#1450)", () => {
   const order = (name: string) =>
-    reviewedExternalBindingForMaster(name)?.terminals.map((terminal) =>
+    standardCellBindingForMaster(name)?.terminals.map((terminal) =>
       [terminal.targetName, terminal.pinName, terminal.supply ?? ""].join(":"),
     );
 
@@ -349,11 +351,29 @@ describe("standard cells behind Library gates (#1450)", () => {
   });
 
   it("stands each cell behind the gate of its function and input count", () => {
-    const gate = (name: string) =>
-      reviewedExternalBindingForMaster(name)?.symbolId;
+    const gate = (name: string) => standardCellBindingForMaster(name)?.symbolId;
     expect(gate("sky130_fd_sc_hd__inv_16")).toBe("inverter");
     expect(gate("sg13g2_buf_8")).toBe("buffer");
     expect(gate("CKBD4BWP12T30P140")).toBe("buffer");
+    // Clock, delay, ECO and level-shifting cells are inverters and buffers.
+    for (const name of [
+      "sky130_fd_sc_hd__clkinv_2",
+      "sky130_fd_sc_hd__clkinvlp_4",
+      "sky130_fd_sc_hd__bufinv_8",
+      "DCCKND4BWP12T30P140",
+      "GINVMCOD1BWP12T30P140LVT",
+    ])
+      expect(gate(name), name).toBe("inverter");
+    for (const name of [
+      "sky130_fd_sc_hd__clkbuf_16",
+      "sky130_fd_sc_hd__clkdlybuf4s50_1",
+      "sky130_fd_sc_hd__dlygate4sd3_1",
+      "sky130_fd_sc_hd__dlymetal6s2s_1",
+      "sg13g2_dlygate4sd1_1",
+      "DEL250D1BWP12T30P140",
+      "LVLHLD2BWP12T30P140",
+    ])
+      expect(gate(name), name).toBe("buffer");
     expect(gate("NR4D2BWP12T30P140")).toBe("nor-gate-4");
     expect(gate("AN2XD16BWP12T30P140LVT")).toBe("and-gate");
     expect(gate("XNR4D1BWP12T30P140")).toBe("xnor-gate-4");
@@ -369,14 +389,46 @@ describe("standard cells behind Library gates (#1450)", () => {
       "IND2D1BWP12T30P140",
       "ND1BWP12T30P140",
       "ND2D1BWP12T30P140HVT",
+      "LVLHLCD1BWP12T30P140",
     ])
       expect(gate(name), name).toBeUndefined();
   });
 
+  it("reviews a cell only behind its own gate", () => {
+    // Imported or drawn as a block, a cell is an ordinary subcircuit.
+    expect(
+      reviewedExternalBindingForMaster("sky130_fd_sc_hd__nand2_1"),
+    ).toBeUndefined();
+    expect(
+      reviewedExternalBindingForMaster("sky130_fd_sc_hd__nand2_1", "nor-gate"),
+    ).toBeUndefined();
+    const pins = ["A", "B", "VGND", "VNB", "VPB", "VPWR", "Y"];
+    expect(
+      resolveReviewedExternalBinding("sky130_fd_sc_hd__nand2_1", pins),
+    ).toBeUndefined();
+    expect(
+      resolveReviewedExternalBinding(
+        "sky130_fd_sc_hd__nand2_1",
+        pins,
+        "nand-gate",
+      )?.symbolId,
+    ).toBe("nand-gate");
+    // Its library supplies the body whichever symbol draws it.
+    expect(isReviewedLibraryInterface("sky130_fd_sc_hd__nand2_1", pins)).toBe(
+      true,
+    );
+    expect(
+      isReviewedLibraryInterface("sky130_fd_sc_hd__nand2_1", pins.toReversed()),
+    ).toBe(false);
+    expect(
+      reviewedExternalBindingForMaster("sky130_fd_pr__nfet_01v8", "nand-gate"),
+    ).toBeDefined();
+  });
+
   it("matches names in any case and finds a netlisted cell by its id", () => {
-    const cell = reviewedExternalBindingForMaster("nd2d1bwp12t30p140lvt")!;
+    const cell = standardCellBindingForMaster("nd2d1bwp12t30p140lvt")!;
     expect(cell.masterName).toBe("ND2D1BWP12T30P140LVT");
-    expect(reviewedExternalBindingForMaster("SG13G2_NOR2_1")?.masterName).toBe(
+    expect(standardCellBindingForMaster("SG13G2_NOR2_1")?.masterName).toBe(
       "sg13g2_nor2_1",
     );
     expect(reviewedExternalBindingById(cell.id)).toBe(cell);
@@ -433,7 +485,7 @@ describe("standard cells behind Library gates (#1450)", () => {
         const libraries = new Set<string>();
         let accepted = 0;
         for (const [name, pins] of cells) {
-          const binding = reviewedExternalBindingForMaster(name);
+          const binding = standardCellBindingForMaster(name);
           if (!binding) continue;
           accepted += 1;
           libraries.add(binding.libraryId);
@@ -445,9 +497,7 @@ describe("standard cells behind Library gates (#1450)", () => {
         expect(accepted, path).toBeGreaterThan(20);
         for (const suggestion of suggestions)
           if (
-            libraries.has(
-              reviewedExternalBindingForMaster(suggestion)!.libraryId,
-            )
+            libraries.has(standardCellBindingForMaster(suggestion)!.libraryId)
           )
             expect(cells.has(suggestion.toLowerCase()), suggestion).toBe(true);
         console.log(`${path}: ${accepted} gate cells agree`);
