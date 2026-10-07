@@ -66,6 +66,13 @@ const DEFAULT_SLOTS: Readonly<
   value: ["value"],
 };
 
+/** A label the pass left where it is, and why (#1414). */
+export interface LabelLeftInPlace {
+  labelId: string;
+  instanceId: string;
+  reason: "locked" | "rotated" | "custom" | "moved";
+}
+
 /**
  * Explicit one-pass operation, not a new placement default or autorouter.
  *
@@ -77,13 +84,6 @@ const DEFAULT_SLOTS: Readonly<
  * label of the same part, so a value is never stacked onto its own Reference
  * however many other conflicts that would trade (#1307).
  */
-/** A label the pass left where it is, and why (#1414). */
-export interface LabelLeftInPlace {
-  labelId: string;
-  instanceId: string;
-  reason: "locked" | "rotated" | "custom" | "moved";
-}
-
 export function arrangeInstanceLabels(
   document: SchematicDocument,
   resolver: SymbolResolver,

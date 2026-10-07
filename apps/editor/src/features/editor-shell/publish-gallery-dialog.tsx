@@ -9,6 +9,7 @@ import { GitHubMark, GoogleMark } from "../../components/provider-marks";
 import {
   describePublishOutcome,
   GALLERY_DESCRIPTION_LIMIT,
+  type GalleryPublicationRecord,
   type GalleryPublishFields,
   type GalleryPublishOutcome,
   type GalleryQuota,
@@ -61,15 +62,7 @@ export interface PublishGalleryDialogProps {
   publishUpdate?:
     | ((fields: GalleryPublishFields) => Promise<GalleryPublishOutcome>)
     | undefined;
-  onPublished: (outcome: {
-    id: string;
-    name: string;
-    description: string;
-    tags: readonly string[];
-    aiGenerated: boolean;
-    updated: boolean;
-    previewRevision?: string;
-  }) => void;
+  onPublished: (outcome: GalleryPublicationRecord) => void;
   /** Moderators and the entry's owner: open the version history instead.
    * Rendered only alongside an update target. */
   onShowHistory?: (() => void) | undefined;

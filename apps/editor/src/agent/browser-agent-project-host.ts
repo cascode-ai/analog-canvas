@@ -32,6 +32,7 @@ import {
 import { GALLERY_SIGN_IN_REQUIRED, loadGalleryFeed } from "../gallery-client";
 import { planNetlistCodeEdit } from "../features/netlist-export/netlist-code-edit";
 import { importChunk } from "../components/chunk-import";
+import type { AgentGalleryPublishRequest } from "./agent-gallery-publish";
 import { prepareDocumentFormulaArtifacts } from "../features/text-editing/formula-artifacts";
 import { captureGalleryDrawing } from "../features/editor-shell/gallery-import";
 import {
@@ -71,10 +72,7 @@ export interface BrowserAgentProjectHostOptions {
   }) => ProjectTransactionResult;
   /** Publish to Gallery for an Agent (createAgentGalleryPublisher). */
   publishToGallery?: (
-    request: Extract<
-      AgentProjectResourceRequest,
-      { operation: "publish-gallery-entry" | "update-gallery-entry" }
-    >,
+    request: AgentGalleryPublishRequest,
   ) => Promise<AgentProjectResourceResponse>;
 }
 

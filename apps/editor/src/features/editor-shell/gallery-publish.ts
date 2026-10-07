@@ -51,6 +51,33 @@ export function canUpdateGalleryPublication(
   );
 }
 
+/** A Gallery read that failed, with the HTTP status that said so. */
+export class GalleryReadError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+  }
+}
+
+/**
+ * What a publication leaves behind for the working copy, from the Publish
+ * dialog or an Agent: the entry it is now bound to, as published.
+ */
+export interface GalleryPublicationRecord {
+  id: string;
+  name: string;
+  description: string;
+  tags: readonly string[];
+  aiGenerated: boolean;
+  updated: boolean;
+  previewRevision?: string;
+  /** The updated entry's owner and byline, when it is not the bound one. */
+  ownerUserId?: string | null;
+  author?: string;
+}
+
 export async function loadGalleryPublicationContext(
   id: string,
   projectId: string,
@@ -62,8 +89,9 @@ export async function loadGalleryPublicationContext(
   });
   if (response.status === 404) return null;
   if (!response.ok)
-    throw new Error(
+    throw new GalleryReadError(
       "Could not load the linked publication. Retry before publishing.",
+      response.status,
     );
   const payload = (await response.json()) as {
     entry: {

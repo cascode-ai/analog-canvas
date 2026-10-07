@@ -462,7 +462,12 @@ describe("current formal cell interface", () => {
       }
       const before = structuredClone(project);
       const result = analyzeDesignNetlist(project, { format });
-      expect(result.diagnostics).toEqual([]);
+      // The generic NMOS card is the reader's to add (#1420).
+      expect(
+        result.diagnostics.filter(
+          (item) => item.code !== "GENERIC_MODEL_UNDEFINED",
+        ),
+      ).toEqual([]);
       const cell = result.ir!.cells.find((item) => item.id === child.id)!;
       expect(cell.ports.map((port) => port.name)).toEqual(names);
       expect(

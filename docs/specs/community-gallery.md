@@ -265,10 +265,9 @@ Project reopened in another tab or browser starts unticked.
 An Agent can publish or update through the Agent API's Project resource
 (`publish-gallery-entry`, `update-gallery-entry`; MCP `gallery_circuits`
 `publish`/`update`), which drives the same client as the dialog under the
-signed-in Editor session and needs the session scope `gallery.publish`. A new
-entry an Agent publishes carries the AI mark unless the request says otherwise;
-an Agent's update keeps the stored mark unless it names one. The author can
-change the mark later with any update.
+signed-in Editor session and needs the session scope `gallery.publish`.
+Whatever an Agent publishes or updates this way carries the AI mark; the author
+changes it in the Editor's dialog with a later update.
 Ordinary submissions count against a per-account limit of 100 per UTC day,
 counted from that account's entries created that day that are not in the
 recycle bin: deleting or withdrawing an entry returns its slot, restoring it

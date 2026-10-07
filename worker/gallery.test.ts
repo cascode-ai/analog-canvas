@@ -3114,21 +3114,22 @@ describe("the daily publish quota", () => {
     const cookie = await makerOf(env);
     await submitOne(env, "First", { cookie });
     await submitOne(env, "Second", { cookie });
-    const now = new Date();
-    const tomorrow = new Date(
-      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1),
-    ).toISOString();
 
-    expect(await quota(cookie)).toEqual({
+    const answer = await quota(cookie);
+    expect(answer).toMatchObject({
       status: 200,
       body: {
-        limit: 100,
+        limit: GALLERY_DAILY_SUBMISSION_LIMIT,
         used: 2,
-        remaining: 98,
-        resetsAt: tomorrow,
+        remaining: GALLERY_DAILY_SUBMISSION_LIMIT - 2,
         exempt: false,
       },
     });
+    // The next 00:00 UTC, whichever side of midnight the test runs on.
+    const resetsAt = new Date(answer.body.resetsAt);
+    expect(resetsAt.toISOString().slice(11)).toBe("00:00:00.000Z");
+    expect(resetsAt.getTime() - Date.now()).toBeGreaterThan(0);
+    expect(resetsAt.getTime() - Date.now()).toBeLessThanOrEqual(86_400_000);
     // Curators publish without the allowance.
     expect((await quota(await adminOf(env))).body).toMatchObject({
       exempt: true,

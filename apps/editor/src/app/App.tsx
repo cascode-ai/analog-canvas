@@ -283,6 +283,7 @@ import {
   canUpdateGalleryPublication,
   loadGalleryPublicationContext,
   loadGalleryQuota,
+  type GalleryPublicationRecord,
   type GalleryQuota,
 } from "../features/editor-shell/gallery-publish";
 import {
@@ -337,7 +338,6 @@ import { BrowserAgentProjectHost } from "../agent/browser-agent-project-host";
 import {
   createAgentGalleryPublisher,
   type AgentGalleryPublication,
-  type AgentGalleryPublished,
 } from "../agent/agent-gallery-publish";
 import { BrowserSimulationSession } from "../features/simulation/browser-simulation-session";
 import { ProjectRunHistory } from "../features/simulation/project-run-history";
@@ -1181,8 +1181,11 @@ function WorkspaceEditor({
 
   const [publishQuota, setPublishQuota] = useState<GalleryQuota | null>(null);
   // What the account may still publish today, read each time the dialog opens.
+  const publishAccountId = publishSession?.id ?? null;
   useEffect(() => {
-    if (!publishGalleryOpen || !publishSession) return;
+    // An earlier count is no promise for this opening: say nothing until read.
+    setPublishQuota(null);
+    if (!publishGalleryOpen || !publishAccountId) return;
     let cancelled = false;
     void loadGalleryQuota().then((quota) => {
       if (!cancelled) setPublishQuota(quota);
@@ -1190,7 +1193,7 @@ function WorkspaceEditor({
     return () => {
       cancelled = true;
     };
-  }, [publishGalleryOpen, publishSession]);
+  }, [publishGalleryOpen, publishAccountId]);
   useEffect(() => {
     if (!publishGalleryOpen) return;
     let cancelled = false;
@@ -1318,7 +1321,7 @@ function WorkspaceEditor({
   });
   const recordGalleryPublicationRef = useRef<
     (
-      outcome: AgentGalleryPublished,
+      outcome: GalleryPublicationRecord,
       sessionId: string,
       by: "person" | "agent",
     ) => boolean
@@ -6877,7 +6880,9 @@ function WorkspaceEditor({
       aiGenerated,
       updated,
       previewRevision,
-    }: AgentGalleryPublished,
+      ownerUserId,
+      author,
+    }: GalleryPublicationRecord,
     sessionId: string,
     by: "person" | "agent",
   ): boolean {
@@ -6897,10 +6902,16 @@ function WorkspaceEditor({
       name,
       projectId: editorDocumentController.project.id,
       ownerUserId: updated
-        ? (galleryEntryContext?.ownerUserId ?? publishSession?.id ?? null)
+        ? (ownerUserId ??
+          galleryEntryContext?.ownerUserId ??
+          publishSession?.id ??
+          null)
         : (publishSession?.id ?? null),
       author: updated
-        ? (galleryEntryContext?.author ?? publishSession?.displayName ?? "")
+        ? (author ??
+          galleryEntryContext?.author ??
+          publishSession?.displayName ??
+          "")
         : (publishSession?.displayName ?? ""),
       description,
       tags,
@@ -6913,11 +6924,14 @@ function WorkspaceEditor({
     });
     galleryLoadGenerationRef.current += 1;
     setGalleryRefreshSignal((previous) => previous + 1);
-    const actor = by === "agent" ? "The Agent " : "";
     setStatus(
-      updated
-        ? `${actor}${actor ? "updated" : "Updated"} "${name}" in the gallery`
-        : `${actor}${actor ? "published" : "Published"} "${name}" to the gallery`,
+      by === "agent"
+        ? updated
+          ? `The Agent updated "${name}" in the gallery`
+          : `The Agent published "${name}" to the gallery`
+        : updated
+          ? `Updated "${name}" in the gallery`
+          : `Published "${name}" to the gallery`,
     );
     setPublishedNotice({ id, name, updated });
     return true;

@@ -188,11 +188,11 @@ Project Code, and an optional generated SPICE or Spectre netlist.
 `publish-gallery-entry` and `update-gallery-entry` put the working copy its tab
 shows on the Gallery through the Editor's own Publish client, under the
 signed-in Editor session, with the Publish dialog's fields (`name`,
-`description`, `tags`, `aiGenerated`). A new entry an Agent publishes carries
-the AI mark unless the request says otherwise; an update defaults to the entry
-the working copy was published as or opened from, keeps every field it does
-not name, and leaves the stored mark alone unless `aiGenerated` is given. Both
-answer `galleryEntryId`, `url` and `previewRevision`.
+`description`, `tags`). What an Agent publishes or updates carries the AI
+mark; only its author changes that, in the Editor. An update defaults to the
+entry the working copy was published as or opened from in the Editor and
+keeps every field it does not name. Both answer `galleryEntryId`, `url` and
+`previewRevision`.
 `read-project-code` / `replace-project-code` and
 `read-netlist` / `replace-netlist` expose the live Editor's existing code
 planners with Project structure-revision guards. Project Code replacement can

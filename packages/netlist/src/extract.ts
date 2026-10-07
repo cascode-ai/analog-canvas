@@ -52,6 +52,7 @@ import {
   isIdealComparatorBody,
   instanceBuiltInSubcircuit,
   isSupplyHighLevel,
+  milliScaleReading,
   nextReference,
   projectLengthToSky130Micrometres,
   requiredParameterNames,
@@ -1980,6 +1981,21 @@ function extractDeviceInstance(
       );
     }
   }
+  // A value SPICE reads as milli where mega was almost surely meant (#1409):
+  // it exports as written, and the netlist says so.
+  for (const [parameter, rawValue] of Object.entries(netlist.parameters)) {
+    const reading = milliScaleReading(rawValue);
+    if (reading)
+      diagnostic(
+        diagnostics,
+        document.id,
+        "MILLI_SCALE_VALUE",
+        `${instance.reference!}'s ${parameter} "${rawValue.trim()}" ${reading}`,
+        [instance.id],
+        "warning",
+        parameter,
+      );
+  }
   const nodes = definition.pinOrder.flatMap((pinName) => {
     const netName = terminalNetName(
       document,
@@ -2453,6 +2469,60 @@ function reportGenericDiodes(
 }
 
 /**
+ * The generic MOS targets the Abstract profile offers, which a SPICE netlist
+ * names but does not define (#1420): no one card suits every simulator, as a
+ * level-1 card refuses the nf every MOS carries. A Cell that leans on one
+ * says it needs a card before it simulates, unless the imported SPICE or the
+ * run's own files supply it.
+ */
+const UNDEFINED_GENERIC_TARGETS = ["NMOS", "PMOS"] as const;
+
+function reportUndefinedGenericModels(
+  project: CircuitProject,
+  document: SchematicDocument,
+  instances: readonly DesignNetlistInstance[],
+  deckSources: readonly string[],
+  diagnostics: NetlistDiagnostic[],
+): void {
+  const named = UNDEFINED_GENERIC_TARGETS.flatMap((name) => {
+    // SPICE reads model names in any case.
+    const parts = instances.filter(
+      (instance) => instance.target?.toUpperCase() === name,
+    );
+    return parts.length &&
+      !definesGenericModel(project, deckSources, {
+        name,
+        type: name,
+        parameters: [],
+      })
+      ? [{ name, parts }]
+      : [];
+  });
+  if (!named.length) return;
+  const uses = named.map(({ name, parts }) => {
+    const names = parts
+      .map(
+        (part) =>
+          document.instances.find((item) => item.id === part.id)?.reference ??
+          part.reference,
+      )
+      .sort((left, right) =>
+        left.localeCompare(right, "en", { numeric: true }),
+      );
+    return `${partList(names)} ${names.length === 1 ? "names" : "name"} ${name}`;
+  });
+  const models = named.map(({ name }) => name);
+  diagnostic(
+    diagnostics,
+    document.id,
+    "GENERIC_MODEL_UNDEFINED",
+    `${partList(uses)}, ${models.length === 1 ? "a generic model" : "generic models"} the netlist does not define: add ${models.length === 1 ? `a .model ${models[0]!} card` : `.model cards for ${partList(models)}`} to the simulation folder before simulating, or set a real model`,
+    named.flatMap(({ parts }) => parts.map((part) => part.id)),
+    "info",
+  );
+}
+
+/**
  * Which bipolar transistors run on the generic cards (#1420), one finding
  * for the Cell as for its diodes: information, since the netlist runs, but
  * on stand-in transistors, not on devices anyone chose.
@@ -2913,6 +2983,14 @@ function extractCell(
     .map((model) => ({ model, parts: carryGenericCard(model, "bjt") }))
     .filter(({ parts }) => parts.length);
   if (genericBjts.length) reportGenericBjts(document, genericBjts, diagnostics);
+  if (options.format === "spice")
+    reportUndefinedGenericModels(
+      project,
+      document,
+      instances,
+      options.deckSources,
+      diagnostics,
+    );
   for (const extracted of instances) {
     const source = document.instances.find(
       (candidate) => candidate.id === extracted.id,

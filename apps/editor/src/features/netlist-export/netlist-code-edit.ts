@@ -3,7 +3,7 @@ import type {
   InstanceNetlistData,
   ProjectModelSource,
 } from "@icm/model";
-import { deviceDescriptor } from "@icm/devices";
+import { deviceDescriptor, milliScaleReading } from "@icm/devices";
 import type {
   ProjectStructureEdit,
   BulkPatchInstanceNetlistEditSchema,
@@ -277,8 +277,16 @@ export function createNetlistCodeEditSession(
             field.conversion ?? "identity",
             true,
           );
-          if (restored !== instance.netlist?.parameters[parameter])
+          if (restored !== instance.netlist?.parameters[parameter]) {
+            // Refused as the Properties field refuses it (#1409).
+            const reading = milliScaleReading(restored);
+            if (reading)
+              return {
+                ok: false,
+                message: `${field.parameter} "${restored.trim()}" ${reading}`,
+              };
             assignment.set = { ...assignment.set, [parameter]: restored };
+          }
         } catch (error) {
           return {
             ok: false,

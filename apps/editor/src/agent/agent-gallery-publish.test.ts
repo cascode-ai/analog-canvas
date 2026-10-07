@@ -1,9 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  createAgentGalleryPublisher,
-  type AgentGalleryPublished,
-} from "./agent-gallery-publish";
+import type { GalleryPublicationRecord } from "../features/editor-shell/gallery-publish";
+import { createAgentGalleryPublisher } from "./agent-gallery-publish";
 import {
   emptyAgentProject,
   liveAgentEditor,
@@ -42,7 +40,7 @@ function galleryServer(status = 201) {
 }
 
 function editorWith(server: ReturnType<typeof galleryServer>, shown = true) {
-  const recorded: AgentGalleryPublished[] = [];
+  const recorded: GalleryPublicationRecord[] = [];
   const editor = liveAgentEditor({
     project: emptyAgentProject("Folded cascode"),
     projectHost: {
@@ -105,7 +103,7 @@ describe("an Agent publishes to the Gallery (#1415)", () => {
     ]);
   });
 
-  it("updates an entry keeping the fields and mark it does not name", async () => {
+  it("updates an entry keeping the fields it does not name, marked AI", async () => {
     const server = galleryServer();
     const { client, recorded } = editorWith(server);
     await client.connect("session-1.code");
@@ -135,10 +133,15 @@ describe("an Agent publishes to the Gallery (#1415)", () => {
       name: "Renamed",
       description: "Stored description",
       tags: ["amplifier"],
+      aiGenerated: true,
     });
-    expect(put!.body).not.toHaveProperty("aiGenerated");
     expect(recorded).toEqual([
-      expect.objectContaining({ aiGenerated: true, updated: true }),
+      expect.objectContaining({
+        aiGenerated: true,
+        updated: true,
+        ownerUserId: "u1",
+        author: "Opus 5.5",
+      }),
     ]);
   });
 
@@ -149,6 +152,26 @@ describe("an Agent publishes to the Gallery (#1415)", () => {
       await signedOut.client.projectResource({
         ...envelope,
         operation: "publish-gallery-entry",
+      }),
+    ).toMatchObject({
+      ok: false,
+      error: { code: "SIGN_IN_REQUIRED", recovery: "sign-in" },
+    });
+    // An update reads the entry first, and says the same when signed out.
+    const reader = editorWith({
+      sent: [],
+      fetch: (async () =>
+        Response.json(
+          { error: "unauthorized" },
+          { status: 401 },
+        )) as typeof fetch,
+    });
+    await reader.client.connect("session-1.code");
+    expect(
+      await reader.client.projectResource({
+        ...envelope,
+        operation: "update-gallery-entry",
+        galleryEntryId: "entry-7",
       }),
     ).toMatchObject({
       ok: false,

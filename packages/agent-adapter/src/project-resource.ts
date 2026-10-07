@@ -16,13 +16,13 @@ const NetlistFormatSchema = z.enum(["spice", "spectre"]);
 const NetlistNamingProfileSchema = z.enum(["native", "cadence-bang"]);
 const NetlistPortCaseSchema = z.enum(["lower", "upper"]);
 const ProjectNameSchema = z.string().min(1).max(256);
-// The Gallery's own field limits (worker/gallery.ts), checked again there.
+// The Gallery's own field limits (worker/gallery-do.ts), checked again
+// there. No AI mark: what an Agent publishes or updates is marked AI, and
+// only its author changes that, in the Editor (#1415).
 const GalleryEntryFieldsSchema = z.strictObject({
   name: z.string().trim().min(1).max(120).optional(),
   description: z.string().max(1000).optional(),
   tags: z.array(z.string().min(1).max(32)).max(12).optional(),
-  /** The entry's AI mark. A new entry an Agent publishes defaults to true. */
-  aiGenerated: z.boolean().optional(),
 }).shape;
 const CopyPlacementResultSchema = z.strictObject({
   structureRevision: z.number().int().nonnegative(),

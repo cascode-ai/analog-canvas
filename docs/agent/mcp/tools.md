@@ -177,11 +177,12 @@ An empty source rejects with `COPY_EMPTY`, never opens it instead.
 `publish` publishes the working copy its tab shows as a new entry, and
 `update` replaces an entry with it, as the Editor's Publish to Gallery does:
 under the signed-in Editor account, the whole Project, with the dialog's
-fields `name` (default: the Project's name), `description`, `tags` and
-`aiGenerated`. A new entry an Agent publishes carries the AI mark unless
-`aiGenerated:false` says otherwise. `update` defaults to the entry the working
-copy was published as or opened from (or `galleryEntryId`), and keeps every
-field it does not name, the AI mark included. Both return `galleryEntryId`,
+fields `name` (default: the Project's name), `description` and `tags`. What an
+Agent publishes or updates carries the AI mark; only its author changes that,
+in the Editor. `update` defaults to the entry the working copy was published
+as or opened from in the Editor, and keeps every field it does not name; a
+copy `open` made carries no such link, so pass its `galleryEntryId`. Both
+return `galleryEntryId`,
 `url` (`/g/<id>`) and `previewRevision`, and leave the working copy bound to
 the entry, with the Editor's published notice. A working copy in a background
 tab is refused with `WORKSPACE_NOT_SHOWN`: activate it first. Publishing needs

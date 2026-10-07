@@ -149,6 +149,34 @@ X1 A B leaf
   return { project, baseline };
 }
 
+it("refuses a value SPICE would read as milli, and the export warns of a stored one (#1409)", async () => {
+  const { project, baseline } = await fixture("spice");
+  const plan = planNetlistCodeEdit(
+    project,
+    baseline,
+    baseline.file.text.replace("10k", "1Mohm"),
+  );
+  expect(plan).toMatchObject({
+    ok: false,
+    message: expect.stringContaining("(M is milli): write 1Megohm for mega"),
+  });
+
+  const stored = structuredClone(project);
+  const resistor = stored.documents
+    .flatMap((document) => document.instances)
+    .find((instance) => instance.netlist?.parameters.value === "10k")!;
+  resistor.netlist!.parameters.value = "1MΩ";
+  const exported = createDesignNetlistExport(stored);
+  expect(exported.status).toBe("ready");
+  expect(exported.diagnostics).toContainEqual(
+    expect.objectContaining({
+      code: "MILLI_SCALE_VALUE",
+      severity: "warning",
+      objectIds: [resistor.id],
+    }),
+  );
+});
+
 it("shares draft analysis across selection and apply, and fences a replacement snapshot", async () => {
   const { project, baseline } = await fixture("spice");
   const session = createNetlistCodeEditSession(project, baseline);

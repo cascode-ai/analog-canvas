@@ -1025,6 +1025,80 @@ describe("the editor plans an Agent's action list", () => {
     expect(value().anchor).toEqual(drawn);
   });
 
+  it("draws a rail of a supply whose VDD Pin marker stands, leaving the marker's label (#1410)", async () => {
+    const { controller, client } = await editor();
+    const marked = await client.applyActions([
+      {
+        kind: "place-component",
+        symbol: "vdd-port",
+        reference: "VDD",
+        position: { x: 100, y: -100 },
+      },
+    ]);
+    expect(marked.ok, marked.message).toBe(true);
+    const labels = () =>
+      controller.document.annotations
+        .filter((annotation) => annotation.kind === "power-label")
+        .map((annotation) => structuredClone(annotation));
+    const before = labels();
+
+    const railed = await client.applyActions([
+      {
+        kind: "add-power-rail",
+        name: "VDD",
+        start: { x: 200, y: -200 },
+        end: { x: 300, y: -200 },
+      },
+    ]);
+    expect(railed.ok, railed.message).toBe(true);
+    // The marker keeps its own label; the rail draws one of its own.
+    for (const label of before) expect(labels()).toContainEqual(label);
+    expect(labels()).toHaveLength(before.length + 1);
+  });
+
+  it("puts a MOS's ×m under its W/L when the W/L shows, else under its name (#1423)", async () => {
+    const { controller, client, instance } = await editor();
+    await client.applyActions([
+      place("nmos", "M1", 100, { w: "10u", l: "1u", m: "4" }),
+      place("nmos", "M2", 400, { m: "4" }),
+    ]);
+    await client.applyActions([
+      {
+        kind: "set-instance-display",
+        instanceIds: [instance("M1")!.id, instance("M2")!.id],
+        showParameters: { m: true },
+      },
+    ]);
+    const offset = (instanceId: string, parameter?: string) => {
+      const label = controller.document.annotations.find(
+        (annotation) =>
+          annotation.binding?.kind === "instance-value" &&
+          annotation.binding.instanceId === instanceId &&
+          annotation.binding.parameter === parameter,
+      );
+      return label?.anchor.kind === "object"
+        ? label.anchor.localOffset.y
+        : undefined;
+    };
+    const m1 = instance("M1")!.id;
+    const m2 = instance("M2")!.id;
+    // M1 shows its W/L, so ×4 takes the row after it; M2 shows none.
+    expect(offset(m1, "m")!).toBeGreaterThan(offset(m1)!);
+    const name = (id: string) => {
+      const label = controller.document.annotations.find(
+        (annotation) =>
+          annotation.binding?.kind === "instance-reference" &&
+          annotation.binding.instanceId === id,
+      );
+      return label?.anchor.kind === "object"
+        ? label.anchor.localOffset.y
+        : undefined;
+    };
+    expect(offset(m2, "m")! - name(m2)!).toBeLessThan(
+      offset(m1, "m")! - name(m1)!,
+    );
+  });
+
   it("leaves the Document alone for a list that changes nothing", async () => {
     const { controller, client, instance } = await editor();
     expect((await client.applyActions([place("resistor", "R1", 100)])).ok).toBe(

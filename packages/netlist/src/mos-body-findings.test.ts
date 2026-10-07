@@ -84,7 +84,11 @@ describe("a body that takes the conventional supply says so (#1302)", () => {
     // The netlist itself is what it was.
     expect(result.file.text).toContain(".subckt bulkrepro VDD VSS s g d\n");
     expect(result.file.text).toMatch(/MP d g s VDD PMOS/u);
-    expect(result.diagnostics).toEqual([
+    expect(
+      result.diagnostics.filter(
+        (item) => item.code !== "GENERIC_MODEL_UNDEFINED",
+      ),
+    ).toEqual([
       expect.objectContaining({
         code: "MOS_BODY_DEFAULT_SUPPLY",
         severity: "info",

@@ -9,9 +9,11 @@ import type { CloudProjectBinding } from "../features/editor-shell/cloud-project
 import type { GalleryEntryContext } from "../features/editor-shell/gallery-example-commands";
 import {
   describePublishOutcome,
+  GalleryReadError,
   loadGalleryPublicationContext,
   publishProjectToGallery,
   updateGalleryEntry,
+  type GalleryPublicationRecord,
   type GalleryPublishFields,
 } from "../features/editor-shell/gallery-publish";
 
@@ -28,33 +30,22 @@ export interface AgentGalleryPublication {
   cloudBinding: CloudProjectBinding | null;
 }
 
-/** What the Publish dialog's success records, for the same bookkeeping. */
-export interface AgentGalleryPublished {
-  id: string;
-  name: string;
-  description: string;
-  tags: readonly string[];
-  aiGenerated: boolean;
-  updated: boolean;
-  previewRevision?: string;
-}
-
 export interface AgentGalleryPublisherOptions<
   State extends AgentGalleryPublication,
 > {
   /** The bound working copy, or null when its tab is not the one shown. */
   current: () => State | null;
   /** Records a publication as the Publish dialog's success does. */
-  published: (outcome: AgentGalleryPublished, state: State) => void;
+  published: (outcome: GalleryPublicationRecord, state: State) => void;
   fetch?: typeof fetch;
 }
 
 /**
  * An Agent's Publish and Update to Gallery (#1415): the Publish dialog's own
  * client, under the signed-in Editor session, on the working copy its tab
- * shows. A new entry an Agent publishes carries the AI mark unless the request
- * says otherwise; an update keeps the entry's fields, mark included, unless it
- * names new ones.
+ * shows. What an Agent sends is marked AI, an update included; its author
+ * changes the mark in the Editor. An update keeps the entry's fields it does
+ * not name.
  */
 export function createAgentGalleryPublisher<
   State extends AgentGalleryPublication,
@@ -87,7 +78,7 @@ export function createAgentGalleryPublisher<
       if (!entryId)
         return fail(
           "NO_LINKED_GALLERY_ENTRY",
-          "This working copy was not published as or opened from a Gallery entry: give galleryEntryId, or publish it as a new entry",
+          "This working copy is not linked to a Gallery entry (one gallery_circuits open made never is): give galleryEntryId, or publish it as a new entry",
           "fix-input",
         );
       // The entry's stored fields are the defaults, not a copy held locally.
@@ -97,12 +88,18 @@ export function createAgentGalleryPublisher<
           state.project.id,
           fetchLike,
         );
-      } catch {
-        return fail(
-          "GALLERY_UNAVAILABLE",
-          `Gallery entry ${entryId} could not be read; nothing was published`,
-          "retry",
-        );
+      } catch (error) {
+        return error instanceof GalleryReadError && error.status === 401
+          ? fail(
+              "SIGN_IN_REQUIRED",
+              "Sign in to the Editor to update a Gallery entry",
+              "sign-in",
+            )
+          : fail(
+              "GALLERY_UNAVAILABLE",
+              `Gallery entry ${entryId} could not be read; nothing was published`,
+              "retry",
+            );
       }
       if (!target)
         return fail(
@@ -116,15 +113,13 @@ export function createAgentGalleryPublisher<
           name: request.name ?? target.name,
           description: request.description ?? target.description,
           tags: request.tags ?? target.tags,
-          ...(request.aiGenerated === undefined
-            ? {}
-            : { aiGenerated: request.aiGenerated }),
+          aiGenerated: true,
         }
       : {
           name: request.name ?? state.project.name,
           description: request.description ?? "",
           tags: request.tags ?? [],
-          aiGenerated: request.aiGenerated ?? true,
+          aiGenerated: true,
         };
     // The Shelf draft's link follows its own publication, as in the dialog.
     const binding =
@@ -170,8 +165,11 @@ export function createAgentGalleryPublisher<
         name: fields.name.trim(),
         description: fields.description.trim(),
         tags: fields.tags,
-        aiGenerated: fields.aiGenerated ?? target?.aiGenerated === true,
+        aiGenerated: true,
         updated: target !== null,
+        ...(target
+          ? { ownerUserId: target.ownerUserId, author: target.author }
+          : {}),
         ...(outcome.previewRevision === undefined
           ? {}
           : { previewRevision: outcome.previewRevision }),

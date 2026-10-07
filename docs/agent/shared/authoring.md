@@ -127,6 +127,11 @@ targets to avoid full-Snapshot name resolution. Names remain supported when usef
   information, `GENERIC_BJT_MODEL`, and replaced by a `.model NPN` or
   `.model PNP` in a folder's own files. For a real device, `set-model` the
   transistor to its own model.
+- A MOS bound to the generic `NMOS` or `PMOS` (Abstract, Custom) gets no
+  card. The SPICE netlist reports it as information,
+  `GENERIC_MODEL_UNDEFINED`, until a `.model NMOS …` or `.model PMOS …` in
+  the simulation folder's files defines it; or `set-model` the transistor
+  to a real model.
 - `place-component` and `set-property` refuse a parameter the part does not
   take (naming the one it most likely meant), a value outside a choice list,
   and a quantity that is neither a SPICE number (`1k`, `2.5n`, `9kΩ`) nor an
@@ -134,7 +139,8 @@ targets to avoid full-Snapshot name resolution. Names remain supported when usef
   comparator's `vhigh:"VDD"`. Write micro as `u`, and mega as `Meg`: SPICE
   reads `M` as milli in either case, so an upper-case `M` before a unit
   (`1MΩ`, `10MHz`) is refused, naming both readings (`1MegΩ`, `1mΩ`). The
-  same checks run on stored values, as Cell diagnostics.
+  same checks run on stored values, as Cell diagnostics, and the netlist
+  warns of such a value as `MILLI_SCALE_VALUE`.
 - An adder input subtracts by its sign, a choice: `signA`/`signB` `"-"`
   (default `"+"`), so V_hold − V_DAC is one adder with `signB:"-"`, drawn
   with its + and − marks, not an adder after a −1 gain block.
@@ -355,7 +361,7 @@ either part; `referenceStyle:"first-letter-subscript"` optionally displays
 a requested Port's name that has no look of its own the look a Port placed
 with that name gets (`vrfp` as V_rfp). Manual/free,
 locked, hidden and custom-styled labels are preserved, and the receipt names
-each one left in place and why (`LABELS_LEFT_IN_PLACE`, information);
+each visible one left in place and why (`LABELS_LEFT_IN_PLACE`, information);
 `includeManual:true` re-places labels moved by hand too. This is not an autorouter
 or a whole-drawing beautifier. Informational label-clearance/owner-distance
 observations may remain and never gate editing. New Net labels use the GUI's
@@ -384,7 +390,8 @@ limit, nothing changes and `LIMIT_EXCEEDED` names the leading parts that fit
 The focused `circuit_text` action `move-annotation` sets an absolute position,
 and with `alignment` (`start`, `middle` or `end`) which end of the text
 stands there, so a label moved to a part's other side needs no width;
-the legacy `apply_actions` annotation `move` uses the same semantics, while
+the legacy `apply_actions` annotation `move` uses the same semantics, without
+`alignment`, while
 `transform` supports translation. These preserve ownership and electrical
 binding. A Net label moved beside its own wire, along a segment and within 20
 units of it, stays attached to that wire where it was put and follows it;

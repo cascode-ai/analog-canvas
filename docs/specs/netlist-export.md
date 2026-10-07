@@ -384,6 +384,15 @@ author's own text replaces the card exactly as for `DIODE`. Native VACASK
 writes the cards as `sp_bjt` models, `type=1` for NPN and `type=-1` for PNP,
 loading `spice/bjt.osdi`. They are SPICE only; a Spectre export still names
 `NPN` and `PNP` for the reader's libraries to define.
+A MOS transistor bound to the generic `NMOS` or `PMOS` that Abstract and
+Custom offer gets no card: no one card suits every simulator, and a level-1 card refuses the
+`nf` every MOS carries. The SPICE export reports `GENERIC_MODEL_UNDEFINED` as
+information for the Cell instead, naming the transistors and the cards a run
+needs ("M1 and M2 name NMOS, a generic model the netlist does not define:
+add a .model NMOS card to the simulation folder before simulating, or set a
+real model"). A model of that name, in any case, in the SPICE the Project was
+imported from or in a folder's own files quiets it, everywhere or in that
+folder's runs.
 A drawn T-coil or transformer is one Symbol on the canvas and coupled
 windings in the netlist: each Instance is an `X` call on a built-in
 subcircuit that the file defines once, ahead of the Cells, with the
@@ -532,10 +541,13 @@ partial netlist is exposed while an error remains. Required error coverage inclu
 - unsupported dialect/device combination;
 - identifier, parameter, count, or output resource-limit violation.
 
-Information reports generated local Net names, explicit NoConnect nodes and
-the MOS body findings below. Warnings may report conflicting directions inside
-one same-name Formal Port group. Neither can downgrade a missing electrical
-fact required for meaningful output.
+Information reports generated local Net names, explicit NoConnect nodes,
+the MOS body findings below and the generic-model findings. Warnings may
+report conflicting directions inside one same-name Formal Port group, and
+`MILLI_SCALE_VALUE` a parameter value SPICE reads as milli where mega was
+almost surely meant (an upper-case `M` before a unit, `1MΩ`), which exports
+as written. Neither can downgrade a missing electrical fact required for
+meaningful output.
 
 ### One electrical extraction authority
 

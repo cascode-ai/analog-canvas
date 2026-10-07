@@ -146,12 +146,6 @@ const GalleryEntryFields = {
   name: z.string().trim().min(1).max(120).optional(),
   description: z.string().max(1000).optional(),
   tags: z.array(z.string().min(1).max(32)).max(12).optional(),
-  aiGenerated: z
-    .boolean()
-    .optional()
-    .describe(
-      "The entry's AI mark. A new entry defaults to true; an update keeps the entry's.",
-    ),
 };
 const GalleryCircuitsArgs = z.discriminatedUnion("action", [
   z.strictObject({

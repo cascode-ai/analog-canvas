@@ -14,10 +14,11 @@ export interface PowerRailSupply {
 }
 
 /**
- * Whether this is a power label of the supply that stands on no rail, as a
- * body reset or clear-drawing leaves a rail's label for the Cell's callers.
- * The supply's next rail takes such a label over instead of drawing a second
- * one beside it (#1410).
+ * Whether this is a rail's own power label of the supply that stands on no
+ * rail any more, as a body reset or clear-drawing leaves one for the Cell's
+ * callers. The supply's next rail takes such a label over instead of drawing
+ * a second one beside it (#1410). A Power marker's label is the marker's,
+ * not a rail's: it stands on the marker, never on a bare Junction.
  */
 export function isFreePowerRailLabel(
   document: SchematicDocument,
@@ -35,7 +36,8 @@ export function isFreePowerRailLabel(
         ? document.netlist?.terminals.find(
             (terminal) =>
               terminal.id === binding.terminalId &&
-              terminal.netId === label.netId,
+              terminal.netId === label.netId &&
+              terminal.interfaceAnnotationId === label.id,
           )?.name
         : undefined
       : binding?.kind === "net-name" && binding.netId === label.netId
@@ -45,6 +47,8 @@ export function isFreePowerRailLabel(
   if (!name || foldNetName(name) !== foldNetName(supply.netName)) return false;
   if (label.anchor.kind !== "object") return true;
   const anchorId = label.anchor.objectId;
+  if (!document.junctions.some((junction) => junction.id === anchorId))
+    return false;
   return !document.routes.some(
     (route) =>
       route.presentation === "power-rail" &&
