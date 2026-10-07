@@ -44,19 +44,26 @@ retains the original parent for placement. **Open** is a separate action.
 Self-instantiation and cycles show a reason and disable Place.
 
 The action bar keeps Apply and Place together. **More** holds Save draft, Fork,
-placeholder creation and deletion. A single-file model shows its path; file tabs
+Files and dependencies, placeholder creation and deletion. File tabs
 appear for multiple files. At narrow widths, select a list item to show its editor
 and use **Back to list** to return. Closing or switching with unsaved text asks
 whether to keep editing or discard the changes.
 
 Native expressions, comments and continuation lines stay in the model files.
-**Files and dependencies** holds extra owned files and pinned Profile library
-references. **Symbol layout and directions** changes appearance without changing
-the native interface. The block's Properties, Netlist and simulation Code offer
+**More → Files and dependencies** holds extra owned files and pinned Profile
+library references. **Symbol layout and directions** puts pin directions in two
+columns, with compact layout controls beside the live Symbol preview. These
+change appearance without changing the native interface. The block's Properties and simulation Code offer
 **Open model** navigation to its shared source. **Fork model…** starts a private
 copy; give its public/helper definitions nonconflicting names before Apply.
 Existing callers keep their original owner. Instance parameter overrides remain
 in Properties.
+
+The right-side Netlist code and both Copy Netlist buttons contain the full
+applied external `.subckt` bodies and owned helper definitions. Nested and
+repeated Cell calls include each reachable model source once. Editing a supported
+model body here requires the Apply checkmark or Ctrl/Cmd+Enter; Apply writes back
+to the same source shown in Manager. Copy waits until those edits are applied.
 
 An interface edit updates all callers atomically. Reorder retains pin identity;
 rename/removal of a connected pin needs an explicit migration selection. Choosing

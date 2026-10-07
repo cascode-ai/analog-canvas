@@ -8094,7 +8094,6 @@ function WorkspaceEditor({
                   />
                 ) : projectPanel === "netlist" ? (
                   <NetlistCodePanel
-                    onOpenModelSource={openProjectModelSource}
                     onDirtyChange={noteCodeDraftDirty}
                     key={projectSessionId}
                     onApply={(edits) =>

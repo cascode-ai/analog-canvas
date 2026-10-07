@@ -35,6 +35,7 @@ import {
   expectComponentCodeField,
   openCellManager,
   openMenu,
+  copyNetlistText,
 } from "./editor-fixtures.js";
 import { placeComponent } from "./manual-editor-fixtures.js";
 
@@ -72,6 +73,45 @@ for (const viewport of [
     expect(
       await manager.evaluate((el) => el.scrollWidth <= el.clientWidth),
     ).toBe(true);
+    await manager
+      .getByRole("button", { name: "Apply model", exact: true })
+      .click();
+    await manager
+      .getByText("Symbol layout and directions", { exact: true })
+      .click();
+    const controls = manager.getByLabel("Cell symbol layout", { exact: true });
+    const preview = manager.getByLabel("Symbol preview", { exact: true });
+    await expect(preview).toBeVisible();
+    await expect(manager).not.toContainText("Applied version");
+    await expect(manager.locator(".external-model-path")).toHaveCount(0);
+    const controlBox = await controls.boundingBox();
+    const previewBox = await preview.boundingBox();
+    if (viewport.width >= 1024) {
+      expect(previewBox!.x).toBeGreaterThanOrEqual(
+        controlBox!.x + controlBox!.width,
+      );
+      const a = await manager.getByLabel("Model A direction").boundingBox();
+      const b = await manager.getByLabel("Model B direction").boundingBox();
+      expect(a!.y).toBe(b!.y);
+      expect(b!.x).toBeGreaterThan(a!.x);
+    }
+    expect(
+      await controls.evaluate((el) => el.scrollWidth <= el.clientWidth),
+    ).toBe(true);
+    expect(
+      await controls.evaluate((el) => {
+        const bounds = el.getBoundingClientRect();
+        return Array.from(el.querySelectorAll("input, select"), (control) => {
+          const box = control.getBoundingClientRect();
+          return box.left >= bounds.left && box.right <= bounds.right;
+        }).every(Boolean);
+      }),
+    ).toBe(true);
+    expect(
+      await manager.evaluate((el) => el.scrollWidth <= el.clientWidth),
+    ).toBe(true);
+    await manager.getByLabel("Model A direction").selectOption("input");
+    await expect(manager.getByLabel("Model A direction")).toHaveValue("input");
     await page.screenshot({
       path: test.info().outputPath("manager-layout.png"),
     });
@@ -138,7 +178,9 @@ test("searches definitions without discarding the selected model", async ({
   await list.getByRole("searchbox").fill("SEARCH");
   await expect(list.getByRole("button", { name: /searchable/ })).toBeVisible();
   await expect(manager.locator(".external-model-symbol")).toBeHidden();
-  await manager.getByText("Symbol preview", { exact: true }).click();
+  await manager
+    .getByText("Symbol layout and directions", { exact: true })
+    .click();
   await expect(manager.locator(".external-model-symbol")).toBeVisible();
 });
 
@@ -237,6 +279,153 @@ test("defines a native external model in Manager and places its parsed interface
   await expect(page.locator('[data-pin-name="OUT"]')).toBeVisible();
 });
 
+test("copies nested external implementations once and applies body edits to their shared source", async ({
+  page,
+}) => {
+  const empty = createEmptyProject("nested-models", "Nested models");
+  const applied = executeProjectTransaction(empty, {
+    projectId: empty.id,
+    expectedStructureRevision: empty.structureRevision,
+    transactionId: "define-model",
+    actor: { kind: "human", id: "test" },
+    edits: [
+      {
+        kind: "apply_model_source",
+        source: {
+          id: "gain-source",
+          language: "spice",
+          entry: "gain.spice",
+          revision: 0,
+          files: [
+            {
+              path: "gain.spice",
+              text: '.include "helper.spice"\n.subckt gain_block A B params: gain=20\nBOUT B A V={gain*v(A,B)}\nXHELP A B helper\n.ends gain_block\n',
+            },
+            {
+              path: "helper.spice",
+              text: ".subckt helper A B\nRHELP A B 1Meg\n.ends helper\n",
+            },
+          ],
+          dependencies: [],
+        },
+        definitions: [{ definitionId: "gain-block", entry: "gain_block" }],
+      },
+    ],
+  });
+  if (!applied.ok) throw Error(JSON.stringify(applied));
+  const project = applied.project;
+  const child = createEmptyDocument("stage", "stage");
+  project.documents.push(child);
+  const definition = project.externalSubcircuitDefinitions[0]!;
+  for (const id of ["XGAIN1", "XGAIN2"]) {
+    child.instances.push(
+      createExternalSubcircuitInstance(id, definition, {
+        position: { x: 180, y: id === "XGAIN1" ? 180 : 320 },
+        rotation: 0,
+        mirror: "none",
+      }),
+    );
+    for (const terminal of definition.terminals)
+      child.noConnects.push({
+        id: id + terminal.id,
+        endpoint: { kind: "terminal", instanceId: id, pinName: terminal.name },
+      });
+  }
+  for (const id of ["XSTAGE1", "XSTAGE2"])
+    project.documents[0]!.instances.push({
+      id,
+      reference: id,
+      symbolId: hierarchicalSymbolId("stage"),
+      placement: {
+        position: { x: 180, y: id === "XSTAGE1" ? 180 : 320 },
+        rotation: 0,
+        mirror: "none",
+      },
+      netlist: {
+        parameters: {},
+        binding: { kind: "subcircuit", childDocumentId: child.id },
+      },
+    });
+  await page.goto("/editor?new=1");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "nested.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(serializeProject(project)),
+  });
+  const copied = await copyNetlistText(page, "spice");
+  expect(copied.match(/^\.subckt gain_block\b/gm)).toHaveLength(1);
+  expect(copied.match(/^\.subckt helper\b/gm)).toHaveLength(1);
+  expect(copied.match(/^\.subckt stage\b/gm)).toHaveLength(1);
+  expect(copied).toContain("BOUT B A V={gain*v(A,B)}");
+  expect(copied).toContain("RHELP A B 1Meg");
+  expect(copied.match(/^XGAIN[12]\s+.*gain_block$/gm)).toHaveLength(2);
+  expect(copied.match(/^XSTAGE[12]\s+stage$/gm)).toHaveLength(2);
+  const panel = page.getByRole("region", { name: "Live netlist", exact: true });
+  const code = panel.getByRole("textbox", {
+    name: "Netlist code",
+    exact: true,
+  });
+  expect(
+    await code.evaluate((el) =>
+      Array.from(
+        el.querySelectorAll(".cm-line"),
+        (line) => line.textContent,
+      ).join("\n"),
+    ),
+  ).toBe(copied);
+  await page.evaluate(() => navigator.clipboard.writeText("sentinel"));
+  await panel.getByTestId("copy-netlist-panel").click();
+  await expect
+    .poll(async () =>
+      (await page.evaluate(() => navigator.clipboard.readText())).replace(
+        /\r\n?/g,
+        "\n",
+      ),
+    )
+    .toBe(copied);
+  await expect(panel.getByRole("button", { name: /^Open model / })).toHaveCount(
+    0,
+  );
+  await code.fill(
+    copied.replace("BOUT B A V={gain*v(A,B)}", "BOUT B A V={2*gain*v(A,B)}"),
+  );
+  await code.blur();
+  await expect(panel.getByTestId("copy-netlist-panel")).toBeDisabled();
+  await panel
+    .getByRole("button", { name: "Apply model edits", exact: true })
+    .click();
+  await expect(panel.getByTestId("copy-netlist-panel")).toBeEnabled();
+  await openCellManager(page);
+  const manager = page.getByRole("dialog", {
+    name: "Cell Manager",
+    exact: true,
+  });
+  await manager
+    .getByRole("button", { name: "External Circuits", exact: true })
+    .click();
+  await manager.getByRole("button", { name: /gain_block/ }).click();
+  await expect(manager.getByLabel("External model netlist")).toContainText(
+    "BOUT B A V={2*gain*v(A,B)}",
+  );
+  await expect(manager.getByLabel("Model entry file")).toHaveCount(0);
+  await manager.getByText("More", { exact: true }).click();
+  await manager
+    .getByRole("button", { name: "Files and dependencies", exact: true })
+    .click();
+  await expect(manager.getByLabel("Model entry file")).toHaveValue(
+    "gain.spice",
+  );
+  await expect(
+    manager.getByRole("button", { name: "Add dependency", exact: true }),
+  ).toBeVisible();
+  await manager
+    .getByRole("button", { name: "helper.spice", exact: true })
+    .click();
+  await expect(manager.getByLabel("External model netlist")).toContainText(
+    "RHELP A B 1Meg",
+  );
+});
+
 test("migrates a wired model terminal explicitly in Manager without losing its identity", async ({
   page,
 }) => {
@@ -330,7 +519,7 @@ test("migrates a wired model terminal explicitly in Manager without losing its i
   await manager
     .getByRole("button", { name: "Apply model", exact: true })
     .click();
-  await expect(manager).toContainText("Applied version 2");
+  await expect(manager.getByRole("alert")).toHaveCount(0);
   await manager.getByLabel("Close Cell Manager").click();
   const saved: CircuitProject = parseSavedProject(
     (await downloadBytes(page, "File", "Export Project File…")).toString(),
@@ -338,6 +527,7 @@ test("migrates a wired model terminal explicitly in Manager without losing its i
   expect(
     saved.externalSubcircuitDefinitions[0]!.terminals.map((t) => t.name),
   ).toEqual(["B", "INPUT"]);
+  expect(saved.modelSources![0]!.revision).toBe(2);
   expect(saved.externalSubcircuitDefinitions[0]!.terminals[1]!.id).toBe(
     terminalId,
   );
@@ -385,14 +575,14 @@ test("shares multiple model entries, explicitly forks and reopens an undoable po
     .click();
   await manager
     .getByLabel("External model source owner", { exact: true })
-    .selectOption({ label: "model.spice · version 1" });
+    .selectOption({ label: "model.spice" });
   await manager
     .getByLabel("External model entry", { exact: true })
     .selectOption("second");
   await manager
     .getByRole("button", { name: "Apply model", exact: true })
     .click();
-  await expect(manager).toContainText("Applied version 2");
+  await expect(manager.getByRole("alert")).toHaveCount(0);
   await expect(manager).toContainText("Shared by 2 definitions");
   await manager.getByText("More", { exact: true }).click();
   await manager
@@ -668,7 +858,16 @@ test("retains an unfinished external model draft after closing Manager", async (
   await expect(manager.getByLabel("Parsed model interface")).toContainText(
     "A · B",
   );
-  await expect(manager).toContainText("Applied version 1");
+  await expect(manager).not.toContainText("Saved draft");
+  await manager.getByLabel("Close Cell Manager").click();
+  const saved: CircuitProject = parseSavedProject(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(),
+  );
+  expect(saved.modelSources![0]!.revision).toBe(1);
+  expect(saved.modelSources![0]!.draft).toBeUndefined();
+  expect(saved.modelSources![0]!.files[0]!.text).toBe(
+    ".subckt unfinished A B\nR1 A B 2k\n.ends unfinished\n",
+  );
 });
 
 test("a runtime diagnostic opens the exact applied helper file while retaining its saved draft", async ({

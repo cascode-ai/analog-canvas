@@ -422,6 +422,10 @@
 .external-model-workbench .cm-scroller {
   height: 100%;
 }
+.external-model-workbench:has(.external-model-layout-section[open])
+  .project-source-editor {
+  height: clamp(6rem, 12vh, 9rem);
+}
 
 .external-model-interface {
   display: flex;
@@ -432,12 +436,70 @@
   font-size: var(--icm-font-sm);
 }
 
-.external-model-state,
-.external-model-path {
+.external-model-state {
   margin: 0;
   color: var(--icm-text-muted);
   font-size: var(--icm-font-xs);
   overflow-wrap: anywhere;
+}
+.external-model-directions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--icm-space-1) var(--icm-space-3);
+  margin-block: var(--icm-space-2);
+}
+.external-model-directions label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: var(--icm-font-xs);
+}
+.external-model-directions label > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.external-model-directions select {
+  flex: 0 0 6rem;
+  width: 6rem;
+}
+.external-model-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 14rem) minmax(0, 1fr);
+  align-items: start;
+  gap: var(--icm-space-3);
+}
+.external-model-layout .cell-symbol-layout-properties {
+  min-width: 0;
+  margin: 0;
+  padding: var(--icm-space-2);
+}
+.external-model-layout .component-geometry-row {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.external-model-layout .cell-symbol-pin-layout-table th,
+.external-model-layout .cell-symbol-pin-layout-table td {
+  padding-inline: 2px;
+}
+.external-model-layout .cell-symbol-pin-layout-table tr > :nth-child(2) {
+  width: 4.5rem;
+}
+.external-model-layout .cell-symbol-pin-layout-table tr > :nth-child(3) {
+  width: 3.5rem;
+}
+.external-model-layout-preview {
+  display: grid;
+  justify-items: center;
+  gap: var(--icm-space-2);
+  min-width: 0;
+  margin: 0;
+  padding-block: var(--icm-space-2);
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+}
+.external-model-layout-preview .external-model-symbol {
+  width: 100%;
+  height: 10rem;
+  color: var(--icm-text);
 }
 .external-model-actionbar {
   position: sticky;

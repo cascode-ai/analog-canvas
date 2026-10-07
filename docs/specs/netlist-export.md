@@ -461,11 +461,14 @@ composition. Unsupported native body conversion refuses explicitly.
 
 Printed body spans map to owner ID, applied revision, file and exact offset.
 Supported body/default edits write back through explicit Apply to that owner.
-Interface, dependency and cross-owner edits require the definition editor,
-reachable from the panel. They cannot introduce folder-local overrides. Saved
-drafts do not replace applied bytes; output identifies the applied version and
-pending draft. Placeholders export calls with a missing-implementation warning
-and cannot prepare for execution.
+Interface, dependency and cross-owner edits require the definition editor in
+Cell Manager, also reachable from Instance Properties and simulation source
+diagnostics. They cannot introduce folder-local overrides. The Netlist panel
+shows the composed text directly without separate model-owner navigation rows;
+explicit model Apply appears in its existing action controls when edits are
+pending. Saved drafts do not replace applied bytes; generated model comments
+identify the applied version and pending draft. Placeholders export calls with
+a missing-implementation warning and cannot prepare for execution.
 
 ## Printer contracts
 
