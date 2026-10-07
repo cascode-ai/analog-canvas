@@ -581,12 +581,13 @@ describe("daily Gallery opens", () => {
     expect(opens(env)).toHaveLength(100);
   });
 
-  it("counts no author, curator or read credential, and forgets earlier days", async () => {
+  it("counts no author, curator, AI account or read credential, and forgets earlier days", async () => {
     const env = environment();
     const admin = await adminOf(env);
     const theirs = await submitOne(env, "Curated", { cookie: admin });
     const maker = await makerOf(env);
     const own = await submitOne(env, "Own work", { cookie: maker });
+    const seat = await seatOf(env);
     env.gallerySql.exec(
       "INSERT INTO gallery_daily_opens VALUES ('2000-01-01', 'someone', 'old')",
     );
@@ -594,6 +595,7 @@ describe("daily Gallery opens", () => {
     for (const [path, headers] of [
       [`/api/gallery/${theirs}`, cookieHeaders(admin)],
       [`/api/gallery/${own}`, cookieHeaders(maker)],
+      [`/api/gallery/${theirs}`, cookieHeaders(seat)],
       [`/api/gallery/${theirs}`, {}],
     ] as const)
       expect(

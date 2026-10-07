@@ -2404,10 +2404,12 @@ export async function routeGalleryRequest(
       viewer &&
       viewer.id !== payload.ownerUserId &&
       !curator &&
+      viewer.provider !== AI_ACCOUNT_PROVIDER &&
       !hasGalleryReadToken(request, env)
     ) {
       // Opening someone else's circuit spends the account's daily allowance;
-      // its author, curators and the read credential are not counted.
+      // its author, curators, the Owner's AI accounts and the read
+      // credential are not counted.
       const day = new Date().toISOString().slice(0, 10);
       const { payload: open } = await callGallery<{ allowed?: boolean }>(
         env,

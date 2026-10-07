@@ -47,10 +47,11 @@ the editor says when more open, and an Agent read fails with
 `GALLERY_DAILY_LIMIT`. The wall, search, tags, previews and
 `GET /api/gallery/<id>?summary=1` (the entry's details without its Project
 Code, used by links and publishing) are not counted, nor are an author's own
-circuits, curators, or the read-only credential. A person browsing never meets
-the limit; a script cannot carry the whole Gallery off at once. The record of
-today's opens is dropped by the five-minute scheduled pass after the day ends,
-and with the account when it is deleted.
+circuits, curators, the Owner's AI accounts (`AI_SEATS`), or the read-only
+credential. A person browsing never meets the limit; a script cannot carry the
+whole Gallery off at once. The record of today's opens is dropped by the
+five-minute scheduled pass after the day ends, and with the account when it is
+deleted.
 
 ## Public surface
 
@@ -541,9 +542,10 @@ database stores only SHA-256 hashes of session tokens and sign-in codes.
     to, the browser is signed out instead. Signing out clears both; a seat is
     not deleted from its own page.
   - A seat's entries always carry the AI mark, whoever publishes or updates
-    them, and a seat may publish 500 entries a UTC day (people 100). The
-    Publish dialog shows the box ticked and fixed for a seat. The
-    administrator statistics count people's accounts only.
+    them, and a seat may publish 500 entries a UTC day (people 100). Its
+    Gallery opens are not counted at all. The Publish dialog shows the box
+    ticked and fixed for a seat. The administrator statistics count people's
+    accounts only.
 - `GET /api/auth/me` — `{user}` with `id`, `displayName`, `email`,
   `provider`, `role` (`user`/`moderator`), the per-request `isAdmin` flag,
   and for an AI account its `seat` and, while switched, `switchedFrom`.

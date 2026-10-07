@@ -1,10 +1,14 @@
 # Gallery off-site backups
 
-Production Gallery backups run in the private `Arcadia-1/analog-canvas-backups`
+Production Gallery backups run in the private `cascode-ai/analog-canvas-backups`
 repository's GitHub Actions workflow, weekly on Sunday at 03:17 UTC and on
 manual dispatch. They do not require a running desktop, browser session or
 Codex. That repository owns the collector, its tests, schedule and recovery
-instructions. Date-stamped private Release attachments retain old snapshots
+instructions. Members of the `cascode-ai` organisation can read it and download
+any snapshot (`node scripts/gallery-private-snapshot.mjs [--store] --cached`):
+Gallery snapshots carry each entry's submitter email and sign-in method, and
+store snapshots also every account's private Cloud Projects. Only the Owner
+changes the repository or starts its workflows. Date-stamped private Release attachments retain old snapshots
 without overwriting them or putting every database in Git history. Automatic
 retention deletion is deliberately disabled initially.
 
