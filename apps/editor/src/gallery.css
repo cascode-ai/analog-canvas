@@ -1100,21 +1100,31 @@
   color: var(--icm-text-muted);
 }
 
-/* This mark says the circuit extracts to a netlist. It records extra
-   completeness and gates nothing, so it stays a quiet accent beside the name
-   rather than a badge competing with it, and it never competes with the like
-   heart for the same meaning. */
 .gallery-tag-mark {
   display: inline-flex;
   align-items: center;
   gap: 4px;
 }
 
+/* Word marks after the name: the circuit extracts to a netlist, and its
+   publisher says an AI made it. Each records something and gates nothing,
+   so they stay small beside the name and never compete with the like heart. */
+.gallery-tile-mark {
+  margin-left: 6px;
+  padding: 2px 5px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
 .gallery-tile-netlist {
-  display: inline-flex;
-  margin-left: 5px;
   color: #2f7d4f;
-  vertical-align: -1px;
+  background: #e4f2e9;
+}
+
+.gallery-tile-ai {
+  color: var(--icm-ai);
+  background: var(--icm-ai-soft);
 }
 
 .gallery-tile-like {

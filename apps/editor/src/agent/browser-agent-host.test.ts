@@ -8,6 +8,7 @@ import { renderDocumentSvg } from "@icm/render-svg";
 
 import { EditorDocumentController } from "../document/document-controller";
 import { BrowserAgentHost } from "./browser-agent-host";
+import { liveAgentEditor } from "./live-agent-editor.test-support";
 
 const allPermissions: AgentPermissions = {
   snapshot: true,
@@ -112,6 +113,60 @@ describe("BrowserAgentHost + Agent Circuit service", () => {
       mode: "formal",
     });
     expect(render.ok).toBe(true);
+  });
+
+  it("marks the Project as Agent-edited once an Agent edit applies", () => {
+    const { controller, service } = setup();
+    const documentId = controller.activeDocumentId;
+    const transact = (requestId: string, dryRun: boolean) =>
+      service.handle({
+        apiVersion: "3.0",
+        requestId,
+        operation: "transact",
+        documentId,
+        transactionId: requestId,
+        expectedRevision: controller.document.revision,
+        dryRun,
+        edits: [{ kind: "add_instance", instance: instance(requestId) }],
+      });
+
+    // A person's edit and an Agent's dry run leave it unmarked.
+    controller.transact([{ kind: "add_instance", instance: instance("R0") }]);
+    expect(transact("R1", true).ok).toBe(true);
+    expect(controller.agentEdited).toBe(false);
+
+    expect(transact("R2", false).ok).toBe(true);
+    expect(controller.agentEdited).toBe(true);
+
+    // Another Project opened in the same tab starts unmarked.
+    controller.replaceProject(createEmptyProject("next", "Next"));
+    expect(controller.agentEdited).toBe(false);
+  });
+
+  it("marks a change an Agent commits through its Project resource", async () => {
+    const { client, controller } = liveAgentEditor();
+    await client.connect("session-1.code");
+    const read = await client.projectResource({
+      apiVersion: "3.0",
+      requestId: "read-code",
+      operation: "read-project-code",
+    });
+    if (!read.ok || read.operation !== "read-project-code")
+      throw new Error(JSON.stringify(read));
+    expect(controller.agentEdited).toBe(false);
+    const code = JSON.parse(read.projectCode);
+    code.documents[0].name = "Bias";
+    expect(
+      await client.projectResource({
+        apiVersion: "3.0",
+        requestId: "replace-code",
+        operation: "replace-project-code",
+        expectedStructureRevision: read.structureRevision,
+        projectCode: JSON.stringify(code),
+      }),
+    ).toMatchObject({ ok: true, applied: true });
+    expect(controller.document.name).toBe("Bias");
+    expect(controller.agentEdited).toBe(true);
   });
 
   it("treats one Agent transaction as one undo item", () => {

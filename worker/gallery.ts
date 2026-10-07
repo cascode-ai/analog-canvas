@@ -347,6 +347,15 @@ function fieldText(value: unknown, maxLength: number): string | null {
   return trimmed.length <= maxLength ? trimmed : null;
 }
 
+/**
+ * The publisher's AI mark: true or false when the request gives one,
+ * undefined when it leaves the mark alone, null when it is not a boolean.
+ */
+function aiMark(value: unknown): boolean | undefined | null {
+  if (value === undefined) return undefined;
+  return typeof value === "boolean" ? value : null;
+}
+
 async function renderPreview(
   project: CircuitProject,
   resolver: SymbolResolver,
@@ -1066,6 +1075,7 @@ async function handleSubmission(
     projectText?: unknown;
     cloudProjectId?: unknown;
     expectedGalleryEntryId?: unknown;
+    aiGenerated?: unknown;
   } | null;
   const name = fieldText(body?.name, GALLERY_MAX_NAME_LENGTH);
   // The byline is the signed-in account's display name. Reading it from the
@@ -1075,7 +1085,8 @@ async function handleSubmission(
     body?.description,
     GALLERY_MAX_DESCRIPTION_LENGTH,
   );
-  if (!body || !name || description === null) {
+  const aiGenerated = aiMark(body?.aiGenerated);
+  if (!body || !name || description === null || aiGenerated === null) {
     return Response.json({ error: "invalid-fields" }, { status: 400 });
   }
   const binding = publicationBindingFields(body);
@@ -1115,6 +1126,9 @@ async function handleSubmission(
       // published exactly the same way, it simply does not wear the badge.
       netlistable: designExtractsNetlist(project) ? 1 : 0,
       component_count: galleryComponentCount(project),
+      // The publisher's word, never inferred here: the editor suggests it
+      // when an Agent drew in the Project, and the author may change it.
+      ai_generated: aiGenerated ? 1 : 0,
       name,
       author,
       description,
@@ -1185,6 +1199,7 @@ async function handleEntryUpdate(
     projectText?: unknown;
     cloudProjectId?: unknown;
     expectedGalleryEntryId?: unknown;
+    aiGenerated?: unknown;
   } | null;
   const name = fieldText(body?.name, GALLERY_MAX_NAME_LENGTH);
   // An update never re-attributes the entry, not even when a moderator
@@ -1194,7 +1209,8 @@ async function handleEntryUpdate(
     body?.description,
     GALLERY_MAX_DESCRIPTION_LENGTH,
   );
-  if (!body || !name || description === null) {
+  const aiGenerated = aiMark(body?.aiGenerated);
+  if (!body || !name || description === null || aiGenerated === null) {
     return Response.json({ error: "invalid-fields" }, { status: 400 });
   }
   const binding = publicationBindingFields(body);
@@ -1235,6 +1251,8 @@ async function handleEntryUpdate(
     componentCount: galleryComponentCount(project),
     status: nextStatus,
     tags: wrapTags(sanitizeGalleryTags(body.tags)),
+    // Absent leaves the stored mark as it is.
+    ...(aiGenerated === undefined ? {} : { aiGenerated }),
   });
   return Response.json(payload, { status });
 }

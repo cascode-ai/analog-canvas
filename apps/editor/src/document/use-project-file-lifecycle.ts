@@ -86,6 +86,8 @@ export interface ReplaceProjectOptions {
   persistenceState?: PersistenceState;
   cloudBinding?: CloudProjectBinding | null;
   savedBaseline?: SavedProjectBaseline | null;
+  /** An Agent opened it, so publishing suggests the Gallery's AI mark. */
+  agentEdited?: boolean;
 }
 
 type RecoveryLifecycle = Pick<
@@ -122,7 +124,11 @@ export interface UseProjectFileLifecycleOptions {
   viewBox: GridRect;
   defaultViewBox: GridRect;
   recovery: RecoveryLifecycle;
-  installProject(project: CircuitProject, viewBox: GridRect): SchematicDocument;
+  installProject(
+    project: CircuitProject,
+    viewBox: GridRect,
+    options: ReplaceProjectOptions,
+  ): SchematicDocument;
   setStatus(message: string): void;
   onCloudProjectSaved(project: CloudProjectSummary): void;
   /** Commit feature-owned text buffers before taking a durable Project snapshot. */
@@ -294,7 +300,7 @@ export function useProjectFileLifecycle({
     const prepared = materializeRazaviProjectBulkConnections(nextProject);
     safeSnapshotTokenRef.current = null;
     publishedSnapshotTokenRef.current = null;
-    const nextDocument = installProject(prepared.project, nextViewBox);
+    const nextDocument = installProject(prepared.project, nextViewBox, options);
     const nextPersistenceState =
       options.persistenceState ??
       (options.source === "spice-import" || options.source === "recovered"

@@ -22,6 +22,9 @@
   --icm-accent-soft: rgb(35 131 226 / 10%);
   --icm-accent-selection: rgb(35 131 226 / 14%);
   --icm-accent-tint: #e7f3fc;
+  /* The Gallery's AI mark: its card tag and the publish checkbox. */
+  --icm-ai: #6a3cbf;
+  --icm-ai-soft: #efe7fb;
   --icm-error: #eb5757;
   --icm-warning: #9a6700;
   --icm-warning-rgb: 234 179 8;

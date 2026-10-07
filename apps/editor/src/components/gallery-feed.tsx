@@ -138,13 +138,10 @@ function HeartIcon({ filled }: { filled: boolean }) {
 }
 
 /**
- * The netlist mark, drawn rather than typed.
- *
+ * The "With netlist" filter's glyph: the SPICE deck a circuit extracts to.
  * A star said "rating" on a wall of circuits and sat beside the like heart,
- * where two accents competed for the same meaning. This says what it marks:
- * the SPICE deck this circuit extracts to. Absence is not a verdict — a
- * sketch publishes exactly the same way — so the mark is quiet and only ever
- * appears, never crosses anything out.
+ * where two accents competed for the same meaning. The cards spell the mark
+ * out instead, as "Netlist": the glyph alone was easy to miss there.
  */
 function NetlistIcon() {
   return (
@@ -1547,12 +1544,20 @@ export function GalleryFeed({
                                 ) : null}
                                 {entry.netlistable ? (
                                   <span
-                                    className="gallery-tile-netlist"
+                                    className="gallery-tile-mark gallery-tile-netlist"
                                     data-testid={`gallery-netlist-${entry.id}`}
                                     title="Extracts to a SPICE netlist"
-                                    aria-label="Extracts to a SPICE netlist"
                                   >
-                                    <NetlistIcon />
+                                    Netlist
+                                  </span>
+                                ) : null}
+                                {entry.aiGenerated ? (
+                                  <span
+                                    className="gallery-tile-mark gallery-tile-ai"
+                                    data-testid={`gallery-ai-${entry.id}`}
+                                    title="AI-generated, as its publisher says"
+                                  >
+                                    AI
                                   </span>
                                 ) : null}
                               </span>

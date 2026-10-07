@@ -3,7 +3,10 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { createEmptyProject } from "@icm/model";
 import { describe, expect, it } from "vitest";
 
-import { PublishGalleryDialog } from "./publish-gallery-dialog";
+import {
+  PublishGalleryDialog,
+  type PublishGalleryDialogProps,
+} from "./publish-gallery-dialog";
 
 describe("PublishGalleryDialog", () => {
   it("asks a signed-out visitor to sign in instead of for a passphrase", () => {
@@ -123,6 +126,63 @@ describe("PublishGalleryDialog", () => {
     expect(markup.match(/data-testid="publish-preset-/gu)).toHaveLength(5);
     expect(markup).toContain('data-testid="publish-presets-more"');
     expect(markup).toContain('aria-label="More tag suggestions"');
+  });
+
+  it("starts the AI mark from the Agent's work or the entry it came from", () => {
+    const render = (props: Partial<PublishGalleryDialogProps>) =>
+      renderToStaticMarkup(
+        createElement(PublishGalleryDialog, {
+          defaultName: "Ring Oscillator",
+          session: { displayName: "Visitor", isAdmin: false, role: "user" },
+          publish: () => Promise.resolve({ status: "unauthorized" as const }),
+          onPublished: () => undefined,
+          onClose: () => undefined,
+          ...props,
+        }),
+      );
+    const aiBox = (props: Partial<PublishGalleryDialogProps>) =>
+      /<input[^>]*data-testid="publish-ai"[^>]*>/u.exec(render(props))?.[0];
+    expect(aiBox({})).not.toContain("checked");
+    expect(aiBox({ agentEdited: true })).toContain('checked=""');
+
+    // An update keeps the entry's own mark, so an author's untick stands;
+    // the note still says an Agent worked on it.
+    const update = {
+      updateTarget: { id: "e1", name: "Ring Oscillator" },
+      publishUpdate: () => Promise.resolve({ status: "unauthorized" as const }),
+    };
+    const unmarked = { description: "", tags: [], aiGenerated: false };
+    expect(
+      aiBox({ ...update, agentEdited: true, updateDefaults: unmarked }),
+    ).not.toContain("checked");
+    expect(
+      render({ ...update, agentEdited: true, updateDefaults: unmarked }),
+    ).toContain("An Agent worked on this Project");
+    const marked = { description: "", tags: [], aiGenerated: true };
+    expect(aiBox({ ...update, updateDefaults: marked })).toContain(
+      'checked=""',
+    );
+    // A new entry made from a marked one starts marked too.
+    expect(aiBox({ updateDefaults: marked })).toContain('checked=""');
+
+    // The publisher's own choice, kept in the draft, wins.
+    expect(
+      aiBox({
+        agentEdited: true,
+        draft: {
+          name: "Ring Oscillator",
+          description: "",
+          tags: [],
+          aiGenerated: false,
+          editedFields: {
+            name: false,
+            description: false,
+            tags: false,
+            aiGenerated: true,
+          },
+        },
+      }),
+    ).not.toContain("checked");
   });
 
   it("never asks for the byline: the account supplies it", () => {

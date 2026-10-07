@@ -90,7 +90,7 @@ export function liveAgentEditor(options: LiveAgentEditorOptions = {}) {
     getActiveDocumentId: () => controller.document.id,
     onApprovalRequested: () => {},
     commitProjectStructure: (project, active) =>
-      controller.commitProjectStructure(project, active),
+      host.commitProjectStructure(project, active),
     dispatchProjectTransaction: (request) =>
       host.dispatchProjectTransaction(request),
   });
@@ -99,7 +99,7 @@ export function liveAgentEditor(options: LiveAgentEditorOptions = {}) {
     getProject: () => controller.project,
     getActiveDocumentId: () => controller.document.id,
     commitProjectStructure: (project, active) =>
-      controller.commitProjectStructure(project, active),
+      host.commitProjectStructure(project, active),
     dispatchProjectTransaction: (request) =>
       host.dispatchProjectTransaction(request),
     ...options.projectHost,

@@ -16,6 +16,8 @@ export interface GalleryEntryContext {
   author: string;
   description: string;
   tags: readonly string[];
+  /** The entry's AI mark; the update dialog starts from it. */
+  aiGenerated?: boolean;
   /**
    * SHA-256 of the stored text this copy was opened from, so a later visit
    * can tell whether the Gallery has changed the entry since.
@@ -29,6 +31,7 @@ interface GalleryEntryPayload {
     author?: string;
     description?: string;
     tags?: string[];
+    aiGenerated?: boolean;
   };
   ownerUserId?: string | null;
   projectText?: string;
@@ -135,6 +138,7 @@ export function createGalleryExampleCommands({
       author: payload.entry?.author ?? "",
       description: payload.entry?.description ?? "",
       tags: payload.entry?.tags ?? [],
+      aiGenerated: payload.entry?.aiGenerated === true,
       ...(sourceDigest ? { sourceDigest } : {}),
     };
     if (inTab) {

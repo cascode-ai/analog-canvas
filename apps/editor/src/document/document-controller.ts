@@ -100,6 +100,7 @@ export class EditorDocumentController {
   private readonly availableComponents = new Map<string, ComponentDefinition>();
   private transactionCounter = 0;
   private projectSessionCounter = 1;
+  private agentEditedValue = false;
   private readonly liveResolver = {
     resolve: (id: string, variant?: string) =>
       this.resolverValue.resolve(id, variant),
@@ -162,6 +163,18 @@ export class EditorDocumentController {
   get projectSessionId(): string {
     return `${this.projectValue.id}:${this.projectSessionCounter}`;
   }
+  /**
+   * Whether an Agent has changed this Project in this tab, or opened it from
+   * a file the Agent staged. The tab keeps it across reloads, and publishing
+   * reads it to suggest the Gallery's AI mark.
+   */
+  get agentEdited(): boolean {
+    return this.agentEditedValue;
+  }
+  /** Records that an Agent worked on this Project (see {@link agentEdited}). */
+  noteAgentEdit(): void {
+    this.agentEditedValue = true;
+  }
   snapshot(): DocumentControllerSnapshot {
     return {
       project: this.project,
@@ -188,6 +201,7 @@ export class EditorDocumentController {
       CircuitProjectSchema.parse(structuredClone(nextProject)),
     );
     this.projectSessionCounter += 1;
+    this.agentEditedValue = false;
     this.availableComponents.clear();
     this.projectValue = parsed;
     this.activeDocumentIdValue = parsed.topDocumentId;

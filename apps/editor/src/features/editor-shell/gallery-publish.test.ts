@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   describePublishOutcome,
+  loadGalleryPublicationContext,
   publishProjectToGallery,
 } from "./gallery-publish";
 
@@ -20,6 +21,22 @@ function fetchReturning(
     return new Response(JSON.stringify(payload), { status });
   }) as typeof fetch;
 }
+
+describe("loadGalleryPublicationContext", () => {
+  it("brings the entry's AI mark into the update dialog", async () => {
+    const load = (entry: object) =>
+      loadGalleryPublicationContext(
+        "entry-1",
+        "p1",
+        fetchReturning(200, {
+          entry: { name: "Ring", author: "A", ...entry },
+          ownerUserId: "u1",
+        }),
+      );
+    expect((await load({ aiGenerated: true }))?.aiGenerated).toBe(true);
+    expect((await load({}))?.aiGenerated).toBe(false);
+  });
+});
 
 describe("publishProjectToGallery", () => {
   it("keeps archived source text private without dropping the routing reference", async () => {
@@ -40,7 +57,7 @@ describe("publishProjectToGallery", () => {
     const seen: { url?: string; init?: RequestInit } = {};
     await publishProjectToGallery(
       imported,
-      { name: "test", description: "", tags: [] },
+      { name: "test", description: "", tags: [], aiGenerated: false },
       fetchReturning(201, { id: "entry", previewRevision: "0" }, seen),
     );
     const published = parseProject(
@@ -61,6 +78,7 @@ describe("publishProjectToGallery", () => {
         name: "  Ring Oscillator  ",
         description: "Five stages",
         tags: ["Amplifier", "OTA"],
+        aiGenerated: true,
       },
       fetchReturning(
         201,
@@ -83,10 +101,12 @@ describe("publishProjectToGallery", () => {
     const body = JSON.parse(String(seen.init?.body)) as {
       name: string;
       description: string;
+      aiGenerated: boolean;
       projectText: string;
     };
     expect(body.name).toBe("Ring Oscillator");
     expect(body.description).toBe("Five stages");
+    expect(body.aiGenerated).toBe(true);
     // The byline is the server's to set from the session, so the request
     // carries no author claim at all.
     expect(body).not.toHaveProperty("author");
@@ -105,7 +125,7 @@ describe("publishProjectToGallery", () => {
     for (const [status, payload, expected] of cases) {
       const outcome = await publishProjectToGallery(
         project,
-        { name: "N", description: "", tags: [] },
+        { name: "N", description: "", tags: [], aiGenerated: false },
         fetchReturning(status, payload),
       );
       expect(outcome.status).toBe(expected);
@@ -116,7 +136,7 @@ describe("publishProjectToGallery", () => {
   it("reads a 422 as the quality gates, not as a refusal", async () => {
     const outcome = await publishProjectToGallery(
       project,
-      { name: "N", description: "", tags: [] },
+      { name: "N", description: "", tags: [], aiGenerated: false },
       fetchReturning(422, {
         error: "quality-gate",
         failures: [
@@ -133,7 +153,7 @@ describe("publishProjectToGallery", () => {
   it("reports a thrown fetch as unreachable", async () => {
     const outcome = await publishProjectToGallery(
       project,
-      { name: "N", description: "", tags: [] },
+      { name: "N", description: "", tags: [], aiGenerated: false },
       (() => Promise.reject(new Error("offline"))) as typeof fetch,
     );
     expect(outcome).toEqual({ status: "unreachable", message: "offline" });
