@@ -1,0 +1,31 @@
+CMOS enable-controlled ring oscillator
+.include "circuit.spice"
+.include "models.spice"
+VDD vdd 0 3.3
+VEN en 0 PWL(0 0 20n 0 20.1n 3.3 160n 3.3 160.1n 0 220n 0 220.1n 3.3 380n 3.3 380.1n 0 420n 0)
+XDUT vdd 0 en out astra_024_cmos_gated_ring_oscillator
+.temp 27
+.options method=gear reltol=1e-5
+* @spec disabled_start range 3.2 3.4 unit=V
+* @spec high range 3.1 3.4 unit=V
+* @spec low range -0.1 0.2 unit=V
+* @spec period range 1e-9 2e-8 unit=s
+* @spec disabled_stop range 3.2 3.4 unit=V
+* @spec restart_high range 3.1 3.4 unit=V
+* @spec restart_low range -0.1 0.2 unit=V
+* @spec final_stop range 3.2 3.4 unit=V
+.control
+set filetype=ascii
+tran 5p 420n
+meas tran disabled_start FIND v(out) AT=15n
+meas tran high MAX v(out) FROM=40n TO=140n
+meas tran low MIN v(out) FROM=40n TO=140n
+meas tran period TRIG v(out) VAL=1.65 RISE=5 TARG v(out) VAL=1.65 RISE=6
+meas tran disabled_stop MIN v(out) FROM=190n TO=215n
+meas tran restart_high MAX v(out) FROM=240n TO=360n
+meas tran restart_low MIN v(out) FROM=240n TO=360n
+meas tran final_stop MIN v(out) FROM=400n TO=420n
+write out.raw
+quit
+.endc
+.end

@@ -1,0 +1,42 @@
+
+Note: No compatibility mode selected!
+
+
+Circuit: cmos muller c-element
+
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+Initial Transient Solution
+--------------------------
+
+Node                                   Voltage
+----                                   -------
+vdd                                        3.3
+a                                            0
+b                                            0
+q                                  6.12963e-10
+xdut.net0                                  3.3
+xdut.net4                         -1.87889e-14
+xdut.net2                                  3.3
+xdut.net5                         -1.87889e-14
+xdut.net1                                  3.3
+xdut.net3                           6.0242e-21
+vb#branch                                    0
+va#branch                                    0
+vdd#branch                          -1.324e-11
+
+
+No. of Data Rows : 18200
+state0              =  6.12963e-10
+state1              =  1.87565e-09
+state2              =  4.83812e-10
+state3              =  1.74429e-09
+state4              =  3.30000e+00
+state5              =  3.30000e+00
+state6              =  3.30000e+00
+state7              =  3.30000e+00
+state8              =  5.80884e-07
+ASCII raw file "out.raw"
+ngspice-46 done

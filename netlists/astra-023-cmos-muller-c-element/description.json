@@ -1,0 +1,11 @@
+{
+  "name": "CMOS Muller C-element",
+  "description": "A static 14-MOS Muller C-element built from an inverting majority network and a restoring inverter. Output q rises when a and b are both high, falls when both are low, and retains its state while they disagree. Explicit q feedback supplies the third majority input. The saved 3.3 V test checks set, reset, and both mixed-input combinations after both stored states, with a 500 fF output load. Initialization uses a=b=0; simultaneous asynchronous transitions, metastability and PVT timing are not qualified.",
+  "tags": [
+    "CMOS",
+    "Asynchronous Logic",
+    "Muller C-element",
+    "State Retention",
+    "Handshake"
+  ]
+}

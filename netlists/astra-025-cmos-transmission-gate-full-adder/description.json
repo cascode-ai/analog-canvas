@@ -1,0 +1,11 @@
+{
+  "name": "CMOS transmission-gate full adder",
+  "description": "A 20-MOS full adder implements p=a XOR b, sum=p XOR cin, and cout=p ? cin : a using six full-swing transmission gates and four complementary-control inverters. Both outputs drive 500 fF. The saved 3.3 V experiment exercises all eight input combinations and checks both sum and carry for 16 acceptance points. Paths are unbuffered transmission-gate logic; the example does not establish a worst-case propagation delay, fanout, glitch immunity or PVT specification.",
+  "tags": [
+    "CMOS",
+    "Full Adder",
+    "Arithmetic",
+    "Transmission Gate",
+    "Digital"
+  ]
+}

@@ -1,0 +1,49 @@
+CMOS transmission-gate full adder
+.include "circuit.spice"
+.include "models.spice"
+VDD vdd 0 3.3
+VCIN cin 0 PULSE(0 3.3 40n 100p 100p 39.8n 80n)
+VB b 0 PULSE(0 3.3 80n 100p 100p 79.8n 160n)
+VA a 0 PULSE(0 3.3 160n 100p 100p 159.8n 320n)
+XDUT vdd 0 sum cout a b cin astra_025_cmos_transmission_gate_full_adder
+.temp 27
+.options method=gear reltol=1e-5
+* @spec sum0 range -0.01 0.01 unit=V
+* @spec cout0 range -0.01 0.01 unit=V
+* @spec sum1 range 3.2 3.4 unit=V
+* @spec cout1 range -0.01 0.01 unit=V
+* @spec sum2 range 3.2 3.4 unit=V
+* @spec cout2 range -0.01 0.01 unit=V
+* @spec sum3 range -0.01 0.01 unit=V
+* @spec cout3 range 3.2 3.4 unit=V
+* @spec sum4 range 3.2 3.4 unit=V
+* @spec cout4 range -0.01 0.01 unit=V
+* @spec sum5 range -0.01 0.01 unit=V
+* @spec cout5 range 3.2 3.4 unit=V
+* @spec sum6 range -0.01 0.01 unit=V
+* @spec cout6 range 3.2 3.4 unit=V
+* @spec sum7 range 3.2 3.4 unit=V
+* @spec cout7 range 3.2 3.4 unit=V
+.control
+set filetype=ascii
+tran 20p 320n
+meas tran sum0 FIND v(sum) AT=30n
+meas tran cout0 FIND v(cout) AT=30n
+meas tran sum1 FIND v(sum) AT=70n
+meas tran cout1 FIND v(cout) AT=70n
+meas tran sum2 FIND v(sum) AT=110n
+meas tran cout2 FIND v(cout) AT=110n
+meas tran sum3 FIND v(sum) AT=150n
+meas tran cout3 FIND v(cout) AT=150n
+meas tran sum4 FIND v(sum) AT=190n
+meas tran cout4 FIND v(cout) AT=190n
+meas tran sum5 FIND v(sum) AT=230n
+meas tran cout5 FIND v(cout) AT=230n
+meas tran sum6 FIND v(sum) AT=270n
+meas tran cout6 FIND v(cout) AT=270n
+meas tran sum7 FIND v(sum) AT=310n
+meas tran cout7 FIND v(cout) AT=310n
+write out.raw
+quit
+.endc
+.end

@@ -1,0 +1,33 @@
+CMOS 3-bit R-2R DAC
+.include "circuit.spice"
+.include "models.spice"
+VDD vdd 0 3.3
+VD0 d0 0 PULSE(0 3.3 50n 100p 100p 49.8n 100n)
+VD1 d1 0 PULSE(0 3.3 100n 100p 100p 99.8n 200n)
+VD2 d2 0 PULSE(0 3.3 200n 100p 100p 199.8n 400n)
+XDUT vdd 0 d0 d1 d2 out astra_022_cmos_r2r_dac
+.temp 27
+.options method=gear reltol=1e-5
+* @spec code0 range -0.018 0.018 unit=V
+* @spec code1 range 0.39449999999999996 0.4305 unit=V
+* @spec code2 range 0.8069999999999999 0.843 unit=V
+* @spec code3 range 1.2194999999999998 1.2554999999999998 unit=V
+* @spec code4 range 1.632 1.668 unit=V
+* @spec code5 range 2.0445 2.0805 unit=V
+* @spec code6 range 2.457 2.4929999999999994 unit=V
+* @spec code7 range 2.8695 2.9054999999999995 unit=V
+.control
+set filetype=ascii
+tran 50p 400n
+meas tran code0 FIND v(out) AT=40n
+meas tran code1 FIND v(out) AT=90n
+meas tran code2 FIND v(out) AT=140n
+meas tran code3 FIND v(out) AT=190n
+meas tran code4 FIND v(out) AT=240n
+meas tran code5 FIND v(out) AT=290n
+meas tran code6 FIND v(out) AT=340n
+meas tran code7 FIND v(out) AT=390n
+write out.raw
+quit
+.endc
+.end

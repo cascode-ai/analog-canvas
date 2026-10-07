@@ -1,0 +1,25 @@
+
+.subckt astra_025_cmos_transmission_gate_full_adder vdd VSS sum cout a b cin
+CC cout VSS 500f
+CS sum VSS 500f
+M1 ab a vdd vdd APMOS l=1u w=20u
+M10 b ab p VSS ANMOS l=1u w=10u
+M11 bb ab p vdd APMOS l=1u w=20u
+M12 bb a p VSS ANMOS l=1u w=10u
+M13 cin p sum vdd APMOS l=1u w=20u
+M14 cin pb sum VSS ANMOS l=1u w=10u
+M15 cinb pb sum vdd APMOS l=1u w=20u
+M16 cinb p sum VSS ANMOS l=1u w=10u
+M17 a p cout vdd APMOS l=1u w=20u
+M18 a pb cout VSS ANMOS l=1u w=10u
+M19 cin pb cout vdd APMOS l=1u w=20u
+M2 ab a VSS VSS ANMOS l=1u w=10u
+M20 cin p cout VSS ANMOS l=1u w=10u
+M3 bb b vdd vdd APMOS l=1u w=20u
+M4 bb b VSS VSS ANMOS l=1u w=10u
+M5 pb p vdd vdd APMOS l=1u w=20u
+M6 pb p VSS VSS ANMOS l=1u w=10u
+M7 cinb cin vdd vdd APMOS l=1u w=20u
+M8 cinb cin VSS VSS ANMOS l=1u w=10u
+M9 b a p vdd APMOS l=1u w=20u
+.ends astra_025_cmos_transmission_gate_full_adder

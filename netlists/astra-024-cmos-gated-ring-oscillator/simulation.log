@@ -1,0 +1,38 @@
+
+Note: No compatibility mode selected!
+
+
+Circuit: cmos enable-controlled ring oscillator
+
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+Initial Transient Solution
+--------------------------
+
+Node                                   Voltage
+----                                   -------
+vdd                                        3.3
+en                                           0
+xdut.net0                                  3.3
+xdut.net1                          6.12963e-10
+xdut.net2                                  3.3
+xdut.net3                          6.12963e-10
+out                                        3.3
+xdut.net4                         -2.32946e-20
+ven#branch                                   0
+vdd#branch                          -1.655e-11
+
+ Reference value :  2.44569e-07
+No. of Data Rows : 84082
+disabled_start      =  3.30000e+00
+high                =  3.30167e+00 at=  1.18466e-07
+low                 =  -1.95006e-03 at=  5.98920e-08
+period              =  5.07928e-09 targ=  5.04197e-08 trig=  4.53404e-08
+disabled_stop       =  3.30000e+00 at=  2.14999e-07
+restart_high        =  3.30167e+00 at=  2.98149e-07
+restart_low         =  -1.95006e-03 at=  2.75130e-07
+final_stop          =  3.30000e+00 at=  4.19992e-07
+ASCII raw file "out.raw"
+ngspice-46 done

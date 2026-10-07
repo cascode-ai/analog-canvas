@@ -1,0 +1,20 @@
+
+.subckt astra_024_cmos_gated_ring_oscillator vdd VSS en out
+C0 net0 VSS 1p
+C1 net1 VSS 1p
+C2 net2 VSS 1p
+C3 net3 VSS 1p
+C4 out VSS 1p
+M1 net0 en vdd vdd APMOS l=1u w=20u
+M10 net3 net2 VSS VSS ANMOS l=1u w=10u
+M11 out net3 vdd vdd APMOS l=1u w=20u
+M12 out net3 VSS VSS ANMOS l=1u w=10u
+M2 net0 out vdd vdd APMOS l=1u w=20u
+M3 net0 en net4 VSS ANMOS l=1u w=10u
+M4 net4 out VSS VSS ANMOS l=1u w=10u
+M5 net1 net0 vdd vdd APMOS l=1u w=20u
+M6 net1 net0 VSS VSS ANMOS l=1u w=10u
+M7 net2 net1 vdd vdd APMOS l=1u w=20u
+M8 net2 net1 VSS VSS ANMOS l=1u w=10u
+M9 net3 net2 vdd vdd APMOS l=1u w=20u
+.ends astra_024_cmos_gated_ring_oscillator

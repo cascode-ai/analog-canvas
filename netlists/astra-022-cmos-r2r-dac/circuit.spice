@@ -1,0 +1,29 @@
+
+.subckt astra_022_cmos_r2r_dac vdd VSS d0 d1 d2 out
+CL out VSS 100f
+M1 d0b d0 vdd vdd APMOS l=1u w=20u
+M10 VSS d0b net2 VSS ANMOS l=1u w=10u
+M11 vdd d1b net3 vdd APMOS l=1u w=20u
+M12 vdd d1 net3 VSS ANMOS l=1u w=10u
+M13 VSS d1 net3 vdd APMOS l=1u w=20u
+M14 VSS d1b net3 VSS ANMOS l=1u w=10u
+M15 vdd d2b net4 vdd APMOS l=1u w=20u
+M16 vdd d2 net4 VSS ANMOS l=1u w=10u
+M17 VSS d2 net4 vdd APMOS l=1u w=20u
+M18 VSS d2b net4 VSS ANMOS l=1u w=10u
+M2 d0b d0 VSS VSS ANMOS l=1u w=10u
+M3 d1b d1 vdd vdd APMOS l=1u w=20u
+M4 d1b d1 VSS VSS ANMOS l=1u w=10u
+M5 d2b d2 vdd vdd APMOS l=1u w=20u
+M6 d2b d2 VSS VSS ANMOS l=1u w=10u
+M7 vdd d0b net2 vdd APMOS l=1u w=20u
+M8 vdd d0 net2 VSS ANMOS l=1u w=10u
+M9 VSS d0 net2 vdd APMOS l=1u w=20u
+R0 net2 net0 20k
+R1 net3 net1 20k
+R2 net4 out 20k
+RL out VSS 1G
+RT net0 VSS 20k
+RX0 net0 net1 10k
+RX1 net1 out 10k
+.ends astra_022_cmos_r2r_dac

@@ -1,0 +1,18 @@
+
+.subckt astra_023_cmos_muller_c_element vdd VSS a b q
+CQ q VSS 500f
+M1 net0 a vdd vdd APMOS l=1u w=20u
+M10 net4 q VSS VSS ANMOS l=1u w=10u
+M11 net2 b net5 VSS ANMOS l=1u w=10u
+M12 net5 q VSS VSS ANMOS l=1u w=10u
+M13 q net2 vdd vdd APMOS l=1u w=20u
+M14 q net2 VSS VSS ANMOS l=1u w=10u
+M2 net0 b vdd vdd APMOS l=1u w=20u
+M3 net1 a net0 vdd APMOS l=1u w=20u
+M4 net1 q net0 vdd APMOS l=1u w=20u
+M5 net2 b net1 vdd APMOS l=1u w=20u
+M6 net2 q net1 vdd APMOS l=1u w=20u
+M7 net2 a net3 VSS ANMOS l=1u w=10u
+M8 net3 b VSS VSS ANMOS l=1u w=10u
+M9 net2 a net4 VSS ANMOS l=1u w=10u
+.ends astra_023_cmos_muller_c_element

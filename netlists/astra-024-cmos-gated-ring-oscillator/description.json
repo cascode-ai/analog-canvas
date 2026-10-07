@@ -1,0 +1,11 @@
+{
+  "name": "CMOS enable-controlled ring oscillator",
+  "description": "A two-input CMOS NAND and four restoring inverters form a five-stage ring when en is high. Pulling en low forces a stable high output after propagation through the loop. Twelve explicit MOS devices drive five 1 pF stage loads. The saved 3.3 V experiment checks initial disable, oscillation period and swing, stopping, restarting, and a second stop. Timing depends on these generic Level-1 devices and loads; this is not a jitter, phase-noise, start-up yield or PVT-qualified clock source.",
+  "tags": [
+    "CMOS",
+    "Ring Oscillator",
+    "Clock",
+    "Enable",
+    "Timing"
+  ]
+}
