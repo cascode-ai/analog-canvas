@@ -1,0 +1,10 @@
+{
+  "name": "Ninth-order LC high-pass ladder",
+  "description": "Five series capacitors and four shunt inductors form a ninth-order Butterworth high-pass ladder. A 1 kΩ source resistance and a 1 kΩ load define the filter impedance. The capacitors block DC transmission while the inductors shunt low-frequency signals. In the high-frequency passband, the output approaches half the source voltage, or −6.02 dB, because of the matched terminations. ngspice 46 measures −9.03 dB at the 10 kHz cutoff and −60.20 dB at 5 kHz. The saved Functional verification experiment reproduces the AC response and checks its passband, cutoff and stopband. These are ideal RLC results at 27°C; inductor resistance, self-resonance and component tolerance are not included.",
+  "tags": [
+    "Passive",
+    "High-pass Filter",
+    "Butterworth",
+    "LC Filter"
+  ]
+}

@@ -1,0 +1,14 @@
+
+.subckt astra_003_hp_ladder VSS in out
+C1 net1 net0 45.83n
+C2 net2 net1 10.39n
+C3 net3 net2 7.958n
+C4 net4 net3 10.39n
+C5 out net4 45.83n
+L1 net1 VSS 15.92m
+L2 net2 VSS 8.468m
+L3 net3 VSS 8.468m
+L4 net4 VSS 15.92m
+R1 net0 in 1k
+R2 out VSS 1k
+.ends astra_003_hp_ladder
