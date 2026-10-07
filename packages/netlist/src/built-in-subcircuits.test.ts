@@ -107,8 +107,28 @@ describe("built-in Analog Block subcircuits", () => {
         name,
         direction: "passive" as const,
       })),
-      formalParameters: [],
+      formalParameters: [{ name: "custom_gain", defaultValue: "1" }],
+      implementation: {
+        kind: "source",
+        sourceId: "custom-source",
+        entry: "custom_amp",
+      },
     });
+    project.modelSources = [
+      {
+        id: "custom-source",
+        language: "spice",
+        revision: 1,
+        entry: "custom.spice",
+        dependencies: [],
+        files: [
+          {
+            path: "custom.spice",
+            text: ".subckt custom_amp IN+ IN- OUT params: custom_gain=1\nE1 OUT 0 IN+ IN- {custom_gain}\n.ends custom_amp\n",
+          },
+        ],
+      },
+    ];
     const instance = project.documents[0]!.instances.find(
       (i) => i.id === "block-1",
     )!;
@@ -123,6 +143,7 @@ describe("built-in Analog Block subcircuits", () => {
       "X1 plus minus out custom_amp custom_gain={g}",
     );
     expect(result.file.text).not.toContain(".subckt opamp ");
+    expect(result.file.text).toContain(project.modelSources[0]!.files[0]!.text);
   });
   it("exports a logic gate with its generated ideal body", () => {
     // Issue #1255 asked for a body or a blocking diagnostic; a placed gate

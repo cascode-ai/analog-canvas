@@ -393,6 +393,28 @@ export function projectModelText(source: ProjectModelSource): string {
   return renderProjectModelSource(source).text;
 }
 
+/** Append applied owners with the same native bytes and reverse spans in every design view. */
+export function appendProjectModelSources(
+  text: string,
+  sources: readonly ProjectModelSource[],
+): PrintedProjectModelSource {
+  const segments: ProjectModelSourceLocation[] = [];
+  for (const source of sources) {
+    const model = renderProjectModelSource(source);
+    text += `\n* Project model: applied version ${source.revision}${source.draft ? " (draft pending)" : ""}\n`;
+    const offset = text.length;
+    text += model.text;
+    segments.push(
+      ...model.segments.map((segment) => ({
+        ...segment,
+        startOffset: segment.startOffset + offset,
+        endOffset: segment.endOffset + offset,
+      })),
+    );
+  }
+  return { text, segments };
+}
+
 /** A bounded text change reverses only when it has one exact model-file owner. */
 export function planMappedProjectModelEdit(
   original: string,

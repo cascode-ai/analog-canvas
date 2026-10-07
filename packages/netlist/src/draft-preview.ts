@@ -13,6 +13,10 @@ import type {
   DesignNetlistLocations,
   PrintedNetlistInstance,
 } from "./printed-netlist.js";
+import {
+  collectProjectModelSources,
+  appendProjectModelSources,
+} from "./project-model-source.js";
 
 /** What a draft netlist prints where the drawing does not yet say. */
 export const DRAFT_NETLIST_PLACEHOLDER = "?";
@@ -126,6 +130,26 @@ export function createDraftNetlistPreview(
   });
   if (unprinted.length)
     text = `${text.replace(/\n*$/u, "\n")}${unprinted.join("\n")}\n`;
+  if (format === "spice") {
+    const models = collectProjectModelSources(
+      project,
+      (ir.externalMasters ?? []).map((master) => master.id),
+      { format, reservedNames: ir.cells.map((cell) => cell.name) },
+    );
+    // Corrupt/missing include graphs cannot be expanded. Keep valid applied
+    // owners visible; the strict export retains every refusal diagnostic.
+    const valid = models.sources.filter(
+      (source) =>
+        !models.diagnostics.some(
+          (diagnostic) =>
+            diagnostic.severity === "error" &&
+            diagnostic.modelSource?.sourceId === source.id,
+        ),
+    );
+    const composed = appendProjectModelSources(text, valid);
+    text = composed.text;
+    if (composed.segments.length) locations.modelSources = composed.segments;
+  }
   const named = new Set(
     analysis.diagnostics
       .filter((item) => item.severity === "error")

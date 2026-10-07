@@ -3,6 +3,10 @@ import { describe, expect, it } from "vitest";
 
 import { createDraftNetlistPreview } from "./draft-preview.js";
 import { createDesignNetlistExport } from "./export.js";
+import {
+  externalModelFixture,
+  expectModelSourceMapping,
+} from "./external-model-fixture.test-support.js";
 
 function parts(
   entries: readonly [id: string, symbolId: string, x: number][],
@@ -19,6 +23,27 @@ function parts(
 }
 
 describe("draft netlist preview", () => {
+  it("keeps applied model and helper bodies visible when another part is unfinished", () => {
+    const project = externalModelFixture();
+    project.documents[0]!.instances.push({
+      id: "R1",
+      reference: "R1",
+      symbolId: "resistor",
+      placement: { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+    });
+    expect(createDesignNetlistExport(project).status).toBe("blocked");
+    const draft = createDraftNetlistPreview(project)!;
+    expect(draft.text).toContain("R1 ? ? ?");
+    expect(draft.text.match(/^\.subckt gain_block\b/gm)).toHaveLength(1);
+    expect(draft.text.match(/^\.subckt helper\b/gm)).toHaveLength(1);
+    expect(draft.text).toContain("BOUT B A V={gain*v(A,B)}");
+    expect(draft.flagged.map((card) => card.instanceId)).toContain("R1");
+    expectModelSourceMapping(
+      draft.text,
+      draft.locations.modelSources!,
+      project.modelSources![0]!,
+    );
+  });
   it("prints parts as soon as they are placed, with ? for what is missing", () => {
     const project = parts([
       ["R1", "resistor", 0],
