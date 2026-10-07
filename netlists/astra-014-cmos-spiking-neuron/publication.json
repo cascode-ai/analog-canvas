@@ -13,6 +13,6 @@
   },
   "mcpVersion": "0.17.48",
   "checkedAt": "2026-10-07T19:41:31.067Z",
-  "layoutUpdatedAt": "2026-10-07T19:50:35.461Z",
-  "layoutChange": "Use the editor roleLabelFormat with actual device prefix for all device references; clear sample/read labels from adjacent clock buses. Electrical netlist unchanged."
+  "layoutUpdatedAt": "2026-10-07T20:06:20.549Z",
+  "layoutChange": "Preserve the standard device typography; move spike below VDD and reset label beside M12; separate delay label from resistor value; extend both VDD rails 30 units beyond the last tap. Exported electrical netlist unchanged."
 }
