@@ -87,15 +87,26 @@ asks the AuthDO once.
   circuit names, authors, descriptions and tags without changing the tag list.
   Narrow mobile layouts keep that search visible while collapsing the filters
   and tag groups behind a Search & filters button. An empty tag selection result
-  does not substitute unfiltered examples. With `q` the tag counts are those of
-  the circuits the search finds.
+  does not substitute unfiltered examples. The counts follow every filter of
+  the wall except the tag choice itself (author or `owner`, netlist, liked,
+  Needs attention and its reason, sizes, and `q`), so no tag claims more
+  circuits than the narrowed wall holds; with `q` they are those of the
+  circuits the search finds.
 - `GET /api/gallery/authors` — non-empty public bylines with their currently
   visible circuit counts, ranked by count and then author name. This endpoint
   remains the unfiltered public ranking. The clickable wall count instead uses
   the `authors` aggregate returned by `GET /api/gallery`: the same author,
   tags, netlist, liked and authorized Needs attention filters as its cards,
   counted before pagination. Empty results show no contributors. Selecting an
-  author retains the other active filters.
+  author retains the other active filters. While the wall is narrowed to one
+  author, the menu opens with "Circuits by <author>" and an All authors
+  button, the same control as the one beside the wall's author line; it
+  clears the author and keeps every other filter. A wall narrowed to one
+  account names it by the account's current byline once its contributors
+  answer, even when a remembered filter or an older link carries a former
+  name; the wall then remembers the current byline, and requests narrowed to
+  an account send only `owner`. A link naming only the account shows the same
+  line, as "this contributor" until a contributor answers.
 - `GET /api/gallery?q=<words>` — the server searches every public circuit's
   name, byline, description and tags, never its Project Code or preview, with
   the rule the browser uses (`apps/editor/src/gallery-search.ts`):
@@ -546,21 +557,31 @@ unreadable, ruleVersion, remaining}`). Every entry stores the rule version
   drawn supply, device Reference, Cell Pin and Net labels without a look of
   their own take their standard look (V_DD, M₁, V_BP), and a drawing that
   never chose a subscript slant draws subscripts upright. The body is
-  `{ "ids": [...], "apply"?: true, "expected"?: {<id>: <sha256>}, "nudges"?:
+  `{ "ids": [...], "table"?: "galleryEntries" | "galleryEntryVersions",
+"apply"?: true, "expected"?: {<id>: <sha256>}, "nudges"?:
 {<id>: [{label, dx, dy}]}, "keep"?: {<id>: [label]}, "legacyLooks"?: true }`.
   `legacyLooks` also restyles looks stored before these standards (stored
-  copies of a historical look, scripts slanted by the surrounding italic) and
-  is only for drawings made before them. The server computes the change
-  itself; a nudge may only move a label given its standard look, by at most
-  16 × 12 units, and `keep` names standard-look candidates to leave exactly as
-  they are (for a label that cannot stay as clear as it was). Without
-  `apply` it reports, per entry, the labels, the SHA-256 of the stored Project
-  Code, and whether every electrical name and the SPICE and Spectre netlists
-  are unchanged. An apply needs that SHA-256 for each entry (`stale`
-  otherwise), refuses any electrical change, re-renders the preview, and
-  replaces only the Project Code and preview through a compare-and-set;
-  saved versions, byline, status, tags and likes are untouched. Same-origin
-  only.
+  copies of a historical look, scripts slanted by the surrounding italic).
+  The server applies it only to content saved before them (2026-09-24, #1052):
+  an entry by its creation or newest update, a version by its own date. The
+  server computes the change itself; a nudge may only move a label given its
+  standard look, by at most 16 × 12 units, and `keep` names standard-look
+  candidates to leave exactly as they are. A label whose standard look would
+  draw it over a wire, part or label it was clear of keeps its look and is
+  reported in `clearanceKept`, for manual repair; a nudge that leaves it over
+  something refuses the row. Without `apply` it reports, per row, the labels,
+  the SHA-256 of the stored Project Code, and whether every electrical name
+  and the SPICE and Spectre netlists are unchanged. An apply needs that
+  SHA-256 for each row (`stale` otherwise), refuses any electrical change,
+  re-renders the preview, and replaces only the Project Code and preview
+  through a compare-and-set. With the default `galleryEntries` the entry's
+  saved versions, byline, status, tags and likes are untouched; with
+  `galleryEntryVersions` the ids name retained versions, and only their
+  Project Code and preview change, never their number, byline, text, tags or
+  date. Only the public Gallery is maintained: a row whose entry is not
+  public is skipped (`not-public`). Each result carries the content's
+  `savedAt` (and a version's `entryId`), and `legacyWithheld` when that date
+  kept `legacyLooks` from applying. Same-origin only.
 - `POST /api/gallery/maintenance/schema-restore` — atomically restore the three
   Project-bearing tables from a `schema-backup` payload supplied as
   `{ "backup": ... }`. Current retention is reapplied, so a legacy backup with

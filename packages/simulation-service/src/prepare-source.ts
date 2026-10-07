@@ -106,6 +106,11 @@ export async function prepareSourceExecutionInput(
   const input: ExecutionInput & { preparedDeck: string } = {
     language: "vacask",
     mode: "raw",
+    // VACASK runs cannot name the drawn circuit in the netlist digest yet
+    // (#1243): validateNativeExecutionInput requires and rewrites an empty
+    // netlist, in the Worker and in the manually deployed host
+    // (containers/vacask/run-job.mjs), and the Worker's receipt checks expect
+    // "" (worker/simulation-vacask.ts). The host must accept one first.
     netlist: "",
     testbench: preparedDeck,
     preparedDeck,

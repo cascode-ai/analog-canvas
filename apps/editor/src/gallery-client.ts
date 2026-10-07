@@ -273,33 +273,14 @@ export interface GalleryLandingPreload {
   focus?: { id: string; entry: Promise<GalleryFeedEntry | null> };
 }
 
-/** The wall filters that also narrow the tag counts beside it. */
-export interface GalleryTagFilters {
-  /** Words the server searches circuits for; the tags counted are theirs. */
-  q?: string;
-  netlistable?: boolean;
-  liked?: boolean;
-  attention?: boolean;
-  /** Sizes by part count; any of them matches. */
-  parts?: readonly string[];
-  /** The reason Needs attention narrows to; read only with attention. */
-  attentionKind?: string | null;
-}
-
-/** One stable key per combination of the filters that narrow tag counts. */
-export function galleryTagScope(filters: GalleryTagFilters): string {
-  return new URLSearchParams([
-    ...(filters.q?.trim() ? [["q", filters.q.trim()]] : []),
-    ...(filters.netlistable ? [["netlistable", "1"]] : []),
-    ...(filters.liked ? [["liked", "1"]] : []),
-    ...(filters.attention ? [["attention", "1"]] : []),
-    ...(filters.attention && filters.attentionKind
-      ? [["reason", filters.attentionKind]]
-      : []),
-    ...(filters.parts && filters.parts.length > 0
-      ? [["parts", filters.parts.join(",")]]
-      : []),
-  ]).toString();
+/**
+ * One stable key per combination of the filters that narrow tag counts: every
+ * filter of the wall's query but its tag choice, which would otherwise zero
+ * the tags beside the ones chosen. Taking the wall's own query means a filter
+ * added to the wall narrows its tag counts too.
+ */
+export function galleryTagScope(query: GalleryFeedQuery): string {
+  return galleryFeedParams({ ...query, tags: [] }).toString();
 }
 
 /** One public byline and its contribution to the current Gallery results. */
@@ -346,6 +327,21 @@ export function galleryAuthorsOf(
   return rankContributors([...authors.values()]);
 }
 
+/**
+ * The name a wall narrowed to one contributor shows: the account's current
+ * byline once the contributors answer for it, since a remembered filter or an
+ * older link keeps the name the account had then; otherwise the filter's.
+ */
+export function galleryNarrowedByline(
+  filter: { author: string | null; ownerUserId: string | null },
+  authors: readonly GalleryAuthorOption[],
+): string | null {
+  const current = filter.ownerUserId
+    ? authors.find((option) => option.ownerUserId === filter.ownerUserId)
+    : undefined;
+  return current?.author ?? filter.author;
+}
+
 /** Keep full-page aggregates current while a local removal awaits a refresh. */
 export function removeGalleryAuthorEntry(
   authors: readonly GalleryAuthorOption[],
@@ -389,7 +385,9 @@ function galleryFeedParams(query: GalleryFeedQuery): URLSearchParams {
   if (query.attention) params.set("attention", "1");
   if (query.attention && query.attentionKind)
     params.set("reason", query.attentionKind);
-  if (query.author) params.set("author", query.author);
+  // An account narrows by its id; its byline then only labels the wall and
+  // may be a former one, so it is sent only on its own.
+  if (query.author && !query.ownerUserId) params.set("author", query.author);
   if (query.ownerUserId) params.set("owner", query.ownerUserId);
   if (query.tags && query.tags.length > 0) {
     params.set("tags", query.tags.join(","));
@@ -517,11 +515,9 @@ export async function loadGalleryEntry(
 /** The grouped tag menu. An unreachable worker leaves the menu empty. */
 export async function loadGalleryTagSummary(
   fetchLike: typeof fetch = fetch,
-  options: GalleryTagFilters = {},
+  options: GalleryFeedQuery = {},
 ): Promise<GalleryTagSummary> {
   try {
-    // Needs attention, With netlist and Liked narrow the tag counts exactly
-    // as they narrow the wall.
     const scope = galleryTagScope(options);
     const response = await fetchLike(
       `/api/gallery/tags${scope ? `?${scope}` : ""}`,

@@ -3011,8 +3011,13 @@ test("the wall count opens a contributor ranking whose names open each gallery",
       json: { entries, nextCursor: null, total: entries.length },
     });
   });
-  await page.route("**/api/gallery/tags", (route) =>
-    route.fulfill({ json: { tags: [] } }),
+  const tagQueries: string[] = [];
+  await page.route(
+    (url) => url.pathname === "/api/gallery/tags",
+    (route) => {
+      tagQueries.push(new URL(route.request().url()).search);
+      return route.fulfill({ json: { tags: [] } });
+    },
   );
   await page.route("**/api/gallery/*/preview.svg*", (route) =>
     route.fulfill({
@@ -3026,6 +3031,7 @@ test("the wall count opens a contributor ranking whose names open each gallery",
   await expect(page.getByTestId("gallery-contributor-popover")).toContainText(
     "2 authors",
   );
+  await expect(page.getByTestId("gallery-contributor-all")).toHaveCount(0);
   await expect(page.getByTestId("gallery-contributor-row-1")).toContainText(
     "Alice",
   );
@@ -3053,6 +3059,8 @@ test("the wall count opens a contributor ranking whose names open each gallery",
   );
   await expect(page.getByTestId("gallery-tile-alice-2")).toBeVisible();
   await expect(page.getByTestId("gallery-tile-bob-1")).toHaveCount(0);
+  // The tags beside the wall are counted for the same contributor.
+  await expect.poll(() => tagQueries.at(-1)).toBe("?q=amplifier&author=Alice");
   await page.getByTestId("gallery-count-panel").click();
   await expect(page.getByTestId("gallery-contributor-popover")).toContainText(
     "1 author",
@@ -3060,6 +3068,18 @@ test("the wall count opens a contributor ranking whose names open each gallery",
   await expect(page.locator(".gallery-contributor-author")).toHaveText([
     "Alice",
   ]);
+  // The way back to everyone is in the same menu, and keeps the rest.
+  await page.getByTestId("gallery-contributor-all").click();
+  await expect(page.getByTestId("gallery-contributor-popover")).toBeHidden();
+  await expect(page).toHaveURL(
+    (url) =>
+      !url.searchParams.has("author") &&
+      url.searchParams.get("tags") === "amplifier" &&
+      url.searchParams.get("q") === "amplifier",
+  );
+  await expect(page.getByTestId("gallery-filter")).toHaveCount(0);
+  await expect(page.getByTestId("gallery-tile-bob-1")).toBeVisible();
+  await expect.poll(() => tagQueries.at(-1)).toBe("?q=amplifier");
 });
 
 test("contributors cover filtered pages while text search follows only matching cards", async ({

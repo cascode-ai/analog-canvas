@@ -878,7 +878,7 @@ export class GalleryDO {
       case "update-entry":
         return this.updateEntry(body);
       case "label-looks-read":
-        return this.labelLooksRead(String(body.id));
+        return this.labelLooksRead(String(body.id), body.table);
       case "netlist-sources":
         return this.netlistSources(body);
       case "label-looks-store":
@@ -3324,15 +3324,53 @@ export class GalleryDO {
   }
 
   /** The one Gallery row a label-look maintenance pass reads. */
-  private labelLooksRead(id: string): Response {
+  private labelLooksRead(id: string, table: unknown): Response {
+    // `savedAt` is when the content was last saved by its author: a version
+    // holds content from before its own date; an entry's content is from its
+    // creation or its newest update, which left a version behind.
+    if (table === "galleryEntryVersions") {
+      const version = this.sql
+        .exec<{
+          project_text: string;
+          created_at: string;
+          entry_id: string;
+          status: string | null;
+        }>(
+          `SELECT v.project_text, v.created_at, v.entry_id, e.status
+           FROM gallery_entry_versions v
+           LEFT JOIN gallery_entries e ON e.id = v.entry_id
+           WHERE v.id = ?`,
+          id,
+        )
+        .toArray()[0];
+      if (!version)
+        return Response.json({ error: "not-found" }, { status: 404 });
+      // A version answers with its entry's status: history follows its entry.
+      return Response.json({
+        status: version.status,
+        entryId: version.entry_id,
+        projectText: version.project_text,
+        savedAt: version.created_at,
+      });
+    }
     const row = this.sql
-      .exec<{ status: string; project_text: string }>(
-        "SELECT status, project_text FROM gallery_entries WHERE id = ?",
+      .exec<{ status: string; project_text: string; created_at: string }>(
+        "SELECT status, project_text, created_at FROM gallery_entries WHERE id = ?",
         id,
       )
       .toArray()[0];
     if (!row) return Response.json({ error: "not-found" }, { status: 404 });
-    return Response.json({ status: row.status, projectText: row.project_text });
+    const updated = this.sql
+      .exec<{ at: string | null }>(
+        "SELECT MAX(created_at) AS at FROM gallery_entry_versions WHERE entry_id = ?",
+        id,
+      )
+      .one().at;
+    return Response.json({
+      status: row.status,
+      projectText: row.project_text,
+      savedAt: updated && updated > row.created_at ? updated : row.created_at,
+    });
   }
 
   /**
@@ -3409,6 +3447,8 @@ export class GalleryDO {
    * that was checked. History, byline, status, tags and likes are untouched.
    */
   private labelLooksStore(body: Record<string, unknown>): Response {
+    if (body.table === "galleryEntryVersions")
+      return this.labelLooksStoreVersion(body);
     const row = this.sql
       .exec<EntryRow>(
         "SELECT * FROM gallery_entries WHERE id = ?",
@@ -3443,6 +3483,41 @@ export class GalleryDO {
       row.project_text,
     );
     return Response.json({ id: row.id, previewRevision });
+  }
+
+  /**
+   * The same verified change to a retained version: its Project and preview
+   * only, if it still holds exactly the Project that was checked. Its id,
+   * entry, number, byline, text, tags and date stay as they were.
+   */
+  private labelLooksStoreVersion(body: Record<string, unknown>): Response {
+    const version = this.sql
+      .exec<{ id: string; project_text: string }>(
+        "SELECT id, project_text FROM gallery_entry_versions WHERE id = ?",
+        String(body.id),
+      )
+      .toArray()[0];
+    if (!version) return Response.json({ error: "not-found" }, { status: 404 });
+    if (version.project_text !== String(body.originalProjectText))
+      return Response.json(
+        { error: "concurrent-change", id: version.id },
+        { status: 409 },
+      );
+    const svgText = String(body.svgText);
+    this.sql.exec(
+      `UPDATE gallery_entry_versions
+       SET project_text = ?, schema_version = ?, svg_text = ?
+       WHERE id = ? AND project_text = ?`,
+      String(body.projectText),
+      Number(body.schemaVersion),
+      svgText,
+      version.id,
+      version.project_text,
+    );
+    return Response.json({
+      id: version.id,
+      previewRevision: sha256Hex(svgText),
+    });
   }
 
   private updateEntry(body: Record<string, unknown>): Response {

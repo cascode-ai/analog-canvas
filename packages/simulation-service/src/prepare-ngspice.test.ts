@@ -10,6 +10,7 @@ import {
 } from "../../edit-engine/src/index.js";
 import { currentFiveTransistorOtaCircuitSource } from "../../../apps/editor/src/examples/five-transistor-ota.test-support.js";
 import { locateSimulationText, createDesignNetlistExport } from "@icm/netlist";
+import { createSimulationInputMetadata } from "@icm/spice-run";
 import { CapabilitiesSchema } from "./contract.js";
 import { ProjectInputIdentity } from "./input-identity.js";
 import { prepareNgspiceExecutionInput } from "./prepare-ngspice.js";
@@ -377,6 +378,49 @@ describe("ngspice authored input identity", () => {
       nominal: { path: entry.path },
     });
     expect(project).toEqual(before);
+  });
+
+  it("names the drawn circuit in the netlist digest, apart from the testbench (#1243)", async () => {
+    const { project, folder, caps } = nativeSweepFixture();
+    const digests = async (prepared: {
+      input: { netlist: string; testbench: string; preparedDeck: string };
+    }) =>
+      createSimulationInputMetadata({
+        netlist: prepared.input.netlist,
+        testbench: prepared.input.testbench,
+        deck: prepared.input.preparedDeck,
+      });
+    const nominal = await prepareNgspiceExecutionInput(project, folder, caps);
+    if (!nominal.ok) throw Error(JSON.stringify(nominal));
+    const [generated] = nominal.generated;
+    const circuit = nominal.input.files.find(
+      (file) => file.path === generated!.path,
+    )!;
+    // The circuit file as sent, which the run's catalog lists by digest.
+    expect(nominal.input.netlist).toBe(circuit.text);
+    const before = await digests(nominal);
+    expect(circuit.text).not.toBe("");
+    // Only the drawing changes: one device width.
+    const instance = project.documents
+      .flatMap((document) => document.instances)
+      .find((item) => item.netlist?.parameters.w)!;
+    instance.netlist!.parameters.w = "33u";
+    const edited = await prepareNgspiceExecutionInput(project, folder, caps);
+    if (!edited.ok) throw Error(JSON.stringify(edited));
+    const after = await digests(edited);
+    expect(after.netlistSha256).not.toBe(before.netlistSha256);
+    expect(after.testbenchSha256).toBe(before.testbenchSha256);
+    // A second copy that would take the serialized input past the budget
+    // stays unsent: the files alone still run.
+    const withoutCopy = new TextEncoder().encode(
+      JSON.stringify({ ...edited.input, netlist: "" }),
+    ).length;
+    const tight = await prepareNgspiceExecutionInput(project, folder, {
+      ...caps,
+      maxInputBytes: withoutCopy,
+    });
+    if (!tight.ok) throw Error(JSON.stringify(tight));
+    expect(tight.input.netlist).toBe("");
   });
 
   it("selects the requested section when Profile models are inserted automatically", async () => {

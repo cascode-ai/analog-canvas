@@ -6,6 +6,7 @@ import {
   announceGalleryChange,
   galleryCountLabel,
   galleryAuthorsOf,
+  galleryNarrowedByline,
   removeGalleryAuthorEntry,
   galleryFeedQueryKey,
   galleryPreviewUrl,
@@ -258,7 +259,9 @@ export function GalleryCountPanel({
   search = null,
   authors = [],
   partial = false,
+  author = null,
   onSelectAuthor = () => undefined,
+  onShowAllAuthors = () => undefined,
 }: {
   total: number | null;
   filtered?: boolean;
@@ -266,7 +269,10 @@ export function GalleryCountPanel({
   search?: { visible: number; settled: boolean } | null;
   authors?: GalleryAuthorOption[];
   partial?: boolean;
+  /** The byline the wall is narrowed to, if any. */
+  author?: string | null;
   onSelectAuthor?: (option: GalleryAuthorOption) => void;
+  onShowAllAuthors?: () => void;
 }) {
   const label = galleryCountLabel(total, { filtered, search, searched });
   const rootRef = useRef<HTMLDetailsElement | null>(null);
@@ -296,6 +302,23 @@ export function GalleryCountPanel({
             {partial ? " so far" : ""}
           </span>
         </div>
+        {author ? (
+          // Narrowed to one byline, the board lists only that author; the
+          // way back to everyone sits where readers look for the others.
+          <div className="gallery-contributor-status">
+            <p>Circuits by {author}</p>
+            <button
+              type="button"
+              data-testid="gallery-contributor-all"
+              onClick={() => {
+                rootRef.current?.removeAttribute("open");
+                onShowAllAuthors();
+              }}
+            >
+              All authors
+            </button>
+          </div>
+        ) : null}
         {authors.length === 0 ? (
           <p className="gallery-contributor-status">
             {partial
@@ -454,10 +477,13 @@ export function GalleryFeed({
     const handle = window.setTimeout(() => setServerSearch(next), 250);
     return () => window.clearTimeout(handle);
   }, [searchQuery, serverSearch]);
+  // An account narrows by its id. Its byline is then only the label, and
+  // possibly a former one, so rewriting it must not reload the wall.
+  const queriedAuthor = ownerUserId ? null : author;
   // One query for the first page, every later page and the landing preload.
   const feedQuery = useMemo<GalleryFeedQuery>(
     () => ({
-      author,
+      author: queriedAuthor,
       ownerUserId,
       tags: selectedTags,
       netlistable: netlistableOnly,
@@ -468,7 +494,7 @@ export function GalleryFeed({
       ...(serverSearch ? { q: serverSearch } : {}),
     }),
     [
-      author,
+      queriedAuthor,
       ownerUserId,
       selectedTags,
       netlistableOnly,
@@ -497,14 +523,7 @@ export function GalleryFeed({
   // Which wall filters the shown tag counts answer; counts for any other
   // combination show as loading rather than as stale numbers.
   const [tagCountsScope, setTagCountsScope] = useState<string | null>(null);
-  const tagScope = galleryTagScope({
-    q: serverSearch,
-    netlistable: netlistableOnly,
-    liked: likedOnly,
-    attention: attentionOnly,
-    attentionKind,
-    parts: selectedParts,
-  });
+  const tagScope = galleryTagScope(feedQuery);
   const [refreshSignal, setRefreshSignal] = useState(0);
   // A like taken back under Liked removes its drawing from the wall without
   // reloading it; this recounts the tags beside it.
@@ -565,30 +584,17 @@ export function GalleryFeed({
     };
   }, []);
 
+  // Keyed by the scope, not the query: choosing a tag changes the wall but
+  // not the counts beside it.
   useEffect(() => {
     let cancelled = false;
-    const scope = galleryTagScope({
-      q: serverSearch,
-      netlistable: netlistableOnly,
-      liked: likedOnly,
-      attention: attentionOnly,
-      attentionKind,
-      parts: selectedParts,
-    });
     const request =
       refreshSignal === 0 &&
       tagCountsRefresh === 0 &&
       preload &&
-      (preload.tagsScope ?? "") === scope
+      (preload.tagsScope ?? "") === tagScope
         ? preload.tags
-        : loadGalleryTagSummary(fetch, {
-            q: serverSearch,
-            netlistable: netlistableOnly,
-            liked: likedOnly,
-            attention: attentionOnly,
-            attentionKind,
-            parts: selectedParts,
-          });
+        : loadGalleryTagSummary(fetch, feedQuery);
     void request.then((payload) => {
       if (!cancelled) {
         setTagOptions(payload.tags);
@@ -597,23 +603,13 @@ export function GalleryFeed({
             payload.groups.map(({ group, count }) => [group, count]),
           ),
         );
-        setTagCountsScope(scope);
+        setTagCountsScope(tagScope);
       }
     });
     return () => {
       cancelled = true;
     };
-  }, [
-    preload,
-    refreshSignal,
-    tagCountsRefresh,
-    serverSearch,
-    netlistableOnly,
-    likedOnly,
-    attentionOnly,
-    attentionKind,
-    selectedParts,
-  ]);
+  }, [preload, refreshSignal, tagCountsRefresh, tagScope]);
   const [state, setState] = useState<GalleryFeedState>({
     status: "loading",
     entries: [],
@@ -1129,6 +1125,15 @@ export function GalleryFeed({
   const authors = localAuthors
     ? galleryAuthorsOf(visibleEntries)
     : state.authors!;
+  const narrowedToAuthor = author !== null || ownerUserId !== null;
+  const byline = galleryNarrowedByline({ author, ownerUserId }, authors);
+  const authorName = byline ?? "this contributor";
+  // A remembered filter or an older link may carry the account's former
+  // byline; once its contributors name it, the wall remembers the current one.
+  useEffect(() => {
+    if (ownerUserId && byline && byline !== author)
+      updateFilters({ author: byline });
+  }, [ownerUserId, author, byline]);
   const localQuickCounts = searchingLoaded || !state.filterCounts;
   const quickCounts = localQuickCounts
     ? {
@@ -1257,7 +1262,9 @@ export function GalleryFeed({
             filtered={galleryFiltersNarrowQuery(filters)}
             authors={authors}
             partial={localAuthors && state.nextCursor !== null}
+            author={narrowedToAuthor ? authorName : null}
             onSelectAuthor={selectContributor}
+            onShowAllAuthors={() => selectAuthor(null)}
             searched={searchAnswered}
             search={
               searchingLoaded
@@ -1452,15 +1459,15 @@ export function GalleryFeed({
             }
           />
           <div className="gallery-main">
-            {author ? (
+            {narrowedToAuthor ? (
               <div className="gallery-filter" data-testid="gallery-filter">
-                <span>Circuits by {author}</span>
+                <span>Circuits by {authorName}</span>
                 <button
                   type="button"
                   data-testid="gallery-filter-clear"
                   onClick={() => selectAuthor(null)}
                 >
-                  Show everyone
+                  All authors
                 </button>
               </div>
             ) : null}
@@ -1696,7 +1703,7 @@ export function GalleryFeed({
                 />
                 {entries.length === 0 &&
                 selectedTags.length > 0 &&
-                author === null ? (
+                !narrowedToAuthor ? (
                   <p
                     className="gallery-status"
                     data-testid="gallery-tags-empty"
@@ -1704,16 +1711,16 @@ export function GalleryFeed({
                     No circuits match the selected tags.
                   </p>
                 ) : null}
-                {entries.length === 0 && author !== null ? (
+                {entries.length === 0 && narrowedToAuthor ? (
                   <p
                     className="gallery-status"
                     data-testid="gallery-filter-empty"
                   >
-                    No public circuits by {author} yet.
+                    No public circuits by {authorName} yet.
                   </p>
                 ) : null}
                 {entries.length === 0 &&
-                author === null &&
+                !narrowedToAuthor &&
                 selectedTags.length === 0 &&
                 !netlistableOnly &&
                 !likedOnly &&
@@ -1726,7 +1733,7 @@ export function GalleryFeed({
                   </p>
                 ) : null}
                 {entries.length === 0 &&
-                author === null &&
+                !narrowedToAuthor &&
                 (netlistableOnly || likedOnly) ? (
                   <p
                     className="gallery-status"

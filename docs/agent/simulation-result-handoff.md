@@ -55,7 +55,8 @@ an Agent run does not open the simulation panel, change its active folder, or
 replace a human run. In the selected folder's results area, **Project runs**
 shows the owner and state; **Open result** restores a completed result into the
 GUI without executing it again. The folder's status follows its newest run of
-any owner without replacing the result a person is viewing. Run history
+any owner without replacing the result a person is viewing; after a reload,
+that is the folder's newest result archived in this browser. Run history
 defaults to all Project folders; the folder filter remains available.
 
 The originating session still owns execution and cancellation. A project-scoped

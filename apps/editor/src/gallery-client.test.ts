@@ -58,7 +58,7 @@ afterEach(() => {
   FakeBroadcastChannel.channels.clear();
 });
 
-it("requests tag counts for the same netlist scope as the Gallery wall", async () => {
+it("requests tag counts for the wall's filters, leaving out its tag choice", async () => {
   const payload = {
     tags: [{ tag: "ota", count: 2 }],
     groups: [{ group: "Amplifiers", count: 2 }],
@@ -75,6 +75,22 @@ it("requests tag counts for the same netlist scope as the Gallery wall", async (
   );
   await loadGalleryTagSummary(fetchLike, { netlistable: false });
   expect(fetchLike).toHaveBeenLastCalledWith("/api/gallery/tags", {
+    credentials: "same-origin",
+  });
+  // A wall narrowed to one contributor counts only their tags; the tag
+  // choice itself never narrows its own counts.
+  await loadGalleryTagSummary(fetchLike, {
+    author: "Singh",
+    ownerUserId: "user-1",
+    tags: ["ota"],
+    netlistable: true,
+  });
+  expect(fetchLike).toHaveBeenLastCalledWith(
+    "/api/gallery/tags?owner=user-1&netlistable=1",
+    { credentials: "same-origin" },
+  );
+  await loadGalleryTagSummary(fetchLike, { author: "Singh" });
+  expect(fetchLike).toHaveBeenLastCalledWith("/api/gallery/tags?author=Singh", {
     credentials: "same-origin",
   });
 });

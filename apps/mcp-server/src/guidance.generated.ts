@@ -3,7 +3,7 @@ export const agentToolHelp = {
   simulation_source:
     "List/create/read/discard native source workspaces. Use simulation_folder for saved experiments; simulation_edit for atomic code changes. Requests and revisions match simulation_files.",
   simulation_edit:
-    "Atomically write or patch native source files. For project-folder, returned source.revision is Project.structureRevision: pass it directly to the next update.expectedRevision or simulation_run prepare.source.expectedStructureRevision. No reread after success. Reuses simulation_files validation and commit path.",
+    "Atomically write or patch native source files. For project-folder, returned source.revision is Project.structureRevision: pass it directly to the next update.expectedRevision or simulation_run prepare.source.expectedStructureRevision. No reread after success. Invalid @spec lines in the files it saved return specWarnings [{path,line,message}] in the run's words; the file still saves and runs. Reuses simulation_files validation and commit path.",
   simulation_data:
     "Sync/download complete registered files to the local workspace; artifact without outputPath is only a preview. analysisIndex + roles:[table] selects CSV; fileIds:[] syncs directory only. Reuse downloaded data. Find files with simulation_results catalog.",
   simulation_plot:

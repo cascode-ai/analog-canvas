@@ -72,9 +72,12 @@ Optional labels are captured in reports, not read back from live source.
 
 An `invalid-spec` result's `detail` names each offending token and the form
 accepted instead, for example `Bound "9.0m" is not a decimal or scientific
-number; write 9.0e-3.` The Code editor shows the same message on the
-annotation's line as you type, before any run; it comes from the parser the
-run uses.
+number; write 9.0e-3.` The parser the run uses also checks source before any
+run. The Code editor shows the same message on the annotation's line as you
+type. Over MCP or the HTTP CLI, `simulation_edit` (or `simulation_files`)
+`update` returns it for each source file it saved, whether written whole or
+changed by `replacements` or `patches`, as `specWarnings:[{path,line,message}]`. It is a warning, not a refusal: the file
+is saved and the run proceeds. A raw File Resource receipt carries no warnings.
 
 The compact four-column table uses engineering prefixes for base electrical
 units (e.g. `36.27 MΩ`, `4.39 fF`) and the same scale for a row's expected value.

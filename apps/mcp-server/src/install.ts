@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { execFileSync } from "node:child_process";
+import { realpathSync } from "node:fs";
 import { mkdir, readFile, writeFile, rename } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
@@ -55,6 +56,26 @@ export function verifyInstallationBytes(bytes: Uint8Array, sha256: string) {
     throw Error("MCP package integrity check failed; configuration unchanged");
 }
 
+/**
+ * The Node a host launches: the one running the installer, but through
+ * Homebrew's per-formula `opt` link when it runs from a versioned Cellar
+ * directory, which the next `brew upgrade` removes. The link follows the
+ * formula's upgrades; any other path is kept as it is.
+ */
+export function stableNodeExecutable(execPath: string): string {
+  const cellar =
+    /^(?<prefix>.+)\/Cellar\/(?<formula>[^/]+)\/[^/]+\/bin\/node$/u.exec(
+      execPath,
+    )?.groups;
+  if (!cellar) return execPath;
+  const linked = join(cellar.prefix!, "opt", cellar.formula!, "bin", "node");
+  try {
+    return realpathSync(linked) === realpathSync(execPath) ? linked : execPath;
+  } catch {
+    return execPath;
+  }
+}
+
 async function download(url: string, limit: number) {
   const response = await fetch(url, {
     signal: AbortSignal.timeout(30_000),
@@ -75,7 +96,7 @@ async function download(url: string, limit: number) {
 /** Network is used only here. Steady-state launch is absolute Node + local bundle. */
 export async function installMcp(
   args: string[],
-  locations: { home?: string; codex?: string } = {},
+  locations: { home?: string; codex?: string; execPath?: string } = {},
 ) {
   if (Number(process.versions.node.split(".")[0]) < 24)
     throw Error("Node.js 24 or newer is required");
@@ -124,13 +145,15 @@ export async function installMcp(
     { maxBuffer: 16_000_000, timeout: 30_000, windowsHide: true },
   );
   await writeFile(executable, program, { mode: 0o600, flag: "wx" });
+  // The probe starts the bundle exactly as the host will.
+  const node = stableNodeExecutable(locations.execPath ?? process.execPath);
   const readiness = await probeInstalledMcp(
-    process.execPath,
+    node,
     executable,
     declaration.version,
   );
   const launch = {
-    command: process.execPath,
+    command: node,
     args: [executable],
     env: { ANALOG_CANVAS_API_URL: origin },
   };

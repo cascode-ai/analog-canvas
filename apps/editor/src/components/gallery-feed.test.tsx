@@ -14,6 +14,7 @@ import {
   GALLERY_SIGN_IN_REQUIRED,
   galleryAuthorsOf,
   galleryFeedQueryKey,
+  galleryNarrowedByline,
   removeGalleryAuthorEntry,
   type GalleryFeedEntry,
 } from "../gallery-client";
@@ -141,7 +142,8 @@ describe("loadGalleryFeed", () => {
     expect(urls).toEqual([
       "/api/gallery",
       "/api/gallery?author=alice",
-      "/api/gallery?author=alice&owner=account-alice",
+      // An account narrows by its id; its byline may be a former one.
+      "/api/gallery?owner=account-alice",
       "/api/gallery?author=alice&cursor=c%7C1",
       "/api/gallery?author=alice&limit=4",
       "/api/gallery?netlistable=1&liked=1",
@@ -275,6 +277,27 @@ describe("contributors in matching entries", () => {
     expect(removeGalleryAuthorEntry(updated, entry("Alice", "a"))).toEqual([
       { author: "Bob", ownerUserId: "b", count: 1 },
     ]);
+  });
+  it("names a wall narrowed to one account by its current byline", () => {
+    const authors = [{ author: "Opus 5.5", ownerUserId: "a", count: 91 }];
+    // A remembered filter or a link from before the account was renamed.
+    expect(
+      galleryNarrowedByline({ author: "Singh", ownerUserId: "a" }, authors),
+    ).toBe("Opus 5.5");
+    // A link naming only the account, once its contributors answer.
+    expect(
+      galleryNarrowedByline({ author: null, ownerUserId: "a" }, authors),
+    ).toBe("Opus 5.5");
+    expect(
+      galleryNarrowedByline({ author: "Singh", ownerUserId: "a" }, []),
+    ).toBe("Singh");
+    // A byline alone, as an older link names a contributor.
+    expect(
+      galleryNarrowedByline({ author: "Bob", ownerUserId: null }, authors),
+    ).toBe("Bob");
+    expect(
+      galleryNarrowedByline({ author: null, ownerUserId: null }, authors),
+    ).toBeNull();
   });
 });
 
