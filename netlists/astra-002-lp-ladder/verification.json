@@ -1,0 +1,47 @@
+{
+  "simulator": "ngspice 46",
+  "temperatureC": 27,
+  "modelScope": "Ideal passive RLC; no semiconductor models used",
+  "deviceCount": 11,
+  "canonicalRoundTrip": true,
+  "nativeNetlistMatches": true,
+  "schematicDiagnostics": 0,
+  "analyses": [
+    "ac"
+  ],
+  "specs": [
+    {
+      "name": "passband_db",
+      "value": -6.0206,
+      "unit": "dB",
+      "lower": -6.1,
+      "upper": -5.9,
+      "passed": true
+    },
+    {
+      "name": "edge_db",
+      "value": -9.02651,
+      "unit": "dB",
+      "lower": -9.2,
+      "upper": -8.8,
+      "passed": true
+    },
+    {
+      "name": "stopband_db",
+      "value": -60.206,
+      "unit": "dB",
+      "lower": null,
+      "upper": -45,
+      "passed": true
+    }
+  ],
+  "hostedRunId": "70139a4f-fdc4-4fed-a5fe-f98c3868a407",
+  "hostedSpecs": {
+    "available": true,
+    "total": 3,
+    "passed": 3,
+    "failed": 0,
+    "notEvaluated": 0,
+    "unconstrained": 0
+  }
+}

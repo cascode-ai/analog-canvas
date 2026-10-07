@@ -1,0 +1,22 @@
+Ninth-order LC low-pass ladder — ideal RLC verification
+.include "circuit.spice"
+VIN in 0 DC 0 AC 1
+XDUT 0 in out astra_002_lp_ladder
+.temp 27
+* @spec passband_db range -6.1 -5.9 unit=dB
+* @spec edge_db range -9.2 -8.8 unit=dB
+* @spec stopband_db < -45 unit=dB
+.control
+set filetype=ascii
+set wr_singlescale
+set wr_vecnames
+ac dec 160 10 10Meg
+let response=db(v(out))
+meas ac passband_db FIND response AT=100
+meas ac edge_db FIND response AT=10000
+meas ac stopband_db FIND response AT=20000
+wrdata ac.dat v(out)
+write out.raw v(out)
+quit
+.endc
+.end

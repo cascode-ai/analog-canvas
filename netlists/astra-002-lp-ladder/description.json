@@ -1,0 +1,10 @@
+{
+  "name": "Ninth-order LC low-pass ladder",
+  "description": "Five series inductors and four shunt capacitors form a ninth-order Butterworth low-pass ladder. R1 models a 1 kΩ source and R2 terminates the network in 1 kΩ. The coefficients place the cutoff at 10 kHz and give a flat passband. With matched terminations, the output approaches half the source voltage, or −6.02 dB. This is the source/load voltage division; the reactive ladder is ideal and lossless. ngspice 46 measures −9.03 dB at 10 kHz and −60.21 dB at 20 kHz, both relative to the source. The saved Functional verification experiment contains the AC sweep and acceptance limits. Values are rounded to four significant digits. Real inductors add winding resistance, and component tolerance shifts the response.",
+  "tags": [
+    "Passive",
+    "Low-pass Filter",
+    "Butterworth",
+    "LC Filter"
+  ]
+}

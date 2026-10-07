@@ -1,0 +1,10 @@
+{
+  "title": "Ninth-order LC low-pass ladder",
+  "kind": "lp",
+  "order": 9,
+  "terminationOhm": 1000,
+  "frequencyHz": 10000,
+  "passHz": 100,
+  "edgeHz": 10000,
+  "stopHz": 20000
+}
