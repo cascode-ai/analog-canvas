@@ -30,6 +30,7 @@ import {
   ProjectSimulationFolderSchema,
   SimulationCircuitBindingSchema,
   SimulationInputPathSchema,
+  ProjectModelSourceSchema,
 } from "@icm/model";
 import { ObjectLocatorSchema, HierarchyFrameSchema } from "@icm/derived";
 import {
@@ -675,6 +676,7 @@ export const AgentSessionSnapshotSchema = z.strictObject({
     externalSubcircuitDefinitions: z
       .array(ExternalSubcircuitDefinitionSchema)
       .optional(),
+    modelSources: z.array(ProjectModelSourceSchema).optional(),
     id: StableIdSchema,
     name: z.string().min(1),
     structureRevision: z.number().int().nonnegative(),

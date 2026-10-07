@@ -6,6 +6,7 @@ import { SourceManifestSchema, SymbolLibraryLockSchema } from "./source.js";
 import { SchematicDocumentSchema } from "./document.js";
 import { CellSymbolPresentationSchema } from "./presentation.js";
 import { ProjectSimulationFolderSchema } from "./simulation-source.js";
+import { ProjectModelSourceSchema } from "./model-source.js";
 import { reportDuplicateIds } from "./validation.js";
 import { projectCellInterface } from "../cell-interface-projection.js";
 
@@ -27,6 +28,19 @@ export const ExternalSubcircuitDefinitionSchema = z.strictObject({
   /** Imported positional interfaces are valid, but remain visibly provisional. */
   interfaceStatus: z.enum(["declared", "inferred-positional"]),
   presentation: CellSymbolPresentationSchema.optional(),
+  implementation: z
+    .discriminatedUnion("kind", [
+      z.strictObject({
+        kind: z.literal("source"),
+        sourceId: StableIdSchema,
+        entry: z.string().min(1).max(128),
+      }),
+      z.strictObject({
+        kind: z.literal("placeholder"),
+        sourceId: StableIdSchema.optional(),
+      }),
+    ])
+    .optional(),
 });
 
 export const CircuitProjectSchema = z
@@ -52,8 +66,29 @@ export const CircuitProjectSchema = z
     /** Named authored intents. Testbench topology remains an ordinary Cell;
      * results and run receipts remain session resources. */
     simulationFolders: z.array(ProjectSimulationFolderSchema).max(64),
+    modelSources: z.array(ProjectModelSourceSchema).max(256).optional(),
   })
   .superRefine((project, context) => {
+    reportDuplicateIds(project.modelSources ?? [], "modelSources", context);
+    for (const [
+      index,
+      definition,
+    ] of project.externalSubcircuitDefinitions.entries()) {
+      const implementation = definition.implementation;
+      if (
+        implementation?.sourceId &&
+        !project.modelSources?.some(
+          (source) => source.id === implementation.sourceId,
+        )
+      ) {
+        context.addIssue({
+          code: "custom",
+          message:
+            "External definition references missing Project model source",
+          path: ["externalSubcircuitDefinitions", index, "implementation"],
+        });
+      }
+    }
     const symbolIds = new Set<string>();
     for (const [index, definition] of (
       project.componentDefinitions ?? []

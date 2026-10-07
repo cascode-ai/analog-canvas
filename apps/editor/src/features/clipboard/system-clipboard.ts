@@ -57,6 +57,7 @@ export function encodeCircuitClipboard(
   fragment.externalSubcircuitDefinitions =
     context.externalSubcircuitDefinitions;
   fragment.simulationFolders = context.simulationFolders ?? [];
+  fragment.modelSources = context.modelSources ?? [];
   const presentation = structuredClone(context.presentation);
   // The source Cell's own symbol interface is not part of a partial canvas selection.
   if (!whole) delete presentation.cellSymbol;

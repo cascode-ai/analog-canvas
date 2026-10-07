@@ -11,7 +11,7 @@ export function CellSymbolLayoutProperties({
 }: {
   target: BlockSymbolLayoutTarget;
   enabled: boolean;
-  onToggle: () => void;
+  onToggle?: () => void;
   onBodySizeChange: (width: number, height: number) => void;
   onPortPlacementChange: (
     terminalId: string,
@@ -26,16 +26,18 @@ export function CellSymbolLayoutProperties({
       aria-label="Cell symbol layout"
     >
       <div className="property-section-heading">Cell symbol layout</div>
-      <button
-        type="button"
-        className="cell-symbol-layout-toggle"
-        aria-pressed={enabled}
-        onClick={onToggle}
-      >
-        {enabled
-          ? "Done editing canvas layout"
-          : "Edit symbol layout on canvas"}
-      </button>
+      {onToggle ? (
+        <button
+          type="button"
+          className="cell-symbol-layout-toggle"
+          aria-pressed={enabled}
+          onClick={onToggle}
+        >
+          {enabled
+            ? "Done editing canvas layout"
+            : "Edit symbol layout on canvas"}
+        </button>
+      ) : null}
       {enabled ? (
         <small>
           Drag the corner to resize, or a pin dot to change its side and offset.

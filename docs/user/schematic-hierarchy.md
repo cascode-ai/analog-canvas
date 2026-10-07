@@ -29,23 +29,50 @@ disabled; delete its caller Instances normally before deleting the now
 unreferenced definition.
 
 The Manager separates **Cells** (local schematics) from **External Circuit Defs**
-(project-level declarations for external models). Local Cell interfaces come
-from their canvas Pins; external declarations specify the model target,
-ordered terminals, and formal parameters. Use **New External Circuit Def** in
-the external list to add a declaration, or select an existing one to edit it.
-External definitions have no local schematic to open or reset. Editing their
-declaration does not import or modify the external model implementation.
-Enter a target name and its ordered terminals (commas or spaces), then use
-**Create External Circuit**. Select a saved declaration and choose **Place**
-to start ordinary canvas placement; **Save definition** updates its interface.
-Renaming a generic external target keeps its definition identity and updates
-its callers; it does not rename a model inside source files. **Delete definition**
-uses an internal confirmation and is available only when no instances reference
-the definition. Deletion supports Undo/Redo. The shared **Callers** list locates
-external instances just as it does local ones.
-Validation errors appear inside the Manager. Its pins connect to Nets and
-export as an external subcircuit call, but simulation still requires the actual
-model implementation in the simulation source files.
+(Project-owned native models or reviewed library declarations). Local Cell
+interfaces come from canvas Pins. Use **New External Circuit Def**, enter a
+SPICE `.subckt` body and choose **Apply model**. Its name, terminal order and
+formal defaults are parsed beside a pin-labelled preview. For several entries,
+choose the public entry; helper definitions remain with the same source. New
+definitions can select an existing source owner to expose another entry.
+
+Choose **Place** directly in Manager for either kind. **Import Cell** copies a
+saved Cloud Cell, its children and required models, selects the import and
+retains the original parent for placement. **Open** is a separate action.
+Self-instantiation and cycles show a reason and disable Place.
+
+Native expressions, comments and continuation lines stay in the model files.
+**Files and dependencies** holds extra owned files and pinned Profile library
+references. **Symbol layout and directions** changes appearance without changing
+the native interface. The block's Properties, Netlist and simulation Code offer
+**Open model** navigation to its shared source. **Fork model…** starts a private
+copy; give its public/helper definitions nonconflicting names before Apply.
+Existing callers keep their original owner. Instance parameter overrides remain
+in Properties.
+
+An interface edit updates all callers atomically. Reorder retains pin identity;
+rename/removal of a connected pin needs an explicit migration selection. Choosing
+disconnect keeps the wire as a stub. Apply errors preserve the previous model.
+**Save draft** retains unfinished text across Manager close and Project Save;
+Run/Copy use the clearly identified applied version. If no implementation was
+applied, the block is visibly unimplemented and cannot simulate. **Create
+placeholder…** is a secondary interface-only path. Apply checks declarations;
+use Run to check simulator acceptance separately. SPICE models require ngspice.
+
+If another edit changes the applied model while your editor is open, your text
+stays in the editor and Apply refuses the stale version. **Keep my draft on the
+latest version** explicitly accepts the newer version as its base before you
+Apply your text. A runtime diagnostic opens the exact applied source file; when
+there is a saved draft, that applied snapshot is read-only. **Open saved draft**
+returns to your retained work.
+
+Undo/Redo includes source and caller changes. Portable export, Cloud Save,
+recovery, cross-Project copy and Cell import carry owned model files and drafts.
+Legacy interface-only declarations remain readable and editable without guessed
+promotion; **Define implementation…** opens the native source path. Reviewed
+PDK definitions keep their fixed interfaces and library bindings. Definition
+deletion is refused while callers remain; the shared **Callers** list locates
+those instances.
 Generic External blocks share the Cell symbol layout controls in Properties:
 body size, pin side/offset, and canvas drag handles. A layout edit updates every
 instance and follows connected routes in the same undoable transaction. Native

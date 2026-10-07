@@ -1,16 +1,33 @@
 import { useEffect, useState } from "react";
-import type { ExternalSubcircuitDefinition } from "@icm/model";
+import type { CircuitProject, ExternalSubcircuitDefinition } from "@icm/model";
 import { createId } from "@icm/model";
 import { resolveReviewedExternalBinding } from "@icm/devices";
 import type { ExternalDefinitionResult } from "./project-structure-commands";
+import {
+  ExternalModelSourceEditor,
+  type ApplyModelSourceEdit,
+} from "./external-model-source-editor";
+import type { ProjectStructureEdit } from "@icm/edit-engine";
+import type { SimulationSourceLocation } from "@icm/simulation-service/contract";
 
 /** Project-level external declaration; there is no local schematic body. */
 export function ExternalCircuitEditor({
   definition,
+  initialLocation,
+  project,
+  onApplyModelSource,
+  onSaveModelDraft,
   onSetExternalDefinition,
   onRemoveExternalDefinition,
 }: {
+  project: CircuitProject;
   definition: ExternalSubcircuitDefinition | undefined;
+  initialLocation?: SimulationSourceLocation | undefined;
+  onApplyModelSource(edit: ApplyModelSourceEdit): ExternalDefinitionResult;
+  onSaveModelDraft(
+    edits: ProjectStructureEdit[],
+    definitionId: string,
+  ): ExternalDefinitionResult;
   onSetExternalDefinition(
     definition: ExternalSubcircuitDefinition,
   ): ExternalDefinitionResult;
@@ -21,8 +38,11 @@ export function ExternalCircuitEditor({
   const [externalTerminals, setExternalTerminals] = useState("");
   const [externalParameters, setExternalParameters] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [placeholder, setPlaceholder] = useState(false);
+  const [sourceMode, setSourceMode] = useState(false);
   const reviewed =
     definition &&
+    !definition.implementation &&
     resolveReviewedExternalBinding(
       definition.name,
       definition.terminals.map((item) => item.name),
@@ -51,13 +71,42 @@ export function ExternalCircuitEditor({
     );
   }, [definition]);
 
+  if (
+    !reviewed &&
+    !placeholder &&
+    (sourceMode ||
+      !definition ||
+      definition.implementation?.kind === "source" ||
+      (definition.implementation?.kind === "placeholder" &&
+        definition.implementation.sourceId))
+  )
+    return (
+      <ExternalModelSourceEditor
+        project={project}
+        definition={definition}
+        initialLocation={initialLocation}
+        onApply={onApplyModelSource}
+        onSaveDraft={onSaveModelDraft}
+        onMetadata={onSetExternalDefinition}
+        onPlaceholder={() => setPlaceholder(true)}
+        onDelete={() => onRemoveExternalDefinition(definition?.id ?? "")}
+      />
+    );
+
   return (
     <section aria-label="External circuit interface">
       <p className="cell-interface-empty">
         {reviewed
           ? `${reviewed.libraryId} · fixed PDK interface. Set parameters on instances.`
-          : "Interface only · supply the model in Simulation sources. Terminal order must match the model."}
+          : definition?.implementation?.kind === "placeholder"
+            ? "Unimplemented placeholder · attach a Project model before simulation."
+            : "Legacy interface · model ownership has not been verified. Attach the matching Project model explicitly."}
       </p>
+      {!reviewed && definition ? (
+        <button type="button" onClick={() => setSourceMode(true)}>
+          Define implementation…
+        </button>
+      ) : null}
       <div className="cell-external-grid">
         <label>
           Target
@@ -142,6 +191,9 @@ export function ExternalCircuitEditor({
                   }),
                 formalParameters: fields,
                 interfaceStatus: "declared",
+                ...(!definition && !reviewed
+                  ? { implementation: { kind: "placeholder" as const } }
+                  : {}),
               }),
             );
           }}

@@ -300,6 +300,9 @@ function projectIndex(options: BuildAgentSessionSnapshotOptions) {
     externalSubcircuitDefinitions: structuredClone(
       options.project?.externalSubcircuitDefinitions ?? [],
     ),
+    ...(options.project?.modelSources?.length
+      ? { modelSources: structuredClone(options.project.modelSources) }
+      : {}),
     simulationFolders: structuredClone(
       options.project?.simulationFolders ?? [],
     ),

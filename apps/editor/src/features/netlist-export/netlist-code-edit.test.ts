@@ -2,12 +2,122 @@ import { describe, it, expect } from "vitest";
 import { importSpiceSources } from "@icm/spice";
 import { createDesignNetlistExport, type NetlistFormat } from "@icm/netlist";
 import { executeProjectTransaction } from "@icm/edit-engine";
+import { createExternalSubcircuitInstance } from "@icm/edit-engine";
+import { createEmptyProject, createSimulationFolder } from "@icm/model";
+import {
+  generateCircuitSource,
+  planCircuitSourceEdit,
+  compileNgspiceSourceSimulation,
+} from "@icm/netlist";
 import {
   planNetlistCodeEdit,
   netlistInstanceAtLine,
   netlistInstanceRanges,
   createNetlistCodeEditSession,
 } from "./netlist-code-edit";
+
+it("writes a mapped model-body edit to the shared owner used by every experiment", () => {
+  const initial = createEmptyProject("model-edit", "Model edit");
+  const apply = executeProjectTransaction(initial, {
+    projectId: initial.id,
+    expectedStructureRevision: 0,
+    transactionId: "define",
+    actor: { kind: "human", id: "test" },
+    edits: [
+      {
+        kind: "apply_model_source",
+        source: {
+          id: "model",
+          language: "spice",
+          entry: "model.spice",
+          revision: 0,
+          dependencies: [],
+          files: [
+            {
+              path: "model.spice",
+              text: ".subckt amp A B params: gain=2\nB1 B 0 V={gain*v(A)}\n.ends amp\n",
+            },
+          ],
+        },
+        definitions: [{ definitionId: "amp", entry: "amp" }],
+      },
+    ],
+  });
+  if (!apply.ok) throw Error(JSON.stringify(apply));
+  const project = apply.project;
+  const doc = project.documents[0]!;
+  const definition = project.externalSubcircuitDefinitions[0]!;
+  doc.instances.push(
+    createExternalSubcircuitInstance("X1", definition, {
+      position: { x: 0, y: 0 },
+      rotation: 0,
+      mirror: "none",
+    }),
+  );
+  doc.noConnects.push(
+    ...definition.terminals.map((t) => ({
+      id: "nc-" + t.id,
+      endpoint: {
+        kind: "terminal" as const,
+        instanceId: "X1",
+        pinName: t.name,
+      },
+    })),
+  );
+  const baseline = createDesignNetlistExport(project, {
+    includeLocations: true,
+  });
+  if (baseline.status !== "ready") throw Error(JSON.stringify(baseline));
+  const changed = baseline.file.text.replace("gain*v(A)", "3*gain*v(A)");
+  const planned = planNetlistCodeEdit(project, baseline, changed);
+  expect(planned.ok, JSON.stringify(planned)).toBe(true);
+  if (!planned.ok) return;
+  const updated = executeProjectTransaction(project, {
+    projectId: project.id,
+    expectedStructureRevision: project.structureRevision,
+    transactionId: "edit-model",
+    actor: { kind: "human", id: "test" },
+    edits: planned.edits,
+  });
+  expect(updated.ok, JSON.stringify(updated)).toBe(true);
+  if (!updated.ok) return;
+  expect(updated.project.modelSources?.[0]?.files[0]?.text).toContain(
+    "3*gain*v(A)",
+  );
+  for (const id of ["op", "ac"]) {
+    const folder = createSimulationFolder({
+      id,
+      name: id,
+      profileId: "test",
+      engine: "ngspice",
+      documentId: doc.id,
+    });
+    const compiled = compileNgspiceSourceSimulation(updated.project, folder);
+    expect(compiled.ok, JSON.stringify(compiled)).toBe(true);
+    const view = generateCircuitSource(
+      updated.project,
+      folder.input.circuitBindings[0]!,
+      folder.input,
+      "ngspice",
+    );
+    expect(view.ok, JSON.stringify(view)).toBe(true);
+    if (!view.ok) return;
+    expect(view.source.text).toContain("3*gain*v(A)");
+    const mapped = planCircuitSourceEdit(
+      view.source,
+      view.source.text.replace("3*gain", "4*gain"),
+    );
+    expect(mapped.ok, JSON.stringify(mapped)).toBe(true);
+    if (mapped.ok)
+      expect(mapped.modelUpdates?.[0]?.files[0]?.text).toContain("4*gain");
+    expect(
+      planCircuitSourceEdit(
+        view.source,
+        view.source.text.replace("amp A B", "amp B A"),
+      ).ok,
+    ).toBe(false);
+  }
+});
 
 async function fixture(format: NetlistFormat) {
   const imported = await importSpiceSources(

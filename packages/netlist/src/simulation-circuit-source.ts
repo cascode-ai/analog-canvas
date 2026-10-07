@@ -2,6 +2,7 @@ import type {
   CircuitProject,
   SimulationCircuitBinding,
   SimulationSourceInput,
+  ProjectModelSource,
 } from "@icm/model";
 import {
   instanceParameterContract,
@@ -24,12 +25,21 @@ import { parseNgspiceSourceParameters } from "./simulation-ngspice-source-parame
 import { inspectVacaskSource } from "./vacask-source.js";
 import { vacaskValueToProject } from "./vacask-values.js";
 import { compileSourceSimulation } from "./simulation-source-compile.js";
+import { compileNgspiceSourceSimulation } from "./simulation-source-ngspice.js";
+import {
+  collectProjectModelSources,
+  projectModelDefinitionIds,
+  renderProjectModelSource,
+  planMappedProjectModelEdit,
+  type ProjectModelSourceLocation,
+} from "./project-model-source.js";
 import type {
   PrintedNetlistParameter,
   PrintedNetlistInstance,
 } from "./printed-netlist.js";
 import type { NetlistDiagnostic } from "./ir.js";
 import { normalizeIndependentSource } from "./source-waveform.js";
+import { directObjectLocator } from "@icm/derived";
 import { parseEditableSourceParameters } from "./simulation-source-parameters.js";
 
 interface EditableSourceBody {
@@ -56,6 +66,8 @@ export interface GeneratedCircuitSource {
   sourceBodies?: EditableSourceBody[];
   instances: PrintedNetlistInstance[];
   reachedDocuments: { id: string; revision: number }[];
+  modelLocations?: ProjectModelSourceLocation[];
+  modelSnapshots?: ProjectModelSource[];
 }
 
 /** Editable Circuit view uses persisted values, never a prepared variable/Batch projection. */
@@ -143,6 +155,82 @@ export function generateCircuitSource(
       : printVacaskWithLocations(ir, binding.emission === "top-level", {
           authoring: true,
         });
+  const models = collectProjectModelSources(
+    project,
+    projectModelDefinitionIds(project, [binding.documentId]),
+    { format: engine === "ngspice" ? "spice" : "vacask" },
+  );
+  if (models.diagnostics.some((d) => d.severity === "error"))
+    return {
+      ok: false,
+      diagnostics: models.diagnostics.map((d) => ({
+        code: d.code,
+        severity: d.severity,
+        message: d.message,
+        documentId: binding.documentId,
+        objectIds: [],
+        primary: directObjectLocator(
+          binding.documentId,
+          "document",
+          binding.documentId,
+        ),
+      })),
+    };
+  let modelLocations: ProjectModelSourceLocation[] = [];
+  let modelSnapshots = models.sources;
+  if (
+    printed.ok &&
+    engine === "ngspice" &&
+    (!input || input.circuitBindings[0]?.id === binding.id)
+  ) {
+    for (const model of models.sources) {
+      const rendered = renderProjectModelSource(model, {
+        outputPath: binding.path,
+      });
+      printed.text += `\n* Project model: applied version ${model.revision}${model.draft ? " (draft pending)" : ""}\n`;
+      const offset = printed.text.length;
+      printed.text += rendered.text;
+      modelLocations.push(
+        ...rendered.segments.map((s) => ({
+          ...s,
+          startOffset: s.startOffset + offset,
+          endOffset: s.endOffset + offset,
+        })),
+      );
+    }
+  }
+  if (input && engine === "ngspice") {
+    const compiled = compileNgspiceSourceSimulation(project, {
+      version: 4,
+      id: "circuit-preview",
+      name: "Circuit preview",
+      input,
+    });
+    const file = compiled.ok
+      ? compiled.generated.find(
+          (f) => f.bindingId === binding.id && f.path === binding.path,
+        )
+      : undefined;
+    if (file) {
+      printed = {
+        ok: true,
+        text: file.text,
+        parameters: file.parameters,
+        instances: file.instances,
+      };
+      modelLocations = file.modelSources ?? [];
+      // Compilation composes the reachable owners into one emitted file. Keep
+      // every matching current owner, including its pending-draft guard, for
+      // navigation and reverse edits of that exact file.
+      modelSnapshots = (project.modelSources ?? []).filter((source) =>
+        modelLocations.some(
+          (location) =>
+            location.sourceId === source.id &&
+            location.revision === source.revision,
+        ),
+      );
+    }
+  }
   if (input && engine === "vacask") {
     // A runnable experiment uses the EXACT compiled file, including primitive
     // name allocation and ownership across bindings. Incomplete experiments
@@ -266,6 +354,9 @@ export function generateCircuitSource(
         const document = project.documents.find((d) => d.id === cell.id);
         return document ? [{ id: cell.id, revision: document.revision }] : [];
       }),
+      ...(modelLocations.length
+        ? { modelLocations, modelSnapshots: structuredClone(modelSnapshots) }
+        : {}),
     },
     warnings: analysis.diagnostics,
   };
@@ -284,13 +375,27 @@ export function planCircuitSourceEdit(
   source: GeneratedCircuitSource,
   nextText: string,
 ):
-  | { ok: true; changes: CircuitParameterChange[] }
+  | {
+      ok: true;
+      changes: CircuitParameterChange[];
+      modelUpdates?: ProjectModelSource[];
+    }
   | {
       ok: false;
       code: string;
       message: string;
       range?: { from: number; to: number };
     } {
+  const mappedModel = planMappedProjectModelEdit(
+    source.text,
+    nextText,
+    source.modelLocations ?? [],
+    source.modelSnapshots ?? [],
+  );
+  if (mappedModel.matched)
+    return mappedModel.ok
+      ? { ok: true, changes: [], modelUpdates: mappedModel.modelUpdates }
+      : { ok: false, code: mappedModel.code, message: mappedModel.message };
   const parseParameters =
     source.engine === "ngspice"
       ? parseNgspiceSourceParameters

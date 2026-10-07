@@ -47,6 +47,7 @@ export function selectedBlockSymbolTarget(
   // Native PDK artwork is not a generic, resizable block.
   if (
     !definition.presentation &&
+    !definition.implementation &&
     resolveReviewedExternalBinding(
       definition.name,
       definition.terminals.map((pin) => pin.name),

@@ -1,4 +1,5 @@
 import type { PrintedParameterConversion } from "./parameter-projection.js";
+import type { ProjectModelSourceLocation } from "./project-model-source.js";
 
 /** Character ranges in generated circuit source; independent of simulator syntax. */
 export interface PrintedNetlistInstance {
@@ -26,4 +27,5 @@ export interface PrintedNetlistField extends PrintedNetlistInstance {
 export interface DesignNetlistLocations {
   instances: PrintedNetlistInstance[];
   fields: PrintedNetlistField[];
+  modelSources?: ProjectModelSourceLocation[];
 }

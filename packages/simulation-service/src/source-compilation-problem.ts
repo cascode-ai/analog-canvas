@@ -1,4 +1,4 @@
-import type { ProjectSimulationFolder } from "@icm/model";
+import type { ProjectSimulationFolder, CircuitProject } from "@icm/model";
 import type { SimulationSourceDiagnostic } from "@icm/netlist";
 
 import type { Problem } from "./contract.js";
@@ -15,6 +15,7 @@ const SEVERITY_RANK = { error: 0, warning: 1, info: 2 } as const;
 export async function sourceCompilationProblem(
   diagnostics: readonly SimulationSourceDiagnostic[],
   folder: ProjectSimulationFolder,
+  project?: CircuitProject,
 ): Promise<{ ok: false; error: Problem }> {
   const ordered = [...diagnostics].sort(
     (left, right) =>
@@ -29,7 +30,14 @@ export async function sourceCompilationProblem(
       recovery: "fix-input",
       diagnostics: await Promise.all(
         ordered.map(async (diagnostic) => {
-          const file = folder.input.files.find(
+          const model = diagnostic.modelSource
+            ? project?.modelSources?.find(
+                (s) =>
+                  s.id === diagnostic.modelSource!.sourceId &&
+                  s.revision === diagnostic.modelSource!.revision,
+              )
+            : undefined;
+          const file = (model?.files ?? folder.input.files).find(
             (file) =>
               file.path === (diagnostic.sourceRef?.fileId ?? diagnostic.path),
           );
@@ -38,7 +46,10 @@ export async function sourceCompilationProblem(
           return {
             ...diagnostic,
             source: {
-              scope: "authored" as const,
+              scope: model ? ("model-source" as const) : ("authored" as const),
+              ...(model
+                ? { sourceId: model.id, revision: model.revision }
+                : {}),
               path: file.path,
               textDigest: await sha256(file.text),
               startOffset: start?.offset ?? 0,

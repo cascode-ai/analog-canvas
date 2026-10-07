@@ -167,6 +167,80 @@ function externalFixture() {
   return source;
 }
 describe("one Project copy path", () => {
+  it("transports a placeholder's unfinished model draft without making it executable", () => {
+    const source = externalFixture();
+    source.externalSubcircuitDefinitions[0]!.implementation = {
+      kind: "placeholder",
+      sourceId: "draft-owner",
+    };
+    source.modelSources = [
+      {
+        id: "draft-owner",
+        language: "spice",
+        entry: "model.spice",
+        files: [{ path: "model.spice", text: "" }],
+        dependencies: [],
+        revision: 0,
+        draft: {
+          baseRevision: 0,
+          entry: "model.spice",
+          files: [{ path: "model.spice", text: ".subckt unfinished" }],
+        },
+      },
+    ];
+    const copied = place(
+      createEmptyProject("target", "Target"),
+      captureProjectCopy(source, source.documents[0]!)!,
+    );
+    expect(copied.modelSources?.[0]?.draft?.files[0]?.text).toBe(
+      ".subckt unfinished",
+    );
+    expect(copied.externalSubcircuitDefinitions[0]?.implementation?.kind).toBe(
+      "placeholder",
+    );
+  });
+  it("carries the external model owner and refuses same-interface different implementations", () => {
+    const define = (value: string) => {
+      const project = externalFixture();
+      const result = executeProjectTransaction(project, {
+        projectId: project.id,
+        expectedStructureRevision: project.structureRevision,
+        transactionId: "model",
+        actor: { kind: "human", id: "test" },
+        edits: [
+          {
+            kind: "apply_model_source",
+            source: {
+              id: "model",
+              language: "spice",
+              entry: "model.spice",
+              files: [
+                {
+                  path: "model.spice",
+                  text: `.subckt amp IN\nR1 IN 0 ${value}\n.ends amp\n`,
+                },
+              ],
+              dependencies: [],
+              revision: 0,
+            },
+            definitions: [{ definitionId: "external-a", entry: "amp" }],
+          },
+        ],
+      });
+      if (!result.ok) throw Error(JSON.stringify(result));
+      return result.project;
+    };
+    const source = define("7k");
+    const clipboard = captureProjectCopy(source, source.documents[0]!)!;
+    const copied = place(createEmptyProject("target", "Target"), clipboard);
+    expect(copied.modelSources?.[0]?.files[0]?.text).toContain("R1 IN 0 7k");
+    expect(place(copied, clipboard).modelSources).toHaveLength(1);
+    const incompatible = define("9k");
+    expect(() => place(incompatible, clipboard)).toThrow(
+      /incompatible implementation/,
+    );
+    expect(incompatible.modelSources?.[0]?.files[0]?.text).toContain("9k");
+  });
   it("lets a later pasted part contact an existing endpoint after an earlier Wire split", () => {
     const source = createEmptyProject("source", "Source");
     const document = source.documents[0]!;

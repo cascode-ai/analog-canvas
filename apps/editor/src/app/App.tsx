@@ -167,6 +167,7 @@ import type { CanvasDragSession } from "../canvas/canvas-drag-session";
 import { instanceVisibleHitBox } from "../canvas/instance-geometry";
 import { CLOUD_PROJECT_COPY } from "../document/cloud-project-copy";
 import { resolveSimulationTransport } from "../features/simulation/deployment-transport";
+import type { SimulationSourceLocation } from "@icm/simulation-service/contract";
 import { createCanvasHitController } from "../canvas/canvas-hit-controller";
 import { LazyCellInterfaceConfirmationDialog as CellInterfaceConfirmationDialog } from "./lazy-editor-dialogs";
 import type { CellInterfaceConfirmation } from "../features/hierarchy/project-structure-commands";
@@ -270,7 +271,10 @@ import {
   createGalleryExampleCommands,
 } from "../features/editor-shell/gallery-example-commands";
 import { createEditorNavigationController } from "../features/hierarchy/editor-navigation-controller";
-import { createProjectStructureCommands } from "../features/hierarchy/project-structure-commands";
+import {
+  createProjectStructureCommands,
+  cellPlacementIssue,
+} from "../features/hierarchy/project-structure-commands";
 import { loadCloudProjectForCellImport } from "../features/hierarchy/cloud-cell-import";
 import type { PublishGalleryDraft } from "../features/editor-shell/publish-gallery-dialog";
 import {
@@ -1019,6 +1023,23 @@ function WorkspaceEditor({
   );
   const [importReviewOpen, setImportReviewOpen] = useState(false);
   const [cellManagerOpen, setCellManagerOpen] = useState(false);
+  const [modelEditorDefinitionId, setModelEditorDefinitionId] = useState<
+    string | null
+  >(null);
+  const [modelEditorLocation, setModelEditorLocation] =
+    useState<SimulationSourceLocation>();
+  const openProjectModelSource = (
+    sourceId: string,
+    location?: SimulationSourceLocation,
+  ) => {
+    const definition = project.externalSubcircuitDefinitions.find(
+      (d) => d.implementation?.sourceId === sourceId,
+    );
+    if (!definition) return;
+    setModelEditorDefinitionId(definition.id);
+    setModelEditorLocation(location);
+    setCellManagerOpen(true);
+  };
   const [activeSimulationFolderId, setActiveSimulationFolderId] = useState<
     string | null
   >(null);
@@ -3213,7 +3234,11 @@ function WorkspaceEditor({
   const cellInsertCandidates = useMemo(
     () =>
       project.documents.flatMap((candidate) => {
-        if (candidate.id === document.id || !candidate.netlist) return [];
+        if (
+          !candidate.netlist ||
+          cellPlacementIssue(project, document.id, candidate.id)
+        )
+          return [];
         const definition = resolver.resolve(
           hierarchicalSymbolId(candidate.netlist.name),
         )?.definition;
@@ -3227,17 +3252,18 @@ function WorkspaceEditor({
             ]
           : [];
       }),
-    [document.id, project.documents, resolver],
+    [document.id, project, resolver],
   );
   const externalSubcircuitInsertCandidates = useMemo(
     () =>
       project.externalSubcircuitDefinitions.flatMap((definition) => {
-        const mapping = definition.presentation
-          ? undefined
-          : resolveReviewedExternalBinding(
-              definition.name,
-              definition.terminals.map((terminal) => terminal.name),
-            );
+        const mapping =
+          definition.presentation || definition.implementation
+            ? undefined
+            : resolveReviewedExternalBinding(
+                definition.name,
+                definition.terminals.map((terminal) => terminal.name),
+              );
         const symbol = resolver.resolve(
           mapping?.symbolId ?? externalSubcircuitSymbolId(definition.id),
         )?.definition;
@@ -7327,6 +7353,8 @@ function WorkspaceEditor({
           cellManagerOpen
             ? {
                 open: cellManagerOpen,
+                initialExternalId: modelEditorDefinitionId,
+                initialModelLocation: modelEditorLocation,
                 cells: cellManagerEntries,
                 project,
                 hierarchyCalls: projectConnectivityIndex.hierarchy.calls,
@@ -7343,7 +7371,11 @@ function WorkspaceEditor({
                   setCellManagerOpen(false);
                 },
                 activeDocumentId: document.id,
-                onClose: () => setCellManagerOpen(false),
+                onClose: () => {
+                  setCellManagerOpen(false);
+                  setModelEditorDefinitionId(null);
+                  setModelEditorLocation(undefined);
+                },
                 onCreate: (name) => {
                   createCell(name);
                   setCellManagerOpen(false);
@@ -7374,6 +7406,40 @@ function WorkspaceEditor({
                   editCellParameter(name, change, documentId),
                 externalDefinitions: project.externalSubcircuitDefinitions,
                 onSetExternalDefinition: setExternalSubcircuitDefinition,
+                onApplyModelSource: (edit) => {
+                  const result = dispatchProjectTransaction({
+                    transactionId: `model-${crypto.randomUUID()}`,
+                    projectId: project.id,
+                    expectedStructureRevision: project.structureRevision,
+                    actor: { kind: "human", id: "human-local" },
+                    edits: [edit],
+                  });
+                  return {
+                    ok: result.ok,
+                    definitionId: edit.definitions[0]!.definitionId,
+                    message: result.ok
+                      ? "Applied shared model definition"
+                      : (result.diagnostics[0]?.message ??
+                        result.error.message),
+                  };
+                },
+                onSaveModelDraft: (edits, definitionId) => {
+                  const result = dispatchProjectTransaction({
+                    transactionId: `model-draft-${crypto.randomUUID()}`,
+                    projectId: project.id,
+                    expectedStructureRevision: project.structureRevision,
+                    actor: { kind: "human", id: "human-local" },
+                    edits,
+                  });
+                  return {
+                    ok: result.ok,
+                    definitionId,
+                    message: result.ok
+                      ? "Saved draft. Applied model bytes are unchanged."
+                      : (result.diagnostics[0]?.message ??
+                        result.error.message),
+                  };
+                },
                 onRemoveExternalDefinition: removeExternalSubcircuitDefinition,
                 onPlaceExternal: (definitionId) => {
                   const candidate = externalSubcircuitInsertCandidates.find(
@@ -7386,6 +7452,7 @@ function WorkspaceEditor({
                     return;
                   }
                   setCellManagerOpen(false);
+                  setModelEditorDefinitionId(null);
                   editorCommands.execute({
                     id: "insert.start",
                     launch: {
@@ -7399,6 +7466,32 @@ function WorkspaceEditor({
                         parameters: {},
                         initialRotation: 0,
                         showReference: !candidate.symbol.hierarchicalBlock,
+                        referenceText: null,
+                        showValue: true,
+                      },
+                    },
+                  });
+                },
+                onPlaceCell: (childDocumentId) => {
+                  const candidate = cellInsertCandidates.find(
+                    (c) => c.childDocumentId === childDocumentId,
+                  );
+                  if (!candidate) return;
+                  setCellManagerOpen(false);
+                  setModelEditorDefinitionId(null);
+                  editorCommands.execute({
+                    id: "insert.start",
+                    launch: {
+                      kind: "quick",
+                      request: {
+                        kind: "cell",
+                        symbolId: candidate.symbol.id,
+                        symbolName: candidate.cellName,
+                        childDocumentId,
+                        cellName: candidate.cellName,
+                        parameters: {},
+                        initialRotation: 0,
+                        showReference: false,
                         referenceText: null,
                         showValue: true,
                       },
@@ -7427,11 +7520,9 @@ function WorkspaceEditor({
                       documentId: plan.rootDocumentId,
                     };
                   }
-                  const committed = commitStructure(
-                    "import-cloud-cell",
-                    [...plan.edits],
-                    plan.rootDocumentId,
-                  );
+                  const committed = commitStructure("import-cloud-cell", [
+                    ...plan.edits,
+                  ]);
                   if (!committed) {
                     return {
                       ok: false,
@@ -7867,6 +7958,7 @@ function WorkspaceEditor({
                   onHistoryBoundary={(direction) => {
                     transact([{ kind: direction }]);
                   }}
+                  onOpenModelSource={openProjectModelSource}
                   onSourceBuffer={(buffer) => {
                     simulationSourceBuffer.current = buffer;
                   }}
@@ -8002,6 +8094,7 @@ function WorkspaceEditor({
                   />
                 ) : projectPanel === "netlist" ? (
                   <NetlistCodePanel
+                    onOpenModelSource={openProjectModelSource}
                     onDirtyChange={noteCodeDraftDirty}
                     key={projectSessionId}
                     onApply={(edits) =>
@@ -8738,6 +8831,15 @@ function WorkspaceEditor({
                           }
                         },
                       },
+                      onOpenModel: selectedExternalSubcircuit
+                        ? () => {
+                            setModelEditorDefinitionId(
+                              selectedExternalSubcircuit.id,
+                            );
+                            setModelEditorLocation(undefined);
+                            setCellManagerOpen(true);
+                          }
+                        : undefined,
                       cellSymbolLayout: selectedBlockLayout
                         ? {
                             target: selectedBlockLayout,

@@ -3,7 +3,10 @@ import type {
   ObjectLocator,
   ProjectSimulationFolder,
 } from "@icm/model";
-import type { Problem } from "@icm/simulation-service/contract";
+import type {
+  Problem,
+  SimulationSourceLocation,
+} from "@icm/simulation-service/contract";
 import type { SimulationSignalTarget } from "@icm/netlist";
 import type { BrowserSimulationSession } from "./browser-simulation-session";
 import type { ProjectRunHistory } from "./project-run-history";
@@ -30,6 +33,10 @@ export interface SpiceSimulationSurfaceProps {
   ): SimulationFolderSaveResult;
   onDeleteFolder(folderId: string, expectedRevision?: number): boolean;
   onHistoryBoundary(direction: "undo" | "redo"): void;
+  onOpenModelSource?(
+    sourceId: string,
+    location?: SimulationSourceLocation,
+  ): void;
   onSourceBuffer?(
     buffer: { flush(): Promise<boolean>; dirty: boolean } | null,
   ): void;

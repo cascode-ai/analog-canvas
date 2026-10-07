@@ -1,9 +1,9 @@
 # Project File Compatibility
 
-The current portable Project schema is `65`; the normalized editor model is
-schema `58`. Supported files from schemas 24 through 65 enter through the same
+The current portable Project schema is `66`; the normalized editor model is
+schema `58`. Supported files from schemas 24 through 66 enter through the same
 validated reader. Historical input is upgraded or decoded before installation;
-all current writers emit schema 65. See the
+all current writers emit schema 66. See the
 [file-format contract](../specs/project-file-format.md) for the authoritative
 representation and compatibility boundary.
 
@@ -31,7 +31,10 @@ repairing an import failure.
 
 A Project carries its circuit topology, instances and parameters, referenced
 component definitions, Cell interfaces, authored labels/drawing styles and
-simulation source folders. Portable connection facts determine physical
+simulation source folders. Schema 66 also retains Project-owned external model source,
+pinned dependency references and unapplied drafts. Old interface-only
+declarations stay readable; an upgrade does not invent their model bodies.
+Portable connection facts determine physical
 membership; equal scoped Net/Port names retain their logical meaning without
 physically merging independently drawn conductors. Import provenance alone
 does not join Nets.

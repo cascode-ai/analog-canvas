@@ -61,6 +61,22 @@ its interface or internal meaning, inspect affected references; do not clone it
 merely to simplify reasoning. Use the current `structureRevision` and the typed
 structure-edit contract for interface changes.
 
+Source-defined external circuits use Snapshot Project `modelSources` and
+`externalSubcircuitDefinitions[].implementation`. Read the owner revision,
+selected entry and exact files. Send `apply_model_source` with the resource and
+`definitions:[{definitionId,entry,portMap?}]` as a structure edit. The native
+header derives target, port order and defaults; all bound definitions update
+atomically. Map connected removed/renamed old names to new names or `null` to
+disconnect while preserving wires. Reorder preserves identity automatically.
+
+`save_model_source_draft` stores unapplied files/dependencies against the applied
+revision. Raw upsert may add an imported owner but cannot replace an applied
+one. To fork, apply a new owner and definition ID with explicitly authored
+nonconflicting public/helper names. Overrides and symbol metadata remain normal
+typed edits. Never duplicate a Project model inside an experiment. Mapped File
+Resource body/default edits write the shared owner; unsupported edits identify
+Manager. Apply neither executes SPICE nor certifies electrical behavior.
+
 Keep stable reusable Cells hierarchical when their terminals explain their
 function. Enter the child for device-level work; flatten only as a deliberate
 user-scoped change. Parent placement does not determine child semantics.

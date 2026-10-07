@@ -1,4 +1,8 @@
-import type { CircuitProject, InstanceNetlistData } from "@icm/model";
+import type {
+  CircuitProject,
+  InstanceNetlistData,
+  ProjectModelSource,
+} from "@icm/model";
 import { deviceDescriptor } from "@icm/devices";
 import type {
   ProjectStructureEdit,
@@ -9,7 +13,10 @@ import type {
   PrintedNetlistInstance,
 } from "@icm/netlist";
 import { expressionIsStructurallyValid } from "@icm/spice";
-import { restorePrintedParameter } from "@icm/netlist";
+import {
+  restorePrintedParameter,
+  planMappedProjectModelEdit,
+} from "@icm/netlist";
 import type { z } from "zod";
 
 type ReadyExport = Extract<DesignNetlistExportResult, { status: "ready" }>;
@@ -33,6 +40,7 @@ type NetlistCodeEditAnalysis =
         expectedRevision: number;
         assignments: Assignment[];
       }[];
+      modelUpdates?: ProjectModelSource[];
     }
   | { ok: false; message: string };
 
@@ -164,6 +172,21 @@ export function createNetlistCodeEditSession(
   function analyzeUncached(source: string): NetlistCodeEditAnalysis {
     if (source === baseline.file.text)
       return { ok: true, updates: [], instances: baseline.locations.instances };
+    const mappedModel = planMappedProjectModelEdit(
+      baseline.file.text,
+      source,
+      baseline.locations.modelSources ?? [],
+      project.modelSources ?? [],
+    );
+    if (mappedModel.matched)
+      return mappedModel.ok
+        ? {
+            ok: true,
+            updates: [],
+            instances: baseline.locations.instances,
+            modelUpdates: mappedModel.modelUpdates,
+          }
+        : { ok: false, message: mappedModel.message };
     const fields = baseline.locations.fields;
     if (matcher === undefined) matcher = compilePrintedFields(baseline);
     const match = matcher?.(source);
@@ -335,17 +358,32 @@ export function createNetlistCodeEditSession(
       ? {
           ok: true,
           instances: analysis.instances,
-          edits: analysis.updates.map((update) => ({
-            kind: "transact_document",
-            documentId: update.documentId,
-            expectedRevision: update.expectedRevision,
-            edits: [
-              {
-                kind: "bulk_patch_instance_netlist",
-                assignments: update.assignments,
-              },
-            ],
-          })),
+          edits: [
+            ...(analysis.modelUpdates ?? []).map(
+              (model): ProjectStructureEdit => ({
+                kind: "apply_model_source",
+                source: model,
+                definitions: project.externalSubcircuitDefinitions.flatMap(
+                  (d) =>
+                    d.implementation?.kind === "source" &&
+                    d.implementation.sourceId === model.id
+                      ? [{ definitionId: d.id, entry: d.implementation.entry }]
+                      : [],
+                ),
+              }),
+            ),
+            ...analysis.updates.map((update): ProjectStructureEdit => ({
+              kind: "transact_document",
+              documentId: update.documentId,
+              expectedRevision: update.expectedRevision,
+              edits: [
+                {
+                  kind: "bulk_patch_instance_netlist",
+                  assignments: update.assignments,
+                },
+              ],
+            })),
+          ],
         }
       : analysis;
     return lastPlan;

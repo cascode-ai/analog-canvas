@@ -38,6 +38,7 @@ import {
 import { createDefaultNetlistExportPreferences } from "./netlist-export-preferences";
 import {
   createDesignNetlistExport,
+  projectModelDefinitionIds,
   createDraftNetlistPreview,
   unfinishedDrawingDiagnostics,
   type NetlistFormat,
@@ -100,8 +101,10 @@ export function NetlistCodePanel({
   selectedProcess,
   onProcessChange,
   onDeviceTargetChange,
+  onOpenModelSource,
 }: {
   onDirtyChange?(dirty: boolean): void;
+  onOpenModelSource?: ((sourceId: string) => void) | undefined;
   project: CircuitProject;
   rootDocumentId?: string | undefined;
   onRootChange?(documentId: string): void;
@@ -343,10 +346,15 @@ export function NetlistCodePanel({
   const applyRef = useRef(apply);
   applyRef.current = apply;
   useEffect(() => {
-    if (!dirty || conflict) return;
+    if (
+      !dirty ||
+      conflict ||
+      (result?.status === "ready" && result.locations.modelSources?.length)
+    )
+      return;
     const timer = setTimeout(() => applyRef.current(), 500);
     return () => clearTimeout(timer);
-  }, [draft, dirty, conflict]);
+  }, [draft, dirty, conflict, result]);
   function focus(position: number) {
     if (draftPreview)
       return focusInstance(
@@ -408,11 +416,46 @@ export function NetlistCodePanel({
     : applyError;
   const shown = draftPreview ? draftPreview.text : draft;
   const lineCount = shown.split(/\r\n?|\n/u).length;
+  const reachedDefinitions = new Set(
+    projectModelDefinitionIds(project, [exportRoot]),
+  );
+  const modelIds = new Set(
+    project.externalSubcircuitDefinitions
+      .filter((d) => reachedDefinitions.has(d.id))
+      .map((d) => d.implementation?.sourceId),
+  );
+  const modelOwners = project.modelSources?.filter((s) => modelIds.has(s.id));
   return (
     <section
       className="netlist-profile-code netlist-live-code"
       aria-label="Live netlist"
     >
+      {onOpenModelSource ? (
+        <div className="netlist-model-owners" aria-label="Shared model sources">
+          {modelOwners?.map((source) => (
+            <button
+              type="button"
+              key={source.id}
+              onClick={() => onOpenModelSource(source.id)}
+            >
+              Open model {source.entry} · applied version {source.revision}
+              {source.draft ? " · draft pending" : ""}
+            </button>
+          ))}
+        </div>
+      ) : null}
+      {modelOwners?.length ? (
+        <div className="netlist-model-apply">
+          <span>Model edits update every shared caller.</span>
+          <button
+            type="button"
+            disabled={!dirty || conflict}
+            onClick={() => apply()}
+          >
+            Apply model edits
+          </button>
+        </div>
+      ) : null}
       <div className="netlist-code-controls">
         <div className="netlist-code-selects">
           {onRootChange && project.documents.length > 1 ? (
@@ -544,9 +587,13 @@ export function NetlistCodePanel({
               setDraft(text);
               setApplyError(null);
             }}
-            onEnter={apply}
+            onEnter={() => {
+              if (!modelOwners?.length) apply();
+            }}
             onModEnter={apply}
-            onBlur={() => applyRef.current()}
+            onBlur={() => {
+              if (!modelOwners?.length) applyRef.current();
+            }}
             onCursorChange={focus}
             highlightedRanges={highlightedRanges}
             revealHighlight={selectionKey}

@@ -18,6 +18,26 @@ owns step-by-step operation; [deployment](../deployment.md) owns candidate accep
 
 ## Authored authority
 
+### Shared external implementations
+
+Experiments resolve Project-owned external `modelSources` through the same
+inventory as design export. Each reachable SPICE owner and owned helper closure
+emits once. A folder cannot shadow its subcircuit. Analyses, stimuli and native
+controls retain experiment ownership. SPICE models require ngspice; unsupported
+VACASK conversion and unimplemented placeholders refuse before execution.
+
+Model dependencies merge by identity, path and digest with folder dependencies
+and must match the selected Profile. Corner variants change only prepared load
+tokens. Source maps retain owner ID, revision and exact file offsets. Receipts
+archive `model-sources.json` with source maps and execution inputs. Applied
+edits affect input freshness; draft-only saves preserve executable bytes and
+electrical identity, with a warning that the applied version is used.
+
+Circuit File Resource body/default edits invoke the same atomic Apply as
+Manager. Interface and ambiguous edits refuse with owner navigation. Model
+drafts do not block an applied snapshot; invalid experiment/control drafts
+retain their blocking behavior. Static Apply is separate from runtime acceptance.
+
 ### Engine selection
 
 The selected executor Profile determines the engine (`ngspice` or `vacask`);

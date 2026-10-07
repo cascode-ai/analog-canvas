@@ -2,6 +2,13 @@
 export type SimulationTextOrigin =
   | { kind: "authored"; path: string; startOffset: number }
   | {
+      kind: "model-source";
+      sourceId: string;
+      revision: number;
+      path: string;
+      startOffset: number;
+    }
+  | {
       kind: "generated";
       purpose:
         | "canvas-circuit"
@@ -46,7 +53,7 @@ function sliceSegment(
     startOffset: start,
     endOffset: end,
     origin:
-      segment.origin.kind === "authored"
+      segment.origin.kind !== "generated"
         ? {
             ...segment.origin,
             startOffset:
@@ -126,7 +133,7 @@ export function locateSimulationText(
     (item) => offset >= item.startOffset && offset < item.endOffset,
   );
   if (!segment) return null;
-  return segment.origin.kind === "authored"
+  return segment.origin.kind !== "generated"
     ? {
         ...segment.origin,
         startOffset: segment.origin.startOffset + offset - segment.startOffset,

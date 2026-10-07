@@ -248,3 +248,32 @@ their implementation and tests, not a second chronology here, own the steps.
 references; removing a referenced Cell may diagnose preparation without
 invalidating the saved Project. Simulation output labels never name or join
 circuit Nets.
+
+## Project-owned external model sources
+
+An external definition may bind to one Project `modelSources` resource and a
+native subcircuit entry, or explicitly declare an unimplemented placeholder.
+An absent binding retains the legacy/reviewed-library contract. A source owner
+contains SPICE files, one entry path, pinned dependencies, an applied revision
+and optional private draft. It is separate from import history and experiments.
+Multiple exposed entries share the resource and its helper definitions.
+
+The native declaration owns the target name, ordered terminals and formal
+defaults. The saved external interface is a checked projection. Terminal IDs
+remain stable across reorder and explicit rename mappings; direction and symbol
+layout remain independent metadata. Source models do not acquire reviewed
+device semantics by matching a library name. Reviewed interfaces stay fixed.
+
+GUI and Agent use `apply_model_source` in the Project transaction. Apply checks
+declarations, include closure and migration without executing a simulator.
+Connected removal requires an explicit remap/disconnect; wires become retained
+junction stubs. Source, interfaces and affected callers commit atomically with
+Undo/Redo. `save_model_source_draft` stores unapplied bytes with a revision
+guard. Import may add an owner through `upsert_model_source`; raw replacement
+of an existing owner is refused. Typed Apply and validated in-session Project
+Code edits share the native source/interface authority. Project Code ignores
+authored concurrency tokens and advances the applied model revision when its
+files, entry or dependencies change. An unchanged saved draft retains its old
+base; accepting it against a newer applied model requires an explicit rebase.
+Reviewed interfaces and implementations cannot be replaced in place through
+either entrance. Inconsistent projections and stale edits refuse.

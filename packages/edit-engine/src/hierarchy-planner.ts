@@ -123,7 +123,7 @@ function transactDocument(
   };
 }
 
-function instanceReferencesPin(
+export function instanceReferencesPin(
   document: SchematicDocument,
   instanceId: string,
   pinName: string,
@@ -214,12 +214,13 @@ function gapDetachedCallerJunctions(
  * changes are one-to-one unless the caller explicitly requests electrical
  * aliasing. Explicit aliasing merges owner Nets before symbol reconciliation.
  */
-function planCallerInterfaceChanges(
+export function planCallerInterfaceChanges(
   project: CircuitProject,
   childDocumentId: string,
   disappearingPinNames: readonly string[],
   pinRenames: readonly CallerPinRename[],
   mergeAliases = false,
+  external = false,
 ): {
   readonly beforeChild: readonly ProjectStructureEdit[];
   readonly afterChild: readonly ProjectStructureEdit[];
@@ -239,10 +240,11 @@ function planCallerInterfaceChanges(
   for (const parent of project.documents) {
     const callers = parent.instances.filter((instance) => {
       const binding = instance.netlist?.binding;
-      return (
-        binding?.kind === "subcircuit" &&
-        binding.childDocumentId === childDocumentId
-      );
+      return external
+        ? binding?.kind === "external-subcircuit" &&
+            binding.definitionId === childDocumentId
+        : binding?.kind === "subcircuit" &&
+            binding.childDocumentId === childDocumentId;
     });
     if (callers.length === 0) continue;
 
@@ -380,7 +382,8 @@ function matchingReviewedExternalDefinition(
   const definition = project.externalSubcircuitDefinitions.find(
     (candidate) => candidate.id === definitionId,
   );
-  if (!definition || definition.presentation) return undefined;
+  if (!definition || definition.presentation || definition.implementation)
+    return undefined;
   const binding = resolveReviewedExternalBinding(
     definition.name,
     definition.terminals.map((terminal) => terminal.name),
@@ -500,12 +503,13 @@ export function planSetDeviceModelTarget(
         })),
         interfaceStatus: "declared" as const,
       } satisfies ExternalSubcircuitDefinition);
-    const verified = definition.presentation
-      ? undefined
-      : resolveReviewedExternalBinding(
-          definition.name,
-          definition.terminals.map((terminal) => terminal.name),
-        );
+    const verified =
+      definition.presentation || definition.implementation
+        ? undefined
+        : resolveReviewedExternalBinding(
+            definition.name,
+            definition.terminals.map((terminal) => terminal.name),
+          );
     if (
       !verified ||
       !reviewedExternalBindingSupportsSymbol(verified, sourceSymbolId)
@@ -666,12 +670,13 @@ export function createExternalSubcircuitInstance(
   placement: NonNullable<SchematicDocument["instances"][number]["placement"]>,
   reference = id,
 ): SchematicDocument["instances"][number] {
-  const reviewed = definition.presentation
-    ? undefined
-    : resolveReviewedExternalBinding(
-        definition.name,
-        definition.terminals.map((terminal) => terminal.name),
-      );
+  const reviewed =
+    definition.presentation || definition.implementation
+      ? undefined
+      : resolveReviewedExternalBinding(
+          definition.name,
+          definition.terminals.map((terminal) => terminal.name),
+        );
   return {
     id,
     symbolId: reviewed?.symbolId ?? externalSubcircuitSymbolId(definition.id),
@@ -1403,6 +1408,29 @@ export function proposeSetCellFormalParameters(
   ]);
 }
 
+/** Reviewed library semantics stay fixed through every Project write entrance. */
+export function reviewedExternalDefinitionEditIssue(
+  previous: ExternalSubcircuitDefinition | undefined,
+  definition: ExternalSubcircuitDefinition,
+): string | undefined {
+  if (
+    previous &&
+    !previous.implementation &&
+    resolveReviewedExternalBinding(
+      previous.name,
+      previous.terminals.map((t) => t.name),
+    ) &&
+    (definition.implementation ||
+      definition.name !== previous.name ||
+      JSON.stringify(definition.terminals) !==
+        JSON.stringify(previous.terminals) ||
+      JSON.stringify(definition.formalParameters) !==
+        JSON.stringify(previous.formalParameters))
+  )
+    return "Reviewed PDK interfaces and implementations are fixed. Create a new definition for an explicit model fork.";
+  return undefined;
+}
+
 export function proposeUpsertExternalSubcircuitDefinition(
   project: CircuitProject,
   definition: ExternalSubcircuitDefinition,
@@ -1410,33 +1438,24 @@ export function proposeUpsertExternalSubcircuitDefinition(
   const previous = project.externalSubcircuitDefinitions.find(
     (item) => item.id === definition.id,
   );
-  const previousReviewed =
-    previous &&
-    resolveReviewedExternalBinding(
-      previous.name,
-      previous.terminals.map((item) => item.name),
-    );
-  if (
-    previousReviewed &&
-    (definition.name !== previous!.name ||
-      JSON.stringify(definition.terminals) !==
-        JSON.stringify(previous!.terminals) ||
-      JSON.stringify(definition.formalParameters) !==
-        JSON.stringify(previous!.formalParameters))
-  ) {
+  const reviewedIssue = reviewedExternalDefinitionEditIssue(
+    previous,
+    definition,
+  );
+  if (reviewedIssue) {
     return interfaceProposal(
       project,
       { kind: "external", id: definition.id },
       [],
-      [
-        "Reviewed PDK interfaces are fixed. Edit device parameters on each instance.",
-      ],
+      [reviewedIssue],
     );
   }
-  const reviewed = resolveReviewedExternalBinding(
-    definition.name,
-    definition.terminals.map((terminal) => terminal.name),
-  );
+  const reviewed = definition.implementation
+    ? undefined
+    : resolveReviewedExternalBinding(
+        definition.name,
+        definition.terminals.map((terminal) => terminal.name),
+      );
   const allowedPins = new Set(
     (reviewed
       ? reviewed.terminals.map((terminal) => terminal.pinName)

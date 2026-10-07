@@ -154,6 +154,9 @@ interface Props extends Pick<
   diagnostics?: Problem["diagnostics"];
   onRun(): void;
   onHistoryBoundary(direction: "undo" | "redo"): void;
+  onOpenModelSource?:
+    | ((sourceId: string, location?: SimulationSourceLocation) => void)
+    | undefined;
 }
 const inputProblem = (code: string, message: string): Problem => ({
   code,
@@ -837,6 +840,28 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
         return true;
       },
       reveal: async (location) => {
+        if (location.scope === "model-source") {
+          const model = props.project.modelSources?.find(
+            (s) =>
+              s.id === location.sourceId && s.revision === location.revision,
+          );
+          const file = model?.files.find((f) => f.path === location.path);
+          if (
+            file &&
+            (await sha256(file.text)) === location.textDigest &&
+            current.current.project === props.project
+          ) {
+            current.current.onOpenModelSource?.(model!.id, location);
+            return;
+          }
+          props.onProblem(
+            inputProblem(
+              "SOURCE_LOCATION_STALE",
+              "The shared model changed. Prepare again to locate its current source.",
+            ),
+          );
+          return;
+        }
         const folderId = props.folder.id;
         const captured =
           drafts.current.get(key(location.path))?.text ??
@@ -1357,6 +1382,23 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
           ) : null
         }
       >
+        {originalGenerated?.ok && props.onOpenModelSource ? (
+          <div
+            className="simulation-model-owners"
+            aria-label="Shared model sources"
+          >
+            {originalGenerated.source.modelSnapshots?.map((source) => (
+              <button
+                type="button"
+                key={source.id}
+                onClick={() => props.onOpenModelSource?.(source.id)}
+              >
+                Open model {source.entry} · applied version {source.revision}
+                {source.draft ? " · draft pending" : ""}
+              </button>
+            ))}
+          </div>
+        ) : null}
         <SimulationCodeEditor
           onCursor={(offset) => {
             sourceCursor.current = offset;
