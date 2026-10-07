@@ -171,7 +171,10 @@ constraint conditions. Visual observations describe heuristic geometry and
 require inspection of the formal render. A gate-ineligible observation must
 never become an automatic layout objective merely because a quality policy
 lists its code. Where deterministic primitive bounds exist, overlap analysis uses the
-active symbol variant's visible geometry and clusters repeated overlaps.
+active symbol variant's visible geometry and clusters repeated overlaps. A
+part's box ends at its visible pins, so two parts that meet pin to pin, one
+lead continuing the other (a supply T or a coil on a transistor's source), do
+not overlap.
 
 ## Invariants
 

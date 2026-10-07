@@ -218,6 +218,7 @@ describe("visual quality diagnostics", () => {
 
   it("includes ordinary Port assets in overlap diagnostics", () => {
     const document = createEmptyDocument("doc", "Port contact");
+    // P2's lead runs back over P1's.
     document.instances.push(
       {
         id: "P1",
@@ -232,7 +233,7 @@ describe("visual quality diagnostics", () => {
         id: "P2",
         symbolId: "port-filled",
         placement: {
-          position: { x: 100, y: 100 },
+          position: { x: 96, y: 100 },
           rotation: 180,
           mirror: "none",
         },
@@ -262,6 +263,77 @@ describe("visual quality diagnostics", () => {
         (item) => item.code === "VISUAL_SYMBOL_OVERLAP",
       ),
     ).toBe(false);
+  });
+
+  it("does not report parts that meet pin to pin as overlapping (#1418)", () => {
+    const part = (
+      id: string,
+      symbolId: string,
+      x: number,
+      y: number,
+      rotation: 0 | 180 = 0,
+      mirror: "none" | "horizontal" = "none",
+    ) => ({
+      id,
+      symbolId,
+      placement: { position: { x, y }, rotation, mirror },
+    });
+    const overlaps = (
+      ...instances: ReturnType<typeof part>[]
+    ): readonly (readonly string[])[] => {
+      const document = createEmptyDocument("doc", "Pin to pin");
+      document.instances = instances;
+      return diagnoseVisualQuality(document, resolver)
+        .filter((item) => item.code === "VISUAL_SYMBOL_OVERLAP")
+        .map((item) => item.objectIds);
+    };
+    // Each lead continues the other's; no Net excuses the contact.
+    // A T supply on a source, as pinAnchor placed it in a Banba bandgap:
+    // M7.S at (220,-120).
+    expect(
+      overlaps(
+        part("VDD7", "vdd-port", 220, -140),
+        part("M7", "pmos", 230, -100, 0, "horizontal"),
+      ),
+    ).toEqual([]);
+    // On an NMOS turned source up, and on a current source's + pin.
+    expect(
+      overlaps(
+        part("VDD1", "vdd-port", 90, 40),
+        part("M1", "nmos", 100, 80, 180),
+      ),
+    ).toEqual([]);
+    expect(
+      overlaps(
+        part("VDD2", "vdd-port", 300, 60),
+        part("IREF", "current-source", 300, 100),
+      ),
+    ).toEqual([]);
+    // A ground on an NMOS source.
+    expect(
+      overlaps(part("GND", "ground", 410, 130), part("M2", "nmos", 400, 100)),
+    ).toEqual([]);
+    // A degeneration coil whose pin lands on M1.S at (300,-20); its box
+    // came from the viewBox, 3 units past the pin.
+    expect(
+      overlaps(part("Ls", "inductor", 300, 10), part("M3", "nmos", 290, -40)),
+    ).toEqual([]);
+    // Two Ports back to back.
+    expect(
+      overlaps(part("P1", "port", 100, 100), part("P2", "port", 100, 100, 180)),
+    ).toEqual([]);
+
+    // A part sunk into another is still reported: the T ten units down the
+    // transistor's source lead, the coil ten units up into its transistor.
+    expect(
+      overlaps(
+        part("VDD7", "vdd-port", 220, -130),
+        part("M7", "pmos", 230, -100, 0, "horizontal"),
+      ),
+    ).toEqual([["M7", "VDD7"]]);
+    expect(
+      overlaps(part("Ls", "inductor", 300, 0), part("M3", "nmos", 290, -40)),
+    ).toEqual([["Ls", "M3"]]);
   });
 
   it("does not treat a one-grid DFF pin escape as wire-through-symbol", () => {
