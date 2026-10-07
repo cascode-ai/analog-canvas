@@ -46,7 +46,7 @@ export interface PublishGalleryDialogProps {
   /** Current Cell projected as the duplicate-comparison root. */
   topologyProject?: CircuitProject | null;
   /** Opened from the duplicate check's notice: show that check's results. */
-  lastCheckRequested?: boolean | undefined;
+  openedFromCheckNotice?: boolean | undefined;
   /** Present when the current Project is associated with a gallery entry the
    * signed-in user may update (owner, admin, or moderator). */
   updateTarget?: { id: string; name: string } | null;
@@ -110,7 +110,7 @@ export function PublishGalleryDialog({
   session = null,
   gateReport = null,
   topologyProject = null,
-  lastCheckRequested = false,
+  openedFromCheckNotice = false,
   updateTarget = null,
   updateDefaults = null,
   agentEdited = false,
@@ -620,7 +620,7 @@ export function PublishGalleryDialog({
           {!signedOut && topologyProject ? (
             <GalleryTopologyCheck
               project={topologyProject}
-              lastCheckRequested={lastCheckRequested}
+              openedFromCheckNotice={openedFromCheckNotice}
             />
           ) : null}
           {signedOut ? null : (

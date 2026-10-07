@@ -23,11 +23,11 @@ function comparisonContent(project: CircuitProject): string {
 
 export function GalleryTopologyCheck({
   project,
-  lastCheckRequested = false,
+  openedFromCheckNotice = false,
 }: {
   project: CircuitProject;
   /** Opened from the check's own notice: show its results, whatever it checked. */
-  lastCheckRequested?: boolean;
+  openedFromCheckNotice?: boolean;
 }) {
   const galleryTopologyTask = getGalleryTopologyTask();
   const [comparison, setComparison] = useState<{
@@ -53,7 +53,7 @@ export function GalleryTopologyCheck({
   // Results for another Project or Cell answer nothing about this one, so
   // they are not shown unless asked for from the check's notice; an edited
   // Cell's stay, marked as historical.
-  const shown = otherCell && !lastCheckRequested ? null : report;
+  const shown = otherCell && !openedFromCheckNotice ? null : report;
   const start = () => galleryTopologyTask.start(project);
   const stop = () => galleryTopologyTask.cancel();
 

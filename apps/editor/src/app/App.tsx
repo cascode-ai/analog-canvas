@@ -1102,7 +1102,7 @@ function WorkspaceEditor({
   const [publishGalleryOpen, setPublishGalleryOpen] = useState(false);
   // Opened from the duplicate check's notice, which asks for that check's
   // results whatever circuit it checked (#1417).
-  const [lastCheckRequested, setLastCheckRequested] = useState(false);
+  const [openedFromCheckNotice, setOpenedFromCheckNotice] = useState(false);
   const [publishedNotice, setPublishedNotice] =
     useState<GalleryPublishedNoticeState | null>(null);
   const [versionHistoryOpen, setVersionHistoryOpen] = useState(false);
@@ -6970,7 +6970,7 @@ function WorkspaceEditor({
           <GalleryTopologyTaskNotice
             hidden={publishGalleryOpen}
             onOpen={() => {
-              setLastCheckRequested(true);
+              setOpenedFromCheckNotice(true);
               setPublishGalleryOpen(true);
             }}
           />
@@ -7280,7 +7280,7 @@ function WorkspaceEditor({
         }
         publishGalleryOpen={publishGalleryOpen}
         onPublishGallery={() => {
-          setLastCheckRequested(false);
+          setOpenedFromCheckNotice(false);
           setPublishGalleryOpen(true);
         }}
         drawingToolbar={{
@@ -7714,7 +7714,7 @@ function WorkspaceEditor({
                 session: publishSession,
                 gateReport: publishGates,
                 topologyProject: galleryTopologyProject,
-                lastCheckRequested,
+                openedFromCheckNotice,
                 publicationLinkLoading,
                 publicationLinkError,
                 publicationLinkNotice,

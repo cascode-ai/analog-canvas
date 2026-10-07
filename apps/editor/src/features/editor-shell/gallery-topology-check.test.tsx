@@ -29,11 +29,11 @@ function fixture() {
   });
   return project;
 }
-function render(project = fixture(), lastCheckRequested?: boolean) {
+function render(project = fixture(), openedFromCheckNotice?: boolean) {
   return renderToStaticMarkup(
     createElement(GalleryTopologyCheck, {
       project,
-      ...(lastCheckRequested ? { lastCheckRequested } : {}),
+      ...(openedFromCheckNotice ? { openedFromCheckNotice } : {}),
     }),
   );
 }
