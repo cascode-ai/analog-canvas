@@ -4609,9 +4609,10 @@ function WorkspaceEditor({
   const selectedPortLogicalName = selectedPortNet
     ? logicalNets.byBaseNetId.get(selectedPortNet.id)?.name
     : undefined;
+  // A standard cell's rails are the gate's VDD/VSS supply rows (#1450).
   const selectedPropertyOnlyTerminal =
     selectedReviewedExternalBinding?.terminals.find(
-      (terminal) => terminal.interaction === "property",
+      (terminal) => terminal.interaction === "property" && !terminal.supply,
     );
   const selectedPropertyOnlyTerminalNet =
     selectedInstance && selectedPropertyOnlyTerminal
@@ -9015,7 +9016,8 @@ function WorkspaceEditor({
                           (selectedInstance.netlist.binding?.kind === "model" ||
                             selectedDevice?.targetPolicy === "required-model" ||
                             reviewedExternalModelSuggestions(
-                              selectedPropertyDevice?.symbolId ?? "",
+                              selectedPropertyDevice?.symbolId ??
+                                selectedInstance.symbolId,
                             ).length > 0 ||
                             selectedReviewedExternalBinding)
                             ? {
@@ -9027,7 +9029,8 @@ function WorkspaceEditor({
                                       ? (selectedExternalSubcircuit?.name ?? "")
                                       : "",
                                 suggestions: reviewedExternalModelSuggestions(
-                                  selectedPropertyDevice?.symbolId ?? "",
+                                  selectedPropertyDevice?.symbolId ??
+                                    selectedInstance.symbolId,
                                   processReviewedLibrary(
                                     project,
                                     netlistPreferences.preferences,

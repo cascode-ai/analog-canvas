@@ -5,6 +5,7 @@ import {
   reviewedExternalBindingForMaster,
   reviewedExternalBindingSupportsSymbol,
   resolveReviewedExternalBinding,
+  type ReviewedExternalDeviceBinding,
 } from "@icm/devices";
 import {
   createNetlistPlanningProjection,
@@ -258,7 +259,8 @@ export function placementProcessFill(
 /**
  * The reviewed PDK library of the Process the Netlist panel shows, so model
  * suggestions stay within it: SKY130's in a SKY130 Project, IHP SG13G2's in
- * an SG13G2 one. Undefined for a Process without one, which suggests all.
+ * an SG13G2 one, TSMC 28's standard cells in a TSMC 28 one (#1450).
+ * Undefined for a Process without one, which suggests all.
  */
 export function processReviewedLibrary(
   project: CircuitProject,
@@ -266,7 +268,7 @@ export function processReviewedLibrary(
     selected: NetlistProfileId;
     profiles: Record<NetlistProfileId, NetlistExportProfile>;
   },
-): "sky130_fd_pr" | "sg13g2_pr" | undefined {
+): ReviewedExternalDeviceBinding["libraryId"] | undefined {
   const process =
     preferences.selected === "custom"
       ? "custom"
@@ -275,7 +277,9 @@ export function processReviewedLibrary(
     ? "sky130_fd_pr"
     : process === "sg13g2"
       ? "sg13g2_pr"
-      : undefined;
+      : process === "tsmc28"
+        ? "tcbn28hpcplusbwp12t30p140"
+        : undefined;
 }
 
 /**

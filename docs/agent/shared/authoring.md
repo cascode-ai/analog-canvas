@@ -125,6 +125,19 @@ targets to avoid full-Snapshot name resolution. Names remain supported when usef
   reuse the GUI binding path, preserve terminal mapping and export the
   required `X` subcircuit invocation. Any other name is a raw model binding,
   for custom definitions; it leaves the Project's Process as Custom.
+- A Library logic gate (`inverter`, `buffer`, `nand-gate`, … `xnor-gate-4`)
+  takes a standard cell of its function and input count through `set-model`:
+  SKY130 HD (`sky130_fd_sc_hd__nand2_1`), IHP SG13G2 (`sg13g2_nand2_1`) or
+  TSMC 28 HPC+ 12-track (`ND2D1BWP12T30P140`, `…LVT`), at any drive strength
+  or variant of the library, clock and delay buffers and inverters included.
+  The gate keeps its symbol and pins; the SPICE netlist calls the cell in the
+  library's pin order with the gate's VDD/VSS Nets on its rails (Auto
+  resolves as for an unbound gate), and the library's own `.include` defines
+  it: a hosted run refuses the cell (`MODEL_IMPLEMENTATION_MISSING`) unless
+  the folder's files define it. A name of another function is refused with
+  the cells that fit; an empty model returns the gate to its ideal body with
+  its default parameters. A cell imported from a SPICE file stays an external
+  block with its own rail pins.
 - `place-component` without `parameters` places a part as the GUI library
   does: each parameter's catalog default, and for a transistor the model of
   the Process the Netlist panel shows. A BJT in a SKY130 Project arrives as
@@ -388,6 +401,7 @@ standard side/alignment; existing explicit label moves retain their semantics.
 
 To give a drawing a textbook figure's labels in one step, `circuit_text` /
 `apply_actions` accepts `{kind:"apply-label-preset",preset:"textbook"}`:
+
 - every MOS transistor hides its W/L, as `set-instance-display` with
   `showValue:false` hides it (three- and four-terminal and DMOS alike);
 - resistor, capacitor, inductor and source values stay as they are, and

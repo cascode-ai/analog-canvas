@@ -85,6 +85,7 @@ export function deriveSelectionInspectionModel({
       : resolveReviewedExternalBinding(
           selectedExternalSubcircuit.name,
           selectedExternalSubcircuit.terminals.map((terminal) => terminal.name),
+          selectedInstance?.symbolId,
         )
     : undefined;
   const selectedPropertyDevice =

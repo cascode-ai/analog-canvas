@@ -4,6 +4,7 @@ import {
   type CircuitProject,
   type SchematicDocument,
 } from "@icm/model";
+import { resolveReviewedExternalBinding } from "@icm/devices";
 import {
   externalSubcircuitSymbolId,
   hierarchicalSymbolId,
@@ -342,8 +343,19 @@ export function planProjectCellImport(
               definition.terminals.map((terminal) => terminal.name),
             )
           : undefined;
+        // A gate keeps its symbol behind the standard cell of its function
+        // (#1450).
+        const standardCell =
+          definition &&
+          !definition.presentation &&
+          !definition.implementation &&
+          resolveReviewedExternalBinding(
+            definition.name,
+            definition.terminals.map((terminal) => terminal.name),
+            instance.symbolId,
+          );
         instance.symbolId =
-          reviewed?.symbolId === instance.symbolId
+          reviewed?.symbolId === instance.symbolId || standardCell
             ? instance.symbolId
             : externalSubcircuitSymbolId(binding.definitionId);
       }

@@ -19,10 +19,15 @@ import {
 } from "@icm/model";
 import type { PortLabelFormatOptions } from "@icm/model";
 import {
+  builtInModelDefaults,
   deviceDescriptor,
   resolveReviewedExternalBinding,
+  resolveReviewedLibraryInterface,
   reviewedExternalBindingForMaster,
   reviewedExternalBindingSupportsSymbol,
+  reviewedExternalModelSuggestions,
+  standardCellBindingForMaster,
+  subcircuitDescriptor,
 } from "@icm/devices";
 import {
   builtInSymbols,
@@ -523,9 +528,6 @@ export function planSetDeviceModelTarget(
     throw new Error(`Netlisted Instance does not exist: ${instanceId}`);
   }
   const normalizedName = modelName.trim();
-  const targetBinding = normalizedName
-    ? reviewedExternalBindingForMaster(normalizedName)
-    : undefined;
   const currentExternal =
     instance.netlist.binding?.kind === "external-subcircuit"
       ? matchingReviewedExternalDefinition(
@@ -542,7 +544,61 @@ export function planSetDeviceModelTarget(
       ? currentExternal.binding.symbolId
       : instance.symbolId;
   const sourceDescriptor = deviceDescriptor(sourceSymbolId);
-  if (
+  // A Library logic gate has no device descriptor; its reviewed targets are
+  // standard cells of its function, and clearing returns it to its ideal
+  // body with that body's parameters (#1450).
+  const gate = sourceDescriptor
+    ? undefined
+    : subcircuitDescriptor(sourceSymbolId, project);
+  const gateTargets = gate
+    ? reviewedExternalModelSuggestions(sourceSymbolId)
+    : [];
+  // A gate's target may be any standard cell, so that one of another
+  // function is refused by name below.
+  const targetBinding = normalizedName
+    ? (reviewedExternalBindingForMaster(normalizedName) ??
+      (gateTargets.length > 0
+        ? standardCellBindingForMaster(normalizedName)
+        : undefined))
+    : undefined;
+  if (gate && gateTargets.length > 0) {
+    if (!targetBinding && normalizedName) {
+      throw new Error(
+        `${normalizedName} is not a reviewed standard cell for ${sourceSymbolId}; use ${gateTargets.join(", ")}`,
+      );
+    }
+    if (!targetBinding) {
+      // The gate's VDD/VSS Nets are its own supply choice and stay.
+      const binding = {
+        kind: "unresolved-subcircuit" as const,
+        name: gate.target,
+      };
+      if (
+        JSON.stringify(instance.netlist.binding ?? null) ===
+        JSON.stringify(binding)
+      )
+        return [];
+      const set = Object.fromEntries(
+        Object.entries(builtInModelDefaults(gate.target)).filter(
+          ([name]) => instance.netlist!.parameters[name] === undefined,
+        ),
+      );
+      return [
+        transactDocument(project, documentId, [
+          {
+            kind: "bulk_patch_instance_netlist",
+            assignments: [
+              {
+                instanceId,
+                binding,
+                ...(Object.keys(set).length ? { set } : {}),
+              },
+            ],
+          },
+        ]),
+      ];
+    }
+  } else if (
     !sourceDescriptor ||
     (!targetBinding &&
       !currentExternal &&
@@ -587,6 +643,7 @@ export function planSetDeviceModelTarget(
         : resolveReviewedExternalBinding(
             definition.name,
             definition.terminals.map((terminal) => terminal.name),
+            sourceSymbolId,
           );
     if (
       !verified ||
@@ -660,6 +717,12 @@ export function planSetDeviceModelTarget(
     ];
   }
 
+  // Only a device reaches here: a gate's target is bound or cleared above.
+  if (!sourceDescriptor) {
+    throw new Error(
+      "The selected device does not accept an explicit model target",
+    );
+  }
   const symbolId = sourceSymbolId;
   if (normalizedName && sourceDescriptor.targetPolicy !== "required-model") {
     throw new Error(
@@ -1494,7 +1557,7 @@ export function reviewedExternalDefinitionEditIssue(
   if (
     previous &&
     !previous.implementation &&
-    resolveReviewedExternalBinding(
+    resolveReviewedLibraryInterface(
       previous.name,
       previous.terminals.map((t) => t.name),
     ) &&
@@ -1528,18 +1591,23 @@ export function proposeUpsertExternalSubcircuitDefinition(
       [reviewedIssue],
     );
   }
-  const reviewed = definition.implementation
-    ? undefined
-    : resolveReviewedExternalBinding(
-        definition.name,
-        definition.terminals.map((terminal) => terminal.name),
-      );
-  const allowedPins = new Set(
-    (reviewed
-      ? reviewed.terminals.map((terminal) => terminal.pinName)
-      : definition.terminals.map((terminal) => terminal.name)
-    ).map((name) => name.toLowerCase()),
-  );
+  // A caller's pins are its reviewed device's, or its gate's behind a
+  // standard cell (#1450), else the definition's terminals.
+  const allowedPinsFor = (symbolId: string) => {
+    const reviewed = definition.implementation
+      ? undefined
+      : resolveReviewedExternalBinding(
+          definition.name,
+          definition.terminals.map((terminal) => terminal.name),
+          symbolId,
+        );
+    return new Set(
+      (reviewed
+        ? reviewed.terminals.map((terminal) => terminal.pinName)
+        : definition.terminals.map((terminal) => terminal.name)
+      ).map((name) => name.toLowerCase()),
+    );
+  };
   const diagnostics = project.documents.flatMap((document) =>
     document.instances.flatMap((instance) => {
       const binding = instance.netlist?.binding;
@@ -1549,6 +1617,7 @@ export function proposeUpsertExternalSubcircuitDefinition(
       ) {
         return [];
       }
+      const allowedPins = allowedPinsFor(instance.symbolId);
       const pins = new Set<string>();
       for (const net of document.nets) {
         for (const terminal of net.terminals) {

@@ -91,7 +91,10 @@ export function createSelectionPropertyCommands({
         if (commitStructure("set-mos-model-target", edits)) {
           const target = value.trim();
           const reviewed = target
-            ? reviewedExternalBindingForMaster(target)
+            ? reviewedExternalBindingForMaster(
+                target,
+                selectedInstance.symbolId,
+              )
             : undefined;
           setStatus(
             reviewed

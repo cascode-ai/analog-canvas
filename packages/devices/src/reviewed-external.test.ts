@@ -1,12 +1,17 @@
+import { readFileSync } from "node:fs";
+import { delimiter } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
+  resolveReviewedLibraryInterface,
   projectLengthToSky130Micrometres,
   resolveReviewedExternalBinding,
+  reviewedExternalBindingById,
   reviewedExternalBindingForMaster,
   reviewedExternalBindingSupportsSymbol,
   reviewedExternalModelSuggestions,
   sky130MicrometresToProjectLength,
+  standardCellBindingForMaster,
 } from "./reviewed-external.js";
 
 describe("reviewed external device bindings", () => {
@@ -302,4 +307,205 @@ describe("reviewed external device bindings", () => {
       expect.arrayContaining(["sky130_fd_pr__nfet_01v8", "sg13_lv_nmos"]),
     );
   });
+});
+
+describe("standard cells behind Library gates (#1450)", () => {
+  const order = (name: string) =>
+    standardCellBindingForMaster(name)?.terminals.map((terminal) =>
+      [terminal.targetName, terminal.pinName, terminal.supply ?? ""].join(":"),
+    );
+
+  it("reads each library's pin order from the cell name alone", () => {
+    expect(order("sky130_fd_sc_hd__nand2_1")).toEqual([
+      "A:A:",
+      "B:B:",
+      "VGND:VSS:VSS",
+      "VNB:VSS:VSS",
+      "VPB:VDD:VDD",
+      "VPWR:VDD:VDD",
+      "Y:Y:",
+    ]);
+    // SKY130 names xnor3's output X although xnor2's is Y.
+    expect(order("sky130_fd_sc_hd__xnor3_4")?.at(-1)).toBe("X:Y:");
+    expect(order("sky130_fd_sc_hd__xnor2_1")?.at(-1)).toBe("Y:Y:");
+    expect(order("sg13g2_or3_2")).toEqual([
+      "X:Y:",
+      "A:A:",
+      "B:B:",
+      "C:C:",
+      "VDD:VDD:VDD",
+      "VSS:VSS:VSS",
+    ]);
+    expect(order("CKND2D1BWP12T30P140LVT")).toEqual([
+      "A1:A:",
+      "A2:B:",
+      "ZN:Y:",
+      "VDD:VDD:VDD",
+      "VSS:VSS:VSS",
+    ]);
+    expect(order("INVD1P25BWP12T30P140")?.slice(0, 2)).toEqual([
+      "I:A:",
+      "ZN:Y:",
+    ]);
+    expect(order("XOR3OPTND2BWP12T30P140")?.at(3)).toBe("Z:Y:");
+  });
+
+  it("stands each cell behind the gate of its function and input count", () => {
+    const gate = (name: string) => standardCellBindingForMaster(name)?.symbolId;
+    expect(gate("sky130_fd_sc_hd__inv_16")).toBe("inverter");
+    expect(gate("sg13g2_buf_8")).toBe("buffer");
+    expect(gate("CKBD4BWP12T30P140")).toBe("buffer");
+    // Clock, delay, ECO and level-shifting cells are inverters and buffers.
+    for (const name of [
+      "sky130_fd_sc_hd__clkinv_2",
+      "sky130_fd_sc_hd__clkinvlp_4",
+      "sky130_fd_sc_hd__bufinv_8",
+      "DCCKND4BWP12T30P140",
+      "GINVMCOD1BWP12T30P140LVT",
+    ])
+      expect(gate(name), name).toBe("inverter");
+    for (const name of [
+      "sky130_fd_sc_hd__clkbuf_16",
+      "sky130_fd_sc_hd__clkdlybuf4s50_1",
+      "sky130_fd_sc_hd__dlygate4sd3_1",
+      "sky130_fd_sc_hd__dlymetal6s2s_1",
+      "sg13g2_dlygate4sd1_1",
+      "DEL250D1BWP12T30P140",
+      "LVLHLD2BWP12T30P140",
+    ])
+      expect(gate(name), name).toBe("buffer");
+    expect(gate("NR4D2BWP12T30P140")).toBe("nor-gate-4");
+    expect(gate("AN2XD16BWP12T30P140LVT")).toBe("and-gate");
+    expect(gate("XNR4D1BWP12T30P140")).toBe("xnor-gate-4");
+    // Inverted inputs, enables and complex functions have no gate, nor do
+    // functions a library does not build, nor a name of the wrong shape.
+    for (const name of [
+      "sky130_fd_sc_hd__nand2b_1",
+      "sky130_fd_sc_hd__xor4_1",
+      "sky130_fd_sc_hd__nand_1",
+      "sky130_fd_sc_hd__inv2_1",
+      "sg13g2_a21oi_1",
+      "sg13g2_xor3_1",
+      "IND2D1BWP12T30P140",
+      "ND1BWP12T30P140",
+      "ND2D1BWP12T30P140HVT",
+      "LVLHLCD1BWP12T30P140",
+    ])
+      expect(gate(name), name).toBeUndefined();
+  });
+
+  it("reviews a cell only behind its own gate", () => {
+    // Imported or drawn as a block, a cell is an ordinary subcircuit.
+    expect(
+      reviewedExternalBindingForMaster("sky130_fd_sc_hd__nand2_1"),
+    ).toBeUndefined();
+    expect(
+      reviewedExternalBindingForMaster("sky130_fd_sc_hd__nand2_1", "nor-gate"),
+    ).toBeUndefined();
+    const pins = ["A", "B", "VGND", "VNB", "VPB", "VPWR", "Y"];
+    expect(
+      resolveReviewedExternalBinding("sky130_fd_sc_hd__nand2_1", pins),
+    ).toBeUndefined();
+    expect(
+      resolveReviewedExternalBinding(
+        "sky130_fd_sc_hd__nand2_1",
+        pins,
+        "nand-gate",
+      )?.symbolId,
+    ).toBe("nand-gate");
+    // Its library supplies the body whichever symbol draws it.
+    expect(
+      resolveReviewedLibraryInterface("sky130_fd_sc_hd__nand2_1", pins)
+        ?.symbolId,
+    ).toBe("nand-gate");
+    expect(
+      resolveReviewedLibraryInterface(
+        "sky130_fd_sc_hd__nand2_1",
+        pins.toReversed(),
+      ),
+    ).toBeUndefined();
+    expect(
+      reviewedExternalBindingForMaster("sky130_fd_pr__nfet_01v8", "nand-gate"),
+    ).toBeDefined();
+  });
+
+  it("matches names in any case and finds a netlisted cell by its id", () => {
+    const cell = standardCellBindingForMaster("nd2d1bwp12t30p140lvt")!;
+    expect(cell.masterName).toBe("ND2D1BWP12T30P140LVT");
+    expect(standardCellBindingForMaster("SG13G2_NOR2_1")?.masterName).toBe(
+      "sg13g2_nor2_1",
+    );
+    expect(reviewedExternalBindingById(cell.id)).toBe(cell);
+    expect(reviewedExternalBindingById("sky130-nfet-01v8")?.masterName).toBe(
+      "sky130_fd_pr__nfet_01v8",
+    );
+    expect(reviewedExternalBindingById(undefined)).toBeUndefined();
+  });
+
+  it("suggests the weakest cell of each library, within the Process", () => {
+    expect(reviewedExternalModelSuggestions("nand-gate")).toEqual([
+      "sky130_fd_sc_hd__nand2_1",
+      "sg13g2_nand2_1",
+      "ND2D1BWP12T30P140",
+    ]);
+    expect(
+      reviewedExternalModelSuggestions("inverter", "sky130_fd_pr"),
+    ).toEqual(["sky130_fd_sc_hd__inv_1"]);
+    expect(reviewedExternalModelSuggestions("xor-gate-3", "sg13g2_pr")).toEqual(
+      [],
+    );
+    expect(reviewedExternalModelSuggestions("xor-gate-4")).toEqual([
+      "XOR4D1BWP12T30P140",
+    ]);
+  });
+
+  // Opt-in: ICM_STD_CELL_SPICE lists library netlists (sky130_fd_sc_hd.spice,
+  // sg13g2_stdcell.spice, the tcbn28hpcplusbwp12t30p140 .spi), which are not in
+  // the repository. Every cell a rule accepts must have exactly the rule's
+  // pins, and every suggestion must be a cell of its library.
+  it.skipIf(!process.env.ICM_STD_CELL_SPICE)(
+    "agrees with every cell of the libraries' own netlists",
+    () => {
+      const suggestions = [
+        "inverter",
+        "buffer",
+        ...["nand", "nor", "and", "or", "xor", "xnor"].flatMap((fn) => [
+          `${fn}-gate`,
+          `${fn}-gate-3`,
+          `${fn}-gate-4`,
+        ]),
+      ].flatMap((symbolId) => reviewedExternalModelSuggestions(symbolId));
+      for (const path of process.env.ICM_STD_CELL_SPICE!.split(delimiter)) {
+        const cells = new Map(
+          [
+            ...readFileSync(path, "utf8")
+              .replace(/\n\+/gu, " ")
+              .matchAll(/^\.subckt\s+(\S+)\s+([^\n]*)$/gimu),
+          ].map((match) => [
+            match[1]!.toLowerCase(),
+            match[2]!.trim().split(/\s+/u),
+          ]),
+        );
+        const libraries = new Set<string>();
+        let accepted = 0;
+        for (const [name, pins] of cells) {
+          const binding = standardCellBindingForMaster(name);
+          if (!binding) continue;
+          accepted += 1;
+          libraries.add(binding.libraryId);
+          expect(
+            binding.terminals.map((terminal) => terminal.targetName),
+            name,
+          ).toEqual(pins);
+        }
+        expect(accepted, path).toBeGreaterThan(20);
+        for (const suggestion of suggestions)
+          if (
+            libraries.has(standardCellBindingForMaster(suggestion)!.libraryId)
+          )
+            expect(cells.has(suggestion.toLowerCase()), suggestion).toBe(true);
+        console.log(`${path}: ${accepted} gate cells agree`);
+      }
+    },
+  );
 });

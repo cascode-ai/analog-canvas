@@ -261,6 +261,7 @@ function externalCallerValidationFailures(
           : resolveReviewedExternalBinding(
               definition.name,
               definition.terminals.map((terminal) => terminal.name),
+              instance.symbolId,
             );
       const allowed = new Set(
         (reviewed
@@ -809,8 +810,17 @@ export function executeProjectTransaction(
               )
           )
             continue;
+          // A gate keeps its symbol behind the standard cell of its
+          // function (#1450), as a PDK device keeps its native artwork.
           const symbolId =
             reviewedMapping?.symbolId === instance.symbolId ||
+            (!edit.definition.presentation &&
+              !edit.definition.implementation &&
+              resolveReviewedExternalBinding(
+                edit.definition.name,
+                edit.definition.terminals.map((terminal) => terminal.name),
+                instance.symbolId,
+              )) ||
             (instance.symbolId !== externalSymbolId &&
               edit.definition.terminals.every((terminal) =>
                 currentResolver

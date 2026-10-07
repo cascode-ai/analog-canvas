@@ -71,4 +71,32 @@ describe("shared block layout target", () => {
       }),
     ).toBeUndefined();
   });
+
+  it("does not offer them for a standard cell, drawn as its gate or as a block (#1450)", () => {
+    const project = createEmptyProject("p", "P");
+    project.externalSubcircuitDefinitions.push({
+      id: "cell",
+      name: "sky130_fd_sc_hd__nor2_1",
+      terminals: ["A", "B", "VGND", "VNB", "VPB", "VPWR", "Y"].map((name) => ({
+        id: name,
+        name,
+        direction: "passive",
+      })),
+      formalParameters: [],
+      interfaceStatus: "declared",
+    });
+    for (const symbolId of ["nor-gate", "ext-cell"])
+      expect(
+        selectedBlockSymbolTarget(project, {
+          id: "X1",
+          symbolId,
+          placement: null,
+          netlist: {
+            parameters: {},
+            binding: { kind: "external-subcircuit", definitionId: "cell" },
+          },
+        }),
+        symbolId,
+      ).toBeUndefined();
+  });
 });

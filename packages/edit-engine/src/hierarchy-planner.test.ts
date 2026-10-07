@@ -30,6 +30,7 @@ import {
   executeProjectTransaction,
   type ProjectStructureEdit,
 } from "./project-transaction.js";
+import { planProjectCellImport } from "./project-cell-import.js";
 
 describe("a Var Cap is a generic tunable capacitor (#1298)", () => {
   function varCapProject() {
@@ -116,6 +117,125 @@ describe("a Var Cap is a generic tunable capacitor (#1298)", () => {
       [{ instanceId: "CV1", pinName: "P1" }],
       [{ instanceId: "CV1", pinName: "P2" }],
     ]);
+  });
+});
+
+describe("a Library gate takes a standard cell of its function (#1450)", () => {
+  function norProject() {
+    const project = createEmptyProject("gates", "Gates");
+    const document = project.documents[0]!;
+    document.instances.push({
+      id: "X1",
+      reference: "X1",
+      symbolId: "nor-gate",
+      placement: null,
+      netlist: {
+        binding: { kind: "unresolved-subcircuit", name: "nor_gate" },
+        parameters: { vt: "10m", td: "10p" },
+      },
+    });
+    document.nets.push(
+      ...["A", "B", "Y"].map((pin) => ({
+        id: `net-${pin.toLowerCase()}`,
+        terminals: [{ instanceId: "X1", pinName: pin }],
+      })),
+    );
+    return project;
+  }
+  const apply = (
+    project: ReturnType<typeof norProject>,
+    model: string,
+  ): ReturnType<typeof norProject> => {
+    const result = executeProjectTransaction(project, {
+      transactionId: `model-${model}`,
+      projectId: project.id,
+      expectedStructureRevision: project.structureRevision,
+      actor: { kind: "agent", id: "test" },
+      edits: planSetDeviceModelTarget(
+        project,
+        project.topDocumentId,
+        "X1",
+        model,
+      ),
+    });
+    if (!result.ok) throw new Error(result.error.message);
+    return result.project;
+  };
+
+  it("calls the cell in its pin order with the gate's rails, and clears back to the ideal body", () => {
+    const bound = apply(norProject(), "sky130_fd_sc_hd__nor2_1");
+    expect(bound.documents[0]!.instances[0]).toMatchObject({
+      symbolId: "nor-gate",
+      netlist: { binding: { kind: "external-subcircuit" }, parameters: {} },
+    });
+    const exported = createDesignNetlistExport(bound, { format: "spice" });
+    if (exported.status !== "ready") throw new Error(exported.status);
+    // A, B, VGND VNB on the Cell's ground, VPB VPWR on its VDD, then Y.
+    expect(exported.file.text).toContain(
+      "X1 net0 net1 VSS VSS VDD VDD net2 sky130_fd_sc_hd__nor2_1\n",
+    );
+    expect(exported.file.text).not.toContain(".subckt nor_gate");
+
+    const cleared = apply(bound, "");
+    expect(cleared.documents[0]!.instances[0]!.netlist).toEqual({
+      binding: { kind: "unresolved-subcircuit", name: "nor_gate" },
+      parameters: { vt: "10m", td: "10p" },
+    });
+  });
+
+  it("refuses another function's cell and a name that is no cell", () => {
+    const project = norProject();
+    expect(() =>
+      planSetDeviceModelTarget(
+        project,
+        project.topDocumentId,
+        "X1",
+        "sg13g2_nand2_1",
+      ),
+    ).toThrow(
+      "sg13g2_nand2_1 is not compatible with the selected nor-gate: it is a nand-gate model. Place a nand-gate to use it.",
+    );
+    expect(() =>
+      planSetDeviceModelTarget(project, project.topDocumentId, "X1", "nor2"),
+    ).toThrow(
+      "nor2 is not a reviewed standard cell for nor-gate; use sky130_fd_sc_hd__nor2_1, sg13g2_nor2_1, NR2D1BWP12T30P140",
+    );
+  });
+
+  it("stays a gate through its definition's upsert and a Cell import, and keeps the cell's interface fixed", () => {
+    const bound = apply(norProject(), "sky130_fd_sc_hd__nor2_1");
+    const definition = bound.externalSubcircuitDefinitions[0]!;
+    const upsert = (next: typeof definition) =>
+      executeProjectTransaction(bound, {
+        transactionId: "upsert-cell",
+        projectId: bound.id,
+        expectedStructureRevision: bound.structureRevision,
+        actor: { kind: "agent", id: "test" },
+        edits: [
+          { kind: "upsert_external_subcircuit_definition", definition: next },
+        ],
+      });
+    const same = upsert(structuredClone(definition));
+    if (!same.ok) throw new Error(same.error.message);
+    expect(same.project.documents[0]!.instances[0]!.symbolId).toBe("nor-gate");
+    const forked = upsert({
+      ...definition,
+      formalParameters: [{ name: "foo", defaultValue: "1" }],
+    });
+    expect(!forked.ok && forked.error.message).toBe(
+      "Reviewed PDK interfaces and implementations are fixed. Create a new definition for an explicit model fork.",
+    );
+
+    const imported = planProjectCellImport(
+      createEmptyProject("destination", "Destination"),
+      bound,
+      bound.topDocumentId,
+    );
+    if (!imported.ok) throw new Error(imported.message);
+    const placed = imported.edits.flatMap((edit) =>
+      edit.kind === "add_document" ? edit.document.instances : [],
+    );
+    expect(placed.map((instance) => instance.symbolId)).toEqual(["nor-gate"]);
   });
 });
 

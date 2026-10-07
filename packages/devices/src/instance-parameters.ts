@@ -112,6 +112,7 @@ export function instanceParameterContract(
       ? resolveReviewedExternalBinding(
           definition.name,
           definition.terminals.map((terminal) => terminal.name),
+          instance.symbolId,
         )
       : undefined;
     return reviewed

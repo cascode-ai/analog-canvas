@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { resolveReviewedExternalBinding } from "@icm/devices";
+import { resolveReviewedLibraryInterface } from "@icm/devices";
 import type { ProjectCellSummary } from "@icm/derived";
 
 import type {
@@ -536,7 +536,7 @@ export function CellManagerDialog({
                         ? " · Unimplemented"
                         : definition.implementation?.kind === "source"
                           ? " · Project model"
-                          : resolveReviewedExternalBinding(
+                          : resolveReviewedLibraryInterface(
                                 definition.name,
                                 definition.terminals.map((t) => t.name),
                               )
