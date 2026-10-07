@@ -1,11 +1,9 @@
 import {
   defaultInstanceParameterLabelPlacement,
   displayableInstanceParameter,
-  instanceValueRowOffset,
   instanceDisplayParameters,
   objectStyleProfile,
   resolveDocumentStyleProfile,
-  valuePrintsMultiplier,
 } from "@icm/derived";
 import type { SchematicEdit } from "@icm/edit-engine";
 import type { SchematicDocument } from "@icm/model";
@@ -84,7 +82,10 @@ export function instanceParameterVisibilityEdits(
       resolveDocumentStyleProfile(document.presentation),
       instance,
     );
-    const slot =
+    // A multiplier stands a text row under its device's name, the slot it
+    // keeps whether or not a W/L shows: a shown W/L prints the ×m itself, so
+    // the label appears only while the W/L is hidden (#1423).
+    const placement =
       resolved &&
       defaultInstanceParameterLabelPlacement(
         instance,
@@ -93,36 +94,8 @@ export function instanceParameterVisibilityEdits(
         document.presentation.grid,
         parameter.name,
       );
-    if (!slot || !instance.placement)
+    if (!placement || !instance.placement)
       throw new Error("Place the component before showing its parameters");
-    // Shown beside a value that is itself on show, the multiplier takes the
-    // row after it. A W/L prints the ×m itself, and the label stands in its
-    // row for when the W/L is hidden.
-    const belowValue =
-      parameter.displayRole === "multiplier" &&
-      !valuePrintsMultiplier(instance.symbolId, parameter.name) &&
-      document.annotations.some(
-        (annotation) =>
-          annotation.binding?.kind === "instance-value" &&
-          annotation.binding.instanceId === instance.id &&
-          annotation.binding.parameter === undefined &&
-          annotation.visible !== false,
-      );
-    const placement = belowValue
-      ? {
-          ...slot,
-          position: {
-            x: slot.position.x,
-            y:
-              slot.position.y +
-              instanceValueRowOffset(
-                instance.symbolId,
-                profile,
-                document.presentation.grid,
-              ),
-          },
-        }
-      : slot;
     const baseId = `instance-parameter-${instance.id}-${parameter.name}`;
     let id = baseId;
     let suffix = 1;

@@ -2486,7 +2486,11 @@ function reportGenericDiodes(
  * design's own. A Cell that leans on one says it needs a card before it
  * simulates, unless the imported SPICE or the run's own files supply it.
  */
-const UNDEFINED_GENERIC_TARGETS = ["NMOS", "PMOS", "SW"] as const;
+const UNDEFINED_GENERIC_TARGETS = [
+  { name: "NMOS", deviceClass: "mos" },
+  { name: "PMOS", deviceClass: "mos" },
+  { name: "SW", deviceClass: "switch" },
+] as const;
 
 function reportUndefinedGenericModels(
   project: CircuitProject,
@@ -2495,10 +2499,13 @@ function reportUndefinedGenericModels(
   deckSources: readonly string[],
   diagnostics: NetlistDiagnostic[],
 ): void {
-  const named = UNDEFINED_GENERIC_TARGETS.flatMap((name) => {
-    // SPICE reads model names in any case.
+  const named = UNDEFINED_GENERIC_TARGETS.flatMap(({ name, deviceClass }) => {
+    // SPICE reads model names in any case. Only a device of that class names
+    // the model: a call to a Cell named sw names the Cell.
     const parts = instances.filter(
-      (instance) => instance.target?.toUpperCase() === name,
+      (instance) =>
+        instance.deviceClass === deviceClass &&
+        instance.target?.toUpperCase() === name,
     );
     return parts.length &&
       !definesGenericModel(project, deckSources, {

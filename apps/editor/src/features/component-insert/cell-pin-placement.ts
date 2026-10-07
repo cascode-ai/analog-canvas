@@ -4,7 +4,12 @@ import {
   planCreateCellPin,
   type SchematicEdit,
 } from "@icm/edit-engine";
-import type { CircuitProject, Instance, SchematicDocument } from "@icm/model";
+import type {
+  Annotation,
+  CircuitProject,
+  Instance,
+  SchematicDocument,
+} from "@icm/model";
 import {
   resolveDocumentStyleProfile,
   type SchematicStyleProfile,
@@ -83,16 +88,57 @@ export function planPlacedCellPin(
     },
     ...(annotation ? { annotation } : {}),
   });
-  const retired = supply
-    ? retireKeptSupplyPin(document, name, input.netId)
-    : [];
-  return retired.length
-    ? plan.map((entry) =>
-        entry.kind === "transact_document" && entry.documentId === documentId
-          ? { ...entry, edits: [...entry.edits, ...retired] }
-          : entry,
-      )
-    : plan;
+  const kept = supply ? keptSupplyPin(document, name) : undefined;
+  if (!kept) return plan;
+  // An earlier marker of the same call took the kept Pin over already; this
+  // one joins it by name.
+  const taken = input.precedingEdits?.some(
+    (edit) =>
+      edit.kind === "remove_cell_terminal" && edit.terminalId === kept.pin.id,
+  );
+  return plan.map((entry) =>
+    entry.kind === "transact_document" && entry.documentId === documentId
+      ? {
+          ...entry,
+          edits: [
+            ...entry.edits.flatMap((edit): SchematicEdit[] => {
+              // The supply keeps the kept Pin's place on the Cell's symbol:
+              // a new edge slot would move it, or name the Pin it retires.
+              if (edit.kind === "set_cell_symbol_presentation") return [];
+              // The marker's Pin stands where the kept one stood among the
+              // Cell's Pins, so a netlist's port order stays.
+              return !taken &&
+                edit.kind === "add_cell_terminal" &&
+                edit.terminal.id === input.terminalId
+                ? [{ ...edit, index: kept.index }]
+                : [edit];
+            }),
+            ...(taken ? [] : retireKeptSupplyPin(document, kept, input.netId)),
+          ],
+        }
+      : entry,
+  );
+}
+
+interface KeptSupplyPin {
+  label: Annotation;
+  pin: NonNullable<SchematicDocument["netlist"]>["terminals"][number];
+  index: number;
+}
+
+/** The supply's rail label and Pin a body reset or clear-drawing kept. */
+function keptSupplyPin(
+  document: SchematicDocument,
+  name: string,
+): KeptSupplyPin | undefined {
+  const label = freePowerRailLabel(document, { netName: name, scope: "local" });
+  const terminals = document.netlist?.terminals ?? [];
+  const index = terminals.findIndex(
+    (terminal) => terminal.interfaceAnnotationId === label?.id,
+  );
+  return label && index >= 0
+    ? { label, pin: terminals[index]!, index }
+    : undefined;
 }
 
 /**
@@ -105,14 +151,9 @@ export function planPlacedCellPin(
  */
 function retireKeptSupplyPin(
   document: SchematicDocument,
-  name: string,
+  { label, pin }: KeptSupplyPin,
   markerNetId: string,
 ): SchematicEdit[] {
-  const label = freePowerRailLabel(document, { netName: name, scope: "local" });
-  const pin = document.netlist?.terminals.find(
-    (terminal) => terminal.interfaceAnnotationId === label?.id,
-  );
-  if (!label || !pin) return [];
   // The label stood on a Junction no rail reaches; it goes with the label
   // unless something else still uses it.
   const junctionId =
@@ -122,7 +163,16 @@ function retireKeptSupplyPin(
     annotations: document.annotations.filter((item) => item.id !== label.id),
   };
   return [
-    { kind: "merge_nets", targetNetId: pin.netId, sourceNetId: markerNetId },
+    // A marker dropped on the supply's own Net is on it already.
+    ...(pin.netId === markerNetId
+      ? []
+      : [
+          {
+            kind: "merge_nets" as const,
+            targetNetId: pin.netId,
+            sourceNetId: markerNetId,
+          },
+        ]),
     { kind: "remove_schematic_annotation", annotationId: label.id },
     { kind: "remove_cell_terminal", terminalId: pin.id },
     ...(junctionId !== undefined &&

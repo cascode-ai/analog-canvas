@@ -216,6 +216,37 @@ describe("static shell cache policy", () => {
     expect(stored.size).toBe(0);
   });
 
+  it("keeps a font file read with fetch(), as the PDF exporter reads its faces", async () => {
+    const fetched = (path: string) => {
+      const { listeners, stored } = loadWorker(
+        (async () =>
+          new Response("ttf", {
+            headers: { "content-type": "font/ttf" },
+          })) as unknown as typeof fetch,
+      );
+      // A plain fetch() has no destination.
+      const request = new Request(`https://analog-canvas.test${path}`);
+      let served: Promise<Response> | null = null;
+      const pending: Promise<unknown>[] = [];
+      listeners.get("fetch")!({
+        request,
+        respondWith: (value) => {
+          served = value;
+        },
+        waitUntil: (value) => {
+          pending.push(value);
+        },
+      });
+      return { stored, served, pending };
+    };
+    const font = fetched("/assets/DejaVuSans-abc.ttf");
+    await font.served;
+    await Promise.all(font.pending);
+    expect(font.stored.has("/assets/DejaVuSans-abc.ttf")).toBe(true);
+    // Any other plain fetch stays the page's own.
+    expect(fetched("/assets/catalog-abc.json").served).toBeNull();
+  });
+
   it("does not store an explicitly no-store static response", async () => {
     const { stored } = await requestScript(
       new Response("export const dynamic = true;", {

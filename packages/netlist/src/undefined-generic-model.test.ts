@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { createEmptyProject, createSimulationFolder } from "@icm/model";
+import {
+  createEmptyDocument,
+  createEmptyProject,
+  createSimulationFolder,
+} from "@icm/model";
 
 import { createDesignNetlistExport, designExtractsNetlist } from "./export.js";
 import { compileNgspiceSourceSimulation } from "./simulation-source-ngspice.js";
@@ -100,6 +104,24 @@ describe("a generic target the netlist does not define (#1420)", () => {
     // Spectre netlists run against model includes: nothing to say there.
     const spectre = createDesignNetlistExport(project, { format: "spectre" });
     expect(undefinedFindings(spectre.diagnostics)).toEqual([]);
+  });
+
+  it("leaves alone a call to a Cell named like one", () => {
+    const project = createEmptyProject("calls", "Calls", "top");
+    const child = createEmptyDocument("child", "sw");
+    project.documents.push(child);
+    project.documents[0]!.instances.push({
+      id: "x1",
+      symbolId: "sw-cell",
+      reference: "X1",
+      placement: null,
+      netlist: {
+        binding: { kind: "subcircuit", childDocumentId: child.id },
+        parameters: {},
+      },
+    });
+    const result = createDesignNetlistExport(project);
+    expect(undefinedFindings(result.diagnostics)).toEqual([]);
   });
 
   it("is quiet about a card the imported SPICE or the run's own files define", () => {

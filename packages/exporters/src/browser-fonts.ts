@@ -18,11 +18,7 @@ export const SCHEMATIC_FONT_UNICODE_RANGE = [
   "U+0020-007E",
   "U+00A0-017F",
   "U+0300-036F",
-  "U+0391-03A9",
-  "U+03B1-03C9",
-  "U+03D1",
-  "U+03D5",
-  "U+03F5",
+  "U+0370-03FF",
   "U+2010-2027",
   "U+2030-205E",
   "U+2070-209F",
@@ -49,26 +45,22 @@ const FACES = [
   },
 ] as const;
 
-function fontFaceRule(
-  face: (typeof FACES)[number],
-  source: string,
-  display: "swap" | "block",
-): string {
-  return `@font-face{font-family:"${SCHEMATIC_FONT_FAMILY}";src:${source};font-weight:${face.weight};font-style:${face.style};font-display:${display};unicode-range:${SCHEMATIC_FONT_UNICODE_RANGE}}`;
+/**
+ * One face's rule: an installed DejaVu Sans first, else `source`. Text shows
+ * in the next face of the stack until it arrives, and characters the subset
+ * lacks are drawn by the stack's next face; label positions do not depend
+ * on it, as they come from the tables.
+ */
+function fontFaceRule(face: (typeof FACES)[number], source: string): string {
+  return `@font-face{font-family:"${SCHEMATIC_FONT_FAMILY}";src:local("${face.local}"),${source};font-weight:${face.weight};font-style:${face.style};font-display:swap;unicode-range:${SCHEMATIC_FONT_UNICODE_RANGE}}`;
 }
 
 /**
- * The faces for a page that draws schematic text: an installed DejaVu Sans
- * first, else the served file, fetched when text first needs it. Text shows
- * in the next face of the stack until then; label positions do not depend
- * on it, as they come from the tables.
+ * The faces for a page that draws schematic text, each fetched when text
+ * first needs it.
  */
 export const schematicWebFontFaceCss = FACES.map((face) =>
-  fontFaceRule(
-    face,
-    `local("${face.local}"),url("${face.url}") format("woff")`,
-    "swap",
-  ),
+  fontFaceRule(face, `url("${face.url}") format("woff")`),
 ).join("");
 
 let inlined: Promise<string> | undefined;
@@ -93,7 +85,6 @@ export function inlineSchematicWebFontFaceCss(
       return fontFaceRule(
         face,
         `url("data:font/woff;base64,${btoa(binary)}") format("woff")`,
-        "block",
       );
     }),
   )
