@@ -30,6 +30,7 @@ import {
   executeProjectTransaction,
   type ProjectStructureEdit,
 } from "./project-transaction.js";
+import { planProjectCellImport } from "./project-cell-import.js";
 
 describe("a Var Cap is a generic tunable capacitor (#1298)", () => {
   function varCapProject() {
@@ -199,6 +200,42 @@ describe("a Library gate takes a standard cell of its function (#1450)", () => {
     ).toThrow(
       "nor2 is not a reviewed standard cell for nor-gate; use sky130_fd_sc_hd__nor2_1, sg13g2_nor2_1, NR2D1BWP12T30P140",
     );
+  });
+
+  it("stays a gate through its definition's upsert and a Cell import, and keeps the cell's interface fixed", () => {
+    const bound = apply(norProject(), "sky130_fd_sc_hd__nor2_1");
+    const definition = bound.externalSubcircuitDefinitions[0]!;
+    const upsert = (next: typeof definition) =>
+      executeProjectTransaction(bound, {
+        transactionId: "upsert-cell",
+        projectId: bound.id,
+        expectedStructureRevision: bound.structureRevision,
+        actor: { kind: "agent", id: "test" },
+        edits: [
+          { kind: "upsert_external_subcircuit_definition", definition: next },
+        ],
+      });
+    const same = upsert(structuredClone(definition));
+    if (!same.ok) throw new Error(same.error.message);
+    expect(same.project.documents[0]!.instances[0]!.symbolId).toBe("nor-gate");
+    const forked = upsert({
+      ...definition,
+      formalParameters: [{ name: "foo", defaultValue: "1" }],
+    });
+    expect(!forked.ok && forked.error.message).toBe(
+      "Reviewed PDK interfaces and implementations are fixed. Create a new definition for an explicit model fork.",
+    );
+
+    const imported = planProjectCellImport(
+      createEmptyProject("destination", "Destination"),
+      bound,
+      bound.topDocumentId,
+    );
+    if (!imported.ok) throw new Error(imported.message);
+    const placed = imported.edits.flatMap((edit) =>
+      edit.kind === "add_document" ? edit.document.instances : [],
+    );
+    expect(placed.map((instance) => instance.symbolId)).toEqual(["nor-gate"]);
   });
 });
 

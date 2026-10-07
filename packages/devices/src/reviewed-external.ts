@@ -926,7 +926,7 @@ const STANDARD_CELL_RULES: readonly StandardCellRule[] = [
 
 /** A standard cell's binding id: this prefix and the cell's name. */
 const STANDARD_CELL_ID_PREFIX = "std-cell-";
-/** Cells read so far, so a cell keeps one binding object; bounded, since any drive number reads. */
+/** Cells read so far, reused while they last; cleared at 256 entries, since any drive number reads. */
 const standardCellBindings = new Map<string, ReviewedExternalDeviceBinding>();
 
 /**
@@ -1046,16 +1046,14 @@ export function resolveReviewedExternalBinding(
  * a standard cell (#1450) in its exact pin order, whichever symbol draws it:
  * the library supplies its body, so the Project need not.
  */
-export function isReviewedLibraryInterface(
+export function resolveReviewedLibraryInterface(
   masterName: string,
   terminalNames: readonly string[],
-): boolean {
-  return Boolean(
-    resolveReviewedExternalBinding(
-      masterName,
-      terminalNames,
-      standardCellBindingForMaster(masterName)?.symbolId,
-    ),
+): ReviewedExternalDeviceBinding | undefined {
+  return resolveReviewedExternalBinding(
+    masterName,
+    terminalNames,
+    standardCellBindingForMaster(masterName)?.symbolId,
   );
 }
 

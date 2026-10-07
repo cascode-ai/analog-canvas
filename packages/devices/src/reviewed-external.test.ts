@@ -3,7 +3,7 @@ import { delimiter } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
-  isReviewedLibraryInterface,
+  resolveReviewedLibraryInterface,
   projectLengthToSky130Micrometres,
   resolveReviewedExternalBinding,
   reviewedExternalBindingById,
@@ -414,12 +414,16 @@ describe("standard cells behind Library gates (#1450)", () => {
       )?.symbolId,
     ).toBe("nand-gate");
     // Its library supplies the body whichever symbol draws it.
-    expect(isReviewedLibraryInterface("sky130_fd_sc_hd__nand2_1", pins)).toBe(
-      true,
-    );
     expect(
-      isReviewedLibraryInterface("sky130_fd_sc_hd__nand2_1", pins.toReversed()),
-    ).toBe(false);
+      resolveReviewedLibraryInterface("sky130_fd_sc_hd__nand2_1", pins)
+        ?.symbolId,
+    ).toBe("nand-gate");
+    expect(
+      resolveReviewedLibraryInterface(
+        "sky130_fd_sc_hd__nand2_1",
+        pins.toReversed(),
+      ),
+    ).toBeUndefined();
     expect(
       reviewedExternalBindingForMaster("sky130_fd_pr__nfet_01v8", "nand-gate"),
     ).toBeDefined();

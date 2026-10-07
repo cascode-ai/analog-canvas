@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { CircuitProject, ExternalSubcircuitDefinition } from "@icm/model";
 import { createId } from "@icm/model";
-import { resolveReviewedExternalBinding } from "@icm/devices";
+import { resolveReviewedLibraryInterface } from "@icm/devices";
 import type { ExternalDefinitionResult } from "./project-structure-commands";
 import {
   ExternalModelSourceEditor,
@@ -53,7 +53,7 @@ export function ExternalCircuitEditor({
   const reviewed =
     definition &&
     !definition.implementation &&
-    resolveReviewedExternalBinding(
+    resolveReviewedLibraryInterface(
       definition.name,
       definition.terminals.map((item) => item.name),
     );

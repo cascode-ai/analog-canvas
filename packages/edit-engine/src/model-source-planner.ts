@@ -11,7 +11,7 @@ import {
 import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 import { executeTransaction } from "./transaction.js";
 import type { ProjectStructureEdit } from "./project-transaction.js";
-import { resolveReviewedExternalBinding } from "@icm/devices";
+import { resolveReviewedLibraryInterface } from "@icm/devices";
 
 /** Native source Apply plans ordinary edits; all callers share the atomic boundary. */
 export function planModelSourceApply(
@@ -86,7 +86,7 @@ export function planModelSourceApply(
     if (
       old &&
       !old.implementation &&
-      resolveReviewedExternalBinding(
+      resolveReviewedLibraryInterface(
         old.name,
         old.terminals.map((t) => t.name),
       )

@@ -1,5 +1,5 @@
 import { type CircuitProject, type SchematicDocument } from "@icm/model";
-import { resolveReviewedExternalBinding } from "@icm/devices";
+import { resolveReviewedLibraryInterface } from "@icm/devices";
 import {
   externalSubcircuitSymbolId,
   hierarchicalSymbolId,
@@ -44,11 +44,14 @@ export function selectedBlockSymbolTarget(
     (item) => item.id === binding.definitionId,
   );
   if (!definition) return undefined;
-  // Native PDK artwork is not a generic, resizable block.
+  // Native PDK artwork is not a generic, resizable block, and a standard
+  // cell's library interface is not either: a layout would give the
+  // definition a presentation, which turns every gate bound to it into a
+  // block (#1450).
   if (
     !definition.presentation &&
     !definition.implementation &&
-    resolveReviewedExternalBinding(
+    resolveReviewedLibraryInterface(
       definition.name,
       definition.terminals.map((pin) => pin.name),
     )

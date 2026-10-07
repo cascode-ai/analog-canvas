@@ -22,6 +22,7 @@ import {
   builtInModelDefaults,
   deviceDescriptor,
   resolveReviewedExternalBinding,
+  resolveReviewedLibraryInterface,
   reviewedExternalBindingForMaster,
   reviewedExternalBindingSupportsSymbol,
   reviewedExternalModelSuggestions,
@@ -1556,7 +1557,7 @@ export function reviewedExternalDefinitionEditIssue(
   if (
     previous &&
     !previous.implementation &&
-    resolveReviewedExternalBinding(
+    resolveReviewedLibraryInterface(
       previous.name,
       previous.terminals.map((t) => t.name),
     ) &&
@@ -1590,18 +1591,23 @@ export function proposeUpsertExternalSubcircuitDefinition(
       [reviewedIssue],
     );
   }
-  const reviewed = definition.implementation
-    ? undefined
-    : resolveReviewedExternalBinding(
-        definition.name,
-        definition.terminals.map((terminal) => terminal.name),
-      );
-  const allowedPins = new Set(
-    (reviewed
-      ? reviewed.terminals.map((terminal) => terminal.pinName)
-      : definition.terminals.map((terminal) => terminal.name)
-    ).map((name) => name.toLowerCase()),
-  );
+  // A caller's pins are its reviewed device's, or its gate's behind a
+  // standard cell (#1450), else the definition's terminals.
+  const allowedPinsFor = (symbolId: string) => {
+    const reviewed = definition.implementation
+      ? undefined
+      : resolveReviewedExternalBinding(
+          definition.name,
+          definition.terminals.map((terminal) => terminal.name),
+          symbolId,
+        );
+    return new Set(
+      (reviewed
+        ? reviewed.terminals.map((terminal) => terminal.pinName)
+        : definition.terminals.map((terminal) => terminal.name)
+      ).map((name) => name.toLowerCase()),
+    );
+  };
   const diagnostics = project.documents.flatMap((document) =>
     document.instances.flatMap((instance) => {
       const binding = instance.netlist?.binding;
@@ -1611,6 +1617,7 @@ export function proposeUpsertExternalSubcircuitDefinition(
       ) {
         return [];
       }
+      const allowedPins = allowedPinsFor(instance.symbolId);
       const pins = new Set<string>();
       for (const net of document.nets) {
         for (const terminal of net.terminals) {

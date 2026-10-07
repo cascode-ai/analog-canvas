@@ -1114,7 +1114,11 @@ function extractExternalSubcircuitInstance(
   // the conventional supply before extraction (#1450).
   const railsAsked = new Set<string>();
   const railNetName = (rail: "VDD" | "VSS") => {
-    const drawn = drawnSupplyNet(document, rail === "VDD" ? "vdd" : "ground");
+    const drawn = drawnSupplyNet(
+      document,
+      rail === "VDD" ? "vdd" : "ground",
+      context.logicalNets,
+    );
     const drawnName = drawn ? context.nameByNetId.get(drawn.id) : undefined;
     if (!drawnName && !railsAsked.has(rail)) {
       railsAsked.add(rail);

@@ -10,7 +10,7 @@ import {
 } from "@icm/spice";
 import { inspectSimulationSourceGraph } from "./simulation-source-graph.js";
 import type { SimulationSourceDiagnostic } from "./source-file-graph.js";
-import { isReviewedLibraryInterface } from "@icm/devices";
+import { resolveReviewedLibraryInterface } from "@icm/devices";
 
 /** Native inspection retains opaque bodies; acceptance is not simulator qualification. */
 export function inspectProjectModelSource(source: ProjectModelSource) {
@@ -172,7 +172,7 @@ export function collectProjectModelSources(
     if (!definition) continue;
     if (!implementation) {
       if (
-        !isReviewedLibraryInterface(
+        !resolveReviewedLibraryInterface(
           definition.name,
           definition.terminals.map((t) => t.name),
         )
