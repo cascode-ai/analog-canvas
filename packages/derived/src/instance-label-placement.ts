@@ -1530,14 +1530,18 @@ function parameterPlacementWith(
         candidate.name === parameter && candidate.displayRole === "multiplier",
     )
   ) {
-    // A multiplier reads with its device's name, in the value's row: a BJT
-    // has no value, and a MOS's W/L already carries its M when shown.
-    return defaultInstanceLabelPlacement(
+    // A multiplier reads with its device's name, a text row under it: a BJT
+    // has no value, and a MOS's ×m shows only while the W/L that carries it
+    // is hidden, so it takes no fraction's taller row (#1423).
+    return defaultPlacementWith(
+      nameFirstPlacer,
+      rows,
       instance,
       resolved,
       profile,
       grid,
       "value",
+      1,
     );
   }
   const index = magneticDisplayParameters(instance.symbolId).findIndex(

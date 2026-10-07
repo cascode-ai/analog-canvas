@@ -7,6 +7,7 @@ import type {
   Rotation,
   SchematicDocument,
 } from "@icm/model";
+import { deviceDescriptor } from "@icm/devices";
 import type { SymbolResolver } from "@icm/symbols";
 
 import { resolveVisualAnchor, type ResolvedAnchor } from "./anchor.js";
@@ -96,11 +97,50 @@ export function isSchematicAnnotationVisible(
     return false;
   }
   const binding = annotation.binding;
+  // A MOS's W/L already carries its ×m (#752): its own ×m label stands in
+  // only while the W/L is hidden, so the count is never drawn twice (#1423).
+  if (
+    binding?.kind === "instance-value" &&
+    binding.parameter !== undefined &&
+    valuePrintsMultiplier(
+      document.instances.find((item) => item.id === binding.instanceId)
+        ?.symbolId,
+      binding.parameter,
+    ) &&
+    document.annotations.some(
+      (other) =>
+        other.binding?.kind === "instance-value" &&
+        other.binding.instanceId === binding.instanceId &&
+        other.binding.parameter === undefined &&
+        isSchematicAnnotationVisible(document, other, logicalNets),
+    )
+  )
+    return false;
   return !(
     binding?.kind === "instance-reference" &&
     document.netlist?.terminals.some((terminal) =>
       terminal.interfaceInstanceIds.includes(binding.instanceId),
     )
+  );
+}
+
+/**
+ * Whether a part's value prints this parameter as its ×m: a MOS's W/L does
+ * (#752), so its own ×m label is wanted only while the W/L is hidden.
+ */
+export function valuePrintsMultiplier(
+  symbolId: string | undefined,
+  parameterName: string,
+): boolean {
+  const parameters = symbolId
+    ? (deviceDescriptor(symbolId)?.parameters ?? [])
+    : [];
+  return (
+    parameters.some(
+      (parameter) =>
+        parameter.displayRole === "multiplier" &&
+        parameter.name.toLowerCase() === parameterName.toLowerCase(),
+    ) && parameters.some((parameter) => parameter.displayRole === "width")
   );
 }
 

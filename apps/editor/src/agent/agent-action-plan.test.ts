@@ -1127,47 +1127,50 @@ describe("the editor plans an Agent's action list", () => {
     expect(labels()).toHaveLength(before.length + 1);
   });
 
-  it("puts a MOS's ×m under its W/L when the W/L shows, else under its name (#1423)", async () => {
+  it("shows a MOS's ×m once: in its W/L while that shows, else under its name (#1423)", async () => {
     const { controller, client, instance } = await editor();
     await client.applyActions([
       place("nmos", "M1", 100, { w: "10u", l: "1u", m: "4" }),
-      place("nmos", "M2", 400, { m: "4" }),
+      place("npn", "Q1", 400, { m: "8" }),
     ]);
-    await client.applyActions([
+    const m1 = instance("M1")!.id;
+    const q1 = instance("Q1")!.id;
+    const shown = await client.applyActions([
       {
         kind: "set-instance-display",
-        instanceIds: [instance("M1")!.id, instance("M2")!.id],
+        instanceIds: [m1, q1],
         showParameters: { m: true },
       },
     ]);
-    const offset = (instanceId: string, parameter?: string) => {
-      const label = controller.document.annotations.find(
-        (annotation) =>
-          annotation.binding?.kind === "instance-value" &&
-          annotation.binding.instanceId === instanceId &&
-          annotation.binding.parameter === parameter,
+    expect(shown.ok, shown.message).toBe(true);
+    const counts = () =>
+      renderDocumentSvg(controller.document, controller.resolver).split("×4")
+        .length - 1;
+    // The W/L reads 10u/1u ×4 already: the count is not drawn again.
+    expect(counts()).toBe(1);
+
+    const hidden = await client.applyActions([
+      { kind: "set-instance-display", instanceIds: [m1], showValue: false },
+    ]);
+    expect(hidden.ok, hidden.message).toBe(true);
+    // With the W/L hidden, its own label says ×4, a text row under the
+    // name as a BJT's ×8 is, not in the taller row the W/L took.
+    expect(counts()).toBe(1);
+    // A part's name, or its ×m label, by its offset down from the part.
+    const row = (instanceId: string, parameter?: "m") => {
+      const label = controller.document.annotations.find((annotation) =>
+        parameter
+          ? annotation.binding?.kind === "instance-value" &&
+            annotation.binding.instanceId === instanceId &&
+            annotation.binding.parameter === parameter
+          : annotation.binding?.kind === "instance-reference" &&
+            annotation.binding.instanceId === instanceId,
       );
       return label?.anchor.kind === "object"
         ? label.anchor.localOffset.y
-        : undefined;
+        : Number.NaN;
     };
-    const m1 = instance("M1")!.id;
-    const m2 = instance("M2")!.id;
-    // M1 shows its W/L, so ×4 takes the row after it; M2 shows none.
-    expect(offset(m1, "m")!).toBeGreaterThan(offset(m1)!);
-    const name = (id: string) => {
-      const label = controller.document.annotations.find(
-        (annotation) =>
-          annotation.binding?.kind === "instance-reference" &&
-          annotation.binding.instanceId === id,
-      );
-      return label?.anchor.kind === "object"
-        ? label.anchor.localOffset.y
-        : undefined;
-    };
-    expect(offset(m2, "m")! - name(m2)!).toBeLessThan(
-      offset(m1, "m")! - name(m1)!,
-    );
+    expect(row(m1, "m") - row(m1)).toBe(row(q1, "m") - row(q1));
   });
 
   it("leaves the Document alone for a list that changes nothing", async () => {

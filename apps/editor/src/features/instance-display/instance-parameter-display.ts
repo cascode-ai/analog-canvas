@@ -5,6 +5,7 @@ import {
   instanceDisplayParameters,
   objectStyleProfile,
   resolveDocumentStyleProfile,
+  valuePrintsMultiplier,
 } from "@icm/derived";
 import type { SchematicEdit } from "@icm/edit-engine";
 import type { SchematicDocument } from "@icm/model";
@@ -94,10 +95,12 @@ export function instanceParameterVisibilityEdits(
       );
     if (!slot || !instance.placement)
       throw new Error("Place the component before showing its parameters");
-    // Shown beside a W/L that is itself on show, the multiplier takes the
-    // row after it rather than the same one.
+    // Shown beside a value that is itself on show, the multiplier takes the
+    // row after it. A W/L prints the ×m itself, and the label stands in its
+    // row for when the W/L is hidden.
     const belowValue =
       parameter.displayRole === "multiplier" &&
+      !valuePrintsMultiplier(instance.symbolId, parameter.name) &&
       document.annotations.some(
         (annotation) =>
           annotation.binding?.kind === "instance-value" &&
