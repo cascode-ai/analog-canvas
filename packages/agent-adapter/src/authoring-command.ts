@@ -345,6 +345,18 @@ export const AgentAuthoringCommandSchema = z.discriminatedUnion("kind", [
     terminalDirections: z
       .record(StableIdSchema, z.enum(["input", "output", "inout", "passive"]))
       .optional(),
+    displays: z
+      .record(
+        StableIdSchema,
+        z.strictObject({
+          showReference: z.boolean().optional(),
+          showValue: z.boolean().optional(),
+        }),
+      )
+      .optional()
+      .describe(
+        "By new device Instance ID: its labels from the start. Left out, the name shows alone; showValue:true shows the value given, else the catalog default (#1435).",
+      ),
   }),
   z.strictObject({
     kind: z.literal("add-power-rail"),

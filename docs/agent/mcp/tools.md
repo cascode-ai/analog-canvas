@@ -287,8 +287,8 @@ caller with a wire on a Pin that moved) and their wires.
 No terminal IDs or whole `pinPlacements` list are needed, as the low-level
 `set_cell_symbol_presentation` edit takes them.
 
-`place-component` batches use the browser's native display factory: references
-and displayable values are object-attached, and power markers own electrical
+`place-component` batches use the browser's native display factory: references,
+and values placed with `showValue:true`, are object-attached; power markers own electrical
 power claims. Use `set-instance-display` with `instanceIds`, `showReference`
 and/or `showValue` to change visibility without creating duplicate annotations.
 For transformer (`xfmr`) parameters use `showParameters:{k:true,lp:true,ls:false}`;

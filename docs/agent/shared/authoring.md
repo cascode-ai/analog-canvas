@@ -33,6 +33,12 @@ targets to avoid full-Snapshot name resolution. Names remain supported when usef
   `set-port-direction` addresses one
   terminal or every declaration of a projected Port; `set-vdd-mode` explicitly
   switches VDD between Cell Pin and Global. Do not substitute a bare `add_instance`.
+- A placed device shows its name alone, as a GUI insert does, whatever
+  `parameters` give: a MOS's W/L, a resistance or a source's level stays
+  hidden. `showValue:true` on `place-component` shows the value from the
+  start, the given one or else the catalog default; `showReference:false`
+  hides the name (native `displays`, keyed by new Instance ID). Cell markers
+  and ground take neither. Nothing appears only to be hidden a call later.
 - Parts are named as the GUI names them. A device's `reference` starts with
   its prefix (R, C, M, …), and a `place-cell` instance's with X. Leave it out,
   on `place-component` or `place-cell`, and the next free name is taken (`R1`,
@@ -114,8 +120,8 @@ targets to avoid full-Snapshot name resolution. Names remain supported when usef
 - `place-component` without `parameters` places a part as the GUI library
   does: each parameter's catalog default, and for a transistor the model of
   the Process the Netlist panel shows. A BJT in a SKY130 Project arrives as
-  the reviewed SKY130 wrapper, keeping its `m`. Given `parameters` win, and
-  only a value given is shown in a Value label.
+  the reviewed SKY130 wrapper, keeping its `m`. Given `parameters` win; a
+  Value label shows only with `showValue:true`.
 - A diode placed in Abstract, SKY130, IHP SG13G2 or Custom is bound to the
   generic model `DIODE`. The SPICE netlist defines it with one
   `.model DIODE D(IS=1e-14 N=1)` card in each Cell that uses it and says so as
@@ -235,8 +241,8 @@ Free text beside a switch is drawing only and clocks nothing. A Ctrl SW
 Multiple placements, wires, labels, model assignments and annotation moves have
 existing atomic batch paths. Failure commits nothing; success has one undo.
 One transaction takes at most 64 expanded edits. A placed part expands to about
-three (the part and its name and value labels) and a Cell Pin to about five, so
-one `circuit_place` call fits about 20 parts. A placement batch over the limit
+two (the part and its name label; three with `showValue:true`) and a Cell Pin to
+about five, so one `circuit_place` call fits about 20 to 30 parts. A placement batch over the limit
 commits nothing and fails with `LIMIT_EXCEEDED`; its diagnostic gives
 `expandedEdits`, `maxTransactionEdits` and `fittingPlacements`, the number of
 leading placements that fit in one call. An over-limit `delete-selection`
@@ -388,7 +394,8 @@ It applies to every placed part of the Cell, or to the parts given as
 `targets` (`[{kind:"instance",reference:"M1"}]`, or `id`; native
 `instanceIds`), in one transaction and one undo. Labels `arrange-labels`
 leaves alone, moved by hand or by an earlier pass, locked or restyled, keep
-their place and look. Parts placed later still show their W/L. Over the edit
+their place and look. Parts placed later show their names alone unless
+placed with `showValue:true`. Over the edit
 limit, nothing changes and `LIMIT_EXCEEDED` names the leading parts that fit
 (`fittingParts`); apply it to those, then to the rest.
 

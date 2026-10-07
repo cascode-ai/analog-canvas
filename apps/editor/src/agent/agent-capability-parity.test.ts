@@ -1252,6 +1252,8 @@ it("says how far a placement batch over the edit limit expands and how much of i
       reference: `M${index + 1}`,
       position: { x: (index % 5) * 100, y: Math.floor(index / 5) * 100 },
       parameters: { w: "1u", l: "150n" },
+      // Each with its W/L on show: three edits a part, over the limit.
+      showValue: true,
     })),
     {
       kind: "place-component" as const,
@@ -2418,6 +2420,7 @@ describe("MCP → API → shared editor parity", () => {
         reference: "R1",
         position: { x: 200, y: 100 },
         parameters: { value: "1k" },
+        showValue: true,
       },
     ]);
     expect(placed.ok, placed.message).toBe(true);
@@ -2578,6 +2581,7 @@ describe("MCP → API → shared editor parity", () => {
             reference: "R1",
             position: { x: 100, y: 100 },
             parameters: { value: "100" },
+            showValue: true,
           },
           {
             kind: "place-component",
