@@ -1,5 +1,5 @@
 # The operator-run simulator host (docs/deployment.md, "Where the simulator
-# runs"). Three jobs behind one manual switch, plus an automatic rebuild when
+# runs"). Manual actions behind one switch, plus an automatic rebuild when
 # the harness changes on main:
 #
 #   probe             what the Cloudflare token may do, as HTTP statuses only
@@ -7,6 +7,10 @@
 #                     hand the connector token to the host over SSH; verify
 #   deploy            copy the harness and shared runtime to the host, rebuild, restart,
 #                     and verify /health through the tunnel
+#   authorize-ssh-key add a new CI public key next to the one in use, with the
+#                     same authorized_keys options, and remember the one in use
+#   retire-ssh-key    once SIM_HOST_SSH_KEY holds the new key, remove the
+#                     remembered one (the run proves the new key logs in)
 #
 # Nothing here prints a secret: the tunnel token goes straight from the
 # Cloudflare API into tunnel.env on the host through the SSH session.
@@ -28,7 +32,12 @@ on:
             vacask-preview,
             vacask-diagnostics,
             vacask-compat-build,
+            authorize-ssh-key,
+            retire-ssh-key,
           ]
+      public_key:
+        description: authorize-ssh-key only — the new CI key's one-line ssh-ed25519 public key
+        type: string
       candidate_assets:
         description: Draft release tag containing the pinned native build context
         type: string
@@ -128,7 +137,7 @@ jobs:
           if-no-files-found: error
           retention-days: 14
   host:
-    if: github.event_name != 'workflow_dispatch' || (inputs.action != 'vacask-preview' && inputs.action != 'vacask-diagnostics' && inputs.action != 'vacask-compat-build')
+    if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["probe", "bootstrap-tunnel", "deploy"]'), inputs.action)
     name: ${{ github.event_name == 'push' && 'deploy' || inputs.action }}
     runs-on: ubuntu-latest
     # The account id and the deploy token live in this environment's secrets,
@@ -310,6 +319,115 @@ jobs:
           status="$(curl --silent --output /dev/null --write-out '%{http_code}' --max-time 10 -X POST -H 'content-type: application/json' --data '{"deck":"x\n.end\n"}' "https://$SIM_HOSTNAME/run")"
           [ "$status" = "401" ] || { echo "::error::/run answered $status to a caller without the token; it must answer 401"; exit 1; }
           echo "/run without the token: 401, as required"
+
+  # Replacing the CI's SSH key takes two runs, so the host is never left
+  # without a key GitHub holds: authorize (with the old key) adds the new
+  # public key; after SIM_HOST_SSH_KEY in cloudflare-preview holds the new
+  # private key, retire (which can only log in with the new key) removes the
+  # old one. Other keys in authorized_keys are never touched, every edit is
+  # checked with ssh-keygen before it replaces the file, and only the Owner
+  # may change who logs in to the host.
+  ssh-key:
+    if: github.event_name == 'workflow_dispatch' && (inputs.action == 'authorize-ssh-key' || inputs.action == 'retire-ssh-key') && github.triggering_actor == 'Arcadia-1'
+    name: ${{ inputs.action }}
+    runs-on: ubuntu-latest
+    environment: cloudflare-preview
+    timeout-minutes: 5
+    steps:
+      - name: Reach the host with the key in SIM_HOST_SSH_KEY
+        env:
+          SIM_HOST_SSH_KEY: ${{ secrets.SIM_HOST_SSH_KEY }}
+          SIM_HOST_KNOWN_HOSTS: ${{ secrets.SIM_HOST_KNOWN_HOSTS }}
+          SIM_HOST_ADDR: ${{ secrets.SIM_HOST_ADDR }}
+          SIM_HOST_USER: ${{ secrets.SIM_HOST_USER }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$SIM_HOST_SSH_KEY" > ~/.ssh/sim_host
+          chmod 600 ~/.ssh/sim_host
+          printf '%s\n' "$SIM_HOST_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          printf 'Host sim\n HostName %s\n User %s\n IdentityFile ~/.ssh/sim_host\n IdentitiesOnly yes\n BatchMode yes\n ConnectTimeout 20\n' "$SIM_HOST_ADDR" "$SIM_HOST_USER" > ~/.ssh/config
+          # "type body" of the key this run logs in with; public, so printable.
+          ssh-keygen -y -f ~/.ssh/sim_host | cut -d' ' -f1,2 > current.pub
+          ssh sim true
+          echo "logged in with $(ssh-keygen -lf current.pub)"
+
+      - name: Authorize the new key next to the current one
+        if: inputs.action == 'authorize-ssh-key'
+        env:
+          NEW_PUBLIC_KEY: ${{ inputs.public_key }}
+        run: |
+          set -euo pipefail
+          if ! [[ "$NEW_PUBLIC_KEY" =~ ^ssh-ed25519\ [A-Za-z0-9+/]+={0,2}(\ [A-Za-z0-9@._-]+)?$ ]]; then
+            echo "::error::public_key must be one ssh-ed25519 public key line"
+            exit 1
+          fi
+          printf '%s\n' "$NEW_PUBLIC_KEY" > new.pub
+          ssh-keygen -lf new.pub
+          ssh sim "CURRENT='$(cat current.pub)' NEW='$NEW_PUBLIC_KEY' bash -s" <<'HOST'
+          set -euo pipefail
+          cd ~/.ssh
+          fp() { local f; f=$(mktemp); printf '%s\n' "$1" > "$f"; ssh-keygen -lf "$f" 2>/dev/null | cut -d' ' -f2; rm -f "$f"; }
+          listed() { ssh-keygen -lf "${1:-authorized_keys}" 2>/dev/null | cut -d' ' -f2; }
+          current_fp=$(fp "$CURRENT")
+          new_fp=$(fp "$NEW")
+          [ -n "$current_fp" ] && [ -n "$new_fp" ] || { echo "a key does not parse; nothing changed" >&2; exit 1; }
+          listed | grep -qxF "$current_fp" || { echo "the key in use is not in ~/.ssh/authorized_keys; nothing changed" >&2; exit 1; }
+          if listed | grep -qxF "$new_fp"; then
+            echo "the new key was already authorized"
+          else
+            line=$(grep -F "$CURRENT" authorized_keys | head -n 1) || { echo "the line of the key in use was not found; nothing changed" >&2; exit 1; }
+            cp authorized_keys authorized_keys.next
+            [ -z "$(tail -c 1 authorized_keys.next)" ] || echo >> authorized_keys.next
+            # Same options (from=, command=, …) as the line of the key in use.
+            printf '%s%s\n' "${line%%"$CURRENT"*}" "$NEW" >> authorized_keys.next
+            if ! { listed authorized_keys.next | grep -qxF "$current_fp" && listed authorized_keys.next | grep -qxF "$new_fp"; }; then
+              rm -f authorized_keys.next
+              echo "the edited file would not list both keys; nothing changed" >&2
+              exit 1
+            fi
+            cp authorized_keys authorized_keys.before-authorize
+            chmod 600 authorized_keys.next
+            mv authorized_keys.next authorized_keys
+            echo "new key authorized"
+          fi
+          printf '%s\n' "$CURRENT" > ci-key-retiring.pub
+          chmod 600 authorized_keys ci-key-retiring.pub
+          HOST
+
+      - name: Retire the previous key
+        if: inputs.action == 'retire-ssh-key'
+        run: |
+          set -euo pipefail
+          ssh sim "CURRENT='$(cat current.pub)' bash -s" <<'HOST'
+          set -euo pipefail
+          cd ~/.ssh
+          fp() { local f; f=$(mktemp); printf '%s\n' "$1" > "$f"; ssh-keygen -lf "$f" 2>/dev/null | cut -d' ' -f2; rm -f "$f"; }
+          listed() { ssh-keygen -lf "${1:-authorized_keys}" 2>/dev/null | cut -d' ' -f2; }
+          [ -s ci-key-retiring.pub ] || { echo "no key is waiting to be retired" >&2; exit 1; }
+          old=$(cat ci-key-retiring.pub)
+          old_fp=$(fp "$old")
+          current_fp=$(fp "$CURRENT")
+          [ -n "$old_fp" ] && [ -n "$current_fp" ] || { echo "a key does not parse; nothing removed" >&2; exit 1; }
+          if [ "$old_fp" = "$current_fp" ]; then
+            echo "this run still logs in with the key it would remove; put the new key in SIM_HOST_SSH_KEY first" >&2
+            exit 1
+          fi
+          listed | grep -qxF "$current_fp" || { echo "the key in use is not in authorized_keys; nothing removed" >&2; exit 1; }
+          grep -vF "$old" authorized_keys > authorized_keys.next || true
+          if ! listed authorized_keys.next | grep -qxF "$current_fp"; then
+            rm -f authorized_keys.next
+            echo "the edited file would not list the key in use; nothing removed" >&2
+            exit 1
+          fi
+          cp authorized_keys authorized_keys.before-retire
+          chmod 600 authorized_keys.next
+          mv authorized_keys.next authorized_keys
+          rm ci-key-retiring.pub
+          echo "previous key removed; $(listed | grep -c .) key(s) remain"
+          HOST
+          ssh sim true
+          echo "the host still answers with the new key"
 
   vacask-preview:
     if: github.event_name == 'workflow_dispatch' && (inputs.action == 'vacask-preview' || inputs.action == 'vacask-diagnostics')

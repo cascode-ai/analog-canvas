@@ -12,9 +12,10 @@ changes the repository or starts its workflows. Date-stamped private Release att
 without overwriting them or putting every database in Git history. Automatic
 retention deletion is deliberately disabled initially.
 
-The read-only `GALLERY_BACKUP_TOKEN` is stored as a GitHub Actions secret in
-both repositories. Production deployment syncs it to the Worker. Rotation
-requires updating both secrets and deploying; never commit or print its value.
+The read-only `GALLERY_BACKUP_TOKEN` is stored in this repository's
+`cloudflare-production` environment and as an Actions secret of the backups
+repository. Production deployment syncs it to the Worker. Rotation requires
+updating both secrets and deploying; never commit or print its value.
 It authorizes Gallery reads only: every read a signed-in member may make (the
 wall, tags, entries with their Project Code, previews), plus
 `GET /api/gallery/maintenance/automated-backup` with

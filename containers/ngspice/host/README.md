@@ -33,8 +33,9 @@ The host account needs:
   user-level Docker CLI directory when it is absent;
 - permission to use the Docker daemon without an interactive elevation;
 - enough capacity for the declared 8 CPU and 16 GiB harness limit;
-- the SSH key and host identity represented by the repository's
-  `SIM_HOST_*` environment secrets.
+- the SSH key (`SIM_HOST_SSH_KEY`, `cloudflare-preview` environment) and host
+  identity (`SIM_HOST_ADDR`, `SIM_HOST_USER`, `SIM_HOST_KNOWN_HOSTS`, repository
+  secrets).
 
 No lifecycle script is installed by hand. The workflow's ngspice actions invoke
 only the files in this directory and `../verify-host-runtime.sh`. Its
