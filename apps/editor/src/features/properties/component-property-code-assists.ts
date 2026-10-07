@@ -1,7 +1,12 @@
 // The property model needs syntax ranges, not CodeMirror's editor runtime.
 // Use the same underlying grammar without pulling view/state into App startup.
 import { parser } from "@lezer/json";
-import { instanceDisplayParameters } from "@icm/derived";
+import {
+  displayableInstanceValue,
+  instanceDisplayParameters,
+  printedValueMultiplier,
+  valuePrintsMultiplier,
+} from "@icm/derived";
 import { reflectOrientation, LINEAR_CONTROLLED_SOURCE_KINDS } from "@icm/model";
 import { componentDetailFields } from "./component-property-details";
 import {
@@ -84,6 +89,7 @@ export function propertyCodeSpans(
             kind: "boolean" as const,
             description: "",
             help: `Show ${parameter.label} on the canvas`,
+            ...multiplierNote(context.instance, parameter.name),
           }),
         )
       : []),
@@ -226,4 +232,32 @@ export function reflectedPropertyCode(
   return propertyCodeChanges(source, context, {
     "placement.mirror": next.mirror,
   });
+}
+
+/**
+ * Why a MOS's ×m switch changes nothing while its W/L shows: the label
+ * waits until the W/L is hidden, and the W/L prints any m but 1 (#1434).
+ * None while m is unset, when the switch cannot turn on, or while the W/L
+ * lacks W or L and draws nothing.
+ */
+function multiplierNote(
+  instance: ComponentPropertyCodeContext["instance"],
+  parameter: string,
+): Pick<CanvasPropertyField, "note"> {
+  if (
+    !valuePrintsMultiplier(instance.symbolId, parameter) ||
+    !instance.netlist?.parameters[parameter]?.trim() ||
+    displayableInstanceValue(instance).kind !== "displayable"
+  )
+    return {};
+  const printed = printedValueMultiplier(instance);
+  return {
+    note: {
+      text: printed ? "in W/L" : "hidden by W/L",
+      title: printed
+        ? `The W/L prints ×${printed} while it is visible; this label shows once the W/L is hidden`
+        : "This label shows once the W/L is hidden; an m of 1 is not printed",
+      whenTrue: "display.value",
+    },
+  };
 }

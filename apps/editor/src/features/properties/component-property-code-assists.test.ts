@@ -58,6 +58,41 @@ describe("Canvas property assistance", () => {
         .options,
     ).toEqual([{ value: "ground-b", label: "0" }]);
   });
+  it("notes on a MOS's ×m switch that its shown W/L hides the label (#1434)", () => {
+    const multiplier = (symbolId: string, m?: string) => {
+      const part = {
+        ...context,
+        valueVisible: true,
+        instance: {
+          ...context.instance,
+          symbolId,
+          netlist: {
+            parameters: {
+              w: "2u",
+              l: "1u",
+              ...(m === undefined ? {} : { m }),
+            },
+          },
+        },
+      };
+      return propertyCodeSpans(formatComponentPropertyCode(part), part).find(
+        (span) => span.field.path === "display.parameters.m",
+      )?.field.note;
+    };
+    expect(multiplier("nmos", "4")).toMatchObject({
+      text: "in W/L",
+      whenTrue: "display.value",
+      title: expect.stringContaining("×4"),
+    });
+    // ×1 is never printed, yet the label still waits for the W/L.
+    expect(multiplier("nmos", "1")).toMatchObject({
+      text: "hidden by W/L",
+      whenTrue: "display.value",
+    });
+    // An unset m has no label to show, and a BJT has no W/L to carry it.
+    expect(multiplier("nmos")).toBeUndefined();
+    expect(multiplier("npn", "8")).toBeUndefined();
+  });
   it("addresses each swap switch independently and refuses nonboolean edits", () => {
     const amplifier = {
       ...context,

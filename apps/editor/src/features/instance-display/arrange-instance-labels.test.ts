@@ -4,12 +4,16 @@ import {
   createRoutePath,
   canonicalPortTextDocument,
   roleLabelFormat,
+  type Annotation,
   type Rect,
 } from "@icm/model";
+import { executeTransaction } from "@icm/edit-engine";
 import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
 import {
   createLabelClearanceContext,
   defaultInstanceLabelPlacement,
+  instanceLabelRowOffset,
+  instanceValueRowOffset,
   outwardDefaultInstanceLabelPlacement,
   outwardPlaceUprightInstanceLabel,
   placeUprightInstanceLabel,
@@ -17,6 +21,7 @@ import {
 } from "@icm/derived";
 import { defaultInstanceDisplayAnnotations } from "./default-instance-display";
 import { arrangeInstanceLabels } from "./arrange-instance-labels";
+import { instanceParameterVisibilityEdits } from "./instance-parameter-display";
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
 function fixture() {
@@ -87,12 +92,13 @@ function transistor(
   symbolId: "nmos" | "pmos",
   position: { x: number; y: number },
   mirror: "none" | "horizontal" = "none",
+  rotation: 0 | 270 = 0,
 ) {
   const instance = {
     id,
     reference: id.toUpperCase(),
     symbolId,
-    placement: { position, rotation: 0 as const, mirror },
+    placement: { position, rotation, mirror },
     netlist: { parameters: { w: "10u", l: "0.5u" } },
   };
   doc.instances.push(instance);
@@ -1384,5 +1390,265 @@ describe("opt-in label arrangement", () => {
     const moved = doc.annotations.find((a) => a.id === reference.id)!;
     expect(after.conflicts(moved)).toEqual([]);
     expect(after.dotsAt(after.measure(moved).inkBounds)).toEqual([]);
+  });
+
+  /**
+   * A MOS showing its W/L, with m = 4 and its ×4 shown (so hidden by the
+   * W/L), and unless unwired a wire through its labels' default rows that
+   * sends them to another side when arranged. Turned 270°, its labels stand
+   * above it.
+   */
+  function hiddenMultiplier({
+    wired = true,
+    rotation = 0,
+  }: { wired?: boolean; rotation?: 0 | 270 } = {}) {
+    const { doc } = fixture();
+    doc.instances = [];
+    doc.annotations = [];
+    const mos = transistor(
+      doc,
+      "m1",
+      "nmos",
+      { x: 100, y: 100 },
+      "none",
+      rotation,
+    );
+    Object.assign(mos.netlist.parameters, { m: "4" });
+    for (const edit of instanceParameterVisibilityEdits(doc, mos, resolver, {
+      m: true,
+    }))
+      if (edit.kind === "upsert_schematic_annotation")
+        doc.annotations.push(edit.annotation);
+    const label = (kind: "name" | "value" | "times") =>
+      doc.annotations.find((annotation) => {
+        const binding = annotation.binding;
+        return kind === "name"
+          ? binding?.kind === "instance-reference"
+          : binding?.kind === "instance-value" &&
+              (binding.parameter === "m") === (kind === "times");
+      })!;
+    /** Where a label stands now. */
+    const at = (kind: "name" | "value" | "times") =>
+      createLabelClearanceContext(doc, resolver).measure(label(kind));
+    const name = at("name");
+    // Junctions stand on the document's grid.
+    const snap = (value: number) =>
+      Math.round(value / doc.presentation.grid) * doc.presentation.grid;
+    const x = snap(name.inkBounds.x + 4);
+    if (wired)
+      wire(
+        doc,
+        "w",
+        { x, y: snap(name.position.y - 60) },
+        { x, y: snap(name.position.y + 60) },
+      );
+    const arranged = (
+      options: Parameters<typeof arrangeInstanceLabels>[3] = {},
+    ) => arrangeInstanceLabels(doc, resolver, [mos.id], options);
+    const touches = (
+      edits: ReturnType<typeof arrangeInstanceLabels>,
+      id: string,
+    ) =>
+      edits.some(
+        (edit) =>
+          edit.kind === "upsert_schematic_annotation" &&
+          edit.annotation.id === id,
+      );
+    const profile = resolveDocumentStyleProfile(doc.presentation);
+    const row = instanceLabelRowOffset(profile, doc.presentation.grid);
+    /** A text row under the name as it stands now. */
+    const underName = () => {
+      const { position, alignment } = at("name");
+      return { position: { x: position.x, y: position.y + row }, alignment };
+    };
+    return {
+      doc,
+      name,
+      label,
+      at,
+      arranged,
+      touches,
+      underName,
+      valueRow: instanceValueRowOffset("nmos", profile, doc.presentation.grid),
+      row,
+    };
+  }
+
+  /** Moves a label off its slot, as a hand drag or an earlier rule did. */
+  function nudge(annotation: Annotation, dy: number, dx = 0) {
+    if (annotation.anchor.kind === "object")
+      annotation.anchor = {
+        ...annotation.anchor,
+        localOffset: {
+          x: annotation.anchor.localOffset.x + dx,
+          y: annotation.anchor.localOffset.y + dy,
+        },
+      };
+  }
+
+  it("arranges a ×m shown for its hidden W/L a text row under the name (#1434)", () => {
+    // Clear of everything, it stays where it is placed, not in the taller
+    // row a W/L fraction takes.
+    const clear = hiddenMultiplier({ wired: false });
+    clear.label("value").visible = false;
+    expect(clear.touches(clear.arranged(), clear.label("times").id)).toBe(
+      false,
+    );
+    // Sent to another side, it keeps that row there.
+    const { doc, name, label, at, arranged, underName } = hiddenMultiplier();
+    label("value").visible = false;
+    apply(doc, arranged());
+    expect(at("name").position).not.toEqual(name.position);
+    expect(at("times")).toMatchObject(underName());
+  });
+
+  it("takes a ×m hidden behind its W/L along with the part's name (#1434)", () => {
+    // From its own slot, and from the W/L's row under the name, where an
+    // arrangement before #1434 put a ×m shown as the value.
+    for (const placed of ["slot", "value row"] as const) {
+      const { doc, name, label, at, arranged, underName, valueRow, row } =
+        hiddenMultiplier();
+      if (placed === "value row") nudge(label("times"), valueRow - row);
+      apply(doc, arranged());
+      expect(at("name").position).not.toEqual(name.position);
+      // With the W/L hidden, ×4 shows a text row under the moved name.
+      label("value").visible = false;
+      expect(at("times")).toMatchObject(underName());
+    }
+  });
+
+  it("takes a hidden ×m to the W/L's place when no name is drawn (#1434)", () => {
+    const { doc, label, at, arranged } = hiddenMultiplier();
+    label("name").visible = false;
+    const before = at("value").position;
+    apply(doc, arranged());
+    const value = at("value");
+    expect(value.position).not.toEqual(before);
+    expect(at("times")).toMatchObject({
+      position: value.position,
+      alignment: value.alignment,
+    });
+  });
+
+  it("takes a switched-off ×m along with a name arranged alone, but not above the part (#1434)", () => {
+    // With its W/L hidden and its ×m switched off, the name moves alone.
+    const beside = hiddenMultiplier();
+    beside.label("value").visible = false;
+    beside.label("times").visible = false;
+    apply(beside.doc, beside.arranged());
+    expect(beside.at("name").position).not.toEqual(beside.name.position);
+    expect(beside.at("times")).toMatchObject(beside.underName());
+
+    // Wires beside and below the part send it above, into the row next to
+    // the part, where the row under it is the part's own.
+    const above = hiddenMultiplier({ wired: false });
+    above.label("value").visible = false;
+    above.label("times").visible = false;
+    const part = createLabelClearanceContext(above.doc, resolver).symbols.find(
+      (symbol) => symbol.id === "m1",
+    )!.bounds;
+    wire(above.doc, "right", { x: 120, y: 80 }, { x: 120, y: 120 });
+    wire(above.doc, "left", { x: 70, y: 80 }, { x: 70, y: 120 });
+    wire(above.doc, "below", { x: 80, y: 130 }, { x: 110, y: 130 });
+    const edits = above.arranged();
+    apply(above.doc, edits);
+    const name = above.at("name").inkBounds;
+    expect(name.y + name.height).toBeLessThanOrEqual(part.y);
+    expect(above.touches(edits, above.label("times").id)).toBe(false);
+  });
+
+  it("keeps the rows a ×m and its name are placed in above a turned MOS (#1434)", () => {
+    // Shown for its hidden W/L, the ×m stands nearest the part and its name
+    // a W/L's row over it, as placed: clear of everything, both stay.
+    const shown = hiddenMultiplier({ wired: false, rotation: 270 });
+    shown.label("value").visible = false;
+    const edits = shown.arranged();
+    expect(shown.touches(edits, shown.label("name").id)).toBe(false);
+    expect(shown.touches(edits, shown.label("times").id)).toBe(false);
+    // A name only restyled stays where it stood, and so does its hidden ×m.
+    const restyled = hiddenMultiplier({ wired: false, rotation: 270 });
+    delete restyled.label("name").formatOverride;
+    const restyle = restyled.arranged({
+      referenceStyle: "first-letter-subscript",
+    });
+    expect(restyled.touches(restyle, restyled.label("name").id)).toBe(true);
+    expect(restyled.touches(restyle, restyled.label("times").id)).toBe(false);
+  });
+
+  it("takes a hidden ×m to the W/L's place when the labels go above the part (#1434)", () => {
+    const { doc, at, arranged } = hiddenMultiplier({ wired: false });
+    const part = createLabelClearanceContext(doc, resolver).symbols.find(
+      (symbol) => symbol.id === "m1",
+    )!.bounds;
+    wire(doc, "right", { x: 120, y: 80 }, { x: 120, y: 120 });
+    wire(doc, "left", { x: 70, y: 80 }, { x: 70, y: 120 });
+    wire(doc, "below", { x: 80, y: 130 }, { x: 110, y: 130 });
+    apply(doc, arranged());
+    const value = at("value");
+    expect(value.inkBounds.y + value.inkBounds.height).toBeLessThanOrEqual(
+      part.y,
+    );
+    expect(at("times")).toMatchObject({
+      position: value.position,
+      alignment: value.alignment,
+    });
+  });
+
+  it("keeps a hidden ×m a text row under a name slid up beside the part (#1434)", () => {
+    const { doc, label, at, arranged, underName } = hiddenMultiplier({
+      wired: false,
+    });
+    const part = createLabelClearanceContext(doc, resolver).symbols.find(
+      (symbol) => symbol.id === "m1",
+    )!.bounds;
+    wire(doc, "right", { x: 120, y: 100 }, { x: 120, y: 160 });
+    wire(doc, "left", { x: 70, y: 80 }, { x: 70, y: 120 });
+    wire(doc, "over", { x: 80, y: 60 }, { x: 110, y: 60 });
+    wire(doc, "below", { x: 80, y: 130 }, { x: 110, y: 130 });
+    apply(doc, arranged());
+    const name = at("name");
+    expect(name.alignment).toBe("start");
+    expect(name.inkBounds.y + name.inkBounds.height).toBeLessThanOrEqual(
+      part.y,
+    );
+    label("value").visible = false;
+    expect(at("times")).toMatchObject(underName());
+  });
+
+  it("leaves a locked, turned, restyled or hand-placed hidden ×m where it is (#1434)", () => {
+    for (const hold of [
+      (times: Annotation) => (times.locked = true),
+      (times: Annotation) => (times.rotation = 90),
+      (times: Annotation) =>
+        (times.formatOverride = canonicalPortTextDocument("M4")),
+      (times: Annotation) => nudge(times, 40, 40),
+    ]) {
+      const { doc, label, arranged, touches } = hiddenMultiplier();
+      hold(label("times"));
+      const edits = arranged();
+      expect(touches(edits, label("name").id)).toBe(true);
+      expect(touches(edits, label("times").id)).toBe(false);
+      if (!label("times").locked) continue;
+      // The engine refuses any edit of a locked label: the arrangement holds.
+      expect(
+        executeTransaction(
+          doc,
+          {
+            transactionId: "arrange",
+            documentId: doc.id,
+            expectedRevision: doc.revision,
+            actor: { kind: "human", id: "test" },
+            dryRun: false,
+            edits,
+          },
+          { symbolResolver: resolver },
+        ).ok,
+      ).toBe(true);
+    }
+    // includeManual takes one moved by hand along too.
+    const manual = hiddenMultiplier();
+    nudge(manual.label("times"), 40, 40);
+    apply(manual.doc, manual.arranged({ includeManual: true }));
+    expect(manual.at("times")).toMatchObject(manual.underName());
   });
 });

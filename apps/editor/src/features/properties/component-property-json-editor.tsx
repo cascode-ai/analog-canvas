@@ -379,6 +379,20 @@ function jsonDecorations(state: EditorState, read: () => Props): DecorationSet {
         side: 1,
       }).range(span.to),
     );
+    // A note beside the switch while a field it depends on is on: a MOS's
+    // ×m switch says the shown W/L carries its ×m (#1434).
+    const note = span.field.note;
+    if (
+      note &&
+      spans.find(({ field: item }) => item.path === note.whenTrue)?.value ===
+        true
+    )
+      ranges.push(
+        Decoration.widget({
+          widget: new InlineNoteWidget(note.text, note.title),
+          side: 2,
+        }).range(span.to),
+      );
   }
   const internalMark = spans.find(
     ({ field }) => field.path === "appearance.internalMark",
@@ -787,6 +801,33 @@ class PropertyChoiceSelect extends WidgetType {
   override destroy(): void {
     this.closePreviewMenu?.();
     this.closePreviewMenu = null;
+  }
+
+  override ignoreEvent(): boolean {
+    return true;
+  }
+}
+
+/** A short read-only note beside an inline control. */
+class InlineNoteWidget extends WidgetType {
+  constructor(
+    private readonly text: string,
+    private readonly title: string,
+  ) {
+    super();
+  }
+
+  override eq(other: InlineNoteWidget): boolean {
+    return other.text === this.text && other.title === this.title;
+  }
+
+  toDOM(): HTMLElement {
+    const note = document.createElement("span");
+    note.className = "cm-property-inline-note";
+    note.contentEditable = "false";
+    note.textContent = this.text;
+    note.title = this.title;
+    return note;
   }
 
   override ignoreEvent(): boolean {

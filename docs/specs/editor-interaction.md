@@ -156,7 +156,11 @@ Canvas-layer field metadata still owns
 validation of rotation, mirror, color channels, and other bounded values. A
 small, non-text switch is visually decorated after each `display.visualAnnotation` and
 `display.value` boolean, as well as each `display.parameters` entry, for immediate
-visibility toggling. Compact action
+visibility toggling. A MOS's `display.parameters.m` switch carries a muted
+note while `display.value` is on and the W/L has W and L, since its label
+appears only once the W/L is hidden: "in W/L" when the W/L prints the ×m,
+and "hidden by W/L" for an m of 1, which is never printed. An unset m has
+no label and no note (#1434). Compact action
 buttons after `placement.rotation` and `placement.mirror` rotate clockwise by
 90 degrees and reflect left/right or top/bottom. Direct JSON editing continues
 to accept all eight 45-degree orientations. Horizontal

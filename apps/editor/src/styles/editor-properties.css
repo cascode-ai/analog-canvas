@@ -606,6 +606,14 @@
 .component-json-editor .cm-netlist-target-select:disabled {
   cursor: not-allowed;
 }
+.component-json-editor .cm-property-inline-note {
+  margin-left: 0.35rem;
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+  font-style: italic;
+  user-select: none;
+}
+
 .cm-property-inline-toggle {
   position: relative;
   display: inline-block;

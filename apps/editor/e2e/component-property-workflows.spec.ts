@@ -646,11 +646,17 @@ test("plain selectable property code and inline controls at 300px", async ({
     inlineControls: 7,
   });
   expect(raw).not.toContain("Line color");
+  // While the W/L shows, the ×m switch says why its label waits (#1434).
+  const multiplierNote = editor
+    .locator(".cm-line", { hasText: '"m"' })
+    .locator(".cm-property-inline-note");
+  await expect(multiplierNote).toHaveCount(0);
   await reference.click();
   await value.click();
   await rotation.click();
   await expectComponentCodeField(page, "display.visualAnnotation", false);
   await expectComponentCodeField(page, "display.value", true);
+  await expect(multiplierNote).toHaveText("hidden by W/L");
   await expectComponentCodeField(page, "rotation", 90);
   await mirrorLeftRight.click();
   await expectComponentCodeField(page, "rotation", 90);
@@ -715,6 +721,16 @@ test("plain selectable property code and inline controls at 300px", async ({
   await expect(page.getByLabel("Line RGB")).toHaveValue("[220,38,38]");
   await page.getByLabel("Line RGB").fill("[12,38,38]");
   await expectComponentCodeField(page, "color", [12, 38, 38]);
+
+  // With m = 4 the shown W/L prints ×4, and the switch says so.
+  await editComponentPropertyCode(page, (value) => {
+    value.parameters.m = "4";
+  });
+  await expectComponentCodeField(page, "parameters.m", "4");
+  await expect(multiplierNote).toHaveText("in W/L");
+  await value.click();
+  await expectComponentCodeField(page, "display.value", false);
+  await expect(multiplierNote).toHaveCount(0);
 });
 
 test("a black-box part exposes its generated Reference", async ({ page }) => {

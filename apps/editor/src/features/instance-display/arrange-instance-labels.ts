@@ -11,12 +11,14 @@ import {
 import {
   createLabelClearanceContext,
   defaultInstanceLabelPlacement,
+  defaultInstanceParameterLabelPlacement,
   instanceGroupLabel,
   instanceLabelGroupSeat,
   INSTANCE_LABEL_SIDES,
   legacyDefaultInstanceLabelPlacement,
   previousDefaultInstanceLabelPlacement,
   instanceLabelRowOffset,
+  instanceValueRowOffset,
   isVisibleEndpoint,
   objectStyleProfile,
   offsetFromPlacement,
@@ -27,6 +29,7 @@ import {
   resolveDocumentStyleProfile,
   resolveEndpointPoint,
   uniformRowDefaultInstanceLabelPlacement,
+  valuePrintsMultiplier,
   type InstanceLabelPlacement,
   type InstanceLabelSide,
   type InstanceLabelSlot,
@@ -312,9 +315,24 @@ export function arrangeInstanceLabelsReport(
       );
     // Above the part a lone value's row is also the Reference's slot.
     const inReferenceSlot = alone && at("reference");
+    // A ×m shown for its hidden W/L stands in its own slot (#1434).
+    const multiplier = multiplierLabel(original, instance.symbolId);
+    const inOwnSlot =
+      multiplier !== undefined &&
+      offsetFromPlacement(
+        drawn,
+        defaultInstanceParameterLabelPlacement(
+          instance,
+          resolved,
+          style,
+          grid,
+          multiplier,
+        ),
+      ) !== null;
     const inValueRow =
       !inReferenceSlot &&
       (at(slot) ||
+        inOwnSlot ||
         stackedValueFirst(instance.id).has(original.id) ||
         options.includeManual === true);
     if (!inValueRow && !inReferenceSlot) return leave("moved");
@@ -342,6 +360,18 @@ export function arrangeInstanceLabelsReport(
   const order = [...groups].sort(
     ([a], [b]) => Number(along.get(b) !== null) - Number(along.get(a) !== null),
   );
+  /** The annotation drawn at `placement`, its anchor kept on its part. */
+  const annotationAt = (
+    annotation: Annotation,
+    placement: InstanceLabelPlacement,
+  ): Annotation => ({
+    ...draggedAnnotationAtPosition(
+      { document, resolver, annotationGrid: 1, routeGeometryRecords: [] },
+      annotation,
+      placement.position,
+    ),
+    alignment: placement.alignment,
+  });
   for (const [ownerId, group] of order) {
     const instance = document.instances.find((i) => i.id === ownerId)!;
     const resolved = resolver.resolve(
@@ -356,16 +386,17 @@ export function arrangeInstanceLabelsReport(
     const at = (
       label: EligibleLabel,
       placement: InstanceLabelPlacement,
-    ): Annotation => ({
-      ...draggedAnnotationAtPosition(
-        { document, resolver, annotationGrid: 1, routeGeometryRecords: [] },
-        label.annotation,
-        placement.position,
-      ),
-      alignment: placement.alignment,
-    });
+    ): Annotation => annotationAt(label.annotation, placement);
     const styleOf = (label: EligibleLabel) =>
       objectStyleProfile(documentProfile, label.original);
+    // A ×m shown for its hidden W/L is plain text: beside or below the part
+    // it stands a text row under the name, as it is placed, not in the
+    // fraction's taller row (#1434). Its name keeps the rows it is placed
+    // in, a W/L's row over the ×m above the part.
+    const valueRowOf = (label: EligibleLabel) =>
+      multiplierLabel(label.original, instance.symbolId)
+        ? instanceLabelRowOffset(styleOf(label), grid)
+        : undefined;
     /**
      * The slot a label takes in its group: a value under its name, a name
      * over a value moved with it, and a label alone in the Reference's slot.
@@ -658,6 +689,7 @@ export function arrangeInstanceLabelsReport(
           grid,
           slotOf(label),
           label.sizeScale,
+          valueRowOf(label),
         )!,
       ),
     );
@@ -676,6 +708,7 @@ export function arrangeInstanceLabelsReport(
           grid,
           label.sizeScale,
           slotOf(label),
+          valueRowOf(label),
         );
         if (!placement) return null;
         arrangement.push(at(label, placement));
@@ -788,8 +821,138 @@ export function arrangeInstanceLabelsReport(
       context.accept(next);
     }
   }
-  edits.push(...arrangePinNames());
+  edits.push(...followHiddenMultipliers(), ...arrangePinNames());
   return { edits, leftInPlace: left };
+
+  /**
+   * A ×m that a shown W/L prints itself is hidden (#1423), and so is one
+   * switched off; this pass moves only what is drawn. When it moved a part's
+   * labels, the ×m stayed in its old slot and showed there, away from them,
+   * once the W/L was hidden. Now it moves with them (#1434) to where it is
+   * placed: a text row under the name beside or below the part, and the
+   * W/L's place, nearest the part, above it or with no name drawn. Above
+   * the part a name arranged without its W/L takes that row itself, so
+   * there the ×m stays. Only one still where it was placed follows (any,
+   * with includeManual); a locked, turned or custom ×m stays where it is,
+   * as visible labels do.
+   */
+  function followHiddenMultipliers(): SchematicEdit[] {
+    const arranged = new Map(
+      edits.flatMap((edit) =>
+        edit.kind === "upsert_schematic_annotation"
+          ? [[edit.annotation.id, edit.annotation] as const]
+          : [],
+      ),
+    );
+    const placeOf = (annotation: Annotation): InstanceLabelPlacement => {
+      const { position, alignment } = context.measure(annotation);
+      return { position, alignment };
+    };
+    const followed: SchematicEdit[] = [];
+    for (const [id, group] of groups) {
+      const instance = document.instances.find((item) => item.id === id)!;
+      const resolved = resolver.resolve(
+        instance.symbolId,
+        instance.symbolVariantId,
+      );
+      const drawn = ownLabels.get(id) ?? [];
+      const name = drawn.find(
+        (label) => label.binding?.kind === "instance-reference",
+      );
+      const value = drawn.find(
+        (label) =>
+          label.binding?.kind === "instance-value" &&
+          label.binding.parameter === undefined,
+      );
+      const lead = name ?? value;
+      const moved = lead && arranged.get(lead.id);
+      // A name only restyled stays where it stood, and so does its ×m.
+      if (
+        !resolved ||
+        !lead ||
+        !moved ||
+        offsetFromPlacement(placeOf(moved), placeOf(lead))
+      )
+        continue;
+      const owner = context.symbols.find((symbol) => symbol.id === id)?.bounds;
+      // Above the part, not slid up along a side: labels over or under a
+      // part are centred on it, and beside it they start or end there.
+      const above =
+        name !== undefined &&
+        owner !== undefined &&
+        moved.alignment === "middle" &&
+        box(moved).y + box(moved).height <= owner.y;
+      // The W/L's place, where it stands now, when it was arranged too.
+      const valueNow =
+        value &&
+        group.some((label) => label.original.id === value.id) &&
+        (arranged.get(value.id) ?? value);
+      if (above && !valueNow) continue;
+      for (const label of document.annotations) {
+        const parameter = multiplierLabel(label, instance.symbolId);
+        if (
+          parameter === undefined ||
+          label.anchor.kind !== "object" ||
+          label.anchor.objectId !== id ||
+          context.visible.includes(label) ||
+          label.locked ||
+          label.rotation !== 0 ||
+          label.content ||
+          label.formatOverride
+        )
+          continue;
+        const style = objectStyleProfile(documentProfile, label);
+        const below = (
+          annotation: Annotation,
+          row: number,
+        ): InstanceLabelPlacement => {
+          const { position, alignment } = placeOf(annotation);
+          return {
+            position: { x: position.x, y: position.y + row },
+            alignment,
+          };
+        };
+        const row = instanceLabelRowOffset(style, grid);
+        // Where it was placed: its own slot, the W/L's place, or under the
+        // name, a text row or the W/L's row where an arrangement showed it
+        // as the value.
+        const places = [
+          defaultInstanceParameterLabelPlacement(
+            instance,
+            resolved,
+            style,
+            grid,
+            parameter,
+          ),
+          ...(value ? [placeOf(value)] : []),
+          ...(name
+            ? [
+                below(name, row),
+                below(
+                  name,
+                  instanceValueRowOffset(instance.symbolId, style, grid),
+                ),
+              ]
+            : []),
+        ];
+        if (
+          options.includeManual !== true &&
+          !places.some((place) => offsetFromPlacement(placeOf(label), place))
+        )
+          continue;
+        const target =
+          name && !above ? below(moved, row) : valueNow && placeOf(valueNow);
+        if (!target) continue;
+        const next = annotationAt(label, target);
+        if (JSON.stringify(next) !== JSON.stringify(label))
+          followed.push({
+            kind: "upsert_schematic_annotation",
+            annotation: next,
+          });
+      }
+    }
+    return followed;
+  }
 
   /**
    * A Cell Pin's name takes the first of its sides where it meets nothing,
@@ -906,6 +1069,22 @@ function sameRow(a: Rect, b: Rect): boolean {
     Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y) >=
     Math.min(a.height, b.height) / 2
   );
+}
+
+/**
+ * The parameter of a MOS's ×m label, which its W/L prints while shown
+ * (#1423), or undefined.
+ */
+function multiplierLabel(
+  label: Annotation,
+  symbolId: string,
+): string | undefined {
+  const binding = label.binding;
+  return binding?.kind === "instance-value" &&
+    binding.parameter !== undefined &&
+    valuePrintsMultiplier(symbolId, binding.parameter)
+    ? binding.parameter
+    : undefined;
 }
 
 /** A placed Cell's name under its block, drawn as literal text (#803). */
