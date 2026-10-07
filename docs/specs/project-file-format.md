@@ -162,8 +162,13 @@ only after complete backup and compatible readers/writers are available.
 
 Administrator backup supports `GET /api/gallery/maintenance/schema-backup` with
 `table=inventory`, or one of `galleryEntries`, `galleryEntryVersions`,
-`galleryLikes`, `cloudProjects` and an optional opaque `after` cursor. Each page
-returns at most one raw row, avoiding Cloudflare's SQL result-set memory limit.
+`galleryLikes`, `cloudProjects`, `cloudProjectVersions` and an optional opaque
+`after` cursor; a request without `table` is refused. Each page returns at
+most one raw row, avoiding Cloudflare's SQL result-set memory limit. A
+`schema-restore` payload is assembled from those pages and must fit one Worker
+request (100 MB), which the whole store has outgrown; rolling it back is
+[point-in-time recovery](../deployment.md#point-in-time-recovery) within 30
+days, or a row-by-row restore from an archive.
 A Gallery-only backup is `analog-canvas-gallery-backup-v2`: it includes all
 statuses, all retained versions and like relationships, excludes private Cloud
 Projects and must never be sent to the older full-store `schema-restore` route.

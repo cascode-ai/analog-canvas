@@ -157,6 +157,33 @@ Recovery limitations:
 - Worker recovery does not recover the separately operated simulator. Verify
   and restore its desired state independently.
 
+### Point-in-time recovery
+
+Cloudflare keeps 30 days of history for every SQLite-backed Durable Object.
+The Worker exposes it for the stores that hold durable data — `gallery` (the
+Gallery and every private Cloud Project, one object), `accounts`, `analytics`
+and `components` — to a signed-in administrator only:
+
+1. `GET /api/admin/recovery?store=<store>&at=<ISO time>` answers the bookmark
+   for that time and the current one. It changes nothing.
+2. Take a fresh [backup](gallery-backup.md) of whatever must survive: a restore
+   discards everything the store recorded after the bookmark.
+3. `POST /api/admin/recovery` with
+   `{ "store": "<store>", "bookmark": "<bookmark>", "confirm": "restore <store>" }`
+   arms the restore, restarts the object so it applies, and answers an
+   `undoBookmark` (kept even when the object is slow to come back). Posting
+   that bookmark the same way undoes the restore. `restarted: false` means the
+   restore is armed but the object did not restart, so it would apply at the
+   next unrelated restart (a deploy): send the same request again, or post the
+   undo bookmark to cancel it. There is no button: send it
+   from the signed-in site's browser console, for example
+   `await (await fetch("/api/admin/recovery", { method: "POST", body: JSON.stringify({ store: "gallery", bookmark: "…", confirm: "restore gallery" }) })).json()`.
+
+Rolling `accounts` back also revives sessions signed out since the bookmark and
+ends sessions started after it, the administrator's own included; sign in
+again to continue. The local runtime keeps no such history; it answers
+`recovery-unavailable`.
+
 Manual portable-release acceptance must also establish PWA installation and an
 original import/place/wire/save/restart/restore/export journey. Record the
 candidate version and source commit; historical automated checklist ticks are

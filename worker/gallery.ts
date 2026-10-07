@@ -31,6 +31,7 @@ import {
 } from "@icm/model";
 
 import { sessionUserOf, type SessionUser } from "./auth";
+import { sameOrigin } from "./same-origin";
 import {
   GALLERY_DAILY_SUBMISSION_LIMIT,
   GALLERY_MAX_AUTHOR_LENGTH,
@@ -183,17 +184,6 @@ async function storePreviewCache(
   }
 }
 
-function sameOrigin(request: Request): boolean {
-  const expected = new URL(request.url).origin;
-  const origin = request.headers.get("Origin");
-  const fetchSite = request.headers.get("Sec-Fetch-Site");
-  if (origin && origin !== expected) return false;
-  if (fetchSite && !["same-origin", "same-site", "none"].includes(fetchSite)) {
-    return false;
-  }
-  return true;
-}
-
 async function isAdmin(request: Request, env: GalleryEnv): Promise<boolean> {
   const user = await sessionUserOf(request, env);
   return user?.isAdmin === true;
@@ -234,14 +224,11 @@ function readerCopy(response: Response): Response {
   return new Response(response.body, { status: response.status, headers });
 }
 
-/**
- * The dedicated read-only Gallery credential. It authorizes only the bounded
- * Gallery reads that name it (the automated backup and the netlist pages):
- * never admin writes, unbounded dumps, or private Cloud Projects. Do not add
- * it to isAdmin.
- */
-function hasGalleryReadToken(request: Request, env: GalleryEnv): boolean {
-  const expected = env.GALLERY_BACKUP_TOKEN;
+/** Whether the request's bearer equals `expected`, compared in constant time. */
+function bearerMatches(
+  request: Request,
+  expected: string | undefined,
+): boolean {
   const supplied = request.headers
     .get("Authorization")
     ?.replace(/^Bearer /, "");
@@ -251,6 +238,34 @@ function hasGalleryReadToken(request: Request, env: GalleryEnv): boolean {
       difference |= expected.charCodeAt(i) ^ supplied.charCodeAt(i);
   } else difference = 1;
   return difference === 0;
+}
+
+/**
+ * The dedicated read-only Gallery credential. It authorizes only the bounded
+ * Gallery reads that name it (the automated backup and the netlist pages):
+ * never admin writes, unbounded dumps, or private Cloud Projects. Do not add
+ * it to isAdmin.
+ */
+function hasGalleryReadToken(request: Request, env: GalleryEnv): boolean {
+  return bearerMatches(request, env.GALLERY_BACKUP_TOKEN);
+}
+
+/**
+ * The dedicated read-only store credential: the same paginated backup pages,
+ * with private Cloud Projects, and nothing else — no wall, no writes. Do not
+ * add it to isAdmin.
+ */
+function hasStoreBackupToken(request: Request, env: GalleryEnv): boolean {
+  return bearerMatches(request, env.STORE_BACKUP_TOKEN);
+}
+
+/** `…/maintenance/automated-backup`, the only path the store credential opens. */
+function isAutomatedBackup(segments: readonly string[]): boolean {
+  return (
+    segments.length === 2 &&
+    segments[0] === "maintenance" &&
+    segments[1] === "automated-backup"
+  );
 }
 
 /**
@@ -1770,6 +1785,7 @@ export async function routeGalleryRequest(
   if (
     (request.method === "GET" || request.method === "HEAD") &&
     !hasGalleryReadToken(request, env) &&
+    !(isAutomatedBackup(segments) && hasStoreBackupToken(request, env)) &&
     !(await galleryReaderOf(request, env))
   ) {
     return Response.json(
@@ -1850,12 +1866,16 @@ export async function routeGalleryRequest(
       headers: { "cache-control": "no-store" },
     });
   }
-  if (
-    segments.length === 2 &&
-    segments[0] === "maintenance" &&
-    segments[1] === "automated-backup"
-  ) {
-    if (!hasGalleryReadToken(request, env))
+  if (isAutomatedBackup(segments)) {
+    // Each credential reads its own scope: Gallery-only, or the whole store
+    // with private Cloud Projects.
+    const scope =
+      url.searchParams.get("scope") === "store" ? "store" : "gallery";
+    if (
+      scope === "store"
+        ? !hasStoreBackupToken(request, env)
+        : !hasGalleryReadToken(request, env)
+    )
       return Response.json(
         { error: "unauthorized" },
         { status: 401, headers: { "cache-control": "no-store" } },
@@ -1865,19 +1885,11 @@ export async function routeGalleryRequest(
         { error: "method-not-allowed" },
         { status: 405, headers: { Allow: "GET", "cache-control": "no-store" } },
       );
-    const table = url.searchParams.get("table");
-    if (
-      ![
-        "inventory",
-        "galleryEntries",
-        "galleryEntryVersions",
-        "galleryLikes",
-      ].includes(table ?? "")
-    )
-      return Response.json({ error: "invalid-table" }, { status: 400 });
+    // The object allows only its scope's tables, so a Gallery page never
+    // names a private Project.
     const { status, payload } = await callGallery(env, "schema-backup", {
-      scope: "gallery",
-      table,
+      scope,
+      table: url.searchParams.get("table"),
       after: url.searchParams.get("after"),
     });
     return Response.json(payload, {
@@ -1948,16 +1960,16 @@ export async function routeGalleryRequest(
     if (!(await isAdmin(request, env))) {
       return Response.json({ error: "unauthorized" }, { status: 401 });
     }
+    // The same one-row pages as the store credential reads; the whole store
+    // no longer fits one response.
     const { status, payload } = await callGallery(env, "schema-backup", {
+      scope: "store",
       table: url.searchParams.get("table"),
       after: url.searchParams.get("after"),
     });
     return Response.json(payload, {
       status,
-      headers: {
-        "cache-control": "no-store",
-        "content-disposition": `attachment; filename="analog-canvas-gallery-schema-backup-${new Date().toISOString().slice(0, 10)}.json"`,
-      },
+      headers: { "cache-control": "no-store" },
     });
   }
   if (

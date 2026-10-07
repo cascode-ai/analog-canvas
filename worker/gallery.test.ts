@@ -42,7 +42,10 @@ import {
   type GalleryPreviewCache,
 } from "./gallery";
 import { AuthDO, type AuthEnv } from "./auth";
-import workerEntry from "./index";
+import workerEntry, {
+  AuthDO as DeployedAuthDO,
+  GalleryDO as DeployedGalleryDO,
+} from "./index";
 
 function sqliteState(queries?: string[]) {
   const db = new DatabaseSync(":memory:");
@@ -100,13 +103,13 @@ type Harness = GalleryEnv & {
 
 /**
  * One harness for every test: a gallery DO plus the auth DO that is now the
- * only way to publish anything.
+ * only way to publish anything, both as the Worker deploys them.
  */
 function environment(): Harness {
   const galleryQueries: string[] = [];
   const galleryState = sqliteState(galleryQueries);
-  const durable = new GalleryDO(galleryState);
-  const authDurable = new AuthDO(sqliteState(), {
+  const durable = new DeployedGalleryDO(galleryState);
+  const authDurable = new DeployedAuthDO(sqliteState(), {
     RESEND_API_KEY: "rk",
     ADMIN_EMAILS: "owner@example.com",
   } as AuthEnv);
@@ -133,6 +136,69 @@ function environment(): Harness {
 }
 
 const ORIGIN = "https://gallery.test";
+
+/**
+ * A `schema-restore` payload assembled from the one-row backup pages, as an
+ * administrator assembles one now that no single response holds the store;
+ * `page` reads one page.
+ */
+async function pagedStoreBackup(
+  page: (query: {
+    scope: string;
+    table: string;
+    after?: string;
+  }) => Promise<any>,
+) {
+  const tables: Record<string, unknown[]> = {};
+  for (const table of [
+    "galleryEntries",
+    "galleryEntryVersions",
+    "galleryLikes",
+    "cloudProjects",
+    "cloudProjectVersions",
+  ]) {
+    const rows: unknown[] = [];
+    let after: string | undefined;
+    do {
+      const result = await page({
+        scope: "store",
+        table,
+        ...(after ? { after } : {}),
+      });
+      rows.push(...result.rows);
+      after = result.nextCursor ?? undefined;
+    } while (after);
+    tables[table] = rows;
+  }
+  return { format: "analog-canvas-gallery-schema-backup-v1", tables };
+}
+
+/** Save a new private Cloud Project for the signed-in `cookie`. */
+function saveRequest(cookie: string, name: string): Request {
+  return new Request(`${ORIGIN}/api/projects`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      Origin: ORIGIN,
+      Cookie: cookie,
+    },
+    body: JSON.stringify({ name, projectText: projectText(name) }),
+  });
+}
+
+/** One admin backup page through the route, as a browser session reads it. */
+function adminBackupPage(env: Harness, cookie: string) {
+  return async (query: Record<string, string>) =>
+    (
+      await route(
+        env,
+        new Request(
+          `${ORIGIN}/api/gallery/maintenance/schema-backup?${new URLSearchParams(query)}`,
+          { headers: cookieHeaders(cookie) },
+        ),
+      )
+    ).json();
+}
 
 describe("Gallery readers", () => {
   // Every read the Gallery serves, for one published entry.
@@ -285,6 +351,105 @@ describe("off-site Gallery backup credential", () => {
       page.rows,
     );
     replay.close();
+  });
+
+  it("keeps a Gallery capture's revision through private Project saves", async () => {
+    const env = environment();
+    env.GALLERY_BACKUP_TOKEN = "backup-only-secret";
+    env.STORE_BACKUP_TOKEN = "store-only-secret";
+    const cookie = await adminOf(env);
+    const id = await submitOne(env, "Backup target", { cookie });
+    const inventory = async (scope: "gallery" | "store") =>
+      (await (
+        await route(
+          env,
+          new Request(`${endpoint}?scope=${scope}&table=inventory`, {
+            headers: {
+              Authorization: `Bearer ${scope === "store" ? "store" : "backup"}-only-secret`,
+            },
+          }),
+        )
+      ).json()) as { snapshotRevision: string };
+    const gallery = await inventory("gallery");
+    const store = await inventory("store");
+    const saved = await route(env, saveRequest(await makerOf(env), "Private"));
+    expect(saved.status).toBe(201);
+    expect((await inventory("gallery")).snapshotRevision).toBe(
+      gallery.snapshotRevision,
+    );
+    const afterSave = await inventory("store");
+    expect(afterSave.snapshotRevision).not.toBe(store.snapshotRevision);
+    // A like is Gallery data, so it restarts both.
+    env.gallerySql.exec(
+      "INSERT INTO gallery_likes VALUES (?, ?, ?)",
+      id,
+      "u1",
+      "2026-10-07",
+    );
+    expect((await inventory("gallery")).snapshotRevision).not.toBe(
+      gallery.snapshotRevision,
+    );
+    expect((await inventory("store")).snapshotRevision).not.toBe(
+      afterSave.snapshotRevision,
+    );
+  });
+
+  it("lets the store credential read every backup table and nothing else", async () => {
+    const env = environment();
+    env.GALLERY_BACKUP_TOKEN = "backup-only-secret";
+    env.STORE_BACKUP_TOKEN = "store-only-secret";
+    const saved = await route(env, saveRequest(await makerOf(env), "Private"));
+    const { project } = (await saved.json()) as { project: { id: string } };
+    const store = { Authorization: "Bearer store-only-secret" };
+    const gallery = { Authorization: "Bearer backup-only-secret" };
+    const get = (path: string, headers: Record<string, string>) =>
+      route(env, new Request(`${ORIGIN}${path}`, { headers }));
+    const inventory = (await (
+      await get(
+        "/api/gallery/maintenance/automated-backup?scope=store&table=inventory",
+        store,
+      )
+    ).json()) as any;
+    expect(inventory.scope).toBe("store");
+    expect(Object.keys(inventory.tables).sort()).toEqual([
+      "cloudProjectVersions",
+      "cloudProjects",
+      "galleryEntries",
+      "galleryEntryVersions",
+      "galleryLikes",
+    ]);
+    const page = (await (
+      await get(
+        "/api/gallery/maintenance/automated-backup?scope=store&table=cloudProjects",
+        store,
+      )
+    ).json()) as any;
+    expect(page.rows.map((row: { id: string }) => row.id)).toEqual([
+      project.id,
+    ]);
+    // Each credential reads only its own scope.
+    for (const [path, headers] of [
+      ["/api/gallery/maintenance/automated-backup?table=inventory", store],
+      [
+        "/api/gallery/maintenance/automated-backup?scope=store&table=inventory",
+        gallery,
+      ],
+    ] as const)
+      expect((await get(path, headers)).status, path).toBe(401);
+    // A call that names no scope reads the narrower one.
+    const unscoped = await env.GALLERY.getByName("gallery").fetch(
+      "https://gallery/schema-backup",
+      { method: "POST", body: JSON.stringify({ table: "cloudProjects" }) },
+    );
+    expect(await unscoped.json()).toEqual({ error: "invalid-table" });
+    // The store credential opens no other read.
+    for (const path of [
+      "/api/gallery",
+      "/api/gallery/maintenance/netlists",
+      "/api/gallery/maintenance/schema-backup?table=cloudProjects",
+      "/api/projects",
+    ])
+      expect((await get(path, store)).status, path).toBe(401);
   });
 
   it("fails closed without the secret and cannot authorize writes or private exports", async () => {
@@ -2216,18 +2381,6 @@ describe("circuit addresses", () => {
 });
 
 describe("private Cloud Projects", () => {
-  function saveRequest(cookie: string, name: string): Request {
-    return new Request(`${ORIGIN}/api/projects`, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        Origin: ORIGIN,
-        Cookie: cookie,
-      },
-      body: JSON.stringify({ name, projectText: projectText(name) }),
-    });
-  }
-
   it("limits distinct Projects without evicting an existing Project", async () => {
     const env = environment();
     const cookie = await makerOf(env);
@@ -2519,7 +2672,9 @@ describe("private Cloud Projects", () => {
       );
       return response.json();
     };
-    const backup = await maintenance("schema-backup", {});
+    const backup = await pagedStoreBackup((query) =>
+      maintenance("schema-backup", query),
+    );
     expect(backup.tables.cloudProjectVersions).toHaveLength(3);
     const publicOnly = await maintenance("schema-backup", {
       table: "inventory",
@@ -4812,15 +4967,18 @@ describe("gallery administration", () => {
       id,
     );
 
-    const backup = await route(
+    // The whole store no longer fits one response; it is read page by page.
+    const whole = await route(
       env,
       new Request(`${ORIGIN}/api/gallery/maintenance/schema-backup`, {
         headers: cookieHeaders(adminCookie),
       }),
     );
-    expect(backup.status).toBe(200);
-    expect(backup.headers.get("content-disposition")).toContain("attachment");
-    const backupPayload = (await backup.json()) as any;
+    expect(whole.status).toBe(400);
+    expect(await whole.json()).toEqual({ error: "table-required" });
+    const backupPayload = (await pagedStoreBackup(
+      adminBackupPage(env, adminCookie),
+    )) as any;
     expect(backupPayload.tables.galleryEntries).toHaveLength(1);
     expect(backupPayload.tables.galleryEntryVersions).toHaveLength(1);
     expect(backupPayload.tables.cloudProjects).toHaveLength(1);
@@ -5168,13 +5326,9 @@ describe("gallery administration", () => {
       expect(updated.status).toBe(200);
     }
 
-    const backupResponse = await route(
-      env,
-      new Request(`${ORIGIN}/api/gallery/maintenance/schema-backup`, {
-        headers: cookieHeaders(adminCookie),
-      }),
-    );
-    const backup = (await backupResponse.json()) as any;
+    const backup = (await pagedStoreBackup(
+      adminBackupPage(env, adminCookie),
+    )) as any;
     const versions = backup.tables.galleryEntryVersions as Record<
       string,
       unknown
@@ -6063,13 +6217,15 @@ describe("Gallery visual curation", () => {
           },
         )
       ).json() as Promise<any>;
-    const backup = await call("schema-backup", {});
-    const current = backup.tables.galleryEntries.find(
+    const backup = await pagedStoreBackup((query) =>
+      call("schema-backup", query),
+    );
+    const current = (backup.tables.galleryEntries as any[]).find(
       (e: any) => e.id === id,
     ).curation_json;
     expect(JSON.parse(current).attention.status).toBe("resolved");
     expect(
-      backup.tables.galleryEntryVersions.some((e: any) =>
+      (backup.tables.galleryEntryVersions as any[]).some((e: any) =>
         e.curation_json.includes("needs-attention"),
       ),
     ).toBe(true);
@@ -6388,11 +6544,14 @@ describe("durable Shelf publication sources", () => {
       ...before,
       favorite: true,
     });
-    const backupResponse = await env.GALLERY.getByName("gallery").fetch(
-      "https://gallery/schema-backup",
-      { method: "POST", body: "{}" },
-    );
-    const backup = await backupResponse.json();
+    const backup = (await pagedStoreBackup(async (query) =>
+      (
+        await env.GALLERY.getByName("gallery").fetch(
+          "https://gallery/schema-backup",
+          { method: "POST", body: JSON.stringify(query) },
+        )
+      ).json(),
+    )) as any;
     expect(backup.tables.cloudProjects[0].favorite).toBe(1);
     await request(env, owner, `/api/projects/${saved.id}`, "PATCH", {
       favorite: false,
@@ -6462,7 +6621,9 @@ describe("durable Shelf publication sources", () => {
       expect(response.status).toBe(200);
       return response.json();
     };
-    const backup = await call("schema-backup", {});
+    const backup = (await pagedStoreBackup((query) =>
+      call("schema-backup", query),
+    )) as any;
     expect(backup.tables.cloudProjects[0].gallery_entry_id).toBe("old-public");
     await call("schema-restore", { backup });
     expect(

@@ -59,6 +59,8 @@ describe("analytics persistence identity", () => {
       visitorCookie: "canvas_vid",
       routes: ["/api/track", "/api/stats", "/api/analytics"],
     });
-    expect(EntrypointAnalyticsDO).toBe(AnalyticsDO);
+    // The Worker deploys this class itself, only wrapped so that it also
+    // answers point-in-time recovery; storage and names are unchanged.
+    expect(Object.getPrototypeOf(EntrypointAnalyticsDO)).toBe(AnalyticsDO);
   });
 });

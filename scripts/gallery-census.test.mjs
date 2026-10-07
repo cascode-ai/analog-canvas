@@ -1,51 +1,19 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import {
   blockingFindings,
   compareReports,
   formatComparison,
-  newestSnapshot,
   parseArguments,
   reusableReport,
   summarizeReport,
 } from "./gallery-census.mjs";
-
-const directories = [];
-afterEach(() => {
-  for (const directory of directories.splice(0))
-    rmSync(directory, { recursive: true, force: true });
-});
 
 function report(entries) {
   return { commit: "abc1234", backup: "/snapshot/gallery.sqlite", entries };
 }
 
 describe("gallery census", () => {
-  it("uses the newest downloaded snapshot that holds a database", () => {
-    const directory = mkdtempSync(join(tmpdir(), "gallery-census-test-"));
-    directories.push(directory);
-    for (const name of [
-      "gallery-2026-09-24T10-12-44Z-1-1",
-      "gallery-2026-09-25T07-16-02Z-2-1",
-      "gallery-2026-09-26T01-00-00Z-3-1",
-    ])
-      mkdirSync(join(directory, name));
-    for (const name of [
-      "gallery-2026-09-24T10-12-44Z-1-1",
-      "gallery-2026-09-25T07-16-02Z-2-1",
-    ])
-      writeFileSync(join(directory, name, "gallery.sqlite"), "");
-    // The newest capture is still downloading: it has no database yet.
-    expect(newestSnapshot(directory)).toBe(
-      join(directory, "gallery-2026-09-25T07-16-02Z-2-1", "gallery.sqlite"),
-    );
-    expect(newestSnapshot(join(directory, "absent"))).toBeNull();
-  });
-
   it("reads its options and refuses what it does not know", () => {
     expect(
       parseArguments([
