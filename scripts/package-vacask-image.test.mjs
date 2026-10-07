@@ -123,7 +123,7 @@ it("replaces only the simulator and preserves accepted models, capabilities and 
       before.runtime.expectedEnvironment.startupSha256,
     );
     expect(environment.simulator).toMatchObject({
-      version: "0.3.4-icm-hard-switch1",
+      version: "0.3.4-icm-hard-switch2",
       binarySha256: digest("replacement"),
     });
     expect(environment.fingerprint).not.toBe(

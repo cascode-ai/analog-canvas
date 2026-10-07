@@ -69,7 +69,7 @@ function deviceFixture(
   return { project, ir: ir.ir };
 }
 
-function nativeRun(files: readonly { path: string; text: string }[]) {
+function nativeProcess(files: readonly { path: string; text: string }[]) {
   const dir = mkdtempSync(join(tmpdir(), "icm-model-native-"));
   for (const f of files) writeFileSync(join(dir, f.path), f.text);
   const wslDirectory = `/mnt/${dir[0]!.toLowerCase()}${dir.slice(2).replaceAll("\\", "/")}`;
@@ -102,7 +102,15 @@ function nativeRun(files: readonly { path: string; text: string }[]) {
       windowsHide: true,
     },
   );
-  expect(run.status, `Directory ${dir}\n${run.stdout}${run.stderr}`).toBe(0);
+  return { run, dir };
+}
+
+function nativeRun(files: readonly { path: string; text: string }[]) {
+  const { run, dir } = nativeProcess(files);
+  expect(
+    run.status,
+    `Directory ${dir}\n${run.error?.message ?? ""}\n${run.stdout}${run.stderr}`,
+  ).toBe(0);
   return (file: string, output: string) => {
     const raw = parseVacaskRawfile(readFileSync(join(dir, file), "utf8"));
     expect(raw.ok, JSON.stringify(raw)).toBe(true);
@@ -182,6 +190,215 @@ const registeredModels = [
 ];
 
 describe("shared built-in model acceptance", () => {
+  it.skipIf(!process.env.VACASK_BIN && !process.env.VACASK_WSL_BIN)(
+    "preserves SDE noise-space LTE tolerance through native switch projections",
+    () => {
+      const { run, dir } = nativeProcess([
+        {
+          path: "run.sim",
+          text: `Independent resistor SDE noise at a switch edge\nload "resistor.osdi"\nmodel rr resistor\nmodel vs vsource\nmodel sw icm_switch\nvin (in 0) vs dc=1\nvclock (clk 0) vs type="pwl" wave=[0,0,1n,0,2n,1,3n,1]\nxsw (in out clk 0) sw ron=1 roff=1e12 vt=0.5\nrload (out 0) rr r=1000 noisy=0\nrnoise (noise 0) rr r=1000\ncontrol\nabort always\noptions rawfile="ascii" reltol=1e-6 abstol=1e-15 vntol=1e-10 tran_debug=2\nsave default\nanalysis time tran stop=3n step=0.1n maxstep=0.1n noisemode="sde" noisefmax=100M noiseseed=7\nendc\n`,
+        },
+      ]);
+      expect(run.status, run.stdout + run.stderr).toBe(0);
+      const parsed = parseVacaskRawfile(
+        readFileSync(join(dir, "time.raw"), "utf8"),
+      );
+      if (!parsed.ok) throw Error(parsed.error.message);
+      const plot = parsed.plots[0]!;
+      const times = plot.vectors.find((v) => v.variable.name === "time")!.real;
+      const values = plot.vectors.find(
+        (v) => v.variable.name === "noise",
+      )!.real;
+      const at = times.findIndex((t) => Math.abs(t - 1.5e-9) < 1e-18);
+      expect(at).toBeGreaterThan(1);
+      // This disconnected linear resistor has exactly zero noiseless voltage.
+      // Its solved noise contribution is its voltage, NOT the forcing current.
+      const h = times[at]! - times[at - 1]!;
+      const previous = times[at - 1]! - times[at - 2]!;
+      const predicted =
+        values[at - 1]! + ((values[at - 1]! - values[at - 2]!) / previous) * h;
+      // Defaults are all-local LTE reference and a 3.5 LTE ratio. The solved
+      // noise voltage dominates its relative tolerance in this passive branch.
+      const ratio =
+        ((h / (2 * h + previous)) * Math.abs(predicted)) /
+        (3.5 * Math.max(1e-10, Math.abs(values[at]!)));
+      expect(ratio).toBeGreaterThan(1e-9);
+      const edge = (run.stdout + run.stderr)
+        .split("  Solving at t=")
+        .find(
+          (chunk) =>
+            Math.abs(Number(chunk.split(" with hk=")[0]) - times[at]!) <
+              1e-22 && /Point #\d+ accepted/u.test(chunk),
+        );
+      expect(edge, run.stdout + run.stderr).toBeDefined();
+      const reported = Number(edge!.match(/Maximal LTE\/tol=([^ ]+)/u)?.[1]);
+      expect(reported).toBeCloseTo(ratio, 6);
+    },
+    60000,
+  );
+
+  it.skipIf(!process.env.VACASK_BIN && !process.env.VACASK_WSL_BIN).each([
+    {
+      driver: "time",
+      step: "0.1n",
+      stateDeck: "",
+      smoothInput: "$abstime/1n",
+    },
+    {
+      driver: "capacitor",
+      step: "0.1n",
+      stateDeck:
+        'vstate (state 0) vs type="pwl" wave=[0,0,1n,0,2n,1,3n,1]\ncstate (state 0) cc c=10p\n',
+      smoothInput: "v(state)+1",
+    },
+    {
+      driver: "rc",
+      // Resolve the independent RC ramp startup as well as the switch event.
+      step: "0.001n",
+      stateDeck:
+        'vstate (drive 0) vs type="pwl" wave=[0,0,1n,0,2n,1,3n,1]\nrstate (drive state) rr r=1000\ncstate (state 0) cc c=100f\n',
+      smoothInput: "v(state)+1.1",
+    },
+    {
+      driver: "floating",
+      step: "0.1n",
+      stateDeck:
+        'vref (reference 0) vs dc=0.2\nvstate (state reference) vs type="pwl" wave=[0,0,1n,0,2n,1,3n,1]\ncstate (state reference) cc c=10p\n',
+      smoothInput: "v(state)+0.8",
+    },
+  ] as const)(
+    "retains smooth $driver output error control at a native switch edge",
+    ({ driver, step, stateDeck, smoothInput }) => {
+      const { run, dir } = nativeProcess([
+        {
+          path: "run.sim",
+          text: `Independent smooth output at a switch edge\nload "resistor.osdi"\nload "capacitor.osdi"\nmodel rr resistor\nmodel cc capacitor\nmodel vs vsource\nmodel sw icm_switch\nvin (in 0) vs dc=1\nvclock (clk 0) vs type="pwl" wave=[0,0,1n,0,2n,1,3n,1]\nxsw (in out clk 0) sw ron=1 roff=1e12 vt=0.5\nrload (out 0) rr r=1000\n${stateDeck}bsmooth (smooth 0) v=tanh(20*(${smoothInput}-1.55))\nrsmooth (smooth 0) rr r=1000\ncontrol\nabort always\noptions rawfile="ascii" reltol=1e-6 abstol=1e-15 vntol=1e-10 tran_debug=2\nsave default\nanalysis time tran stop=3n step=${step} maxstep=${step}\nendc\n`,
+        },
+      ]);
+      expect(run.status, run.stdout + run.stderr).toBe(0);
+      const parsed = parseVacaskRawfile(
+        readFileSync(join(dir, "time.raw"), "utf8"),
+      );
+      if (!parsed.ok) throw Error(parsed.error.message);
+      const plot = parsed.plots[0]!;
+      const times = plot.vectors.find((v) => v.variable.name === "time")!.real;
+      const values = plot.vectors.find(
+        (v) => v.variable.name === "smooth",
+      )!.real;
+      const at = times.findIndex((t) => Math.abs(t - 1.5e-9) < 1e-18);
+      expect(at).toBeGreaterThan(1);
+      // Independent first-order local-error estimate on the known smooth
+      // tanh waveform, not a guess that an algebraic output has zero LTE.
+      const predicted =
+        values[at - 1]! +
+        ((values[at - 1]! - values[at - 2]!) /
+          (times[at - 1]! - times[at - 2]!)) *
+          (times[at]! - times[at - 1]!);
+      // A localized retry uses Euler and a linear predictor. On a variable
+      // time grid their LTE factor is h / (2*h + hPrevious), not 1/2.
+      const h = times[at]! - times[at - 1]!;
+      const hPrevious = times[at - 1]! - times[at - 2]!;
+      const factor = h / (2 * h + hPrevious);
+      const ratio = (factor * Math.abs(values[at]! - predicted)) / 3.5e-6;
+      expect(ratio).toBeGreaterThan(1e-5);
+      const attempts = (run.stdout + run.stderr).split("  Solving at t=");
+      const edge = attempts.find(
+        (chunk) =>
+          Math.abs(Number(chunk.split(" with hk=")[0]) - times[at]!) < 1e-22 &&
+          /Point #\d+ accepted/u.test(chunk),
+      );
+      expect(edge, run.stdout + run.stderr).toBeDefined();
+      const reported = Number(edge!.match(/Maximal LTE\/tol=([^ ]+)/u)?.[1]);
+      expect(reported).toBeGreaterThanOrEqual(ratio * 0.99);
+      const control = nativeRun([
+        {
+          path: "run.sim",
+          text: readFileSync(join(dir, "run.sim"), "utf8").replace(
+            "xsw (in out clk 0) sw ron=1 roff=1e12 vt=0.5",
+            "xsw (in out) rr r=1",
+          ),
+        },
+      ]);
+      // Also qualify the same smooth branch without any native switch. Each
+      // run is checked against the independent reference, not against the
+      // other solver's adaptive time grid or results.
+      const traces = [
+        {
+          times,
+          values,
+          state: plot.vectors.find((v) => v.variable.name === "state")?.real,
+        },
+        {
+          times: control("time.raw", "time").real,
+          values: control("time.raw", "smooth").real,
+          state:
+            driver === "time" ? undefined : control("time.raw", "state").real,
+        },
+      ];
+      for (const trace of traces) {
+        for (let i = 0; i < trace.times.length; i++) {
+          if (trace.times[i]! < 1e-9 || trace.times[i]! > 2e-9) continue;
+          const u = trace.times[i]! / 1e-9 - 1;
+          if (driver === "rc") {
+            // Independent analytical ramp response for tau=0.1 ns.
+            expect(
+              Math.abs(trace.state![i]! - (u - 0.1 * (1 - Math.exp(-u / 0.1)))),
+            ).toBeLessThan(50e-6);
+          }
+          const input =
+            driver === "rc" ? trace.state![i]! + 1.1 : trace.times[i]! / 1e-9;
+          // Normal NR tolerance remains 1e-6, also at unrelated ordinary points.
+          expect(
+            Math.abs(trace.values[i]! - Math.tanh(20 * (input - 1.55))),
+          ).toBeLessThan(1e-6);
+        }
+      }
+    },
+    60000,
+  );
+
+  it
+    .skipIf(!process.env.VACASK_BIN && !process.env.VACASK_WSL_BIN)
+    .each(["vccs", "vcvs"] as const)(
+    "preserves ordinary native %s gain semantics",
+    (device) => {
+      const measured = nativeRun([
+        {
+          path: "run.sim",
+          text: `Ordinary controlled source\nload "resistor.osdi"\nmodel rr resistor\nmodel vs vsource\nmodel source ${device}\nvin (in 0) vs dc=1\nxsource (out 0 in 0) source gain=2\nrload (out 0) rr r=1\ncontrol\nabort always\noptions rawfile="ascii"\nsave default\nanalysis proof op\nendc\n`,
+        },
+      ]);
+      expect(measured("proof.raw", "out").real[0]).toBeCloseTo(
+        device === "vccs" ? -2 : 2,
+        10,
+      );
+    },
+    60000,
+  );
+
+  it
+    .skipIf(!process.env.VACASK_BIN && !process.env.VACASK_WSL_BIN)
+    .each(
+      ["vccs", "vcvs"].flatMap((device) =>
+        ["ron", "roff", "vt"].map((parameter) => ({ device, parameter })),
+      ),
+    )(
+    "rejects switch-only $parameter on ordinary native $device",
+    ({ device, parameter }) => {
+      const { run } = nativeProcess([
+        {
+          path: "run.sim",
+          text: `Controlled source parameter boundary\nload "resistor.osdi"\nmodel rr resistor\nmodel vs vsource\nmodel source ${device}\nvin (in 0) vs dc=1\nxsource (out 0 in 0) source gain=1 ${parameter}=1\nrload (out 0) rr r=1\ncontrol\nabort always\noptions rawfile="ascii"\nanalysis proof op\nendc\n`,
+        },
+      ]);
+      expect(run.status, run.stdout + run.stderr).toBe(1);
+      expect(run.stdout + run.stderr).toContain(
+        `Parameter '${parameter}' not found.`,
+      );
+    },
+    60000,
+  );
+
   it.each(["ngspice", "vacask"] as const)(
     "emits a shared generated model once across bound files in %s and rejects authored shadowing",
     (engine) => {
