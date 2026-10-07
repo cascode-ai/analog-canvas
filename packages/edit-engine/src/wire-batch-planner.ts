@@ -134,9 +134,12 @@ function keepClear(
     return `the requested path ${problem}, so it would read as connected there; give via points that keep clear of it`;
   const clear = clearance.path(endOf(from), endOf(to));
   if (typeof clear === "string") return clear;
+  // The detour is orthogonal and its corners the planner's, never a
+  // caller's diagonal to refuse (#1437).
   const cleared = {
     ...resolved,
     waypoints: clear.waypoints,
+    routingMode: "orthogonal" as const,
     cornerOrder: clear.cornerOrder,
   };
   return (
@@ -237,7 +240,12 @@ function tapOwnWire(
         !samePoint(point, path.at(-1)!) &&
         (index === 0 || !samePoint(point, all[index - 1]!)),
     );
-  return { ...next, waypoints: bends };
+  // The bends of a path already planned, in its own routing mode.
+  return {
+    ...next,
+    waypoints: bends,
+    routingMode: intent.routingMode ?? "orthogonal",
+  };
 }
 
 /** Where a resolved wire end is: its endpoint, or the point of a tap or an

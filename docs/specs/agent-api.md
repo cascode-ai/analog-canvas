@@ -156,8 +156,11 @@ remain valid only while their objects survive the edit lifecycle and are not
 exposed as an alternate Agent naming protocol.
 
 `wireIntent` has the same Route planner as interactive Wire. Its optional
-`routingMode` is `orthogonal` (default), `octilinear`, or `free` ([Routing rationale](../adr/routing.md));
-an optional
+`routingMode` is `orthogonal` (default), `octilinear`, or `free` ([Routing rationale](../adr/routing.md)).
+Left out, it refuses waypoints with a 45-degree step between them or from an
+end's landing, which orthogonal routing would bend into a corner. A tap on a
+Route (`wire-at` or `route-segment`) lands exactly at its point, which must
+align to the pin grid as a waypoint does; it is refused off it. An optional
 `cornerOrder` selects the deterministic diagonal/orthogonal pair used when an
 exact 45-degree leg cannot reach the target. It never creates a diagonal-only
 edit or a second Route model.

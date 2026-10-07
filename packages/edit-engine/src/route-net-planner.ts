@@ -28,7 +28,6 @@ import {
 } from "./route-clearance.js";
 import type { WireIntent } from "./routing-planner.js";
 import { planWireBatch } from "./wire-batch-planner.js";
-import { routeTapLanding } from "./wire-intent-target.js";
 
 type Pin = { instanceId: string; pinName: string };
 export type RouteNetTarget =
@@ -294,14 +293,9 @@ export function planRouteNet(
             a.projected.distanceSquared - b.projected.distanceSquared ||
             a.node.key.localeCompare(b.node.key, "en"),
         )[0]!;
-      // Planned where the tap lands, which a wire-at point must be (#1438).
-      const tap = routeTapLanding(
-        { from: start, to: end },
-        snapGridPoint(
-          best.projected.point,
-          electricalConnectionGrid(document.presentation.grid),
-        ),
-        document.presentation.grid,
+      const tap = snapGridPoint(
+        best.projected.point,
+        electricalConnectionGrid(document.presentation.grid),
       );
       // The branch is drawn horizontal first, as an unconstrained wire is.
       const from = best.node.point;
@@ -455,6 +449,8 @@ function planNetTree(
       from: { kind: "endpoint", endpoint: seed.a.node.endpoint },
       to: { kind: "endpoint", endpoint: seed.b.node.endpoint },
       ...(seed.path.waypoints.length ? { waypoints: seed.path.waypoints } : {}),
+      // The clear path is orthogonal; its corners are the planner's (#1437).
+      routingMode: "orthogonal",
       cornerOrder: seed.path.cornerOrder,
     });
     join(seed.a.component, seed.path.points);
@@ -483,11 +479,7 @@ function planNetTree(
           if (from.x !== to.x && from.y !== to.y) return [];
           const projected = projectPointToSegment(node.point, from, to);
           if (!projected) return [];
-          const foot = routeTapLanding(
-            { from, to },
-            snapGridPoint(projected.point, tapGrid),
-            document.presentation.grid,
-          );
+          const foot = snapGridPoint(projected.point, tapGrid);
           if (
             same(foot, from) ||
             same(foot, to) ||
@@ -528,6 +520,8 @@ function planNetTree(
         ? { kind: "endpoint", endpoint: best.endpoint }
         : { kind: "wire-at", point: best.point },
       ...(best.path.waypoints.length ? { waypoints: best.path.waypoints } : {}),
+      // The clear path is orthogonal; its corners are the planner's (#1437).
+      routingMode: "orthogonal",
       cornerOrder: best.path.cornerOrder,
     });
     join(best.component, best.path.points);

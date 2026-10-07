@@ -43,6 +43,7 @@ import type {
 } from "@icm/model";
 import {
   createRoutePath,
+  electricalConnectionGrid,
   routeBends,
   routeEnd,
   routeEndpoints,
@@ -2335,10 +2336,6 @@ export function proposeWireIntent(
     if (typeof to === "string") return to;
     return proposeWireIntent(document, resolver, { ...intent, from, to });
   }
-  const diagonal = intent.routingMode
-    ? undefined
-    : diagonalViaStep(intent.waypoints ?? []);
-  if (diagonal) return diagonal;
   const routeFor = (
     anchor: Extract<WireIntentAnchor, { kind: "route-segment" }>,
   ) => document.routes.find((route) => route.id === anchor.routeId);
@@ -2369,12 +2366,17 @@ export function proposeWireIntent(
       );
       if (segmentIndex < 0)
         return `Wire route leg does not exist: ${anchor.legId}`;
+      // A named tap lands exactly where it is asked, on the pin grid as a via
+      // point does, and is refused off it; it is never moved (#1438).
+      const pitch = electricalConnectionGrid(document.presentation.grid);
+      if (anchor.point.x % pitch !== 0 || anchor.point.y % pitch !== 0)
+        return `Tap (${anchor.point.x}, ${anchor.point.y}) is off grid ${pitch}; a tap on a wire, like a via point, must align to it`;
       return createRouteWireAnchor(
         document,
         route,
         anchor.point,
         segmentIndex,
-        document.presentation.grid,
+        pitch,
         {
           junctionId: `${intent.id}-${side}-junction`,
           ...splitRoutePieceIds(route.id, `${intent.id}-${side}`),
@@ -2396,6 +2398,15 @@ export function proposeWireIntent(
   if (typeof from === "string") return from;
   const to = source(intent.to, "to");
   if (typeof to === "string") return to;
+  const diagonal =
+    intent.routingMode || !intent.waypoints?.length
+      ? undefined
+      : diagonalViaStep([
+          from.connection.gridLanding,
+          ...intent.waypoints,
+          to.connection.gridLanding,
+        ]);
+  if (diagonal) return diagonal;
   const draft: WireDraftOptions = {
     ...(intent.routingMode ? { routingMode: intent.routingMode } : {}),
     ...(intent.cornerOrder ? { cornerOrder: intent.cornerOrder } : {}),
@@ -2420,20 +2431,21 @@ export function proposeWireIntent(
 }
 
 /**
- * Two via points a 45° step apart read as a diagonal, which the default
- * orthogonal routing would bend into a corner: refused unless a routing mode
- * is named, never silently drawn as an L (#1437).
+ * A 45° step along the requested path (the ends' landings and the via points
+ * between them) reads as a diagonal, which the default orthogonal routing
+ * would bend into a corner: refused unless a routing mode is named, never
+ * silently drawn as an L (#1437).
  */
-function diagonalViaStep(waypoints: readonly Point[]): string | undefined {
-  const index = waypoints.findIndex((point, at) => {
-    const next = waypoints[at + 1];
+function diagonalViaStep(path: readonly Point[]): string | undefined {
+  const index = path.findIndex((point, at) => {
+    const next = path[at + 1];
     if (!next) return false;
     const dx = Math.abs(next.x - point.x);
     return dx > 0 && dx === Math.abs(next.y - point.y);
   });
   if (index < 0) return undefined;
-  const at = (point: Point) => `(${point.x},${point.y})`;
-  return `via ${at(waypoints[index]!)} → ${at(waypoints[index + 1]!)} is a 45° step, which orthogonal routing would bend into a corner. Pass routingMode "octilinear" to keep the diagonal, or "orthogonal" for the corner.`;
+  const at = (point: Point) => `(${point.x}, ${point.y})`;
+  return `The step ${at(path[index]!)} → ${at(path[index + 1]!)} is 45°, which orthogonal routing would bend into a corner. Pass routingMode "octilinear" to keep the diagonal, or "orthogonal" for the corner.`;
 }
 
 /**
