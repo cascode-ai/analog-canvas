@@ -125,6 +125,27 @@ describe("wire batch replay", () => {
       h.document.junctions.map((junction) => junction.position),
     ).toContainEqual({ x: 80, y: 60 });
   });
+  it("refuses a 45° via step unless a routing mode is named (#1437)", () => {
+    const h = history();
+    const via = [
+      { x: 0, y: 40 },
+      { x: 40, y: 40 },
+      { x: 80, y: 80 },
+      { x: 200, y: 80 },
+    ];
+    const step = wire("step", free(0, 20), free(200, 100), via);
+    expect(planWireBatch(h.document, resolver, [step], 512)).toMatch(
+      /via \(40,40\) → \(80,80\) is a 45° step.*routingMode "octilinear"/,
+    );
+    commit(h, [{ ...step, routingMode: "octilinear" }]);
+    const route = h.document.routes[0]!;
+    expect(
+      resolveRouteGeometry(h.document, resolver, route)!.centerline,
+    ).toContainEqual({ x: 80, y: 80 });
+    expect(
+      resolveRouteGeometry(h.document, resolver, route)!.centerline,
+    ).not.toContainEqual({ x: 80, y: 40 });
+  });
   it("resolves successive bias taps without referencing normalized-away endpoints", () => {
     const h = history();
     commit(h, [

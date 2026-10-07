@@ -39,7 +39,9 @@ live positions or Net membership.
 
 `wireIntent.routingMode` supports `orthogonal`, `octilinear` and `free`.
 Orthogonal is the default planner constraint, not a universal persisted-route
-restriction. Free-angle wires are valid. Power rails remain a single nonzero
+restriction. With no `routingMode`, two via points a 45° step apart are refused
+with the step named, never bent into a corner: name `octilinear` to keep the
+diagonal, or `orthogonal` for the corner. Free-angle wires are valid. Power rails remain a single nonzero
 horizontal or vertical segment.
 
 Persisted Routes contain a starting endpoint and stable-ID legs to bends or an
