@@ -29,7 +29,11 @@ import {
   loadCloudProjectForCellImport,
   type CloudCellImportLoadResult,
 } from "../features/hierarchy/cloud-cell-import";
-import { GALLERY_SIGN_IN_REQUIRED, loadGalleryFeed } from "../gallery-client";
+import {
+  dailyOpenLimitMessage,
+  GALLERY_SIGN_IN_REQUIRED,
+  loadGalleryFeed,
+} from "../gallery-client";
 import { planNetlistCodeEdit } from "../features/netlist-export/netlist-code-edit";
 import { importChunk } from "../components/chunk-import";
 import type { AgentGalleryPublishRequest } from "./agent-gallery-publish";
@@ -391,6 +395,9 @@ export class BrowserAgentProjectHost {
         "retry",
       );
     }
+    const limited = await dailyOpenLimitMessage(response);
+    if (limited)
+      return this.error(request, "GALLERY_DAILY_LIMIT", limited, "retry");
     if (!response.ok) {
       return this.error(
         request,

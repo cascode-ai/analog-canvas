@@ -13,6 +13,7 @@ import {
   type AgentSessionNamespaceLike,
 } from "./agent-session";
 import {
+  forgetEarlierOpens,
   galleryReadableDocument,
   refreshNetlistMarks,
   routeGalleryRequest,
@@ -91,7 +92,13 @@ export default {
   // anybody pressing anything; when none are stale the pass reads one count
   // and stops.
   async scheduled(_event: ScheduledEventLike, env: Env): Promise<void> {
-    await refreshNetlistMarks(env, SCHEDULED_NETLIST_MARK_BATCH);
+    try {
+      await refreshNetlistMarks(env, SCHEDULED_NETLIST_MARK_BATCH);
+    } finally {
+      // The privacy notice promises yesterday's opens are gone the next
+      // day, whatever became of the marks.
+      await forgetEarlierOpens(env);
+    }
   },
 };
 

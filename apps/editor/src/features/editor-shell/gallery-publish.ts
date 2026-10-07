@@ -83,10 +83,11 @@ export async function loadGalleryPublicationContext(
   projectId: string,
   fetchLike: typeof fetch = fetch,
 ): Promise<GalleryEntryContext | null> {
-  const response = await fetchLike(`/api/gallery/${encodeURIComponent(id)}`, {
-    credentials: "same-origin",
-    cache: "no-store",
-  });
+  // The entry's details alone: they cost no daily open.
+  const response = await fetchLike(
+    `/api/gallery/${encodeURIComponent(id)}?summary=1`,
+    { credentials: "same-origin", cache: "no-store" },
+  );
   if (response.status === 404) return null;
   if (!response.ok)
     throw new GalleryReadError(

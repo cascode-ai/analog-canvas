@@ -3,7 +3,10 @@ import type { CircuitProject } from "@icm/model";
 import { serializeProject } from "@icm/project-protocol";
 import { galleryPreviewUrl } from "../../gallery-client";
 import { getGalleryTopologyTask } from "./gallery-topology-task";
-import type { GalleryTopologyMatch } from "../../gallery-topology-match";
+import {
+  comparisonCandidate,
+  type GalleryTopologyMatch,
+} from "../../gallery-topology-match";
 const GalleryTopologyComparison = lazy(
   () => import("./gallery-topology-comparison"),
 );
@@ -32,8 +35,26 @@ export function GalleryTopologyCheck({
   const galleryTopologyTask = getGalleryTopologyTask();
   const [comparison, setComparison] = useState<{
     source: CircuitProject;
-    match: GalleryTopologyMatch;
+    match: GalleryTopologyMatch & { candidate: CircuitProject };
   } | null>(null);
+  // The match being opened for comparison, and why it could not be.
+  const [opening, setOpening] = useState<{
+    id: string;
+    refusal?: string;
+  } | null>(null);
+  const compare = async (
+    source: CircuitProject,
+    match: GalleryTopologyMatch,
+  ) => {
+    setOpening({ id: match.entry.id });
+    const candidate = await comparisonCandidate(match);
+    if (typeof candidate === "string") {
+      setOpening({ id: match.entry.id, refusal: candidate });
+      return;
+    }
+    setOpening(null);
+    setComparison({ source, match: { ...match, candidate } });
+  };
   const { report, running, failure, snapshot, durable } = useSyncExternalStore(
     galleryTopologyTask.subscribe,
     galleryTopologyTask.getSnapshot,
@@ -219,13 +240,20 @@ export function GalleryTopologyCheck({
                   type="button"
                   className="topology-compare-button"
                   data-testid={`topology-compare-${match.entry.id}`}
-                  disabled={!match.pairs.length || !snapshot}
-                  onClick={() =>
-                    snapshot && setComparison({ source: snapshot, match })
+                  // One comparison opens at a time, so the last answer
+                  // cannot show another match's drawing.
+                  disabled={
+                    !match.pairs.length ||
+                    !snapshot ||
+                    (!!opening && !opening.refusal)
                   }
+                  onClick={() => snapshot && void compare(snapshot, match)}
                 >
                   Compare on canvas
                 </button>
+                {opening?.id === match.entry.id && opening.refusal ? (
+                  <small role="alert">{opening.refusal}</small>
+                ) : null}
               </span>
             </article>
           ))}

@@ -219,6 +219,13 @@ export function dailySubmissionLimit(user: { provider: string }): number {
 }
 
 /**
+ * Other people's circuits one account may open — read their Project Code —
+ * in a UTC day. A person browsing never meets it; a script cannot carry the
+ * whole Gallery off at once. Each circuit counts once a day; the wall, search
+ * and previews are not counted.
+ */
+export const GALLERY_DAILY_OPEN_LIMIT = 100;
+/**
  * Recycle-bin retention. The quota deliberately refunds a withdrawal
  * (recycling counts as taking work down), which leaves publish->recycle
  * cycling bounded only by request rate while every cycle stores a full
@@ -819,6 +826,16 @@ export class GalleryDO {
       ) WITHOUT ROWID
     `);
     installBackupRevisions(this.sql);
+    // Which circuits each account opened today; the scheduled pass (and the
+    // first counted open of a new day) drops earlier days. Not a backup table.
+    this.sql.exec(`
+      CREATE TABLE IF NOT EXISTS gallery_daily_opens (
+        day TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        entry_id TEXT NOT NULL,
+        PRIMARY KEY (day, user_id, entry_id)
+      ) WITHOUT ROWID
+    `);
     this.state.storage.transactionSync(() => {
       const applied = this.sql
         .exec<{ id: string }>(
@@ -948,6 +965,14 @@ export class GalleryDO {
         return this.entry(String(body.id), "public");
       case "any-entry":
         return this.entry(String(body.id), null);
+      case "count-open":
+        return this.countOpen(
+          String(body.userId),
+          String(body.entryId),
+          String(body.day),
+        );
+      case "forget-opens":
+        return this.forgetOpens(String(body.day));
       case "preview-access":
         return this.previewAccess(String(body.id));
       case "preview":
@@ -1619,6 +1644,49 @@ export class GalleryDO {
               .one().project_text,
           }
         : {}),
+    });
+  }
+
+  /** Drop every record of opens before `day`; only that day's are needed. */
+  private forgetOpens(day: string): Response {
+    this.sql.exec("DELETE FROM gallery_daily_opens WHERE day < ?", day);
+    return Response.json({ forgotten: true });
+  }
+
+  /**
+   * Spend one of the account's daily opens on `entryId`, unless it already
+   * opened that circuit today. `allowed: false` once the day's allowance is
+   * used up; the caller decides who is counted at all.
+   */
+  private countOpen(userId: string, entryId: string, day: string): Response {
+    return this.state.storage.transactionSync(() => {
+      this.forgetOpens(day);
+      const seen =
+        this.sql
+          .exec(
+            "SELECT 1 FROM gallery_daily_opens WHERE day = ? AND user_id = ? AND entry_id = ?",
+            day,
+            userId,
+            entryId,
+          )
+          .toArray().length > 0;
+      const used = this.sql
+        .exec<{ n: number }>(
+          "SELECT COUNT(*) AS n FROM gallery_daily_opens WHERE day = ? AND user_id = ?",
+          day,
+          userId,
+        )
+        .one().n;
+      if (seen) return Response.json({ allowed: true, used });
+      if (used >= GALLERY_DAILY_OPEN_LIMIT)
+        return Response.json({ allowed: false, used });
+      this.sql.exec(
+        "INSERT INTO gallery_daily_opens (day, user_id, entry_id) VALUES (?, ?, ?)",
+        day,
+        userId,
+        entryId,
+      );
+      return Response.json({ allowed: true, used: used + 1 });
     });
   }
 
@@ -3207,12 +3275,17 @@ export class GalleryDO {
   /**
    * Deleting an account takes everything the Gallery keeps for it: the
    * circuits it published, in any state, with their history and likes; its
-   * likes on other circuits; and its Cloud Projects with their revisions.
+   * likes on other circuits; its Cloud Projects with their revisions; and the
+   * circuits it opened today.
    */
   private deleteAccount(userId: string): Response {
     if (!userId)
       return Response.json({ error: "missing-user" }, { status: 400 });
     return this.state.storage.transactionSync(() => {
+      this.sql.exec(
+        "DELETE FROM gallery_daily_opens WHERE user_id = ?",
+        userId,
+      );
       const entries = this.sql
         .exec<{
           id: string;

@@ -35,6 +35,7 @@ import { sameOrigin } from "./same-origin";
 import {
   dailySubmissionLimit,
   isAiSeatEntry,
+  GALLERY_DAILY_OPEN_LIMIT,
   GALLERY_MAX_AUTHOR_LENGTH,
   GALLERY_MAX_DESCRIPTION_LENGTH,
   GALLERY_MAX_NAME_LENGTH,
@@ -51,6 +52,27 @@ export * from "./gallery-do";
 
 function galleryStub(env: GalleryEnv) {
   return env.GALLERY.getByName("gallery");
+}
+
+/** The day's opens are spent; they come back at the next UTC midnight. */
+function dailyOpenLimitResponse(day: string): Response {
+  const resetAt = new Date(Date.parse(`${day}T00:00:00Z`) + 86_400_000);
+  return Response.json(
+    {
+      error: "daily-open-limit",
+      limit: GALLERY_DAILY_OPEN_LIMIT,
+      resetAt: resetAt.toISOString(),
+    },
+    {
+      status: 429,
+      headers: {
+        "cache-control": "no-store",
+        "retry-after": String(
+          Math.max(1, Math.ceil((resetAt.getTime() - Date.now()) / 1000)),
+        ),
+      },
+    },
+  );
 }
 
 async function callGallery<T>(
@@ -1322,6 +1344,13 @@ function wallFilters(url: URL) {
   };
 }
 
+/** Drop the record of earlier days' opens; only today's is ever needed. */
+export async function forgetEarlierOpens(env: GalleryEnv): Promise<void> {
+  await callGallery(env, "forget-opens", {
+    day: new Date().toISOString().slice(0, 10),
+  });
+}
+
 export async function refreshNetlistMarks(
   env: GalleryEnv,
   limit?: number,
@@ -2366,6 +2395,27 @@ export async function routeGalleryRequest(
       delete payload.entry.attention;
       delete payload.entry.assessedPreviewRevision;
     }
+    // `summary=1` answers the tile alone — what a link to the wall shows —
+    // without the Project Code, so it costs no daily open.
+    const summary = url.searchParams.get("summary") === "1";
+    if (
+      !summary &&
+      payload.status === "public" &&
+      viewer &&
+      viewer.id !== payload.ownerUserId &&
+      !curator &&
+      !hasGalleryReadToken(request, env)
+    ) {
+      // Opening someone else's circuit spends the account's daily allowance;
+      // its author, curators and the read credential are not counted.
+      const day = new Date().toISOString().slice(0, 10);
+      const { payload: open } = await callGallery<{ allowed?: boolean }>(
+        env,
+        "count-open",
+        { userId: viewer.id, entryId: segments[0], day },
+      );
+      if (open.allowed !== true) return dailyOpenLimitResponse(day);
+    }
     return Response.json(
       {
         entry: payload.entry,
@@ -2379,7 +2429,7 @@ export async function routeGalleryRequest(
               submitterProvider: payload.submitterProvider ?? null,
             }
           : {}),
-        projectText: payload.projectText,
+        ...(summary ? {} : { projectText: payload.projectText }),
       },
       { headers: { "cache-control": "no-store" } },
     );

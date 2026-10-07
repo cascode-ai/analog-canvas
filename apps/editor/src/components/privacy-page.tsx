@@ -50,12 +50,6 @@ export const SITE_COOKIES = [
     lifetime: "24 hours",
     when: "When you run a simulation without signing in",
   },
-  {
-    name: "icm_topology_session",
-    purpose: "Connects a duplicate check to this browser.",
-    lifetime: "7 days",
-    when: "When you check a circuit for duplicates without signing in",
-  },
 ] as const;
 
 function browserRefusesTracking(): boolean {
@@ -233,6 +227,12 @@ export function PrivacyPage() {
             <strong>Likes</strong> are stored with your account.
           </li>
           <li>
+            <strong>Gallery circuits you open</strong>: the site notes which
+            other people&rsquo;s circuits your account opened today, to allow up
+            to 100 a day. The note is deleted shortly after the day ends (UTC),
+            or at once with your account.
+          </li>
+          <li>
             <strong>Simulations</strong> run on the site&rsquo;s servers. Runs
             and their results are deleted 24 hours after they finish.
           </li>
@@ -250,12 +250,12 @@ export function PrivacyPage() {
 
         <h2>Cookies and browser storage</h2>
         <p>
-          The site sets only these cookies, all its own. Each of the sign-in,
-          simulation and duplicate-check cookies is set only when you use that
-          feature, which needs it. <code>canvas_vid</code> only counts returning
-          visitors to this site: it is never shared or combined with other data,
-          lasts at most a year, and you can refuse it at any time. That is why
-          the site shows no cookie banner.
+          The site sets only these cookies, all its own. Each of the sign-in and
+          simulation cookies is set only when you use that feature, which needs
+          it. <code>canvas_vid</code> only counts returning visitors to this
+          site: it is never shared or combined with other data, lasts at most a
+          year, and you can refuse it at any time. That is why the site shows no
+          cookie banner.
         </p>
         <div className="privacy-table-scroll">
           <table className="privacy-cookies">

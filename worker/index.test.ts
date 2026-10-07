@@ -61,3 +61,30 @@ describe("assets binding wiring", () => {
     expect(assets.not_found_handling).toBe("single-page-application");
   });
 });
+
+describe("the scheduled pass", () => {
+  it("forgets earlier days' Gallery opens even when the netlist marks fail", async () => {
+    const { default: worker } = await import("./index");
+    const operations: string[] = [];
+    const env = {
+      GALLERY: {
+        getByName: () => ({
+          fetch: async (input: string) => {
+            const operation = new URL(input).pathname.slice(1);
+            operations.push(operation);
+            if (operation === "netlistable-refresh")
+              throw new Error("Gallery busy");
+            return Response.json({ forgotten: true });
+          },
+        }),
+      },
+    };
+    await expect(
+      worker.scheduled(
+        { scheduledTime: 0, cron: "*/5 * * * *" },
+        env as unknown as Parameters<typeof worker.scheduled>[1],
+      ),
+    ).rejects.toThrow("Gallery busy");
+    expect(operations).toEqual(["netlistable-refresh", "forget-opens"]);
+  });
+});

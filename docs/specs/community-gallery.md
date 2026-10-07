@@ -37,6 +37,21 @@ Worker's edge cache keeps the immutable bytes behind the reader check. A valid
 session is remembered for a minute per Worker isolate, so a wall of previews
 asks the AuthDO once.
 
+Opening someone else's public circuit — reading its Project Code through
+`GET /api/gallery/<id>`, as the editor's Open, Insert and duplicate-check
+Compare and Agent Gallery reads do — spends one of the account's 100 daily
+opens (`GALLERY_DAILY_OPEN_LIMIT`, per UTC day). Each circuit counts once a
+day. Past the allowance the read answers
+`429 {"error":"daily-open-limit","limit":100,"resetAt":…}` with `Retry-After`,
+the editor says when more open, and an Agent read fails with
+`GALLERY_DAILY_LIMIT`. The wall, search, tags, previews and
+`GET /api/gallery/<id>?summary=1` (the entry's details without its Project
+Code, used by links and publishing) are not counted, nor are an author's own
+circuits, curators, or the read-only credential. A person browsing never meets
+the limit; a script cannot carry the whole Gallery off at once. The record of
+today's opens is dropped by the five-minute scheduled pass after the day ends,
+and with the account when it is deleted.
+
 ## Public surface
 
 - `GET /api/gallery` — newest-first `public` entries
@@ -128,7 +143,8 @@ asks the AuthDO once.
   marked “so far” remains the fallback. Signed out, a search is refused like
   every other read.
 - `GET /api/gallery/<id>` — one public entry with its canonical
-  `projectText`.
+  `projectText`, spending one of the reader's daily opens (see
+  [Reader access](#reader-access)); `?summary=1` answers the entry alone, free.
 - `GET /api/gallery/<id>/preview.svg?v=<previewRevision>&render=formula-label-v5` — the
   server-rendered preview. A revision matching the stored SVG is immutable;
   unversioned, stale-revision, hidden, and missing responses are `no-store`.
@@ -691,7 +707,9 @@ in backups taken before the deletion.
 ## Current-cell duplicate tasks
 
 The duplicate scan captures the current Cell when started. On the hosted site,
-one private durable task belongs to the account or anonymous browser identity.
+one private durable task belongs to the signed-in account; signed out, none
+starts (`401 sign-in-required`) and a read finds no job, since the Publish
+dialog offers the check only to a signed-in account.
 Server alarms advance and checkpoint work; browser polling observes it.
 Closing the dialog, changing the drawing, refreshing or closing the page does
 not cancel it. Reopening resumes progress/results within the seven-day retention
@@ -703,7 +721,10 @@ since edited stays, marked historical.
 
 The hosted result retains the best 20 matches within an 8 MiB result budget;
 omissions and incomplete coverage remain explicit. Access does not expose another
-owner's snapshot. Storage, admission and limits are owned by
+owner's snapshot. A match names its circuit, scores and correspondences and
+the preview revision it was compared at, never the drawing itself: Compare on
+canvas opens that circuit as an ordinary read (one of the day's opens) and
+refuses a circuit changed since the check. Storage, admission and limits are owned by
 [TopologyTaskDO](../../worker/topology-task.ts), and browser resumption by
 [the task client](../../apps/editor/src/features/editor-shell/gallery-topology-task.ts).
 

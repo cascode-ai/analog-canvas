@@ -7,7 +7,11 @@ import {
 import { createEmptyProject } from "@icm/model";
 import { parseProject, serializeProject } from "@icm/project-protocol";
 import { projectWithTopologyRoot } from "./features/editor-shell/gallery-topology-project";
-import { scanGalleryTopologyMatches } from "./gallery-topology-match";
+import {
+  comparisonCandidate,
+  scanGalleryTopologyMatches,
+  type GalleryTopologyMatch,
+} from "./gallery-topology-match";
 
 function resistorProject(value = "1k", count = 2) {
   const project = createEmptyProject(`p-${value}-${count}`, "Drawing");
@@ -116,7 +120,7 @@ describe("current Gallery topology matching", () => {
     expect(report.matches[1]!.pairs).toHaveLength(2);
     expect(report.matches[2]!.pairs).toHaveLength(1);
     expect(
-      report.matches[1]!.candidate.documents[0]!.instances[0]!.netlist!
+      report.matches[1]!.candidate!.documents[0]!.instances[0]!.netlist!
         .parameters.value,
     ).toBe("2k");
     expect(report.matches[2]!.similarity).toBeLessThan(1);
@@ -273,5 +277,66 @@ describe("current Gallery topology matching", () => {
       error: "Could not read Gallery (503)",
     });
     expect(report.matches[0]).toMatchObject({ exact: true });
+  });
+});
+
+describe("the drawing a server match is compared with", () => {
+  const match = (candidate?: ReturnType<typeof resistorProject>) =>
+    ({
+      entry: { id: "entry-1", name: "Divider", previewRevision: "rev-1" },
+      pairs: [],
+      ...(candidate ? { candidate } : {}),
+    }) as unknown as GalleryTopologyMatch;
+  const serving = (status: number, body: object) =>
+    (async () => Response.json(body, { status })) as unknown as typeof fetch;
+
+  it("uses the drawing in hand, or opens the version the check saw", async () => {
+    const inHand = resistorProject("1k");
+    await expect(comparisonCandidate(match(inHand))).resolves.toBe(inHand);
+    const stored = resistorProject("2k");
+    const opened = await comparisonCandidate(
+      match(),
+      serving(200, {
+        entry: { id: "entry-1", previewRevision: "rev-1" },
+        projectText: serializeProject(stored),
+      }),
+    );
+    expect(typeof opened).not.toBe("string");
+    expect((opened as typeof stored).documents[0]!.instances).toHaveLength(2);
+  });
+
+  it("says why it cannot compare: the day's opens, or a changed circuit", async () => {
+    await expect(
+      comparisonCandidate(
+        match(),
+        serving(429, {
+          error: "daily-open-limit",
+          limit: 100,
+          resetAt: "2026-10-08T00:00:00.000Z",
+        }),
+      ),
+    ).resolves.toMatch(/^You have opened 100 Gallery circuits today/u);
+    await expect(
+      comparisonCandidate(
+        match(),
+        serving(200, {
+          entry: { id: "entry-1", previewRevision: "rev-2" },
+          projectText: serializeProject(resistorProject()),
+        }),
+      ),
+    ).resolves.toBe(
+      "This Gallery circuit changed after the check; check again to compare",
+    );
+    // A check saved before matches recorded their version opens nothing.
+    const unversioned = {
+      ...match(),
+      entry: { id: "entry-1", name: "Divider" },
+    } as unknown as GalleryTopologyMatch;
+    const never = (async () => {
+      throw new Error("must not read");
+    }) as unknown as typeof fetch;
+    await expect(comparisonCandidate(unversioned, never)).resolves.toBe(
+      "This check is older than its comparisons; check again to compare",
+    );
   });
 });

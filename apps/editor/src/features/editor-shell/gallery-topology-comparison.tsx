@@ -182,7 +182,7 @@ export default function GalleryTopologyComparison({
   onClose,
 }: {
   source: CircuitProject;
-  match: GalleryTopologyMatch;
+  match: GalleryTopologyMatch & { candidate: CircuitProject };
   onClose: () => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);

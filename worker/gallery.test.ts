@@ -31,6 +31,7 @@ import {
 import {
   GALLERY_AI_SEAT_DAILY_LIMIT,
   GALLERY_DAILY_SUBMISSION_LIMIT,
+  forgetEarlierOpens,
   galleryReadableDocument,
   refreshNetlistMarks,
   GALLERY_MAX_PROJECT_BYTES,
@@ -518,6 +519,136 @@ describe("off-site Gallery backup credential", () => {
         )
       ).status,
     ).toBe(401);
+  });
+});
+
+describe("daily Gallery opens", () => {
+  const opens = (env: Harness) =>
+    env.gallerySql
+      .exec<{
+        day: string;
+        user_id: string;
+        entry_id: string;
+      }>("SELECT * FROM gallery_daily_opens ORDER BY entry_id")
+      .toArray();
+
+  it("counts each circuit once a day and refuses the 101st, never the wall", async () => {
+    const env = environment();
+    const admin = await adminOf(env);
+    const first = await submitOne(env, "First circuit", { cookie: admin });
+    const second = await submitOne(env, "Second circuit", { cookie: admin });
+    const member = cookieHeaders(await makerOf(env));
+    const read = (path: string) =>
+      route(env, new Request(`${ORIGIN}${path}`, { headers: member }));
+    expect((await read(`/api/gallery/${first}`)).status).toBe(200);
+    expect((await read(`/api/gallery/${first}`)).status).toBe(200);
+    expect(opens(env)).toHaveLength(1);
+    const { day, user_id: userId } = opens(env)[0]!;
+    // The rest of the day's allowance, spent on other circuits.
+    for (let n = 0; n < 99; n += 1)
+      env.gallerySql.exec(
+        "INSERT INTO gallery_daily_opens VALUES (?, ?, ?)",
+        day,
+        userId,
+        `seen-${n}`,
+      );
+    const refused = await read(`/api/gallery/${second}`);
+    expect(refused.status).toBe(429);
+    expect(refused.headers.get("retry-after")).toMatch(/^\d+$/u);
+    expect(await refused.json()).toEqual({
+      error: "daily-open-limit",
+      limit: 100,
+      resetAt: new Date(
+        Date.parse(`${day}T00:00:00Z`) + 86_400_000,
+      ).toISOString(),
+    });
+    // What was opened today, the tile, the wall and the preview still answer.
+    expect((await read(`/api/gallery/${first}`)).status).toBe(200);
+    const tile = await read(`/api/gallery/${second}?summary=1`);
+    expect(tile.status).toBe(200);
+    const { entry, ...rest } = (await tile.json()) as {
+      entry: { previewRevision: string };
+    };
+    expect(rest).not.toHaveProperty("projectText");
+    expect((await read("/api/gallery")).status).toBe(200);
+    expect(
+      (
+        await read(
+          `/api/gallery/${second}/preview.svg?v=${entry.previewRevision}`,
+        )
+      ).status,
+    ).toBe(200);
+    expect(opens(env)).toHaveLength(100);
+  });
+
+  it("counts no author, curator or read credential, and forgets earlier days", async () => {
+    const env = environment();
+    const admin = await adminOf(env);
+    const theirs = await submitOne(env, "Curated", { cookie: admin });
+    const maker = await makerOf(env);
+    const own = await submitOne(env, "Own work", { cookie: maker });
+    env.gallerySql.exec(
+      "INSERT INTO gallery_daily_opens VALUES ('2000-01-01', 'someone', 'old')",
+    );
+    // A request without a session reads with the Gallery credential here.
+    for (const [path, headers] of [
+      [`/api/gallery/${theirs}`, cookieHeaders(admin)],
+      [`/api/gallery/${own}`, cookieHeaders(maker)],
+      [`/api/gallery/${theirs}`, {}],
+    ] as const)
+      expect(
+        (await route(env, new Request(`${ORIGIN}${path}`, { headers }))).status,
+      ).toBe(200);
+    expect(opens(env).map((row) => row.entry_id)).toEqual(["old"]);
+    await route(
+      env,
+      new Request(`${ORIGIN}/api/gallery/${theirs}`, {
+        headers: cookieHeaders(maker),
+      }),
+    );
+    expect(opens(env).map((row) => row.entry_id)).toEqual([theirs]);
+  });
+
+  it("leaves backups alone, and is forgotten the next day or with the account", async () => {
+    const env = environment();
+    env.GALLERY_BACKUP_TOKEN = "backup-only-secret";
+    const id = await submitOne(env, "Circuit", { cookie: await adminOf(env) });
+    const maker = cookieHeaders(await makerOf(env));
+    const open = () =>
+      route(
+        env,
+        new Request(`${ORIGIN}/api/gallery/${id}`, { headers: maker }),
+      );
+    const revision = async () =>
+      (
+        (await (
+          await route(
+            env,
+            new Request(
+              `${ORIGIN}/api/gallery/maintenance/automated-backup?table=inventory`,
+              { headers: { Authorization: "Bearer backup-only-secret" } },
+            ),
+          )
+        ).json()) as { snapshotRevision: string }
+      ).snapshotRevision;
+    const before = await revision();
+    await open();
+    expect(opens(env)).toHaveLength(1);
+    expect(await revision()).toBe(before);
+    // The scheduled pass forgets every earlier day.
+    env.gallerySql.exec("UPDATE gallery_daily_opens SET day = '2000-01-01'");
+    await forgetEarlierOpens(env);
+    expect(opens(env)).toEqual([]);
+    // Deleting the account takes today's opens with it.
+    await open();
+    await env.GALLERY.getByName("gallery").fetch(
+      "https://gallery/delete-account",
+      {
+        method: "POST",
+        body: JSON.stringify({ userId: opens(env)[0]!.user_id }),
+      },
+    );
+    expect(opens(env)).toEqual([]);
   });
 });
 

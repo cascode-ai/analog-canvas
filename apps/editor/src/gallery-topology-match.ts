@@ -6,12 +6,51 @@ import {
   projectElectricalGraph,
 } from "@icm/netlist";
 import { parseProject } from "@icm/project-protocol";
-import type { GalleryFeedEntry } from "./gallery-client";
+import { dailyOpenLimitMessage, type GalleryFeedEntry } from "./gallery-client";
 
 export interface GalleryTopologyMatch extends TopologyCorrespondence {
   entry: GalleryFeedEntry;
-  /** Drawing-only candidate snapshot used by comparison; never refetch a newer version. */
-  candidate: CircuitProject;
+  /**
+   * Drawing-only candidate snapshot used by comparison. A check run in this
+   * browser keeps it; a server check leaves it out, and Compare opens the
+   * circuit (one daily open) only if it is still the version compared.
+   */
+  candidate?: CircuitProject;
+}
+
+/**
+ * The drawing a match was compared with: the one in hand, or the Gallery's
+ * copy when it is still the version the check saw. A string says why not.
+ */
+export async function comparisonCandidate(
+  match: GalleryTopologyMatch,
+  fetchLike: typeof fetch = fetch,
+): Promise<CircuitProject | string> {
+  if (match.candidate) return match.candidate;
+  // Without the version the check saw, any drawing opened now may be newer.
+  if (!match.entry.previewRevision)
+    return "This check is older than its comparisons; check again to compare";
+  try {
+    const response = await fetchLike(
+      `/api/gallery/${encodeURIComponent(match.entry.id)}`,
+      { credentials: "same-origin" },
+    );
+    const limited = await dailyOpenLimitMessage(response);
+    if (limited) return limited;
+    if (!response.ok) return "This Gallery circuit is no longer available";
+    const detail = (await response.json()) as {
+      entry?: GalleryFeedEntry;
+      projectText?: string;
+    };
+    if (
+      typeof detail.projectText !== "string" ||
+      detail.entry?.previewRevision !== match.entry.previewRevision
+    )
+      return "This Gallery circuit changed after the check; check again to compare";
+    return { ...parseProject(detail.projectText), simulationFolders: [] };
+  } catch {
+    return "This Gallery circuit could not be opened";
+  }
 }
 
 export interface GalleryTopologyMatchReport {
