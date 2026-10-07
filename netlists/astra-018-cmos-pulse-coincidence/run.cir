@@ -1,0 +1,26 @@
+CMOS pulse coincidence detector
+.include "circuit.spice"
+.include "models.spice"
+VDD vdd 0 3.3
+VA a 0 PULSE(0 3.3 1u 1n 1n 100n 4u)
+VB b 0 PWL(0 0 1u 0 1.001u 3.3 1.101u 3.3 1.102u 0 5.2u 0 5.201u 3.3 5.301u 3.3 5.302u 0 9.8u 0 9.801u 3.3 9.901u 3.3 9.902u 0 12u 0)
+XDUT vdd 0 a b out astra_018_cmos_pulse_coincidence
+.temp 27
+.options method=gear reltol=1e-5
+* @spec hit range 3.2 3.5 unit=V
+* @spec skew range 3.2 3.5 unit=V
+* @spec miss range 0 0.01 unit=V
+* @spec width0 range 4e-7 4.7e-7 unit=s
+* @spec width200 range 2e-7 2.7e-7 unit=s
+.control
+set filetype=ascii
+tran 1n 12u
+meas tran hit MAX v(out) FROM=1u TO=2u
+meas tran skew MAX v(out) FROM=5u TO=6u
+meas tran miss MAX v(out) FROM=9u TO=11u
+meas tran width0 TRIG v(out) VAL=1.65 RISE=1 TARG v(out) VAL=1.65 FALL=1
+meas tran width200 TRIG v(out) VAL=1.65 TD=5u RISE=1 TARG v(out) VAL=1.65 TD=5u FALL=1
+write out.raw
+quit
+.endc
+.end

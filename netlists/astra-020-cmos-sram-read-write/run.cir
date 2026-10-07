@@ -1,0 +1,35 @@
+CMOS SRAM cell with read/write and precharge
+.include "circuit.spice"
+.include "models.spice"
+VDD vdd 0 3.3
+VD data 0 PWL(0 3.3 41n 3.3 42n 0 100n 0)
+VW we 0 PWL(0 0 6n 0 6.1n 3.3 12n 3.3 12.1n 0 46n 0 46.1n 3.3 54n 3.3 54.1n 0 100n 0)
+VL wl 0 PWL(0 0 6n 0 6.1n 3.3 14n 3.3 14.1n 0 30n 0 30.1n 3.3 38n 3.3 38.1n 0 46n 0 46.1n 3.3 56n 3.3 56.1n 0 70n 0 70.1n 3.3 78n 3.3 78.1n 0 100n 0)
+VP preb 0 PWL(0 0 5n 0 5.1n 3.3 22n 3.3 22.1n 0 28n 0 28.1n 3.3 40n 3.3 40.1n 0 44n 0 44.1n 3.3 62n 3.3 62.1n 0 68n 0 68.1n 3.3 100n 3.3)
+XDUT vdd 0 preb wl data we bl blb q qb astra_020_cmos_sram_read_write
+.temp 27
+.options method=gear reltol=1e-5
+* @spec write_one range 3.2 3.4 unit=V
+* @spec read_one range 3.2 3.5 unit=V
+* @spec write_zero range -0.01 0.01 unit=V
+* @spec read_zero range -3.5 -3.2 unit=V
+* @spec hold_zero range -0.01 0.01 unit=V
+* @spec read_preserve_one range 3.1 3.5 unit=V
+* @spec read_preserve_zero range -0.01 0.2 unit=V
+* @spec precharge range 3.2 3.4 unit=V
+.control
+set filetype=ascii
+tran 20p 100n
+let read=v(bl)-v(blb)
+meas tran write_one FIND v(q) AT=20n
+meas tran read_one FIND read AT=36n
+meas tran write_zero FIND v(q) AT=60n
+meas tran read_zero FIND read AT=76n
+meas tran hold_zero MAX v(q) FROM=82n TO=100n
+meas tran read_preserve_one FIND v(q) AT=36n
+meas tran read_preserve_zero FIND v(q) AT=76n
+meas tran precharge FIND v(blb) AT=27n
+write out.raw
+quit
+.endc
+.end

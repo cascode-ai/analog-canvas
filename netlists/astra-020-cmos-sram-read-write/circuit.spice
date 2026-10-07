@@ -1,0 +1,22 @@
+
+.subckt astra_020_cmos_sram_read_write vdd VSS preb wl data we bl blb q qb
+CBL bl VSS 200f
+CBLB blb VSS 200f
+M1 q qb vdd vdd APMOS l=1u w=2u
+M10 bl web data vdd APMOS l=1u w=20u
+M11 bl we data VSS ANMOS l=1u w=10u
+M12 blb web datab vdd APMOS l=1u w=20u
+M13 blb we datab VSS ANMOS l=1u w=10u
+M14 datab data vdd vdd APMOS l=1u w=20u
+M15 datab data VSS VSS ANMOS l=1u w=10u
+M16 web we vdd vdd APMOS l=1u w=10u
+M17 web we VSS VSS ANMOS l=1u w=4u
+M2 q qb VSS VSS ANMOS l=1u w=8u
+M3 qb q vdd vdd APMOS l=1u w=2u
+M4 qb q VSS VSS ANMOS l=1u w=8u
+M5 q wl bl VSS ANMOS l=1u w=4u
+M6 qb wl blb VSS ANMOS l=1u w=4u
+M7 bl preb vdd vdd APMOS l=1u w=10u
+M8 blb preb vdd vdd APMOS l=1u w=10u
+M9 bl preb blb vdd APMOS l=1u w=10u
+.ends astra_020_cmos_sram_read_write

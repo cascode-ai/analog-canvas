@@ -1,0 +1,58 @@
+{
+  "simulator": "ngspice-46",
+  "models": "models.spice: generic educational Level-1 MOS",
+  "temperatureC": 27,
+  "localSpecs": [
+    {
+      "metric": "dead_rise",
+      "min": 1e-10,
+      "max": 1e-9,
+      "value": 3.05822e-10,
+      "passed": true
+    },
+    {
+      "metric": "dead_fall",
+      "min": 1e-10,
+      "max": 1e-9,
+      "value": 3.06508e-10,
+      "passed": true
+    },
+    {
+      "metric": "overlap",
+      "min": 0,
+      "max": 0,
+      "value": 0,
+      "passed": true
+    },
+    {
+      "metric": "phase_a",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "phase_b",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    }
+  ],
+  "hosted": {
+    "runId": "318943d0-cd97-4852-a4ec-41c4acb599a0",
+    "specs": {
+      "available": true,
+      "total": 5,
+      "passed": 5,
+      "failed": 0,
+      "notEvaluated": 0,
+      "unconstrained": 0
+    },
+    "execution": "completed"
+  },
+  "nativeDiagnostics": 0,
+  "canonicalExportMatches": true,
+  "limitations": "Nominal functional verification only. Noise, mismatch, jitter, process corners and device stress are not qualified.",
+  "prototypeConnectivityMatches": true
+}

@@ -1,0 +1,25 @@
+
+.subckt astra_021_cmos_nonoverlap_clock vdd VSS clk a b
+CA net0 VSS 200f
+CB net1 VSS 200f
+CLA a VSS 100f
+CLB b VSS 100f
+M1 clkb clk vdd vdd APMOS l=1u w=10u
+M10 b ad VSS VSS ANMOS l=1u w=4u
+M11 net0 a vdd vdd APMOS l=1u w=10u
+M12 net0 a VSS VSS ANMOS l=1u w=4u
+M13 ad net0 vdd vdd APMOS l=1u w=10u
+M14 ad net0 VSS VSS ANMOS l=1u w=4u
+M15 net1 b vdd vdd APMOS l=1u w=10u
+M16 net1 b VSS VSS ANMOS l=1u w=4u
+M17 bd net1 vdd vdd APMOS l=1u w=10u
+M18 bd net1 VSS VSS ANMOS l=1u w=4u
+M2 clkb clk VSS VSS ANMOS l=1u w=4u
+M3 net2 clkb vdd vdd APMOS l=1u w=20u
+M4 a bd net2 vdd APMOS l=1u w=20u
+M5 a clkb VSS VSS ANMOS l=1u w=4u
+M6 a bd VSS VSS ANMOS l=1u w=4u
+M7 net3 clk vdd vdd APMOS l=1u w=20u
+M8 b ad net3 vdd APMOS l=1u w=20u
+M9 b clk VSS VSS ANMOS l=1u w=4u
+.ends astra_021_cmos_nonoverlap_clock

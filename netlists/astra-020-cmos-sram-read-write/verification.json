@@ -1,0 +1,79 @@
+{
+  "simulator": "ngspice-46",
+  "models": "models.spice: generic educational Level-1 MOS",
+  "temperatureC": 27,
+  "localSpecs": [
+    {
+      "metric": "write_one",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "read_one",
+      "min": 3.2,
+      "max": 3.5,
+      "value": 3.36921,
+      "passed": true
+    },
+    {
+      "metric": "write_zero",
+      "min": -0.01,
+      "max": 0.01,
+      "value": 7.66204e-10,
+      "passed": true
+    },
+    {
+      "metric": "read_zero",
+      "min": -3.5,
+      "max": -3.2,
+      "value": -3.36921,
+      "passed": true
+    },
+    {
+      "metric": "hold_zero",
+      "min": -0.01,
+      "max": 0.01,
+      "value": 7.66204e-10,
+      "passed": true
+    },
+    {
+      "metric": "read_preserve_one",
+      "min": 3.1,
+      "max": 3.5,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "read_preserve_zero",
+      "min": -0.01,
+      "max": 0.2,
+      "value": 3.06481e-9,
+      "passed": true
+    },
+    {
+      "metric": "precharge",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    }
+  ],
+  "hosted": {
+    "runId": "47764a6a-a7e9-44f7-9d0e-814d023264c0",
+    "specs": {
+      "available": true,
+      "total": 8,
+      "passed": 8,
+      "failed": 0,
+      "notEvaluated": 0,
+      "unconstrained": 0
+    },
+    "execution": "completed"
+  },
+  "nativeDiagnostics": 0,
+  "canonicalExportMatches": true,
+  "limitations": "Nominal functional verification only. Noise, mismatch, jitter, process corners and device stress are not qualified.",
+  "prototypeConnectivityMatches": true
+}

@@ -1,0 +1,11 @@
+{
+  "name": "CMOS pulse coincidence detector",
+  "description": "Two NMOS source followers charge RC timing nodes. Each node drives two CMOS inverters, stretching a short input pulse into a threshold-defined window. A transistor NAND followed by an inverter asserts out only while both windows overlap. Sixteen MOS devices and five passives are explicit. In the saved 3.3 V experiment, 100 ns input pulses produce about 435 ns coincidence output when simultaneous and 235 ns at 200 ns skew; an 800 ns separation is rejected. The window depends on RC, inverter threshold and source-follower headroom, not RC alone. Generic educational Level-1 models at 27 C; no precision timing, mismatch, jitter or process-corner qualification.",
+  "tags": [
+    "CMOS",
+    "Timing",
+    "Coincidence Detection",
+    "Pulse Processing",
+    "Neuromorphic"
+  ]
+}

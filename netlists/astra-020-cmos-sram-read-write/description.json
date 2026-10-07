@@ -1,0 +1,11 @@
+{
+  "name": "CMOS SRAM cell with read/write and precharge",
+  "description": "A complete one-bit access example: a 6T storage cell, three-PMOS bit-line precharge/equalization network, two CMOS write transmission gates and two complementary-control inverters, for 17 MOS devices. 200 fF capacitors represent bit-line loading. With preb low the bit lines charge and equalize; writing uses we and wl together, while reading keeps we low and pulses wl after precharge. The saved 3.3 V experiment writes and reads both states, verifies nondestructive reads, checks precharge and hold. bl/blb are raw differential read nodes; no sense amplifier is included. Small simulated bit-line overshoot reflects capacitive feedthrough in these generic Level-1 models. No static-noise-margin, yield, retention-time or foundry qualification.",
+  "tags": [
+    "CMOS",
+    "SRAM",
+    "Memory",
+    "Precharge",
+    "Transmission Gate"
+  ]
+}

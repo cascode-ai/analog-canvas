@@ -1,0 +1,44 @@
+
+Note: No compatibility mode selected!
+
+
+Circuit: cmos sram cell with read/write and precharge
+
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+Initial Transient Solution
+--------------------------
+
+Node                                   Voltage
+----                                   -------
+vdd                                        3.3
+data                                       3.3
+we                                           0
+wl                                           0
+preb                                         0
+bl                                         3.3
+blb                                        3.3
+q                                      1.10856
+qb                                     1.10856
+xdut.web                                   3.3
+xdut.datab                         1.22593e-09
+vp#branch                                    0
+vl#branch                                    0
+vw#branch                                    0
+vd#branch                            -3.31e-12
+vdd#branch                        -0.000422989
+
+
+No. of Data Rows : 5584
+write_one           =  3.30000e+00
+read_one            =  3.36921e+00
+write_zero          =  7.66204e-10
+read_zero           =  -3.36921e+00
+hold_zero           =  7.66204e-10 at=  9.99683e-08
+read_preserve_one   =  3.30000e+00
+read_preserve_zero  =  3.06481e-09
+precharge           =  3.30000e+00
+ASCII raw file "out.raw"
+ngspice-46 done

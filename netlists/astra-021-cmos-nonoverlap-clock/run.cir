@@ -1,0 +1,26 @@
+CMOS two-phase non-overlap clock generator
+.include "circuit.spice"
+.include "models.spice"
+VDD vdd 0 3.3
+VC clk 0 PULSE(0 3.3 10n 100p 100p 40n 100n)
+XDUT vdd 0 clk a b astra_021_cmos_nonoverlap_clock
+.temp 27
+.options method=gear reltol=1e-5
+* @spec dead_rise range 1e-10 1e-9 unit=s
+* @spec dead_fall range 1e-10 1e-9 unit=s
+* @spec overlap range 0 0
+* @spec phase_a range 3.2 3.4 unit=V
+* @spec phase_b range 3.2 3.4 unit=V
+.control
+set filetype=ascii
+tran 20p 400n
+let overlap=(v(a) gt 1.65)*(v(b) gt 1.65)
+meas tran dead_rise TRIG v(b) VAL=1.65 FALL=1 TARG v(a) VAL=1.65 RISE=1
+meas tran dead_fall TRIG v(a) VAL=1.65 FALL=1 TARG v(b) VAL=1.65 RISE=1 TD=40n
+meas tran overlap MAX overlap FROM=1n TO=399n
+meas tran phase_a FIND v(a) AT=30n
+meas tran phase_b FIND v(b) AT=70n
+write out.raw
+quit
+.endc
+.end

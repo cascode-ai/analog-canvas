@@ -1,0 +1,16 @@
+
+.subckt astra_019_cmos_dynamic_comparator vdd VSS clk inp inn op on
+CN on VSS 50f
+CP op VSS 50f
+M1 net0 inp net2 VSS ANMOS l=1u w=10u
+M10 on clk vdd vdd APMOS l=1u w=5u
+M11 net2 clk VSS VSS ANMOS l=1u w=20u
+M2 net1 inn net2 VSS ANMOS l=1u w=10u
+M3 op on net0 VSS ANMOS l=1u w=10u
+M4 on op net1 VSS ANMOS l=1u w=10u
+M5 op on vdd vdd APMOS l=1u w=20u
+M6 on op vdd vdd APMOS l=1u w=20u
+M7 net0 clk vdd vdd APMOS l=1u w=5u
+M8 net1 clk vdd vdd APMOS l=1u w=5u
+M9 op clk vdd vdd APMOS l=1u w=5u
+.ends astra_019_cmos_dynamic_comparator

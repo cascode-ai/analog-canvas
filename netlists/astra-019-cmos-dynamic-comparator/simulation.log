@@ -1,0 +1,38 @@
+
+Note: No compatibility mode selected!
+
+
+Circuit: cmos dynamic latched comparator
+
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+Initial Transient Solution
+--------------------------
+
+Node                                   Voltage
+----                                   -------
+vdd                                        3.3
+inp                                       1.66
+inn                                       1.65
+clk                                          0
+on                                         3.3
+op                                         3.3
+xdut.net0                                  3.3
+xdut.net2                               0.8902
+xdut.net1                                  3.3
+vc#branch                                    0
+vn#branch                                    0
+vp#branch                                    0
+vdd#branch                        -2.25606e-11
+
+
+No. of Data Rows : 5724
+positive            =  3.30000e+00
+negative            =  -3.30000e+00
+reset               =  3.30000e+00
+delay               =  2.31111e-10 targ=  5.28111e-09 trig=  5.05000e-09
+negative_delay      =  2.33054e-10 targ=  2.52831e-08 trig=  2.50500e-08
+ASCII raw file "out.raw"
+ngspice-46 done

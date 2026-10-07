@@ -1,0 +1,29 @@
+CMOS dynamic latched comparator
+.include "circuit.spice"
+.include "models.spice"
+VDD vdd 0 3.3
+VP inp 0 PWL(0 1.66 20n 1.66 21n 1.64 100n 1.64)
+VN inn 0 1.65
+VC clk 0 PULSE(0 3.3 5n 100p 100p 8n 20n)
+XDUT vdd 0 clk inp inn op on astra_019_cmos_dynamic_comparator
+.temp 27
+.options method=gear reltol=1e-5
+* @spec positive range 3.2 3.4 unit=V
+* @spec negative range -3.4 -3.2 unit=V
+* @spec reset range 3.2 3.4 unit=V
+* @spec delay range 1e-10 1e-9 unit=s
+* @spec negative_delay range 1e-10 1e-9 unit=s
+.control
+set filetype=ascii
+tran 20p 100n
+let diff=v(on)-v(op)
+let lowreset=(v(on)+v(op)-abs(v(on)-v(op)))/2
+meas tran positive FIND diff AT=12n
+meas tran negative FIND diff AT=32n
+meas tran reset FIND lowreset AT=18n
+meas tran delay TRIG v(clk) VAL=1.65 RISE=1 TARG v(op) VAL=1.65 FALL=1
+meas tran negative_delay TRIG v(clk) VAL=1.65 RISE=2 TARG v(on) VAL=1.65 FALL=1
+write out.raw
+quit
+.endc
+.end

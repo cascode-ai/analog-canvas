@@ -1,0 +1,11 @@
+{
+  "name": "CMOS dynamic latched comparator",
+  "description": "An eleven-MOS regenerative comparator with explicit differential input pair, clocked tail, cross-coupled latch and four PMOS precharge devices. clk low precharges both outputs high; clk high evaluates the input difference and regenerates a full-swing decision. For inp greater than inn, on rises relative to op. The saved 3.3 V, 50 MHz experiment alternates +10 mV and -10 mV around 1.65 V common mode, verifies both decisions and reset, and measures about 0.23 ns clock-to-decision delay with 50 fF per output. Outputs are valid only during evaluation; there is no output storage latch. Educational Level-1 MOS models, with no noise, offset, metastability or process-corner qualification.",
+  "tags": [
+    "CMOS",
+    "Comparator",
+    "Regenerative Latch",
+    "Dynamic Logic",
+    "Conversion"
+  ]
+}

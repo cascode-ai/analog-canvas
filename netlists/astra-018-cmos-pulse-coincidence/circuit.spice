@@ -1,0 +1,24 @@
+
+.subckt astra_018_cmos_pulse_coincidence vdd VSS a b out
+C1 net4 VSS 1p
+C2 net5 VSS 1p
+CL out VSS 100f
+M1 vdd a net4 VSS ANMOS l=1u w=20u
+M10 bp net1 VSS VSS ANMOS l=1u w=4u
+M11 net2 ap vdd vdd APMOS l=1u w=5u
+M12 net2 bp vdd vdd APMOS l=1u w=5u
+M13 net2 ap net3 VSS ANMOS l=1u w=4u
+M14 net3 bp VSS VSS ANMOS l=1u w=4u
+M15 out net2 vdd vdd APMOS l=1u w=10u
+M16 out net2 VSS VSS ANMOS l=1u w=4u
+M2 net0 net4 vdd vdd APMOS l=1u w=5u
+M3 net0 net4 VSS VSS ANMOS l=1u w=2u
+M4 ap net0 vdd vdd APMOS l=1u w=10u
+M5 ap net0 VSS VSS ANMOS l=1u w=4u
+M6 vdd b net5 VSS ANMOS l=1u w=20u
+M7 net1 net5 vdd vdd APMOS l=1u w=5u
+M8 net1 net5 VSS VSS ANMOS l=1u w=2u
+M9 bp net1 vdd vdd APMOS l=1u w=10u
+R1 net4 VSS 1meg
+R2 net5 VSS 1meg
+.ends astra_018_cmos_pulse_coincidence

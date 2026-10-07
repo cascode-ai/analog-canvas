@@ -1,0 +1,38 @@
+
+Note: No compatibility mode selected!
+
+
+Circuit: cmos two-phase non-overlap clock generator
+
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+Initial Transient Solution
+--------------------------
+
+Node                                   Voltage
+----                                   -------
+vdd                                        3.3
+clk                                          0
+xdut.net0                                  3.3
+xdut.net1                          1.53241e-09
+a                                  7.66204e-10
+b                                          3.3
+xdut.clkb                                  3.3
+xdut.ad                            1.53241e-09
+xdut.bd                                    3.3
+xdut.net2                                  3.3
+xdut.net3                                  3.3
+vc#branch                                    0
+vdd#branch                          -2.648e-11
+
+
+No. of Data Rows : 21269
+dead_rise           =  3.05822e-10 targ=  1.04487e-08 trig=  1.01429e-08
+dead_fall           =  3.06508e-10 targ=  5.05637e-08 trig=  5.02572e-08
+overlap             =  0.00000e+00 at=  3.98982e-07
+phase_a             =  3.30000e+00
+phase_b             =  3.30000e+00
+ASCII raw file "out.raw"
+ngspice-46 done
