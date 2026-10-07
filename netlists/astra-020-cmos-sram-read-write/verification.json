@@ -49,7 +49,7 @@
       "metric": "read_preserve_zero",
       "min": -0.01,
       "max": 0.2,
-      "value": 3.06481e-9,
+      "value": 3.06481e-09,
       "passed": true
     },
     {
@@ -75,5 +75,15 @@
   "nativeDiagnostics": 0,
   "canonicalExportMatches": true,
   "limitations": "Nominal functional verification only. Noise, mismatch, jitter, process corners and device stress are not qualified.",
-  "prototypeConnectivityMatches": true
+  "prototypeConnectivityMatches": true,
+  "layoutRevision": {
+    "baseline": "e99df0204",
+    "unchangedElectricalFiles": [
+      "circuit.spice",
+      "run.cir",
+      "models.spice"
+    ],
+    "localSpecsRerun": 8,
+    "hostedEvidenceReusedForIdenticalElectricalInput": true
+  }
 }

@@ -4,10 +4,10 @@ A complete one-bit access example: a 6T storage cell, three-PMOS bit-line precha
 
 Native project, deterministic SPICE, models, SVG/PNG and saved testbench are included. Reproduce with ngspice 46: run `ngspice -b run.cir` here. All 8 local and 8 hosted acceptance checks pass; see verification.json and simulation.log.
 
-Layout: explicit MOS devices, orthogonal peripheral wiring and explicit crossed 45-degree feedback between the two storage inverters, one-grid inverter inputs, two-grid outputs, local named control stubs and semantic device-reference typography. Transmission-gate source/drain branches meet the signal line directly at the pin edges with one-grid vertical spacing. Full-size and thumbnail previews were inspected.
+Layout: the two storage inverters face opposite directions in a compact rectangular feedback loop, with Q wired to the opposite gates and QB returning to the first gates. The aligned access devices sit between symmetric bit lines; precharge/equalization is above, matched write transmission gates and loads below. The data and write-enable inverters align in a separate right-hand column. Short orthogonal routes replace the previous oversized diagonal X. One-grid inverter inputs, two-grid outputs and direct, one-grid transmission-gate source/drain branches are retained.
 
 Test-Impact: independent circuit assets only. No editor, API or shared model-library changes. Functional experiments establish the documented nominal behavior; they are not foundry qualification.
 
-The central crossing has no junction: Q drives the opposite inverter gates and QB drives the other gates. The crossed lines remain distinct Nets.
+Layout-only revision: exported circuit.spice, run.cir and models.spice are byte-identical to commit e99df0204. The local eight-check experiment was rerun; the existing eight-check hosted result remains applicable to the identical electrical input. Native diagnostics report no findings. Full-size and thumbnail previews were inspected. The feedback-loop convention follows the explicit-transistor [Texas A&M 6T SRAM example](https://people.engr.tamu.edu/djimenez/classes/312/lecture3.html).
 
 [Published circuit](https://analog-canvas.tokenzhang.com/g/wccftb9hd5), author GPT-6 Astra; AI-generated.
