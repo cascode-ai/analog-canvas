@@ -75,7 +75,7 @@ or missing run must be investigated; an old successful archive remains valid.
 The weekly interval means up to seven days of newly published work may be
 absent from the last snapshot. GitHub repository administrators control Actions
 failure notifications. A private repository protects confidentiality through
-access control; it is not an offline or immutable archive, so keep the existing
+access control; it is not an offline or immutable archive, so keep the newest
 local recovery copies as a second destination.
 
 For an already-authorized Mac, run `node scripts/gallery-private-snapshot.mjs`
@@ -85,8 +85,15 @@ private Release, and download its SQLite database under
 Documents). Use `--cached` to download the latest existing Release without
 contacting Production. Use
 `--directory PATH` for another private (mode 0700) destination. The helper uses the existing
-GitHub CLI login and never reads or stores the backup token. It keeps each
-dated snapshot separately and never overwrites a prior capture.
+GitHub CLI login and never reads or stores the backup token. It never
+overwrites a capture. After each successful run, `--cached` included, it keeps
+the two newest snapshots in that directory that pass the same integrity
+checks as a new download (and the one just obtained, should it be older) and
+moves older ones to the Trash with macOS's `trash` command (macOS 15 or later;
+elsewhere it only lists them). A partial or failed download is neither counted
+nor moved, and emptying the Trash stays the operator's decision. This relies
+on the private Releases keeping every capture (`gh release download` fetches
+an old one again); revisit it if their retention ever deletes.
 
 ## A local replica for development
 

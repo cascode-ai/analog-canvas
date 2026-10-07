@@ -5,10 +5,12 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, lstatSync, mkdirSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
-import { DatabaseSync } from "node:sqlite";
+
+import { olderSnapshots, snapshotProblem } from "./lib/gallery-snapshots.mjs";
 
 const repository = "Arcadia-1/analog-canvas-backups";
 const workflow = "gallery-backup.yml";
+const keptSnapshots = 2;
 const defaultDirectory = join(
   homedir(),
   "Library",
@@ -165,37 +167,38 @@ function waitForRun(runId) {
 
 function validateSnapshot(destination) {
   privateDirectory(destination);
-  for (const name of ["gallery.sqlite", "manifest.json"]) {
-    const file = join(destination, name);
-    const stat = existsSync(file) ? lstatSync(file) : null;
-    if (!stat?.isFile() || stat.isSymbolicLink() || stat.nlink !== 1)
-      throw new Error(
-        `Snapshot is incomplete or contains linked files: ${destination}`,
-      );
-    privateWindowsPath(file, "File");
-  }
+  const problem = snapshotProblem(destination);
+  if (problem) throw new Error(`${problem}: ${destination}`);
+  for (const name of ["gallery.sqlite", "manifest.json"])
+    privateWindowsPath(join(destination, name), "File");
   const manifest = JSON.parse(
     readFileSync(join(destination, "manifest.json"), "utf8"),
   );
-  if (
-    manifest.consistentCapture !== true ||
-    manifest.offlineRestoreVerified !== true
-  )
-    throw new Error(
-      `Snapshot has not passed offline verification: ${destination}`,
-    );
-  const database = join(destination, "gallery.sqlite");
-  const connection = new DatabaseSync(database, { readOnly: true });
-  try {
-    const check = connection.prepare("PRAGMA quick_check").all();
-    if (check.length !== 1 || check[0].quick_check !== "ok")
-      throw new Error(`Snapshot SQLite is corrupt: ${destination}`);
-  } finally {
-    connection.close();
-  }
-  console.log(`Gallery SQLite: ${database}`);
+  console.log(`Gallery SQLite: ${join(destination, "gallery.sqlite")}`);
   console.log(`Captured at: ${manifest.captureEndedAt}`);
   console.log(`Rows: ${JSON.stringify(manifest.tables)}`);
+}
+
+// The private Releases keep every capture. Older local ones go to the Trash,
+// so emptying it stays the operator's decision; without `trash`, none move.
+function retainNewestSnapshots(directory, current) {
+  try {
+    const older = olderSnapshots(directory, keptSnapshots, current);
+    if (older.length === 0) return;
+    if (process.platform !== "darwin" || !existsSync("/usr/bin/trash")) {
+      console.log(
+        `Older snapshots kept (no trash command): ${older.join(", ")}`,
+      );
+      return;
+    }
+    execFileSync("/usr/bin/trash", ["-s", ...older], { stdio: "ignore" });
+    console.log(`Moved ${older.length} older snapshot(s) to the Trash`);
+  } catch (error) {
+    // The new snapshot is already verified; retention must not fail it.
+    console.warn(
+      `Older snapshots were not all moved to the Trash: ${error instanceof Error ? error.message : error}`,
+    );
+  }
 }
 
 function main() {
@@ -278,6 +281,7 @@ function main() {
     privateDirectory(destination);
   }
   validateSnapshot(destination);
+  retainNewestSnapshots(directory, tag);
 }
 
 try {
