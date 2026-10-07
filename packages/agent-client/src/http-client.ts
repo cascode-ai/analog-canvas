@@ -273,7 +273,9 @@ export class AgentHttpClient {
       if (!response.ok) throw this.transportError(response.status, body);
       const parsed = AgentFileResourceResponseSchema.safeParse(body);
       if (!parsed.success) {
-        throw invalidResponseFailure("File response failed schema validation");
+        throw invalidResponseFailure(
+          `File response failed schema validation. ${this.outdatedAdapterHint()}`,
+        );
       }
       return parsed.data;
     });
@@ -344,11 +346,19 @@ export class AgentHttpClient {
       const parsed = AgentProjectResourceResponseSchema.safeParse(body);
       if (!parsed.success) {
         throw invalidResponseFailure(
-          `Project response failed schema validation: ${responseIssueSummary(parsed.error.issues)}`,
+          `Project response failed schema validation: ${responseIssueSummary(parsed.error.issues)}. ${this.outdatedAdapterHint()}`,
         );
       }
       return parsed.data;
     });
+  }
+
+  /**
+   * What a response this adapter cannot read most often means: the Editor
+   * answers in a newer contract, so the adapter is the one to update.
+   */
+  private outdatedAdapterHint(): string {
+    return `This adapter is probably older than the Editor: update it from ${joinUrl(this.baseUrlValue, "/api/agent/mcp-manifest.json")}, then retry.`;
   }
 
   async disconnect(sessionId: string, agentToken: string): Promise<void> {

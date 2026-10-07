@@ -220,6 +220,8 @@ export const AgentGalleryEntrySummarySchema = z.strictObject({
   tags: z.array(z.string()),
   netlistable: z.boolean().optional(),
   likes: z.number().int().nonnegative().optional(),
+  /** The entry's saved AI mark, read only (#1439). */
+  aiGenerated: z.boolean().optional(),
 });
 
 export const AgentNetlistDiagnosticSchema = z.strictObject({

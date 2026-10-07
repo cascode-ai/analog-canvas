@@ -149,7 +149,8 @@ silently redirecting an edit. `workspace.activate` remains an explicit request
 to show a Project in the editor.
 
 Use `gallery_circuits` to traverse the complete public Gallery. `list` is
-cursor-paged; continue with `nextCursor` until it is `null`. `read` returns one
+cursor-paged; continue with `nextCursor` until it is `null`. Each listed or read
+entry states its saved AI mark as `aiGenerated`. `read` returns one
 entry's complete canonical Project Code and, by default, its generated SPICE
 netlist. `read-many` accepts up to 12 listed IDs and reads them concurrently;
 continue any returned `remainingEntryIds` when the response-size guard stops a
