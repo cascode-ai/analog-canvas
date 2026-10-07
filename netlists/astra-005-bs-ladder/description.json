@@ -1,0 +1,10 @@
+{
+  "name": "Five-resonator LC band-stop filter",
+  "description": "Three parallel LC resonators sit in the series signal path, and two series LC resonators connect the intermediate nodes to ground. At 10 kHz, the parallel sections impede transmission while the shunt sections pull their nodes toward ground, forming a deep notch. R1 and R2 provide matched 1 kΩ source and load terminations. The low-pass prototype maps to nominal half-power edges near 9.05 and 11.05 kHz. ngspice 46 gives −6.02 dB at 100 Hz and −9.11 dB near the lower edge. The saved AC experiment also verifies more than 45 dB rejection at the notch center. The exceptionally deep ideal-simulation null is not a physical rejection prediction: finite Q, parasitics and tolerance dominate a real implementation.",
+  "tags": [
+    "Passive",
+    "Band-stop Filter",
+    "Notch Filter",
+    "LC Filter"
+  ]
+}

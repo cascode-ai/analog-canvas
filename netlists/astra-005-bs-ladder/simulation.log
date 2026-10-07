@@ -1,0 +1,16 @@
+
+Note: No compatibility mode selected!
+
+
+Circuit: five-resonator lc band-stop filter — ideal rlc verification
+
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+No. of Data Rows : 961
+passband_db         =  -6.02060e+00
+edge_db             =  -9.10526e+00
+stopband_db         =  -3.68013e+02
+ASCII raw file "out.raw"
+ngspice-46 done
