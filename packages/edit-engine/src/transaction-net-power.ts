@@ -5,6 +5,7 @@ import {
   createRoutePath,
   deriveStableId,
   renamedLabelFormat,
+  routeEndpoints,
   supplyLabelFormat,
 } from "@icm/model";
 import type { SchematicDocument } from "@icm/model";
@@ -15,6 +16,7 @@ import {
   type RejectEdit,
   rejectedEditMutation,
 } from "./transaction-domain.js";
+import { isFreePowerRailLabel } from "./power-rail-label.js";
 import {
   connectivityEvidenceNetIds,
   mergeBaseNets,
@@ -91,19 +93,44 @@ export function applyNetPowerEdit(
           "A power rail must be one non-zero axis-aligned segment",
         );
       }
-      const terminalId = deriveStableId(
-        "cell-terminal",
-        draft.id,
-        "power-rail",
-        edit.labelId,
+      // A label of this supply that no rail carries any more is taken over
+      // rather than doubled: its Cell Pin, name claim and look stay as they
+      // were, so the Cell's callers keep the Pin they know.
+      const adopted = draft.annotations.find(
+        (annotation) => annotation.id === edit.labelId,
       );
+      if (
+        adopted &&
+        !isFreePowerRailLabel(draft, adopted, {
+          netName: edit.netName,
+          scope: edit.scope,
+          netId: edit.netId,
+        })
+      ) {
+        return rejectAt(
+          "EDIT_PRECONDITION",
+          `Power rail label ${edit.labelId} is not a free label of ${edit.netName}`,
+          [],
+          [edit.labelId],
+        );
+      }
+      const terminalId =
+        adopted?.binding?.kind === "cell-terminal-name"
+          ? adopted.binding.terminalId
+          : deriveStableId(
+              "cell-terminal",
+              draft.id,
+              "power-rail",
+              edit.labelId,
+            );
       const ids = [
         edit.netId,
         edit.routeId,
         edit.startJunctionId,
         edit.endJunctionId,
-        edit.labelId,
-        ...(edit.scope === "local" ? [terminalId] : []),
+        ...(adopted
+          ? []
+          : [edit.labelId, ...(edit.scope === "local" ? [terminalId] : [])]),
       ];
       if (new Set(ids).size !== ids.length) {
         return rejectAt("EDIT_PRECONDITION", "Power rail IDs must be distinct");
@@ -178,32 +205,71 @@ export function applyNetPowerEdit(
           presentation: "power-rail",
         }),
       );
-      const supplyFormat = supplyLabelFormat(edit.netName);
-      draft.annotations.push(
-        AnnotationSchema.parse({
-          id: edit.labelId,
-          kind: "power-label",
-          binding:
-            edit.scope === "local"
-              ? { kind: "cell-terminal-name", terminalId }
-              : { kind: "net-name", netId: edit.netId },
-          ...(supplyFormat ? { formatOverride: supplyFormat } : {}),
-          netId: edit.netId,
-          anchor: {
-            kind: "object",
-            objectId: labelJunctionId,
-            localOffset: { x: 10, y: 10 },
-            fallbackPosition: {
-              x: labelEndpoint.x + 10,
-              y: labelEndpoint.y + 10,
-            },
-          },
-          alignment: "start",
-          rotation: 0,
-          locked: false,
-        }),
-      );
-      if (edit.scope === "local") {
+      const labelAnchor = {
+        kind: "object" as const,
+        objectId: labelJunctionId,
+        localOffset: { x: 10, y: 10 },
+        fallbackPosition: {
+          x: labelEndpoint.x + 10,
+          y: labelEndpoint.y + 10,
+        },
+      };
+      if (adopted) {
+        const previous = adopted.anchor;
+        adopted.anchor = labelAnchor;
+        adopted.alignment = "start";
+        adopted.rotation = 0;
+        changedObjectIds.add(adopted.id);
+        // The point the label waited on is no longer anything's anchor.
+        if (
+          previous.kind === "object" &&
+          !junctionInUse(draft, previous.objectId)
+        ) {
+          const index = draft.junctions.findIndex(
+            (junction) => junction.id === previous.objectId,
+          );
+          if (index >= 0) {
+            draft.junctions.splice(index, 1);
+            changedObjectIds.add(previous.objectId);
+          }
+        }
+      } else {
+        const supplyFormat = supplyLabelFormat(edit.netName);
+        draft.annotations.push(
+          AnnotationSchema.parse({
+            id: edit.labelId,
+            kind: "power-label",
+            binding:
+              edit.scope === "local"
+                ? { kind: "cell-terminal-name", terminalId }
+                : { kind: "net-name", netId: edit.netId },
+            ...(supplyFormat ? { formatOverride: supplyFormat } : {}),
+            netId: edit.netId,
+            anchor: labelAnchor,
+            alignment: "start",
+            rotation: 0,
+            locked: false,
+          }),
+        );
+        draft.connectivityEvidence.push(
+          ConnectivityEvidenceSchema.parse({
+            id: deriveStableId(
+              "connectivity-evidence",
+              draft.id,
+              "power-marker",
+              edit.labelId,
+              edit.netId,
+            ),
+            kind: "name-claim",
+            netId: edit.netId,
+            name: edit.netName,
+            scope: edit.scope,
+            powerDomain: edit.powerDomain,
+            owner: { kind: "power-marker", objectId: edit.labelId },
+          }),
+        );
+      }
+      if (edit.scope === "local" && !adopted) {
         draft.netlist!.terminals.push({
           id: terminalId,
           name: edit.netName,
@@ -214,23 +280,6 @@ export function applyNetPowerEdit(
         });
         changedObjectIds.add(terminalId);
       }
-      draft.connectivityEvidence.push(
-        ConnectivityEvidenceSchema.parse({
-          id: deriveStableId(
-            "connectivity-evidence",
-            draft.id,
-            "power-marker",
-            edit.labelId,
-            edit.netId,
-          ),
-          kind: "name-claim",
-          netId: edit.netId,
-          name: edit.netName,
-          scope: edit.scope,
-          powerDomain: edit.powerDomain,
-          owner: { kind: "power-marker", objectId: edit.labelId },
-        }),
-      );
       for (const id of ids) changedObjectIds.add(id);
       connectivityChanged = true;
       break;
@@ -344,4 +393,36 @@ export function applyNetPowerEdit(
   }
 
   return { ok: true, connectivityChanged };
+}
+
+/** Whether anything still stands on, starts at or groups this Junction. */
+function junctionInUse(draft: SchematicDocument, junctionId: string): boolean {
+  const anchored = (anchor: { kind: string; objectId?: string }) =>
+    anchor.kind === "object" && anchor.objectId === junctionId;
+  return (
+    draft.routes.some((route) =>
+      routeEndpoints(route).some(
+        (end) => end.kind === "junction" && end.junctionId === junctionId,
+      ),
+    ) ||
+    draft.annotations.some((annotation) => anchored(annotation.anchor)) ||
+    (draft.drafting?.objects ?? []).some((object) =>
+      [
+        object.anchor,
+        ...(object.kind === "arrow" ? [object.from, object.to] : []),
+        ...(object.kind === "leader" || object.kind === "callout"
+          ? [object.target]
+          : []),
+      ].some(anchored),
+    ) ||
+    [...draft.layoutGroups, ...draft.constraints].some((object) =>
+      object.objectIds.includes(junctionId),
+    ) ||
+    draft.connectivityEvidence.some(
+      (evidence) =>
+        evidence.kind === "name-claim" &&
+        evidence.owner.kind === "power-marker" &&
+        evidence.owner.objectId === junctionId,
+    )
+  );
 }

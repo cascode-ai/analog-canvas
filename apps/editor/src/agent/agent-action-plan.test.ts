@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createAgentCircuitService } from "@icm/agent-adapter";
 import { diagnoseVisualQuality, resolveMosBulkConnection } from "@icm/derived";
-import { createEmptyProject } from "@icm/model";
+import { createEmptyProject, routeEndpoints } from "@icm/model";
 import { createDesignNetlistExport } from "@icm/netlist";
 import {
   InMemorySymbolResolver,
@@ -828,6 +828,79 @@ describe("the editor plans an Agent's action list", () => {
     // The rewire did retire the Net's first identity.
     expect(cellPin("E").net).not.toBe(before);
   });
+
+  it.each(["reset-body", "clear-drawing"] as const)(
+    "redraws a supply rail after %s with the supply's own label, not a second one (#1410)",
+    async (mode) => {
+      const { controller, client } = await editor();
+      const apply = async (actions: unknown[]) => {
+        const report = await client.applyActions(actions);
+        expect(report.ok, report.message).toBe(true);
+      };
+      await apply([
+        {
+          kind: "add-power-rail",
+          name: "VDD",
+          start: { x: 0, y: -100 },
+          end: { x: 100, y: -100 },
+        },
+      ]);
+      await apply([place("resistor", "R1", 50)]);
+      const terminal = controller.document.netlist!.terminals.find(
+        (item) => item.name === "VDD",
+      )!;
+      await apply([{ kind: "reset-cell", mode }]);
+      await apply([
+        {
+          kind: "add-power-rail",
+          name: "VDD",
+          start: { x: -100, y: -200 },
+          end: { x: 200, y: -200 },
+        },
+      ]);
+
+      const document = controller.document;
+      // The Cell keeps one VDD Pin, the one its callers know.
+      expect(
+        document.netlist!.terminals.filter((item) => item.name === "VDD"),
+      ).toEqual([expect.objectContaining({ id: terminal.id })]);
+      const labels = document.annotations.filter(
+        (annotation) => annotation.kind === "power-label",
+      );
+      expect(labels).toHaveLength(1);
+      // It now stands at the new rail, on one of its ends.
+      const rail = document.routes.find(
+        (route) => route.presentation === "power-rail",
+      )!;
+      const ends = routeEndpoints(rail).flatMap((end) =>
+        end.kind === "junction" ? [end.junctionId] : [],
+      );
+      expect(labels[0]!.anchor).toMatchObject({ kind: "object" });
+      expect(ends).toContain(
+        labels[0]!.anchor.kind === "object" ? labels[0]!.anchor.objectId : "",
+      );
+      // No Junction is left anchoring nothing.
+      const anchored = new Set(
+        document.annotations.flatMap((annotation) =>
+          annotation.anchor.kind === "object"
+            ? [annotation.anchor.objectId]
+            : [],
+        ),
+      );
+      const routed = new Set(
+        document.routes.flatMap((route) =>
+          routeEndpoints(route).flatMap((end) =>
+            end.kind === "junction" ? [end.junctionId] : [],
+          ),
+        ),
+      );
+      expect(
+        document.junctions.filter(
+          (junction) => !routed.has(junction.id) && !anchored.has(junction.id),
+        ),
+      ).toEqual([]);
+    },
+  );
 
   it("leaves the Document alone for a list that changes nothing", async () => {
     const { controller, client, instance } = await editor();

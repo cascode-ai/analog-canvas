@@ -336,6 +336,52 @@ describe("Cell reset lifecycle planner", () => {
       "rail-end",
     ]);
     expect(history.document.routes).toEqual([]);
+
+    // The supply's next rail takes the kept label and Pin over (#1410).
+    const redraw = (labelId: string, suffix: string) =>
+      history.transact({
+        transactionId: `redraw-${suffix}`,
+        documentId: document.id,
+        expectedRevision: history.document.revision,
+        actor: { kind: "human", id: "test" },
+        edits: [
+          {
+            kind: "add_power_rail",
+            netId: "rail-net",
+            routeId: `rail-route-${suffix}`,
+            startJunctionId: `rail-start-${suffix}`,
+            endJunctionId: `rail-end-${suffix}`,
+            labelId,
+            netName: "VDD",
+            scope: "local",
+            powerDomain: "vdd",
+            start: { x: 0, y: -40 },
+            end: { x: 200, y: -40 },
+          },
+        ],
+      });
+    expect(redraw("rail-label", "2").ok).toBe(true);
+    expect(history.document.netlist?.terminals).toEqual([
+      expect.objectContaining({
+        name: "VDD",
+        interfaceAnnotationId: "rail-label",
+      }),
+    ]);
+    expect(history.document.annotations).toEqual([
+      expect.objectContaining({
+        id: "rail-label",
+        anchor: expect.objectContaining({ objectId: "rail-end-2" }),
+      }),
+    ]);
+    expect(history.document.junctions.map((item) => item.id).sort()).toEqual([
+      "rail-end-2",
+      "rail-start-2",
+    ]);
+    // A label that stands on a rail is that rail's, and is not taken.
+    expect(redraw("rail-label", "3")).toMatchObject({
+      ok: false,
+      error: { code: "EDIT_PRECONDITION" },
+    });
   });
 
   it.each(["clear-drawing", "reset-placement"] as const)(

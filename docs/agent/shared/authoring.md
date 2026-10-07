@@ -299,6 +299,11 @@ label drawn on a wire stays where it was drawn, now free, so the netlist keeps
 its name; a current or voltage marker drawn on a wire goes with the wire. A
 supply rail's own label stays as well: it carries the supply's name and, for a
 local rail, the Cell's supply Pin. The receipt lists every label it moved.
+To redraw a Cell in one call, `reset-cell` with `reset-body` removes every
+part, wire, rail, Junction and label except the Cell's formal interface: its
+Pins, their markers and a local rail's supply label stay, so callers keep
+their pins. A rail drawn again for a supply whose label was kept, after either
+reset, takes that label and its Pin over instead of adding a second label.
 `delete` uses the GUI selection-deletion planner, including owned displays and
 formal interface declarations. `delete-selection` deletes multiple explicit
 object IDs in one transaction. They are nested in `selection`, one list per
