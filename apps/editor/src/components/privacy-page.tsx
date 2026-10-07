@@ -12,7 +12,7 @@ import {
 } from "./site-resource-links";
 
 /** When the notice last changed; update it with the text. */
-export const PRIVACY_UPDATED = "1 October 2026";
+export const PRIVACY_UPDATED = "7 October 2026";
 
 /**
  * Every cookie the site sets. All but `canvas_vid` belong to a feature you
@@ -210,14 +210,15 @@ export function PrivacyPage() {
         <h2>What you save and publish</h2>
         <ul>
           <li>
-            <strong>Cloud Projects</strong> are private to your account. The
-            site keeps the current version and the three before it.
+            <strong>Cloud Projects</strong> are private to your account, apart
+            from backups. The site keeps the current version and the three
+            before it.
           </li>
           <li>
             <strong>Circuits you publish to the Gallery</strong> are public,
             under your display name, with their earlier versions. The site also
             records which account published each one, including its email
-            address and sign-in method; only moderators see those.
+            address and sign-in method; only moderators see those on the site.
           </li>
           <li>
             <strong>Components you share</strong> are public, under your display
@@ -231,6 +232,11 @@ export function PrivacyPage() {
             other people&rsquo;s circuits your account opened today, to allow up
             to 100 a day. The note is deleted shortly after the day ends (UTC),
             or at once with your account.
+          </li>
+          <li>
+            <strong>Backups</strong> of the Gallery and Cloud Projects, with the
+            account details above, are kept on GitHub. The people who help
+            maintain the site can read them.
           </li>
           <li>
             <strong>Simulations</strong> run on the site&rsquo;s servers. Runs
@@ -321,6 +327,7 @@ export function PrivacyPage() {
           Projects, the circuits you published with their history, the
           components you shared, and your likes. Export anything you want to
           keep first. Drawings stored only in your browser are not affected.
+          Earlier backups keep their copies.
         </p>
         <p>
           You may also ask what data the site keeps about you, have it corrected
