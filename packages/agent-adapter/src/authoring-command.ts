@@ -244,6 +244,8 @@ const BatchItemSchema = z.discriminatedUnion("kind", [
         l1: z.boolean().optional(),
         l2: z.boolean().optional(),
         cb: z.boolean().optional(),
+        // A MOS or BJT's multiplier, drawn "×8" with its name.
+        m: z.boolean().optional(),
       })
       .optional(),
   }),

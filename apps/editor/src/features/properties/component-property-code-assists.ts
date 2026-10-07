@@ -1,7 +1,7 @@
 // The property model needs syntax ranges, not CodeMirror's editor runtime.
 // Use the same underlying grammar without pulling view/state into App startup.
 import { parser } from "@lezer/json";
-import { magneticDisplayParameters } from "@icm/derived";
+import { instanceDisplayParameters } from "@icm/derived";
 import { reflectOrientation, LINEAR_CONTROLLED_SOURCE_KINDS } from "@icm/model";
 import { componentDetailFields } from "./component-property-details";
 import {
@@ -77,7 +77,7 @@ export function propertyCodeSpans(
           ]
       : []),
     ...(context
-      ? magneticDisplayParameters(context.instance.symbolId).map(
+      ? instanceDisplayParameters(context.instance.symbolId).map(
           (parameter) => ({
             path: `display.parameters.${parameter.name}`,
             label: parameter.label,

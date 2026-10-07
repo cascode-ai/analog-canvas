@@ -1,7 +1,7 @@
 import {
   defaultInstanceParameterLabelPlacement,
   displayableInstanceParameter,
-  magneticDisplayParameters,
+  instanceDisplayParameters,
   objectStyleProfile,
   resolveDocumentStyleProfile,
 } from "@icm/derived";
@@ -30,7 +30,7 @@ export function instanceParameterVisibility(
   instance: Instance,
 ): Record<string, boolean> {
   return Object.fromEntries(
-    magneticDisplayParameters(instance.symbolId).map((parameter) => [
+    instanceDisplayParameters(instance.symbolId).map((parameter) => [
       parameter.name,
       parameterAnnotations(document, instance.id, parameter.name).some(
         (annotation) => annotation.visible !== false,
@@ -47,7 +47,7 @@ export function instanceParameterVisibilityEdits(
   desired: Readonly<Record<string, boolean>>,
 ): SchematicEdit[] {
   const edits: SchematicEdit[] = [];
-  for (const parameter of magneticDisplayParameters(instance.symbolId)) {
+  for (const parameter of instanceDisplayParameters(instance.symbolId)) {
     const visible = desired[parameter.name];
     if (visible === undefined) continue;
     const existing = parameterAnnotations(

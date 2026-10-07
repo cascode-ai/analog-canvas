@@ -68,7 +68,7 @@ import {
   resolveRouteGeometry,
   resolveDocumentLogicalNets,
   resolveAnnotationName,
-  magneticDisplayParameters,
+  instanceDisplayParameters,
   derivePowerRailComponent,
   netLabelAttachmentForText,
   netLabelBaselineForName,
@@ -1048,7 +1048,7 @@ export function planBrowserAgentCommand(
         for (const id of new Set(command.instanceIds)) {
           const instance = document.instances.find((item) => item.id === id);
           if (!instance) throw new Error(`Instance not found: ${id}`);
-          const supported = magneticDisplayParameters(instance.symbolId);
+          const supported = instanceDisplayParameters(instance.symbolId);
           for (const parameter of Object.keys(desired)) {
             if (!supported.some((item) => item.name === parameter))
               throw new Error(

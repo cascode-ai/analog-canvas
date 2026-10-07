@@ -16,7 +16,10 @@ import {
   type SchematicStyleProfile,
 } from "./style-profile.js";
 import { visibleSymbolInkBounds } from "./visual.js";
-import { magneticDisplayParameters } from "./instance-value.js";
+import {
+  magneticDisplayParameters,
+  symbolSupportsValueAnnotation,
+} from "./instance-value.js";
 import {
   fractionGeometry,
   fractionPartScale,
@@ -1524,6 +1527,32 @@ function parameterPlacementWith(
   grid: number,
   parameter: string,
 ): InstanceLabelPlacement | null {
+  if (
+    deviceDescriptor(instance.symbolId)?.parameters.some(
+      (candidate) =>
+        candidate.name === parameter && candidate.displayRole === "multiplier",
+    )
+  ) {
+    // A multiplier reads with its device's name: in the value's row, or the
+    // row after it for a part that also shows a value (a MOS's W/L).
+    const value = defaultInstanceLabelPlacement(
+      instance,
+      resolved,
+      profile,
+      grid,
+      "value",
+    );
+    if (!value) return null;
+    return symbolSupportsValueAnnotation(instance.symbolId)
+      ? {
+          ...value,
+          position: {
+            x: value.position.x,
+            y: value.position.y + rows(profile, grid, instance.symbolId),
+          },
+        }
+      : value;
+  }
   const index = magneticDisplayParameters(instance.symbolId).findIndex(
     (candidate) => candidate.name === parameter,
   );

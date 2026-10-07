@@ -3,6 +3,7 @@ import { createAgentCircuitService } from "@icm/agent-adapter";
 import { diagnoseVisualQuality, resolveMosBulkConnection } from "@icm/derived";
 import { createEmptyProject, routeEndpoints } from "@icm/model";
 import { createDesignNetlistExport } from "@icm/netlist";
+import { renderDocumentSvg } from "@icm/render-svg";
 import {
   InMemorySymbolResolver,
   builtInSymbols,
@@ -924,6 +925,43 @@ describe("the editor plans an Agent's action list", () => {
     ]);
     expect(modelled.ok, modelled.message).toBe(true);
     expect(instance("M1")!.netlist!.binding?.kind).toBe("external-subcircuit");
+  });
+
+  it("shows a device's multiplier as ×m beside it, bound to m (#1423)", async () => {
+    const { controller, client, instance } = await editor();
+    const placed = await client.applyActions([
+      place("npn", "Q2", 100, { m: "8" }),
+      place("nmos", "M1", 400, { m: "4" }),
+    ]);
+    expect(placed.ok, placed.message).toBe(true);
+    const shown = await client.applyActions([
+      {
+        kind: "set-instance-display",
+        instanceIds: [instance("Q2")!.id, instance("M1")!.id],
+        showParameters: { m: true },
+      },
+    ]);
+    expect(shown.ok, shown.message).toBe(true);
+    const multipliers = controller.document.annotations.filter(
+      (annotation) =>
+        annotation.binding?.kind === "instance-value" &&
+        annotation.binding.parameter === "m",
+    );
+    expect(multipliers).toHaveLength(2);
+    const svg = renderDocumentSvg(controller.document, controller.resolver);
+    expect(svg).toContain("×8");
+    expect(svg).toContain("×4");
+
+    // A part with no multiplier refuses the display.
+    await client.applyActions([place("resistor", "R1", 700, { value: "1k" })]);
+    const refused = await client.applyActions([
+      {
+        kind: "set-instance-display",
+        instanceIds: [instance("R1")!.id],
+        showParameters: { m: true },
+      },
+    ]);
+    expect(refused.ok).toBe(false);
   });
 
   it("leaves the Document alone for a list that changes nothing", async () => {

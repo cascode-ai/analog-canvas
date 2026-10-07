@@ -101,6 +101,8 @@ targets to avoid full-Snapshot name resolution. Names remain supported when usef
   explicit RichText to restyle it. Fractions/formulas need explicit RichText
   for a structural replacement, not a lossy plain-text projection.
   Transformer parameter keys are `k/lp/ls`; T-Coil keys are `k/l1/l2/cb`.
+  A MOS or BJT shows its multiplier with `showParameters:{m:true}`: "×8"
+  with its name, bound to `m`, as bandgap and mirror figures print it.
 - Use `set-model` with the product's reviewed target, the full library name
   such as `sky130_fd_pr__nfet_01v8`. In a SKY130 Project the short name the
   Netlist panel shows (`nfet_01v8`) means the same device. SKY130 MOS targets
