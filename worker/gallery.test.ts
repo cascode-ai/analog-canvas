@@ -2025,6 +2025,89 @@ describe("netlist marks and thumbs", () => {
   });
 });
 
+describe("AI marks", () => {
+  function updateRequest(id: string, cookie: string, body: object): Request {
+    return new Request(`${ORIGIN}/api/gallery/${id}`, {
+      method: "PUT",
+      headers: {
+        Origin: ORIGIN,
+        Cookie: cookie,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        name: "Agent Amplifier",
+        projectText: projectText("Agent Amplifier"),
+        ...body,
+      }),
+    });
+  }
+
+  async function marks(env: Harness) {
+    const response = await route(env, new Request(`${ORIGIN}/api/gallery`));
+    const { entries } = (await response.json()) as {
+      entries: { id: string; aiGenerated?: boolean }[];
+    };
+    return Object.fromEntries(
+      entries.map((entry) => [entry.id, entry.aiGenerated]),
+    );
+  }
+
+  it("keeps the publisher's AI mark until the author changes it", async () => {
+    const env = environment();
+    const cookie = await makerOf(env);
+    const published = await route(
+      env,
+      submissionRequest(
+        {
+          name: "Agent Amplifier",
+          projectText: projectText("Agent Amplifier"),
+          aiGenerated: true,
+        },
+        { cookie },
+      ),
+    );
+    expect(published.status).toBe(201);
+    const { id } = (await published.json()) as { id: string };
+    const drawn = await submitOne(env, "Hand Drawn", { cookie });
+    expect(await marks(env)).toEqual({ [id]: true, [drawn]: undefined });
+    const detail = await route(env, new Request(`${ORIGIN}/api/gallery/${id}`));
+    expect(
+      ((await detail.json()) as { entry: { aiGenerated?: boolean } }).entry
+        .aiGenerated,
+    ).toBe(true);
+
+    // An update that does not mention the mark leaves it alone.
+    expect((await route(env, updateRequest(id, cookie, {}))).status).toBe(200);
+    expect((await marks(env))[id]).toBe(true);
+
+    expect(
+      (await route(env, updateRequest(id, cookie, { aiGenerated: false })))
+        .status,
+    ).toBe(200);
+    expect((await marks(env))[id]).toBeUndefined();
+  });
+
+  it("refuses an AI mark that is not true or false", async () => {
+    const env = environment();
+    const cookie = await makerOf(env);
+    const published = await route(
+      env,
+      submissionRequest(
+        { name: "X", projectText: projectText("X"), aiGenerated: "yes" },
+        { cookie },
+      ),
+    );
+    expect(published.status).toBe(400);
+    const id = await submitOne(env, "Y", { cookie });
+    const updated = await route(
+      env,
+      updateRequest(id, cookie, { aiGenerated: 1 }),
+    );
+    expect(updated.status).toBe(400);
+    expect((await marks(env))[id]).toBeUndefined();
+  });
+});
+
 describe("circuit addresses", () => {
   it("gives a new circuit a short, readable id", async () => {
     const env = environment();
@@ -4625,6 +4708,11 @@ describe("gallery administration", () => {
       CURRENT_MODEL_SCHEMA_VERSION,
       previousRouteVersionText(),
     );
+    // The publisher's AI mark cannot be worked out again from the drawing.
+    env.gallerySql.exec(
+      "UPDATE gallery_entries SET ai_generated = 1 WHERE id = ?",
+      id,
+    );
 
     const backup = await route(
       env,
@@ -4749,6 +4837,13 @@ describe("gallery administration", () => {
           .one().schema_version,
       ).toBe(CURRENT_MODEL_SCHEMA_VERSION);
     }
+    expect(
+      env.gallerySql
+        .exec<{ ai_generated: number }>(
+          "SELECT ai_generated FROM gallery_entries",
+        )
+        .one().ai_generated,
+    ).toBe(1);
   });
 
   it("migrates one Gallery row with optimistic comparison while preserving all metadata and versions", async () => {

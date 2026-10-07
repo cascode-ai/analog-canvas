@@ -343,6 +343,11 @@ export interface GalleryEntrySummary {
    */
   netlistable: boolean;
   /**
+   * The publisher's AI mark: true when they say an AI made the circuit,
+   * absent otherwise. The author may change it with any later update.
+   */
+  aiGenerated?: boolean;
+  /**
    * How many parts the top Cell draws (see `galleryComponentCount`); absent
    * until the scheduled refresh has counted an older entry.
    */
@@ -418,6 +423,7 @@ interface EntryRow {
   project_text: string;
   svg_text: string;
   netlistable: number;
+  ai_generated: number;
   component_count: number;
   component_count_version: number;
   preview_revision: string;
@@ -441,7 +447,12 @@ type EntrySummaryRow = Pick<
   | "preview_width"
   | "preview_height"
 > &
-  Partial<Pick<EntryRow, "component_count" | "component_count_version">>;
+  Partial<
+    Pick<
+      EntryRow,
+      "ai_generated" | "component_count" | "component_count_version"
+    >
+  >;
 
 interface PreviewAccessRow {
   status: string;
@@ -503,6 +514,7 @@ function summaryOf(
     schemaVersion: row.schema_version,
     tags: unwrapTags(row.tags),
     netlistable: row.netlistable === 1,
+    ...(row.ai_generated === 1 ? { aiGenerated: true } : {}),
     ...(row.component_count_version && row.component_count !== undefined
       ? { componentCount: row.component_count }
       : {}),
@@ -681,6 +693,7 @@ export class GalleryDO {
       "ALTER TABLE gallery_entries ADD COLUMN preview_revision TEXT NOT NULL DEFAULT ''",
       "ALTER TABLE gallery_entries ADD COLUMN preview_width REAL",
       "ALTER TABLE gallery_entries ADD COLUMN preview_height REAL",
+      "ALTER TABLE gallery_entries ADD COLUMN ai_generated INTEGER NOT NULL DEFAULT 0",
       "ALTER TABLE cloud_projects ADD COLUMN preview_svg TEXT NOT NULL DEFAULT ''",
       "ALTER TABLE cloud_projects ADD COLUMN gallery_entry_id TEXT",
       "ALTER TABLE cloud_projects ADD COLUMN favorite INTEGER NOT NULL DEFAULT 0",
@@ -1119,8 +1132,8 @@ export class GalleryDO {
           status, recycled_at, owner_user_id, submitter_email,
           submitter_provider, tags, project_text, svg_text, netlistable,
           netlistable_version, component_count, component_count_version,
-          preview_revision, preview_width, preview_height
-        ) VALUES (?, ?, ?, ?, ?, ?, 'public', NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          preview_revision, preview_width, preview_height, ai_generated
+        ) VALUES (?, ?, ?, ?, ?, ?, 'public', NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         entry.id,
         entry.name,
         entry.author,
@@ -1139,6 +1152,7 @@ export class GalleryDO {
         previewRevision,
         previewDimensions?.width ?? null,
         previewDimensions?.height ?? null,
+        entry.ai_generated === 1 ? 1 : 0,
       );
       this.bindPublication(body, entry.id);
       this.sweepRecycledRows(entry.owner_user_id ?? "");
@@ -1327,7 +1341,7 @@ export class GalleryDO {
            e.owner_user_id,
            e.schema_version, e.tags, e.curation_json, e.netlistable, e.preview_revision,
            e.preview_width, e.preview_height, e.component_count,
-           e.component_count_version,
+           e.component_count_version, e.ai_generated,
            (SELECT COUNT(*) FROM gallery_likes WHERE entry_id = e.id) AS likes,
            (SELECT COUNT(*) FROM gallery_likes
              WHERE entry_id = e.id AND user_id = ?) AS liked_by_viewer
@@ -1439,7 +1453,8 @@ export class GalleryDO {
       .exec<EntrySummaryRow & { likes: number }>(
         `SELECT e.id, e.name, e.author, e.description, e.created_at,
            e.owner_user_id, e.schema_version, e.tags, e.curation_json,
-           e.netlistable, e.preview_revision, e.preview_width, e.preview_height,
+           e.netlistable, e.ai_generated, e.preview_revision, e.preview_width,
+           e.preview_height,
            (SELECT COUNT(*) FROM gallery_likes WHERE entry_id = e.id) AS likes
          FROM gallery_entries e WHERE e.status = 'public'
          ORDER BY e.name COLLATE NOCASE ASC, e.name ASC, e.id ASC`,
@@ -1641,7 +1656,8 @@ export class GalleryDO {
              svg_text = ?, schema_version = ?, status = ?, tags = ?,
              netlistable = ?, netlistable_version = ?, component_count = ?,
              component_count_version = ?, preview_revision = ?,
-             preview_width = ?, preview_height = ?, curation_json = ?
+             preview_width = ?, preview_height = ?, curation_json = ?,
+             ai_generated = COALESCE(?, ai_generated)
          WHERE id = ?`,
         String(body.name),
         String(body.author),
@@ -1658,6 +1674,7 @@ export class GalleryDO {
         previewDimensions?.width ?? null,
         previewDimensions?.height ?? null,
         advanceCurationRevision(row, String(body.at ?? row.created_at)),
+        typeof body.aiGenerated === "boolean" ? Number(body.aiGenerated) : null,
         row.id,
       );
     });
@@ -2378,13 +2395,16 @@ export class GalleryDO {
            (id, name, author, description, created_at, schema_version, status,
             recycled_at, owner_user_id, submitter_email, submitter_provider,
             project_text, svg_text, reject_reason, reviewed_at, reviewed_by,
-            tags, netlistable, preview_revision, preview_width, preview_height, curation_json)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            tags, netlistable, preview_revision, preview_width, preview_height, curation_json,
+            ai_generated)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           ...values,
           sha256Hex(svgText),
           previewDimensions?.width ?? null,
           previewDimensions?.height ?? null,
           typeof row.curation_json === "string" ? row.curation_json : "",
+          // Backups taken before the mark existed restore unmarked.
+          row.ai_generated === 1 ? 1 : 0,
         );
       }
       for (const row of galleryEntryVersions) {

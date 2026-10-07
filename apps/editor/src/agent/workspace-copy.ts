@@ -135,6 +135,7 @@ export function copyWorkspaceCell(
     id: "workspace-copy",
   });
   destination.commitProjectStructure(next, destination.document.id);
+  destination.noteAgentEdit();
   return {
     result: {
       action: "copy" as const,

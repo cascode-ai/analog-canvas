@@ -133,6 +133,29 @@
   border-color: var(--icm-accent);
 }
 
+/* The publisher's AI mark: one checkbox, with why it starts as it does. */
+.publish-gallery-ai {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  font-size: 0.8rem;
+}
+
+.publish-gallery-ai label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--icm-text);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.publish-gallery-ai input {
+  margin: 0;
+  accent-color: var(--icm-ai);
+}
+
 .publish-gallery-gates {
   padding: 10px 12px;
   border: 1px solid var(--icm-border);

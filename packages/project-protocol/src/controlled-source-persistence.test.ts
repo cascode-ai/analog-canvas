@@ -98,7 +98,7 @@ describe("controlled-source portable persistence", () => {
     let stored = "";
     const outcome = await publishProjectToGallery(
       before,
-      { name: "Controls", description: "", tags: [] },
+      { name: "Controls", description: "", tags: [], aiGenerated: false },
       (async (_url, init) => {
         const body = JSON.parse(String(init?.body));
         stored = serializeProject(parseProject(body.projectText));

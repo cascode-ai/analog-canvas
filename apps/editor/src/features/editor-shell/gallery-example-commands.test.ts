@@ -198,6 +198,7 @@ describe("Gallery and example commands", () => {
           author: "Ada",
           description: "A circuit",
           tags: ["ota"],
+          aiGenerated: true,
         },
         ownerUserId: "user-1",
         projectText,
@@ -224,6 +225,7 @@ describe("Gallery and example commands", () => {
       author: "Ada",
       description: "A circuit",
       tags: ["ota"],
+      aiGenerated: true,
       sourceDigest: digest(projectText),
     });
   });

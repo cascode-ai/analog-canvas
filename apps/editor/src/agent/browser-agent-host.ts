@@ -30,7 +30,8 @@ import {
  *
  * `onTransactionCommitted` is invoked after a successful commit so the host
  * owner (the React hook in `App.tsx`) can synchronize UI state and stage
- * recovery — exactly as a human commit does.
+ * recovery — exactly as a human commit does. The commit also marks the
+ * controller Agent-edited, which publishing reads to suggest the AI mark.
  *
  * This lets the full capabilities/snapshot/transact/render feature run
  * against the live browser document inside one process, with no network, token,
@@ -105,6 +106,7 @@ export class BrowserAgentHost implements AgentOperationHost {
     }
     const result = this.controller.dispatchTransaction(request);
     if (result.ok && result.applied) {
+      this.controller.noteAgentEdit();
       this.onTransactionCommitted?.();
     }
     return result;
@@ -129,8 +131,26 @@ export class BrowserAgentHost implements AgentOperationHost {
       undefined,
       documentId,
     );
-    if (result.ok && result.applied) this.onTransactionCommitted?.();
+    if (result.ok && result.applied) {
+      this.controller.noteAgentEdit();
+      this.onTransactionCommitted?.();
+    }
     return result;
+  }
+
+  /**
+   * A whole-Project change the Agent's file and Project hosts planned and
+   * validated against the current Project session, committed like a
+   * transaction: one undo item, the commit callback, and the Agent mark.
+   */
+  commitProjectStructure(
+    project: CircuitProject,
+    activeDocumentId?: string,
+  ): void {
+    this.assertBound();
+    this.controller.commitProjectStructure(project, activeDocumentId);
+    this.controller.noteAgentEdit();
+    this.onTransactionCommitted?.();
   }
 
   applySemanticIntent(

@@ -16,6 +16,8 @@ export interface GalleryPublishFields {
   description: string;
   /** Category tags ("amplifier", "adc", …); the server normalizes. */
   tags: readonly string[];
+  /** The publisher's AI mark, shown as an AI tag on the card. */
+  aiGenerated: boolean;
 }
 
 /**
@@ -66,6 +68,7 @@ export async function loadGalleryPublicationContext(
       author: string;
       description?: string;
       tags?: string[];
+      aiGenerated?: boolean;
     };
     ownerUserId?: string | null;
   };
@@ -77,6 +80,7 @@ export async function loadGalleryPublicationContext(
     author: payload.entry.author,
     description: payload.entry.description ?? "",
     tags: payload.entry.tags ?? [],
+    aiGenerated: payload.entry.aiGenerated === true,
   };
 }
 
@@ -117,6 +121,7 @@ async function sendGalleryProject(
         name: fields.name.trim(),
         description: fields.description.trim(),
         tags: fields.tags,
+        aiGenerated: fields.aiGenerated,
         // Publishing a drawing must not also publish private source comments
         // or model files. The frozen topology still supports routing guidance.
         projectText: serializeProject({

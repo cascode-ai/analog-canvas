@@ -66,6 +66,11 @@ asks the AuthDO once.
   re-answered whenever an entry is written, so repairing a published circuit
   lights its mark immediately, and the scheduled maintenance pass below
   re-answers stored marks after the rule itself changes.
+  An entry whose publisher marked it as made by an AI also carries
+  `aiGenerated: true`; every other entry omits the field. That mark is the
+  publisher's word, never something the server infers from the drawing. A
+  card on the wall spells both out after the circuit name: a green "Netlist",
+  then a purple "AI".
   Each entry may also carry `componentCount`: the parts its top Cell draws —
   devices, sources, switches, blocks and gates, a subcircuit block counting
   once — leaving out Ports, supply and ground markers, drafting objects and
@@ -135,8 +140,8 @@ asks the AuthDO once.
   a Project read. Shelf and historical previews share formula preparation and
   recovery while retaining their private access rules.
 - Which circuits a reader is looking at — the wall (`view`), the byline
-  (`author`), the tags (`tags`), the text (`q`), and the two marks
-  (`netlist`, `liked`) — is one preference and persists as one: it rides in
+  (`author`), the tags (`tags`), the text (`q`), and the netlist and liked
+  filters (`netlist`, `liked`) — is one preference and persists as one: it rides in
   the address so a link and the Back button carry the same slice, and in the
   browser's own store (`icm.gallery-filters.v1`) so opening a circuit and
   returning to the bare address restores it, including an emptiness the reader
@@ -246,8 +251,17 @@ trimmed `name` (required, ≤120), `description`
 (≤1000, room for a full citation; a Gallery tile shows its first three lines
 and the entry shows all of it), and `tags` (array; normalized lowercase `[a-z0-9 +/-]`, ≤32
 chars each, at most 12, deduplicated — `sanitizeGalleryTags` is the one
-normalization for writes and filters), `projectText` ≤2 MiB. The Worker validates, stamps the canonical
+normalization for writes and filters), `projectText` ≤2 MiB, and an optional
+boolean `aiGenerated` (the AI mark; any other value is `invalid-fields`). The Worker validates, stamps the canonical
 serialization, renders the preview, and stores the entry as `public`.
+The editor's publish dialog shows the mark as an **AI-generated** box. For a
+new entry it starts ticked when, in that browser tab, an Agent changed the
+Project or opened it from a file the Agent staged, or when the Project came
+from an entry that carries the mark; otherwise it starts unticked, and the
+publisher decides either way. A blank Project or one of the person's own Cloud
+Projects that an Agent merely opens is not the Agent's work. The tab remembers
+the Agent's work across reloads, but the Project does not carry it: the same
+Project reopened in another tab or browser starts unticked.
 Ordinary submissions count against a per-account limit of 100 per UTC day,
 counted from that account's entries created that day that are not in the
 recycle bin: deleting or withdrawing an entry returns its slot, restoring it
@@ -383,7 +397,11 @@ advice do not block updates. Either way the entry keeps its
 byline and its current status, so editing a published circuit neither
 takes it off the wall nor re-attributes it. The Project is re-serialized
 canonically, the preview is re-rendered, and the netlistable marker is
-recalculated; 200 answers `{id, status, previewRevision}`. The detail response
+recalculated; 200 answers `{id, status, previewRevision}`. `aiGenerated` true
+or false sets the AI mark and leaving it out keeps the stored one, so an author
+can clear a mark an Agent session suggested; the update dialog starts from the
+entry's current mark and notes when an Agent has worked on the Project. The mark belongs to the entry, not to a version: restoring
+an earlier version keeps it. The detail response
 carries `ownerUserId` so the editor offers "update the opened entry" exactly
 to owners and moderators.
 

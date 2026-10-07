@@ -40,7 +40,10 @@ export interface PublishGalleryDialogProps {
   updateDefaults?: {
     description: string;
     tags: readonly string[];
+    aiGenerated?: boolean;
   } | null;
+  /** Whether an Agent worked on this Project: a new entry starts marked AI. */
+  agentEdited?: boolean;
   publish: (fields: GalleryPublishFields) => Promise<GalleryPublishOutcome>;
   publishUpdate?:
     | ((fields: GalleryPublishFields) => Promise<GalleryPublishOutcome>)
@@ -50,6 +53,7 @@ export interface PublishGalleryDialogProps {
     name: string;
     description: string;
     tags: readonly string[];
+    aiGenerated: boolean;
     updated: boolean;
     previewRevision?: string;
   }) => void;
@@ -70,7 +74,13 @@ export interface PublishGalleryDraft {
   name: string;
   description: string;
   tags: readonly string[];
-  editedFields?: { name: boolean; description: boolean; tags: boolean };
+  aiGenerated?: boolean;
+  editedFields?: {
+    name: boolean;
+    description: boolean;
+    tags: boolean;
+    aiGenerated?: boolean;
+  };
 }
 
 /**
@@ -94,6 +104,7 @@ export function PublishGalleryDialog({
   topologyProject = null,
   updateTarget = null,
   updateDefaults = null,
+  agentEdited = false,
   publish,
   publishUpdate,
   onPublished,
@@ -123,6 +134,23 @@ export function PublishGalleryDialog({
   const [tagsEdited, setTagsEdited] = useState(
     draft?.editedFields?.tags ?? !!draft?.tags.length,
   );
+  // The AI mark starts from the entry this Project was published as or
+  // opened from; a new entry also starts marked when an Agent worked on the
+  // Project. An update keeps an author's earlier choice. A choice made here
+  // wins.
+  const aiSuggestion =
+    updateDefaults?.aiGenerated === true || (!updating && agentEdited);
+  const [aiEdited, setAiEdited] = useState(
+    draft?.editedFields?.aiGenerated === true,
+  );
+  const [aiGenerated, setAiGenerated] = useState(
+    draft?.editedFields?.aiGenerated === true
+      ? draft.aiGenerated === true
+      : aiSuggestion,
+  );
+  useEffect(() => {
+    if (!aiEdited) setAiGenerated(aiSuggestion);
+  }, [aiSuggestion, aiEdited]);
   const [tagDraft, setTagDraft] = useState("");
   const [presetsOpen, setPresetsOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -157,19 +185,23 @@ export function PublishGalleryDialog({
       name,
       description,
       tags,
+      aiGenerated,
       editedFields: {
         name: nameEdited,
         description: descriptionEdited,
         tags: tagsEdited,
+        aiGenerated: aiEdited,
       },
     });
   }, [
     name,
     description,
     tags,
+    aiGenerated,
     nameEdited,
     descriptionEdited,
     tagsEdited,
+    aiEdited,
     onDraftChange,
   ]);
 
@@ -217,13 +249,19 @@ export function PublishGalleryDialog({
     setBusy(true);
     setError(null);
     const send = updating ? (publishUpdate ?? publish) : publish;
-    const outcome = await send({ name, description, tags: submittedTags });
+    const outcome = await send({
+      name,
+      description,
+      tags: submittedTags,
+      aiGenerated,
+    });
     if (outcome.status === "published") {
       onPublished({
         id: outcome.id,
         name: name.trim(),
         description: description.trim(),
         tags: submittedTags,
+        aiGenerated,
         updated: updating,
         ...(outcome.previewRevision === undefined
           ? {}
@@ -495,6 +533,29 @@ export function PublishGalleryDialog({
                   ) : null}
                 </div>
               </div>
+            </div>
+            <div className="publish-gallery-ai">
+              <label>
+                <input
+                  type="checkbox"
+                  data-testid="publish-ai"
+                  aria-describedby="publish-gallery-ai-note"
+                  checked={aiGenerated}
+                  onChange={(event) => {
+                    setAiEdited(true);
+                    setAiGenerated(event.currentTarget.checked);
+                  }}
+                />
+                AI-generated
+              </label>
+              <span
+                id="publish-gallery-ai-note"
+                className="publish-gallery-optional"
+              >
+                {agentEdited
+                  ? "An Agent worked on this Project"
+                  : "Shows an AI tag on the card"}
+              </span>
             </div>
             {gateReport && gateReport.failures.length > 0 ? (
               <div

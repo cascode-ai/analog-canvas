@@ -193,6 +193,8 @@ export interface GalleryFeedEntry {
    * and one without this is listed exactly like one with it.
    */
   netlistable?: boolean;
+  /** The publisher says an AI made it; absent otherwise. */
+  aiGenerated?: boolean;
   /** Parts the top Cell draws; absent until the Worker has counted it. */
   componentCount?: number;
   likes?: number;

@@ -1262,6 +1262,181 @@ test("restores the same paired working copy through refresh and Gallery without 
     .toBe("attached");
 });
 
+test("publishing what an Agent drew, opened or had approved starts with the AI mark", async ({
+  page,
+  baseURL,
+}) => {
+  test.setTimeout(90_000);
+  await page.route("**/api/auth/me", (route) =>
+    route.fulfill({
+      json: {
+        user: {
+          id: "u1",
+          displayName: "Publisher",
+          email: "publisher@example.com",
+          provider: "github",
+          role: "user",
+          isAdmin: false,
+        },
+      },
+    }),
+  );
+  await page.goto("/editor");
+  await page.getByTestId("open-agent").click();
+  const panel = page.getByTestId("connect-agent-panel");
+  const handoff = await panel.getByTestId("agent-copy-text").inputValue();
+  const { claimCode } = JSON.parse(handoff.match(/Claim: (.+)/u)![1]!);
+  const client = new AgentHttpClient({ baseUrl: baseURL! });
+  const session = await client.claim(claimCode);
+  await expect(panel.getByTestId("agent-status")).toHaveText("Connected");
+  await panel.getByRole("button", { name: "Close Agent dialog" }).click();
+  const dialog = page.getByTestId("publish-gallery-dialog");
+  const expectAiMark = async (ticked: boolean) => {
+    await page.getByTestId("publish-gallery-button").click();
+    if (ticked) await expect(dialog.getByLabel("AI-generated")).toBeChecked();
+    else await expect(dialog.getByLabel("AI-generated")).not.toBeChecked();
+    await dialog.getByRole("button", { name: "Cancel" }).click();
+  };
+  // Pairing alone is not the Agent's work.
+  await expectAiMark(false);
+
+  await client.circuit(session.sessionId, session.agentToken, {
+    apiVersion: "3.0",
+    requestId: "agent-drawing",
+    operation: "transact",
+    documentId: session.documentIds[0]!,
+    transactionId: "agent-drawing",
+    expectedRevision: 0,
+    edits: [
+      {
+        kind: "add_instance",
+        instance: {
+          id: "agent-R",
+          symbolId: "resistor",
+          placement: {
+            position: { x: 300, y: 200 },
+            rotation: 0,
+            mirror: "none",
+          },
+        },
+      },
+    ],
+  });
+  await expect(page.getByTestId("active-instance-count")).toHaveText("1");
+  await page.getByTestId("publish-gallery-button").click();
+  await expect(dialog.getByLabel("AI-generated")).toBeChecked();
+  await expect(dialog).toContainText("An Agent worked on this Project");
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+
+  const stage = async (requestId: string) => {
+    const bytes = Buffer.from(
+      ".subckt stage vin vout\nR1 vin vout 1k\n.ends stage\n",
+    );
+    const staged = await client.files(session.sessionId, session.agentToken, {
+      apiVersion: "3.0",
+      requestId,
+      operation: "stage",
+      kind: "structural-spice",
+      entryPath: "stage.spi",
+      files: [
+        {
+          name: "stage.spi",
+          mediaType: "text/plain",
+          encoding: "base64",
+          data: bytes.toString("base64"),
+          byteLength: bytes.byteLength,
+          sha256: createHash("sha256").update(bytes).digest("hex"),
+        },
+      ],
+    });
+    if (!staged.ok || staged.operation !== "stage")
+      throw new Error(JSON.stringify(staged));
+    return staged.candidate.candidateId;
+  };
+  // A file the Agent opens arrives in a tab of its own, already marked.
+  const tabs = page.getByRole("tab");
+  expect(
+    await client.files(session.sessionId, session.agentToken, {
+      apiVersion: "3.0",
+      requestId: "open-staged",
+      operation: "open",
+      candidateId: await stage("stage-to-open"),
+      background: false,
+    }),
+  ).toMatchObject({ ok: true, operation: "open" });
+  await expect(tabs).toHaveCount(2);
+  await expect(tabs.last()).toHaveAttribute("aria-selected", "true");
+  await expectAiMark(true);
+  // The Agent follows the selected tab and reads its context first.
+  await expect
+    .poll(
+      async () =>
+        (await client.status(session.sessionId, session.agentToken)).projectId,
+    )
+    .not.toBe(session.projectId);
+
+  // So does a file the person approves in place of the open Project.
+  expect(
+    await client.files(session.sessionId, session.agentToken, {
+      apiVersion: "3.0",
+      requestId: "approve-staged",
+      operation: "request-approval",
+      candidateId: await stage("stage-to-approve"),
+    }),
+  ).toMatchObject({ ok: true, approval: "pending-human" });
+  await page.getByTestId("agent-file-approve").click();
+  await expect(page.getByTestId("status")).toContainText("Accepted Agent");
+  await expectAiMark(true);
+
+  // A blank Project the Agent opens is not its work yet; renaming it is.
+  const workspace = (
+    requestId: string,
+    request: Parameters<typeof client.projects>[2] extends infer Envelope
+      ? Envelope extends { operation: "workspace"; request: infer Action }
+        ? Action
+        : never
+      : never,
+  ) =>
+    client.status(session.sessionId, session.agentToken).then(() =>
+      client.projects(session.sessionId, session.agentToken, {
+        apiVersion: "3.0",
+        requestId,
+        operation: "workspace",
+        request,
+      }),
+    );
+  const blank = await workspace("new-blank", {
+    action: "new",
+    name: "Blank",
+    background: true,
+  });
+  if (
+    !blank.ok ||
+    blank.operation !== "workspace" ||
+    blank.result.action !== "new"
+  )
+    throw new Error(JSON.stringify(blank));
+  expect(
+    await workspace("show-blank", {
+      action: "activate",
+      workspaceId: blank.result.workspaceId!,
+    }),
+  ).toMatchObject({ ok: true });
+  await expect(tabs).toHaveCount(3);
+  await expect(tabs.last()).toHaveAttribute("aria-selected", "true");
+  await expectAiMark(false);
+  expect(
+    await workspace("rename-blank", { action: "rename", name: "Named" }),
+  ).toMatchObject({ ok: true, result: { action: "rename", applied: true } });
+  await expectAiMark(true);
+
+  // The tab remembers it with the Project.
+  page.on("dialog", (prompt) => void prompt.accept());
+  await page.reload();
+  await expect(tabs).toHaveCount(3);
+  await expectAiMark(true);
+});
+
 test("keeps pairing across Project tabs, rejects old writes and copies through the workspace transaction", async ({
   page,
   baseURL,

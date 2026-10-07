@@ -1223,17 +1223,15 @@ function WorkspaceEditor({
         getResolver: () => editorDocumentController.resolver,
         onApprovalRequested: setAgentFileCandidate,
         getActiveDocumentId: () => editorDocumentController.document.id,
-        commitProjectStructure: (next, active) => {
-          editorDocumentController.commitProjectStructure(next, active);
-          synchronizeExternalCommit();
-          void flushRecovery();
-        },
+        commitProjectStructure: (next, active) =>
+          browserAgentHost.commitProjectStructure(next, active),
         openProjectInNewTab: (candidate, background) =>
           openProjectInTabRef.current(
             candidate,
             DEFAULT_VIEWBOX,
             {
               source: "opened-file",
+              agentEdited: true,
             },
             background,
           ),
@@ -1304,14 +1302,11 @@ function WorkspaceEditor({
         getProjectSessionId: () => editorDocumentController.projectSessionId,
         getProject: () => editorDocumentController.project,
         getActiveDocumentId: () => editorDocumentController.document.id,
-        commitProjectStructure: (nextProject, activeDocumentId) => {
-          editorDocumentController.commitProjectStructure(
+        commitProjectStructure: (nextProject, activeDocumentId) =>
+          browserAgentHost.commitProjectStructure(
             nextProject,
             activeDocumentId,
-          );
-          synchronizeExternalCommit();
-          void flushRecovery();
-        },
+          ),
         dispatchProjectTransaction: (request) =>
           browserAgentHost.dispatchProjectTransaction(request),
       }),
@@ -1499,7 +1494,7 @@ function WorkspaceEditor({
       readSessionProject: readRecoveryProject,
       deleteSession: deleteRecoverySession,
     },
-    installProject: (nextProject, nextViewBox) => {
+    installProject: (nextProject, nextViewBox, options) => {
       browserAgentFileHost.clear();
       setAgentFileCandidate(null);
       setImportReport(null);
@@ -1508,6 +1503,7 @@ function WorkspaceEditor({
       // Project Info belongs to the outgoing Project.
       setProjectInfoOpen(false);
       const nextDocument = replaceProject(nextProject);
+      if (options.agentEdited) editorDocumentController.noteAgentEdit();
       documentViewBoxes.current = new Map();
       setDocumentStack([]);
       setViewBox(nextViewBox, nextDocument.presentation.grid);
@@ -4660,6 +4656,7 @@ function WorkspaceEditor({
       }
       replaceActiveProject(candidate, DEFAULT_VIEWBOX, {
         source: "opened-file",
+        agentEdited: true,
       });
       setStatus(`Accepted Agent ${meta.kind} candidate: ${candidate.name}`);
     });
@@ -5795,6 +5792,7 @@ function WorkspaceEditor({
     const prepared =
       materializeRazaviProjectBulkConnections(nextProject).project;
     const controller = new EditorDocumentController(prepared);
+    if (options.agentEdited) controller.noteAgentEdit();
     // Identity is allocated without changing the outgoing recovery coordinator.
     return {
       ...captureTabSession(),
@@ -5837,6 +5835,8 @@ function WorkspaceEditor({
     projectText: string;
     activeDocumentId: string;
     cellViews: [string, GridRect][];
+    /** Whether an Agent edited it; publishing suggests the AI mark. */
+    agentEdited?: boolean;
   };
   /** A tab as a window saved it, ready to show again: after a refresh, or
    * when a fresh window reopens the tabs a closed one left (#1250). */
@@ -5844,6 +5844,7 @@ function WorkspaceEditor({
     const controller = new EditorDocumentController(
       parseProject(saved.projectText),
     );
+    if (saved.agentEdited === true) controller.noteAgentEdit();
     if (!controller.openDocument(saved.activeDocumentId))
       throw new Error("Missing active Cell");
     if (
@@ -5949,6 +5950,7 @@ function WorkspaceEditor({
           cellViews: [...cellViews],
           projectText: snapshotSerializer.serialize(controller.project),
           activeDocumentId: controller.document.id,
+          agentEdited: controller.agentEdited,
         };
         return { id, session: portable };
       });
@@ -6633,6 +6635,7 @@ function WorkspaceEditor({
             target.session.file.persistenceState = "dirty";
           projectTabs.changed();
         }
+        controller.noteAgentEdit();
         return success({ action: "rename", applied: true, workspaceId });
       }
       const source = entries.find((e) => e.id === request.sourceWorkspaceId)
@@ -6734,16 +6737,15 @@ function WorkspaceEditor({
         getResolver: () => controller.resolver,
         onApprovalRequested: setAgentFileCandidate,
         getActiveDocumentId: () => controller.document.id,
-        commitProjectStructure: (next, active) => {
-          controller.commitProjectStructure(next, active);
-          committed();
-        },
+        commitProjectStructure: (next, active) =>
+          host.commitProjectStructure(next, active),
         openProjectInNewTab: (candidate, background) =>
           openProjectInTabRef.current(
             candidate,
             DEFAULT_VIEWBOX,
             {
               source: "opened-file",
+              agentEdited: true,
             },
             background,
           ),
@@ -6771,10 +6773,8 @@ function WorkspaceEditor({
         available() ? controller.projectSessionId : "closed",
       getProject: () => controller.project,
       getActiveDocumentId: () => controller.document.id,
-      commitProjectStructure: (next, activeDocumentId) => {
-        controller.commitProjectStructure(next, activeDocumentId);
-        committed();
-      },
+      commitProjectStructure: (next, activeDocumentId) =>
+        host.commitProjectStructure(next, activeDocumentId),
       dispatchProjectTransaction: (request) =>
         host.dispatchProjectTransaction(request),
     });
@@ -7590,8 +7590,10 @@ function WorkspaceEditor({
                   ? {
                       description: galleryEntryContext.description,
                       tags: galleryEntryContext.tags,
+                      aiGenerated: galleryEntryContext.aiGenerated === true,
                     }
                   : null,
+                agentEdited: editorDocumentController.agentEdited,
                 publish: (fields) =>
                   publishProjectToGallery(project, fields, fetch, cloudBinding),
                 ...(galleryEntryContext
@@ -7611,6 +7613,7 @@ function WorkspaceEditor({
                   name,
                   description,
                   tags,
+                  aiGenerated,
                   updated,
                   previewRevision,
                 }) => {
@@ -7645,6 +7648,7 @@ function WorkspaceEditor({
                       : (publishSession?.displayName ?? ""),
                     description,
                     tags,
+                    aiGenerated,
                   });
                   void primeGalleryPreview(id, previewRevision);
                   announceGalleryChange({

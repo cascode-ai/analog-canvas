@@ -3678,9 +3678,14 @@ test("a signed-in member publishes directly, bylined by the account", async ({
     hasAuthor: boolean;
     name: string;
     tags: string[];
+    aiGenerated: boolean;
     schemaVersion: number;
   }[] = [];
-  const updated: { name: string; instanceCount: number }[] = [];
+  const updated: {
+    name: string;
+    aiGenerated: boolean;
+    instanceCount: number;
+  }[] = [];
   // The real submissions endpoint is /api/gallery/submissions — the mock
   // matches it exactly so a client posting anywhere else fails this test.
   await page.route("**/api/gallery/submissions", (route) => {
@@ -3689,6 +3694,7 @@ test("a signed-in member publishes directly, bylined by the account", async ({
       author?: string;
       name: string;
       tags: string[];
+      aiGenerated: boolean;
       projectText: string;
     };
     posted.push({
@@ -3696,6 +3702,7 @@ test("a signed-in member publishes directly, bylined by the account", async ({
       hasAuthor: "author" in body,
       name: body.name,
       tags: body.tags,
+      aiGenerated: body.aiGenerated,
       schemaVersion: (JSON.parse(body.projectText) as { schemaVersion: number })
         .schemaVersion,
     });
@@ -3705,6 +3712,7 @@ test("a signed-in member publishes directly, bylined by the account", async ({
     if (route.request().method() !== "PUT") return route.fallback();
     const body = route.request().postDataJSON() as {
       name: string;
+      aiGenerated: boolean;
       projectText: string;
     };
     const project = JSON.parse(body.projectText) as {
@@ -3712,6 +3720,7 @@ test("a signed-in member publishes directly, bylined by the account", async ({
     };
     updated.push({
       name: body.name,
+      aiGenerated: body.aiGenerated,
       instanceCount: project.documents[0]?.instances.length ?? 0,
     });
     return route.fulfill({ status: 200, json: { id: "entry-77" } });
@@ -3737,6 +3746,9 @@ test("a signed-in member publishes directly, bylined by the account", async ({
   await dialog.getByLabel("Add tag").fill("Latch");
   await dialog.getByLabel("Add tag").press("Enter");
   await expect(dialog.getByTestId("publish-tag-latch")).toBeVisible();
+  // Drawn by hand, so the AI mark starts off; the publisher may still set it.
+  await expect(dialog.getByLabel("AI-generated")).not.toBeChecked();
+  await dialog.getByLabel("AI-generated").check();
   await dialog.getByRole("button", { name: "Publish" }).click();
   await expect(page.getByTestId("status")).toHaveText(
     'Published "Session Publish" to the gallery',
@@ -3755,6 +3767,7 @@ test("a signed-in member publishes directly, bylined by the account", async ({
       hasAuthor: false,
       name: "Session Publish",
       tags: ["amplifier", "latch"],
+      aiGenerated: true,
       schemaVersion: CURRENT_PROJECT_FILE_VERSION,
     },
   ]);
@@ -3771,6 +3784,10 @@ test("a signed-in member publishes directly, bylined by the account", async ({
   await expect(page.getByTestId("publish-mode")).toContainText(
     "Session Publish",
   );
+  // The update starts from the entry's own mark.
+  await expect(
+    page.getByTestId("publish-gallery-dialog").getByLabel("AI-generated"),
+  ).toBeChecked();
   await page
     .getByTestId("publish-gallery-dialog")
     .getByRole("button", { name: "Update entry" })
@@ -3782,7 +3799,9 @@ test("a signed-in member publishes directly, bylined by the account", async ({
     "Updated “Session Publish” in the Gallery",
   );
   expect(posted).toHaveLength(1);
-  expect(updated).toEqual([{ name: "Session Publish", instanceCount: 1 }]);
+  expect(updated).toEqual([
+    { name: "Session Publish", aiGenerated: true, instanceCount: 1 },
+  ]);
 });
 
 test("a published tab counts as saved until its next edit", async ({
@@ -3970,12 +3989,13 @@ test("keeps newest-first order and stops after the last circuit", async ({
   ).toBe(true);
 });
 
-test("marks the circuits that extract and counts thumbs on every card", async ({
+test("marks the circuits that extract or an AI made, and counts thumbs on every card", async ({
   page,
 }) => {
   const extractable = {
     ...ENTRY,
     netlistable: true,
+    aiGenerated: true,
     likes: 2,
     likedByViewer: false,
   };
@@ -4005,14 +4025,20 @@ test("marks the circuits that extract and counts thumbs on every card", async ({
   });
 
   await page.goto("/");
-  // The netlist mark, a drawn deck rather than a star, belongs to the one
-  // that extracts. The other is on the wall all the same — a schematic is
-  // allowed to be abbreviated.
-  const mark = page.getByTestId(`gallery-netlist-${extractable.id}`);
-  await expect(mark).toBeVisible();
-  await expect(mark.locator("svg")).toHaveCount(1);
-  await expect(mark).not.toContainText("★");
-  await expect(page.getByTestId(`gallery-netlist-${sketch.id}`)).toHaveCount(0);
+  // The marks are spelled out after the name: "Netlist" for the one that
+  // extracts, then "AI" where its publisher says an AI made it. The other is
+  // on the wall all the same — a schematic is allowed to be abbreviated.
+  const marks = page
+    .getByTestId(`gallery-tile-${extractable.id}`)
+    .locator(".gallery-tile-mark");
+  await expect(marks).toHaveText(["Netlist", "AI"]);
+  await expect(
+    page.getByTestId(`gallery-netlist-${extractable.id}`),
+  ).toBeVisible();
+  await expect(page.getByTestId(`gallery-ai-${extractable.id}`)).toBeVisible();
+  await expect(
+    page.getByTestId(`gallery-tile-${sketch.id}`).locator(".gallery-tile-mark"),
+  ).toHaveCount(0);
   await expect(page.getByTestId(`gallery-tile-${sketch.id}`)).toBeVisible();
 
   const thumb = page.getByTestId(`gallery-like-${extractable.id}`);
