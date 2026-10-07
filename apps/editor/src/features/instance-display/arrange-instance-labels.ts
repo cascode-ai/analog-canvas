@@ -4,6 +4,7 @@ import {
   roleLabelFormat,
   routeEndpoints,
   semanticTextDocument,
+  transformPoint,
   type Annotation,
   type Rect,
   type SchematicDocument,
@@ -26,6 +27,7 @@ import {
   resolveDocumentStyleProfile,
   uniformRowDefaultInstanceLabelPlacement,
   type InstanceLabelPlacement,
+  type InstanceLabelSide,
   type InstanceLabelSlot,
 } from "@icm/derived";
 import { referenceDeviceLetter } from "@icm/devices";
@@ -101,6 +103,59 @@ export function arrangeInstanceLabels(
       return part ? [[label.id, part] as const] : [];
     }),
   );
+  // The part, or Pin, each visible label belongs to.
+  const owners = new Map(
+    context.visible.flatMap((label) => {
+      const owner =
+        partLabels.get(label.id)?.instanceId ??
+        (label.anchor.kind === "object" ? label.anchor.objectId : undefined);
+      return owner ? [[label.id, owner] as const] : [];
+    }),
+  );
+  /** Whether `ink` stands in a row with a label of one of `parts`. */
+  const inRowWith = (ink: Rect, parts: ReadonlySet<string>) =>
+    context.visible.some((other) => {
+      const theirs = parts.has(owners.get(other.id) ?? "")
+        ? context.labelBounds(other.id)
+        : undefined;
+      return theirs !== undefined && sameRow(ink, theirs);
+    });
+
+  /**
+   * The parts wired to a two-terminal part drawn along a horizontal wire,
+   * a ladder's series inductor: both its pins on one row and wired on to
+   * other parts. Null for any other part.
+   */
+  const lineNeighbours = (instanceId: string): ReadonlySet<string> | null => {
+    const instance = document.instances.find((item) => item.id === instanceId);
+    const placement = instance?.placement;
+    const pins =
+      (placement &&
+        resolver
+          .resolve(instance.symbolId, instance.symbolVariantId)
+          ?.definition.pins.map((pin) => ({
+            name: pin.name,
+            at: transformPoint(pin.at, placement.position, placement),
+          }))) ??
+      [];
+    if (pins.length !== 2 || pins[0]!.at.y !== pins[1]!.at.y) return null;
+    const nets = document.nets.filter((net) =>
+      net.terminals.some((end) => end.instanceId === instanceId),
+    );
+    const wiredOn = (pinName: string) =>
+      nets.some(
+        (net) =>
+          net.terminals.some(
+            (end) => end.instanceId === instanceId && end.pinName === pinName,
+          ) && net.terminals.some((end) => end.instanceId !== instanceId),
+      );
+    if (!pins.every((pin) => wiredOn(pin.name))) return null;
+    return new Set(
+      nets
+        .flatMap((net) => net.terminals.map((end) => end.instanceId))
+        .filter((id) => id !== instanceId),
+    );
+  };
 
   /**
    * A part's name and value standing exactly where the outward placer
@@ -240,7 +295,15 @@ export function arrangeInstanceLabels(
   }
 
   const edits: SchematicEdit[] = [];
-  for (const [ownerId, group] of groups) {
+  // Parts drawn along a horizontal wire are arranged first: where their
+  // labels go above the wire, their neighbours' labels keep their own side.
+  const along = new Map(
+    [...groups.keys()].map((id) => [id, lineNeighbours(id)] as const),
+  );
+  const order = [...groups].sort(
+    ([a], [b]) => Number(along.get(b) !== null) - Number(along.get(a) !== null),
+  );
+  for (const [ownerId, group] of order) {
     const instance = document.instances.find((i) => i.id === ownerId)!;
     const resolved = resolver.resolve(
       instance.symbolId,
@@ -340,6 +403,38 @@ export function arrangeInstanceLabels(
         : 0;
     };
     /**
+     * Other parts' labels a label would run into on its row: under about a
+     * character apart, though past the word's space every label keeps. A
+     * ladder's 637pF a character before the next capacitor's 197pF read as
+     * one run, and C₁ before L1's 31.8nH (#1412). Each counts as a conflict,
+     * leaving out those `counted` already.
+     */
+    const runsInto = (
+      ink: Rect,
+      label: Annotation,
+      counted: readonly string[],
+    ) =>
+      context
+        .labelsWithin(
+          ink,
+          label.id,
+          objectStyleProfile(documentProfile, label).typography
+            .instanceFontSize *
+            (label.sizeScale ?? 1) *
+            CHARACTER_EM,
+        )
+        .filter((id) => {
+          const part = owners.get(id);
+          const theirs = context.labelBounds(id);
+          return (
+            part !== undefined &&
+            part !== instance.id &&
+            !counted.includes(id) &&
+            theirs !== undefined &&
+            sameRow(ink, theirs)
+          );
+        }).length;
+    /**
      * Wires between a label and its part, other than those drawn across the
      * label, which count already. Above a VDD rail, a PMOS's W/L met
      * nothing, but the rail cut it off from its transistor below. Each counts
@@ -406,7 +501,8 @@ export function arrangeInstanceLabels(
         context.dotsAt(ink).filter((id) => !conflicts.includes(id)).length / 2 +
         cutOff(ink) +
         strayed(ink) +
-        mistaken(ink, candidate, siblings.map(box))
+        mistaken(ink, candidate, siblings.map(box)) +
+        runsInto(ink, candidate, conflicts)
       );
     };
     /**
@@ -473,7 +569,8 @@ export function arrangeInstanceLabels(
                 b,
                 arrangement[index]!,
                 moved.filter((_, other) => other !== index),
-              ),
+              ) &&
+              !runsInto(b, arrangement[index]!, []),
           ) && !between(moved)
         );
       };
@@ -527,25 +624,56 @@ export function arrangeInstanceLabels(
     );
     let chosen = preferred;
     let best = total(preferred);
+    /** The group in its rows on one of the part's sides, or null. */
+    const onSide = (side: InstanceLabelSide): Annotation[] | null => {
+      const arrangement: Annotation[] = [];
+      for (const label of group) {
+        const placement = placeUprightInstanceLabel(
+          instance,
+          resolved,
+          styleOf(label),
+          { x: 0, y: 0 },
+          side,
+          grid,
+          label.sizeScale,
+          slotOf(label),
+        );
+        if (!placement) return null;
+        arrangement.push(at(label, placement));
+      }
+      return arrangement;
+    };
+
+    // A part drawn along a horizontal wire, as a ladder's series inductor
+    // is, takes the clear side above the wire where under it its labels
+    // would stand in a row with a neighbour's: a Chebyshev ladder's names
+    // and values read as one run per row, C1 L2 C3 L4 (#1412). Textbooks
+    // name a series part over its wire.
+    const neighbours = along.get(ownerId);
+    if (
+      options.avoidCollisions !== false &&
+      !fixed.length &&
+      neighbours &&
+      owner &&
+      preferred.every((label) => box(label).y >= owner.y + owner.height) &&
+      preferred.some((label) => inRowWith(box(label), neighbours))
+    ) {
+      const above = INSTANCE_LABEL_SIDES.map(onSide).find((arrangement) =>
+        arrangement?.every(
+          (label) => box(label).y + box(label).height <= owner.y,
+        ),
+      );
+      if (above && clear(total(above))) {
+        chosen = above;
+        best = total(above);
+      }
+    }
+
     const sides: Annotation[][] = [];
     if (options.avoidCollisions !== false && !clear(best) && !fixed.length)
       for (const side of INSTANCE_LABEL_SIDES) {
-        const arrangement: Annotation[] = [];
-        for (const label of group) {
-          const placement = placeUprightInstanceLabel(
-            instance,
-            resolved,
-            styleOf(label),
-            { x: 0, y: 0 },
-            side,
-            grid,
-            label.sizeScale,
-            slotOf(label),
-          );
-          if (!placement) break;
-          arrangement.push(at(label, placement));
-        }
-        if (arrangement.length !== group.length) continue;
+        const arrangement = onSide(side);
+        if (!arrangement) continue;
         sides.push(arrangement);
         const candidate = total(arrangement);
         if (better(candidate, best)) {
@@ -727,6 +855,20 @@ export function arrangeInstanceLabels(
 
 /** How much nearer another part a label may stand than its own part. */
 const ASSOCIATION_MARGIN = 5;
+
+/**
+ * About a character of a label's text, in ems: 10 units at the default
+ * size. Two labels on one row nearer than this read as one run (#1412).
+ */
+const CHARACTER_EM = 0.66;
+
+/** Whether two labels' ink shares a row: half the shorter one's height. */
+function sameRow(a: Rect, b: Rect): boolean {
+  return (
+    Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y) >=
+    Math.min(a.height, b.height) / 2
+  );
+}
 
 /** A placed Cell's name under its block, drawn as literal text (#803). */
 function isCellNameLabel(label: Annotation): boolean {

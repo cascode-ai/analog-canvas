@@ -404,3 +404,172 @@ describe("a renamed Cell Pin's look (#1419)", () => {
     expect(look("rfp")).toEqual(roleLabelFormat("voltage-node", "vrfp"));
   });
 });
+
+describe("labels in a row with their neighbours' (#1412)", () => {
+  /**
+   * A Chebyshev low-pass ladder: shunt capacitors hanging from a horizontal
+   * line to ground, series inductors on the line between them, each label
+   * where placement put it. The inductors' names and values stand under the
+   * line, on the rows of the capacitors' beside them.
+   */
+  function ladder(): CircuitProject {
+    const project = emptyAgentProject("Ladder");
+    const document = project.documents[0]!;
+    const profile = resolveDocumentStyleProfile(document.presentation);
+    const part = (
+      reference: string,
+      symbolId: string,
+      x: number,
+      y: number,
+      rotation: 0 | 90,
+      value: string,
+    ) => {
+      const instance = {
+        id: reference.toLowerCase(),
+        reference,
+        symbolId,
+        placement: { position: { x, y }, rotation, mirror: "none" as const },
+        netlist: { parameters: { value } },
+      };
+      document.instances.push(instance);
+      document.annotations.push(
+        ...defaultInstanceDisplayAnnotations(
+          document,
+          instance,
+          resolver,
+          profile,
+          { showValue: true },
+        ),
+      );
+    };
+    // One Net per node, its wires drawn from pin to pin.
+    const node = (id: string, ...ends: [string, string][]) => {
+      document.nets.push({
+        id,
+        terminals: ends.map(([instanceId, pinName]) => ({
+          instanceId,
+          pinName,
+        })),
+      });
+      for (const [index, [instanceId, pinName]] of ends.slice(1).entries())
+        document.routes.push(
+          createRoutePath({
+            id: `${id}-${index}`,
+            netId: id,
+            start: {
+              kind: "terminal",
+              instanceId: ends[index]![0],
+              pinName: ends[index]![1],
+            },
+            end: { kind: "terminal", instanceId, pinName },
+            bends: [],
+            modes: ["manual"],
+          }),
+        );
+    };
+    for (const [index, value] of [
+      "38.1pF",
+      "115nH",
+      "68pF",
+      "129nH",
+      "38.1pF",
+    ].entries()) {
+      const x = 80 * index;
+      if (index % 2) part(`L${index + 1}`, "inductor", x, 0, 90, value);
+      else {
+        part(`C${index + 1}`, "capacitor", x, 20, 0, value);
+        document.instances.push({
+          id: `g${index + 1}`,
+          symbolId: "ground",
+          placement: {
+            position: { x, y: 60 },
+            rotation: 0,
+            mirror: "none",
+          },
+        });
+        node(
+          `gnd-${index + 1}`,
+          [`c${index + 1}`, "2"],
+          [`g${index + 1}`, "0"],
+        );
+      }
+    }
+    node("n1", ["c1", "1"], ["l2", "2"]);
+    node("n2", ["l2", "1"], ["c3", "1"], ["l4", "2"]);
+    node("n3", ["l4", "1"], ["c5", "1"]);
+    return project;
+  }
+
+  it("puts a ladder's series inductors' labels above the line, clear of its capacitors'", async () => {
+    const { client, controller } = await editor(ladder());
+    const before = structuredClone(controller.document);
+    const context = () =>
+      createLabelClearanceContext(controller.document, resolver);
+    const owner = (annotation: Annotation) =>
+      annotation.anchor.kind === "object" ? annotation.anchor.objectId : "";
+    const bounds = (id: string) =>
+      context().symbols.find((symbol) => symbol.id === id)!.bounds;
+    const labelsOf = (document: typeof before, id: string) =>
+      document.annotations.filter(
+        (annotation) =>
+          annotation.visible !== false && owner(annotation) === id,
+      );
+    // The inductors' labels stand under the line, beside the capacitors'.
+    for (const id of ["l2", "l4"])
+      for (const annotation of labelsOf(before, id))
+        expect(context().measure(annotation).inkBounds.y).toBeGreaterThan(
+          bounds(id).y + bounds(id).height,
+        );
+
+    const report = await client.applyActions([
+      { kind: "apply-label-preset", preset: "textbook" },
+    ]);
+    expect(report.ok, report.message).toBe(true);
+    const after = controller.document;
+    expect(after.revision).toBe(before.revision + 1);
+
+    // Each inductor's name and value went above it, as a textbook draws
+    // a series part, and the capacitors' labels kept their place.
+    const measured = context();
+    for (const id of ["l2", "l4"]) {
+      const labels = labelsOf(after, id);
+      expect(labels).toHaveLength(2);
+      for (const annotation of labels) {
+        const ink = measured.measure(annotation).inkBounds;
+        expect(ink.y + ink.height, annotation.id).toBeLessThanOrEqual(
+          bounds(id).y,
+        );
+        expect(measured.conflicts(annotation), annotation.id).toEqual([]);
+      }
+    }
+    for (const id of ["c1", "c3", "c5"])
+      expect(labelsOf(after, id), id).toEqual(labelsOf(before, id));
+
+    // No two parts' labels run together on one row: on a shared row they
+    // stand more than a character, 10 units, apart.
+    const shownLabels = measured.visible.map((annotation) => ({
+      owner: owner(annotation),
+      ink: measured.measure(annotation).inkBounds,
+      id: annotation.id,
+    }));
+    for (const a of shownLabels)
+      for (const b of shownLabels) {
+        if (a.owner === b.owner) continue;
+        const shared =
+          Math.min(a.ink.y + a.ink.height, b.ink.y + b.ink.height) -
+          Math.max(a.ink.y, b.ink.y);
+        if (shared < Math.min(a.ink.height, b.ink.height) / 2) continue;
+        const gap = Math.max(
+          b.ink.x - a.ink.x - a.ink.width,
+          a.ink.x - b.ink.x - b.ink.width,
+        );
+        expect(gap, `${a.id} and ${b.id}`).toBeGreaterThanOrEqual(10);
+      }
+
+    // Applied again, it finds nothing to change.
+    const again = await client.applyActions([
+      { kind: "apply-label-preset", preset: "textbook" },
+    ]);
+    expect(again).toMatchObject({ ok: true, applied: false });
+  });
+});

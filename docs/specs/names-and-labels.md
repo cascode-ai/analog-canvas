@@ -254,6 +254,8 @@ Batch operations are explicit and distinct:
   name stands a row over it (#1384). A place is clear when the labels meet no
   wire, part, other label or free drawing text, keep a word's space from
   another label or text on their line and a little space between lines,
+  keep about a character's space (10 units at the default size) from another
+  part's or Pin's label on their row, where the two read as one run (#1412),
   keep that line's space from a junction dot,
   and no wire runs between a
   label and its part or between the Reference and the value, other than
@@ -266,7 +268,12 @@ Batch operations are explicit and distinct:
   more than a label too close to text or to a junction dot, cut off by a
   wire, or read as another part's. A part's Reference comes first: no position that clears the value
   but draws the Reference over a wire, a part or another label is preferred
-  to one that keeps the Reference clear. A requested Cell Pin's name, while
+  to one that keeps the Reference clear. A two-terminal part drawn along a
+  horizontal wire, both pins on one row and wired on, such as a ladder's
+  series inductor, is arranged before the other parts: where its labels
+  under the wire would share a row with a label of a part wired to it, they
+  take the clear side above the wire, as textbooks name a series part, and
+  the neighbours keep their own sides (#1412). A requested Cell Pin's name, while
   still on one of its own sides, takes the first of them where it meets
   nothing, as a new Pin's name does. Its optional first-letter reference style is explicit;
   with it, such a Pin's name with no look of its own, or only the automatic

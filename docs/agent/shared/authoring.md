@@ -342,7 +342,11 @@ labels may slide along its side to fit between two rows of wiring; they keep
 a word's space from other labels, a little space from junction dots, and
 stay on their part's side of any wire but its own. While another place is
 clear, a value does not stand just under or after another part's name, where
-it would read as that part's. Where parts
+it would read as that part's, and no label stands within about a character
+(10 units) of another part's label on its row, where the two read as one run.
+A two-terminal part drawn along a horizontal wire, such as a ladder's series
+inductor, takes the clear side above the wire when its labels below would
+stand in a row with those of a part wired to it. Where parts
 sit too close for both, the value is the one left touching a wire; hide values
 with `set-instance-display` or move the parts apart. A requested Port's name
 that a part or wire now covers moves to the first clear one of its sides. Set `compact:false` or `avoidCollisions:false` to disable

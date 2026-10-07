@@ -1099,6 +1099,109 @@ describe("opt-in label arrangement", () => {
     const moved = doc.annotations.find((a) => a.id === value.id)!;
     expect(after.conflicts(moved)).toEqual([]);
   });
+  it("keeps a part's labels from running into another part's on their row (#1412)", () => {
+    // A Butterworth ladder's C3 and C5, their values facing each other on
+    // one row: 637pF after C3, and 197pF before C5, where an earlier pass
+    // put C5's labels because RL stood beside it. "637pF 197pF" read as one.
+    const pair = (c5x: number) => {
+      const doc = createEmptyDocument("d", "Ladder");
+      const style = resolveDocumentStyleProfile(doc.presentation);
+      for (const [id, x, value] of [
+        ["c3", 0, "637pF"],
+        ["c5", c5x, "197pF"],
+      ] as const) {
+        const instance = {
+          id,
+          reference: id.toUpperCase(),
+          symbolId: "capacitor",
+          placement: {
+            position: { x, y: 0 },
+            rotation: 0 as const,
+            mirror: "none" as const,
+          },
+          netlist: { parameters: { value } },
+        };
+        doc.instances.push(instance);
+        const labels = defaultInstanceDisplayAnnotations(
+          doc,
+          instance,
+          resolver,
+          style,
+          { showValue: true },
+        );
+        if (id === "c5")
+          for (const label of labels) {
+            const placement = placeUprightInstanceLabel(
+              instance,
+              resolver.resolve("capacitor")!,
+              style,
+              { x: 0, y: 0 },
+              "left",
+              doc.presentation.grid,
+              1,
+              label.binding?.kind === "instance-value" ? "value" : "reference",
+            )!;
+            label.alignment = placement.alignment;
+            label.anchor = {
+              kind: "object",
+              objectId: id,
+              localOffset: {
+                x: placement.position.x - x,
+                y: placement.position.y,
+              },
+              fallbackPosition: placement.position,
+            };
+          }
+        doc.annotations.push(...labels);
+      }
+      return doc;
+    };
+    const labelsOf = (doc: ReturnType<typeof pair>, id: string) =>
+      doc.annotations.filter(
+        (a) => a.anchor.kind === "object" && a.anchor.objectId === id,
+      );
+    const valueGap = (doc: ReturnType<typeof pair>) => {
+      const context = createLabelClearanceContext(doc, resolver);
+      const [c3, c5] = ["c3", "c5"].map(
+        (id) =>
+          context.measure(
+            labelsOf(doc, id).find(
+              (a) => a.binding?.kind === "instance-value",
+            )!,
+          ).inkBounds,
+      );
+      return c5!.x - c3!.x - c3!.width;
+    };
+    // The values a word's space apart, but under a character's width.
+    const doc = pair(120 + Math.round(6 - valueGap(pair(120))));
+    expect(valueGap(doc)).toBeGreaterThan(4);
+    expect(valueGap(doc)).toBeLessThan(10);
+    const c5 = structuredClone(labelsOf(doc, "c5"));
+
+    apply(doc, arrangeInstanceLabels(doc, resolver, ["c3"], {}));
+
+    // C3's labels left the row's run; C5's stay where they were.
+    expect(labelsOf(doc, "c5")).toEqual(c5);
+    const after = createLabelClearanceContext(doc, resolver);
+    for (const label of labelsOf(doc, "c3")) {
+      const ink = after.measure(label).inkBounds;
+      expect(after.conflicts(label)).toEqual([]);
+      for (const other of c5) {
+        const theirs = after.measure(other).inkBounds;
+        const shared =
+          Math.min(ink.y + ink.height, theirs.y + theirs.height) -
+          Math.max(ink.y, theirs.y);
+        if (shared >= Math.min(ink.height, theirs.height) / 2)
+          expect(
+            Math.max(
+              theirs.x - ink.x - ink.width,
+              ink.x - theirs.x - theirs.width,
+            ),
+            `${label.id} and ${other.id}`,
+          ).toBeGreaterThanOrEqual(10);
+      }
+    }
+  });
   it("keeps a part's value from reading as the name above it (#1347)", () => {
     // A Pierce oscillator: the crystal's inductor Lm lies under the inverter
     // X1, its series wires on both sides and a wire below it. Above Lm, its
