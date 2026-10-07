@@ -5,28 +5,28 @@
   "localSpecs": [
     {
       "metric": "gain_1khz",
-      "min": 50,
-      "max": 58,
-      "value": 54.2846,
+      "min": 38,
+      "max": 46,
+      "value": 41.4163,
       "passed": true
     },
     {
       "metric": "out_pp",
-      "min": 0.9,
-      "max": 1.2,
-      "value": 1.03533,
+      "min": 0.15,
+      "max": 0.4,
+      "value": 0.235351,
       "passed": true
     },
     {
       "metric": "supply_avg",
-      "min": -0.0032,
-      "max": -0.0023,
-      "value": -0.00276843,
+      "min": 0.001,
+      "max": 0.003,
+      "value": 0.00146671,
       "passed": true
     }
   ],
   "hosted": {
-    "runId": "0d2ecb33-8e70-4bd1-ae20-7e2bb73b4628",
+    "runId": "7072a48a-5139-4739-8f24-b08ae78db9c5",
     "specs": {
       "available": true,
       "total": 3,

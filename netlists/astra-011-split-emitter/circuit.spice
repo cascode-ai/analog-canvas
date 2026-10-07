@@ -1,0 +1,17 @@
+
+.subckt astra_split_emitter vcc vdd VSS in out
+CD vdd VSS 100u
+CE net1 VSS 100u
+CI net0 net2 10u
+CL out VSS 100p
+CO out c 10u
+Q1 c net0 e ANPN
+RB vdd net0 100k
+RC vdd c 4.7k
+RD vdd vcc 100
+RE e net1 100
+REB net1 VSS 910
+RG net0 VSS 22k
+RL out VSS 10k
+RS net2 in 100
+.ends astra_split_emitter

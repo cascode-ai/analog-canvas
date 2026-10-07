@@ -1,0 +1,45 @@
+
+Note: No compatibility mode selected!
+
+
+Circuit: darlington common-emitter voltage amplifier — nominal functional verification
+
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+No. of Data Rows : 1
+v(out) = 0.000000e+00
+i(vcc) = -9.52792e-04
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+No. of Data Rows : 641
+gain_1khz           =  4.03004e+01
+ASCII raw file "out.raw"
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+Initial Transient Solution
+--------------------------
+
+Node                                   Voltage
+----                                   -------
+vcc                                         12
+in                                           0
+xdut.net0                              2.15959
+xdut.net3                             0.822059
+out                                          0
+xdut.net2                              6.19016
+xdut.net1                              1.53079
+vin#branch                                   0
+vcc#branch                        -0.000952792
+
+
+No. of Data Rows : 15009
+out_pp              =  2.07029e-01 from=  2.00000e-02 to=  3.00000e-02
+supply_avg          =  9.52803e-04 from=  2.00000e-02 to=  3.00000e-02
+ASCII raw file "out.raw"
+ngspice-46 done

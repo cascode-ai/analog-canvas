@@ -1,0 +1,31 @@
+Divider-biased emitter follower — generic model, nominal verification
+.include "circuit.spice"
+.include "models.spice"
+VCC vcc 0 12
+VIN in 0 DC 0 AC 1 SIN(0 10m 1k)
+XDUT vcc vdd 0 in out astra_emitter_follower
+.temp 27
+* @spec gain_db range -1.5 0 unit=dB
+* @spec out_pp range 0.016 0.021 unit=V
+* @spec iq range 0.0001 0.01 unit=A
+.control
+set filetype=ascii
+set appendwrite
+set wr_singlescale
+set wr_vecnames
+op
+print v(xdut.e) i(vcc)
+ac dec 80 1 100Meg
+let gain=db(v(out))
+meas ac gain_db FIND gain AT=1k
+wrdata ac.dat v(out)
+write out.raw v(out)
+tran 2u 100m
+let supply=-i(vcc)
+meas tran iq AVG supply FROM=90m TO=100m
+meas tran out_pp PP v(out) FROM=90m TO=100m
+wrdata transient.dat v(in) v(out)
+write out.raw v(in) v(out)
+quit
+.endc
+.end

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 66,
-  "id": "astra-astra-001-rc-coupled-bjt-amplifier",
-  "name": "RC-coupled BJT voltage amplifier",
+  "id": "astra-astra-006-ce-follower",
+  "name": "Common-emitter amplifier with output buffer",
   "topDocumentId": "document-main",
   "defaults": {
     "instance": { "mirror": "none", "rotation": 0 },
@@ -23,10 +23,10 @@
   "documents": [
     {
       "id": "document-main",
-      "name": "astra_001_rc_coupled_bjt_amplifier",
+      "name": "astra_006_ce_follower",
       "netlist": {
         "formalParameters": [],
-        "name": "astra_001_rc_coupled_bjt_amplifier",
+        "name": "astra_006_ce_follower",
         "terminals": [
           {
             "direction": "inout",
@@ -79,12 +79,12 @@
         {
           "type": "port",
           "id": "port-out",
-          "coordinate": [490, 60],
+          "coordinate": [490, 110],
           "mirror": "horizontal",
           "labels": [
             {
               "alignment": "start",
-              "anchor": { "fallback": [500, 50], "offset": [10, -10] },
+              "anchor": { "fallback": [500, 100], "offset": [10, -10] },
               "bind": { "kind": "cell-terminal-name", "terminalId": "terminal-out" },
               "id": "port-label-out",
               "kind": "net-label",
@@ -383,7 +383,7 @@
           "name": "R5",
           "id": "R5",
           "coordinate": [260, 30],
-          "parameters": { "value": "100k" },
+          "parameters": { "value": "47k" },
           "labels": [
             {
               "alignment": "start",
@@ -420,7 +420,7 @@
           "name": "R6",
           "id": "R6",
           "coordinate": [260, 150],
-          "parameters": { "value": "22k" },
+          "parameters": { "value": "47k" },
           "labels": [
             {
               "alignment": "start",
@@ -460,7 +460,7 @@
           "labels": [
             {
               "alignment": "start",
-              "anchor": { "fallback": [350, 105], "offset": [10, 25] },
+              "anchor": { "fallback": [344, 85], "offset": [4, 5] },
               "bind": "name",
               "format": {
                 "runs": [
@@ -484,12 +484,12 @@
           "type": "resistor",
           "name": "R7",
           "id": "R7",
-          "coordinate": [340, 30],
-          "parameters": { "value": "4.7k" },
+          "coordinate": [340, 150],
+          "parameters": { "value": "2.2k" },
           "labels": [
             {
               "alignment": "start",
-              "anchor": { "fallback": [349, 35], "offset": [9, 5] },
+              "anchor": { "fallback": [349, 155], "offset": [9, 5] },
               "bind": "name",
               "format": {
                 "runs": [
@@ -509,7 +509,7 @@
             },
             {
               "alignment": "start",
-              "anchor": { "fallback": [349, 55], "offset": [9, 25] },
+              "anchor": { "fallback": [349, 175], "offset": [9, 25] },
               "bind": "value",
               "id": "R7-value",
               "kind": "instance-value",
@@ -518,52 +518,15 @@
           ]
         },
         {
-          "type": "resistor",
-          "name": "R8",
-          "id": "R8",
-          "coordinate": [340, 150],
-          "parameters": { "value": "1k" },
-          "labels": [
-            {
-              "alignment": "start",
-              "anchor": { "fallback": [349, 155], "offset": [9, 5] },
-              "bind": "name",
-              "format": {
-                "runs": [
-                  {
-                    "children": ["R"],
-                    "styles": ["italic", "bold"]
-                  },
-                  {
-                    "children": ["8"],
-                    "styles": ["subscript", "bold"]
-                  }
-                ]
-              },
-              "id": "R8-reference",
-              "kind": "instance-label",
-              "order": 25
-            },
-            {
-              "alignment": "start",
-              "anchor": { "fallback": [349, 175], "offset": [9, 25] },
-              "bind": "value",
-              "id": "R8-value",
-              "kind": "instance-value",
-              "order": 26
-            }
-          ]
-        },
-        {
           "type": "capacitor",
           "name": "C4",
           "id": "C4",
-          "coordinate": [380, 60],
+          "coordinate": [380, 110],
           "rotation": 90,
           "parameters": { "value": "10u" },
           "labels": [
             {
-              "anchor": { "fallback": [410, 20], "offset": [30, -40] },
+              "anchor": { "fallback": [400, 70], "offset": [20, -40] },
               "bind": "name",
               "format": {
                 "runs": [
@@ -579,27 +542,27 @@
               },
               "id": "C4-reference",
               "kind": "instance-label",
-              "order": 27
+              "order": 25
             },
             {
-              "anchor": { "fallback": [410, 42], "offset": [30, -18] },
+              "anchor": { "fallback": [400, 92], "offset": [20, -18] },
               "bind": "value",
               "id": "C4-value",
               "kind": "instance-value",
-              "order": 28
+              "order": 26
             }
           ]
         },
         {
           "type": "resistor",
-          "name": "R9",
-          "id": "R9",
-          "coordinate": [420, 110],
-          "parameters": { "value": "10k" },
+          "name": "R8",
+          "id": "R8",
+          "coordinate": [420, 150],
+          "parameters": { "value": "1k" },
           "labels": [
             {
               "alignment": "start",
-              "anchor": { "fallback": [429, 115], "offset": [9, 5] },
+              "anchor": { "fallback": [429, 155], "offset": [9, 5] },
               "bind": "name",
               "format": {
                 "runs": [
@@ -608,22 +571,22 @@
                     "styles": ["italic", "bold"]
                   },
                   {
-                    "children": ["9"],
+                    "children": ["8"],
                     "styles": ["subscript", "bold"]
                   }
                 ]
               },
-              "id": "R9-reference",
+              "id": "R8-reference",
               "kind": "instance-label",
-              "order": 29
+              "order": 27
             },
             {
               "alignment": "start",
-              "anchor": { "fallback": [429, 135], "offset": [9, 25] },
+              "anchor": { "fallback": [429, 175], "offset": [9, 25] },
               "bind": "value",
-              "id": "R9-value",
+              "id": "R8-value",
               "kind": "instance-value",
-              "order": 30
+              "order": 28
             }
           ]
         },
@@ -631,12 +594,12 @@
           "type": "capacitor",
           "name": "C5",
           "id": "C5",
-          "coordinate": [470, 110],
+          "coordinate": [470, 150],
           "parameters": { "value": "100p" },
           "labels": [
             {
               "alignment": "start",
-              "anchor": { "fallback": [482, 115], "offset": [12, 5] },
+              "anchor": { "fallback": [482, 155], "offset": [12, 5] },
               "bind": "name",
               "format": {
                 "runs": [
@@ -652,87 +615,87 @@
               },
               "id": "C5-reference",
               "kind": "instance-label",
-              "order": 31
+              "order": 29
             },
             {
               "alignment": "start",
-              "anchor": { "fallback": [482, 135], "offset": [12, 25] },
+              "anchor": { "fallback": [482, 175], "offset": [12, 25] },
               "bind": "value",
               "id": "C5-value",
               "kind": "instance-value",
-              "order": 32
+              "order": 30
             }
           ]
         },
         {
           "type": "ground",
-          "id": "gnd43",
+          "id": "gnd44",
           "coordinate": [60, 180]
         },
         {
           "type": "ground",
-          "id": "gnd45",
+          "id": "gnd46",
           "coordinate": [140, 190]
         },
         {
           "type": "ground",
-          "id": "gnd47",
+          "id": "gnd48",
           "coordinate": [200, 190]
         },
         {
           "type": "ground",
-          "id": "gnd49",
+          "id": "gnd50",
           "coordinate": [260, 190]
         },
         {
           "type": "ground",
-          "id": "gnd51",
+          "id": "gnd52",
           "coordinate": [340, 190]
         },
         {
           "type": "ground",
-          "id": "gnd53",
-          "coordinate": [420, 150]
+          "id": "gnd54",
+          "coordinate": [420, 190]
         },
         {
           "type": "ground",
-          "id": "gnd55",
-          "coordinate": [470, 150]
+          "id": "gnd56",
+          "coordinate": [470, 190]
         }
       ],
       "routes": [
         {
           "end": { "junction": "j2" },
-          "id": "tap-63a",
+          "id": "tap-58a",
           "legId": "route-leg-814de2d88a5d370e",
           "presentation": "power-rail",
           "start": { "junction": "power-1-start" }
         },
         {
           "end": { "junction": "j4" },
-          "id": "tap-64a",
-          "legId": "route-leg-dfe4a838d289dc22",
+          "id": "tap-59a",
+          "legId": "route-leg-c7d87f69b0176a88",
           "presentation": "power-rail",
           "start": { "junction": "j2" }
         },
         {
           "end": { "junction": "j6" },
-          "id": "tap-65a",
-          "legId": "route-leg-6f9b67e480d60699",
+          "id": "tap-60a",
+          "legId": "route-leg-b7e80a3722965801",
           "presentation": "power-rail",
           "start": { "junction": "j4" }
         },
         {
           "end": { "junction": "j8" },
-          "id": "tap-66a",
-          "legId": "route-leg-071405f3f5e32ae0",
+          "id": "tap-61a",
+          "legId": "route-leg-77e38118b5b20ca5",
           "presentation": "power-rail",
           "start": { "junction": "j6" }
         },
         {
           "end": { "junction": "power-1-end" },
-          "id": "tap-66b",
-          "legId": "route-leg-c0e3d5e38fc601b7",
+          "id": "tap-61b",
+          "legId": "route-leg-f79fb1fd862c6e0c",
           "presentation": "power-rail",
           "start": { "junction": "j8" }
         },
@@ -755,7 +718,7 @@
           "start": { "junction": "j6" }
         },
         {
-          "end": { "terminal": ["R7", "1"] },
+          "end": { "terminal": ["Q2", "C"] },
           "id": "wire9",
           "legId": "route-leg-420bd705478a53ff",
           "start": { "junction": "j8" }
@@ -863,93 +826,93 @@
           "start": { "junction": "j28" }
         },
         {
-          "end": { "terminal": ["Q2", "C"] },
-          "id": "wire33",
-          "legId": "route-leg-79667995a6d44e8b",
-          "start": { "terminal": ["R7", "2"] }
-        },
-        {
-          "end": { "terminal": ["C4", "2"] },
+          "end": { "junction": "j33" },
           "id": "wire34",
           "legId": "route-leg-3cfef3c1c6be4866",
-          "start": { "terminal": ["Q2", "C"] }
-        },
-        {
-          "end": { "terminal": ["R8", "1"] },
-          "id": "wire35",
-          "legId": "route-leg-54fbf1b8448879c5",
           "start": { "terminal": ["Q2", "E"] }
         },
         {
-          "end": { "junction": "j36" },
-          "id": "wire37",
-          "legId": "route-leg-6e8351e01c0980a7",
+          "end": { "terminal": ["R7", "1"] },
+          "id": "wire35",
+          "legId": "route-leg-54fbf1b8448879c5",
+          "start": { "junction": "j33" }
+        },
+        {
+          "end": { "terminal": ["C4", "2"] },
+          "id": "wire36",
+          "legId": "route-leg-812ae3a826a82ec8",
+          "start": { "junction": "j33" }
+        },
+        {
+          "end": { "junction": "j37" },
+          "id": "wire38",
+          "legId": "route-leg-31e54c0c3bc51192",
           "start": { "terminal": ["C4", "1"] }
         },
         {
-          "end": { "junction": "j38" },
-          "id": "wire39",
-          "legId": "route-leg-3ae021abe78b3a11",
-          "start": { "junction": "j36" }
+          "end": { "junction": "j39" },
+          "id": "wire40",
+          "legId": "route-leg-8fd1ecb0c29d4965",
+          "start": { "junction": "j37" }
         },
         {
           "end": { "terminal": ["port-out", "P"] },
-          "id": "wire40",
-          "legId": "route-leg-8fd1ecb0c29d4965",
-          "start": { "junction": "j38" }
-        },
-        {
-          "end": { "terminal": ["R9", "1"] },
           "id": "wire41",
           "legId": "route-leg-c73ef712ee8fd806",
-          "start": { "junction": "j36" }
+          "start": { "junction": "j39" }
+        },
+        {
+          "end": { "terminal": ["R8", "1"] },
+          "id": "wire42",
+          "legId": "route-leg-a7a64cd898acbbc7",
+          "start": { "junction": "j37" }
         },
         {
           "end": { "terminal": ["C5", "1"] },
-          "id": "wire42",
-          "legId": "route-leg-a7a64cd898acbbc7",
-          "start": { "junction": "j38" }
+          "id": "wire43",
+          "legId": "route-leg-b4fa66f6d908d468",
+          "start": { "junction": "j39" }
         },
         {
-          "end": { "terminal": ["gnd43", "0"] },
-          "id": "wire44",
-          "legId": "route-leg-ea1f1cbef724d749",
+          "end": { "terminal": ["gnd44", "0"] },
+          "id": "wire45",
+          "legId": "route-leg-d2223ec8795adc4a",
           "start": { "terminal": ["R2", "2"] }
         },
         {
-          "end": { "terminal": ["gnd45", "0"] },
-          "id": "wire46",
-          "legId": "route-leg-01f37ce6cd3449ab",
+          "end": { "terminal": ["gnd46", "0"] },
+          "id": "wire47",
+          "legId": "route-leg-14d18eaed80160bc",
           "start": { "terminal": ["R4", "2"] }
         },
         {
-          "end": { "terminal": ["gnd47", "0"] },
-          "id": "wire48",
-          "legId": "route-leg-691ff4eed963a74d",
+          "end": { "terminal": ["gnd48", "0"] },
+          "id": "wire49",
+          "legId": "route-leg-60251f4f2d9d7ece",
           "start": { "terminal": ["C2", "2"] }
         },
         {
-          "end": { "terminal": ["gnd49", "0"] },
-          "id": "wire50",
-          "legId": "route-leg-c4342a707f9b0ed8",
+          "end": { "terminal": ["gnd50", "0"] },
+          "id": "wire51",
+          "legId": "route-leg-b18c98a874fc60b7",
           "start": { "terminal": ["R6", "2"] }
         },
         {
-          "end": { "terminal": ["gnd51", "0"] },
-          "id": "wire52",
-          "legId": "route-leg-7c67c2e056e02776",
+          "end": { "terminal": ["gnd52", "0"] },
+          "id": "wire53",
+          "legId": "route-leg-99b838809eecee55",
+          "start": { "terminal": ["R7", "2"] }
+        },
+        {
+          "end": { "terminal": ["gnd54", "0"] },
+          "id": "wire55",
+          "legId": "route-leg-0bd9c8b6a983ee9b",
           "start": { "terminal": ["R8", "2"] }
         },
         {
-          "end": { "terminal": ["gnd53", "0"] },
-          "id": "wire54",
-          "legId": "route-leg-c9fa5a7c4051b02c",
-          "start": { "terminal": ["R9", "2"] }
-        },
-        {
-          "end": { "terminal": ["gnd55", "0"] },
-          "id": "wire56",
-          "legId": "route-leg-dc088a9855aa813a",
+          "end": { "terminal": ["gnd56", "0"] },
+          "id": "wire57",
+          "legId": "route-leg-f405688ed3747c39",
           "start": { "terminal": ["C5", "2"] }
         }
       ],
@@ -964,26 +927,26 @@
               "terminal": ["C5", "2"]
             },
             {
-              "terminal": ["gnd43", "0"]
+              "terminal": ["gnd44", "0"]
             },
             {
-              "terminal": ["gnd45", "0"]
+              "terminal": ["gnd46", "0"]
             },
             {
-              "terminal": ["gnd49", "0"]
+              "terminal": ["gnd50", "0"]
             },
             {
-              "terminal": ["gnd51", "0"]
+              "terminal": ["gnd52", "0"]
             },
             {
-              "terminal": ["gnd53", "0"]
+              "terminal": ["gnd54", "0"]
             }
           ]
         ]
       },
       "nets": [
         {
-          "at": { "terminal": ["R1", "1"] },
+          "at": { "terminal": ["Q2", "C"] },
           "id": "net-vcc"
         },
         {
@@ -1016,10 +979,6 @@
         },
         {
           "at": { "terminal": ["C4", "2"] },
-          "id": "net-c2"
-        },
-        {
-          "at": { "terminal": ["Q2", "E"] },
           "id": "net-e2"
         }
       ],
@@ -1075,12 +1034,16 @@
           "id": "j28"
         },
         {
-          "coordinate": [420, 60],
-          "id": "j36"
+          "coordinate": [340, 110],
+          "id": "j33"
         },
         {
-          "coordinate": [470, 60],
-          "id": "j38"
+          "coordinate": [420, 110],
+          "id": "j37"
+        },
+        {
+          "coordinate": [470, 110],
+          "id": "j39"
         }
       ],
       "annotations": [
@@ -1109,78 +1072,6 @@
           "kind": "power-label",
           "netId": "net-vcc",
           "order": 0
-        },
-        {
-          "alignment": "start",
-          "anchor": {
-            "kind": "free",
-            "position": { "x": 175, "y": 73 }
-          },
-          "bind": { "kind": "net-name", "netId": "net-c1" },
-          "id": "name-57",
-          "kind": "net-label",
-          "netId": "net-c1",
-          "order": 33
-        },
-        {
-          "alignment": "start",
-          "anchor": {
-            "kind": "free",
-            "position": { "x": 347, "y": 73 }
-          },
-          "bind": { "kind": "net-name", "netId": "net-c2" },
-          "id": "name-58",
-          "kind": "net-label",
-          "netId": "net-c2",
-          "order": 34
-        },
-        {
-          "alignment": "start",
-          "anchor": {
-            "kind": "free",
-            "position": { "x": 82, "y": 74 }
-          },
-          "bind": { "kind": "net-name", "netId": "net-b1" },
-          "id": "name-59",
-          "kind": "net-label",
-          "netId": "net-b1",
-          "order": 35
-        },
-        {
-          "alignment": "start",
-          "anchor": {
-            "kind": "free",
-            "position": { "x": 282, "y": 74 }
-          },
-          "bind": { "kind": "net-name", "netId": "net-b2" },
-          "id": "name-60",
-          "kind": "net-label",
-          "netId": "net-b2",
-          "order": 36
-        },
-        {
-          "alignment": "start",
-          "anchor": {
-            "kind": "free",
-            "position": { "x": 160, "y": 105 }
-          },
-          "bind": { "kind": "net-name", "netId": "net-e1" },
-          "id": "name-61",
-          "kind": "net-label",
-          "netId": "net-e1",
-          "order": 37
-        },
-        {
-          "alignment": "start",
-          "anchor": {
-            "kind": "free",
-            "position": { "x": 351, "y": 129 }
-          },
-          "bind": { "kind": "net-name", "netId": "net-e2" },
-          "id": "name-62",
-          "kind": "net-label",
-          "netId": "net-e2",
-          "order": 38
         }
       ],
       "drafting": { "objects": [] },
@@ -1192,54 +1083,6 @@
           "netId": "net-vcc",
           "owner": { "kind": "power-marker", "objectId": "power-1-label" },
           "powerDomain": "vdd",
-          "scope": "local"
-        },
-        {
-          "id": "claim-57",
-          "kind": "name-claim",
-          "name": "c1",
-          "netId": "net-c1",
-          "owner": { "annotationId": "name-57", "kind": "net-label" },
-          "scope": "local"
-        },
-        {
-          "id": "claim-58",
-          "kind": "name-claim",
-          "name": "c2",
-          "netId": "net-c2",
-          "owner": { "annotationId": "name-58", "kind": "net-label" },
-          "scope": "local"
-        },
-        {
-          "id": "claim-59",
-          "kind": "name-claim",
-          "name": "b1",
-          "netId": "net-b1",
-          "owner": { "annotationId": "name-59", "kind": "net-label" },
-          "scope": "local"
-        },
-        {
-          "id": "claim-60",
-          "kind": "name-claim",
-          "name": "b2",
-          "netId": "net-b2",
-          "owner": { "annotationId": "name-60", "kind": "net-label" },
-          "scope": "local"
-        },
-        {
-          "id": "claim-61",
-          "kind": "name-claim",
-          "name": "e1",
-          "netId": "net-e1",
-          "owner": { "annotationId": "name-61", "kind": "net-label" },
-          "scope": "local"
-        },
-        {
-          "id": "claim-62",
-          "kind": "name-claim",
-          "name": "e2",
-          "netId": "net-e2",
-          "owner": { "annotationId": "name-62", "kind": "net-label" },
           "scope": "local"
         }
       ],
@@ -1625,7 +1468,7 @@
         "files": [
           {
             "path": "run.cir",
-            "text": "RC-coupled BJT amplifier — functional verification\n.include \"circuit.spice\"\n.include \"models.spice\"\nVCC vcc 0 12\nVIN in 0 DC 0 AC 1 SIN(0 1m 1k)\nXDUT vcc 0 in out astra_001_rc_coupled_bjt_amplifier\n.temp 27\n* @spec gain_1khz range 50 58 unit=dB\n* @spec out_pp range 0.9 1.2 unit=V\n* @spec supply_avg range -0.0032 -0.0023 unit=A\n.control\nset filetype=ascii\nset appendwrite\nset wr_singlescale\nset wr_vecnames\nop\nprint v(xdut.c1) v(xdut.c2) v(xdut.e1) v(xdut.e2) i(vcc)\nac dec 80 1 100Meg\nlet gain=db(v(out))\nmeas ac gain_1khz FIND gain AT=1000\nwrdata ac.dat v(out)\nwrite out.raw v(out)\ntran 1u 30m\nmeas tran out_pp PP v(out) FROM=20m TO=30m\nmeas tran supply_avg AVG i(vcc) FROM=20m TO=30m\nwrdata transient.dat v(in) v(out)\nwrite out.raw v(in) v(out)\nquit\n.endc\n.end\n"
+            "text": "Common-emitter amplifier with output buffer — nominal functional verification\n.include \"circuit.spice\"\n.include \"models.spice\"\nVCC vcc 0 12\nVIN in 0 DC 0 AC 1 SIN(0 1m 1k)\nXDUT vcc 0 in out astra_006_ce_follower\n.temp 27\n* @spec gain_1khz range 40 49 unit=dB\n* @spec out_pp range 0.2 0.6 unit=V\n* @spec supply_avg range 0.002 0.006 unit=A\n.control\nset filetype=ascii\nset appendwrite\nset wr_singlescale\nset wr_vecnames\nop\nprint v(out) i(vcc)\nac dec 80 1 100Meg\nlet gain=db(v(out))\nmeas ac gain_1khz FIND gain AT=1000\nwrdata ac.dat v(out)\nwrite out.raw v(out)\ntran 2u 30m\nlet supply=-i(vcc)\nmeas tran out_pp PP v(out) FROM=20m TO=30m\nmeas tran supply_avg AVG supply FROM=20m TO=30m\nwrdata transient.dat v(in) v(out)\nwrite out.raw v(in) v(out)\nquit\n.endc\n.end\n"
           },
           {
             "path": "experiment.json",

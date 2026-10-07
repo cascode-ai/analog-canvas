@@ -1,0 +1,19 @@
+{
+  "title": "Divider-biased emitter follower",
+  "status": "published; cross-chat handover completed",
+  "devices": 11,
+  "simulator": "ngspice 46",
+  "model": "educational ANPN; not foundry/vendor",
+  "supplyV": 12,
+  "temperatureC": 27,
+  "hostedRunId": "f2c24543-0f05-4833-9ccd-f7e3e45cdc73",
+  "specs": {
+    "available": true,
+    "total": 3,
+    "passed": 3,
+    "failed": 0,
+    "notEvaluated": 0,
+    "unconstrained": 0
+  },
+  "description": "Q1 operates as a common-collector buffer. Its emitter follows the divider-biased base with slightly less than unity voltage gain; RE establishes quiescent current. CI/CO couple the signal while blocking DC, RD/CD decouple the supply, and RL/CL model a 10 kΩ load with 100 pF capacitance. At 12 V and 27°C, ngspice 46 gives −0.086 dB gain at 1 kHz, 19.80 mV peak-to-peak output for a 20 mV peak-to-peak input, and 2.104 mA supply current. The saved AC/transient experiment reproduces these measurements. This is a single-ended class-A small-signal buffer, not a rail-to-rail power stage. ANPN is an explicitly generic educational model, with no vendor or corner guarantee."
+}

@@ -1,0 +1,23 @@
+CMOS leaky integrate-and-fire neuron — nominal educational model
+.include "circuit.spice"
+.include "models.spice"
+VDD vdd 0 PWL(0 0 1u 3.3)
+IIN iin 0 PWL(0 2u 100u 2u 100.01u 4u 200u 4u)
+XDUT vdd 0 iin spike astra_014_cmos_spiking_neuron
+.temp 27
+.options method=gear reltol=1e-5
+* @spec tslow range 7.0e-6 8.6e-6 unit=s
+* @spec tfast range 3.5e-6 4.4e-6 unit=s
+* @spec pulse_width range 1.1e-7 1.8e-7 unit=s
+* @spec spike_high range 3.0 3.5 unit=V
+.control
+set filetype=ascii
+tran 1n 200u uic
+meas tran tslow TRIG v(spike) VAL=1.65 TD=30u RISE=3 TARG v(spike) VAL=1.65 TD=30u RISE=4
+meas tran tfast TRIG v(spike) VAL=1.65 TD=120u RISE=3 TARG v(spike) VAL=1.65 TD=120u RISE=4
+meas tran pulse_width TRIG v(spike) VAL=1.65 TD=30u RISE=3 TARG v(spike) VAL=1.65 TD=30u FALL=3
+meas tran spike_high MAX v(spike) FROM=30u TO=90u
+write out.raw v(spike) v(xdut.mem) v(xdut.reset)
+quit
+.endc
+.end

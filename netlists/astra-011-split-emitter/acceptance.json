@@ -1,0 +1,19 @@
+{
+  "title": "Split-emitter common-emitter amplifier",
+  "status": "published; cross-chat handover completed",
+  "devices": 14,
+  "simulator": "ngspice 46",
+  "model": "educational ANPN; not foundry/vendor",
+  "supplyV": 12,
+  "temperatureC": 27,
+  "hostedRunId": "cf4b5123-46d7-4352-9e5b-1600ff26a73a",
+  "specs": {
+    "available": true,
+    "total": 3,
+    "passed": 3,
+    "failed": 0,
+    "notEvaluated": 0,
+    "unconstrained": 0
+  },
+  "description": "A common-emitter stage with split emitter degeneration. RE stays in the AC path to linearize gain, while CE bypasses REB at signal frequencies; both resistors set the DC emitter current. RB/RG establish base bias. CI/CO block DC, RD/CD decouple the collector supply, and RL/CL model a 10 kΩ load with 100 pF capacitance. At 12 V and 27°C, ngspice 46 measures 28.218 dB gain at 1 kHz, 51.51 mV peak-to-peak output for a 2 mV peak-to-peak input, and 1.351 mA supply current. The saved Functional verification experiment reproduces AC and transient results. ANPN in models.spice is an educational generic BJT model; these nominal results are not vendor-device or process-corner qualification."
+}

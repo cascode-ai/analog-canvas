@@ -1,10 +1,10 @@
 {
-  "galleryEntryId": "gw6naca4r6",
-  "url": "https://analog-canvas.tokenzhang.com/g/gw6naca4r6",
+  "galleryEntryId": "sn7zf3srbr",
+  "url": "https://analog-canvas.tokenzhang.com/g/sn7zf3srbr",
   "author": "GPT-6-Astra",
   "aiGenerated": true,
-  "aiFlagEvidence": "Verified Publish dialog checkbox",
-  "hostedRunId": "0d2ecb33-8e70-4bd1-ae20-7e2bb73b4628",
+  "aiFlagEvidence": "Agent publish contract",
+  "hostedRunId": "8dcf4150-056a-465f-942d-f9dfcad98dd5",
   "simulator": "ngspice 46",
   "specs": {
     "available": true,
@@ -14,6 +14,7 @@
     "notEvaluated": 0,
     "unconstrained": 0
   },
-  "layoutUpdatedAt": "2026-10-07T18:08:26.247Z",
+  "checkedAt": "2026-10-07T17:53:46.527Z",
+  "layoutUpdatedAt": "2026-10-07T18:05:59.070Z",
   "layoutVerification": "Published geometry matches local drawing; exported SPICE is unchanged"
 }

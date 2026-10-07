@@ -1,0 +1,46 @@
+
+Note: No compatibility mode selected!
+
+
+Circuit: common-emitter amplifier with output buffer — nominal functional verification
+
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+No. of Data Rows : 1
+v(out) = 0.000000e+00
+i(vcc) = -3.74564e-03
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+No. of Data Rows : 641
+gain_1khz           =  4.45945e+01
+ASCII raw file "out.raw"
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+Initial Transient Solution
+--------------------------
+
+Node                                   Voltage
+----                                   -------
+vcc                                         12
+in                                           0
+xdut.net0                              2.01356
+xdut.net3                              1.29267
+xdut.net1                              5.66506
+xdut.net2                              5.96364
+out                                          0
+xdut.net4                                 4.93
+vin#branch                                   0
+vcc#branch                         -0.00374564
+
+
+No. of Data Rows : 15013
+out_pp              =  3.39318e-01 from=  2.00000e-02 to=  3.00000e-02
+supply_avg          =  3.74564e-03 from=  2.00000e-02 to=  3.00000e-02
+ASCII raw file "out.raw"
+ngspice-46 done

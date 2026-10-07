@@ -1,0 +1,31 @@
+Four-input CMOS charge-domain weighted sum
+.include "circuit.spice"
+.include "models.spice"
+VDD vdd 0 3.3
+VS sample 0 PULSE(0 3.3 1u 2n 2n 3u 10u)
+VSB sampleb 0 PULSE(3.3 0 1u 2n 2n 3u 10u)
+VR read 0 PULSE(0 3.3 5u 2n 2n 3u 10u)
+VRB readb 0 PULSE(3.3 0 5u 2n 2n 3u 10u)
+V1 v1 0 PWL(0 0.2 9u 0.2 9.1u 0.8 19u 0.8 19.1u 0.5 29u 0.5 29.1u 0 40u 0)
+V2 v2 0 PWL(0 0.4 9u 0.4 9.1u 0.6 19u 0.6 19.1u 0.5 29u 0.5 29.1u 0 40u 0)
+V3 v3 0 PWL(0 0.6 9u 0.6 9.1u 0.4 19u 0.4 19.1u 0.5 29u 0.5 29.1u 0 40u 0)
+V4 v4 0 PWL(0 0.8 9u 0.8 9.1u 0.2 19u 0.2 19.1u 0.5 29u 0.5 29.1u 1 40u 1)
+XDUT vdd 0 sample sampleb read readb v1 v2 v3 v4 out astra_015_cmos_charge_mac
+.temp 27
+.options method=gear reltol=1e-5
+* Ideal values include 100 fF output loading: weighted sum / 15.1 pF.
+* @spec ascending range 0.634 0.664 unit=V
+* @spec descending range 0.329 0.359 unit=V
+* @spec commonmode range 0.4817 0.5117 unit=V
+* @spec msb_only range 0.5148 0.5448 unit=V
+.control
+set filetype=ascii
+tran 2n 40u
+meas tran ascending FIND v(out) AT=7u
+meas tran descending FIND v(out) AT=17u
+meas tran commonmode FIND v(out) AT=27u
+meas tran msb_only FIND v(out) AT=37u
+write out.raw v(out) v(sample) v(read)
+quit
+.endc
+.end

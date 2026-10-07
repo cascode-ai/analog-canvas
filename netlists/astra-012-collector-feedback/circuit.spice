@@ -1,0 +1,14 @@
+
+.subckt astra_collector_feedback vcc vdd VSS in out
+CD vdd VSS 100u
+CI net0 net1 10u
+CL out VSS 100p
+CO out c 10u
+Q1 c net0 e ANPN
+RB c net0 220k
+RC vdd c 4.7k
+RD vdd vcc 100
+RE e VSS 1k
+RL out VSS 10k
+RS net1 in 100
+.ends astra_collector_feedback

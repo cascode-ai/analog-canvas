@@ -1,0 +1,10 @@
+{
+  "name": "BJT cascode voltage amplifier",
+  "description": "Q1 is a common-emitter input stage stacked beneath common-base Q2. The upper transistor limits the voltage swing at Q1’s collector, reducing collector-to-base feedback, while R6 converts the signal current into output voltage. R1/R2 and R4/R5 bias the two bases; C2 and C3 hold the emitter and upper base near AC ground. C1/C4 provide coupling, and R7/C5 model a 10 kΩ load with 100 pF capacitance. At 12 V and 27°C, ngspice 46 gives 41.42 dB gain at 1 kHz, 235.4 mV peak-to-peak output for a 2 mV peak-to-peak input and 1.467 mA supply current. The saved AC/transient experiment reproduces these measurements. Both BJTs use the explicit educational ANPN model; no vendor-device, tolerance or process-corner performance is claimed.",
+  "tags": [
+    "BJT",
+    "Cascode",
+    "Amplifier",
+    "Discrete"
+  ]
+}

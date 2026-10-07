@@ -1,0 +1,15 @@
+
+.subckt astra_010_darlington_gain vcc VSS in out
+C1 net0 in 1u
+C2 net3 VSS 100u
+C3 out net2 10u
+C4 out VSS 100p
+Q1 net2 net0 net1 ANPN
+Q2 net2 net1 net3 ANPN
+R1 vcc net0 100k
+R2 net0 VSS 22k
+R3 net1 VSS 47k
+R4 net3 VSS 1k
+R5 vcc net2 6.8k
+R6 out VSS 10k
+.ends astra_010_darlington_gain

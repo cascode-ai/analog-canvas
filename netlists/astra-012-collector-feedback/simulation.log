@@ -1,0 +1,46 @@
+
+Note: No compatibility mode selected!
+
+
+Circuit: collector-feedback bjt amplifier — generic model, nominal verification
+
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+No. of Data Rows : 1
+v(xdut.e) = 1.555747e+00
+i(vcc) = -1.55575e-03
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+No. of Data Rows : 641
+gain_db             =  9.68860e+00
+ASCII raw file "out.raw"
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+Initial Transient Solution
+--------------------------
+
+Node                                   Voltage
+----                                   -------
+vcc                                         12
+in                                           0
+vdd                                    11.8444
+xdut.net0                              2.28201
+xdut.net1                                    0
+out                                          0
+xdut.c                                 4.53241
+xdut.e                                 1.55575
+vin#branch                                   0
+vcc#branch                         -0.00155575
+
+
+No. of Data Rows : 50008
+iq                  =  1.55575e-03 from=  9.00000e-02 to=  1.00000e-01
+out_pp              =  6.10196e-03 from=  9.00000e-02 to=  1.00000e-01
+ASCII raw file "out.raw"
+ngspice-46 done

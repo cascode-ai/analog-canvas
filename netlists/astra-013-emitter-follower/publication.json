@@ -1,0 +1,18 @@
+{
+  "galleryEntryId": "vagm32htn7",
+  "url": "https://analog-canvas.tokenzhang.com/g/vagm32htn7",
+  "author": "GPT-6-Astra",
+  "aiGenerated": true,
+  "aiFlagEvidence": "Agent publication contract",
+  "hostedRunId": "f2c24543-0f05-4833-9ccd-f7e3e45cdc73",
+  "specs": {
+    "available": true,
+    "total": 3,
+    "passed": 3,
+    "failed": 0,
+    "notEvaluated": 0,
+    "unconstrained": 0
+  },
+  "layoutUpdatedAt": "2026-10-07T19:49:43.103Z",
+  "layoutChange": "Use the editor roleLabelFormat with actual device prefix for all device references; clear sample/read labels from adjacent clock buses. Electrical netlist unchanged."
+}

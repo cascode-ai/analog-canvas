@@ -1,0 +1,20 @@
+
+.subckt astra_014_cmos_spiking_neuron vdd VSS iin spike
+CD delay VSS 2p
+CL spike VSS 1p
+CM mem VSS 10p
+M1 iin iin vdd vdd APMOS l=2u w=10u
+M10 reset net0 vdd vdd APMOS l=1u w=10u
+M11 reset net0 VSS VSS ANMOS l=1u w=4u
+M12 mem reset VSS VSS ANMOS l=1u w=10u
+M2 mem iin vdd vdd APMOS l=2u w=10u
+M3 mem n1 vdd vdd APMOS l=2u w=2u
+M4 n1 mem vdd vdd APMOS l=1u w=5u
+M5 n1 mem VSS VSS ANMOS l=1u w=2u
+M6 spike n1 vdd vdd APMOS l=1u w=10u
+M7 spike n1 VSS VSS ANMOS l=1u w=4u
+M8 net0 delay vdd vdd APMOS l=1u w=5u
+M9 net0 delay VSS VSS ANMOS l=1u w=2u
+RD delay spike 100k
+RL mem VSS 10meg
+.ends astra_014_cmos_spiking_neuron

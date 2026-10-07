@@ -1,0 +1,14 @@
+
+.subckt astra_008_common_base vcc VSS in out
+C1 net0 VSS 47u
+C2 net3 in 100u
+C3 out net1 10u
+C4 out VSS 100p
+Q1 net1 net0 net2 ANPN
+R1 vcc net0 100k
+R2 net0 VSS 22k
+R3 vcc net1 4.7k
+R4 net2 VSS 1k
+R5 net2 net3 50
+R6 out VSS 10k
+.ends astra_008_common_base

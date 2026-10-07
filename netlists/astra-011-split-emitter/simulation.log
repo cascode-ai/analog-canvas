@@ -1,0 +1,47 @@
+
+Note: No compatibility mode selected!
+
+
+Circuit: split-emitter common-emitter amplifier — generic model, nominal verification
+
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+No. of Data Rows : 1
+v(xdut.e) = 1.272862e+00
+i(vcc) = -1.35085e-03
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+No. of Data Rows : 641
+gain_db             =  2.82179e+01
+ASCII raw file "out.raw"
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+Initial Transient Solution
+--------------------------
+
+Node                                   Voltage
+----                                   -------
+vcc                                         12
+in                                           0
+vdd                                    11.8649
+xdut.net1                              1.14684
+xdut.net0                              1.99307
+xdut.net2                                    0
+out                                          0
+xdut.c                                 5.97988
+xdut.e                                 1.27286
+vin#branch                                   0
+vcc#branch                         -0.00135085
+
+
+No. of Data Rows : 50009
+iq                  =  1.35086e-03 from=  9.00000e-02 to=  1.00000e-01
+out_pp              =  5.15107e-02 from=  9.00000e-02 to=  1.00000e-01
+ASCII raw file "out.raw"
+ngspice-46 done

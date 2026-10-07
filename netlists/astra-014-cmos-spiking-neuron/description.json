@@ -1,0 +1,11 @@
+{
+  "name": "CMOS leaky integrate-and-fire neuron",
+  "description": "A 12-MOS neuron converts input current into spike timing. M1/M2 mirror a sinking input current into CM; RL leaks membrane charge. M4/M5 detect the membrane threshold and M3 adds regenerative feedback. M6/M7 drive the spike output. RD/CD and M8–M11 delay the reset drive to M12, creating a short reset/recovery interval. At 3.3 V and 27°C, increasing input from 2 to 4 µA approximately doubles firing frequency (about 125 to 249 kHz); pulse width is about 144 ns. The saved experiment ramps the supply from 0 to 3.3 V in 1 µs and checks both firing periods, pulse width and output-high voltage. CM=10 pF, RL=10 MΩ, RD=100 kΩ, CD=2 pF; output load is 1 pF. Educational Level-1 MOS models only. Results are nominal topology demonstrations, not a biological fit or foundry signoff.",
+  "tags": [
+    "CMOS",
+    "Neuromorphic",
+    "Computing",
+    "Oscillator",
+    "Current to Frequency"
+  ]
+}

@@ -1,0 +1,18 @@
+
+.subckt astra_006_ce_follower vcc VSS in out
+C1 net0 in 1u
+C2 net3 VSS 100u
+C3 net1 net2 1u
+C4 out net4 10u
+C5 out VSS 100p
+Q1 net2 net0 net3 ANPN
+Q2 vcc net1 net4 ANPN
+R1 vcc net0 100k
+R2 net0 VSS 22k
+R3 vcc net2 4.7k
+R4 net3 VSS 1k
+R5 vcc net1 47k
+R6 net1 VSS 47k
+R7 net4 VSS 2.2k
+R8 out VSS 1k
+.ends astra_006_ce_follower

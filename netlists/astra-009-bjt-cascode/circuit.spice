@@ -1,0 +1,17 @@
+
+.subckt astra_009_bjt_cascode vcc VSS in out
+C1 net0 in 1u
+C2 net3 VSS 100u
+C3 net1 VSS 10u
+C4 out net2 10u
+C5 out VSS 100p
+Q1 net4 net0 net3 ANPN
+Q2 net2 net1 net4 ANPN
+R1 vcc net0 100k
+R2 net0 VSS 22k
+R3 net3 VSS 1k
+R4 vcc net1 68k
+R5 net1 VSS 68k
+R6 vcc net2 3.3k
+R7 out VSS 10k
+.ends astra_009_bjt_cascode

@@ -1,0 +1,25 @@
+
+.subckt astra_015_cmos_charge_mac vdd VSS sample sampleb read readb v1 v2 v3 v4 out
+C1 net0 VSS 1p
+C2 net1 VSS 2p
+C3 net2 VSS 4p
+C4 net3 VSS 8p
+CL out VSS 100f
+M1 v1 sampleb net0 vdd APMOS l=1u w=20u
+M10 v3 sample net2 VSS ANMOS l=1u w=10u
+M11 net2 readb out vdd APMOS l=1u w=20u
+M12 net2 read out VSS ANMOS l=1u w=10u
+M13 v4 sampleb net3 vdd APMOS l=1u w=20u
+M14 v4 sample net3 VSS ANMOS l=1u w=10u
+M15 net3 readb out vdd APMOS l=1u w=20u
+M16 net3 read out VSS ANMOS l=1u w=10u
+M17 out sample VSS VSS ANMOS l=1u w=10u
+M2 v1 sample net0 VSS ANMOS l=1u w=10u
+M3 net0 readb out vdd APMOS l=1u w=20u
+M4 net0 read out VSS ANMOS l=1u w=10u
+M5 v2 sampleb net1 vdd APMOS l=1u w=20u
+M6 v2 sample net1 VSS ANMOS l=1u w=10u
+M7 net1 readb out vdd APMOS l=1u w=20u
+M8 net1 read out VSS ANMOS l=1u w=10u
+M9 v3 sampleb net2 vdd APMOS l=1u w=20u
+.ends astra_015_cmos_charge_mac

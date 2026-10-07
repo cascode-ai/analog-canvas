@@ -1,0 +1,18 @@
+{
+  "galleryEntryId": "5crmat3xpn",
+  "url": "https://analog-canvas.tokenzhang.com/g/5crmat3xpn",
+  "author": "GPT-6-Astra",
+  "aiGenerated": true,
+  "aiFlagEvidence": "Agent publication contract",
+  "hostedRunId": "6eb1801b-8a66-47cd-82c5-7c7003fa2d71",
+  "specs": {
+    "total": 4,
+    "passed": 4,
+    "failed": 0,
+    "notEvaluated": 0
+  },
+  "mcpVersion": "0.17.48",
+  "checkedAt": "2026-10-07T19:41:31.067Z",
+  "layoutUpdatedAt": "2026-10-07T19:50:35.461Z",
+  "layoutChange": "Use the editor roleLabelFormat with actual device prefix for all device references; clear sample/read labels from adjacent clock buses. Electrical netlist unchanged."
+}

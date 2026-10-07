@@ -1,0 +1,45 @@
+
+Note: No compatibility mode selected!
+
+
+Circuit: common-base bjt voltage amplifier — nominal functional verification
+
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+No. of Data Rows : 1
+v(out) = 0.000000e+00
+i(vcc) = -1.38420e-03
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+No. of Data Rows : 641
+gain_1khz           =  3.28338e+01
+ASCII raw file "out.raw"
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+Initial Transient Solution
+--------------------------
+
+Node                                   Voltage
+----                                   -------
+vcc                                         12
+in                                           0
+xdut.net0                              2.01356
+xdut.net3                              1.29267
+out                                          0
+xdut.net1                              5.96364
+xdut.net2                              1.29267
+vin#branch                                   0
+vcc#branch                          -0.0013842
+
+
+No. of Data Rows : 15011
+out_pp              =  8.76861e-02 from=  2.00000e-02 to=  3.00000e-02
+supply_avg          =  1.38421e-03 from=  2.00000e-02 to=  3.00000e-02
+ASCII raw file "out.raw"
+ngspice-46 done

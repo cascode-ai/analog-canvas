@@ -1,0 +1,31 @@
+Common-base BJT voltage amplifier — nominal functional verification
+.include "circuit.spice"
+.include "models.spice"
+VCC vcc 0 12
+VIN in 0 DC 0 AC 1 SIN(0 1m 1k)
+XDUT vcc 0 in out astra_008_common_base
+.temp 27
+* @spec gain_1khz range 29 35 unit=dB
+* @spec out_pp range 0.055 0.12 unit=V
+* @spec supply_avg range 0.001 0.003 unit=A
+.control
+set filetype=ascii
+set appendwrite
+set wr_singlescale
+set wr_vecnames
+op
+print v(out) i(vcc)
+ac dec 80 1 100Meg
+let gain=db(v(out))
+meas ac gain_1khz FIND gain AT=1000
+wrdata ac.dat v(out)
+write out.raw v(out)
+tran 2u 30m
+let supply=-i(vcc)
+meas tran out_pp PP v(out) FROM=20m TO=30m
+meas tran supply_avg AVG supply FROM=20m TO=30m
+wrdata transient.dat v(in) v(out)
+write out.raw v(in) v(out)
+quit
+.endc
+.end

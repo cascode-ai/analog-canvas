@@ -1,0 +1,9 @@
+{
+  "name": "Collector-feedback BJT amplifier",
+  "description": "RB biases the base from the collector, creating negative DC feedback: increased collector current lowers the collector voltage and reduces base drive. RE adds emitter degeneration. CI and CO isolate the input and load DC levels; RD/CD filter the supply, and RL/CL represent a 10 kΩ load with 100 pF capacitance. With 12 V at 27°C, ngspice 46 gives 9.689 dB gain at 1 kHz, 6.102 mV peak-to-peak output for a 2 mV peak-to-peak input and 1.556 mA supply current. The saved experiment includes AC and transient checks. The explicit ANPN model is educational and generic; transistor spread, component tolerances and temperature extremes are not qualified.",
+  "tags": [
+    "BJT",
+    "Amplifier",
+    "Discrete"
+  ]
+}

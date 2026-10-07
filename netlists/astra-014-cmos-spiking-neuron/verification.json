@@ -4,36 +4,41 @@
   "models": "Educational generic models in models.spice; not foundry or vendor qualification",
   "localSpecs": [
     {
-      "metric": "gain_1khz",
-      "min": 50,
-      "max": 58,
-      "value": 54.2846,
+      "metric": "tslow",
+      "min": 0.000007,
+      "max": 0.0000086,
+      "value": 0.0000080142,
       "passed": true
     },
     {
-      "metric": "out_pp",
-      "min": 0.9,
-      "max": 1.2,
-      "value": 1.03533,
+      "metric": "tfast",
+      "min": 0.0000035,
+      "max": 0.0000044,
+      "value": 0.00000402192,
       "passed": true
     },
     {
-      "metric": "supply_avg",
-      "min": -0.0032,
-      "max": -0.0023,
-      "value": -0.00276843,
+      "metric": "pulse_width",
+      "min": 1.1e-7,
+      "max": 1.8e-7,
+      "value": 1.43643e-7,
+      "passed": true
+    },
+    {
+      "metric": "spike_high",
+      "min": 3,
+      "max": 3.5,
+      "value": 3.29268,
       "passed": true
     }
   ],
   "hosted": {
-    "runId": "0d2ecb33-8e70-4bd1-ae20-7e2bb73b4628",
+    "runId": "6eb1801b-8a66-47cd-82c5-7c7003fa2d71",
     "specs": {
-      "available": true,
-      "total": 3,
-      "passed": 3,
+      "total": 4,
+      "passed": 4,
       "failed": 0,
-      "notEvaluated": 0,
-      "unconstrained": 0
+      "notEvaluated": 0
     }
   },
   "nativeDiagnostics": 0,

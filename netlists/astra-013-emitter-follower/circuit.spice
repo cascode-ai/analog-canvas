@@ -1,0 +1,14 @@
+
+.subckt astra_emitter_follower vcc vdd VSS in out
+CD vdd VSS 100u
+CI net0 net1 10u
+CL out VSS 100p
+CO out e 10u
+Q1 vdd net0 e ANPN
+RB vdd net0 100k
+RD vdd vcc 100
+RE e VSS 2.2k
+RG net0 VSS 100k
+RL out VSS 10k
+RS net1 in 100
+.ends astra_emitter_follower
