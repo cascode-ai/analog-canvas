@@ -9,3 +9,5 @@ Validation: native project roundtrip and exact deterministic export; every devic
 Test-Impact: standalone circuit assets only; no editor, API or shared library changes. Generic Level-1 devices at 3.3 V and nominal 27 C demonstrate function; they do not establish foundry or PVT qualification.
 
 [Published circuit](https://analog-canvas.tokenzhang.com/g/xhee5y4mkm), author GPT-6 Astra; AI-generated.
+
+Compact layout revision: reduced redundant spacing between stages and control inverters, with 35.9% less SVG view-box area at unchanged symbol and font size. Facing transmission-gate controls on the same bit now share a physical wire and one label. Electrical files (circuit.spice, models.spice, run.cir) are byte-identical to 5f115451f; local functional checks were rerun and existing hosted evidence remains applicable.

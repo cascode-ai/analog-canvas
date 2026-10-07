@@ -14,7 +14,7 @@
       "metric": "state1",
       "min": -0.01,
       "max": 0.01,
-      "value": 1.87565e-9,
+      "value": 1.87565e-09,
       "passed": true
     },
     {
@@ -28,7 +28,7 @@
       "metric": "state3",
       "min": -0.01,
       "max": 0.01,
-      "value": 1.74429e-9,
+      "value": 1.74429e-09,
       "passed": true
     },
     {
@@ -63,7 +63,7 @@
       "metric": "state8",
       "min": -0.01,
       "max": 0.01,
-      "value": 5.80884e-7,
+      "value": 5.80884e-07,
       "passed": true
     }
   ],
@@ -82,5 +82,16 @@
       "unconstrained": 0
     },
     "execution": "completed"
+  },
+  "layoutRevision": {
+    "baseline": "5f115451f",
+    "electricalFilesByteIdentical": [
+      "circuit.spice",
+      "models.spice",
+      "run.cir"
+    ],
+    "localSpecsRerun": 9,
+    "hostedEvidenceReusedForIdenticalElectricalInput": true,
+    "viewBoxAreaReductionPercent": 31.5
   }
 }

@@ -7,14 +7,14 @@
       "metric": "sum0",
       "min": -0.01,
       "max": 0.01,
-      "value": 1.22593e-9,
+      "value": 1.22593e-09,
       "passed": true
     },
     {
       "metric": "cout0",
       "min": -0.01,
       "max": 0.01,
-      "value": 1.22593e-9,
+      "value": 1.22593e-09,
       "passed": true
     },
     {
@@ -28,7 +28,7 @@
       "metric": "cout1",
       "min": -0.01,
       "max": 0.01,
-      "value": 1.22593e-9,
+      "value": 1.22593e-09,
       "passed": true
     },
     {
@@ -42,14 +42,14 @@
       "metric": "cout2",
       "min": -0.01,
       "max": 0.01,
-      "value": 1.22593e-9,
+      "value": 1.22593e-09,
       "passed": true
     },
     {
       "metric": "sum3",
       "min": -0.01,
       "max": 0.01,
-      "value": 3.67778e-9,
+      "value": 3.67778e-09,
       "passed": true
     },
     {
@@ -70,14 +70,14 @@
       "metric": "cout4",
       "min": -0.01,
       "max": 0.01,
-      "value": 1.22593e-9,
+      "value": 1.22593e-09,
       "passed": true
     },
     {
       "metric": "sum5",
       "min": -0.01,
       "max": 0.01,
-      "value": 3.67778e-9,
+      "value": 3.67778e-09,
       "passed": true
     },
     {
@@ -91,7 +91,7 @@
       "metric": "sum6",
       "min": -0.01,
       "max": 0.01,
-      "value": 1.22593e-9,
+      "value": 1.22593e-09,
       "passed": true
     },
     {
@@ -131,5 +131,16 @@
       "unconstrained": 0
     },
     "execution": "completed"
+  },
+  "layoutRevision": {
+    "baseline": "5f115451f",
+    "electricalFilesByteIdentical": [
+      "circuit.spice",
+      "models.spice",
+      "run.cir"
+    ],
+    "localSpecsRerun": 16,
+    "hostedEvidenceReusedForIdenticalElectricalInput": true,
+    "viewBoxAreaReductionPercent": 35.9
   }
 }
