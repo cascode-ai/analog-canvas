@@ -253,6 +253,38 @@ describe("route-net", () => {
     expect(planRouteNet(next, resolver, input, 64).edits).toEqual([]);
   });
 
+  it("taps a trunk where the tap lands for a pin off the Document grid (#1438)", () => {
+    // A 4-input gate's B pin sits at y=-4, between grid lines.
+    const document = createEmptyDocument("doc", "Off-grid pins");
+    document.instances = [0, 60].map((y, index) => ({
+      id: `U${index}`,
+      reference: `U${index}`,
+      symbolId: "and-gate-4",
+      placement: { position: { x: 0, y }, rotation: 0, mirror: "none" },
+    }));
+    const pins = document.instances.map((instance) => ({
+      instanceId: instance.id,
+      pinName: "B",
+    }));
+    const next = apply(
+      document,
+      planRouteNet(
+        document,
+        resolver,
+        {
+          target: { kind: "pins", pins },
+          trunk: { start: { x: -100, y: -100 }, end: { x: -100, y: 100 } },
+        },
+        64,
+      ).edits,
+    ).document;
+    expect(next.nets).toHaveLength(1);
+    expect(next.nets[0]!.terminals).toHaveLength(2);
+    expect(
+      deriveVisibleConnectivity(next, resolver)[0]!.components,
+    ).toHaveLength(1);
+  });
+
   it("goes around another Net's pin on the way, so no Net looks shorted to another", () => {
     const { document, pins } = fixture();
     // φ1 joins R0.1 and R2.1; R1.1, between them on one line, is φ2's.

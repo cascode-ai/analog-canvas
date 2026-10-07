@@ -50,7 +50,10 @@ Segment modes such as manual, locked or trunk do not compute an autoroute.
 restricted by `net` or a member `{instanceId,pinName}`; `net` selects the
 nearest existing conductor to the other anchor. These selectors use the same
 wire planner, including a trunk created earlier in the batch, without an
-intermediate Snapshot. A `free` anchor is not an implicit tap. Crossings of
+intermediate Snapshot. A `wire-at` point must be where the tap can land: on
+the Document grid, or on the pin grid on a wire with an end there. Another
+point is refused with the nearest tap named, as an off-grid via point is
+refused; it is never moved. A `free` anchor is not an implicit tap. Crossings of
 different Nets may remain ordinary crossings, but a tap that would join them
 is rejected; specifying a Net does not make a Junction electrically isolated.
 

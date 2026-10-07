@@ -28,6 +28,7 @@ import {
 } from "./route-clearance.js";
 import type { WireIntent } from "./routing-planner.js";
 import { planWireBatch } from "./wire-batch-planner.js";
+import { routeTapLanding } from "./wire-intent-target.js";
 
 type Pin = { instanceId: string; pinName: string };
 export type RouteNetTarget =
@@ -293,9 +294,14 @@ export function planRouteNet(
             a.projected.distanceSquared - b.projected.distanceSquared ||
             a.node.key.localeCompare(b.node.key, "en"),
         )[0]!;
-      const tap = snapGridPoint(
-        best.projected.point,
-        electricalConnectionGrid(document.presentation.grid),
+      // Planned where the tap lands, which a wire-at point must be (#1438).
+      const tap = routeTapLanding(
+        { from: start, to: end },
+        snapGridPoint(
+          best.projected.point,
+          electricalConnectionGrid(document.presentation.grid),
+        ),
+        document.presentation.grid,
       );
       // The branch is drawn horizontal first, as an unconstrained wire is.
       const from = best.node.point;
@@ -477,7 +483,11 @@ function planNetTree(
           if (from.x !== to.x && from.y !== to.y) return [];
           const projected = projectPointToSegment(node.point, from, to);
           if (!projected) return [];
-          const foot = snapGridPoint(projected.point, tapGrid);
+          const foot = routeTapLanding(
+            { from, to },
+            snapGridPoint(projected.point, tapGrid),
+            document.presentation.grid,
+          );
           if (
             same(foot, from) ||
             same(foot, to) ||
