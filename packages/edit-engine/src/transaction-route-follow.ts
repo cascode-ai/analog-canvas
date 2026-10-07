@@ -349,10 +349,10 @@ export function applyInstancesRouteFollow(
   for (const originalRoute of originalDocument.routes) {
     const originalEnd = routeEnd(originalRoute);
     if (explicitlyAuthoredRouteIds.has(originalRoute.id)) continue;
-    const movesFrom =
+    let movesFrom =
       originalRoute.start.kind === "terminal" &&
       instanceIds.has(originalRoute.start.instanceId);
-    const movesTo =
+    let movesTo =
       originalEnd.kind === "terminal" &&
       instanceIds.has(originalEnd.instanceId);
     if (!movesFrom && !movesTo) continue;
@@ -372,6 +372,28 @@ export function applyInstancesRouteFollow(
       ? resolveEndpointConnection(draft, resolver, routeEnd(route))
       : null;
     if (!route || !original || !newFrom || !newTo) continue;
+
+    const oldFrom = resolveEndpointConnection(
+      originalDocument,
+      originalResolver,
+      originalRoute.start,
+    );
+    const oldTo = resolveEndpointConnection(
+      originalDocument,
+      originalResolver,
+      originalEnd,
+    );
+    const sameConnection = (before: typeof oldFrom, after: typeof newFrom) =>
+      before !== null &&
+      samePoint(before.contactPoint, after.contactPoint) &&
+      (before.outward === null
+        ? after.outward === null
+        : after.outward !== null && samePoint(before.outward, after.outward));
+    movesFrom = movesFrom && !sameConnection(oldFrom, newFrom);
+    movesTo = movesTo && !sameConnection(oldTo, newTo);
+    // A definition's model or interface spelling can change without moving
+    // its contacts. Preserve authored geometry in that case.
+    if (!movesFrom && !movesTo) continue;
 
     const points = original.points.map((point) => ({ ...point }));
     const modes = [...original.segmentModes];

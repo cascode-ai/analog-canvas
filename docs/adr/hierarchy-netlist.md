@@ -36,6 +36,18 @@ and terminal IDs preserve call relationships during explicit interface migration
 Library interfaces and unimplemented placeholders remain distinct; missing model
 knowledge is never inferred from artwork.
 
+Explicit interface migration keeps compatible custom artwork. A changed custom
+pin name creates an immutable captured artwork variant, retargets the affected
+callers and maps their logical and routed endpoints in the same Project
+transaction. Stable terminal IDs remain the electrical identity; a captured
+symbol is presentation, not another model body or ordered interface. Editing an
+existing captured ID to different content is refused. Generated blocks continue
+to derive from the definition. The shared caller planner serves internal Cells
+and external circuits; the Project resolver, connectivity, rendering and netlist
+consumers all resolve the resulting instance symbol through that same capture.
+Replacing custom artwork with a generic block would move existing wire contacts;
+keeping the old pin names would split the drawn and electrical interfaces.
+
 One authored Instance Reference gives copy, rename and export one collision
 policy. Custom annotation text remains presentation: matching spelling is not
 an instruction to resume following the electrical name.

@@ -37,6 +37,58 @@ import {
 } from "./project-transaction.js";
 
 describe("default project entry", () => {
+  it("keeps captured artwork immutable and rolls back a conflicting batch", () => {
+    const project = createEmptyProject("capture", "Capture");
+    const snapshot = {
+      symbol: {
+        ...structuredClone(builtInSymbols.find((s) => s.id === "resistor")!),
+        id: "captured-resistor",
+      },
+    };
+    const envelope = {
+      projectId: project.id,
+      expectedStructureRevision: project.structureRevision,
+      transactionId: "capture",
+      actor: { kind: "human" as const, id: "local" },
+    };
+    const first = executeProjectTransaction(project, {
+      ...envelope,
+      edits: [{ kind: "capture_component_definition", definition: snapshot }],
+    });
+    if (!first.ok) throw new Error(JSON.stringify(first));
+    const repeated = executeProjectTransaction(first.project, {
+      ...envelope,
+      expectedStructureRevision: first.project.structureRevision,
+      edits: [{ kind: "capture_component_definition", definition: snapshot }],
+    });
+    expect(repeated.ok).toBe(true);
+    if (!repeated.ok) throw new Error(JSON.stringify(repeated));
+    expect(repeated.project.componentDefinitions).toEqual([snapshot]);
+    const original = structuredClone(first.project);
+    const rejected = executeProjectTransaction(first.project, {
+      ...envelope,
+      expectedStructureRevision: first.project.structureRevision,
+      edits: [
+        {
+          kind: "add_document",
+          document: createEmptyDocument("must-rollback", "Must roll back"),
+        },
+        {
+          kind: "capture_component_definition",
+          definition: {
+            symbol: {
+              ...snapshot.symbol,
+              name: "Changed under same ID",
+            },
+          },
+        },
+      ],
+    });
+    expect(rejected.ok).toBe(false);
+    if (rejected.ok) throw new Error("Expected capture conflict");
+    expect(rejected.error.message).toContain("Captured artwork is immutable");
+    expect(first.project).toEqual(original);
+  });
   it("reorders definitions atomically with Top without changing their contents", () => {
     const project = createEmptyProject("order", "Order");
     project.documents.push(
@@ -2374,12 +2426,12 @@ describe("a Cell symbol's pins change sides (#1316)", () => {
       }),
     });
     if (!unmoved.ok) throw new Error(unmoved.error.message);
-    // The follow still lays both wires again; neither moved.
+    // Neither contact moved, so authored wires are left untouched.
     expect(
       unmoved.documentResults.flatMap((item) =>
         item.ok ? item.diff.changedObjectIds : [],
       ),
-    ).toContain("wire-A");
+    ).not.toContain("wire-A");
     expect(
       unmoved.documentResults.flatMap((item) =>
         item.ok ? item.diff.changedObjectIds : [],

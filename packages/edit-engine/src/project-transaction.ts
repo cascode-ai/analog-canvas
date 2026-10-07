@@ -1,5 +1,6 @@
 import {
   CircuitProjectSchema,
+  ComponentDefinitionSchema,
   ExternalSubcircuitDefinitionSchema,
   SourceFileRecordSchema,
   SchematicDocumentSchema,
@@ -50,6 +51,10 @@ import type {
 } from "./transaction-result.js";
 
 export const ProjectStructureEditSchema = z.discriminatedUnion("kind", [
+  z.strictObject({
+    kind: z.literal("capture_component_definition"),
+    definition: ComponentDefinitionSchema,
+  }),
   z.strictObject({
     kind: z.literal("apply_model_source"),
     source: ProjectModelSourceSchema,
@@ -700,6 +705,25 @@ export function executeProjectTransaction(
       continue;
     }
 
+    if (edit.kind === "capture_component_definition") {
+      const previous = candidate.componentDefinitions?.find(
+        (definition) => definition.symbol.id === edit.definition.symbol.id,
+      );
+      if (previous) {
+        if (JSON.stringify(previous) === JSON.stringify(edit.definition))
+          continue;
+        return rejectProjectTransaction(
+          project,
+          "EDIT_PRECONDITION",
+          "Captured artwork is immutable; use a new symbol ID for a changed interface",
+        );
+      }
+      candidate.componentDefinitions ??= [];
+      candidate.componentDefinitions.push(structuredClone(edit.definition));
+      structuralChange = true;
+      continue;
+    }
+
     if (edit.kind === "upsert_model_source") {
       structuralChange = true;
       const source = structuredClone(edit.source);
@@ -754,6 +778,10 @@ export function executeProjectTransaction(
               edit.definition.terminals.map((terminal) => terminal.name),
             );
       const externalSymbolId = externalSubcircuitSymbolId(edit.definition.id);
+      const currentResolver = createProjectSymbolResolver(
+        candidate,
+        builtInSymbols,
+      );
       for (const document of candidate.documents) {
         let changed = false;
         for (const instance of document.instances) {
@@ -764,8 +792,31 @@ export function executeProjectTransaction(
           ) {
             continue;
           }
+          // The atomic interface planner owns explicit caller reconciliation,
+          // including its revision. Do not replace that caller in advance.
+          if (
+            transaction.edits
+              .slice(editIndex + 1)
+              .some(
+                (planned) =>
+                  planned.kind === "transact_document" &&
+                  planned.documentId === document.id &&
+                  planned.edits.some(
+                    (operation) =>
+                      operation.kind === "set_instance_symbol" &&
+                      operation.instanceId === instance.id,
+                  ),
+              )
+          )
+            continue;
           const symbolId =
-            reviewedMapping?.symbolId === instance.symbolId
+            reviewedMapping?.symbolId === instance.symbolId ||
+            (instance.symbolId !== externalSymbolId &&
+              edit.definition.terminals.every((terminal) =>
+                currentResolver
+                  .resolve(instance.symbolId)
+                  ?.definition.pins.some((pin) => pin.name === terminal.name),
+              ))
               ? instance.symbolId
               : externalSymbolId;
           if (instance.symbolId === symbolId) continue;
@@ -954,7 +1005,43 @@ export function executeProjectTransaction(
         resolver,
         callerIds,
       );
-      if (followEdits.length === 0) continue;
+      const reflowEdits = planInstanceLabelReflow(
+        parent,
+        callerIds,
+        originalResolver,
+        resolver,
+      );
+      const symbolChanged = parent.instances.some((instance) => {
+        if (!callerIds.has(instance.id)) return false;
+        const before = originalParent.instances.find(
+          (i) => i.id === instance.id,
+        );
+        return (
+          before &&
+          JSON.stringify(
+            originalResolver.resolve(before.symbolId, before.symbolVariantId),
+          ) !==
+            JSON.stringify(
+              resolver.resolve(instance.symbolId, instance.symbolVariantId),
+            )
+        );
+      });
+      // A grown body can strike labels without moving a contact. Reflow that
+      // geometry independently; a body-only model edit has no drawing work.
+      const bodyLabelEdits =
+        followEdits.length === 0 && symbolChanged && options.arrangeStruckLabels
+          ? options.arrangeStruckLabels(
+              { document: originalParent, resolver: originalResolver },
+              parent,
+              resolver,
+            )
+          : [];
+      if (
+        followEdits.length === 0 &&
+        reflowEdits.length === 0 &&
+        bodyLabelEdits.length === 0
+      )
+        continue;
       const withRedrawn = (extra: readonly SchematicEdit[]) => {
         const redrawn = new Set(
           extra.flatMap((edit) =>
@@ -1006,15 +1093,7 @@ export function executeProjectTransaction(
       // The callers' labels keep their place beside the changed block, and
       // labels its redrawn wiring or its grown block newly cover move clear
       // (#1366).
-      const reflowed = [
-        ...routeEdits,
-        ...planInstanceLabelReflow(
-          parent,
-          callerIds,
-          originalResolver,
-          resolver,
-        ),
-      ];
+      const reflowed = [...routeEdits, ...reflowEdits, ...bodyLabelEdits];
       const followed = follow(reflowed);
       const labelEdits =
         followed.ok && options.arrangeStruckLabels
@@ -1028,6 +1107,7 @@ export function executeProjectTransaction(
       const labelled = labelEdits.length
         ? follow([...reflowed, ...labelEdits])
         : null;
+      if (!followed.ok && !labelled?.ok && routeEdits.length === 0) continue;
       const routeResult = labelled?.ok
         ? labelled
         : followed.ok
