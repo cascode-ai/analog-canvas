@@ -106,6 +106,25 @@ describe("wire batch replay", () => {
     expect(plan).toMatch(/Ambiguous wire crossing/);
     expect(h.document).toEqual(before);
   });
+  it("refuses a wire-at point the tap could not land on, naming the tap it could (#1438)", () => {
+    const h = history();
+    commit(h, [wire("rail", free(80, 40), free(80, 80))]);
+    const before = structuredClone(h.document);
+    const plan = planWireBatch(
+      h.document,
+      resolver,
+      [wire("tap", free(0, 55), at(80, 55))],
+      512,
+    );
+    expect(plan).toMatch(
+      /wire-at \(80, 55\) is off the grid .*nearest tap on it is \(80, 60\)/,
+    );
+    expect(h.document).toEqual(before);
+    commit(h, [wire("tap", free(0, 60), at(80, 60))]);
+    expect(
+      h.document.junctions.map((junction) => junction.position),
+    ).toContainEqual({ x: 80, y: 60 });
+  });
   it("resolves successive bias taps without referencing normalized-away endpoints", () => {
     const h = history();
     commit(h, [

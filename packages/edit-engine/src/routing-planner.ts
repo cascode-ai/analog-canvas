@@ -43,7 +43,6 @@ import type {
 } from "@icm/model";
 import {
   createRoutePath,
-  electricalConnectionGrid,
   routeBends,
   routeEnd,
   routeEndpoints,
@@ -61,7 +60,10 @@ import { rebuildRoutePath } from "./route-leg-mutation.js";
 import { planPowerRailPinContacts } from "./power-rail-contact-planner.js";
 import type { ExpectedElectricalEffect } from "./routing-operation-plan.js";
 import { splitRoutePieceIds } from "./split-route-ids.js";
-import { resolveWireIntentTarget } from "./wire-intent-target.js";
+import {
+  resolveWireIntentTarget,
+  routeTapLanding,
+} from "./wire-intent-target.js";
 
 export interface WireEndpointGeometry {
   connection: EndpointRoutingGeometry;
@@ -2150,27 +2152,13 @@ export function createRouteWireAnchor(
   resolver?: SymbolResolver,
 ): WireSource {
   const junctionId = ids.junctionId;
-  // Preserve a fine-grid tap only when the conductor itself has a fine-grid
-  // endpoint. A normal conductor tapped at x=196 must still land at x=200.
-  const fineGrid = electricalConnectionGrid(grid);
-  const segment = resolver
-    ? resolveRouteGeometry(document, resolver, route)?.segments[segmentIndex]
-    : undefined;
-  const segmentUsesFineGrid =
-    segment &&
-    [segment.from, segment.to].some(
-      (end) => end.x % grid !== 0 || end.y % grid !== 0,
-    );
-  const tapIsFine =
-    segmentUsesFineGrid &&
-    (point.x % grid !== 0 || point.y % grid !== 0) &&
-    point.x % fineGrid === 0 &&
-    point.y % fineGrid === 0;
-  const pitch = tapIsFine ? fineGrid : grid;
-  const splitPoint = {
-    x: Math.round(point.x / pitch) * pitch,
-    y: Math.round(point.y / pitch) * pitch,
-  };
+  const splitPoint = routeTapLanding(
+    resolver
+      ? resolveRouteGeometry(document, resolver, route)?.segments[segmentIndex]
+      : undefined,
+    point,
+    grid,
+  );
   return {
     endpoint: { kind: "junction", junctionId },
     netId: route.netId,
