@@ -45,8 +45,13 @@ self.addEventListener("activate", (event) => {
 });
 
 function isStaticAsset(request) {
-  return ["script", "style", "image", "font", "manifest"].includes(
-    request.destination,
+  return (
+    ["script", "style", "image", "font", "manifest"].includes(
+      request.destination,
+    ) ||
+    // The PDF exporter reads the faces it embeds with fetch(), which has no
+    // destination; a font file is the same asset either way.
+    /\.(?:ttf|woff2?)$/u.test(new URL(request.url).pathname)
   );
 }
 

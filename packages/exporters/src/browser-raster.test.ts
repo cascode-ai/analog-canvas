@@ -50,10 +50,18 @@ describe("a PNG carries the schematic faces (#1413)", () => {
     await rasterizeFormalSvgInBrowser(labelled);
     const svg = await drawn[0]!.text();
     expect(fetched).toHaveLength(4);
-    expect(svg.match(/@font-face\{font-family:"DejaVu Sans"/gu)).toHaveLength(
-      4,
+    // Each face inlined behind an installed one; none blanks text while it
+    // decodes.
+    const rules = svg.match(/@font-face\{[^}]*\}/gu) ?? [];
+    expect(rules).toHaveLength(4);
+    expect(
+      rules.every((rule) =>
+        rule.includes('url("data:font/woff;base64,d09GRg==")'),
+      ),
+    ).toBe(true);
+    expect(rules.every((rule) => rule.includes("font-display:swap"))).toBe(
+      true,
     );
-    expect(svg).toContain('src:url("data:font/woff;base64,d09GRg==")');
     // The faces style the document before anything it draws.
     expect(svg.indexOf("<style>")).toBeLessThan(svg.indexOf("<text>"));
     expect(svg.endsWith("<text>R1</text></svg>")).toBe(true);

@@ -12,6 +12,12 @@
  */
 const glyphs =
   " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~ΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩΪΫάέήίΰαβγδεζηθικλμνξοπρςστυφχψω°±×÷−√∞≈≠≤≥";
+/**
+ * Every character these tables measure. The schematic font the editor
+ * serves holds them all (packages/exporters/fonts, #1413), so text measured
+ * here is drawn in the face it was measured in.
+ */
+export const SCHEMATIC_MEASURED_GLYPHS = glyphs;
 const plainAdvances = [
   651, 821, 942, 1716, 1303, 1946, 1597, 563, 799, 799, 1024, 1716, 651, 739,
   651, 690, 1303, 1303, 1303, 1303, 1303, 1303, 1303, 1303, 1303, 1303, 690,

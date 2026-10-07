@@ -60,6 +60,8 @@ export async function rasterizeFormalSvgInBrowser(
   );
   try {
     const image = await loadImage(svgUrl);
+    // Drawn once decoded, with the faces it carries, where a browser can say.
+    await image.decode?.().catch(() => {});
     canvas = document.createElement("canvas");
     canvas.width = width;
     canvas.height = height;
