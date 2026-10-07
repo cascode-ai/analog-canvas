@@ -61,7 +61,10 @@ import { rebuildRoutePath } from "./route-leg-mutation.js";
 import { planPowerRailPinContacts } from "./power-rail-contact-planner.js";
 import type { ExpectedElectricalEffect } from "./routing-operation-plan.js";
 import { splitRoutePieceIds } from "./split-route-ids.js";
-import { resolveWireIntentTarget } from "./wire-intent-target.js";
+import {
+  resolveWireIntentTarget,
+  routeTapLanding,
+} from "./wire-intent-target.js";
 
 export interface WireEndpointGeometry {
   connection: EndpointRoutingGeometry;
@@ -2150,27 +2153,13 @@ export function createRouteWireAnchor(
   resolver?: SymbolResolver,
 ): WireSource {
   const junctionId = ids.junctionId;
-  // Preserve a fine-grid tap only when the conductor itself has a fine-grid
-  // endpoint. A normal conductor tapped at x=196 must still land at x=200.
-  const fineGrid = electricalConnectionGrid(grid);
-  const segment = resolver
-    ? resolveRouteGeometry(document, resolver, route)?.segments[segmentIndex]
-    : undefined;
-  const segmentUsesFineGrid =
-    segment &&
-    [segment.from, segment.to].some(
-      (end) => end.x % grid !== 0 || end.y % grid !== 0,
-    );
-  const tapIsFine =
-    segmentUsesFineGrid &&
-    (point.x % grid !== 0 || point.y % grid !== 0) &&
-    point.x % fineGrid === 0 &&
-    point.y % fineGrid === 0;
-  const pitch = tapIsFine ? fineGrid : grid;
-  const splitPoint = {
-    x: Math.round(point.x / pitch) * pitch,
-    y: Math.round(point.y / pitch) * pitch,
-  };
+  const splitPoint = routeTapLanding(
+    resolver
+      ? resolveRouteGeometry(document, resolver, route)?.segments[segmentIndex]
+      : undefined,
+    point,
+    grid,
+  );
   return {
     endpoint: { kind: "junction", junctionId },
     netId: route.netId,
@@ -2377,12 +2366,17 @@ export function proposeWireIntent(
       );
       if (segmentIndex < 0)
         return `Wire route leg does not exist: ${anchor.legId}`;
+      // A named tap lands exactly where it is asked, on the pin grid as a via
+      // point does, and is refused off it; it is never moved (#1438).
+      const pitch = electricalConnectionGrid(document.presentation.grid);
+      if (anchor.point.x % pitch !== 0 || anchor.point.y % pitch !== 0)
+        return `Tap (${anchor.point.x}, ${anchor.point.y}) is off grid ${pitch}; a tap on a wire, like a via point, must align to it`;
       return createRouteWireAnchor(
         document,
         route,
         anchor.point,
         segmentIndex,
-        document.presentation.grid,
+        pitch,
         {
           junctionId: `${intent.id}-${side}-junction`,
           ...splitRoutePieceIds(route.id, `${intent.id}-${side}`),
@@ -2404,6 +2398,15 @@ export function proposeWireIntent(
   if (typeof from === "string") return from;
   const to = source(intent.to, "to");
   if (typeof to === "string") return to;
+  const diagonal =
+    intent.routingMode || !intent.waypoints?.length
+      ? undefined
+      : diagonalViaStep([
+          from.connection.gridLanding,
+          ...intent.waypoints,
+          to.connection.gridLanding,
+        ]);
+  if (diagonal) return diagonal;
   const draft: WireDraftOptions = {
     ...(intent.routingMode ? { routingMode: intent.routingMode } : {}),
     ...(intent.cornerOrder ? { cornerOrder: intent.cornerOrder } : {}),
@@ -2425,6 +2428,24 @@ export function proposeWireIntent(
     },
     draft,
   );
+}
+
+/**
+ * A 45° step along the requested path (the ends' landings and the via points
+ * between them) reads as a diagonal, which the default orthogonal routing
+ * would bend into a corner: refused unless a routing mode is named, never
+ * silently drawn as an L (#1437).
+ */
+function diagonalViaStep(path: readonly Point[]): string | undefined {
+  const index = path.findIndex((point, at) => {
+    const next = path[at + 1];
+    if (!next) return false;
+    const dx = Math.abs(next.x - point.x);
+    return dx > 0 && dx === Math.abs(next.y - point.y);
+  });
+  if (index < 0) return undefined;
+  const at = (point: Point) => `(${point.x}, ${point.y})`;
+  return `The step ${at(path[index]!)} → ${at(path[index + 1]!)} is 45°, which orthogonal routing would bend into a corner. Pass routingMode "octilinear" to keep the diagonal, or "orthogonal" for the corner.`;
 }
 
 /**

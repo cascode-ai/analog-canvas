@@ -156,8 +156,11 @@ remain valid only while their objects survive the edit lifecycle and are not
 exposed as an alternate Agent naming protocol.
 
 `wireIntent` has the same Route planner as interactive Wire. Its optional
-`routingMode` is `orthogonal` (default), `octilinear`, or `free` ([Routing rationale](../adr/routing.md));
-an optional
+`routingMode` is `orthogonal` (default), `octilinear`, or `free` ([Routing rationale](../adr/routing.md)).
+Left out, it refuses waypoints with a 45-degree step between them or from an
+end's landing, which orthogonal routing would bend into a corner. A tap on a
+Route (`wire-at` or `route-segment`) lands exactly at its point, which must
+align to the pin grid as a waypoint does; it is refused off it. An optional
 `cornerOrder` selects the deterministic diagonal/orthogonal pair used when an
 exact 45-degree leg cannot reach the target. It never creates a diagonal-only
 edit or a second Route model.
@@ -188,7 +191,12 @@ See [execution and resources](simulation-execution.md).
 sibling, advertised in `capabilities` as `resources.project`. `list-gallery`,
 `read-gallery-entry`, and the response-size-bounded `read-gallery-entries`
 provide cursor-paged access to every public Gallery entry, complete canonical
-Project Code, and an optional generated SPICE or Spectre netlist.
+Project Code, and an optional generated SPICE or Spectre netlist. Each entry
+states its saved AI mark as `aiGenerated`. Adapters parse these answers
+strictly; from the release that reads `aiGenerated` on, an adapter that meets
+a field it does not know reports the schema failure with where to update
+itself (`/api/agent/mcp-manifest.json`). The MCP release that reads a new
+field ships before the Editor sends it.
 `publish-gallery-entry` and `update-gallery-entry` put the working copy its tab
 shows on the Gallery through the Editor's own Publish client, under the
 signed-in Editor session, with the Publish dialog's fields (`name`,

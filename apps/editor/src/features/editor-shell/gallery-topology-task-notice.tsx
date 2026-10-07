@@ -16,6 +16,10 @@ export function GalleryTopologyTaskNotice({
     galleryTopologyTask.getSnapshot,
   );
   if (hidden || !task.snapshot || task.noticeDismissed) return null;
+  const found = (count: number) =>
+    count === 0
+      ? "no close match"
+      : `${count} ${count === 1 ? "result" : "results"}`;
   return (
     <aside
       className="gallery-topology-task-notice"
@@ -28,7 +32,7 @@ export function GalleryTopologyTaskNotice({
           : task.failure || task.report?.error || task.report?.sourceError
             ? `Saved duplicate check for “${task.snapshot.name}” needs review`
             : task.report?.complete
-              ? `Duplicate check finished · ${task.report.matches.length} results`
+              ? `Duplicate check finished · ${found(task.report.matches.length)}`
               : "Duplicate check cancelled"}
       </span>
       <button type="button" onClick={onOpen}>

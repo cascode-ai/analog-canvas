@@ -106,6 +106,54 @@ describe("wire batch replay", () => {
     expect(plan).toMatch(/Ambiguous wire crossing/);
     expect(h.document).toEqual(before);
   });
+  it("taps a wire exactly at a wire-at point on the pin grid and refuses one off it (#1438)", () => {
+    const h = history();
+    commit(h, [wire("rail", free(80, 40), free(80, 80))]);
+    const before = structuredClone(h.document);
+    expect(
+      planWireBatch(
+        h.document,
+        resolver,
+        [wire("tap", free(0, 50), at(80, 55))],
+        512,
+      ),
+    ).toMatch(/Tap \(80, 55\) is off grid 2/);
+    expect(h.document).toEqual(before);
+    commit(h, [wire("tap", free(0, 56), at(80, 56))]);
+    expect(
+      h.document.junctions.map((junction) => junction.position),
+    ).toContainEqual({ x: 80, y: 56 });
+  });
+  it("refuses a 45° via step unless a routing mode is named (#1437)", () => {
+    const h = history();
+    const via = [
+      { x: 0, y: 40 },
+      { x: 40, y: 40 },
+      { x: 80, y: 80 },
+      { x: 200, y: 80 },
+    ];
+    const step = wire("step", free(0, 20), free(200, 100), via);
+    expect(planWireBatch(h.document, resolver, [step], 512)).toMatch(
+      /step \(40, 40\) → \(80, 80\) is 45°.*routingMode "octilinear"/,
+    );
+    // A first via point 45° from the start's landing reads the same way.
+    expect(
+      planWireBatch(
+        h.document,
+        resolver,
+        [wire("lead", free(0, 0), free(200, 40), [{ x: 40, y: 40 }])],
+        512,
+      ),
+    ).toMatch(/step \(0, 0\) → \(40, 40\) is 45°/);
+    commit(h, [{ ...step, routingMode: "octilinear" }]);
+    const route = h.document.routes[0]!;
+    expect(
+      resolveRouteGeometry(h.document, resolver, route)!.centerline,
+    ).toContainEqual({ x: 80, y: 80 });
+    expect(
+      resolveRouteGeometry(h.document, resolver, route)!.centerline,
+    ).not.toContainEqual({ x: 80, y: 40 });
+  });
   it("resolves successive bias taps without referencing normalized-away endpoints", () => {
     const h = history();
     commit(h, [
@@ -334,6 +382,20 @@ describe("an Agent connect keeps clear of parts and other Nets (#1257)", () => {
       endpointKeys: new Set(ends.map(endpointKey)),
     }).conflict(points, ends);
   };
+
+  it("never refuses its own detour as a 45° step (#1437)", () => {
+    // Blocked both ways, the detour's last corner sits 45° from R2.1's
+    // landing; the planner draws that step as a corner, as it chose to.
+    const document = createEmptyDocument("doc", "Detour");
+    document.instances.push(
+      resistor("R1", 20, 90, 270),
+      resistor("R2", 80, 40, 180),
+      resistor("R3", 20, 60, 90),
+      resistor("R4", 60, 90),
+    );
+    const cleared = committedPath(history(document), { keepClear: true });
+    expect(typeof cleared, String(cleared)).not.toBe("string");
+  });
 
   it("detours around a part its own path would cross, and refuses via points through it", () => {
     // Where the planner's own path runs, a part is then put in its way.

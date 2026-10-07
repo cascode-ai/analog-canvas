@@ -1574,14 +1574,19 @@ test("narrows the wall by netlist mark and by the reader's own likes", async ({
       netlistable,
       likes: liked ? 1 : 0,
       likedByViewer: liked,
+      // The extractable one an Agent drew; the sketch is by hand.
+      aiGenerated: netlistable,
     });
     const all = [
       tile("f-ready", "Extractable", true, false),
       tile("f-sketch", "Sketch", false, true),
     ];
+    const netlist = url.searchParams.get("netlistable");
+    const ai = url.searchParams.get("ai");
     const entries = all.filter(
       (entry) =>
-        (url.searchParams.get("netlistable") !== "1" || entry.netlistable) &&
+        (netlist === null || entry.netlistable === (netlist === "1")) &&
+        (ai === null || entry.aiGenerated === (ai === "1")) &&
         (url.searchParams.get("liked") !== "1" || entry.likedByViewer),
     );
     return route.fulfill({ json: { entries, nextCursor: null } });
@@ -1607,6 +1612,36 @@ test("narrows the wall by netlist mark and by the reader's own likes", async ({
   await expect(page.getByTestId("gallery-mark-empty")).toBeVisible();
 
   await page.getByTestId("gallery-filter-netlistable").click();
+  await expect(page.getByTestId("gallery-tile-f-sketch")).toBeVisible();
+  await expect(page.getByTestId("gallery-tile-f-ready")).toHaveCount(0);
+  await page.getByTestId("gallery-filter-liked").click();
+
+  // The sides of a pair exclude each other: choosing "Without netlist" after
+  // "With netlist" moves the choice, and choosing it again shows both.
+  const withNetlist = page.getByTestId("gallery-filter-netlistable");
+  const withoutNetlist = page.getByTestId("gallery-filter-without-netlist");
+  await withNetlist.click();
+  await withoutNetlist.click();
+  await expect(withNetlist).toHaveAttribute("aria-pressed", "false");
+  await expect(withoutNetlist).toHaveAttribute("aria-pressed", "true");
+  await expect(page).toHaveURL(/netlist=0/u);
+  await expect(page.getByTestId("gallery-tile-f-sketch")).toBeVisible();
+  await expect(page.getByTestId("gallery-tile-f-ready")).toHaveCount(0);
+  await withoutNetlist.click();
+  await expect(page.getByTestId("gallery-tile-f-ready")).toBeVisible();
+  await expect(page).not.toHaveURL(/netlist=/u);
+
+  // Only AI-generated, then only by hand, the same way.
+  const ai = page.getByTestId("gallery-filter-ai");
+  const human = page.getByTestId("gallery-filter-human");
+  await expect(ai).toContainText("AI generated");
+  await ai.click();
+  await expect(page).toHaveURL(/ai=1/u);
+  await expect(page.getByTestId("gallery-tile-f-ready")).toBeVisible();
+  await expect(page.getByTestId("gallery-tile-f-sketch")).toHaveCount(0);
+  await human.click();
+  await expect(ai).toHaveAttribute("aria-pressed", "false");
+  await expect(page).toHaveURL(/ai=0/u);
   await expect(page.getByTestId("gallery-tile-f-sketch")).toBeVisible();
   await expect(page.getByTestId("gallery-tile-f-ready")).toHaveCount(0);
 });
@@ -2785,9 +2820,12 @@ test("the tag sidebar resizes by dragging and keyboard, remembers width and adap
   const drag = async (delta: number) => {
     const bounds = (await handle.boundingBox())!;
     const x = bounds.x + bounds.width / 2;
-    await page.mouse.move(x, bounds.y + 30);
+    // Below the sticky header, however far focus scrolled the Gallery: a
+    // full filter list makes the column taller than the window.
+    const y = Math.max(bounds.y, 0) + 100;
+    await page.mouse.move(x, y);
     await page.mouse.down();
-    await page.mouse.move(x + delta, bounds.y + 100, { steps: 5 });
+    await page.mouse.move(x + delta, y + 70, { steps: 5 });
     await page.mouse.up();
   };
   await expectWidth(238);

@@ -26,6 +26,7 @@ import {
   type GalleryTagOption,
   type GalleryLandingPreload,
   withLoadedTail,
+  type GalleryQuickFilterCounts,
 } from "../gallery-client";
 import { galleryEntryMatchesQuery } from "../gallery-search";
 import {
@@ -159,6 +160,55 @@ function NetlistIcon() {
     >
       <rect x="4.5" y="3" width="15" height="18" rx="2.5" />
       <path d="M8 8.5h8M8 12.5h8M8 16.5h5" />
+    </svg>
+  );
+}
+
+/** A quick filter's row, highlighted while it narrows the wall. */
+function quickMarkClass(selected: boolean): string {
+  return selected
+    ? "gallery-tag-option gallery-tag-mark gallery-tag-selected"
+    : "gallery-tag-option gallery-tag-mark";
+}
+
+/** "Without netlist": the netlist glyph, struck through. */
+function NoNetlistIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="12"
+      height="12"
+      aria-hidden="true"
+      focusable="false"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2.2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x="4.5" y="3" width="15" height="18" rx="2.5" />
+      <path d="M3 21 21 3" />
+    </svg>
+  );
+}
+
+/** "Made by hand": a person, the other side of the AI mark. */
+function PersonIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="12"
+      height="12"
+      aria-hidden="true"
+      focusable="false"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2.2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="12" cy="8" r="4" />
+      <path d="M4.5 21a7.5 7.5 0 0 1 15 0" />
     </svg>
   );
 }
@@ -405,6 +455,23 @@ function countAttentionKinds(
   return counts;
 }
 
+/** The pair counts the Worker sent, with one entry taken off the wall. */
+function pairCountsWithout(
+  counts: GalleryQuickFilterCounts,
+  entry: GalleryFeedEntry,
+  removed: boolean,
+): Pick<GalleryQuickFilterCounts, "withoutNetlist" | "ai" | "human"> {
+  const less = (key: "withoutNetlist" | "ai" | "human", matches: boolean) =>
+    counts[key] === undefined
+      ? {}
+      : { [key]: counts[key]! - Number(removed && matches) };
+  return {
+    ...less("withoutNetlist", entry.netlistable !== true),
+    ...less("ai", entry.aiGenerated === true),
+    ...less("human", entry.aiGenerated !== true),
+  };
+}
+
 /** The reason counts once one entry has left the wall. */
 function attentionKindsWithout(
   counts: Record<string, number> | undefined,
@@ -457,6 +524,8 @@ export function GalleryFeed({
     tags: selectedTags,
     search: searchQuery,
     netlistable: netlistableOnly,
+    withoutNetlist: withoutNetlistOnly,
+    ai: aiFilter,
     liked: likedOnly,
     attention: attentionOnly,
     attentionKind,
@@ -484,6 +553,8 @@ export function GalleryFeed({
       ownerUserId,
       tags: selectedTags,
       netlistable: netlistableOnly,
+      withoutNetlist: withoutNetlistOnly,
+      ai: aiFilter,
       liked: likedOnly,
       attention: attentionOnly,
       attentionKind,
@@ -495,6 +566,8 @@ export function GalleryFeed({
       ownerUserId,
       selectedTags,
       netlistableOnly,
+      withoutNetlistOnly,
+      aiFilter,
       likedOnly,
       attentionOnly,
       attentionKind,
@@ -703,6 +776,7 @@ export function GalleryFeed({
                 netlistable:
                   previous.filterCounts.netlistable -
                   Number(removed && entry.netlistable === true),
+                ...pairCountsWithout(previous.filterCounts, entry, removed),
                 liked:
                   previous.filterCounts.liked +
                   Number(liked) -
@@ -904,6 +978,7 @@ export function GalleryFeed({
               netlistable:
                 previous.filterCounts.netlistable -
                 Number(entry.netlistable === true),
+              ...pairCountsWithout(previous.filterCounts, entry, true),
               liked:
                 previous.filterCounts.liked -
                 Number(entry.likedByViewer === true),
@@ -1132,15 +1207,23 @@ export function GalleryFeed({
       updateFilters({ author: byline });
   }, [ownerUserId, author, byline]);
   const localQuickCounts = searchingLoaded || !state.filterCounts;
+  const loadedCount = (keep: (entry: GalleryFeedEntry) => boolean) =>
+    visibleEntries.filter(keep).length;
+  // The loaded circuits answer what the server has not: a text search, or a
+  // Worker from before a count existed.
+  const loadedQuickCounts = {
+    attention: loadedCount(
+      (entry) => entry.attention?.status === "needs-attention",
+    ),
+    netlistable: loadedCount((entry) => entry.netlistable === true),
+    withoutNetlist: loadedCount((entry) => entry.netlistable !== true),
+    ai: loadedCount((entry) => entry.aiGenerated === true),
+    human: loadedCount((entry) => entry.aiGenerated !== true),
+    liked: loadedCount((entry) => entry.likedByViewer === true),
+  };
   const quickCounts = localQuickCounts
-    ? {
-        attention: visibleEntries.filter(
-          (entry) => entry.attention?.status === "needs-attention",
-        ).length,
-        netlistable: visibleEntries.filter((entry) => entry.netlistable).length,
-        liked: visibleEntries.filter((entry) => entry.likedByViewer).length,
-      }
-    : state.filterCounts!;
+    ? loadedQuickCounts
+    : { ...loadedQuickCounts, ...state.filterCounts! };
   const quickCountsPartial = localQuickCounts && state.nextCursor !== null;
   // The reason menu counts the same wall the Needs attention count does.
   const attentionKindCounts: Record<string, number> = localQuickCounts
@@ -1189,7 +1272,7 @@ export function GalleryFeed({
       </button>
     );
   });
-  const quickCount = (key: "attention" | "netlistable" | "liked") => (
+  const quickCount = (key: keyof typeof loadedQuickCounts) => (
     <span
       className="gallery-sidebar-count"
       title={
@@ -1395,13 +1478,49 @@ export function GalleryFeed({
                     </select>
                   </label>
                 ) : null}
+                {/* Two pairs. The sides of a pair exclude each other: choosing
+                    one moves the choice there, and choosing it again shows
+                    both sides. */}
                 <button
                   type="button"
-                  className={
-                    netlistableOnly
-                      ? "gallery-tag-option gallery-tag-mark gallery-tag-selected"
-                      : "gallery-tag-option gallery-tag-mark"
+                  className={quickMarkClass(aiFilter === "ai")}
+                  data-testid="gallery-filter-ai"
+                  aria-pressed={aiFilter === "ai"}
+                  title={
+                    aiFilter === "ai"
+                      ? "Show circuits however they were made"
+                      : "Show only AI-generated circuits"
                   }
+                  onClick={() =>
+                    updateFilters({ ai: aiFilter === "ai" ? null : "ai" })
+                  }
+                >
+                  <span className="gallery-tile-mark gallery-tile-ai">AI</span>{" "}
+                  <span>AI generated</span>
+                  {quickCount("ai")}
+                </button>
+                <button
+                  type="button"
+                  className={quickMarkClass(aiFilter === "human")}
+                  data-testid="gallery-filter-human"
+                  aria-pressed={aiFilter === "human"}
+                  title={
+                    aiFilter === "human"
+                      ? "Show circuits however they were made"
+                      : "Show only circuits not marked AI-generated"
+                  }
+                  onClick={() =>
+                    updateFilters({
+                      ai: aiFilter === "human" ? null : "human",
+                    })
+                  }
+                >
+                  <PersonIcon /> <span>Human made</span>
+                  {quickCount("human")}
+                </button>
+                <button
+                  type="button"
+                  className={quickMarkClass(netlistableOnly)}
                   data-testid="gallery-filter-netlistable"
                   aria-pressed={netlistableOnly}
                   title={
@@ -1410,20 +1529,39 @@ export function GalleryFeed({
                       : "Show only circuits that extract to a netlist"
                   }
                   onClick={() =>
-                    updateFilters({ netlistable: !netlistableOnly })
+                    updateFilters({
+                      netlistable: !netlistableOnly,
+                      withoutNetlist: false,
+                    })
                   }
                 >
                   <NetlistIcon /> <span>With netlist</span>
                   {quickCount("netlistable")}
                 </button>
+                <button
+                  type="button"
+                  className={quickMarkClass(withoutNetlistOnly)}
+                  data-testid="gallery-filter-without-netlist"
+                  aria-pressed={withoutNetlistOnly}
+                  title={
+                    withoutNetlistOnly
+                      ? "Stop filtering by netlist"
+                      : "Show only circuits that do not extract to a netlist"
+                  }
+                  onClick={() =>
+                    updateFilters({
+                      withoutNetlist: !withoutNetlistOnly,
+                      netlistable: false,
+                    })
+                  }
+                >
+                  <NoNetlistIcon /> <span>Without netlist</span>
+                  {quickCount("withoutNetlist")}
+                </button>
                 {signedIn || likedOnly ? (
                   <button
                     type="button"
-                    className={
-                      likedOnly
-                        ? "gallery-tag-option gallery-tag-mark gallery-tag-selected"
-                        : "gallery-tag-option gallery-tag-mark"
-                    }
+                    className={quickMarkClass(likedOnly)}
                     data-testid="gallery-filter-liked"
                     aria-pressed={likedOnly}
                     title={
@@ -1728,6 +1866,8 @@ export function GalleryFeed({
                 !narrowedToAuthor &&
                 selectedTags.length === 0 &&
                 !netlistableOnly &&
+                !withoutNetlistOnly &&
+                aiFilter === null &&
                 !likedOnly &&
                 selectedParts.length > 0 ? (
                   <p
@@ -1739,7 +1879,10 @@ export function GalleryFeed({
                 ) : null}
                 {entries.length === 0 &&
                 !narrowedToAuthor &&
-                (netlistableOnly || likedOnly) ? (
+                (netlistableOnly ||
+                  withoutNetlistOnly ||
+                  aiFilter !== null ||
+                  likedOnly) ? (
                   <p
                     className="gallery-status"
                     data-testid="gallery-mark-empty"
@@ -1748,9 +1891,22 @@ export function GalleryFeed({
                       ? "Sign in to collect the circuits you like."
                       : likedOnly && netlistableOnly
                         ? "None of the circuits you liked extracts to a netlist yet."
-                        : likedOnly
+                        : likedOnly && !withoutNetlistOnly && aiFilter === null
                           ? "You have not liked any circuits yet."
-                          : "No circuits here extract to a netlist yet."}
+                          : likedOnly ||
+                              [
+                                netlistableOnly,
+                                withoutNetlistOnly,
+                                aiFilter !== null,
+                              ].filter(Boolean).length > 1
+                            ? "No circuits match these filters."
+                            : netlistableOnly
+                              ? "No circuits here extract to a netlist yet."
+                              : withoutNetlistOnly
+                                ? "Every circuit here extracts to a netlist."
+                                : aiFilter === "ai"
+                                  ? "No AI-generated circuits here yet."
+                                  : "No circuits made by hand here yet."}
                   </p>
                 ) : null}
                 {!localhostExamplesEnabled() &&

@@ -7,6 +7,7 @@ import {
   resolveRouteGeometry,
 } from "@icm/derived";
 import {
+  electricalConnectionGrid,
   foldNetName,
   routeEnd,
   type Point,
@@ -14,6 +15,34 @@ import {
 } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 import type { WireIntentAnchor } from "./routing-planner.js";
+
+/**
+ * Where a tap at `point` on a conductor's segment lands. A fine-grid tap is
+ * kept only when the conductor itself has a fine-grid end; a normal conductor
+ * tapped at x=196 still lands at x=200.
+ */
+export function routeTapLanding(
+  segment: { readonly from: Point; readonly to: Point } | undefined,
+  point: Point,
+  grid: number,
+): Point {
+  const fineGrid = electricalConnectionGrid(grid);
+  const segmentUsesFineGrid =
+    segment &&
+    [segment.from, segment.to].some(
+      (end) => end.x % grid !== 0 || end.y % grid !== 0,
+    );
+  const tapIsFine =
+    segmentUsesFineGrid &&
+    (point.x % grid !== 0 || point.y % grid !== 0) &&
+    point.x % fineGrid === 0 &&
+    point.y % fineGrid === 0;
+  const pitch = tapIsFine ? fineGrid : grid;
+  return {
+    x: Math.round(point.x / pitch) * pitch,
+    y: Math.round(point.y / pitch) * pitch,
+  };
+}
 
 /** Resolve geometry selectors on the current planning draft, never a client Snapshot. */
 export function resolveWireIntentTarget(
@@ -73,7 +102,9 @@ export function resolveWireIntentTarget(
     const hits = records
       .flatMap(({ geometry }) => {
         const hit = nearestRouteSegment(geometry, near);
-        return hit ? [hit] : [];
+        return hit
+          ? [{ ...hit, segment: geometry.segments[hit.address.segmentIndex] }]
+          : [];
       })
       .sort((a, b) => a.distanceSquared - b.distanceSquared);
     if (!hits.length) {
@@ -92,10 +123,12 @@ export function resolveWireIntentTarget(
           }
         : "Net has no route or Junction geometry; connect pin-to-pin first";
     }
-    point = {
-      x: Math.round(hits[0]!.point.x),
-      y: Math.round(hits[0]!.point.y),
-    };
+    // The nearest conductor is tapped where a pointer there would land.
+    point = routeTapLanding(
+      hits[0]!.segment,
+      { x: Math.round(hits[0]!.point.x), y: Math.round(hits[0]!.point.y) },
+      document.presentation.grid,
+    );
   } else point = anchor.point;
   const matches = records.flatMap(({ route, geometry }) =>
     geometry.segments

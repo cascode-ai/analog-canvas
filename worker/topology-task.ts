@@ -5,6 +5,7 @@ import {
 import { parseProject } from "@icm/project-protocol";
 import type { GalleryFeedEntry } from "../apps/editor/src/gallery-client";
 import type { GalleryTopologyMatchReport } from "../apps/editor/src/gallery-topology-match";
+import { closeTopologyMatches } from "../apps/editor/src/gallery-topology-selection";
 import { sessionUserOf } from "./auth";
 import type { GalleryEnv, GalleryNamespaceLike } from "./gallery-do";
 
@@ -276,19 +277,21 @@ export class TopologyTaskDO {
                   : {}),
               },
             },
-          ].sort(
-            (a, b) =>
-              b.similarity - a.similarity ||
-              Number(b.exact) - Number(a.exact) ||
-              a.entry.id.localeCompare(b.entry.id),
-          );
+          ];
+          // The browser check's ranking and selection, then the stored
+          // result's bounds.
+          const shown = closeTopologyMatches(ranked);
           let bytes = 0;
-          job.report.matches = ranked.filter((match, index) => {
+          job.report.matches = shown.matches.filter((match, index) => {
             bytes += new TextEncoder().encode(JSON.stringify(match)).length;
             return index < RESULT_LIMIT && bytes <= RESULT_BYTES;
           });
+          // Only kept matches carry over, so each entry adds what it leaves out.
           job.report.omittedMatches =
-            job.report.comparable - job.report.matches.length;
+            (job.report.omittedMatches ?? 0) +
+            shown.omitted +
+            shown.matches.length -
+            job.report.matches.length;
         } catch {
           job.report.uncheckable++;
         }

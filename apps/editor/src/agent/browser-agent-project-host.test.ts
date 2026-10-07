@@ -201,6 +201,7 @@ describe("BrowserAgentProjectHost", () => {
               schemaVersion: galleryProject.schemaVersion,
               tags: ["ota"],
               netlistable: true,
+              aiGenerated: true,
             },
           ],
           nextCursor: "next-page",
@@ -243,7 +244,10 @@ describe("BrowserAgentProjectHost", () => {
       }),
     ).resolves.toMatchObject({
       ok: true,
-      entries: [{ id: "entry-1", author: "Magic Li", tags: ["ota"] }],
+      // The saved AI mark is stated, read only (#1439).
+      entries: [
+        { id: "entry-1", author: "Magic Li", tags: ["ota"], aiGenerated: true },
+      ],
       nextCursor: "next-page",
       total: 520,
     });
@@ -257,6 +261,8 @@ describe("BrowserAgentProjectHost", () => {
       }),
     ).resolves.toMatchObject({
       ok: true,
+      // An entry the Gallery does not mark says so too.
+      entry: { id: "entry-1", aiGenerated: false },
       projectCode: expect.stringContaining('"name": "Gallery OTA"'),
       netlist: { format: "spectre", status: "ready" },
     });

@@ -1289,7 +1289,15 @@ export class GalleryDO {
    */
   private feedConditions(
     body: Record<string, unknown>,
-    options: { tags: boolean; attentionKind?: boolean; parts?: boolean },
+    options: {
+      tags: boolean;
+      attentionKind?: boolean;
+      parts?: boolean;
+      /** False leaves out the with/without netlist choice, for its counts. */
+      netlist?: boolean;
+      /** False leaves out the AI/by-hand choice, for its counts. */
+      ai?: boolean;
+    },
   ): {
     conditions: string[];
     bindings: (string | number)[];
@@ -1338,7 +1346,15 @@ export class GalleryDO {
         bindings.push(kind);
       }
     }
-    if (body.netlistable === true) conditions.push("e.netlistable = 1");
+    // Two pairs whose sides exclude each other. Their counts leave their own
+    // choice out, or choosing one side would zero the other beside it.
+    if (options.netlist !== false) {
+      if (body.netlistable === true) conditions.push("e.netlistable = 1");
+      else if (body.withoutNetlist === true)
+        conditions.push("e.netlistable = 0");
+    }
+    if (options.ai !== false && (body.ai === "ai" || body.ai === "human"))
+      conditions.push(`e.ai_generated = ${body.ai === "ai" ? 1 : 0}`);
     // A search narrows the wall before its counts and cursor, so totals, tags,
     // contributors and pages all describe the same circuits.
     const search = requestedSearch(body);
@@ -1427,11 +1443,9 @@ export class GalleryDO {
       .exec<{
         total: number;
         attention: number;
-        netlistable: number;
         liked: number;
       }>(
         `SELECT COUNT(*) AS total,
-           COUNT(CASE WHEN e.netlistable = 1 THEN 1 END) AS netlistable,
            COUNT(CASE WHEN EXISTS (SELECT 1 FROM gallery_likes
              WHERE entry_id = e.id AND user_id = ?) THEN 1 END) AS liked,
            COUNT(CASE WHEN ? != '' AND (? = 1 OR e.owner_user_id = ?)
@@ -1444,6 +1458,7 @@ export class GalleryDO {
         ...bindings,
       )
       .toArray()[0]!;
+    const pairs = this.pairCounts(body);
     const attentionKinds =
       body.attention === true ? this.attentionKindCounts(body) : undefined;
     const componentRanges = this.componentRangeCounts(body);
@@ -1491,12 +1506,50 @@ export class GalleryDO {
       authors,
       filterCounts: {
         attention: Number(counts.attention),
-        netlistable: Number(counts.netlistable),
         liked: Number(counts.liked),
+        ...pairs,
         ...(attentionKinds ? { attentionKinds } : {}),
         componentRanges,
       },
     });
+  }
+
+  /**
+   * Both sides of the two pairs, with netlist and without, AI-generated and
+   * by hand, each counted with every other filter applied but its own pair's
+   * choice left out: what choosing that side would show.
+   */
+  private pairCounts(body: Record<string, unknown>): {
+    netlistable: number;
+    withoutNetlist: number;
+    ai: number;
+    human: number;
+  } {
+    const count = (
+      omit: { netlist: false } | { ai: false },
+      column: "netlistable" | "ai_generated",
+    ) => {
+      const { conditions, bindings } = this.feedConditions(body, {
+        tags: true,
+        ...omit,
+      });
+      return this.sql
+        .exec<{ yes: number; no: number }>(
+          `SELECT COUNT(CASE WHEN e.${column} = 1 THEN 1 END) AS yes,
+             COUNT(CASE WHEN e.${column} = 0 THEN 1 END) AS no
+           FROM gallery_entries e WHERE ${conditions.join(" AND ")}`,
+          ...bindings,
+        )
+        .one();
+    };
+    const netlist = count({ netlist: false }, "netlistable");
+    const ai = count({ ai: false }, "ai_generated");
+    return {
+      netlistable: Number(netlist.yes),
+      withoutNetlist: Number(netlist.no),
+      ai: Number(ai.yes),
+      human: Number(ai.no),
+    };
   }
 
   /**

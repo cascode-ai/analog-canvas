@@ -144,7 +144,9 @@ export function GalleryTopologyCheck({
           : shown?.complete && !shown.sourceError
             ? exactCount > 0
               ? `${exactCount} exact topology ${exactCount === 1 ? "match" : "matches"}; ${shown.comparable} comparable circuits checked.`
-              : `No confirmed exact match; ${shown.comparable} comparable circuits checked.`
+              : shown.matches.length > 0
+                ? `No exact match, ${shown.matches.length} close; ${shown.comparable} comparable circuits checked.`
+                : `No close match; ${shown.comparable} comparable circuits checked.`
             : null}
       </span>
       {shown?.uncheckable ? (
@@ -168,7 +170,7 @@ export function GalleryTopologyCheck({
           {shown.sourceError ?? shown.error}
         </p>
       ) : null}
-      {shown?.complete && !shown.sourceError && shown.matches.length === 0 ? (
+      {shown?.complete && !shown.sourceError && shown.comparable === 0 ? (
         <p className="publish-duplicate-message">
           No comparable Gallery circuits were found.
         </p>

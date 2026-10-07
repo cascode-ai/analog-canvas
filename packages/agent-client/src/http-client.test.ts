@@ -313,6 +313,34 @@ describe("agent http client", () => {
       }),
     ).rejects.toMatchObject({ code: "INVALID_RESPONSE" });
   });
+  it("tells an adapter older than the Editor where to update it", async () => {
+    // A Project answer in a newer contract, with a field this one lacks.
+    const http = new AgentHttpClient({
+      baseUrl: BASE,
+      fetch: async () =>
+        jsonResponse(200, {
+          apiVersion: "3.0",
+          requestId: "req-1",
+          operation: "read-project-code",
+          ok: true,
+          projectCode: "{}",
+          structureRevision: 1,
+          newerField: true,
+        }),
+    });
+    await expect(
+      http.projects("s", "t", {
+        apiVersion: "3.0",
+        requestId: "req-1",
+        operation: "read-project-code",
+      }),
+    ).rejects.toMatchObject({
+      code: "INVALID_RESPONSE",
+      message: expect.stringContaining(
+        `update it from ${BASE}/api/agent/mcp-manifest.json`,
+      ),
+    });
+  });
   it("maps editor-offline and bare status codes to typed failures", async () => {
     const offline = new AgentHttpClient({
       baseUrl: BASE,

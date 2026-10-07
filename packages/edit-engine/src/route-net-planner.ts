@@ -449,6 +449,8 @@ function planNetTree(
       from: { kind: "endpoint", endpoint: seed.a.node.endpoint },
       to: { kind: "endpoint", endpoint: seed.b.node.endpoint },
       ...(seed.path.waypoints.length ? { waypoints: seed.path.waypoints } : {}),
+      // The clear path is orthogonal; its corners are the planner's (#1437).
+      routingMode: "orthogonal",
       cornerOrder: seed.path.cornerOrder,
     });
     join(seed.a.component, seed.path.points);
@@ -518,6 +520,8 @@ function planNetTree(
         ? { kind: "endpoint", endpoint: best.endpoint }
         : { kind: "wire-at", point: best.point },
       ...(best.path.waypoints.length ? { waypoints: best.path.waypoints } : {}),
+      // The clear path is orthogonal; its corners are the planner's (#1437).
+      routingMode: "orthogonal",
       cornerOrder: best.path.cornerOrder,
     });
     join(best.component, best.path.points);
