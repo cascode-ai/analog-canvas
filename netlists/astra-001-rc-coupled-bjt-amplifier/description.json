@@ -1,0 +1,12 @@
+{
+  "name": "RC-coupled BJT voltage amplifier",
+  "description": "Two RC-coupled common-emitter stages. R1/R2 and R5/R6 set the base biases, while R4 and R8 stabilize the emitter currents. C2 bypasses R4 at signal frequencies, giving Q1 most of the voltage gain. R8 remains unbypassed, so Q2 has local feedback and a more stable, lower gain. C1, C3 and C4 block DC between the input, the stages and the load; they also set the low-frequency roll-off. R9 and C5 represent a 10 kΩ load with 100 pF capacitance. The collector voltages settle near 5.96 V, leaving headroom on a 12 V supply. With the educational ANPN model saved in models.spice, ngspice 46 gives 54.3 dB gain at 1 kHz and 1.04 V peak-to-peak output for a 2 mV peak-to-peak input, drawing 2.77 mA at 27°C. The saved Functional verification experiment reproduces the AC and transient results. The generic model demonstrates the topology; its values are not a vendor-device or process-corner guarantee.",
+  "tags": [
+    "BJT",
+    "Common Emitter",
+    "Amplifier",
+    "RC Coupled",
+    "Discrete",
+    "Voltage Amplifier"
+  ]
+}

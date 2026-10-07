@@ -1,0 +1,49 @@
+{
+  "simulator": "ngspice 46",
+  "temperatureC": 27,
+  "modelScope": "Educational generic models; no vendor or foundry qualification",
+  "deviceCount": 16,
+  "canonicalRoundTrip": true,
+  "nativeNetlistMatches": true,
+  "schematicDiagnostics": 0,
+  "analyses": [
+    "op",
+    "ac",
+    "tran"
+  ],
+  "specs": [
+    {
+      "name": "gain_1khz",
+      "value": 54.2846,
+      "unit": "dB",
+      "lower": 50,
+      "upper": 58,
+      "passed": true
+    },
+    {
+      "name": "out_pp",
+      "value": 1.03533,
+      "unit": "V",
+      "lower": 0.9,
+      "upper": 1.2,
+      "passed": true
+    },
+    {
+      "name": "supply_avg",
+      "value": -0.00276843,
+      "unit": "A",
+      "lower": -0.0032,
+      "upper": -0.0023,
+      "passed": true
+    }
+  ],
+  "hostedRunId": "0d2ecb33-8e70-4bd1-ae20-7e2bb73b4628",
+  "hostedSpecs": {
+    "available": true,
+    "total": 3,
+    "passed": 3,
+    "failed": 0,
+    "notEvaluated": 0,
+    "unconstrained": 0
+  }
+}

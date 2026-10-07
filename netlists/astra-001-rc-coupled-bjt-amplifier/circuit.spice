@@ -1,0 +1,19 @@
+
+.subckt astra_001_rc_coupled_bjt_amplifier vcc VSS in out
+C1 b1 in 1u
+C2 e1 VSS 100u
+C3 b2 c1 1u
+C4 out c2 10u
+C5 out VSS 100p
+Q1 c1 b1 e1 ANPN
+Q2 c2 b2 e2 ANPN
+R1 vcc b1 100k
+R2 b1 VSS 22k
+R3 vcc c1 4.7k
+R4 e1 VSS 1k
+R5 vcc b2 100k
+R6 b2 VSS 22k
+R7 vcc c2 4.7k
+R8 e2 VSS 1k
+R9 out VSS 10k
+.ends astra_001_rc_coupled_bjt_amplifier

@@ -1,0 +1,50 @@
+
+Note: No compatibility mode selected!
+
+
+Circuit: rc-coupled bjt amplifier — functional verification
+
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+No. of Data Rows : 1
+v(xdut.c1) = 5.963636e+00
+v(xdut.c2) = 5.963636e+00
+v(xdut.e1) = 1.292671e+00
+v(xdut.e2) = 1.292671e+00
+i(vcc) = -2.76839e-03
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+No. of Data Rows : 641
+gain_1khz           =  5.42846e+01
+ASCII raw file "out.raw"
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+Initial Transient Solution
+--------------------------
+
+Node                                   Voltage
+----                                   -------
+vcc                                         12
+in                                           0
+xdut.b1                                2.01356
+xdut.e1                                1.29267
+xdut.b2                                2.01356
+xdut.c1                                5.96364
+out                                          0
+xdut.c2                                5.96364
+xdut.e2                                1.29267
+vin#branch                                   0
+vcc#branch                         -0.00276839
+
+
+No. of Data Rows : 30012
+out_pp              =  1.03533e+00 from=  2.00000e-02 to=  3.00000e-02
+supply_avg          =  -2.76843e-03 from=  2.00000e-02 to=  3.00000e-02
+ASCII raw file "out.raw"
+ngspice-46 done

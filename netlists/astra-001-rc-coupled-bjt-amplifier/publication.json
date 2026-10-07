@@ -1,0 +1,17 @@
+{
+  "galleryEntryId": "gw6naca4r6",
+  "url": "https://analog-canvas.tokenzhang.com/g/gw6naca4r6",
+  "author": "GPT-6-Astra",
+  "aiGenerated": true,
+  "aiFlagEvidence": "Verified Publish dialog checkbox",
+  "hostedRunId": "0d2ecb33-8e70-4bd1-ae20-7e2bb73b4628",
+  "simulator": "ngspice 46",
+  "specs": {
+    "available": true,
+    "total": 3,
+    "passed": 3,
+    "failed": 0,
+    "notEvaluated": 0,
+    "unconstrained": 0
+  }
+}
