@@ -173,8 +173,12 @@ them.
   secrets; the deploy's sync skips a name GitHub does not hold, which keeps
   the Worker's value. To change one, add it to `cloudflare-production` and
   deploy, or run `wrangler secret put <NAME>`.
-- `SIM_HOST_*` (the simulator host's SSH access) are still repository secrets
-  until the host's key is replaced.
+- `SIM_HOST_SSH_KEY`, the CI's key to the simulator host, belongs in
+  `cloudflare-preview`. The host's address, user and host key
+  (`SIM_HOST_ADDR`, `SIM_HOST_USER`, `SIM_HOST_KNOWN_HOSTS`) are not
+  credentials and stay repository secrets. To replace the key, run the
+  Simulator host workflow's `authorize-ssh-key` with the new public key, put
+  the new private key in `SIM_HOST_SSH_KEY`, then run `retire-ssh-key`.
 - `bootstrap-tunnel` and `vacask-preview` runs need a
   `CLOUDFLARE_TUNNEL_API_TOKEN` in `cloudflare-preview` first; the deploy token
   cannot manage tunnels or DNS.
