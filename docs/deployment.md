@@ -157,6 +157,28 @@ Recovery limitations:
 - Worker recovery does not recover the separately operated simulator. Verify
   and restore its desired state independently.
 
+### Where the credentials live
+
+Since 2026-10-07 the deployment credentials are environment secrets, which only
+`main` (and, for Production, `v*` tags) can reach; a pushed branch cannot read
+them.
+
+- `cloudflare-production`: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`,
+  `GH_OAUTH_CLIENT_ID`, `GOOGLE_CLIENT_ID`, `GALLERY_BACKUP_TOKEN`,
+  `STORE_BACKUP_TOKEN`, `SIMULATION_UPSTREAM_TOKEN`.
+- `cloudflare-preview` (the Simulator host and Preview retirement workflows):
+  `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `SIMULATION_UPSTREAM_TOKEN`.
+- The OAuth client secrets, `RESEND_API_KEY`, `AUTH_EMAIL_FROM`,
+  `ADMIN_EMAILS` and `ADMIN_EMAILS_EXTRA` exist only as Worker runtime
+  secrets; the deploy's sync skips a name GitHub does not hold, which keeps
+  the Worker's value. To change one, add it to `cloudflare-production` and
+  deploy, or run `wrangler secret put <NAME>`.
+- `SIM_HOST_*` (the simulator host's SSH access) are still repository secrets
+  until the host's key is replaced.
+- `bootstrap-tunnel` and `vacask-preview` runs need a
+  `CLOUDFLARE_TUNNEL_API_TOKEN` in `cloudflare-preview` first; the deploy token
+  cannot manage tunnels or DNS.
+
 ### Point-in-time recovery
 
 Cloudflare keeps 30 days of history for every SQLite-backed Durable Object.

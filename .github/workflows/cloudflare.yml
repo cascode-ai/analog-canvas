@@ -135,10 +135,11 @@ jobs:
           CANDIDATE_DIR: ${{ runner.temp }}/analog-canvas-candidate
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      # Gallery/auth secrets live in GitHub secrets and are synced to the
-      # Worker on every deploy; rotate by updating the GitHub secret and
-      # re-running this workflow. Providers without a secret simply stay
-      # dark (skipped here, feature invisible on the site). The guard is
+      # Secrets in the cloudflare-production environment are synced to the
+      # Worker on every deploy; rotate by updating that secret and re-running
+      # this workflow. A name GitHub does not hold is skipped, which
+      # keeps the Worker's own value (docs/deployment.md, "Where the
+      # credentials live"); a provider never configured stays dark. The guard is
       # shell-level because the secrets context is not available in step
       # `if` expressions. GitHub forbids secret names starting with
       # GITHUB_, hence GH_OAUTH_*.

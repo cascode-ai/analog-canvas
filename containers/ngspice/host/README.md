@@ -34,7 +34,7 @@ The host account needs:
 - permission to use the Docker daemon without an interactive elevation;
 - enough capacity for the declared 8 CPU and 16 GiB harness limit;
 - the SSH key and host identity represented by the repository's
-  `SIM_HOST_*` environment secrets.
+  `SIM_HOST_*` repository secrets.
 
 No lifecycle script is installed by hand. The workflow's ngspice actions invoke
 only the files in this directory and `../verify-host-runtime.sh`. Its
