@@ -34,13 +34,14 @@ variable **names**, as does the public repository; these are not secret values.
 | `ADMIN_EMAILS` and `ADMIN_EMAILS_EXTRA`                               | Worker runtime secrets; each authenticated session's verified email is checked server-side                   | Neither list is embedded in the runnable files                       |
 | Account sessions                                                      | Random login/session tokens; server stores token hashes and validates expiry                                 | No existing user profile or account session is copied into a package |
 | Gallery backup token                                                  | Worker runtime secret; authorizes specific bounded reads, not administrator writes or private Cloud Projects | No token value is part of source or runtime output                   |
+| Store backup token                                                    | Worker runtime secret; authorizes only the whole-store backup pages (including private Cloud Projects), no other read, no writes | No token value is part of source or runtime output                   |
 | UI `isAdmin` / moderator affordances                                  | Server-derived identity controls the display; privileged endpoints independently resolve the server session  | Changing client code does not grant server authority                 |
 
 GitHub and Google sign-in only use provider-verified email addresses for the
 administrator check. The account IDs/display-name migrations in
 `worker/auth-do.ts` rename stored profiles; they do not grant administrator
 authority. `GALLERY_ADMIN_TOKEN` is retired from the runtime authorization
-path, although a repository secret with that name still exists. Removing an
+path, and its repository secret was removed on 2026-10-07. Removing an
 unused stored secret is operational housekeeping, not a substitute for server
 authorization or a response to an identified leak.
 

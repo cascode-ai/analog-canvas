@@ -49,6 +49,7 @@
     "gate:full": "pnpm ci:check",
     "verify:pr": "node scripts/verify-pr.mjs",
     "gallery:census": "node scripts/gallery-census.mjs",
+    "gallery:author-parts": "node scripts/gallery-author-parts.mjs",
     "setup:e2e": "playwright install --with-deps chromium",
     "setup:skills": "node scripts/setup-agent-skills.mjs",
     "ci:static": "pnpm format:check && pnpm docs:check && pnpm agent-docs:generated:check && pnpm references:check && pnpm components:check && pnpm agent-kit:catalog:check && pnpm mcp:distribution:check && pnpm typecheck",

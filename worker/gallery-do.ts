@@ -307,6 +307,11 @@ export type GalleryEnv = {
    * and for reading the public Gallery's netlists by script.
    */
   GALLERY_BACKUP_TOKEN?: string;
+  /**
+   * Read-only credential for the private, manually started whole-store backup:
+   * the backup pages with private Cloud Projects, nothing else.
+   */
+  STORE_BACKUP_TOKEN?: string;
   GALLERY: GalleryNamespaceLike;
   /** Sessions are the only identity: publishing requires one. */
   AUTH?: AuthNamespaceLike;
@@ -560,9 +565,73 @@ function requestedAttentionKind(body: Record<string, unknown>): string | null {
     : null;
 }
 
+/**
+ * The tables a backup page may name, by the name a request uses, with the key
+ * its cursor follows. These names are an allowlist, never caller-supplied SQL
+ * identifiers.
+ */
+const BACKUP_TABLES = {
+  galleryEntries: { name: "gallery_entries", keys: ["id"] },
+  galleryEntryVersions: { name: "gallery_entry_versions", keys: ["id"] },
+  galleryLikes: { name: "gallery_likes", keys: ["entry_id", "user_id"] },
+  cloudProjects: { name: "cloud_projects", keys: ["id"] },
+  cloudProjectVersions: { name: "cloud_project_versions", keys: ["id"] },
+} as const;
+type BackupTable = keyof typeof BACKUP_TABLES;
+
+/**
+ * The tables each backup scope reads. A paginated capture compares its scope's
+ * revision at the start and the end, so a private Project save never restarts
+ * a Gallery-only capture, while any change to the rows it reads does.
+ */
+const BACKUP_SCOPES: Record<"gallery" | "store", readonly BackupTable[]> = {
+  gallery: ["galleryEntries", "galleryEntryVersions", "galleryLikes"],
+  store: [
+    "galleryEntries",
+    "galleryEntryVersions",
+    "galleryLikes",
+    "cloudProjects",
+    "cloudProjectVersions",
+  ],
+};
+export type BackupScope = keyof typeof BACKUP_SCOPES;
+
+/**
+ * Triggers count every row change per scope. The count lives in the database,
+ * so a change that rolls back takes its count with it.
+ */
+function installBackupRevisions(sql: SqlStorage): void {
+  sql.exec(`
+    CREATE TABLE IF NOT EXISTS backup_revisions (
+      scope TEXT PRIMARY KEY,
+      revision INTEGER NOT NULL
+    ) WITHOUT ROWID
+  `);
+  for (const [scope, tables] of Object.entries(BACKUP_SCOPES)) {
+    sql.exec(
+      "INSERT OR IGNORE INTO backup_revisions (scope, revision) VALUES (?, 0)",
+      scope,
+    );
+    for (const table of tables)
+      for (const event of ["INSERT", "UPDATE", "DELETE"])
+        sql.exec(`
+          CREATE TRIGGER IF NOT EXISTS backup_${scope}_${BACKUP_TABLES[table].name}_${event.toLowerCase()}
+          AFTER ${event} ON ${BACKUP_TABLES[table].name}
+          BEGIN
+            UPDATE backup_revisions SET revision = revision + 1
+            WHERE scope = '${scope}';
+          END
+        `);
+  }
+}
+
 /** Storage-only Durable Object; policy lives in `routeGalleryRequest`. */
 export class GalleryDO {
   private readonly sql: SqlStorage;
+  /**
+   * This start of the object. A restart — a deploy, or a point-in-time
+   * restore that also rewinds the revisions — restarts a capture too.
+   */
   private readonly backupEpoch = crypto.randomUUID();
 
   constructor(private readonly state: DurableObjectStateLike) {
@@ -731,6 +800,7 @@ export class GalleryDO {
         applied_at TEXT NOT NULL
       ) WITHOUT ROWID
     `);
+    installBackupRevisions(this.sql);
     this.state.storage.transactionSync(() => {
       const applied = this.sql
         .exec<{ id: string }>(
@@ -2255,33 +2325,26 @@ export class GalleryDO {
     });
   }
 
-  /** Full-fidelity administrator backup before an online schema migration. */
+  /**
+   * Paginated raw backup of one scope: `gallery` (the default) for the
+   * Gallery-only credential, `store` with private Cloud Projects for the store
+   * credential and administrators.
+   */
   private schemaBackup(body: Record<string, unknown>): Response {
     // Bound each response to one record: a complete store can exceed the
-    // Worker's memory limit before Response.json has even serialized it.
-    // These names are an allowlist, never caller-supplied SQL identifiers.
-    const tables = {
-      galleryEntries: { name: "gallery_entries", keys: ["id"] },
-      galleryEntryVersions: { name: "gallery_entry_versions", keys: ["id"] },
-      cloudProjects: { name: "cloud_projects", keys: ["id"] },
-      cloudProjectVersions: { name: "cloud_project_versions", keys: ["id"] },
-      galleryLikes: { name: "gallery_likes", keys: ["entry_id", "user_id"] },
-    };
-    if (
-      body.scope === "gallery" &&
-      String(body.table).startsWith("cloudProject")
-    ) {
-      return Response.json({ error: "invalid-table" }, { status: 400 });
-    }
+    // Worker's memory limit before Response.json has even serialized it, so
+    // there is no single-response dump. An unnamed scope reads the narrower.
+    const scope: BackupScope = body.scope === "store" ? "store" : "gallery";
+    const tables = Object.fromEntries(
+      BACKUP_SCOPES[scope].map((key) => [key, BACKUP_TABLES[key]]),
+    );
     if (body.table === "inventory") {
-      const selected = Object.entries(tables).filter(
-        ([key]) => body.scope !== "gallery" || !key.startsWith("cloudProject"),
-      );
       return Response.json({
         format: "analog-canvas-gallery-backup-inventory-v1",
+        scope,
         exportedAt: new Date().toISOString(),
         tables: Object.fromEntries(
-          selected.map(([key, table]) => [
+          Object.entries(tables).map(([key, table]) => [
             key,
             this.sql
               .exec<{ count: number }>(
@@ -2290,81 +2353,65 @@ export class GalleryDO {
               .toArray()[0]!.count,
           ]),
         ),
-        ...(body.scope === "gallery"
-          ? {
-              // Any SQL mutation or DO restart invalidates a paginated capture.
-              // Counts alone cannot detect a same-count edit or delete/reinsert.
-              snapshotRevision: `${this.backupEpoch}:${this.sql.exec<{ n: number }>("SELECT total_changes() AS n").one().n}`,
-              schema: selected.flatMap(([, table]) =>
-                this.sql
-                  .exec<{ type: string; name: string; sql: string }>(
-                    "SELECT type, name, sql FROM sqlite_master WHERE tbl_name = ? AND type IN ('table', 'index') AND sql IS NOT NULL ORDER BY type DESC, name",
-                    table.name,
-                  )
-                  .toArray(),
-              ),
-            }
-          : {}),
+        // A capture compares this at its start and end: any row its scope
+        // reads that changed in between, even with equal counts, or a restart
+        // of the object, restarts it.
+        snapshotRevision: `${scope}:${this.backupEpoch}:${
+          this.sql
+            .exec<{
+              revision: number;
+            }>("SELECT revision FROM backup_revisions WHERE scope = ?", scope)
+            .one().revision
+        }`,
+        schema: Object.values(tables).flatMap((table) =>
+          this.sql
+            .exec<{ type: string; name: string; sql: string }>(
+              "SELECT type, name, sql FROM sqlite_master WHERE tbl_name = ? AND type IN ('table', 'index') AND sql IS NOT NULL ORDER BY type DESC, name",
+              table.name,
+            )
+            .toArray(),
+        ),
       });
     }
-    if (body.table != null) {
-      const table = Object.hasOwn(tables, String(body.table))
-        ? tables[body.table as keyof typeof tables]
-        : undefined;
-      if (!table)
-        return Response.json({ error: "invalid-table" }, { status: 400 });
-      let after: unknown = null;
-      try {
-        if (body.after) after = JSON.parse(String(body.after));
-      } catch {
-        return Response.json({ error: "invalid-cursor" }, { status: 400 });
-      }
-      if (
-        after !== null &&
-        (!Array.isArray(after) ||
-          after.length !== table.keys.length ||
-          after.some((key) => typeof key !== "string"))
-      ) {
-        return Response.json({ error: "invalid-cursor" }, { status: 400 });
-      }
-      const columns = table.keys.join(", ");
-      const condition =
-        table.keys.length === 1
-          ? `${columns} > ?`
-          : `(${columns}) > (${table.keys.map(() => "?").join(", ")})`;
-      const rows = this.sql
-        .exec<Record<string, unknown>>(
-          `SELECT * FROM ${table.name}${after ? ` WHERE ${condition}` : ""} ORDER BY ${columns} LIMIT 1`,
-          ...((after as string[] | null) ?? []),
-        )
-        .toArray();
-      return Response.json({
-        format: "analog-canvas-gallery-backup-page-v1",
-        table: body.table,
-        rows,
-        nextCursor: rows.length
-          ? JSON.stringify(table.keys.map((key) => rows[0]![key]))
-          : null,
-      });
+    if (body.table == null)
+      return Response.json({ error: "table-required" }, { status: 400 });
+    const table = Object.hasOwn(tables, String(body.table))
+      ? tables[String(body.table)]
+      : undefined;
+    if (!table)
+      return Response.json({ error: "invalid-table" }, { status: 400 });
+    let after: unknown = null;
+    try {
+      if (body.after) after = JSON.parse(String(body.after));
+    } catch {
+      return Response.json({ error: "invalid-cursor" }, { status: 400 });
     }
+    if (
+      after !== null &&
+      (!Array.isArray(after) ||
+        after.length !== table.keys.length ||
+        after.some((key) => typeof key !== "string"))
+    ) {
+      return Response.json({ error: "invalid-cursor" }, { status: 400 });
+    }
+    const columns = table.keys.join(", ");
+    const condition =
+      table.keys.length === 1
+        ? `${columns} > ?`
+        : `(${columns}) > (${table.keys.map(() => "?").join(", ")})`;
+    const rows = this.sql
+      .exec<Record<string, unknown>>(
+        `SELECT * FROM ${table.name}${after ? ` WHERE ${condition}` : ""} ORDER BY ${columns} LIMIT 1`,
+        ...((after as string[] | null) ?? []),
+      )
+      .toArray();
     return Response.json({
-      format: "analog-canvas-gallery-schema-backup-v1",
-      exportedAt: new Date().toISOString(),
-      targetSchemaVersion: CURRENT_PROJECT_FILE_VERSION,
-      tables: {
-        galleryEntries: this.sql
-          .exec<Record<string, unknown>>("SELECT * FROM gallery_entries")
-          .toArray(),
-        galleryEntryVersions: this.sql
-          .exec<Record<string, unknown>>("SELECT * FROM gallery_entry_versions")
-          .toArray(),
-        cloudProjectVersions: this.sql
-          .exec<Record<string, unknown>>("SELECT * FROM cloud_project_versions")
-          .toArray(),
-        cloudProjects: this.sql
-          .exec<Record<string, unknown>>("SELECT * FROM cloud_projects")
-          .toArray(),
-      },
+      format: "analog-canvas-gallery-backup-page-v1",
+      table: body.table,
+      rows,
+      nextCursor: rows.length
+        ? JSON.stringify(table.keys.map((key) => rows[0]![key]))
+        : null,
     });
   }
 

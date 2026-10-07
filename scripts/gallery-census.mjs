@@ -13,18 +13,11 @@ import {
   readFileSync,
   rmSync,
 } from "node:fs";
-import { homedir, tmpdir } from "node:os";
+import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-/** Where scripts/gallery-private-snapshot.mjs keeps its downloads. */
-export const DEFAULT_SNAPSHOT_DIRECTORY = join(
-  homedir(),
-  "Library",
-  "Application Support",
-  "Analog Canvas",
-  "gallery",
-);
+import { newestSnapshot } from "./lib/gallery-snapshots.mjs";
 
 const CENSUS_CONFIG = "apps/editor/census/vitest.config.ts";
 const HARNESS_FILES = [CENSUS_CONFIG, "apps/editor/census/gallery.census.ts"];
@@ -113,18 +106,6 @@ export function reusableReport(reports, wanted) {
         groups.every((group) => report.checkGroups?.includes(group)),
     ) ?? null
   );
-}
-
-/** The newest `gallery-<capture time>-<run>/gallery.sqlite` downloaded. */
-export function newestSnapshot(directory = DEFAULT_SNAPSHOT_DIRECTORY) {
-  if (!existsSync(directory)) return null;
-  // Snapshot directories begin with their capture time, so names sort by it.
-  const snapshots = readdirSync(directory)
-    .filter((name) => name.startsWith("gallery-"))
-    .sort()
-    .map((name) => join(directory, name, "gallery.sqlite"))
-    .filter((path) => existsSync(path));
-  return snapshots.at(-1) ?? null;
 }
 
 /** What changed between two census reports of the same snapshot. */

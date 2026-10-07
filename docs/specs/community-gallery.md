@@ -546,11 +546,19 @@ header buys nothing. Without such a session every admin route answers
   session as one-step deletion — see Owner editing.)
 - `GET /api/gallery/recycled` — the bin.
 - `GET /api/gallery/rejected` — rejected entries and their reasons.
-- `GET /api/gallery/maintenance/schema-backup` — download a full-fidelity
-  administrator backup of entries, saved versions, and private Cloud Projects.
-- `GET /api/gallery/maintenance/automated-backup` — bounded Gallery-only pages
-  for the dedicated read-only backup credential; no Cloud Projects or writes.
-  See [off-site backups and recovery](../gallery-backup.md).
+- `GET /api/gallery/maintenance/schema-backup?table=…` — one-row pages of the
+  whole store (entries, saved versions, likes, private Cloud Projects and their
+  versions) for an administrator session; `table=inventory` answers counts,
+  schema and the store revision. A request without `table` is refused
+  (`table-required`): the whole store no longer fits one response.
+- `GET /api/gallery/maintenance/automated-backup` — the same bounded pages for
+  the dedicated read-only credentials: Gallery-only for `GALLERY_BACKUP_TOKEN`,
+  and with `scope=store` the whole store for `STORE_BACKUP_TOKEN`, which reads
+  nothing else. No writes. See
+  [off-site backups and recovery](../gallery-backup.md).
+- `GET|POST /api/admin/recovery` — Cloudflare point-in-time recovery of a
+  whole store (this one holds the Gallery and every private Cloud Project);
+  see [deployment](../deployment.md#point-in-time-recovery).
 - `GET /api/gallery/maintenance/netlists` — the public entries' netlists, in
   entry-id order, for an administrator session or the same read-only
   credential. `format=spice|spectre` (default `spice`), `limit=1..200`
@@ -612,9 +620,12 @@ unreadable, ruleVersion, remaining}`). Every entry stores the rule version
   kept `legacyLooks` from applying. Same-origin only.
 - `POST /api/gallery/maintenance/schema-restore` — atomically restore the three
   Project-bearing tables from a `schema-backup` payload supplied as
-  `{ "backup": ... }`. Current retention is reapplied, so a legacy backup with
-  more than 3 versions for an entry restores only its newest 3. This same-origin
-  endpoint is an emergency rollback operation, not a general import surface.
+  `{ "backup": ... }`, assembled from the backup pages. Current retention is
+  reapplied, so a legacy backup with more than 3 versions for an entry restores
+  only its newest 3. The payload must fit one Worker request (100 MB), which
+  the whole store has outgrown; whole-store rollback is point-in-time recovery.
+  This same-origin endpoint is an emergency rollback operation, not a general
+  import surface.
 
 ## Retention and privacy
 
@@ -637,6 +648,13 @@ Deleting the account removes its entries with everything else the site
 keeps for it ([Accounts and sessions](#accounts-and-sessions)). The public
 notice at `/privacy` describes this to readers, with the cookies, the
 retention periods and the outside services; it is readable signed out.
+
+Off-site backups are operator copies, not publication: Gallery backups and
+the manually started whole-store backups — which also hold every private
+Cloud Project — live as private Releases of the operators' private backup
+repository, never automatically deleted, and are read only to recover data
+([off-site backups](../gallery-backup.md)). A deleted account's rows remain
+in backups taken before the deletion.
 
 ## Current-cell duplicate tasks
 

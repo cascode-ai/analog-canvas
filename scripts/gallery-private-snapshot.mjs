@@ -3,21 +3,36 @@
 // No backup credential is stored or passed to this process.
 import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, lstatSync, mkdirSync, readFileSync } from "node:fs";
-import { homedir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 
-import { olderSnapshots, snapshotProblem } from "./lib/gallery-snapshots.mjs";
+import {
+  DEFAULT_SNAPSHOT_DIRECTORY,
+  olderSnapshots,
+  snapshotProblem,
+} from "./lib/gallery-snapshots.mjs";
 
 const repository = "Arcadia-1/analog-canvas-backups";
-const workflow = "gallery-backup.yml";
 const keptSnapshots = 2;
-const defaultDirectory = join(
-  homedir(),
-  "Library",
-  "Application Support",
-  "Analog Canvas",
-  "gallery",
-);
+/** Each backup: its workflow, where it lands and what its archive holds. */
+const kinds = {
+  gallery: {
+    label: "Gallery",
+    workflow: "gallery-backup.yml",
+    prefix: "gallery-",
+    database: "gallery.sqlite",
+    json: "gallery-backup.json",
+    directory: DEFAULT_SNAPSHOT_DIRECTORY,
+  },
+  // The whole store with every private Cloud Project; started by hand only.
+  store: {
+    label: "Store",
+    workflow: "store-backup.yml",
+    prefix: "store-",
+    database: "store.sqlite",
+    json: "store-backup.json",
+    directory: join(dirname(DEFAULT_SNAPSHOT_DIRECTORY), "store"),
+  },
+};
 
 function gh(...args) {
   return execFileSync("gh", args, {
@@ -69,7 +84,7 @@ function privateWindowsPath(path, kind) {
   }
 }
 
-function releaseTag(runId) {
+function releaseTag(runId, kind) {
   for (let attempt = 0; attempt < 6; attempt += 1) {
     const releases = JSON.parse(
       gh(
@@ -85,36 +100,45 @@ function releaseTag(runId) {
     );
     const tag = releases
       .map((release) => release.tagName)
-      .find((name) =>
-        runId ? name.includes(`-${runId}-`) : name.startsWith("gallery-"),
+      .find(
+        (name) =>
+          name.startsWith(kind.prefix) &&
+          (!runId || name.includes(`-${runId}-`)),
       );
     if (tag) return tag;
     if (attempt < 5) spawnSync("sleep", ["3"], { stdio: "ignore" });
   }
   throw new Error(
-    `No verified Gallery release found for run ${runId ?? "latest"}`,
+    `No verified ${kind.label} release found for run ${runId ?? "latest"}`,
   );
 }
 
 function options(args) {
   let cached = false;
-  let directory = defaultDirectory;
+  let directory;
   let local;
+  let kind = kinds.gallery;
   for (let index = 0; index < args.length; index += 1) {
     if (args[index] === "--cached") cached = true;
+    else if (args[index] === "--store") kind = kinds.store;
     else if (args[index] === "--directory" && args[index + 1]) {
       directory = args[++index];
     } else if (args[index] === "--local" && args[index + 1]) {
       local = resolve(args[++index]);
     } else {
       throw new Error(
-        "Usage: node scripts/gallery-private-snapshot.mjs [--cached] [--directory PATH] | --local SNAPSHOT_DIRECTORY",
+        "Usage: node scripts/gallery-private-snapshot.mjs [--store] [--cached] [--directory PATH] | [--store] --local SNAPSHOT_DIRECTORY",
       );
     }
   }
-  if (local && (cached || directory !== defaultDirectory))
+  if (local && (cached || directory))
     throw new Error("--local does not combine with remote snapshot options");
-  return { cached, directory: resolve(directory), local };
+  return {
+    cached,
+    directory: resolve(directory ?? kind.directory),
+    local,
+    kind,
+  };
 }
 
 function waitForRun(runId) {
@@ -153,7 +177,7 @@ function waitForRun(runId) {
     }
     if (state?.status === "completed") {
       if (state.conclusion === "success") return;
-      throw new Error(`Gallery backup run ${runId} ${state.conclusion}`);
+      throw new Error(`Backup run ${runId} ${state.conclusion}`);
     }
     if (attempt < 2)
       console.warn(
@@ -165,25 +189,30 @@ function waitForRun(runId) {
   );
 }
 
-function validateSnapshot(destination) {
+function validateSnapshot(destination, kind) {
   privateDirectory(destination);
-  const problem = snapshotProblem(destination);
+  const problem = snapshotProblem(destination, kind.database);
   if (problem) throw new Error(`${problem}: ${destination}`);
-  for (const name of ["gallery.sqlite", "manifest.json"])
+  for (const name of [kind.database, "manifest.json"])
     privateWindowsPath(join(destination, name), "File");
   const manifest = JSON.parse(
     readFileSync(join(destination, "manifest.json"), "utf8"),
   );
-  console.log(`Gallery SQLite: ${join(destination, "gallery.sqlite")}`);
+  console.log(`${kind.label} SQLite: ${join(destination, kind.database)}`);
   console.log(`Captured at: ${manifest.captureEndedAt}`);
   console.log(`Rows: ${JSON.stringify(manifest.tables)}`);
 }
 
 // The private Releases keep every capture. Older local ones go to the Trash,
 // so emptying it stays the operator's decision; without `trash`, none move.
-function retainNewestSnapshots(directory, current) {
+function retainNewestSnapshots(directory, current, kind) {
   try {
-    const older = olderSnapshots(directory, keptSnapshots, current);
+    const older = olderSnapshots(
+      directory,
+      keptSnapshots,
+      current,
+      kind.database,
+    );
     if (older.length === 0) return;
     if (process.platform !== "darwin" || !existsSync("/usr/bin/trash")) {
       console.log(
@@ -202,11 +231,11 @@ function retainNewestSnapshots(directory, current) {
 }
 
 function main() {
-  const { cached, directory, local } = options(process.argv.slice(2));
+  const { cached, directory, local, kind } = options(process.argv.slice(2));
   if (local) {
     if (!existsSync(local))
       throw new Error(`Local snapshot does not exist: ${local}`);
-    validateSnapshot(local);
+    validateSnapshot(local, kind);
     return;
   }
   if (
@@ -221,21 +250,21 @@ function main() {
     ) !== "true"
   ) {
     throw new Error(
-      "Refusing to download: the Gallery backup repository is not private",
+      "Refusing to download: the backup repository is not private",
     );
   }
 
   let runId;
   if (!cached) {
-    const url = gh("workflow", "run", workflow, "-R", repository);
+    const url = gh("workflow", "run", kind.workflow, "-R", repository);
     runId = url.match(/\/actions\/runs\/(\d+)/)?.[1];
     if (!runId)
       throw new Error(`Could not identify the new backup run: ${url}`);
-    console.log(`Capturing live Gallery: ${url}`);
+    console.log(`Capturing live ${kind.label}: ${url}`);
     waitForRun(runId);
   }
 
-  const tag = releaseTag(runId);
+  const tag = releaseTag(runId, kind);
   privateDirectory(directory);
   const destination = join(directory, tag);
   if (!existsSync(destination)) {
@@ -259,8 +288,8 @@ function main() {
       .split("\n");
     const allowed = new Set([
       "README.txt",
-      "gallery-backup.json",
-      "gallery.sqlite",
+      kind.json,
+      kind.database,
       "manifest.json",
     ]);
     if (
@@ -280,8 +309,8 @@ function main() {
   } else {
     privateDirectory(destination);
   }
-  validateSnapshot(destination);
-  retainNewestSnapshots(directory, tag);
+  validateSnapshot(destination, kind);
+  retainNewestSnapshots(directory, tag, kind);
 }
 
 try {

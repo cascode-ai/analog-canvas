@@ -27,17 +27,32 @@ import {
   type SimulationOperationsEnv,
   type SimulationQueueBatch,
 } from "./simulation-operations";
-import { routeAuthRequest, type AuthNamespaceLike } from "./auth";
 import {
+  AuthDO as AuthStore,
+  routeAuthRequest,
+  type AuthNamespaceLike,
+} from "./auth";
+import {
+  routePointInTimeRecovery,
+  withPointInTimeRecovery,
+} from "./point-in-time-recovery";
+import {
+  ComponentLibraryDO as ComponentLibraryStore,
   routeComponentLibraryRequest,
   type ComponentLibraryEnv,
 } from "./component-library";
-export { ComponentLibraryDO } from "./component-library";
+import { AnalyticsDO as AnalyticsStore } from "../apps/editor/analytics/worker";
+import { GalleryDO as GalleryStore } from "./gallery";
 
-export { AnalyticsDO } from "../apps/editor/analytics/worker";
+// The stores that keep durable data also answer point-in-time recovery. The
+// export names are the deployed class names, so they must not change.
+export const ComponentLibraryDO = withPointInTimeRecovery(
+  ComponentLibraryStore,
+);
+export const AnalyticsDO = withPointInTimeRecovery(AnalyticsStore);
+export const GalleryDO = withPointInTimeRecovery(GalleryStore);
+export const AuthDO = withPointInTimeRecovery(AuthStore);
 export { AgentSessionDO } from "./agent-session";
-export { GalleryDO } from "./gallery";
-export { AuthDO } from "./auth";
 export { SimulationControlDO } from "./simulation-control-do";
 
 type Env = TopologyTaskEnv &
@@ -49,6 +64,7 @@ type Env = TopologyTaskEnv &
     AGENT_ALLOWED_ORIGIN?: string;
     GALLERY: GalleryNamespaceLike;
     GALLERY_BACKUP_TOKEN?: string;
+    STORE_BACKUP_TOKEN?: string;
     AUTH: AuthNamespaceLike;
     GH_OAUTH_CLIENT_ID?: string;
     GH_OAUTH_CLIENT_SECRET?: string;
@@ -95,6 +111,9 @@ async function route(request: Request, env: Env): Promise<Response> {
 
   const authResponse = await routeAuthRequest(request, env);
   if (authResponse) return authResponse;
+
+  const recoveryResponse = await routePointInTimeRecovery(request, env);
+  if (recoveryResponse) return recoveryResponse;
 
   const topologyResponse = await routeTopologyTaskRequest(request, env);
   if (topologyResponse) return topologyResponse;

@@ -24,17 +24,41 @@ publicly cached.
 Every capture includes all Gallery statuses, retained historical versions,
 likes, raw project text, previews, ownership and moderation metadata. The
 inventory includes the selected tables' SQLite definitions and indexes.
-A DO lifetime identifier plus SQLite's cumulative change count identifies the
-capture interval: any SQL mutation or object restart causes the collector to
-retry instead of accepting a mixed snapshot. The final counts must match;
+Each inventory carries its scope's revision, which SQLite triggers count up on
+every row change in exactly the tables that scope reads. A capture compares it
+at its start and end and retries on any difference, so a same-count edit or a
+delete and reinsert is never accepted, while a private Cloud Project save no
+longer restarts a Gallery capture. The final counts must match;
 identities must be unique and history/likes must reference a captured entry.
 Each result is reconstructed in a temporary SQLite database and read back
 against all source rows before being published. No content hashes are required.
 
 Private Cloud Projects, accounts, analytics and the shared component catalog
 are outside this Gallery-only backup. Included Project Code already carries
-the definitions its drawings reference. The existing manual full-store
-schema-backup and schema-restore APIs have a different scope.
+the definitions its drawings reference. Private Cloud Projects have the
+manual whole-store backup below.
+
+## Manual whole-store backups
+
+The whole Gallery store — the Gallery tables plus every private Cloud Project
+and its retained versions — is backed up only when started by hand:
+
+```bash
+node scripts/gallery-private-snapshot.mjs --store
+```
+
+This dispatches the private repository's `store-backup.yml` workflow, waits
+for its verified Release (`store-…`, holding `store.sqlite` and
+`store-backup.json`), and downloads it under
+`~/Library/Application Support/Analog Canvas/store/`, keeping the two newest
+like the Gallery helper. The workflow reads
+`GET /api/gallery/maintenance/automated-backup?scope=store` with the separate
+read-only `STORE_BACKUP_TOKEN`, stored and rotated like the Gallery credential.
+It reads those one-row backup pages and nothing else: no wall, no writes, no
+administrator authority, and the Gallery credential cannot read this scope.
+A signed-in administrator's browser reads the same pages from
+`GET /api/gallery/maintenance/schema-backup?table=…`; there is no longer a
+single-response dump of the whole store, which can exceed the Worker's memory.
 
 ## Reading netlists from another machine
 
@@ -69,6 +93,8 @@ any administrator writes. A full-store restore can overwrite newer work.
 that operation also replaces private Cloud Projects and reapplies current
 history retention. Live recovery remains an explicit administrator operation;
 the scheduled job is strictly read-only and never performs automatic restores.
+Within 30 days, rolling a whole store back to a point in time is the
+[point-in-time recovery](deployment.md#point-in-time-recovery) procedure.
 
 GitHub Actions can be delayed or disabled and credentials can expire. A failed
 or missing run must be investigated; an old successful archive remains valid.
@@ -94,6 +120,20 @@ elsewhere it only lists them). A partial or failed download is neither counted
 nor moved, and emptying the Trash stays the operator's decision. This relies
 on the private Releases keeping every capture (`gh release download` fetches
 an old one again); revisit it if their retention ever deletes.
+
+## Counting an author's parts
+
+`pnpm gallery:author-parts -- --author "NAME" --after ENTRY_ID` lists the
+part count of each public circuit an author uploaded after the last counted
+one, from the newest downloaded snapshot (take a fresh one first), and how many
+circuits have each count. The count is the one the Gallery stores with each
+entry, which the wall's size filter uses: every drawn part — devices, sources,
+blocks and gates — but not ports, supply or ground markers or drafting.
+`--from N` starts at the N-th public circuit instead, though numbers shift when
+an older one is withdrawn, and `--csv FILE` writes one row per circuit. It
+flags a one-Cell drawing whose name states a different transistor count, lists
+withdrawn or rejected uploads it left out, and prints the `--after` value for
+the next count. Any pricing is worked out elsewhere.
 
 ## A local replica for development
 
