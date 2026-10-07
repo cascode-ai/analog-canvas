@@ -471,6 +471,14 @@ const MAGIC_LI_LEGACY_BYLINE = "3187863239-netizen";
 const MAGIC_LI_BYLINE = "Magic Li";
 const VERSION_RETENTION_MIGRATION = "2026-08-27-gallery-version-retention-2";
 const PREVIEW_DIMENSIONS_MIGRATION = "2026-09-02-gallery-preview-dimensions";
+/**
+ * 2026-10-07: the holder of the "Opus 5.5" account, under which this project's
+ * Agent publishes its drawings, asked once for the account's existing circuits
+ * to carry the AI mark. A one-time request, not a rule: every other entry
+ * carries what its publisher chose.
+ */
+const OPUS_AI_MARK_MIGRATION = "2026-10-07-opus-5-5-ai-mark";
+const OPUS_AI_MARK_OWNER = "b183aa15-078d-4476-be33-93c34f4bd95c";
 
 /**
  * A part count as stored: with this build's rule version when the writer
@@ -814,6 +822,25 @@ export class GalleryDO {
       this.sql.exec(
         "INSERT INTO data_migrations(id, applied_at) VALUES (?, ?)",
         VERSION_RETENTION_MIGRATION,
+        new Date().toISOString(),
+      );
+    });
+    this.state.storage.transactionSync(() => {
+      const applied = this.sql
+        .exec<{ id: string }>(
+          "SELECT id FROM data_migrations WHERE id = ?",
+          OPUS_AI_MARK_MIGRATION,
+        )
+        .toArray();
+      if (applied.length > 0) return;
+      // Marked once, so a mark the author clears later stays cleared.
+      this.sql.exec(
+        "UPDATE gallery_entries SET ai_generated = 1 WHERE owner_user_id = ?",
+        OPUS_AI_MARK_OWNER,
+      );
+      this.sql.exec(
+        "INSERT INTO data_migrations(id, applied_at) VALUES (?, ?)",
+        OPUS_AI_MARK_MIGRATION,
         new Date().toISOString(),
       );
     });

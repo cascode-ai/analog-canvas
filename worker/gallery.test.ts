@@ -1205,6 +1205,66 @@ describe("gallery data migrations", () => {
         .one().count,
     ).toBe(0);
   });
+
+  it("marks the circuits on the Opus 5.5 account as AI once", () => {
+    const state = sqliteState();
+    new GalleryDO(state);
+    const row = (id: string, status: string, owner: string | null) => [
+      id,
+      id,
+      owner ? "Opus 5.5" : "Someone",
+      "",
+      "2026-10-01T00:00:00.000Z",
+      CURRENT_PROJECT_FILE_VERSION,
+      status,
+      owner,
+      projectText(id),
+      "<svg/>",
+    ];
+    state.storage.sql.exec(
+      `INSERT INTO gallery_entries
+       (id, name, author, description, created_at, schema_version, status,
+        owner_user_id, project_text, svg_text)
+       VALUES ${Array(4).fill("(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").join(", ")}`,
+      ...row("agent-public", "public", "b183aa15-078d-4476-be33-93c34f4bd95c"),
+      ...row(
+        "agent-recycled",
+        "recycled",
+        "b183aa15-078d-4476-be33-93c34f4bd95c",
+      ),
+      ...row("legacy-unowned", "public", null),
+      ...row("person-public", "public", "someone-else"),
+    );
+    state.storage.sql.exec(
+      "DELETE FROM data_migrations WHERE id LIKE '%ai-mark%'",
+    );
+    const marks = () =>
+      state.storage.sql
+        .exec<{ id: string; ai_generated: number }>(
+          "SELECT id, ai_generated FROM gallery_entries ORDER BY id",
+        )
+        .toArray();
+
+    new GalleryDO(state);
+    expect(marks()).toEqual([
+      { id: "agent-public", ai_generated: 1 },
+      { id: "agent-recycled", ai_generated: 1 },
+      { id: "legacy-unowned", ai_generated: 0 },
+      { id: "person-public", ai_generated: 0 },
+    ]);
+
+    // Once only: a mark the author clears later stays cleared.
+    state.storage.sql.exec(
+      "UPDATE gallery_entries SET ai_generated = 0 WHERE id = 'agent-public'",
+    );
+    new GalleryDO(state);
+    expect(marks()).toEqual([
+      { id: "agent-public", ai_generated: 0 },
+      { id: "agent-recycled", ai_generated: 1 },
+      { id: "legacy-unowned", ai_generated: 0 },
+      { id: "person-public", ai_generated: 0 },
+    ]);
+  });
 });
 
 describe("newest-first gallery feed", () => {
