@@ -9,18 +9,17 @@ import { EXPORT_VERSION } from "./index.js";
 import { rasterizeFormalSvgInBrowser } from "./browser-raster.js";
 import {
   normalizeFormalSvgForSvg2Pdf,
-  setTextOutsideLatin1InFamily,
+  setTextInFamily,
   type PdfFontStyle,
 } from "./svg2pdf-compat.js";
 
 /**
- * Text outside Latin-1 — Greek, the minus sign, math symbols in labels and
- * formulas — is set in DejaVu Sans, the schematic font stack's first face,
- * embedded as a subset of the glyphs used. The faces load only when a PDF
- * needs them.
+ * All text is set in DejaVu Sans, the schematic font stack's first face, in
+ * which labels are measured and the page draws them (#1413), embedded as a
+ * subset of the glyphs used. The faces load only when a PDF is made.
  */
-const UNICODE_FAMILY = "ICM Unicode";
-const UNICODE_FACES: Record<PdfFontStyle, string> = {
+const SCHEMATIC_FAMILY = "ICM Schematic";
+const SCHEMATIC_FACES: Record<PdfFontStyle, string> = {
   normal: dejaVuSansUrl,
   bold: dejaVuSansBoldUrl,
   italic: dejaVuSansObliqueUrl,
@@ -39,7 +38,7 @@ function base64(bytes: Uint8Array): string {
  * svg2pdf measures text in the page to place what follows it, so the page
  * must measure with the face the PDF draws. Returns the page's release.
  */
-async function embedUnicodeFaces(
+async function embedSchematicFaces(
   pdf: jsPDF,
   styles: Iterable<PdfFontStyle>,
 ): Promise<() => void> {
@@ -48,7 +47,7 @@ async function embedUnicodeFaces(
   // but the scene's stylesheet, once in the page, sets every text element's
   // family; give that element back the family it names.
   const measuring = document.createElement("style");
-  measuring.textContent = `text[font-family="${UNICODE_FAMILY}"]{font-family:"${UNICODE_FAMILY}"}`;
+  measuring.textContent = `text[font-family="${SCHEMATIC_FAMILY}"]{font-family:"${SCHEMATIC_FAMILY}"}`;
   const release = () => {
     for (const face of faces) document.fonts.delete(face);
     measuring.remove();
@@ -56,17 +55,17 @@ async function embedUnicodeFaces(
   document.head.append(measuring);
   try {
     for (const style of styles) {
-      const response = await fetch(UNICODE_FACES[style]);
+      const response = await fetch(SCHEMATIC_FACES[style]);
       if (!response.ok) {
         throw new Error(
-          `Vector PDF could not load the font for Greek and math symbols (HTTP ${response.status})`,
+          `Vector PDF could not load the schematic font (HTTP ${response.status})`,
         );
       }
       const bytes = await response.arrayBuffer();
-      const file = `icm-unicode-${style}.ttf`;
+      const file = `icm-schematic-${style}.ttf`;
       pdf.addFileToVFS(file, base64(new Uint8Array(bytes)));
-      pdf.addFont(file, UNICODE_FAMILY, style);
-      const face = new FontFace(UNICODE_FAMILY, bytes, {
+      pdf.addFont(file, SCHEMATIC_FAMILY, style);
+      const face = new FontFace(SCHEMATIC_FAMILY, bytes, {
         weight: style.startsWith("bold") ? "700" : "400",
         style: style.endsWith("italic") ? "italic" : "normal",
       });
@@ -130,9 +129,9 @@ export async function vectorizeFormalSvgInBrowser(
   const { host, svg } = formalSvgElement(source);
   let releaseFaces = () => {};
   try {
-    releaseFaces = await embedUnicodeFaces(
+    releaseFaces = await embedSchematicFaces(
       pdf,
-      setTextOutsideLatin1InFamily(svg, UNICODE_FAMILY),
+      setTextInFamily(svg, SCHEMATIC_FAMILY),
     );
     // svg2pdf's published UMD entry reads browser globals while it is loaded.
     // Loading it only for an actual browser PDF request keeps the exporter

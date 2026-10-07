@@ -22,6 +22,9 @@
       "@icm/edit-engine": ["./packages/edit-engine/src/index.ts"],
       "@icm/exporters": ["./packages/exporters/src/index.ts"],
       "@icm/exporters/browser": ["./packages/exporters/src/browser.ts"],
+      "@icm/exporters/browser-fonts": [
+        "./packages/exporters/src/browser-fonts.ts"
+      ],
       "@icm/exporters/browser-pdf": ["./packages/exporters/src/browser-pdf.ts"],
       "@icm/exporters/browser-raster": [
         "./packages/exporters/src/browser-raster.ts"

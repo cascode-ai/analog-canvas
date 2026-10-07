@@ -27,6 +27,14 @@ and text; it never embeds the page-cover PNG used by the PNG artifact. The
 original SVG is unchanged. Export filenames are normalized and all three
 formats use the same base name.
 
+The editor serves DejaVu Sans, the schematic font stack's first face, subset
+to the characters schematic text uses (`packages/exporters/fonts/`, written by
+`scripts/generate-schematic-fonts.mjs`). The canvas draws labels in it where
+the system has none, as they are measured. A browser PNG draws its SVG as an
+image, which loads no font, so the rasterizer inlines the faces into that copy
+of the SVG; when they cannot be read it draws in the system's faces. The
+downloaded SVG names the stack and carries no font.
+
 Canonical SVG resolves script typography before serialization: subscript and
 superscript runs use numeric font sizes and explicit baseline displacement,
 and the next visible run restores the parent baseline. Formal SVG must not
@@ -40,13 +48,14 @@ legacy relative text constructs before conversion. This compatibility pass
 must not rewrite the downloaded canonical SVG or flatten PDF text into a page
 image.
 
-The PDF's built-in text faces encode Latin-1 only. Text outside it — Greek,
-the minus sign, and math symbols in labels and formulas — is set in DejaVu
-Sans, the schematic font stack's first face. That face is embedded as a subset
-of the glyphs used, and loaded only when a PDF needs it. Latin text keeps the
-built-in face, as a browser falls back glyph by glyph. For the conversion, the
-same face is added to the page, so svg2pdf's in-page text measurement places
-what follows such a run by the face the PDF draws; it is removed afterwards.
+All PDF text is set in DejaVu Sans, the schematic font stack's first face, in
+which labels are measured and the editor draws them. The PDF's built-in faces
+would set Latin text in Helvetica and encode Latin-1 only, turning Greek, the
+minus sign, and math symbols into other characters. The face is embedded as a
+subset of the glyphs used, and loaded only when a PDF is made. For the
+conversion, the same face is added to the page, so svg2pdf's in-page text
+measurement places each run by the face the PDF draws; it is removed
+afterwards.
 When the face cannot be loaded, the export fails with that reason rather than
 writing other characters.
 

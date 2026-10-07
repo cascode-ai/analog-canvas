@@ -163,8 +163,9 @@ not a diagnostic prerequisite. A terminal resting on another Net's Route is a
 structural warning outside the gate. Spacing and other layout-quality findings
 are observations. Text ink is what DejaVu Sans, the font stack's first face,
 draws: across from the first glyph's outline to the last one's by the label
-advance tables, side bearings included, and from capitals to subscripts.
-Where a viewer draws Arial instead, text looks narrower than it is measured.
+advance tables, side bearings included, and from capitals to subscripts. The
+editor and its PNGs draw in that face on every system; an SVG opened where it
+is not installed may show Arial, narrower than it is measured.
 
 Every finding declares `category`, `confidence`, and `gateEligible`.
 Structural findings describe high-confidence model, topology, or explicit

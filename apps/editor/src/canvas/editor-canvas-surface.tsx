@@ -5,6 +5,7 @@ import { flushSync } from "react-dom";
 import { createPointerPreviewFrame } from "./pointer-preview-frame";
 import { isDrawingTool } from "../interaction/interaction-state";
 import { schematicRoundPeriodFontFaceCss } from "@icm/derived";
+import { schematicWebFontFaceCss } from "@icm/exporters/browser-fonts";
 
 import {
   CanvasGridOverlay,
@@ -329,7 +330,11 @@ export function EditorCanvasSurface({
           eventHandlers.onPointerLeave?.(event);
         }}
       >
-        <style>{schematicRoundPeriodFontFaceCss}</style>
+        {/* The schematic faces, so labels are drawn in the face they are
+            measured in on every system (#1413). */}
+        <style>
+          {schematicRoundPeriodFontFaceCss + schematicWebFontFaceCss}
+        </style>
         <CanvasGridOverlay {...grid} />
         <EditorSelectionHalo {...selectionHalo} />
         <g dangerouslySetInnerHTML={sceneInnerHtml} />
