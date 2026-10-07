@@ -118,6 +118,14 @@ export const FOCUSED_TOOLS = [
     operations: ["transform", "copy", "align"],
   },
   {
+    // The view a person watching sees: fit, select, highlight (#1444). Its own
+    // tool, since the intent schema would push circuit_selection past the
+    // host's 5,000-byte declaration budget.
+    name: "circuit_view",
+    source: "apply_actions",
+    operations: ["focus"],
+  },
+  {
     name: "circuit_text",
     source: "apply_actions",
     operations: [

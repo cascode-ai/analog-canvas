@@ -141,6 +141,7 @@ describe("mcp tool surface", () => {
       "circuit_wire",
       "circuit_transform",
       "circuit_selection",
+      "circuit_view",
       "circuit_text",
       "circuit_properties",
     ]);

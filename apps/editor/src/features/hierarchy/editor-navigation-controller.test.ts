@@ -293,4 +293,23 @@ describe("editor navigation controller", () => {
     });
     expect(input.selectOnly).toHaveBeenCalledWith("route", ["route-1"]);
   });
+
+  it("fits the Cell on show as the F key does, keeping the person's work (#1444)", () => {
+    const input = dependencies();
+    const other = createEmptyDocument("other", "Other");
+    input.project.documents.push(other);
+    const controller = createEditorNavigationController(input);
+
+    controller.fitDocument(input.document.id, "Agent fit Cell top");
+    // Only the view moves: no navigation, nothing reset or reselected.
+    expect(input.setViewBox).toHaveBeenCalledTimes(1);
+    expect(input.resetInteractionState).not.toHaveBeenCalled();
+    expect(input.setDocumentStack).not.toHaveBeenCalled();
+    expect(input.setStatus).toHaveBeenLastCalledWith("Agent fit Cell top");
+
+    // Another Cell is opened first (restoring its view), then fitted.
+    controller.fitDocument(other.id, "Agent fit Cell other");
+    expect(input.resetInteractionState).toHaveBeenCalled();
+    expect(vi.mocked(input.setViewBox).mock.calls.length).toBeGreaterThan(1);
+  });
 });

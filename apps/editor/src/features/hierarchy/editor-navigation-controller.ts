@@ -303,11 +303,15 @@ export function createEditorNavigationController({
       (candidate) => candidate.id === documentId,
     );
     if (!target) return;
-    if (statusMessage) {
+    // The Cell on show only has its view fitted, as the F key does: no
+    // navigation, so a person's selection, drag or open dialog survives an
+    // Agent's fit (#1444).
+    if (statusMessage && target.id === document.id) setStatus(statusMessage);
+    else if (statusMessage) {
       navigateToLocator(
         {
           documentId: target.id,
-          hierarchyPath: target.id === document.id ? documentStack : [],
+          hierarchyPath: [],
           kind: "document",
           objectId: target.id,
         },
