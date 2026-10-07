@@ -1,6 +1,7 @@
 import {
   defaultInstanceParameterLabelPlacement,
   displayableInstanceParameter,
+  instanceValueRowOffset,
   instanceDisplayParameters,
   objectStyleProfile,
   resolveDocumentStyleProfile,
@@ -78,20 +79,47 @@ export function instanceParameterVisibilityEdits(
       instance.symbolId,
       instance.symbolVariantId,
     );
-    const placement =
+    const profile = objectStyleProfile(
+      resolveDocumentStyleProfile(document.presentation),
+      instance,
+    );
+    const slot =
       resolved &&
       defaultInstanceParameterLabelPlacement(
         instance,
         resolved,
-        objectStyleProfile(
-          resolveDocumentStyleProfile(document.presentation),
-          instance,
-        ),
+        profile,
         document.presentation.grid,
         parameter.name,
       );
-    if (!placement || !instance.placement)
+    if (!slot || !instance.placement)
       throw new Error("Place the component before showing its parameters");
+    // Shown beside a W/L that is itself on show, the multiplier takes the
+    // row after it rather than the same one.
+    const belowValue =
+      parameter.displayRole === "multiplier" &&
+      document.annotations.some(
+        (annotation) =>
+          annotation.binding?.kind === "instance-value" &&
+          annotation.binding.instanceId === instance.id &&
+          annotation.binding.parameter === undefined &&
+          annotation.visible !== false,
+      );
+    const placement = belowValue
+      ? {
+          ...slot,
+          position: {
+            x: slot.position.x,
+            y:
+              slot.position.y +
+              instanceValueRowOffset(
+                instance.symbolId,
+                profile,
+                document.presentation.grid,
+              ),
+          },
+        }
+      : slot;
     const baseId = `instance-parameter-${instance.id}-${parameter.name}`;
     let id = baseId;
     let suffix = 1;
