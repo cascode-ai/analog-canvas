@@ -738,7 +738,10 @@ function pushRoutingQualityMetrics(
 
 /** The name an author knows a part by: its Reference, the name of the Cell
  * Pin it marks, or, for an unnamed marker such as a ground, its symbol. */
-function partName(document: SchematicDocument, instanceId: string): string {
+export function partName(
+  document: SchematicDocument,
+  instanceId: string,
+): string {
   const instance = document.instances.find((item) => item.id === instanceId);
   return (
     instance?.reference ??
