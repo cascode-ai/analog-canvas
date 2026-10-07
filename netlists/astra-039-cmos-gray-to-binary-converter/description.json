@@ -1,0 +1,11 @@
+{
+  "name": "CMOS 3-bit Gray-to-binary converter",
+  "description": "Eighteen MOS devices convert three-bit Gray code into binary: b2=g2, b1=g2 XOR g1 and b0=b1 XOR g0. Two transmission-gate XOR selectors and explicit complement/restoring inverters implement the equations. The saved experiment exercises every Gray input pattern and checks all three binary outputs, for 24 checks. Output loads are 100 fF each. Steady-state conversion only; switching hazards, propagation delay, fanout and PVT limits are not qualified.",
+  "tags": [
+    "CMOS",
+    "Gray Code",
+    "Code Conversion",
+    "Digital Logic",
+    "Transmission Gate"
+  ]
+}

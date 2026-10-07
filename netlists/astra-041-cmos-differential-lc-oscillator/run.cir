@@ -1,0 +1,30 @@
+CMOS differential LC oscillator
+.include "circuit.spice"
+.include "models.spice"
+VDD vdd 0 3.3
+VTANK vtank 0 1.8
+IREF vdd iref 200u
+.ic v(lp)=1.81 v(lm)=1.79
+XDUT vdd vtank 0 iref lp lm outp outm astra_041_cmos_differential_lc_oscillator
+.temp 27
+.options method=gear reltol=1e-5
+* @spec swing range 0.3 10 unit=V
+* @spec period range 5e-8 8e-8 unit=s
+* @spec phigh range 3.2 3.4 unit=V
+* @spec plow range -0.01 0.01 unit=V
+* @spec mhigh range 3.2 3.4 unit=V
+* @spec mlow range -0.01 0.01 unit=V
+.control
+set filetype=ascii
+tran 200p 4u
+let vd=v(lp)-v(lm)
+meas tran swing PP vd FROM=2u TO=4u
+meas tran period TRIG vd VAL=0 RISE=40 TARG vd VAL=0 RISE=41
+meas tran phigh MAX v(outp) FROM=2u TO=4u
+meas tran plow MIN v(outp) FROM=2u TO=4u
+meas tran mhigh MAX v(outm) FROM=2u TO=4u
+meas tran mlow MIN v(outm) FROM=2u TO=4u
+write out.raw
+quit
+.endc
+.end

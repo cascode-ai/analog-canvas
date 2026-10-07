@@ -1,0 +1,18 @@
+
+.subckt astra_038_cmos_static_sr_latch vdd VSS s r out
+CB net4 VSS 100f
+CL out VSS 500f
+CQ net3 VSS 100f
+M1 net1 s vdd vdd APMOS l=1u w=20u
+M10 net0 net3 VSS VSS ANMOS l=1u w=10u
+M11 out net0 vdd vdd APMOS l=1u w=20u
+M12 out net0 VSS VSS ANMOS l=1u w=10u
+M2 net4 net3 net1 vdd APMOS l=1u w=20u
+M3 net4 s VSS VSS ANMOS l=1u w=10u
+M4 net4 net3 VSS VSS ANMOS l=1u w=10u
+M5 net2 r vdd vdd APMOS l=1u w=20u
+M6 net3 net4 net2 vdd APMOS l=1u w=20u
+M7 net3 r VSS VSS ANMOS l=1u w=10u
+M8 net3 net4 VSS VSS ANMOS l=1u w=10u
+M9 net0 net3 vdd vdd APMOS l=1u w=20u
+.ends astra_038_cmos_static_sr_latch

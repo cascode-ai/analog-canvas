@@ -1,0 +1,11 @@
+{
+  "name": "CMOS differential LC oscillator",
+  "description": "A cross-coupled NMOS pair supplies negative resistance to two 1 uH/100 pF tank branches. A mirrored 200 uA tail bias and two restoring CMOS buffer chains bring the total to twelve MOS devices; each inductor has 5 ohm series loss. The tank uses a separate 1.8 V supply and the buffers use 3.3 V. A 20 mV differential initial condition seeds startup in the saved transient. Checks verify sustained differential swing, nominal period and both buffered rail states. The oscillation is unregulated. Educational Level-1 models; phase noise, startup yield, amplitude control, device stress and PVT behavior are not qualified.",
+  "tags": [
+    "CMOS",
+    "LC Oscillator",
+    "Negative Resistance",
+    "RF",
+    "Clock Generation"
+  ]
+}

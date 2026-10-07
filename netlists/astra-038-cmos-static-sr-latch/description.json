@@ -1,0 +1,11 @@
+{
+  "name": "CMOS static set-reset latch",
+  "description": "Two cross-coupled CMOS NOR gates store a set/reset state; two inverters buffer Q into a 500 fF output. Twelve MOS devices and three capacitors are explicit. Active-high s sets Q and r resets Q; both low retain the state. Six transient checks cover initial reset, setting, retaining both states, resetting and setting again. Simultaneous s=r=1 is invalid and excluded from the experiment. Educational nominal models; no arbitration, metastability or PVT guarantee.",
+  "tags": [
+    "CMOS",
+    "SR Latch",
+    "Asynchronous Logic",
+    "State Retention",
+    "Memory"
+  ]
+}

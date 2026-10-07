@@ -1,0 +1,42 @@
+
+Note: No compatibility mode selected!
+
+
+Circuit: cmos differential lc oscillator
+
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+Initial Transient Solution
+--------------------------
+
+Node                                   Voltage
+----                                   -------
+vdd                                        3.3
+vtank                                      1.8
+iref                                   1.58452
+outp                                   3.28342
+outm                                   3.25116
+lm                                        1.79
+lp                                        1.81
+xdut.net3                                 1.79
+xdut.net4                                 1.81
+xdut.net2                             0.751347
+xdut.net1                             0.816115
+xdut.net0                             0.955438
+l.xdut.lp#branch                        -0.002
+l.xdut.lm#branch                         0.002
+vtank#branch                      -1.24456e-16
+vdd#branch                         -0.00310173
+
+
+No. of Data Rows : 33846
+swing               =  8.29682e-01 from=  2.00000e-06 to=  4.00000e-06
+period              =  6.29516e-08 targ=  2.55006e-06 trig=  2.48711e-06
+phigh               =  3.30010e+00 at=  2.26351e-06
+plow                =  -9.08033e-05 at=  3.55337e-06
+mhigh               =  3.30010e+00 at=  2.54678e-06
+mlow                =  -9.07892e-05 at=  3.33304e-06
+ASCII raw file "out.raw"
+ngspice-46 done

@@ -1,0 +1,24 @@
+
+.subckt astra_039_cmos_gray_to_binary_converter vdd VSS g2 g1 g0 b1 b0 b2
+C0 b0 VSS 100f
+C1 b1 VSS 100f
+C2 b2 VSS 100f
+M1 g2b g2 vdd vdd APMOS l=1u w=20u
+M10 g1b g2 b1 VSS ANMOS l=1u w=10u
+M11 b1b b1 vdd vdd APMOS l=1u w=20u
+M12 b1b b1 VSS VSS ANMOS l=1u w=10u
+M13 g0 b1 b0 vdd APMOS l=1u w=20u
+M14 g0 b1b b0 VSS ANMOS l=1u w=10u
+M15 g0b b1b b0 vdd APMOS l=1u w=20u
+M16 g0b b1 b0 VSS ANMOS l=1u w=10u
+M17 b2 g2b vdd vdd APMOS l=1u w=20u
+M18 b2 g2b VSS VSS ANMOS l=1u w=10u
+M2 g2b g2 VSS VSS ANMOS l=1u w=10u
+M3 g1b g1 vdd vdd APMOS l=1u w=20u
+M4 g1b g1 VSS VSS ANMOS l=1u w=10u
+M5 g0b g0 vdd vdd APMOS l=1u w=20u
+M6 g0b g0 VSS VSS ANMOS l=1u w=10u
+M7 g1 g2 b1 vdd APMOS l=1u w=20u
+M8 g1 g2b b1 VSS ANMOS l=1u w=10u
+M9 g1b g2b b1 vdd APMOS l=1u w=20u
+.ends astra_039_cmos_gray_to_binary_converter

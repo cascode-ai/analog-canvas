@@ -1,0 +1,11 @@
+{
+  "name": "CMOS divide-by-two clock divider",
+  "description": "A twenty-MOS static master/slave latch network feeds back the inverse of Q, toggling once per rising clock edge. A 40 ns input clock produces an 80 ns output period with approximately 40 ns high time. The saved transient verifies alternating states, period and high duration. Its initial condition Q=0 establishes simulation phase; the circuit has no hardware reset and power-up phase is unspecified. Two capacitors load the master and output. Educational nominal models; setup/hold, jitter, maximum speed and PVT behavior are not qualified.",
+  "tags": [
+    "CMOS",
+    "Frequency Divider",
+    "Toggle Flip-Flop",
+    "Clock Timing",
+    "Sequential Logic"
+  ]
+}

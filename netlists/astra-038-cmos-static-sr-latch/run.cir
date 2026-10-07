@@ -1,0 +1,28 @@
+CMOS static set-reset latch
+.include "circuit.spice"
+.include "models.spice"
+VDD vdd 0 3.3
+VR r 0 PWL(0 3.3 10n 3.3 10.1n 0 100n 0 100.1n 3.3 110n 3.3 110.1n 0 210n 0)
+VS s 0 PWL(0 0 30n 0 30.1n 3.3 40n 3.3 40.1n 0 170n 0 170.1n 3.3 180n 3.3 180.1n 0 210n 0)
+XDUT vdd 0 s r out astra_038_cmos_static_sr_latch
+.temp 27
+.options method=gear reltol=1e-5
+* @spec initial range -0.01 0.01 unit=V
+* @spec set_q range 3.2 3.4 unit=V
+* @spec hold_q range 3.2 3.4 unit=V
+* @spec reset_q range -0.01 0.01 unit=V
+* @spec hold_reset range -0.01 0.01 unit=V
+* @spec set_again range 3.2 3.4 unit=V
+.control
+set filetype=ascii
+tran 20p 210n
+meas tran initial FIND v(out) AT=20n
+meas tran set_q FIND v(out) AT=50n
+meas tran hold_q FIND v(out) AT=80n
+meas tran reset_q FIND v(out) AT=120n
+meas tran hold_reset FIND v(out) AT=150n
+meas tran set_again FIND v(out) AT=190n
+write out.raw
+quit
+.endc
+.end

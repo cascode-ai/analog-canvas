@@ -1,0 +1,39 @@
+
+Note: No compatibility mode selected!
+
+
+Circuit: cmos divide-by-two clock divider
+
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+Initial Transient Solution
+--------------------------
+
+Node                                   Voltage
+----                                   -------
+vdd                                        3.3
+clk                                          0
+xdut.net2                                  3.3
+q                                            0
+xdut.clkb                                  3.3
+xdut.net1                          6.12963e-10
+xdut.net3                          1.22593e-09
+xdut.net4                                  3.3
+xdut.d                                     3.3
+xdut.net0                                  3.3
+vclk#branch                                  0
+vdd#branch                          -4.634e-11
+
+
+No. of Data Rows : 21977
+high1               =  3.30000e+00
+low1                =  1.22593e-09
+high2               =  3.30000e+00
+low2                =  1.22593e-09
+high3               =  3.30000e+00
+period              =  8.00000e-08 targ=  2.60256e-07 trig=  1.80256e-07
+width               =  3.99576e-08 targ=  2.20214e-07 trig=  1.80256e-07
+ASCII raw file "out.raw"
+ngspice-46 done

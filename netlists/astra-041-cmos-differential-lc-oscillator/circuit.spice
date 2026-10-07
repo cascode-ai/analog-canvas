@@ -1,0 +1,23 @@
+
+.subckt astra_041_cmos_differential_lc_oscillator vdd vtank VSS iref lp lm outp outm
+C0 outp VSS 50f
+C1 outm VSS 50f
+CM lm VSS 100p
+CP lp VSS 100p
+LM net3 lm 1u
+LP net4 lp 1u
+M1 lp lm net2 VSS ANMOS l=1u w=10u
+M10 outp net1 VSS VSS ANMOS l=1u w=10u
+M11 outm net0 vdd vdd APMOS l=1u w=20u
+M12 outm net0 VSS VSS ANMOS l=1u w=10u
+M2 lm lp net2 VSS ANMOS l=1u w=10u
+M3 iref iref VSS VSS ANMOS l=1u w=2u
+M4 net2 iref VSS VSS ANMOS l=1u w=2u
+M5 net1 lp vdd vdd APMOS l=1u w=40u
+M6 net1 lp VSS VSS ANMOS l=1u w=10u
+M7 net0 lm vdd vdd APMOS l=1u w=40u
+M8 net0 lm VSS VSS ANMOS l=1u w=10u
+M9 outp net1 vdd vdd APMOS l=1u w=20u
+RM vtank net3 5
+RP vtank net4 5
+.ends astra_041_cmos_differential_lc_oscillator

@@ -1,0 +1,30 @@
+CMOS divide-by-two clock divider
+.include "circuit.spice"
+.include "models.spice"
+VDD vdd 0 3.3
+VCLK clk 0 PULSE(0 3.3 20n 100p 100p 19.9n 40n)
+.ic v(q)=0
+XDUT vdd 0 q clk astra_040_cmos_toggle_frequency_divider
+.temp 27
+.options method=gear reltol=1e-5
+* @spec high1 range 3.2 3.4 unit=V
+* @spec low1 range -0.01 0.01 unit=V
+* @spec high2 range 3.2 3.4 unit=V
+* @spec low2 range -0.01 0.01 unit=V
+* @spec high3 range 3.2 3.4 unit=V
+* @spec period range 7.9e-8 8.1e-8 unit=s
+* @spec width range 3.9e-8 4.1e-8 unit=s
+.control
+set filetype=ascii
+tran 20p 400n
+meas tran high1 FIND v(q) AT=30n
+meas tran low1 FIND v(q) AT=70n
+meas tran high2 FIND v(q) AT=110n
+meas tran low2 FIND v(q) AT=150n
+meas tran high3 FIND v(q) AT=190n
+meas tran period TRIG v(q) VAL=1.65 RISE=3 TARG v(q) VAL=1.65 RISE=4
+meas tran width TRIG v(q) VAL=1.65 RISE=3 TARG v(q) VAL=1.65 FALL=3
+write out.raw
+quit
+.endc
+.end
