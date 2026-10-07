@@ -707,6 +707,33 @@ describe("authoring helper compilation", () => {
     ).toHaveLength(1);
   });
 
+  it("refuses an upper-case M before a unit and names both readings (#1409)", () => {
+    // Exported as `R2 vin net0 1MΩ`, ngspice ran it as 1 mΩ.
+    expectCompileError(
+      [
+        {
+          kind: "place-component",
+          symbol: "resistor",
+          reference: "R2",
+          position: { x: 600, y: 300 },
+          parameters: { value: "1MΩ" },
+        },
+      ],
+      'Parameter "value" is "1MΩ", which reads as 1 mΩ in SPICE (M is milli): write 1MegΩ for mega or 1mΩ for milli',
+    );
+    expect(
+      compile([
+        {
+          kind: "place-component",
+          symbol: "resistor",
+          reference: "R2",
+          position: { x: 600, y: 300 },
+          parameters: { value: "1MegΩ" },
+        },
+      ]),
+    ).toHaveLength(1);
+  });
+
   it("rejects vdd and unknown symbols at the human-fact boundary", () => {
     expectCompileError(
       [

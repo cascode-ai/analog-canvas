@@ -4,6 +4,7 @@ import type {
 } from "@icm/agent-adapter";
 import {
   instanceParameterContract,
+  milliScaleReading,
   quantityForms,
   subcircuitDescriptor,
   validateDeviceParameters,
@@ -55,10 +56,15 @@ function parameterIssue(
       return `Unknown parameter "${issue.name}" for ${instance.symbolId}${
         issue.suggestion ? `; did you mean "${issue.suggestion}"?` : ""
       }; allowed parameters: ${allowedText}`;
-    case "number":
-      return `Parameter "${issue.name}" must be ${quantityForms(issue)}; received "${issue.value}"${
-        /[µμ]/u.test(issue.value) ? " (SPICE writes micro as u)" : ""
-      }`;
+    case "number": {
+      // A SPICE number still, but one that reads as milli where mega was meant.
+      const milli = milliScaleReading(issue.value);
+      return milli
+        ? `Parameter "${issue.name}" is "${issue.value}", which ${milli}`
+        : `Parameter "${issue.name}" must be ${quantityForms(issue)}; received "${issue.value}"${
+            /[µμ]/u.test(issue.value) ? " (SPICE writes micro as u)" : ""
+          }`;
+    }
     case "duplicate":
       return `Parameter "${issue.name}" duplicates "${issue.previousName}" under case folding`;
     case "select":

@@ -122,8 +122,10 @@ targets to avoid full-Snapshot name resolution. Names remain supported when usef
   take (naming the one it most likely meant), a value outside a choice list,
   and a quantity that is neither a SPICE number (`1k`, `2.5n`, `9kΩ`) nor an
   expression in braces (`{vdd/2}`), nor a word it takes, such as a
-  comparator's `vhigh:"VDD"`. Write micro as `u`. The same checks run on
-  stored values, as Cell diagnostics.
+  comparator's `vhigh:"VDD"`. Write micro as `u`, and mega as `Meg`: SPICE
+  reads `M` as milli in either case, so an upper-case `M` before a unit
+  (`1MΩ`, `10MHz`) is refused, naming both readings (`1MegΩ`, `1mΩ`). The
+  same checks run on stored values, as Cell diagnostics.
 - An adder input subtracts by its sign, a choice: `signA`/`signB` `"-"`
   (default `"+"`), so V_hold − V_DAC is one adder with `signB:"-"`, drawn
   with its + and − marks, not an adder after a −1 gain block.
