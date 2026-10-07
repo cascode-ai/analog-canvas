@@ -371,7 +371,9 @@ their place and look. Parts placed later still show their W/L. Over the edit
 limit, nothing changes and `LIMIT_EXCEEDED` names the leading parts that fit
 (`fittingParts`); apply it to those, then to the rest.
 
-The focused `circuit_text` action `move-annotation` sets an absolute position;
+The focused `circuit_text` action `move-annotation` sets an absolute position,
+and with `alignment` (`start`, `middle` or `end`) which end of the text
+stands there, so a label moved to a part's other side needs no width;
 the legacy `apply_actions` annotation `move` uses the same semantics, while
 `transform` supports translation. These preserve ownership and electrical
 binding. A Net label moved beside its own wire, along a segment and within 20

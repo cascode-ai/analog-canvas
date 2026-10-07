@@ -964,6 +964,28 @@ describe("the editor plans an Agent's action list", () => {
     expect(refused.ok).toBe(false);
   });
 
+  it("moves a label to a part's other side with the end it reads from (#1414)", async () => {
+    const { controller, client, instance } = await editor();
+    await client.applyActions([place("resistor", "R1", 100, { value: "1k" })]);
+    const value = controller.document.annotations.find(
+      (annotation) =>
+        annotation.binding?.kind === "instance-value" &&
+        annotation.binding.instanceId === instance("R1")!.id,
+    )!;
+    const moved = await client.applyActions([
+      {
+        kind: "move-annotation",
+        annotationId: value.id,
+        position: { x: 80, y: 100 },
+        alignment: "end",
+      },
+    ]);
+    expect(moved.ok, moved.message).toBe(true);
+    expect(
+      controller.document.annotations.find((item) => item.id === value.id),
+    ).toMatchObject({ alignment: "end" });
+  });
+
   it("leaves the Document alone for a list that changes nothing", async () => {
     const { controller, client, instance } = await editor();
     expect((await client.applyActions([place("resistor", "R1", 100)])).ok).toBe(

@@ -266,6 +266,12 @@ const BatchItemSchema = z.discriminatedUnion("kind", [
       kind: z.literal("move-annotation"),
       annotationId: StableIdSchema,
       position: PointSchema,
+      alignment: z
+        .enum(["start", "middle", "end"])
+        .optional()
+        .describe(
+          "Which end of the text stands at position: start (text to its right), middle or end; omitted keeps the label's.",
+        ),
     })
     .describe(
       "Absolute drawing position; preserve electrical binding and object ownership.",

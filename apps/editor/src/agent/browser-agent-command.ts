@@ -787,15 +787,19 @@ export function planBrowserAgentCommand(
         const geometry = resolveRouteGeometry(document, resolver, route);
         return geometry ? [{ route, geometry }] : [];
       });
+      const moved = draggedAnnotationAtPosition(
+        { document, resolver, routeGeometryRecords, annotationGrid: 1 },
+        annotation,
+        command.position,
+      );
       return {
         edits: [
           {
             kind: "upsert_schematic_annotation",
-            annotation: draggedAnnotationAtPosition(
-              { document, resolver, routeGeometryRecords, annotationGrid: 1 },
-              annotation,
-              command.position,
-            ),
+            // A label moved to a part's other side reads from its other end.
+            annotation: command.alignment
+              ? { ...moved, alignment: command.alignment }
+              : moved,
           },
         ],
       };
