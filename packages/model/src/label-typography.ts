@@ -26,6 +26,7 @@ import {
   deviceLetterReferenceTextDocument,
   deviceReferenceTextDocument,
   nameOverSubscriptTextDocument,
+  semanticTextDocument,
   voltageNodeTextDocument,
 } from "./semantic-text.js";
 
@@ -245,6 +246,23 @@ export function roleLabelFormat(
   return role === "voltage-node" && CURRENT_NAME.test(name)
     ? currentNodeTextDocument(name)
     : undefined;
+}
+
+/**
+ * Whether a Cell Pin label shows only the look its name gets automatically:
+ * no look of its own, or the formal-port look the editor drew it with. Such
+ * a label takes its role's look when it is renamed or restyled (#1419); an
+ * author's own look is kept.
+ */
+export function isAutomaticPinLabelLook(
+  formatOverride: RichTextDocument | undefined,
+  name: string,
+): boolean {
+  return (
+    !formatOverride ||
+    JSON.stringify(formatOverride) ===
+      JSON.stringify(semanticTextDocument(name, "formal-port"))
+  );
 }
 
 /**

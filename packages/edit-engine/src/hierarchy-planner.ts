@@ -10,12 +10,12 @@ import {
   canonicalPortTextDocument,
   deriveStableId,
   foldNetName,
+  isAutomaticPinLabelLook,
   projectCellInterface,
   renamedLabelFormat,
   richTextPresentsIdentifier,
   roleLabelFormat,
   routeEnd,
-  semanticTextDocument,
 } from "@icm/model";
 import type { PortLabelFormatOptions } from "@icm/model";
 import {
@@ -1804,11 +1804,10 @@ export function planRenameCellTerminal(
         // look a Pin placed with the new name gets: rfp renamed vrfp is
         // drawn V_rfp (#1419), unless it is locked and has none. A standard
         // look follows the new name, and an author's keeps its styling.
-        const automaticFormat =
-          !annotation.formatOverride ||
-          JSON.stringify(annotation.formatOverride) ===
-            JSON.stringify(semanticTextDocument(terminal.name, "formal-port"));
-        const format = automaticFormat
+        const format = isAutomaticPinLabelLook(
+          annotation.formatOverride,
+          terminal.name,
+        )
           ? roleLabelFormat("voltage-node", newName)
           : renamedLabelFormat(
               annotation,

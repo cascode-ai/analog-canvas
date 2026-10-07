@@ -1,10 +1,9 @@
 import {
   canonicalPortTextDocument,
+  isAutomaticPinLabelLook,
   isRoleLabelFormat,
   roleLabelFormat,
   routeEndpoints,
-  semanticTextDocument,
-  transformPoint,
   type Annotation,
   type Rect,
   type SchematicDocument,
@@ -18,6 +17,7 @@ import {
   legacyDefaultInstanceLabelPlacement,
   previousDefaultInstanceLabelPlacement,
   instanceLabelRowOffset,
+  isVisibleEndpoint,
   objectStyleProfile,
   offsetFromPlacement,
   outwardDefaultInstanceLabelPlacement,
@@ -25,6 +25,7 @@ import {
   portLabelCandidates,
   resolveAnnotationName,
   resolveDocumentStyleProfile,
+  resolveEndpointPoint,
   uniformRowDefaultInstanceLabelPlacement,
   type InstanceLabelPlacement,
   type InstanceLabelSide,
@@ -140,16 +141,23 @@ export function arrangeInstanceLabels(
    */
   const lineNeighbours = (instanceId: string): ReadonlySet<string> | null => {
     const instance = document.instances.find((item) => item.id === instanceId);
-    const placement = instance?.placement;
-    const pins =
-      (placement &&
-        resolver
-          .resolve(instance.symbolId, instance.symbolVariantId)
-          ?.definition.pins.map((pin) => ({
-            name: pin.name,
-            at: transformPoint(pin.at, placement.position, placement),
-          }))) ??
-      [];
+    // Its drawn pins, where the canvas puts them (a resized block's too).
+    const pins = instance?.placement
+      ? (
+          resolver.resolve(instance.symbolId, instance.symbolVariantId)
+            ?.definition.pins ?? []
+        ).flatMap((pin) => {
+          const endpoint = {
+            kind: "terminal" as const,
+            instanceId,
+            pinName: pin.name,
+          };
+          const at =
+            isVisibleEndpoint(document, resolver, endpoint) &&
+            resolveEndpointPoint(document, resolver, endpoint);
+          return at ? [{ name: pin.name, at }] : [];
+        })
+      : [];
     if (pins.length !== 2 || pins[0]!.at.y !== pins[1]!.at.y) return null;
     const nets = document.nets.filter((net) =>
       net.terminals.some((end) => end.instanceId === instanceId),
@@ -831,9 +839,7 @@ export function arrangeInstanceLabels(
       const name = resolveAnnotationName(document, label);
       const look =
         options.referenceStyle === "first-letter-subscript" &&
-        (!label.formatOverride ||
-          JSON.stringify(label.formatOverride) ===
-            JSON.stringify(semanticTextDocument(name, "formal-port")))
+        isAutomaticPinLabelLook(label.formatOverride, name)
           ? roleLabelFormat("voltage-node", name)
           : undefined;
       const restyled: Annotation = look
