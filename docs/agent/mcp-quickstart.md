@@ -22,6 +22,18 @@ Other inspections reuse the clean full Snapshot after its first load;
 `refresh:true` forces a reread after a known human change or for reconciliation.
 MCP manages credentials, request IDs and expected revisions.
 
+Pairing does not prove support for every edit. New adapters report
+`compatibility.unsupportedEditKinds` from the Editor's advertised contract; keep
+using supported operations, and upgrade from the exact origin's manifest before
+using any listed edit. For project model sources, an older adapter that lacks
+this report must resolve `describe_tool({"editKind":"apply_model_source"})`
+before its first Apply. `UNKNOWN_EDIT_CONTRACT` means this feature needs an
+adapter upgrade, not a new Claim or a Project Code replacement. Model-source
+Apply and mapped source origins require MCP 0.17.45 or later; custom artwork
+migration additionally requires 0.17.46. Already installed older binaries cannot
+be changed by a website deployment. Reloading a host may require the user's
+restart or a new conversation; never restart it automatically.
+
 To reuse a Gallery drawing, use `gallery_circuits` `action:"insert"` with its
 entry ID, `targetDocumentId` and `position`. It copies into the existing Circuit
 in one undo, without opening a tab. Bind another workspace first when needed;

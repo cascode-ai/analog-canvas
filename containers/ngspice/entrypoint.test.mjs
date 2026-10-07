@@ -269,7 +269,10 @@ describeHarness("the single slot", () => {
         const health = await (
           await fetch(`http://127.0.0.1:${port}/health`)
         ).json();
-        if (health.activity?.state === "active") {
+        if (
+          health.activity?.state === "active" &&
+          health.activity.phase === "running"
+        ) {
           activeHealth = health;
           break;
         }

@@ -2173,8 +2173,10 @@ describe("routing Edit Engine", () => {
       rotation: 0,
     });
     expect(mirrored.diff.changedObjectIds).toEqual(
-      expect.arrayContaining(["A", "label-a", "route-h"]),
+      expect.arrayContaining(["A", "label-a"]),
     );
+    // This mirror changes the label, but the contact stays at the same point.
+    expect(mirrored.diff.changedObjectIds).not.toContain("route-h");
   });
 
   it.each(["nmos", "pmos"])(

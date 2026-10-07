@@ -221,6 +221,7 @@ export function planCallerInterfaceChanges(
   pinRenames: readonly CallerPinRename[],
   mergeAliases = false,
   external = false,
+  expectedPinNames?: readonly string[],
 ): {
   readonly beforeChild: readonly ProjectStructureEdit[];
   readonly afterChild: readonly ProjectStructureEdit[];
@@ -236,6 +237,7 @@ export function planCallerInterfaceChanges(
   ];
   const beforeChild: ProjectStructureEdit[] = [];
   const afterChild: ProjectStructureEdit[] = [];
+  const capturedIds = new Set<string>();
 
   for (const parent of project.documents) {
     const callers = parent.instances.filter((instance) => {
@@ -257,6 +259,80 @@ export function planCallerInterfaceChanges(
     };
     const reconcileEdits: DocumentEdits = [];
     for (const instance of callers) {
+      let symbolId = instance.symbolId;
+      const derivedId = external
+        ? externalSubcircuitSymbolId(childDocumentId)
+        : hierarchicalSymbolId(
+            project.documents.find((d) => d.id === childDocumentId)!.netlist!
+              .name,
+          );
+      const original = resolver.resolve(symbolId)?.definition;
+      if (symbolId !== derivedId && original && expectedPinNames) {
+        const mappedNames = original.pins
+          .filter((pin) => !uniqueDisappearingPinNames.includes(pin.name))
+          .map(
+            (pin) =>
+              uniquePinRenames.find((r) => r.source === pin.name)?.target ??
+              pin.name,
+          );
+        const missing = expectedPinNames.filter(
+          (name) => !mappedNames.includes(name),
+        );
+        if (missing.length)
+          throw new Error(
+            `Custom caller ${instance.reference ?? instance.id} artwork lacks ports ${missing.join(", ")}. Use a symbol containing all new ports or switch the caller to its generated Cell symbol before Apply`,
+          );
+      }
+      if (
+        symbolId !== derivedId &&
+        original &&
+        (uniquePinRenames.length > 0 || uniqueDisappearingPinNames.length > 0)
+      ) {
+        const rename = (name: string) =>
+          uniquePinRenames.find((r) => r.source === name)?.target ?? name;
+        const removed = (name: string) =>
+          uniqueDisappearingPinNames.includes(name);
+        const migratedId = deriveStableId(
+          "caller-interface-symbol",
+          childDocumentId,
+          symbolId,
+          JSON.stringify(uniquePinRenames),
+          JSON.stringify(uniqueDisappearingPinNames),
+        );
+        const symbol = {
+          ...structuredClone(original),
+          id: migratedId,
+          pins: original.pins
+            .filter((p) => !removed(p.name))
+            .map((p) => ({ ...p, name: rename(p.name) })),
+          variants: original.variants.map((v) => ({
+            ...v,
+            hiddenPinNames: v.hiddenPinNames
+              .filter((name) => !removed(name))
+              .map(rename),
+            ...(v.auxiliaryPins
+              ? {
+                  auxiliaryPins: v.auxiliaryPins
+                    .filter((p) => !removed(p.name))
+                    .map((p) => ({ ...p, name: rename(p.name) })),
+                }
+              : {}),
+          })),
+          ...(original.pins.every((p) => removed(p.name))
+            ? { hierarchicalBlock: true as const }
+            : {}),
+        };
+        if (!capturedIds.has(migratedId)) {
+          // This snapshot owns artwork only. The caller binding and native
+          // source continue to own its electrical implementation.
+          afterChild.push({
+            kind: "capture_component_definition",
+            definition: { symbol },
+          });
+          capturedIds.add(migratedId);
+        }
+        symbolId = migratedId;
+      }
       const referencedDisappearingPins = uniqueDisappearingPinNames.filter(
         (pinName) => instanceReferencesPin(parent, instance.id, pinName),
       );
@@ -318,14 +394,15 @@ export function planCallerInterfaceChanges(
       }
       if (
         referencedDisappearingPins.length === 0 &&
-        Object.keys(pinMap).length === 0
+        Object.keys(pinMap).length === 0 &&
+        symbolId === instance.symbolId
       ) {
         continue;
       }
       reconcileEdits.push({
         kind: "set_instance_symbol",
         instanceId: instance.id,
-        symbolId: instance.symbolId,
+        symbolId,
         ...(instance.symbolVariantId
           ? { symbolVariantId: instance.symbolVariantId }
           : {}),

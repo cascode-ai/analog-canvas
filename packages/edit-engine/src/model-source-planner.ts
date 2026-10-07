@@ -46,6 +46,16 @@ export function planModelSourceApply(
   const planned: ProjectStructureEdit[] = [];
   const preview = (edits: readonly ProjectStructureEdit[]) => {
     for (const edit of edits) {
+      if (edit.kind === "capture_component_definition") {
+        working.componentDefinitions ??= [];
+        if (
+          !working.componentDefinitions.some(
+            (d) => d.symbol.id === edit.definition.symbol.id,
+          )
+        )
+          working.componentDefinitions.push(edit.definition);
+        continue;
+      }
       if (edit.kind !== "transact_document") continue;
       const document = working.documents.find((d) => d.id === edit.documentId)!;
       const result = executeTransaction(
@@ -131,6 +141,7 @@ export function planModelSourceApply(
       renames,
       false,
       true,
+      entry.ports,
     );
     preview(changes.beforeChild);
     const definition: ExternalSubcircuitDefinition = {

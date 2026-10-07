@@ -19,6 +19,9 @@ export function ExternalCircuitEditor({
   onSaveModelDraft,
   onSetExternalDefinition,
   onRemoveExternalDefinition,
+  onPlace,
+  onDirtyChange,
+  onRequestLeave,
 }: {
   project: CircuitProject;
   definition: ExternalSubcircuitDefinition | undefined;
@@ -32,6 +35,9 @@ export function ExternalCircuitEditor({
     definition: ExternalSubcircuitDefinition,
   ): ExternalDefinitionResult;
   onRemoveExternalDefinition(definitionId: string): ExternalDefinitionResult;
+  onPlace(definitionId: string): void;
+  onDirtyChange(dirty: boolean): void;
+  onRequestLeave(action: () => void): void;
 }) {
   const [result, setResult] = useState<ExternalDefinitionResult | null>(null);
   const [externalName, setExternalName] = useState("");
@@ -86,6 +92,9 @@ export function ExternalCircuitEditor({
         definition={definition}
         initialLocation={initialLocation}
         onApply={onApplyModelSource}
+        onPlace={onPlace}
+        onDirtyChange={onDirtyChange}
+        onRequestLeave={onRequestLeave}
         onSaveDraft={onSaveModelDraft}
         onMetadata={onSetExternalDefinition}
         onPlaceholder={() => setPlaceholder(true)}
@@ -95,6 +104,11 @@ export function ExternalCircuitEditor({
 
   return (
     <section aria-label="External circuit interface">
+      {definition ? (
+        <button type="button" onClick={() => onPlace(definition.id)}>
+          Place
+        </button>
+      ) : null}
       <p className="cell-interface-empty">
         {reviewed
           ? `${reviewed.libraryId} · fixed PDK interface. Set parameters on instances.`

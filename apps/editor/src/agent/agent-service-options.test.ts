@@ -3,6 +3,17 @@ import { AgentSimulationResourceRequestSchema } from "@icm/agent-adapter";
 import { liveAgentEditor } from "./live-agent-editor.test-support";
 
 describe("live editor capability announcement", () => {
+  it("announces model source and artwork structure edits from the canonical contract", async () => {
+    const editor = liveAgentEditor();
+    const connected = await editor.client.connect("session-1.code");
+    expect(connected.capabilities.editKinds).toEqual(
+      expect.arrayContaining([
+        "apply_model_source",
+        "save_model_source_draft",
+        "capture_component_definition",
+      ]),
+    );
+  });
   it("announces every canonical simulation operation without an executor probe", async () => {
     const editor = liveAgentEditor({
       simulationService: async () => {

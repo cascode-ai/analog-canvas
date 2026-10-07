@@ -33,6 +33,7 @@ import {
   AGENT_API_VERSION,
   AGENT_SNAPSHOT_VERSION,
   AgentCircuitResponseSchema,
+  AgentProjectStructureEditSchema,
 } from "./schema.js";
 import type {
   AgentCircuitResponse,
@@ -385,7 +386,14 @@ export function createAgentCircuitService(
             apiVersions: [AGENT_API_VERSION],
             snapshotVersions: [AGENT_SNAPSHOT_VERSION],
             operations: OPERATIONS,
-            editKinds: AGENT_EDIT_KINDS,
+            editKinds: [
+              ...AGENT_EDIT_KINDS,
+              ...((host?.getProject?.() ?? storeOptions?.store.getProject?.())
+                ? AgentProjectStructureEditSchema.options.map(
+                    (option) => option.shape.kind.value,
+                  )
+                : []),
+            ],
             commandKinds: host?.planAuthoringCommand
               ? AgentAuthoringCommandSchema.options.map(
                   (option) => option.shape.kind.value,

@@ -22,8 +22,312 @@ import type {
   ExternalSubcircuitDefinition,
 } from "@icm/model";
 import type { ProjectStructureEdit } from "./project-transaction.js";
+import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 
 describe("Project-owned external model source", () => {
+  it("rejects custom artwork missing an added model port without applying any part of the batch", () => {
+    const project = createEmptyProject("added-custom", "Added custom");
+    const symbol = {
+      ...structuredClone(builtInSymbols.find((s) => s.id === "resistor")!),
+      id: "custom-amp",
+    };
+    project.componentDefinitions = [{ symbol }];
+    const definition: ExternalSubcircuitDefinition = {
+      id: "amp",
+      name: "amp",
+      interfaceStatus: "declared",
+      formalParameters: [],
+      terminals: symbol.pins.map((p) => ({
+        id: p.name,
+        name: p.name,
+        direction: "passive",
+      })),
+    };
+    project.externalSubcircuitDefinitions = [definition];
+    const caller = createExternalSubcircuitInstance("X1", definition, {
+      position: { x: 200, y: 200 },
+      rotation: 0,
+      mirror: "none",
+    });
+    caller.symbolId = symbol.id;
+    project.documents[0]!.instances.push(caller);
+    const original = structuredClone(project);
+    const result = executeProjectTransaction(project, {
+      projectId: project.id,
+      expectedStructureRevision: 0,
+      transactionId: "add-port",
+      actor: { kind: "human", id: "test" },
+      edits: [
+        {
+          kind: "apply_model_source",
+          source: {
+            id: "body",
+            revision: 0,
+            language: "spice",
+            entry: "amp.spice",
+            files: [
+              {
+                path: "amp.spice",
+                text: ".subckt amp A B C\nR1 A B 1k\n.ends amp\n",
+              },
+            ],
+            dependencies: [],
+          },
+          definitions: [
+            {
+              definitionId: "amp",
+              entry: "amp",
+              portMap: { "1": "A", "2": "B" },
+            },
+          ],
+        },
+      ],
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("Expected missing artwork refusal");
+    expect(result.error.message).toContain("C");
+    expect(result.error.message).toContain("artwork");
+    expect(project).toEqual(original);
+  });
+  it("renames legacy custom pins atomically without moving artwork or unrelated callers", () => {
+    const project = createEmptyProject("rename-custom", "Rename custom");
+    const symbol = structuredClone(
+      builtInSymbols.find((s) => s.id === "resistor")!,
+    );
+    symbol.id = "custom-amp";
+    project.componentDefinitions = [{ symbol }];
+    for (const id of ["amp", "other"])
+      project.externalSubcircuitDefinitions.push({
+        id,
+        name: id,
+        interfaceStatus: "declared",
+        formalParameters: [],
+        terminals: symbol.pins.map((p) => ({
+          id: p.name,
+          name: p.name,
+          direction: "passive" as const,
+        })),
+      });
+    const document = project.documents[0]!;
+    for (const [id, definitionId] of [
+      ["X1", "amp"],
+      ["X2", "other"],
+    ]) {
+      document.instances.push({
+        id: id!,
+        reference: id!,
+        symbolId: symbol.id,
+        placement: {
+          position: { x: 0, y: id === "X1" ? 0 : 200 },
+          rotation: 0,
+          mirror: "none",
+        },
+        netlist: {
+          binding: { kind: "external-subcircuit", definitionId: definitionId! },
+          parameters: { gain: "20" },
+        },
+      });
+      document.nets.push({
+        id: `${id}-net`,
+        terminals: [{ instanceId: id!, pinName: "1" }],
+      });
+      document.noConnects.push({
+        id: `${id}-nc`,
+        endpoint: { kind: "terminal", instanceId: id!, pinName: "2" },
+      });
+    }
+    const result = executeProjectTransaction(project, {
+      projectId: project.id,
+      expectedStructureRevision: 0,
+      transactionId: "rename-custom",
+      actor: { kind: "human", id: "test" },
+      edits: [
+        {
+          kind: "apply_model_source",
+          source: {
+            id: "source",
+            language: "spice",
+            entry: "amp.spice",
+            revision: 0,
+            dependencies: [],
+            files: [
+              {
+                path: "amp.spice",
+                text: ".subckt amp A B\nR1 A B 1k\n.ends amp\n",
+              },
+            ],
+          },
+          definitions: [
+            {
+              definitionId: "amp",
+              entry: "amp",
+              portMap: { "1": "A", "2": "B" },
+            },
+          ],
+        },
+      ],
+    });
+    expect(result.ok, JSON.stringify(result.ok ? null : result.error)).toBe(
+      true,
+    );
+    if (!result.ok) return;
+    const after = result.project.documents[0]!;
+    const changed = after.instances[0]!;
+    const renamed = createProjectSymbolResolver(
+      result.project,
+      builtInSymbols,
+    ).resolve(changed.symbolId)!.definition;
+    expect(renamed.primitives).toEqual(symbol.primitives);
+    expect(
+      renamed.pins.map((p) => ({ ...p, name: p.name === "A" ? "1" : "2" })),
+    ).toEqual(symbol.pins);
+    expect(changed.netlist).toEqual(document.instances[0]!.netlist);
+    expect(after.nets[0]!.terminals[0]!.pinName).toBe("A");
+    expect(after.noConnects[0]!.endpoint.pinName).toBe("B");
+    expect(after.instances[1]).toEqual(document.instances[1]);
+    expect(
+      result.project.externalSubcircuitDefinitions[0]!.terminals.map(
+        (t) => t.id,
+      ),
+    ).toEqual(["1", "2"]);
+  });
+  it("promotes a legacy model without replacing its custom caller artwork", () => {
+    const project = createEmptyProject("legacy", "Legacy");
+    const symbol = structuredClone(
+      builtInSymbols.find((s) => s.id === "resistor")!,
+    );
+    symbol.id = "custom-amp";
+    project.componentDefinitions = [{ symbol }];
+    project.externalSubcircuitDefinitions.push({
+      id: "amp",
+      name: "amp",
+      interfaceStatus: "declared",
+      formalParameters: [],
+      terminals: symbol.pins.map((p) => ({
+        id: p.name,
+        name: p.name,
+        direction: "passive" as const,
+      })),
+    });
+    project.documents[0]!.instances.push({
+      id: "X1",
+      reference: "X1",
+      symbolId: symbol.id,
+      placement: { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+      netlist: {
+        binding: { kind: "external-subcircuit", definitionId: "amp" },
+        parameters: {},
+      },
+    });
+    const result = executeProjectTransaction(project, {
+      projectId: project.id,
+      expectedStructureRevision: 0,
+      transactionId: "promote",
+      actor: { kind: "human", id: "test" },
+      edits: [
+        {
+          kind: "apply_model_source",
+          source: {
+            id: "source",
+            language: "spice",
+            entry: "amp.spice",
+            revision: 0,
+            dependencies: [],
+            files: [
+              {
+                path: "amp.spice",
+                text: ".subckt amp 1 2\nR1 1 2 1k\n.ends amp\n",
+              },
+            ],
+          },
+          definitions: [{ definitionId: "amp", entry: "amp" }],
+        },
+      ],
+    });
+    expect(result.ok, JSON.stringify(result.ok ? null : result.error)).toBe(
+      true,
+    );
+    if (result.ok) {
+      expect(result.project.documents).toEqual(project.documents);
+      expect(
+        createProjectSymbolResolver(result.project, builtInSymbols).resolve(
+          symbol.id,
+        )?.definition,
+      ).toEqual(symbol);
+    }
+  });
+  it("keeps caller wiring byte-for-byte when only the model body changes", () => {
+    const initial = createEmptyProject("body-only", "Body only");
+    const apply = (project: CircuitProject, value: string) =>
+      executeProjectTransaction(project, {
+        projectId: project.id,
+        expectedStructureRevision: project.structureRevision,
+        transactionId: "apply-body",
+        actor: { kind: "human", id: "test" },
+        edits: [
+          {
+            kind: "apply_model_source",
+            source: {
+              id: "body-source",
+              language: "spice",
+              entry: "model.spice",
+              files: [
+                {
+                  path: "model.spice",
+                  text: `.subckt amp A B\nR1 A B ${value}\n.ends amp\n`,
+                },
+              ],
+              dependencies: [],
+              revision: project.modelSources?.[0]?.revision ?? 0,
+            },
+            definitions: [{ definitionId: "amp", entry: "amp" }],
+          },
+        ],
+      });
+    const first = apply(initial, "1k");
+    if (!first.ok) throw Error(JSON.stringify(first.error));
+    const project = first.project;
+    const document = project.documents[0]!;
+    document.instances.push(
+      createExternalSubcircuitInstance(
+        "X1",
+        project.externalSubcircuitDefinitions[0]!,
+        {
+          position: { x: 200, y: 200 },
+          rotation: 0,
+          mirror: "none",
+        },
+      ),
+    );
+    document.nets.push({
+      id: "signal",
+      terminals: [{ instanceId: "X1", pinName: "A" }],
+    });
+    document.junctions.push({
+      id: "end",
+      netId: "signal",
+      position: { x: 0, y: 200 },
+      role: "route-anchor",
+    });
+    document.routes.push(
+      createRoutePath({
+        id: "imported-wire",
+        netId: "signal",
+        start: { kind: "junction", junctionId: "end" },
+        end: { kind: "terminal", instanceId: "X1", pinName: "A" },
+        bends: [{ x: 80, y: 200 }],
+        modes: ["manual", "manual"],
+      }),
+    );
+    const before = structuredClone(document.routes);
+    const updated = apply(project, "2k");
+    expect(updated.ok, JSON.stringify(updated.ok ? null : updated.error)).toBe(
+      true,
+    );
+    if (updated.ok)
+      expect(updated.project.documents[0]!.routes).toEqual(before);
+  });
+
   it.each(["ngspice", "vacask"] as const)(
     "ignores unincluded model bindings in %s execution and the active circuit view",
     (engine) => {
