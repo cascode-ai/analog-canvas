@@ -11,7 +11,7 @@ import {
   snapshotProblem,
 } from "./lib/gallery-snapshots.mjs";
 
-const repository = "Arcadia-1/analog-canvas-backups";
+const repository = "cascode-ai/analog-canvas-backups";
 const keptSnapshots = 2;
 /** Each backup: its workflow, where it lands and what its archive holds. */
 const kinds = {
