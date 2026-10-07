@@ -1336,6 +1336,14 @@ function wallFilters(url: URL) {
     // Two marks the reader can narrow by. "Liked" is answered against the
     // session, so signed out it selects nothing rather than everything.
     netlistable: url.searchParams.get("netlistable") === "1",
+    withoutNetlist: url.searchParams.get("netlistable") === "0",
+    // The AI mark: only AI-generated circuits, or only those made by hand.
+    ai:
+      url.searchParams.get("ai") === "1"
+        ? "ai"
+        : url.searchParams.get("ai") === "0"
+          ? "human"
+          : null,
     liked: url.searchParams.get("liked") === "1",
     // Sizes by part count; several mean any of them.
     parts: requestedParts(url),

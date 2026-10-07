@@ -74,6 +74,15 @@ it("requests tag counts for the wall's filters, leaving out its tag choice", asy
     "/api/gallery/tags?netlistable=1",
     { credentials: "same-origin" },
   );
+  await loadGalleryTagSummary(fetchLike, {
+    netlistable: false,
+    withoutNetlist: true,
+    ai: "human",
+  });
+  expect(fetchLike).toHaveBeenLastCalledWith(
+    "/api/gallery/tags?netlistable=0&ai=0",
+    { credentials: "same-origin" },
+  );
   await loadGalleryTagSummary(fetchLike, { netlistable: false });
   expect(fetchLike).toHaveBeenLastCalledWith("/api/gallery/tags", {
     credentials: "same-origin",

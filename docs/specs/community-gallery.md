@@ -60,9 +60,17 @@ deleted.
   `author` filters to that exact byline and optional `tags=a,b` to
   entries carrying ANY listed tag, both ahead of pagination; `total` counts
   the whole filtered set and repeats on every page). `netlistable=1` keeps
-  only the entries whose stored mark says the drawing extracts, and `liked=1`
-  only the ones this session has liked — a signed-out request for the
-  session's likes therefore selects none of them, never all of them. Every
+  only the entries whose stored mark says the drawing extracts and
+  `netlistable=0` only the ones it says do not; `ai=1` keeps only the entries
+  marked AI-generated and `ai=0` only the others; and `liked=1` only the ones
+  this session has liked — a signed-out request for the session's likes
+  therefore selects none of them, never all of them. `filterCounts` counts
+  both sides of each pair (`netlistable`/`withoutNetlist`, `ai`/`human`) with
+  every other filter applied but its own pair's choice left out, so each side
+  says what choosing it would show. The wall's side panel offers them as two
+  pairs under Needs attention, "AI generated"/"Human made" and "With
+  netlist"/"Without netlist": choosing one side of a pair moves the choice
+  there, and choosing it again shows both. Every
   narrowing composes and every one of them precedes the cursor, so `total`
   and the page agree. Rejected and
   recycled entries never appear. Every entry includes the content-derived
@@ -109,15 +117,15 @@ deleted.
   Narrow mobile layouts keep that search visible while collapsing the filters
   and tag groups behind a Search & filters button. An empty tag selection result
   does not substitute unfiltered examples. The counts follow every filter of
-  the wall except the tag choice itself (author or `owner`, netlist, liked,
-  Needs attention and its reason, sizes, and `q`), so no tag claims more
+  the wall except the tag choice itself (author or `owner`, netlist, AI mark,
+  liked, Needs attention and its reason, sizes, and `q`), so no tag claims more
   circuits than the narrowed wall holds; with `q` they are those of the
   circuits the search finds.
 - `GET /api/gallery/authors` — non-empty public bylines with their currently
   visible circuit counts, ranked by count and then author name. This endpoint
   remains the unfiltered public ranking. The clickable wall count instead uses
   the `authors` aggregate returned by `GET /api/gallery`: the same author,
-  tags, netlist, liked and authorized Needs attention filters as its cards,
+  tags, netlist, AI mark, liked and authorized Needs attention filters as its cards,
   counted before pagination. Empty results show no contributors. Selecting an
   author retains the other active filters. While the wall is narrowed to one
   author, the menu opens with "Circuits by <author>" and an All authors
