@@ -5,13 +5,13 @@
   "platform": "linux/x64",
   "simulator": {
     "name": "vacask",
-    "version": "0.3.4-icm-hard-switch1",
-    "binarySha256": "f15c9dea9d2d9d68ac218e86219984d9cccec06de3ad29569a10fdc12b44f913"
+    "version": "0.3.4-icm-hard-switch2",
+    "binarySha256": "fd7cb1a157413f436e03c1bc0f6dbf260e27ef0f398e56b8ef4e3b6eea504c83"
   },
   "models": {
     "id": "vacask-runtime-assets",
     "contentSha256": "66595d7f30c34d9175b3d1b6146a1123ade737c62c0090bbe19ef9594ada4d64"
   },
   "startupSha256": "c1d2c35e9b9c7c0496c4083ba14a0ad4712af28e1467f94d6b194dd7f313fd91",
-  "fingerprint": "3a60a606ccf986c2b1a8c649b074297ae7e5bc1c88bcce7cb2ddac52882e83f0"
+  "fingerprint": "35f1b6bc859d79d11b81c027419b7f3631622b716815439eca86445849e45a48"
 }

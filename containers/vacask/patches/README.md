@@ -74,9 +74,8 @@ general Verilog-A event support. Licensed Spectre remains a separate obligation.
 The **previous hard-switch1** formal Linux build and strict pinned-image boot passed in
 [run 37294456075](https://github.com/cascode-ai/analog-canvas/actions/runs/37294456075):
 51 native cases passed (the five ngspice cases are qualified locally, not claimed
-as run on this Linux job). Its measured simulator version and identity are
-recorded in `config/vacask-preview-environment.json`; models and startup retain
-their previous accepted identities. The build image is
+as run on this Linux job). Models and startup retain their previous accepted
+identities. The previous build image is
 `sha256:e2bbd5d23b1595d5acea5d1f6461616afc8a04bd1bca54dbe8f3ab1267d60552`;
 the host must independently verify its own image and runtime lock.
 
@@ -96,12 +95,22 @@ The six leakage probes and the LTE-isolation probes fail against the
 previous accepted binary. The registered patch also passes strict application
 to the clean pinned upstream index. Local CLI qualification does **not** replace
 the required formal build, read-only candidate-image boot, or hosted GUI/MCP
-acceptance; the Production lock remains `hard-switch1` until that delivery is
-qualified.
+acceptance.
+
+The `hard-switch2` formal Linux build and strict pinned-image boot passed in
+[run 37628367690](https://github.com/cascode-ai/analog-canvas/actions/runs/37628367690)
+at source commit `415894d95d99ff00544bb79b62d285488f1852a8`: **64 native cases
+passed, five ngspice cases skipped**. The read-only, non-root, no-network image
+boot measured the identity now recorded in `config/vacask-preview-environment.json`.
+The image is `sha256:b3e291b28898fd7c8b254fc09c7f2b6a573097118c73c3f5344965664062d416`.
+Only simulator version, binary and environment fingerprint changed; models,
+startup, compiler, capabilities and limits are preserved. This lock declares the
+qualified target, not proof that a host is running it. Deployment must measure
+the same identity independently and complete hosted GUI/MCP acceptance.
 
 Upstream is AGPL-3.0. Build artifacts include the complete upstream source
 archive (including its license), this patch and the exact revision; the image
 retains them under `/opt/model-source/vacask/`. Corresponding source and the
 rebuild recipe must remain publicly available when this runtime is hosted.
 They are published in the
-[corresponding-source release](https://github.com/cascode-ai/analog-canvas/releases/tag/vacask-runtime-source-0.3.4-icm-hard-switch1).
+[corresponding-source release](https://github.com/cascode-ai/analog-canvas/releases/tag/vacask-runtime-source-0.3.4-icm-hard-switch2).
