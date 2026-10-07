@@ -87,6 +87,44 @@ export async function loadGalleryPublicationContext(
   };
 }
 
+/** What the signed-in account may still publish today (`/api/gallery/quota`). */
+export interface GalleryQuota {
+  limit: number;
+  used: number;
+  remaining: number;
+  /** The next UTC midnight: the day a submission counts in is a UTC day. */
+  resetsAt: string;
+  /** Curators publish without the allowance. */
+  exempt: boolean;
+}
+
+/** Null when signed out or unreachable: the dialog then says nothing. */
+export async function loadGalleryQuota(
+  fetchLike: typeof fetch = fetch,
+): Promise<GalleryQuota | null> {
+  try {
+    const response = await fetchLike("/api/gallery/quota", {
+      credentials: "same-origin",
+      cache: "no-store",
+    });
+    if (!response.ok) return null;
+    const quota = (await response.json()) as Partial<GalleryQuota>;
+    return typeof quota.remaining === "number" &&
+      typeof quota.limit === "number" &&
+      typeof quota.resetsAt === "string"
+      ? {
+          limit: quota.limit,
+          used: quota.used ?? quota.limit - quota.remaining,
+          remaining: quota.remaining,
+          resetsAt: quota.resetsAt,
+          exempt: quota.exempt === true,
+        }
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 /** What the dialog needs to know about the signed-in user. */
 export interface PublishSessionUser {
   /** Also the byline: the server takes it from the account, not from us. */
@@ -234,7 +272,7 @@ export function describePublishOutcome(outcome: GalleryPublishOutcome): string {
     case "too-large":
       return "This Project exceeds the gallery's 2 MB limit";
     case "rate-limited":
-      return "Daily publish limit reached — try again tomorrow";
+      return "Daily publish limit reached — it resets at 00:00 UTC";
     case "rejected":
       return outcome.message === "publication-link-conflict"
         ? "This Project’s publication link changed elsewhere. Reopen the saved Project before publishing."

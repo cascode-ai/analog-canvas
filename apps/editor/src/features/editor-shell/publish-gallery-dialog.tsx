@@ -11,9 +11,20 @@ import {
   GALLERY_DESCRIPTION_LIMIT,
   type GalleryPublishFields,
   type GalleryPublishOutcome,
+  type GalleryQuota,
   type PublishSessionUser,
 } from "./gallery-publish";
 import { GalleryTopologyCheck } from "./gallery-topology-check";
+
+/** " (in 3 h 12 min)" until the given time, or nothing once it has passed. */
+function untilReset(resetsAt: string, now = Date.now()): string {
+  const minutes = Math.ceil((Date.parse(resetsAt) - now) / 60_000);
+  if (!Number.isFinite(minutes) || minutes <= 0) return "";
+  const hours = Math.floor(minutes / 60);
+  return hours > 0
+    ? ` (in ${hours} h${minutes % 60 ? ` ${minutes % 60} min` : ""})`
+    : ` (in ${minutes} min)`;
+}
 
 /** Suggested tags shown before the "+ …" chip opens the rest. */
 const FOLDED_TAG_PRESETS = 5;
@@ -44,6 +55,8 @@ export interface PublishGalleryDialogProps {
   } | null;
   /** Whether an Agent worked on this Project: a new entry starts marked AI. */
   agentEdited?: boolean;
+  /** Today's allowance for new entries; absent until it has loaded. */
+  quota?: GalleryQuota | null;
   publish: (fields: GalleryPublishFields) => Promise<GalleryPublishOutcome>;
   publishUpdate?:
     | ((fields: GalleryPublishFields) => Promise<GalleryPublishOutcome>)
@@ -105,6 +118,7 @@ export function PublishGalleryDialog({
   updateTarget = null,
   updateDefaults = null,
   agentEdited = false,
+  quota = null,
   publish,
   publishUpdate,
   onPublished,
@@ -209,6 +223,9 @@ export function PublishGalleryDialog({
   // a pasted citation short without a word, and the text was published cut.
   const descriptionLength = description.trim().length;
   const descriptionTooLong = descriptionLength > GALLERY_DESCRIPTION_LIMIT;
+  // An update replaces an entry and spends nothing; a new entry spends one.
+  const quotaSpent =
+    !updating && !!quota && !quota.exempt && quota.remaining <= 0;
 
   const hasDraft =
     description.trim().length > 0 ||
@@ -581,6 +598,18 @@ export function PublishGalleryDialog({
                 ? `Publishing as ${session?.displayName} — this updates the entry in place.`
                 : `Publishing as ${session?.displayName} — it goes up straight away.`}
             </p>
+            {!updating && quota && !quota.exempt ? (
+              <p
+                className="publish-gallery-note"
+                data-testid="publish-quota"
+                data-spent={quotaSpent ? "true" : "false"}
+              >
+                {quotaSpent
+                  ? `Today's ${quota.limit} new entries are published`
+                  : `${quota.remaining} of ${quota.limit} new entries left today`}
+                {` · resets at 00:00 UTC${untilReset(quota.resetsAt)}`}
+              </p>
+            ) : null}
           </>
         )}
         {error ? (
@@ -605,7 +634,8 @@ export function PublishGalleryDialog({
                 publicationLinkLoading ||
                 !!publicationLinkError ||
                 name.trim() === "" ||
-                descriptionTooLong
+                descriptionTooLong ||
+                quotaSpent
               }
               onClick={() => void submit()}
             >

@@ -84,6 +84,17 @@ describe("duplicate-check snapshot freshness", () => {
     expect(render(project)).toContain("another Project or Cell");
     expect(render(project)).not.toContain('role="alert"');
   });
+  it("shows another Cell's results nowhere, only that a check is waiting (#1417)", () => {
+    const { sourceError: _stale, ...report } = store.state.report!;
+    store.state.report = { ...report, comparable: 699, matches: [] };
+    const project = fixture();
+    project.id = "different-project";
+    const html = render(project);
+    expect(html).toContain("Controls");
+    expect(html).not.toContain("699 comparable");
+    expect(html).not.toContain("No comparable Gallery circuits");
+    expect(html).toContain(">Check Duplicate</button>");
+  });
   it("identifies a different root Cell even within the same Project", () => {
     const project = fixture();
     project.documents.push({

@@ -282,6 +282,8 @@ import {
   updateGalleryEntry,
   canUpdateGalleryPublication,
   loadGalleryPublicationContext,
+  loadGalleryQuota,
+  type GalleryQuota,
 } from "../features/editor-shell/gallery-publish";
 import {
   announceGalleryChange,
@@ -1177,6 +1179,18 @@ function WorkspaceEditor({
     return () => window.removeEventListener("focus", refreshAfterReturning);
   }, [publishSession, reloadCloudProjects]);
 
+  const [publishQuota, setPublishQuota] = useState<GalleryQuota | null>(null);
+  // What the account may still publish today, read each time the dialog opens.
+  useEffect(() => {
+    if (!publishGalleryOpen || !publishSession) return;
+    let cancelled = false;
+    void loadGalleryQuota().then((quota) => {
+      if (!cancelled) setPublishQuota(quota);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [publishGalleryOpen, publishSession]);
   useEffect(() => {
     if (!publishGalleryOpen) return;
     let cancelled = false;
@@ -7702,6 +7716,7 @@ function WorkspaceEditor({
                     }
                   : null,
                 agentEdited: editorDocumentController.agentEdited,
+                quota: publishQuota,
                 publish: (fields) =>
                   publishProjectToGallery(project, fields, fetch, cloudBinding),
                 ...(galleryEntryContext

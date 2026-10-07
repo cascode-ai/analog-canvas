@@ -903,6 +903,8 @@ export class GalleryDO {
         return this.rejected();
       case "mine":
         return this.mine(String(body.ownerUserId));
+      case "quota":
+        return this.quota(String(body.ownerUserId), String(body.day));
       case "all-ids":
         return this.allIds();
       case "netlistable-refresh":
@@ -1905,6 +1907,20 @@ export class GalleryDO {
       );
     });
     return Response.json({ id: entry.id, restored: true, previewRevision });
+  }
+
+  /** The day's allowance, counted as a submission counts it. */
+  private quota(ownerUserId: string, day: string): Response {
+    const used = this.sql
+      .exec<{ count: number }>(
+        `SELECT COUNT(*) AS count FROM gallery_entries
+         WHERE owner_user_id = ? AND substr(created_at, 1, 10) = ?
+           AND status <> 'recycled'`,
+        ownerUserId,
+        day,
+      )
+      .one().count;
+    return Response.json({ used: Number(used) });
   }
 
   private mine(ownerUserId: string): Response {

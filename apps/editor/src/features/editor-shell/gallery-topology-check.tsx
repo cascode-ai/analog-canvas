@@ -43,12 +43,15 @@ export function GalleryTopologyCheck({ project }: { project: CircuitProject }) {
       snapshot.topDocumentId !== project.topDocumentId);
   const historical =
     !!snapshot && (otherCell || snapshotContent !== currentContent);
+  // Results for another Project or Cell answer nothing about this one, so
+  // they are not shown at all; an edited Cell's stay, marked as historical.
+  const shown = otherCell ? null : report;
   const start = () => galleryTopologyTask.start(project);
   const stop = () => galleryTopologyTask.cancel();
 
   const exactCount =
-    report?.exactMatches ??
-    report?.matches.filter((match) => match.exact).length ??
+    shown?.exactMatches ??
+    shown?.matches.filter((match) => match.exact).length ??
     0;
   return (
     <section
@@ -64,7 +67,7 @@ export function GalleryTopologyCheck({ project }: { project: CircuitProject }) {
           onClick={start}
           disabled={running}
         >
-          {report ? "Check Again" : "Check Duplicate"}
+          {shown ? "Check Again" : "Check Duplicate"}
         </button>
         {running ? (
           <button
@@ -82,15 +85,15 @@ export function GalleryTopologyCheck({ project }: { project: CircuitProject }) {
           the hosted backend.
         </p>
       ) : null}
-      {report?.omittedMatches ? (
+      {shown?.omittedMatches ? (
         <p className="publish-duplicate-message">
-          Showing the best {report.matches.length} results;{" "}
-          {report.omittedMatches} lower-ranked results omitted.
+          Showing the best {shown.matches.length} results;{" "}
+          {shown.omittedMatches} lower-ranked results omitted.
         </p>
       ) : null}
-      {report?.limitedComparisons ? (
+      {shown?.limitedComparisons ? (
         <p className="publish-duplicate-message">
-          {report.limitedComparisons} comparisons reached the search budget.
+          {shown.limitedComparisons} comparisons reached the search budget.
           Unconfirmed results are not proof of a different topology.
         </p>
       ) : null}
@@ -100,22 +103,22 @@ export function GalleryTopologyCheck({ project }: { project: CircuitProject }) {
           data-testid="gallery-topology-snapshot"
         >
           {otherCell
-            ? `Historical check for another Project or Cell: “${snapshot.name}”. Click Check Again to check this Cell.`
+            ? `The last check was for another Project or Cell, “${snapshot.name}”; its results are not shown here. Click Check Duplicate to check this Cell.`
             : `Canvas changed. Historical results use “${snapshot.name}” captured when you clicked Check Duplicate. Click Check Again to check the current Cell.`}
         </p>
       ) : null}
       <span role="status" className="publish-duplicate-status">
         {running
-          ? `Comparing ${report?.scanned ?? 0}${report?.total != null ? ` / ${report.total}` : ""} Gallery circuits…`
-          : report?.complete && !report.sourceError
+          ? `Comparing ${report?.scanned ?? 0}${report?.total != null ? ` / ${report.total}` : ""} Gallery circuits${otherCell && snapshot ? ` for “${snapshot.name}”` : ""}…`
+          : shown?.complete && !shown.sourceError
             ? exactCount > 0
-              ? `${exactCount} exact topology ${exactCount === 1 ? "match" : "matches"}; ${report.comparable} comparable circuits checked.`
-              : `No confirmed exact match; ${report.comparable} comparable circuits checked.`
+              ? `${exactCount} exact topology ${exactCount === 1 ? "match" : "matches"}; ${shown.comparable} comparable circuits checked.`
+              : `No confirmed exact match; ${shown.comparable} comparable circuits checked.`
             : null}
       </span>
-      {report?.uncheckable ? (
+      {shown?.uncheckable ? (
         <p className="publish-duplicate-message">
-          {report.uncheckable} circuits could not be fully compared.
+          {shown.uncheckable} circuits could not be fully compared.
         </p>
       ) : null}
       {failure ? (
@@ -123,7 +126,7 @@ export function GalleryTopologyCheck({ project }: { project: CircuitProject }) {
           {failure}
         </p>
       ) : null}
-      {report?.sourceError || report?.error ? (
+      {shown?.sourceError || shown?.error ? (
         <p
           role={historical ? undefined : "alert"}
           className="publish-duplicate-message"
@@ -131,22 +134,20 @@ export function GalleryTopologyCheck({ project }: { project: CircuitProject }) {
           {historical
             ? "Historical check only — not a current validation error: "
             : ""}
-          {report.sourceError ?? report.error}
+          {shown.sourceError ?? shown.error}
         </p>
       ) : null}
-      {report?.complete &&
-      !report.sourceError &&
-      report.matches.length === 0 ? (
+      {shown?.complete && !shown.sourceError && shown.matches.length === 0 ? (
         <p className="publish-duplicate-message">
           No comparable Gallery circuits were found.
         </p>
       ) : null}
-      {report?.matches.length ? (
+      {shown?.matches.length ? (
         <div
           className="publish-duplicate-results"
           data-testid="gallery-topology-results"
         >
-          {report.matches.map((match) => (
+          {shown.matches.map((match) => (
             <article
               key={match.entry.id}
               className="publish-duplicate-result"
@@ -220,7 +221,7 @@ export function GalleryTopologyCheck({ project }: { project: CircuitProject }) {
           ))}
         </div>
       ) : null}
-      {report?.matches.length ? (
+      {shown?.matches.length ? (
         <p className="publish-duplicate-message">
           Ranking: structure score × (85% + 15% × parameter/model score). A
           similarity score is not proof of an identical netlist.

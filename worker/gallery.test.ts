@@ -3099,6 +3099,43 @@ describe("the daily publish quota", () => {
       .exec<{ count: number }>("SELECT COUNT(*) AS count FROM gallery_entries")
       .one().count;
 
+  it("tells a signed-in publisher what is left today and when the day resets (#1417)", async () => {
+    const env = environment();
+    const quota = async (cookie?: string) => {
+      const response = await route(
+        env,
+        new Request(
+          `${ORIGIN}/api/gallery/quota`,
+          cookie ? { headers: cookieHeaders(cookie) } : undefined,
+        ),
+      );
+      return { status: response.status, body: await response.json() };
+    };
+    const cookie = await makerOf(env);
+    await submitOne(env, "First", { cookie });
+    await submitOne(env, "Second", { cookie });
+    const now = new Date();
+    const tomorrow = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1),
+    ).toISOString();
+
+    expect(await quota(cookie)).toEqual({
+      status: 200,
+      body: {
+        limit: 100,
+        used: 2,
+        remaining: 98,
+        resetsAt: tomorrow,
+        exempt: false,
+      },
+    });
+    // Curators publish without the allowance.
+    expect((await quota(await adminOf(env))).body).toMatchObject({
+      exempt: true,
+    });
+    expect((await quota()).status).toBe(401);
+  });
+
   it("counts an account's own entries, so removing work returns the allowance", async () => {
     const env = environment();
     const cookie = await makerOf(env);

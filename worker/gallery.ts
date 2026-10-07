@@ -32,6 +32,7 @@ import {
 
 import { sessionUserOf, type SessionUser } from "./auth";
 import {
+  GALLERY_DAILY_SUBMISSION_LIMIT,
   GALLERY_MAX_AUTHOR_LENGTH,
   GALLERY_MAX_DESCRIPTION_LENGTH,
   GALLERY_MAX_NAME_LENGTH,
@@ -2083,6 +2084,41 @@ export async function routeGalleryRequest(
   ) {
     const { payload } = await callGallery(env, "authors", {});
     return Response.json(payload, { headers: { "cache-control": "no-store" } });
+  }
+  // What a signed-in publisher may still publish today, before they fill in
+  // a form the quota would refuse (#1417).
+  if (
+    segments.length === 1 &&
+    segments[0] === "quota" &&
+    request.method === "GET"
+  ) {
+    const user = await sessionUserOf(request, env);
+    if (!user) {
+      return Response.json({ error: "unauthorized" }, { status: 401 });
+    }
+    const now = new Date();
+    const { payload } = await callGallery<{ used: number }>(env, "quota", {
+      ownerUserId: user.id,
+      day: now.toISOString().slice(0, 10),
+    });
+    const used = payload.used ?? 0;
+    return Response.json(
+      {
+        limit: GALLERY_DAILY_SUBMISSION_LIMIT,
+        used,
+        remaining: Math.max(0, GALLERY_DAILY_SUBMISSION_LIMIT - used),
+        // The day is the UTC calendar day a submission is counted in.
+        resetsAt: new Date(
+          Date.UTC(
+            now.getUTCFullYear(),
+            now.getUTCMonth(),
+            now.getUTCDate() + 1,
+          ),
+        ).toISOString(),
+        exempt: user.isAdmin === true || user.role === "moderator",
+      },
+      { headers: { "cache-control": "no-store" } },
+    );
   }
   if (
     segments.length === 1 &&
