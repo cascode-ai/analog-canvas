@@ -467,8 +467,13 @@ diagnostics. They cannot introduce folder-local overrides. The Netlist panel
 shows the composed text directly without separate model-owner navigation rows;
 explicit model Apply appears in its existing action controls when edits are
 pending. Saved drafts do not replace applied bytes; generated model comments
-identify the applied version and pending draft. Placeholders export calls with
-a missing-implementation warning and cannot prepare for execution.
+identify the applied version and pending draft. Authoring previews retain the
+reachable applied model bodies even when unfinished wiring or values block
+strict export. Interface-only placeholders and unreviewed legacy declarations
+have no authoritative body: their calls may appear in the preview, but Copy and
+export refuse until an implementation is applied. Bodies in experiment files
+do not implicitly become Project model owners. Reviewed library bindings still
+resolve through their declared library/environment contract.
 
 ## Printer contracts
 

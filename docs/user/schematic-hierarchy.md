@@ -64,6 +64,11 @@ applied external `.subckt` bodies and owned helper definitions. Nested and
 repeated Cell calls include each reachable model source once. Editing a supported
 model body here requires the Apply checkmark or Ctrl/Cmd+Enter; Apply writes back
 to the same source shown in Manager. Copy waits until those edits are applied.
+An unfinished drawing still shows its applied external model definitions, but
+Copy waits for the drawing to be complete. A legacy external block with only an
+interface cannot be copied as a complete netlist. Move its definitions from
+experiment files into Manager and Apply them, then remove the duplicated
+experiment definitions; the shared Project source owns them thereafter.
 
 An interface edit updates all callers atomically. Reorder retains pin identity;
 rename/removal of a connected pin needs an explicit migration selection. Choosing

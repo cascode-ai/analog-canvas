@@ -17,6 +17,7 @@ import {
   clickNetlistWorkflowCommand,
   expectComponentCodeField,
   openMenu,
+  openCellManager,
 } from "./editor-fixtures.js";
 import {
   placeComponent,
@@ -188,6 +189,35 @@ X2 OUT IN EXT_MASTER l=1u nf=4
   await expect(page.getByTestId("status")).toContainText(
     "Imported 2 Documents",
   );
+  if (
+    (await page
+      .getByTestId("netlist-panel-toggle")
+      .getAttribute("aria-pressed")) !== "true"
+  )
+    await page.getByTestId("netlist-panel-toggle").click();
+  await expect(page.getByTestId("netlist-issues")).toContainText(
+    "Legacy declaration EXT_MASTER has no Project-owned implementation",
+  );
+  await expect(page.getByTestId("copy-netlist-panel")).toBeDisabled();
+  await openCellManager(page);
+  const manager = page.getByRole("dialog", {
+    name: "Cell Manager",
+    exact: true,
+  });
+  await manager
+    .getByRole("button", { name: "External Circuits", exact: true })
+    .click();
+  await manager.getByRole("button", { name: /EXT_MASTER/ }).click();
+  await manager
+    .getByRole("button", { name: "Define implementation…", exact: true })
+    .click();
+  const body =
+    ".subckt EXT_MASTER P1 P2 params: l=1u nf=1\nREXT P1 P2 1k\n.ends EXT_MASTER\n";
+  await manager.getByLabel("External model netlist").fill(body);
+  await manager
+    .getByRole("button", { name: "Apply model", exact: true })
+    .click();
+  await manager.getByLabel("Close Cell Manager").click();
   const spice = await copyNetlistText(page);
   await expect(page.getByRole("dialog", { name: "Check Report" })).toHaveCount(
     0,
@@ -195,6 +225,7 @@ X2 OUT IN EXT_MASTER l=1u nf=4
   expect(spice).toContain(".subckt leaf A B params: scale=1");
   expect(spice).toContain("X1 IN OUT leaf scale=2");
   expect(spice).toContain("X2 OUT IN EXT_MASTER l=1u nf=4");
+  expect(spice).toContain(body);
 });
 
 test("draws imported instances with their references", async ({ page }) => {

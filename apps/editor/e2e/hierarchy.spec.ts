@@ -277,6 +277,110 @@ test("defines a native external model in Manager and places its parsed interface
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("active-instance-count")).toHaveText("1");
   await expect(page.locator('[data-pin-name="OUT"]')).toBeVisible();
+  if (
+    (await page
+      .getByTestId("netlist-panel-toggle")
+      .getAttribute("aria-pressed")) !== "true"
+  )
+    await page.getByTestId("netlist-panel-toggle").click();
+  const netlist = page.getByRole("region", {
+    name: "Live netlist",
+    exact: true,
+  });
+  await expect(
+    netlist.getByRole("textbox", { name: "Netlist code", exact: true }),
+  ).toContainText(".subckt user_booster INP INN OUT VSS params: gain=20");
+  await expect(netlist.getByTestId("copy-netlist-panel")).toBeDisabled();
+});
+
+test("refuses copying a legacy interface-only model until its native implementation is applied", async ({
+  page,
+}) => {
+  const project = createEmptyProject("legacy-model", "Legacy model");
+  const definition = {
+    id: "legacy",
+    name: "legacy_gain",
+    interfaceStatus: "declared" as const,
+    terminals: [
+      { id: "a", name: "A", direction: "input" as const },
+      { id: "b", name: "B", direction: "output" as const },
+    ],
+    formalParameters: [],
+  };
+  const body = ".subckt legacy_gain A B\nR1 A B 1k\n.ends legacy_gain\n";
+  project.externalSubcircuitDefinitions.push(definition);
+  const document = project.documents[0]!;
+  document.instances.push(
+    createExternalSubcircuitInstance("X1", definition, {
+      position: { x: 200, y: 200 },
+      rotation: 0,
+      mirror: "none",
+    }),
+  );
+  for (const pinName of ["A", "B"])
+    document.noConnects.push({
+      id: pinName,
+      endpoint: { kind: "terminal", instanceId: "X1", pinName },
+    });
+  const experiment = createSimulationFolder({
+    id: "old-experiment",
+    name: "Old experiment",
+    profileId: "local",
+    documentId: document.id,
+  });
+  experiment.input.files.push({ path: "legacy.spice", text: body });
+  project.simulationFolders.push(experiment);
+  await page.goto("/editor?new=1");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "legacy.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(serializeProject(project)),
+  });
+  if (
+    (await page
+      .getByTestId("netlist-panel-toggle")
+      .getAttribute("aria-pressed")) !== "true"
+  )
+    await page.getByTestId("netlist-panel-toggle").click();
+  const netlist = page.getByRole("region", {
+    name: "Live netlist",
+    exact: true,
+  });
+  await expect(netlist.getByTestId("netlist-issues")).toContainText(
+    "Legacy declaration legacy_gain has no Project-owned implementation",
+  );
+  await expect(netlist.getByTestId("copy-netlist-panel")).toBeDisabled();
+  await openCellManager(page);
+  const manager = page.getByRole("dialog", {
+    name: "Cell Manager",
+    exact: true,
+  });
+  await manager
+    .getByRole("button", { name: "External Circuits", exact: true })
+    .click();
+  await manager.getByRole("button", { name: /legacy_gain/ }).click();
+  await manager
+    .getByRole("button", { name: "Define implementation…", exact: true })
+    .click();
+  await manager.getByLabel("External model netlist").fill(body);
+  await manager
+    .getByRole("button", { name: "Apply model", exact: true })
+    .click();
+  await manager.getByLabel("Close Cell Manager").click();
+  const copied = await copyNetlistText(page, "spice");
+  expect(copied).toContain(body);
+  expect(copied.match(/^\.subckt legacy_gain\b/gm)).toHaveLength(1);
+  const saved: CircuitProject = parseSavedProject(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(),
+  );
+  expect(
+    saved.externalSubcircuitDefinitions[0]!.terminals.map(
+      (terminal) => terminal.id,
+    ),
+  ).toEqual(["a", "b"]);
+  expect(saved.externalSubcircuitDefinitions[0]!.implementation?.kind).toBe(
+    "source",
+  );
 });
 
 test("copies nested external implementations once and applies body edits to their shared source", async ({
@@ -1943,10 +2047,28 @@ test("creates and places an external interface with connected netlist semantics"
   expect(analyzed.ir?.cells.map((cell) => cell.name)).not.toContain(
     "external_load",
   );
+  // An interface preserves placement/connectivity, but cannot stand in for
+  // the native implementation when exporting a reusable circuit.
+  await openCellManager(page);
+  await manager
+    .getByRole("button", { name: "External Circuits", exact: true })
+    .click();
+  await manager.getByRole("button", { name: /external_load/ }).click();
+  await manager
+    .getByRole("button", { name: "Define implementation…", exact: true })
+    .click();
+  const body =
+    ".subckt external_load IN OUT\nRLOAD IN OUT 1Meg\n.ends external_load\n";
+  await manager.getByLabel("External model netlist").fill(body);
+  await manager
+    .getByRole("button", { name: "Apply model", exact: true })
+    .click();
+  await manager.getByLabel("Close Cell Manager").click();
   await clickCommand(page, "Netlist", "Review Netlist Issues…");
   await expect(page.getByTestId("netlist-preview")).toContainText(
     new RegExp(`${instance.reference}\\s+\\S+\\s+\\S+\\s+external_load`, "u"),
   );
+  await expect(page.getByTestId("netlist-preview")).toContainText(body);
 });
 
 test("keeps a Port Name when its subscript is removed, and projects that look", async ({

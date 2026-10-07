@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { createEmptyDocument, createEmptyProject } from "@icm/model";
+import {
+  createEmptyDocument,
+  createEmptyProject,
+  createSimulationFolder,
+} from "@icm/model";
 import type { SchematicDocument } from "@icm/model";
 import { importSpiceSources } from "@icm/spice";
 import { analyzeDesignNetlist } from "./extract.js";
@@ -9,6 +13,63 @@ import {
   designExtractsNetlist,
   unfinishedDrawingDiagnostics,
 } from "./export.js";
+import {
+  externalModelFixture,
+  expectModelSourceMapping,
+} from "./external-model-fixture.test-support.js";
+
+describe("complete external model export", () => {
+  it("refuses an interface-only legacy model even when experiments contain its body", () => {
+    const project = externalModelFixture();
+    const source = project.modelSources![0]!;
+    delete project.externalSubcircuitDefinitions[0]!.implementation;
+    delete project.modelSources;
+    const folder = createSimulationFolder({
+      id: "old",
+      name: "Legacy experiment",
+      profileId: "local",
+      documentId: project.topDocumentId,
+    });
+    folder.input.files.push(...source.files);
+    project.simulationFolders.push(folder);
+    const result = createDesignNetlistExport(project);
+    expect(result.status).toBe("blocked");
+    expect(result.diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: "MODEL_LEGACY_IMPLEMENTATION_UNVERIFIED",
+        severity: "error",
+      }),
+    );
+    expect(designExtractsNetlist(project)).toBe(false);
+  });
+
+  it("refuses an unimplemented placeholder and emits applied bodies with exact mappings", () => {
+    const project = externalModelFixture();
+    project.externalSubcircuitDefinitions[0]!.implementation = {
+      kind: "placeholder",
+      sourceId: "source",
+    };
+    expect(createDesignNetlistExport(project).status).toBe("blocked");
+    project.externalSubcircuitDefinitions[0]!.implementation = {
+      kind: "source",
+      sourceId: "source",
+      entry: "gain_block",
+    };
+    const result = createDesignNetlistExport(project, {
+      includeLocations: true,
+    });
+    expect(result.status).toBe("ready");
+    if (result.status !== "ready") return;
+    expect(result.file.text.match(/^\.subckt gain_block\b/gm)).toHaveLength(1);
+    expect(result.file.text.match(/^\.subckt helper\b/gm)).toHaveLength(1);
+    expect(result.file.text).toContain("BOUT B A V={gain*v(A,B)}");
+    expectModelSourceMapping(
+      result.file.text,
+      result.locations.modelSources!,
+      project.modelSources![0]!,
+    );
+  });
+});
 
 function fixture() {
   const project = createEmptyProject(

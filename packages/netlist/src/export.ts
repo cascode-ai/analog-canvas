@@ -16,8 +16,7 @@ import type { NetlistPortCase } from "./net-name-codec.js";
 import type { DesignNetlistLocations } from "./printed-netlist.js";
 import {
   collectProjectModelSources,
-  renderProjectModelSource,
-  type ProjectModelSourceLocation,
+  appendProjectModelSources,
 } from "./project-model-source.js";
 
 export type DesignNetlistExportResult = {
@@ -183,8 +182,10 @@ function applyPortCase(ir: DesignNetlistIR, portCase: NetlistPortCase): void {
  * value.
  * 14 refuses invalid portable component interfaces and calls that contradict
  * a generated built-in model's fixed port order or pin mapping (#1393).
+ * 15 refuses unimplemented external placeholders and unverified legacy
+ * declarations whose original model bodies are absent from the Project.
  */
-export const NETLIST_MARK_RULE_VERSION = 14;
+export const NETLIST_MARK_RULE_VERSION = 15;
 
 export function designExtractsNetlist(
   project: CircuitProject,
@@ -232,11 +233,20 @@ export function createDesignNetlistExport(
   const models = collectProjectModelSources(
     project,
     (ir.externalMasters ?? []).map((m) => m.id),
-    { format, reservedNames: ir.cells.map((c) => c.name) },
+    {
+      format,
+      requireImplementation: true,
+      reservedNames: ir.cells.map((c) => c.name),
+    },
   );
   const modelDiagnostics: NetlistDiagnostic[] = models.diagnostics.map((d) => ({
     code: d.code,
-    severity: d.severity,
+    // An experiment may supply a legacy body. A copied design has no such
+    // context and cannot claim completeness from its interface alone.
+    severity:
+      d.code === "MODEL_LEGACY_IMPLEMENTATION_UNVERIFIED"
+        ? "error"
+        : d.severity,
     message: d.path
       ? `${d.path}${d.sourceRef ? ":" + d.sourceRef.start.line : ""}: ${d.message}`
       : d.message,
@@ -265,24 +275,12 @@ export function createDesignNetlistExport(
   file.text = file.text.slice(file.text.indexOf("\n") + 1).trimStart();
   if (format === "spice") file.text = `\n${file.text}`;
   const shift = file.text.length - originalLength;
-  const modelLocations: ProjectModelSourceLocation[] = [];
-  for (const source of models.sources) {
-    const model = renderProjectModelSource(source);
-    file.text += `\n* Project model: applied version ${source.revision}${source.draft ? " (draft pending)" : ""}\n`;
-    const offset = file.text.length;
-    file.text += model.text;
-    modelLocations.push(
-      ...model.segments.map((s) => ({
-        ...s,
-        startOffset: s.startOffset + offset,
-        endOffset: s.endOffset + offset,
-      })),
-    );
-  }
+  const composed = appendProjectModelSources(file.text, models.sources);
+  file.text = composed.text;
   const locations = printed
     ? shiftDesignNetlistLocations(printed.locations, shift)
     : { instances: [], fields: [] };
-  if (modelLocations.length) locations.modelSources = modelLocations;
+  if (composed.segments.length) locations.modelSources = composed.segments;
   return {
     status: "ready",
     diagnostics: [...analysis.diagnostics, ...deadEnds, ...modelDiagnostics],
