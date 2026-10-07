@@ -317,10 +317,6 @@
   margin: var(--icm-space-2);
 }
 
-.external-model-artwork-preview {
-  flex: 0 0 auto;
-}
-
 .cell-manager-list-scroll {
   flex: 1 1 0;
   min-height: 0;
@@ -403,20 +399,41 @@
 }
 
 .cell-manager-detail {
+  /* Single source for the pane inset: the sticky action bar below cancels it
+     to span the scrollport, so the two must never drift apart. */
+  --cell-manager-detail-pad: var(--icm-space-4);
   display: flex;
   flex-direction: column;
   gap: var(--icm-space-3);
   min-width: 0;
   min-height: 0;
-  padding: var(--icm-space-4);
+  padding: var(--cell-manager-detail-pad);
   overflow-y: auto;
   scrollbar-width: thin;
 }
 
+/* Chrome insets a sticky rectangle by the scroll container's padding, so a
+   bottom inset would leave an uncovered strip that earlier siblings scroll
+   through. The action bar supplies its own breathing room instead. */
+.cell-manager-detail:has(> .external-model-workbench) {
+  padding-bottom: 0;
+}
+
+/*
+ * The netlist is the subject of this pane, so the workbench is a flex column
+ * and the editor is its only elastic child: it absorbs whatever height the
+ * dialog has left instead of sitting at a fixed clamp.
+ */
 .external-model-workbench {
-  display: grid;
+  display: flex;
+  flex: 1 0 auto;
+  flex-direction: column;
   gap: var(--icm-space-2);
   min-width: 0;
+}
+
+.external-model-workbench > * {
+  flex: 0 0 auto;
 }
 
 .external-model-files {
@@ -425,7 +442,8 @@
   gap: var(--icm-space-1);
 }
 .external-model-files button[aria-pressed="true"] {
-  background: var(--icm-surface-active);
+  border-color: var(--icm-accent);
+  background: var(--icm-accent-tint);
 }
 .external-model-symbol {
   width: 140px;
@@ -437,6 +455,12 @@
   gap: var(--icm-space-1);
   min-width: 0;
 }
+.external-model-workbench label > span {
+  min-width: 0;
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+  overflow-wrap: anywhere;
+}
 .external-model-workbench select,
 .external-model-workbench input {
   min-width: 0;
@@ -445,12 +469,13 @@
 .external-model-dependency {
   display: grid;
   gap: var(--icm-space-2);
-  margin-block: var(--icm-space-2);
 }
 
-.external-model-workbench .project-source-editor {
-  height: clamp(8rem, 22vh, 14rem);
-  min-height: 0;
+.external-model-workbench > .project-source-editor {
+  flex: 1 1 0;
+  height: auto;
+  /* Floor for short viewports; overrides `editor-chrome.css`'s 24rem. */
+  min-height: clamp(7rem, 18dvh, 12rem);
   min-width: 0;
   overflow: hidden;
   border: 1px solid var(--icm-border);
@@ -461,18 +486,27 @@
 .external-model-workbench .cm-scroller {
   height: 100%;
 }
-.external-model-workbench:has(.external-model-layout-section[open])
-  .project-source-editor {
-  height: clamp(6rem, 12vh, 9rem);
-}
 
+/* What the parser actually read, as one strip: the `.subckt` text is already
+ * visible in the editor directly above, so nothing here restates it. */
 .external-model-interface {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--icm-space-1);
+  gap: var(--icm-space-2);
+  min-width: 0;
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
   overflow-wrap: anywhere;
+}
+.external-model-ports {
+  min-width: 0;
+  color: var(--icm-text);
+  font-family: var(--icm-font-mono, ui-monospace, "SFMono-Regular", monospace);
   font-size: var(--icm-font-sm);
+}
+.external-model-interface .cell-count-badge {
+  flex: 0 0 auto;
+  margin-left: auto;
 }
 
 .external-model-state {
@@ -481,25 +515,67 @@
   font-size: var(--icm-font-xs);
   overflow-wrap: anywhere;
 }
+
+/* Collapsible blocks read as the dialog's own cards, not as the uppercase
+ * properties-panel language. */
+.external-model-section {
+  min-width: 0;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-md);
+  background: var(--icm-surface);
+}
+.external-model-section > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--icm-space-2);
+  min-height: var(--icm-control-h-lg);
+  padding-inline: var(--icm-space-3);
+  cursor: pointer;
+  list-style: none;
+  font-size: var(--icm-font-sm);
+  font-weight: 600;
+}
+.external-model-section > summary::-webkit-details-marker {
+  display: none;
+}
+.external-model-section > summary::before {
+  flex: 0 0 auto;
+  width: 6px;
+  height: 6px;
+  border-right: 1.5px solid var(--icm-text-muted);
+  border-bottom: 1.5px solid var(--icm-text-muted);
+  transform: rotate(-45deg);
+  transition: transform 120ms ease;
+  content: "";
+}
+.external-model-section[open] > summary::before {
+  transform: rotate(45deg);
+}
+.external-model-section-body {
+  display: grid;
+  gap: var(--icm-space-2);
+  min-width: 0;
+  padding: var(--icm-space-3);
+  border-top: 1px solid var(--icm-border);
+}
+
 .external-model-directions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--icm-space-1) var(--icm-space-3);
-  margin-block: var(--icm-space-2);
+  gap: var(--icm-space-2) var(--icm-space-3);
 }
+/* Two columns inside each row as well, and both sized to their content so the
+ * select sits beside its own label instead of across a column of dead space.
+ * The template is identical in every cell, so the rows stay baseline-aligned. */
 .external-model-directions label {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 8.5rem) minmax(0, 6rem);
   align-items: center;
-  justify-content: space-between;
-  font-size: var(--icm-font-xs);
+  gap: var(--icm-space-2);
 }
 .external-model-directions label > span {
   min-width: 0;
   overflow-wrap: anywhere;
-}
-.external-model-directions select {
-  flex: 0 0 6rem;
-  width: 6rem;
 }
 .external-model-layout {
   display: grid;
@@ -507,10 +583,17 @@
   align-items: start;
   gap: var(--icm-space-3);
 }
+/* Already inside a card; drop the nested one it brings from the properties
+ * panel, heading included. */
 .external-model-layout .cell-symbol-layout-properties {
   min-width: 0;
   margin: 0;
-  padding: var(--icm-space-2);
+  padding: 0;
+  border: 0;
+  background: none;
+}
+.external-model-layout .property-section-heading {
+  display: none;
 }
 .external-model-layout .component-geometry-row {
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -527,19 +610,36 @@
 }
 .external-model-layout-preview {
   display: grid;
-  justify-items: center;
-  gap: var(--icm-space-2);
+  gap: var(--icm-space-1);
   min-width: 0;
   margin: 0;
-  padding-block: var(--icm-space-2);
   color: var(--icm-text-muted);
   font-size: var(--icm-font-xs);
 }
+.external-model-preview-frame {
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  padding: var(--icm-space-2);
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
+  background-color: var(--icm-surface);
+  background-image: radial-gradient(var(--icm-border) 1px, transparent 1px);
+  background-size: 10px 10px;
+}
 .external-model-layout-preview .external-model-symbol {
   width: 100%;
-  height: 10rem;
+  height: 7rem;
+  max-height: 24dvh;
   color: var(--icm-text);
 }
+
+/*
+ * Sticky footer. It is the workbench's last child, so no normal-flow content
+ * can scroll out from under it; the negative inline margins cancel the pane's
+ * own inset so its opaque background spans the whole scrollport, and the pane
+ * drops its bottom padding so nothing can slip under the stuck edge.
+ */
 .external-model-actionbar {
   position: sticky;
   bottom: 0;
@@ -548,7 +648,10 @@
   flex-wrap: wrap;
   align-items: center;
   gap: var(--icm-space-2);
+  margin-top: calc(-1 * var(--icm-space-2));
+  margin-inline: calc(-1 * var(--cell-manager-detail-pad, var(--icm-space-4)));
   padding-block: var(--icm-space-2);
+  padding-inline: var(--cell-manager-detail-pad, var(--icm-space-4));
   background: var(--icm-surface);
   border-top: 1px solid var(--icm-border);
 }
@@ -949,8 +1052,8 @@
 }
 
 .cell-external-result[role="alert"] {
-  border-left-color: var(--icm-danger);
-  color: var(--icm-danger);
+  border-left-color: var(--icm-error);
+  color: var(--icm-error);
 }
 
 .cell-external-actions {
@@ -1176,7 +1279,7 @@
   }
 
   .cell-manager-detail {
-    padding: var(--icm-space-3);
+    --cell-manager-detail-pad: var(--icm-space-3);
   }
 
   .cell-manager-detail-header {
