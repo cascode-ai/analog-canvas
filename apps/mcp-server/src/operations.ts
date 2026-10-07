@@ -640,6 +640,22 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
     handle: async (args, session) => {
       const parsed = ConnectArgs.parse(args ?? {});
       const report = await session.client.connect(parsed.claimCode);
+      const unsupportedEditKinds = report.capabilities.editKinds.filter(
+        (kind) => {
+          if (kind === "wire") return false;
+          try {
+            editContract(kind);
+            return false;
+          } catch (error) {
+            if (
+              error instanceof ContractQueryError &&
+              error.code === "UNKNOWN_EDIT_CONTRACT"
+            )
+              return true;
+            throw error;
+          }
+        },
+      );
       return {
         ok: true,
         mode: report.mode,
@@ -647,6 +663,17 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
         documentIds: report.documentIds,
         tokenExpiresAt: report.tokenExpiresAt,
         capabilities: report.capabilities,
+        compatibility: {
+          adapterVersion: AGENT_MCP_VERSION,
+          status: unsupportedEditKinds.length ? "partial" : "compatible",
+          unsupportedEditKinds,
+          ...(unsupportedEditKinds.length
+            ? {
+                message:
+                  "The Editor advertises edits absent from this adapter. Upgrade using this origin's /api/agent/mcp-manifest.json before using those edits; supported operations remain available.",
+              }
+            : {}),
+        },
         context: report.context,
         timing: report.timing,
       };

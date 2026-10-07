@@ -6,7 +6,11 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { createSimulationFolder } from "@icm/model";
+import { parseProject } from "@icm/project-protocol";
+import { externalSubcircuitSymbolId } from "@icm/symbols";
+import { profile } from "./simulation-e2e-fixtures.js";
 import { collectNativeRunEvidence } from "../../../scripts/lib/native-example-runner.mjs";
+import { validatePinnedEnvironment } from "../../../scripts/lib/preview-simulation-validation-core.mjs";
 import {
   agentNativeSource,
   agentNativeProfile,
@@ -14,9 +18,347 @@ import {
 } from "./native-simulation-executor.mjs";
 
 // Opt-in: real stdio MCP + local Worker/DO + browser service + native process.
-// No mocked Agent messages. Explicit Vite mode uses the real development HTTP
-// transport; default real mode intercepts only the simulation seam. Neither
-// mode uses a public endpoint, cloud account or operator deployment.
+// No mocked Agent messages. Only the simulation executor boundary is isolated;
+// the model-source journey may opt into a qualified HTTPS executor below.
+test("packaged MCP applies native models and round-trips their mapped source through a real Editor", async ({
+  page,
+  baseURL,
+}) => {
+  const bundle = process.env.ICM_E2E_MCP_BUNDLE;
+  test.skip(!bundle, "Requires an explicitly selected packaged MCP candidate");
+  test.setTimeout(120_000);
+  expect(
+    createHash("sha256")
+      .update(await readFile(bundle!))
+      .digest("hex"),
+  ).toBe(process.env.ICM_E2E_MCP_BUNDLE_SHA256);
+  const root = await mkdtemp(join(tmpdir(), "icm-model-mcp-"));
+  const executorOrigin = process.env.ICM_E2E_MODEL_NGSPICE_ORIGIN;
+  if (executorOrigin) expect(new URL(executorOrigin).protocol).toBe("https:");
+  let child: ReturnType<typeof startMcp> | undefined;
+  try {
+    // Default CI covers authoring. Opt-in additionally forwards the simulator
+    // boundary to a qualified real executor; Editor, relay and MCP remain real.
+    await page.route("**/api/simulate", async (route) => {
+      if (executorOrigin) {
+        const reply = await fetch(new URL("/api/simulate", executorOrigin), {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: route.request().postData(),
+          signal: AbortSignal.timeout(60_000),
+        });
+        await route.fulfill({
+          status: reply.status,
+          contentType: "application/json",
+          body: await reply.text(),
+        });
+        return;
+      }
+      expect(route.request().postDataJSON().operation).toBe("capabilities");
+      await route.fulfill({
+        json: {
+          configured: true,
+          rawfileCollection: "declared-single-ascii",
+          maxOutputBytes: 1048576,
+          inputs: ["source", "raw"],
+          analyses: ["op", "ac", "tran", "noise"],
+          parsedAnalyses: ["op", "ac", "tran", "noise"],
+          profiles: [
+            {
+              id: profile.id,
+              engine: "ngspice",
+              corners: ["tt"],
+              dependencies: [
+                { id: profile.models.id, sha256: profile.models.contentSha256 },
+              ],
+            },
+          ],
+          maxTimeoutMs: 120000,
+          maxInputBytes: 1048576,
+          cancel: true,
+        },
+      });
+    });
+    await page.goto("/editor");
+    await page.getByRole("button", { name: "Agent", exact: true }).click();
+    const message = page.getByTestId("agent-copy-text");
+    await expect(message).toHaveValue(/Claim: /, { timeout: 45_000 });
+    const claim = JSON.parse(
+      /^Claim: (.+)$/mu.exec(await message.inputValue())![1]!,
+    );
+    child = startMcp(baseURL!, join(root, "connector.json"));
+    await child.request("initialize", { protocolVersion: "2025-03-26" });
+    child.notify("notifications/initialized");
+    const connected = await child.tool("connect", claim);
+    expect(connected.ok).toBe(true);
+    expect(connected.compatibility).toMatchObject({
+      status: "compatible",
+      unsupportedEditKinds: [],
+    });
+    const code = await child.tool("project_code", { action: "read" });
+    const project = parseProject(code.projectCode);
+    const folder = createSimulationFolder({
+      id: "models",
+      name: "Models",
+      engine: "ngspice",
+      profileId: profile.id,
+      documentId: project.topDocumentId,
+    });
+    folder.input.circuitBindings[0]!.emission = "top-level";
+    const source = {
+      id: "owned-model",
+      language: "spice",
+      entry: "amp.spice",
+      revision: 0,
+      dependencies: [],
+      files: [
+        {
+          path: "amp.spice",
+          text: ".subckt owned_amp A B\nR1 A B 1k\n.ends owned_amp\n",
+        },
+      ],
+    };
+    const applied = await child.tool("advanced_transact", {
+      structureEdits: [
+        {
+          kind: "apply_model_source",
+          source,
+          definitions: [{ definitionId: "amp", entry: "owned_amp" }],
+        },
+        { kind: "upsert_simulation_folder", folder },
+        {
+          kind: "transact_document",
+          documentId: project.topDocumentId,
+          expectedRevision: project.documents[0]!.revision,
+          edits: [
+            {
+              kind: "add_instance",
+              instance: {
+                id: "X1",
+                reference: "X1",
+                symbolId: externalSubcircuitSymbolId("amp"),
+                placement: {
+                  position: { x: 200, y: 200 },
+                  rotation: 0,
+                  mirror: "none",
+                },
+                netlist: {
+                  binding: { kind: "external-subcircuit", definitionId: "amp" },
+                  parameters: {},
+                },
+              },
+            },
+            ...["A", "B"].map((pinName) => ({
+              kind: "add_no_connect",
+              noConnect: {
+                id: `nc-${pinName}`,
+                endpoint: { kind: "terminal", instanceId: "X1", pinName },
+              },
+            })),
+          ],
+        },
+      ],
+    });
+    expect(applied.ok, JSON.stringify(applied)).toBe(true);
+    const owner = { kind: "project-folder", folderId: folder.id };
+    const path = folder.input.circuitBindings[0]!.path;
+    const read = () =>
+      child!.tool("simulation_source", {
+        operation: "read",
+        owner,
+        path,
+        detail: "mapped",
+      });
+    const first = await read();
+    expect(first.ok, JSON.stringify(first)).toBe(true);
+    expect(first.modelSources).toEqual([
+      expect.objectContaining({
+        sourceId: source.id,
+        revision: 1,
+        path: "amp.spice",
+      }),
+    ]);
+    const updated = await child.tool("simulation_edit", {
+      operation: "update",
+      owner,
+      expectedRevision: first.revision,
+      circuitEdits: [
+        {
+          path,
+          textDigest: first.textDigest,
+          text: first.text.replace("R1 A B 1k", "R1 A B 2k"),
+        },
+      ],
+    });
+    expect(updated.ok, JSON.stringify(updated)).toBe(true);
+    const second = await read();
+    expect(second.ok, JSON.stringify(second)).toBe(true);
+    expect(second.text).toContain("R1 A B 2k");
+    expect(second.modelSources[0]).toMatchObject({
+      sourceId: source.id,
+      revision: 2,
+    });
+    const saved = await child.tool("advanced_transact", {
+      structureEdits: [
+        {
+          kind: "save_model_source_draft",
+          sourceId: source.id,
+          expectedRevision: 2,
+          entry: "amp.spice",
+          files: [{ path: "amp.spice", text: ".subckt unfinished" }],
+          dependencies: [],
+        },
+      ],
+    });
+    expect(saved.ok, JSON.stringify(saved)).toBe(true);
+    const withDraft = await read();
+    expect(withDraft.ok, JSON.stringify(withDraft)).toBe(true);
+    expect(withDraft.text).toContain("R1 A B 2k");
+    const after = parseProject(
+      (await child.tool("project_code", { action: "read" })).projectCode,
+    );
+    expect(after.modelSources![0]!.files[0]!.text).toContain("R1 A B 2k");
+    expect(after.modelSources![0]!.draft!.files[0]!.text).toBe(
+      ".subckt unfinished",
+    );
+    if (executorOrigin) {
+      const call = /^X\S+\s+(\S+)\s+(\S+)\s+owned_amp(?:\s|$)/mu.exec(
+        withDraft.text,
+      );
+      expect(call, withDraft.text).not.toBeNull();
+      const stimulus = [
+        "Owned model OP AC",
+        '.include "circuit.spice"',
+        `VINPUT ${call![1]} 0 dc 1 ac 1`,
+        `VRETURN ${call![2]} 0 dc 0`,
+        ".control",
+        "set filetype=ascii",
+        "set appendwrite",
+        "op",
+        "write out.raw i(vinput)",
+        "ac dec 2 10 1000",
+        "write out.raw i(vinput)",
+        ".endc",
+        ".end",
+        "",
+      ].join("\n");
+      const written = await child.tool("simulation_files", {
+        request: {
+          action: "update",
+          owner,
+          expectedRevision: withDraft.revision,
+          writes: [{ path: folder.input.entry, text: stimulus }],
+        },
+      });
+      expect(written.ok, JSON.stringify(written)).toBe(true);
+      const current = parseProject(
+        (await child.tool("project_code", { action: "read" })).projectCode,
+      );
+      const prepared = await child.tool("simulation", {
+        request: {
+          operation: "prepare",
+          source: {
+            kind: "project-folder",
+            folderId: folder.id,
+            expectedStructureRevision: current.structureRevision,
+          },
+        },
+      });
+      expect(prepared.ok, JSON.stringify(prepared)).toBe(true);
+      const started = await child.tool("simulation", {
+        request: {
+          operation: "start",
+          preparedId: prepared.prepared.id,
+          digest: prepared.prepared.digest,
+        },
+      });
+      expect(started.ok, JSON.stringify(started)).toBe(true);
+      let finished: any;
+      await expect
+        .poll(
+          async () => {
+            const reply = await child!.tool("simulation", {
+              request: { operation: "read", runId: started.run.id },
+            });
+            expect(reply.ok, JSON.stringify(reply)).toBe(true);
+            finished = reply.run;
+            return finished.state;
+          },
+          { timeout: 30_000 },
+        )
+        .toBe("finished");
+      expect(
+        finished.result.outcome.status,
+        JSON.stringify(finished.result.diagnostics),
+      ).toBe("completed");
+      validatePinnedEnvironment(
+        finished.result.metadata.environment,
+        "operator-host",
+      );
+      // Run reads are sample-free receipts; verify samples from their files.
+      const catalog = await child.tool("simulation", {
+        request: { operation: "catalog", runId: started.run.id },
+      });
+      expect(catalog.ok, JSON.stringify(catalog)).toBe(true);
+      const downloaded: Record<string, string> = {};
+      for (const name of [
+        "result.json",
+        "model-sources.json",
+        "source-map.json",
+      ]) {
+        const artifact = catalog.catalog.files.find(
+          (a: any) => a.name === name,
+        );
+        expect(artifact, name).toBeDefined();
+        const outputPath = join(root, name);
+        const reply = await child.tool("simulation_files", {
+          request: { action: "artifact", artifactId: artifact.id },
+          outputPath,
+        });
+        expect(reply.ok, JSON.stringify(reply)).toBe(true);
+        const bytes = await readFile(outputPath);
+        expect(createHash("sha256").update(bytes).digest("hex")).toBe(
+          artifact.sha256,
+        );
+        downloaded[name] = bytes.toString("utf8");
+        await test
+          .info()
+          .attach(name, { body: bytes, contentType: "application/json" });
+      }
+      expect(JSON.parse(downloaded["model-sources.json"]!)).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: source.id,
+            revision: 2,
+            files: after.modelSources![0]!.files,
+          }),
+        ]),
+      );
+      expect(downloaded["source-map.json"]).toContain('"model-source"');
+      const result = JSON.parse(downloaded["result.json"]!);
+      const op = result.data.analyses.find((a: any) => a.analysis === "op");
+      expect(
+        op.probes.find((p: any) => p.name === "i(vinput)").value,
+      ).toBeCloseTo(-0.0005, 10);
+      expect(result.data.analyses.some((a: any) => a.analysis === "ac")).toBe(
+        true,
+      );
+    }
+    await test.info().attach("model-source-package", {
+      body: Buffer.from(
+        JSON.stringify({
+          bundle: resolve(bundle!),
+          sha256: process.env.ICM_E2E_MCP_BUNDLE_SHA256,
+        }),
+      ),
+      contentType: "application/json",
+    });
+  } finally {
+    await child?.close();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("public MCP connects to the real local relay and executes native source", async ({
   page,
   baseURL,
