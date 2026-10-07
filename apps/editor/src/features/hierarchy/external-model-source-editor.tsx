@@ -311,7 +311,7 @@ export function ExternalModelSourceEditor({
     >
       {!definition && !forking && project.modelSources?.length ? (
         <label>
-          Source owner
+          <span>Source owner</span>
           <select
             aria-label="External model source owner"
             value={existing?.id ?? ""}
@@ -343,13 +343,15 @@ export function ExternalModelSourceEditor({
         </p>
       ) : null}
       {shared.length > 1 ? (
-        <details>
+        <details className="external-model-section">
           <summary>Shared by {shared.length} definitions</summary>
-          {shared.map((d) => d.name).join(", ")}
+          <div className="external-model-section-body">
+            {shared.map((d) => d.name).join(", ")}
+          </div>
         </details>
       ) : null}
       {existing && baseRevision !== existing.revision ? (
-        <p role="alert">
+        <p className="cell-external-result" role="alert">
           Applied model changed to version {existing.revision}. Your text is
           retained. Keeping this draft as the new base lets Apply replace that
           newer model.
@@ -365,7 +367,7 @@ export function ExternalModelSourceEditor({
         </p>
       ) : null}
       {viewingApplied && existing?.draft ? (
-        <p role="status">
+        <p className="cell-external-result" role="status">
           Showing the applied error snapshot. Your saved draft is retained.{" "}
           <button
             type="button"
@@ -444,7 +446,7 @@ export function ExternalModelSourceEditor({
       />
       {inspection.entries.length > 1 ? (
         <label>
-          Entry subcircuit
+          <span>Entry subcircuit</span>
           <select
             aria-label="External model entry"
             value={entry}
@@ -465,26 +467,13 @@ export function ExternalModelSourceEditor({
       >
         {selected ? (
           <>
-            <div>
-              <strong>{selected.name}</strong>
-              <div>{selected.ports.join(" · ") || "No terminals"}</div>
-              {selected.parameters.length ? (
-                <details>
-                  <summary>Parameters ({selected.parameters.length})</summary>
-                  {selected.parameters
-                    .map((p) => p.name + "=" + p.rawText)
-                    .join(", ")}
-                </details>
-              ) : null}
-            </div>
-            {preview && !definition ? (
-              <details className="external-model-artwork-preview">
-                <summary>Symbol preview</summary>
-                <SymbolArtwork
-                  symbol={preview}
-                  className="external-model-symbol"
-                />
-              </details>
+            <span className="external-model-ports">
+              {selected.ports.join(" · ") || "No terminals"}
+            </span>
+            {selected.parameters.length ? (
+              <span className="cell-count-badge">
+                {selected.parameters.length} params
+              </span>
             ) : null}
           </>
         ) : (
@@ -505,7 +494,9 @@ export function ExternalModelSourceEditor({
               .filter((t) => !next.ports.includes(t.name))
               .map((terminal) => (
                 <label key={target.id + ":" + terminal.id}>
-                  Migrate {target.name}.{terminal.name}
+                  <span>
+                    Migrate {target.name}.{terminal.name}
+                  </span>
                   <select
                     aria-label={"Migrate " + target.name + "." + terminal.name}
                     value={
@@ -547,192 +538,215 @@ export function ExternalModelSourceEditor({
       {fileSettingsOpen ? (
         <details
           open
+          className="external-model-section"
           onToggle={(event) => setFileSettingsOpen(event.currentTarget.open)}
         >
           <summary>Files and dependencies</summary>
-          <label>
-            Entry file
-            <select
-              aria-label="Model entry file"
-              value={entryPath}
-              onChange={(event) => setEntryPath(event.currentTarget.value)}
-            >
-              {files.map((f) => (
-                <option key={f.path} value={f.path}>
-                  {f.path}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            New relative file
-            <input
-              aria-label="New model file path"
-              value={newFile}
-              onChange={(event) => setNewFile(event.currentTarget.value)}
-            />
-          </label>
-          <button
-            type="button"
-            disabled={!newFile || files.some((f) => f.path === newFile)}
-            onClick={() => {
-              setFiles([...files, { path: newFile, text: "" }]);
-              setFilePath(newFile);
-              setNewFile("");
-            }}
-          >
-            Add file
-          </button>
-          {files.length > 1 && filePath !== entryPath ? (
+          <div className="external-model-section-body">
+            <label>
+              <span>Entry file</span>
+              <select
+                aria-label="Model entry file"
+                value={entryPath}
+                onChange={(event) => setEntryPath(event.currentTarget.value)}
+              >
+                {files.map((f) => (
+                  <option key={f.path} value={f.path}>
+                    {f.path}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span>New relative file</span>
+              <input
+                aria-label="New model file path"
+                value={newFile}
+                onChange={(event) => setNewFile(event.currentTarget.value)}
+              />
+            </label>
             <button
               type="button"
+              disabled={!newFile || files.some((f) => f.path === newFile)}
               onClick={() => {
-                setFiles(files.filter((f) => f.path !== filePath));
-                setFilePath(entryPath);
+                setFiles([...files, { path: newFile, text: "" }]);
+                setFilePath(newFile);
+                setNewFile("");
               }}
             >
-              Remove selected file
+              Add file
             </button>
-          ) : null}
-          {dependencies.map((dependency, index) => (
-            <div key={index} className="external-model-dependency">
-              {(["id", "mountPath", "sha256"] as const).map((field) => (
-                <label key={field}>
-                  {field}
-                  <input
-                    aria-label={"Dependency " + (index + 1) + " " + field}
-                    value={dependency[field]}
-                    onChange={(event) =>
-                      setDependencies(
-                        dependencies.map((d, i) =>
-                          i === index
-                            ? { ...d, [field]: event.currentTarget.value }
-                            : d,
-                        ),
-                      )
-                    }
-                  />
-                </label>
-              ))}
+            {files.length > 1 && filePath !== entryPath ? (
               <button
                 type="button"
-                onClick={() =>
-                  setDependencies(dependencies.filter((_, i) => i !== index))
-                }
+                onClick={() => {
+                  setFiles(files.filter((f) => f.path !== filePath));
+                  setFilePath(entryPath);
+                }}
               >
-                Remove dependency
+                Remove selected file
               </button>
-            </div>
-          ))}
-          <button
-            type="button"
-            onClick={() =>
-              setDependencies([
-                ...dependencies,
-                { id: "", mountPath: "", sha256: "" },
-              ])
-            }
-          >
-            Add dependency
-          </button>
+            ) : null}
+            {dependencies.map((dependency, index) => (
+              <div key={index} className="external-model-dependency">
+                {(["id", "mountPath", "sha256"] as const).map((field) => (
+                  <label key={field}>
+                    <span>{field}</span>
+                    <input
+                      aria-label={"Dependency " + (index + 1) + " " + field}
+                      value={dependency[field]}
+                      onChange={(event) =>
+                        setDependencies(
+                          dependencies.map((d, i) =>
+                            i === index
+                              ? { ...d, [field]: event.currentTarget.value }
+                              : d,
+                          ),
+                        )
+                      }
+                    />
+                  </label>
+                ))}
+                <button
+                  type="button"
+                  onClick={() =>
+                    setDependencies(dependencies.filter((_, i) => i !== index))
+                  }
+                >
+                  Remove dependency
+                </button>
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={() =>
+                setDependencies([
+                  ...dependencies,
+                  { id: "", mountPath: "", sha256: "" },
+                ])
+              }
+            >
+              Add dependency
+            </button>
+          </div>
         </details>
       ) : null}
       {definition ? (
-        <details className="external-model-layout-section">
+        <details className="external-model-section external-model-layout-section">
           <summary>Symbol layout and directions</summary>
-          <div className="external-model-directions">
-            {definition.terminals.map((terminal) => (
-              <label key={terminal.id}>
-                <span>
-                  <strong>{terminal.name}</strong> direction
-                </span>
-                <select
-                  aria-label={"Model " + terminal.name + " direction"}
-                  value={terminal.direction}
-                  onChange={(event) =>
-                    setResult(
-                      onMetadata({
-                        ...definition,
-                        terminals: definition.terminals.map((t) =>
-                          t.id === terminal.id
-                            ? {
-                                ...t,
-                                direction: event.currentTarget
-                                  .value as typeof t.direction,
-                              }
-                            : t,
-                        ),
-                      }),
-                    )
-                  }
+          <div className="external-model-section-body">
+            <div className="external-model-directions">
+              {definition.terminals.map((terminal) => (
+                <label key={terminal.id}>
+                  <span>
+                    <strong>{terminal.name}</strong> direction
+                  </span>
+                  <select
+                    aria-label={"Model " + terminal.name + " direction"}
+                    value={terminal.direction}
+                    onChange={(event) =>
+                      setResult(
+                        onMetadata({
+                          ...definition,
+                          terminals: definition.terminals.map((t) =>
+                            t.id === terminal.id
+                              ? {
+                                  ...t,
+                                  direction: event.currentTarget
+                                    .value as typeof t.direction,
+                                }
+                              : t,
+                          ),
+                        }),
+                      )
+                    }
+                  >
+                    {["passive", "input", "output", "inout"].map(
+                      (direction) => (
+                        <option key={direction} value={direction}>
+                          {direction === "inout"
+                            ? "In/Out"
+                            : direction[0]!.toUpperCase() + direction.slice(1)}
+                        </option>
+                      ),
+                    )}
+                  </select>
+                </label>
+              ))}
+            </div>
+            <div className="external-model-layout">
+              <CellSymbolLayoutProperties
+                target={{
+                  kind: "external",
+                  ownerId: definition.id,
+                  id: externalSubcircuitSymbolId(definition.id),
+                  name: definition.name,
+                  revision: project.structureRevision,
+                  terminals: definition.terminals,
+                  presentation: definition.presentation,
+                }}
+                enabled={false}
+                onBodySizeChange={(width, height) =>
+                  setResult(
+                    onMetadata({
+                      ...definition,
+                      presentation: {
+                        ...definition.presentation,
+                        minimumBodySize: { width, height },
+                      },
+                    }),
+                  )
+                }
+                onPortPlacementChange={(terminalId, side, offset) =>
+                  setResult(
+                    onMetadata({
+                      ...definition,
+                      presentation: {
+                        ...definition.presentation,
+                        pinPlacements: [
+                          ...(
+                            definition.presentation?.pinPlacements ?? []
+                          ).filter((p) => p.terminalId !== terminalId),
+                          ...(side === "auto"
+                            ? []
+                            : [{ terminalId, side, offset }]),
+                        ],
+                      },
+                    }),
+                  )
+                }
+              />
+              {preview ? (
+                <figure
+                  className="external-model-layout-preview"
+                  aria-label="Symbol preview"
                 >
-                  {["passive", "input", "output", "inout"].map((direction) => (
-                    <option key={direction} value={direction}>
-                      {direction === "inout"
-                        ? "In/Out"
-                        : direction[0]!.toUpperCase() + direction.slice(1)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            ))}
-          </div>
-          <div className="external-model-layout">
-            <CellSymbolLayoutProperties
-              target={{
-                kind: "external",
-                ownerId: definition.id,
-                id: externalSubcircuitSymbolId(definition.id),
-                name: definition.name,
-                revision: project.structureRevision,
-                terminals: definition.terminals,
-                presentation: definition.presentation,
-              }}
-              enabled={false}
-              onBodySizeChange={(width, height) =>
-                setResult(
-                  onMetadata({
-                    ...definition,
-                    presentation: {
-                      ...definition.presentation,
-                      minimumBodySize: { width, height },
-                    },
-                  }),
-                )
-              }
-              onPortPlacementChange={(terminalId, side, offset) =>
-                setResult(
-                  onMetadata({
-                    ...definition,
-                    presentation: {
-                      ...definition.presentation,
-                      pinPlacements: [
-                        ...(
-                          definition.presentation?.pinPlacements ?? []
-                        ).filter((p) => p.terminalId !== terminalId),
-                        ...(side === "auto"
-                          ? []
-                          : [{ terminalId, side, offset }]),
-                      ],
-                    },
-                  }),
-                )
-              }
-            />
-            {preview ? (
-              <figure
-                className="external-model-layout-preview"
-                aria-label="Symbol preview"
-              >
-                <figcaption>Symbol preview</figcaption>
-                <SymbolArtwork
-                  symbol={preview}
-                  className="external-model-symbol"
-                />
-              </figure>
-            ) : null}
+                  <figcaption>Symbol preview</figcaption>
+                  <div className="external-model-preview-frame">
+                    <SymbolArtwork
+                      symbol={preview}
+                      className="external-model-symbol"
+                    />
+                  </div>
+                </figure>
+              ) : null}
+            </div>
           </div>
         </details>
+      ) : null}
+      {result ? (
+        <p
+          className="cell-external-result"
+          role={result.ok ? "status" : "alert"}
+        >
+          {result.message}
+        </p>
+      ) : null}
+      {failure && !result && files.some((f) => f.text.trim()) ? (
+        <p className="cell-external-result" role="status">
+          {failure.path ? failure.path + ": " : ""}
+          {failure.message}
+        </p>
       ) : null}
       <footer className="external-model-actionbar">
         {!definition ? (
@@ -793,15 +807,6 @@ export function ExternalModelSourceEditor({
           </div>
         </details>
       </footer>
-      {result ? (
-        <p role={result.ok ? "status" : "alert"}>{result.message}</p>
-      ) : null}
-      {failure && !result && files.some((f) => f.text.trim()) ? (
-        <p role="status">
-          {failure.path ? failure.path + ": " : ""}
-          {failure.message}
-        </p>
-      ) : null}
     </section>
   );
 }
