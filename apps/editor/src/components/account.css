@@ -156,6 +156,26 @@
   vertical-align: middle;
 }
 
+/* Beside an AI account's name, while the Owner switched this browser to it:
+   one click back to the Owner's own account. */
+.account-switch-back {
+  margin-left: 6px;
+  padding: 2px 8px;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
+  color: var(--icm-text-muted);
+  background: var(--icm-surface);
+  font: inherit;
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.account-switch-back:hover {
+  color: var(--icm-accent);
+  border-color: var(--icm-accent);
+}
+
 /* /account: the account's own page, one column of plain sections. */
 /* The account page is a dashboard: who is signed in and the tabs on the
    left, the open tab on the right, nothing nested deeper than that. */

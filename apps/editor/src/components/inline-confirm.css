@@ -7,9 +7,6 @@
 .inline-confirm > [hidden] {
   display: none !important;
 }
-[data-inline-confirm-menu] > .inline-confirm {
-  width: 100%;
-}
 .inline-confirm-decision {
   display: flex;
   flex-wrap: wrap;

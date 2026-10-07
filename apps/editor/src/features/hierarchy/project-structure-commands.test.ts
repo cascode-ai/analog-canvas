@@ -268,6 +268,40 @@ describe("Project structure commands", () => {
     ).toBe(true);
   });
 
+  it("names the circuit and its Cell from Project Info in one edit", () => {
+    const deps = dependencies();
+    const commands = createProjectStructureCommands(deps);
+    const cell = deps.activeDocument;
+    expect(
+      commands.editProjectInfo({ name: "  Mixer  ", cellName: " mixer_core " }),
+    ).toBe(true);
+    const [transactionId, edits] = deps.commitStructure.mock.calls[0]!;
+    expect(transactionId).toBe("edit-project-info");
+    expect(edits).toEqual([
+      { kind: "rename_project", name: "Mixer" },
+      { kind: "rename_document", documentId: cell.id, name: "mixer_core" },
+    ]);
+    // The Edit Engine takes both as one transaction.
+    expect(
+      executeProjectTransaction(deps.project, {
+        transactionId,
+        projectId: deps.project.id,
+        expectedStructureRevision: deps.project.structureRevision,
+        actor: { kind: "human", id: "test" },
+        edits,
+      }).ok,
+    ).toBe(true);
+    // Unchanged names make no edit; a blank one refuses.
+    expect(
+      commands.editProjectInfo({
+        name: deps.project.name,
+        cellName: cell.name,
+      }),
+    ).toBe(true);
+    expect(commands.editProjectInfo({ name: " ", cellName: "x" })).toBe(false);
+    expect(deps.commitStructure).toHaveBeenCalledTimes(1);
+  });
+
   it("deletes a Cell through the project structure boundary", () => {
     const input = dependencies();
     const child = createEmptyDocument("document-child", "Child");

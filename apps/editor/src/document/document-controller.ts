@@ -165,8 +165,8 @@ export class EditorDocumentController {
   }
   /**
    * Whether an Agent has changed this Project in this tab, or opened it from
-   * a file the Agent staged. The tab keeps it across reloads, and publishing
-   * reads it to suggest the Gallery's AI mark.
+   * a file the Agent staged. The tab keeps it across reloads, and the
+   * Publish dialog notes it beside the Gallery's AI mark.
    */
   get agentEdited(): boolean {
     return this.agentEditedValue;

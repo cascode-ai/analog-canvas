@@ -165,7 +165,6 @@ import {
 } from "../canvas/camera-runtime";
 import type { CanvasDragSession } from "../canvas/canvas-drag-session";
 import { instanceVisibleHitBox } from "../canvas/instance-geometry";
-import { CLOUD_PROJECT_COPY } from "../document/cloud-project-copy";
 import { resolveSimulationTransport } from "../features/simulation/deployment-transport";
 import type { SimulationSourceLocation } from "@icm/simulation-service/contract";
 import { createCanvasHitController } from "../canvas/canvas-hit-controller";
@@ -1834,6 +1833,7 @@ function WorkspaceEditor({
   const {
     createCell,
     renameCell,
+    editProjectInfo,
     deleteCell,
     updateCellPortDirection,
     moveCellPort,
@@ -5889,7 +5889,7 @@ function WorkspaceEditor({
     projectText: string;
     activeDocumentId: string;
     cellViews: [string, GridRect][];
-    /** Whether an Agent edited it; publishing suggests the AI mark. */
+    /** Whether an Agent edited it; publishing notes it beside the AI mark. */
     agentEdited?: boolean;
   };
   /** A tab as a window saved it, ready to show again: after a refresh, or
@@ -6367,15 +6367,26 @@ function WorkspaceEditor({
       setNativeBusy(false);
     }
   }
-  async function closeNativeTab(id: string) {
-    const binding = projectTabs.entries().find((entry) => entry.id === id)
-      ?.session.file.nativeBinding;
-    await projectTabs.close(id, () => createTabSession());
+  function closeNativeTab(id: string) {
+    return closeNativeTabs([id]);
+  }
+  /** Closes native tabs, releasing each closed tab's file. */
+  async function closeNativeTabs(ids: readonly string[]) {
+    const bindings = projectTabs
+      .entries()
+      .filter((entry) => ids.includes(entry.id))
+      .flatMap(({ id, session }) =>
+        session.file.nativeBinding
+          ? [{ id, binding: session.file.nativeBinding }]
+          : [],
+      );
+    await projectTabs.closeMany(ids, () => createTabSession());
     await new Promise<void>((resolve) =>
       requestAnimationFrame(() => resolve()),
     );
-    if (binding && !projectTabs.entries().some((entry) => entry.id === id))
-      await nativeProjectStore?.release(binding.id);
+    for (const { id, binding } of bindings)
+      if (!projectTabs.entries().some((entry) => entry.id === id))
+        await nativeProjectStore?.release(binding.id);
   }
   async function saveNativeTab(id: string): Promise<NativeSaveOutcome> {
     if (!nativeProjectStore)
@@ -7026,6 +7037,10 @@ function WorkspaceEditor({
                 if (nativeProjectStore) void closeNativeTab(id);
                 else void projectTabs.close(id, () => createTabSession());
               }}
+              onCloseMany={(ids) => {
+                if (nativeProjectStore) void closeNativeTabs(ids);
+                else void projectTabs.closeMany(ids, () => createTabSession());
+              }}
               {...(nativeProjectStore
                 ? {
                     onSaveClose: async (id: string) => {
@@ -7123,8 +7138,6 @@ function WorkspaceEditor({
               }
             : {}),
           cloudEnabled: projectStore !== null,
-          cloudProjects,
-          activeCloudProjectId: cloudBinding?.id ?? null,
           canRevert: savedProjectBaseline !== null && isDirtyWork(),
           hasRecoverySessions: recoverySessions.some(
             (session) =>
@@ -7143,26 +7156,6 @@ function WorkspaceEditor({
               : projectStore
                 ? saveProjectToCloud()
                 : exportProjectFile()),
-          onRefreshCloudProjects: () => void reloadCloudProjects(),
-          onOpenCloudProject: (summary) =>
-            void openCloudProjectById(summary.id, true),
-          onDeleteCloudProject: (summary) => {
-            if (!projectStore) return;
-            return projectStore.delete(summary.id).then((outcome) => {
-              if (outcome.status === "deleted") {
-                cloudListMutationRef.current += 1;
-                setCloudProjects(outcome.projects);
-                setStatus(
-                  `Deleted ${CLOUD_PROJECT_COPY.singular} ${summary.name}`,
-                );
-                return;
-              }
-              setStatus(
-                `Could not delete ${CLOUD_PROJECT_COPY.singular} (${outcome.message})`,
-              );
-              throw new Error(outcome.message);
-            });
-          },
           onImportProject: (file) => void openProjectFile(file),
           onImportSpice: (files, namingProfile) =>
             void importSpiceFiles(files, namingProfile),
@@ -7459,6 +7452,7 @@ function WorkspaceEditor({
                 name: project.name,
                 documentName: document.name,
                 publication: galleryEntryContext,
+                onSave: editProjectInfo,
                 onClose: () => setProjectInfoOpen(false),
               }
             : null

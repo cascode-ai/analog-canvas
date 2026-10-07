@@ -11,6 +11,7 @@ export default function AccountMenuView({
   inEditor = false,
   onEmailStart,
   onEmailVerify,
+  onReturnToOwner,
 }: AccountMenuViewProps) {
   const [email, setEmail] = useState("");
   // Signing in by email is two steps: the address, then the emailed code,
@@ -84,6 +85,17 @@ export default function AccountMenuView({
         >
           {user.displayName}
         </a>
+        {user.switchedFrom ? (
+          <button
+            type="button"
+            className="account-switch-back"
+            data-testid="account-switch-back"
+            title={`Switch this browser back to ${user.switchedFrom.displayName}`}
+            onClick={onReturnToOwner}
+          >
+            ↩ {user.switchedFrom.displayName}
+          </button>
+        ) : null}
       </div>
     );
   }

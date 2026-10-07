@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import "../styles/gallery-entry.css";
 
@@ -13,9 +13,14 @@ import {
   type DeleteAccountResult,
   type SessionUser,
 } from "./account";
+import { AiAccountsContent } from "./ai-accounts";
 import { GalleryChrome } from "./gallery-chrome";
 import { ModerationContent } from "./moderation";
 import { MySubmissionsContent } from "./my-submissions";
+
+const ShelfWall = lazy(() =>
+  import("./shelf-wall").then((module) => ({ default: module.ShelfWall })),
+);
 
 type Deleted = Extract<DeleteAccountResult, { ok: true }>["deleted"];
 
@@ -24,6 +29,7 @@ function plural(count: number, one: string, many = `${one}s`): string {
 }
 
 function signedInWith(user: SessionUser): string {
+  if (user.seat) return `AI account ${user.seat}`;
   const provider =
     user.provider === "github"
       ? "GitHub"
@@ -172,28 +178,38 @@ export function AccountDeleteDialog({
   );
 }
 
-export type AccountTab = "circuits" | "moderation" | "settings";
+export type AccountTab =
+  "circuits" | "projects" | "moderation" | "ai" | "settings";
 
 const TAB_LABELS: Record<AccountTab, string> = {
   circuits: "Circuits",
+  projects: "Cloud Projects",
   moderation: "Moderation",
+  ai: "AI Accounts",
   settings: "Settings",
 };
 
 /**
- * The tabs this account has. Moderation is the Owner's: a moderator's tools
- * are on each circuit's own page, so there is nothing for them to open here.
+ * The tabs this account has: its published circuits, then its private Cloud
+ * Projects, which the editor's File menu no longer lists. Moderation and
+ * the AI accounts are the Owner's: a moderator's tools are on each circuit's
+ * own page, so there is nothing for them to open here.
  */
 export function accountTabs(user: SessionUser): AccountTab[] {
   return user.isAdmin
-    ? ["circuits", "moderation", "settings"]
-    : ["circuits", "settings"];
+    ? ["circuits", "projects", "moderation", "ai", "settings"]
+    : ["circuits", "projects", "settings"];
 }
 
 /** The tab a link names (`?tab=…`), or the circuits. */
 export function accountTabFromSearch(search: string): AccountTab {
   const tab = new URLSearchParams(search).get("tab");
-  return tab === "moderation" || tab === "settings" ? tab : "circuits";
+  return tab === "projects" ||
+    tab === "moderation" ||
+    tab === "ai" ||
+    tab === "settings"
+    ? tab
+    : "circuits";
 }
 
 interface AccountActions {
@@ -275,16 +291,19 @@ function AccountSettings({
               <span className="account-page-label">Display name</span>
               <span className="account-page-value">{user.displayName}</span>
             </div>
-            <button
-              type="button"
-              data-testid="account-rename"
-              onClick={() => {
-                setDraftName(user.displayName);
-                setRenaming(true);
-              }}
-            >
-              Change
-            </button>
+            {/* An AI account's name is its model's, kept with its seat. */}
+            {user.seat ? null : (
+              <button
+                type="button"
+                data-testid="account-rename"
+                onClick={() => {
+                  setDraftName(user.displayName);
+                  setRenaming(true);
+                }}
+              >
+                Change
+              </button>
+            )}
           </div>
         )}
         <p className="account-page-note">Shown on the circuits you publish.</p>
@@ -309,27 +328,31 @@ function AccountSettings({
         </div>
       </section>
 
-      <section
-        className="account-page-section account-page-danger"
-        aria-labelledby="account-danger"
-      >
-        <h3 id="account-danger">Delete account</h3>
-        <div className="account-page-row">
-          <span className="account-page-note">
-            Permanently deletes this account and everything the site keeps for
-            it. You will be asked to type your name.
-          </span>
-          <button
-            type="button"
-            className="account-page-delete"
-            data-testid="account-delete"
-            aria-haspopup="dialog"
-            onClick={() => setDeleting(true)}
-          >
-            Delete account…
-          </button>
-        </div>
-      </section>
+      {/* An AI account is the Owner's, listed in the Worker's AI_SEATS: a
+          browser switched to it does not delete it. */}
+      {user.seat ? null : (
+        <section
+          className="account-page-section account-page-danger"
+          aria-labelledby="account-danger"
+        >
+          <h3 id="account-danger">Delete account</h3>
+          <div className="account-page-row">
+            <span className="account-page-note">
+              Permanently deletes this account and everything the site keeps for
+              it. You will be asked to type your name.
+            </span>
+            <button
+              type="button"
+              className="account-page-delete"
+              data-testid="account-delete"
+              aria-haspopup="dialog"
+              onClick={() => setDeleting(true)}
+            >
+              Delete account…
+            </button>
+          </div>
+        </section>
+      )}
 
       {deleting ? (
         <AccountDeleteDialog
@@ -422,8 +445,20 @@ export function AccountDashboard({
         <h2>{TAB_LABELS[tab]}</h2>
         {tab === "circuits" ? (
           <MySubmissionsContent />
+        ) : tab === "projects" ? (
+          <Suspense
+            fallback={
+              <p className="gallery-status" data-testid="shelf-loading">
+                Loading your Cloud Projects…
+              </p>
+            }
+          >
+            <ShelfWall />
+          </Suspense>
         ) : tab === "moderation" ? (
           <ModerationContent isAdmin={user.isAdmin} />
+        ) : tab === "ai" ? (
+          <AiAccountsContent />
         ) : (
           <AccountSettings user={user} {...actions} />
         )}

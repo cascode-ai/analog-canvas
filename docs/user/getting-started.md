@@ -77,18 +77,22 @@ recognize such a network, so both are placed by hand.
   style** under **Copied style** in Properties.
 - The header has three menus beside the site logo, **File**, **Edit** and
   **Circuit**, and three actions: **Simulate**, **Agent** and **Publish**.
-  **File** holds the file commands only. **New Project** replaces the circuit
-  in the current tab with a blank one, asking first if it has unsaved work.
-  **File → Project Info…** shows the full circuit name, the current Cell
-  and any Gallery contributor and notes without editing them. Double-click a
-  project tab's name to rename it in place: Enter or clicking outside applies
-  one undoable edit; Escape cancels. An empty name leaves the old name intact.
-  Rename marks the project unsaved; **Save** still saves explicitly. The open
-  projects are the tabs below the header. **Circuit** holds **Hierarchy** (the
-  Cell Manager) and **Netlist**. A long name never widens the header: it is
-  the tooltip of **File** and shown whole in its tab and in Project
-  Info. **Report bug**, the GitHub repository and the credit stay in
-  view beside your account.
+  **File** holds Project Info and the file commands. **New Project** replaces
+  the circuit in the current tab with a blank one, asking first if it has
+  unsaved work. **File → Project Info**, the first File command, edits the
+  full circuit name and the current Cell's name and shows any Gallery
+  contributor and notes; Save applies both names as one undoable edit.
+  Double-click a project tab's name to rename it in place: Enter or clicking
+  outside applies one undoable edit; Escape cancels. An empty name leaves the
+  old name intact. Right-click a project tab for **Close**, **Close Others**
+  and **Close All**; unsaved tabs are confirmed once. Your saved Cloud
+  Projects are under **Cloud Projects** on your account page and in the tab
+  bar's ▾ Shelf. Rename marks the project unsaved; **Save** still saves
+  explicitly. The open projects are the tabs below the header. **Circuit**
+  holds **Hierarchy** (the Cell Manager) and **Netlist**. A long name never
+  widens the header: it is the tooltip of **File** and shown whole in its tab
+  and in Project Info. **Report bug**, the GitHub repository and the credit
+  stay in view beside your account.
 - The compact project tab bar opens several independent circuits in one editor.
   Use **+** for a new project, **Open file in new tab** for a local file, or
   **Open Shelf project in tab** for a saved draft. Tabs keep separate cameras,

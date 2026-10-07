@@ -254,21 +254,22 @@ chars each, at most 12, deduplicated — `sanitizeGalleryTags` is the one
 normalization for writes and filters), `projectText` ≤2 MiB, and an optional
 boolean `aiGenerated` (the AI mark; any other value is `invalid-fields`). The Worker validates, stamps the canonical
 serialization, renders the preview, and stores the entry as `public`.
-The editor's publish dialog shows the mark as an **AI-generated** box. For a
-new entry it starts ticked when, in that browser tab, an Agent changed the
-Project or opened it from a file the Agent staged, or when the Project came
-from an entry that carries the mark; otherwise it starts unticked, and the
-publisher decides either way. A blank Project or one of the person's own Cloud
-Projects that an Agent merely opens is not the Agent's work. The tab remembers
-the Agent's work across reloads, but the Project does not carry it: the same
-Project reopened in another tab or browser starts unticked.
+The editor's publish dialog shows the mark as an **AI-generated** box. It
+starts ticked only when the Project came from an entry that carries the mark;
+publishing by hand never ticks it for the person. When, in that browser tab,
+an Agent changed the Project or opened it from a file the Agent staged, the
+box's note says "An Agent worked on this Project", and the publisher decides.
+A blank Project or one of the person's own Cloud Projects that an Agent merely
+opens is not the Agent's work. The tab remembers the Agent's work across
+reloads, but the Project does not carry it.
 An Agent can publish or update through the Agent API's Project resource
 (`publish-gallery-entry`, `update-gallery-entry`; MCP `gallery_circuits`
 `publish`/`update`), which drives the same client as the dialog under the
 signed-in Editor session and needs the session scope `gallery.publish`.
 Whatever an Agent publishes or updates this way carries the AI mark; the author
 changes it in the Editor's dialog with a later update.
-Ordinary submissions count against a per-account limit of 100 per UTC day,
+Ordinary submissions count against a per-account limit of 100 per UTC day
+(500 for an AI account),
 counted from that account's entries created that day that are not in the
 recycle bin: deleting or withdrawing an entry returns its slot, restoring it
 spends the slot again, and a rejected entry keeps it. Admin and moderator
@@ -408,12 +409,13 @@ byline and its current status, so editing a published circuit neither
 takes it off the wall nor re-attributes it. The Project is re-serialized
 canonically, the preview is re-rendered, and the netlistable marker is
 recalculated; 200 answers `{id, status, previewRevision}`. `aiGenerated` true
-or false sets the AI mark and leaving it out keeps the stored one, so an author
-can clear a mark an Agent session suggested; the update dialog starts from the
-entry's current mark and notes when an Agent has worked on the Project. The mark belongs to the entry, not to a version: restoring
-an earlier version keeps it. The detail response
-carries `ownerUserId` so the editor offers "update the opened entry" exactly
-to owners and moderators.
+or false sets the AI mark and leaving it out keeps the stored one, so an
+author can clear the mark an Agent's publish set (an AI account's entries keep
+it); the update dialog starts from the entry's current mark and notes when an
+Agent has worked on the Project. The mark belongs to the entry, not to
+a version: restoring an earlier version keeps it. The detail response carries
+`ownerUserId` so the editor offers "update the opened entry" exactly to owners
+and moderators.
 
 Owner withdrawal: `POST /api/gallery/<id>/recycle` (same-origin) also
 accepts the owning session — the entry moves to `recycled` and leaves
@@ -497,8 +499,38 @@ database stores only SHA-256 hashes of session tokens and sign-in codes.
   single-use, expires in 10 minutes, and stops working after 5 wrong
   guesses; asking again replaces it. Sending is limited to 5 codes per
   address per UTC day.
+- AI accounts ("seats") are the super-admin's, for Agents to publish under
+  without taking a person's account. They are listed in code (`AI_SEATS` in
+  `worker/auth-do.ts`): seat, account id and the model's official name
+  (`ai-designer-1` Claude Opus 5.5, `ai-designer-2` GPT-6 Astra). A seat has
+  `provider` `ai`, `provider_id` its seat, role `user` and no email, so it is
+  never the super-admin, and no identity, code or password signs in to one.
+  - When AuthDO starts, each listed seat is made, or the account an Agent
+    already published under is converted in place, only while it still has
+    the name it published under (`formerName`): its id, sessions and Gallery
+    entries stay, and the email and provider identity it held are released
+    to their owner. AuthDO restores the listed name, and GalleryDO the byline
+    of the seat's entries and saved versions and their AI mark, whenever
+    they start; a seat cannot rename itself (409). A new seat is a new line;
+    seats are never reused.
+  - The account page's **AI Accounts** tab (`GET /api/auth/ai-accounts`,
+    super-admin only) lists the seats, each with **Switch to this account**
+    (`POST /api/auth/ai-accounts/switch {userId}`, same-origin gated): the
+    browser gets a 30-day session as the seat, and a fresh session of the
+    super-admin's, just as long, waits in `icm_owner_session`, an HttpOnly
+    cookie sent only to `/api/auth`. `me` then carries `switchedFrom`, and
+    the header's ↩ button (`POST /api/auth/ai-accounts/return`) ends the
+    seat's session there and restores the super-admin's; a second tab's ↩
+    after that changes nothing. Without a live super-admin session to return
+    to, the browser is signed out instead. Signing out clears both; a seat is
+    not deleted from its own page.
+  - A seat's entries always carry the AI mark, whoever publishes or updates
+    them, and a seat may publish 500 entries a UTC day (people 100). The
+    Publish dialog shows the box ticked and fixed for a seat. The
+    administrator statistics count people's accounts only.
 - `GET /api/auth/me` — `{user}` with `id`, `displayName`, `email`,
-  `provider`, `role` (`user`/`moderator`), and the per-request `isAdmin` flag.
+  `provider`, `role` (`user`/`moderator`), the per-request `isAdmin` flag,
+  and for an AI account its `seat` and, while switched, `switchedFrom`.
 - `POST /api/auth/profile` — rename the caller's display name (trimmed,
   1–40 chars). `POST /api/auth/logout` ends the session. Both are
   same-origin gated like submissions.

@@ -180,8 +180,9 @@ An empty source rejects with `COPY_EMPTY`, never opens it instead.
 under the signed-in Editor account, the whole Project, with the dialog's
 fields `name` (default: the Project's name), `description` and `tags`. What an
 Agent publishes or updates carries the AI mark; only its author changes that,
-in the Editor. `update` defaults to the entry the working copy was published
-as or opened from in the Editor, and keeps every field it does not name; a
+in the Editor, and an AI account's entries always keep it. `update` defaults
+to the entry the working copy was published as or opened from in the Editor,
+and keeps every field it does not name; a
 copy `open` made carries no such link, so pass its `galleryEntryId`. Both
 return `galleryEntryId`,
 `url` (`/g/<id>`) and `previewRevision`, and leave the working copy bound to

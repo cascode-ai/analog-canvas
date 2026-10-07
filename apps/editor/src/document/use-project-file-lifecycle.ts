@@ -86,7 +86,7 @@ export interface ReplaceProjectOptions {
   persistenceState?: PersistenceState;
   cloudBinding?: CloudProjectBinding | null;
   savedBaseline?: SavedProjectBaseline | null;
-  /** An Agent opened it, so publishing suggests the Gallery's AI mark. */
+  /** An Agent opened it, which the Publish dialog notes beside the AI mark. */
   agentEdited?: boolean;
 }
 

@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { ContextMenu } from "../../components/context-menu";
 import type { CloudProjectSummary } from "./cloud-projects";
 import "./project-tabs.css";
 
@@ -17,6 +18,7 @@ export function ProjectTabs({
   onRename,
   onEditingChange,
   onClose,
+  onCloseMany,
   onSaveClose,
   onNew,
   onOpenFile,
@@ -32,6 +34,8 @@ export function ProjectTabs({
   onRename(id: string, name: string): void;
   onEditingChange(editing: boolean): void;
   onClose(id: string): void;
+  /** Close Others and Close All, after any unsaved tab is confirmed. */
+  onCloseMany(ids: readonly string[]): void;
   onSaveClose?(id: string): Promise<boolean>;
   onNew(): void;
   onOpenFile(): void;
@@ -85,6 +89,33 @@ export function ProjectTabs({
   const closeTrigger = useRef<HTMLButtonElement | null>(null);
   const closeTarget = tabs.find((tab) => tab.id === closing);
   useEffect(() => setClosing(null), [activeId]);
+  // A tab's right-click menu, and several tabs it closes once confirmed.
+  const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(
+    null,
+  );
+  const [closingMany, setClosingMany] = useState<readonly string[] | null>(
+    null,
+  );
+  /** Unsaved edits, or a rename the click just committed (not yet in `tabs`). */
+  const unsaved = (id: string) =>
+    tabs.find((tab) => tab.id === id)?.dirty === true ||
+    renamedByClick.current === id;
+  const unsavedClosing = (closingMany ?? []).filter(unsaved).length;
+  /** Closes one tab, asking first when it holds unsaved edits. */
+  const closeOne = (id: string, trigger: HTMLButtonElement | null) => {
+    if (!tabs.some((item) => item.id === id)) return;
+    if (unsaved(id)) {
+      closeTrigger.current = trigger;
+      setClosingMany(null);
+      setClosing(id);
+    } else onClose(id);
+  };
+  const closeMany = (ids: readonly string[]) => {
+    if (!ids.length) return;
+    setClosing(null);
+    if (ids.some(unsaved)) setClosingMany(ids);
+    else onCloseMany(ids);
+  };
   const keyboardFocus = useRef(false);
   useEffect(() => {
     if (busy || renameSession.current) return;
@@ -139,6 +170,10 @@ export function ProjectTabs({
                 aria-description="Double-click to rename"
                 data-editing={editing?.id === tab.id}
                 onClick={() => selectTab(tab.id)}
+                onContextMenu={(event) => {
+                  event.preventDefault();
+                  setMenu({ id: tab.id, x: event.clientX, y: event.clientY });
+                }}
                 onDoubleClick={(event) => {
                   const button = event.currentTarget;
                   const selected =
@@ -213,13 +248,9 @@ export function ProjectTabs({
               <button
                 type="button"
                 aria-label={`Close tab ${tab.name}`}
+                data-tab-close={tab.id}
                 disabled={busy}
-                onClick={(event) => {
-                  if (tab.dirty || renamedByClick.current === tab.id) {
-                    closeTrigger.current = event.currentTarget;
-                    setClosing(tab.id);
-                  } else onClose(tab.id);
-                }}
+                onClick={(event) => closeOne(tab.id, event.currentTarget)}
               >
                 ×
               </button>
@@ -281,6 +312,78 @@ export function ProjectTabs({
           </details>
         ) : null}
       </div>
+      {menu ? (
+        <ContextMenu
+          position={menu}
+          label="Tab"
+          testId="project-tab-menu"
+          onClose={() => setMenu(null)}
+        >
+          {(
+            [
+              ["Close", [menu.id]],
+              [
+                "Close Others",
+                tabs.map(({ id }) => id).filter((id) => id !== menu.id),
+              ],
+              ["Close All", tabs.map(({ id }) => id)],
+            ] as const
+          ).map(([label, ids]) => (
+            <button
+              key={label}
+              type="button"
+              role="menuitem"
+              className="context-menu-item"
+              disabled={busy || !ids.length}
+              onClick={() => {
+                setMenu(null);
+                if (label === "Close")
+                  closeOne(
+                    menu.id,
+                    list.current?.querySelector<HTMLButtonElement>(
+                      `[data-tab-close="${CSS.escape(menu.id)}"]`,
+                    ) ?? null,
+                  );
+                else closeMany(ids);
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </ContextMenu>
+      ) : null}
+      {closingMany && !closeTarget ? (
+        <div
+          className="project-tab-close-decision"
+          data-testid="project-tab-close-decision"
+        >
+          <span>
+            Close{" "}
+            {closingMany.length === 1 ? "1 tab" : `${closingMany.length} tabs`}?{" "}
+            {unsavedClosing === 1
+              ? "1 has unsaved changes."
+              : `${unsavedClosing} have unsaved changes.`}{" "}
+          </span>
+          <Suspense fallback={null}>
+            <InlineConfirm
+              open
+              disabled={busy}
+              aria-label={`Close ${closingMany.length === 1 ? "1 tab" : `${closingMany.length} tabs`}`}
+              confirmLabel="Close without saving"
+              cancelLabel="Keep open"
+              onOpenChange={(next) => {
+                if (!next) setClosingMany(null);
+              }}
+              onConfirm={() => {
+                onCloseMany(closingMany);
+                setClosingMany(null);
+              }}
+            >
+              Close tabs
+            </InlineConfirm>
+          </Suspense>
+        </div>
+      ) : null}
       {closeTarget ? (
         <div
           className="project-tab-close-decision"

@@ -138,7 +138,7 @@ to these owners:
 - `editor-agent.css`: agent session presentation.
 - `editor-simulation.css`: the Simulation workspace, results and waveform tools.
 - `editor-accessibility.css`: the cross-cutting reduced-motion policy.
-- `editor-context-menu.css`: the canvas context menu.
+- `editor-context-menu.css`: the right-click menus of the canvas and the project tabs.
 
 Responsive rules stay with the owner whose layout they change. A selector
 should begin with, or be structurally contained by, that owner's root family;

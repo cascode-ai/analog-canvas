@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import type { Locator, Page, Route } from "@playwright/test";
 
 import {
+  CURRENT_MODEL_SCHEMA_VERSION,
   type CircuitProject,
   createEmptyDocument,
   createRoutePath,
@@ -3439,8 +3440,9 @@ test("a gallery tile opens its circuit in the editor", async ({ page }) => {
   // Variable-length names and contributor notes are read in File →
   // Project Info.
   const galleryInformation = await openProjectInfo(page);
-  await expect(galleryInformation).toContainText(ENTRY.name);
-  await expect(galleryInformation.getByRole("textbox")).toHaveCount(0);
+  await expect(
+    galleryInformation.getByRole("textbox", { name: "Name", exact: true }),
+  ).toHaveValue(ENTRY.name);
   await expect(galleryInformation).toContainText("Contributor");
   await expect(galleryInformation).toContainText(ENTRY.author);
   await expect(galleryInformation).toContainText("Notes");
@@ -3571,9 +3573,39 @@ test("a signed-in owner opens the account page, renames and signs out", async ({
   await page.route("**/api/gallery/recycled", (route) =>
     route.fulfill({ json: { entries: [] } }),
   );
+  await page.route("**/api/projects", (route) =>
+    route.fulfill({
+      json: {
+        projects: [
+          {
+            id: "cloud-1",
+            name: "Folded cascode",
+            updatedAt: "2026-10-07T08:00:00.000Z",
+            revision: 2,
+            schemaVersion: CURRENT_MODEL_SCHEMA_VERSION,
+          },
+        ],
+      },
+    }),
+  );
   await page.route("**/api/auth/providers", (route) =>
     route.fulfill({ json: { github: true, google: true, email: true } }),
   );
+  await page.route("**/api/auth/ai-accounts", (route) =>
+    route.fulfill({
+      json: {
+        accounts: [
+          { id: "ai-1", seat: "ai-designer-1", displayName: "Claude Opus 5.5" },
+          { id: "ai-2", seat: "ai-designer-2", displayName: "GPT-6 Astra" },
+        ],
+      },
+    }),
+  );
+  const switches: unknown[] = [];
+  await page.route("**/api/auth/ai-accounts/switch", (route) => {
+    switches.push(route.request().postDataJSON());
+    return route.fulfill({ json: { switched: true } });
+  });
   let user: Record<string, unknown> | null = {
     id: "u1",
     displayName: "tz",
@@ -3614,10 +3646,24 @@ test("a signed-in owner opens the account page, renames and signs out", async ({
     "true",
   );
   await expect(page.getByTestId(`mine-card-${ENTRY.id}`)).toBeVisible();
-  // Moderation is the next tab, not a page behind a link.
+  // The private Cloud Projects are the next tab, opened from their tiles.
+  await page.getByTestId("account-tab-projects").click();
+  await expect(page).toHaveURL(/\/account\?tab=projects$/u);
+  await expect(page.getByTestId("shelf-tile-cloud-1")).toContainText(
+    "Folded cascode",
+  );
+  // Moderation follows, a tab, not a page behind a link.
   await page.getByTestId("account-tab-moderation").click();
   await expect(page.getByTestId("rejected-empty")).toBeVisible();
   await expect(page.getByTestId("bin-empty")).toBeVisible();
+  // The Owner's AI accounts, each a click away from this browser.
+  await page.getByTestId("account-tab-ai").click();
+  await expect(page.getByTestId("ai-account-ai-designer-2")).toContainText(
+    "GPT-6 Astra",
+  );
+  await page.getByTestId("ai-account-switch-ai-designer-1").click();
+  await expect(page).toHaveURL(/\/account$/u);
+  expect(switches).toEqual([{ userId: "ai-1" }]);
   await page.getByTestId("account-tab-settings").click();
   await expect(page).toHaveURL(/\/account\?tab=settings$/u);
   // The address names the tab, so a reload comes back to it.

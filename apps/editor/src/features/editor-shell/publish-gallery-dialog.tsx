@@ -56,7 +56,7 @@ export interface PublishGalleryDialogProps {
     tags: readonly string[];
     aiGenerated?: boolean;
   } | null;
-  /** Whether an Agent worked on this Project: a new entry starts marked AI. */
+  /** Whether an Agent worked on this Project; the AI box's note says so. */
   agentEdited?: boolean;
   /** Today's allowance for new entries; absent until it has loaded. */
   quota?: GalleryQuota | null;
@@ -145,22 +145,23 @@ export function PublishGalleryDialog({
     draft?.editedFields?.tags ?? !!draft?.tags.length,
   );
   // The AI mark starts from the entry this Project was published as or
-  // opened from; a new entry also starts marked when an Agent worked on the
-  // Project. An update keeps an author's earlier choice. A choice made here
-  // wins.
-  const aiSuggestion =
-    updateDefaults?.aiGenerated === true || (!updating && agentEdited);
+  // opened from. Publishing by hand never ticks it for the person, even
+  // where an Agent worked on the Project: the note says so, and the choice
+  // is theirs. An Agent's own publish is always marked, and so is all an AI
+  // account publishes. A choice made here wins.
+  const aiAccount = session?.seat !== undefined;
+  const entryMarked = updateDefaults?.aiGenerated === true;
   const [aiEdited, setAiEdited] = useState(
     draft?.editedFields?.aiGenerated === true,
   );
   const [aiGenerated, setAiGenerated] = useState(
     draft?.editedFields?.aiGenerated === true
       ? draft.aiGenerated === true
-      : aiSuggestion,
+      : entryMarked,
   );
   useEffect(() => {
-    if (!aiEdited) setAiGenerated(aiSuggestion);
-  }, [aiSuggestion, aiEdited]);
+    if (!aiEdited) setAiGenerated(entryMarked);
+  }, [entryMarked, aiEdited]);
   const [tagDraft, setTagDraft] = useState("");
   const [presetsOpen, setPresetsOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -262,11 +263,12 @@ export function PublishGalleryDialog({
     setBusy(true);
     setError(null);
     const send = updating ? (publishUpdate ?? publish) : publish;
+    const marked = aiAccount || aiGenerated;
     const outcome = await send({
       name,
       description,
       tags: submittedTags,
-      aiGenerated,
+      aiGenerated: marked,
     });
     if (outcome.status === "published") {
       onPublished({
@@ -274,7 +276,7 @@ export function PublishGalleryDialog({
         name: name.trim(),
         description: description.trim(),
         tags: submittedTags,
-        aiGenerated,
+        aiGenerated: marked,
         updated: updating,
         ...(outcome.previewRevision === undefined
           ? {}
@@ -553,7 +555,8 @@ export function PublishGalleryDialog({
                   type="checkbox"
                   data-testid="publish-ai"
                   aria-describedby="publish-gallery-ai-note"
-                  checked={aiGenerated}
+                  checked={aiAccount || aiGenerated}
+                  disabled={aiAccount}
                   onChange={(event) => {
                     setAiEdited(true);
                     setAiGenerated(event.currentTarget.checked);
@@ -565,9 +568,11 @@ export function PublishGalleryDialog({
                 id="publish-gallery-ai-note"
                 className="publish-gallery-optional"
               >
-                {agentEdited
-                  ? "An Agent worked on this Project"
-                  : "Shows an AI tag on the card"}
+                {aiAccount
+                  ? "An AI account's circuits always carry it"
+                  : agentEdited
+                    ? "An Agent worked on this Project"
+                    : "Shows an AI tag on the card"}
               </span>
             </div>
             {gateReport && gateReport.failures.length > 0 ? (

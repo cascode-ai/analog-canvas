@@ -2,7 +2,10 @@
 //
 // One AuthDO singleton owns users and sessions behind `/api/auth/*`:
 // GitHub OAuth, Google OAuth, and emailed sign-in codes — any one credential
-// signs a user in, no passwords ever exist. Each provider stays invisible
+// signs a user in, no passwords ever exist. AI accounts ("seats", listed in
+// AI_SEATS) are the super-admin's, for Agents to publish under: they have
+// no email or identity of their own, and only a signed-in super-admin
+// switches a browser to one. Each provider stays invisible
 // until its secrets are configured. The browser holds a random session
 // token in an HttpOnly cookie; the database stores only SHA-256 hashes of
 // session tokens and sign-in codes, so a copied database cannot impersonate
@@ -21,6 +24,41 @@ export const AUTH_LOGIN_CODE_TTL_MS = 10 * 60 * 1000;
 export const AUTH_LOGIN_CODE_ATTEMPTS = 5;
 export const AUTH_EMAIL_DAILY_LIMIT = 5;
 export const AUTH_DISPLAY_NAME_MAX = 40;
+/** The provider of AI accounts, which nothing signs in to directly. */
+export const AI_ACCOUNT_PROVIDER = "ai";
+/**
+ * The AI accounts. Each is made the first time AuthDO starts with it here,
+ * or, for an account an Agent already published under, converted in place:
+ * its id, sessions and Gallery entries stay, and the email and provider
+ * identity it held are released to their owner. Its display name is the
+ * model's official name, kept here: AuthDO and GalleryDO restore it, byline
+ * included, whenever they start. A new seat is a new line; seats are never
+ * renumbered or reused.
+ */
+export const AI_SEATS: readonly {
+  seat: string;
+  userId: string;
+  displayName: string;
+  /** The name an Agent's account published under before it became one. */
+  formerName?: string;
+}[] = [
+  // Published through a person's Google identity until now.
+  {
+    seat: "ai-designer-1",
+    userId: "b183aa15-078d-4476-be33-93c34f4bd95c",
+    displayName: "Claude Opus 5.5",
+    formerName: "Opus 5.5",
+  },
+  // Published through a person's email identity until now.
+  {
+    seat: "ai-designer-2",
+    userId: "f7f7789a-47df-4cd3-a384-232381f36c64",
+    displayName: "GPT-6 Astra",
+    formerName: "GPT-6-Astra",
+  },
+];
+/** The super-admin's own session, kept while the browser is an AI account. */
+export const AUTH_OWNER_COOKIE = "icm_owner_session";
 
 const TOKENZHANG_DISPLAY_NAME_MIGRATION =
   "2026-08-26-tokenzhang-to-zhishuai-zhang";
@@ -81,6 +119,13 @@ export interface SessionUser {
   /** "user" or "moderator" (appointed by the super-admin). */
   role: string;
   isAdmin: boolean;
+  /** An AI account's seat, such as ai-designer-1. */
+  seat?: string;
+  /**
+   * The super-admin who switched this browser to the AI account it is
+   * signed in as, and can switch it back (`/api/auth/me` only).
+   */
+  switchedFrom?: { displayName: string };
 }
 
 interface UserRow {
@@ -160,6 +205,14 @@ async function sha256(text: string): Promise<string> {
 function sessionCookie(token: string, secure: boolean, maxAge: number): string {
   return (
     `${AUTH_SESSION_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax; ` +
+    `Max-Age=${maxAge}${secure ? "; Secure" : ""}`
+  );
+}
+
+/** The super-admin's session kept while switched; only auth routes see it. */
+function ownerCookie(token: string, secure: boolean, maxAge: number): string {
+  return (
+    `${AUTH_OWNER_COOKIE}=${token}; Path=/api/auth; HttpOnly; SameSite=Lax; ` +
     `Max-Age=${maxAge}${secure ? "; Secure" : ""}`
   );
 }
@@ -331,6 +384,7 @@ export class AuthDO {
         PRIMARY KEY (day, email_hash)
       ) WITHOUT ROWID
     `);
+    this.ensureAiSeats(state);
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -347,16 +401,16 @@ export class AuthDO {
       return noStoreJson(enabledProviders(this.env));
     }
     if (route === "me" && method === "GET") {
-      return noStoreJson({ user: await this.sessionUser(request) });
+      return noStoreJson({ user: await this.me(request) });
     }
     if (route === "admin/stats" && method === "GET") {
-      const user = await this.sessionUser(request);
-      if (!user?.isAdmin) {
-        return noStoreJson({ error: "unauthorized" }, 401);
-      }
+      const caller = await this.superAdmin(request);
+      if (caller instanceof Response) return caller;
       const row = this.sql
+        // People's accounts; the AI accounts are the super-admin's own.
         .exec<{ registeredAccounts: number }>(
-          "SELECT COUNT(*) AS registeredAccounts FROM users",
+          "SELECT COUNT(*) AS registeredAccounts FROM users WHERE provider <> ?",
+          AI_ACCOUNT_PROVIDER,
         )
         .one();
       return noStoreJson({
@@ -393,15 +447,39 @@ export class AuthDO {
     if (route === "users/role" && method === "POST") {
       return this.setRole(request);
     }
+    if (route === "ai-accounts" && method === "GET") {
+      return this.listAiAccounts(request);
+    }
+    if (route === "ai-accounts/switch" && method === "POST") {
+      return this.switchToAiAccount(request, url);
+    }
+    if (route === "ai-accounts/return" && method === "POST") {
+      return this.returnToOwner(request, url);
+    }
     return Response.json({ error: "not-found" }, { status: 404 });
   }
 
   // --- sessions ---------------------------------------------------------
 
   private async sessionUser(request: Request): Promise<SessionUser | null> {
-    const token = parseCookies(request.headers.get("Cookie"))[
-      AUTH_SESSION_COOKIE
-    ];
+    return this.tokenUser(
+      parseCookies(request.headers.get("Cookie"))[AUTH_SESSION_COOKIE],
+    );
+  }
+
+  /** Ends the session a token names, if any. */
+  private async endSession(token: string | undefined): Promise<void> {
+    if (token)
+      this.sql.exec(
+        "DELETE FROM sessions WHERE token_hash = ?",
+        await sha256(token),
+      );
+  }
+
+  /** The user a live session token belongs to; an expired one is removed. */
+  private async tokenUser(
+    token: string | undefined,
+  ): Promise<SessionUser | null> {
     if (!token) return null;
     const tokenHash = await sha256(token);
     const row = this.sql
@@ -430,6 +508,9 @@ export class AuthDO {
       isAdmin:
         row.email !== null &&
         adminEmails(this.env).includes(row.email.toLowerCase()),
+      ...(row.provider === AI_ACCOUNT_PROVIDER
+        ? { seat: row.provider_id }
+        : {}),
     };
   }
 
@@ -859,20 +940,16 @@ export class AuthDO {
     if (!sameOrigin(request)) {
       return Response.json({ error: "forbidden" }, { status: 403 });
     }
-    const token = parseCookies(request.headers.get("Cookie"))[
-      AUTH_SESSION_COOKIE
-    ];
-    if (token) {
-      this.sql.exec(
-        "DELETE FROM sessions WHERE token_hash = ?",
-        await sha256(token),
-      );
-    }
+    // Signing out signs the whole browser out: an AI account's session and
+    // the super-admin's kept beside it.
+    const cookies = parseCookies(request.headers.get("Cookie"));
+    await this.endSession(cookies[AUTH_SESSION_COOKIE]);
+    await this.endSession(cookies[AUTH_OWNER_COOKIE]);
+    const secure = url.protocol === "https:";
     const response = noStoreJson({ ok: true });
-    response.headers.append(
-      "Set-Cookie",
-      sessionCookie("", url.protocol === "https:", 0),
-    );
+    response.headers.append("Set-Cookie", sessionCookie("", secure, 0));
+    if (cookies[AUTH_OWNER_COOKIE])
+      response.headers.append("Set-Cookie", ownerCookie("", secure, 0));
     return response;
   }
 
@@ -884,6 +961,8 @@ export class AuthDO {
     if (!user) {
       return Response.json({ error: "unauthorized" }, { status: 401 });
     }
+    // An AI account's name is the model's, kept in AI_SEATS.
+    if (user.seat) return noStoreJson({ error: "ai-account" }, 409);
     const body = (await request.json().catch(() => null)) as {
       displayName?: unknown;
     } | null;
@@ -941,6 +1020,9 @@ export class AuthDO {
     if (body?.confirm !== "delete-account") {
       return noStoreJson({ error: "confirmation-required" }, 400);
     }
+    // An AI account is the super-admin's, listed in AI_SEATS: it is not
+    // deleted from a browser switched to it.
+    if (user.seat) return noStoreJson({ error: "ai-account" }, 409);
     const deleted = { circuits: 0, likes: 0, projects: 0, components: 0 };
     const call = async (
       namespace: GalleryBylineNamespaceLike | undefined,
@@ -1001,13 +1083,8 @@ export class AuthDO {
    * a person's GitHub, Google, and email identities at once.
    */
   private async setRole(request: Request): Promise<Response> {
-    if (!sameOrigin(request)) {
-      return Response.json({ error: "forbidden" }, { status: 403 });
-    }
-    const caller = await this.sessionUser(request);
-    if (!caller?.isAdmin) {
-      return Response.json({ error: "unauthorized" }, { status: 401 });
-    }
+    const caller = await this.superAdmin(request, "change");
+    if (caller instanceof Response) return caller;
     const body = (await request.json().catch(() => null)) as {
       email?: unknown;
       role?: unknown;
@@ -1029,5 +1106,177 @@ export class AuthDO {
       email,
     );
     return noStoreJson({ updated: targets.length, role });
+  }
+
+  // --- AI accounts --------------------------------------------------------
+
+  /** The signed-in user, and who switched this browser to it. */
+  private async me(request: Request): Promise<SessionUser | null> {
+    const user = await this.sessionUser(request);
+    if (!user?.seat) return user;
+    const owner = await this.tokenUser(
+      parseCookies(request.headers.get("Cookie"))[AUTH_OWNER_COOKIE],
+    );
+    return owner?.isAdmin
+      ? { ...user, switchedFrom: { displayName: owner.displayName } }
+      : user;
+  }
+
+  /** The super-admin, or a refusal; a change must also be same-origin. */
+  private async superAdmin(
+    request: Request,
+    kind: "read" | "change" = "read",
+  ): Promise<SessionUser | Response> {
+    if (kind === "change" && !sameOrigin(request)) {
+      return noStoreJson({ error: "forbidden" }, 403);
+    }
+    const caller = await this.sessionUser(request);
+    if (!caller?.isAdmin) return noStoreJson({ error: "unauthorized" }, 401);
+    return caller;
+  }
+
+  private aiAccount(userId: unknown): UserRow | undefined {
+    return this.sql
+      .exec<UserRow>(
+        "SELECT * FROM users WHERE id = ? AND provider = ?",
+        typeof userId === "string" ? userId : "",
+        AI_ACCOUNT_PROVIDER,
+      )
+      .toArray()[0];
+  }
+
+  /**
+   * Makes each seat in AI_SEATS that is not one yet, a new account or the
+   * account an Agent published under converted in place, and gives a
+   * renamed seat its listed name back. A converted account's role goes back
+   * to user, so a seat holds no moderator's power.
+   */
+  private ensureAiSeats(state: DurableObjectStateLike): void {
+    state.storage.transactionSync(() => {
+      for (const { seat, userId, displayName, formerName } of AI_SEATS) {
+        const row = this.sql
+          .exec<UserRow>("SELECT * FROM users WHERE id = ?", userId)
+          .toArray()[0];
+        if (
+          row?.provider === AI_ACCOUNT_PROVIDER &&
+          row.display_name === displayName
+        )
+          continue;
+        // Only the Agent's account it names is converted: a person's account
+        // under a mistyped id, or one renamed since, is left alone.
+        if (
+          row &&
+          row.provider !== AI_ACCOUNT_PROVIDER &&
+          row.display_name !== formerName
+        )
+          continue;
+        try {
+          if (row)
+            this.sql.exec(
+              "UPDATE users SET provider = ?, provider_id = ?, email = NULL, role = 'user', display_name = ? WHERE id = ?",
+              AI_ACCOUNT_PROVIDER,
+              seat,
+              displayName,
+              userId,
+            );
+          else
+            this.sql.exec(
+              "INSERT INTO users(id, provider, provider_id, email, display_name, role, created_at) VALUES (?, ?, ?, NULL, ?, 'user', ?)",
+              userId,
+              AI_ACCOUNT_PROVIDER,
+              seat,
+              displayName,
+              new Date().toISOString(),
+            );
+        } catch {
+          // A seat that cannot be made (its seat name taken by another
+          // row) must not stop every sign-in; it is simply not made.
+        }
+      }
+    });
+  }
+
+  /** The seats in AI_SEATS order, with their current display names. */
+  private aiAccounts() {
+    return AI_SEATS.flatMap(({ seat, userId }) => {
+      const row = this.aiAccount(userId);
+      return row ? [{ id: row.id, seat, displayName: row.display_name }] : [];
+    });
+  }
+
+  private async listAiAccounts(request: Request): Promise<Response> {
+    const caller = await this.superAdmin(request);
+    if (caller instanceof Response) return caller;
+    return noStoreJson({ accounts: this.aiAccounts() });
+  }
+
+  /**
+   * This browser becomes the AI account for the session's usual 30 days.
+   * The super-admin's own session is kept beside it, so one click switches
+   * back without signing in again.
+   */
+  private async switchToAiAccount(
+    request: Request,
+    url: URL,
+  ): Promise<Response> {
+    const caller = await this.superAdmin(request, "change");
+    if (caller instanceof Response) return caller;
+    const body = (await request.json().catch(() => null)) as {
+      userId?: unknown;
+    } | null;
+    const account = this.aiAccount(body?.userId);
+    if (!account) return noStoreJson({ error: "no-such-ai-account" }, 404);
+    // A fresh session for the way back, as long as the AI account's: the
+    // one in use now could run out first and leave no way back.
+    await this.endSession(
+      parseCookies(request.headers.get("Cookie"))[AUTH_SESSION_COOKIE],
+    );
+    const ownerToken = await this.createSession(caller.id);
+    const secure = url.protocol === "https:";
+    const response = noStoreJson({ switched: true });
+    response.headers.append(
+      "Set-Cookie",
+      sessionCookie(
+        await this.createSession(account.id),
+        secure,
+        AUTH_SESSION_TTL_SECONDS,
+      ),
+    );
+    response.headers.append(
+      "Set-Cookie",
+      ownerCookie(ownerToken, secure, AUTH_SESSION_TTL_SECONDS),
+    );
+    return response;
+  }
+
+  /** Back to the super-admin's own session; the AI account's here ends. */
+  private async returnToOwner(request: Request, url: URL): Promise<Response> {
+    if (!sameOrigin(request)) return noStoreJson({ error: "forbidden" }, 403);
+    const cookies = parseCookies(request.headers.get("Cookie"));
+    const current = await this.tokenUser(cookies[AUTH_SESSION_COOKIE]);
+    const ownerToken = cookies[AUTH_OWNER_COOKIE];
+    const owner = await this.tokenUser(ownerToken);
+    const secure = url.protocol === "https:";
+    // Another tab already switched this browser back.
+    if (current?.isAdmin && !owner) return noStoreJson({ returned: true });
+    if (!current?.seat) return noStoreJson({ error: "not-switched" }, 409);
+    // The AI account's session here ends either way: a browser whose way
+    // back has gone (or whose owner is no longer the super-admin) is signed
+    // out rather than left as the AI account.
+    await this.endSession(cookies[AUTH_SESSION_COOKIE]);
+    if (!ownerToken || !owner?.isAdmin) {
+      await this.endSession(ownerToken);
+      const refused = noStoreJson({ error: "unauthorized" }, 401);
+      refused.headers.append("Set-Cookie", sessionCookie("", secure, 0));
+      refused.headers.append("Set-Cookie", ownerCookie("", secure, 0));
+      return refused;
+    }
+    const response = noStoreJson({ returned: true });
+    response.headers.append(
+      "Set-Cookie",
+      sessionCookie(ownerToken, secure, AUTH_SESSION_TTL_SECONDS),
+    );
+    response.headers.append("Set-Cookie", ownerCookie("", secure, 0));
+    return response;
   }
 }

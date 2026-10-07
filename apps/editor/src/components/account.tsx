@@ -17,6 +17,10 @@ export interface SessionUser {
   /** "user" or "moderator" (appointed by the super-admin). */
   role: string;
   isAdmin: boolean;
+  /** An AI account's seat, such as ai-designer-1. */
+  seat?: string;
+  /** The Owner who switched this browser to the AI account, and can switch back. */
+  switchedFrom?: { displayName: string };
 }
 
 export interface AuthProviders {
@@ -232,6 +236,21 @@ export async function deleteAccount(
   }
 }
 
+/** Switches this browser back from an AI account to the Owner's own. */
+export async function returnToOwner(
+  fetchLike: typeof fetch = fetch,
+): Promise<boolean> {
+  try {
+    const response = await fetchLike("/api/auth/ai-accounts/return", {
+      method: "POST",
+      credentials: "same-origin",
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
 export async function signOut(fetchLike: typeof fetch = fetch): Promise<void> {
   try {
     await fetchLike("/api/auth/logout", {
@@ -260,6 +279,8 @@ export interface AccountMenuViewProps {
   onEmailStart: (email: string) => Promise<EmailCodeResult>;
   /** Signs in with the emailed code. */
   onEmailVerify: (email: string, code: string) => Promise<EmailCodeResult>;
+  /** Switches a browser the Owner switched to an AI account back. */
+  onReturnToOwner: () => void;
 }
 
 /** Self-loading account area shared by Gallery and Editor chrome. */
@@ -316,6 +337,11 @@ export function AccountMenu({
           // Google sign-in returns to a freshly loaded page.
           if (result.ok) window.location.reload();
           return result;
+        }}
+        onReturnToOwner={() => {
+          // Back, or signed out when the way back had gone: either way the
+          // page starts over with what the browser now is.
+          void returnToOwner().then(() => window.location.reload());
         }}
       />
     </Suspense>

@@ -128,7 +128,7 @@ describe("PublishGalleryDialog", () => {
     expect(markup).toContain('aria-label="More tag suggestions"');
   });
 
-  it("starts the AI mark from the Agent's work or the entry it came from", () => {
+  it("starts the AI mark from the entry it came from, never from an Agent's work", () => {
     const render = (props: Partial<PublishGalleryDialogProps>) =>
       renderToStaticMarkup(
         createElement(PublishGalleryDialog, {
@@ -143,7 +143,11 @@ describe("PublishGalleryDialog", () => {
     const aiBox = (props: Partial<PublishGalleryDialogProps>) =>
       /<input[^>]*data-testid="publish-ai"[^>]*>/u.exec(render(props))?.[0];
     expect(aiBox({})).not.toContain("checked");
-    expect(aiBox({ agentEdited: true })).toContain('checked=""');
+    // Publishing by hand leaves the mark to the person; the note tells them.
+    expect(aiBox({ agentEdited: true })).not.toContain("checked");
+    expect(render({ agentEdited: true })).toContain(
+      "An Agent worked on this Project",
+    );
 
     // An update keeps the entry's own mark, so an author's untick stands;
     // the note still says an Agent worked on it.
