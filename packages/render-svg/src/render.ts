@@ -901,6 +901,7 @@ function deriveBounds(
   routingGeometry: ResolvedDocumentRoutingGeometry,
   margin: number,
   annotations: readonly ResolvedSvgAnnotation[],
+  profile: SchematicStyleProfile,
   objectIds?: ReadonlySet<string>,
 ): DerivedRect {
   const bounds: DerivedRect[] = [];
@@ -958,25 +959,77 @@ function deriveBounds(
     });
   }
   for (const { annotation, content, presentation } of annotations) {
-    const routePlacement =
-      annotation.anchor.kind === "route"
-        ? resolveRouteMarkerPlacement(routingGeometry, annotation.anchor)
-        : null;
     if (objectIds) bounds.push(presentation.bounds);
-    if (!routePlacement) {
-      bounds.push(presentation.bounds);
+    // Only a route marker is drawn at the marker's own place; every other
+    // label, one on a wire too, is drawn where its presentation is.
+    const marker = drawnRouteMarkerPlacement(
+      annotation,
+      presentation,
+      routingGeometry,
+    );
+    if (!marker) {
+      // The room a label reserves, 0.6 em a character, and the ink it draws:
+      // a bold name's wide glyphs reach past that room, and an "outb" at the
+      // drawing's edge lost its "b" (#1436).
+      bounds.push(presentation.bounds, presentation.inkBounds);
       continue;
     }
-    const textPosition = routePlacement.labelPosition;
-    bounds.push(
-      estimatedTextBounds(
+    // A marker's upright text: a 7-unit character estimate, and the ink its
+    // glyphs measure, bold ones included, along its line (#1436).
+    const inkWidth =
+      presentation.rotation % 180 === 0
+        ? presentation.inkBounds.width
+        : presentation.inkBounds.height;
+    const upright = (at: Point, alignment: "start" | "middle" | "end") => {
+      const estimate = estimatedTextBounds(
         flattenRichText(content),
-        textPosition.x,
-        textPosition.y,
-        "middle",
+        at.x,
+        at.y,
+        alignment,
         annotation.sizeScale ?? 1,
-      ),
-    );
+      );
+      const left =
+        alignment === "start"
+          ? at.x
+          : alignment === "end"
+            ? at.x - inkWidth
+            : at.x - inkWidth / 2;
+      return [estimate, { ...estimate, x: left, width: inkWidth }];
+    };
+    if (
+      annotation.kind === "route-marker" &&
+      annotation.markerKind === "current"
+    ) {
+      // Centred at its label point.
+      bounds.push(...upright(marker.labelPosition, "middle"));
+    } else if (
+      annotation.kind === "route-marker" &&
+      annotation.markerKind === "voltage"
+    ) {
+      // At the marker's point, with its "+" and "−" beside it.
+      bounds.push(...upright(marker.position, annotation.alignment));
+      const markerProfile = objectStyleProfile(profile, annotation);
+      const { polarityOffsetX, polarityHalfGap } = markerProfile.annotations;
+      const size = markerProfile.typography.polarityFontSize;
+      for (const side of [-1, 1]) {
+        const offset = rotateOffset(
+          { x: -polarityOffsetX, y: side * polarityHalfGap },
+          marker.rotation,
+        );
+        bounds.push({
+          x: marker.position.x + offset.x - size / 2,
+          y: marker.position.y + offset.y + 4 - size,
+          width: size,
+          height: size * 1.25,
+        });
+      }
+    } else if (marker.rotation === presentation.rotation) {
+      // Drawn as presented, at the marker's point.
+      const dx = marker.position.x - presentation.position.x;
+      const dy = marker.position.y - presentation.position.y;
+      for (const rect of [presentation.bounds, presentation.inkBounds])
+        bounds.push({ ...rect, x: rect.x + dx, y: rect.y + dy });
+    } else bounds.push(...upright(marker.position, annotation.alignment));
   }
   // ADR 0010 WP-R2: drafting objects extend the formal export bounds so
   // callouts and floating symbols outside the circuit are not clipped.
@@ -1134,6 +1187,7 @@ export function buildSvgScene(
         routingGeometry,
         margin,
         resolvedAnnotations,
+        profile,
         objectIds,
       );
 
@@ -1449,23 +1503,11 @@ export function buildSvgScene(
     .map(({ annotation, content, presentation }) => {
       const annotationProfile = objectStyleProfile(profile, annotation);
       const attachment = ` data-anchor-kind="${annotation.anchor.kind}"`;
-      const resolvedAnchor = presentation.anchor;
-      const routeMarkerPlacement =
-        annotation.kind === "route-marker"
-          ? annotation.anchor.kind === "free"
-            ? {
-                position: annotation.anchor.position,
-                labelPosition: annotation.anchor.position,
-                rotation: 0 as const,
-              }
-            : annotation.anchor.kind === "object"
-              ? {
-                  position: resolvedAnchor.position,
-                  labelPosition: resolvedAnchor.position,
-                  rotation: 0 as const,
-                }
-              : resolveRouteMarkerPlacement(routingGeometry, annotation.anchor)
-          : null;
+      const routeMarkerPlacement = drawnRouteMarkerPlacement(
+        annotation,
+        presentation,
+        routingGeometry,
+      );
       const position = routeMarkerPlacement?.position ?? presentation.position;
       const rotation = routeMarkerPlacement?.rotation ?? presentation.rotation;
       const transform = `rotate(${rotation} ${position.x} ${position.y})`;
@@ -1638,6 +1680,22 @@ export function buildSvgScene(
 }
 
 // Resolve a route-marker route VisualAnchor to a render position/rotation.
+/** Where a route marker is drawn: its arrow or sign, and its text. */
+function drawnRouteMarkerPlacement(
+  annotation: Annotation,
+  presentation: AnnotationPresentation,
+  routingGeometry: ResolvedDocumentRoutingGeometry,
+): { position: Point; labelPosition: Point; rotation: Rotation } | null {
+  if (annotation.kind !== "route-marker") return null;
+  if (annotation.anchor.kind === "route")
+    return resolveRouteMarkerPlacement(routingGeometry, annotation.anchor);
+  const position =
+    annotation.anchor.kind === "free"
+      ? annotation.anchor.position
+      : presentation.anchor.position;
+  return { position, labelPosition: position, rotation: 0 };
+}
+
 function resolveRouteMarkerPlacement(
   routingGeometry: ResolvedDocumentRoutingGeometry,
   anchor: Extract<

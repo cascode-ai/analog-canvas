@@ -2,28 +2,28 @@
   "version": "0.1.0",
   "sourceProject": "fixtures/projects/differential-stage/project.icproj.json",
   "bounds": {
-    "x": 38.251712000000005,
+    "x": 37.15038385875,
     "y": 132.1282,
-    "width": 383.496576,
+    "width": 384.59790414125,
     "height": 186.8718
   },
   "raster": {
     "scale": 3,
-    "width": 1150,
+    "width": 1154,
     "height": 561
   },
   "files": {
     "schematic.svg": {
-      "byteLength": 11859,
-      "sha256": "a8fc1f5bfe9b445ba6fd88a1dc0b44219f05432e1a5161a6881b3970ea8c998d"
+      "byteLength": 11861,
+      "sha256": "4421eed6c8197827e3c427574557a59510e50884691bde858732df3bf6b474bd"
     },
     "schematic.png": {
-      "byteLength": 13908,
-      "sha256": "55ce95d17ecb257f7a48cd44142893d5caa765fa5765540ca3f8f78f18be8bf7"
+      "byteLength": 12350,
+      "sha256": "ec1eb8bfeb63667caed4837d1dce6846fd5ad664f379112bc594573d976f2f8f"
     },
     "schematic.pdf": {
-      "byteLength": 8497,
-      "sha256": "efaf9659310306c3c53a0ef01b945200467dc9e40ef6caabbd127e3cfeb22260"
+      "byteLength": 8355,
+      "sha256": "3fe8c1f6c875c6068fa30d4b900dae2b28fb4109971b9004c6272d5bd7f5ec1b"
     }
   }
 }

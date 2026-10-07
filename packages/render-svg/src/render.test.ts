@@ -1,7 +1,9 @@
 import { createEmptyDocument, createRoutePath } from "@icm/model";
 import {
   deriveDocumentContactEvidence,
+  resolveAnnotationPresentation,
   resolveDocumentRoutingGeometry,
+  resolveDocumentStyleProfile,
 } from "@icm/derived";
 import { InMemorySymbolResolver } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
@@ -132,6 +134,164 @@ describe("render svg", () => {
     expect(scene.viewBox).toEqual({ x: -10, y: -10, width: 100, height: 20 });
     expect(buildSvgScene(doc, resolver)).toEqual(full);
   });
+  it("keeps a bold name at either edge inside the figure, on a wire too (#1436)", () => {
+    // Textbook names are bold, and bold glyphs are wider than the 0.6 em a
+    // character a label reserves: "outb" draws 39.2 at the label size.
+    const doc = createEmptyDocument("edges", "Edges");
+    const bold = (value: string) => ({
+      runs: [
+        {
+          kind: "span" as const,
+          style: "italic" as const,
+          children: [
+            {
+              kind: "span" as const,
+              style: "bold" as const,
+              children: [{ kind: "text" as const, value }],
+            },
+          ],
+        },
+      ],
+    });
+    for (const [id, x, alignment, value] of [
+      ["right-name", 500, "start", "outb"],
+      ["left-name", 0, "end", "MW"],
+    ] as const)
+      doc.annotations.push({
+        id,
+        kind: "instance-label",
+        content: bold(value),
+        anchor: { kind: "free", position: { x, y: 0 } },
+        alignment,
+        rotation: 0,
+        locked: false,
+      });
+    // A Net Label on a wire at the right edge, starting near its end.
+    doc.nets.push({ id: "net", terminals: [] });
+    doc.junctions.push(
+      { id: "J1", netId: "net", position: { x: 500, y: 40 } },
+      { id: "J2", netId: "net", position: { x: 640, y: 40 } },
+    );
+    const route = createRoutePath({
+      id: "route",
+      netId: "net",
+      start: { kind: "junction", junctionId: "J1" },
+      end: { kind: "junction", junctionId: "J2" },
+      bends: [],
+      modes: ["manual"],
+    });
+    doc.routes.push(route);
+    doc.annotations.push({
+      id: "wire-name",
+      kind: "net-label",
+      netId: "net",
+      content: bold("outputnodeWW"),
+      anchor: {
+        kind: "route",
+        routeId: "route",
+        legId: route.legs[0]!.id,
+        t: 0.7,
+        normalOffset: 0,
+        direction: "forward",
+        orientation: "horizontal",
+        fallbackPosition: { x: 600, y: 40 },
+      },
+      alignment: "start",
+      rotation: 0,
+      locked: false,
+    });
+    const resolver = new InMemorySymbolResolver([]);
+    const scene = buildSvgScene(doc, resolver, { margin: 0 });
+    const profile = resolveDocumentStyleProfile(doc.presentation);
+    for (const annotation of doc.annotations) {
+      const ink = resolveAnnotationPresentation(
+        doc,
+        resolver,
+        annotation,
+        profile,
+      ).inkBounds;
+      expect(ink.x).toBeGreaterThanOrEqual(scene.viewBox.x);
+      expect(ink.x + ink.width).toBeLessThanOrEqual(
+        scene.viewBox.x + scene.viewBox.width,
+      );
+    }
+  });
+
+  it("keeps a route marker's bold name inside the figure, where it is drawn (#1436)", () => {
+    // Each marker's text is drawn upright: a current marker's centred at its
+    // label point, a voltage marker's at the wire, aligned as it says.
+    const cases = [
+      { markerKind: "current", anchored: "route", alignment: "middle" },
+      { markerKind: "voltage", anchored: "route", alignment: "start" },
+      { markerKind: "current", anchored: "free", alignment: "start" },
+    ] as const;
+    for (const { markerKind, anchored, alignment } of cases) {
+      const doc = createEmptyDocument("marker", "Marker");
+      doc.nets.push({ id: "net", terminals: [] });
+      doc.junctions.push(
+        { id: "J1", netId: "net", position: { x: 0, y: 0 } },
+        { id: "J2", netId: "net", position: { x: 100, y: 0 } },
+      );
+      const route = createRoutePath({
+        id: "route",
+        netId: "net",
+        start: { kind: "junction", junctionId: "J1" },
+        end: { kind: "junction", junctionId: "J2" },
+        bends: [],
+        modes: ["manual"],
+      });
+      doc.routes.push(route);
+      // On the wire, at its right end; free, at its left end.
+      const at = anchored === "route" ? 100 : 0;
+      doc.annotations.push({
+        id: "marker",
+        kind: "route-marker",
+        markerKind,
+        content: {
+          runs: [
+            {
+              kind: "span",
+              style: "bold",
+              children: [{ kind: "text", value: "VOUTWW" }],
+            },
+          ],
+        },
+        anchor:
+          anchored === "route"
+            ? {
+                kind: "route",
+                routeId: "route",
+                legId: route.legs[0]!.id,
+                t: 1,
+                normalOffset: 0,
+                direction: "forward",
+                orientation: "horizontal",
+                fallbackPosition: { x: at, y: 0 },
+              }
+            : { kind: "free", position: { x: at, y: 0 } },
+        alignment,
+        rotation: 0,
+        locked: false,
+      });
+      const resolver = new InMemorySymbolResolver([]);
+      const scene = buildSvgScene(doc, resolver, { margin: 0 });
+      const width = resolveAnnotationPresentation(
+        doc,
+        resolver,
+        doc.annotations[0]!,
+        resolveDocumentStyleProfile(doc.presentation),
+      ).inkBounds.width;
+      const [left, right] =
+        markerKind === "current"
+          ? [at - width / 2, at + width / 2]
+          : [at, at + width];
+      expect(left, markerKind).toBeGreaterThanOrEqual(scene.viewBox.x);
+      expect(right, markerKind).toBeLessThanOrEqual(
+        scene.viewBox.x + scene.viewBox.width,
+      );
+    }
+  });
+
   it("renders identically from one shared routing read model", () => {
     const doc = createEmptyDocument("shared", "Shared read model");
     doc.nets.push({ id: "net", terminals: [] });
