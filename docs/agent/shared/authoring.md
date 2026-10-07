@@ -118,6 +118,13 @@ targets to avoid full-Snapshot name resolution. Names remain supported when usef
   information, `GENERIC_DIODE_MODEL`, naming the diodes. A `.model DIODE` in
   a simulation folder's own files replaces the card in that folder's runs.
   For a real device, `set-model` the diode to its own model.
+- A BJT placed in Abstract or Custom, or `set-model` to `NPN` or `PNP`, takes
+  the generic `NPN` or `PNP` in the same way: one
+  `.model NPN NPN(IS=1e-16 BF=100 VAF=100)` or
+  `.model PNP PNP(IS=1e-16 BF=50 VAF=50)` card per Cell, reported as
+  information, `GENERIC_BJT_MODEL`, and replaced by a `.model NPN` or
+  `.model PNP` in a folder's own files. For a real device, `set-model` the
+  transistor to its own model.
 - `place-component` and `set-property` refuse a parameter the part does not
   take (naming the one it most likely meant), a value outside a choice list,
   and a quantity that is neither a SPICE number (`1k`, `2.5n`, `9kΩ`) nor an

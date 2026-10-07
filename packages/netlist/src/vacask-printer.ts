@@ -41,6 +41,12 @@ const PRIMITIVES = {
   ccvs: { module: "ccvs", file: null },
 } as const;
 
+/** A Cell-owned SPICE bipolar card's polarity, as VACASK's sp_bjt takes it. */
+const BJT_POLARITY: ReadonlyMap<string, string> = new Map([
+  ["NPN", "1"],
+  ["PNP", "-1"],
+]);
+
 class ProjectionError extends Error {
   constructor(
     readonly code: string,
@@ -268,6 +274,11 @@ export function printVacaskWithLocations(
     ir.cells.some((c) => c.models?.some((m) => m.type === "D"))
   )
     append('load "spice/diode.osdi"');
+  if (
+    emission.preamble !== false &&
+    ir.cells.some((c) => c.models?.some((m) => BJT_POLARITY.has(m.type)))
+  )
+    append('load "spice/bjt.osdi"');
   const classes = new Set(
     ir.cells.flatMap((cell) =>
       cell.instances.flatMap((card) =>
@@ -683,13 +694,19 @@ export function printVacaskWithLocations(
           append("ends");
           continue;
         }
-        if (model.type !== "D")
+        const module =
+          model.type === "D"
+            ? "sp_diode"
+            : BJT_POLARITY.has(model.type)
+              ? `sp_bjt type=${BJT_POLARITY.get(model.type)}`
+              : undefined;
+        if (!module)
           throw new ProjectionError(
             "VACASK_UNSUPPORTED_MODEL",
             `Cell-owned model ${model.name} (${model.type}) needs a qualified native mapping.`,
           );
         append(
-          `model ${vacaskIdentifier(model.name)} sp_diode ${model.parameters.map((p) => `${p.name.toLowerCase()}=${projectValue(p.rawValue, parameterNames)}`).join(" ")}`,
+          `model ${vacaskIdentifier(model.name)} ${module} ${model.parameters.map((p) => `${p.name.toLowerCase()}=${projectValue(p.rawValue, parameterNames)}`).join(" ")}`,
         );
       }
     } catch (error) {

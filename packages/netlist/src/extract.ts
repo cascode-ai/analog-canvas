@@ -67,6 +67,7 @@ import { parseSpiceNumber } from "@icm/spice";
 import type {
   DesignNetlistCell,
   DesignNetlistAnalysisResult,
+  DesignNetlistDeviceClass,
   DesignNetlistExternalMaster,
   DesignNetlistInstance,
   DesignNetlistMagneticSubcircuit,
@@ -292,10 +293,11 @@ export interface DesignNetlistAnalysisOptions {
   groundPin?: GroundPinPolicy;
   /**
    * The text of the source files a run puts beside this netlist: its
-   * simulation folder's own files. A model they define for the generic
-   * diode's name is that run's, so its Cells carry no card for it. A design
-   * export carries none; it reads only the SPICE the Project was imported
-   * from, so another folder's testbench model never leaves it without one.
+   * simulation folder's own files. A model they define for a generic name
+   * (DIODE, NPN, PNP) is that run's, so its Cells carry no card for it. A
+   * design export carries none; it reads only the SPICE the Project was
+   * imported from, so another folder's testbench model never leaves it
+   * without one.
    */
   deckSources?: readonly string[];
 }
@@ -1469,24 +1471,54 @@ export const GENERIC_DIODE_MODEL: DesignNetlistModel = {
   authoredName: true,
 };
 
-/** `.model DIODE …` in SPICE, or `model DIODE …` in VACASK and Spectre. */
-const GENERIC_DIODE_DEFINITION = new RegExp(
-  String.raw`^[ \t]*\.?model[ \t]+${GENERIC_DIODE_MODEL.name}(?=[\s(]|$)`,
-  "imu",
-);
+/**
+ * The models a bipolar transistor takes in a Process with no BJT of its own
+ * (#1420): Abstract and Custom bind each NPN and PNP placed from the library
+ * to `NPN` and `PNP`, names no library defines, so a run of that netlist
+ * stopped on the missing model as a diode's did (#1310). They are carried
+ * and replaced as the generic diode is: Gummel-Poon placeholders with their
+ * saturation current, forward gain and Early voltage stated, not any real
+ * device.
+ */
+export const GENERIC_NPN_MODEL: DesignNetlistModel = {
+  name: "NPN",
+  type: "NPN",
+  parameters: [
+    { name: "IS", rawValue: "1e-16" },
+    { name: "BF", rawValue: "100" },
+    { name: "VAF", rawValue: "100" },
+  ],
+  authoredName: true,
+};
+export const GENERIC_PNP_MODEL: DesignNetlistModel = {
+  name: "PNP",
+  type: "PNP",
+  parameters: [
+    { name: "IS", rawValue: "1e-16" },
+    { name: "BF", rawValue: "50" },
+    { name: "VAF", rawValue: "50" },
+  ],
+  authoredName: true,
+};
 
 /**
- * Whether the author's own text defines the generic diode's name: a source
- * file of the run this netlist is for, or the SPICE the Project was imported
+ * Whether the author's own text defines a generic model's name, `.model
+ * DIODE …` in SPICE or `model DIODE …` in VACASK and Spectre: a source file
+ * of the run this netlist is for, or the SPICE the Project was imported
  * from. That model is the author's. The card inside a Cell would shadow it
  * there, so no Cell carries one. Another simulation folder's files do not
  * count: a testbench defining DIODE for its own run left a second folder's
  * run, and the design export, with no model at all.
  */
-function definesGenericDiode(
+function definesGenericModel(
   project: CircuitProject,
   deckSources: readonly string[],
+  model: DesignNetlistModel,
 ): boolean {
+  const definition = new RegExp(
+    String.raw`^[ \t]*\.?model[ \t]+${model.name}(?=[\s(]|$)`,
+    "imu",
+  );
   const texts = [
     ...deckSources,
     ...(project.source?.files ?? []).flatMap((file) => [
@@ -1494,9 +1526,7 @@ function definesGenericDiode(
       file.originalContent?.text,
     ]),
   ];
-  return texts.some(
-    (text) => text !== undefined && GENERIC_DIODE_DEFINITION.test(text),
-  );
+  return texts.some((text) => text !== undefined && definition.test(text));
 }
 
 /** Phase nodes no drawn Net supplies, per Cell: each switch on one is told. */
@@ -2423,6 +2453,48 @@ function reportGenericDiodes(
 }
 
 /**
+ * Which bipolar transistors run on the generic cards (#1420), one finding
+ * for the Cell as for its diodes: information, since the netlist runs, but
+ * on stand-in transistors, not on devices anyone chose.
+ */
+function reportGenericBjts(
+  document: SchematicDocument,
+  used: ReadonlyArray<{
+    model: DesignNetlistModel;
+    parts: readonly DesignNetlistInstance[];
+  }>,
+  diagnostics: NetlistDiagnostic[],
+): void {
+  const named = used.map(({ model, parts }) => ({
+    model,
+    parts: parts
+      .map((card) => ({
+        id: card.id,
+        name:
+          document.instances.find((item) => item.id === card.id)?.reference ??
+          card.reference,
+      }))
+      .sort((left, right) =>
+        left.name.localeCompare(right.name, "en", { numeric: true }),
+      ),
+  }));
+  const uses = named.map(({ model, parts }) => {
+    const values = model.parameters
+      .map((parameter) => `${parameter.name}=${parameter.rawValue}`)
+      .join(", ");
+    return `${partList(parts.map((part) => part.name))} ${parts.length === 1 ? "uses" : "use"} the generic bipolar model ${model.name} (${values})`;
+  });
+  diagnostic(
+    diagnostics,
+    document.id,
+    "GENERIC_BJT_MODEL",
+    `${uses.join(", ")}; set a model for a real device`,
+    named.flatMap(({ parts }) => parts.map((part) => part.id)),
+    "info",
+  );
+}
+
+/**
  * A MOS whose body follows a default onto one supply while its source is on
  * another supply of the same domain (#1336): a level shifter's VDDH PMOS with
  * its body on the Cell's PMOS default VDDL, forward-biased when VDDH is the
@@ -2811,23 +2883,36 @@ function extractCell(
     )
   )
     models.push(structuredClone(IDEAL_SWITCH_MODEL));
-  // SPICE only (VACASK prints it from the SPICE card). A Spectre export still
-  // names DIODE for the reader's libraries to define.
-  const genericDiodes =
-    options.format === "spice"
-      ? instances.filter(
-          (instance) =>
-            instance.deviceClass === "diode" &&
-            instance.target === GENERIC_DIODE_MODEL.name,
-        )
-      : [];
-  if (
-    genericDiodes.length &&
-    !definesGenericDiode(project, options.deckSources)
-  ) {
-    models.push(structuredClone(GENERIC_DIODE_MODEL));
+  // The parts a generic card stands in for, and the Cell then carries it.
+  // SPICE only (VACASK prints them from the SPICE cards). A Spectre export
+  // still names DIODE, NPN and PNP for the reader's libraries to define.
+  const carryGenericCard = (
+    model: DesignNetlistModel,
+    deviceClass: DesignNetlistDeviceClass,
+  ): DesignNetlistInstance[] => {
+    const parts =
+      options.format === "spice"
+        ? instances.filter(
+            (instance) =>
+              instance.deviceClass === deviceClass &&
+              instance.target === model.name,
+          )
+        : [];
+    if (
+      !parts.length ||
+      definesGenericModel(project, options.deckSources, model)
+    )
+      return [];
+    models.push(structuredClone(model));
+    return parts;
+  };
+  const genericDiodes = carryGenericCard(GENERIC_DIODE_MODEL, "diode");
+  if (genericDiodes.length)
     reportGenericDiodes(document, genericDiodes, diagnostics);
-  }
+  const genericBjts = [GENERIC_NPN_MODEL, GENERIC_PNP_MODEL]
+    .map((model) => ({ model, parts: carryGenericCard(model, "bjt") }))
+    .filter(({ parts }) => parts.length);
+  if (genericBjts.length) reportGenericBjts(document, genericBjts, diagnostics);
   for (const extracted of instances) {
     const source = document.instances.find(
       (candidate) => candidate.id === extracted.id,

@@ -559,7 +559,10 @@ A diode you place in Abstract, SKY130, IHP SG13G2 or Custom takes the generic
 model `DIODE`. Until you choose another model, the SPICE netlist defines it
 with one `.model DIODE D(IS=1e-14 N=1)` card in the same Cell, and the Check
 Report names the diodes that use it. A `.model DIODE` card in your own
-simulation files replaces it.
+simulation files replaces it. An NPN or PNP you place in Abstract or Custom
+takes the generic model `NPN` or `PNP` in the same way, defined by
+`.model NPN NPN(IS=1e-16 BF=100 VAF=100)` or
+`.model PNP PNP(IS=1e-16 BF=50 VAF=50)`.
 
 **Netlist / Instances…** opens the Project's netlist instances as one editable
 JSON document in the right sidebar. Paste whole blocks to change references,
