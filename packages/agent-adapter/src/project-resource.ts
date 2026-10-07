@@ -16,10 +16,13 @@ const NetlistFormatSchema = z.enum(["spice", "spectre"]);
 const NetlistNamingProfileSchema = z.enum(["native", "cadence-bang"]);
 const NetlistPortCaseSchema = z.enum(["lower", "upper"]);
 const ProjectNameSchema = z.string().min(1).max(256);
-// The Gallery's own field limits (worker/gallery-do.ts), checked again
-// there. No AI mark: what an Agent publishes or updates is marked AI, and
-// only its author changes that, in the Editor (#1415).
-const GalleryEntryFieldsSchema = z.strictObject({
+/**
+ * A Gallery entry's fields an Agent may set, at the Gallery's own limits
+ * (worker/gallery-do.ts), which checks them again; the MCP tool takes the
+ * same. No AI mark: what an Agent publishes or updates is marked AI, and
+ * only its author changes that, in the Editor (#1415).
+ */
+export const AgentGalleryEntryFields = z.strictObject({
   name: z.string().trim().min(1).max(120).optional(),
   description: z.string().max(1000).optional(),
   tags: z.array(z.string().min(1).max(32)).max(12).optional(),
@@ -148,14 +151,14 @@ export const AgentProjectResourceRequestSchema = z.discriminatedUnion(
     // the Editor's Publish to Gallery does it.
     ProjectRequestBaseSchema.extend({
       operation: z.literal("publish-gallery-entry"),
-      ...GalleryEntryFieldsSchema,
+      ...AgentGalleryEntryFields,
     }),
     // Defaults to the entry the working copy was published as or opened from;
     // fields left out keep the entry's current ones.
     ProjectRequestBaseSchema.extend({
       operation: z.literal("update-gallery-entry"),
       galleryEntryId: StableIdSchema.optional(),
-      ...GalleryEntryFieldsSchema,
+      ...AgentGalleryEntryFields,
     }),
     ProjectRequestBaseSchema.extend({
       operation: z.literal("read-project-code"),

@@ -89,16 +89,27 @@ export function arrangeInstanceLabels(
   document: SchematicDocument,
   resolver: SymbolResolver,
   instanceIds: readonly string[],
-  options: {
-    compact?: boolean | undefined;
-    avoidCollisions?: boolean | undefined;
-    referenceStyle?: "preserve" | "first-letter-subscript" | undefined;
-    /** Re-place labels moved by hand too; locked and custom ones stay. */
-    includeManual?: boolean | undefined;
-    /** Told which labels the pass leaves where they are. */
-    leftInPlace?: ((labels: readonly LabelLeftInPlace[]) => void) | undefined;
-  },
+  options: ArrangeInstanceLabelsOptions,
 ): SchematicEdit[] {
+  return arrangeInstanceLabelsReport(document, resolver, instanceIds, options)
+    .edits;
+}
+
+export interface ArrangeInstanceLabelsOptions {
+  compact?: boolean | undefined;
+  avoidCollisions?: boolean | undefined;
+  referenceStyle?: "preserve" | "first-letter-subscript" | undefined;
+  /** Re-place labels moved by hand too; locked and custom ones stay. */
+  includeManual?: boolean | undefined;
+}
+
+/** The arrangement, and the labels it leaves where they are (#1414). */
+export function arrangeInstanceLabelsReport(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  instanceIds: readonly string[],
+  options: ArrangeInstanceLabelsOptions,
+): { edits: SchematicEdit[]; leftInPlace: LabelLeftInPlace[] } {
   const left: LabelLeftInPlace[] = [];
   const ids = new Set(instanceIds);
   for (const id of ids)
@@ -778,8 +789,7 @@ export function arrangeInstanceLabels(
     }
   }
   edits.push(...arrangePinNames());
-  options.leftInPlace?.(left);
-  return edits;
+  return { edits, leftInPlace: left };
 
   /**
    * A Cell Pin's name takes the first of its sides where it meets nothing,
@@ -792,7 +802,8 @@ export function arrangeInstanceLabels(
    * vrfp stayed plain beside Pins drawn V_bn (#1419).
    */
   function arrangePinNames(): SchematicEdit[] {
-    const moved: SchematicEdit[] = [];
+    // Each Pin name moved, restyled, or both.
+    const changed: SchematicEdit[] = [];
     for (const label of context.visible) {
       if (
         label.binding?.kind !== "cell-terminal-name" ||
@@ -873,10 +884,10 @@ export function arrangeInstanceLabels(
           if (!conflicts) break;
         }
       if (best === label) continue;
-      moved.push({ kind: "upsert_schematic_annotation", annotation: best });
+      changed.push({ kind: "upsert_schematic_annotation", annotation: best });
       context.accept(best);
     }
-    return moved;
+    return changed;
   }
 }
 

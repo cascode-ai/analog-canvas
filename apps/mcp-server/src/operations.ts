@@ -26,6 +26,7 @@ import {
   AGENT_API_VERSION,
   AGENT_MCP_VERSION,
   AgentFileDownloadOptionsSchema,
+  AgentGalleryEntryFields,
   AgentWorkspaceActionSchema,
 } from "@icm/agent-adapter";
 import {
@@ -142,11 +143,6 @@ const ProjectCellsArgs = z.discriminatedUnion("action", [
     expectedStructureRevision: z.number().int().nonnegative().optional(),
   }),
 ]);
-const GalleryEntryFields = {
-  name: z.string().trim().min(1).max(120).optional(),
-  description: z.string().max(1000).optional(),
-  tags: z.array(z.string().min(1).max(32)).max(12).optional(),
-};
 const GalleryCircuitsArgs = z.discriminatedUnion("action", [
   z.strictObject({
     action: z.literal("insert"),
@@ -190,7 +186,7 @@ const GalleryCircuitsArgs = z.discriminatedUnion("action", [
   }),
   z.strictObject({
     action: z.literal("publish"),
-    ...GalleryEntryFields,
+    ...AgentGalleryEntryFields,
   }),
   z.strictObject({
     action: z.literal("update"),
@@ -201,7 +197,7 @@ const GalleryCircuitsArgs = z.discriminatedUnion("action", [
       .describe(
         "Defaults to the entry the working copy was published as or opened from.",
       ),
-    ...GalleryEntryFields,
+    ...AgentGalleryEntryFields,
   }),
 ]);
 const ProjectCodeArgs = z.discriminatedUnion("action", [

@@ -2361,6 +2361,25 @@ function partList(names: readonly string[]): string {
     : `${shown.slice(0, -1).join(", ")} and ${shown.at(-1)!}`;
 }
 
+/** Printed parts by the References their Cell shows, in reading order. */
+function namedParts(
+  document: SchematicDocument,
+  parts: readonly DesignNetlistInstance[],
+): Array<{ id: string; name: string; symbolId: string | undefined }> {
+  return parts
+    .map((part) => {
+      const instance = document.instances.find((item) => item.id === part.id);
+      return {
+        id: part.id,
+        name: instance?.reference ?? part.reference,
+        symbolId: instance?.symbolId,
+      };
+    })
+    .sort((left, right) =>
+      left.name.localeCompare(right.name, "en", { numeric: true }),
+    );
+}
+
 /**
  * Which MOS bodies took a supply this export added to the Cell, and which pin
  * that supply became (#1302). A body with no Net takes the conventional VDD or
@@ -2436,24 +2455,15 @@ function reportGenericDiodes(
   diodes: readonly DesignNetlistInstance[],
   diagnostics: NetlistDiagnostic[],
 ): void {
-  const parts = diodes
-    .map((card) => {
-      const instance = document.instances.find((item) => item.id === card.id);
-      return {
-        id: card.id,
-        name: instance?.reference ?? card.reference,
-        zener: instance?.symbolId === "zener-diode",
-      };
-    })
-    .sort((left, right) =>
-      left.name.localeCompare(right.name, "en", { numeric: true }),
-    );
+  const parts = namedParts(document, diodes);
   const values = GENERIC_DIODE_MODEL.parameters
     .map((parameter) => `${parameter.name}=${parameter.rawValue}`)
     .join(", ");
   // A Zener on it runs, but never breaks down: say so rather than let a
   // regulator simulate as a plain diode unnoticed.
-  const zeners = parts.filter((part) => part.zener).map((part) => part.name);
+  const zeners = parts
+    .filter((part) => part.symbolId === "zener-diode")
+    .map((part) => part.name);
   diagnostic(
     diagnostics,
     document.id,
@@ -2501,15 +2511,7 @@ function reportUndefinedGenericModels(
   });
   if (!named.length) return;
   const uses = named.map(({ name, parts }) => {
-    const names = parts
-      .map(
-        (part) =>
-          document.instances.find((item) => item.id === part.id)?.reference ??
-          part.reference,
-      )
-      .sort((left, right) =>
-        left.localeCompare(right, "en", { numeric: true }),
-      );
+    const names = namedParts(document, parts).map((part) => part.name);
     return `${partList(names)} ${names.length === 1 ? "names" : "name"} ${name}`;
   });
   const models = named.map(({ name }) => name);
@@ -2538,16 +2540,7 @@ function reportGenericBjts(
 ): void {
   const named = used.map(({ model, parts }) => ({
     model,
-    parts: parts
-      .map((card) => ({
-        id: card.id,
-        name:
-          document.instances.find((item) => item.id === card.id)?.reference ??
-          card.reference,
-      }))
-      .sort((left, right) =>
-        left.name.localeCompare(right.name, "en", { numeric: true }),
-      ),
+    parts: namedParts(document, parts),
   }));
   const uses = named.map(({ model, parts }) => {
     const values = model.parameters
