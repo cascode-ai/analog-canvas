@@ -293,9 +293,13 @@ export const AgentAuthoringCommandSchema = z.discriminatedUnion("kind", [
       compact: z.boolean().optional(),
       avoidCollisions: z.boolean().optional(),
       referenceStyle: z.enum(["preserve", "first-letter-subscript"]).optional(),
+      includeManual: z
+        .boolean()
+        .optional()
+        .describe("Also re-place labels moved by hand."),
     })
     .describe(
-      "Opt-in, bounded one-pass placement of visible default Instance labels. Compact/collision avoidance default true. Preserve manually positioned, locked and custom-styled labels, bindings and electrical names; unresolved clashes remain observations.",
+      "Opt-in, bounded one-pass placement of visible default Instance labels. Compact/collision avoidance default true. Preserve manually positioned (unless includeManual), locked and custom-styled labels, bindings and electrical names, and name those left in place (LABELS_LEFT_IN_PLACE); unresolved clashes remain observations.",
     ),
   // One preset today; the enum leaves room for more (#1350).
   z

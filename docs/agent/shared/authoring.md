@@ -354,7 +354,9 @@ either part; `referenceStyle:"first-letter-subscript"` optionally displays
 `RBIAS` as an R with BIAS subscript without changing the Reference, and gives
 a requested Port's name that has no look of its own the look a Port placed
 with that name gets (`vrfp` as V_rfp). Manual/free,
-locked, hidden and custom-styled labels are preserved. This is not an autorouter
+locked, hidden and custom-styled labels are preserved, and the receipt names
+each one left in place and why (`LABELS_LEFT_IN_PLACE`, information);
+`includeManual:true` re-places labels moved by hand too. This is not an autorouter
 or a whole-drawing beautifier. Informational label-clearance/owner-distance
 observations may remain and never gate editing. New Net labels use the GUI's
 standard side/alignment; existing explicit label moves retain their semantics.

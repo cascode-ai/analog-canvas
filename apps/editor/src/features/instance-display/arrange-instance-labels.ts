@@ -77,6 +77,13 @@ const DEFAULT_SLOTS: Readonly<
  * label of the same part, so a value is never stacked onto its own Reference
  * however many other conflicts that would trade (#1307).
  */
+/** A label the pass left where it is, and why (#1414). */
+export interface LabelLeftInPlace {
+  labelId: string;
+  instanceId: string;
+  reason: "locked" | "rotated" | "custom" | "moved";
+}
+
 export function arrangeInstanceLabels(
   document: SchematicDocument,
   resolver: SymbolResolver,
@@ -85,8 +92,13 @@ export function arrangeInstanceLabels(
     compact?: boolean | undefined;
     avoidCollisions?: boolean | undefined;
     referenceStyle?: "preserve" | "first-letter-subscript" | undefined;
+    /** Re-place labels moved by hand too; locked and custom ones stay. */
+    includeManual?: boolean | undefined;
+    /** Told which labels the pass leaves where they are. */
+    leftInPlace?: ((labels: readonly LabelLeftInPlace[]) => void) | undefined;
   },
 ): SchematicEdit[] {
+  const left: LabelLeftInPlace[] = [];
   const ids = new Set(instanceIds);
   for (const id of ids)
     if (!document.instances.some((i) => i.id === id))
@@ -221,7 +233,13 @@ export function arrangeInstanceLabels(
     ownerId: string,
   ): EligibleLabel | null {
     const part = partLabels.get(original.id);
-    if (original.locked || original.rotation !== 0 || !part) return null;
+    const leave = (reason: LabelLeftInPlace["reason"]) => {
+      left.push({ labelId: original.id, instanceId: ownerId, reason });
+      return null;
+    };
+    if (!part) return null;
+    if (original.locked) return leave("locked");
+    if (original.rotation !== 0) return leave("rotated");
     const instance = document.instances.find((i) => i.id === ownerId)!;
     if (!instance.placement || part.instanceId !== instance.id) return null;
     const reference = part.kind === "instance-reference";
@@ -239,7 +257,7 @@ export function arrangeInstanceLabels(
             deviceLetter ? { deviceLetter } : {},
           )))
     )
-      return null;
+      return leave("custom");
     const resolved = resolver.resolve(
       instance.symbolId,
       instance.symbolVariantId,
@@ -277,8 +295,10 @@ export function arrangeInstanceLabels(
     const inReferenceSlot = alone && at("reference");
     const inValueRow =
       !inReferenceSlot &&
-      (at(slot) || stackedValueFirst(instance.id).has(original.id));
-    if (!inValueRow && !inReferenceSlot) return null;
+      (at(slot) ||
+        stackedValueFirst(instance.id).has(original.id) ||
+        options.includeManual === true);
+    if (!inValueRow && !inReferenceSlot) return leave("moved");
     const annotation =
       reference &&
       !cellName &&
@@ -750,6 +770,7 @@ export function arrangeInstanceLabels(
     }
   }
   edits.push(...arrangePinNames());
+  options.leftInPlace?.(left);
   return edits;
 
   /**

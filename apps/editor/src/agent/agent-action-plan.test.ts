@@ -986,6 +986,45 @@ describe("the editor plans an Agent's action list", () => {
     ).toMatchObject({ alignment: "end" });
   });
 
+  it("says which labels arrange-labels leaves in place, and re-places moved ones on request (#1414)", async () => {
+    const { controller, client, instance } = await editor();
+    await client.applyActions([place("resistor", "R1", 100, { value: "1k" })]);
+    const id = instance("R1")!.id;
+    const value = () =>
+      controller.document.annotations.find(
+        (annotation) =>
+          annotation.binding?.kind === "instance-value" &&
+          annotation.binding.instanceId === id,
+      )!;
+    const drawn = structuredClone(value().anchor);
+    await client.applyActions([
+      {
+        kind: "move-annotation",
+        annotationId: value().id,
+        position: { x: 400, y: 300 },
+      },
+    ]);
+
+    const kept = await client.applyActions([
+      { kind: "arrange-labels", instanceIds: [id] },
+    ]);
+    expect(kept.ok, kept.message).toBe(true);
+    expect(kept.diagnosticDelta?.added).toContainEqual(
+      expect.objectContaining({
+        code: "LABELS_LEFT_IN_PLACE",
+        severity: "info",
+        objectIds: [value().id],
+        message: expect.stringContaining("moved by hand"),
+      }),
+    );
+
+    const replaced = await client.applyActions([
+      { kind: "arrange-labels", instanceIds: [id], includeManual: true },
+    ]);
+    expect(replaced.ok, replaced.message).toBe(true);
+    expect(value().anchor).toEqual(drawn);
+  });
+
   it("leaves the Document alone for a list that changes nothing", async () => {
     const { controller, client, instance } = await editor();
     expect((await client.applyActions([place("resistor", "R1", 100)])).ok).toBe(

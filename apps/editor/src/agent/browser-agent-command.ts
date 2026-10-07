@@ -101,7 +101,10 @@ import {
 } from "../features/instance-display/default-instance-display";
 import { instanceDisplayEdits } from "../features/instance-display/instance-display-edits";
 import { planDisplayAlias } from "../features/properties/group-naming";
-import { arrangeInstanceLabels } from "../features/instance-display/arrange-instance-labels";
+import {
+  arrangeInstanceLabels,
+  type LabelLeftInPlace,
+} from "../features/instance-display/arrange-instance-labels";
 import { withStruckLabelsArranged } from "../features/instance-display/struck-label-arrangement";
 import { textbookLabelEdits } from "../features/instance-display/label-preset";
 import { netLabelAtClearSpot } from "./net-label-clear-spot";
@@ -484,15 +487,46 @@ export function planBrowserAgentCommand(
         ],
       };
     }
-    case "arrange-labels":
+    case "arrange-labels": {
+      let left: readonly LabelLeftInPlace[] = [];
+      const edits = arrangeInstanceLabels(
+        document,
+        resolver,
+        command.instanceIds,
+        { ...command, leftInPlace: (labels) => (left = labels) },
+      );
+      const why = {
+        locked: "locked",
+        rotated: "turned",
+        custom: "custom-styled",
+        moved: "moved by hand",
+      } as const;
       return {
-        edits: arrangeInstanceLabels(
-          document,
-          resolver,
-          command.instanceIds,
-          command,
-        ),
+        edits,
+        // Say what was left alone, so an unchanged arrangement is not a
+        // mystery (#1414).
+        ...(left.length
+          ? {
+              notes: [
+                {
+                  code: "LABELS_LEFT_IN_PLACE",
+                  message: `arrange-labels left ${left.length} label${left.length === 1 ? "" : "s"} in place: ${left
+                    .map((label) => {
+                      const part = document.instances.find(
+                        (item) => item.id === label.instanceId,
+                      );
+                      return `${part?.reference ?? label.instanceId}'s ${label.labelId} (${why[label.reason]})`;
+                    })
+                    .join(
+                      ", ",
+                    )}${left.some((label) => label.reason === "moved") ? "; includeManual:true re-places labels moved by hand" : ""}`,
+                  objectIds: left.map((label) => label.labelId),
+                },
+              ],
+            }
+          : {}),
       };
+    }
     case "apply-label-preset": {
       // The parts named, or every placed part of the Cell. Hiding and
       // arranging go as one transaction, so one undo takes back both.
