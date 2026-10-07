@@ -1978,9 +1978,9 @@ function extractDeviceInstance(
         [instance.id],
       );
     } else {
-      for (const [pinName, netId] of [
-        ["CTRL+", control.positiveNetId],
-        ["CTRL-", control.negativeNetId],
+      for (const [pinName, side, netId] of [
+        ["CTRL+", "+", control.positiveNetId],
+        ["CTRL-", "−", control.negativeNetId],
       ] as const) {
         const netName = context.nameByNetId.get(netId);
         if (!netName)
@@ -1988,7 +1988,7 @@ function extractDeviceInstance(
             diagnostics,
             document.id,
             "INVALID_CONTROL_NET",
-            `Control Net ${netId} is not in this Cell`,
+            `${instance.reference!} senses a control Net (${side}) that is no longer in this Cell (${netId}); select ${instance.reference!}'s control Nets again`,
             [instance.id, netId],
           );
         nodes.push({ pinName, netName: netName ?? `<unconnected:${pinName}>` });

@@ -761,6 +761,74 @@ describe("the editor plans an Agent's action list", () => {
     ).not.toContain("VISUAL_WIRE_THROUGH_SYMBOL");
   });
 
+  it("keeps a controlled source on the Nets it senses through a rewire (#1411)", async () => {
+    const { controller, client, instance } = await editor();
+    const apply = async (actions: unknown[]) => {
+      const report = await client.applyActions(actions);
+      expect(report.ok, report.message).toBe(true);
+    };
+    const cellPin = (name: string) => {
+      const terminal = controller.document.netlist!.terminals.find(
+        (item) => item.name === name,
+      )!;
+      return {
+        net: terminal.netId,
+        pin: {
+          kind: "pin",
+          instance: { kind: "instance", id: terminal.interfaceInstanceIds[0] },
+          pin: "P",
+        },
+      };
+    };
+    await apply([
+      place("port", "B", 0),
+      place("capacitor", "C1", 160, { value: "1p" }),
+      place("port", "E", 320),
+    ]);
+    await apply([
+      { kind: "connect", from: cellPin("B").pin, to: pin("C1", "1") },
+      { kind: "connect", from: pin("C1", "2"), to: cellPin("E").pin },
+    ]);
+    await apply([
+      {
+        kind: "place-component",
+        symbol: "vccs",
+        reference: "G1",
+        position: { x: 500, y: 100 },
+        parameters: { gm: "1m" },
+        control: {
+          kind: "voltage",
+          positiveNetId: cellPin("B").net,
+          negativeNetId: cellPin("E").net,
+        },
+      },
+    ]);
+    const before = cellPin("E").net;
+    // Redraw E's wire: take it away, then draw it again.
+    const wire = controller.document.routes.find(
+      (route) => route.netId === before,
+    )!;
+    await apply([
+      { kind: "delete-selection", selection: { routeIds: [wire.id] } },
+    ]);
+    await apply([
+      { kind: "connect", from: pin("C1", "2"), to: cellPin("E").pin },
+    ]);
+
+    expect(instance("G1")!.netlist!.control).toEqual({
+      kind: "voltage",
+      positiveNetId: cellPin("B").net,
+      negativeNetId: cellPin("E").net,
+    });
+    expect(
+      createDesignNetlistExport(controller.project).diagnostics.map(
+        (diagnostic) => diagnostic.code,
+      ),
+    ).not.toContain("INVALID_CONTROL_NET");
+    // The rewire did retire the Net's first identity.
+    expect(cellPin("E").net).not.toBe(before);
+  });
+
   it("leaves the Document alone for a list that changes nothing", async () => {
     const { controller, client, instance } = await editor();
     expect((await client.applyActions([place("resistor", "R1", 100)])).ok).toBe(

@@ -189,6 +189,10 @@ not a control expression or a second `displayExpression` property.
 Full Snapshot and selected-pin projections return the authored
 `instance.netlist.control`, including incomplete selections. Missing targets or
 incomplete controls are not simulation-ready; review netlist diagnostics.
+A voltage control follows its Nets when they merge, as when a wire is redrawn
+and the Net takes another ID. A sensed Net that is deleted outright is reported
+as `INVALID_CONTROL_NET`, naming the source and its side (+ or −); select that
+source's control Nets again.
 Use catalog parameter names/units (`gain`, `gm` in S, `rm` in ohms),
 not the visual formula as a simulator expression. Raw HTTP uses native
 `place-components` with `instances[].netlist.control` or the typed

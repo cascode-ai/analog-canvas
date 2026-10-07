@@ -21,7 +21,7 @@
     },
     {
       "source": "docs/agent/shared/authoring.md",
-      "sha256": "d9009e617dddd36286597af5557355a22948890a25d224c99be12b862fda74c5"
+      "sha256": "fb6c7b40249db956ce416c752d6fa119a7dc7ab7fcb4c9cc7476689558508a38"
     },
     {
       "source": "docs/agent/workflow.md",
@@ -132,11 +132,7 @@
     {
       "id": "reference/simulation-specs",
       "source": "docs/agent/simulation-specs.md",
-      "consumers": [
-        "mcp",
-        "http-cli",
-        "http-kit"
-      ],
+      "consumers": ["mcp", "http-cli", "http-kit"],
       "task": "Simulation Spec rules and raw handoff",
       "load": "on-demand",
       "requires": [],
@@ -146,10 +142,7 @@
     {
       "id": "reference/quickstart",
       "source": "docs/agent/mcp-quickstart.md",
-      "consumers": [
-        "mcp",
-        "http-cli"
-      ],
+      "consumers": ["mcp", "http-cli"],
       "task": "MCP live-session quickstart",
       "load": "entry",
       "requires": [],
@@ -158,9 +151,7 @@
     {
       "id": "fallback/http-session-workflow",
       "source": "docs/agent/http-kit/skills/icm-circuit-session/SKILL.md",
-      "consumers": [
-        "http-kit"
-      ],
+      "consumers": ["http-kit"],
       "task": "Raw HTTP live-session workflow",
       "load": "required",
       "requires": [
@@ -173,11 +164,7 @@
     {
       "id": "reference/session",
       "source": "docs/agent/shared/session.md",
-      "consumers": [
-        "mcp",
-        "http-cli",
-        "http-kit"
-      ],
+      "consumers": ["mcp", "http-cli", "http-kit"],
       "task": "Session contract",
       "load": "on-demand",
       "requires": [],
@@ -187,11 +174,7 @@
     {
       "id": "reference/authoring",
       "source": "docs/agent/shared/authoring.md",
-      "consumers": [
-        "mcp",
-        "http-cli",
-        "http-kit"
-      ],
+      "consumers": ["mcp", "http-cli", "http-kit"],
       "task": "Built-in authoring contract",
       "load": "on-demand",
       "requires": [],
@@ -201,11 +184,7 @@
     {
       "id": "reference/workflow",
       "source": "docs/agent/workflow.md",
-      "consumers": [
-        "mcp",
-        "http-cli",
-        "http-kit"
-      ],
+      "consumers": ["mcp", "http-cli", "http-kit"],
       "task": "Schematic workflow",
       "load": "on-demand",
       "requires": [],
@@ -215,11 +194,7 @@
     {
       "id": "reference/tool-behavior",
       "source": "docs/agent/tool-behavior.md",
-      "consumers": [
-        "mcp",
-        "http-cli",
-        "http-kit"
-      ],
+      "consumers": ["mcp", "http-cli", "http-kit"],
       "task": "Tool behavior",
       "load": "on-demand",
       "requires": [],
@@ -229,11 +204,7 @@
     {
       "id": "reference/recovery",
       "source": "docs/agent/response-semantics.md",
-      "consumers": [
-        "mcp",
-        "http-cli",
-        "http-kit"
-      ],
+      "consumers": ["mcp", "http-cli", "http-kit"],
       "task": "Response semantics and recovery",
       "load": "on-demand",
       "requires": [],
@@ -243,11 +214,7 @@
     {
       "id": "reference/razavi-style",
       "source": "docs/agent/circuit-style-knowledge.md",
-      "consumers": [
-        "mcp",
-        "http-cli",
-        "http-kit"
-      ],
+      "consumers": ["mcp", "http-cli", "http-kit"],
       "task": "Look up schematic layout rules",
       "load": "on-demand",
       "requires": [],
@@ -257,11 +224,7 @@
     {
       "id": "reference/diagnostics",
       "source": "docs/agent/shared/diagnostics.md",
-      "consumers": [
-        "mcp",
-        "http-cli",
-        "http-kit"
-      ],
+      "consumers": ["mcp", "http-cli", "http-kit"],
       "task": "Routing and diagnostics",
       "load": "on-demand",
       "requires": [],
@@ -271,11 +234,7 @@
     {
       "id": "reference/routing",
       "source": "docs/agent/circuit-style-knowledge.md",
-      "consumers": [
-        "mcp",
-        "http-cli",
-        "http-kit"
-      ],
+      "consumers": ["mcp", "http-cli", "http-kit"],
       "task": "Layout lookup alias; do not reread",
       "load": "on-demand",
       "requires": [],
@@ -285,11 +244,7 @@
     {
       "id": "contract/advanced-edits",
       "source": "fixtures/agent-api/agent-circuit-request.schema.json",
-      "consumers": [
-        "mcp",
-        "http-cli",
-        "http-kit"
-      ],
+      "consumers": ["mcp", "http-cli", "http-kit"],
       "task": "Advanced transaction contract",
       "load": "on-demand",
       "requires": [],
@@ -299,23 +254,16 @@
     {
       "id": "http-kit/README.md",
       "source": "docs/agent/http-kit/README.md",
-      "consumers": [
-        "http-kit"
-      ],
+      "consumers": ["http-kit"],
       "task": "Bootstrap raw HTTP",
       "load": "entry",
-      "requires": [
-        "http-kit/AGENTS.md",
-        "fallback/http-session-workflow"
-      ],
+      "requires": ["http-kit/AGENTS.md", "fallback/http-session-workflow"],
       "kitPath": "README.md"
     },
     {
       "id": "http-kit/AGENTS.md",
       "source": "docs/agent/http-kit/AGENTS.md",
-      "consumers": [
-        "http-kit"
-      ],
+      "consumers": ["http-kit"],
       "task": "Bootstrap raw HTTP",
       "load": "entry",
       "requires": [],
@@ -324,24 +272,16 @@
     {
       "id": "reference/http-cli",
       "source": "docs/agent/http-cli.md",
-      "consumers": [
-        "http-cli"
-      ],
+      "consumers": ["http-cli"],
       "task": "Operate shared-client CLI",
       "load": "entry",
-      "requires": [
-        "reference/authoring"
-      ],
+      "requires": ["reference/authoring"],
       "uri": "analog-canvas://reference/http-cli"
     },
     {
       "id": "catalog/builtins",
       "source": "packages/agent-adapter/src/agent-authoring-catalog.generated.ts",
-      "consumers": [
-        "mcp",
-        "http-cli",
-        "http-kit"
-      ],
+      "consumers": ["mcp", "http-cli", "http-kit"],
       "task": "Discover built-in symbols",
       "load": "on-demand",
       "requires": [],
@@ -351,11 +291,7 @@
     {
       "id": "reference/knowledge/circuit-reading",
       "source": "docs/agent/knowledge/circuit-reading.md",
-      "consumers": [
-        "mcp",
-        "http-cli",
-        "http-kit"
-      ],
+      "consumers": ["mcp", "http-cli", "http-kit"],
       "task": "Evidence-first circuit reading",
       "load": "on-demand",
       "requires": [],
@@ -365,11 +301,7 @@
     {
       "id": "reference/knowledge/hierarchy-and-large-circuits",
       "source": "docs/agent/knowledge/hierarchy-and-large-circuits.md",
-      "consumers": [
-        "mcp",
-        "http-cli",
-        "http-kit"
-      ],
+      "consumers": ["mcp", "http-cli", "http-kit"],
       "task": "Hierarchy and large circuits",
       "load": "on-demand",
       "requires": [],
@@ -379,11 +311,7 @@
     {
       "id": "reference/knowledge/pdk-and-symbols",
       "source": "docs/agent/knowledge/pdk-and-symbols.md",
-      "consumers": [
-        "mcp",
-        "http-cli",
-        "http-kit"
-      ],
+      "consumers": ["mcp", "http-cli", "http-kit"],
       "task": "PDK models and symbols",
       "load": "on-demand",
       "requires": [],
@@ -393,10 +321,7 @@
     {
       "id": "reference/mcp-install",
       "source": "docs/agent/mcp-install.md",
-      "consumers": [
-        "mcp",
-        "http-cli"
-      ],
+      "consumers": ["mcp", "http-cli"],
       "task": "Install the Analog Canvas MCP adapter",
       "load": "on-demand",
       "requires": [],
@@ -405,9 +330,7 @@
     {
       "id": "reference/api-usage",
       "source": "docs/agent/api-usage.md",
-      "consumers": [
-        "http-kit"
-      ],
+      "consumers": ["http-kit"],
       "task": "Agent API Usage",
       "load": "on-demand",
       "requires": [],
@@ -416,9 +339,7 @@
     {
       "id": "reference/examples",
       "source": "docs/agent/examples.md",
-      "consumers": [
-        "http-kit"
-      ],
+      "consumers": ["http-kit"],
       "task": "Reproducible Agent Workflows",
       "load": "on-demand",
       "requires": [],
@@ -427,11 +348,7 @@
     {
       "id": "reference/simulation-result-handoff",
       "source": "docs/agent/simulation-result-handoff.md",
-      "consumers": [
-        "mcp",
-        "http-cli",
-        "http-kit"
-      ],
+      "consumers": ["mcp", "http-cli", "http-kit"],
       "task": "Agent simulation result handoff",
       "load": "on-demand",
       "requires": [],
@@ -441,10 +358,7 @@
     {
       "id": "reference/mcp-tools",
       "source": "docs/agent/mcp/tools.md",
-      "consumers": [
-        "mcp",
-        "http-cli"
-      ],
+      "consumers": ["mcp", "http-cli"],
       "task": "MCP editing tools and local inspection",
       "load": "on-demand",
       "requires": [],
@@ -453,10 +367,7 @@
     {
       "id": "reference/mcp-simulation",
       "source": "docs/agent/mcp/simulation.md",
-      "consumers": [
-        "mcp",
-        "http-cli"
-      ],
+      "consumers": ["mcp", "http-cli"],
       "task": "MCP simulation calls and file ownership",
       "load": "on-demand",
       "requires": [],
@@ -465,10 +376,7 @@
     {
       "id": "reference/mcp-simulation-details",
       "source": "docs/agent/mcp/simulation-reference.md",
-      "consumers": [
-        "mcp",
-        "http-cli"
-      ],
+      "consumers": ["mcp", "http-cli"],
       "task": "Detailed MCP simulation contracts",
       "load": "on-demand",
       "requires": [],
@@ -477,11 +385,7 @@
     {
       "id": "reference/simulation-workflow",
       "source": "docs/agent/shared/simulation.md",
-      "consumers": [
-        "mcp",
-        "http-cli",
-        "http-kit"
-      ],
+      "consumers": ["mcp", "http-cli", "http-kit"],
       "task": "Shared simulation lifecycle",
       "load": "on-demand",
       "requires": [
@@ -494,11 +398,7 @@
     {
       "id": "reference/knowledge/patterns",
       "source": "docs/agent/circuit-style-knowledge.md",
-      "consumers": [
-        "mcp",
-        "http-cli",
-        "http-kit"
-      ],
+      "consumers": ["mcp", "http-cli", "http-kit"],
       "task": "Layout lookup alias; do not reread",
       "load": "on-demand",
       "requires": [],
@@ -508,9 +408,7 @@
     {
       "id": "repo/routegraph",
       "source": "docs/agent/routegraph.md",
-      "consumers": [
-        "maintainer"
-      ],
+      "consumers": ["maintainer"],
       "task": "Use optional repository RouteGraph helper",
       "load": "on-demand",
       "requires": []
@@ -518,29 +416,19 @@
   ],
   "templates": {
     "apiHelp": {
-      "consumers": [
-        "http-kit",
-        "maintainer"
-      ],
+      "consumers": ["http-kit", "maintainer"],
       "task": "Describe published HTTP operations"
     },
     "connect": {
-      "consumers": [
-        "bootstrap"
-      ],
+      "consumers": ["bootstrap"],
       "task": "Install, verify loading, then connect"
     },
     "instructions": {
-      "consumers": [
-        "mcp"
-      ],
+      "consumers": ["mcp"],
       "task": "Initialize MCP reading route"
     },
     "toolHelp": {
-      "consumers": [
-        "mcp",
-        "http-cli"
-      ],
+      "consumers": ["mcp", "http-cli"],
       "task": "Discover tool operation and limitations"
     }
   },
@@ -573,7 +461,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/circuit-style-knowledge.md"
       ],
-      "sha256": "8d192d7af0f92b1e1c542a56cdb9548bc2c859424f6e20f8f529ee9ad943c8d7"
+      "sha256": "d66ae68d59f97de38f67547c5224dc9627b2ef337411855aeb2b80a7c7c61c01"
     },
     {
       "file": "packages/agent-adapter/src/agent-docs.generated.ts",
@@ -602,7 +490,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/circuit-style-knowledge.md"
       ],
-      "sha256": "c995147ea7b1d196511a8af3581b9a8de2ab6d7c016c1c609c35dc8914b9b100"
+      "sha256": "d7ceeb3451e343a1421c8b41fc217e95504e4b5274824259b196b46b528ba025"
     },
     {
       "file": "packages/agent-adapter/src/agent-api-help.generated.ts",
