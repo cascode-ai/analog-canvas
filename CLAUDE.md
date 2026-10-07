@@ -1,4 +1,4 @@
-# Repository Instructions
+@AGENTS.md
 
-Read and follow AGENTS.md. It is the repository's single development entry.
-Project skills use the local .claude/skills link to .agents/skills.
+Before the first Claude Code session in each checkout, run `pnpm setup:skills`.
+Registration and conflict recovery: references/README.md#development-skill-references.
