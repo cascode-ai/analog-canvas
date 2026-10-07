@@ -11,7 +11,11 @@ import type { SymbolResolver } from "@icm/symbols";
 
 import { resolveVisualAnchor, type ResolvedAnchor } from "./anchor.js";
 import { resolveAnnotationText } from "./annotation-text.js";
-import { labelInkDescentEm, uprightTextInkBounds } from "./text-ink.js";
+import {
+  labelInkDescentEm,
+  uprightTextInkBounds,
+  uprightTextInkSpan,
+} from "./text-ink.js";
 import {
   resolveDocumentRoutingGeometry,
   type ResolvedDocumentRoutingGeometry,
@@ -40,8 +44,10 @@ export interface AnnotationPresentation {
   /**
    * The extent label placement keeps clear of a part: capitals above the
    * baseline and a subscript's figures below it, with a stacked fraction's
-   * rise and any further lines. `bounds` reserves the font's whole ascent
-   * and a descender, most of it empty over capitals.
+   * rise and any further lines, and across from the first glyph's outline
+   * to the last one's as the label advance tables set them. `bounds`
+   * reserves the font's whole ascent and a descender, most of it empty over
+   * capitals.
    */
   readonly inkBounds: DerivedRect;
 }
@@ -123,10 +129,11 @@ export function resolveAnnotationPresentation(
   const fontSize = annotationFontSize(annotation, styleProfile) * sizeScale;
   const text =
     resolvedText ?? resolveAnnotationText(document, annotation, logicalNets);
-  const textLayout = measureRichTextDocument(text, {
+  const metrics = {
     ...richTextMetrics(styleProfile, "label", sizeScale),
     fontSize,
-  });
+  };
+  const textLayout = measureRichTextDocument(text, metrics);
   // A stacked fraction raises its numerator past the plain first-line
   // ascent heuristic; extend the shared bounds so hits and export cover it.
   // The extra ascent is in em of the part font, so it tracks the part scale.
@@ -145,10 +152,7 @@ export function resolveAnnotationPresentation(
         : anchor.position.x - width / 2;
   // A label that is a formula stands on its baseline by the formula's own
   // extent, as drawing text does.
-  const formula = formulaExtents(text, {
-    ...richTextMetrics(styleProfile, "label", sizeScale),
-    fontSize,
-  });
+  const formula = formulaExtents(text, metrics);
   const unrotatedBounds = formula
     ? {
         x:
@@ -183,11 +187,22 @@ export function resolveAnnotationPresentation(
       ? labelInkDescentEm(text, styleProfile.typography)
       : styleProfile.typography.subscriptScale *
         styleProfile.typography.subscriptBaselineShiftEm;
+  // Across, the ink runs from the first glyph's outline to the last one's as
+  // the label advance tables set them (#1413); `width` is the room hits and
+  // export reserve, 0.6 em a character.
+  const span = formula
+    ? null
+    : uprightTextInkSpan(
+        text,
+        metrics,
+        annotation.alignment,
+        anchor.position.x,
+      );
   const unrotatedInk = formula
     ? unrotatedBounds
     : uprightTextInkBounds({
-        left,
-        width,
+        left: span?.left ?? left,
+        width: span?.width ?? width,
         baseline: anchor.position.y,
         fontSize,
         fractionAscent: fractionExtraAscent,

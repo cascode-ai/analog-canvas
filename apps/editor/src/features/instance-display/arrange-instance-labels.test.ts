@@ -959,7 +959,7 @@ describe("opt-in label arrangement", () => {
     wire(doc, "through", { x: 105, y: 102 }, { x: 128, y: 102 });
     for (const [id, value, x, y] of [
       ["above", "I", 110, 89],
-      ["beyond", "WW", 152, 108],
+      ["beyond", "WW", 156, 108],
     ] as const)
       doc.annotations.push({
         id,

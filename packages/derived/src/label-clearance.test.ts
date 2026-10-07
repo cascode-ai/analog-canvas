@@ -507,3 +507,69 @@ it("keeps a label off an adder's sign marks, which are its ink (#1324)", () => {
   // The plus reaches 3.8 units left of x = 78.5; one unit of padding.
   expect(obstacle.bounds.x).toBeCloseTo(100 - 21.5 - 3.8 - 1, 6);
 });
+
+it("measures a value by its glyphs' outlines as the label advance tables set them (#1413)", () => {
+  // Gallery #92: CT1's value 1.33pF beside its plates, which end at
+  // x 278.05; with a unit of padding a label must start at 279.05.
+  const doc = createEmptyDocument("d", "Doherty");
+  doc.instances.push({
+    id: "CT1",
+    symbolId: "capacitor",
+    reference: "CT1",
+    placement: { position: { x: 270, y: 100 }, rotation: 0, mirror: "none" },
+  });
+  const valueAt = (alignment: "start" | "end", x: number) => {
+    doc.annotations = [
+      {
+        id: "value",
+        kind: "instance-value",
+        content: {
+          runs: [
+            {
+              kind: "span",
+              style: "bold",
+              children: [{ kind: "text", value: "1.33pF" }],
+            },
+          ],
+        },
+        anchor: {
+          kind: "object",
+          objectId: "CT1",
+          localOffset: { x: x - 270, y: 5 },
+          fallbackPosition: { x, y: 105 },
+        },
+        alignment,
+        rotation: 0,
+        locked: false,
+      },
+    ];
+    doc.revision += 1;
+    return {
+      ink: createLabelClearanceContext(doc, resolver).measure(
+        doc.annotations[0]!,
+      ).inkBounds,
+      findings: diagnoseLabelClearance(doc, resolver).map((d) => [
+        d.code,
+        d.objectIds,
+      ]),
+    };
+  };
+  const overPlates = [["VISUAL_LABEL_CLEARANCE", ["value", "CT1"]]];
+  // DejaVu Sans Bold sets it 58.14 wide; its 1 stands 1.70 into its
+  // advance, so ending at 333 its ink starts at 276.56, over the plates...
+  const close = valueAt("end", 333);
+  expect(close.ink.x).toBeCloseTo(276.56, 1);
+  expect(close.findings).toEqual(overPlates);
+  // ...and ending at 336, at 279.56, clear of them. The F stops 1.27
+  // short of the end.
+  const clear = valueAt("end", 336);
+  expect(clear.ink.x).toBeCloseTo(279.56, 1);
+  expect(clear.ink.x + clear.ink.width).toBeCloseTo(334.73, 1);
+  expect(clear.findings).toEqual([]);
+  // A start-aligned value stands on its anchor by the same bearing: CT2's
+  // spot 12 right of the centre is clear, 6 right of it is not.
+  expect(valueAt("start", 282).findings).toEqual([]);
+  const over = valueAt("start", 276);
+  expect(over.ink.x).toBeCloseTo(277.7, 1);
+  expect(over.findings).toEqual(overPlates);
+});

@@ -41,7 +41,7 @@
     },
     {
       "source": "docs/agent/shared/diagnostics.md",
-      "sha256": "062514760e9834e98325b2f717183740d50fc52cd5cc7b219b3588b1297cfcf0"
+      "sha256": "3ee3d14267f69e207fff4ffadaacb29ff971842a7cdf70623b2c0a76daf02e80"
     },
     {
       "source": "fixtures/agent-api/agent-circuit-request.schema.json",
@@ -573,7 +573,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/circuit-style-knowledge.md"
       ],
-      "sha256": "a66caaf158fd3f65fc074e40e6b4643729430da49886336f95629dfe6f9d60a7"
+      "sha256": "7920cefc97bcc0fce9dfe68f346cf8457f22548824f053b859dcbcddb91b3e33"
     },
     {
       "file": "packages/agent-adapter/src/agent-docs.generated.ts",
@@ -602,7 +602,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/circuit-style-knowledge.md"
       ],
-      "sha256": "b3f50b20519b657bb6d70f43f28df783ca85304fc7daa334e706974cbc127d11"
+      "sha256": "d0e055fd86aaf88eb79a7cde665f34dcdf7e02ac03b6b442c4643b95df466378"
     },
     {
       "file": "packages/agent-adapter/src/agent-api-help.generated.ts",

@@ -27,19 +27,23 @@ const run = (directory, args = []) =>
 // drawing diagnostics below. Text over a wire or a part warns, as text over
 // text does (#1105); pin the owners so new findings do not pass unnoticed. No
 // fixture geometry is changed.
-// M1's Reference sits near a wire without touching it: the line box's extra
-// ascent counted it until labels were measured by their drawn ink.
-const otaClearanceLabels = [
-  "instance-label-PIBIAS",
-  ...[2, 3, 4, 5, 6].map((n) => `instance-label-M${n}`),
-];
+// Set in DejaVu Sans with its glyphs' side bearings (#1413), M1's Reference
+// ends on its source wire, as the export draws it, and the Pin name ibias
+// stops short of its port.
+const otaClearanceLabels = [1, 2, 3, 4, 5, 6].map(
+  (n) => `instance-label-M${n}`,
+);
 const libraryTbClearanceLabels = [
   "instance-label-XDUT",
   "instance-label-IBIAS",
   "net-label-tb-ibias-route",
 ];
 const expectedClearanceLabels = {
+  // Set in DejaVu Sans (#1413), the names of VDD and VIN reach into their
+  // sources' polarity marks.
   "common-source/cell-common-source": [
+    "instance-label-VDD",
+    "instance-label-VIN",
     "instance-label-XM1",
     "instance-value-XM1",
   ],

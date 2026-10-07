@@ -12,6 +12,7 @@ import {
   fractionGeometry,
   fractionPartScale,
   labelFormulaLayout,
+  measureLabelText,
   measureRichTextDocument,
   richTextAdvanceEm,
   richTextMetrics,
@@ -257,5 +258,77 @@ describe("shared rich-text layout", () => {
     expect(layout.width).toBeCloseTo(prepared.artifact.width * scale);
     expect(layout.height).toBeCloseTo(prepared.artifact.height * scale);
     expect(layout.lineWidths).toEqual([layout.width]);
+  });
+});
+
+describe("label text as drawn", () => {
+  // DejaVu Sans, the font stack's first face, is 2048 units to the em.
+  const fontSize = razaviTextbookProfile.typography.instanceFontSize;
+  const metrics = {
+    ...richTextMetrics(razaviTextbookProfile, "label"),
+    fontSize,
+  };
+  const units = (value: number) => (fontSize * value) / 2048;
+
+  it("sets a bold value by the face's advances, inked from the first outline to the last (#1413)", () => {
+    const value: RichTextDocument = {
+      runs: [
+        {
+          kind: "span",
+          style: "bold",
+          children: [{ kind: "text", value: "1.33pF" }],
+        },
+      ],
+    };
+    // Bold figures advance 1425 units, p 1466 and F 1399; the round period
+    // advances 0.36 em. The 1 stands 231 units into its advance and the F
+    // ends 172 short of the end of its own.
+    const width = units(3 * 1425 + 1466 + 1399) + fontSize * 0.36;
+    const { width: measured, lines } = measureLabelText(value, metrics);
+    expect(measured).toBeCloseTo(width, 6);
+    expect(lines).toEqual([
+      {
+        width: expect.closeTo(width, 6),
+        ink: {
+          left: expect.closeTo(units(231), 6),
+          right: expect.closeTo(width - units(172), 6),
+        },
+      },
+    ]);
+  });
+
+  it("sets a reference's slanted initial and its upright subscript as the renderer draws them", () => {
+    const { subscriptScale, subscriptHorizontalGapEm } =
+      razaviTextbookProfile.typography;
+    const reference: RichTextDocument = {
+      runs: [
+        {
+          kind: "span",
+          style: "italic",
+          children: [{ kind: "text", value: "M" }],
+        },
+        {
+          kind: "span",
+          style: "subscript",
+          children: [{ kind: "text", value: "1" }],
+        },
+      ],
+    };
+    // The oblique M leans, standing 55 units into its 1767 advance where the
+    // upright one stands 201; the script follows its gap, and its upright 1
+    // ends 189 units short of its advance.
+    const width =
+      units(1767) +
+      fontSize * subscriptScale * subscriptHorizontalGapEm +
+      subscriptScale * units(1303);
+    expect(measureLabelText(reference, metrics).lines).toEqual([
+      {
+        width: expect.closeTo(width, 6),
+        ink: {
+          left: expect.closeTo(units(55), 6),
+          right: expect.closeTo(width - subscriptScale * units(189), 6),
+        },
+      },
+    ]);
   });
 });

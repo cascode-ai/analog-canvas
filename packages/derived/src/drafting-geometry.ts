@@ -30,7 +30,11 @@ import {
   type SchematicStyleProfile,
 } from "./style-profile.js";
 import { arrowArtwork, arrowArtworkBounds } from "./arrow-artwork.js";
-import { labelInkDescentEm, uprightTextInkBounds } from "./text-ink.js";
+import {
+  labelInkDescentEm,
+  uprightTextInkBounds,
+  uprightTextInkSpan,
+} from "./text-ink.js";
 
 // ADR 0010 / WP-R1: the single derived-geometry entry for DraftingObjects.
 // Renderer, Editor overlay, and Agent Snapshot consume ONLY this result; no
@@ -382,14 +386,21 @@ function resolveTextWithInk(
     const fontSize = metrics.fontSize;
     const layout = measureRichTextDocument(content, metrics);
     const width = Math.max(fontSize * 0.6, layout.width);
+    const span = uprightTextInkSpan(
+      content,
+      metrics,
+      object.alignment,
+      textPosition.x,
+    );
     return uprightTextInkBounds({
       left:
-        object.alignment === "start"
+        span?.left ??
+        (object.alignment === "start"
           ? textPosition.x
           : object.alignment === "end"
             ? textPosition.x - width
-            : textPosition.x - width / 2,
-      width,
+            : textPosition.x - width / 2),
+      width: span?.width ?? width,
       baseline:
         object.anchor.kind === "object"
           ? centeredFirstBaselineY(content, textPosition.y, fontSize, profile)

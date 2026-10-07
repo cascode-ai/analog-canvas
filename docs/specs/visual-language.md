@@ -160,7 +160,10 @@ intent and produce no angle-only warning or error, including on protected
 Routes. Explicit angle straightening remains an optional undoable operation,
 not a diagnostic prerequisite. A terminal resting on another Net's Route is a
 structural warning outside the gate. Spacing and other layout-quality findings
-are observations.
+are observations. Text ink is what DejaVu Sans, the font stack's first face,
+draws: across from the first glyph's outline to the last one's by the label
+advance tables, side bearings included, and from capitals to subscripts.
+Where a viewer draws Arial instead, text looks narrower than it is measured.
 
 Every finding declares `category`, `confidence`, and `gateEligible`.
 Structural findings describe high-confidence model, topology, or explicit
