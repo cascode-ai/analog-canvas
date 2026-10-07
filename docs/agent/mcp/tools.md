@@ -14,14 +14,14 @@ queries return a narrower-selection hint, never a silently truncated schema.
 
 Focused circuit tools retain the `{documentId?, actions:[...]}` call envelope:
 
-| Tool                 | Scope                                                             |
-| -------------------- | ----------------------------------------------------------------- |
-| `circuit_place`      | Built-in symbol, Cell and existing-instance placement; power rail |
-| `circuit_wire`       | Connect, disconnect, and mark unused pins No Connect             |
+| Tool                 | Scope                                                                                                       |
+| -------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `circuit_place`      | Built-in symbol, Cell and existing-instance placement; power rail                                           |
+| `circuit_wire`       | Connect, disconnect, and mark unused pins No Connect                                                        |
 | `circuit_transform`  | Individual move/rotate/mirror/set-orientation, arrange, detach-move and rail span; a Cell block's Pin sides |
-| `circuit_selection`  | Selection transform, copy and align                               |
-| `circuit_text`       | Labels, annotations, text changes and annotation movement         |
-| `circuit_properties` | References, parameters, formulas, model selection, display flags and aliases, block supplies |
+| `circuit_selection`  | Selection transform, copy and align                                                                         |
+| `circuit_text`       | Labels, annotations, text changes and annotation movement                                                   |
+| `circuit_properties` | References, parameters, formulas, model selection, display flags and aliases, block supplies                |
 
 Each is a projection and forwarding entry, not a separate edit engine. Existing
 transaction boundaries still apply: actions of one focused tool that cannot
@@ -173,6 +173,21 @@ or omit them for the MCP client's fresh target read. The Editor rechecks both
 and the bound Project after download. The receipt contains source/target Cell
 IDs, target revisions, copied object mapping and imported Cell/file IDs.
 An empty source rejects with `COPY_EMPTY`, never opens it instead.
+
+`publish` publishes the working copy its tab shows as a new entry, and
+`update` replaces an entry with it, as the Editor's Publish to Gallery does:
+under the signed-in Editor account, the whole Project, with the dialog's
+fields `name` (default: the Project's name), `description` and `tags`. What an
+Agent publishes or updates carries the AI mark; only its author changes that,
+in the Editor. `update` defaults to the entry the working copy was published
+as or opened from in the Editor, and keeps every field it does not name; a
+copy `open` made carries no such link, so pass its `galleryEntryId`. Both
+return `galleryEntryId`,
+`url` (`/g/<id>`) and `previewRevision`, and leave the working copy bound to
+the entry, with the Editor's published notice. A working copy in a background
+tab is refused with `WORKSPACE_NOT_SHOWN`: activate it first. Publishing needs
+the session scope `gallery.publish`; a session paired before it existed needs
+a new connection.
 Gallery login is the Editor's login: `SIGN_IN_REQUIRED` asks to sign in;
 `SESSION_NOT_FOUND` asks to pair again. A stale target needs new context and a
 new plan, not a new Claim. Existing `project.import` and geometry/connectivity/
@@ -327,28 +342,28 @@ No verb is implemented twice. The client sends each call's actions as they
 are; the editor resolves their names, turns each into exactly one
 transaction form and plans it with the code the GUI runs.
 
-| Tool                 | Action                                              | Becomes                              | Planned by                                                                  |
-| -------------------- | --------------------------------------------------- | ------------------------------------ | --------------------------------------------------------------------------- |
-| `circuit_place`      | `place-component`                                   | `place-components` command           | GUI insertion: catalog defaults, Process model, naming, default labels      |
-|                      | `place-cell`, `place-existing`                      | command (several `place-cell` batch) | GUI Cell and tray placement                                                 |
-|                      | `add-power-rail`                                    | command                              | GUI power rail planner                                                      |
-| `circuit_wire`       | `connect`                                           | wire intent                          | GUI routing planner                                                         |
-|                      | `disconnect`                                        | `disconnect-pin` command; a wire's is `delete-selection` | GUI pin menu: Delete connection where wires end on the pin, Disconnect endpoint where none does; GUI deletion |
-|                      | `disconnect` with `noConnect`, a No Connect mark    | typed edits                          | Edit Engine, as the GUI's No Connect toggle                                 |
-| `circuit_transform`  | `move`                                              | `set-properties` command, or a move command | Properties position field: a moved part joins a pin it lands on, as a drag does, a wire it stretches across a part or another Net's pin is drawn clear as `connect` draws it, and labels newly drawn over move clear; GUI tray, annotation and Junction planners |
-|                      | `rotate`, `mirror`, `set-orientation`               | `set-properties` command             | Properties rotation and mirror fields; labels newly drawn over move clear |
-|                      | `arrange`                                           | `arrange-instances` command          | Origins on one coordinate, stretched wires drawn clear and labels newly drawn over moved clear; the GUI's own Align is `circuit_selection` `align` |
-|                      | `detach-move`, `extend-power-rail`                  | command                              | GUI move and rail planners                                                  |
-|                      | `set-cell-symbol-pins`                              | command                              | Cell symbol presentation planner: every Pin's current place kept, the named ones moved; callers keep their Nets, their stretched wiring is redrawn clear, and labels it newly runs through move clear |
-| `circuit_selection`  | `transform`, `copy`, `align`                        | command                              | GUI selection transform, copy and alignment                                 |
-| `circuit_text`       | `add-label`, Net Label `edit-text`, `set-net-label` | `set-net-label` command              | GUI Net Label planner                                                       |
-|                      | `edit-text`                                         | `set-text` command                   | GUI text commit: a name label renames its part, a value label sets its value; the same characters in a new look only restyle |
-|                      | `annotate`                                          | `add-text` command                   | GUI Text tool                                                               |
-|                      | `move-annotation`, `arrange-labels`                 | command                              | GUI annotation and label planners                                           |
-|                      | `apply-label-preset`                                | command                              | GUI display planner hides each MOS W/L, then the label planner arranges the parts' labels in their role look, on a private copy: one undo |
-| `circuit_properties` | `set-reference`, `set-property`, `set-signal-flow`, `set-block-supply`, `set-source-control` | `set-properties` command | Apply in Properties, after an Agent-only check of parameter names against the model |
-|                      | `set-model`                                         | command                              | GUI Process-aware model planner                                             |
-|                      | `set-instance-display`, `set-display-alias`         | command                              | GUI display and display-alias planners                                      |
+| Tool                 | Action                                                                                       | Becomes                                                  | Planned by                                                                                                                                                                                                                                                       |
+| -------------------- | -------------------------------------------------------------------------------------------- | -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `circuit_place`      | `place-component`                                                                            | `place-components` command                               | GUI insertion: catalog defaults, Process model, naming, default labels                                                                                                                                                                                           |
+|                      | `place-cell`, `place-existing`                                                               | command (several `place-cell` batch)                     | GUI Cell and tray placement                                                                                                                                                                                                                                      |
+|                      | `add-power-rail`                                                                             | command                                                  | GUI power rail planner                                                                                                                                                                                                                                           |
+| `circuit_wire`       | `connect`                                                                                    | wire intent                                              | GUI routing planner                                                                                                                                                                                                                                              |
+|                      | `disconnect`                                                                                 | `disconnect-pin` command; a wire's is `delete-selection` | GUI pin menu: Delete connection where wires end on the pin, Disconnect endpoint where none does; GUI deletion                                                                                                                                                    |
+|                      | `disconnect` with `noConnect`, a No Connect mark                                             | typed edits                                              | Edit Engine, as the GUI's No Connect toggle                                                                                                                                                                                                                      |
+| `circuit_transform`  | `move`                                                                                       | `set-properties` command, or a move command              | Properties position field: a moved part joins a pin it lands on, as a drag does, a wire it stretches across a part or another Net's pin is drawn clear as `connect` draws it, and labels newly drawn over move clear; GUI tray, annotation and Junction planners |
+|                      | `rotate`, `mirror`, `set-orientation`                                                        | `set-properties` command                                 | Properties rotation and mirror fields; labels newly drawn over move clear                                                                                                                                                                                        |
+|                      | `arrange`                                                                                    | `arrange-instances` command                              | Origins on one coordinate, stretched wires drawn clear and labels newly drawn over moved clear; the GUI's own Align is `circuit_selection` `align`                                                                                                               |
+|                      | `detach-move`, `extend-power-rail`                                                           | command                                                  | GUI move and rail planners                                                                                                                                                                                                                                       |
+|                      | `set-cell-symbol-pins`                                                                       | command                                                  | Cell symbol presentation planner: every Pin's current place kept, the named ones moved; callers keep their Nets, their stretched wiring is redrawn clear, and labels it newly runs through move clear                                                            |
+| `circuit_selection`  | `transform`, `copy`, `align`                                                                 | command                                                  | GUI selection transform, copy and alignment                                                                                                                                                                                                                      |
+| `circuit_text`       | `add-label`, Net Label `edit-text`, `set-net-label`                                          | `set-net-label` command                                  | GUI Net Label planner                                                                                                                                                                                                                                            |
+|                      | `edit-text`                                                                                  | `set-text` command                                       | GUI text commit: a name label renames its part, a value label sets its value; the same characters in a new look only restyle                                                                                                                                     |
+|                      | `annotate`                                                                                   | `add-text` command                                       | GUI Text tool                                                                                                                                                                                                                                                    |
+|                      | `move-annotation`, `arrange-labels`                                                          | command                                                  | GUI annotation and label planners                                                                                                                                                                                                                                |
+|                      | `apply-label-preset`                                                                         | command                                                  | GUI display planner hides each MOS W/L, then the label planner arranges the parts' labels in their role look, on a private copy: one undo                                                                                                                        |
+| `circuit_properties` | `set-reference`, `set-property`, `set-signal-flow`, `set-block-supply`, `set-source-control` | `set-properties` command                                 | Apply in Properties, after an Agent-only check of parameter names against the model                                                                                                                                                                              |
+|                      | `set-model`                                                                                  | command                                                  | GUI Process-aware model planner                                                                                                                                                                                                                                  |
+|                      | `set-instance-display`, `set-display-alias`                                                  | command                                                  | GUI display and display-alias planners                                                                                                                                                                                                                           |
 
 Commands in one call that can share a transaction go as one batch, planned in
 order on a private copy, so a later action sees the earlier ones. An
@@ -374,7 +389,10 @@ Document facts.
 `inspect` with `target:{kind:"geometry",objectIds:["…"]}` reads up to 64
 specific authored objects (placement, routes, junctions, annotation anchors,
 drafting and no-connect objects). It returns current revision and missing IDs
-without resolving the full circuit. Use it after local movement; use the full
+without resolving the full circuit. With `textBounds:true` each drawn label
+also carries `text`: `position`, where its alignment end stands (what
+`move-annotation` sets), and `bounds`, the box its glyphs fill, so a label's
+width is read rather than rendered. Use it after local movement; use the full
 inspection for pins, Nets and connectivity. `get_context` and
 `target:{kind:"diagnostics"}` use lightweight server reads for revision/counts
 and diagnostic items. `simulation_folder` list reads folder metadata without

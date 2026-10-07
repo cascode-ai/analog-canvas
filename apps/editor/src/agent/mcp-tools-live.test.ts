@@ -15,6 +15,7 @@ import {
   placementModelTarget,
   placementProcessFill,
 } from "../features/netlist-export/netlist-process";
+import { createAgentGalleryPublisher } from "./agent-gallery-publish";
 import {
   emptyAgentProject,
   liveAgentEditor,
@@ -227,6 +228,43 @@ describe("MCP tools on the live editor", () => {
     await apply(editor, [{ kind: "undo" }]);
     expect(editor.controller.document.instances).toHaveLength(0);
   });
+  it("publishes the working copy to the Gallery through gallery_circuits, marked AI (#1415)", async () => {
+    const sent: unknown[] = [];
+    const editor: Awaited<ReturnType<typeof connected>> = await connected({
+      projectHost: {
+        publishToGallery: createAgentGalleryPublisher({
+          current: () => ({
+            project: editor.controller.project,
+            linked: null,
+            cloudBinding: null,
+          }),
+          published: () => {},
+          fetch: (async (_input: RequestInfo | URL, init?: RequestInit) => {
+            sent.push(JSON.parse(String(init?.body)));
+            return Response.json(
+              { id: "g9", previewRevision: "r9" },
+              { status: 201 },
+            );
+          }) as typeof fetch,
+        }),
+      },
+    });
+    expect(
+      await editor.tool("gallery_circuits", {
+        action: "publish",
+        name: "Amp",
+        tags: ["amplifier"],
+      }),
+    ).toMatchObject({ ok: true, galleryEntryId: "g9", url: "/g/g9" });
+    expect(sent).toEqual([
+      expect.objectContaining({
+        name: "Amp",
+        tags: ["amplifier"],
+        aiGenerated: true,
+      }),
+    ]);
+  });
+
   it("reports Gallery login separately without replacing the target", async () => {
     const editor = await connected({
       projectHost: { fetch: async () => new Response(null, { status: 401 }) },
@@ -739,6 +777,47 @@ describe("MCP tools on the live editor", () => {
       missingObjectIds: [],
     });
     expect(snapshotReads(editor.http)).toEqual(["bootstrap", "geometry"]);
+  });
+
+  it("measures a label's drawn text when asked, so a move can use its width (#1414)", async () => {
+    const editor = await connected();
+    await apply(editor, [
+      place("resistor", "R1", 100, { parameters: { value: "10k" } }),
+    ]);
+    const label = editor.controller.document.annotations.find(
+      (annotation) => annotation.binding?.kind === "instance-reference",
+    )!;
+    const read = async (textBounds?: boolean) =>
+      (
+        await editor.tool("inspect", {
+          target: {
+            kind: "geometry",
+            objectIds: [label.id],
+            ...(textBounds === undefined ? {} : { textBounds }),
+          },
+        })
+      ).objects[0];
+    // Without the option the answer is what released clients parse.
+    expect(await read()).not.toHaveProperty("text");
+    const { text } = await read(true);
+    expect(text.bounds.width).toBeGreaterThan(0);
+    expect(text.bounds.height).toBeGreaterThan(0);
+
+    // Its far end, from the width, is where an end-aligned move puts it.
+    const end = { x: 40, y: 60 };
+    await apply(editor, [
+      {
+        kind: "move-annotation",
+        annotationId: label.id,
+        position: end,
+        alignment: "end",
+      },
+    ]);
+    const moved = (await read(true)).text;
+    expect(moved.position).toEqual(end);
+    expect(moved.bounds.width).toBeCloseTo(text.bounds.width, 6);
+    expect(moved.bounds.x + moved.bounds.width).toBeLessThanOrEqual(end.x);
+    expect(moved.bounds.x + moved.bounds.width).toBeGreaterThan(end.x - 2);
   });
 
   it("apply_actions returns the editor's refusal of a list that needs several calls, after one request", async () => {

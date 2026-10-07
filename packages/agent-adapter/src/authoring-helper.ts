@@ -13,6 +13,7 @@ import {
 import {
   canonicalParameterValues,
   instanceParameterContract,
+  milliScaleReading,
   quantityForms,
   subcircuitDescriptor,
   validateDeviceParameters,
@@ -1354,6 +1355,9 @@ function validateActionParameters(
   const issue = issues[0]!;
   const allowed = contract.definitions.map((parameter) => parameter.name);
   const allowedText = allowed.length ? allowed.join(", ") : "(none)";
+  // A SPICE number still, but one that reads as milli where mega was meant.
+  const milli =
+    issue.kind === "number" ? milliScaleReading(issue.value) : undefined;
   const message =
     issue.kind === "unknown"
       ? 'Unknown parameter "' +
@@ -1364,14 +1368,21 @@ function validateActionParameters(
         "; allowed parameters: " +
         allowedText
       : issue.kind === "number"
-        ? 'Parameter "' +
-          issue.name +
-          '" must be ' +
-          quantityForms(issue) +
-          '; received "' +
-          issue.value +
-          '"' +
-          (/[µμ]/u.test(issue.value) ? " (SPICE writes micro as u)" : "")
+        ? milli
+          ? 'Parameter "' +
+            issue.name +
+            '" is "' +
+            issue.value +
+            '", which ' +
+            milli
+          : 'Parameter "' +
+            issue.name +
+            '" must be ' +
+            quantityForms(issue) +
+            '; received "' +
+            issue.value +
+            '"' +
+            (/[µμ]/u.test(issue.value) ? " (SPICE writes micro as u)" : "")
         : issue.kind === "duplicate"
           ? 'Parameter "' +
             issue.name +

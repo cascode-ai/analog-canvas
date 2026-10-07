@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
   describePublishOutcome,
   loadGalleryPublicationContext,
+  loadGalleryQuota,
   publishProjectToGallery,
 } from "./gallery-publish";
 
@@ -21,6 +22,22 @@ function fetchReturning(
     return new Response(JSON.stringify(payload), { status });
   }) as typeof fetch;
 }
+
+describe("loadGalleryQuota", () => {
+  it("reads today's allowance, and nothing when signed out", async () => {
+    const quota = {
+      limit: 100,
+      used: 3,
+      remaining: 97,
+      resetsAt: "2026-10-08T00:00:00.000Z",
+      exempt: false,
+    };
+    expect(await loadGalleryQuota(fetchReturning(200, quota))).toEqual(quota);
+    expect(
+      await loadGalleryQuota(fetchReturning(401, { error: "unauthorized" })),
+    ).toBeNull();
+  });
+});
 
 describe("loadGalleryPublicationContext", () => {
   it("brings the entry's AI mark into the update dialog", async () => {

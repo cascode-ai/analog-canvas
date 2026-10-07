@@ -538,6 +538,9 @@ export function projectOperationScopes(
     case "list-cells":
     case "import-cell":
       return ["project.import"];
+    case "publish-gallery-entry":
+    case "update-gallery-entry":
+      return ["gallery.publish"];
   }
 }
 

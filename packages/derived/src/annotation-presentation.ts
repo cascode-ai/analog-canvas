@@ -7,11 +7,16 @@ import type {
   Rotation,
   SchematicDocument,
 } from "@icm/model";
+import { deviceDescriptor } from "@icm/devices";
 import type { SymbolResolver } from "@icm/symbols";
 
 import { resolveVisualAnchor, type ResolvedAnchor } from "./anchor.js";
 import { resolveAnnotationText } from "./annotation-text.js";
-import { labelInkDescentEm, uprightTextInkBounds } from "./text-ink.js";
+import {
+  labelInkDescentEm,
+  uprightTextInkBounds,
+  uprightTextInkSpan,
+} from "./text-ink.js";
 import {
   resolveDocumentRoutingGeometry,
   type ResolvedDocumentRoutingGeometry,
@@ -40,8 +45,10 @@ export interface AnnotationPresentation {
   /**
    * The extent label placement keeps clear of a part: capitals above the
    * baseline and a subscript's figures below it, with a stacked fraction's
-   * rise and any further lines. `bounds` reserves the font's whole ascent
-   * and a descender, most of it empty over capitals.
+   * rise and any further lines, and across from the first glyph's outline
+   * to the last one's as the label advance tables set them. `bounds`
+   * reserves the font's whole ascent and a descender, most of it empty over
+   * capitals.
    */
   readonly inkBounds: DerivedRect;
 }
@@ -90,11 +97,50 @@ export function isSchematicAnnotationVisible(
     return false;
   }
   const binding = annotation.binding;
+  // A MOS's W/L already carries its ×m (#752): its own ×m label stands in
+  // only while the W/L is hidden, so the count is never drawn twice (#1423).
+  if (
+    binding?.kind === "instance-value" &&
+    binding.parameter !== undefined &&
+    valuePrintsMultiplier(
+      document.instances.find((item) => item.id === binding.instanceId)
+        ?.symbolId,
+      binding.parameter,
+    ) &&
+    document.annotations.some(
+      (other) =>
+        other.binding?.kind === "instance-value" &&
+        other.binding.instanceId === binding.instanceId &&
+        other.binding.parameter === undefined &&
+        isSchematicAnnotationVisible(document, other, logicalNets),
+    )
+  )
+    return false;
   return !(
     binding?.kind === "instance-reference" &&
     document.netlist?.terminals.some((terminal) =>
       terminal.interfaceInstanceIds.includes(binding.instanceId),
     )
+  );
+}
+
+/**
+ * Whether a part's value prints this parameter as its ×m: a MOS's W/L does
+ * (#752), so its own ×m label is wanted only while the W/L is hidden.
+ */
+export function valuePrintsMultiplier(
+  symbolId: string | undefined,
+  parameterName: string,
+): boolean {
+  const parameters = symbolId
+    ? (deviceDescriptor(symbolId)?.parameters ?? [])
+    : [];
+  return (
+    parameters.some(
+      (parameter) =>
+        parameter.displayRole === "multiplier" &&
+        parameter.name.toLowerCase() === parameterName.toLowerCase(),
+    ) && parameters.some((parameter) => parameter.displayRole === "width")
   );
 }
 
@@ -123,10 +169,11 @@ export function resolveAnnotationPresentation(
   const fontSize = annotationFontSize(annotation, styleProfile) * sizeScale;
   const text =
     resolvedText ?? resolveAnnotationText(document, annotation, logicalNets);
-  const textLayout = measureRichTextDocument(text, {
+  const metrics = {
     ...richTextMetrics(styleProfile, "label", sizeScale),
     fontSize,
-  });
+  };
+  const textLayout = measureRichTextDocument(text, metrics);
   // A stacked fraction raises its numerator past the plain first-line
   // ascent heuristic; extend the shared bounds so hits and export cover it.
   // The extra ascent is in em of the part font, so it tracks the part scale.
@@ -145,10 +192,7 @@ export function resolveAnnotationPresentation(
         : anchor.position.x - width / 2;
   // A label that is a formula stands on its baseline by the formula's own
   // extent, as drawing text does.
-  const formula = formulaExtents(text, {
-    ...richTextMetrics(styleProfile, "label", sizeScale),
-    fontSize,
-  });
+  const formula = formulaExtents(text, metrics);
   const unrotatedBounds = formula
     ? {
         x:
@@ -183,11 +227,22 @@ export function resolveAnnotationPresentation(
       ? labelInkDescentEm(text, styleProfile.typography)
       : styleProfile.typography.subscriptScale *
         styleProfile.typography.subscriptBaselineShiftEm;
+  // Across, the ink runs from the first glyph's outline to the last one's as
+  // the label advance tables set them (#1413); `width` is the room hits and
+  // export reserve, 0.6 em a character.
+  const span = formula
+    ? null
+    : uprightTextInkSpan(
+        text,
+        metrics,
+        annotation.alignment,
+        anchor.position.x,
+      );
   const unrotatedInk = formula
     ? unrotatedBounds
     : uprightTextInkBounds({
-        left,
-        width,
+        left: span?.left ?? left,
+        width: span?.width ?? width,
         baseline: anchor.position.y,
         fontSize,
         fractionAscent: fractionExtraAscent,

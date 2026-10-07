@@ -4,6 +4,7 @@ import type { Point, Rect, RouteEndpoint, SchematicDocument } from "@icm/model";
 import {
   resolveAdaptiveSignalFlowBlockLayout,
   resolveInstanceSymbol,
+  resolveSignalFlowPinAt,
 } from "@icm/symbols";
 import type {
   ResolvedSymbol,
@@ -330,18 +331,69 @@ export function visibleSymbolLocalBounds(
   };
 }
 
+/**
+ * The envelope symbol overlap compares, ending at the part's visible pins.
+ * A lead runs on from its pin into a wire or into another part's lead, so
+ * the padding past a pin is no part's drawing: a supply T or a coil whose
+ * pin lands on a transistor's source meets it there and nowhere else, and
+ * was reported as drawn over it (#1418). Every visible pin sits on the edge
+ * its lead points out of, so this trims the padding, or the viewBox margin
+ * a coil without declared bounds reaches past its pins, never ink.
+ */
+function symbolOverlapLocalBounds(
+  resolved: ResolvedSymbol,
+  signalFlowParameters?: SignalFlowLayoutParameters,
+): Rect {
+  const box = visibleSymbolLocalBounds(resolved, signalFlowParameters);
+  const hiddenPins = new Set(resolved.variant?.hiddenPinNames ?? []);
+  // The outermost pin each way, should a side carry several.
+  let north = Infinity;
+  let south = -Infinity;
+  let west = Infinity;
+  let east = -Infinity;
+  for (const pin of resolved.definition.pins) {
+    if (hiddenPins.has(pin.name) || pin.presentation.visibility === "implicit")
+      continue;
+    const at = resolveSignalFlowPinAt(
+      resolved.definition,
+      pin,
+      signalFlowParameters,
+    );
+    if (pin.direction === "north") north = Math.min(north, at.y);
+    else if (pin.direction === "south") south = Math.max(south, at.y);
+    else if (pin.direction === "west") west = Math.min(west, at.x);
+    else east = Math.max(east, at.x);
+  }
+  const top = north > box.y && north < box.y + box.height ? north : box.y;
+  const bottom =
+    south > top && south < box.y + box.height ? south : box.y + box.height;
+  const left = west > box.x && west < box.x + box.width ? west : box.x;
+  const right =
+    east > left && east < box.x + box.width ? east : box.x + box.width;
+  return { x: left, y: top, width: right - left, height: bottom - top };
+}
+
 export function visibleInstanceBounds(
   document: SchematicDocument,
   resolver: SymbolResolver,
+): Array<{ id: string; bounds: Rect }> {
+  return placedInstanceBounds(document, resolver, visibleSymbolLocalBounds);
+}
+
+/** Each placed part's local box, `localBounds`, turned onto the page. */
+function placedInstanceBounds(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  localBounds: (
+    resolved: ResolvedSymbol,
+    signalFlowParameters?: SignalFlowLayoutParameters,
+  ) => Rect,
 ): Array<{ id: string; bounds: Rect }> {
   return document.instances.flatMap((instance) => {
     if (!instance.placement) return [];
     const resolved = resolveInstanceSymbol(resolver, instance);
     if (!resolved) return [];
-    const box = visibleSymbolLocalBounds(
-      resolved,
-      instance.signalFlowParameters,
-    );
+    const box = localBounds(resolved, instance.signalFlowParameters);
     const corners = [
       { x: box.x, y: box.y },
       { x: box.x + box.width, y: box.y },
@@ -686,7 +738,10 @@ function pushRoutingQualityMetrics(
 
 /** The name an author knows a part by: its Reference, the name of the Cell
  * Pin it marks, or, for an unnamed marker such as a ground, its symbol. */
-function partName(document: SchematicDocument, instanceId: string): string {
+export function partName(
+  document: SchematicDocument,
+  instanceId: string,
+): string {
   const instance = document.instances.find((item) => item.id === instanceId);
   return (
     instance?.reference ??
@@ -868,7 +923,7 @@ export function diagnoseVisualQuality(
     }
   }
   for (const cluster of overlappingClusters(
-    bounds,
+    placedInstanceBounds(document, resolver, symbolOverlapLocalBounds),
     (left, right) =>
       rectanglesOverlap(left.bounds, right.bounds) &&
       !isExactPowerPinContact(document, resolver, left.id, right.id),

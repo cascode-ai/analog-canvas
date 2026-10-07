@@ -266,7 +266,11 @@ The separate `simulation.run` scope covers Simulation operations and File
 Resource simulation workspaces, independent of every edit scope; Simulation
 capability and authoring-help requests need no scope. A saved Project-folder
 source update needs both `simulation.run` and `project.import`, plus the
-connectivity edit scope when it carries circuit edits. The relay checks bearer
+connectivity edit scope when it carries circuit edits. The `gallery.publish`
+scope covers publishing or updating a Gallery entry through the Project
+resource, independent of every edit scope: drawing a circuit is not
+publishing it. A session paired before the scope existed needs a new
+connection to use it. The relay checks bearer
 token, session/document binding, scope, expiry, body size, and rate limits
 before forwarding. A File Resource request or response carries up to 10 MB
 decoded, the `fileResource.maxBytes` the editor advertises and enforces;

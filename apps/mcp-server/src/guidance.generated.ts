@@ -37,7 +37,7 @@ export const agentToolHelp = {
   project_cells:
     "Cloud Cell discovery/import; workspace list/bind-workspace/activate/open/save/new/rename/copy. Bind an open workspace to work without selecting the human's tab; open and new support background:true; rename names a copy's Project. Live tabs include unsaved work; Cloud reads saved versions. Copy reuses GUI transactions and dependencies. Details: analog-canvas://reference/mcp-tools.",
   gallery_circuits:
-    "Read the signed-in Community Gallery: list/read/read-many, render:svg|png, or open a working copy. insert copies a source Cell drawing and dependencies into targetDocumentId at position in the bound workspace, in one undo; no new tab or project replacement. Default source is the top Cell. Existing import/edit scopes apply; login failure means sign in to the Editor, not another Claim. Missing expected revisions are read automatically. Follow nextCursor and remainingEntryIds; netlistFormat:null reads only Project Code.",
+    "Read the signed-in Community Gallery: list/read/read-many, render:svg|png, or open a working copy. insert copies a source Cell drawing and dependencies into targetDocumentId at position in the bound workspace, in one undo; no new tab or project replacement. Default source is the top Cell. Existing import/edit scopes apply; login failure means sign in to the Editor, not another Claim. Missing expected revisions are read automatically. Follow nextCursor and remainingEntryIds; netlistFormat:null reads only Project Code. publish/update put the working copy its tab shows on the Gallery as the signed-in Editor account (name, description, tags; marked AI; update keeps unnamed fields and needs galleryEntryId for a copy open made). Needs scope gallery.publish.",
   project_code:
     "Read or atomically replace the open Project's complete canonical Project Code. Replacement uses the live Project structure revision and the same validated, undoable commit path as the Editor's Project Code panel.",
   netlist_code:
@@ -53,7 +53,7 @@ export const agentToolHelp = {
   get_context:
     "Read document identity/revision/counts with a lightweight request or clean cache. refresh:true reconciles external changes. Connect already returns context.",
   inspect:
-    "Read document/objects/nets/traces/activity (the session's last requests from any process, kept by the relay, beside this process's receipts). pins (instanceIds), geometry (objectIds) and diagnostics use targeted server projections; full Document facts remain available.",
+    "Read document/objects/nets/traces/activity (the session's last requests from any process, kept by the relay, beside this process's receipts). pins (instanceIds), geometry (objectIds; textBounds:true measures drawn label text) and diagnostics use targeted server projections; full Document facts remain available.",
   search:
     "Case-insensitive search, including LaTeX, over one authorized document or scope:project. Results include documentId. Reuses clean Snapshots by default and loads authorized Project documents concurrently.",
   apply_actions:

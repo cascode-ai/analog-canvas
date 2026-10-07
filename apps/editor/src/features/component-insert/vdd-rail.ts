@@ -1,5 +1,6 @@
 import type { ExpectedElectricalEffect, SchematicEdit } from "@icm/edit-engine";
 import {
+  freePowerRailLabel,
   planPowerRailPinContacts,
   planSupplyTerminalEdge,
 } from "@icm/edit-engine";
@@ -29,6 +30,8 @@ export interface VddRailConstruction {
   netId?: string;
   netName?: string;
   scope?: "local" | "global";
+  /** An existing free label of the supply for the rail to take over. */
+  labelId?: string;
 }
 
 export type VddRailPlan =
@@ -148,6 +151,7 @@ export function constructVddRailEdits({
   netId,
   netName = "VDD",
   scope = "local",
+  labelId,
 }: VddRailConstruction): SchematicEdit[] {
   const key = instanceId.toLowerCase();
   const targetNetId = netId ?? `net-power-${key}`;
@@ -160,7 +164,7 @@ export function constructVddRailEdits({
       routeId: `route-${key}-rail`,
       startJunctionId,
       endJunctionId,
-      labelId: `label-${instanceId}`,
+      labelId: labelId ?? `label-${instanceId}`,
       netName,
       scope,
       powerDomain: "vdd",
@@ -193,6 +197,14 @@ export function planVddRailEdits(
     };
   }
   const target = requested;
+  const scope = requestedLogical?.scope ?? construction.scope ?? "local";
+  // A label a reset or clear left for this supply goes on the new rail, and
+  // with it the supply's Net, rather than a second label beside it (#1410).
+  const free = freePowerRailLabel(document, {
+    netName,
+    scope,
+    ...(requested ? { netId: requested.id } : {}),
+  });
   if (
     target &&
     requestedLogical?.powerDomain !== "none" &&
@@ -204,7 +216,9 @@ export function planVddRailEdits(
     };
   }
   const netId =
-    target?.id ?? `net-power-${construction.instanceId.toLowerCase()}`;
+    target?.id ??
+    free?.netId ??
+    `net-power-${construction.instanceId.toLowerCase()}`;
   const key = construction.instanceId.toLowerCase();
   const mergeEffect = resolver
     ? railEndpointMergeEffect(document, resolver, construction, {
@@ -279,7 +293,8 @@ export function planVddRailEdits(
         ...construction,
         netId,
         netName,
-        scope: requestedLogical?.scope ?? construction.scope ?? "local",
+        scope,
+        ...(free ? { labelId: free.id } : {}),
       }),
       ...pinContacts.edits,
       ...bulkDefaultEdits,
@@ -299,18 +314,20 @@ export function railSupplyPinEdits(
 ): SchematicEdit[] {
   const rail = plan.edits.find((edit) => edit.kind === "add_power_rail");
   if (rail?.kind !== "add_power_rail" || rail.scope !== "local") return [];
+  const terminalId = deriveStableId(
+    "cell-terminal",
+    document.id,
+    "power-rail",
+    rail.labelId,
+  );
+  // A rail taking a kept label over keeps that label's Pin where it is.
+  if (
+    document.netlist?.terminals.some((terminal) => terminal.id === terminalId)
+  )
+    return [];
   return [
     ...planSupplyTerminalEdge(project, document.id, [
-      {
-        id: deriveStableId(
-          "cell-terminal",
-          document.id,
-          "power-rail",
-          rail.labelId,
-        ),
-        name: rail.netName,
-        vddPower: true,
-      },
+      { id: terminalId, name: rail.netName, vddPower: true },
     ]),
   ];
 }

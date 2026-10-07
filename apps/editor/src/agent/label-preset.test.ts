@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   canonicalPortTextDocument,
   createRoutePath,
+  roleLabelFormat,
   type Annotation,
   type CircuitProject,
 } from "@icm/model";
@@ -222,6 +223,60 @@ describe("apply-label-preset textbook (#1350)", () => {
     expect(controller.document.annotations).toEqual(before.annotations);
   });
 
+  it("keeps a multiplier other than 1 on show as ×m once its W/L is hidden (#1423)", async () => {
+    const project = figure();
+    const document = project.documents[0]!;
+    document.instances.find((item) => item.id === "m1")!.netlist!.parameters.m =
+      "4";
+    for (const [reference, m, x] of [
+      ["Q1", "1", 1400],
+      ["Q2", "8", 1600],
+    ] as const) {
+      const instance = {
+        id: reference.toLowerCase(),
+        reference,
+        symbolId: "npn",
+        placement: {
+          position: { x, y: -40 },
+          rotation: 0 as const,
+          mirror: "none" as const,
+        },
+        netlist: { parameters: { m } },
+      };
+      document.instances.push(instance);
+      document.annotations.push(
+        ...defaultInstanceDisplayAnnotations(
+          document,
+          instance,
+          resolver,
+          resolveDocumentStyleProfile(document.presentation),
+          { showValue: true },
+        ),
+      );
+    }
+    const { client, controller } = await editor(project);
+
+    const result = await client.applyActions([
+      { kind: "apply-label-preset", preset: "textbook" },
+    ]);
+
+    expect(result.ok, result.message).toBe(true);
+    expect(
+      controller.document.annotations
+        .flatMap((annotation) =>
+          annotation.binding?.kind === "instance-value" &&
+          annotation.binding.parameter === "m" &&
+          annotation.visible !== false
+            ? [annotation.binding.instanceId]
+            : [],
+        )
+        .sort(),
+    ).toEqual(["m1", "q2"]);
+    expect(
+      label(controller.document.annotations, "instance-value", "m1"),
+    ).toMatchObject({ visible: false });
+  });
+
   it("applies it to the parts named, through circuit_text", async () => {
     const { client, controller } = await editor();
     const before = structuredClone(controller.document);
@@ -323,5 +378,252 @@ describe("apply-label-preset textbook (#1350)", () => {
     const ids = project.documents[0]!.instances.map((item) => item.id);
     expect(() => plan(3, ids.slice(0, 5))).not.toThrow();
     expect(() => plan(3, ids.slice(0, 6))).toThrow(AgentCommandPlanningError);
+  });
+});
+
+describe("a renamed Cell Pin's look (#1419)", () => {
+  /**
+   * An LNA's RF input Pins, placed as rfp and rfn, whose names have no
+   * standard look, so their labels have none; rfn was renamed vrfn before
+   * a rename gave a label its new name's look.
+   */
+  function inputs(): CircuitProject {
+    const project = emptyAgentProject("LNA");
+    const document = project.documents[0]!;
+    const profile = resolveDocumentStyleProfile(document.presentation);
+    for (const [index, name] of ["rfp", "rfn"].entries()) {
+      const port = {
+        id: name,
+        symbolId: "port",
+        placement: {
+          position: { x: 0, y: 80 * index },
+          rotation: 0 as const,
+          mirror: "none" as const,
+        },
+      };
+      document.instances.push(port);
+      document.nets.push({
+        id: `net-${name}`,
+        terminals: [{ instanceId: name, pinName: "P" }],
+      });
+      document.netlist!.terminals.push({
+        id: `terminal-${name}`,
+        name,
+        netId: `net-${name}`,
+        direction: "input",
+        interfaceInstanceIds: [name],
+      });
+      document.annotations.push(
+        ...defaultInstanceDisplayAnnotations(
+          document,
+          port,
+          resolver,
+          profile,
+          { formalTerminalId: `terminal-${name}`, formalName: name },
+        ),
+      );
+    }
+    document.netlist!.terminals[1]!.name = "vrfn";
+    return project;
+  }
+
+  it("draws a Pin an Agent renames, and one renamed before, in the new name's look", async () => {
+    const { client, controller } = await editor(inputs());
+    const look = (id: string) =>
+      controller.document.annotations.find(
+        (annotation) =>
+          annotation.binding?.kind === "cell-terminal-name" &&
+          annotation.binding.terminalId === `terminal-${id}`,
+      )?.formatOverride;
+    expect(look("rfp")).toBeUndefined();
+
+    const renamed = await client.advancedTransact({
+      command: {
+        kind: "rename-cell-terminal",
+        terminalId: "terminal-rfp",
+        name: "vrfp",
+      },
+    });
+    expect(renamed.ok, renamed.message).toBe(true);
+    // Drawn V_rfp, as a Pin placed as vrfp is.
+    expect(look("rfp")).toEqual(roleLabelFormat("voltage-node", "vrfp"));
+
+    // vrfn, renamed before, is still plain until the preset restyles it.
+    expect(look("rfn")).toBeUndefined();
+    const preset = await client.applyActions([
+      { kind: "apply-label-preset", preset: "textbook" },
+    ]);
+    expect(preset.ok, preset.message).toBe(true);
+    expect(look("rfn")).toEqual(roleLabelFormat("voltage-node", "vrfn"));
+    expect(look("rfp")).toEqual(roleLabelFormat("voltage-node", "vrfp"));
+  });
+});
+
+describe("labels in a row with their neighbours' (#1412)", () => {
+  /**
+   * A Chebyshev low-pass ladder: shunt capacitors hanging from a horizontal
+   * line to ground, series inductors on the line between them, each label
+   * where placement put it. The inductors' names and values stand under the
+   * line, on the rows of the capacitors' beside them.
+   */
+  function ladder(): CircuitProject {
+    const project = emptyAgentProject("Ladder");
+    const document = project.documents[0]!;
+    const profile = resolveDocumentStyleProfile(document.presentation);
+    const part = (
+      reference: string,
+      symbolId: string,
+      x: number,
+      y: number,
+      rotation: 0 | 90,
+      value: string,
+    ) => {
+      const instance = {
+        id: reference.toLowerCase(),
+        reference,
+        symbolId,
+        placement: { position: { x, y }, rotation, mirror: "none" as const },
+        netlist: { parameters: { value } },
+      };
+      document.instances.push(instance);
+      document.annotations.push(
+        ...defaultInstanceDisplayAnnotations(
+          document,
+          instance,
+          resolver,
+          profile,
+          { showValue: true },
+        ),
+      );
+    };
+    // One Net per node, its wires drawn from pin to pin.
+    const node = (id: string, ...ends: [string, string][]) => {
+      document.nets.push({
+        id,
+        terminals: ends.map(([instanceId, pinName]) => ({
+          instanceId,
+          pinName,
+        })),
+      });
+      for (const [index, [instanceId, pinName]] of ends.slice(1).entries())
+        document.routes.push(
+          createRoutePath({
+            id: `${id}-${index}`,
+            netId: id,
+            start: {
+              kind: "terminal",
+              instanceId: ends[index]![0],
+              pinName: ends[index]![1],
+            },
+            end: { kind: "terminal", instanceId, pinName },
+            bends: [],
+            modes: ["manual"],
+          }),
+        );
+    };
+    for (const [index, value] of [
+      "38.1pF",
+      "115nH",
+      "68pF",
+      "129nH",
+      "38.1pF",
+    ].entries()) {
+      const x = 80 * index;
+      if (index % 2) part(`L${index + 1}`, "inductor", x, 0, 90, value);
+      else {
+        part(`C${index + 1}`, "capacitor", x, 20, 0, value);
+        document.instances.push({
+          id: `g${index + 1}`,
+          symbolId: "ground",
+          placement: {
+            position: { x, y: 60 },
+            rotation: 0,
+            mirror: "none",
+          },
+        });
+        node(
+          `gnd-${index + 1}`,
+          [`c${index + 1}`, "2"],
+          [`g${index + 1}`, "0"],
+        );
+      }
+    }
+    node("n1", ["c1", "1"], ["l2", "2"]);
+    node("n2", ["l2", "1"], ["c3", "1"], ["l4", "2"]);
+    node("n3", ["l4", "1"], ["c5", "1"]);
+    return project;
+  }
+
+  it("puts a ladder's series inductors' labels above the line, clear of its capacitors'", async () => {
+    const { client, controller } = await editor(ladder());
+    const before = structuredClone(controller.document);
+    const context = () =>
+      createLabelClearanceContext(controller.document, resolver);
+    const owner = (annotation: Annotation) =>
+      annotation.anchor.kind === "object" ? annotation.anchor.objectId : "";
+    const bounds = (id: string) =>
+      context().symbols.find((symbol) => symbol.id === id)!.bounds;
+    const labelsOf = (document: typeof before, id: string) =>
+      document.annotations.filter(
+        (annotation) =>
+          annotation.visible !== false && owner(annotation) === id,
+      );
+    // The inductors' labels stand under the line, beside the capacitors'.
+    for (const id of ["l2", "l4"])
+      for (const annotation of labelsOf(before, id))
+        expect(context().measure(annotation).inkBounds.y).toBeGreaterThan(
+          bounds(id).y + bounds(id).height,
+        );
+
+    const report = await client.applyActions([
+      { kind: "apply-label-preset", preset: "textbook" },
+    ]);
+    expect(report.ok, report.message).toBe(true);
+    const after = controller.document;
+    expect(after.revision).toBe(before.revision + 1);
+
+    // Each inductor's name and value went above it, as a textbook draws
+    // a series part, and the capacitors' labels kept their place.
+    const measured = context();
+    for (const id of ["l2", "l4"]) {
+      const labels = labelsOf(after, id);
+      expect(labels).toHaveLength(2);
+      for (const annotation of labels) {
+        const ink = measured.measure(annotation).inkBounds;
+        expect(ink.y + ink.height, annotation.id).toBeLessThanOrEqual(
+          bounds(id).y,
+        );
+        expect(measured.conflicts(annotation), annotation.id).toEqual([]);
+      }
+    }
+    for (const id of ["c1", "c3", "c5"])
+      expect(labelsOf(after, id), id).toEqual(labelsOf(before, id));
+
+    // No two parts' labels run together on one row: on a shared row they
+    // stand more than a character, 10 units, apart.
+    const shownLabels = measured.visible.map((annotation) => ({
+      owner: owner(annotation),
+      ink: measured.measure(annotation).inkBounds,
+      id: annotation.id,
+    }));
+    for (const a of shownLabels)
+      for (const b of shownLabels) {
+        if (a.owner === b.owner) continue;
+        const shared =
+          Math.min(a.ink.y + a.ink.height, b.ink.y + b.ink.height) -
+          Math.max(a.ink.y, b.ink.y);
+        if (shared < Math.min(a.ink.height, b.ink.height) / 2) continue;
+        const gap = Math.max(
+          b.ink.x - a.ink.x - a.ink.width,
+          a.ink.x - b.ink.x - b.ink.width,
+        );
+        expect(gap, `${a.id} and ${b.id}`).toBeGreaterThanOrEqual(10);
+      }
+
+    // Applied again, it finds nothing to change.
+    const again = await client.applyActions([
+      { kind: "apply-label-preset", preset: "textbook" },
+    ]);
+    expect(again).toMatchObject({ ok: true, applied: false });
   });
 });

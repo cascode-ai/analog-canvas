@@ -370,6 +370,30 @@ Project was imported from, everywhere; in a simulation folder's files
 The design export and every other folder's runs keep the card. Native VACASK
 writes the card as an `sp_diode` model. The card is SPICE only; a Spectre
 export still names `DIODE` for the reader's libraries to define.
+A BJT placed in Abstract or Custom is bound in the same way to the generic
+model `NPN` or `PNP`, which no library defines either. Every Cell whose
+transistors name one carries its card, `.model NPN NPN(IS=1e-16 BF=100
+VAF=100)` or `.model PNP PNP(IS=1e-16 BF=50 VAF=50)`: Gummel-Poon
+placeholders with their saturation current, forward gain and Early voltage
+stated, not any real device. The export reports `GENERIC_BJT_MODEL` as
+information for that Cell, one finding naming each card's transistors ("Q1
+and Q2 use the generic bipolar model NPN (IS=1e-16, BF=100, VAF=100), Q3 uses
+the generic bipolar model PNP (IS=1e-16, BF=50, VAF=50); set a model for a
+real device"). The names stay editable, and a model of the same name in the
+author's own text replaces the card exactly as for `DIODE`. Native VACASK
+writes the cards as `sp_bjt` models, `type=1` for NPN and `type=-1` for PNP,
+loading `spice/bjt.osdi`. They are SPICE only; a Spectre export still names
+`NPN` and `PNP` for the reader's libraries to define.
+A MOS transistor bound to the generic `NMOS` or `PMOS` that Abstract and
+Custom offer, and a voltage-controlled switch bound to the generic `SW`, get
+no card: no one card suits every simulator, a level-1 card refuses the `nf`
+every MOS carries, and a switch's threshold is the design's own. The SPICE
+export reports `GENERIC_MODEL_UNDEFINED` as information for the Cell instead,
+naming the parts and the cards a run needs ("M1 and M2 name NMOS, a generic
+model the netlist does not define: add a .model NMOS card to the simulation
+folder before simulating, or set a real model"). A model of that name, in any
+case, in the SPICE the Project was imported from or in a folder's own files
+quiets it, everywhere or in that folder's runs.
 A drawn T-coil or transformer is one Symbol on the canvas and coupled
 windings in the netlist: each Instance is an `X` call on a built-in
 subcircuit that the file defines once, ahead of the Cells, with the
@@ -518,10 +542,13 @@ partial netlist is exposed while an error remains. Required error coverage inclu
 - unsupported dialect/device combination;
 - identifier, parameter, count, or output resource-limit violation.
 
-Information reports generated local Net names, explicit NoConnect nodes and
-the MOS body findings below. Warnings may report conflicting directions inside
-one same-name Formal Port group. Neither can downgrade a missing electrical
-fact required for meaningful output.
+Information reports generated local Net names, explicit NoConnect nodes,
+the MOS body findings below and the generic-model findings. Warnings may
+report conflicting directions inside one same-name Formal Port group, and
+`MILLI_SCALE_VALUE` a parameter value SPICE reads as milli where mega was
+almost surely meant (an upper-case `M` before a unit, `1MΩ`), which exports
+as written. Neither can downgrade a missing electrical fact required for
+meaningful output.
 
 ### One electrical extraction authority
 
@@ -744,7 +771,7 @@ Gallery's mark ([community gallery](community-gallery.md)) — answers `false`.
 
 Existing conflicting bindings, missing hierarchy interfaces, unsupported devices,
 invalid waveforms, and incomplete connections remain blocking. This projection
-never exports the permissive authoring IR. It cannot omit an invalid device or invent a model definition, apart from the generic diode card above, which stands in only for the placeholder name a Process binds. Numerical defaults
+never exports the permissive authoring IR. It cannot omit an invalid device or invent a model definition, apart from the generic diode and bipolar cards above, which stand in only for the placeholder names a Process binds. Numerical defaults
 and the explicit substrate rule belong only to the selected preset above.
 
 The editor's primary Netlist button copies immediately in its current format

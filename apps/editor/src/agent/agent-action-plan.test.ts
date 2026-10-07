@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { createAgentCircuitService } from "@icm/agent-adapter";
 import { diagnoseVisualQuality, resolveMosBulkConnection } from "@icm/derived";
-import { createEmptyProject } from "@icm/model";
+import { createEmptyProject, routeEndpoints } from "@icm/model";
 import { createDesignNetlistExport } from "@icm/netlist";
+import { renderDocumentSvg } from "@icm/render-svg";
 import {
   InMemorySymbolResolver,
   builtInSymbols,
@@ -759,6 +760,417 @@ describe("the editor plans an Agent's action list", () => {
         new InMemorySymbolResolver(builtInSymbols),
       ).map((finding) => finding.code),
     ).not.toContain("VISUAL_WIRE_THROUGH_SYMBOL");
+  });
+
+  it("keeps a controlled source on the Nets it senses through a rewire (#1411)", async () => {
+    const { controller, client, instance } = await editor();
+    const apply = async (actions: unknown[]) => {
+      const report = await client.applyActions(actions);
+      expect(report.ok, report.message).toBe(true);
+    };
+    const cellPin = (name: string) => {
+      const terminal = controller.document.netlist!.terminals.find(
+        (item) => item.name === name,
+      )!;
+      return {
+        net: terminal.netId,
+        pin: {
+          kind: "pin",
+          instance: { kind: "instance", id: terminal.interfaceInstanceIds[0] },
+          pin: "P",
+        },
+      };
+    };
+    await apply([
+      place("port", "B", 0),
+      place("capacitor", "C1", 160, { value: "1p" }),
+      place("port", "E", 320),
+    ]);
+    await apply([
+      { kind: "connect", from: cellPin("B").pin, to: pin("C1", "1") },
+      { kind: "connect", from: pin("C1", "2"), to: cellPin("E").pin },
+    ]);
+    await apply([
+      {
+        kind: "place-component",
+        symbol: "vccs",
+        reference: "G1",
+        position: { x: 500, y: 100 },
+        parameters: { gm: "1m" },
+        control: {
+          kind: "voltage",
+          positiveNetId: cellPin("B").net,
+          negativeNetId: cellPin("E").net,
+        },
+      },
+    ]);
+    const before = cellPin("E").net;
+    // Redraw E's wire: take it away, then draw it again.
+    const wire = controller.document.routes.find(
+      (route) => route.netId === before,
+    )!;
+    await apply([
+      { kind: "delete-selection", selection: { routeIds: [wire.id] } },
+    ]);
+    await apply([
+      { kind: "connect", from: pin("C1", "2"), to: cellPin("E").pin },
+    ]);
+
+    expect(instance("G1")!.netlist!.control).toEqual({
+      kind: "voltage",
+      positiveNetId: cellPin("B").net,
+      negativeNetId: cellPin("E").net,
+    });
+    expect(
+      createDesignNetlistExport(controller.project).diagnostics.map(
+        (diagnostic) => diagnostic.code,
+      ),
+    ).not.toContain("INVALID_CONTROL_NET");
+    // The rewire did retire the Net's first identity.
+    expect(cellPin("E").net).not.toBe(before);
+  });
+
+  it.each(["reset-body", "clear-drawing"] as const)(
+    "redraws a supply rail after %s with the supply's own label, not a second one (#1410)",
+    async (mode) => {
+      const { controller, client } = await editor();
+      const apply = async (actions: unknown[]) => {
+        const report = await client.applyActions(actions);
+        expect(report.ok, report.message).toBe(true);
+      };
+      await apply([
+        {
+          kind: "add-power-rail",
+          name: "VDD",
+          start: { x: 0, y: -100 },
+          end: { x: 100, y: -100 },
+        },
+      ]);
+      await apply([place("resistor", "R1", 50)]);
+      const terminal = controller.document.netlist!.terminals.find(
+        (item) => item.name === "VDD",
+      )!;
+      await apply([{ kind: "reset-cell", mode }]);
+      await apply([
+        {
+          kind: "add-power-rail",
+          name: "VDD",
+          start: { x: -100, y: -200 },
+          end: { x: 200, y: -200 },
+        },
+      ]);
+
+      const document = controller.document;
+      // The Cell keeps one VDD Pin, the one its callers know.
+      expect(
+        document.netlist!.terminals.filter((item) => item.name === "VDD"),
+      ).toEqual([expect.objectContaining({ id: terminal.id })]);
+      const labels = document.annotations.filter(
+        (annotation) => annotation.kind === "power-label",
+      );
+      expect(labels).toHaveLength(1);
+      // It now stands at the new rail, on one of its ends.
+      const rail = document.routes.find(
+        (route) => route.presentation === "power-rail",
+      )!;
+      const ends = routeEndpoints(rail).flatMap((end) =>
+        end.kind === "junction" ? [end.junctionId] : [],
+      );
+      expect(labels[0]!.anchor).toMatchObject({ kind: "object" });
+      expect(ends).toContain(
+        labels[0]!.anchor.kind === "object" ? labels[0]!.anchor.objectId : "",
+      );
+      // No Junction is left anchoring nothing.
+      const anchored = new Set(
+        document.annotations.flatMap((annotation) =>
+          annotation.anchor.kind === "object"
+            ? [annotation.anchor.objectId]
+            : [],
+        ),
+      );
+      const routed = new Set(
+        document.routes.flatMap((route) =>
+          routeEndpoints(route).flatMap((end) =>
+            end.kind === "junction" ? [end.junctionId] : [],
+          ),
+        ),
+      );
+      expect(
+        document.junctions.filter(
+          (junction) => !routed.has(junction.id) && !anchored.has(junction.id),
+        ),
+      ).toEqual([]);
+    },
+  );
+
+  it.each(["reset-body", "clear-drawing"] as const)(
+    "redraws a supply as a VDD Pin marker after %s, which takes the kept Pin's place (#1410)",
+    async (mode) => {
+      const { controller, client } = await editor();
+      const apply = async (actions: unknown[]) => {
+        const report = await client.applyActions(actions);
+        expect(report.ok, report.message).toBe(true);
+      };
+      await apply([
+        {
+          kind: "add-power-rail",
+          name: "VDD",
+          start: { x: 0, y: -100 },
+          end: { x: 100, y: -100 },
+        },
+      ]);
+      await apply([place("pmos", "M1", 50)]);
+      const kept = controller.document.netlist!.terminals.find(
+        (item) => item.name === "VDD",
+      )!;
+      const placements = structuredClone(
+        controller.document.presentation.cellSymbol?.pinPlacements,
+      );
+      await apply([{ kind: "reset-cell", mode }]);
+      await apply([
+        {
+          kind: "place-component",
+          symbol: "vdd-port",
+          reference: "VDD",
+          position: { x: 300, y: -200 },
+        },
+      ]);
+
+      const document = controller.document;
+      const marker = document.instances.find(
+        (item) => item.symbolId === "vdd-port",
+      )!;
+      // One VDD Pin, the marker's, on the supply's own Net.
+      const pins = document.netlist!.terminals.filter(
+        (item) => item.name === "VDD",
+      );
+      expect(pins).toEqual([
+        expect.objectContaining({
+          netId: kept.netId,
+          interfaceInstanceIds: [marker.id],
+        }),
+      ]);
+      // The Cell's symbol keeps the Pin where its callers see it.
+      expect(document.presentation.cellSymbol?.pinPlacements).toEqual(
+        placements?.map((placement) => ({
+          ...placement,
+          terminalId: pins[0]!.id,
+        })),
+      );
+      // The kept label went: the marker's own is the only one.
+      expect(
+        document.annotations.filter(
+          (annotation) => annotation.kind === "power-label",
+        ),
+      ).toEqual([
+        expect.objectContaining({
+          anchor: expect.objectContaining({ objectId: marker.id }),
+        }),
+      ]);
+      expect(document.junctions).toEqual([]);
+      // A PMOS body default on the supply stays on it.
+      if (mode === "clear-drawing")
+        expect(document.mosBulkDefaults?.pmosNetId).toBe(kept.netId);
+    },
+  );
+
+  it("places the palette's DMOS and depletion MOS, and a DMOS takes a SKY130 20 V model (#1425)", async () => {
+    const { client, instance } = await editor();
+    const placed = await client.applyActions([
+      place("ndmos", "M1", 100),
+      place("pdmos", "M2", 300),
+      place("depletion-nmos", "M3", 500),
+      place("depletion-pmos", "M4", 700),
+    ]);
+    expect(placed.ok, placed.message).toBe(true);
+    expect(
+      ["M1", "M2", "M3", "M4"].map((name) => instance(name)?.symbolId),
+    ).toEqual(["ndmos", "pdmos", "depletion-nmos", "depletion-pmos"]);
+
+    const modelled = await client.applyActions([
+      {
+        kind: "set-model",
+        instanceId: instance("M1")!.id,
+        model: "sky130_fd_pr__nfet_20v0",
+      },
+    ]);
+    expect(modelled.ok, modelled.message).toBe(true);
+    expect(instance("M1")!.netlist!.binding?.kind).toBe("external-subcircuit");
+  });
+
+  it("shows a device's multiplier as ×m beside it, bound to m (#1423)", async () => {
+    const { controller, client, instance } = await editor();
+    const placed = await client.applyActions([
+      place("npn", "Q2", 100, { m: "8" }),
+      place("nmos", "M1", 400, { m: "4" }),
+    ]);
+    expect(placed.ok, placed.message).toBe(true);
+    const shown = await client.applyActions([
+      {
+        kind: "set-instance-display",
+        instanceIds: [instance("Q2")!.id, instance("M1")!.id],
+        showParameters: { m: true },
+      },
+    ]);
+    expect(shown.ok, shown.message).toBe(true);
+    const multipliers = controller.document.annotations.filter(
+      (annotation) =>
+        annotation.binding?.kind === "instance-value" &&
+        annotation.binding.parameter === "m",
+    );
+    expect(multipliers).toHaveLength(2);
+    const svg = renderDocumentSvg(controller.document, controller.resolver);
+    expect(svg).toContain("×8");
+    expect(svg).toContain("×4");
+
+    // A part with no multiplier refuses the display.
+    await client.applyActions([place("resistor", "R1", 700, { value: "1k" })]);
+    const refused = await client.applyActions([
+      {
+        kind: "set-instance-display",
+        instanceIds: [instance("R1")!.id],
+        showParameters: { m: true },
+      },
+    ]);
+    expect(refused.ok).toBe(false);
+  });
+
+  it("moves a label to a part's other side with the end it reads from (#1414)", async () => {
+    const { controller, client, instance } = await editor();
+    await client.applyActions([place("resistor", "R1", 100, { value: "1k" })]);
+    const value = controller.document.annotations.find(
+      (annotation) =>
+        annotation.binding?.kind === "instance-value" &&
+        annotation.binding.instanceId === instance("R1")!.id,
+    )!;
+    const moved = await client.applyActions([
+      {
+        kind: "move-annotation",
+        annotationId: value.id,
+        position: { x: 80, y: 100 },
+        alignment: "end",
+      },
+    ]);
+    expect(moved.ok, moved.message).toBe(true);
+    expect(
+      controller.document.annotations.find((item) => item.id === value.id),
+    ).toMatchObject({ alignment: "end" });
+  });
+
+  it("says which labels arrange-labels leaves in place, and re-places moved ones on request (#1414)", async () => {
+    const { controller, client, instance } = await editor();
+    await client.applyActions([place("resistor", "R1", 100, { value: "1k" })]);
+    const id = instance("R1")!.id;
+    const value = () =>
+      controller.document.annotations.find(
+        (annotation) =>
+          annotation.binding?.kind === "instance-value" &&
+          annotation.binding.instanceId === id,
+      )!;
+    const drawn = structuredClone(value().anchor);
+    await client.applyActions([
+      {
+        kind: "move-annotation",
+        annotationId: value().id,
+        position: { x: 400, y: 300 },
+      },
+    ]);
+
+    const kept = await client.applyActions([
+      { kind: "arrange-labels", instanceIds: [id] },
+    ]);
+    expect(kept.ok, kept.message).toBe(true);
+    expect(kept.diagnosticDelta?.added).toContainEqual(
+      expect.objectContaining({
+        code: "LABELS_LEFT_IN_PLACE",
+        severity: "info",
+        objectIds: [value().id],
+        message: expect.stringContaining("moved by hand"),
+      }),
+    );
+
+    const replaced = await client.applyActions([
+      { kind: "arrange-labels", instanceIds: [id], includeManual: true },
+    ]);
+    expect(replaced.ok, replaced.message).toBe(true);
+    expect(value().anchor).toEqual(drawn);
+  });
+
+  it("draws a rail of a supply whose VDD Pin marker stands, leaving the marker's label (#1410)", async () => {
+    const { controller, client } = await editor();
+    const marked = await client.applyActions([
+      {
+        kind: "place-component",
+        symbol: "vdd-port",
+        reference: "VDD",
+        position: { x: 100, y: -100 },
+      },
+    ]);
+    expect(marked.ok, marked.message).toBe(true);
+    const labels = () =>
+      controller.document.annotations
+        .filter((annotation) => annotation.kind === "power-label")
+        .map((annotation) => structuredClone(annotation));
+    const before = labels();
+
+    const railed = await client.applyActions([
+      {
+        kind: "add-power-rail",
+        name: "VDD",
+        start: { x: 200, y: -200 },
+        end: { x: 300, y: -200 },
+      },
+    ]);
+    expect(railed.ok, railed.message).toBe(true);
+    // The marker keeps its own label; the rail draws one of its own.
+    for (const label of before) expect(labels()).toContainEqual(label);
+    expect(labels()).toHaveLength(before.length + 1);
+  });
+
+  it("shows a MOS's ×m once: in its W/L while that shows, else under its name (#1423)", async () => {
+    const { controller, client, instance } = await editor();
+    await client.applyActions([
+      place("nmos", "M1", 100, { w: "10u", l: "1u", m: "4" }),
+      place("npn", "Q1", 400, { m: "8" }),
+    ]);
+    const m1 = instance("M1")!.id;
+    const q1 = instance("Q1")!.id;
+    const shown = await client.applyActions([
+      {
+        kind: "set-instance-display",
+        instanceIds: [m1, q1],
+        showParameters: { m: true },
+      },
+    ]);
+    expect(shown.ok, shown.message).toBe(true);
+    const counts = () =>
+      renderDocumentSvg(controller.document, controller.resolver).split("×4")
+        .length - 1;
+    // The W/L reads 10u/1u ×4 already: the count is not drawn again.
+    expect(counts()).toBe(1);
+
+    const hidden = await client.applyActions([
+      { kind: "set-instance-display", instanceIds: [m1], showValue: false },
+    ]);
+    expect(hidden.ok, hidden.message).toBe(true);
+    // With the W/L hidden, its own label says ×4, a text row under the
+    // name as a BJT's ×8 is, not in the taller row the W/L took.
+    expect(counts()).toBe(1);
+    // A part's name, or its ×m label, by its offset down from the part.
+    const row = (instanceId: string, parameter?: "m") => {
+      const label = controller.document.annotations.find((annotation) =>
+        parameter
+          ? annotation.binding?.kind === "instance-value" &&
+            annotation.binding.instanceId === instanceId &&
+            annotation.binding.parameter === parameter
+          : annotation.binding?.kind === "instance-reference" &&
+            annotation.binding.instanceId === instanceId,
+      );
+      return label?.anchor.kind === "object"
+        ? label.anchor.localOffset.y
+        : Number.NaN;
+    };
+    expect(row(m1, "m") - row(m1)).toBe(row(q1, "m") - row(q1));
   });
 
   it("leaves the Document alone for a list that changes nothing", async () => {

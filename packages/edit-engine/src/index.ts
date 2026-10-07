@@ -38,6 +38,7 @@ export * from "./transaction-preflight.js";
 export * from "./project-transaction.js";
 export * from "./project-cell-import.js";
 export * from "./project-cell-body-import.js";
+export * from "./power-rail-label.js";
 export * from "./project-copy-dependencies.js";
 export * from "./hierarchy-planner.js";
 export * from "./netlist-planning-projection.js";

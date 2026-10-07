@@ -1256,6 +1256,38 @@ describe("ERC engine", () => {
     );
   });
 
+  it("explains a stored value with an upper-case M before its unit (#1409)", () => {
+    const project = emptyProject();
+    project.documents[0]!.instances = [
+      {
+        id: "R1",
+        symbolId: "resistor",
+        reference: "R1",
+        placement: {
+          position: { x: 0, y: 0 },
+          rotation: 0,
+          mirror: "none",
+        },
+        netlist: {
+          binding: { kind: "primitive", deviceClass: "resistor" },
+          parameters: { value: "1MΩ" },
+        },
+      },
+    ];
+    expect(
+      run(project).filter(
+        (item) => item.code === "ERC_INVALID_DEVICE_PARAMETER",
+      ),
+    ).toEqual([
+      expect.objectContaining({
+        severity: "error",
+        primary: expect.objectContaining({ objectId: "R1" }),
+        message:
+          'Instance R1 parameter value is "1MΩ", which reads as 1 mΩ in SPICE (M is milli): write 1MegΩ for mega or 1mΩ for milli',
+      }),
+    ]);
+  });
+
   it("names the forms an ideal comparator's levels take (#1306)", () => {
     const project = emptyProject();
     const comparator = {

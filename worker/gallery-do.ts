@@ -903,6 +903,8 @@ export class GalleryDO {
         return this.rejected();
       case "mine":
         return this.mine(String(body.ownerUserId));
+      case "quota":
+        return this.quota(String(body.ownerUserId), String(body.day));
       case "all-ids":
         return this.allIds();
       case "netlistable-refresh":
@@ -1137,17 +1139,7 @@ export class GalleryDO {
     const enforceLimit = body.enforceLimit !== false;
     const outcome = this.state.storage.transactionSync(() => {
       if (enforceLimit) {
-        const used = this.sql
-          .exec<{
-            count: number;
-          }>(
-            `SELECT COUNT(*) AS count FROM gallery_entries
-             WHERE owner_user_id = ? AND substr(created_at, 1, 10) = ?
-               AND status <> 'recycled'`,
-            entry.owner_user_id ?? "",
-            day,
-          )
-          .one().count;
+        const used = this.submissionsOn(entry.owner_user_id ?? "", day);
         if (used >= GALLERY_DAILY_SUBMISSION_LIMIT) {
           return { status: "rate-limited" as const };
         }
@@ -1905,6 +1897,26 @@ export class GalleryDO {
       );
     });
     return Response.json({ id: entry.id, restored: true, previewRevision });
+  }
+
+  /** The day's allowance, counted as a submission counts it. */
+  private quota(ownerUserId: string, day: string): Response {
+    return Response.json({ used: this.submissionsOn(ownerUserId, day) });
+  }
+
+  /** An account's entries created on a UTC day, the bin's excepted. */
+  private submissionsOn(ownerUserId: string, day: string): number {
+    return Number(
+      this.sql
+        .exec<{ count: number }>(
+          `SELECT COUNT(*) AS count FROM gallery_entries
+           WHERE owner_user_id = ? AND substr(created_at, 1, 10) = ?
+             AND status <> 'recycled'`,
+          ownerUserId,
+          day,
+        )
+        .one().count,
+    );
   }
 
   private mine(ownerUserId: string): Response {

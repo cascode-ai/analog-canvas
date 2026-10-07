@@ -48,12 +48,34 @@ const DECIMAL = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/u;
 /**
  * The SPICE number the exporter writes as-is: a scale suffix and unit
  * letters may follow, which ngspice 46 ignores ("9kΩ" is 9k). "µ" is not
- * among them: ngspice would read "1µ" as 1, so it is refused.
+ * among them: ngspice would read "1µ" as 1, so it is refused. Its group is
+ * the scale and unit letters after the digits.
  */
 const SPICE_NUMBER =
-  /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?(?:meg|mil|[tgkmunpfa])?[a-zΩΩ]*$/iu;
+  /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?((?:meg|mil|[tgkmunpfa])?[a-zΩΩ]*)$/iu;
 /** Point lists are read by the source compiler, not as one number. */
 const LIST_PARAMETERS = new Set(["pwlpoints"]);
+
+/**
+ * "1MΩ" written for a megohm (#1409): SPICE reads M as milli in either case,
+ * so an upper-case M before a unit is refused. This is how SPICE reads such
+ * a value and how to write each reading, for a refusal to say after it:
+ * "reads as 1 mΩ in SPICE (M is milli): write 1MegΩ for mega or 1mΩ for
+ * milli". Meg and mil are SPICE's own spellings; a bare "1M" is left alone.
+ */
+export function milliScaleReading(value: string): string | undefined {
+  const text = value.trim();
+  const suffix = SPICE_NUMBER.exec(text)?.[1] ?? "";
+  if (
+    !suffix.startsWith("M") ||
+    suffix.length < 2 ||
+    /^m(?:eg|il)/iu.test(suffix)
+  )
+    return undefined;
+  const number = text.slice(0, -suffix.length);
+  const unit = suffix.slice(1);
+  return `reads as ${number} m${unit} in SPICE (M is milli): write ${number}Meg${unit} for mega or ${number}m${unit} for milli`;
+}
 
 /** Whether a value, as typed, is one of these words: trimmed, in any case. */
 export function isKeyword(
@@ -72,7 +94,7 @@ function isQuantity(value: string, forms: QuantityForms): boolean {
   const text = value.trim();
   return (
     text === "" ||
-    SPICE_NUMBER.test(text) ||
+    (SPICE_NUMBER.test(text) && milliScaleReading(text) === undefined) ||
     (forms.expressions !== false &&
       parameterExpressionBody(text) !== undefined) ||
     isKeyword(text, forms.keywords)

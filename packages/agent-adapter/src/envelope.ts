@@ -299,6 +299,12 @@ export const AgentSessionScopeSchema = z.enum([
    * to spend a deployment's simulator time.
    */
   "simulation.run",
+  /**
+   * Publish or update Community Gallery entries as the signed-in Editor
+   * account. Like simulation, independent of every edit scope: authorizing
+   * an Agent to draw a circuit is not authorizing it to publish one.
+   */
+  "gallery.publish",
 ]);
 
 /** Single runtime scope guard for browser recovery and relay consumers. */

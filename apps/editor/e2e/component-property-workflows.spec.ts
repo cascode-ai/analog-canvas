@@ -636,10 +636,14 @@ test("plain selectable property code and inline controls at 300px", async ({
       ".cm-line .cm-property-inline-toggle, .cm-line .cm-property-inline-placement, .cm-line .cm-property-inline-color",
     ).length,
   }));
+  // The six above, and the multiplier's ×m display (#1423).
+  await expect(
+    editor.locator(".cm-line", { hasText: '"m"' }).getByRole("switch"),
+  ).toHaveAttribute("aria-checked", "false");
   expect(layout).toEqual({
     overflow: false,
     editable: true,
-    inlineControls: 6,
+    inlineControls: 7,
   });
   expect(raw).not.toContain("Line color");
   await reference.click();

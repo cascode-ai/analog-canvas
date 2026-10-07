@@ -1,6 +1,8 @@
 import {
   canonicalPortTextDocument,
+  isAutomaticPinLabelLook,
   isRoleLabelFormat,
+  roleLabelFormat,
   routeEndpoints,
   type Annotation,
   type Rect,
@@ -15,14 +17,18 @@ import {
   legacyDefaultInstanceLabelPlacement,
   previousDefaultInstanceLabelPlacement,
   instanceLabelRowOffset,
+  isVisibleEndpoint,
   objectStyleProfile,
   offsetFromPlacement,
   outwardDefaultInstanceLabelPlacement,
   placeUprightInstanceLabel,
   portLabelCandidates,
+  resolveAnnotationName,
   resolveDocumentStyleProfile,
+  resolveEndpointPoint,
   uniformRowDefaultInstanceLabelPlacement,
   type InstanceLabelPlacement,
+  type InstanceLabelSide,
   type InstanceLabelSlot,
 } from "@icm/derived";
 import { referenceDeviceLetter } from "@icm/devices";
@@ -61,6 +67,13 @@ const DEFAULT_SLOTS: Readonly<
   value: ["value"],
 };
 
+/** A label the pass left where it is, and why (#1414). */
+export interface LabelLeftInPlace {
+  labelId: string;
+  instanceId: string;
+  reason: "locked" | "rotated" | "custom" | "moved";
+}
+
 /**
  * Explicit one-pass operation, not a new placement default or autorouter.
  *
@@ -76,12 +89,28 @@ export function arrangeInstanceLabels(
   document: SchematicDocument,
   resolver: SymbolResolver,
   instanceIds: readonly string[],
-  options: {
-    compact?: boolean | undefined;
-    avoidCollisions?: boolean | undefined;
-    referenceStyle?: "preserve" | "first-letter-subscript" | undefined;
-  },
+  options: ArrangeInstanceLabelsOptions,
 ): SchematicEdit[] {
+  return arrangeInstanceLabelsReport(document, resolver, instanceIds, options)
+    .edits;
+}
+
+export interface ArrangeInstanceLabelsOptions {
+  compact?: boolean | undefined;
+  avoidCollisions?: boolean | undefined;
+  referenceStyle?: "preserve" | "first-letter-subscript" | undefined;
+  /** Re-place labels moved by hand too; locked and custom ones stay. */
+  includeManual?: boolean | undefined;
+}
+
+/** The arrangement, and the labels it leaves where they are (#1414). */
+export function arrangeInstanceLabelsReport(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  instanceIds: readonly string[],
+  options: ArrangeInstanceLabelsOptions,
+): { edits: SchematicEdit[]; leftInPlace: LabelLeftInPlace[] } {
+  const left: LabelLeftInPlace[] = [];
   const ids = new Set(instanceIds);
   for (const id of ids)
     if (!document.instances.some((i) => i.id === id))
@@ -98,6 +127,66 @@ export function arrangeInstanceLabels(
       return part ? [[label.id, part] as const] : [];
     }),
   );
+  // The part, or Pin, each visible label belongs to.
+  const owners = new Map(
+    context.visible.flatMap((label) => {
+      const owner =
+        partLabels.get(label.id)?.instanceId ??
+        (label.anchor.kind === "object" ? label.anchor.objectId : undefined);
+      return owner ? [[label.id, owner] as const] : [];
+    }),
+  );
+  /** Whether `ink` stands in a row with a label of one of `parts`. */
+  const inRowWith = (ink: Rect, parts: ReadonlySet<string>) =>
+    context.visible.some((other) => {
+      const theirs = parts.has(owners.get(other.id) ?? "")
+        ? context.labelBounds(other.id)
+        : undefined;
+      return theirs !== undefined && sameRow(ink, theirs);
+    });
+
+  /**
+   * The parts wired to a two-terminal part drawn along a horizontal wire,
+   * a ladder's series inductor: both its pins on one row and wired on to
+   * other parts. Null for any other part.
+   */
+  const lineNeighbours = (instanceId: string): ReadonlySet<string> | null => {
+    const instance = document.instances.find((item) => item.id === instanceId);
+    // Its drawn pins, where the canvas puts them (a resized block's too).
+    const pins = instance?.placement
+      ? (
+          resolver.resolve(instance.symbolId, instance.symbolVariantId)
+            ?.definition.pins ?? []
+        ).flatMap((pin) => {
+          const endpoint = {
+            kind: "terminal" as const,
+            instanceId,
+            pinName: pin.name,
+          };
+          const at =
+            isVisibleEndpoint(document, resolver, endpoint) &&
+            resolveEndpointPoint(document, resolver, endpoint);
+          return at ? [{ name: pin.name, at }] : [];
+        })
+      : [];
+    if (pins.length !== 2 || pins[0]!.at.y !== pins[1]!.at.y) return null;
+    const nets = document.nets.filter((net) =>
+      net.terminals.some((end) => end.instanceId === instanceId),
+    );
+    const wiredOn = (pinName: string) =>
+      nets.some(
+        (net) =>
+          net.terminals.some(
+            (end) => end.instanceId === instanceId && end.pinName === pinName,
+          ) && net.terminals.some((end) => end.instanceId !== instanceId),
+      );
+    if (!pins.every((pin) => wiredOn(pin.name))) return null;
+    return new Set(
+      nets
+        .flatMap((net) => net.terminals.map((end) => end.instanceId))
+        .filter((id) => id !== instanceId),
+    );
+  };
 
   /**
    * A part's name and value standing exactly where the outward placer
@@ -163,7 +252,13 @@ export function arrangeInstanceLabels(
     ownerId: string,
   ): EligibleLabel | null {
     const part = partLabels.get(original.id);
-    if (original.locked || original.rotation !== 0 || !part) return null;
+    const leave = (reason: LabelLeftInPlace["reason"]) => {
+      left.push({ labelId: original.id, instanceId: ownerId, reason });
+      return null;
+    };
+    if (!part) return null;
+    if (original.locked) return leave("locked");
+    if (original.rotation !== 0) return leave("rotated");
     const instance = document.instances.find((i) => i.id === ownerId)!;
     if (!instance.placement || part.instanceId !== instance.id) return null;
     const reference = part.kind === "instance-reference";
@@ -181,7 +276,7 @@ export function arrangeInstanceLabels(
             deviceLetter ? { deviceLetter } : {},
           )))
     )
-      return null;
+      return leave("custom");
     const resolved = resolver.resolve(
       instance.symbolId,
       instance.symbolVariantId,
@@ -219,8 +314,10 @@ export function arrangeInstanceLabels(
     const inReferenceSlot = alone && at("reference");
     const inValueRow =
       !inReferenceSlot &&
-      (at(slot) || stackedValueFirst(instance.id).has(original.id));
-    if (!inValueRow && !inReferenceSlot) return null;
+      (at(slot) ||
+        stackedValueFirst(instance.id).has(original.id) ||
+        options.includeManual === true);
+    if (!inValueRow && !inReferenceSlot) return leave("moved");
     const annotation =
       reference &&
       !cellName &&
@@ -237,7 +334,15 @@ export function arrangeInstanceLabels(
   }
 
   const edits: SchematicEdit[] = [];
-  for (const [ownerId, group] of groups) {
+  // Parts drawn along a horizontal wire are arranged first: where their
+  // labels go above the wire, their neighbours' labels keep their own side.
+  const along = new Map(
+    [...groups.keys()].map((id) => [id, lineNeighbours(id)] as const),
+  );
+  const order = [...groups].sort(
+    ([a], [b]) => Number(along.get(b) !== null) - Number(along.get(a) !== null),
+  );
+  for (const [ownerId, group] of order) {
     const instance = document.instances.find((i) => i.id === ownerId)!;
     const resolved = resolver.resolve(
       instance.symbolId,
@@ -337,6 +442,38 @@ export function arrangeInstanceLabels(
         : 0;
     };
     /**
+     * Other parts' labels a label would run into on its row: under about a
+     * character apart, though past the word's space every label keeps. A
+     * ladder's 637pF a character before the next capacitor's 197pF read as
+     * one run, and C₁ before L1's 31.8nH (#1412). Each counts as a conflict,
+     * leaving out those `counted` already.
+     */
+    const runsInto = (
+      ink: Rect,
+      label: Annotation,
+      counted: readonly string[],
+    ) =>
+      context
+        .labelsWithin(
+          ink,
+          label.id,
+          objectStyleProfile(documentProfile, label).typography
+            .instanceFontSize *
+            (label.sizeScale ?? 1) *
+            CHARACTER_EM,
+        )
+        .filter((id) => {
+          const part = owners.get(id);
+          const theirs = context.labelBounds(id);
+          return (
+            part !== undefined &&
+            part !== instance.id &&
+            !counted.includes(id) &&
+            theirs !== undefined &&
+            sameRow(ink, theirs)
+          );
+        }).length;
+    /**
      * Wires between a label and its part, other than those drawn across the
      * label, which count already. Above a VDD rail, a PMOS's W/L met
      * nothing, but the rail cut it off from its transistor below. Each counts
@@ -403,7 +540,8 @@ export function arrangeInstanceLabels(
         context.dotsAt(ink).filter((id) => !conflicts.includes(id)).length / 2 +
         cutOff(ink) +
         strayed(ink) +
-        mistaken(ink, candidate, siblings.map(box))
+        mistaken(ink, candidate, siblings.map(box)) +
+        runsInto(ink, candidate, conflicts)
       );
     };
     /**
@@ -470,7 +608,8 @@ export function arrangeInstanceLabels(
                 b,
                 arrangement[index]!,
                 moved.filter((_, other) => other !== index),
-              ),
+              ) &&
+              !runsInto(b, arrangement[index]!, []),
           ) && !between(moved)
         );
       };
@@ -524,25 +663,56 @@ export function arrangeInstanceLabels(
     );
     let chosen = preferred;
     let best = total(preferred);
+    /** The group in its rows on one of the part's sides, or null. */
+    const onSide = (side: InstanceLabelSide): Annotation[] | null => {
+      const arrangement: Annotation[] = [];
+      for (const label of group) {
+        const placement = placeUprightInstanceLabel(
+          instance,
+          resolved,
+          styleOf(label),
+          { x: 0, y: 0 },
+          side,
+          grid,
+          label.sizeScale,
+          slotOf(label),
+        );
+        if (!placement) return null;
+        arrangement.push(at(label, placement));
+      }
+      return arrangement;
+    };
+
+    // A part drawn along a horizontal wire, as a ladder's series inductor
+    // is, takes the clear side above the wire where under it its labels
+    // would stand in a row with a neighbour's: a Chebyshev ladder's names
+    // and values read as one run per row, C1 L2 C3 L4 (#1412). Textbooks
+    // name a series part over its wire.
+    const neighbours = along.get(ownerId);
+    if (
+      options.avoidCollisions !== false &&
+      !fixed.length &&
+      neighbours &&
+      owner &&
+      preferred.every((label) => box(label).y >= owner.y + owner.height) &&
+      preferred.some((label) => inRowWith(box(label), neighbours))
+    ) {
+      const above = INSTANCE_LABEL_SIDES.map(onSide).find((arrangement) =>
+        arrangement?.every(
+          (label) => box(label).y + box(label).height <= owner.y,
+        ),
+      );
+      if (above && clear(total(above))) {
+        chosen = above;
+        best = total(above);
+      }
+    }
+
     const sides: Annotation[][] = [];
     if (options.avoidCollisions !== false && !clear(best) && !fixed.length)
       for (const side of INSTANCE_LABEL_SIDES) {
-        const arrangement: Annotation[] = [];
-        for (const label of group) {
-          const placement = placeUprightInstanceLabel(
-            instance,
-            resolved,
-            styleOf(label),
-            { x: 0, y: 0 },
-            side,
-            grid,
-            label.sizeScale,
-            slotOf(label),
-          );
-          if (!placement) break;
-          arrangement.push(at(label, placement));
-        }
-        if (arrangement.length !== group.length) continue;
+        const arrangement = onSide(side);
+        if (!arrangement) continue;
         sides.push(arrangement);
         const candidate = total(arrangement);
         if (better(candidate, best)) {
@@ -618,17 +788,22 @@ export function arrangeInstanceLabels(
       context.accept(next);
     }
   }
-  if (options.avoidCollisions !== false) edits.push(...arrangePinNames());
-  return edits;
+  edits.push(...arrangePinNames());
+  return { edits, leftInPlace: left };
 
   /**
    * A Cell Pin's name takes the first of its sides where it meets nothing,
    * as a new Pin's does (#1105). Parts placed and wired after it may have
    * come to sit where it was put: an OTA's input Ports' names lay across its
    * cascode transistors, and nothing could move them but a hand.
+   *
+   * With the first-letter style, a name with no look of its own takes the
+   * look a Pin placed with that name gets. A Pin placed as rfp and renamed
+   * vrfp stayed plain beside Pins drawn V_bn (#1419).
    */
   function arrangePinNames(): SchematicEdit[] {
-    const moved: SchematicEdit[] = [];
+    // Each Pin name moved, restyled, or both.
+    const changed: SchematicEdit[] = [];
     for (const label of context.visible) {
       if (
         label.binding?.kind !== "cell-terminal-name" ||
@@ -671,40 +846,67 @@ export function arrangeInstanceLabels(
         )
       )
         continue;
-      let fewest = context.conflicts(label).length;
-      if (!fewest) continue;
+      // The automatic look counts as none, as a rename reads it.
+      const name = resolveAnnotationName(document, label);
+      const look =
+        options.referenceStyle === "first-letter-subscript" &&
+        isAutomaticPinLabelLook(label.formatOverride, name)
+          ? roleLabelFormat("voltage-node", name)
+          : undefined;
+      const restyled: Annotation = look
+        ? { ...label, formatOverride: look }
+        : label;
+      let fewest =
+        options.avoidCollisions === false
+          ? 0
+          : context.conflicts(restyled).length;
       const origin = instance.placement.position;
-      let best: Annotation = label;
-      for (const candidate of candidates) {
-        const placed: Annotation = {
-          ...label,
-          alignment: candidate.alignment,
-          anchor: {
-            ...label.anchor,
-            localOffset: {
-              x: candidate.position.x - origin.x,
-              y: candidate.position.y - origin.y,
+      let best = restyled;
+      if (fewest)
+        for (const candidate of candidates) {
+          const placed: Annotation = {
+            ...restyled,
+            alignment: candidate.alignment,
+            anchor: {
+              ...label.anchor,
+              localOffset: {
+                x: candidate.position.x - origin.x,
+                y: candidate.position.y - origin.y,
+              },
+              fallbackPosition: candidate.position,
             },
-            fallbackPosition: candidate.position,
-          },
-        };
-        const conflicts = context.conflicts(placed).length;
-        if (conflicts < fewest) {
-          best = placed;
-          fewest = conflicts;
+          };
+          const conflicts = context.conflicts(placed).length;
+          if (conflicts < fewest) {
+            best = placed;
+            fewest = conflicts;
+          }
+          if (!conflicts) break;
         }
-        if (!conflicts) break;
-      }
       if (best === label) continue;
-      moved.push({ kind: "upsert_schematic_annotation", annotation: best });
+      changed.push({ kind: "upsert_schematic_annotation", annotation: best });
       context.accept(best);
     }
-    return moved;
+    return changed;
   }
 }
 
 /** How much nearer another part a label may stand than its own part. */
 const ASSOCIATION_MARGIN = 5;
+
+/**
+ * About a character of a label's text, in ems: 10 units at the default
+ * size. Two labels on one row nearer than this read as one run (#1412).
+ */
+const CHARACTER_EM = 0.66;
+
+/** Whether two labels' ink shares a row: half the shorter one's height. */
+function sameRow(a: Rect, b: Rect): boolean {
+  return (
+    Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y) >=
+    Math.min(a.height, b.height) / 2
+  );
+}
 
 /** A placed Cell's name under its block, drawn as literal text (#803). */
 function isCellNameLabel(label: Annotation): boolean {

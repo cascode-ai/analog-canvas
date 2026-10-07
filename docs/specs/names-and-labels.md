@@ -129,6 +129,9 @@ later drawings, where a slanted script is the author's choice.
   after a text edit or any rename (Properties, netlist code, Agent, clipboard);
   a new spelling without a standard form returns the label to the historical
   rule. An authored format keeps its styling around the new text.
+- A renamed Cell Pin whose unlocked label has no look of its own, or only the
+  automatic one, takes the look a Pin placed with the new name gets: placed
+  as `rfp` and renamed `vrfp`, it is drawn V_rfp (#1419).
 - Placing a Cell Pin, Net label or supply never alters the name it is given.
 - The explicit whole-drawing `labels` action in document Properties is the one
   remaining operation that may change names, and only their subscript case; it
@@ -251,6 +254,8 @@ Batch operations are explicit and distinct:
   name stands a row over it (#1384). A place is clear when the labels meet no
   wire, part, other label or free drawing text, keep a word's space from
   another label or text on their line and a little space between lines,
+  keep about a character's space (10 units at the default size) from another
+  part's or Pin's label on their row, where the two read as one run (#1412),
   keep that line's space from a junction dot,
   and no wire runs between a
   label and its part or between the Reference and the value, other than
@@ -263,9 +268,16 @@ Batch operations are explicit and distinct:
   more than a label too close to text or to a junction dot, cut off by a
   wire, or read as another part's. A part's Reference comes first: no position that clears the value
   but draws the Reference over a wire, a part or another label is preferred
-  to one that keeps the Reference clear. A requested Cell Pin's name, while
+  to one that keeps the Reference clear. A two-terminal part drawn along a
+  horizontal wire, both pins on one row and wired on, such as a ladder's
+  series inductor, is arranged before the other parts: where its labels
+  under the wire would share a row with a label of a part wired to it, they
+  take the clear side above the wire, as textbooks name a series part, and
+  the neighbours keep their own sides (#1412). A requested Cell Pin's name, while
   still on one of its own sides, takes the first of them where it meets
-  nothing, as a new Pin's name does. Its optional first-letter reference style is explicit. The existing
+  nothing, as a new Pin's name does. Its optional first-letter reference style is explicit;
+  with it, such a Pin's name with no look of its own, or only the automatic
+  one, takes the look a Pin placed with that name gets (#1419). The existing
   style-equality eligibility check is retained, not promoted into a general
   definition of whether a user has edited an object.
 - Agent **apply-label-preset** `textbook` (#1350) is one transaction over the
@@ -284,7 +296,8 @@ No historical Gallery rewrite is authorized by this refactor.
   recognition, rename following and restored hidden characters.
 - `packages/edit-engine/src/standard-label-look.test.ts` and
   `packages/edit-engine/src/net-name-operation-planner.test.ts`: rails, Cell
-  Pin, claim, marker and device renames keep stored looks valid.
+  Pin, claim, marker and device renames keep stored looks valid; a Pin label
+  with no look takes its new name's look.
 - `apps/editor/src/features/text-editing/text-editing.test.ts`: verbatim text
   renames, styling that never renames, and hidden-character splicing.
 - `apps/editor/src/features/instance-display/default-instance-display.test.ts`

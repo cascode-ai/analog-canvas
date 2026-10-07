@@ -1,9 +1,11 @@
 import {
   defaultInstanceParameterLabelPlacement,
   displayableInstanceParameter,
-  magneticDisplayParameters,
+  instanceValueRowOffset,
+  instanceDisplayParameters,
   objectStyleProfile,
   resolveDocumentStyleProfile,
+  valuePrintsMultiplier,
 } from "@icm/derived";
 import type { SchematicEdit } from "@icm/edit-engine";
 import type { SchematicDocument } from "@icm/model";
@@ -30,7 +32,7 @@ export function instanceParameterVisibility(
   instance: Instance,
 ): Record<string, boolean> {
   return Object.fromEntries(
-    magneticDisplayParameters(instance.symbolId).map((parameter) => [
+    instanceDisplayParameters(instance.symbolId).map((parameter) => [
       parameter.name,
       parameterAnnotations(document, instance.id, parameter.name).some(
         (annotation) => annotation.visible !== false,
@@ -47,7 +49,7 @@ export function instanceParameterVisibilityEdits(
   desired: Readonly<Record<string, boolean>>,
 ): SchematicEdit[] {
   const edits: SchematicEdit[] = [];
-  for (const parameter of magneticDisplayParameters(instance.symbolId)) {
+  for (const parameter of instanceDisplayParameters(instance.symbolId)) {
     const visible = desired[parameter.name];
     if (visible === undefined) continue;
     const existing = parameterAnnotations(
@@ -78,20 +80,49 @@ export function instanceParameterVisibilityEdits(
       instance.symbolId,
       instance.symbolVariantId,
     );
-    const placement =
+    const profile = objectStyleProfile(
+      resolveDocumentStyleProfile(document.presentation),
+      instance,
+    );
+    const slot =
       resolved &&
       defaultInstanceParameterLabelPlacement(
         instance,
         resolved,
-        objectStyleProfile(
-          resolveDocumentStyleProfile(document.presentation),
-          instance,
-        ),
+        profile,
         document.presentation.grid,
         parameter.name,
       );
-    if (!placement || !instance.placement)
+    if (!slot || !instance.placement)
       throw new Error("Place the component before showing its parameters");
+    // Shown beside a value that is itself on show, the multiplier takes the
+    // row after it. A W/L prints the ×m itself, and the label stands in its
+    // row for when the W/L is hidden.
+    const belowValue =
+      parameter.displayRole === "multiplier" &&
+      !valuePrintsMultiplier(instance.symbolId, parameter.name) &&
+      document.annotations.some(
+        (annotation) =>
+          annotation.binding?.kind === "instance-value" &&
+          annotation.binding.instanceId === instance.id &&
+          annotation.binding.parameter === undefined &&
+          annotation.visible !== false,
+      );
+    const placement = belowValue
+      ? {
+          ...slot,
+          position: {
+            x: slot.position.x,
+            y:
+              slot.position.y +
+              instanceValueRowOffset(
+                instance.symbolId,
+                profile,
+                document.presentation.grid,
+              ),
+          },
+        }
+      : slot;
     const baseId = `instance-parameter-${instance.id}-${parameter.name}`;
     let id = baseId;
     let suffix = 1;

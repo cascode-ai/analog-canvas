@@ -14,6 +14,11 @@
       "types": "./dist/browser.d.ts",
       "default": "./dist/browser.js"
     },
+    "./browser-fonts": {
+      "development": "./src/browser-fonts.ts",
+      "types": "./dist/browser-fonts.d.ts",
+      "default": "./dist/browser-fonts.js"
+    },
     "./browser-raster": {
       "development": "./src/browser-raster.ts",
       "types": "./dist/browser-raster.d.ts",

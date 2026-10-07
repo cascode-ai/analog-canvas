@@ -21,7 +21,7 @@
     },
     {
       "source": "docs/agent/shared/authoring.md",
-      "sha256": "d9009e617dddd36286597af5557355a22948890a25d224c99be12b862fda74c5"
+      "sha256": "5f5094b8ba7e45447f759165b8d80a5995adcc919e549d4874ba3790da8cc710"
     },
     {
       "source": "docs/agent/workflow.md",
@@ -29,7 +29,7 @@
     },
     {
       "source": "docs/agent/tool-behavior.md",
-      "sha256": "53ba74cd56b1af315b42d124bc0d31c0effbf154edc26145522b11d8a0e419f6"
+      "sha256": "7711eddf497aa2960c6deeddf385660c7a5024ec2352f6252b4b8c27ea87b5da"
     },
     {
       "source": "docs/agent/response-semantics.md",
@@ -41,11 +41,11 @@
     },
     {
       "source": "docs/agent/shared/diagnostics.md",
-      "sha256": "062514760e9834e98325b2f717183740d50fc52cd5cc7b219b3588b1297cfcf0"
+      "sha256": "d49a6ffb8bf4ef0f9d8b4d8b56599da9573dbe564b94d37359c4c3fb5363c83c"
     },
     {
       "source": "fixtures/agent-api/agent-circuit-request.schema.json",
-      "sha256": "726dd20a60de3d87a7fd01696e39a2d092cda7aa06b6331e7d0b86526c7a0d6b"
+      "sha256": "a7c59b0b1d9537b35343297c6c0ee0e7ef5e9a3d2a591882b1bd4a504afad7b5"
     },
     {
       "source": "docs/agent/http-kit/README.md",
@@ -61,7 +61,7 @@
     },
     {
       "source": "packages/agent-adapter/src/agent-authoring-catalog.generated.ts",
-      "sha256": "a96499fc68ecaf0d4b571357ad2a89147b70c7bde8cb46e37836e3bba4fade92"
+      "sha256": "1a3f6521e887e4f3ecdca0facdbfbd432c060b777ce37eb54e50d26b6a84332d"
     },
     {
       "source": "docs/agent/knowledge/circuit-reading.md",
@@ -69,7 +69,7 @@
     },
     {
       "source": "docs/agent/knowledge/hierarchy-and-large-circuits.md",
-      "sha256": "a705c894b24f6e6fb8db34b6a7a259dfbdc3f77127a5937703fe8614aca57d74"
+      "sha256": "12b6ffdbd07e830d6fd057c3b228c1fd31ee1f1b9df445d5e8eb857e773cf342"
     },
     {
       "source": "docs/agent/knowledge/pdk-and-symbols.md",
@@ -93,7 +93,7 @@
     },
     {
       "source": "docs/agent/mcp/tools.md",
-      "sha256": "3983ea468d02ddafb5e067ba0d5077e8d3ae6f4e9591622025c34e0090ce6158"
+      "sha256": "fc6f2d9a7cb6de78421d6e942385e080aedd596eecdfa42b7c5dee9d4ef13c78"
     },
     {
       "source": "docs/agent/mcp/simulation.md",
@@ -113,11 +113,11 @@
     },
     {
       "source": "docs/agent/mcp/tool-help.json",
-      "sha256": "393a2a256d242d8e444cf806dd3fbb7c4260ffdb1ff36af689f7ccea1eae16ee"
+      "sha256": "70b21d6f43060db5dab232ba32b079ce9a3b9704e5c895bcdfa90d2f85e37b65"
     },
     {
       "source": "docs/agent/http-kit/api-help.json",
-      "sha256": "d54372ccddd437996240108889adc240c4df927503794c8c4fa259d82bd79384"
+      "sha256": "38ed5a7597603e30d0afbbf076b3281764d73481d0b50a08ba0021b145ec1d9a"
     },
     {
       "source": "docs/agent/mcp/instructions.md",
@@ -573,7 +573,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/circuit-style-knowledge.md"
       ],
-      "sha256": "8d192d7af0f92b1e1c542a56cdb9548bc2c859424f6e20f8f529ee9ad943c8d7"
+      "sha256": "5047d4e1b93d332845093f8736c14ca594e076c2babef4619ea457bd2568e367"
     },
     {
       "file": "packages/agent-adapter/src/agent-docs.generated.ts",
@@ -602,7 +602,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/circuit-style-knowledge.md"
       ],
-      "sha256": "c995147ea7b1d196511a8af3581b9a8de2ab6d7c016c1c609c35dc8914b9b100"
+      "sha256": "f9c63fb444d53a12ec915feb48b1437e0bd27e39365ce00d4011756cba7c70e8"
     },
     {
       "file": "packages/agent-adapter/src/agent-api-help.generated.ts",
@@ -610,7 +610,7 @@
         "docs/agent/distribution.json",
         "docs/agent/http-kit/api-help.json"
       ],
-      "sha256": "ddfd2230f5130278ed6c465352eaec2e8e65c26e407a3ec378b027c3b7c3308e"
+      "sha256": "3661d87668a3e016518245aeec894f68848fb6564b1a48090646415e960db67b"
     },
     {
       "file": "apps/mcp-server/src/guidance.generated.ts",
@@ -619,7 +619,7 @@
         "docs/agent/mcp/instructions.md",
         "docs/agent/mcp/tool-help.json"
       ],
-      "sha256": "da71043878697e1bee58f9cecbf5639977f5cd4731e358878c936342d8b53913"
+      "sha256": "9a42eb988f86b0ce15137d9edd8f374e4176947122ae8fcfc092c03197cff7ad"
     },
     {
       "file": "apps/editor/src/agent/connection-guidance.generated.ts",

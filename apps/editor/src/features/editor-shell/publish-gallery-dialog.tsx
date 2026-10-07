@@ -9,11 +9,23 @@ import { GitHubMark, GoogleMark } from "../../components/provider-marks";
 import {
   describePublishOutcome,
   GALLERY_DESCRIPTION_LIMIT,
+  type GalleryPublicationRecord,
   type GalleryPublishFields,
   type GalleryPublishOutcome,
+  type GalleryQuota,
   type PublishSessionUser,
 } from "./gallery-publish";
 import { GalleryTopologyCheck } from "./gallery-topology-check";
+
+/** " (in 3 h 12 min)" until the given time, or nothing once it has passed. */
+function untilReset(resetsAt: string, now = Date.now()): string {
+  const minutes = Math.ceil((Date.parse(resetsAt) - now) / 60_000);
+  if (!Number.isFinite(minutes) || minutes <= 0) return "";
+  const hours = Math.floor(minutes / 60);
+  return hours > 0
+    ? ` (in ${hours} h${minutes % 60 ? ` ${minutes % 60} min` : ""})`
+    : ` (in ${minutes} min)`;
+}
 
 /** Suggested tags shown before the "+ …" chip opens the rest. */
 const FOLDED_TAG_PRESETS = 5;
@@ -33,6 +45,8 @@ export interface PublishGalleryDialogProps {
   gateReport?: SubmissionGateReport | null;
   /** Current Cell projected as the duplicate-comparison root. */
   topologyProject?: CircuitProject | null;
+  /** Opened from the duplicate check's notice: show that check's results. */
+  lastCheckRequested?: boolean | undefined;
   /** Present when the current Project is associated with a gallery entry the
    * signed-in user may update (owner, admin, or moderator). */
   updateTarget?: { id: string; name: string } | null;
@@ -44,19 +58,13 @@ export interface PublishGalleryDialogProps {
   } | null;
   /** Whether an Agent worked on this Project: a new entry starts marked AI. */
   agentEdited?: boolean;
+  /** Today's allowance for new entries; absent until it has loaded. */
+  quota?: GalleryQuota | null;
   publish: (fields: GalleryPublishFields) => Promise<GalleryPublishOutcome>;
   publishUpdate?:
     | ((fields: GalleryPublishFields) => Promise<GalleryPublishOutcome>)
     | undefined;
-  onPublished: (outcome: {
-    id: string;
-    name: string;
-    description: string;
-    tags: readonly string[];
-    aiGenerated: boolean;
-    updated: boolean;
-    previewRevision?: string;
-  }) => void;
+  onPublished: (outcome: GalleryPublicationRecord) => void;
   /** Moderators and the entry's owner: open the version history instead.
    * Rendered only alongside an update target. */
   onShowHistory?: (() => void) | undefined;
@@ -102,9 +110,11 @@ export function PublishGalleryDialog({
   session = null,
   gateReport = null,
   topologyProject = null,
+  lastCheckRequested = false,
   updateTarget = null,
   updateDefaults = null,
   agentEdited = false,
+  quota = null,
   publish,
   publishUpdate,
   onPublished,
@@ -209,6 +219,9 @@ export function PublishGalleryDialog({
   // a pasted citation short without a word, and the text was published cut.
   const descriptionLength = description.trim().length;
   const descriptionTooLong = descriptionLength > GALLERY_DESCRIPTION_LIMIT;
+  // An update replaces an entry and spends nothing; a new entry spends one.
+  const quotaSpent =
+    !updating && !!quota && !quota.exempt && quota.remaining <= 0;
 
   const hasDraft =
     description.trim().length > 0 ||
@@ -581,6 +594,18 @@ export function PublishGalleryDialog({
                 ? `Publishing as ${session?.displayName} — this updates the entry in place.`
                 : `Publishing as ${session?.displayName} — it goes up straight away.`}
             </p>
+            {!updating && quota && !quota.exempt ? (
+              <p
+                className="publish-gallery-note"
+                data-testid="publish-quota"
+                data-spent={quotaSpent ? "true" : "false"}
+              >
+                {quotaSpent
+                  ? `Today's ${quota.limit} new entries are published`
+                  : `${quota.remaining} of ${quota.limit} new entries left today`}
+                {` · resets at 00:00 UTC${untilReset(quota.resetsAt)}`}
+              </p>
+            ) : null}
           </>
         )}
         {error ? (
@@ -593,7 +618,10 @@ export function PublishGalleryDialog({
             {signedOut ? "Close" : "Cancel"}
           </button>
           {!signedOut && topologyProject ? (
-            <GalleryTopologyCheck project={topologyProject} />
+            <GalleryTopologyCheck
+              project={topologyProject}
+              lastCheckRequested={lastCheckRequested}
+            />
           ) : null}
           {signedOut ? null : (
             <button
@@ -605,7 +633,8 @@ export function PublishGalleryDialog({
                 publicationLinkLoading ||
                 !!publicationLinkError ||
                 name.trim() === "" ||
-                descriptionTooLong
+                descriptionTooLong ||
+                quotaSpent
               }
               onClick={() => void submit()}
             >

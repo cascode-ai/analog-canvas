@@ -262,12 +262,22 @@ publisher decides either way. A blank Project or one of the person's own Cloud
 Projects that an Agent merely opens is not the Agent's work. The tab remembers
 the Agent's work across reloads, but the Project does not carry it: the same
 Project reopened in another tab or browser starts unticked.
+An Agent can publish or update through the Agent API's Project resource
+(`publish-gallery-entry`, `update-gallery-entry`; MCP `gallery_circuits`
+`publish`/`update`), which drives the same client as the dialog under the
+signed-in Editor session and needs the session scope `gallery.publish`.
+Whatever an Agent publishes or updates this way carries the AI mark; the author
+changes it in the Editor's dialog with a later update.
 Ordinary submissions count against a per-account limit of 100 per UTC day,
 counted from that account's entries created that day that are not in the
 recycle bin: deleting or withdrawing an entry returns its slot, restoring it
 spends the slot again, and a rejected entry keeps it. Admin and moderator
 sessions are exempt — the quota is anti-garbage protection, and curators are
-the ones cleaning up.
+the ones cleaning up. `GET /api/gallery/quota` tells a signed-in session its
+allowance before it fills in a form: `{limit, used, remaining, resetsAt,
+exempt}`, `resetsAt` being the next 00:00 UTC. The publish dialog shows what
+is left for new entries and when it resets, and keeps Publish closed once the
+day's allowance is spent; an update spends nothing and shows none of it.
 
 Publishing authority: a signed-in session is the whole gate. Every
 signed-in account publishes directly as `public`; an ordinary member
@@ -637,6 +647,9 @@ Closing the dialog, changing the drawing, refreshing or closing the page does
 not cancel it. Reopening resumes progress/results within the seven-day retention
 window. Explicit Cancel stops work. A second start while running is refused;
 request identity makes a lost start acknowledgement safe to retry.
+Results of a check of another Project or Cell are not shown in that Cell's
+dialog, only that the last check was of that circuit; a check of the same Cell
+since edited stays, marked historical.
 
 The hosted result retains the best 20 matches within an 8 MiB result budget;
 omissions and incomplete coverage remain explicit. Access does not expose another

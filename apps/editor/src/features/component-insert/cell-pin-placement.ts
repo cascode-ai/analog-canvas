@@ -1,4 +1,9 @@
-import { planCreateCellPin, type SchematicEdit } from "@icm/edit-engine";
+import {
+  freePowerRailLabel,
+  junctionInUse,
+  planCreateCellPin,
+  type SchematicEdit,
+} from "@icm/edit-engine";
 import type { CircuitProject, Instance, SchematicDocument } from "@icm/model";
 import {
   resolveDocumentStyleProfile,
@@ -56,7 +61,7 @@ export function planPlacedCellPin(
             resolveDocumentStyleProfile(document.presentation),
           { formalTerminalId: input.terminalId, formalName: name },
         )[0];
-  return planCreateCellPin(project, documentId, {
+  const plan = planCreateCellPin(project, documentId, {
     instance: input.instance,
     connectionEdits: [
       ...input.connectionEdits,
@@ -78,6 +83,54 @@ export function planPlacedCellPin(
     },
     ...(annotation ? { annotation } : {}),
   });
+  const retired = supply
+    ? retireKeptSupplyPin(document, name, input.netId)
+    : [];
+  return retired.length
+    ? plan.map((entry) =>
+        entry.kind === "transact_document" && entry.documentId === documentId
+          ? { ...entry, edits: [...entry.edits, ...retired] }
+          : entry,
+      )
+    : plan;
+}
+
+/**
+ * A body reset or clear-drawing keeps a rail's VDD label and its Pin for the
+ * Cell's callers. A VDD marker placed for that supply takes their place, as a
+ * redrawn rail takes the label over (#1410): the supply's Net becomes the
+ * marker's, keeping whatever stands on it, and the kept label, its Pin and
+ * the Junction it stood on go. The Pin's name stays, so the Cell's symbol and
+ * its callers keep the Pin they know.
+ */
+function retireKeptSupplyPin(
+  document: SchematicDocument,
+  name: string,
+  markerNetId: string,
+): SchematicEdit[] {
+  const label = freePowerRailLabel(document, { netName: name, scope: "local" });
+  const pin = document.netlist?.terminals.find(
+    (terminal) => terminal.interfaceAnnotationId === label?.id,
+  );
+  if (!label || !pin) return [];
+  // The label stood on a Junction no rail reaches; it goes with the label
+  // unless something else still uses it.
+  const junctionId =
+    label.anchor.kind === "object" ? label.anchor.objectId : undefined;
+  const unlabelled = {
+    ...document,
+    annotations: document.annotations.filter((item) => item.id !== label.id),
+  };
+  return [
+    { kind: "merge_nets", targetNetId: pin.netId, sourceNetId: markerNetId },
+    { kind: "remove_schematic_annotation", annotationId: label.id },
+    { kind: "remove_cell_terminal", terminalId: pin.id },
+    ...(junctionId !== undefined &&
+    document.junctions.some((junction) => junction.id === junctionId) &&
+    !junctionInUse(unlabelled, junctionId)
+      ? [{ kind: "remove_junction" as const, junctionId }]
+      : []),
+  ];
 }
 
 /**

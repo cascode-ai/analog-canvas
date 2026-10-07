@@ -1,11 +1,18 @@
-import { transformPoint } from "@icm/model";
-import type { Annotation, Point, Rect, SchematicDocument } from "@icm/model";
+import { flattenRichText, transformPoint } from "@icm/model";
+import type {
+  Annotation,
+  Point,
+  Rect,
+  RichTextDocument,
+  SchematicDocument,
+} from "@icm/model";
 import { resolveInstanceSymbol, type SymbolResolver } from "@icm/symbols";
 import {
   isSchematicAnnotationVisible,
   resolveAnnotationPresentation,
   type AnnotationPresentation,
 } from "./annotation-presentation.js";
+import { resolveAnnotationText } from "./annotation-text.js";
 import {
   contactRequiresJunctionDot,
   deriveDocumentContactEvidence,
@@ -18,18 +25,26 @@ import {
 } from "./drafting-geometry.js";
 import { resolveDocumentLogicalNets } from "./logical-net.js";
 import { resolveDocumentRoutingGeometry } from "./resolved-route-geometry.js";
+import { measureLabelText, richTextMetrics } from "./rich-text-layout.js";
 import { intersectSegments } from "./segment-geometry.js";
 import {
   buildBoundsSpatialIndex,
   buildDocumentSpatialIndex,
 } from "./spatial-index.js";
-import { resolveDocumentStyleProfile } from "./style-profile.js";
-import type { VisualDiagnostic } from "./visual.js";
+import {
+  objectStyleProfile,
+  resolveDocumentStyleProfile,
+} from "./style-profile.js";
+import { partName, type VisualDiagnostic } from "./visual.js";
 
 /** Least gap between two labels side by side, about a word space. */
 const LABEL_WORD_SPACE = 4;
 /** Least gap between two labels one above the other. */
 const LABEL_LINE_SPACE = 1;
+/** One figure: two parts' labels closer than its width on a row run on. */
+const RUN_ON_FIGURE: RichTextDocument = {
+  runs: [{ kind: "text", value: "0" }],
+};
 
 /**
  * Each placed part's drawn extent as a label sees it: the ink the default
@@ -311,7 +326,7 @@ export function diagnoseLabelClearance(
         ]
       : [];
   });
-  return [...labelFindings(), ...struck];
+  return [...labelFindings(), ...runOnLabels(document, context), ...struck];
 
   function labelFindings() {
     return context.visible.flatMap((annotation) => {
@@ -363,6 +378,110 @@ export function diagnoseLabelClearance(
       return diagnostics;
     });
   }
+}
+
+/** A part's name or value, as a run-on reads it. */
+interface RowLabel {
+  readonly annotation: Annotation;
+  readonly owner: string;
+  readonly ink: Rect;
+  /** A figure's width at the label's size: less between labels runs on. */
+  readonly figure: number;
+}
+
+/**
+ * Two parts' names or values on one row, less than a figure apart, read as
+ * one string, and a reader pairs a name with the wrong value: C3's 637pF
+ * beside C5's 197pF read "637pF 197pF", and an LC ladder's values ran along
+ * its bottom row as one (#1412). A part's own labels are left alone, and
+ * labels drawn over each other are VISUAL_LABEL_OVERLAP's.
+ */
+function runOnLabels(
+  document: SchematicDocument,
+  context: ReturnType<typeof createLabelClearanceContext>,
+): VisualDiagnostic[] {
+  const style = resolveDocumentStyleProfile(document.presentation);
+  const parts = new Set(document.instances.map((instance) => instance.id));
+  const labels = new Map<string, RowLabel>();
+  for (const annotation of context.visible) {
+    const owner =
+      annotation.anchor.kind === "object"
+        ? annotation.anchor.objectId
+        : undefined;
+    if (
+      (annotation.kind !== "instance-label" &&
+        annotation.kind !== "instance-value") ||
+      annotation.rotation !== 0 ||
+      !owner ||
+      !parts.has(owner)
+    )
+      continue;
+    const fontSize =
+      objectStyleProfile(style, annotation).typography.instanceFontSize *
+      (annotation.sizeScale ?? 1);
+    labels.set(annotation.id, {
+      annotation,
+      owner,
+      ink: context.measure(annotation).inkBounds,
+      figure: measureLabelText(RUN_ON_FIGURE, {
+        ...richTextMetrics(style, "label"),
+        fontSize,
+      }).width,
+    });
+  }
+  const reach = Math.max(
+    0,
+    ...[...labels.values()].map((label) => label.figure),
+  );
+  const named = ({ annotation, owner }: RowLabel) =>
+    `${partName(document, owner)}'s ${
+      annotation.kind === "instance-value" ? "value" : "name"
+    } "${flattenRichText(resolveAnnotationText(document, annotation))}"`;
+  const findings: VisualDiagnostic[] = [];
+  for (const left of labels.values())
+    for (const id of context.labelsWithin(
+      left.ink,
+      left.annotation.id,
+      reach,
+    )) {
+      const right = labels.get(id);
+      if (!right || right.owner === left.owner) continue;
+      // Each pair once, read from left to right.
+      const gap = right.ink.x - (left.ink.x + left.ink.width);
+      const threshold = Math.max(left.figure, right.figure);
+      const top = Math.max(left.ink.y, right.ink.y);
+      const bottom = Math.min(
+        left.ink.y + left.ink.height,
+        right.ink.y + right.ink.height,
+      );
+      // One row: the two overlap by half a line or more.
+      const oneRow =
+        bottom - top >= Math.min(left.ink.height, right.ink.height) / 2;
+      if (gap < 0 || gap >= threshold || !oneRow) continue;
+      const units = Math.round(gap);
+      const y = Math.min(left.ink.y, right.ink.y);
+      findings.push({
+        code: "VISUAL_LABEL_RUN_ON",
+        severity: "info",
+        category: "observation",
+        confidence: "low",
+        gateEligible: false,
+        message: `${named(left)} and ${named(right)} share a line ${units} unit${units === 1 ? "" : "s"} apart and read as one`,
+        objectIds: [left.annotation.id, right.annotation.id],
+        bounds: {
+          x: left.ink.x,
+          y,
+          width: right.ink.x + right.ink.width - left.ink.x,
+          height:
+            Math.max(
+              left.ink.y + left.ink.height,
+              right.ink.y + right.ink.height,
+            ) - y,
+        },
+        parameters: { gap, reviewThreshold: threshold },
+      });
+    }
+  return findings;
 }
 
 function overlap(a: Rect, b: Rect): boolean {

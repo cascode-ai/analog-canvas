@@ -287,6 +287,22 @@ describe("Agent property actions are planned as Apply in Properties", () => {
       );
   });
 
+  it("refuses an upper-case M before a unit with both readings (#1409)", async () => {
+    const { apply, refuse, instance } = await session();
+    await apply([
+      { ...place("resistor", "R1", 100), parameters: { value: "1k" } },
+    ]);
+    const target = { kind: "instance", reference: "R1" };
+    expect(
+      await refuse([{ kind: "set-property", target, set: { value: "1MΩ" } }]),
+    ).toContain(
+      'Parameter "value" is "1MΩ", which reads as 1 mΩ in SPICE (M is milli): write 1MegΩ for mega or 1mΩ for milli',
+    );
+    expect(instance("R1").netlist?.parameters.value).toBe("1k");
+    await apply([{ kind: "set-property", target, set: { value: "1MegΩ" } }]);
+    expect(instance("R1").netlist?.parameters.value).toBe("1MegΩ");
+  });
+
   it("refuses spice.* keys and names the parameters the model owns", async () => {
     const { apply, refuse } = await session();
     await apply([place("nmos", "M1", 100)]);

@@ -1,3 +1,5 @@
+import { inflateSync } from "node:zlib";
+
 import { parseSavedProject } from "./editor-fixtures";
 import { expect, test } from "@playwright/test";
 import type { Locator, Page } from "@playwright/test";
@@ -913,6 +915,15 @@ test("edits an unrestricted device formula in the same visual annotation", async
     .getByTestId("schematic-canvas")
     .click({ position: { x: 360, y: 240 } });
   await page.keyboard.press("Escape");
+  // Labels are drawn in the face they are measured in, DejaVu Sans, which
+  // the page serves where the system has none (#1413).
+  expect(
+    await page.evaluate(async () =>
+      (await document.fonts.load('italic bold 20px "DejaVu Sans"', "R")).map(
+        (face) => face.status,
+      ),
+    ),
+  ).toEqual(["loaded"]);
   await page.getByTestId("annotation-hit-instance-label-R1").dblclick();
   await page.getByRole("checkbox", { name: "Use display alias" }).check();
   await page.getByRole("button", { name: "Insert formula" }).click();
@@ -943,17 +954,29 @@ test("edits an unrestricted device formula in the same visual annotation", async
   await expect(
     labelFormula.locator("tspan", { hasText: /^1$/u }).first(),
   ).toHaveAttribute("font-style", "normal");
-  // The PDF's built-in fonts encode Latin-1 only: the minus and ω come from
-  // an embedded subset of DejaVu Sans, not as other characters, and the
-  // export leaves no font behind in the page.
-  const pdf = (await downloadBytes(page, "File", "Export PDF")).toString(
-    "latin1",
-  );
-  expect(pdf).toContain("/FontName /ICM#20Unicode");
+  // All text, the minus and ω with it, is an embedded subset of DejaVu
+  // Sans, as the page draws it: none in a built-in face, whose Latin-1 would
+  // turn them into other characters. The export leaves no font in the page.
+  const pdfBytes = await downloadBytes(page, "File", "Export PDF");
+  const pdf = pdfBytes.toString("latin1");
+  expect(pdf).toContain("/FontName /ICM#20Schematic");
   expect(pdf).toContain("/FontFile2");
+  // The embedded face maps the label's Latin R too, not only its ω.
+  const unicodeMaps = [...pdf.matchAll(/stream\r?\n/gu)].flatMap((match) => {
+    const start = match.index + match[0].length;
+    const end = pdf.indexOf("endstream", start);
+    try {
+      return [inflateSync(pdfBytes.subarray(start, end)).toString("latin1")];
+    } catch {
+      return [];
+    }
+  });
+  expect(
+    unicodeMaps.filter((stream) => stream.includes("begincmap")),
+  ).toContainEqual(expect.stringMatching(/<0052>/iu));
   expect(
     await page.evaluate(() =>
-      [...document.fonts].some((face) => face.family === "ICM Unicode"),
+      [...document.fonts].some((face) => face.family === "ICM Schematic"),
     ),
   ).toBe(false);
   const project = parseSavedProject(

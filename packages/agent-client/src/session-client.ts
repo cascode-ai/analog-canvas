@@ -1086,6 +1086,8 @@ export class AgentSessionClient {
   async geometrySnapshot(
     objectIds: readonly string[],
     documentId?: string,
+    /** Measure each annotation's drawn text too (an editor with #1414). */
+    options: { textBounds?: boolean } = {},
   ): Promise<z.infer<typeof AgentGeometrySnapshotResponseSchema>> {
     if (objectIds.length < 1 || objectIds.length > 64)
       throw new AgentSessionError(
@@ -1101,6 +1103,7 @@ export class AgentSessionClient {
       documentId: target,
       projection: "geometry",
       geometryIds: ids,
+      ...(options.textBounds ? { textBounds: true } : {}),
     });
     if (!response.ok)
       throw new AgentSessionError(

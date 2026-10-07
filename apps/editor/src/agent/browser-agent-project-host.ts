@@ -32,6 +32,7 @@ import {
 import { GALLERY_SIGN_IN_REQUIRED, loadGalleryFeed } from "../gallery-client";
 import { planNetlistCodeEdit } from "../features/netlist-export/netlist-code-edit";
 import { importChunk } from "../components/chunk-import";
+import type { AgentGalleryPublishRequest } from "./agent-gallery-publish";
 import { prepareDocumentFormulaArtifacts } from "../features/text-editing/formula-artifacts";
 import { captureGalleryDrawing } from "../features/editor-shell/gallery-import";
 import {
@@ -69,6 +70,10 @@ export interface BrowserAgentProjectHostOptions {
     actor: { kind: "agent"; id: string };
     edits: ProjectStructureEdit[];
   }) => ProjectTransactionResult;
+  /** Publish to Gallery for an Agent (createAgentGalleryPublisher). */
+  publishToGallery?: (
+    request: AgentGalleryPublishRequest,
+  ) => Promise<AgentProjectResourceResponse>;
 }
 
 /** Browser authority for the signed-in Cloud Project shelf and live Project. */
@@ -164,6 +169,19 @@ export class BrowserAgentProjectHost {
     }
     if (request.operation === "read-gallery-entries") {
       return this.readGalleryEntries(request);
+    }
+    if (
+      request.operation === "publish-gallery-entry" ||
+      request.operation === "update-gallery-entry"
+    ) {
+      return this.options.publishToGallery
+        ? this.options.publishToGallery(request)
+        : this.error(
+            request,
+            "GALLERY_PUBLISH_UNAVAILABLE",
+            "This Editor cannot publish to the Gallery",
+            "refresh",
+          );
     }
     if (request.operation === "read-project-code") {
       const project = this.options.getProject();

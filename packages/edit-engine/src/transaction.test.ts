@@ -1465,6 +1465,49 @@ describe("Edit Transaction envelope", () => {
     ).toHaveLength(1);
   });
 
+  it("keeps a controlled source sensing a Net that merges into another", () => {
+    const document = createEmptyDocument("document-main", "Main");
+    document.instances.push({
+      id: "G1",
+      reference: "G1",
+      symbolId: "vccs",
+      placement: null,
+      netlist: {
+        parameters: { gm: "1m" },
+        control: {
+          kind: "voltage",
+          positiveNetId: "net-b",
+          negativeNetId: "net-e",
+        },
+      },
+    });
+    document.nets.push(
+      { id: "net-b", terminals: [] },
+      { id: "net-e", terminals: [] },
+      { id: "net-rest", terminals: [] },
+    );
+
+    const result = executeTransaction(document, {
+      ...transaction(),
+      edits: [
+        {
+          kind: "merge_nets",
+          targetNetId: "net-rest",
+          sourceNetId: "net-e",
+        },
+      ],
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.document.instances[0]!.netlist!.control).toEqual({
+      kind: "voltage",
+      positiveNetId: "net-b",
+      negativeNetId: "net-rest",
+    });
+    expect(result.diff.changedObjectIds).toContain("G1");
+  });
+
   it("upserts and removes Net-name provenance with final-Net GC", () => {
     const document = createEmptyDocument("document-main", "Main");
     document.nets.push({

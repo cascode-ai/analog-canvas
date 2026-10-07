@@ -19,8 +19,19 @@ import type { CircuitProject, SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 import type { AgentSemanticIntent, AgentAuthoringCommand } from "./schema.js";
 
+/** Something a plan wants its caller told, beside its edits (info). */
+export interface AgentCommandPlanNote {
+  code: string;
+  message: string;
+  objectIds: readonly string[];
+}
+
 export type AgentCommandPlan =
-  | { edits: readonly SchematicEdit[]; sourceActions?: readonly number[] }
+  | {
+      edits: readonly SchematicEdit[];
+      sourceActions?: readonly number[];
+      notes?: readonly AgentCommandPlanNote[];
+    }
   | {
       structureEdits: readonly ProjectStructureEdit[];
       sourceActions?: readonly number[];

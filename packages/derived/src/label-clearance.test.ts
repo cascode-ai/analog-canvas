@@ -1,4 +1,4 @@
-import { expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { createEmptyDocument, createRoutePath } from "@icm/model";
 import type { RichTextDocument } from "@icm/model";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
@@ -506,4 +506,257 @@ it("keeps a label off an adder's sign marks, which are its ink (#1324)", () => {
   const obstacle = subtracting.symbols.find((item) => item.id === "sum")!;
   // The plus reaches 3.8 units left of x = 78.5; one unit of padding.
   expect(obstacle.bounds.x).toBeCloseTo(100 - 21.5 - 3.8 - 1, 6);
+});
+
+it("measures a value by its glyphs' outlines as the label advance tables set them (#1413)", () => {
+  // Gallery #92: CT1's value 1.33pF beside its plates, which end at
+  // x 278.05; with a unit of padding a label must start at 279.05.
+  const doc = createEmptyDocument("d", "Doherty");
+  doc.instances.push({
+    id: "CT1",
+    symbolId: "capacitor",
+    reference: "CT1",
+    placement: { position: { x: 270, y: 100 }, rotation: 0, mirror: "none" },
+  });
+  const valueAt = (alignment: "start" | "end", x: number) => {
+    doc.annotations = [
+      {
+        id: "value",
+        kind: "instance-value",
+        content: {
+          runs: [
+            {
+              kind: "span",
+              style: "bold",
+              children: [{ kind: "text", value: "1.33pF" }],
+            },
+          ],
+        },
+        anchor: {
+          kind: "object",
+          objectId: "CT1",
+          localOffset: { x: x - 270, y: 5 },
+          fallbackPosition: { x, y: 105 },
+        },
+        alignment,
+        rotation: 0,
+        locked: false,
+      },
+    ];
+    doc.revision += 1;
+    return {
+      ink: createLabelClearanceContext(doc, resolver).measure(
+        doc.annotations[0]!,
+      ).inkBounds,
+      findings: diagnoseLabelClearance(doc, resolver).map((d) => [
+        d.code,
+        d.objectIds,
+      ]),
+    };
+  };
+  const overPlates = [["VISUAL_LABEL_CLEARANCE", ["value", "CT1"]]];
+  // DejaVu Sans Bold sets it 58.14 wide; its 1 stands 1.70 into its
+  // advance, so ending at 333 its ink starts at 276.56, over the plates...
+  const close = valueAt("end", 333);
+  expect(close.ink.x).toBeCloseTo(276.56, 1);
+  expect(close.findings).toEqual(overPlates);
+  // ...and ending at 336, at 279.56, clear of them. The F stops 1.27
+  // short of the end.
+  const clear = valueAt("end", 336);
+  expect(clear.ink.x).toBeCloseTo(279.56, 1);
+  expect(clear.ink.x + clear.ink.width).toBeCloseTo(334.73, 1);
+  expect(clear.findings).toEqual([]);
+  // A start-aligned value stands on its anchor by the same bearing: CT2's
+  // spot 12 right of the centre is clear, 6 right of it is not.
+  expect(valueAt("start", 282).findings).toEqual([]);
+  const over = valueAt("start", 276);
+  expect(over.ink.x).toBeCloseTo(277.7, 1);
+  expect(over.findings).toEqual(overPlates);
+});
+
+describe("labels that run on (#1412)", () => {
+  const bold = (value: string): RichTextDocument => ({
+    runs: [
+      { kind: "span", style: "bold", children: [{ kind: "text", value }] },
+    ],
+  });
+  /** A Reference's standard look: a slanted letter over an upright index. */
+  const reference = (letter: string, index: string): RichTextDocument => ({
+    runs: [
+      { kind: "span", style: "italic", children: bold(letter).runs },
+      { kind: "span", style: "subscript", children: bold(index).runs },
+    ],
+  });
+  function drawing() {
+    const doc = createEmptyDocument("d", "Run-on");
+    const part = (
+      id: string,
+      symbolId: string,
+      x: number,
+      y: number,
+      rotation: 0 | 90 = 0,
+    ) =>
+      doc.instances.push({
+        id,
+        reference: id,
+        symbolId,
+        placement: { position: { x, y }, rotation, mirror: "none" },
+      });
+    /** A part's name or value, its anchor at (x, y). */
+    const label = (
+      owner: string,
+      slot: "name" | "value",
+      content: RichTextDocument,
+      alignment: "start" | "middle" | "end",
+      x: number,
+      y: number,
+    ) => {
+      const at = doc.instances.find((i) => i.id === owner)!.placement!.position;
+      doc.annotations.push({
+        id: `${owner}-${slot}`,
+        kind: slot === "name" ? "instance-label" : "instance-value",
+        content,
+        anchor: {
+          kind: "object",
+          objectId: owner,
+          localOffset: { x: x - at.x, y: y - at.y },
+          fallbackPosition: { x, y },
+        },
+        alignment,
+        rotation: 0,
+        locked: false,
+      });
+    };
+    const runOn = () => {
+      doc.revision += 1;
+      return diagnoseLabelClearance(doc, resolver).filter(
+        (d) => d.code === "VISUAL_LABEL_RUN_ON",
+      );
+    };
+    /**
+     * Start-aligned labels along one baseline, each one's ink `gap` after
+     * the one before it, as measured.
+     */
+    const row = (ids: readonly string[], y: number, gap: number) => {
+      let end = 0;
+      for (const id of ids) {
+        const annotation = doc.annotations.find((a) => a.id === id)!;
+        const ink = createLabelClearanceContext(doc, resolver).measure(
+          annotation,
+        ).inkBounds;
+        const anchor = annotation.anchor;
+        if (anchor.kind !== "object") throw new Error(id);
+        const x = anchor.fallbackPosition.x;
+        const start = end ? end + gap - (ink.x - x) : x;
+        const owner = doc.instances.find((i) => i.id === anchor.objectId)!
+          .placement!.position;
+        annotation.anchor = {
+          ...anchor,
+          localOffset: { x: start - owner.x, y: y - owner.y },
+          fallbackPosition: { x: start, y },
+        };
+        end = start + (ink.x - x) + ink.width;
+      }
+    };
+    return { doc, part, label, runOn, row };
+  }
+
+  it("reports two parts' values a few units apart on one line", () => {
+    // #53, a Butterworth ladder: C3's value start-aligned beside it, C5's
+    // end-aligned to its left.
+    const { doc, part, label, runOn } = drawing();
+    part("C3", "capacitor", 260, 60);
+    part("C5", "capacitor", 392, 60);
+    label("C3", "value", bold("637pF"), "start", 272, 65);
+    label("C5", "value", bold("197pF"), "end", 380, 65);
+    expect(runOn()).toEqual([
+      expect.objectContaining({
+        severity: "info",
+        category: "observation",
+        gateEligible: false,
+        objectIds: ["C3-value", "C5-value"],
+        message:
+          'C3\'s value "637pF" and C5\'s value "197pF" share a line 6 units apart and read as one',
+      }),
+    ]);
+    // Where #53 had C5, DejaVu Sans sets the two over each other: that is
+    // VISUAL_LABEL_OVERLAP's, and not reported twice.
+    doc.instances[1]!.placement!.position.x = 380;
+    expect(runOn()).toEqual([]);
+    expect(
+      diagnoseVisualQuality(doc, resolver)
+        .filter((d) => d.code === "VISUAL_LABEL_OVERLAP")
+        .map((d) => d.objectIds),
+    ).toEqual([["C3-value", "C5-value"]]);
+  });
+
+  it("reports a name beside another part's value", () => {
+    // #63, an L-match: C1's name beside it, L1's value centred under the
+    // coil.
+    const { part, label, runOn } = drawing();
+    part("C1", "capacitor", 150, 40);
+    part("L1", "inductor", 214, 20, 90);
+    label("C1", "name", reference("C", "1"), "start", 162, 45);
+    label("L1", "value", bold("31.8nH"), "middle", 214, 46);
+    expect(runOn().map((d) => d.message)).toEqual([
+      'C1\'s name "C1" and L1\'s value "31.8nH" share a line 4 units apart and read as one',
+    ]);
+  });
+
+  it("reports an LC ladder's names and values running along their rows", () => {
+    // Each series coil's labels centred under the line, on the rows of its
+    // shunt capacitors' labels.
+    const { part, label, runOn, row } = drawing();
+    const ladder = [
+      ["C1", "capacitor", "38.1pF"],
+      ["L2", "inductor", "115nH"],
+      ["C3", "capacitor", "68pF"],
+      ["L4", "inductor", "129nH"],
+    ] as const;
+    ladder.forEach(([id, symbolId, value], index) => {
+      part(
+        id,
+        symbolId,
+        100 + index * 100,
+        60,
+        symbolId === "inductor" ? 90 : 0,
+      );
+      label(id, "name", reference(id[0]!, id[1]!), "start", 0, 95);
+      label(id, "value", bold(value), "start", 0, 115);
+    });
+    row(
+      ladder.map(([id]) => `${id}-name`),
+      95,
+      6,
+    );
+    row(
+      ladder.map(([id]) => `${id}-value`),
+      115,
+      5,
+    );
+    expect(runOn().map((d) => d.objectIds)).toEqual([
+      ["C1-name", "L2-name"],
+      ["C1-value", "L2-value"],
+      ["L2-name", "C3-name"],
+      ["L2-value", "C3-value"],
+      ["C3-name", "L4-name"],
+      ["C3-value", "L4-value"],
+    ]);
+  });
+
+  it("leaves a part's own labels and labels a figure apart alone", () => {
+    const { part, label, runOn, row } = drawing();
+    part("R1", "resistor", 100, 100);
+    part("R2", "resistor", 300, 100);
+    label("R1", "name", reference("R", "1"), "start", 0, 105);
+    label("R1", "value", bold("1k"), "start", 0, 105);
+    label("R2", "value", bold("2k"), "start", 0, 105);
+    // R1's name and value run on, as one part's are drawn on purpose; R2's
+    // value stands a figure's width (9.6 units) clear of them.
+    row(["R1-name", "R1-value"], 105, 3);
+    row(["R1-value", "R2-value"], 105, 10);
+    expect(runOn()).toEqual([]);
+    row(["R1-value", "R2-value"], 105, 9);
+    expect(runOn().map((d) => d.objectIds)).toEqual([["R1-value", "R2-value"]]);
+  });
 });

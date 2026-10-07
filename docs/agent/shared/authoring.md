@@ -101,6 +101,10 @@ targets to avoid full-Snapshot name resolution. Names remain supported when usef
   explicit RichText to restyle it. Fractions/formulas need explicit RichText
   for a structural replacement, not a lossy plain-text projection.
   Transformer parameter keys are `k/lp/ls`; T-Coil keys are `k/l1/l2/cb`.
+  A MOS or BJT shows its multiplier with `showParameters:{m:true}`: "×8"
+  with its name, bound to `m`, as bandgap and mirror figures print it. A
+  MOS's shown W/L already prints its ×m, so the label appears only while
+  the W/L is hidden, a text row under the name.
 - Use `set-model` with the product's reviewed target, the full library name
   such as `sky130_fd_pr__nfet_01v8`. In a SKY130 Project the short name the
   Netlist panel shows (`nfet_01v8`) means the same device. SKY130 MOS targets
@@ -118,12 +122,28 @@ targets to avoid full-Snapshot name resolution. Names remain supported when usef
   information, `GENERIC_DIODE_MODEL`, naming the diodes. A `.model DIODE` in
   a simulation folder's own files replaces the card in that folder's runs.
   For a real device, `set-model` the diode to its own model.
+- A BJT placed in Abstract or Custom, or `set-model` to `NPN` or `PNP`, takes
+  the generic `NPN` or `PNP` in the same way: one
+  `.model NPN NPN(IS=1e-16 BF=100 VAF=100)` or
+  `.model PNP PNP(IS=1e-16 BF=50 VAF=50)` card per Cell, reported as
+  information, `GENERIC_BJT_MODEL`, and replaced by a `.model NPN` or
+  `.model PNP` in a folder's own files. For a real device, `set-model` the
+  transistor to its own model.
+- A MOS bound to the generic `NMOS` or `PMOS` (Abstract, Custom), and a
+  voltage-controlled switch bound to the generic `SW`, get no card. The
+  SPICE netlist reports them as information, `GENERIC_MODEL_UNDEFINED`,
+  until a `.model NMOS …`, `.model PMOS …` or `.model SW SW(…)` in the
+  simulation folder's files defines it; or `set-model` the part to a real
+  model.
 - `place-component` and `set-property` refuse a parameter the part does not
   take (naming the one it most likely meant), a value outside a choice list,
   and a quantity that is neither a SPICE number (`1k`, `2.5n`, `9kΩ`) nor an
   expression in braces (`{vdd/2}`), nor a word it takes, such as a
-  comparator's `vhigh:"VDD"`. Write micro as `u`. The same checks run on
-  stored values, as Cell diagnostics.
+  comparator's `vhigh:"VDD"`. Write micro as `u`, and mega as `Meg`: SPICE
+  reads `M` as milli in either case, so an upper-case `M` before a unit
+  (`1MΩ`, `10MHz`) is refused, naming both readings (`1MegΩ`, `1mΩ`). The
+  same checks run on stored values, as Cell diagnostics, and the netlist
+  warns of such a value as `MILLI_SCALE_VALUE`.
 - An adder input subtracts by its sign, a choice: `signA`/`signB` `"-"`
   (default `"+"`), so V_hold − V_DAC is one adder with `signB:"-"`, drawn
   with its + and − marks, not an adder after a −1 gain block.
@@ -189,6 +209,10 @@ not a control expression or a second `displayExpression` property.
 Full Snapshot and selected-pin projections return the authored
 `instance.netlist.control`, including incomplete selections. Missing targets or
 incomplete controls are not simulation-ready; review netlist diagnostics.
+A voltage control follows its Nets when they merge, as when a wire is redrawn
+and the Net takes another ID. A sensed Net that is deleted outright is reported
+as `INVALID_CONTROL_NET`, naming the source and its side (+ or −); select that
+source's control Nets again.
 Use catalog parameter names/units (`gain`, `gm` in S, `rm` in ohms),
 not the visual formula as a simulator expression. Raw HTTP uses native
 `place-components` with `instances[].netlist.control` or the typed
@@ -295,6 +319,13 @@ label drawn on a wire stays where it was drawn, now free, so the netlist keeps
 its name; a current or voltage marker drawn on a wire goes with the wire. A
 supply rail's own label stays as well: it carries the supply's name and, for a
 local rail, the Cell's supply Pin. The receipt lists every label it moved.
+To redraw a Cell in one call, `reset-cell` with `reset-body` removes every
+part, wire, rail, Junction and label except the Cell's formal interface: its
+Pins, their markers and a local rail's supply label stay, so callers keep
+their pins. A rail drawn again for a supply whose label was kept, after either
+reset, takes that label and its Pin over instead of adding a second label; a
+VDD Pin marker placed for it instead takes the supply's Net, and the kept
+label, its Pin and their Junction go.
 `delete` uses the GUI selection-deletion planner, including owned displays and
 formal interface declarations. `delete-selection` deletes multiple explicit
 object IDs in one transaction. They are nested in `selection`, one list per
@@ -322,13 +353,21 @@ labels may slide along its side to fit between two rows of wiring; they keep
 a word's space from other labels, a little space from junction dots, and
 stay on their part's side of any wire but its own. While another place is
 clear, a value does not stand just under or after another part's name, where
-it would read as that part's. Where parts
+it would read as that part's, and no label stands within about a character
+(10 units) of another part's label on its row, where the two read as one run.
+A two-terminal part drawn along a horizontal wire, such as a ladder's series
+inductor, takes the clear side above the wire when its labels below would
+stand in a row with those of a part wired to it. Where parts
 sit too close for both, the value is the one left touching a wire; hide values
 with `set-instance-display` or move the parts apart. A requested Port's name
 that a part or wire now covers moves to the first clear one of its sides. Set `compact:false` or `avoidCollisions:false` to disable
 either part; `referenceStyle:"first-letter-subscript"` optionally displays
-`RBIAS` as an R with BIAS subscript without changing the Reference. Manual/free,
-locked, hidden and custom-styled labels are preserved. This is not an autorouter
+`RBIAS` as an R with BIAS subscript without changing the Reference, and gives
+a requested Port's name that has no look of its own the look a Port placed
+with that name gets (`vrfp` as V_rfp). Manual/free,
+locked, hidden and custom-styled labels are preserved, and the receipt names
+each visible one left in place and why (`LABELS_LEFT_IN_PLACE`, information);
+`includeManual:true` re-places labels moved by hand too. This is not an autorouter
 or a whole-drawing beautifier. Informational label-clearance/owner-distance
 observations may remain and never gate editing. New Net labels use the GUI's
 standard side/alignment; existing explicit label moves retain their semantics.
@@ -338,10 +377,12 @@ To give a drawing a textbook figure's labels in one step, `circuit_text` /
 - every MOS transistor hides its W/L, as `set-instance-display` with
   `showValue:false` hides it (three- and four-terminal and DMOS alike);
 - resistor, capacitor, inductor and source values stay as they are, and
-  nothing hidden is shown;
+  nothing else hidden is shown;
+- a MOS or BJT whose multiplier `m` is not 1 shows it as ×m with its name,
+  bound to `m`, since the W/L that carried it is hidden;
 - then the labels are arranged as `arrange-labels` with
   `referenceStyle:"first-letter-subscript"` arranges them, names in their role
-  look (R_L, I_SS, M_1); the space the hidden W/L took counts as free.
+  look (R_L, I_SS, M_1, V_in); the space the hidden W/L took counts as free.
 
 It applies to every placed part of the Cell, or to the parts given as
 `targets` (`[{kind:"instance",reference:"M1"}]`, or `id`; native
@@ -351,8 +392,12 @@ their place and look. Parts placed later still show their W/L. Over the edit
 limit, nothing changes and `LIMIT_EXCEEDED` names the leading parts that fit
 (`fittingParts`); apply it to those, then to the rest.
 
-The focused `circuit_text` action `move-annotation` sets an absolute position;
-the legacy `apply_actions` annotation `move` uses the same semantics, while
+The focused `circuit_text` action `move-annotation` sets an absolute position,
+and with `alignment` (`start`, `middle` or `end`) which end of the text
+stands there, so a label moved to a part's other side needs no width
+(geometry `inspect` with `textBounds:true` reads a drawn label's box when it
+matters); the legacy `apply_actions` annotation `move` uses the same semantics, without
+`alignment`, while
 `transform` supports translation. These preserve ownership and electrical
 binding. A Net label moved beside its own wire, along a segment and within 20
 units of it, stays attached to that wire where it was put and follows it;

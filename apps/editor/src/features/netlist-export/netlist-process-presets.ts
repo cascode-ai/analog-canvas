@@ -2,7 +2,11 @@ import {
   deviceDescriptor,
   reviewedExternalBindingForMaster,
 } from "@icm/devices";
-import { GENERIC_DIODE_MODEL } from "@icm/netlist";
+import {
+  GENERIC_DIODE_MODEL,
+  GENERIC_NPN_MODEL,
+  GENERIC_PNP_MODEL,
+} from "@icm/netlist";
 export const NETLIST_PROFILE_IDS = [
   "abstract",
   "sky130",
@@ -198,9 +202,9 @@ export interface NetlistExportProfile {
 const GENERIC_TARGETS: Partial<Record<NetlistDeviceFamily, string>> = {
   nmos: "NMOS",
   pmos: "PMOS",
-  npn: "NPN",
-  pnp: "PNP",
-  // The netlist defines this one itself while nothing else does.
+  // The netlist defines these three itself while nothing else does.
+  npn: GENERIC_NPN_MODEL.name,
+  pnp: GENERIC_PNP_MODEL.name,
   diode: GENERIC_DIODE_MODEL.name,
   switch: "SW",
 };

@@ -6,7 +6,11 @@ import {
 } from "@icm/math-typesetting/cache";
 
 import type { SchematicStyleProfile } from "./style-profile.js";
-import { fractionTextAdvanceEm } from "./fraction-text-metrics.js";
+import {
+  fractionTextAdvanceEm,
+  schematicTextAdvanceEm,
+  schematicTextInkEm,
+} from "./fraction-text-metrics.js";
 import {
   layoutLabelFormula,
   type LabelFormulaLayout,
@@ -76,6 +80,33 @@ export interface RichTextLayout {
   height: number;
   lineWidths: number[];
   lineHeights: number[];
+}
+
+/** Where a line's glyphs put ink across, from where the line starts. */
+export interface TextInk {
+  readonly left: number;
+  readonly right: number;
+}
+
+/** One line of label text, as measureLabelText sets it. */
+export interface LabelTextLine {
+  /** The line's advance: what start, middle and end alignment place. */
+  readonly width: number;
+  /** Null for a line that draws nothing. */
+  readonly ink: TextInk | null;
+}
+
+/** How the renderer sets a run of label text: its face, and any forced case. */
+interface LabelTextStyle {
+  readonly bold: boolean;
+  readonly italic: boolean;
+  readonly upper: boolean;
+  readonly lower: boolean;
+}
+
+/** One measurement's metrics; `label` sets text as the renderer draws it. */
+interface RunMetrics extends RichTextMetrics {
+  readonly label?: LabelTextStyle;
 }
 
 /**
@@ -230,7 +261,7 @@ export function containsFractionRun(document: RichTextDocument): boolean {
   return visit(document.runs);
 }
 
-type Line = { width: number; height: number };
+type Line = { width: number; height: number; ink?: TextInk };
 export function typographyFontSize(
   token: "caption" | "body" | "label",
   profile: SchematicStyleProfile,
@@ -270,6 +301,37 @@ export function measureRichTextDocument(
     height: lines.reduce((sum, line) => sum + line.height, 0),
     lineWidths: lines.map((line) => line.width),
     lineHeights: lines.map((line) => line.height),
+  };
+}
+
+/**
+ * Label text as the renderer draws it in DejaVu Sans, the schematic font
+ * stack's first face: each run advances by the label advance tables
+ * (schematicTextAdvanceEm) in its own weight, a script after its gap at the
+ * script scale, and each line's ink runs from its first glyph's outline to
+ * its last one's, side bearings included. A bar, a fraction or a formula
+ * inks its whole box. Label clearance measures with it, and so can anything
+ * that needs a label's extent before it is drawn. A viewer without DejaVu
+ * Sans draws the stack's next face, Arial, which is narrower than these
+ * tables.
+ */
+export function measureLabelText(
+  document: RichTextDocument,
+  metrics: RichTextMetrics,
+): { width: number; lines: LabelTextLine[] } {
+  const lines = measureRuns(document.runs, {
+    ...metrics,
+    fractionText: metrics.fractionText || containsFractionRun(document),
+    label: {
+      bold: metrics.bold === true,
+      italic: metrics.italic === true,
+      upper: false,
+      lower: false,
+    },
+  });
+  return {
+    width: Math.max(0, ...lines.map((line) => line.width)),
+    lines: lines.map((line) => ({ width: line.width, ink: line.ink ?? null })),
   };
 }
 
@@ -413,7 +475,7 @@ function wrapRunsIntoLines(
   return lines;
 }
 
-function measureRuns(runs: RichTextRun[], metrics: RichTextMetrics): Line[] {
+function measureRuns(runs: RichTextRun[], metrics: RunMetrics): Line[] {
   const baseHeight = metrics.fontSize * metrics.lineHeight;
   const lines: Line[] = [{ width: 0, height: baseHeight }];
   for (let index = 0; index < runs.length; index += 1) {
@@ -433,9 +495,56 @@ function measureRuns(runs: RichTextRun[], metrics: RichTextMetrics): Line[] {
       index += 1;
       continue;
     }
-    appendInline(lines, measureRun(run, metrics));
+    const measured = measureRun(run, metrics);
+    // Label text sets a subscript off its base by the script gap, as the
+    // renderer draws it.
+    appendInline(
+      lines,
+      metrics.label && isScriptRun(run) && run.style === "subscript"
+        ? startAfter(measured, scriptGap(metrics))
+        : measured,
+    );
   }
   return lines;
+}
+
+/** The gap the renderer leaves before a script, at the script's size. */
+function scriptGap(metrics: RichTextMetrics): number {
+  return (
+    metrics.fontSize * metrics.subscriptScale * metrics.subscriptHorizontalGapEm
+  );
+}
+
+function shiftInk(ink: TextInk, offset: number): TextInk {
+  return { left: ink.left + offset, right: ink.right + offset };
+}
+
+function unionInk(left: TextInk | undefined, right: TextInk): TextInk {
+  return left
+    ? {
+        left: Math.min(left.left, right.left),
+        right: Math.max(left.right, right.right),
+      }
+    : right;
+}
+
+/** Lines whose first one starts `offset` further along. */
+function startAfter(lines: Line[], offset: number): Line[] {
+  const [first, ...rest] = lines;
+  if (!first) return lines;
+  return [
+    {
+      ...first,
+      width: first.width + offset,
+      ...(first.ink ? { ink: shiftInk(first.ink, offset) } : {}),
+    },
+    ...rest,
+  ];
+}
+
+/** A box that is all ink: a formula, a fraction under its bar. */
+function inked(line: Line): Line {
+  return { ...line, ink: { left: 0, right: line.width } };
 }
 
 type ScriptRun = Extract<RichTextRun, { kind: "span" }> & {
@@ -511,7 +620,7 @@ function positionedOverbarScriptWidth(
 function measureScriptStack(
   first: ScriptRun,
   second: ScriptRun,
-  metrics: RichTextMetrics,
+  metrics: RunMetrics,
 ): Line[] {
   const firstLines = measureRun(first, metrics);
   const secondLines = measureRun(second, metrics);
@@ -520,13 +629,23 @@ function measureScriptStack(
   for (let index = 0; index < lineCount; index += 1) {
     const firstLine = firstLines[index];
     const secondLine = secondLines[index];
+    const ink = secondLine?.ink
+      ? unionInk(firstLine?.ink, secondLine.ink)
+      : firstLine?.ink;
     lines.push({
       width: Math.max(firstLine?.width ?? 0, secondLine?.width ?? 0),
       height: Math.max(firstLine?.height ?? 0, secondLine?.height ?? 0),
+      ...(ink ? { ink } : {}),
     });
   }
   if (lines[0]) {
-    lines[0].width += metrics.fontSize * metrics.subscriptHorizontalGapEm;
+    // Both scripts start after the gap: the renderer draws the narrower one,
+    // then steps back over it to draw the wider.
+    const gap = metrics.label
+      ? scriptGap(metrics)
+      : metrics.fontSize * metrics.subscriptHorizontalGapEm;
+    lines[0].width += gap;
+    if (lines[0].ink) lines[0].ink = shiftInk(lines[0].ink, gap);
     lines[0].height = Math.max(
       lines[0].height,
       metrics.fontSize *
@@ -537,8 +656,33 @@ function measureScriptStack(
   return lines;
 }
 
-function measureRun(run: RichTextRun, metrics: RichTextMetrics): Line[] {
+function measureRun(run: RichTextRun, metrics: RunMetrics): Line[] {
   if (run.kind === "text") {
+    const { label } = metrics;
+    if (label) {
+      // A fraction's companions advance as the fraction places them, bold.
+      const weight = label.bold || metrics.fractionText ? "bold" : "plain";
+      const value = label.upper
+        ? run.value.toUpperCase()
+        : label.lower
+          ? run.value.toLowerCase()
+          : run.value;
+      const ink = schematicTextInkEm(value, weight, label.italic);
+      return [
+        {
+          width: metrics.fontSize * schematicTextAdvanceEm(value, weight),
+          height: metrics.fontSize * metrics.lineHeight,
+          ...(ink
+            ? {
+                ink: {
+                  left: metrics.fontSize * ink.left,
+                  right: metrics.fontSize * ink.right,
+                },
+              }
+            : {}),
+        },
+      ];
+    }
     return [
       {
         width:
@@ -557,51 +701,44 @@ function measureRun(run: RichTextRun, metrics: RichTextMetrics): Line[] {
     ];
   }
   if (run.kind === "math") {
-    const label = labelFormulaLayout(run.latex, run.display, metrics);
-    if (label)
-      return [{ width: label.width, height: label.ascent + label.descent }];
-    const result = cachedFormulaResult({
-      latex: run.latex,
-      display: run.display,
-      profileId: ANALOG_CANVAS_MATH_PROFILE_ID,
-      bold: metrics.bold ?? true,
-      italic: metrics.italic ?? false,
-    });
-    if (!result) {
-      return [
-        {
-          width: Math.max(1, run.latex.length * metrics.fontSize * 0.6),
-          height: metrics.fontSize * metrics.lineHeight,
-        },
-      ];
-    }
-    if (!result.ok) {
-      throw new Error(`Cannot measure formula: ${result.diagnostic.message}`);
-    }
-    const scale = metrics.fontSize / CANONICAL_FORMULA_FONT_SIZE;
-    return [
-      {
-        width: result.artifact.width * scale,
-        height: result.artifact.height * scale,
-      },
-    ];
+    const lines = measureFormulaRun(run, metrics);
+    return metrics.label ? lines.map(inked) : lines;
   }
   if (run.kind === "span") {
-    const scale =
-      run.style === "subscript" || run.style === "superscript"
-        ? metrics.subscriptScale
-        : 1;
+    const script = run.style === "subscript" || run.style === "superscript";
+    const scale = script ? metrics.subscriptScale : 1;
+    const { label } = metrics;
     const child = measureRuns(run.children, {
       ...metrics,
       fontSize: metrics.fontSize * scale,
+      ...(label
+        ? {
+            // Scripts stand upright in the weight around them, as the
+            // renderer sets them; a span inside may slant them again.
+            label: {
+              bold: label.bold || run.style === "bold",
+              italic: !script && (label.italic || run.style === "italic"),
+              upper: label.upper || run.style === "uppercase",
+              lower: label.lower || run.style === "lowercase",
+            },
+          }
+        : {}),
     });
     if (run.style === "overbar" && child[0]) {
-      const positionedWidth = positionedOverbarScriptWidth(
-        run.children,
-        metrics,
-      );
-      if (positionedWidth !== null) {
-        child[0].width = Math.max(child[0].width, positionedWidth);
+      if (label) {
+        // The bar is ink from where the span starts to where it ends.
+        child[0].ink = unionInk(child[0].ink, {
+          left: 0,
+          right: child[0].width,
+        });
+      } else {
+        const positionedWidth = positionedOverbarScriptWidth(
+          run.children,
+          metrics,
+        );
+        if (positionedWidth !== null) {
+          child[0].width = Math.max(child[0].width, positionedWidth);
+        }
       }
     }
     if (scale < 1) {
@@ -617,8 +754,11 @@ function measureRun(run: RichTextRun, metrics: RichTextMetrics): Line[] {
     // taller inline line: both part stacks plus the bar allowance. Geometry
     // offsets are in em of the part font, so the spacing scales with them.
     const partScale = fractionPartScale(metrics.subscriptScale);
+    // The renderer places a fraction by this shared measure, in label text
+    // too, and its bar inks the whole block.
+    const { label: _label, ...shared } = metrics;
     const partMetrics = {
-      ...metrics,
+      ...shared,
       fontSize: metrics.fontSize * partScale,
     };
     const numerator = measureRuns(run.numerator.runs, partMetrics);
@@ -631,28 +771,64 @@ function measureRun(run: RichTextRun, metrics: RichTextMetrics): Line[] {
       (sum, line) => sum + line.height,
       0,
     );
-    return [
-      {
-        width:
-          Math.max(
-            ...numerator.map((line) => line.width),
-            ...denominator.map((line) => line.width),
-          ) +
-          metrics.fontSize * partScale * fractionGeometry.barOverhangEm * 2,
-        height:
-          numeratorHeight +
-          denominatorHeight +
-          metrics.fontSize * partScale * fractionGeometry.barGapEm,
-      },
-    ];
+    const block = {
+      width:
+        Math.max(
+          ...numerator.map((line) => line.width),
+          ...denominator.map((line) => line.width),
+        ) +
+        metrics.fontSize * partScale * fractionGeometry.barOverhangEm * 2,
+      height:
+        numeratorHeight +
+        denominatorHeight +
+        metrics.fontSize * partScale * fractionGeometry.barGapEm,
+    };
+    return [metrics.label ? inked(block) : block];
   }
   const exhaustive: never = run;
   return exhaustive;
 }
 
+function measureFormulaRun(
+  run: Extract<RichTextRun, { kind: "math" }>,
+  metrics: RichTextMetrics,
+): Line[] {
+  const label = labelFormulaLayout(run.latex, run.display, metrics);
+  if (label)
+    return [{ width: label.width, height: label.ascent + label.descent }];
+  const result = cachedFormulaResult({
+    latex: run.latex,
+    display: run.display,
+    profileId: ANALOG_CANVAS_MATH_PROFILE_ID,
+    bold: metrics.bold ?? true,
+    italic: metrics.italic ?? false,
+  });
+  if (!result) {
+    return [
+      {
+        width: Math.max(1, run.latex.length * metrics.fontSize * 0.6),
+        height: metrics.fontSize * metrics.lineHeight,
+      },
+    ];
+  }
+  if (!result.ok) {
+    throw new Error(`Cannot measure formula: ${result.diagnostic.message}`);
+  }
+  const scale = metrics.fontSize / CANONICAL_FORMULA_FONT_SIZE;
+  return [
+    {
+      width: result.artifact.width * scale,
+      height: result.artifact.height * scale,
+    },
+  ];
+}
+
 function appendInline(target: Line[], addition: Line[]): void {
   const current = target.at(-1)!;
-  current.width += addition[0]?.width ?? 0;
-  current.height = Math.max(current.height, addition[0]?.height ?? 0);
+  const first = addition[0];
+  if (first?.ink)
+    current.ink = unionInk(current.ink, shiftInk(first.ink, current.width));
+  current.width += first?.width ?? 0;
+  current.height = Math.max(current.height, first?.height ?? 0);
   for (const line of addition.slice(1)) target.push({ ...line });
 }

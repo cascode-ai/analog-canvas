@@ -95,6 +95,18 @@ export function mergeBaseNets(
       instance.mosBulkBinding.netId = target.id;
       changedObjectIds.add(instance.id);
     }
+    // A controlled source senses the merged Net, not the identity it lost.
+    const control = instance.netlist?.control;
+    if (control?.kind === "voltage") {
+      if (control.positiveNetId === source.id) {
+        control.positiveNetId = target.id;
+        changedObjectIds.add(instance.id);
+      }
+      if (control.negativeNetId === source.id) {
+        control.negativeNetId = target.id;
+        changedObjectIds.add(instance.id);
+      }
+    }
   }
   if (draft.mosBulkDefaults?.nmosNetId === source.id) {
     draft.mosBulkDefaults.nmosNetId = target.id;

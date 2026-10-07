@@ -169,6 +169,13 @@ it("authorizes Gallery, Project Code and Netlist operations by their real effect
   expect(
     scopes({ operation: "read-gallery-entries", galleryEntryIds: ["g1"] }),
   ).toEqual(["circuit.snapshot"]);
+  // Publishing is its own grant: drawing a circuit is not publishing it.
+  expect(scopes({ operation: "publish-gallery-entry", name: "Amp" })).toEqual([
+    "gallery.publish",
+  ]);
+  expect(
+    scopes({ operation: "update-gallery-entry", galleryEntryId: "g1" }),
+  ).toEqual(["gallery.publish"]);
   expect(scopes({ operation: "read-project-code" })).toEqual([
     "project.download",
   ]);

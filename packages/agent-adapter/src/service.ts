@@ -50,6 +50,7 @@ import type {
 import { AgentAuthoringCommandSchema } from "./authoring-command.js";
 import { buildProjectConnectivityIndex, traceHierarchyNet } from "@icm/derived";
 import {
+  agentAnnotationTextMeasure,
   buildAgentBootstrapSnapshot,
   buildAgentSessionSnapshot,
   selectAgentGeometry,
@@ -493,6 +494,17 @@ export function createAgentCircuitService(
           );
         }
         if (
+          request.textBounds !== undefined &&
+          request.projection !== "geometry"
+        ) {
+          return fail(
+            "snapshot",
+            "INVALID_REQUEST",
+            "textBounds applies only to the geometry projection",
+            document.revision,
+          );
+        }
+        if (
           (request.projection === "pins") !==
             (request.instanceIds !== undefined) ||
           (request.projection === "pins" &&
@@ -538,7 +550,13 @@ export function createAgentCircuitService(
           return response(result);
         }
         if (request.projection === "geometry") {
-          const selected = selectAgentGeometry(document, request.geometryIds!);
+          const selected = selectAgentGeometry(
+            document,
+            request.geometryIds!,
+            request.textBounds
+              ? agentAnnotationTextMeasure(document, resolver)
+              : undefined,
+          );
           const result = {
             apiVersion: request.apiVersion,
             requestId: request.requestId,
@@ -893,6 +911,8 @@ export function createAgentCircuitService(
 
       if (request.operation === "transact") {
         let commandSourceActions: readonly number[] | undefined;
+        // What the plan says beside its edits, reported as information.
+        let commandNotes: AgentDiagnostic[] = [];
         // Planning replaces the command with its edits; an over-limit
         // refusal still names the command and what it expanded to.
         const plannedCommand = request.command?.kind;
@@ -947,6 +967,14 @@ export function createAgentCircuitService(
               limits.maxTransactionEdits,
             );
             commandSourceActions = planned.sourceActions;
+            commandNotes = (
+              "notes" in planned ? (planned.notes ?? []) : []
+            ).map((note) => ({
+              code: note.code,
+              severity: "info" as const,
+              message: note.message,
+              objectIds: [...note.objectIds],
+            }));
             const { command: _command, ...base } = request;
             if ("structureEdits" in planned) {
               if (request.expectedStructureRevision === undefined)
@@ -979,9 +1007,12 @@ export function createAgentCircuitService(
                     changedObjectIds: [],
                   },
                   terminalConnectivityChanged: false,
-                  diagnostics: diagnosticsFor(project, document, resolver),
+                  diagnostics: [
+                    ...commandNotes,
+                    ...diagnosticsFor(project, document, resolver),
+                  ],
                   diagnosticDelta: {
-                    added: [],
+                    added: commandNotes,
                     removed: [],
                     ...(request.diagnosticDeltaDetail === "compact"
                       ? { removedIds: [] }
@@ -1544,12 +1575,15 @@ export function createAgentCircuitService(
                 },
               }
             : {}),
-          diagnostics,
+          diagnostics: [...commandNotes, ...diagnostics],
           diagnosticDelta: {
-            added: diagnostics.filter(
-              (diagnostic) =>
-                !beforeIds.has(agentDiagnosticIdentity(diagnostic)),
-            ),
+            added: [
+              ...commandNotes,
+              ...diagnostics.filter(
+                (diagnostic) =>
+                  !beforeIds.has(agentDiagnosticIdentity(diagnostic)),
+              ),
+            ],
             removed:
               request.diagnosticDeltaDetail === "compact"
                 ? []

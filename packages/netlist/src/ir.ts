@@ -74,7 +74,7 @@ export interface DesignNetlistCell {
   /** Ordered definition defaults retained without conflating absence and "". */
   formalParameters?: DesignNetlistFormalParameter[];
   /** Model cards only this Cell's own instances use, such as the ideal switch
-   * and the generic diode. */
+   * and the generic diode and BJTs. */
   models?: DesignNetlistModel[];
 }
 

@@ -1,5 +1,9 @@
 import type { FormalExportSource, RasterExport } from "./index.js";
 import { DEFAULT_EXPORT_SCALE } from "./index.js";
+import {
+  inlineSchematicWebFontFaceCss,
+  withSchematicFontFaces,
+} from "./browser-fonts.js";
 
 function loadImage(url: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -44,9 +48,15 @@ export async function rasterizeFormalSvgInBrowser(
       "Image is too large to rasterize safely; select fewer objects or use SVG",
     );
   }
+  // An SVG drawn as an image loads no font, so it carries its own: the PNG
+  // shows the face its labels were measured in, on any system (#1413).
+  // Without them it still draws, in whatever the system has.
+  const fonts = await inlineSchematicWebFontFaceCss().catch(() => "");
   let canvas: HTMLCanvasElement | undefined;
   const svgUrl = URL.createObjectURL(
-    new Blob([source.svg], { type: "image/svg+xml" }),
+    new Blob([fonts ? withSchematicFontFaces(source.svg, fonts) : source.svg], {
+      type: "image/svg+xml",
+    }),
   );
   try {
     const image = await loadImage(svgUrl);

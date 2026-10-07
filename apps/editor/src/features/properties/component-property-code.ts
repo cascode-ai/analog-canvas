@@ -1,4 +1,4 @@
-import { magneticDisplayParameters } from "@icm/derived";
+import { instanceDisplayParameters } from "@icm/derived";
 import type { Rotation, SchematicDocument } from "@icm/model";
 import { LINEAR_CONTROLLED_SOURCE_KINDS } from "@icm/model";
 import {
@@ -192,7 +192,7 @@ function parseDisplay(
   const supported = new Set<string>();
   if (context.referenceVisible !== null) supported.add("visualAnnotation");
   if (context.valueVisible !== null) supported.add("value");
-  const parameters = magneticDisplayParameters(context.instance.symbolId);
+  const parameters = instanceDisplayParameters(context.instance.symbolId);
   if (parameters.length) supported.add("parameters");
   if (supported.size === 0) {
     if (value !== undefined) {
@@ -292,7 +292,7 @@ export function componentPropertyCodeValue(
     display.visualAnnotation = context.referenceVisible;
   }
   if (context.valueVisible !== null) display.value = context.valueVisible;
-  const parameters = magneticDisplayParameters(instance.symbolId);
+  const parameters = instanceDisplayParameters(instance.symbolId);
   const controlled = LINEAR_CONTROLLED_SOURCE_KINDS.has(instance.symbolId);
   const voltageControl =
     instance.symbolId === "vcvs" || instance.symbolId === "vccs";

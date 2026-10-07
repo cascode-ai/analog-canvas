@@ -7,7 +7,8 @@ kinds; it does not return a Project Index. Snapshot has one protocol operation
 with several projections: `bootstrap` contains connection identities and counts;
 `state` contains the current Document revision, counts and optional diagnostic
 items; `folder-directory` lists saved experiment metadata without source text;
-`geometry` selects authored objects; `pins` resolves selected instances' endpoints
+`geometry` selects authored objects, and with `textBounds` measures each drawn
+label's text; `pins` resolves selected instances' endpoints
 and bulk; and the default `full` projection contains
 the selected Document and Project editing context. Use the current transport
 schema for exact fields.

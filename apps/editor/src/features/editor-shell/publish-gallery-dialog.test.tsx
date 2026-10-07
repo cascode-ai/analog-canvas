@@ -185,6 +185,52 @@ describe("PublishGalleryDialog", () => {
     ).not.toContain("checked");
   });
 
+  it("says what today's allowance leaves before anything is typed (#1417)", () => {
+    const render = (props: Partial<PublishGalleryDialogProps>) =>
+      renderToStaticMarkup(
+        createElement(PublishGalleryDialog, {
+          defaultName: "Ring Oscillator",
+          session: { displayName: "Visitor", isAdmin: false, role: "user" },
+          publish: () => Promise.resolve({ status: "unauthorized" as const }),
+          onPublished: () => undefined,
+          onClose: () => undefined,
+          ...props,
+        }),
+      );
+    const quota = (remaining: number, exempt = false) => ({
+      limit: 100,
+      used: 100 - remaining,
+      remaining,
+      resetsAt: new Date(Date.now() + 3 * 3_600_000).toISOString(),
+      exempt,
+    });
+    const publishDisabled = (html: string) =>
+      /<button[^>]*disabled=""[^>]*class="publish-gallery-primary"|class="publish-gallery-primary"[^>]*disabled=""/u.test(
+        html,
+      );
+
+    const left = render({ quota: quota(12) });
+    expect(left).toContain("12 of 100 new entries left today");
+    expect(left).toContain("resets at 00:00 UTC (in 3 h");
+    expect(publishDisabled(left)).toBe(false);
+
+    const spent = render({ quota: quota(0) });
+    expect(spent).toContain("Today&#x27;s 100 new entries are published");
+    expect(publishDisabled(spent)).toBe(true);
+
+    // An update spends nothing, and curators have no allowance to show.
+    const update = render({
+      quota: quota(0),
+      updateTarget: { id: "e1", name: "Ring Oscillator" },
+      publishUpdate: () => Promise.resolve({ status: "unauthorized" as const }),
+    });
+    expect(update).not.toContain('data-testid="publish-quota"');
+    expect(publishDisabled(update)).toBe(false);
+    expect(render({ quota: quota(0, true) })).not.toContain(
+      'data-testid="publish-quota"',
+    );
+  });
+
   it("never asks for the byline: the account supplies it", () => {
     const markup = renderToStaticMarkup(
       createElement(PublishGalleryDialog, {

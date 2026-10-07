@@ -275,6 +275,21 @@ describe("copy/export netlist projection", () => {
       ).toContainEqual(
         expect.objectContaining({ code: "MISSING_CONTROL_NET" }),
       );
+      // A sensed Net that is gone is named by the source and side that used it.
+      document.instances[1]!.netlist!.control = {
+        kind: "voltage",
+        positiveNetId: "cp",
+        negativeNetId: "net-gone",
+      };
+      expect(
+        createDesignNetlistExport(project, { format }).diagnostics,
+      ).toContainEqual(
+        expect.objectContaining({
+          code: "INVALID_CONTROL_NET",
+          message:
+            "E1 senses a control Net (−) that is no longer in this Cell (net-gone); select E1's control Nets again",
+        }),
+      );
     },
   );
   it.each(["spice", "spectre"] as const)(

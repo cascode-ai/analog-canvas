@@ -146,9 +146,10 @@ bounds.
 
 Derived visual diagnostics cover unplaced or unresolved symbols, symbol and
 label overlap (free drawing text over a label included, measured by the ink
-its words draw; polarity marks are left out), labels and free text struck
-through by a wire (text over a part's outline is not reported: notes inside
-a block are drawn there on purpose), Routes through symbols,
+its words draw; polarity marks are left out), two parts' names or values on
+one row less than a figure apart, which read as one string, labels and free
+text struck through by a wire (text over a part's outline is not reported:
+notes inside a block are drawn there on purpose), Routes through symbols,
 collinear same-Net Route overlap, a
 Route leaving a pin backward or leaving a one-pin symbol from the side where no
 other wire meets it, terminals resting on another Net's Route, short route
@@ -160,7 +161,11 @@ intent and produce no angle-only warning or error, including on protected
 Routes. Explicit angle straightening remains an optional undoable operation,
 not a diagnostic prerequisite. A terminal resting on another Net's Route is a
 structural warning outside the gate. Spacing and other layout-quality findings
-are observations.
+are observations. Text ink is what DejaVu Sans, the font stack's first face,
+draws: across from the first glyph's outline to the last one's by the label
+advance tables, side bearings included, and from capitals to subscripts. The
+editor and its PNGs draw in that face on every system; an SVG opened where it
+is not installed may show Arial, narrower than it is measured.
 
 Every finding declares `category`, `confidence`, and `gateEligible`.
 Structural findings describe high-confidence model, topology, or explicit
@@ -168,7 +173,10 @@ constraint conditions. Visual observations describe heuristic geometry and
 require inspection of the formal render. A gate-ineligible observation must
 never become an automatic layout objective merely because a quality policy
 lists its code. Where deterministic primitive bounds exist, overlap analysis uses the
-active symbol variant's visible geometry and clusters repeated overlaps.
+active symbol variant's visible geometry and clusters repeated overlaps. A
+part's box ends at its visible pins, so two parts that meet pin to pin, one
+lead continuing the other (a supply T or a coil on a transistor's source), do
+not overlap.
 
 ## Invariants
 

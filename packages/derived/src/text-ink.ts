@@ -1,4 +1,5 @@
 import type { DerivedRect, RichTextDocument } from "@icm/model";
+import { measureLabelText, type RichTextMetrics } from "./rich-text-layout.js";
 import type { SchematicStyleProfile } from "./style-profile.js";
 
 /** Height of the label font's capitals and figures, in em. */
@@ -34,11 +35,41 @@ export function labelInkDescentEm(
 }
 
 /**
+ * Where upright text's glyphs reach across when each of its lines stands on
+ * `x` by `alignment`, as the renderer anchors them: from the first glyph's
+ * outline to the last one's, in the label advance tables (measureLabelText).
+ * An end-aligned value's first figure stands where DejaVu Sans draws it.
+ * Null for text that draws nothing.
+ */
+export function uprightTextInkSpan(
+  content: RichTextDocument,
+  metrics: RichTextMetrics,
+  alignment: "start" | "middle" | "end",
+  x: number,
+): { left: number; width: number } | null {
+  let left = Infinity;
+  let right = -Infinity;
+  for (const line of measureLabelText(content, metrics).lines) {
+    if (!line.ink) continue;
+    const start =
+      alignment === "start"
+        ? x
+        : alignment === "end"
+          ? x - line.width
+          : x - line.width / 2;
+    left = Math.min(left, start + line.ink.left);
+    right = Math.max(right, start + line.ink.right);
+  }
+  return left <= right ? { left, width: right - left } : null;
+}
+
+/**
  * What upright text whose first line stands on `baseline` draws: from its
  * capitals, or a stacked fraction's numerator `fractionAscent` above them,
- * down `descentEm` (in em) under its last line. `layoutHeight` is the
- * measured height of all its lines. Labels and free drawing text share it,
- * so a finding about one is measured as a finding about the other.
+ * down `descentEm` (in em) under its last line, and across `left` to
+ * `left + width` (uprightTextInkSpan). `layoutHeight` is the measured height
+ * of all its lines. Labels and free drawing text share it, so a finding about
+ * one is measured as a finding about the other.
  */
 export function uprightTextInkBounds(text: {
   left: number;

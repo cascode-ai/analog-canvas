@@ -3,6 +3,7 @@ import {
   createSimulationFolder,
   flattenRichText,
   plainNameDocument,
+  roleLabelFormat,
   semanticTextDocument,
 } from "@icm/model";
 import { describe, expect, it } from "vitest";
@@ -1661,10 +1662,12 @@ describe("Project structural transaction", () => {
           {
             id: "document-child",
             netlist: { terminals: [{ id: "terminal-in", name: "VIN" }] },
+            // IN's automatic look gives way to the look a Pin placed as VIN
+            // gets (#1419).
             annotations: [
-              expect.not.objectContaining({
-                formatOverride: expect.anything(),
-              }),
+              {
+                formatOverride: roleLabelFormat("voltage-node", "VIN"),
+              },
             ],
           },
         ],

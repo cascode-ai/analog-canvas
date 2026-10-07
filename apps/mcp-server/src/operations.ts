@@ -26,6 +26,7 @@ import {
   AGENT_API_VERSION,
   AGENT_MCP_VERSION,
   AgentFileDownloadOptionsSchema,
+  AgentGalleryEntryFields,
   AgentWorkspaceActionSchema,
 } from "@icm/agent-adapter";
 import {
@@ -182,6 +183,21 @@ const GalleryCircuitsArgs = z.discriminatedUnion("action", [
     netlistFormat: z.enum(["spice", "spectre"]).nullable().optional(),
     namingProfile: z.enum(["native", "cadence-bang"]).optional(),
     portCase: z.enum(["lower", "upper"]).optional(),
+  }),
+  z.strictObject({
+    action: z.literal("publish"),
+    ...AgentGalleryEntryFields,
+  }),
+  z.strictObject({
+    action: z.literal("update"),
+    galleryEntryId: z
+      .string()
+      .min(1)
+      .optional()
+      .describe(
+        "Defaults to the entry the working copy was published as or opened from.",
+      ),
+    ...AgentGalleryEntryFields,
   }),
 ]);
 const ProjectCodeArgs = z.discriminatedUnion("action", [
@@ -474,6 +490,12 @@ const InspectArgs = z.strictObject({
     z.strictObject({
       kind: z.literal("geometry"),
       objectIds: z.array(z.string().min(1)).min(1).max(64),
+      textBounds: z
+        .boolean()
+        .optional()
+        .describe(
+          "Also measure each annotation's drawn text: text.position (where its alignment end stands) and text.bounds",
+        ),
     }),
     z.strictObject({ kind: z.literal("activity") }),
     z.strictObject({
@@ -793,6 +815,16 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
           parsed.galleryEntryId,
           parsed.background === true,
         );
+      if (parsed.action === "publish" || parsed.action === "update") {
+        const { action, ...fields } = parsed;
+        return session.client.projectResource({
+          apiVersion: AGENT_API_VERSION,
+          requestId: crypto.randomUUID(),
+          ...(action === "publish"
+            ? { operation: "publish-gallery-entry", ...fields }
+            : { operation: "update-gallery-entry", ...fields }),
+        });
+      }
       if (parsed.action === "insert") {
         const current =
           parsed.expectedRevision === undefined ||
@@ -1349,6 +1381,7 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
         return session.client.geometrySnapshot(
           parsed.target.objectIds,
           parsed.documentId,
+          parsed.target.textBounds ? { textBounds: true } : {},
         );
       if (parsed.target.kind === "diagnostics") {
         const state = await session.client.documentState(parsed.documentId, {

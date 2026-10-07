@@ -103,6 +103,21 @@ export function magneticDisplayParameters(
   ];
 }
 
+/**
+ * The parameters a person may show beside a part, each in a label of its own:
+ * a compound magnetic part's (k, Lp, Ls, …), or a device's multiplier m, as
+ * bandgap and mirror figures print "×8" by the transistor (#1423).
+ */
+export function instanceDisplayParameters(
+  symbolId: string,
+): readonly DeviceParameterDefinition[] {
+  const magnetic = magneticDisplayParameters(symbolId);
+  if (magnetic.length) return magnetic;
+  return (deviceDescriptor(symbolId)?.parameters ?? []).filter(
+    (parameter) => parameter.displayRole === "multiplier",
+  );
+}
+
 /** Preserve authored values and units while identifying which parameter is shown. */
 export function displayableInstanceParameter(
   instance: InstanceValueSource,
@@ -113,6 +128,7 @@ export function displayableInstanceParameter(
     (candidate) => candidate.name.toLowerCase() === name.toLowerCase(),
   );
   const label = parameter?.label ?? name;
+  const multiplier = parameter?.displayRole === "multiplier";
   const magnetic = magneticDisplayParameters(instance.symbolId).some(
     (candidate) => candidate.name.toLowerCase() === name.toLowerCase(),
   );
@@ -120,6 +136,9 @@ export function displayableInstanceParameter(
     magnetic
       ? magneticParameterDocument(label, rest)
       : boldDocument(`${label}${rest}`);
+  // A multiplier reads as a count of devices, "×8", not "M = 8".
+  const counted = (value: string) =>
+    multiplier ? boldDocument(`×${value}`) : named(` = ${value}`);
   if (options.showValue === false) {
     return {
       kind: "displayable",
@@ -133,7 +152,7 @@ export function displayableInstanceParameter(
     return { kind: "undisplayable", reason: `Parameter ${name} is empty` };
   return {
     kind: "displayable",
-    content: named(` = ${value}`),
+    content: counted(value),
   };
 }
 

@@ -1,6 +1,7 @@
 import type {
   AgentAuthoringCommand,
   AgentCommandPlan,
+  AgentCommandPlanNote,
 } from "@icm/agent-adapter";
 import { AgentCommandPlanningError } from "@icm/agent-adapter";
 import {
@@ -68,7 +69,7 @@ import {
   resolveRouteGeometry,
   resolveDocumentLogicalNets,
   resolveAnnotationName,
-  magneticDisplayParameters,
+  instanceDisplayParameters,
   derivePowerRailComponent,
   netLabelAttachmentForText,
   netLabelBaselineForName,
@@ -101,7 +102,10 @@ import {
 } from "../features/instance-display/default-instance-display";
 import { instanceDisplayEdits } from "../features/instance-display/instance-display-edits";
 import { planDisplayAlias } from "../features/properties/group-naming";
-import { arrangeInstanceLabels } from "../features/instance-display/arrange-instance-labels";
+import {
+  arrangeInstanceLabelsReport,
+  type LabelLeftInPlace,
+} from "../features/instance-display/arrange-instance-labels";
 import { withStruckLabelsArranged } from "../features/instance-display/struck-label-arrangement";
 import { textbookLabelEdits } from "../features/instance-display/label-preset";
 import { netLabelAtClearSpot } from "./net-label-clear-spot";
@@ -484,15 +488,20 @@ export function planBrowserAgentCommand(
         ],
       };
     }
-    case "arrange-labels":
+    case "arrange-labels": {
+      const { edits, leftInPlace } = arrangeInstanceLabelsReport(
+        document,
+        resolver,
+        command.instanceIds,
+        command,
+      );
       return {
-        edits: arrangeInstanceLabels(
-          document,
-          resolver,
-          command.instanceIds,
-          command,
-        ),
+        edits,
+        ...(leftInPlace.length
+          ? { notes: [labelsLeftInPlaceNote(document, leftInPlace)] }
+          : {}),
       };
+    }
     case "apply-label-preset": {
       // The parts named, or every placed part of the Cell. Hiding and
       // arranging go as one transaction, so one undo takes back both.
@@ -787,15 +796,19 @@ export function planBrowserAgentCommand(
         const geometry = resolveRouteGeometry(document, resolver, route);
         return geometry ? [{ route, geometry }] : [];
       });
+      const moved = draggedAnnotationAtPosition(
+        { document, resolver, routeGeometryRecords, annotationGrid: 1 },
+        annotation,
+        command.position,
+      );
       return {
         edits: [
           {
             kind: "upsert_schematic_annotation",
-            annotation: draggedAnnotationAtPosition(
-              { document, resolver, routeGeometryRecords, annotationGrid: 1 },
-              annotation,
-              command.position,
-            ),
+            // A label moved to a part's other side reads from its other end.
+            annotation: command.alignment
+              ? { ...moved, alignment: command.alignment }
+              : moved,
           },
         ],
       };
@@ -1048,7 +1061,7 @@ export function planBrowserAgentCommand(
         for (const id of new Set(command.instanceIds)) {
           const instance = document.instances.find((item) => item.id === id);
           if (!instance) throw new Error(`Instance not found: ${id}`);
-          const supported = magneticDisplayParameters(instance.symbolId);
+          const supported = instanceDisplayParameters(instance.symbolId);
           for (const parameter of Object.keys(desired)) {
             if (!supported.some((item) => item.name === parameter))
               throw new Error(
@@ -1726,4 +1739,34 @@ export function planBrowserAgentCommand(
       };
     }
   }
+}
+
+/**
+ * What arrange-labels left alone and why, so an arrangement that changed
+ * nothing is not a mystery (#1414).
+ */
+function labelsLeftInPlaceNote(
+  document: SchematicDocument,
+  left: readonly LabelLeftInPlace[],
+): AgentCommandPlanNote {
+  const why = {
+    locked: "locked",
+    rotated: "turned",
+    custom: "custom-styled",
+    moved: "moved by hand",
+  } as const;
+  const listed = left.map((label) => {
+    const part =
+      document.instances.find((item) => item.id === label.instanceId)
+        ?.reference ?? label.instanceId;
+    return `${part}'s ${label.labelId} (${why[label.reason]})`;
+  });
+  const hint = left.some((label) => label.reason === "moved")
+    ? "; includeManual:true re-places labels moved by hand"
+    : "";
+  return {
+    code: "LABELS_LEFT_IN_PLACE",
+    message: `arrange-labels left ${left.length} label${left.length === 1 ? "" : "s"} in place: ${listed.join(", ")}${hint}`,
+    objectIds: left.map((label) => label.labelId),
+  };
 }

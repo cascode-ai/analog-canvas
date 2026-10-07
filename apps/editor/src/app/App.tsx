@@ -282,6 +282,9 @@ import {
   updateGalleryEntry,
   canUpdateGalleryPublication,
   loadGalleryPublicationContext,
+  loadGalleryQuota,
+  type GalleryPublicationRecord,
+  type GalleryQuota,
 } from "../features/editor-shell/gallery-publish";
 import {
   announceGalleryChange,
@@ -332,6 +335,10 @@ import type { BrowserAgentPlanningContext } from "../agent/browser-agent-command
 import { BrowserAgentFileHost } from "../agent/browser-agent-file-host";
 import { BrowserAgentSimulationHost } from "../agent/browser-agent-simulation-host";
 import { BrowserAgentProjectHost } from "../agent/browser-agent-project-host";
+import {
+  createAgentGalleryPublisher,
+  type AgentGalleryPublication,
+} from "../agent/agent-gallery-publish";
 import { BrowserSimulationSession } from "../features/simulation/browser-simulation-session";
 import { ProjectRunHistory } from "../features/simulation/project-run-history";
 import { createAgentSemanticIntentHandler } from "../agent/agent-semantic-intent-handler";
@@ -1093,6 +1100,9 @@ function WorkspaceEditor({
   const [projectInfoOpen, setProjectInfoOpen] = useState(false);
   const projectNameEditing = useRef(false);
   const [publishGalleryOpen, setPublishGalleryOpen] = useState(false);
+  // Opened from the duplicate check's notice, which asks for that check's
+  // results whatever circuit it checked (#1417).
+  const [lastCheckRequested, setLastCheckRequested] = useState(false);
   const [publishedNotice, setPublishedNotice] =
     useState<GalleryPublishedNoticeState | null>(null);
   const [versionHistoryOpen, setVersionHistoryOpen] = useState(false);
@@ -1172,6 +1182,21 @@ function WorkspaceEditor({
     return () => window.removeEventListener("focus", refreshAfterReturning);
   }, [publishSession, reloadCloudProjects]);
 
+  const [publishQuota, setPublishQuota] = useState<GalleryQuota | null>(null);
+  // What the account may still publish today, read each time the dialog opens.
+  const publishAccountId = publishSession?.id ?? null;
+  useEffect(() => {
+    // An earlier count is no promise for this opening: say nothing until read.
+    setPublishQuota(null);
+    if (!publishGalleryOpen || !publishAccountId) return;
+    let cancelled = false;
+    void loadGalleryQuota().then((quota) => {
+      if (!cancelled) setPublishQuota(quota);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [publishGalleryOpen, publishAccountId]);
   useEffect(() => {
     if (!publishGalleryOpen) return;
     let cancelled = false;
@@ -1288,6 +1313,22 @@ function WorkspaceEditor({
   >(async () => {
     throw new Error("Workspace is initializing");
   });
+  // The working copy an Agent publishes from, read when its request arrives.
+  const agentGalleryPublicationRef = useRef<
+    () => AgentGalleryPublication & {
+      controller: EditorDocumentController;
+      sessionId: string;
+    }
+  >(() => {
+    throw new Error("The Editor is initializing");
+  });
+  const recordGalleryPublicationRef = useRef<
+    (
+      outcome: GalleryPublicationRecord,
+      sessionId: string,
+      by: "person" | "agent",
+    ) => boolean
+  >(() => false);
   const browserAgentProjectHost = useMemo(
     () =>
       new BrowserAgentProjectHost({
@@ -1298,6 +1339,19 @@ function WorkspaceEditor({
             .some(
               (entry) => entry.session.controller === editorDocumentController,
             ),
+        publishToGallery: createAgentGalleryPublisher({
+          // Only while this working copy is the one its tab shows.
+          current: () => {
+            const state = agentGalleryPublicationRef.current();
+            return state.controller === editorDocumentController ? state : null;
+          },
+          published: (outcome, state) =>
+            recordGalleryPublicationRef.current(
+              outcome,
+              state.sessionId,
+              "agent",
+            ),
+        }),
         workspace: (request) => agentWorkspaceRef.current(request),
         getProjectSessionId: () => editorDocumentController.projectSessionId,
         getProject: () => editorDocumentController.project,
@@ -6769,6 +6823,11 @@ function WorkspaceEditor({
     const projectHost = new BrowserAgentProjectHost({
       projectTransactionOptions: EDITOR_PROJECT_TRANSACTION_OPTIONS,
       workspace: (request) => agentWorkspaceRef.current(request, workspaceId),
+      // A tab in the background has nothing on show to publish.
+      publishToGallery: createAgentGalleryPublisher({
+        current: () => null,
+        published: () => {},
+      }),
       getProjectSessionId: () =>
         available() ? controller.projectSessionId : "closed",
       getProject: () => controller.project,
@@ -6802,6 +6861,86 @@ function WorkspaceEditor({
   };
   const allowNextBrowserUnload = useUnsavedWorkGuard(projectTabs.hasUnsafeTabs);
 
+  agentGalleryPublicationRef.current = () => ({
+    controller: editorDocumentController,
+    sessionId: editorDocumentController.projectSessionId,
+    project: editorDocumentController.project,
+    linked: galleryEntryContext,
+    cloudBinding,
+  });
+  /**
+   * What a publication to the Gallery leaves behind, whether a person used
+   * the Publish dialog or an Agent published: the working copy is bound to the
+   * entry, the wall refreshes, and a notice says where it went. A working copy
+   * that changed meanwhile only announces the change.
+   */
+  function recordGalleryPublication(
+    {
+      id,
+      name,
+      description,
+      tags,
+      aiGenerated,
+      updated,
+      previewRevision,
+      ownerUserId,
+      author,
+    }: GalleryPublicationRecord,
+    sessionId: string,
+    by: "person" | "agent",
+  ): boolean {
+    if (editorDocumentController.projectSessionId !== sessionId) {
+      announceGalleryChange({ entryId: id });
+      return false;
+    }
+    // The gallery now holds these exact bytes: leaving, refreshing or closing
+    // the tab loses nothing until the next edit.
+    noteProjectPublished();
+    noteGalleryPublication(id);
+    // Publishing establishes the same update-in-place binding as opening an
+    // existing Gallery entry. Keep it attached to this Project only;
+    // replacing the Project clears it above.
+    setGalleryEntryContext({
+      id,
+      name,
+      projectId: editorDocumentController.project.id,
+      ownerUserId: updated
+        ? (ownerUserId ??
+          galleryEntryContext?.ownerUserId ??
+          publishSession?.id ??
+          null)
+        : (publishSession?.id ?? null),
+      author: updated
+        ? (author ??
+          galleryEntryContext?.author ??
+          publishSession?.displayName ??
+          "")
+        : (publishSession?.displayName ?? ""),
+      description,
+      tags,
+      aiGenerated,
+    });
+    void primeGalleryPreview(id, previewRevision);
+    announceGalleryChange({
+      entryId: id,
+      ...(previewRevision === undefined ? {} : { previewRevision }),
+    });
+    galleryLoadGenerationRef.current += 1;
+    setGalleryRefreshSignal((previous) => previous + 1);
+    setStatus(
+      by === "agent"
+        ? updated
+          ? `The Agent updated "${name}" in the gallery`
+          : `The Agent published "${name}" to the gallery`
+        : updated
+          ? `Updated "${name}" in the gallery`
+          : `Published "${name}" to the gallery`,
+    );
+    setPublishedNotice({ id, name, updated });
+    return true;
+  }
+  recordGalleryPublicationRef.current = recordGalleryPublication;
+
   const openAgentConnection = () => {
     setAgentPanelOpen(true);
     if (
@@ -6830,7 +6969,10 @@ function WorkspaceEditor({
         <Suspense fallback={null}>
           <GalleryTopologyTaskNotice
             hidden={publishGalleryOpen}
-            onOpen={() => setPublishGalleryOpen(true)}
+            onOpen={() => {
+              setLastCheckRequested(true);
+              setPublishGalleryOpen(true);
+            }}
           />
         </Suspense>
       ) : null}
@@ -7137,7 +7279,10 @@ function WorkspaceEditor({
             : null
         }
         publishGalleryOpen={publishGalleryOpen}
-        onPublishGallery={() => setPublishGalleryOpen(true)}
+        onPublishGallery={() => {
+          setLastCheckRequested(false);
+          setPublishGalleryOpen(true);
+        }}
         drawingToolbar={{
           communityEnabled: capabilities.community,
           leftPanelMode,
@@ -7569,6 +7714,7 @@ function WorkspaceEditor({
                 session: publishSession,
                 gateReport: publishGates,
                 topologyProject: galleryTopologyProject,
+                lastCheckRequested,
                 publicationLinkLoading,
                 publicationLinkError,
                 publicationLinkNotice,
@@ -7594,6 +7740,7 @@ function WorkspaceEditor({
                     }
                   : null,
                 agentEdited: editorDocumentController.agentEdited,
+                quota: publishQuota,
                 publish: (fields) =>
                   publishProjectToGallery(project, fields, fetch, cloudBinding),
                 ...(galleryEntryContext
@@ -7608,65 +7755,17 @@ function WorkspaceEditor({
                         ),
                     }
                   : {}),
-                onPublished: ({
-                  id,
-                  name,
-                  description,
-                  tags,
-                  aiGenerated,
-                  updated,
-                  previewRevision,
-                }) => {
+                onPublished: (outcome) => {
                   if (
-                    editorDocumentController.projectSessionId !==
-                    projectSessionId
+                    recordGalleryPublication(
+                      outcome,
+                      projectSessionId,
+                      "person",
+                    )
                   ) {
-                    announceGalleryChange({ entryId: id });
-                    return;
+                    setPublishGalleryOpen(false);
+                    setPublishDraft(null);
                   }
-                  // The gallery now holds these exact bytes: leaving,
-                  // refreshing or closing the tab loses nothing until the
-                  // next edit.
-                  noteProjectPublished();
-                  noteGalleryPublication(id);
-                  // Publishing establishes the same update-in-place binding
-                  // as opening an existing Gallery entry. Keep it attached to
-                  // this Project only; replacing the Project clears it above.
-                  setGalleryEntryContext({
-                    id,
-                    name,
-                    projectId: project.id,
-                    ownerUserId: updated
-                      ? (galleryEntryContext?.ownerUserId ??
-                        publishSession?.id ??
-                        null)
-                      : (publishSession?.id ?? null),
-                    author: updated
-                      ? (galleryEntryContext?.author ??
-                        publishSession?.displayName ??
-                        "")
-                      : (publishSession?.displayName ?? ""),
-                    description,
-                    tags,
-                    aiGenerated,
-                  });
-                  void primeGalleryPreview(id, previewRevision);
-                  announceGalleryChange({
-                    entryId: id,
-                    ...(previewRevision === undefined
-                      ? {}
-                      : { previewRevision }),
-                  });
-                  galleryLoadGenerationRef.current += 1;
-                  setGalleryRefreshSignal((previous) => previous + 1);
-                  setPublishGalleryOpen(false);
-                  setPublishDraft(null);
-                  setStatus(
-                    updated
-                      ? `Updated "${name}" in the gallery`
-                      : `Published "${name}" to the gallery`,
-                  );
-                  setPublishedNotice({ id, name, updated });
                 },
                 ...(galleryEntryContext
                   ? {

@@ -18,6 +18,7 @@ import { findExternalMasterCollisions } from "../master-names.js";
 import {
   deviceDescriptor,
   instanceParameterContract,
+  milliScaleReading,
   validateDeviceParameters,
   type QuantityForms,
 } from "@icm/devices";
@@ -271,7 +272,7 @@ export function runErcChecks(
                   : issue.kind === "select"
                     ? `Instance ${instance.reference ?? instance.id} parameter ${issue.name} must be one of: ${issue.allowed.join(", ")}`
                     : issue.kind === "number"
-                      ? `Instance ${instance.reference ?? instance.id} parameter ${issue.name} is "${issue.value}", which is ${notAQuantity(issue)}`
+                      ? `Instance ${instance.reference ?? instance.id} parameter ${issue.name} is "${issue.value}", which ${milliScaleReading(issue.value) ?? `is ${notAQuantity(issue)}`}`
                       : `Instance ${instance.reference ?? instance.id} parameter ${issue.name} must be a finite decimal number`;
             diagnostics.push({
               id: `erc:device-parameter:${document.id}:${instance.id}:${issue.kind}:${issue.name}`,

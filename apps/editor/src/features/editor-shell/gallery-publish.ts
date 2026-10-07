@@ -16,8 +16,11 @@ export interface GalleryPublishFields {
   description: string;
   /** Category tags ("amplifier", "adc", …); the server normalizes. */
   tags: readonly string[];
-  /** The publisher's AI mark, shown as an AI tag on the card. */
-  aiGenerated: boolean;
+  /**
+   * The publisher's AI mark, shown as an AI tag on the card. An update that
+   * leaves it out keeps the entry's mark.
+   */
+  aiGenerated?: boolean;
 }
 
 /**
@@ -48,6 +51,33 @@ export function canUpdateGalleryPublication(
   );
 }
 
+/** A Gallery read that failed, with the HTTP status that said so. */
+export class GalleryReadError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+  }
+}
+
+/**
+ * What a publication leaves behind for the working copy, from the Publish
+ * dialog or an Agent: the entry it is now bound to, as published.
+ */
+export interface GalleryPublicationRecord {
+  id: string;
+  name: string;
+  description: string;
+  tags: readonly string[];
+  aiGenerated: boolean;
+  updated: boolean;
+  previewRevision?: string;
+  /** The updated entry's owner and byline, when it is not the bound one. */
+  ownerUserId?: string | null;
+  author?: string;
+}
+
 export async function loadGalleryPublicationContext(
   id: string,
   projectId: string,
@@ -59,8 +89,9 @@ export async function loadGalleryPublicationContext(
   });
   if (response.status === 404) return null;
   if (!response.ok)
-    throw new Error(
+    throw new GalleryReadError(
       "Could not load the linked publication. Retry before publishing.",
+      response.status,
     );
   const payload = (await response.json()) as {
     entry: {
@@ -82,6 +113,44 @@ export async function loadGalleryPublicationContext(
     tags: payload.entry.tags ?? [],
     aiGenerated: payload.entry.aiGenerated === true,
   };
+}
+
+/** What the signed-in account may still publish today (`/api/gallery/quota`). */
+export interface GalleryQuota {
+  limit: number;
+  used: number;
+  remaining: number;
+  /** The next UTC midnight: the day a submission counts in is a UTC day. */
+  resetsAt: string;
+  /** Curators publish without the allowance. */
+  exempt: boolean;
+}
+
+/** Null when signed out or unreachable: the dialog then says nothing. */
+export async function loadGalleryQuota(
+  fetchLike: typeof fetch = fetch,
+): Promise<GalleryQuota | null> {
+  try {
+    const response = await fetchLike("/api/gallery/quota", {
+      credentials: "same-origin",
+      cache: "no-store",
+    });
+    if (!response.ok) return null;
+    const quota = (await response.json()) as Partial<GalleryQuota>;
+    return typeof quota.remaining === "number" &&
+      typeof quota.limit === "number" &&
+      typeof quota.resetsAt === "string"
+      ? {
+          limit: quota.limit,
+          used: quota.used ?? quota.limit - quota.remaining,
+          remaining: quota.remaining,
+          resetsAt: quota.resetsAt,
+          exempt: quota.exempt === true,
+        }
+      : null;
+  } catch {
+    return null;
+  }
 }
 
 /** What the dialog needs to know about the signed-in user. */
@@ -121,7 +190,9 @@ async function sendGalleryProject(
         name: fields.name.trim(),
         description: fields.description.trim(),
         tags: fields.tags,
-        aiGenerated: fields.aiGenerated,
+        ...(fields.aiGenerated === undefined
+          ? {}
+          : { aiGenerated: fields.aiGenerated }),
         // Publishing a drawing must not also publish private source comments
         // or model files. The frozen topology still supports routing guidance.
         projectText: serializeProject({
@@ -229,7 +300,7 @@ export function describePublishOutcome(outcome: GalleryPublishOutcome): string {
     case "too-large":
       return "This Project exceeds the gallery's 2 MB limit";
     case "rate-limited":
-      return "Daily publish limit reached — try again tomorrow";
+      return "Daily publish limit reached — it resets at 00:00 UTC";
     case "rejected":
       return outcome.message === "publication-link-conflict"
         ? "This Project’s publication link changed elsewhere. Reopen the saved Project before publishing."
