@@ -7,7 +7,7 @@ projections own existing IDs, placement, Net membership, revision and bulk.
 Use live resolved facts for imported/custom/PDK assets; ask the human only when
 a needed fact is unavailable. Never infer electrical connectivity from artwork.
 
-Normal path: **place → read selected pins → wire → review the render**.
+Normal path: **place → read selected pins → wire → review the render → fit the view**.
 Accepted edit receipts provide current revisions and diagnostics; no confirmation
 reread is required. Refresh affected facts after a human change or stale-revision
 rejection. Read the full Snapshot only when the task needs broad context.
@@ -39,6 +39,12 @@ targets to avoid full-Snapshot name resolution. Names remain supported when usef
   start, the given one or else the catalog default; `showReference:false`
   hides the name (native `displays`, keyed by new Instance ID). Cell markers
   and ground take neither. Nothing appears only to be hidden a call later.
+- A person may be watching the canvas. After each placement batch, after
+  wiring or moves that reach new ground, and when a drawing is done, fit the
+  view to it: `circuit_view` action `{kind:"focus",intent:{kind:"fit-document"}}`
+  (in `apply_actions`, a call of its own), the GUI's F key. For the Cell on
+  show it changes only the view: no revision, no undo entry, and the person's
+  selection or open dialog stays.
 - Parts are named as the GUI names them. A device's `reference` starts with
   its prefix (R, C, M, …), and a `place-cell` instance's with X. Leave it out,
   on `place-component` or `place-cell`, and the next free name is taken (`R1`,
