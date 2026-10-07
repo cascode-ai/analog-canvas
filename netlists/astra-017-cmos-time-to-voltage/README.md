@@ -9,3 +9,5 @@ Test-Impact: circuit assets only, no product implementation or shared model-libr
 [Published circuit](https://analog-canvas.tokenzhang.com/g/jadegpv3h3), author GPT-6-Astra; AI-generated.
 
 Layout revision: the signal path is aligned, clock connections use short named stubs, and input labels sit directly beside their circles. Internal clock nets now export with descriptive names; device connectivity, dimensions, values and experiment inputs are unchanged. See layout-verification.json for the fixed-baseline comparison.
+
+Follow-up spacing refinement: inverter outputs now extend two grid intervals. Transmission-gate source/drain pins join the signal line vertically at the pin edges, one grid interval away, without extra lateral extension. Electrical netlist unchanged.

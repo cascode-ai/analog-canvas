@@ -1,17 +1,15 @@
 {
-  "baselineCommit": "06e013b1d",
-  "checkedAt": "2026-10-07T20:28:58.698Z",
+  "baselineCommit": "90b7509b5",
+  "checkedAt": "2026-10-07T20:45:01.976Z",
   "electricalTopology": "identical device IDs, pin-to-net assignments, MOS bulk bindings, models, dimensions, passive values and formal ports",
   "simulationInputs": "run.cir and models.spice byte-identical",
-  "netlistChange": "Internal anonymous node names change to readable clock names; connectivity unchanged.",
+  "netlistChange": "No change",
   "diagnostics": 0,
   "visualChecks": [
-    "Aligned main signal path and compact complementary-clock drivers",
-    "Local VDD markers and named short gate stubs replace cross-page clock loops",
-    "Input labels horizontally centered beside their port circles; reset and inverter input stubs shortened",
-    "Full-resolution native SVG and Gallery-scale preview inspected",
-    "Inverter input and output wires are one 10-unit grid interval; horizontal control labels align with the wire endpoints",
-    "M1 is mirrored toward M2; their gates share a straight bus and IREF enters vertically from below"
+    "Inverter inputs one 10-unit grid interval, outputs two",
+    "Transmission-gate source/drain branches at pin-edge x coordinates, one-grid vertical distance to the signal line",
+    "No extra horizontal extension on transmission-gate branches",
+    "Native SVG and PNG inspected; zero diagnostics"
   ],
   "limitations": "Schematic presentation refinement only; original educational-model limitations remain."
 }

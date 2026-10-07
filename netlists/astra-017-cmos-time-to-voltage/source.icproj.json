@@ -294,13 +294,13 @@
           "type": "pmos",
           "name": "M9",
           "id": "M9",
-          "coordinate": [440, 210],
+          "coordinate": [440, 220],
           "rotation": 90,
           "parameters": { "l": "1u", "w": "20u" },
           "labels": [
             {
               "alignment": "start",
-              "anchor": { "fallback": [465, 200], "offset": [25, -10] },
+              "anchor": { "fallback": [465, 210], "offset": [25, -10] },
               "bind": "name",
               "format": {
                 "runs": [
@@ -325,13 +325,13 @@
           "type": "nmos",
           "name": "M10",
           "id": "M10",
-          "coordinate": [440, 270],
+          "coordinate": [440, 260],
           "rotation": 270,
           "parameters": { "l": "1u", "w": "10u" },
           "labels": [
             {
               "alignment": "start",
-              "anchor": { "fallback": [465, 280], "offset": [25, 10] },
+              "anchor": { "fallback": [465, 270], "offset": [25, 10] },
               "bind": "name",
               "format": {
                 "runs": [
@@ -446,12 +446,12 @@
         },
         {
           "type": "ground",
-          "id": "gnd57",
+          "id": "gnd49",
           "coordinate": [550, 360]
         },
         {
           "type": "ground",
-          "id": "gnd59",
+          "id": "gnd51",
           "coordinate": [630, 360]
         },
         {
@@ -521,7 +521,7 @@
         },
         {
           "type": "ground",
-          "id": "gnd73",
+          "id": "gnd65",
           "coordinate": [450, 120]
         },
         {
@@ -607,7 +607,7 @@
         },
         {
           "type": "ground",
-          "id": "gnd91",
+          "id": "gnd83",
           "coordinate": [690, 120]
         },
         {
@@ -737,226 +737,202 @@
           "start": { "terminal": ["CI", "2"] }
         },
         {
-          "end": { "junction": "j31" },
+          "end": { "junction": "j26" },
+          "id": "wire31",
+          "legId": "route-leg-5c3ea1c4068246a9",
+          "start": { "terminal": ["M9", "D"] }
+        },
+        {
+          "end": { "terminal": ["M10", "D"] },
           "id": "wire32",
           "legId": "route-leg-86f113b3e75ed01c",
           "start": { "junction": "j26" }
         },
         {
-          "end": { "terminal": ["M9", "D"] },
-          "id": "wire33",
-          "legId": "route-leg-79667995a6d44e8b",
-          "start": { "junction": "j31" }
+          "end": { "junction": "j33" },
+          "id": "wire34",
+          "legId": "route-leg-3cfef3c1c6be4866",
+          "start": { "terminal": ["M9", "S"] }
         },
         {
-          "end": { "junction": "j34" },
+          "end": { "terminal": ["M10", "S"] },
           "id": "wire35",
           "legId": "route-leg-54fbf1b8448879c5",
-          "start": { "junction": "j26" }
+          "start": { "junction": "j33" }
         },
         {
-          "end": { "terminal": ["M10", "D"] },
-          "id": "wire36",
-          "legId": "route-leg-812ae3a826a82ec8",
-          "start": { "junction": "j34" }
-        },
-        {
-          "end": { "junction": "j37" },
-          "id": "wire38",
-          "legId": "route-leg-31e54c0c3bc51192",
-          "start": { "terminal": ["M9", "S"] }
+          "end": { "junction": "j36" },
+          "id": "wire37",
+          "legId": "route-leg-6e8351e01c0980a7",
+          "start": { "terminal": ["M9", "G"] }
         },
         {
           "end": { "junction": "j39" },
           "id": "wire40",
           "legId": "route-leg-8fd1ecb0c29d4965",
-          "start": { "junction": "j37" }
+          "start": { "terminal": ["M10", "G"] }
         },
         {
-          "end": { "junction": "j41" },
-          "id": "wire42",
-          "legId": "route-leg-a7a64cd898acbbc7",
-          "start": { "junction": "j39" }
-        },
-        {
-          "end": { "terminal": ["M10", "S"] },
+          "end": { "junction": "j42" },
           "id": "wire43",
           "legId": "route-leg-b4fa66f6d908d468",
-          "start": { "junction": "j41" }
+          "start": { "junction": "j33" }
         },
         {
           "end": { "junction": "j44" },
           "id": "wire45",
           "legId": "route-leg-d2223ec8795adc4a",
-          "start": { "terminal": ["M9", "G"] }
-        },
-        {
-          "end": { "junction": "j47" },
-          "id": "wire48",
-          "legId": "route-leg-691ff4eed963a74d",
-          "start": { "terminal": ["M10", "G"] }
-        },
-        {
-          "end": { "junction": "j50" },
-          "id": "wire51",
-          "legId": "route-leg-b18c98a874fc60b7",
-          "start": { "junction": "j39" }
-        },
-        {
-          "end": { "junction": "j52" },
-          "id": "wire53",
-          "legId": "route-leg-99b838809eecee55",
-          "start": { "junction": "j50" }
+          "start": { "junction": "j42" }
         },
         {
           "end": { "terminal": ["port-out", "P"] },
-          "id": "wire54",
-          "legId": "route-leg-c9fa5a7c4051b02c",
-          "start": { "junction": "j52" }
+          "id": "wire46",
+          "legId": "route-leg-01f37ce6cd3449ab",
+          "start": { "junction": "j44" }
         },
         {
           "end": { "terminal": ["CH", "1"] },
-          "id": "wire55",
-          "legId": "route-leg-0bd9c8b6a983ee9b",
-          "start": { "junction": "j50" }
+          "id": "wire47",
+          "legId": "route-leg-14d18eaed80160bc",
+          "start": { "junction": "j42" }
         },
         {
           "end": { "terminal": ["RL", "1"] },
-          "id": "wire56",
-          "legId": "route-leg-dc088a9855aa813a",
-          "start": { "junction": "j52" }
+          "id": "wire48",
+          "legId": "route-leg-691ff4eed963a74d",
+          "start": { "junction": "j44" }
         },
         {
-          "end": { "terminal": ["gnd57", "0"] },
-          "id": "wire58",
-          "legId": "route-leg-5d1a32acbea87f40",
+          "end": { "terminal": ["gnd49", "0"] },
+          "id": "wire50",
+          "legId": "route-leg-c4342a707f9b0ed8",
           "start": { "terminal": ["CH", "2"] }
         },
         {
-          "end": { "terminal": ["gnd59", "0"] },
-          "id": "wire60",
-          "legId": "route-leg-1dc7a16c83cc050b",
+          "end": { "terminal": ["gnd51", "0"] },
+          "id": "wire52",
+          "legId": "route-leg-7c67c2e056e02776",
           "start": { "terminal": ["RL", "2"] }
         },
         {
           "end": { "terminal": ["M5", "S"] },
-          "id": "wire61",
-          "legId": "route-leg-2b523b8ac456869c",
+          "id": "wire53",
+          "legId": "route-leg-99b838809eecee55",
           "start": { "terminal": ["vdd-M5", "P"] }
         },
         {
-          "end": { "junction": "j63" },
-          "id": "wire64",
-          "legId": "route-leg-12e479b6f9013727",
+          "end": { "junction": "j55" },
+          "id": "wire56",
+          "legId": "route-leg-dc088a9855aa813a",
           "start": { "terminal": ["M5", "G"] }
         },
         {
-          "end": { "junction": "j65" },
-          "id": "wire66",
-          "legId": "route-leg-f95d198f21803045",
-          "start": { "junction": "j63" }
+          "end": { "junction": "j57" },
+          "id": "wire58",
+          "legId": "route-leg-5d1a32acbea87f40",
+          "start": { "junction": "j55" }
         },
         {
-          "end": { "junction": "j67" },
-          "id": "wire68",
-          "legId": "route-leg-b6ada9a8c2d97573",
-          "start": { "junction": "j65" }
+          "end": { "junction": "j59" },
+          "id": "wire60",
+          "legId": "route-leg-1dc7a16c83cc050b",
+          "start": { "junction": "j57" }
         },
         {
           "end": { "terminal": ["M6", "G"] },
-          "id": "wire69",
-          "legId": "route-leg-c437e3c7036353e4",
-          "start": { "junction": "j67" }
+          "id": "wire61",
+          "legId": "route-leg-2b523b8ac456869c",
+          "start": { "junction": "j59" }
         },
         {
-          "end": { "junction": "j70" },
-          "id": "wire71",
-          "legId": "route-leg-020f0afaf46243ed",
+          "end": { "junction": "j62" },
+          "id": "wire63",
+          "legId": "route-leg-3d606ba6d9af57aa",
           "start": { "terminal": ["M5", "D"] }
         },
         {
           "end": { "terminal": ["M6", "D"] },
-          "id": "wire72",
-          "legId": "route-leg-3d400541a885cb70",
-          "start": { "junction": "j70" }
+          "id": "wire64",
+          "legId": "route-leg-12e479b6f9013727",
+          "start": { "junction": "j62" }
         },
         {
-          "end": { "terminal": ["gnd73", "0"] },
-          "id": "wire74",
-          "legId": "route-leg-5a685d1348d8acd2",
+          "end": { "terminal": ["gnd65", "0"] },
+          "id": "wire66",
+          "legId": "route-leg-f95d198f21803045",
           "start": { "terminal": ["M6", "S"] }
         },
         {
-          "end": { "junction": "j65" },
-          "id": "wire75",
-          "legId": "route-leg-5e0f3b092a5b6651",
+          "end": { "junction": "j57" },
+          "id": "wire67",
+          "legId": "route-leg-e1601b98a3b5fee6",
           "start": { "terminal": ["port-integrate", "P"] }
         },
         {
-          "end": { "junction": "j76" },
-          "id": "wire77",
-          "legId": "route-leg-357b9b2f28b1eb33",
-          "start": { "junction": "j70" }
+          "end": { "junction": "j68" },
+          "id": "wire69",
+          "legId": "route-leg-c437e3c7036353e4",
+          "start": { "junction": "j62" }
         },
         {
           "end": { "terminal": ["M7", "S"] },
-          "id": "wire79",
-          "legId": "route-leg-782b0b158758a605",
+          "id": "wire71",
+          "legId": "route-leg-020f0afaf46243ed",
           "start": { "terminal": ["vdd-M7", "P"] }
         },
         {
-          "end": { "junction": "j81" },
-          "id": "wire82",
-          "legId": "route-leg-b03af08d867ba51b",
+          "end": { "junction": "j73" },
+          "id": "wire74",
+          "legId": "route-leg-5a685d1348d8acd2",
           "start": { "terminal": ["M7", "G"] }
         },
         {
-          "end": { "junction": "j83" },
-          "id": "wire84",
-          "legId": "route-leg-3e1960577be4a4d5",
-          "start": { "junction": "j81" }
+          "end": { "junction": "j75" },
+          "id": "wire76",
+          "legId": "route-leg-4859ccf7337f38a4",
+          "start": { "junction": "j73" }
         },
         {
-          "end": { "junction": "j85" },
-          "id": "wire86",
-          "legId": "route-leg-55edc07f51f41737",
-          "start": { "junction": "j83" }
+          "end": { "junction": "j77" },
+          "id": "wire78",
+          "legId": "route-leg-602e0d1f098e74a6",
+          "start": { "junction": "j75" }
         },
         {
           "end": { "terminal": ["M8", "G"] },
-          "id": "wire87",
-          "legId": "route-leg-689552475c92c558",
-          "start": { "junction": "j85" }
+          "id": "wire79",
+          "legId": "route-leg-782b0b158758a605",
+          "start": { "junction": "j77" }
         },
         {
-          "end": { "junction": "j88" },
-          "id": "wire89",
-          "legId": "route-leg-194fbaab71afa822",
+          "end": { "junction": "j80" },
+          "id": "wire81",
+          "legId": "route-leg-8069b26f32a237ba",
           "start": { "terminal": ["M7", "D"] }
         },
         {
           "end": { "terminal": ["M8", "D"] },
-          "id": "wire90",
-          "legId": "route-leg-cfb36361a14e3d1c",
-          "start": { "junction": "j88" }
+          "id": "wire82",
+          "legId": "route-leg-b03af08d867ba51b",
+          "start": { "junction": "j80" }
         },
         {
-          "end": { "terminal": ["gnd91", "0"] },
-          "id": "wire92",
-          "legId": "route-leg-e1c1937db6a70e2a",
+          "end": { "terminal": ["gnd83", "0"] },
+          "id": "wire84",
+          "legId": "route-leg-3e1960577be4a4d5",
           "start": { "terminal": ["M8", "S"] }
         },
         {
-          "end": { "junction": "j83" },
-          "id": "wire93",
-          "legId": "route-leg-a500f171c071b3a9",
+          "end": { "junction": "j75" },
+          "id": "wire85",
+          "legId": "route-leg-20c8eab733d7ddf6",
           "start": { "terminal": ["port-sample", "P"] }
         },
         {
-          "end": { "junction": "j94" },
-          "id": "wire95",
-          "legId": "route-leg-b745a18dd5f8eda7",
-          "start": { "junction": "j88" }
+          "end": { "junction": "j86" },
+          "id": "wire87",
+          "legId": "route-leg-689552475c92c558",
+          "start": { "junction": "j80" }
         }
       ],
       "connections": {
@@ -999,7 +975,7 @@
               "junction": "j15"
             },
             {
-              "junction": "j70"
+              "junction": "j62"
             }
           ],
           [
@@ -1013,13 +989,13 @@
               "terminal": ["gnd21", "0"]
             },
             {
-              "terminal": ["gnd59", "0"]
+              "terminal": ["gnd51", "0"]
             },
             {
-              "terminal": ["gnd73", "0"]
+              "terminal": ["gnd65", "0"]
             },
             {
-              "terminal": ["gnd91", "0"]
+              "terminal": ["gnd83", "0"]
             },
             {
               "terminal": ["M10", "B"]
@@ -1036,18 +1012,18 @@
           ],
           [
             {
-              "junction": "j44"
+              "junction": "j36"
             },
             {
-              "junction": "j88"
+              "junction": "j80"
             }
           ],
           [
             {
-              "junction": "j47"
+              "junction": "j39"
             },
             {
-              "junction": "j81"
+              "junction": "j73"
             }
           ]
         ]
@@ -1124,84 +1100,68 @@
           "id": "j24"
         },
         {
-          "coordinate": [400, 240],
+          "coordinate": [420, 240],
           "id": "j26"
         },
         {
-          "coordinate": [400, 220],
-          "id": "j31"
+          "coordinate": [460, 240],
+          "id": "j33"
         },
         {
-          "coordinate": [400, 260],
-          "id": "j34"
+          "coordinate": [440, 190],
+          "id": "j36"
         },
         {
-          "coordinate": [480, 220],
-          "id": "j37"
-        },
-        {
-          "coordinate": [480, 240],
+          "coordinate": [440, 290],
           "id": "j39"
         },
         {
-          "coordinate": [480, 260],
-          "id": "j41"
-        },
-        {
-          "coordinate": [440, 170],
-          "id": "j44"
-        },
-        {
-          "coordinate": [440, 310],
-          "id": "j47"
-        },
-        {
           "coordinate": [550, 240],
-          "id": "j50"
+          "id": "j42"
         },
         {
           "coordinate": [630, 240],
-          "id": "j52"
+          "id": "j44"
         },
         {
           "coordinate": [410, 0],
-          "id": "j63"
+          "id": "j55"
         },
         {
           "coordinate": [410, 40],
-          "id": "j65"
+          "id": "j57"
         },
         {
           "coordinate": [410, 80],
-          "id": "j67"
+          "id": "j59"
         },
         {
           "coordinate": [450, 40],
-          "id": "j70"
+          "id": "j62"
         },
         {
-          "coordinate": [460, 40],
-          "id": "j76"
+          "coordinate": [470, 40],
+          "id": "j68"
         },
         {
           "coordinate": [650, 0],
-          "id": "j81"
+          "id": "j73"
         },
         {
           "coordinate": [650, 40],
-          "id": "j83"
+          "id": "j75"
         },
         {
           "coordinate": [650, 80],
-          "id": "j85"
+          "id": "j77"
         },
         {
           "coordinate": [690, 40],
-          "id": "j88"
+          "id": "j80"
         },
         {
-          "coordinate": [700, 40],
-          "id": "j94"
+          "coordinate": [710, 40],
+          "id": "j86"
         }
       ],
       "annotations": [
@@ -1266,10 +1226,10 @@
         {
           "anchor": {
             "kind": "free",
-            "position": { "x": 440, "y": 162 }
+            "position": { "x": 440, "y": 182 }
           },
           "bind": { "kind": "net-name", "netId": "net-sampleb" },
-          "id": "name-46",
+          "id": "name-38",
           "kind": "net-label",
           "netId": "net-sampleb",
           "order": 13
@@ -1277,10 +1237,10 @@
         {
           "anchor": {
             "kind": "free",
-            "position": { "x": 440, "y": 328 }
+            "position": { "x": 440, "y": 308 }
           },
           "bind": { "kind": "net-name", "netId": "net-sample" },
-          "id": "name-49",
+          "id": "name-41",
           "kind": "net-label",
           "netId": "net-sample",
           "order": 14
@@ -1303,7 +1263,7 @@
               }
             ]
           },
-          "id": "name-62",
+          "id": "name-54",
           "kind": "power-label",
           "netId": "net-vdd",
           "order": 22
@@ -1312,10 +1272,10 @@
           "alignment": "start",
           "anchor": {
             "kind": "free",
-            "position": { "x": 470, "y": 44 }
+            "position": { "x": 480, "y": 44 }
           },
           "bind": { "kind": "net-name", "netId": "net-enb" },
-          "id": "name-78",
+          "id": "name-70",
           "kind": "net-label",
           "netId": "net-enb",
           "order": 24
@@ -1338,7 +1298,7 @@
               }
             ]
           },
-          "id": "name-80",
+          "id": "name-72",
           "kind": "power-label",
           "netId": "net-vdd",
           "order": 27
@@ -1347,10 +1307,10 @@
           "alignment": "start",
           "anchor": {
             "kind": "free",
-            "position": { "x": 710, "y": 44 }
+            "position": { "x": 720, "y": 44 }
           },
           "bind": { "kind": "net-name", "netId": "net-sampleb" },
-          "id": "name-96",
+          "id": "name-88",
           "kind": "net-label",
           "netId": "net-sampleb",
           "order": 29
@@ -1385,53 +1345,53 @@
           "scope": "local"
         },
         {
-          "id": "claim-46",
+          "id": "claim-38",
           "kind": "name-claim",
           "name": "sampleb",
           "netId": "net-sampleb",
-          "owner": { "annotationId": "name-46", "kind": "net-label" },
+          "owner": { "annotationId": "name-38", "kind": "net-label" },
           "scope": "local"
         },
         {
-          "id": "claim-49",
+          "id": "claim-41",
           "kind": "name-claim",
           "name": "sample",
           "netId": "net-sample",
-          "owner": { "annotationId": "name-49", "kind": "net-label" },
+          "owner": { "annotationId": "name-41", "kind": "net-label" },
           "scope": "local"
         },
         {
-          "id": "claim-62",
+          "id": "claim-54",
           "kind": "name-claim",
           "name": "vdd",
           "netId": "net-vdd",
-          "owner": { "kind": "power-marker", "objectId": "name-62" },
+          "owner": { "kind": "power-marker", "objectId": "name-54" },
           "powerDomain": "vdd",
           "scope": "local"
         },
         {
-          "id": "claim-78",
+          "id": "claim-70",
           "kind": "name-claim",
           "name": "enb",
           "netId": "net-enb",
-          "owner": { "annotationId": "name-78", "kind": "net-label" },
+          "owner": { "annotationId": "name-70", "kind": "net-label" },
           "scope": "local"
         },
         {
-          "id": "claim-80",
+          "id": "claim-72",
           "kind": "name-claim",
           "name": "vdd",
           "netId": "net-vdd",
-          "owner": { "kind": "power-marker", "objectId": "name-80" },
+          "owner": { "kind": "power-marker", "objectId": "name-72" },
           "powerDomain": "vdd",
           "scope": "local"
         },
         {
-          "id": "claim-96",
+          "id": "claim-88",
           "kind": "name-claim",
           "name": "sampleb",
           "netId": "net-sampleb",
-          "owner": { "annotationId": "name-96", "kind": "net-label" },
+          "owner": { "annotationId": "name-88", "kind": "net-label" },
           "scope": "local"
         }
       ],

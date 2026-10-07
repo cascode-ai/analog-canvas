@@ -14,7 +14,7 @@
     "unconstrained": 0
   },
   "mcpVersion": "0.17.48",
-  "checkedAt": "2026-10-07T20:29:02.021Z",
-  "layoutUpdatedAt": "2026-10-07T20:29:02.021Z",
-  "layoutChange": "Rebuilt compact signal-path layout, local supply markers and named short control stubs. Input labels align directly left of port circles. Circuit topology and parameters unchanged; internal clock net names are now descriptive."
+  "checkedAt": "2026-10-07T20:45:08.364Z",
+  "layoutUpdatedAt": "2026-10-07T20:45:08.364Z",
+  "layoutChange": "Inverter output stubs are two grid intervals; inputs remain one. Transmission-gate source/drain pins connect vertically at their own x coordinates to the signal line, with one-grid vertical spacing and no extra horizontal extension. Electrical netlist unchanged from 90b7509b5."
 }
