@@ -1,0 +1,15 @@
+
+.subckt astra_027_cmos_dual_rail_level_shifter vddl vdd VSS vin out outb
+CB outb VSS 500f
+CL out VSS 500f
+M1 nl nr vdd vdd APMOS l=1u w=2u
+M10 outb nr VSS VSS ANMOS l=1u w=10u
+M2 nr nl vdd vdd APMOS l=1u w=2u
+M3 nl vin VSS VSS ANMOS l=1u w=20u
+M4 nr vinb VSS VSS ANMOS l=1u w=20u
+M5 vinb vin vddl vddl APMOS l=1u w=4u
+M6 vinb vin VSS VSS ANMOS l=1u w=2u
+M7 out nl vdd vdd APMOS l=1u w=20u
+M8 out nl VSS VSS ANMOS l=1u w=10u
+M9 outb nr vdd vdd APMOS l=1u w=20u
+.ends astra_027_cmos_dual_rail_level_shifter

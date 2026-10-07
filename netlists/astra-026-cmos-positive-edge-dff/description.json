@@ -1,0 +1,11 @@
+{
+  "name": "CMOS positive-edge D flip-flop",
+  "description": "Two static transmission-gate latches in opposite clock phases form an 18-MOS positive-edge D flip-flop. Each latch has two restoring inverters and a switched feedback path. The master tracks while clk is low; the slave transfers the captured value after a rising edge. The saved 3.3 V experiment checks five captures and four hold intervals across falling edges and off-edge data changes. Power-up Q is unspecified; the first tested rising edge captures D. No asynchronous reset, setup/hold boundary or metastability guarantee is claimed.",
+  "tags": [
+    "CMOS",
+    "D Flip-Flop",
+    "Sequential Logic",
+    "Transmission Gate",
+    "Storage"
+  ]
+}

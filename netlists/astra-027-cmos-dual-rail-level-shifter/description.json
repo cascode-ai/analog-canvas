@@ -1,0 +1,11 @@
+{
+  "name": "CMOS 1.2 V to 3.3 V level shifter",
+  "description": "A cross-coupled PMOS pair and two input-driven NMOS devices translate a 1.2 V logic input into a 3.3 V state. A low-rail inverter supplies the complementary input; two high-rail inverters buffer complementary outputs into 500 fF each. Ten MOS devices and two capacitors are explicit. The saved test verifies both output polarities over repeated low/high transitions. Generic Level-1 nominal behavior only: device stress, power sequencing, input overshoot and real process voltage ratings are not qualified.",
+  "tags": [
+    "CMOS",
+    "Level Shifter",
+    "Dual Supply",
+    "Interface",
+    "Complementary Outputs"
+  ]
+}

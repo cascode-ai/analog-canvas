@@ -1,0 +1,11 @@
+{
+  "name": "CMOS tri-state driver with bus keeper",
+  "description": "A non-inverting tri-state driver controls a 500 fF bus while en is high. When disabled, a pair of feedback inverters retains the last bus state; the final keeper inverter is deliberately weak (PMOS 0.4 um, NMOS 0.2 um, L=1 um). Twelve MOS devices implement data/enable complements, the output stack and the keeper. The 3.3 V experiment verifies driving both states, retention despite input changes while disabled, and overwriting the held state. No multi-driver arbitration, contention tolerance or PVT retention specification is implied.",
+  "tags": [
+    "CMOS",
+    "Bus Keeper",
+    "Tri-state",
+    "Interface",
+    "State Retention"
+  ]
+}

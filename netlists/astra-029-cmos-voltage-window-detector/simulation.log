@@ -1,0 +1,18 @@
+
+Note: No compatibility mode selected!
+
+
+Circuit: cmos voltage-window detector
+
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+No. of Data Rows : 661
+lower               =  8.97500e-01
+upper               =  2.40250e+00
+below               =  6.12963e-10
+inside              =  3.30000e+00
+above               =  6.12963e-10
+ASCII raw file "out.raw"
+ngspice-46 done

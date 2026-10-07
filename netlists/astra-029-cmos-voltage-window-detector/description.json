@@ -1,0 +1,11 @@
+{
+  "name": "CMOS voltage-window detector",
+  "description": "Two five-MOS differential comparators test vin against resistor-derived 0.9 V and 2.4 V thresholds. Restoring inverters and a CMOS NOR network combine their decisions; out is high only inside the window. Twenty-two MOS devices, three divider resistors and a 500 fF load are explicit. A 0.9 V bias input sets the tail currents. The saved nominal 3.3 V DC sweep checks both switching thresholds and below/inside/above-window outputs. No hysteresis, offset/mismatch, response-time or PVT guarantees are claimed.",
+  "tags": [
+    "CMOS",
+    "Window Detector",
+    "Comparator",
+    "Voltage Monitor",
+    "Mixed Signal"
+  ]
+}

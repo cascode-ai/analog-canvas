@@ -1,0 +1,26 @@
+CMOS tri-state driver with bus keeper
+.include "circuit.spice"
+.include "models.spice"
+VDD vdd 0 3.3
+VEN en 0 PWL(0 3.3 40n 3.3 40.1n 0 100n 0 100.1n 3.3 160n 3.3 160.1n 0 220n 0 220.1n 3.3 280n 3.3)
+VD d 0 PWL(0 0 60n 0 60.1n 3.3 180n 3.3 180.1n 0 280n 0)
+XDUT vdd 0 bus en d astra_028_cmos_tristate_bus_keeper
+.temp 27
+.options method=gear reltol=1e-5
+* @spec drive_low range -0.01 0.01 unit=V
+* @spec hold_low range -0.01 0.01 unit=V
+* @spec drive_high range 3.2 3.4 unit=V
+* @spec hold_high range 3.2 3.4 unit=V
+* @spec redrive_low range -0.01 0.01 unit=V
+.control
+set filetype=ascii
+tran 20p 280n
+meas tran drive_low FIND v(bus) AT=30n
+meas tran hold_low FIND v(bus) AT=85n
+meas tran drive_high FIND v(bus) AT=130n
+meas tran hold_high FIND v(bus) AT=200n
+meas tran redrive_low FIND v(bus) AT=260n
+write out.raw
+quit
+.endc
+.end

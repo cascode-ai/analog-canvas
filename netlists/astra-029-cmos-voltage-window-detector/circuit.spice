@@ -1,0 +1,29 @@
+
+.subckt astra_029_cmos_voltage_window_detector vdd VSS vin vb out
+CL out VSS 500f
+M1 net2 vin net7 VSS ANMOS l=1u w=10u
+M10 net8 vb VSS VSS ANMOS l=1u w=4u
+M11 lo_b net1 vdd vdd APMOS l=1u w=20u
+M12 lo_b net1 VSS VSS ANMOS l=1u w=10u
+M13 hi_b net0 vdd vdd APMOS l=1u w=20u
+M14 hi_b net0 VSS VSS ANMOS l=1u w=10u
+M15 net6 lo_b vdd vdd APMOS l=1u w=20u
+M16 net4 hi_b net6 vdd APMOS l=1u w=20u
+M17 net4 lo_b VSS VSS ANMOS l=1u w=10u
+M18 net4 hi_b VSS VSS ANMOS l=1u w=10u
+M19 net5 net4 vdd vdd APMOS l=1u w=20u
+M2 net1 vlo net7 VSS ANMOS l=1u w=10u
+M20 net5 net4 VSS VSS ANMOS l=1u w=10u
+M21 out net5 vdd vdd APMOS l=1u w=20u
+M22 out net5 VSS VSS ANMOS l=1u w=10u
+M3 net2 net2 vdd vdd APMOS l=1u w=20u
+M4 net1 net2 vdd vdd APMOS l=1u w=20u
+M5 net7 vb VSS VSS ANMOS l=1u w=4u
+M6 net3 vhi net8 VSS ANMOS l=1u w=10u
+M7 net0 vin net8 VSS ANMOS l=1u w=10u
+M8 net3 net3 vdd vdd APMOS l=1u w=20u
+M9 net0 net3 vdd vdd APMOS l=1u w=20u
+RB vlo VSS 27k
+RM vhi vlo 45k
+RT vdd vhi 27k
+.ends astra_029_cmos_voltage_window_detector

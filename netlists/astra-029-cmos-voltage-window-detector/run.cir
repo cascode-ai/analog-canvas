@@ -1,0 +1,26 @@
+CMOS voltage-window detector
+.include "circuit.spice"
+.include "models.spice"
+VDD vdd 0 3.3
+VB vb 0 0.9
+VIN vin 0 0
+XDUT vdd 0 vin vb out astra_029_cmos_voltage_window_detector
+.temp 27
+.options method=gear reltol=1e-5
+* @spec lower range 0.8 1 unit=V
+* @spec upper range 2.3 2.5 unit=V
+* @spec below range -0.01 0.01 unit=V
+* @spec inside range 3.2 3.4 unit=V
+* @spec above range -0.01 0.01 unit=V
+.control
+set filetype=ascii
+dc VIN 0 3.3 0.005
+meas dc lower WHEN v(out)=1.65 RISE=1
+meas dc upper WHEN v(out)=1.65 FALL=1
+meas dc below FIND v(out) AT=0.3
+meas dc inside FIND v(out) AT=1.65
+meas dc above FIND v(out) AT=3.0
+write out.raw
+quit
+.endc
+.end

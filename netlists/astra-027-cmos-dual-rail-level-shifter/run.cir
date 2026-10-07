@@ -1,0 +1,36 @@
+CMOS 1.2 V to 3.3 V level shifter
+.include "circuit.spice"
+.include "models.spice"
+VDD vdd 0 3.3
+VDDL vddl 0 1.2
+VIN vin 0 PULSE(0 1.2 20n 100p 100p 40n 80n)
+XDUT vddl vdd 0 vin out outb astra_027_cmos_dual_rail_level_shifter
+.temp 27
+.options method=gear reltol=1e-5
+* @spec out_low range -0.01 0.01 unit=V
+* @spec outb_low range 3.2 3.4 unit=V
+* @spec out_high range 3.2 3.4 unit=V
+* @spec outb_high range -0.01 0.01 unit=V
+* @spec out_low2 range -0.01 0.01 unit=V
+* @spec outb_low2 range 3.2 3.4 unit=V
+* @spec out_high2 range 3.2 3.4 unit=V
+* @spec outb_high2 range -0.01 0.01 unit=V
+* @spec out_low3 range -0.01 0.01 unit=V
+* @spec outb_low3 range 3.2 3.4 unit=V
+.control
+set filetype=ascii
+tran 10p 180n
+meas tran out_low FIND v(out) AT=10n
+meas tran outb_low FIND v(outb) AT=10n
+meas tran out_high FIND v(out) AT=45n
+meas tran outb_high FIND v(outb) AT=45n
+meas tran out_low2 FIND v(out) AT=85n
+meas tran outb_low2 FIND v(outb) AT=85n
+meas tran out_high2 FIND v(out) AT=125n
+meas tran outb_high2 FIND v(outb) AT=125n
+meas tran out_low3 FIND v(out) AT=170n
+meas tran outb_low3 FIND v(outb) AT=170n
+write out.raw
+quit
+.endc
+.end

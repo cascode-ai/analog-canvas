@@ -1,0 +1,23 @@
+
+.subckt astra_026_cmos_positive_edge_dff vdd VSS d q clk
+CM net2 VSS 200f
+CQ q VSS 500f
+M1 clkb clk vdd vdd APMOS l=1u w=20u
+M10 net2 net1 VSS VSS ANMOS l=1u w=10u
+M11 net2 clkb net3 vdd APMOS l=1u w=20u
+M12 net2 clk net3 VSS ANMOS l=1u w=10u
+M13 net4 net3 vdd vdd APMOS l=1u w=20u
+M14 net4 net3 VSS VSS ANMOS l=1u w=10u
+M15 q clk net3 vdd APMOS l=1u w=20u
+M16 q clkb net3 VSS ANMOS l=1u w=10u
+M17 q net4 vdd vdd APMOS l=1u w=20u
+M18 q net4 VSS VSS ANMOS l=1u w=10u
+M2 clkb clk VSS VSS ANMOS l=1u w=10u
+M3 d clk net0 vdd APMOS l=1u w=20u
+M4 d clkb net0 VSS ANMOS l=1u w=10u
+M5 net1 net0 vdd vdd APMOS l=1u w=20u
+M6 net1 net0 VSS VSS ANMOS l=1u w=10u
+M7 net2 clkb net0 vdd APMOS l=1u w=20u
+M8 net2 clk net0 VSS ANMOS l=1u w=10u
+M9 net2 net1 vdd vdd APMOS l=1u w=20u
+.ends astra_026_cmos_positive_edge_dff

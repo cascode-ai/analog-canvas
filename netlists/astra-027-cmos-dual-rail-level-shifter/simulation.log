@@ -1,0 +1,41 @@
+
+Note: No compatibility mode selected!
+
+
+Circuit: cmos 1.2 v to 3.3 v level shifter
+
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+Initial Transient Solution
+--------------------------
+
+Node                                   Voltage
+----                                   -------
+vdd                                        3.3
+vddl                                       1.2
+vin                                          0
+outb                                       3.3
+out                                6.12963e-10
+xdut.nl                                    3.3
+xdut.nr                            1.37912e-09
+xdut.vinb                                  1.2
+vin#branch                                   0
+vddl#branch                          -1.21e-12
+vdd#branch                          -1.324e-11
+
+
+No. of Data Rows : 18101
+out_low             =  6.12963e-10
+outb_low            =  3.30000e+00
+out_high            =  3.30000e+00
+outb_high           =  6.12963e-10
+out_low2            =  6.12963e-10
+outb_low2           =  3.30000e+00
+out_high2           =  3.30000e+00
+outb_high2          =  6.12963e-10
+out_low3            =  6.12963e-10
+outb_low3           =  3.30000e+00
+ASCII raw file "out.raw"
+ngspice-46 done

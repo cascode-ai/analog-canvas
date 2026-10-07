@@ -1,0 +1,16 @@
+
+.subckt astra_028_cmos_tristate_bus_keeper vdd VSS bus en d
+CL bus VSS 500f
+M1 enb en vdd vdd APMOS l=1u w=20u
+M10 net0 bus VSS VSS ANMOS l=1u w=10u
+M11 bus net0 vdd vdd APMOS l=1u w=0.4u
+M12 bus net0 VSS VSS ANMOS l=1u w=0.2u
+M2 enb en VSS VSS ANMOS l=1u w=10u
+M3 db d vdd vdd APMOS l=1u w=20u
+M4 db d VSS VSS ANMOS l=1u w=10u
+M5 net2 enb vdd vdd APMOS l=1u w=20u
+M6 bus db net2 vdd APMOS l=1u w=20u
+M7 bus db net1 VSS ANMOS l=1u w=10u
+M8 net1 en VSS VSS ANMOS l=1u w=10u
+M9 net0 bus vdd vdd APMOS l=1u w=20u
+.ends astra_028_cmos_tristate_bus_keeper
