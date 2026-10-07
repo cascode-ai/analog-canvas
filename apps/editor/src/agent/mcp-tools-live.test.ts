@@ -15,6 +15,7 @@ import {
   placementModelTarget,
   placementProcessFill,
 } from "../features/netlist-export/netlist-process";
+import { createAgentGalleryPublisher } from "./agent-gallery-publish";
 import {
   emptyAgentProject,
   liveAgentEditor,
@@ -227,6 +228,43 @@ describe("MCP tools on the live editor", () => {
     await apply(editor, [{ kind: "undo" }]);
     expect(editor.controller.document.instances).toHaveLength(0);
   });
+  it("publishes the working copy to the Gallery through gallery_circuits, marked AI (#1415)", async () => {
+    const sent: unknown[] = [];
+    const editor: Awaited<ReturnType<typeof connected>> = await connected({
+      projectHost: {
+        publishToGallery: createAgentGalleryPublisher({
+          current: () => ({
+            project: editor.controller.project,
+            linked: null,
+            cloudBinding: null,
+          }),
+          published: () => {},
+          fetch: (async (_input: RequestInfo | URL, init?: RequestInit) => {
+            sent.push(JSON.parse(String(init?.body)));
+            return Response.json(
+              { id: "g9", previewRevision: "r9" },
+              { status: 201 },
+            );
+          }) as typeof fetch,
+        }),
+      },
+    });
+    expect(
+      await editor.tool("gallery_circuits", {
+        action: "publish",
+        name: "Amp",
+        tags: ["amplifier"],
+      }),
+    ).toMatchObject({ ok: true, galleryEntryId: "g9", url: "/g/g9" });
+    expect(sent).toEqual([
+      expect.objectContaining({
+        name: "Amp",
+        tags: ["amplifier"],
+        aiGenerated: true,
+      }),
+    ]);
+  });
+
   it("reports Gallery login separately without replacing the target", async () => {
     const editor = await connected({
       projectHost: { fetch: async () => new Response(null, { status: 401 }) },

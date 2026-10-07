@@ -185,6 +185,14 @@ sibling, advertised in `capabilities` as `resources.project`. `list-gallery`,
 `read-gallery-entry`, and the response-size-bounded `read-gallery-entries`
 provide cursor-paged access to every public Gallery entry, complete canonical
 Project Code, and an optional generated SPICE or Spectre netlist.
+`publish-gallery-entry` and `update-gallery-entry` put the working copy its tab
+shows on the Gallery through the Editor's own Publish client, under the
+signed-in Editor session, with the Publish dialog's fields (`name`,
+`description`, `tags`, `aiGenerated`). A new entry an Agent publishes carries
+the AI mark unless the request says otherwise; an update defaults to the entry
+the working copy was published as or opened from, keeps every field it does
+not name, and leaves the stored mark alone unless `aiGenerated` is given. Both
+answer `galleryEntryId`, `url` and `previewRevision`.
 `read-project-code` / `replace-project-code` and
 `read-netlist` / `replace-netlist` expose the live Editor's existing code
 planners with Project structure-revision guards. Project Code replacement can
@@ -202,7 +210,8 @@ project-local copy; a repeated import reports `already-imported`. Failures
 carry a `recovery` hint (`sign-in`, `refresh`, `fix-input`, or `retry`). The
 Cloud Cell operations require `project.import`; active code reads require
 `project.download`; writes require their corresponding Circuit edit scopes;
-Gallery reads require `circuit.snapshot`. The resource owns no second Cloud
+Gallery reads require `circuit.snapshot`; Gallery publication requires
+`gallery.publish`, which no edit scope implies. The resource owns no second Cloud
 store, imported-Cell format, or write path; see [Edit Engine](edit-engine.md).
 
 These resources do not expose arbitrary host files or a general-purpose

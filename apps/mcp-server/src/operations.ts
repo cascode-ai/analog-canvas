@@ -142,6 +142,17 @@ const ProjectCellsArgs = z.discriminatedUnion("action", [
     expectedStructureRevision: z.number().int().nonnegative().optional(),
   }),
 ]);
+const GalleryEntryFields = {
+  name: z.string().trim().min(1).max(120).optional(),
+  description: z.string().max(1000).optional(),
+  tags: z.array(z.string().min(1).max(32)).max(12).optional(),
+  aiGenerated: z
+    .boolean()
+    .optional()
+    .describe(
+      "The entry's AI mark. A new entry defaults to true; an update keeps the entry's.",
+    ),
+};
 const GalleryCircuitsArgs = z.discriminatedUnion("action", [
   z.strictObject({
     action: z.literal("insert"),
@@ -182,6 +193,21 @@ const GalleryCircuitsArgs = z.discriminatedUnion("action", [
     netlistFormat: z.enum(["spice", "spectre"]).nullable().optional(),
     namingProfile: z.enum(["native", "cadence-bang"]).optional(),
     portCase: z.enum(["lower", "upper"]).optional(),
+  }),
+  z.strictObject({
+    action: z.literal("publish"),
+    ...GalleryEntryFields,
+  }),
+  z.strictObject({
+    action: z.literal("update"),
+    galleryEntryId: z
+      .string()
+      .min(1)
+      .optional()
+      .describe(
+        "Defaults to the entry the working copy was published as or opened from.",
+      ),
+    ...GalleryEntryFields,
   }),
 ]);
 const ProjectCodeArgs = z.discriminatedUnion("action", [
@@ -793,6 +819,16 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
           parsed.galleryEntryId,
           parsed.background === true,
         );
+      if (parsed.action === "publish" || parsed.action === "update") {
+        const { action, ...fields } = parsed;
+        return session.client.projectResource({
+          apiVersion: AGENT_API_VERSION,
+          requestId: crypto.randomUUID(),
+          ...(action === "publish"
+            ? { operation: "publish-gallery-entry", ...fields }
+            : { operation: "update-gallery-entry", ...fields }),
+        });
+      }
       if (parsed.action === "insert") {
         const current =
           parsed.expectedRevision === undefined ||

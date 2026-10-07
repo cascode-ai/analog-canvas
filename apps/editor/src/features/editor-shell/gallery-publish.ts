@@ -16,8 +16,11 @@ export interface GalleryPublishFields {
   description: string;
   /** Category tags ("amplifier", "adc", …); the server normalizes. */
   tags: readonly string[];
-  /** The publisher's AI mark, shown as an AI tag on the card. */
-  aiGenerated: boolean;
+  /**
+   * The publisher's AI mark, shown as an AI tag on the card. An update that
+   * leaves it out keeps the entry's mark.
+   */
+  aiGenerated?: boolean;
 }
 
 /**
@@ -121,7 +124,9 @@ async function sendGalleryProject(
         name: fields.name.trim(),
         description: fields.description.trim(),
         tags: fields.tags,
-        aiGenerated: fields.aiGenerated,
+        ...(fields.aiGenerated === undefined
+          ? {}
+          : { aiGenerated: fields.aiGenerated }),
         // Publishing a drawing must not also publish private source comments
         // or model files. The frozen topology still supports routing guidance.
         projectText: serializeProject({

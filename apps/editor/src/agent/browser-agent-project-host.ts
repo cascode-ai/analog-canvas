@@ -69,6 +69,13 @@ export interface BrowserAgentProjectHostOptions {
     actor: { kind: "agent"; id: string };
     edits: ProjectStructureEdit[];
   }) => ProjectTransactionResult;
+  /** Publish to Gallery for an Agent (createAgentGalleryPublisher). */
+  publishToGallery?: (
+    request: Extract<
+      AgentProjectResourceRequest,
+      { operation: "publish-gallery-entry" | "update-gallery-entry" }
+    >,
+  ) => Promise<AgentProjectResourceResponse>;
 }
 
 /** Browser authority for the signed-in Cloud Project shelf and live Project. */
@@ -164,6 +171,19 @@ export class BrowserAgentProjectHost {
     }
     if (request.operation === "read-gallery-entries") {
       return this.readGalleryEntries(request);
+    }
+    if (
+      request.operation === "publish-gallery-entry" ||
+      request.operation === "update-gallery-entry"
+    ) {
+      return this.options.publishToGallery
+        ? this.options.publishToGallery(request)
+        : this.error(
+            request,
+            "GALLERY_PUBLISH_UNAVAILABLE",
+            "This Editor cannot publish to the Gallery",
+            "refresh",
+          );
     }
     if (request.operation === "read-project-code") {
       const project = this.options.getProject();

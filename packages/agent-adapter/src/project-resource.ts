@@ -16,6 +16,14 @@ const NetlistFormatSchema = z.enum(["spice", "spectre"]);
 const NetlistNamingProfileSchema = z.enum(["native", "cadence-bang"]);
 const NetlistPortCaseSchema = z.enum(["lower", "upper"]);
 const ProjectNameSchema = z.string().min(1).max(256);
+// The Gallery's own field limits (worker/gallery.ts), checked again there.
+const GalleryEntryFieldsSchema = z.strictObject({
+  name: z.string().trim().min(1).max(120).optional(),
+  description: z.string().max(1000).optional(),
+  tags: z.array(z.string().min(1).max(32)).max(12).optional(),
+  /** The entry's AI mark. A new entry an Agent publishes defaults to true. */
+  aiGenerated: z.boolean().optional(),
+}).shape;
 const CopyPlacementResultSchema = z.strictObject({
   structureRevision: z.number().int().nonnegative(),
   revision: z.number().int().nonnegative(),
@@ -135,6 +143,19 @@ export const AgentProjectResourceRequestSchema = z.discriminatedUnion(
       netlistFormat: NetlistFormatSchema.nullable().optional(),
       namingProfile: NetlistNamingProfileSchema.optional(),
       portCase: NetlistPortCaseSchema.optional(),
+    }),
+    // The bound working copy, published as the signed-in Editor account, as
+    // the Editor's Publish to Gallery does it.
+    ProjectRequestBaseSchema.extend({
+      operation: z.literal("publish-gallery-entry"),
+      ...GalleryEntryFieldsSchema,
+    }),
+    // Defaults to the entry the working copy was published as or opened from;
+    // fields left out keep the entry's current ones.
+    ProjectRequestBaseSchema.extend({
+      operation: z.literal("update-gallery-entry"),
+      galleryEntryId: StableIdSchema.optional(),
+      ...GalleryEntryFieldsSchema,
     }),
     ProjectRequestBaseSchema.extend({
       operation: z.literal("read-project-code"),
@@ -336,6 +357,14 @@ export const AgentProjectResourceResponseSchema = z.union([
     remainingEntryIds: z.array(StableIdSchema),
   }),
   ProjectResponseBaseSchema.extend({
+    operation: z.enum(["publish-gallery-entry", "update-gallery-entry"]),
+    ok: z.literal(true),
+    galleryEntryId: StableIdSchema,
+    /** The entry's address in the Editor, such as `/g/<id>`. */
+    url: z.string().min(1),
+    previewRevision: z.string().min(1).optional(),
+  }),
+  ProjectResponseBaseSchema.extend({
     operation: z.literal("read-project-code"),
     ok: z.literal(true),
     projectCode: ProjectTextSchema,
@@ -371,6 +400,8 @@ export const AgentProjectResourceResponseSchema = z.union([
       "read-gallery-entry",
       "read-gallery-entries",
       "insert-gallery-entry",
+      "publish-gallery-entry",
+      "update-gallery-entry",
       "read-project-code",
       "replace-project-code",
       "read-netlist",
