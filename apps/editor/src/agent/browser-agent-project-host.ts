@@ -851,6 +851,7 @@ export class BrowserAgentProjectHost {
     return { ...netlist, documentId };
   }
 
+  /** An entry as the Agent API states it, its saved AI mark included (#1439). */
   private gallerySummary(entry: {
     id: string;
     name: string;
@@ -861,6 +862,7 @@ export class BrowserAgentProjectHost {
     tags?: readonly string[] | undefined;
     netlistable?: boolean | undefined;
     likes?: number | undefined;
+    aiGenerated?: boolean | undefined;
   }): AgentGalleryEntrySummary {
     return {
       id: entry.id,
@@ -874,6 +876,7 @@ export class BrowserAgentProjectHost {
         ? {}
         : { netlistable: entry.netlistable }),
       ...(entry.likes === undefined ? {} : { likes: entry.likes }),
+      aiGenerated: entry.aiGenerated === true,
     };
   }
 

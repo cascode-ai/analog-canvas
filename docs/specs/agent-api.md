@@ -188,7 +188,12 @@ See [execution and resources](simulation-execution.md).
 sibling, advertised in `capabilities` as `resources.project`. `list-gallery`,
 `read-gallery-entry`, and the response-size-bounded `read-gallery-entries`
 provide cursor-paged access to every public Gallery entry, complete canonical
-Project Code, and an optional generated SPICE or Spectre netlist.
+Project Code, and an optional generated SPICE or Spectre netlist. Each entry
+states its saved AI mark as `aiGenerated`. Adapters parse these answers
+strictly; from the release that reads `aiGenerated` on, an adapter that meets
+a field it does not know reports the schema failure with where to update
+itself (`/api/agent/mcp-manifest.json`). The MCP release that reads a new
+field ships before the Editor sends it.
 `publish-gallery-entry` and `update-gallery-entry` put the working copy its tab
 shows on the Gallery through the Editor's own Publish client, under the
 signed-in Editor session, with the Publish dialog's fields (`name`,
