@@ -21,7 +21,14 @@ function comparisonContent(project: CircuitProject): string {
   });
 }
 
-export function GalleryTopologyCheck({ project }: { project: CircuitProject }) {
+export function GalleryTopologyCheck({
+  project,
+  lastCheckRequested = false,
+}: {
+  project: CircuitProject;
+  /** Opened from the check's own notice: show its results, whatever it checked. */
+  lastCheckRequested?: boolean;
+}) {
   const galleryTopologyTask = getGalleryTopologyTask();
   const [comparison, setComparison] = useState<{
     source: CircuitProject;
@@ -44,8 +51,9 @@ export function GalleryTopologyCheck({ project }: { project: CircuitProject }) {
   const historical =
     !!snapshot && (otherCell || snapshotContent !== currentContent);
   // Results for another Project or Cell answer nothing about this one, so
-  // they are not shown at all; an edited Cell's stay, marked as historical.
-  const shown = otherCell ? null : report;
+  // they are not shown unless asked for from the check's notice; an edited
+  // Cell's stay, marked as historical.
+  const shown = otherCell && !lastCheckRequested ? null : report;
   const start = () => galleryTopologyTask.start(project);
   const stop = () => galleryTopologyTask.cancel();
 
@@ -102,9 +110,11 @@ export function GalleryTopologyCheck({ project }: { project: CircuitProject }) {
           className="publish-duplicate-message"
           data-testid="gallery-topology-snapshot"
         >
-          {otherCell
-            ? `The last check was for another Project or Cell, “${snapshot.name}”; its results are not shown here. Click Check Duplicate to check this Cell.`
-            : `Canvas changed. Historical results use “${snapshot.name}” captured when you clicked Check Duplicate. Click Check Again to check the current Cell.`}
+          {otherCell && shown
+            ? `Historical check for another Project or Cell: “${snapshot.name}”. Click Check Again to check this Cell.`
+            : otherCell
+              ? `The last check was for another Project or Cell, “${snapshot.name}”; its results are not shown here. Click Check Duplicate to check this Cell.`
+              : `Canvas changed. Historical results use “${snapshot.name}” captured when you clicked Check Duplicate. Click Check Again to check the current Cell.`}
         </p>
       ) : null}
       <span role="status" className="publish-duplicate-status">

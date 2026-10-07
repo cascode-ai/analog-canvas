@@ -787,7 +787,21 @@ test("Publish checks exact and nearest duplicates without adding a Gallery contr
     buffer: Buffer.from(serializeProject(galleryResistorProject("9k"))),
   });
   await expect(page.getByTestId("status")).toContainText("edited.icproj.json");
+  // Publishing the other Project shows none of the last check's results
+  // (#1417); its notice still shows them when asked.
   await page.getByTestId("publish-gallery-button").click();
+  await expect(dialog.getByTestId("gallery-topology-snapshot")).toContainText(
+    "The last check was for another Project or Cell",
+  );
+  await expect(page.getByTestId("topology-compare-nearest")).toHaveCount(0);
+  await dialog
+    .getByRole("button", { name: "Cancel", exact: true })
+    .first()
+    .click();
+  await page
+    .getByTestId("gallery-topology-task-notice")
+    .getByRole("button", { name: "View results", exact: true })
+    .click();
   await expect(dialog.getByTestId("gallery-topology-snapshot")).toContainText(
     "Historical check for another Project or Cell",
   );

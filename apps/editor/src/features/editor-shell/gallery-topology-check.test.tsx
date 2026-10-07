@@ -29,8 +29,13 @@ function fixture() {
   });
   return project;
 }
-function render(project = fixture()) {
-  return renderToStaticMarkup(createElement(GalleryTopologyCheck, { project }));
+function render(project = fixture(), lastCheckRequested?: boolean) {
+  return renderToStaticMarkup(
+    createElement(GalleryTopologyCheck, {
+      project,
+      ...(lastCheckRequested ? { lastCheckRequested } : {}),
+    }),
+  );
 }
 describe("duplicate-check snapshot freshness", () => {
   beforeEach(() => {
@@ -94,6 +99,17 @@ describe("duplicate-check snapshot freshness", () => {
     expect(html).not.toContain("699 comparable");
     expect(html).not.toContain("No comparable Gallery circuits");
     expect(html).toContain(">Check Duplicate</button>");
+  });
+  it("shows the last check's results, named, when they are asked for from its notice", () => {
+    const { sourceError: _stale, ...report } = store.state.report!;
+    store.state.report = { ...report, comparable: 699, matches: [] };
+    const project = fixture();
+    project.id = "different-project";
+    const html = render(project, true);
+    expect(html).toContain(
+      "Historical check for another Project or Cell: “Controls”",
+    );
+    expect(html).toContain("699 comparable circuits checked");
   });
   it("identifies a different root Cell even within the same Project", () => {
     const project = fixture();

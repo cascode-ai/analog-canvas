@@ -1100,6 +1100,9 @@ function WorkspaceEditor({
   const [projectInfoOpen, setProjectInfoOpen] = useState(false);
   const projectNameEditing = useRef(false);
   const [publishGalleryOpen, setPublishGalleryOpen] = useState(false);
+  // Opened from the duplicate check's notice, which asks for that check's
+  // results whatever circuit it checked (#1417).
+  const [lastCheckRequested, setLastCheckRequested] = useState(false);
   const [publishedNotice, setPublishedNotice] =
     useState<GalleryPublishedNoticeState | null>(null);
   const [versionHistoryOpen, setVersionHistoryOpen] = useState(false);
@@ -6966,7 +6969,10 @@ function WorkspaceEditor({
         <Suspense fallback={null}>
           <GalleryTopologyTaskNotice
             hidden={publishGalleryOpen}
-            onOpen={() => setPublishGalleryOpen(true)}
+            onOpen={() => {
+              setLastCheckRequested(true);
+              setPublishGalleryOpen(true);
+            }}
           />
         </Suspense>
       ) : null}
@@ -7273,7 +7279,10 @@ function WorkspaceEditor({
             : null
         }
         publishGalleryOpen={publishGalleryOpen}
-        onPublishGallery={() => setPublishGalleryOpen(true)}
+        onPublishGallery={() => {
+          setLastCheckRequested(false);
+          setPublishGalleryOpen(true);
+        }}
         drawingToolbar={{
           communityEnabled: capabilities.community,
           leftPanelMode,
@@ -7705,6 +7714,7 @@ function WorkspaceEditor({
                 session: publishSession,
                 gateReport: publishGates,
                 topologyProject: galleryTopologyProject,
+                lastCheckRequested,
                 publicationLinkLoading,
                 publicationLinkError,
                 publicationLinkNotice,
