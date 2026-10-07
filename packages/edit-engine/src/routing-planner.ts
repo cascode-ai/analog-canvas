@@ -2335,6 +2335,10 @@ export function proposeWireIntent(
     if (typeof to === "string") return to;
     return proposeWireIntent(document, resolver, { ...intent, from, to });
   }
+  const diagonal = intent.routingMode
+    ? undefined
+    : diagonalViaStep(intent.waypoints ?? []);
+  if (diagonal) return diagonal;
   const routeFor = (
     anchor: Extract<WireIntentAnchor, { kind: "route-segment" }>,
   ) => document.routes.find((route) => route.id === anchor.routeId);
@@ -2413,6 +2417,23 @@ export function proposeWireIntent(
     },
     draft,
   );
+}
+
+/**
+ * Two via points a 45° step apart read as a diagonal, which the default
+ * orthogonal routing would bend into a corner: refused unless a routing mode
+ * is named, never silently drawn as an L (#1437).
+ */
+function diagonalViaStep(waypoints: readonly Point[]): string | undefined {
+  const index = waypoints.findIndex((point, at) => {
+    const next = waypoints[at + 1];
+    if (!next) return false;
+    const dx = Math.abs(next.x - point.x);
+    return dx > 0 && dx === Math.abs(next.y - point.y);
+  });
+  if (index < 0) return undefined;
+  const at = (point: Point) => `(${point.x},${point.y})`;
+  return `via ${at(waypoints[index]!)} → ${at(waypoints[index + 1]!)} is a 45° step, which orthogonal routing would bend into a corner. Pass routingMode "octilinear" to keep the diagonal, or "orthogonal" for the corner.`;
 }
 
 /**
