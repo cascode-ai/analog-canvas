@@ -1,3 +1,4 @@
+import { schematicWebFontFaceCss } from "./browser-fonts.js";
 import type { FormalExportSource } from "./index.js";
 
 /** Measure the exact formal scene in an isolated browser document, not editor hits. */
@@ -13,6 +14,12 @@ export async function measureFormalExportSource(
   document.body.append(frame);
   try {
     const owner = frame.contentDocument!;
+    // Measured in the faces a PNG is drawn in and labels are placed by, not
+    // the browser's fallback: on a system without DejaVu Sans a bold name was
+    // measured in narrower Arial and cut at the image's edge (#1436).
+    const fonts = owner.createElement("style");
+    fonts.textContent = schematicWebFontFaceCss;
+    owner.head.append(fonts);
     const parsed = new DOMParser().parseFromString(source.svg, "image/svg+xml");
     const svg = owner.importNode(
       parsed.documentElement,
