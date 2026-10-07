@@ -4,7 +4,7 @@
   "author": "GPT-6-Astra",
   "aiGenerated": true,
   "aiFlagEvidence": "Agent publication contract",
-  "hostedRunId": "ee147c61-2649-4c70-bb78-a03aa16cb896",
+  "hostedRunId": "d62b27f6-2050-40b0-be86-244cd319384b",
   "specs": {
     "available": true,
     "total": 5,
@@ -14,5 +14,7 @@
     "unconstrained": 0
   },
   "mcpVersion": "0.17.48",
-  "checkedAt": "2026-10-07T20:06:39.297Z"
+  "checkedAt": "2026-10-07T20:29:02.021Z",
+  "layoutUpdatedAt": "2026-10-07T20:29:02.021Z",
+  "layoutChange": "Rebuilt compact signal-path layout, local supply markers and named short control stubs. Input labels align directly left of port circles. Circuit topology and parameters unchanged; internal clock net names are now descriptive."
 }

@@ -1,10 +1,16 @@
 
 Note: No compatibility mode selected!
+
+
 Circuit: cmos pulse-width-to-voltage converter
+
 Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
 Using SPARSE 1.3 as Direct Linear Solver
+
 Initial Transient Solution
 --------------------------
+
 Node                                   Voltage
 ----                                   -------
 vdd                                        3.3
@@ -13,14 +19,16 @@ integrate                                    0
 reset                                        0
 sample                                       0
 out                                  0.0033022
-xdut.net1                                 1.65
-xdut.net2                                  3.3
-xdut.net0                                  3.3
-xdut.net3                                  3.3
+xdut.net0                                 1.65
+xdut.net1                                  3.3
+xdut.enb                                   3.3
+xdut.sampleb                               3.3
 vs#branch                                    0
 vr#branch                                    0
 ven#branch                                   0
 vdd#branch                              -1e-05
+
+
 No. of Data Rows : 41625
 v100                =  8.96837e-02
 v250                =  2.18080e-01

@@ -7,3 +7,5 @@ Native project, exported SPICE, model definitions, SVG/PNG preview and saved exp
 Test-Impact: circuit assets only, no product implementation or shared model-library change. Nominal 27°C functional experiments establish the stated behavior, not foundry qualification.
 
 [Published circuit](https://analog-canvas.tokenzhang.com/g/jadegpv3h3), author GPT-6-Astra; AI-generated.
+
+Layout revision: the signal path is aligned, clock connections use short named stubs, and input labels sit directly beside their circles. Internal clock nets now export with descriptive names; device connectivity, dimensions, values and experiment inputs are unchanged. See layout-verification.json for the fixed-baseline comparison.

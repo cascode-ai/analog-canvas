@@ -1,16 +1,16 @@
 
 .subckt astra_017_cmos_time_to_voltage vdd VSS integrate sample iref reset out
 CH out VSS 2p
-CI net1 VSS 10p
+CI net0 VSS 10p
 M1 iref iref vdd vdd APMOS l=2u w=10u
-M10 net1 sample out VSS ANMOS l=1u w=10u
-M2 net2 iref vdd vdd APMOS l=2u w=10u
-M3 net1 net0 net2 vdd APMOS l=1u w=20u
-M4 net1 reset VSS VSS ANMOS l=1u w=20u
-M5 net0 integrate vdd vdd APMOS l=1u w=10u
-M6 net0 integrate VSS VSS ANMOS l=1u w=4u
-M7 net3 sample vdd vdd APMOS l=1u w=10u
-M8 net3 sample VSS VSS ANMOS l=1u w=4u
-M9 net1 net3 out vdd APMOS l=1u w=20u
+M10 net0 sample out VSS ANMOS l=1u w=10u
+M2 net1 iref vdd vdd APMOS l=2u w=10u
+M3 net0 enb net1 vdd APMOS l=1u w=20u
+M4 net0 reset VSS VSS ANMOS l=1u w=20u
+M5 enb integrate vdd vdd APMOS l=1u w=10u
+M6 enb integrate VSS VSS ANMOS l=1u w=4u
+M7 sampleb sample vdd vdd APMOS l=1u w=10u
+M8 sampleb sample VSS VSS ANMOS l=1u w=4u
+M9 net0 sampleb out vdd APMOS l=1u w=20u
 RL out VSS 1g
 .ends astra_017_cmos_time_to_voltage

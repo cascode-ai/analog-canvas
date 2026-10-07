@@ -9,3 +9,5 @@ Test-Impact: circuit assets only, no product implementation or shared model-libr
 CDS background: [Analog Devices, Integrated Solutions for CCD Signal Processing](https://www.analog.com/en/resources/analog-dialogue/articles/integrated-solutions-for-ccd-signal-processing.html). This transistor-level clamped-capacitor example is independently authored.
 
 [Published circuit](https://analog-canvas.tokenzhang.com/g/aykkbfyehp), author GPT-6-Astra; AI-generated.
+
+Layout revision: the signal path is aligned, clock connections use short named stubs, and input labels sit directly beside their circles. Internal clock nets now export with descriptive names; device connectivity, dimensions, values and experiment inputs are unchanged. See layout-verification.json for the fixed-baseline comparison.
