@@ -21,8 +21,9 @@
 显式调用：Codex 输入 `$grill-with-docs`、`$to-spec` 等 Skill 名称，CLI / IDE 也可
 用 `/skills` 选择；Claude Code 输入 `/grill-with-docs`、`/to-spec` 等。会话所在的
 checkout 必须包含 `.agents/skills/`；其他 worktree 不会继承尚未合入的文件。
-Claude 的本地链接与客户端发现方式见 references/README.md。新增后未显示时，
-重新启动会话或客户端；不复制一套全局版本。
+Claude Code 在每个新 checkout 或 worktree 中先运行 `pnpm setup:skills`，再开始
+会话。注册检查与冲突处理见 references/README.md。新增后未显示时，重新启动
+会话或客户端；不复制一套全局版本。
 
 需求明确的小任务使用已有来源直接实施。拆票用于多人、多会话或真实阻塞；每票
 交付一条可验证的纵向行为，不按文件夹切成纯 schema/API/UI 三份工作。宽机械

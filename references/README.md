@@ -33,9 +33,9 @@ local work or silently move a pin.
 ## Development skill references
 
 Status: the [unified workflow](../docs/development-workflow.md) rules and
-selected original skills are checked in for repository use. Native loading has
-partial runtime evidence; two-client workflow acceptance and real-task
-effectiveness remain under evaluation in Issue #1358.
+selected original skills are checked in for repository use. Both clients use
+one source copy; Claude Code needs the checkout-local registration described
+below. The rollout decisions and earlier trial evidence are recorded in #1358.
 The checked-in [.agents/skills/](../.agents/skills/)
 contains the 9 workflow entries below and 6 required dependency/setup skills:
 15 skills with their original names, invocation policies, and complete supporting
@@ -47,8 +47,7 @@ evaluation: test the original methods, compare their outcomes and cost, then
 decide whether a skill, a local rule, or both should change. Do not silently
 shorten an upstream procedure to make it fit existing policy. The new
 [Agent entry](../AGENTS.md) and workflow replace the former management process.
-The user has authorized mainline adoption; original-method effectiveness
-trials remain open. Earlier decisions and review findings remain in
+The user has authorized mainline adoption. Earlier decisions and review findings remain in
 [Issue #1358](https://github.com/cascode-ai/analog-canvas/issues/1358) and Git history.
 
 [Issue #1378](https://github.com/cascode-ai/analog-canvas/issues/1378) describes
@@ -72,26 +71,43 @@ Unslop was removed from the installed trial and reference registration: prose
 editing is outside the current development workflow evaluation. Its previous
 installation remains in Git history.
 
-Codex uses the project-local `.agents/skills/`. For Claude Code, create one local
-link to the same directory from the repository root, once per checkout. If
-`.claude/skills` already exists, inspect it first and preserve any local skills.
-
-Windows PowerShell:
-
-```powershell
-New-Item -ItemType Junction -Path .claude/skills -Target (Resolve-Path .agents/skills).Path
-```
-
-macOS / Linux:
+Codex uses the project-local `.agents/skills/`. Claude Code reads the same
+originals through `.claude/skills/`; `CLAUDE.md` imports `AGENTS.md` explicitly.
+From the repository root, register the skills once per checkout, including each
+new worktree:
 
 ```sh
-mkdir -p .claude
-ln -s ../.agents/skills .claude/skills
+pnpm setup:skills
 ```
 
-The local link is ignored by Git. There is one source copy, no global install,
-and no automatic upstream updates. Start a session in a checkout containing
-the installed skills; installation does not prove that their methods are effective.
+This command needs only Node.js; before installing workspace dependencies, the
+equivalent command is `node scripts/setup-agent-skills.mjs`. It links complete
+Skill folders using Windows junctions or relative directory symlinks on
+macOS/Linux. Rerunning it adds missing registrations and accepts existing links
+to this checkout, including the former whole-directory link. Unrelated custom
+skills stay in place.
+
+When a project Skill's name already belongs to local content, a link points
+elsewhere or a registration path is not a directory, setup fails before adding
+links and reports the conflicting path. Inspect it, move your custom Skill to
+another name or deliberately correct its link target, then rerun. Existing
+content is preserved; setup never replaces it.
+
+Check registration without writing:
+
+```sh
+pnpm setup:skills -- --check
+```
+
+Start Claude Code in this checkout after setup. Invoke `/<skill-name>` using the
+[workflow stage entries](../docs/development-workflow.md). Original invocation
+policies and dependency calls are retained. If a command is absent,
+check this checkout's registration and restart the session; check for a
+same-name personal Skill shadowing the project version.
+
+The local links are ignored by Git. A clone or new worktree needs its own setup,
+with one source copy, no global install and no automatic upstream updates.
+Registration does not prove that the methods are effective.
 See [Codex skill locations](https://learn.chatgpt.com/docs/build-skills#where-to-save-skills)
 and [Claude project skills](https://code.claude.com/docs/en/skills#where-skills-live).
 
@@ -102,9 +118,10 @@ catalog listed all 15 project entries and its `Skill` tool invoked `pr`,
 through its local skill mechanism; this is not evidence of a Claude-style
 `Skill` tool call. The probes produced drafts and a first question round,
 not a completed interview, published Spec, implementation, or delivery.
-Native Spec publication and isolated review in both clients still need
-acceptance with real work. Current scope and evidence are recorded in
-[Issue #1358](https://github.com/cascode-ai/analog-canvas/issues/1358).
+These earlier probes establish loading only. They do not certify every stage or
+every client's publication and delegation behavior. Historical evidence is
+recorded in [Issue #1358](https://github.com/cascode-ai/analog-canvas/issues/1358);
+subsequent work records its own validation with the corresponding change.
 
 The original
 [`setup-matt-pocock-skills`](../.agents/skills/setup-matt-pocock-skills/SKILL.md)

@@ -80,6 +80,13 @@ automatically rerunning it. File / Save and Ctrl+S remain save-only.
   [current development reading set](docs/README.md#contributor-reading-order), and
   [test system](docs/testing/README.md).
 
+For Claude Code, run `pnpm setup:skills` once in each checkout or worktree before
+starting a session. Choose slash commands from the shared
+[workflow stage entries](docs/development-workflow.md). Both clients use the
+same checked-in original skills;
+[setup and conflict recovery](references/README.md#development-skill-references)
+describe how the local registration works.
+
 ## Windows desktop preview
 
 [**Download Windows x64 ZIP**](https://github.com/cascode-ai/analog-canvas/releases/download/desktop-preview-8c0de605318a/analog-canvas-desktop-windows-x64.zip)

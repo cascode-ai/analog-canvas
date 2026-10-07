@@ -50,6 +50,7 @@
     "verify:pr": "node scripts/verify-pr.mjs",
     "gallery:census": "node scripts/gallery-census.mjs",
     "setup:e2e": "playwright install --with-deps chromium",
+    "setup:skills": "node scripts/setup-agent-skills.mjs",
     "ci:static": "pnpm format:check && pnpm docs:check && pnpm agent-docs:generated:check && pnpm references:check && pnpm components:check && pnpm agent-kit:catalog:check && pnpm mcp:distribution:check && pnpm typecheck",
     "ci:unit": "pnpm test",
     "ci:e2e": "pnpm --filter \"@icm/editor^...\" --if-present build && playwright test",
