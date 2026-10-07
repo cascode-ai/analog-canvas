@@ -1118,6 +1118,16 @@ export function compileActions(
                   : [];
               }),
             ),
+            ...placementDisplays(
+              transaction.edits.flatMap((edit, index) => {
+                const source =
+                  parsed.data[transaction.editActionIndices![index]!];
+                return edit.kind === "add_instance" &&
+                  source?.kind === "place-component"
+                  ? [{ id: edit.instance.id, source }]
+                  : [];
+              }),
+            ),
           },
           actionKinds: transaction.actionKinds,
           ...(transaction.editActionIndices
@@ -1139,6 +1149,38 @@ type PushEdit = (index: number, kind: string, edit: unknown) => void;
 type PushPlacement = (index: number, kind: string, instance: unknown) => void;
 type PushWireIntent = (index: number, kind: string, intent: unknown) => void;
 type AllocateId = (prefix: string) => string;
+
+/**
+ * The labels each placement asked for, by its new Instance ID, as
+ * place-components takes them (#1435); nothing when none asked.
+ */
+function placementDisplays(
+  placements: readonly {
+    id: string;
+    source: ActionOfKind<"place-component">;
+  }[],
+): {
+  displays?: Record<string, { showReference?: boolean; showValue?: boolean }>;
+} {
+  const entries = placements.flatMap(({ id, source }) =>
+    source.showReference === undefined && source.showValue === undefined
+      ? []
+      : [
+          [
+            id,
+            {
+              ...(source.showReference === undefined
+                ? {}
+                : { showReference: source.showReference }),
+              ...(source.showValue === undefined
+                ? {}
+                : { showValue: source.showValue }),
+            },
+          ] as const,
+        ],
+  );
+  return entries.length ? { displays: Object.fromEntries(entries) } : {};
+}
 
 function compilePlaceComponent(
   index: number,
@@ -1171,6 +1213,15 @@ function compilePlaceComponent(
       index,
       action.kind,
       "direction is only valid for Cell interface markers",
+    );
+  if (
+    (cellPin || powerMarker) &&
+    (action.showReference !== undefined || action.showValue !== undefined)
+  )
+    throw new ActionCompileError(
+      index,
+      action.kind,
+      "showReference and showValue are for devices; a Cell Pin or ground marker shows its Pin or Net name",
     );
   // A device without a Reference takes the next free one in the editor, as
   // a GUI insert does (#1256); a Port's reference is its name.

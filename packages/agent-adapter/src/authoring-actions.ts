@@ -246,6 +246,13 @@ export const AuthoringActionSchema = z.discriminatedUnion("kind", [
       mirror: MirrorInputSchema.optional(),
       variant: z.string().min(1).optional(),
       parameters: z.record(z.string().min(1), z.string().min(1)).optional(),
+      showReference: z.boolean().optional(),
+      showValue: z
+        .boolean()
+        .optional()
+        .describe(
+          "A device's labels from the start. Left out, the name shows alone; showValue:true shows the value given, else the catalog default.",
+        ),
       // Checked against the control schema when the action compiles, which
       // keeps this declaration inside a host's 5,000-byte tool budget.
       control: z

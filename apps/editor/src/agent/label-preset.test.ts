@@ -381,6 +381,111 @@ describe("apply-label-preset textbook (#1350)", () => {
   });
 });
 
+describe("a placed part's labels (#1435)", () => {
+  const placeAt = (
+    symbol: string,
+    reference: string,
+    x: number,
+    more: Record<string, unknown> = {},
+  ) => ({
+    kind: "place-component",
+    symbol,
+    reference,
+    position: { x, y: 0 },
+    ...more,
+  });
+
+  it("shows a part's name alone unless its placement asks for its value", async () => {
+    const { client, controller } = await editor(emptyAgentProject("Placement"));
+    const answer = await callTool(
+      "circuit_place",
+      {
+        actions: [
+          placeAt("nmos", "M1", 0, { parameters: { w: "10u", l: "1u" } }),
+          placeAt("resistor", "R1", 200, { parameters: { value: "10k" } }),
+          placeAt("nmos", "M2", 400, {
+            parameters: { w: "20u", l: "2u" },
+            showValue: true,
+          }),
+          // Asked for without a size: the catalog default shows.
+          placeAt("pmos", "M3", 600, { showValue: true }),
+          placeAt("resistor", "R2", 800, {
+            parameters: { value: "5k" },
+            showReference: false,
+            showValue: true,
+          }),
+        ],
+      },
+      { client },
+    );
+    const content = answer.content[0];
+    if (content?.type !== "text") throw new Error("Expected a text receipt");
+    expect(JSON.parse(content.text!).ok, content.text).toBe(true);
+    const visible = (
+      kind: "instance-reference" | "instance-value",
+      reference: string,
+    ) => {
+      const id = controller.document.instances.find(
+        (item) => item.reference === reference,
+      )!.id;
+      const annotation = label(controller.document.annotations, kind, id);
+      return annotation !== undefined && annotation.visible !== false;
+    };
+    for (const [reference, name, value] of [
+      ["M1", true, false],
+      ["R1", true, false],
+      ["M2", true, true],
+      ["M3", true, true],
+      ["R2", false, true],
+    ] as const) {
+      expect(visible("instance-reference", reference), reference).toBe(name);
+      expect(visible("instance-value", reference), reference).toBe(value);
+    }
+    // Hidden or not, the values given are the part's.
+    const m1 = controller.document.instances.find(
+      (item) => item.reference === "M1",
+    );
+    expect(m1?.netlist?.parameters).toMatchObject({ w: "10u", l: "1u" });
+  });
+
+  it("refuses the switches on a Cell Pin or ground marker and places nothing", async () => {
+    const { client, controller } = await editor(emptyAgentProject("Placement"));
+    const before = structuredClone(controller.document);
+    const refused = await client.applyActions([
+      placeAt("port", "vin", 0, { showValue: true }),
+    ]);
+    expect(refused).toMatchObject({ ok: false });
+    expect(refused.message).toContain(
+      "showReference and showValue are for devices",
+    );
+    expect(controller.document).toEqual(before);
+    // The native command says the same for a marker it is given.
+    const at = {
+      position: { x: 0, y: 0 },
+      rotation: 0 as const,
+      mirror: "none" as const,
+    };
+    const native = (displays: Record<string, { showValue?: boolean }>) => () =>
+      planBrowserAgentCommand(
+        controller.project,
+        controller.document.id,
+        resolver,
+        {
+          kind: "place-components",
+          instances: [{ id: "gnd", symbolId: "ground", placement: at }],
+          displays,
+        },
+      );
+    expect(native({ gnd: { showValue: false } })).toThrow(
+      "showReference and showValue are for devices",
+    );
+    // A key that names no part in the call is refused, not ignored.
+    expect(native({ r9: { showValue: true } })).toThrow(
+      "Display targets an unknown new Instance: r9",
+    );
+  });
+});
+
 describe("a renamed Cell Pin's look (#1419)", () => {
   /**
    * An LNA's RF input Pins, placed as rfp and rfn, whose names have no

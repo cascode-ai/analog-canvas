@@ -1170,7 +1170,9 @@ describe("the editor plans an Agent's action list", () => {
 
   it("moves a label to a part's other side with the end it reads from (#1414)", async () => {
     const { controller, client, instance } = await editor();
-    await client.applyActions([place("resistor", "R1", 100, { value: "1k" })]);
+    await client.applyActions([
+      { ...place("resistor", "R1", 100, { value: "1k" }), showValue: true },
+    ]);
     const value = controller.document.annotations.find(
       (annotation) =>
         annotation.binding?.kind === "instance-value" &&
@@ -1192,7 +1194,9 @@ describe("the editor plans an Agent's action list", () => {
 
   it("says which labels arrange-labels leaves in place, and re-places moved ones on request (#1414)", async () => {
     const { controller, client, instance } = await editor();
-    await client.applyActions([place("resistor", "R1", 100, { value: "1k" })]);
+    await client.applyActions([
+      { ...place("resistor", "R1", 100, { value: "1k" }), showValue: true },
+    ]);
     const id = instance("R1")!.id;
     const value = () =>
       controller.document.annotations.find(
@@ -1263,7 +1267,10 @@ describe("the editor plans an Agent's action list", () => {
   it("shows a MOS's ×m once: in its W/L while that shows, else under its name (#1423)", async () => {
     const { controller, client, instance } = await editor();
     await client.applyActions([
-      place("nmos", "M1", 100, { w: "10u", l: "1u", m: "4" }),
+      {
+        ...place("nmos", "M1", 100, { w: "10u", l: "1u", m: "4" }),
+        showValue: true,
+      },
       place("npn", "Q1", 400, { m: "8" }),
     ]);
     const m1 = instance("M1")!.id;

@@ -64,7 +64,6 @@ import {
   referencePolicyForInstance,
 } from "@icm/devices";
 import {
-  displayableInstanceValue,
   resolveDocumentStyleProfile,
   resolveRouteGeometry,
   resolveDocumentLogicalNets,
@@ -121,7 +120,6 @@ import {
 } from "../features/component-insert/vdd-rail";
 import { planInitialMosBulkDefault } from "../features/component-insert/mos-bulk-defaults";
 import { placedInstanceNetlist } from "../features/component-insert/placed-instance-netlist";
-import { initialInstanceNetlist } from "../features/netlist-export/netlist-authoring";
 
 /** What the live editor knows beyond the Project. */
 export interface BrowserAgentPlanningContext {
@@ -836,6 +834,20 @@ export function planBrowserAgentCommand(
             `Terminal direction requires a Cell interface marker: ${id}`,
           );
       }
+      for (const id of Object.keys(command.displays ?? {})) {
+        const index = command.instances.findIndex((item) => item.id === id);
+        if (index < 0)
+          throw new Error(`Display targets an unknown new Instance: ${id}`);
+        if (
+          ["port", "port-filled", "vdd-port", "ground"].includes(
+            command.instances[index]!.symbolId,
+          )
+        )
+          throw new AgentCommandPlanningError(
+            index,
+            `showReference and showValue are for devices; a Cell Pin or ground marker shows its Pin or Net name: ${id}`,
+          );
+      }
       // Where each placement's edits start, and which placements are Cell
       // Pins, which carry the interface into a Project transaction.
       const starts: number[] = [];
@@ -868,25 +880,11 @@ export function planBrowserAgentCommand(
         }
         if (!instance.placement)
           throw new Error("New component requires placement");
-        // A value is shown where the Agent gave one; a catalog default filled
-        // in below is not a request to show it, as a GUI insert shows none.
-        const asked = initialInstanceNetlist(
-          instance.symbolId,
-          instance.netlist?.parameters ?? {},
-        );
-        const showValue =
-          asked !== undefined &&
-          displayableInstanceValue({
-            ...instance,
-            netlist: {
-              ...asked,
-              ...instance.netlist,
-              parameters: {
-                ...asked.parameters,
-                ...instance.netlist?.parameters,
-              },
-            },
-          }).kind === "displayable";
+        // A part lands with its name alone, as a GUI insert does, whatever
+        // values the call gives: its value, a MOS's W/L or a resistance,
+        // shows from the start only when asked, the given one or else the
+        // catalog default (#1435). Nothing appears only to be hidden again.
+        const display = command.displays?.[source.id];
         // The catalog defaults and the Process's model, exactly as a GUI
         // placement of the same part in this Project gets them; parameters
         // the Agent gives still win.
@@ -974,7 +972,12 @@ export function planBrowserAgentCommand(
             instance,
             resolver,
             resolveDocumentStyleProfile(document.presentation),
-            { showValue },
+            {
+              ...(display?.showReference === undefined
+                ? {}
+                : { showDesignator: display.showReference }),
+              showValue: display?.showValue === true,
+            },
           ).map((annotation): SchematicEdit => ({
             kind: "upsert_schematic_annotation",
             annotation,

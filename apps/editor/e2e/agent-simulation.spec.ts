@@ -205,6 +205,8 @@ test("HTTP Kit alone authors native objects and hands off a Project-folder run",
           };
         },
       ),
+      // A placed part shows its name alone unless its value is asked for.
+      displays: { "http-r1": { showValue: true } },
     },
   });
   const placed = await snapshot();
