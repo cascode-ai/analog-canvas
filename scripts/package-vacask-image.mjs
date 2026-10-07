@@ -58,7 +58,7 @@ export async function replaceVacaskSimulator(
       (line) => !/  vacask\/(?:bin\/vacask|compat-build\.json)$/u.test(line),
     );
   const provenance = {
-    version: "0.3.4-icm-hard-switch1",
+    version: "0.3.4-icm-hard-switch2",
     upstream: "https://codeberg.org/arpadbuermen/VACASK",
     revision,
     patch: "hard-switch.patch",
