@@ -902,6 +902,30 @@ describe("the editor plans an Agent's action list", () => {
     },
   );
 
+  it("places the palette's DMOS and depletion MOS, and a DMOS takes a SKY130 20 V model (#1425)", async () => {
+    const { client, instance } = await editor();
+    const placed = await client.applyActions([
+      place("ndmos", "M1", 100),
+      place("pdmos", "M2", 300),
+      place("depletion-nmos", "M3", 500),
+      place("depletion-pmos", "M4", 700),
+    ]);
+    expect(placed.ok, placed.message).toBe(true);
+    expect(
+      ["M1", "M2", "M3", "M4"].map((name) => instance(name)?.symbolId),
+    ).toEqual(["ndmos", "pdmos", "depletion-nmos", "depletion-pmos"]);
+
+    const modelled = await client.applyActions([
+      {
+        kind: "set-model",
+        instanceId: instance("M1")!.id,
+        model: "sky130_fd_pr__nfet_20v0",
+      },
+    ]);
+    expect(modelled.ok, modelled.message).toBe(true);
+    expect(instance("M1")!.netlist!.binding?.kind).toBe("external-subcircuit");
+  });
+
   it("leaves the Document alone for a list that changes nothing", async () => {
     const { controller, client, instance } = await editor();
     expect((await client.applyActions([place("resistor", "R1", 100)])).ok).toBe(

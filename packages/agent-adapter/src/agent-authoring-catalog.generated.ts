@@ -1667,6 +1667,170 @@ export const agentRazaviAuthoringCatalog = {
       ],
       variants: [],
     },
+    {
+      symbolId: "depletion-nmos",
+      name: "Depletion NMOS",
+      category: "transistor",
+      defaultVariantId: "textbook-3terminal",
+      labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
+      pins: [
+        {
+          name: "D",
+          role: "drain",
+          direction: "north",
+          visibility: "visible",
+        },
+        {
+          name: "G",
+          role: "gate",
+          direction: "west",
+          visibility: "visible",
+        },
+        {
+          name: "S",
+          role: "source",
+          direction: "south",
+          visibility: "visible",
+        },
+        {
+          name: "B",
+          role: "bulk",
+          direction: "east",
+          visibility: "visible",
+        },
+      ],
+      variants: [
+        {
+          id: "textbook-3terminal",
+          hiddenPinNames: ["B"],
+        },
+      ],
+    },
+    {
+      symbolId: "depletion-pmos",
+      name: "Depletion PMOS",
+      category: "transistor",
+      defaultVariantId: "textbook-3terminal",
+      labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
+      pins: [
+        {
+          name: "D",
+          role: "drain",
+          direction: "south",
+          visibility: "visible",
+        },
+        {
+          name: "G",
+          role: "gate",
+          direction: "west",
+          visibility: "visible",
+        },
+        {
+          name: "S",
+          role: "source",
+          direction: "north",
+          visibility: "visible",
+        },
+        {
+          name: "B",
+          role: "bulk",
+          direction: "east",
+          visibility: "visible",
+        },
+      ],
+      variants: [
+        {
+          id: "textbook-3terminal",
+          hiddenPinNames: ["B"],
+        },
+      ],
+    },
+    {
+      symbolId: "ndmos",
+      name: "N-channel DMOS",
+      category: "transistor",
+      defaultVariantId: "standard-3terminal",
+      labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
+      pins: [
+        {
+          name: "D",
+          role: "drain",
+          direction: "north",
+          visibility: "visible",
+        },
+        {
+          name: "G",
+          role: "gate",
+          direction: "west",
+          visibility: "visible",
+        },
+        {
+          name: "S",
+          role: "source",
+          direction: "south",
+          visibility: "visible",
+        },
+        {
+          name: "B",
+          role: "bulk",
+          direction: "east",
+          visibility: "visible",
+        },
+      ],
+      variants: [
+        {
+          id: "standard-3terminal",
+          hiddenPinNames: ["B"],
+        },
+      ],
+    },
+    {
+      symbolId: "pdmos",
+      name: "P-channel DMOS",
+      category: "transistor",
+      defaultVariantId: "standard-3terminal",
+      labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
+      pins: [
+        {
+          name: "D",
+          role: "drain",
+          direction: "south",
+          visibility: "visible",
+        },
+        {
+          name: "G",
+          role: "gate",
+          direction: "west",
+          visibility: "visible",
+        },
+        {
+          name: "S",
+          role: "source",
+          direction: "north",
+          visibility: "visible",
+        },
+        {
+          name: "B",
+          role: "bulk",
+          direction: "east",
+          visibility: "visible",
+        },
+      ],
+      variants: [
+        {
+          id: "standard-3terminal",
+          hiddenPinNames: ["B"],
+        },
+      ],
+    },
   ],
   primitives: [
     {

@@ -61,7 +61,7 @@
     },
     {
       "source": "packages/agent-adapter/src/agent-authoring-catalog.generated.ts",
-      "sha256": "a96499fc68ecaf0d4b571357ad2a89147b70c7bde8cb46e37836e3bba4fade92"
+      "sha256": "1a3f6521e887e4f3ecdca0facdbfbd432c060b777ce37eb54e50d26b6a84332d"
     },
     {
       "source": "docs/agent/knowledge/circuit-reading.md",
@@ -93,7 +93,7 @@
     },
     {
       "source": "docs/agent/mcp/tools.md",
-      "sha256": "69879c026e8b93fe663dd43e25921cc1c7da97a8520b98d806eb892fcecdf3fa"
+      "sha256": "4b9a395f0460aa3f2d1812ec1fa9d4b74875dc66b8041049a682f1ff3e5056a2"
     },
     {
       "source": "docs/agent/mcp/simulation.md",
@@ -132,7 +132,11 @@
     {
       "id": "reference/simulation-specs",
       "source": "docs/agent/simulation-specs.md",
-      "consumers": ["mcp", "http-cli", "http-kit"],
+      "consumers": [
+        "mcp",
+        "http-cli",
+        "http-kit"
+      ],
       "task": "Simulation Spec rules and raw handoff",
       "load": "on-demand",
       "requires": [],
@@ -142,7 +146,10 @@
     {
       "id": "reference/quickstart",
       "source": "docs/agent/mcp-quickstart.md",
-      "consumers": ["mcp", "http-cli"],
+      "consumers": [
+        "mcp",
+        "http-cli"
+      ],
       "task": "MCP live-session quickstart",
       "load": "entry",
       "requires": [],
@@ -151,7 +158,9 @@
     {
       "id": "fallback/http-session-workflow",
       "source": "docs/agent/http-kit/skills/icm-circuit-session/SKILL.md",
-      "consumers": ["http-kit"],
+      "consumers": [
+        "http-kit"
+      ],
       "task": "Raw HTTP live-session workflow",
       "load": "required",
       "requires": [
@@ -164,7 +173,11 @@
     {
       "id": "reference/session",
       "source": "docs/agent/shared/session.md",
-      "consumers": ["mcp", "http-cli", "http-kit"],
+      "consumers": [
+        "mcp",
+        "http-cli",
+        "http-kit"
+      ],
       "task": "Session contract",
       "load": "on-demand",
       "requires": [],
@@ -174,7 +187,11 @@
     {
       "id": "reference/authoring",
       "source": "docs/agent/shared/authoring.md",
-      "consumers": ["mcp", "http-cli", "http-kit"],
+      "consumers": [
+        "mcp",
+        "http-cli",
+        "http-kit"
+      ],
       "task": "Built-in authoring contract",
       "load": "on-demand",
       "requires": [],
@@ -184,7 +201,11 @@
     {
       "id": "reference/workflow",
       "source": "docs/agent/workflow.md",
-      "consumers": ["mcp", "http-cli", "http-kit"],
+      "consumers": [
+        "mcp",
+        "http-cli",
+        "http-kit"
+      ],
       "task": "Schematic workflow",
       "load": "on-demand",
       "requires": [],
@@ -194,7 +215,11 @@
     {
       "id": "reference/tool-behavior",
       "source": "docs/agent/tool-behavior.md",
-      "consumers": ["mcp", "http-cli", "http-kit"],
+      "consumers": [
+        "mcp",
+        "http-cli",
+        "http-kit"
+      ],
       "task": "Tool behavior",
       "load": "on-demand",
       "requires": [],
@@ -204,7 +229,11 @@
     {
       "id": "reference/recovery",
       "source": "docs/agent/response-semantics.md",
-      "consumers": ["mcp", "http-cli", "http-kit"],
+      "consumers": [
+        "mcp",
+        "http-cli",
+        "http-kit"
+      ],
       "task": "Response semantics and recovery",
       "load": "on-demand",
       "requires": [],
@@ -214,7 +243,11 @@
     {
       "id": "reference/razavi-style",
       "source": "docs/agent/circuit-style-knowledge.md",
-      "consumers": ["mcp", "http-cli", "http-kit"],
+      "consumers": [
+        "mcp",
+        "http-cli",
+        "http-kit"
+      ],
       "task": "Look up schematic layout rules",
       "load": "on-demand",
       "requires": [],
@@ -224,7 +257,11 @@
     {
       "id": "reference/diagnostics",
       "source": "docs/agent/shared/diagnostics.md",
-      "consumers": ["mcp", "http-cli", "http-kit"],
+      "consumers": [
+        "mcp",
+        "http-cli",
+        "http-kit"
+      ],
       "task": "Routing and diagnostics",
       "load": "on-demand",
       "requires": [],
@@ -234,7 +271,11 @@
     {
       "id": "reference/routing",
       "source": "docs/agent/circuit-style-knowledge.md",
-      "consumers": ["mcp", "http-cli", "http-kit"],
+      "consumers": [
+        "mcp",
+        "http-cli",
+        "http-kit"
+      ],
       "task": "Layout lookup alias; do not reread",
       "load": "on-demand",
       "requires": [],
@@ -244,7 +285,11 @@
     {
       "id": "contract/advanced-edits",
       "source": "fixtures/agent-api/agent-circuit-request.schema.json",
-      "consumers": ["mcp", "http-cli", "http-kit"],
+      "consumers": [
+        "mcp",
+        "http-cli",
+        "http-kit"
+      ],
       "task": "Advanced transaction contract",
       "load": "on-demand",
       "requires": [],
@@ -254,16 +299,23 @@
     {
       "id": "http-kit/README.md",
       "source": "docs/agent/http-kit/README.md",
-      "consumers": ["http-kit"],
+      "consumers": [
+        "http-kit"
+      ],
       "task": "Bootstrap raw HTTP",
       "load": "entry",
-      "requires": ["http-kit/AGENTS.md", "fallback/http-session-workflow"],
+      "requires": [
+        "http-kit/AGENTS.md",
+        "fallback/http-session-workflow"
+      ],
       "kitPath": "README.md"
     },
     {
       "id": "http-kit/AGENTS.md",
       "source": "docs/agent/http-kit/AGENTS.md",
-      "consumers": ["http-kit"],
+      "consumers": [
+        "http-kit"
+      ],
       "task": "Bootstrap raw HTTP",
       "load": "entry",
       "requires": [],
@@ -272,16 +324,24 @@
     {
       "id": "reference/http-cli",
       "source": "docs/agent/http-cli.md",
-      "consumers": ["http-cli"],
+      "consumers": [
+        "http-cli"
+      ],
       "task": "Operate shared-client CLI",
       "load": "entry",
-      "requires": ["reference/authoring"],
+      "requires": [
+        "reference/authoring"
+      ],
       "uri": "analog-canvas://reference/http-cli"
     },
     {
       "id": "catalog/builtins",
       "source": "packages/agent-adapter/src/agent-authoring-catalog.generated.ts",
-      "consumers": ["mcp", "http-cli", "http-kit"],
+      "consumers": [
+        "mcp",
+        "http-cli",
+        "http-kit"
+      ],
       "task": "Discover built-in symbols",
       "load": "on-demand",
       "requires": [],
@@ -291,7 +351,11 @@
     {
       "id": "reference/knowledge/circuit-reading",
       "source": "docs/agent/knowledge/circuit-reading.md",
-      "consumers": ["mcp", "http-cli", "http-kit"],
+      "consumers": [
+        "mcp",
+        "http-cli",
+        "http-kit"
+      ],
       "task": "Evidence-first circuit reading",
       "load": "on-demand",
       "requires": [],
@@ -301,7 +365,11 @@
     {
       "id": "reference/knowledge/hierarchy-and-large-circuits",
       "source": "docs/agent/knowledge/hierarchy-and-large-circuits.md",
-      "consumers": ["mcp", "http-cli", "http-kit"],
+      "consumers": [
+        "mcp",
+        "http-cli",
+        "http-kit"
+      ],
       "task": "Hierarchy and large circuits",
       "load": "on-demand",
       "requires": [],
@@ -311,7 +379,11 @@
     {
       "id": "reference/knowledge/pdk-and-symbols",
       "source": "docs/agent/knowledge/pdk-and-symbols.md",
-      "consumers": ["mcp", "http-cli", "http-kit"],
+      "consumers": [
+        "mcp",
+        "http-cli",
+        "http-kit"
+      ],
       "task": "PDK models and symbols",
       "load": "on-demand",
       "requires": [],
@@ -321,7 +393,10 @@
     {
       "id": "reference/mcp-install",
       "source": "docs/agent/mcp-install.md",
-      "consumers": ["mcp", "http-cli"],
+      "consumers": [
+        "mcp",
+        "http-cli"
+      ],
       "task": "Install the Analog Canvas MCP adapter",
       "load": "on-demand",
       "requires": [],
@@ -330,7 +405,9 @@
     {
       "id": "reference/api-usage",
       "source": "docs/agent/api-usage.md",
-      "consumers": ["http-kit"],
+      "consumers": [
+        "http-kit"
+      ],
       "task": "Agent API Usage",
       "load": "on-demand",
       "requires": [],
@@ -339,7 +416,9 @@
     {
       "id": "reference/examples",
       "source": "docs/agent/examples.md",
-      "consumers": ["http-kit"],
+      "consumers": [
+        "http-kit"
+      ],
       "task": "Reproducible Agent Workflows",
       "load": "on-demand",
       "requires": [],
@@ -348,7 +427,11 @@
     {
       "id": "reference/simulation-result-handoff",
       "source": "docs/agent/simulation-result-handoff.md",
-      "consumers": ["mcp", "http-cli", "http-kit"],
+      "consumers": [
+        "mcp",
+        "http-cli",
+        "http-kit"
+      ],
       "task": "Agent simulation result handoff",
       "load": "on-demand",
       "requires": [],
@@ -358,7 +441,10 @@
     {
       "id": "reference/mcp-tools",
       "source": "docs/agent/mcp/tools.md",
-      "consumers": ["mcp", "http-cli"],
+      "consumers": [
+        "mcp",
+        "http-cli"
+      ],
       "task": "MCP editing tools and local inspection",
       "load": "on-demand",
       "requires": [],
@@ -367,7 +453,10 @@
     {
       "id": "reference/mcp-simulation",
       "source": "docs/agent/mcp/simulation.md",
-      "consumers": ["mcp", "http-cli"],
+      "consumers": [
+        "mcp",
+        "http-cli"
+      ],
       "task": "MCP simulation calls and file ownership",
       "load": "on-demand",
       "requires": [],
@@ -376,7 +465,10 @@
     {
       "id": "reference/mcp-simulation-details",
       "source": "docs/agent/mcp/simulation-reference.md",
-      "consumers": ["mcp", "http-cli"],
+      "consumers": [
+        "mcp",
+        "http-cli"
+      ],
       "task": "Detailed MCP simulation contracts",
       "load": "on-demand",
       "requires": [],
@@ -385,7 +477,11 @@
     {
       "id": "reference/simulation-workflow",
       "source": "docs/agent/shared/simulation.md",
-      "consumers": ["mcp", "http-cli", "http-kit"],
+      "consumers": [
+        "mcp",
+        "http-cli",
+        "http-kit"
+      ],
       "task": "Shared simulation lifecycle",
       "load": "on-demand",
       "requires": [
@@ -398,7 +494,11 @@
     {
       "id": "reference/knowledge/patterns",
       "source": "docs/agent/circuit-style-knowledge.md",
-      "consumers": ["mcp", "http-cli", "http-kit"],
+      "consumers": [
+        "mcp",
+        "http-cli",
+        "http-kit"
+      ],
       "task": "Layout lookup alias; do not reread",
       "load": "on-demand",
       "requires": [],
@@ -408,7 +508,9 @@
     {
       "id": "repo/routegraph",
       "source": "docs/agent/routegraph.md",
-      "consumers": ["maintainer"],
+      "consumers": [
+        "maintainer"
+      ],
       "task": "Use optional repository RouteGraph helper",
       "load": "on-demand",
       "requires": []
@@ -416,19 +518,29 @@
   ],
   "templates": {
     "apiHelp": {
-      "consumers": ["http-kit", "maintainer"],
+      "consumers": [
+        "http-kit",
+        "maintainer"
+      ],
       "task": "Describe published HTTP operations"
     },
     "connect": {
-      "consumers": ["bootstrap"],
+      "consumers": [
+        "bootstrap"
+      ],
       "task": "Install, verify loading, then connect"
     },
     "instructions": {
-      "consumers": ["mcp"],
+      "consumers": [
+        "mcp"
+      ],
       "task": "Initialize MCP reading route"
     },
     "toolHelp": {
-      "consumers": ["mcp", "http-cli"],
+      "consumers": [
+        "mcp",
+        "http-cli"
+      ],
       "task": "Discover tool operation and limitations"
     }
   },
@@ -461,7 +573,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/circuit-style-knowledge.md"
       ],
-      "sha256": "14572cb046f433bbde0524e3af39410f8a377c63f6993543003c3314a86c71a6"
+      "sha256": "d2c21d132fd0d37a38dd695a3248b82cc8da3b934c3f807064ba4244c459d2c2"
     },
     {
       "file": "packages/agent-adapter/src/agent-docs.generated.ts",
@@ -490,7 +602,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/circuit-style-knowledge.md"
       ],
-      "sha256": "e796e7c769ff9b3fee3fb3b6f6820c156c5654cf2a2562a1ffbd0ab09a0bb251"
+      "sha256": "07e6007c6a0abf3edd7f32a301f8ab32e6c8fd42189f8fd49716e832ba1e3588"
     },
     {
       "file": "packages/agent-adapter/src/agent-api-help.generated.ts",

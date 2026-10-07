@@ -1,4 +1,7 @@
-import { readComponentProjection } from "./lib/component-library.mjs";
+import {
+  loadComponentLibrary,
+  readComponentProjection,
+} from "./lib/component-library.mjs";
 import { readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -31,6 +34,31 @@ if (
   fail("unexpected Razavi catalog identity");
 }
 
+/** One symbol as the Agent's place-component reads it. */
+function authoringSymbol(definition, category) {
+  return {
+    symbolId: definition.id,
+    name: definition.name,
+    category,
+    defaultVariantId: definition.defaultVariantId ?? null,
+    labelVisibility: definition.labelVisibility ?? "shown",
+    // The block draws an editable formula: place-component's signalFlow and
+    // set-signal-flow apply to it, as the Properties formula does in the GUI.
+    formula: Boolean(definition.formulaPresentation),
+    coefficient: Boolean(definition.formulaPresentation?.supportsCoefficient),
+    pins: definition.pins.map((pin) => ({
+      name: pin.name,
+      role: pin.role,
+      direction: pin.direction,
+      visibility: pin.presentation.visibility,
+    })),
+    variants: definition.variants.map((variant) => ({
+      id: variant.id,
+      hiddenPinNames: variant.hiddenPinNames,
+    })),
+  };
+}
+
 const symbols = [];
 for (const entry of sourceCatalog.entries) {
   // This is the reviewed, palette-visible product boundary: an Agent places
@@ -60,27 +88,21 @@ for (const entry of sourceCatalog.entries) {
   if (JSON.stringify(pinOrder) !== JSON.stringify(entry.pinOrder)) {
     fail(`pin order mismatch for ${entry.symbolId}`);
   }
-  symbols.push({
-    symbolId: definition.id,
-    name: definition.name,
-    category: entry.category,
-    defaultVariantId: definition.defaultVariantId ?? null,
-    labelVisibility: definition.labelVisibility ?? "shown",
-    // The block draws an editable formula: place-component's signalFlow and
-    // set-signal-flow apply to it, as the Properties formula does in the GUI.
-    formula: Boolean(definition.formulaPresentation),
-    coefficient: Boolean(definition.formulaPresentation?.supportsCoefficient),
-    pins: definition.pins.map((pin) => ({
-      name: pin.name,
-      role: pin.role,
-      direction: pin.direction,
-      visibility: pin.presentation.visibility,
-    })),
-    variants: definition.variants.map((variant) => ({
-      id: variant.id,
-      hiddenPinNames: variant.hiddenPinNames,
-    })),
-  });
+  symbols.push(authoringSymbol(definition, entry.category));
+}
+
+// The palette's extended devices (DMOS, depletion MOS) are a reviewed MOS
+// symbol with a drift region or a channel bar drawn on: a person picks them
+// from the same palette, so an Agent places them too (#1425).
+const library = await loadComponentLibrary();
+for (const id of library.index.extendedEntries) {
+  const component = library.byId.get(id);
+  const base = symbols.find(
+    (symbol) => symbol.symbolId === component.catalog.derivedFrom,
+  );
+  if (!base)
+    fail(`extended entry derives from no reviewed palette symbol: ${id}`);
+  symbols.push(authoringSymbol(component.symbol, base.category));
 }
 
 if (symbols.length === 0) fail("no reviewed palette symbols");
