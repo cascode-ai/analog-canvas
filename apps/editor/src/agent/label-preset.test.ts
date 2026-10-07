@@ -223,6 +223,60 @@ describe("apply-label-preset textbook (#1350)", () => {
     expect(controller.document.annotations).toEqual(before.annotations);
   });
 
+  it("keeps a multiplier other than 1 on show as ×m once its W/L is hidden (#1423)", async () => {
+    const project = figure();
+    const document = project.documents[0]!;
+    document.instances.find((item) => item.id === "m1")!.netlist!.parameters.m =
+      "4";
+    for (const [reference, m, x] of [
+      ["Q1", "1", 1400],
+      ["Q2", "8", 1600],
+    ] as const) {
+      const instance = {
+        id: reference.toLowerCase(),
+        reference,
+        symbolId: "npn",
+        placement: {
+          position: { x, y: -40 },
+          rotation: 0 as const,
+          mirror: "none" as const,
+        },
+        netlist: { parameters: { m } },
+      };
+      document.instances.push(instance);
+      document.annotations.push(
+        ...defaultInstanceDisplayAnnotations(
+          document,
+          instance,
+          resolver,
+          resolveDocumentStyleProfile(document.presentation),
+          { showValue: true },
+        ),
+      );
+    }
+    const { client, controller } = await editor(project);
+
+    const result = await client.applyActions([
+      { kind: "apply-label-preset", preset: "textbook" },
+    ]);
+
+    expect(result.ok, result.message).toBe(true);
+    expect(
+      controller.document.annotations
+        .flatMap((annotation) =>
+          annotation.binding?.kind === "instance-value" &&
+          annotation.binding.parameter === "m" &&
+          annotation.visible !== false
+            ? [annotation.binding.instanceId]
+            : [],
+        )
+        .sort(),
+    ).toEqual(["m1", "q2"]);
+    expect(
+      label(controller.document.annotations, "instance-value", "m1"),
+    ).toMatchObject({ visible: false });
+  });
+
   it("applies it to the parts named, through circuit_text", async () => {
     const { client, controller } = await editor();
     const before = structuredClone(controller.document);

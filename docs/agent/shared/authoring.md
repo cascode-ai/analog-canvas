@@ -364,7 +364,9 @@ To give a drawing a textbook figure's labels in one step, `circuit_text` /
 - every MOS transistor hides its W/L, as `set-instance-display` with
   `showValue:false` hides it (three- and four-terminal and DMOS alike);
 - resistor, capacitor, inductor and source values stay as they are, and
-  nothing hidden is shown;
+  nothing else hidden is shown;
+- a MOS or BJT whose multiplier `m` is not 1 shows it as ×m with its name,
+  bound to `m`, since the W/L that carried it is hidden;
 - then the labels are arranged as `arrange-labels` with
   `referenceStyle:"first-letter-subscript"` arranges them, names in their role
   look (R_L, I_SS, M_1, V_in); the space the hidden W/L took counts as free.
