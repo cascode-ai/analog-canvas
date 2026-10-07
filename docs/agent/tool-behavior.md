@@ -39,9 +39,10 @@ live positions or Net membership.
 
 `wireIntent.routingMode` supports `orthogonal`, `octilinear` and `free`.
 Orthogonal is the default planner constraint, not a universal persisted-route
-restriction. With no `routingMode`, two via points a 45° step apart are refused
-with the step named, never bent into a corner: name `octilinear` to keep the
-diagonal, or `orthogonal` for the corner. Free-angle wires are valid. Power rails remain a single nonzero
+restriction. With no `routingMode`, a 45° step between via points, or between
+an end's landing and the first or last via point, is refused with the step
+named, never bent into a corner: name `octilinear` to keep the diagonal, or
+`orthogonal` for the corner. Free-angle wires are valid. Power rails remain a single nonzero
 horizontal or vertical segment.
 
 Persisted Routes contain a starting endpoint and stable-ID legs to bends or an
@@ -52,10 +53,10 @@ Segment modes such as manual, locked or trunk do not compute an autoroute.
 restricted by `net` or a member `{instanceId,pinName}`; `net` selects the
 nearest existing conductor to the other anchor. These selectors use the same
 wire planner, including a trunk created earlier in the batch, without an
-intermediate Snapshot. A `wire-at` point must be where the tap can land: on
-the Document grid, or on the pin grid on a wire with an end there. Another
-point is refused with the nearest tap named, as an off-grid via point is
-refused; it is never moved. A `free` anchor is not an implicit tap. Crossings of
+intermediate Snapshot. A `wire-at` point is tapped exactly there; like a via
+point it must align to the pin grid and is refused off it, never moved. A `net`
+target taps the nearest conductor where a pointer there would land. A `free`
+anchor is not an implicit tap. Crossings of
 different Nets may remain ordinary crossings, but a tap that would join them
 is rejected; specifying a Net does not make a Junction electrically isolated.
 

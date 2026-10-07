@@ -253,7 +253,7 @@ describe("route-net", () => {
     expect(planRouteNet(next, resolver, input, 64).edits).toEqual([]);
   });
 
-  it("taps a trunk where the tap lands for a pin off the Document grid (#1438)", () => {
+  it("taps a trunk level with a pin off the Document grid (#1438)", () => {
     // A 4-input gate's B pin sits at y=-4, between grid lines.
     const document = createEmptyDocument("doc", "Off-grid pins");
     document.instances = [0, 60].map((y, index) => ({
@@ -283,6 +283,40 @@ describe("route-net", () => {
     expect(
       deriveVisibleConnectivity(next, resolver)[0]!.components,
     ).toHaveLength(1);
+    // Straight branches: each tap level with its pin, not moved to y=0 or 60.
+    expect(next.junctions.map((junction) => junction.position)).toEqual(
+      expect.arrayContaining([
+        { x: -100, y: -4 },
+        { x: -100, y: 56 },
+      ]),
+    );
+  });
+
+  it("never refuses its own detour as a 45° step (#1437)", () => {
+    const document = createEmptyDocument("doc", "Detour");
+    document.instances = (
+      [
+        ["R1", 20, 90, 270],
+        ["R2", 80, 40, 180],
+        ["R3", 20, 60, 90],
+        ["R4", 60, 90, 0],
+      ] as const
+    ).map(([id, x, y, rotation]) => ({
+      id,
+      reference: id,
+      symbolId: "resistor",
+      placement: { position: { x, y }, rotation, mirror: "none" },
+    }));
+    const pins = [
+      { instanceId: "R1", pinName: "2" },
+      { instanceId: "R2", pinName: "1" },
+    ];
+    const next = apply(
+      document,
+      planRouteNet(document, resolver, { target: { kind: "pins", pins } }, 64)
+        .edits,
+    ).document;
+    expect(next.nets[0]!.terminals).toHaveLength(2);
   });
 
   it("goes around another Net's pin on the way, so no Net looks shorted to another", () => {

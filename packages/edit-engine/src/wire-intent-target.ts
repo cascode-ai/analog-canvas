@@ -102,7 +102,9 @@ export function resolveWireIntentTarget(
     const hits = records
       .flatMap(({ geometry }) => {
         const hit = nearestRouteSegment(geometry, near);
-        return hit ? [hit] : [];
+        return hit
+          ? [{ ...hit, segment: geometry.segments[hit.address.segmentIndex] }]
+          : [];
       })
       .sort((a, b) => a.distanceSquared - b.distanceSquared);
     if (!hits.length) {
@@ -121,10 +123,12 @@ export function resolveWireIntentTarget(
           }
         : "Net has no route or Junction geometry; connect pin-to-pin first";
     }
-    point = {
-      x: Math.round(hits[0]!.point.x),
-      y: Math.round(hits[0]!.point.y),
-    };
+    // The nearest conductor is tapped where a pointer there would land.
+    point = routeTapLanding(
+      hits[0]!.segment,
+      { x: Math.round(hits[0]!.point.x), y: Math.round(hits[0]!.point.y) },
+      document.presentation.grid,
+    );
   } else point = anchor.point;
   const matches = records.flatMap(({ route, geometry }) =>
     geometry.segments
@@ -166,15 +170,6 @@ export function resolveWireIntentTarget(
   if (new Set(matches.map(({ route }) => route.id)).size > 1)
     return `Multiple wire interiors at (${point.x}, ${point.y}); select an explicit route-segment`;
   const match = matches[0]!;
-  // A wire-at point is where the tap goes, as a via point is where the wire
-  // goes: one the tap could not land on is refused, never moved (#1438).
-  const landing = routeTapLanding(
-    match.segment,
-    point,
-    document.presentation.grid,
-  );
-  if (anchor.kind === "wire-at" && !equal(landing, point))
-    return `wire-at (${point.x}, ${point.y}) is off the grid this wire can be tapped on; the nearest tap on it is (${landing.x}, ${landing.y})`;
   return {
     kind: "route-segment",
     routeId: match.route.id,

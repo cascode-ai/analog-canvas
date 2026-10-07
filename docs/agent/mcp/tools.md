@@ -95,7 +95,9 @@ transforms use canonical `upsert_drafting_object` geometry rather than silently
 partially transforming a mixed selection.
 
 `connect` supports `via`, `routingMode:orthogonal/octilinear/free` and
-`cornerOrder`. The wire passes through every `via` point: points listed
+`cornerOrder`. Without `routingMode`, a 45° step between `via` points, or from
+an end to the first or last, is refused: name `octilinear` for the diagonal or
+`orthogonal` for a corner. The wire passes through every `via` point: points listed
 from `to` back to `from` are followed in that reverse order, and points no
 order can follow without doubling back are refused with a reason rather than
 committed as another path. A wire from a pin or Junction, whether to another,
