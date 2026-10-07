@@ -2820,9 +2820,12 @@ test("the tag sidebar resizes by dragging and keyboard, remembers width and adap
   const drag = async (delta: number) => {
     const bounds = (await handle.boundingBox())!;
     const x = bounds.x + bounds.width / 2;
-    await page.mouse.move(x, bounds.y + 30);
+    // Below the sticky header, however far focus scrolled the Gallery: a
+    // full filter list makes the column taller than the window.
+    const y = Math.max(bounds.y, 0) + 100;
+    await page.mouse.move(x, y);
     await page.mouse.down();
-    await page.mouse.move(x + delta, bounds.y + 100, { steps: 5 });
+    await page.mouse.move(x + delta, y + 70, { steps: 5 });
     await page.mouse.up();
   };
   await expectWidth(238);
