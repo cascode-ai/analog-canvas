@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { createAgentCircuitService } from "@icm/agent-adapter";
-import { diagnoseVisualQuality, resolveMosBulkConnection } from "@icm/derived";
+import {
+  diagnoseVisualQuality,
+  resolveEndpointConnection,
+  resolveMosBulkConnection,
+} from "@icm/derived";
+import { proposePlacementContact } from "@icm/edit-engine";
 import { createEmptyProject, routeEndpoints } from "@icm/model";
 import { createDesignNetlistExport } from "@icm/netlist";
 import { renderDocumentSvg } from "@icm/render-svg";
@@ -13,6 +18,7 @@ import {
 import { AgentSessionClient } from "../../../../packages/agent-client/src/session-client";
 import { FakeAgentHttp } from "../../../../packages/agent-client/src/test-support/fake-relay";
 import { EditorDocumentController } from "../document/document-controller";
+import { planPlacedCellPin } from "../features/component-insert/cell-pin-placement";
 import { BrowserAgentHost } from "./browser-agent-host";
 
 /** One editor, reached by an Agent client that sends it action lists. */
@@ -973,6 +979,133 @@ describe("the editor plans an Agent's action list", () => {
         expect(document.mosBulkDefaults?.pmosNetId).toBe(kept.netId);
     },
   );
+
+  it("takes the kept Pin over for a VDD marker the GUI drops on the supply's own Junction (#1410)", async () => {
+    const { controller, client } = await editor();
+    for (const actions of [
+      [
+        {
+          kind: "add-power-rail",
+          name: "VDD",
+          start: { x: 0, y: -100 },
+          end: { x: 100, y: -100 },
+        },
+      ],
+      [{ kind: "reset-cell", mode: "reset-body" }],
+    ]) {
+      const report = await client.applyActions(actions);
+      expect(report.ok, report.message).toBe(true);
+    }
+    const { project, document, resolver } = controller;
+    const kept = document.netlist!.terminals.find(
+      (item) => item.name === "VDD",
+    )!;
+    const label = document.annotations.find(
+      (annotation) => annotation.id === kept.interfaceAnnotationId,
+    )!;
+    const junctionId =
+      label.anchor.kind === "object" ? label.anchor.objectId : "";
+    const junction = document.junctions.find((item) => item.id === junctionId)!;
+    // The marker's pin lands on the Junction, as a drop there does.
+    const pin = resolver.resolve("vdd-port")!.definition.pins[0]!;
+    const instance = {
+      id: "VDD9",
+      symbolId: "vdd-port",
+      placement: {
+        position: {
+          x: junction.position.x - pin.at.x,
+          y: junction.position.y - pin.at.y,
+        },
+        rotation: 0 as const,
+        mirror: "none" as const,
+      },
+    };
+    const endpoint = { kind: "junction" as const, junctionId };
+    const contact = proposePlacementContact(
+      document,
+      resolver,
+      instance,
+      [
+        {
+          endpoint,
+          connection: resolveEndpointConnection(document, resolver, endpoint)!,
+          netId: kept.netId,
+          preludeEdits: [],
+        },
+      ],
+      { powerMarker: false },
+    );
+    expect(contact).toMatchObject({ matched: true, netId: kept.netId });
+    const result = controller.dispatchProjectTransaction({
+      transactionId: "drop-on-supply",
+      projectId: project.id,
+      expectedStructureRevision: project.structureRevision,
+      actor: { kind: "human", id: "test" },
+      edits: planPlacedCellPin(project, document.id, resolver, {
+        instance,
+        terminalId: "terminal-vdd9",
+        name: "VDD",
+        netId: kept.netId,
+        direction: "inout",
+        connectionEdits: contact.edits,
+      }),
+    });
+    expect(result.ok, result.ok ? "" : result.error.message).toBe(true);
+    expect(
+      controller.document.netlist!.terminals.filter(
+        (item) => item.name === "VDD",
+      ),
+    ).toEqual([
+      expect.objectContaining({
+        netId: kept.netId,
+        interfaceInstanceIds: ["VDD9"],
+      }),
+    ]);
+  });
+
+  it("redraws two VDD markers in one call after a reset, keeping VDD first among the Pins (#1410)", async () => {
+    const { controller, client } = await editor();
+    const apply = async (actions: unknown[]) => {
+      const report = await client.applyActions(actions);
+      expect(report.ok, report.message).toBe(true);
+    };
+    await apply([
+      {
+        kind: "add-power-rail",
+        name: "VDD",
+        start: { x: 0, y: -100 },
+        end: { x: 100, y: -100 },
+      },
+    ]);
+    await apply([place("port", "IN", 200), place("port", "OUT", 400)]);
+    const names = () =>
+      controller.document.netlist!.terminals.map((item) => item.name);
+    expect(names()).toEqual(["VDD", "IN", "OUT"]);
+    await apply([{ kind: "reset-cell", mode: "reset-body" }]);
+    // A marker per PMOS, as the Gallery's drawings have them.
+    await apply(
+      [300, 500].map((x) => ({
+        kind: "place-component",
+        symbol: "vdd-port",
+        reference: "VDD",
+        position: { x, y: -200 },
+      })),
+    );
+    // The first takes the kept Pin's place in the order callers wire by;
+    // the second joins it by name.
+    expect(names()).toEqual(["VDD", "IN", "OUT", "VDD"]);
+    const markers = controller.document.instances.filter(
+      (item) => item.symbolId === "vdd-port",
+    );
+    expect(controller.document.netlist!.terminals[0]).toMatchObject({
+      interfaceInstanceIds: [markers[0]!.id],
+    });
+    expect(
+      controller.document.annotations.filter(
+        (annotation) => annotation.kind === "power-label",
+      ),
+    ).toHaveLength(2);
+  });
 
   it("places the palette's DMOS and depletion MOS, and a DMOS takes a SKY130 20 V model (#1425)", async () => {
     const { client, instance } = await editor();
