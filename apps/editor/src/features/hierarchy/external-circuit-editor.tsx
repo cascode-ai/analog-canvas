@@ -10,7 +10,11 @@ import {
 import type { ProjectStructureEdit } from "@icm/edit-engine";
 import type { SimulationSourceLocation } from "@icm/simulation-service/contract";
 
-/** Project-level external declaration; there is no local schematic body. */
+/**
+ * Project-level external declaration; there is no local schematic body. The
+ * interface reads as one card: the grid is plain content and every action sits
+ * in the card footer instead of floating around the fields.
+ */
 export function ExternalCircuitEditor({
   definition,
   initialLocation,
@@ -102,25 +106,77 @@ export function ExternalCircuitEditor({
       />
     );
 
+  function submitDefinition(): void {
+    const target = externalName.trim();
+    if (!target) {
+      setResult({
+        ok: false,
+        message: "Enter an external model target name.",
+      });
+      return;
+    }
+    const fields = externalParameters
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .map((item) => {
+        const [name, ...defaultParts] = item.split("=");
+        const defaultValue = defaultParts.join("=").trim();
+        return {
+          name: name!.trim(),
+          ...(defaultValue ? { defaultValue } : {}),
+        };
+      });
+    setResult(
+      onSetExternalDefinition({
+        ...definition,
+        id: definition?.id ?? createId("external-subcircuit"),
+        name: target,
+        terminals: externalTerminals
+          .split(/[,，\s]+/u)
+          .map((item) => item.trim())
+          .filter(Boolean)
+          .map((name) => {
+            const existing = definition?.terminals.find(
+              (terminal) => terminal.name.toLowerCase() === name.toLowerCase(),
+            );
+            return {
+              id: existing?.id ?? createId("external-terminal"),
+              name,
+              direction: existing?.direction ?? ("passive" as const),
+            };
+          }),
+        formalParameters: fields,
+        interfaceStatus: "declared",
+        ...(!definition && !reviewed
+          ? { implementation: { kind: "placeholder" as const } }
+          : {}),
+      }),
+    );
+  }
+
   return (
-    <section aria-label="External circuit interface">
-      {definition ? (
-        <button type="button" onClick={() => onPlace(definition.id)}>
-          Place
-        </button>
-      ) : null}
-      <p className="cell-interface-empty">
-        {reviewed
-          ? `${reviewed.libraryId} · fixed PDK interface. Set parameters on instances.`
-          : definition?.implementation?.kind === "placeholder"
-            ? "Unimplemented placeholder · attach a Project model before simulation."
-            : "Legacy interface · model ownership has not been verified. Attach the matching Project model explicitly."}
-      </p>
-      {!reviewed && definition ? (
-        <button type="button" onClick={() => setSourceMode(true)}>
-          Define implementation…
-        </button>
-      ) : null}
+    <section
+      className="cell-interface-section"
+      aria-label="External circuit interface"
+    >
+      <header>
+        <div>
+          <h3>Interface</h3>
+          <p>
+            {reviewed
+              ? `${reviewed.libraryId} · fixed PDK interface. Set parameters on instances.`
+              : definition?.implementation?.kind === "placeholder"
+                ? "Unimplemented placeholder · attach a Project model before simulation."
+                : "Legacy interface · model ownership has not been verified. Attach the matching Project model explicitly."}
+          </p>
+        </div>
+        {definition ? (
+          <span className="cell-count-badge">
+            {definition.terminals.length}
+          </span>
+        ) : null}
+      </header>
       <div className="cell-external-grid">
         <label>
           Target
@@ -159,90 +215,60 @@ export function ExternalCircuitEditor({
             }
           />
         </label>
+      </div>
+      {result ? (
+        <p
+          className="cell-external-result"
+          role={result.ok ? "status" : "alert"}
+        >
+          {result.message}
+        </p>
+      ) : null}
+      <footer className="cell-external-actions">
+        {definition ? (
+          <div className="cell-external-actions-lead">
+            <button type="button" onClick={() => onPlace(definition.id)}>
+              Place
+            </button>
+            {reviewed ? null : (
+              <button type="button" onClick={() => setSourceMode(true)}>
+                Define implementation…
+              </button>
+            )}
+            {confirmDelete ? (
+              <>
+                <span className="cell-manager-confirm">
+                  Delete {definition.name}?
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setResult(onRemoveExternalDefinition(definition.id));
+                    setConfirmDelete(false);
+                  }}
+                >
+                  Confirm delete
+                </button>
+                <button type="button" onClick={() => setConfirmDelete(false)}>
+                  Cancel
+                </button>
+              </>
+            ) : (
+              <button type="button" onClick={() => setConfirmDelete(true)}>
+                Delete definition
+              </button>
+            )}
+          </div>
+        ) : null}
         <button
           type="button"
+          className="primary"
           disabled={Boolean(reviewed)}
-          onClick={() => {
-            const target = externalName.trim();
-            if (!target) {
-              setResult({
-                ok: false,
-                message: "Enter an external model target name.",
-              });
-              return;
-            }
-            const fields = externalParameters
-              .split(",")
-              .map((item) => item.trim())
-              .filter(Boolean)
-              .map((item) => {
-                const [name, ...defaultParts] = item.split("=");
-                const defaultValue = defaultParts.join("=").trim();
-                return {
-                  name: name!.trim(),
-                  ...(defaultValue ? { defaultValue } : {}),
-                };
-              });
-            setResult(
-              onSetExternalDefinition({
-                ...definition,
-                id: definition?.id ?? createId("external-subcircuit"),
-                name: target,
-                terminals: externalTerminals
-                  .split(/[,，\s]+/u)
-                  .map((item) => item.trim())
-                  .filter(Boolean)
-                  .map((name) => {
-                    const existing = definition?.terminals.find(
-                      (terminal) =>
-                        terminal.name.toLowerCase() === name.toLowerCase(),
-                    );
-                    return {
-                      id: existing?.id ?? createId("external-terminal"),
-                      name,
-                      direction: existing?.direction ?? ("passive" as const),
-                    };
-                  }),
-                formalParameters: fields,
-                interfaceStatus: "declared",
-                ...(!definition && !reviewed
-                  ? { implementation: { kind: "placeholder" as const } }
-                  : {}),
-              }),
-            );
-          }}
+          onClick={submitDefinition}
         >
           {definition ? "Save definition" : "Create External Circuit Def"}
         </button>
-      </div>
-      {definition ? (
-        <div className="cell-manager-actions">
-          {confirmDelete ? (
-            <>
-              <span>Delete {definition.name}?</span>
-              <button
-                type="button"
-                onClick={() => {
-                  setResult(onRemoveExternalDefinition(definition.id));
-                  setConfirmDelete(false);
-                }}
-              >
-                Confirm delete
-              </button>
-              <button type="button" onClick={() => setConfirmDelete(false)}>
-                Cancel
-              </button>
-            </>
-          ) : (
-            <button type="button" onClick={() => setConfirmDelete(true)}>
-              Delete definition
-            </button>
-          )}
-        </div>
-      ) : null}
-      {result ? (
-        <p role={result.ok ? "status" : "alert"}>{result.message}</p>
-      ) : null}
+      </footer>
     </section>
   );
 }

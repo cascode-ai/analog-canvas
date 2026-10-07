@@ -119,7 +119,7 @@ test("Agent and GUI apply the same owned model and preserve atomic refusal", asy
   await openCellManager(page);
   const manager = page.getByRole("dialog", { name: "Cell Manager" });
   await manager
-    .getByRole("button", { name: "External Circuits", exact: true })
+    .getByRole("tab", { name: "External Circuits", exact: true })
     .click();
   await manager
     .locator(".cell-manager-list-item")
@@ -142,7 +142,7 @@ test("Agent and GUI apply the same owned model and preserve atomic refusal", asy
   );
   await openCellManager(page);
   await manager
-    .getByRole("button", { name: "External Circuits", exact: true })
+    .getByRole("tab", { name: "External Circuits", exact: true })
     .click();
   await manager
     .locator(".cell-manager-list-item")

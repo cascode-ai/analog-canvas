@@ -56,7 +56,7 @@ for (const viewport of [
       exact: true,
     });
     await manager
-      .getByRole("button", { name: "External Circuits", exact: true })
+      .getByRole("tab", { name: "External Circuits", exact: true })
       .click();
     await manager
       .getByLabel("External model netlist")
@@ -128,7 +128,7 @@ test("retains an unsaved model when closing or switching the Manager", async ({
     exact: true,
   });
   await manager
-    .getByRole("button", { name: "External Circuits", exact: true })
+    .getByRole("tab", { name: "External Circuits", exact: true })
     .click();
   const source = ".subckt draft A B\nR1 A B 1k\n.ends draft\n";
   await manager.getByLabel("External model netlist").fill(source);
@@ -139,12 +139,12 @@ test("retains an unsaved model when closing or switching the Manager", async ({
   await expect(manager.getByLabel("External model netlist")).toContainText(
     "R1 A B 1k",
   );
-  await manager.getByRole("button", { name: "Cells", exact: true }).click();
+  await manager.getByRole("tab", { name: "Cells", exact: true }).click();
   await expect(guard).toBeVisible();
   await guard.getByRole("button", { name: "Discard changes" }).click();
   await expect(
-    manager.getByRole("button", { name: "Cells", exact: true }),
-  ).toHaveAttribute("aria-pressed", "true");
+    manager.getByRole("tab", { name: "Cells", exact: true }),
+  ).toHaveAttribute("aria-selected", "true");
 });
 
 test("searches definitions without discarding the selected model", async ({
@@ -157,7 +157,7 @@ test("searches definitions without discarding the selected model", async ({
     exact: true,
   });
   await manager
-    .getByRole("button", { name: "External Circuits", exact: true })
+    .getByRole("tab", { name: "External Circuits", exact: true })
     .click();
   await manager
     .getByLabel("External model netlist")
@@ -195,7 +195,7 @@ test("applies and places an external model in a compact narrow Manager", async (
     exact: true,
   });
   await manager
-    .getByRole("button", { name: "External Circuits", exact: true })
+    .getByRole("tab", { name: "External Circuits", exact: true })
     .click();
   await expect(manager.getByRole("group", { name: "Model files" })).toHaveCount(
     0,
@@ -218,7 +218,7 @@ test("applies and places an external model in a compact narrow Manager", async (
   await expect(page.getByTestId("active-instance-count")).toHaveText("0");
   await openCellManager(page);
   await manager
-    .getByRole("button", { name: "External Circuits", exact: true })
+    .getByRole("tab", { name: "External Circuits", exact: true })
     .click();
   await manager.getByRole("button", { name: /compact/ }).click();
   await manager.getByRole("button", { name: "Place", exact: true }).click();
@@ -230,7 +230,7 @@ test("applies and places an external model in a compact narrow Manager", async (
   await expect(page.getByTestId("active-instance-count")).toHaveText("1");
   await openCellManager(page);
   await manager
-    .getByRole("button", { name: "External Circuits", exact: true })
+    .getByRole("tab", { name: "External Circuits", exact: true })
     .click();
   await manager.getByRole("button", { name: /compact/ }).click();
   await manager
@@ -256,7 +256,7 @@ test("defines a native external model in Manager and places its parsed interface
   await openCellManager(page);
   const manager = page.getByRole("dialog", { name: "Cell Manager" });
   await manager
-    .getByRole("button", { name: "External Circuits", exact: true })
+    .getByRole("tab", { name: "External Circuits", exact: true })
     .click();
   await manager
     .getByLabel("External model netlist")
@@ -356,7 +356,7 @@ test("refuses copying a legacy interface-only model until its native implementat
     exact: true,
   });
   await manager
-    .getByRole("button", { name: "External Circuits", exact: true })
+    .getByRole("tab", { name: "External Circuits", exact: true })
     .click();
   await manager.getByRole("button", { name: /legacy_gain/ }).click();
   await manager
@@ -505,7 +505,7 @@ test("copies nested external implementations once and applies body edits to thei
     exact: true,
   });
   await manager
-    .getByRole("button", { name: "External Circuits", exact: true })
+    .getByRole("tab", { name: "External Circuits", exact: true })
     .click();
   await manager.getByRole("button", { name: /gain_block/ }).click();
   await expect(manager.getByLabel("External model netlist")).toContainText(
@@ -604,7 +604,7 @@ test("migrates a wired model terminal explicitly in Manager without losing its i
   await openCellManager(page);
   const manager = page.getByRole("dialog", { name: "Cell Manager" });
   await manager
-    .getByRole("button", { name: "External Circuits", exact: true })
+    .getByRole("tab", { name: "External Circuits", exact: true })
     .click();
   await manager
     .locator(".cell-manager-list-item")
@@ -663,7 +663,7 @@ test("shares multiple model entries, explicitly forks and reopens an undoable po
   await openCellManager(page);
   let manager = page.getByRole("dialog", { name: "Cell Manager" });
   await manager
-    .getByRole("button", { name: "External Circuits", exact: true })
+    .getByRole("tab", { name: "External Circuits", exact: true })
     .click();
   const text =
     ".subckt first A B\nR1 A B 1k\n.ends first\n.subckt second A B\nR1 A B 2k\n.ends second\n";
@@ -710,7 +710,7 @@ test("shares multiple model entries, explicitly forks and reopens an undoable po
   await openCellManager(page);
   manager = page.getByRole("dialog", { name: "Cell Manager" });
   await manager
-    .getByRole("button", { name: "External Circuits", exact: true })
+    .getByRole("tab", { name: "External Circuits", exact: true })
     .click();
   await expect(manager.locator(".cell-manager-list-item")).toHaveCount(2);
   await manager.getByLabel("Close Cell Manager").click();
@@ -733,7 +733,7 @@ test("shares multiple model entries, explicitly forks and reopens an undoable po
   await openCellManager(page);
   manager = page.getByRole("dialog", { name: "Cell Manager" });
   await manager
-    .getByRole("button", { name: "External Circuits", exact: true })
+    .getByRole("tab", { name: "External Circuits", exact: true })
     .click();
   await manager
     .locator(".cell-manager-list-item")
@@ -878,7 +878,7 @@ test("imports a long-named Cloud Cell with a child and owned model into the orig
   await openCellManager(page);
   await page
     .getByRole("dialog", { name: "Cell Manager" })
-    .getByRole("button", { name: "External Circuits", exact: true })
+    .getByRole("tab", { name: "External Circuits", exact: true })
     .click();
   await page
     .getByRole("dialog", { name: "Cell Manager" })
@@ -927,7 +927,7 @@ test("retains an unfinished external model draft after closing Manager", async (
   await openCellManager(page);
   let manager = page.getByRole("dialog", { name: "Cell Manager" });
   await manager
-    .getByRole("button", { name: "External Circuits", exact: true })
+    .getByRole("tab", { name: "External Circuits", exact: true })
     .click();
   await manager
     .getByLabel("External model netlist")
@@ -941,7 +941,7 @@ test("retains an unfinished external model draft after closing Manager", async (
   await openCellManager(page);
   manager = page.getByRole("dialog", { name: "Cell Manager" });
   await manager
-    .getByRole("button", { name: "External Circuits", exact: true })
+    .getByRole("tab", { name: "External Circuits", exact: true })
     .click();
   await manager
     .locator(".cell-manager-list-item")
@@ -1713,8 +1713,8 @@ test("protects reviewed External interfaces and navigates their callers", async 
   await runCellCommand(page, "Hierarchy");
   const manager = page.getByRole("dialog", { name: "Cell Manager" });
   await manager
-    .getByRole("group", { name: "Definition type" })
-    .getByRole("button", { name: "External Circuits", exact: true })
+    .getByRole("tablist", { name: "Definition type" })
+    .getByRole("tab", { name: "External Circuits", exact: true })
     .click();
   await manager
     .locator(".cell-manager-list-item")
@@ -1737,8 +1737,8 @@ test("protects reviewed External interfaces and navigates their callers", async 
   await page.keyboard.press("Escape");
   await runCellCommand(page, "Hierarchy");
   await manager
-    .getByRole("group", { name: "Definition type" })
-    .getByRole("button", { name: "External Circuits", exact: true })
+    .getByRole("tablist", { name: "Definition type" })
+    .getByRole("tab", { name: "External Circuits", exact: true })
     .click();
   await manager
     .getByRole("complementary", { name: "External Circuits" })
@@ -1756,13 +1756,13 @@ test("manages external declarations independently of local Cell interfaces", asy
   await page.goto("/editor");
   await runCellCommand(page, "Hierarchy");
   const manager = page.getByRole("dialog", { name: "Cell Manager" });
-  const types = manager.getByRole("group", { name: "Definition type" });
+  const types = manager.getByRole("tablist", { name: "Definition type" });
   await expect(
     manager.getByLabel("Cell interface", { exact: true }),
   ).toBeVisible();
   await expect(manager.getByLabel("External subcircuit target")).toHaveCount(0);
   await types
-    .getByRole("button", { name: "External Circuits", exact: true })
+    .getByRole("tab", { name: "External Circuits", exact: true })
     .click();
   await expect(
     manager.getByLabel("Cell interface", { exact: true }),
@@ -1804,13 +1804,13 @@ test("manages external declarations independently of local Cell interfaces", asy
     .getByLabel("External subcircuit formal parameters")
     .fill("gain=20");
   await manager.getByRole("button", { name: "Save definition" }).click();
-  await types.getByRole("button", { name: "Cells", exact: true }).click();
+  await types.getByRole("tab", { name: "Cells", exact: true }).click();
   await expect(
     manager.getByLabel("Cell interface", { exact: true }),
   ).toBeVisible();
   await expect(manager.getByLabel("External subcircuit target")).toHaveCount(0);
   await types
-    .getByRole("button", { name: "External Circuits", exact: true })
+    .getByRole("tab", { name: "External Circuits", exact: true })
     .click();
   await expect(
     manager.getByLabel("External subcircuit formal parameters"),
@@ -1819,7 +1819,7 @@ test("manages external declarations independently of local Cell interfaces", asy
   await page.keyboard.press("Control+z");
   await runCellCommand(page, "Hierarchy");
   await types
-    .getByRole("button", { name: "External Circuits", exact: true })
+    .getByRole("tab", { name: "External Circuits", exact: true })
     .click();
   await externalList.getByRole("button", { name: /amplifier/ }).click();
   await expect(
@@ -1845,7 +1845,7 @@ test("manages external declarations independently of local Cell interfaces", asy
   await page.keyboard.press("Control+z");
   await runCellCommand(page, "Hierarchy");
   await types
-    .getByRole("button", { name: "External Circuits", exact: true })
+    .getByRole("tab", { name: "External Circuits", exact: true })
     .click();
   await externalList.getByRole("button", { name: /amplifier/ }).click();
   await expect(
@@ -1855,7 +1855,7 @@ test("manages external declarations independently of local Cell interfaces", asy
   await page.keyboard.press("Control+Shift+z");
   await runCellCommand(page, "Hierarchy");
   await types
-    .getByRole("button", { name: "External Circuits", exact: true })
+    .getByRole("tab", { name: "External Circuits", exact: true })
     .click();
   await expect(
     externalList.getByRole("button", { name: /amplifier/ }),
@@ -1869,8 +1869,8 @@ test("creates and places an external interface with connected netlist semantics"
   await runCellCommand(page, "Hierarchy");
   const manager = page.getByRole("dialog", { name: "Cell Manager" });
   await manager
-    .getByRole("group", { name: "Definition type" })
-    .getByRole("button", { name: "External Circuits" })
+    .getByRole("tablist", { name: "Definition type" })
+    .getByRole("tab", { name: "External Circuits" })
     .click();
   const create = manager.getByRole("button", {
     name: "Create External Circuit Def",
@@ -2051,7 +2051,7 @@ test("creates and places an external interface with connected netlist semantics"
   // the native implementation when exporting a reusable circuit.
   await openCellManager(page);
   await manager
-    .getByRole("button", { name: "External Circuits", exact: true })
+    .getByRole("tab", { name: "External Circuits", exact: true })
     .click();
   await manager.getByRole("button", { name: /external_load/ }).click();
   await manager

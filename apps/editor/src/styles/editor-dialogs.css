@@ -206,7 +206,7 @@
 .cell-manager-dialog {
   position: relative;
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
   width: min(64rem, calc(100vw - 2.5rem));
   height: min(42rem, calc(100dvh - 2.5rem));
   overflow: hidden;
@@ -225,16 +225,19 @@
   gap: var(--icm-space-3);
 }
 
+/* Title, definition scope and dismiss share one band; a second full-width
+   tab strip only ate detail height. */
 .cell-manager-header {
-  min-height: 58px;
-  padding: var(--icm-space-3) var(--icm-space-4);
+  flex-wrap: wrap;
+  min-height: 52px;
+  padding: var(--icm-space-2) var(--icm-space-3) var(--icm-space-2)
+    var(--icm-space-4);
   border-bottom: 1px solid var(--icm-border);
 }
 
 .cell-manager-header p,
 .cell-manager-header h2,
 .cell-manager-detail-header h3,
-.cell-manager-detail-header p,
 .cell-interface-section h3,
 .cell-interface-section p {
   margin: 0;
@@ -253,21 +256,51 @@
   font-size: var(--icm-font-lg);
 }
 
-.cell-manager-resource-tabs {
-  display: flex;
-  gap: var(--icm-space-2);
-  padding: var(--icm-space-2) var(--icm-space-4);
-  border-bottom: 1px solid var(--icm-border);
+.cell-manager-heading {
+  min-width: 0;
 }
 
-.cell-manager-resource-tabs button[aria-pressed="true"] {
-  background: var(--icm-surface-muted);
-  font-weight: 700;
+/* Same tab affordance as the Simulation workspace, so switching definition
+   scope reads as a tab and not as a pressed toggle. */
+.cell-manager-resource-tabs {
+  display: flex;
+  gap: var(--icm-space-1);
+  margin-left: auto;
+}
+
+.cell-manager-resource-tabs [role="tab"] {
+  min-height: 26px;
+  padding: 0 var(--icm-space-2);
+  border-color: transparent;
+  color: var(--icm-text-muted);
+  background: transparent;
+  box-shadow: none;
+  font-size: var(--icm-font-sm);
+  white-space: nowrap;
+}
+
+.cell-manager-resource-tabs [role="tab"][aria-selected="true"] {
+  border-color: var(--icm-border);
+  color: var(--icm-accent);
+  background: var(--icm-surface);
+  font-weight: 650;
+}
+
+.cell-manager-dismiss {
+  flex: 0 0 auto;
+  width: var(--icm-control-h);
+  min-width: var(--icm-control-h);
+  min-height: var(--icm-control-h);
+  padding: 0;
+  box-shadow: none;
+  font-size: var(--icm-font-lg);
+  line-height: 1;
 }
 
 .cell-manager-body {
   display: grid;
   grid-template-columns: 13rem minmax(0, 1fr);
+  min-width: 0;
   min-height: 0;
 }
 
@@ -288,24 +321,12 @@
   flex: 0 0 auto;
 }
 
-.cell-manager-list-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  min-height: 34px;
-  padding: 0 var(--icm-space-3);
-  color: var(--icm-text-muted);
-  font-size: var(--icm-font-xs);
-  font-weight: 650;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-}
-
 .cell-manager-list-scroll {
   flex: 1 1 0;
   min-height: 0;
-  padding: 0 var(--icm-space-2);
+  padding: var(--icm-space-2);
   overflow-y: auto;
+  scrollbar-width: thin;
 }
 
 .cell-manager-list-item {
@@ -361,12 +382,30 @@
   font-size: var(--icm-font-xs);
 }
 
-.cell-manager-new {
+.cell-manager-list-actions {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
   flex: 0 0 auto;
-  margin: var(--icm-space-2);
+  gap: var(--icm-space-2);
+  padding: var(--icm-space-2);
+  border-top: 1px solid var(--icm-border);
+}
+
+.cell-manager-new {
+  min-height: var(--icm-control-h);
+  padding: 0 var(--icm-space-2);
+  overflow: hidden;
+  box-shadow: none;
+  font-size: var(--icm-font-sm);
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .cell-manager-detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--icm-space-3);
   min-width: 0;
   min-height: 0;
   padding: var(--icm-space-4);
@@ -568,7 +607,8 @@
 }
 
 .cell-manager-detail-header {
-  margin-bottom: var(--icm-space-3);
+  flex: 0 0 auto;
+  flex-wrap: wrap;
 }
 
 .cell-manager-title-row,
@@ -579,14 +619,16 @@
   gap: var(--icm-space-1);
 }
 
-.cell-manager-title-row h3 {
-  font-size: 18px;
+.cell-manager-detail-header .cell-manager-title-row {
+  flex: 1 1 12rem;
+  min-width: 0;
 }
 
-.cell-manager-detail-header p {
-  margin-top: 2px;
-  color: var(--icm-text-muted);
-  font-size: var(--icm-font-sm);
+.cell-manager-title-row h3 {
+  overflow: hidden;
+  font-size: var(--icm-font-lg);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .cell-manager-actions button,
@@ -597,8 +639,14 @@
   box-shadow: none;
 }
 
+.cell-manager-confirm {
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-sm);
+}
+
 .cell-interface-editor {
   display: grid;
+  flex: 0 0 auto;
   gap: var(--icm-space-3);
 }
 
@@ -614,6 +662,7 @@
 
 .cell-interface-section,
 .cell-manager-callers {
+  flex: 0 0 auto;
   min-width: 0;
   border: 1px solid var(--icm-border);
   border-radius: var(--icm-radius-md);
@@ -710,10 +759,53 @@
   padding: 0;
 }
 
+/* A second bounded navigator docked under the definition list: expanding an
+   occurrence scrolls inside the tree instead of pushing the list away. */
+.cell-hierarchy-tree {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 auto;
+  min-height: 0;
+  max-height: 45%;
+  border-top: 1px solid var(--icm-border);
+}
+
+.cell-hierarchy-tree[open] {
+  flex: 1 1 auto;
+}
+
+.cell-hierarchy-tree summary {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  min-height: 32px;
+  padding: 0 var(--icm-space-3);
+  cursor: pointer;
+  list-style: none;
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+  font-weight: 650;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.cell-hierarchy-tree summary::-webkit-details-marker {
+  display: none;
+}
+
 .cell-hierarchy-tree ul {
   list-style: none;
   padding-left: 12px;
   margin: 4px 0;
+}
+
+.cell-hierarchy-tree > ul {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0;
+  padding: 0 var(--icm-space-2) var(--icm-space-2);
+  overflow-y: auto;
+  scrollbar-width: thin;
 }
 
 .cell-hierarchy-row {
@@ -723,11 +815,31 @@
   min-width: 0;
 }
 
+/* Tree rows carry the same quiet weight as the Cell list rows beside them. */
 .cell-hierarchy-row button {
+  min-height: 24px;
+  padding: 0 var(--icm-space-1);
   overflow: hidden;
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+  font-size: var(--icm-font-sm);
   text-overflow: ellipsis;
   white-space: nowrap;
-  padding: 3px 5px;
+}
+
+.cell-hierarchy-row button:hover:not(:disabled) {
+  border-color: var(--icm-border);
+  background: var(--icm-surface);
+}
+
+.cell-hierarchy-row > button:first-child,
+.cell-hierarchy-row > span[aria-hidden] {
+  width: 18px;
+  min-width: 18px;
+  padding: 0;
+  color: var(--icm-text-muted);
+  text-align: center;
 }
 
 .cell-parameter-row {
@@ -737,17 +849,29 @@
   gap: 4px;
 }
 
+/* A dashed rest state keeps the heading editable-looking; the old transparent
+   border gave rename no affordance at all. */
 .cell-manager-name {
   width: 100%;
   min-width: 0;
-  font: inherit;
-  font-weight: 600;
-  border: 1px solid transparent;
+  height: var(--icm-control-h);
+  padding: 0 var(--icm-space-2);
+  border: 1px dashed var(--icm-border-strong);
+  border-radius: var(--icm-radius-sm);
   background: transparent;
+  font: inherit;
+  font-size: var(--icm-font-lg);
+  font-weight: 650;
 }
-.cell-manager-name:hover,
+
+.cell-manager-name:hover {
+  background: var(--icm-surface-muted);
+}
+
 .cell-manager-name:focus {
-  border-color: var(--icm-border-strong);
+  border-style: solid;
+  border-color: var(--icm-accent);
+  background: var(--icm-surface);
 }
 .cell-manager-entry {
   position: relative;
@@ -778,17 +902,7 @@
   text-align: center;
 }
 
-.cell-inline-action {
-  flex: 0 0 auto;
-}
-
-.cell-apply-action {
-  align-self: flex-end;
-  margin-top: auto;
-}
-
-.cell-manager-callers summary,
-.cell-manager-danger-zone summary {
+.cell-manager-callers summary {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -800,55 +914,76 @@
   font-weight: 600;
 }
 
-.cell-manager-callers summary::-webkit-details-marker,
-.cell-manager-danger-zone summary::-webkit-details-marker {
+.cell-manager-callers summary::-webkit-details-marker {
   display: none;
 }
 
+/* The card owns the padding and the border now, so the field grid is plain
+   content and the submit button lives in a real footer. */
 .cell-external-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--icm-space-2);
-  padding: 0 var(--icm-space-3) var(--icm-space-3);
-  border-top: 1px solid var(--icm-border);
+  gap: var(--icm-space-2) var(--icm-space-3);
 }
 
 .cell-external-grid label {
   display: grid;
   gap: 3px;
-  padding-top: var(--icm-space-2);
   color: var(--icm-text-muted);
   font-size: var(--icm-font-xs);
 }
 
-.cell-external-grid button {
-  justify-self: end;
-  align-self: end;
+.cell-external-grid label:last-of-type {
+  grid-column: 1 / -1;
 }
 
-.cell-manager-callers {
-  margin-top: var(--icm-space-3);
-}
-
-.cell-manager-danger-zone {
-  margin-top: var(--icm-space-3);
-  border: 1px solid var(--icm-danger);
-  border-radius: var(--icm-radius-md);
-  background: var(--icm-surface);
-}
-
-.cell-manager-danger-zone > p {
+.cell-external-result {
   margin: 0;
-  padding: 0 var(--icm-space-3) var(--icm-space-2);
-  color: var(--icm-text-muted);
-  font-size: var(--icm-font-xs);
+  padding: var(--icm-space-2);
+  border: 1px solid var(--icm-border);
+  border-left: 3px solid var(--icm-accent);
+  border-radius: var(--icm-radius-sm);
+  background: var(--icm-surface-muted);
+  font-size: var(--icm-font-sm);
+  line-height: var(--icm-line);
 }
 
-.cell-manager-reset-actions {
+.cell-external-result[role="alert"] {
+  border-left-color: var(--icm-danger);
+  color: var(--icm-danger);
+}
+
+.cell-external-actions {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
   gap: var(--icm-space-2);
-  padding: 0 var(--icm-space-3) var(--icm-space-3);
+  margin-top: var(--icm-space-1);
+  padding-top: var(--icm-space-2);
+  border-top: 1px solid var(--icm-border);
+}
+
+/* Selection-scoped actions stay left of the commit button so the primary
+   action keeps the same slot whether or not a definition is selected. */
+.cell-external-actions-lead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--icm-space-2);
+  margin-right: auto;
+}
+
+.cell-external-actions .primary:not(:disabled) {
+  border-color: var(--icm-accent);
+  color: #fff;
+  background: var(--icm-accent);
+}
+
+/* Secondary reference material sinks to the bottom of the detail pane, so a
+   short definition no longer leaves a void under its card. */
+.cell-manager-callers {
+  margin-top: auto;
 }
 
 .cell-manager-callers ul {
@@ -1029,6 +1164,13 @@
     height: calc(100dvh - 1rem);
   }
 
+  /* Narrow headers cannot fit title and tabs on one line; the tabs drop to
+     their own row instead of squeezing the title to nothing. */
+  .cell-manager-resource-tabs {
+    flex-basis: 100%;
+    margin-left: 0;
+  }
+
   .cell-manager-body {
     grid-template-columns: 11.5rem minmax(0, 1fr);
   }
@@ -1040,6 +1182,13 @@
   .cell-manager-detail-header {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  /* Column direction would read the title row's flex-basis as a height, so the
+     stacked header keeps its intrinsic size and still clips a long name. */
+  .cell-manager-detail-header .cell-manager-title-row {
+    flex: 0 0 auto;
+    width: 100%;
   }
 
   .cell-interface-grid,

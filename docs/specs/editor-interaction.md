@@ -979,20 +979,21 @@ never establish or advance this baseline.
 
 ## Cell reset lifecycle
 
-Cell reset commands live in the selected definition's **Cell Manager → Reset
-Cell** section. The Manager submits the existing Document edit through the
-Project `transact_document` boundary so an inactive Cell can be reset without
-opening it first; one Undo restores the atomic Project transaction. Each command
-previews an exact affected-object count before commit:
+Cell reset commands are Agent authoring commands; the Cell Manager exposes no
+destructive drawing, placement or body reset action. A reset submits the
+existing Document edit through the Project `transact_document` boundary so an
+inactive Cell can be reset without opening it first; one Undo restores the
+atomic Project transaction. Each command reports an exact affected-object count
+with its result, and its dry run reports that count without committing:
 
 - **Clear Drawing** removes authored Route geometry and drafting objects while
   retaining Instances, Nets, Junction topology, ports, and semantic
   annotations.
-- **Reset Cell Placement** (Agent authoring only) returns every placed Instance
-  to the Placement Tray, removes Route geometry and placement
-  constraints/groups, and retains the devices, Nets, Junction topology, and
-  formal interface. The next open of that Project draws the returned Instances
-  again, so the reset is a redraw step, not a lasting off-sheet state.
+- **Reset Cell Placement** returns every placed Instance to the Placement Tray,
+  removes Route geometry and placement constraints/groups, and retains the
+  devices, Nets, Junction topology, and formal interface. The next open of that
+  Project draws the returned Instances again, so the reset is a redraw step, not
+  a lasting off-sheet state.
 - **Reset Cell Body** removes non-interface electrical and drawing content but
   retains formal terminals, their interface Port markers, their Nets, and
   terminal annotations. Existing parent callers therefore keep the same pin

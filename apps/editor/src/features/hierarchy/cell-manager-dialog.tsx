@@ -289,50 +289,64 @@ export function CellManagerDialog({
         }}
       >
         <header className="cell-manager-header">
-          <div>
+          <div className="cell-manager-heading">
+            <p>
+              {cells.length} {cells.length === 1 ? "Cell" : "Cells"} ·{" "}
+              {externalDefinitions.length} External
+            </p>
             <h2 id="cell-manager-title">Cell Manager</h2>
+          </div>
+          <div
+            className="cell-manager-resource-tabs"
+            role="tablist"
+            aria-label="Definition type"
+          >
+            <button
+              type="button"
+              role="tab"
+              id="cell-manager-tab-local"
+              aria-controls="cell-manager-panel-local"
+              aria-selected={resourceKind === "local"}
+              onClick={() =>
+                requestLeave(() => {
+                  setResourceKind("local");
+                  setDetailVisible(false);
+                })
+              }
+            >
+              Cells
+            </button>
+            <button
+              type="button"
+              role="tab"
+              id="cell-manager-tab-external"
+              aria-controls="cell-manager-panel-external"
+              aria-selected={resourceKind === "external"}
+              onClick={() =>
+                requestLeave(() => {
+                  setResourceKind("external");
+                  setDetailVisible(externalDefinitions.length === 0);
+                })
+              }
+            >
+              External Circuits
+            </button>
           </div>
           <button
             type="button"
+            className="cell-manager-dismiss"
             onClick={() => requestLeave(onClose)}
             aria-label="Close Cell Manager"
           >
-            Close
+            ×
           </button>
         </header>
 
         <div
-          className="cell-manager-resource-tabs"
-          role="group"
-          aria-label="Definition type"
-        >
-          <button
-            type="button"
-            aria-pressed={resourceKind === "local"}
-            onClick={() =>
-              requestLeave(() => {
-                setResourceKind("local");
-                setDetailVisible(false);
-              })
-            }
-          >
-            Cells
-          </button>
-          <button
-            type="button"
-            aria-pressed={resourceKind === "external"}
-            onClick={() =>
-              requestLeave(() => {
-                setResourceKind("external");
-                setDetailVisible(externalDefinitions.length === 0);
-              })
-            }
-          >
-            External Circuits
-          </button>
-        </div>
-        <div
           className="cell-manager-body"
+          role="tabpanel"
+          id={`cell-manager-panel-${resourceKind}`}
+          aria-labelledby={`cell-manager-tab-${resourceKind}`}
           data-pane={detailVisible ? "detail" : "list"}
         >
           {resourceKind === "local" ? (
@@ -345,11 +359,6 @@ export function CellManagerDialog({
                 onChange={(event) => setFilter(event.target.value)}
               />
               <div className="cell-manager-list-scroll">
-                <CellHierarchyTree
-                  project={project}
-                  calls={hierarchyCalls}
-                  onOpen={onOpenOccurrence}
-                />
                 {visibleCells.map((cell) => (
                   <div
                     key={cell.id}
@@ -455,33 +464,45 @@ export function CellManagerDialog({
                   {draggedId ? "Move to end" : null}
                 </div>
               </div>
-              <button
-                type="button"
-                className="cell-manager-new"
-                onClick={() => {
-                  setDraftName("");
-                  setDeleteId(null);
-                  setCreating(true);
-                }}
-              >
-                New Cell
-              </button>
-              <button
-                type="button"
-                className="cell-manager-new"
-                disabled={cloudProjects.length === 0}
-                onClick={() => {
-                  setCreating(false);
-                  setDeleteId(null);
-                  setImporting(true);
-                  setImportProjectId("");
-                  setImportSource(null);
-                  setImportCellId("");
-                  setImportMessage("");
-                }}
-              >
-                Import Cell
-              </button>
+              <CellHierarchyTree
+                project={project}
+                calls={hierarchyCalls}
+                onOpen={onOpenOccurrence}
+              />
+              <footer className="cell-manager-list-actions">
+                <button
+                  type="button"
+                  className="cell-manager-new"
+                  onClick={() => {
+                    setDraftName("");
+                    setDeleteId(null);
+                    setCreating(true);
+                  }}
+                >
+                  New Cell
+                </button>
+                <button
+                  type="button"
+                  className="cell-manager-new"
+                  disabled={cloudProjects.length === 0}
+                  title={
+                    cloudProjects.length === 0
+                      ? "Sign in and open another Project to import a Cell."
+                      : undefined
+                  }
+                  onClick={() => {
+                    setCreating(false);
+                    setDeleteId(null);
+                    setImporting(true);
+                    setImportProjectId("");
+                    setImportSource(null);
+                    setImportCellId("");
+                    setImportMessage("");
+                  }}
+                >
+                  Import Cell
+                </button>
+              </footer>
             </aside>
           ) : (
             <aside className="cell-manager-list" aria-label="External Circuits">
@@ -528,19 +549,21 @@ export function CellManagerDialog({
                   <p role="status">No matches</p>
                 ) : null}
               </div>
-              <button
-                type="button"
-                className="cell-manager-new"
-                onClick={() =>
-                  requestLeave(() => {
-                    setExternalId(null);
-                    setExternalDraft((value) => value + 1);
-                    setDetailVisible(true);
-                  })
-                }
-              >
-                New External Circuit
-              </button>
+              <footer className="cell-manager-list-actions">
+                <button
+                  type="button"
+                  className="cell-manager-new"
+                  onClick={() =>
+                    requestLeave(() => {
+                      setExternalId(null);
+                      setExternalDraft((value) => value + 1);
+                      setDetailVisible(true);
+                    })
+                  }
+                >
+                  New External Circuit
+                </button>
+              </footer>
             </aside>
           )}
 
@@ -557,6 +580,7 @@ export function CellManagerDialog({
                 <header className="cell-manager-detail-header">
                   <div className="cell-manager-title-row">
                     <h3>{selectedExternal?.name ?? "New External Circuit"}</h3>
+                    <span>External</span>
                   </div>
                 </header>
                 <ExternalCircuitEditor
@@ -597,14 +621,12 @@ export function CellManagerDialog({
             ) : selectedEntry && selectedDocument ? (
               <>
                 <header className="cell-manager-detail-header">
-                  <div>
-                    <div className="cell-manager-title-row">
-                      <CellName
-                        key={selectedEntry.id}
-                        name={selectedEntry.name}
-                        onRename={(name) => onRename(selectedEntry.id, name)}
-                      />
-                    </div>
+                  <div className="cell-manager-title-row">
+                    <CellName
+                      key={selectedEntry.id}
+                      name={selectedEntry.name}
+                      onRename={(name) => onRename(selectedEntry.id, name)}
+                    />
                   </div>
                   <div className="cell-manager-actions">
                     <button

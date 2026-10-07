@@ -205,7 +205,7 @@ X2 OUT IN EXT_MASTER l=1u nf=4
     exact: true,
   });
   await manager
-    .getByRole("button", { name: "External Circuits", exact: true })
+    .getByRole("tab", { name: "External Circuits", exact: true })
     .click();
   await manager.getByRole("button", { name: /EXT_MASTER/ }).click();
   await manager
