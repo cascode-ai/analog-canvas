@@ -2469,13 +2469,14 @@ function reportGenericDiodes(
 }
 
 /**
- * The generic MOS targets the Abstract profile offers, which a SPICE netlist
- * names but does not define (#1420): no one card suits every simulator, as a
- * level-1 card refuses the nf every MOS carries. A Cell that leans on one
- * says it needs a card before it simulates, unless the imported SPICE or the
- * run's own files supply it.
+ * The generic targets the editor binds that a SPICE netlist names but does
+ * not define (#1420): Abstract's NMOS and PMOS, and SW for a voltage-
+ * controlled switch. No one card suits every simulator, as a level-1 card
+ * refuses the nf every MOS carries, and a switch's threshold is the
+ * design's own. A Cell that leans on one says it needs a card before it
+ * simulates, unless the imported SPICE or the run's own files supply it.
  */
-const UNDEFINED_GENERIC_TARGETS = ["NMOS", "PMOS"] as const;
+const UNDEFINED_GENERIC_TARGETS = ["NMOS", "PMOS", "SW"] as const;
 
 function reportUndefinedGenericModels(
   project: CircuitProject,

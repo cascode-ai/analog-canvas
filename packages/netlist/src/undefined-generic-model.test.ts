@@ -52,8 +52,8 @@ const undefinedFindings = (
   diagnostics: ReadonlyArray<{ code: string; message: string }>,
 ) => diagnostics.filter((item) => item.code === "GENERIC_MODEL_UNDEFINED");
 
-describe("a generic MOS target the netlist does not define (#1420)", () => {
-  it("says the SPICE netlist needs NMOS and PMOS cards, as information", () => {
+describe("a generic target the netlist does not define (#1420)", () => {
+  it("says the SPICE netlist needs NMOS, PMOS and SW cards, as information", () => {
     const project = mosProject([
       { id: "m2", symbolId: "nmos", model: "NMOS" },
       { id: "m1", symbolId: "nmos", model: "NMOS" },
@@ -61,6 +61,27 @@ describe("a generic MOS target the netlist does not define (#1420)", () => {
       { id: "m3", symbolId: "pmos", model: "pmos" },
       { id: "m4", symbolId: "nmos", model: "nch_mac" },
     ]);
+    // A voltage-controlled switch takes SW in every process.
+    const document = project.documents[0]!;
+    document.instances.push({
+      id: "s1",
+      symbolId: "voltage-controlled-switch",
+      reference: "S1",
+      placement: null,
+      netlist: {
+        binding: { kind: "model", deviceClass: "switch", name: "SW" },
+        parameters: {},
+      },
+    });
+    for (const [pinName, netId] of [
+      ["P", "drain"],
+      ["N", "source"],
+      ["CP", "gate"],
+      ["CN", "body"],
+    ] as const)
+      document.nets
+        .find((net) => net.id === netId)!
+        .terminals.push({ instanceId: "s1", pinName });
     const result = createDesignNetlistExport(project);
     expect(result.status).toBe("ready");
     if (result.status !== "ready") return;
@@ -70,9 +91,9 @@ describe("a generic MOS target the netlist does not define (#1420)", () => {
     expect(undefinedFindings(result.diagnostics)).toEqual([
       expect.objectContaining({
         severity: "info",
-        objectIds: ["m1", "m2", "m3"],
+        objectIds: ["m1", "m2", "m3", "s1"],
         message:
-          "M1 and M2 name NMOS and M3 names PMOS, generic models the netlist does not define: add .model cards for NMOS and PMOS to the simulation folder before simulating, or set a real model",
+          "M1 and M2 name NMOS, M3 names PMOS and S1 names SW, generic models the netlist does not define: add .model cards for NMOS, PMOS and SW to the simulation folder before simulating, or set a real model",
       }),
     ]);
     expect(designExtractsNetlist(project)).toBe(true);

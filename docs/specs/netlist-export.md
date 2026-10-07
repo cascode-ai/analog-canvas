@@ -385,14 +385,15 @@ writes the cards as `sp_bjt` models, `type=1` for NPN and `type=-1` for PNP,
 loading `spice/bjt.osdi`. They are SPICE only; a Spectre export still names
 `NPN` and `PNP` for the reader's libraries to define.
 A MOS transistor bound to the generic `NMOS` or `PMOS` that Abstract and
-Custom offer gets no card: no one card suits every simulator, and a level-1 card refuses the
-`nf` every MOS carries. The SPICE export reports `GENERIC_MODEL_UNDEFINED` as
-information for the Cell instead, naming the transistors and the cards a run
-needs ("M1 and M2 name NMOS, a generic model the netlist does not define:
-add a .model NMOS card to the simulation folder before simulating, or set a
-real model"). A model of that name, in any case, in the SPICE the Project was
-imported from or in a folder's own files quiets it, everywhere or in that
-folder's runs.
+Custom offer, and a voltage-controlled switch bound to the generic `SW`, get
+no card: no one card suits every simulator, a level-1 card refuses the `nf`
+every MOS carries, and a switch's threshold is the design's own. The SPICE
+export reports `GENERIC_MODEL_UNDEFINED` as information for the Cell instead,
+naming the parts and the cards a run needs ("M1 and M2 name NMOS, a generic
+model the netlist does not define: add a .model NMOS card to the simulation
+folder before simulating, or set a real model"). A model of that name, in any
+case, in the SPICE the Project was imported from or in a folder's own files
+quiets it, everywhere or in that folder's runs.
 A drawn T-coil or transformer is one Symbol on the canvas and coupled
 windings in the netlist: each Instance is an `X` call on a built-in
 subcircuit that the file defines once, ahead of the Cells, with the

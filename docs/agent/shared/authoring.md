@@ -127,11 +127,12 @@ targets to avoid full-Snapshot name resolution. Names remain supported when usef
   information, `GENERIC_BJT_MODEL`, and replaced by a `.model NPN` or
   `.model PNP` in a folder's own files. For a real device, `set-model` the
   transistor to its own model.
-- A MOS bound to the generic `NMOS` or `PMOS` (Abstract, Custom) gets no
-  card. The SPICE netlist reports it as information,
-  `GENERIC_MODEL_UNDEFINED`, until a `.model NMOS …` or `.model PMOS …` in
-  the simulation folder's files defines it; or `set-model` the transistor
-  to a real model.
+- A MOS bound to the generic `NMOS` or `PMOS` (Abstract, Custom), and a
+  voltage-controlled switch bound to the generic `SW`, get no card. The
+  SPICE netlist reports them as information, `GENERIC_MODEL_UNDEFINED`,
+  until a `.model NMOS …`, `.model PMOS …` or `.model SW SW(…)` in the
+  simulation folder's files defines it; or `set-model` the part to a real
+  model.
 - `place-component` and `set-property` refuse a parameter the part does not
   take (naming the one it most likely meant), a value outside a choice list,
   and a quantity that is neither a SPICE number (`1k`, `2.5n`, `9kΩ`) nor an
