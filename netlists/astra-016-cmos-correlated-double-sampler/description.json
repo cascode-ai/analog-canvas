@@ -1,0 +1,11 @@
+{
+  "name": "CMOS correlated double sampler with hold",
+  "description": "Ten explicit MOS devices implement clamping, sampling and complementary clock generation. While track and reset are high, CS stores the reference input relative to VCM. reset then falls; a change at vin shifts the storage node through CS. track falls last to hold that difference on CH. With CS=100 pF, CH=2 pF and CP=100 fF, ideal gain is about 0.979. At 3.3 V and VCM=1.2 V, a −200 mV input step gives 1.007 V output; shifting both input levels upward by 400 mV changes the result by only 0.20 mV. A −400 mV step gives 0.811 V. The saved 100 ksample/s experiment checks transfer, shared-offset rejection, zero signal and hold droop. RL=1 GΩ models finite hold leakage. Use the documented track/reset sequence; it is not interchangeable with non-overlap-only clocks. Educational Level-1 MOS models; no stochastic-noise, mismatch or process-corner qualification.",
+  "tags": [
+    "CMOS",
+    "Sampling",
+    "Correlated Double Sampling",
+    "Switched Capacitor",
+    "Sensors"
+  ]
+}

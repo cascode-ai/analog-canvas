@@ -1,0 +1,17 @@
+
+.subckt astra_016_cmos_correlated_double_sampler vdd VSS track reset vin vcm out
+CH out VSS 2p
+CP net1 VSS 100f
+CS net1 net0 100p
+M1 net3 track vdd vdd APMOS l=1u w=10u
+M10 vcm reset net1 VSS ANMOS l=1u w=10u
+M2 net3 track VSS VSS ANMOS l=1u w=4u
+M3 net2 reset vdd vdd APMOS l=1u w=10u
+M4 net2 reset VSS VSS ANMOS l=1u w=4u
+M5 vin net3 net0 vdd APMOS l=1u w=20u
+M6 vin track net0 VSS ANMOS l=1u w=10u
+M7 net1 net3 out vdd APMOS l=1u w=20u
+M8 net1 track out VSS ANMOS l=1u w=10u
+M9 vcm net2 net1 vdd APMOS l=1u w=20u
+RL out VSS 1g
+.ends astra_016_cmos_correlated_double_sampler

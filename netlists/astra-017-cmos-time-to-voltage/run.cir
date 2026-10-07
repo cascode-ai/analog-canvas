@@ -1,0 +1,30 @@
+CMOS pulse-width-to-voltage converter
+.include "circuit.spice"
+.include "models.spice"
+VDD vdd 0 3.3
+IREF iref 0 10u
+VEN integrate 0 PWL(0 0 2u 0 2.002u 3.3 2.102u 3.3 2.104u 0 12u 0 12.002u 3.3 12.252u 3.3 12.254u 0 22u 0 22.002u 3.3 22.502u 3.3 22.504u 0 32u 0 32.002u 3.3 32.802u 3.3 32.804u 0 40u 0)
+VR reset 0 PULSE(0 3.3 0.5u 2n 2n 1u 10u)
+VS sample 0 PULSE(0 3.3 0.2u 2n 2n 4u 10u)
+XDUT vdd 0 integrate sample iref reset out astra_017_cmos_time_to_voltage
+.temp 27
+.options method=gear reltol=1e-5
+* Pulse plateau widths: 100, 250, 500, 800 ns; edges are 2 ns each.
+* @spec v100 range 0.08 0.1 unit=V
+* @spec v250 range 0.205 0.23 unit=V
+* @spec v500 range 0.415 0.445 unit=V
+* @spec v800 range 0.67 0.705 unit=V
+* @spec midpoint_error range -0.002 0.002 unit=V
+.control
+set filetype=ascii
+tran 1n 40u
+meas tran v100 FIND v(out) AT=5u
+meas tran v250 FIND v(out) AT=15u
+meas tran v500 FIND v(out) AT=25u
+meas tran v800 FIND v(out) AT=35u
+let linear_error=v(out)-(v100+(v800-v100)*400/700)
+meas tran midpoint_error FIND linear_error AT=25u
+write out.raw v(out) v(integrate) v(reset) v(sample)
+quit
+.endc
+.end

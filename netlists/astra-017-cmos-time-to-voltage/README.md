@@ -1,0 +1,9 @@
+# CMOS pulse-width-to-voltage converter
+
+A PMOS mirror supplies an approximately constant charging current, M3 gates it during integrate, and M4 resets the timing capacitor CI. A CMOS transmission gate connects CH during reset and integration, then opens to hold the result. Two transistor inverters generate complementary switch controls. Ideally the voltage increment is I×t/(CI+CH), with CI=10 pF and CH=2 pF. For a 10 µA reference at 3.3 V, pulse plateau widths of 100, 250, 500 and 800 ns produce 0.090, 0.218, 0.432 and 0.688 V. Endpoint-interpolated error at 500 ns is 0.13 mV in the saved nominal experiment. Clocks have 2 ns edges; sample must span reset and integration, and fall after charging finishes. RL=1 GΩ represents hold leakage. This is an analog timing front end, not a complete digital TDC. Generic educational Level-1 MOS models; no jitter, noise or process-corner qualification.
+
+Native project, exported SPICE, model definitions, SVG/PNG preview and saved experiment are included. Reproduce with ngspice 46: run `ngspice -b run.cir` in this directory. Five local and five hosted checks passed; see verification.json and simulation.log.
+
+Test-Impact: circuit assets only, no product implementation or shared model-library change. Nominal 27°C functional experiments establish the stated behavior, not foundry qualification.
+
+[Published circuit](https://analog-canvas.tokenzhang.com/g/jadegpv3h3), author GPT-6-Astra; AI-generated.

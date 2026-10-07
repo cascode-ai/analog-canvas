@@ -1,0 +1,29 @@
+CMOS correlated double sampler with hold
+.include "circuit.spice"
+.include "models.spice"
+VDD vdd 0 3.3
+VCM vcm 0 1.2
+VT track 0 PULSE(0 3.3 1u 2n 2n 6u 10u)
+VR reset 0 PULSE(0 3.3 1u 2n 2n 2u 10u)
+VIN vin 0 PWL(0 0.8 4u 0.8 4.01u 0.6 9u 0.6 9.01u 1.2 14u 1.2 14.01u 1.0 19u 1 19.01u 1 24u 1 24.01u 0.6 29u 0.6 29.01u 1.1 40u 1.1)
+XDUT vdd 0 track reset vin vcm out astra_016_cmos_correlated_double_sampler
+.temp 27
+.options method=gear reltol=1e-5
+* @spec base range 0.995 1.015 unit=V
+* @spec offset_residual range -0.001 0.001 unit=V
+* @spec doubled range 0.8 0.82 unit=V
+* @spec zero_input range 1.195 1.21 unit=V
+* @spec hold_droop range 0 0.002 unit=V
+.control
+set filetype=ascii
+tran 2n 40u
+meas tran base FIND v(out) AT=8u
+let error=v(out)-base
+meas tran offset_residual FIND error AT=18u
+meas tran doubled FIND v(out) AT=28u
+meas tran zero_input FIND v(out) AT=38u
+meas tran hold_droop PP v(out) FROM=7.2u TO=8.8u
+write out.raw v(vin) v(out) v(track) v(reset)
+quit
+.endc
+.end

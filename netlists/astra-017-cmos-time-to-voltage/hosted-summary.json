@@ -1,0 +1,12 @@
+{
+  "runId": "e358e3b7-d5cc-49a6-84a4-1cd4edb7289b",
+  "specs": {
+    "available": true,
+    "total": 5,
+    "passed": 5,
+    "failed": 0,
+    "notEvaluated": 0,
+    "unconstrained": 0
+  },
+  "execution": "completed"
+}
