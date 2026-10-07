@@ -779,6 +779,47 @@ describe("MCP tools on the live editor", () => {
     expect(snapshotReads(editor.http)).toEqual(["bootstrap", "geometry"]);
   });
 
+  it("measures a label's drawn text when asked, so a move can use its width (#1414)", async () => {
+    const editor = await connected();
+    await apply(editor, [
+      place("resistor", "R1", 100, { parameters: { value: "10k" } }),
+    ]);
+    const label = editor.controller.document.annotations.find(
+      (annotation) => annotation.binding?.kind === "instance-reference",
+    )!;
+    const read = async (textBounds?: boolean) =>
+      (
+        await editor.tool("inspect", {
+          target: {
+            kind: "geometry",
+            objectIds: [label.id],
+            ...(textBounds === undefined ? {} : { textBounds }),
+          },
+        })
+      ).objects[0];
+    // Without the option the answer is what released clients parse.
+    expect(await read()).not.toHaveProperty("text");
+    const { text } = await read(true);
+    expect(text.bounds.width).toBeGreaterThan(0);
+    expect(text.bounds.height).toBeGreaterThan(0);
+
+    // Its far end, from the width, is where an end-aligned move puts it.
+    const end = { x: 40, y: 60 };
+    await apply(editor, [
+      {
+        kind: "move-annotation",
+        annotationId: label.id,
+        position: end,
+        alignment: "end",
+      },
+    ]);
+    const moved = (await read(true)).text;
+    expect(moved.position).toEqual(end);
+    expect(moved.bounds.width).toBeCloseTo(text.bounds.width, 6);
+    expect(moved.bounds.x + moved.bounds.width).toBeLessThanOrEqual(end.x);
+    expect(moved.bounds.x + moved.bounds.width).toBeGreaterThan(end.x - 2);
+  });
+
   it("apply_actions returns the editor's refusal of a list that needs several calls, after one request", async () => {
     const editor = await connected();
     await apply(editor, [place("resistor", "R1", 100)]);

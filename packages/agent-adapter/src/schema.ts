@@ -141,6 +141,8 @@ export const AgentSnapshotRequestSchema = RequestBaseSchema.extend({
     ])
     .optional(),
   geometryIds: z.array(StableIdSchema).min(1).max(64).optional(),
+  /** Geometry only: measure each annotation's drawn text as well (#1414). */
+  textBounds: z.boolean().optional(),
   instanceIds: z.array(StableIdSchema).min(1).max(64).optional(),
   diagnosticDetail: z.enum(["counts", "items"]).optional(),
   includeSourceSpans: z.boolean().optional(),
@@ -839,6 +841,14 @@ export const AgentGeometryObjectSchema = z.discriminatedUnion("kind", [
     anchor: AnnotationSchema.shape.anchor,
     rotation: AnnotationSchema.shape.rotation,
     alignment: AnnotationSchema.shape.alignment,
+    /**
+     * Asked for with textBounds, for a label the canvas draws: the point its
+     * alignment end stands on, which move-annotation's position sets, and
+     * the box its glyphs fill.
+     */
+    text: z
+      .strictObject({ position: DerivedPointSchema, bounds: DerivedRectSchema })
+      .optional(),
   }),
   z.strictObject({
     kind: z.literal("drafting"),

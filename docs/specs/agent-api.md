@@ -147,6 +147,10 @@ the representative even when some circuit intent remains recognizable. After
 any commit, stale-revision result, or uncertain transport outcome, discard all
 previous Snapshot Net IDs; resolve current connectivity before using Net IDs
 again. A full Snapshot is unnecessary for unrelated geometry-only verification.
+A geometry Snapshot asked with `textBounds` also measures each annotation the
+canvas draws, as label placement measures it: `text.position`, where its
+alignment end stands, and `text.bounds`, the box its glyphs fill. Without the
+option the answer keeps the fields released clients parse strictly.
 Persisted Base-Net IDs
 remain valid only while their objects survive the edit lifecycle and are not
 exposed as an alternate Agent naming protocol.

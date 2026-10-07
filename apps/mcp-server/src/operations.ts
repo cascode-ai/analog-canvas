@@ -494,6 +494,12 @@ const InspectArgs = z.strictObject({
     z.strictObject({
       kind: z.literal("geometry"),
       objectIds: z.array(z.string().min(1)).min(1).max(64),
+      textBounds: z
+        .boolean()
+        .optional()
+        .describe(
+          "Also measure each annotation's drawn text: text.position (where its alignment end stands) and text.bounds",
+        ),
     }),
     z.strictObject({ kind: z.literal("activity") }),
     z.strictObject({
@@ -1379,6 +1385,7 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
         return session.client.geometrySnapshot(
           parsed.target.objectIds,
           parsed.documentId,
+          parsed.target.textBounds ? { textBounds: true } : {},
         );
       if (parsed.target.kind === "diagnostics") {
         const state = await session.client.documentState(parsed.documentId, {

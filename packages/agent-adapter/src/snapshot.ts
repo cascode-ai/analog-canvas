@@ -1,5 +1,8 @@
 import {
   electricalTopologyHash,
+  isSchematicAnnotationVisible,
+  resolveAnnotationPresentation,
+  resolveDocumentStyleProfile,
   resolveDocumentLogicalNets,
   resolveEndpointConnection,
   resolveMosBulkConnection,
@@ -10,7 +13,10 @@ import {
 } from "@icm/derived";
 import { transformPoint, flattenRichText } from "@icm/model";
 import type {
+  Annotation,
   CircuitProject,
+  DerivedPoint,
+  DerivedRect,
   Point,
   Rect,
   SchematicDocument,
@@ -51,10 +57,53 @@ export interface BuildAgentBootstrapSnapshotOptions {
   document: SchematicDocument;
 }
 
+/**
+ * Where each annotation's text stands as the canvas draws it (#1414): the
+ * point its alignment end is on and the box its glyphs fill, measured as
+ * label placement measures them. A label the canvas does not draw (hidden,
+ * or its part in the tray) has none. The Cell's routing is resolved once.
+ */
+export function agentAnnotationTextMeasure(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+): (
+  annotation: Annotation,
+) => { position: DerivedPoint; bounds: DerivedRect } | undefined {
+  let context:
+    | {
+        style: ReturnType<typeof resolveDocumentStyleProfile>;
+        routing: ReturnType<typeof resolveDocumentRoutingGeometry>;
+        logical: ReturnType<typeof resolveDocumentLogicalNets>;
+      }
+    | undefined;
+  return (annotation) => {
+    context ??= {
+      style: resolveDocumentStyleProfile(document.presentation),
+      routing: resolveDocumentRoutingGeometry(document, resolver),
+      logical: resolveDocumentLogicalNets(document),
+    };
+    if (!isSchematicAnnotationVisible(document, annotation, context.logical))
+      return undefined;
+    const drawn = resolveAnnotationPresentation(
+      document,
+      resolver,
+      annotation,
+      context.style,
+      context.routing,
+      context.logical,
+    );
+    return { position: drawn.position, bounds: drawn.inkBounds };
+  };
+}
+
 /** Read authored geometry by stable ID without resolving topology or rendering. */
 export function selectAgentGeometry(
   document: SchematicDocument,
   objectIds: readonly string[],
+  /** Where an annotation's drawn text stands, when asked to measure it. */
+  measureText?: (
+    annotation: Annotation,
+  ) => { position: DerivedPoint; bounds: DerivedRect } | undefined,
 ): {
   objects: Array<ReturnType<typeof AgentGeometryObjectSchema.parse>>;
   missingObjectIds: string[];
@@ -91,12 +140,14 @@ export function selectAgentGeometry(
     }
     const annotation = document.annotations.find((item) => item.id === id);
     if (annotation) {
+      const text = measureText?.(annotation);
       objects.push({
         kind: "annotation",
         id,
         anchor: annotation.anchor,
         rotation: annotation.rotation,
         alignment: annotation.alignment,
+        ...(text ? { text } : {}),
       });
       continue;
     }

@@ -50,6 +50,7 @@ import type {
 import { AgentAuthoringCommandSchema } from "./authoring-command.js";
 import { buildProjectConnectivityIndex, traceHierarchyNet } from "@icm/derived";
 import {
+  agentAnnotationTextMeasure,
   buildAgentBootstrapSnapshot,
   buildAgentSessionSnapshot,
   selectAgentGeometry,
@@ -493,6 +494,17 @@ export function createAgentCircuitService(
           );
         }
         if (
+          request.textBounds !== undefined &&
+          request.projection !== "geometry"
+        ) {
+          return fail(
+            "snapshot",
+            "INVALID_REQUEST",
+            "textBounds applies only to the geometry projection",
+            document.revision,
+          );
+        }
+        if (
           (request.projection === "pins") !==
             (request.instanceIds !== undefined) ||
           (request.projection === "pins" &&
@@ -538,7 +550,13 @@ export function createAgentCircuitService(
           return response(result);
         }
         if (request.projection === "geometry") {
-          const selected = selectAgentGeometry(document, request.geometryIds!);
+          const selected = selectAgentGeometry(
+            document,
+            request.geometryIds!,
+            request.textBounds
+              ? agentAnnotationTextMeasure(document, resolver)
+              : undefined,
+          );
           const result = {
             apiVersion: request.apiVersion,
             requestId: request.requestId,

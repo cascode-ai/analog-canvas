@@ -392,8 +392,9 @@ limit, nothing changes and `LIMIT_EXCEEDED` names the leading parts that fit
 
 The focused `circuit_text` action `move-annotation` sets an absolute position,
 and with `alignment` (`start`, `middle` or `end`) which end of the text
-stands there, so a label moved to a part's other side needs no width;
-the legacy `apply_actions` annotation `move` uses the same semantics, without
+stands there, so a label moved to a part's other side needs no width
+(geometry `inspect` with `textBounds:true` reads a drawn label's box when it
+matters); the legacy `apply_actions` annotation `move` uses the same semantics, without
 `alignment`, while
 `transform` supports translation. These preserve ownership and electrical
 binding. A Net label moved beside its own wire, along a segment and within 20

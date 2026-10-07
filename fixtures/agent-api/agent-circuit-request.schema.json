@@ -57,6 +57,9 @@
             "$ref": "#/$defs/__schema1"
           }
         },
+        "textBounds": {
+          "type": "boolean"
+        },
         "instanceIds": {
           "minItems": 1,
           "maxItems": 64,

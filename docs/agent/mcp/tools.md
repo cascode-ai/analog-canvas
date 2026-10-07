@@ -389,7 +389,10 @@ Document facts.
 `inspect` with `target:{kind:"geometry",objectIds:["…"]}` reads up to 64
 specific authored objects (placement, routes, junctions, annotation anchors,
 drafting and no-connect objects). It returns current revision and missing IDs
-without resolving the full circuit. Use it after local movement; use the full
+without resolving the full circuit. With `textBounds:true` each drawn label
+also carries `text`: `position`, where its alignment end stands (what
+`move-annotation` sets), and `bounds`, the box its glyphs fill, so a label's
+width is read rather than rendered. Use it after local movement; use the full
 inspection for pins, Nets and connectivity. `get_context` and
 `target:{kind:"diagnostics"}` use lightweight server reads for revision/counts
 and diagnostic items. `simulation_folder` list reads folder metadata without
