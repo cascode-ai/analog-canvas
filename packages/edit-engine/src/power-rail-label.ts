@@ -4,6 +4,7 @@ import {
   routeEndpoints,
   type Annotation,
   type SchematicDocument,
+  type VisualAnchor,
 } from "@icm/model";
 
 export interface PowerRailSupply {
@@ -65,5 +66,40 @@ export function freePowerRailLabel(
 ): Annotation | undefined {
   return document.annotations.find((annotation) =>
     isFreePowerRailLabel(document, annotation, supply),
+  );
+}
+
+/** Whether anything still stands on, starts at or groups this Junction. */
+export function junctionInUse(
+  draft: SchematicDocument,
+  junctionId: string,
+): boolean {
+  const anchored = (anchor: VisualAnchor) =>
+    anchor.kind === "object" && anchor.objectId === junctionId;
+  return (
+    draft.routes.some((route) =>
+      routeEndpoints(route).some(
+        (end) => end.kind === "junction" && end.junctionId === junctionId,
+      ),
+    ) ||
+    draft.annotations.some((annotation) => anchored(annotation.anchor)) ||
+    (draft.drafting?.objects ?? []).some((object) =>
+      [
+        object.anchor,
+        ...(object.kind === "arrow" ? [object.from, object.to] : []),
+        ...(object.kind === "leader" || object.kind === "callout"
+          ? [object.target]
+          : []),
+      ].some(anchored),
+    ) ||
+    [...draft.layoutGroups, ...draft.constraints].some((object) =>
+      object.objectIds.includes(junctionId),
+    ) ||
+    draft.connectivityEvidence.some(
+      (evidence) =>
+        evidence.kind === "name-claim" &&
+        evidence.owner.kind === "power-marker" &&
+        evidence.owner.objectId === junctionId,
+    )
   );
 }

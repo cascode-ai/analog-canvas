@@ -5,7 +5,6 @@ import {
   createRoutePath,
   deriveStableId,
   renamedLabelFormat,
-  routeEndpoints,
   supplyLabelFormat,
 } from "@icm/model";
 import type { SchematicDocument } from "@icm/model";
@@ -16,7 +15,7 @@ import {
   type RejectEdit,
   rejectedEditMutation,
 } from "./transaction-domain.js";
-import { isFreePowerRailLabel } from "./power-rail-label.js";
+import { isFreePowerRailLabel, junctionInUse } from "./power-rail-label.js";
 import {
   connectivityEvidenceNetIds,
   mergeBaseNets,
@@ -393,36 +392,4 @@ export function applyNetPowerEdit(
   }
 
   return { ok: true, connectivityChanged };
-}
-
-/** Whether anything still stands on, starts at or groups this Junction. */
-function junctionInUse(draft: SchematicDocument, junctionId: string): boolean {
-  const anchored = (anchor: { kind: string; objectId?: string }) =>
-    anchor.kind === "object" && anchor.objectId === junctionId;
-  return (
-    draft.routes.some((route) =>
-      routeEndpoints(route).some(
-        (end) => end.kind === "junction" && end.junctionId === junctionId,
-      ),
-    ) ||
-    draft.annotations.some((annotation) => anchored(annotation.anchor)) ||
-    (draft.drafting?.objects ?? []).some((object) =>
-      [
-        object.anchor,
-        ...(object.kind === "arrow" ? [object.from, object.to] : []),
-        ...(object.kind === "leader" || object.kind === "callout"
-          ? [object.target]
-          : []),
-      ].some(anchored),
-    ) ||
-    [...draft.layoutGroups, ...draft.constraints].some((object) =>
-      object.objectIds.includes(junctionId),
-    ) ||
-    draft.connectivityEvidence.some(
-      (evidence) =>
-        evidence.kind === "name-claim" &&
-        evidence.owner.kind === "power-marker" &&
-        evidence.owner.objectId === junctionId,
-    )
-  );
 }

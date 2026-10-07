@@ -903,6 +903,77 @@ describe("the editor plans an Agent's action list", () => {
     },
   );
 
+  it.each(["reset-body", "clear-drawing"] as const)(
+    "redraws a supply as a VDD Pin marker after %s, which takes the kept Pin's place (#1410)",
+    async (mode) => {
+      const { controller, client } = await editor();
+      const apply = async (actions: unknown[]) => {
+        const report = await client.applyActions(actions);
+        expect(report.ok, report.message).toBe(true);
+      };
+      await apply([
+        {
+          kind: "add-power-rail",
+          name: "VDD",
+          start: { x: 0, y: -100 },
+          end: { x: 100, y: -100 },
+        },
+      ]);
+      await apply([place("pmos", "M1", 50)]);
+      const kept = controller.document.netlist!.terminals.find(
+        (item) => item.name === "VDD",
+      )!;
+      const placements = structuredClone(
+        controller.document.presentation.cellSymbol?.pinPlacements,
+      );
+      await apply([{ kind: "reset-cell", mode }]);
+      await apply([
+        {
+          kind: "place-component",
+          symbol: "vdd-port",
+          reference: "VDD",
+          position: { x: 300, y: -200 },
+        },
+      ]);
+
+      const document = controller.document;
+      const marker = document.instances.find(
+        (item) => item.symbolId === "vdd-port",
+      )!;
+      // One VDD Pin, the marker's, on the supply's own Net.
+      const pins = document.netlist!.terminals.filter(
+        (item) => item.name === "VDD",
+      );
+      expect(pins).toEqual([
+        expect.objectContaining({
+          netId: kept.netId,
+          interfaceInstanceIds: [marker.id],
+        }),
+      ]);
+      // The Cell's symbol keeps the Pin where its callers see it.
+      expect(document.presentation.cellSymbol?.pinPlacements).toEqual(
+        placements?.map((placement) => ({
+          ...placement,
+          terminalId: pins[0]!.id,
+        })),
+      );
+      // The kept label went: the marker's own is the only one.
+      expect(
+        document.annotations.filter(
+          (annotation) => annotation.kind === "power-label",
+        ),
+      ).toEqual([
+        expect.objectContaining({
+          anchor: expect.objectContaining({ objectId: marker.id }),
+        }),
+      ]);
+      expect(document.junctions).toEqual([]);
+      // A PMOS body default on the supply stays on it.
+      if (mode === "clear-drawing")
+        expect(document.mosBulkDefaults?.pmosNetId).toBe(kept.netId);
+    },
+  );
+
   it("places the palette's DMOS and depletion MOS, and a DMOS takes a SKY130 20 V model (#1425)", async () => {
     const { client, instance } = await editor();
     const placed = await client.applyActions([

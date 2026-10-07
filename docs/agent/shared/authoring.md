@@ -321,7 +321,9 @@ To redraw a Cell in one call, `reset-cell` with `reset-body` removes every
 part, wire, rail, Junction and label except the Cell's formal interface: its
 Pins, their markers and a local rail's supply label stay, so callers keep
 their pins. A rail drawn again for a supply whose label was kept, after either
-reset, takes that label and its Pin over instead of adding a second label.
+reset, takes that label and its Pin over instead of adding a second label; a
+VDD Pin marker placed for it instead takes the supply's Net, and the kept
+label, its Pin and their Junction go.
 `delete` uses the GUI selection-deletion planner, including owned displays and
 formal interface declarations. `delete-selection` deletes multiple explicit
 object IDs in one transaction. They are nested in `selection`, one list per
