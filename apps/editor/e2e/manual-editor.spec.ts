@@ -100,7 +100,16 @@ test("formal SVG and PNG contain wide rotated edge labels without clipping", asy
       document.body.append(frame);
       try {
         const doc = frame.contentDocument!;
+        // The faces the PNG is drawn in and the canvas shows, so a system
+        // without DejaVu Sans installed checks the same text (#1436).
+        const faces = doc.createElement("style");
+        faces.textContent = [...document.querySelectorAll("style")]
+          .map((style) => style.textContent ?? "")
+          .filter((css) => css.includes('font-family:"DejaVu Sans"'))
+          .join("");
+        doc.head.append(faces);
         doc.body.innerHTML = svg;
+        doc.querySelector("svg")!.getBBox();
         await doc.fonts.ready;
         const root = doc.querySelector("svg")!;
         const view = root.viewBox.baseVal;
@@ -147,6 +156,7 @@ test("formal SVG and PNG contain wide rotated edge labels without clipping", asy
             }
           }
         return {
+          faceCss: faces.textContent.length,
           overflows,
           borderInk,
           ink,
@@ -161,6 +171,7 @@ test("formal SVG and PNG contain wide rotated edge labels without clipping", asy
     { svg, png: `data:image/png;base64,${png.toString("base64")}` },
   );
   expect(result.textCount).toBe(4);
+  expect(result.faceCss).toBeGreaterThan(0);
   expect(result.overflows).toEqual([]);
   expect(result.ink).toBeGreaterThan(1000);
   expect(result.borderInk).toBe(0);
