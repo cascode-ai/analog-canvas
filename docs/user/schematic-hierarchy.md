@@ -28,10 +28,12 @@ declarations. A referenced Cell's delete control is
 disabled; delete its caller Instances normally before deleting the now
 unreferenced definition.
 
-The Manager separates **Cells** (local schematics) from **External Circuit Defs**
+The Manager separates **Cells** (local schematics) from **External Circuits**
 (Project-owned native models or reviewed library declarations). Local Cell
-interfaces come from canvas Pins. Use **New External Circuit Def**, enter a
-SPICE `.subckt` body and choose **Apply model**. Its name, terminal order and
+interfaces come from canvas Pins. Use **New External Circuit**, enter a
+SPICE `.subckt` body and choose **Apply & Place** to start placement in the original
+parent. Escape cancels placement and keeps the applied definition. **Apply model**
+applies without placing. Its name, terminal order and
 formal defaults are parsed beside a pin-labelled preview. For several entries,
 choose the public entry; helper definitions remain with the same source. New
 definitions can select an existing source owner to expose another entry.
@@ -40,6 +42,12 @@ Choose **Place** directly in Manager for either kind. **Import Cell** copies a
 saved Cloud Cell, its children and required models, selects the import and
 retains the original parent for placement. **Open** is a separate action.
 Self-instantiation and cycles show a reason and disable Place.
+
+The action bar keeps Apply and Place together. **More** holds Save draft, Fork,
+placeholder creation and deletion. A single-file model shows its path; file tabs
+appear for multiple files. At narrow widths, select a list item to show its editor
+and use **Back to list** to return. Closing or switching with unsaved text asks
+whether to keep editing or discard the changes.
 
 Native expressions, comments and continuation lines stay in the model files.
 **Files and dependencies** holds extra owned files and pinned Profile library
@@ -73,6 +81,10 @@ promotion; **Define implementation…** opens the native source path. Reviewed
 PDK definitions keep their fixed interfaces and library bindings. Definition
 deletion is refused while callers remain; the shared **Callers** list locates
 those instances.
+Promotion with an unchanged interface preserves the caller's custom artwork.
+Explicit port renames capture separate artwork with renamed canonical contacts;
+stable terminal IDs, positions and wire geometry stay intact. Other callers that
+share the original symbol keep it. A model-body-only Apply never redraws wires.
 Generic External blocks share the Cell symbol layout controls in Properties:
 body size, pin side/offset, and canvas drag handles. A layout edit updates every
 instance and follows connected routes in the same undoable transaction. Native

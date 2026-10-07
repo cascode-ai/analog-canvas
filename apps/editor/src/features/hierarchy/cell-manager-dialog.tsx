@@ -145,6 +145,7 @@ export function CellManagerDialog({
   );
   const [externalId, setExternalId] = useState<string | null>(null);
   const [externalDraft, setExternalDraft] = useState(0);
+  const [filter, setFilter] = useState("");
   const [draftName, setDraftName] = useState("");
   const [creating, setCreating] = useState(false);
   const [draggedId, setDraggedId] = useState<string | null>(null);
@@ -156,6 +157,27 @@ export function CellManagerDialog({
   const [importCellId, setImportCellId] = useState("");
   const [importBusy, setImportBusy] = useState(false);
   const [importMessage, setImportMessage] = useState("");
+  const [detailVisible, setDetailVisible] = useState(
+    Boolean(initialExternalId),
+  );
+  const [pendingPlacement, setPendingPlacement] = useState<string | null>(null);
+  const [modelDirty, setModelDirty] = useState(false);
+  const [pendingLeave, setPendingLeave] = useState<{ run: () => void } | null>(
+    null,
+  );
+  const requestLeave = (run: () => void) => {
+    if (modelDirty) setPendingLeave({ run });
+    else run();
+  };
+  useEffect(() => {
+    if (
+      !pendingPlacement ||
+      !externalDefinitions.some((d) => d.id === pendingPlacement)
+    )
+      return;
+    setPendingPlacement(null);
+    onPlaceExternal(pendingPlacement);
+  }, [pendingPlacement, externalDefinitions, onPlaceExternal]);
 
   useEffect(() => {
     if (open) {
@@ -173,6 +195,7 @@ export function CellManagerDialog({
     setImportCellId("");
     setImportBusy(false);
     setImportMessage("");
+    setFilter("");
   }, [activeDocumentId, open, initialExternalId]);
 
   const selectedEntry =
@@ -181,6 +204,12 @@ export function CellManagerDialog({
     ...cells.filter((cell) => cell.isTop),
     ...cells.filter((cell) => !cell.isTop),
   ];
+  const matchesFilter = (name: string) =>
+    name.toLocaleLowerCase().includes(filter.trim().toLocaleLowerCase());
+  const visibleCells = orderedCells.filter((cell) => matchesFilter(cell.name));
+  const visibleDefinitions = externalDefinitions.filter((definition) =>
+    matchesFilter(definition.name),
+  );
   function moveCell(sourceId: string, beforeId: string, makeTop: boolean) {
     if (sourceId === beforeId) return;
     const ids = orderedCells
@@ -242,7 +271,7 @@ export function CellManagerDialog({
     <div
       className="insert-dialog-backdrop"
       onPointerDown={(event) =>
-        event.target === event.currentTarget && onClose()
+        event.target === event.currentTarget && requestLeave(onClose)
       }
     >
       <section
@@ -250,6 +279,14 @@ export function CellManagerDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby="cell-manager-title"
+        onKeyDown={(event) => {
+          if (event.key === "Escape") {
+            event.stopPropagation();
+            if (pendingLeave) setPendingLeave(null);
+            else if (importing || creating || deleteId) dismissActionDialog();
+            else requestLeave(onClose);
+          }
+        }}
       >
         <header className="cell-manager-header">
           <div>
@@ -257,7 +294,7 @@ export function CellManagerDialog({
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={() => requestLeave(onClose)}
             aria-label="Close Cell Manager"
           >
             Close
@@ -272,28 +309,48 @@ export function CellManagerDialog({
           <button
             type="button"
             aria-pressed={resourceKind === "local"}
-            onClick={() => setResourceKind("local")}
+            onClick={() =>
+              requestLeave(() => {
+                setResourceKind("local");
+                setDetailVisible(false);
+              })
+            }
           >
             Cells
           </button>
           <button
             type="button"
             aria-pressed={resourceKind === "external"}
-            onClick={() => setResourceKind("external")}
+            onClick={() =>
+              requestLeave(() => {
+                setResourceKind("external");
+                setDetailVisible(externalDefinitions.length === 0);
+              })
+            }
           >
-            External Circuit Defs
+            External Circuits
           </button>
         </div>
-        <div className="cell-manager-body">
+        <div
+          className="cell-manager-body"
+          data-pane={detailVisible ? "detail" : "list"}
+        >
           {resourceKind === "local" ? (
             <aside className="cell-manager-list" aria-label="Cells">
+              <input
+                type="search"
+                aria-label="Search definitions"
+                placeholder="Search…"
+                value={filter}
+                onChange={(event) => setFilter(event.target.value)}
+              />
               <div className="cell-manager-list-scroll">
                 <CellHierarchyTree
                   project={project}
                   calls={hierarchyCalls}
                   onOpen={onOpenOccurrence}
                 />
-                {orderedCells.map((cell) => (
+                {visibleCells.map((cell) => (
                   <div
                     key={cell.id}
                     className="cell-manager-entry"
@@ -363,7 +420,10 @@ export function CellManagerDialog({
                       }}
                       className="cell-manager-list-item"
                       aria-selected={cell.id === selectedEntry?.id}
-                      onClick={() => setSelectedId(cell.id)}
+                      onClick={() => {
+                        setSelectedId(cell.id);
+                        setDetailVisible(true);
+                      }}
                     >
                       <span>
                         <strong>{cell.name}</strong>
@@ -375,6 +435,9 @@ export function CellManagerDialog({
                     </button>
                   </div>
                 ))}
+                {filter && !visibleCells.length ? (
+                  <p role="status">No matches</p>
+                ) : null}
                 <div
                   className="cell-manager-drop-end"
                   aria-label="Move Cell to end"
@@ -421,22 +484,30 @@ export function CellManagerDialog({
               </button>
             </aside>
           ) : (
-            <aside
-              className="cell-manager-list"
-              aria-label="External Circuit Defs"
-            >
+            <aside className="cell-manager-list" aria-label="External Circuits">
+              <input
+                type="search"
+                aria-label="Search definitions"
+                placeholder="Search…"
+                value={filter}
+                onChange={(event) => setFilter(event.target.value)}
+              />
               <div className="cell-manager-list-scroll">
-                {externalDefinitions.map((definition) => (
+                {visibleDefinitions.map((definition) => (
                   <button
                     key={definition.id}
                     type="button"
                     className="cell-manager-list-item"
                     aria-selected={definition.id === externalId}
-                    onClick={() => setExternalId(definition.id)}
+                    onClick={() =>
+                      requestLeave(() => {
+                        setExternalId(definition.id);
+                        setDetailVisible(true);
+                      })
+                    }
                   >
                     <span>
                       <strong>{definition.name}</strong>
-                      <em>External</em>
                     </span>
                     <small>
                       {definition.terminals.length} ports
@@ -449,42 +520,44 @@ export function CellManagerDialog({
                                 definition.terminals.map((t) => t.name),
                               )
                             ? " · Reviewed library"
-                            : " · Legacy: implementation unverified"}
+                            : " · Legacy"}
                     </small>
                   </button>
                 ))}
+                {filter && !visibleDefinitions.length ? (
+                  <p role="status">No matches</p>
+                ) : null}
               </div>
               <button
                 type="button"
                 className="cell-manager-new"
-                onClick={() => {
-                  setExternalId(null);
-                  setExternalDraft((value) => value + 1);
-                }}
+                onClick={() =>
+                  requestLeave(() => {
+                    setExternalId(null);
+                    setExternalDraft((value) => value + 1);
+                    setDetailVisible(true);
+                  })
+                }
               >
-                New External Circuit Def
+                New External Circuit
               </button>
             </aside>
           )}
 
           <div className="cell-manager-detail">
+            <button
+              type="button"
+              className="cell-manager-back"
+              onClick={() => setDetailVisible(false)}
+            >
+              Back to list
+            </button>
             {resourceKind === "external" ? (
               <>
                 <header className="cell-manager-detail-header">
                   <div className="cell-manager-title-row">
-                    <h3>
-                      {selectedExternal?.name ?? "New External Circuit Def"}
-                    </h3>
-                    <span>External</span>
+                    <h3>{selectedExternal?.name ?? "New External Circuit"}</h3>
                   </div>
-                  {selectedExternal ? (
-                    <button
-                      type="button"
-                      onClick={() => onPlaceExternal(selectedExternal.id)}
-                    >
-                      Place
-                    </button>
-                  ) : null}
                 </header>
                 <ExternalCircuitEditor
                   key={selectedExternal?.id ?? `new-${externalDraft}`}
@@ -495,6 +568,9 @@ export function CellManagerDialog({
                       : undefined
                   }
                   project={project}
+                  onPlace={setPendingPlacement}
+                  onDirtyChange={setModelDirty}
+                  onRequestLeave={requestLeave}
                   onSaveModelDraft={(edits, definitionId) => {
                     const result = onSaveModelDraft(edits, definitionId);
                     if (result.ok) setExternalId(definitionId);
@@ -608,7 +684,12 @@ export function CellManagerDialog({
                       <button
                         type="button"
                         onClick={() =>
-                          onJumpToCaller(caller.documentId, caller.instanceId)
+                          requestLeave(() =>
+                            onJumpToCaller(
+                              caller.documentId,
+                              caller.instanceId,
+                            ),
+                          )
                         }
                       >
                         Jump to caller
@@ -620,6 +701,44 @@ export function CellManagerDialog({
             ) : null}
           </div>
         </div>
+
+        {pendingLeave ? (
+          <div className="cell-manager-dialog-layer">
+            <section
+              className="editor-action-dialog"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Unsaved model"
+            >
+              <header className="editor-action-dialog-header">
+                <h2>Unsaved model</h2>
+              </header>
+              <div className="editor-action-dialog-body">
+                <p>Apply or save a draft to keep your edits.</p>
+              </div>
+              <footer className="editor-action-dialog-actions">
+                <button
+                  type="button"
+                  autoFocus
+                  onClick={() => setPendingLeave(null)}
+                >
+                  Keep editing
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const action = pendingLeave.run;
+                    setPendingLeave(null);
+                    setModelDirty(false);
+                    action();
+                  }}
+                >
+                  Discard changes
+                </button>
+              </footer>
+            </section>
+          </div>
+        ) : null}
 
         {deleteTarget || creating || importing ? (
           <div
@@ -687,10 +806,7 @@ export function CellManagerDialog({
                     </select>
                   </label>
                   {importMessage ? <p role="status">{importMessage}</p> : null}
-                  <p>
-                    The Cell and its child Cells are copied into this Project.
-                    The source stays unchanged.
-                  </p>
+                  {importBusy ? <p role="status">Loading…</p> : null}
                 </div>
                 <footer className="editor-action-dialog-actions">
                   <button type="button" onClick={dismissActionDialog}>
@@ -712,7 +828,10 @@ export function CellManagerDialog({
                         return;
                       }
                       dismissActionDialog();
-                      if (outcome.documentId) setSelectedId(outcome.documentId);
+                      if (outcome.documentId) {
+                        setSelectedId(outcome.documentId);
+                        setDetailVisible(true);
+                      }
                     }}
                   >
                     {importBusy ? "Importing…" : "Import"}

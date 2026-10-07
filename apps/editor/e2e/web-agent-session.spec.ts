@@ -119,7 +119,7 @@ test("Agent and GUI apply the same owned model and preserve atomic refusal", asy
   await openCellManager(page);
   const manager = page.getByRole("dialog", { name: "Cell Manager" });
   await manager
-    .getByRole("button", { name: "External Circuit Defs", exact: true })
+    .getByRole("button", { name: "External Circuits", exact: true })
     .click();
   await manager
     .locator(".cell-manager-list-item")
@@ -142,7 +142,7 @@ test("Agent and GUI apply the same owned model and preserve atomic refusal", asy
   );
   await openCellManager(page);
   await manager
-    .getByRole("button", { name: "External Circuit Defs", exact: true })
+    .getByRole("button", { name: "External Circuits", exact: true })
     .click();
   await manager
     .locator(".cell-manager-list-item")
@@ -252,6 +252,19 @@ test("Agent Gallery Insert copies into a background Circuit and is one GUI undo"
   });
   if (!source.ok || source.operation !== "read-project-code")
     throw new Error(JSON.stringify(source));
+  const sourceWorkspace = await client.projectResource({
+    apiVersion: "3.0",
+    requestId: "gallery-source-workspace",
+    operation: "workspace",
+    request: { action: "list" },
+  });
+  if (
+    !sourceWorkspace.ok ||
+    sourceWorkspace.operation !== "workspace" ||
+    sourceWorkspace.result.action !== "list" ||
+    !sourceWorkspace.result.activeWorkspaceId
+  )
+    throw new Error(JSON.stringify(sourceWorkspace));
   await page.route("**/api/gallery/e2e-insert", (route) =>
     route.fulfill({ json: { projectText: source.projectCode } }),
   );
@@ -308,7 +321,11 @@ test("Agent Gallery Insert copies into a background Circuit and is one GUI undo"
   await page.keyboard.press("ControlOrMeta+z");
   await expect(page.getByTestId("active-instance-count")).toHaveText("0");
   await tabs.first().click();
-  await client.bindWorkspace(null);
+  await expect(tabs.first()).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByTestId("active-instance-count")).toHaveText("2");
+  // Read the known source working copy: foreground context reaches the relay
+  // asynchronously, and this assertion concerns source preservation.
+  await client.bindWorkspace(sourceWorkspace.result.activeWorkspaceId);
   const sourceAfter = await client.projectResource({
     apiVersion: "3.0",
     requestId: "gallery-source-after",

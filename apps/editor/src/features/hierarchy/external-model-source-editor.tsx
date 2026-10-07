@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   createId,
   deriveStableId,
@@ -32,6 +32,9 @@ export function ExternalModelSourceEditor({
   onPlaceholder,
   onDelete,
   onMetadata,
+  onPlace,
+  onDirtyChange,
+  onRequestLeave,
 }: {
   project: CircuitProject;
   definition: ExternalSubcircuitDefinition | undefined;
@@ -42,6 +45,9 @@ export function ExternalModelSourceEditor({
     definitionId: string,
   ): ExternalDefinitionResult;
   onPlaceholder(): void;
+  onPlace(definitionId: string): void;
+  onDirtyChange(dirty: boolean): void;
+  onRequestLeave(action: () => void): void;
   onDelete(): ExternalDefinitionResult;
   onMetadata(
     definition: ExternalSubcircuitDefinition,
@@ -99,6 +105,22 @@ export function ExternalModelSourceEditor({
     Record<string, Record<string, string | null>>
   >({});
   const [result, setResult] = useState<ExternalDefinitionResult | null>(null);
+  const currentDraft = {
+    entryPath,
+    files,
+    dependencies,
+    entry,
+    portMaps,
+  };
+  const serializeDraft = (overrides: Partial<typeof currentDraft> = {}) =>
+    JSON.stringify({ ...currentDraft, ...overrides });
+  const snapshot = serializeDraft();
+  const [savedSnapshot, setSavedSnapshot] = useState(snapshot);
+  const dirty = !viewingApplied && savedSnapshot !== snapshot;
+  useEffect(() => {
+    onDirtyChange(dirty);
+    return () => onDirtyChange(false);
+  }, [dirty, onDirtyChange]);
   const source: ProjectModelSource = useMemo(
     () => ({
       id: sourceId,
@@ -159,7 +181,7 @@ export function ExternalModelSourceEditor({
         [],
       ).resolve(externalSubcircuitSymbolId(definitionId))?.definition
     : undefined;
-  const apply = () => {
+  const apply = (place = false) => {
     if (viewingApplied) return;
     if (failure || !selected) {
       setResult({
@@ -193,8 +215,10 @@ export function ExternalModelSourceEditor({
     });
     setResult(outcome);
     if (outcome.ok) {
+      setSavedSnapshot(serializeDraft({ portMaps: {} }));
       setBaseRevision(baseRevision + 1);
       setPortMaps({});
+      if (place) onPlace(definitionId);
     }
   };
   const saveDraft = () => {
@@ -239,7 +263,9 @@ export function ExternalModelSourceEditor({
       files,
       dependencies,
     });
-    setResult(onSaveDraft(edits, definitionId));
+    const outcome = onSaveDraft(edits, definitionId);
+    setResult(outcome);
+    if (outcome.ok) setSavedSnapshot(snapshot);
   };
   const chooseOwner = (id: string) => {
     setViewingApplied(false);
@@ -255,6 +281,15 @@ export function ExternalModelSourceEditor({
     setEntry("");
     setPortMaps({});
     setResult(null);
+    setSavedSnapshot(
+      serializeDraft({
+        entryPath: owner?.entry ?? "model.spice",
+        files: owner?.files ?? [{ path: "model.spice", text: "" }],
+        dependencies: owner?.dependencies ?? [],
+        entry: "",
+        portMaps: {},
+      }),
+    );
   };
   const fork = () => {
     setViewingApplied(false);
@@ -265,8 +300,7 @@ export function ExternalModelSourceEditor({
     setPortMaps({});
     setResult({
       ok: true,
-      message:
-        "Private copy ready to edit. Rename its public and helper declarations to avoid conflicts, then Apply. Existing callers keep their original model.",
+      message: "Copy ready. Rename its declarations, then Apply.",
     });
   };
   return (
@@ -280,7 +314,10 @@ export function ExternalModelSourceEditor({
           <select
             aria-label="External model source owner"
             value={existing?.id ?? ""}
-            onChange={(event) => chooseOwner(event.currentTarget.value)}
+            onChange={(event) => {
+              const id = event.currentTarget.value;
+              onRequestLeave(() => chooseOwner(id));
+            }}
           >
             <option value="">New model source</option>
             {project.modelSources
@@ -293,18 +330,18 @@ export function ExternalModelSourceEditor({
           </select>
         </label>
       ) : null}
-      <p className="cell-interface-empty">
+      <p className="external-model-state">
         {binding?.kind === "source"
           ? "Applied version " + (existing?.revision ?? baseRevision)
           : "Unimplemented"}
-        {existing?.draft ? " · Saved draft pending" : ""} · SPICE. Apply checks
-        declarations; Run validates execution separately.
+        {existing?.draft ? " · Saved draft" : ""}
+        {dirty ? " · Unsaved changes" : ""}
       </p>
       {shared.length > 1 ? (
-        <p>
-          Shared by {shared.map((d) => d.name).join(", ")}. Apply updates all
-          callers.
-        </p>
+        <details>
+          <summary>Shared by {shared.length} definitions</summary>
+          {shared.map((d) => d.name).join(", ")}
+        </details>
       ) : null}
       {existing && baseRevision !== existing.revision ? (
         <p role="alert">
@@ -337,6 +374,15 @@ export function ExternalModelSourceEditor({
               );
               setEntryPath(draft.entry);
               setFilePath(draft.entry);
+              setSavedSnapshot(
+                serializeDraft({
+                  entryPath: draft.entry,
+                  files: draft.files,
+                  dependencies: draft.dependencies ?? existing.dependencies,
+                  entry,
+                  portMaps: {},
+                }),
+              );
               setResult(null);
             }}
           >
@@ -344,23 +390,27 @@ export function ExternalModelSourceEditor({
           </button>
         </p>
       ) : null}
-      <div
-        className="external-model-files"
-        role="group"
-        aria-label="Model files"
-      >
-        {files.map((file) => (
-          <button
-            key={file.path}
-            type="button"
-            aria-pressed={filePath === file.path}
-            onClick={() => setFilePath(file.path)}
-          >
-            {file.path}
-            {file.path === entryPath ? " (entry)" : ""}
-          </button>
-        ))}
-      </div>
+      {files.length > 1 ? (
+        <div
+          className="external-model-files"
+          role="group"
+          aria-label="Model files"
+        >
+          {files.map((file) => (
+            <button
+              key={file.path}
+              type="button"
+              aria-pressed={filePath === file.path}
+              onClick={() => setFilePath(file.path)}
+            >
+              {file.path}
+              {file.path === entryPath ? " (entry)" : ""}
+            </button>
+          ))}
+        </div>
+      ) : (
+        <span className="external-model-path">{filePath}</span>
+      )}
       <ProjectTextEditor
         ariaLabel="External model netlist"
         language="netlist"
@@ -386,8 +436,8 @@ export function ExternalModelSourceEditor({
         onChange={(text) =>
           setFiles(files.map((f) => (f.path === filePath ? { ...f, text } : f)))
         }
-        onModEnter={apply}
-        invalid={Boolean(failure)}
+        onModEnter={() => apply()}
+        invalid={Boolean(failure && files.some((f) => f.text.trim()))}
       />
       {inspection.entries.length > 1 ? (
         <label>
@@ -412,22 +462,30 @@ export function ExternalModelSourceEditor({
       >
         {selected ? (
           <>
-            <strong>{selected.name}</strong>
-            <span>{selected.ports.join(" · ") || "No terminals"}</span>
-            <small>
-              {selected.parameters
-                .map((p) => p.name + "=" + p.rawText)
-                .join(", ")}
-            </small>
+            <div>
+              <strong>{selected.name}</strong>
+              <div>{selected.ports.join(" · ") || "No terminals"}</div>
+              {selected.parameters.length ? (
+                <details>
+                  <summary>Parameters ({selected.parameters.length})</summary>
+                  {selected.parameters
+                    .map((p) => p.name + "=" + p.rawText)
+                    .join(", ")}
+                </details>
+              ) : null}
+            </div>
             {preview ? (
-              <SymbolArtwork
-                symbol={preview}
-                className="external-model-symbol"
-              />
+              <details className="external-model-artwork-preview">
+                <summary>Symbol preview</summary>
+                <SymbolArtwork
+                  symbol={preview}
+                  className="external-model-symbol"
+                />
+              </details>
             ) : null}
           </>
         ) : (
-          <span>Enter a .subckt declaration to preview its interface.</span>
+          <span>No .subckt yet</span>
         )}
       </div>
       {targets.flatMap((target) => {
@@ -529,10 +587,6 @@ export function ExternalModelSourceEditor({
             Remove selected file
           </button>
         ) : null}
-        <p className="cell-interface-empty">
-          Owned include files travel with the model. External libraries must
-          have a matching dependency in the simulation Profile.
-        </p>
         {dependencies.map((dependency, index) => (
           <div key={index} className="external-model-dependency">
             {(["id", "mountPath", "sha256"] as const).map((field) => (
@@ -652,33 +706,59 @@ export function ExternalModelSourceEditor({
           />
         </details>
       ) : null}
-      <div className="cell-manager-actions">
-        <button type="button" onClick={apply} disabled={viewingApplied}>
-          Apply model
-        </button>
-        <button type="button" onClick={saveDraft} disabled={viewingApplied}>
-          Save draft
-        </button>
+      <footer className="external-model-actionbar">
         {!definition ? (
-          <button type="button" onClick={onPlaceholder}>
-            Create placeholder…
+          <button
+            type="button"
+            className="primary"
+            onClick={() => apply(true)}
+            disabled={viewingApplied}
+          >
+            Apply &amp; Place
           </button>
         ) : null}
+        <button type="button" onClick={() => apply()} disabled={viewingApplied}>
+          Apply model
+        </button>
         {definition ? (
-          <>
-            <button type="button" onClick={fork}>
-              Fork model…
-            </button>
-            <button type="button" onClick={() => setResult(onDelete())}>
-              Delete definition
-            </button>
-          </>
+          <button
+            type="button"
+            onClick={() => onRequestLeave(() => onPlace(definition.id))}
+          >
+            Place
+          </button>
         ) : null}
-      </div>
+        <details className="external-model-more">
+          <summary>More</summary>
+          <div>
+            <button type="button" onClick={saveDraft} disabled={viewingApplied}>
+              Save draft
+            </button>
+            {!definition ? (
+              <button
+                type="button"
+                onClick={() => onRequestLeave(onPlaceholder)}
+              >
+                Create placeholder…
+              </button>
+            ) : null}
+            {definition ? (
+              <>
+                <button type="button" onClick={fork}>
+                  Fork model…
+                </button>
+                <button type="button" onClick={() => setResult(onDelete())}>
+                  Delete definition
+                </button>
+              </>
+            ) : null}
+          </div>
+        </details>
+      </footer>
       {result ? (
         <p role={result.ok ? "status" : "alert"}>{result.message}</p>
       ) : null}
-      {failure && !result ? (
+      {failure && !result && files.some((f) => f.text.trim()) ? (
         <p role="status">
           {failure.path ? failure.path + ": " : ""}
           {failure.message}
