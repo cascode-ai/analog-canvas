@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   canonicalPortTextDocument,
   createRoutePath,
+  roleLabelFormat,
   type Annotation,
   type CircuitProject,
 } from "@icm/model";
@@ -323,5 +324,83 @@ describe("apply-label-preset textbook (#1350)", () => {
     const ids = project.documents[0]!.instances.map((item) => item.id);
     expect(() => plan(3, ids.slice(0, 5))).not.toThrow();
     expect(() => plan(3, ids.slice(0, 6))).toThrow(AgentCommandPlanningError);
+  });
+});
+
+describe("a renamed Cell Pin's look (#1419)", () => {
+  /**
+   * An LNA's RF input Pins, placed as rfp and rfn, whose names have no
+   * standard look, so their labels have none; rfn was renamed vrfn before
+   * a rename gave a label its new name's look.
+   */
+  function inputs(): CircuitProject {
+    const project = emptyAgentProject("LNA");
+    const document = project.documents[0]!;
+    const profile = resolveDocumentStyleProfile(document.presentation);
+    for (const [index, name] of ["rfp", "rfn"].entries()) {
+      const port = {
+        id: name,
+        symbolId: "port",
+        placement: {
+          position: { x: 0, y: 80 * index },
+          rotation: 0 as const,
+          mirror: "none" as const,
+        },
+      };
+      document.instances.push(port);
+      document.nets.push({
+        id: `net-${name}`,
+        terminals: [{ instanceId: name, pinName: "P" }],
+      });
+      document.netlist!.terminals.push({
+        id: `terminal-${name}`,
+        name,
+        netId: `net-${name}`,
+        direction: "input",
+        interfaceInstanceIds: [name],
+      });
+      document.annotations.push(
+        ...defaultInstanceDisplayAnnotations(
+          document,
+          port,
+          resolver,
+          profile,
+          { formalTerminalId: `terminal-${name}`, formalName: name },
+        ),
+      );
+    }
+    document.netlist!.terminals[1]!.name = "vrfn";
+    return project;
+  }
+
+  it("draws a Pin an Agent renames, and one renamed before, in the new name's look", async () => {
+    const { client, controller } = await editor(inputs());
+    const look = (id: string) =>
+      controller.document.annotations.find(
+        (annotation) =>
+          annotation.binding?.kind === "cell-terminal-name" &&
+          annotation.binding.terminalId === `terminal-${id}`,
+      )?.formatOverride;
+    expect(look("rfp")).toBeUndefined();
+
+    const renamed = await client.advancedTransact({
+      command: {
+        kind: "rename-cell-terminal",
+        terminalId: "terminal-rfp",
+        name: "vrfp",
+      },
+    });
+    expect(renamed.ok, renamed.message).toBe(true);
+    // Drawn V_rfp, as a Pin placed as vrfp is.
+    expect(look("rfp")).toEqual(roleLabelFormat("voltage-node", "vrfp"));
+
+    // vrfn, renamed before, is still plain until the preset restyles it.
+    expect(look("rfn")).toBeUndefined();
+    const preset = await client.applyActions([
+      { kind: "apply-label-preset", preset: "textbook" },
+    ]);
+    expect(preset.ok, preset.message).toBe(true);
+    expect(look("rfn")).toEqual(roleLabelFormat("voltage-node", "vrfn"));
+    expect(look("rfp")).toEqual(roleLabelFormat("voltage-node", "vrfp"));
   });
 });

@@ -1,13 +1,16 @@
 import {
   createEmptyDocument,
+  createEmptyProject,
   roleLabelFormat,
   supplyLabelFormat,
 } from "@icm/model";
-import type { SchematicDocument } from "@icm/model";
+import type { Annotation, SchematicDocument } from "@icm/model";
 import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 
 import type { SchematicEdit } from "./edit-schema.js";
+import { planRenameCellTerminal } from "./hierarchy-planner.js";
+import { executeProjectTransaction } from "./project-transaction.js";
 import { executeTransaction } from "./transaction.js";
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
@@ -151,5 +154,106 @@ describe("standard label looks", () => {
       { kind: "set_instance_reference", instanceId: "M1", reference: "XTAIL" },
     ]);
     expect(other.annotations[0]!.formatOverride).toBeUndefined();
+  });
+
+  it("gives a renamed Pin's label the look a Pin of its new name is placed with (#1419)", () => {
+    // Pins placed as rfp, rfn and bias, whose names have no standard look,
+    // and a fourth whose name an author drew flat on purpose.
+    const project = createEmptyProject("project", "Project");
+    const document = project.documents[0]!;
+    const pin = (
+      name: string,
+      look: Partial<Pick<Annotation, "formatOverride" | "locked">> = {},
+    ) => {
+      document.instances.push({
+        id: name,
+        symbolId: "port",
+        placement: {
+          position: { x: 0, y: 40 * document.instances.length },
+          rotation: 0,
+          mirror: "none",
+        },
+      });
+      document.nets.push({
+        id: `net-${name}`,
+        terminals: [{ instanceId: name, pinName: "P" }],
+      });
+      document.netlist!.terminals.push({
+        id: `terminal-${name}`,
+        name,
+        netId: `net-${name}`,
+        direction: "input",
+        interfaceInstanceIds: [name],
+      });
+      document.annotations.push({
+        id: `label-${name}`,
+        kind: "instance-label",
+        binding: { kind: "cell-terminal-name", terminalId: `terminal-${name}` },
+        anchor: {
+          kind: "object",
+          objectId: name,
+          localOffset: { x: -20, y: 5 },
+          fallbackPosition: { x: -20, y: 5 },
+        },
+        alignment: "end",
+        rotation: 0,
+        locked: false,
+        ...look,
+      });
+    };
+    const flat = {
+      runs: [
+        {
+          kind: "span" as const,
+          style: "bold" as const,
+          children: [{ kind: "text" as const, value: "vb" }],
+        },
+      ],
+    };
+    pin("rfp");
+    pin("rfn", { locked: true });
+    pin("vin", { formatOverride: roleLabelFormat("voltage-node", "vin")! });
+    pin("vb", { formatOverride: flat });
+    let renamed = project;
+    for (const [name, next] of [
+      ["rfp", "vrfp"],
+      ["rfn", "vrfn"],
+      ["vin", "rfin"],
+      ["vb", "vbn"],
+    ] as const) {
+      const result = executeProjectTransaction(renamed, {
+        transactionId: `rename-${name}`,
+        projectId: renamed.id,
+        expectedStructureRevision: renamed.structureRevision,
+        actor: { kind: "agent", id: "test" },
+        edits: planRenameCellTerminal(
+          renamed,
+          document.id,
+          `terminal-${name}`,
+          next,
+        ),
+      });
+      if (!result.ok) throw new Error(JSON.stringify(result.diagnostics));
+      renamed = result.project;
+    }
+    const look = (name: string) =>
+      renamed.documents[0]!.annotations.find(
+        (annotation) => annotation.id === `label-${name}`,
+      )!.formatOverride;
+    // vrfp is drawn V_rfp, as a Pin placed as vrfp is; rfin has no
+    // standard look, so its label returns to the ordinary rules.
+    expect(look("rfp")).toEqual(roleLabelFormat("voltage-node", "vrfp"));
+    expect(look("vin")).toBeUndefined();
+    // A locked label and an author's own look are left as they were.
+    expect(look("rfn")).toBeUndefined();
+    expect(look("vb")).toEqual({
+      runs: [
+        {
+          kind: "span",
+          style: "bold",
+          children: [{ kind: "text", value: "vbn" }],
+        },
+      ],
+    });
   });
 });

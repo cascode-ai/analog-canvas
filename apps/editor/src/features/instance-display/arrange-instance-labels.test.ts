@@ -3,6 +3,7 @@ import {
   createEmptyDocument,
   createRoutePath,
   canonicalPortTextDocument,
+  roleLabelFormat,
   type Rect,
 } from "@icm/model";
 import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
@@ -398,6 +399,74 @@ describe("opt-in label arrangement", () => {
       ).toEqual([]);
     },
   );
+  it("gives a Pin's name with no look of its own its standard look, with the first-letter style (#1419)", () => {
+    // Pins placed as rfp, with no look, and renamed before a rename gave
+    // them one: vrfp, and beside it labels left as they are: a look of the
+    // author's own, a lock, a name moved by hand, a name with no standard
+    // look.
+    const doc = createEmptyDocument("d", "Pins");
+    doc.netlist = { name: "d", formalParameters: [], terminals: [] };
+    const profile = resolveDocumentStyleProfile(doc.presentation);
+    const pin = (name: string) => {
+      const port = {
+        id: name,
+        symbolId: "port",
+        placement: {
+          position: { x: 100, y: 60 * doc.instances.length },
+          rotation: 0 as const,
+          mirror: "none" as const,
+        },
+      };
+      doc.instances.push(port);
+      doc.netlist!.terminals.push({
+        id: `terminal-${name}`,
+        name,
+        netId: `net-${name}`,
+        direction: "input",
+        interfaceInstanceIds: [name],
+      });
+      const label = defaultInstanceDisplayAnnotations(
+        doc,
+        port,
+        resolver,
+        profile,
+        { formalTerminalId: `terminal-${name}`, formalName: "rfp" },
+      )[0]!;
+      doc.annotations.push(label);
+      return label;
+    };
+    const stale = pin("vrfp");
+    expect(stale.formatOverride).toBeUndefined();
+    pin("vrfn").formatOverride = {
+      runs: [
+        {
+          kind: "span",
+          style: "bold",
+          children: [{ kind: "text", value: "vrfn" }],
+        },
+      ],
+    };
+    pin("vbn").locked = true;
+    const manual = pin("vcm");
+    if (manual.anchor.kind === "object") manual.anchor.localOffset.y += 30;
+    pin("rfin");
+    const ids = doc.instances.map((instance) => instance.id);
+
+    expect(arrangeInstanceLabels(doc, resolver, ids, {})).toEqual([]);
+    expect(
+      arrangeInstanceLabels(doc, resolver, ids, {
+        referenceStyle: "first-letter-subscript",
+      }),
+    ).toEqual([
+      {
+        kind: "upsert_schematic_annotation",
+        annotation: {
+          ...stale,
+          formatOverride: roleLabelFormat("voltage-node", "vrfp"),
+        },
+      },
+    ]);
+  });
   it("never stacks a value onto its own Reference in a crowded MOS pair (#1307)", () => {
     // A Gilbert switching pair: 60 units apart, the mirrored device's labels
     // facing the other's across a 12-unit gap.

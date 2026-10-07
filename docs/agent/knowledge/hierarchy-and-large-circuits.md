@@ -32,10 +32,13 @@ Removal rejects still-used parameters. Native expression syntax is unchanged.
 
 For a Port rename, `mergeExistingPort: true` explicitly requests electrical
 merging with an existing Port, including affected caller nets. Omitted/false
-retains the planner's non-merging behavior. Removal retains disconnected parent
-wire stubs as Junctions. These commands add no GUI confirmation and do not
-replace or restrict raw typed edits. Reviewed PDK External interfaces retain
-their existing constraints; edit supported instance parameters instead.
+retains the planner's non-merging behavior. A renamed Port's label with no
+look of its own takes the look a Port placed with the new name gets (`rfp`
+renamed `vrfp` is drawn V_rfp); an author's look keeps its styling. Removal
+retains disconnected parent wire stubs as Junctions. These commands add no GUI
+confirmation and do not replace or restrict raw typed edits. Reviewed PDK
+External interfaces retain their existing constraints; edit supported instance
+parameters instead.
 
 To arrange the Pins on a Cell's block, send `set-cell-symbol-pins` (also an
 action: MCP `circuit_transform`) to the child `documentId`, by Pin name, for

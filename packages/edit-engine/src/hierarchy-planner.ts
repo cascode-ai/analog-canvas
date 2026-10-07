@@ -13,6 +13,7 @@ import {
   projectCellInterface,
   renamedLabelFormat,
   richTextPresentsIdentifier,
+  roleLabelFormat,
   routeEnd,
   semanticTextDocument,
 } from "@icm/model";
@@ -1797,19 +1798,26 @@ export function planRenameCellTerminal(
     )
     .flatMap((annotation) => {
       if (annotation.binding?.kind === "cell-terminal-name") {
-        if (!terminalRename || !annotation.formatOverride) return [];
+        if (!terminalRename) return [];
         const { formatOverride: _formatOverride, ...rest } = annotation;
+        // A label with no look of its own, or the automatic one, takes the
+        // look a Pin placed with the new name gets: rfp renamed vrfp is
+        // drawn V_rfp (#1419), unless it is locked and has none. A standard
+        // look follows the new name, and an author's keeps its styling.
         const automaticFormat =
+          !annotation.formatOverride ||
           JSON.stringify(annotation.formatOverride) ===
-          JSON.stringify(semanticTextDocument(terminal.name, "formal-port"));
+            JSON.stringify(semanticTextDocument(terminal.name, "formal-port"));
         const format = automaticFormat
-          ? undefined
+          ? roleLabelFormat("voltage-node", newName)
           : renamedLabelFormat(
               annotation,
               terminal.name,
               newName,
               child.presentation,
             );
+        if (!annotation.formatOverride && (!format || annotation.locked))
+          return [];
         return [
           {
             kind: "upsert_schematic_annotation" as const,

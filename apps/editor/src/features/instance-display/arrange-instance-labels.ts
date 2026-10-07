@@ -1,7 +1,9 @@
 import {
   canonicalPortTextDocument,
   isRoleLabelFormat,
+  roleLabelFormat,
   routeEndpoints,
+  semanticTextDocument,
   type Annotation,
   type Rect,
   type SchematicDocument,
@@ -20,6 +22,7 @@ import {
   outwardDefaultInstanceLabelPlacement,
   placeUprightInstanceLabel,
   portLabelCandidates,
+  resolveAnnotationName,
   resolveDocumentStyleProfile,
   uniformRowDefaultInstanceLabelPlacement,
   type InstanceLabelPlacement,
@@ -618,7 +621,7 @@ export function arrangeInstanceLabels(
       context.accept(next);
     }
   }
-  if (options.avoidCollisions !== false) edits.push(...arrangePinNames());
+  edits.push(...arrangePinNames());
   return edits;
 
   /**
@@ -626,6 +629,10 @@ export function arrangeInstanceLabels(
    * as a new Pin's does (#1105). Parts placed and wired after it may have
    * come to sit where it was put: an OTA's input Ports' names lay across its
    * cascode transistors, and nothing could move them but a hand.
+   *
+   * With the first-letter style, a name with no look of its own takes the
+   * look a Pin placed with that name gets. A Pin placed as rfp and renamed
+   * vrfp stayed plain beside Pins drawn V_bn (#1419).
    */
   function arrangePinNames(): SchematicEdit[] {
     const moved: SchematicEdit[] = [];
@@ -671,30 +678,45 @@ export function arrangeInstanceLabels(
         )
       )
         continue;
-      let fewest = context.conflicts(label).length;
-      if (!fewest) continue;
+      // The automatic look counts as none, as a rename reads it.
+      const name = resolveAnnotationName(document, label);
+      const look =
+        options.referenceStyle === "first-letter-subscript" &&
+        (!label.formatOverride ||
+          JSON.stringify(label.formatOverride) ===
+            JSON.stringify(semanticTextDocument(name, "formal-port")))
+          ? roleLabelFormat("voltage-node", name)
+          : undefined;
+      const restyled: Annotation = look
+        ? { ...label, formatOverride: look }
+        : label;
+      let fewest =
+        options.avoidCollisions === false
+          ? 0
+          : context.conflicts(restyled).length;
       const origin = instance.placement.position;
-      let best: Annotation = label;
-      for (const candidate of candidates) {
-        const placed: Annotation = {
-          ...label,
-          alignment: candidate.alignment,
-          anchor: {
-            ...label.anchor,
-            localOffset: {
-              x: candidate.position.x - origin.x,
-              y: candidate.position.y - origin.y,
+      let best = restyled;
+      if (fewest)
+        for (const candidate of candidates) {
+          const placed: Annotation = {
+            ...restyled,
+            alignment: candidate.alignment,
+            anchor: {
+              ...label.anchor,
+              localOffset: {
+                x: candidate.position.x - origin.x,
+                y: candidate.position.y - origin.y,
+              },
+              fallbackPosition: candidate.position,
             },
-            fallbackPosition: candidate.position,
-          },
-        };
-        const conflicts = context.conflicts(placed).length;
-        if (conflicts < fewest) {
-          best = placed;
-          fewest = conflicts;
+          };
+          const conflicts = context.conflicts(placed).length;
+          if (conflicts < fewest) {
+            best = placed;
+            fewest = conflicts;
+          }
+          if (!conflicts) break;
         }
-        if (!conflicts) break;
-      }
       if (best === label) continue;
       moved.push({ kind: "upsert_schematic_annotation", annotation: best });
       context.accept(best);

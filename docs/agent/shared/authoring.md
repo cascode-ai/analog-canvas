@@ -347,7 +347,9 @@ sit too close for both, the value is the one left touching a wire; hide values
 with `set-instance-display` or move the parts apart. A requested Port's name
 that a part or wire now covers moves to the first clear one of its sides. Set `compact:false` or `avoidCollisions:false` to disable
 either part; `referenceStyle:"first-letter-subscript"` optionally displays
-`RBIAS` as an R with BIAS subscript without changing the Reference. Manual/free,
+`RBIAS` as an R with BIAS subscript without changing the Reference, and gives
+a requested Port's name that has no look of its own the look a Port placed
+with that name gets (`vrfp` as V_rfp). Manual/free,
 locked, hidden and custom-styled labels are preserved. This is not an autorouter
 or a whole-drawing beautifier. Informational label-clearance/owner-distance
 observations may remain and never gate editing. New Net labels use the GUI's
@@ -361,7 +363,7 @@ To give a drawing a textbook figure's labels in one step, `circuit_text` /
   nothing hidden is shown;
 - then the labels are arranged as `arrange-labels` with
   `referenceStyle:"first-letter-subscript"` arranges them, names in their role
-  look (R_L, I_SS, M_1); the space the hidden W/L took counts as free.
+  look (R_L, I_SS, M_1, V_in); the space the hidden W/L took counts as free.
 
 It applies to every placed part of the Cell, or to the parts given as
 `targets` (`[{kind:"instance",reference:"M1"}]`, or `id`; native
