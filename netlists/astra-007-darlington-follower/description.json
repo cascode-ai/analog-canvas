@@ -1,0 +1,11 @@
+{
+  "name": "Darlington emitter-follower buffer",
+  "description": "Q1 drives Q2 through the small base-stopper resistor R4, forming a Darlington follower. Their collectors share the 12 V rail. R1/R2 bias the input base, R3 gives the first emitter a DC return, and R5 sets the output-stage current. The two base-emitter drops shift the internal output DC level; C2 removes that level from the 1 kΩ load R6. C1 couples the input and C3 represents 100 pF load capacitance. With the educational ANPN model, ngspice 46 gives −0.149 dB gain at 1 kHz: a 200 mV peak-to-peak input produces 196.6 mV peak-to-peak output. Average supply current is 5.89 mA at 27°C. The saved Functional verification experiment includes AC and transient tests. This demonstrates a high-input-resistance buffer using generic devices, without claiming vendor or corner qualification.",
+  "tags": [
+    "BJT",
+    "Darlington",
+    "Emitter Follower",
+    "Buffer",
+    "Discrete"
+  ]
+}

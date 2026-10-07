@@ -1,0 +1,45 @@
+
+Note: No compatibility mode selected!
+
+
+Circuit: darlington emitter-follower buffer — nominal functional verification
+
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+No. of Data Rows : 1
+v(out) = 0.000000e+00
+i(vcc) = -5.88454e-03
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+No. of Data Rows : 641
+gain_1khz           =  -1.49455e-01
+ASCII raw file "out.raw"
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+Initial Transient Solution
+--------------------------
+
+Node                                   Voltage
+----                                   -------
+vcc                                         12
+in                                           0
+xdut.net0                              7.13348
+out                                          0
+xdut.net3                              5.69944
+xdut.net2                              6.46458
+xdut.net1                              6.46081
+vin#branch                                   0
+vcc#branch                         -0.00588454
+
+
+No. of Data Rows : 15017
+out_pp              =  1.96574e-01 from=  2.00000e-02 to=  3.00000e-02
+supply_avg          =  5.88511e-03 from=  2.00000e-02 to=  3.00000e-02
+ASCII raw file "out.raw"
+ngspice-46 done

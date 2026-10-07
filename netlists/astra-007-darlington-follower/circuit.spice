@@ -1,0 +1,14 @@
+
+.subckt astra_007_darlington_follower vcc VSS in out
+C1 net0 in 2.2u
+C2 out net3 47u
+C3 out VSS 100p
+Q1 vcc net0 net2 ANPN
+Q2 vcc net1 net3 ANPN
+R1 vcc net0 100k
+R2 net0 VSS 150k
+R3 net2 VSS 47k
+R4 net1 net2 100
+R5 net3 VSS 1k
+R6 out VSS 1k
+.ends astra_007_darlington_follower
