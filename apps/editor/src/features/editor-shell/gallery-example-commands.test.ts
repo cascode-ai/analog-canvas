@@ -358,6 +358,31 @@ describe("Gallery and example commands", () => {
     });
   });
 
+  it("says when the account has opened its daily share of Gallery circuits", async () => {
+    const limited = vi.fn<typeof fetch>(async () =>
+      Response.json(
+        {
+          error: "daily-open-limit",
+          limit: 100,
+          resetAt: "2026-10-08T00:00:00.000Z",
+        },
+        { status: 429 },
+      ),
+    );
+    const input = dependencies(limited);
+    const commands = createGalleryExampleCommands(input);
+
+    await commands.openGalleryEntryById("someone-elses");
+    await commands.insertGalleryEntryById("someone-elses");
+
+    expect(input.replaceActiveProject).not.toHaveBeenCalled();
+    for (const [message] of input.setStatus.mock.calls)
+      expect(message).toMatch(
+        /^You have opened 100 Gallery circuits today; more open at /u,
+      );
+    expect(input.setStatus).toHaveBeenCalledTimes(2);
+  });
+
   it("reports unavailable Gallery payloads without replacing the Project", async () => {
     const input = dependencies(
       vi.fn<typeof fetch>(async () => Response.json({}, { status: 404 })),

@@ -338,6 +338,46 @@ describe("BrowserAgentProjectHost", () => {
     expect(plain).not.toHaveProperty("figure");
   });
 
+  it("says when the account has opened its daily share of Gallery circuits", async () => {
+    const destination = createEmptyProject("destination", "Destination");
+    const host = new BrowserAgentProjectHost({
+      getProjectSessionId: () => "session",
+      getProject: () => destination,
+      getActiveDocumentId: () => destination.topDocumentId,
+      commitProjectStructure: () => undefined,
+      dispatchProjectTransaction: () => {
+        throw new Error("must not dispatch");
+      },
+      fetch: (async () =>
+        Response.json(
+          {
+            error: "daily-open-limit",
+            limit: 100,
+            resetAt: "2026-10-08T00:00:00.000Z",
+          },
+          { status: 429 },
+        )) as unknown as typeof fetch,
+    });
+    await expect(
+      host.handle({
+        apiVersion: AGENT_API_VERSION,
+        requestId: "gallery-limited",
+        operation: "read-gallery-entry",
+        galleryEntryId: "entry-1",
+        netlistFormat: null,
+      }),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: {
+        code: "GALLERY_DAILY_LIMIT",
+        message: expect.stringMatching(
+          /^You have opened 100 Gallery circuits today; more open at /u,
+        ),
+        recovery: "retry",
+      },
+    });
+  });
+
   it("reads and atomically replaces complete Project Code with revision protection", async () => {
     let destination = createEmptyProject("destination", "Before");
     const host = new BrowserAgentProjectHost({

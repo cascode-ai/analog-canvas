@@ -6,6 +6,7 @@ import { normalizeImportedProject } from "../../document/project-import-normaliz
 import type { ReplaceProjectOptions } from "../../document/use-project-file-lifecycle";
 import type { LibraryProjectExample } from "../../examples/library-examples";
 import type { SchematicClipboard } from "../clipboard/clipboard";
+import { dailyOpenLimitMessage } from "../../gallery-client";
 import { captureGalleryDrawing } from "./gallery-import";
 
 export interface GalleryEntryContext {
@@ -176,6 +177,11 @@ export function createGalleryExampleCommands({
         setStatus("Sign in to open Community Gallery circuits");
         return;
       }
+      const limited = await dailyOpenLimitMessage(response);
+      if (limited) {
+        setStatus(limited);
+        return;
+      }
       if (!response.ok) {
         setStatus("This gallery entry is unavailable");
         return;
@@ -249,6 +255,11 @@ export function createGalleryExampleCommands({
       });
       if (response.status === 401) {
         setStatus("Sign in to insert Community Gallery circuits");
+        return;
+      }
+      const limited = await dailyOpenLimitMessage(response);
+      if (limited) {
+        setStatus(limited);
         return;
       }
       const payload = response.ok

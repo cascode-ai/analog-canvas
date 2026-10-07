@@ -488,19 +488,45 @@ export async function loadGalleryFeed(
 }
 
 /**
+ * What to tell a reader whose account has opened its daily share of other
+ * people's circuits, or null when `response` is any other answer.
+ */
+export async function dailyOpenLimitMessage(
+  response: Response,
+): Promise<string | null> {
+  if (response.status !== 429) return null;
+  try {
+    const body = (await response.clone().json()) as {
+      error?: string;
+      limit?: number;
+      resetAt?: string;
+    };
+    if (body.error !== "daily-open-limit") return null;
+    const time = new Date(body.resetAt ?? "").toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    return `You have opened ${body.limit} Gallery circuits today; more open at ${time}`;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * One circuit on the public wall, found by its id: what a "View in Gallery"
  * link shows at once, however far down the wall it would sit. Null when the
  * circuit is not on the public wall (withdrawn, rejected, unknown) or cannot
- * be read.
+ * be read. It asks for the tile only, which costs no daily open.
  */
 export async function loadGalleryEntry(
   fetchLike: typeof fetch,
   id: string,
 ): Promise<GalleryFeedEntry | null> {
   try {
-    const response = await fetchLike(`/api/gallery/${encodeURIComponent(id)}`, {
-      credentials: "same-origin",
-    });
+    const response = await fetchLike(
+      `/api/gallery/${encodeURIComponent(id)}?summary=1`,
+      { credentials: "same-origin" },
+    );
     if (!response.ok) return null;
     const payload = (await response.json()) as {
       entry?: GalleryFeedEntry;

@@ -32,14 +32,11 @@ interface Job {
   report: GalleryTopologyMatchReport;
 }
 const RETENTION = 7 * 24 * 60 * 60_000;
-/** Ties a signed-out browser to its duplicate check; the privacy notice lists it. */
-export const TOPOLOGY_SESSION_COOKIE = "icm_topology_session";
-const COOKIE = TOPOLOGY_SESSION_COOKIE;
 const MAX_SOURCE_BYTES = 2 * 1024 * 1024;
 const RESULT_BYTES = 8 * 1024 * 1024;
 const RESULT_LIMIT = 20;
 
-/** One private account (or anonymous browser) owns one durable snapshot job.
+/** One signed-in account owns one durable snapshot job.
  * Alarms, not client polling, drive work. Every completed candidate checkpoints. */
 export class TopologyTaskDO {
   constructor(
@@ -99,7 +96,13 @@ export class TopologyTaskDO {
         running: job.running,
         dismissed: job.dismissed,
         expiresAt: job.expiresAt,
-        report: job.report,
+        // Checks saved before drawings left the report still hold them.
+        report: {
+          ...job.report,
+          matches: job.report.matches.map(
+            ({ candidate: _drawing, ...match }) => match,
+          ),
+        },
         ...(url.searchParams.get("id") === job.id
           ? {}
           : { projectText: job.projectText }),
@@ -255,6 +258,8 @@ export class TopologyTaskDO {
           if (comparison.limited)
             job.report.limitedComparisons =
               (job.report.limitedComparisons ?? 0) + 1;
+          // A match names its circuit and the version compared, never the
+          // drawing itself: opening it to compare spends a daily open.
           const ranked = [
             ...job.report.matches,
             {
@@ -266,8 +271,10 @@ export class TopologyTaskDO {
                 description: detail.entry.description,
                 createdAt: detail.entry.createdAt,
                 schemaVersion: detail.entry.schemaVersion,
+                ...(detail.entry.previewRevision
+                  ? { previewRevision: detail.entry.previewRevision }
+                  : {}),
               },
-              candidate: { ...project, simulationFolders: [] },
             },
           ].sort(
             (a, b) =>
@@ -322,8 +329,10 @@ export class TopologyTaskDO {
   }
 }
 
-/** Source drawings never enter Gallery. Account ids or HttpOnly anonymous
- * capabilities select the private object; arbitrary client job ids grant no access. */
+/** Source drawings never enter Gallery. The signed-in account selects the
+ * private object; arbitrary client job ids grant no access. Signed out, a
+ * check is Gallery content like any other: none can start, and a read finds
+ * no job, so a waiting page does not keep retrying. */
 export async function routeTopologyTaskRequest(
   request: Request,
   env: TopologyTaskEnv,
@@ -340,25 +349,15 @@ export async function routeTopologyTaskRequest(
   if (request.method !== "GET" && request.headers.get("origin") !== url.origin)
     return Response.json({ error: "forbidden" }, { status: 403 });
   const user = await sessionUserOf(request, env);
-  let anonymous = request.headers
-    .get("cookie")
-    ?.split(";")
-    .map((part) => part.trim())
-    .find((part) => part.startsWith(`${COOKIE}=`))
-    ?.slice(COOKIE.length + 1);
-  if (!/^[a-f0-9-]{36}$/.test(anonymous ?? "")) anonymous = undefined;
-  let setCookie: string | undefined;
-  if (!user && !anonymous) {
-    if (request.method !== "POST")
-      return Response.json(
-        { job: null },
-        { headers: { "cache-control": "private, no-store" } },
-      );
-    anonymous = crypto.randomUUID();
-    setCookie = `${COOKIE}=${anonymous}; Path=/api/topology-task; HttpOnly; Secure; SameSite=Strict; Max-Age=${RETENTION / 1000}`;
-  }
-  const owner = user ? `user:${user.id}` : `browser:${anonymous}`;
-  const response = await env.TOPOLOGY_TASK.getByName(owner).fetch(
+  const noStore = { "cache-control": "private, no-store" };
+  if (!user)
+    return request.method === "GET"
+      ? Response.json({ job: null }, { headers: noStore })
+      : Response.json(
+          { error: "sign-in-required" },
+          { status: 401, headers: noStore },
+        );
+  const response = await env.TOPOLOGY_TASK.getByName(`user:${user.id}`).fetch(
     `https://topology/job${url.search}`,
     {
       method: request.method,
@@ -367,6 +366,5 @@ export async function routeTopologyTaskRequest(
   );
   const headers = new Headers(response.headers);
   headers.set("cache-control", "private, no-store");
-  if (setCookie) headers.set("set-cookie", setCookie);
   return new Response(response.body, { status: response.status, headers });
 }

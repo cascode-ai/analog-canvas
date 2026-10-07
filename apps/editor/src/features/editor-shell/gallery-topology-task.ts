@@ -242,6 +242,8 @@ export function createDurableGalleryTopologyTask(
           await poll();
           return;
         }
+        if (response.status === 401)
+          throw new Error("Sign in to check for similar Gallery circuits.");
         const payload = (await response.json()) as {
           job?: DurableJob;
           error?: string;

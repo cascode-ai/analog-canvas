@@ -1396,14 +1396,16 @@ test("a View in Gallery link shows its circuit at once, centres it and rings it"
       body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 8"><rect width="10" height="8" fill="#fff"/></svg>',
     }),
   );
+  // A link asks for the tile alone (`?summary=1`), which costs no daily open.
   for (const id of ["b-7", "a-3"])
-    await page.route(`**/api/gallery/${id}`, (route) =>
-      route.fulfill({
-        json: { entry: entry(id), status: "public", projectText: "" },
-      }),
+    await page.route(
+      (url) => url.pathname === `/api/gallery/${id}`,
+      (route) =>
+        route.fulfill({ json: { entry: entry(id), status: "public" } }),
     );
-  await page.route("**/api/gallery/gone", (route) =>
-    route.fulfill({ status: 404, json: { error: "not-found" } }),
+  await page.route(
+    (url) => url.pathname === "/api/gallery/gone",
+    (route) => route.fulfill({ status: 404, json: { error: "not-found" } }),
   );
 
   await page.goto("/?entry=b-7");
@@ -5374,7 +5376,7 @@ for (const scenario of [
       });
     });
     await page.route(
-      /\/api\/gallery\/(?:submissions|published-\d+)$/,
+      /\/api\/gallery\/(?:submissions|published-\d+)(?:\?summary=1)?$/,
       async (route) => {
         const req = route.request();
         let id = new URL(req.url()).pathname.split("/")[3]!;

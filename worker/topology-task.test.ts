@@ -75,6 +75,7 @@ function harness() {
               author: "Maker",
               createdAt: "2026-09-21",
               schemaVersion: 1,
+              previewRevision: "rev-1",
             },
             projectText: serializeProject(circuit("Public")),
           });
@@ -202,11 +203,23 @@ describe("durable topology tasks", () => {
       report: { scanned: 6, complete: false },
     });
   });
-  it("isolates anonymous browser jobs, refuses cross-origin starts and never makes sources public", async () => {
+  it("keeps each account's check private, refuses signed-out and cross-origin starts", async () => {
     const objects = new Map<string, TopologyTaskDO>();
     const h = harness();
     const env = {
       ...h.env,
+      // The session cookie names its account; any other cookie is no one.
+      AUTH: {
+        getByName: () => ({
+          fetch: async (_input: Request | string, init?: RequestInit) => {
+            const cookie = new Headers(init?.headers).get("cookie") ?? "";
+            const id = /icm_session=(\w+)/u.exec(cookie)?.[1];
+            return Response.json({
+              user: id ? { id, displayName: id, isAdmin: false } : null,
+            });
+          },
+        }),
+      },
       TOPOLOGY_TASK: {
         getByName(name: string) {
           if (!objects.has(name)) objects.set(name, harness().create());
@@ -219,12 +232,15 @@ describe("durable topology tasks", () => {
     };
     const request = (
       method: string,
-      cookie?: string,
+      account?: string,
       origin = "https://canvas.test",
     ) =>
       new Request("https://canvas.test/api/topology-task", {
         method,
-        headers: { Origin: origin, ...(cookie ? { Cookie: cookie } : {}) },
+        headers: {
+          Origin: origin,
+          ...(account ? { Cookie: `icm_session=${account}` } : {}),
+        },
         ...(method === "POST"
           ? {
               body: JSON.stringify({
@@ -234,26 +250,39 @@ describe("durable topology tasks", () => {
             }
           : {}),
       });
+    const route = (input: Request) =>
+      routeTopologyTaskRequest(input, env) as Promise<Response>;
     expect(
-      (await routeTopologyTaskRequest(
-        request("POST", undefined, "https://other.test"),
-        env,
-      ))!.status,
+      (await route(request("POST", "ada", "https://other.test"))).status,
     ).toBe(403);
-    const created = (await routeTopologyTaskRequest(request("POST"), env))!;
-    const cookie = created.headers.get("set-cookie")!.split(";")[0]!;
-    expect(created.headers.get("set-cookie")).toContain("HttpOnly");
+    // Signed out, no check starts and a read finds none.
+    const refused = await route(request("POST"));
+    expect(refused.status).toBe(401);
+    expect(await refused.json()).toEqual({ error: "sign-in-required" });
+    expect(refused.headers.get("set-cookie")).toBeNull();
+    expect(await (await route(request("GET"))).json()).toEqual({ job: null });
+    const created = await route(request("POST", "ada"));
+    expect(created.status).toBe(200);
     expect(created.headers.get("cache-control")).toContain("no-store");
     expect(
-      (
-        await (await routeTopologyTaskRequest(
-          request("GET", cookie),
-          env,
-        ))!.json()
-      ).job.projectText,
+      (await (await route(request("GET", "ada"))).json()).job.projectText,
     ).toContain("Frozen source");
-    expect(
-      await (await routeTopologyTaskRequest(request("GET"), env))!.json(),
-    ).toEqual({ job: null });
+    expect(await (await route(request("GET", "bob"))).json()).toEqual({
+      job: null,
+    });
+    expect([...objects.keys()]).toEqual(["user:ada", "user:bob"]);
+  });
+
+  it("names the circuits it matched without handing out their drawings", async () => {
+    const h = harness(),
+      object = h.create();
+    await start(object);
+    for (let tick = 0; tick < 3; tick += 1) await object.alarm();
+    const { job } = await read(object);
+    expect(job.report.matches.length).toBeGreaterThan(0);
+    for (const match of job.report.matches) {
+      expect(match).not.toHaveProperty("candidate");
+      expect(match.entry.previewRevision).toBe("rev-1");
+    }
   });
 });

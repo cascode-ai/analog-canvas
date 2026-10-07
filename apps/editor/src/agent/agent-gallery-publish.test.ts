@@ -15,7 +15,7 @@ function galleryServer(status = 201) {
     const url = String(input);
     const method = init?.method ?? "GET";
     if (method === "GET")
-      return url === "/api/gallery/entry-7"
+      return url === "/api/gallery/entry-7?summary=1"
         ? Response.json({
             entry: {
               name: "Stored name",

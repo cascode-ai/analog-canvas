@@ -4,6 +4,7 @@ import {
   announceGalleryChange,
   galleryCountLabel,
   galleryPreviewUrl,
+  loadGalleryEntry,
   loadGalleryFeed,
   loadGalleryTagSummary,
   primeGalleryPreview,
@@ -263,5 +264,20 @@ describe("refreshing a loaded wall", () => {
         whole,
       ),
     ).toBe(whole);
+  });
+});
+
+describe("one Gallery tile", () => {
+  it("asks for the tile alone, which costs no daily open", async () => {
+    const fetchLike = vi.fn<typeof fetch>(async () =>
+      Response.json({ status: "public", entry: { id: "entry-1" } }),
+    );
+    await expect(loadGalleryEntry(fetchLike, "entry-1")).resolves.toEqual({
+      id: "entry-1",
+    });
+    expect(fetchLike).toHaveBeenCalledWith(
+      "/api/gallery/entry-1?summary=1",
+      expect.anything(),
+    );
   });
 });
