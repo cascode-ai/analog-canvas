@@ -182,6 +182,44 @@ export function instanceCarriesReference(
   return referencePolicyForInstance(instance, project).kind !== "none";
 }
 
+/**
+ * Whether a part's value prints this parameter as its ×m: a MOS's W/L does
+ * (#752), so its own ×m label is wanted only while the W/L is hidden.
+ */
+export function valuePrintsMultiplier(
+  symbolId: string | undefined,
+  parameterName: string,
+): boolean {
+  const parameters = symbolId
+    ? (deviceDescriptor(symbolId)?.parameters ?? [])
+    : [];
+  return (
+    parameters.some(
+      (parameter) =>
+        parameter.displayRole === "multiplier" &&
+        parameter.name.toLowerCase() === parameterName.toLowerCase(),
+    ) && parameters.some((parameter) => parameter.displayRole === "width")
+  );
+}
+
+/**
+ * The multiplier a part's W/L prints after its fraction once it has W and
+ * L, or undefined. A parallel multiplier changes the device the drawing
+ * stands for, so it is part of the value rather than a hidden parameter.
+ * One is the implicit default and stays unwritten.
+ */
+export function printedValueMultiplier(
+  instance: InstanceValueSource,
+): string | undefined {
+  const multiplier = deviceDescriptor(instance.symbolId)?.parameters.find(
+    (parameter) => parameter.displayRole === "multiplier",
+  );
+  if (!multiplier || !valuePrintsMultiplier(instance.symbolId, multiplier.name))
+    return undefined;
+  const value = effectiveParameterValue(instance, multiplier);
+  return value !== "" && Number(value) !== 1 ? value : undefined;
+}
+
 export function displayableInstanceValue(
   instance: InstanceValueSource,
 ): InstanceValueDisplay {
@@ -210,17 +248,7 @@ export function displayableInstanceValue(
             : `${definition.deviceClass} value needs both width and length`,
       };
     }
-    // A parallel multiplier changes the device the drawing stands for, so it
-    // is part of the value rather than a hidden parameter. One is the
-    // implicit default and stays unwritten.
-    const multiplier = definition.parameters.find(
-      (parameter) => parameter.displayRole === "multiplier",
-    );
-    const multiplierValue = multiplier
-      ? effectiveParameterValue(instance, multiplier)
-      : "";
-    const showsMultiplier =
-      multiplierValue !== "" && Number(multiplierValue) !== 1;
+    const multiplierValue = printedValueMultiplier(instance);
     return {
       kind: "displayable",
       content: {
@@ -230,7 +258,7 @@ export function displayableInstanceValue(
             numerator: boldDocument(widthValue),
             denominator: boldDocument(lengthValue),
           },
-          ...(showsMultiplier
+          ...(multiplierValue !== undefined
             ? [
                 {
                   kind: "span" as const,

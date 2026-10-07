@@ -243,7 +243,17 @@ Batch operations are explicit and distinct:
   bounded nearby positions to reduce collisions; it does not reset every
   label. A placed Cell's name under its block counts as the part's name,
   or as its value beside a shown Reference, and moves as one; its text is
-  the Cell's and is never restyled (#1366). The same arrangement runs on
+  the Cell's and is never restyled (#1366). A MOS's ×m label stands
+  where it is placed: beside or below the part a text row under the name,
+  not in a W/L fraction's taller row, and above it in the W/L's place
+  nearest the part, its name a W/L's row further out. Shown for its
+  hidden W/L, it is arranged there. One that the shown W/L hides, because
+  the W/L prints the ×m itself, or that is switched off, moves with the
+  labels arranged, to the same place beside, below or above the part, or,
+  with no name drawn, to the W/L's place. It stays where it is when its
+  name is only restyled, under a name arranged without its W/L above the
+  part, where that row is the name's, and when it was moved by hand
+  (unless `includeManual`), locked, turned or restyled (#1434). The same arrangement runs on
   its own for the parts whose labels a typed move, an arrange, a pin change
   or a Cell's changed Pins newly draw a wire or a part over ([connectivity and
   routing](connectivity-and-routing.md)). A part's Reference and value move

@@ -7,11 +7,11 @@ import type {
   Rotation,
   SchematicDocument,
 } from "@icm/model";
-import { deviceDescriptor } from "@icm/devices";
 import type { SymbolResolver } from "@icm/symbols";
 
 import { resolveVisualAnchor, type ResolvedAnchor } from "./anchor.js";
 import { resolveAnnotationText } from "./annotation-text.js";
+import { valuePrintsMultiplier } from "./instance-value.js";
 import {
   labelInkDescentEm,
   uprightTextInkBounds,
@@ -121,26 +121,6 @@ export function isSchematicAnnotationVisible(
     document.netlist?.terminals.some((terminal) =>
       terminal.interfaceInstanceIds.includes(binding.instanceId),
     )
-  );
-}
-
-/**
- * Whether a part's value prints this parameter as its ×m: a MOS's W/L does
- * (#752), so its own ×m label is wanted only while the W/L is hidden.
- */
-export function valuePrintsMultiplier(
-  symbolId: string | undefined,
-  parameterName: string,
-): boolean {
-  const parameters = symbolId
-    ? (deviceDescriptor(symbolId)?.parameters ?? [])
-    : [];
-  return (
-    parameters.some(
-      (parameter) =>
-        parameter.displayRole === "multiplier" &&
-        parameter.name.toLowerCase() === parameterName.toLowerCase(),
-    ) && parameters.some((parameter) => parameter.displayRole === "width")
   );
 }
 

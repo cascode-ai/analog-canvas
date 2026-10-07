@@ -65,6 +65,11 @@ export interface CanvasPropertyField {
   description: string;
   /** Guidance metadata for callers that present help outside the code editor. */
   help?: string;
+  /**
+   * A short note beside a boolean field's switch while the field at
+   * `whenTrue` is on, with `title` as its tooltip.
+   */
+  note?: { text: string; title: string; whenTrue: string };
 }
 
 export const CANVAS_PROPERTY_FIELDS: readonly CanvasPropertyField[] = [

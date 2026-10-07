@@ -110,7 +110,9 @@ targets to avoid full-Snapshot name resolution. Names remain supported when usef
   A MOS or BJT shows its multiplier with `showParameters:{m:true}`: "×8"
   with its name, bound to `m`, as bandgap and mirror figures print it. A
   MOS's shown W/L already prints its ×m, so the label appears only while
-  the W/L is hidden, a text row under the name.
+  the W/L is hidden, a text row under the name (above the part, in the
+  W/L's place); `arrange-labels` keeps it there, shown or hidden, when it
+  moves the name.
 - Use `set-model` with the product's reviewed target, the full library name
   such as `sky130_fd_pr__nfet_01v8`. In a SKY130 Project the short name the
   Netlist panel shows (`nfet_01v8`) means the same device. SKY130 MOS targets

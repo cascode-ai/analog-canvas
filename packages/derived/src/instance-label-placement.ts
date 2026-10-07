@@ -460,7 +460,10 @@ export function instanceLabelMetrics(
  * part the value's row is under the name's. Above it the group stands on
  * its last row, the one nearest the part: the value, or a label shown
  * alone, stands there, a W/L fraction far enough out to clear the part, and
- * a name over its value stands a value row further out.
+ * a name over its value stands a value row further out. A value row is the
+ * part's own value's, a W/L fraction's taller one; a group whose value is
+ * plain text, as a MOS's ×m shown for its hidden W/L is, passes one text
+ * row as `valueRow` (#1434).
  */
 export function placeUprightInstanceLabel(
   instance: SchematicDocument["instances"][number],
@@ -471,6 +474,7 @@ export function placeUprightInstanceLabel(
   grid: number,
   sizeScale = 1,
   slot: InstanceLabelSlot = "reference",
+  valueRow = instanceValueRowOffset(instance.symbolId, profile, grid),
 ): InstanceLabelPlacement | null {
   return nameFirstPlacer(
     instance,
@@ -481,7 +485,7 @@ export function placeUprightInstanceLabel(
     grid,
     sizeScale,
     slot,
-    instanceValueRowOffset(instance.symbolId, profile, grid),
+    valueRow,
   );
 }
 
@@ -983,7 +987,8 @@ export function legacyPortLabelPlacement(
 /**
  * Supplies canonical placement for renderer-owned instance labels, for a
  * label of the given size (a label a person made smaller sits closer), in
- * one of its group's slots on the part's default side.
+ * one of its group's slots on the part's default side, its value
+ * `valueRow` under its name as placeUprightInstanceLabel reads it.
  */
 export function defaultInstanceLabelPlacement(
   instance: SchematicDocument["instances"][number],
@@ -992,11 +997,12 @@ export function defaultInstanceLabelPlacement(
   grid: number,
   slot: InstanceLabelSlot = "reference",
   sizeScale = 1,
+  valueRow?: number,
 ): InstanceLabelPlacement | null {
   return defaultPlacementWith(
     nameFirstPlacer,
     (rowProfile, rowGrid, symbolId) =>
-      instanceValueRowOffset(symbolId, rowProfile, rowGrid),
+      valueRow ?? instanceValueRowOffset(symbolId, rowProfile, rowGrid),
     instance,
     resolved,
     profile,
