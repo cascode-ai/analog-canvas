@@ -205,6 +205,14 @@ export interface GalleryQuickFilterCounts {
   attention: number;
   netlistable: number;
   liked: number;
+  /**
+   * The other sides of the two pairs, each counted, like `netlistable`, with
+   * its own pair's choice left out, so choosing either side says what it
+   * would show. Absent from a Worker that predates them.
+   */
+  withoutNetlist?: number;
+  ai?: number;
+  human?: number;
   /** Entries under Needs attention per reason; only with that filter on. */
   attentionKinds?: Record<string, number>;
   /**
@@ -372,6 +380,10 @@ export interface GalleryFeedQuery {
   tags?: readonly string[];
   /** Only circuits whose drawing extracts to a netlist. */
   netlistable?: boolean;
+  /** Only circuits whose drawing does not. */
+  withoutNetlist?: boolean;
+  /** Only AI-generated circuits, or only those made by hand. */
+  ai?: "ai" | "human" | null;
   /** Only circuits the signed-in viewer has liked. */
   liked?: boolean;
   attention?: boolean;
@@ -395,6 +407,8 @@ function galleryFeedParams(query: GalleryFeedQuery): URLSearchParams {
     params.set("tags", query.tags.join(","));
   }
   if (query.netlistable) params.set("netlistable", "1");
+  else if (query.withoutNetlist) params.set("netlistable", "0");
+  if (query.ai) params.set("ai", query.ai === "ai" ? "1" : "0");
   if (query.liked) params.set("liked", "1");
   if (query.parts && query.parts.length > 0)
     params.set("parts", query.parts.join(","));
@@ -464,6 +478,14 @@ export async function loadGalleryFeed(
               attention: payload.filterCounts.attention,
               netlistable: payload.filterCounts.netlistable,
               liked: payload.filterCounts.liked,
+              ...Object.fromEntries(
+                (["withoutNetlist", "ai", "human"] as const).flatMap((key) => {
+                  const count = payload.filterCounts![key];
+                  return Number.isSafeInteger(count) && count! >= 0
+                    ? [[key, count]]
+                    : [];
+                }),
+              ),
               ...(payload.filterCounts.attentionKinds &&
               typeof payload.filterCounts.attentionKinds === "object" &&
               Object.values(payload.filterCounts.attentionKinds).every(

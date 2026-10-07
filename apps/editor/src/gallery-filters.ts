@@ -37,6 +37,10 @@ export interface GalleryFilterState {
   search: string;
   /** Only circuits whose drawing extracts to a netlist. */
   netlistable: boolean;
+  /** Only circuits whose drawing does not; never with `netlistable`. */
+  withoutNetlist: boolean;
+  /** Only AI-generated circuits, or only those made by hand; null for both. */
+  ai: "ai" | "human" | null;
   /** Only circuits this viewer has liked. */
   liked: boolean;
   /**
@@ -63,6 +67,7 @@ const NARROWING_PARAMS = [
   "tags",
   "q",
   "netlist",
+  "ai",
   "liked",
   "attention",
   "reason",
@@ -79,6 +84,8 @@ export function createDefaultGalleryFilters(): GalleryFilterState {
     tags: [],
     search: "",
     netlistable: false,
+    withoutNetlist: false,
+    ai: null,
     liked: false,
     parts: [],
   };
@@ -92,6 +99,8 @@ export function galleryFiltersNarrowWall(filters: GalleryFilterState): boolean {
     filters.tags.length > 0 ||
     filters.search.trim().length > 0 ||
     filters.netlistable ||
+    filters.withoutNetlist ||
+    filters.ai !== null ||
     filters.liked ||
     filters.attention ||
     filters.parts.length > 0
@@ -110,10 +119,21 @@ export function galleryFiltersNarrowQuery(
     filters.ownerUserId !== null ||
     filters.tags.length > 0 ||
     filters.netlistable ||
+    filters.withoutNetlist ||
+    filters.ai !== null ||
     filters.liked ||
     filters.attention ||
     filters.parts.length > 0
   );
+}
+
+/** "1" or "0" in a link, "ai" or "human" in storage: one side of a pair. */
+function readAi(value: unknown): "ai" | "human" | null {
+  return value === "1" || value === "ai"
+    ? "ai"
+    : value === "0" || value === "human"
+      ? "human"
+      : null;
 }
 
 /** Size keys as a link or storage spells them; the Worker ignores unknown ones. */
@@ -159,6 +179,8 @@ export function parseGalleryFilterQuery(search: string): {
       tags: boundedTags((params.get("tags") ?? "").split(",")),
       search: (params.get("q") ?? "").slice(0, MAX_FILTER_LENGTH),
       netlistable: params.get("netlist") === "1",
+      withoutNetlist: params.get("netlist") === "0",
+      ai: readAi(params.get("ai")),
       liked: params.get("liked") === "1",
       attention: params.get("attention") === "1",
       attentionKind:
@@ -190,7 +212,11 @@ export function galleryFilterSearch(
   set("owner", filters.ownerUserId);
   set("tags", filters.tags.length > 0 ? filters.tags.join(",") : null);
   set("q", filters.search.trim().length > 0 ? filters.search : null);
-  set("netlist", filters.netlistable ? "1" : null);
+  set(
+    "netlist",
+    filters.netlistable ? "1" : filters.withoutNetlist ? "0" : null,
+  );
+  set("ai", filters.ai === "ai" ? "1" : filters.ai === "human" ? "0" : null);
   set("liked", filters.liked ? "1" : null);
   // Category filtering was retired in favor of one tag vocabulary. Remove
   // old links instead of preserving a parameter the Gallery no longer reads.
@@ -231,6 +257,9 @@ export function parseStoredGalleryFilters(
         ? record.search.slice(0, MAX_FILTER_LENGTH)
         : "",
     netlistable: record.netlistable === true,
+    withoutNetlist:
+      record.netlistable !== true && record.withoutNetlist === true,
+    ai: readAi(record.ai),
     liked: record.liked === true,
     attention: record.attention === true,
     attentionKind:

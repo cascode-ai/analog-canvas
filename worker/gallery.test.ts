@@ -1736,6 +1736,9 @@ describe("newest-first gallery feed", () => {
       filterCounts: {
         attention: 0,
         netlistable: 0,
+        withoutNetlist: 0,
+        ai: 0,
+        human: 0,
         liked: 0,
         componentRanges: sizes(0),
       },
@@ -2103,6 +2106,9 @@ describe("netlist marks and thumbs", () => {
         filterCounts: {
           attention: number;
           netlistable: number;
+          withoutNetlist: number;
+          ai: number;
+          human: number;
           liked: number;
           componentRanges: Record<string, number>;
         };
@@ -2115,6 +2121,9 @@ describe("netlist marks and thumbs", () => {
     expect(firstPage.filterCounts).toEqual({
       attention: 0,
       netlistable: 1,
+      withoutNetlist: 1,
+      ai: 0,
+      human: 2,
       liked: 1,
       componentRanges: sizes(2),
     });
@@ -2129,6 +2138,9 @@ describe("netlist marks and thumbs", () => {
     expect((await list("")).filterCounts).toEqual({
       attention: 0,
       netlistable: 1,
+      withoutNetlist: 1,
+      ai: 0,
+      human: 2,
       liked: 0,
       componentRanges: sizes(2),
     });
@@ -2138,12 +2150,20 @@ describe("netlist marks and thumbs", () => {
     // The total describes the narrowed wall, so paging stays honest.
     expect(marked.total).toBe(1);
     expect(marked.authors).toEqual([{ ...firstPage.authors[0], count: 1 }]);
+    // Each side of a pair says what choosing it would show: with the
+    // netlist chosen, the circuit without one is still counted beside it.
     expect(marked.filterCounts).toEqual({
       attention: 0,
       netlistable: 1,
+      withoutNetlist: 1,
+      ai: 0,
+      human: 1,
       liked: 0,
       componentRanges: sizes(1),
     });
+    const unmarked = await list("netlistable=0", cookie);
+    expect(unmarked.entries.map((entry) => entry.id)).toEqual([sketchId]);
+    expect(unmarked.total).toBe(1);
 
     const liked = await list("liked=1", cookie);
     expect(liked.entries.map((entry) => entry.id)).toEqual([sketchId]);
@@ -2152,6 +2172,9 @@ describe("netlist marks and thumbs", () => {
     expect(liked.filterCounts).toEqual({
       attention: 0,
       netlistable: 0,
+      withoutNetlist: 1,
+      ai: 0,
+      human: 1,
       liked: 1,
       componentRanges: sizes(1),
     });
@@ -2164,9 +2187,16 @@ describe("netlist marks and thumbs", () => {
     expect(both.filterCounts).toEqual({
       attention: 0,
       netlistable: 0,
+      withoutNetlist: 1,
+      ai: 0,
+      human: 0,
       liked: 0,
       componentRanges: sizes(0),
     });
+
+    // The AI mark narrows the same way; neither circuit carries it.
+    expect((await list("ai=1", cookie)).entries).toHaveLength(0);
+    expect((await list("ai=0", cookie)).total).toBe(2);
 
     // A like belongs to an account: signed out, "the ones I liked" is none of
     // them rather than all of them.
@@ -4174,7 +4204,15 @@ describe("gallery circuit tags", () => {
       ],
       groups: [{ group: "Amplifiers", count: 1 }],
     });
-    expect(await summary("?netlistable=0")).toEqual(all);
+    // "0" asks for the other side: circuits that do not extract.
+    expect(await summary("?netlistable=0")).toEqual({
+      tags: [
+        { tag: "amplifier", count: 1 },
+        { tag: "comparator", count: 1 },
+      ],
+      groups: expect.arrayContaining([{ group: "Amplifiers", count: 1 }]),
+    });
+    expect(await summary("?netlistable=")).toEqual(all);
     env.gallerySql.exec(
       "UPDATE gallery_entries SET author = 'Bob', owner_user_id = 'owner-bob' WHERE name = 'Sketch'",
     );

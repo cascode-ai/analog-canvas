@@ -21,12 +21,42 @@ describe("gallery filter preferences", () => {
       tags: ["bias", "opamp"],
       search: "mirror",
       netlistable: true,
+      withoutNetlist: false,
+      ai: null,
       liked: true,
       attention: false,
       attentionKind: null,
       parts: ["6-10", "26-"],
     });
     expect(narrowed).toBe(true);
+  });
+
+  it("carries the other side of each pair: without a netlist, AI or by hand", () => {
+    const { filters, narrowed } = parseGalleryFilterQuery("?netlist=0&ai=1");
+    expect(filters).toMatchObject({
+      netlistable: false,
+      withoutNetlist: true,
+      ai: "ai",
+    });
+    expect(narrowed).toBe(true);
+    expect(parseGalleryFilterQuery("?ai=0").filters.ai).toBe("human");
+    expect(galleryFilterSearch("", filters)).toBe("?netlist=0&ai=1");
+    expect(
+      galleryFilterSearch("", {
+        ...filters,
+        withoutNetlist: false,
+        ai: "human",
+      }),
+    ).toBe("?ai=0");
+    // Storage keeps them too, and never both sides of the netlist pair.
+    const stored = parseStoredGalleryFilters(
+      JSON.stringify({ netlistable: true, withoutNetlist: true, ai: "human" }),
+    );
+    expect(stored).toMatchObject({
+      netlistable: true,
+      withoutNetlist: false,
+      ai: "human",
+    });
   });
 
   it("carries one attention reason, and only under Needs attention", () => {
@@ -147,6 +177,8 @@ describe("gallery filter preferences", () => {
       tags: ["bias"],
       search: "mirror",
       netlistable: true,
+      withoutNetlist: false,
+      ai: null,
       liked: false,
       parts: [],
     });
