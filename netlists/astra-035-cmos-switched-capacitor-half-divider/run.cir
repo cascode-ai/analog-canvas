@@ -1,0 +1,27 @@
+CMOS switched-capacitor half divider
+.include "circuit.spice"
+.include "models.spice"
+VDD vdd 0 3.3
+VIN vin 0 PWL(0 3.3 40u 3.3 40.01u 2.8 120u 2.8)
+VP1 p1 0 PULSE(0 3.3 20n 1n 1n 430n 1u)
+VP2 p2 0 PULSE(0 3.3 520n 1n 1n 430n 1u)
+XDUT vdd 0 vin out p1 p2 astra_035_cmos_switched_capacitor_half_divider
+.temp 27
+.options method=gear reltol=1e-5
+* @spec half33 range 1.61 1.69 unit=V
+* @spec ripple33 range 0 0.015 unit=V
+* @spec half28 range 1.36 1.44 unit=V
+* @spec ripple28 range 0 0.015 unit=V
+* @spec final range 1.36 1.44 unit=V
+.control
+set filetype=ascii
+tran 2n 120u
+meas tran half33 AVG v(out) FROM=25u TO=35u
+meas tran ripple33 PP v(out) FROM=25u TO=35u
+meas tran half28 AVG v(out) FROM=85u TO=95u
+meas tran ripple28 PP v(out) FROM=85u TO=95u
+meas tran final FIND v(out) AT=119u
+write out.raw
+quit
+.endc
+.end

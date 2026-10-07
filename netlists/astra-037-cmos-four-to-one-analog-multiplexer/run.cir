@@ -1,0 +1,32 @@
+CMOS 4-to-1 analog multiplexer
+.include "circuit.spice"
+.include "models.spice"
+VDD vdd 0 3.3
+VS0 s0 0 PULSE(0 3.3 40n 100p 100p 39.9n 80n)
+VS1 s1 0 PULSE(0 3.3 80n 100p 100p 79.9n 160n)
+V0 v0 0 PWL(0 0.5 95n 0.5 95.1n 0.8 200n 0.8)
+V1 v1 0 1.0
+V2 v2 0 1.8
+V3 v3 0 2.7
+XDUT vdd 0 v0 v1 v2 v3 out s0 s1 astra_037_cmos_four_to_one_analog_multiplexer
+.temp 27
+.options method=gear reltol=1e-5
+* @spec select0 range 0.49 0.51 unit=V
+* @spec select1 range 0.99 1.01 unit=V
+* @spec select2 range 1.79 1.81 unit=V
+* @spec unselected_change range 1.79 1.81 unit=V
+* @spec select3 range 2.6900000000000004 2.71 unit=V
+* @spec return0 range 0.79 0.81 unit=V
+.control
+set filetype=ascii
+tran 20p 200n
+meas tran select0 FIND v(out) AT=20n
+meas tran select1 FIND v(out) AT=60n
+meas tran select2 FIND v(out) AT=100n
+meas tran unselected_change FIND v(out) AT=110n
+meas tran select3 FIND v(out) AT=140n
+meas tran return0 FIND v(out) AT=180n
+write out.raw
+quit
+.endc
+.end

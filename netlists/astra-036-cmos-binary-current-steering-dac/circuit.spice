@@ -1,0 +1,18 @@
+
+.subckt astra_036_cmos_binary_current_steering_dac vdd VSS iref out outb d0 d1
+CB outb VSS 100f
+CO out VSS 100f
+M1 iref iref VSS VSS ANMOS l=1u w=2u
+M10 d1b d1 vdd vdd APMOS l=1u w=20u
+M11 d1b d1 VSS VSS ANMOS l=1u w=10u
+M2 net0 iref VSS VSS ANMOS l=1u w=2u
+M3 out d0 net0 VSS ANMOS l=1u w=20u
+M4 outb d0b net0 VSS ANMOS l=1u w=20u
+M5 net1 iref VSS VSS ANMOS l=1u w=4u
+M6 out d1 net1 VSS ANMOS l=1u w=20u
+M7 outb d1b net1 VSS ANMOS l=1u w=20u
+M8 d0b d0 vdd vdd APMOS l=1u w=20u
+M9 d0b d0 VSS VSS ANMOS l=1u w=10u
+RB vdd outb 22k
+RO vdd out 22k
+.ends astra_036_cmos_binary_current_steering_dac

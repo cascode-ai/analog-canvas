@@ -1,0 +1,41 @@
+
+Note: No compatibility mode selected!
+
+
+Circuit: cmos 2-bit current-steering dac
+
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+Initial Transient Solution
+--------------------------
+
+Node                                   Voltage
+----                                   -------
+vdd                                        3.3
+iref                                  0.821792
+d0                                           0
+d1                                           0
+outb                                   2.62138
+out                                        3.3
+xdut.d1b                                   3.3
+xdut.net0                              2.27345
+xdut.d0b                                   3.3
+xdut.net1                              2.24698
+vd1#branch                                   0
+vd0#branch                                   0
+vdd#branch                        -4.08465e-05
+
+
+No. of Data Rows : 8193
+code0               =  6.62000e-12
+sum0                =  3.08465e-05
+code1               =  1.02822e-05
+sum1                =  3.08467e-05
+code2               =  2.05587e-05
+sum2                =  3.08467e-05
+code3               =  3.08430e-05
+sum3                =  3.08465e-05
+ASCII raw file "out.raw"
+ngspice-46 done

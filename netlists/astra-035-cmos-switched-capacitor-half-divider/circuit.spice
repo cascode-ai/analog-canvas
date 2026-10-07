@@ -1,0 +1,20 @@
+
+.subckt astra_035_cmos_switched_capacitor_half_divider vdd VSS vin out p1 p2
+CF net0 net1 1n
+CO out VSS 5n
+M1 vin p1b net0 vdd APMOS l=1u w=80u
+M10 p1b p1 VSS VSS ANMOS l=1u w=10u
+M11 p2b p2 vdd vdd APMOS l=1u w=20u
+M12 p2b p2 VSS VSS ANMOS l=1u w=10u
+M2 vin p1 net0 VSS ANMOS l=1u w=40u
+M3 net1 p1b out vdd APMOS l=1u w=80u
+M4 net1 p1 out VSS ANMOS l=1u w=40u
+M5 net0 p2b out vdd APMOS l=1u w=80u
+M6 net0 p2 out VSS ANMOS l=1u w=40u
+M7 net1 p2b VSS vdd APMOS l=1u w=80u
+M8 net1 p2 VSS VSS ANMOS l=1u w=40u
+M9 p1b p1 vdd vdd APMOS l=1u w=20u
+RA net0 VSS 1G
+RB net1 VSS 1G
+RL out VSS 1meg
+.ends astra_035_cmos_switched_capacitor_half_divider

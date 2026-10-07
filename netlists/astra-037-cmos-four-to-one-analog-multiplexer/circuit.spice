@@ -1,0 +1,21 @@
+
+.subckt astra_037_cmos_four_to_one_analog_multiplexer vdd VSS v0 v1 v2 v3 out s0 s1
+CL out VSS 100f
+M1 s0b s0 vdd vdd APMOS l=1u w=20u
+M10 v2 s0b net1 VSS ANMOS l=1u w=10u
+M11 v3 s0b net1 vdd APMOS l=1u w=20u
+M12 v3 s0 net1 VSS ANMOS l=1u w=10u
+M13 net0 s1 out vdd APMOS l=1u w=20u
+M14 net0 s1b out VSS ANMOS l=1u w=10u
+M15 net1 s1b out vdd APMOS l=1u w=20u
+M16 net1 s1 out VSS ANMOS l=1u w=10u
+M2 s0b s0 VSS VSS ANMOS l=1u w=10u
+M3 s1b s1 vdd vdd APMOS l=1u w=20u
+M4 s1b s1 VSS VSS ANMOS l=1u w=10u
+M5 v0 s0 net0 vdd APMOS l=1u w=20u
+M6 v0 s0b net0 VSS ANMOS l=1u w=10u
+M7 v1 s0b net0 vdd APMOS l=1u w=20u
+M8 v1 s0 net0 VSS ANMOS l=1u w=10u
+M9 v2 s0 net1 vdd APMOS l=1u w=20u
+RL out VSS 1meg
+.ends astra_037_cmos_four_to_one_analog_multiplexer

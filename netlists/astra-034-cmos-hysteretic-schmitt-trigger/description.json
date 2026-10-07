@@ -1,0 +1,11 @@
+{
+  "name": "CMOS hysteretic Schmitt trigger",
+  "description": "A six-MOS feedback inverter stack and two output inverters form a ten-MOS inverting Schmitt trigger. Complementary feedback changes the switching threshold according to the current state. A slow 0-to-3.3-to-0 V input ramp measures rising-input and falling-input thresholds and verifies the rail states. The two thresholds demonstrate nominal hysteresis. Generic Level-1 educational models; noise immunity, metastability, propagation delay and PVT limits are not qualified.",
+  "tags": [
+    "CMOS",
+    "Schmitt Trigger",
+    "Hysteresis",
+    "Logic Interface",
+    "Signal Conditioning"
+  ]
+}

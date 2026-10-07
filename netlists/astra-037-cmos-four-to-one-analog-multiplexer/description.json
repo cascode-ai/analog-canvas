@@ -1,0 +1,11 @@
+{
+  "name": "CMOS 4-to-1 analog multiplexer",
+  "description": "Six transmission gates form a two-level four-to-one analog selector; two CMOS inverters provide the select complements, for sixteen MOS devices. Address=2*s1+s0. The saved 3.3 V experiment selects 0.5, 1.0, 1.8 and 2.7 V inputs, changes an unselected channel, and then verifies that the updated 0.8 V channel is passed when selected again. The output has 100 fF and a 1 Mohm load. Steady-state selection only; switching glitches, charge injection, bandwidth and PVT behavior are not qualified.",
+  "tags": [
+    "CMOS",
+    "Analog Multiplexer",
+    "Transmission Gate",
+    "Signal Routing",
+    "Mixed Signal"
+  ]
+}

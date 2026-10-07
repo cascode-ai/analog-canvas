@@ -1,0 +1,36 @@
+
+Note: No compatibility mode selected!
+
+
+Circuit: cmos hysteretic schmitt trigger
+
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+Initial Transient Solution
+--------------------------
+
+Node                                   Voltage
+----                                   -------
+vdd                                        3.3
+vin                                          0
+xdut.net1                                  3.3
+out                                        3.3
+xdut.net3                                  3.3
+xdut.net0                          6.12963e-10
+xdut.net2                              2.33745
+vin#branch                                   0
+vdd#branch                        -2.35924e-11
+
+
+No. of Data Rows : 11718
+upper               =  2.07163e+00
+lower               =  1.18574e+00
+initial             =  3.30000e+00
+top                 =  6.12963e-10
+final               =  3.30000e+00
+up_middle           =  3.30000e+00
+down_middle         =  6.12963e-10
+ASCII raw file "out.raw"
+ngspice-46 done

@@ -1,0 +1,15 @@
+
+.subckt astra_034_cmos_hysteretic_schmitt_trigger vdd VSS vin out
+CH net1 VSS 100f
+CL out VSS 200f
+M1 net3 vin vdd vdd APMOS l=1u w=20u
+M10 out net0 VSS VSS ANMOS l=1u w=10u
+M2 net1 vin net3 vdd APMOS l=1u w=20u
+M3 VSS net1 net3 vdd APMOS l=1u w=20u
+M4 net1 vin net2 VSS ANMOS l=1u w=10u
+M5 net2 vin VSS VSS ANMOS l=1u w=10u
+M6 vdd net1 net2 VSS ANMOS l=1u w=10u
+M7 net0 net1 vdd vdd APMOS l=1u w=20u
+M8 net0 net1 VSS VSS ANMOS l=1u w=10u
+M9 out net0 vdd vdd APMOS l=1u w=20u
+.ends astra_034_cmos_hysteretic_schmitt_trigger

@@ -1,0 +1,89 @@
+{
+  "simulator": "ngspice-46",
+  "models": "Generic educational Level-1 MOS",
+  "temperatureC": 27,
+  "localSpecs": [
+    {
+      "metric": "code0",
+      "min": -2e-08,
+      "max": 2e-08,
+      "value": 6.62e-12,
+      "passed": true
+    },
+    {
+      "metric": "sum0",
+      "min": 2.8e-05,
+      "max": 3.6e-05,
+      "value": 3.08465e-05,
+      "passed": true
+    },
+    {
+      "metric": "code1",
+      "min": 9e-06,
+      "max": 1.2e-05,
+      "value": 1.02822e-05,
+      "passed": true
+    },
+    {
+      "metric": "sum1",
+      "min": 2.8e-05,
+      "max": 3.6e-05,
+      "value": 3.08467e-05,
+      "passed": true
+    },
+    {
+      "metric": "code2",
+      "min": 1.8e-05,
+      "max": 2.4e-05,
+      "value": 2.05587e-05,
+      "passed": true
+    },
+    {
+      "metric": "sum2",
+      "min": 2.8e-05,
+      "max": 3.6e-05,
+      "value": 3.08467e-05,
+      "passed": true
+    },
+    {
+      "metric": "code3",
+      "min": 2.7e-05,
+      "max": 3.6e-05,
+      "value": 3.0843e-05,
+      "passed": true
+    },
+    {
+      "metric": "sum3",
+      "min": 2.8e-05,
+      "max": 3.6e-05,
+      "value": 3.08465e-05,
+      "passed": true
+    }
+  ],
+  "nativeDiagnostics": 0,
+  "canonicalExportMatches": true,
+  "prototypeConnectivityAndParametersMatch": true,
+  "limitations": "Nominal functional verification only; no PVT, noise, mismatch or foundry qualification.",
+  "hosted": {
+    "runId": "dd5e8dfb-30ef-43b0-91e5-86039dc7d3e7",
+    "specs": {
+      "available": true,
+      "total": 8,
+      "passed": 8,
+      "failed": 0,
+      "notEvaluated": 0,
+      "unconstrained": 0
+    },
+    "execution": "completed"
+  },
+  "layoutRevision": {
+    "change": "Make the reference mirror feedback bend orthogonal.",
+    "hostedInputsUnchanged": true,
+    "inputSha256": {
+      "circuit.spice": "9f007549dc95d8a78db68cc8f769c5e6879829fe8c2fc22ba3d4bb05106d1407",
+      "models.spice": "5a01fb44e06db2503e0ac47b00444e1709ba7d83b12cef766860602175f44735",
+      "run.cir": "dd3e91184ee535d32a6d109b45fbf8b03800b8753c036ce99fb616606eec0258"
+    },
+    "localRerunPassed": 8
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "galleryEntryId": "rk52y8bnrn",
+  "url": "https://analog-canvas.tokenzhang.com/g/rk52y8bnrn",
+  "author": "GPT-6 Astra",
+  "aiGenerated": true,
+  "aiFlagEvidence": "Agent publication contract",
+  "hostedRunId": "f3087b6b-90f6-45ff-a18e-7b42b976cbb1",
+  "specs": {
+    "available": true,
+    "total": 6,
+    "passed": 6,
+    "failed": 0,
+    "notEvaluated": 0,
+    "unconstrained": 0
+  },
+  "mcpVersion": "0.17.50",
+  "checkedAt": "2026-10-07T22:42:07.705Z"
+}

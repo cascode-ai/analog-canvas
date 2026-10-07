@@ -1,0 +1,36 @@
+CMOS 2-bit current-steering DAC
+.include "circuit.spice"
+.include "models.spice"
+VDD vdd 0 3.3
+IREF vdd iref 10u
+VD0 d0 0 PULSE(0 3.3 40n 100p 100p 39.9n 80n)
+VD1 d1 0 PULSE(0 3.3 80n 100p 100p 79.9n 160n)
+XDUT vdd 0 iref out outb d0 d1 astra_036_cmos_binary_current_steering_dac
+.temp 27
+.options method=gear reltol=1e-5
+* @spec code0 range -2e-8 2e-8 unit=A
+* @spec sum0 range 0.000028 0.000036 unit=A
+* @spec code1 range 0.000009 0.000012 unit=A
+* @spec sum1 range 0.000028 0.000036 unit=A
+* @spec code2 range 0.000018 0.000024 unit=A
+* @spec sum2 range 0.000028 0.000036 unit=A
+* @spec code3 range 0.000027 0.000036 unit=A
+* @spec sum3 range 0.000028 0.000036 unit=A
+.control
+set filetype=ascii
+tran 20p 160n
+let io=(v(vdd)-v(out))/22k
+let ib=(v(vdd)-v(outb))/22k
+let total=io+ib
+meas tran code0 FIND io AT=20n
+meas tran sum0 FIND total AT=20n
+meas tran code1 FIND io AT=60n
+meas tran sum1 FIND total AT=60n
+meas tran code2 FIND io AT=100n
+meas tran sum2 FIND total AT=100n
+meas tran code3 FIND io AT=140n
+meas tran sum3 FIND total AT=140n
+write out.raw
+quit
+.endc
+.end

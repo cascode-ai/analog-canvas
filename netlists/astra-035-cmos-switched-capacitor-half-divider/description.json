@@ -1,0 +1,11 @@
+{
+  "name": "CMOS switched-capacitor half divider",
+  "description": "Four transmission gates place a 1 nF flying capacitor in series with the output during p1 and in parallel during p2. Two CMOS inverters generate phase complements: twelve MOS devices are explicit. With non-overlapping 1 MHz clocks, a 5 nF output capacitor and 1 Mohm load, the circuit approaches VIN/2. The experiment checks both 3.3 V and 2.8 V inputs, settled output levels and ripple after an input step. Two 1 Gohm resistors model flying-node leakage. Use the saved non-overlap timing. Educational nominal models; power-converter efficiency, high-current capability and PVT ratings are not qualified.",
+  "tags": [
+    "CMOS",
+    "Switched Capacitor",
+    "Voltage Divider",
+    "Charge Redistribution",
+    "Power Conversion"
+  ]
+}

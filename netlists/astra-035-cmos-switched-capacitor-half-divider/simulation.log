@@ -1,0 +1,38 @@
+
+Note: No compatibility mode selected!
+
+
+Circuit: cmos switched-capacitor half divider
+
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+Initial Transient Solution
+--------------------------
+
+Node                                   Voltage
+----                                   -------
+vdd                                        3.3
+vin                                        3.3
+p1                                           0
+p2                                           0
+xdut.net0                           0.00658915
+xdut.net1                           0.00658915
+out                                6.61997e-06
+xdut.p1b                                   3.3
+xdut.p2b                                   3.3
+vp2#branch                                   0
+vp1#branch                                   0
+vin#branch                           -3.31e-12
+vdd#branch                        -2.97636e-11
+
+ Reference value :  7.00206e-05
+No. of Data Rows : 106333
+half33              =  1.64951e+00 from=  2.50000e-05 to=  3.50004e-05
+ripple33            =  8.27606e-05 from=  2.50000e-05 to=  3.50000e-05
+half28              =  1.39958e+00 from=  8.50000e-05 to=  9.50009e-05
+ripple28            =  7.75940e-05 from=  8.50000e-05 to=  9.50000e-05
+final               =  1.39957e+00
+ASCII raw file "out.raw"
+ngspice-46 done

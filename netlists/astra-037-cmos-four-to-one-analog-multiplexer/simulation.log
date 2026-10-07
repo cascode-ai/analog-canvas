@@ -1,0 +1,45 @@
+
+Note: No compatibility mode selected!
+
+
+Circuit: cmos 4-to-1 analog multiplexer
+
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+Initial Transient Solution
+--------------------------
+
+Node                                   Voltage
+----                                   -------
+vdd                                        3.3
+s0                                           0
+s1                                           0
+v0                                         0.5
+v1                                           1
+v2                                         1.8
+v3                                         2.7
+out                                   0.499762
+xdut.s0b                                   3.3
+xdut.net1                                  1.8
+xdut.net0                             0.499881
+xdut.s1b                                   3.3
+v3#branch                             -2.1e-12
+v2#branch                             -1.2e-12
+v1#branch                              1.3e-12
+v0#branch                         -4.99748e-07
+vs1#branch                                   0
+vs0#branch                                   0
+vdd#branch                        -3.24408e-11
+
+
+No. of Data Rows : 10258
+select0             =  4.99762e-01
+select1             =  9.99354e-01
+select2             =  1.79867e+00
+unselected_change   =  1.79867e+00
+select3             =  2.69829e+00
+return0             =  7.99542e-01
+ASCII raw file "out.raw"
+ngspice-46 done

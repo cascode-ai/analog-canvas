@@ -1,0 +1,29 @@
+CMOS hysteretic Schmitt trigger
+.include "circuit.spice"
+.include "models.spice"
+VDD vdd 0 3.3
+VIN vin 0 PWL(0 0 100n 0 1100n 3.3 1200n 3.3 2200n 0 2300n 0)
+XDUT vdd 0 vin out astra_034_cmos_hysteretic_schmitt_trigger
+.temp 27
+.options method=gear reltol=1e-5
+* @spec upper range 1.8 2.4 unit=V
+* @spec lower range 0.9 1.4 unit=V
+* @spec initial range 3.2 3.4 unit=V
+* @spec top range -0.01 0.01 unit=V
+* @spec final range 3.2 3.4 unit=V
+* @spec up_middle range 3.2 3.4 unit=V
+* @spec down_middle range -0.01 0.01 unit=V
+.control
+set filetype=ascii
+tran 200p 2300n
+meas tran upper FIND v(vin) WHEN v(out)=1.65 FALL=1
+meas tran lower FIND v(vin) WHEN v(out)=1.65 RISE=1
+meas tran initial FIND v(out) AT=50n
+meas tran top FIND v(out) AT=1150n
+meas tran final FIND v(out) AT=2250n
+meas tran up_middle FIND v(out) AT=600n
+meas tran down_middle FIND v(out) AT=1700n
+write out.raw
+quit
+.endc
+.end
