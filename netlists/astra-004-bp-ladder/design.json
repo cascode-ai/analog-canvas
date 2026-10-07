@@ -1,0 +1,11 @@
+{
+  "title": "Five-resonator LC band-pass filter",
+  "kind": "bp",
+  "order": 5,
+  "terminationOhm": 1000,
+  "frequencyHz": 10000,
+  "bandwidthHz": 2000,
+  "passHz": 10000,
+  "edgeHz": 9049.875621120891,
+  "stopHz": 5000
+}

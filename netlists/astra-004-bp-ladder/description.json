@@ -1,0 +1,10 @@
+{
+  "name": "Five-resonator LC band-pass filter",
+  "description": "A low-pass Butterworth prototype is transformed into a five-resonator band-pass ladder. Three series LC pairs provide a low-impedance path near 10 kHz; two parallel LC shunt branches present high impedance at the same frequency. The 1 kΩ source and load terminations give a center-frequency voltage ratio of one half. The designed bandwidth is 2 kHz, with nominal half-power edges near 9.05 and 11.05 kHz. ngspice 46 measures −6.02 dB at 10 kHz, −9.05 dB at the lower edge and −93.53 dB at 5 kHz, relative to the source. The saved AC experiment checks these three points. The response uses ideal inductors and capacitors: finite Q and tolerance will reduce rejection and alter the passband.",
+  "tags": [
+    "Passive",
+    "Band-pass Filter",
+    "Resonator",
+    "LC Filter"
+  ]
+}

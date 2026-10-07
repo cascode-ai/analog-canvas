@@ -1,0 +1,15 @@
+
+.subckt astra_004_bp_ladder VSS in out
+C1 net2 net1 5.15n
+C2 net2 VSS 128.8n
+C3 net4 net3 1.592n
+C4 net4 VSS 128.8n
+C5 out net5 5.15n
+L1 net1 net0 49.18m
+L2 net2 VSS 1.967m
+L3 net3 net2 159.2m
+L4 net4 VSS 1.967m
+L5 net5 net4 49.18m
+R1 net0 in 1k
+R2 out VSS 1k
+.ends astra_004_bp_ladder
