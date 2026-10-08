@@ -587,8 +587,17 @@ like one (`VSS`, `AVSS`, `GND`, `VEE`, `SUB`, `VSUB`, any case).
 A DMOS symbol in SKY130 takes the drain-extended 16 V device
 (`sky130_fd_pr__nfet_g5v0d16v0`, `sky130_fd_pr__pfet_g5v0d16v0`), or a 20 V
 one chosen in Properties (`nfet_20v0`, `nfet_20v0_nvt`, `nfet_20v0_zvt`,
-`pfet_20v0`), which fixes its channel inside and takes only `m`. SKY130 models
-the 16 V pair only at a few sizes:
+`pfet_20v0`). A 20 V device has one channel and takes only `m` from the part.
+Its X line always gives that channel, because the hosted continuous library
+needs it spelled out (#1486):
+
+- `nfet_20v0`: L 2.95 µm, W 29.41 µm;
+- `nfet_20v0_nvt`: L 1.5 µm, W 30 µm;
+- `nfet_20v0_zvt`: L 5 µm, W 30 µm;
+- `pfet_20v0`: L 0.5 µm, W 30 µm.
+
+volare's wrappers fix these sizes inside and ignore what the line gives them.
+SKY130 models the 16 V pair only at a few sizes:
 
 - N: W 5, 20 or 50–60 µm at L 0.7 µm, or W 5 or 20 µm at L 2.2 µm;
 - P: W 5–50 µm at L 0.66 or 2.16 µm.
@@ -598,18 +607,33 @@ ngspice 46 picks one by the X line's W and L, accepting either bin edge within
 count; a PDK spinit with `ngbehavior=hsa` takes W per finger instead. At any
 other size ngspice stops with "could not find a valid modelname".
 
-A part that takes a 16 V device keeps its W and L when they are one of those
-sizes, or when an expression leaves that open. Otherwise it takes the device's
-own: W 5 µm with L 0.7 µm (N) or 0.66 µm (P) (#1483). A W or L given as an
-expression stays as written; only a numeric one changes. This holds whether the
-part is placed, filled by a process, or given the model in Properties or by an
-Agent. A part that already has the device keeps what its author gave it, also
-through Default. Its previous size does not come back when it leaves the
-device.
+A 16 V part always has one of those sizes, or one an expression leaves open
+(#1483, #1485). Whenever an edit would leave it at another numeric size, the
+same transaction gives it a modelled one. Such edits include:
 
-A 16 V device whose size is none of those exports with the warning
-`REVIEWED_SIZE_UNMODELLED`, which names the sizes. A missing W or L counts as
-the device's default, which its wrapper uses.
+- placing it;
+- giving it the device in Properties, by an Agent or by a process;
+- typing its W or L.
+
+The size changes as little as it can:
+
+- one of W and L, the first that is enough, takes the device's own value: W 5 µm,
+  with L 0.7 µm (N) or 0.66 µm (P);
+- W is tried before L, and a W or L the edit set is tried last;
+- both take the device's own values when neither alone will do;
+- a W or L given as an expression stays as written.
+
+The result is not always the closest modelled size: W 18 µm at L 2.2 µm becomes
+W 5 µm, not 20 µm.
+
+Opening a Project does the same for parts saved at another size, such as those
+placed before #1484. A part's previous size does not come back when it leaves
+the device.
+
+A 16 V device whose size is still none of those exports with the warning
+`REVIEWED_SIZE_UNMODELLED`, which names the sizes. This can happen to a Project
+built outside the editor. A missing W or L counts as the device's default,
+which its wrapper uses.
 
 IHP SG13G2 binds reviewed devices the way IHP-Open-PDK's own xschem symbols
 call them: `sg13_lv_nmos`/`sg13_lv_pmos` and the 3.3 V `sg13_hv_*` (`d g s b`;
@@ -807,9 +831,8 @@ chooses the format independently of the adjacent Process selector. The compact
 NMOS/PMOS/R/C/L selectors apply their target to that device family. Ideal R/C/L
 remain the default; selecting a reviewed physical passive uses its geometry,
 not a numerical conversion of an ideal resistance/capacitance/inductance.
-Authored W/L and values survive process changes, except the size of a DMOS
-taking a 16 V device that has no model for it (see above), and reviewed SKY130
-calls use
+Authored W/L and values survive process changes, except a 16 V DMOS size SKY130
+has no model for (see above), and reviewed SKY130 calls use
 the existing canonical unit/interface conversion. TSMC 28 maps `m` to `multi`;
 switching back restores `m`. Process selection preserves names and stable
 instance IDs; dialect naming happens only during extraction. Custom external

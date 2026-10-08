@@ -136,7 +136,12 @@ New experiments use this strict minimal configuration:
 
 Use the Profile advertised by the executor. A new experiment that names no
 Profile takes the one whose qualified `devices` include every reviewed PDK
-device its Cell and that Cell's sub-Cells are bound to. An experiment without
+device its Cell and that Cell's sub-Cells are bound to. If no Profile does, the
+high-voltage DMOS devices of a Profile's library count as qualified, and the
+one Profile that then qualifies them all is taken. The SKY130 ngspice Profile
+runs SKY130's 16 V and 20 V devices but does not list them (#1485). Its library
+has no varactor, so other unlisted devices still need a named Profile. An
+experiment without
 a Cell uses no PDK device. No Profile qualifies ideal blocks, the generic diode
 or authored models, so they do not count. A Profile that lists no qualified
 devices is never the default. With several such Profiles, or none, the author

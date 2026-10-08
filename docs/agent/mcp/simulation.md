@@ -12,8 +12,10 @@ an unfamiliar field only; no full-contract or authoring-help prerequisite.
    Full capabilities (optionally `profileId`) are for detailed model facts.
 2. Create a saved `simulation_folder`, or reuse the current folder.
    Without `profileId`, create takes the one Profile whose listed qualified
-   devices include every reviewed PDK device the root Cell uses (SKY130 ngspice
-   on Production; a folder without a Cell uses no PDK device). A Profile that
+   devices include every reviewed PDK device the root Cell uses. SKY130's
+   high-voltage DMOS devices (16 V, 20 V) count for SKY130 ngspice, which runs
+   them though it does not list them. A folder without a Cell uses no PDK
+   device. A Profile that
    lists none, as VACASK, is never the default. The receipt names the Profile
    and its engine; without exactly one, create refuses with
    `SIMULATION_PROFILE_REQUIRED` and `error.candidates`.

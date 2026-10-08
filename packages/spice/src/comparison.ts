@@ -89,15 +89,20 @@ function literal(instance: Instance, key: string, raw: string): string | null {
   );
 }
 
-/** What an absent parameter means: a reviewed wrapper's count defaults, and
- * SPICE's parallel multiplier of 1. */
+/** What an absent parameter means: a reviewed wrapper's count defaults, the
+ * one channel of a 20 V wrapper (#1486), and SPICE's parallel multiplier of 1. */
 function absentLiteral(instance: Instance, key: string): string | null {
   const name = key.split("#")[0]!.toLowerCase();
-  const declared = reviewedBinding(instance)?.parameters.find(
-    (parameter) =>
-      parameter.name.toLowerCase() === name &&
-      parameter.targetUnit === undefined,
-  )?.targetDefaultValue;
+  const binding = reviewedBinding(instance);
+  const declared =
+    binding?.parameters.find(
+      (parameter) =>
+        parameter.name.toLowerCase() === name &&
+        parameter.targetUnit === undefined,
+    )?.targetDefaultValue ??
+    binding?.fixedParameters?.find(
+      (parameter) => parameter.name.toLowerCase() === name,
+    )?.value;
   if (declared !== undefined) return canonicalSpiceNumber(declared);
   return name === "m" ? canonicalSpiceNumber("1") : null;
 }

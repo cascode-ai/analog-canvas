@@ -1438,7 +1438,15 @@ export function createAgentCircuitService(
                   : { dryRun: request.dryRun }),
                 edits,
               },
-              { symbolResolver: resolver },
+              {
+                symbolResolver: resolver,
+                ...(project
+                  ? {
+                      externalSubcircuitDefinitions:
+                        project.externalSubcircuitDefinitions,
+                    }
+                  : {}),
+              },
             );
         if (!result.ok) {
           const instanceIndexForPath = (

@@ -389,6 +389,13 @@ function importInstance(
   const parameters = Object.fromEntries(
     Object.entries(instance.parameters)
       .filter(([name]) => name !== "control-source")
+      // A 20 V device's channel is the device's own; export writes it (#1486).
+      .filter(
+        ([name]) =>
+          !reviewed?.fixedParameters?.some(
+            (fixed) => fixed.name.toLowerCase() === name.toLowerCase(),
+          ),
+      )
       .map(([name, parameter]) => {
         const parameterName =
           name === "gain" && mapping.symbolId === "vccs"

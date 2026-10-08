@@ -1168,6 +1168,10 @@ function extractExternalSubcircuitInstance(
   const parameters = Object.entries(netlist.parameters);
   const projectedParameters = reviewed
     ? [
+        ...(reviewed.fixedParameters ?? []).map(({ name, value }) => ({
+          name,
+          rawValue: value,
+        })),
         ...reviewed.parameters
           .toSorted((left, right) => left.spiceOrder - right.spiceOrder)
           .flatMap((parameter) => {
@@ -1195,7 +1199,10 @@ function extractExternalSubcircuitInstance(
         ...parameters
           .filter(
             ([name]) =>
-              !reviewed.parameters.some(
+              ![
+                ...reviewed.parameters,
+                ...(reviewed.fixedParameters ?? []),
+              ].some(
                 (parameter) =>
                   parameter.name.toLowerCase() === name.toLowerCase(),
               ),
