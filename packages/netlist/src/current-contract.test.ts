@@ -4,6 +4,7 @@ import {
   createEmptyProject,
   deriveStableId,
   type CircuitProject,
+  type RichTextDocument,
 } from "@icm/model";
 
 import {
@@ -2289,7 +2290,7 @@ describe("drawn switches", () => {
     };
     /** S1 from in to a and S2 from in to b, labelled with these phases. */
     function pair(
-      labels: readonly ReturnType<typeof en>[],
+      labels: readonly RichTextDocument[],
       clock = false,
     ): CircuitProject {
       const project = createEmptyProject("project", "Project");
@@ -2367,7 +2368,7 @@ describe("drawn switches", () => {
           .map((item) => item.message),
       ).toEqual([
         "No Net named EN in this Cell drives switch S1: name the clock's Net EN, or add a Cell Pin EN",
-        "No Net named EN in this Cell drives switch S2: name the clock's Net EN, or add a Cell Pin EN",
+        "No Net named EN in this Cell drives switch S2: name the clock's Net EN, or add a Cell Pin EN, or draw its complementary clock on a Net EN_bar",
       ]);
       const text = printSpiceNetlist(analysis.ir!);
       expect(text).toContain("S1 in a EN 0 ideal_switch\n");
@@ -2391,35 +2392,65 @@ describe("drawn switches", () => {
       expect(text).toContain("S2 in b EN 0 ideal_switch_bar");
     });
 
-    it("meets a Net drawn the same way, EN_bar, through the plain switch", () => {
-      const project = pair([en(true)]);
-      const document = project.documents[0]!;
-      document.instances.push({
-        id: "V2",
-        symbolId: "voltage-source",
-        placement: null,
-        reference: "V2",
-        netlist: { parameters: { dc: "1" } },
-      });
-      document.nets.push(
+    // Φ̄₁: the bar over Φ, the 1 a subscript, as a Net Label drawn so reads.
+    const phiBar = {
+      runs: [
         {
-          id: "net-en-bar",
-          terminals: [{ instanceId: "V2", pinName: "+" }],
+          kind: "span" as const,
+          style: "overbar" as const,
+          children: [{ kind: "text" as const, value: "Φ" }],
         },
         {
-          id: "net-ground",
-          terminals: [{ instanceId: "V2", pinName: "-" }],
+          kind: "span" as const,
+          style: "subscript" as const,
+          children: [{ kind: "text" as const, value: "1" }],
         },
+      ],
+    } satisfies RichTextDocument;
+    it.each([
+      ["E̅N̅", en(true), "EN_bar", "EN_bar"],
+      ["Φ̄₁", phiBar, "Φ_1_bar", "PHI_1_bar"],
+    ])(
+      "meets a Net drawn the same way as %s through the plain switch",
+      (_, label, netName, node) => {
+        const project = pair([label]);
+        const document = project.documents[0]!;
+        document.instances.push({
+          id: "V2",
+          symbolId: "voltage-source",
+          placement: null,
+          reference: "V2",
+          netlist: { parameters: { dc: "1" } },
+        });
+        document.nets.push(
+          {
+            id: "net-barred",
+            terminals: [{ instanceId: "V2", pinName: "+" }],
+          },
+          {
+            id: "net-ground",
+            terminals: [{ instanceId: "V2", pinName: "-" }],
+          },
+        );
+        claimNet(document, "net-barred", netName);
+        claimNet(document, "net-ground", "0", "global", "ground");
+        const analysis = analyzeDesignNetlist(project);
+        expect(analysis.diagnostics.map((item) => item.code)).not.toContain(
+          "SWITCH_PHASE_NOT_DRIVEN",
+        );
+        expect(printSpiceNetlist(analysis.ir!)).toContain(
+          `S1 in a ${node} 0 ideal_switch\n`,
+        );
+      },
+    );
+
+    it("does not take another switch's undriven phase for the barred Net", () => {
+      // S1's label reads EN_bar as plain text; nothing drives that phase.
+      const plain = { runs: [{ kind: "text" as const, value: "EN_bar" }] };
+      const text = printSpiceNetlist(
+        analyzeDesignNetlist(pair([plain, en(true)], true)).ir!,
       );
-      claimNet(document, "net-en-bar", "EN_bar");
-      claimNet(document, "net-ground", "0", "global", "ground");
-      const analysis = analyzeDesignNetlist(project);
-      expect(analysis.diagnostics.map((item) => item.code)).not.toContain(
-        "SWITCH_PHASE_NOT_DRIVEN",
-      );
-      expect(printSpiceNetlist(analysis.ir!)).toContain(
-        "S1 in a EN_bar 0 ideal_switch\n",
-      );
+      expect(text).toContain("S2 in b EN 0 ideal_switch_bar\n");
     });
 
     it("carries only the inverted card when every switch is barred", () => {

@@ -988,7 +988,8 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
               id: profile.id,
               name: profile.label ?? profile.id,
             })),
-            // The Profile an Agent's new folder for the Cell takes (#1349).
+            // The Profile an Agent's new folder for the Cell takes, or why it
+            // asks for one (#1349, #1489).
             profileFor: (documentId: string) => {
               const project = session.currentProject() ?? latestProject;
               return newFolderProfile(

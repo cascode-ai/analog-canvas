@@ -46,6 +46,7 @@ function exportPart(
   const exported = createDesignNetlistExport(project, { format: "spice" });
   return {
     status: exported.status,
+    codes: exported.diagnostics.map((item) => item.code),
     line:
       exported.status === "ready"
         ? exported.file.text.split("\n").find((text) => text.startsWith("XM1 "))
@@ -182,7 +183,12 @@ it("leaves sizes an expression gives unchecked (#1474)", () => {
 
 it("leaves a device modelled only at a few sizes to REVIEWED_SIZE_UNMODELLED (#1474)", () => {
   // L 0.7 without a unit is 0.7 m: one finding, naming the 16 V bins, not two.
+  const slipped = exportPart(
+    "sky130_fd_pr__nfet_g5v0d16v0",
+    { l: "0.7" },
+    "ndmos",
+  );
   expect(
-    exportPart("sky130_fd_pr__nfet_g5v0d16v0", { l: "0.7" }, "ndmos").findings,
-  ).toEqual([]);
+    slipped.codes.filter((code) => code.startsWith("REVIEWED_SIZE_")),
+  ).toEqual(["REVIEWED_SIZE_UNMODELLED"]);
 });

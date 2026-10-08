@@ -52,7 +52,7 @@ describe("drawnSwitchPhase", () => {
       phaseOf({
         runs: [span("overbar", text("Φ")), span("subscript", text("1"))],
       }),
-    ).toEqual({ name: "Φ1", complement: true });
+    ).toEqual({ name: "Φ1", complement: true, barredNet: "Φ_1_bar" });
   });
 
   it("does not complement the phase for a bar over no text", () => {
