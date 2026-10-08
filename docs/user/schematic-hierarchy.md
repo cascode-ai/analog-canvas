@@ -38,7 +38,22 @@ formal defaults are parsed beside a pin-labelled preview. For several entries,
 choose the public entry; helper definitions remain with the same source. New
 definitions can select an existing source owner to expose another entry.
 
-New Model starts with two English comments: guidance and a declaration example.
+New Model starts with English guidance and commented pin/parameter examples.
+The SPICE declaration example is:
+
+```spice
+* .subckt my_cell PIN1 PIN2 params: PARAM1=1
+```
+
+Spectre puts parameters on a separate line:
+
+```spectre
+// subckt my_cell (PIN1 PIN2)
+// parameters PARAM1=1
+```
+
+Uncomment the declarations, add the body, and end with `.ends my_cell` (SPICE)
+or `ends my_cell` (Spectre). The starter comments alone are not an implementation.
 Zero terminals and zero parameters are valid; whitespace is not an unnamed pin.
 The **Format / Process / Copy** row uses the same controls as the right-side
 netlist. Format shows SPICE or SCS (Spectre). Format and Process transform only
@@ -50,9 +65,14 @@ Process is derived from actual calls and library references. Current replacement
 supports reviewed core SKY130 1.8 V MOS and IHP SG13G2 low-voltage MOS counterparts,
 preserving four terminal roles, W/L units, finger count and multiplier. Other
 devices, variants, custom overrides and pinned libraries require explicit source
-edits. Changing Process does not tune operating points or change canvas devices.
+edits. Ideal R/C and controlled-source models are process-independent and show
+**Abstract**: they have no PDK devices for this shortcut to replace. Selecting a
+technology cannot create a transistor implementation of an ideal model.
+Changing Process does not tune operating points or change canvas devices.
 An unsupported conversion keeps the text and selection, with one inline sentence
-and **Edit model**. It opens no dialog and moves focus only when clicked.
+explaining the process refusal and **Edit model**. It opens no dialog and moves
+focus only when clicked. Selecting a different model in the left list is separate
+from Format and Process; apply or preserve unfinished edits before leaving it.
 
 Choose **Place** directly in Manager for either kind. **Import Cell** copies a
 saved Cloud Cell, its children and required models, selects the import and
