@@ -10,7 +10,7 @@ export const componentRoot = resolve(
   "../../packages/components",
 );
 export const definitionRoot = resolve(componentRoot, "definitions");
-export const catalogPath = resolve(componentRoot, "catalog.json");
+const catalogPath = resolve(componentRoot, "catalog.json");
 export const jsonSource = (value) =>
   format(JSON.stringify(value, null, 2), { parser: "json" });
 const same = (left, right) => JSON.stringify(left) === JSON.stringify(right);
@@ -111,7 +111,7 @@ export function validateComponentDefinition(component, id) {
   return component;
 }
 
-export async function readComponent(path) {
+async function readComponent(path) {
   return validateComponentDefinition(
     JSON.parse(await readFile(path, "utf8")),
     basename(path, ".json"),
@@ -171,7 +171,7 @@ export async function loadComponentLibrary(root = componentRoot) {
   return { index, components, byId };
 }
 
-export async function projectRazaviCatalog({ index, byId }) {
+async function projectRazaviCatalog({ index, byId }) {
   const {
     extendedEntries: _extended,
     deviceOrder: _devices,
