@@ -91,9 +91,41 @@ test("process shortcuts change only visible model text and clipboard failure sta
   await expect(manager.getByLabel("Model process")).toHaveValue("sg13g2");
   await expect.poll(() => editor.innerText()).toBe(before);
   await expect(manager.getByRole("status")).toContainText(
-    "Could not replace process.",
+    "This device has no reviewed counterpart in the selected process.",
   );
   await expect(manager.getByLabel("Model process")).toBeFocused();
+  await expect(page.getByRole("dialog")).toHaveCount(1);
+  await editor.fill(
+    ".subckt GM_STAGE INP INN OUT VSS params: GM=1m RL=10k CL=10p\nGsignal VSS OUT INP INN {GM}\nRload OUT VSS {RL}\nCload OUT VSS {CL}\nRinp INP VSS 1T\nRinn INN VSS 1T\n.ends GM_STAGE\n",
+  );
+  await manager
+    .getByRole("button", { name: "Apply model", exact: true })
+    .click();
+  await expect(manager.getByLabel("Model process")).toHaveValue("abstract");
+  const independent = await editor.innerText();
+  await manager.getByLabel("Model process").focus();
+  await manager.getByLabel("Model process").selectOption("sky130");
+  await expect(manager.getByRole("status")).toContainText(
+    "This model has no reviewed process devices to replace.",
+  );
+  await expect(manager.getByRole("status")).toHaveCount(1);
+  await expect(manager.getByRole("alert")).toHaveCount(0);
+  await expect(manager.getByLabel("Model process")).toHaveValue("abstract");
+  await expect.poll(() => editor.innerText()).toBe(independent);
+  await expect(manager.getByLabel("Model process")).toBeFocused();
+  await manager
+    .getByRole("button", { name: "New External Circuit", exact: true })
+    .click();
+  await expect(
+    manager.getByRole("heading", { name: "New External Circuit", exact: true }),
+  ).toBeVisible();
+  await manager
+    .locator(".cell-manager-list-item")
+    .filter({ hasText: "GM_STAGE" })
+    .click();
+  await expect
+    .poll(() => manager.getByLabel("External model netlist").innerText())
+    .toBe(independent);
   await expect(page.getByRole("dialog")).toHaveCount(1);
 });
 
@@ -165,12 +197,29 @@ test("starts an external model with English comments and copies only its applied
   expect(starter.trim().split("\n")).toHaveLength(2);
   expect(starter).toMatch(/^\* [A-Za-z]/);
   expect(starter).not.toMatch(/[\u4e00-\u9fff]/);
+  expect(starter).toContain("* .subckt my_cell PIN1 PIN2 params: PARAM1=1");
   await expect(manager.getByLabel("Model format")).toHaveValue("spice");
   const copy = manager.getByRole("button", {
     name: "Copy model netlist",
     exact: true,
   });
   await expect(copy).toBeDisabled();
+  await manager.getByLabel("Model format").selectOption("spectre");
+  const spectreStarter = await editor.innerText();
+  expect(spectreStarter.trim().split("\n")).toHaveLength(3);
+  expect(
+    spectreStarter
+      .split("\n")
+      .filter(Boolean)
+      .every((line) => line.startsWith("// ")),
+  ).toBe(true);
+  expect(spectreStarter).toContain(
+    "// subckt my_cell (PIN1 PIN2)\n// parameters PARAM1=1",
+  );
+  expect(spectreStarter).not.toMatch(/[\u4e00-\u9fff]/);
+  await expect(copy).toBeDisabled();
+  await manager.getByLabel("Model format").selectOption("spice");
+  await expect.poll(() => editor.innerText()).toBe(starter);
   await editor.fill(".subckt empty\n.ends empty\n");
   await expect(copy).toBeDisabled();
   await manager

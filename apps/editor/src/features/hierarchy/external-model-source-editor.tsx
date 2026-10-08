@@ -46,8 +46,8 @@ function modelStarter(language: ProjectModelSource["language"] = "spice") {
       path: language === "spice" ? "model.spice" : "model.scs",
       text:
         language === "spice"
-          ? "* Add pins and params: NAME=VALUE as needed; finish with .ends my_cell.\n* .subckt my_cell\n"
-          : "// Add pins and parameters NAME=VALUE as needed; finish with ends my_cell.\n// subckt my_cell ()\n",
+          ? "* Pins and parameters are optional; add a body and finish with .ends my_cell.\n* .subckt my_cell PIN1 PIN2 params: PARAM1=1\n"
+          : "// Pins and parameters are optional; add a body and finish with ends my_cell.\n// subckt my_cell (PIN1 PIN2)\n// parameters PARAM1=1\n",
     },
   ];
 }
@@ -348,7 +348,13 @@ export function ExternalModelSourceEditor({
     });
     if (!converted.ok) {
       setConversionDiagnostic(converted.diagnostic);
-      setResult({ ok: false, message: "Could not replace process." });
+      setResult({
+        ok: false,
+        message:
+          converted.diagnostic.code === "MODEL_SOURCE_PROCESS_UNSUPPORTED"
+            ? converted.diagnostic.message
+            : "Could not replace process.",
+      });
       return;
     }
     editDraft({ files: converted.source.files });
