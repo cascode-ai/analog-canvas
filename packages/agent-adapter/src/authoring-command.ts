@@ -218,6 +218,19 @@ const BatchItemSchema = z.discriminatedUnion("kind", [
     instanceId: StableIdSchema,
     mode: z.enum(["cell-pin", "global"]),
   }),
+  z
+    .strictObject({
+      kind: z.literal("set-mos-bulk-default"),
+      mos: z.enum(["nmos", "pmos"]),
+      net: z
+        .string()
+        .min(1)
+        .nullable()
+        .describe("Net ID or name; null clears the default."),
+    })
+    .describe(
+      "The Cell's NMOS or PMOS body default, as its settings in Properties set it: bodies on the old default move to the Net; wired bodies stay.",
+    ),
   z.strictObject({
     kind: z.literal("remove-cell-terminal"),
     terminalId: StableIdSchema,
@@ -253,7 +266,9 @@ const BatchItemSchema = z.discriminatedUnion("kind", [
     kind: z.literal("set-net-label"),
     annotationId: StableIdSchema,
     netId: StableIdSchema,
-    text: RichTextDocumentSchema,
+    text: TextInputSchema.describe(
+      "Plain text takes the label's standard look (VB1 reads V over a B1 subscript); RichText sets its own.",
+    ),
     position: PointSchema.optional(),
   }),
   z.strictObject({
@@ -276,6 +291,30 @@ const BatchItemSchema = z.discriminatedUnion("kind", [
     .describe(
       "Absolute drawing position; preserve electrical binding and object ownership.",
     ),
+  // A VDD rail and a VSS rail draw in one call and one undo (#1517).
+  z.strictObject({
+    kind: z.literal("add-power-rail"),
+    start: PointSchema,
+    end: PointSchema,
+    netId: StableIdSchema.optional(),
+    name: NameSchema.optional(),
+    scope: z
+      .enum(["local", "global"])
+      .optional()
+      .describe(
+        "Defaults to the existing Net scope, otherwise local; global must be intentional.",
+      ),
+  }),
+  z
+    .strictObject({
+      kind: z.literal("extend-power-rail"),
+      routeId: StableIdSchema.describe("Any segment of the rail."),
+      start: PointSchema,
+      end: PointSchema,
+    })
+    .describe(
+      "Set a straight Power Rail's two ends on its own line. Taps and the one label stay; no pin is joined.",
+    ),
 ]);
 export function isBatchableAuthoringCommand(command: {
   kind: string;
@@ -297,6 +336,12 @@ export const AgentAuthoringCommandSchema = z.discriminatedUnion("kind", [
         .boolean()
         .optional()
         .describe("Also re-place labels moved by hand."),
+      side: z
+        .enum(["left", "right", "top", "bottom", "outside"])
+        .optional()
+        .describe(
+          "Side tried first; outside = away from the drawing's centre line, mirrored halves.",
+        ),
     })
     .describe(
       "Opt-in, bounded one-pass placement of visible default Instance labels. Compact/collision avoidance default true. Preserve manually positioned (unless includeManual), locked and custom-styled labels, bindings and electrical names, and name those left in place (LABELS_LEFT_IN_PLACE); unresolved clashes remain observations.",
@@ -324,7 +369,7 @@ export const AgentAuthoringCommandSchema = z.discriminatedUnion("kind", [
       .min(1)
       .max(64)
       .describe(
-        "Ordered atomic route-net, label, model, display, annotation move, direction, VDD mode or terminal removal commands; one undo, no partial commit. Total expanded edit limit still applies.",
+        "Ordered atomic route-net, power rail, label, model, display, annotation move, direction, VDD mode, bulk default or terminal removal commands; one undo, no partial commit. Total expanded edit limit still applies.",
       ),
   }),
   z.strictObject({
@@ -358,29 +403,6 @@ export const AgentAuthoringCommandSchema = z.discriminatedUnion("kind", [
         "By new device Instance ID: its labels from the start. Left out, the name shows alone; showValue:true shows the value given, else the catalog default (#1435).",
       ),
   }),
-  z.strictObject({
-    kind: z.literal("add-power-rail"),
-    start: PointSchema,
-    end: PointSchema,
-    netId: StableIdSchema.optional(),
-    name: NameSchema.optional(),
-    scope: z
-      .enum(["local", "global"])
-      .optional()
-      .describe(
-        "Defaults to the existing Net scope, otherwise local; global must be intentional.",
-      ),
-  }),
-  z
-    .strictObject({
-      kind: z.literal("extend-power-rail"),
-      routeId: StableIdSchema.describe("Any segment of the rail."),
-      start: PointSchema,
-      end: PointSchema,
-    })
-    .describe(
-      "Set a straight Power Rail's two ends on its own line. Taps and the one label stay; no pin is joined.",
-    ),
   z.strictObject({
     kind: z.literal("place-existing"),
     instanceId: StableIdSchema,

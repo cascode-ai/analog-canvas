@@ -810,9 +810,10 @@ describe("MCP tools on the live editor", () => {
     expect(hits.hits).toContainEqual(
       expect.objectContaining({ kind: "net", id: vout.id }),
     );
-    expect(snapshotReads(http)).toEqual(["bootstrap", "full"]);
+    // The part's labels are one targeted read (#1518); search reuses the rest.
+    expect(snapshotReads(http)).toEqual(["bootstrap", "full", "pins"]);
     await tool("inspect", { target: { kind: "document" }, refresh: true });
-    expect(snapshotReads(http)).toEqual(["bootstrap", "full", "full"]);
+    expect(snapshotReads(http)).toEqual(["bootstrap", "full", "pins", "full"]);
   });
 
   it("inspects selected geometry without requesting a full Snapshot", async () => {
@@ -871,6 +872,66 @@ describe("MCP tools on the live editor", () => {
     expect(moved.bounds.width).toBeCloseTo(text.bounds.width, 6);
     expect(moved.bounds.x + moved.bounds.width).toBeLessThanOrEqual(end.x);
     expect(moved.bounds.x + moved.bounds.width).toBeGreaterThan(end.x - 2);
+  });
+
+  it("lists a part's labels on inspect, standing where a move puts them (#1518)", async () => {
+    const editor = await connected();
+    await apply(editor, [
+      place("resistor", "R1", 100, {
+        parameters: { value: "10k" },
+        showValue: true,
+      }),
+    ]);
+    const r1 = editor.controller.document.instances[0]!;
+    const labelsOfR1 = async () =>
+      (
+        await editor.tool("inspect", {
+          target: { kind: "object", name: "R1" },
+          refresh: true,
+        })
+      ).annotations as Array<{
+        id: string;
+        kind: string;
+        visible: boolean;
+        resolvedText: string;
+        position: { x: number; y: number };
+      }>;
+    const labels = await labelsOfR1();
+    // The editor's own labels for R1, each once.
+    expect(labels.map((label) => label.id).sort()).toEqual(
+      editor.controller.document.annotations
+        .filter(
+          (annotation) =>
+            (annotation.binding?.kind === "instance-reference" ||
+              annotation.binding?.kind === "instance-value") &&
+            annotation.binding.instanceId === r1.id,
+        )
+        .map((annotation) => annotation.id)
+        .sort(),
+    );
+    const name = labels.find((label) => label.kind === "instance-label")!;
+    expect(name).toMatchObject({ visible: true, resolvedText: "R1" });
+    expect(
+      labels.find((label) => label.kind === "instance-value")!.resolvedText,
+    ).toContain("10k");
+    // It stands where the drawn text does ...
+    const drawn = (
+      await editor.tool("inspect", {
+        target: { kind: "geometry", objectIds: [name.id], textBounds: true },
+      })
+    ).objects[0].text;
+    expect(name.position).toEqual(drawn.position);
+    // ... and a move to a point reads back as that point.
+    await apply(editor, [
+      {
+        kind: "move-annotation",
+        annotationId: name.id,
+        position: { x: 40, y: 60 },
+      },
+    ]);
+    expect(
+      (await labelsOfR1()).find((label) => label.id === name.id)!.position,
+    ).toEqual({ x: 40, y: 60 });
   });
 
   it("apply_actions returns the editor's refusal of a list that needs several calls, after one request", async () => {

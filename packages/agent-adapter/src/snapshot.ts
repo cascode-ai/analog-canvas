@@ -8,8 +8,10 @@ import {
   resolveMosBulkConnection,
   resolveDraftingObjectGeometry,
   resolveDocumentRoutingGeometry,
+  resolveVisualAnchor,
   buildProjectConnectivityIndex,
   resolveAnnotationText,
+  type ResolvedDocumentRoutingGeometry,
 } from "@icm/derived";
 import { transformPoint, flattenRichText } from "@icm/model";
 import type {
@@ -43,6 +45,7 @@ import type {
   AgentDiagnostic,
   AgentSessionSnapshot,
   AgentSnapshotDocument,
+  AgentSnapshotInstanceLabel,
 } from "./schema.js";
 
 export interface BuildAgentSessionSnapshotOptions {
@@ -50,6 +53,11 @@ export interface BuildAgentSessionSnapshotOptions {
   document: SchematicDocument;
   resolver: SymbolResolver;
   includeSourceSpans?: boolean;
+  /**
+   * List each part's labels on its record (#1518). Asked for, because
+   * released clients parse the instance record strictly.
+   */
+  instanceLabels?: boolean;
 }
 
 export interface BuildAgentBootstrapSnapshotOptions {
@@ -418,13 +426,89 @@ function diagnosticSnapshot(
     : agentVisualDiagnostics(document, resolver);
 }
 
+/**
+ * The labels that name or value each wanted part (#1518), by Instance id:
+ * its Reference, Value and parameter labels, and a Cell Pin marker's name
+ * label. Text and visibility are the canvas's; the position is the resolved
+ * anchor, the point a move-annotation position sets. Routes are resolved only
+ * for a label hung on one. Asked for, a full Snapshot grows by about 130
+ * bytes a label, 1–4% on the example and Gallery fixtures.
+ */
+function instanceLabels(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  logicalNets: ReturnType<typeof resolveDocumentLogicalNets>,
+  wanted: (instanceId: string) => boolean,
+  routingGeometry?: ResolvedDocumentRoutingGeometry,
+): Map<string, AgentSnapshotInstanceLabel[]> {
+  const markerByTerminal = new Map<string, string>();
+  for (const terminal of document.netlist?.terminals ?? [])
+    for (const instanceId of terminal.interfaceInstanceIds)
+      markerByTerminal.set(terminal.id, instanceId);
+  let routing = routingGeometry;
+  const labels = new Map<string, AgentSnapshotInstanceLabel[]>();
+  for (const annotation of [...document.annotations].sort((left, right) =>
+    left.id.localeCompare(right.id, "en"),
+  )) {
+    const binding = annotation.binding;
+    const instanceId =
+      binding?.kind === "instance-reference" ||
+      binding?.kind === "instance-value"
+        ? binding.instanceId
+        : binding?.kind === "cell-terminal-name"
+          ? markerByTerminal.get(binding.terminalId)
+          : // An older drawing's literal part label hangs on its part.
+            !binding &&
+              (annotation.kind === "instance-label" ||
+                annotation.kind === "instance-value") &&
+              annotation.anchor.kind === "object"
+            ? annotation.anchor.objectId
+            : undefined;
+    if (instanceId === undefined || !wanted(instanceId)) continue;
+    const text = resolveAnnotationText(document, annotation, logicalNets);
+    if (annotation.anchor.kind === "route")
+      routing ??= resolveDocumentRoutingGeometry(document, resolver);
+    const list = labels.get(instanceId) ?? [];
+    list.push({
+      id: annotation.id,
+      kind: annotation.kind,
+      ...(binding?.kind === "instance-value" && binding.parameter !== undefined
+        ? { parameter: binding.parameter }
+        : {}),
+      visible: isSchematicAnnotationVisible(
+        document,
+        annotation,
+        logicalNets,
+        text,
+      ),
+      resolvedText: flattenRichText(text),
+      position: {
+        ...resolveVisualAnchor(document, resolver, annotation.anchor, routing)
+          .position,
+      },
+    });
+    labels.set(instanceId, list);
+  }
+  return labels;
+}
+
 /** Resolve only selected instances; no route rendering, diagnostics or source tree. */
 export function selectAgentInstances(
   options: BuildAgentSessionSnapshotOptions,
   instanceIds?: readonly string[],
   logicalNets = resolveDocumentLogicalNets(options.document),
+  routingGeometry?: ResolvedDocumentRoutingGeometry,
 ): AgentSnapshotDocument["instances"] {
   const { document, resolver } = options;
+  const labelsByInstance = options.instanceLabels
+    ? instanceLabels(
+        document,
+        resolver,
+        logicalNets,
+        (id) => !instanceIds || instanceIds.includes(id),
+        routingGeometry,
+      )
+    : new Map<string, AgentSnapshotInstanceLabel[]>();
   const terminalNetByKey = new Map<string, string>();
   for (const net of document.nets) {
     for (const terminal of net.terminals) {
@@ -580,6 +664,9 @@ export function selectAgentInstances(
         ...(options.includeSourceSpans && instance.sourceRef
           ? { sourceRef: structuredClone(instance.sourceRef) }
           : {}),
+        ...(labelsByInstance.has(instance.id)
+          ? { annotations: labelsByInstance.get(instance.id)! }
+          : {}),
       };
     });
 
@@ -591,8 +678,13 @@ function documentSnapshot(
 ): AgentSnapshotDocument {
   const { document, resolver } = options;
   const logicalNets = resolveDocumentLogicalNets(document);
-  const instances = selectAgentInstances(options, undefined, logicalNets);
   const routingGeometry = resolveDocumentRoutingGeometry(document, resolver);
+  const instances = selectAgentInstances(
+    options,
+    undefined,
+    logicalNets,
+    routingGeometry,
+  );
   const routes = [...document.routes]
     .sort((left, right) => left.id.localeCompare(right.id, "en"))
     .map((route) => {

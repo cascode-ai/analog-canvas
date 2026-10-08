@@ -96,7 +96,11 @@ commands, focus, undo or redo) is checked against `expectedRevision` as its
 form is. A list resolved against the Document, by Reference or target, needs
 Snapshot permission; it is planned on the Document as it stands and committed
 in the same step, so no edit lands between the two. A list that changes nothing answers
-`applied: false` and adds no history entry.
+`applied: false` and adds no history entry. A `focus` beside other actions
+never adds a transaction: it is shown once the rest commits (not on a dry
+run), its result in `semantic`, and it needs `editor.semantic-control` like a
+focus alone; a view that cannot show it leaves the commit standing with a
+warning diagnostic.
 
 Undo/redo uses the shared browser Document/Project history and requires all
 edit permissions. Dry-run does not advance history; there is no private Agent
@@ -151,6 +155,12 @@ A geometry Snapshot asked with `textBounds` also measures each annotation the
 canvas draws, as label placement measures it: `text.position`, where its
 alignment end stands, and `text.bounds`, the box its glyphs fill. Without the
 option the answer keeps the fields released clients parse strictly.
+A full or `pins` Snapshot asked with `instanceLabels` gives each instance
+record `annotations`: the labels that name or value that part (Reference,
+Value and parameter labels, a Cell Pin marker's name label, an older drawing's
+literal part label), each with `id`, `kind`, `parameter`, `visible`,
+`resolvedText` and `position`, the resolved anchor a `move-annotation` sets.
+It is opt-in for the same reason.
 Persisted Base-Net IDs
 remain valid only while their objects survive the edit lifecycle and are not
 exposed as an alternate Agent naming protocol.

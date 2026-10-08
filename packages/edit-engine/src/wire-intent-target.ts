@@ -44,6 +44,21 @@ export function routeTapLanding(
   };
 }
 
+/**
+ * What a wire's `side` end looks for the nearest point of a Net from: the
+ * via point next to it when the caller gave the path, else the other end. A
+ * body wire given a stub out of the channel reaches the Net nearest the
+ * stub's end; nearest the body, it doubled back over the stub (#1514).
+ */
+export function wireTargetReference(
+  waypoints: readonly Point[] | undefined,
+  side: "from" | "to",
+  other: WireIntentAnchor,
+): WireIntentAnchor {
+  const via = side === "from" ? waypoints?.[0] : waypoints?.at(-1);
+  return via ? { kind: "free", point: via } : other;
+}
+
 /** Resolve geometry selectors on the current planning draft, never a client Snapshot. */
 export function resolveWireIntentTarget(
   document: SchematicDocument,

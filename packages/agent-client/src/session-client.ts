@@ -285,9 +285,12 @@ export class AgentSessionClient {
     if (claimCode === undefined || claimCode.trim() === "") {
       const resumed = await this.tryResume(startedAt);
       if (resumed === null) {
+        const holder = this.connectorStore?.heldBy;
         throw new AgentSessionError(
           "CLAIM_REQUIRED",
-          "no valid saved connector; pass a claim code from the editor's connect panel",
+          holder
+            ? `another running MCP process (pid ${holder}) holds this origin's saved connector, so this one does not share its page; pass a claim code for a page of its own, or set ANALOG_CANVAS_MCP_CONNECTOR to one file to share a connector deliberately`
+            : "no valid saved connector; pass a claim code from the editor's connect panel",
           "unrecoverable-credential",
         );
       }
@@ -1139,7 +1142,12 @@ export class AgentSessionClient {
     return parsed.data;
   }
 
-  async pinsSnapshot(instanceIds: readonly string[], documentId?: string) {
+  async pinsSnapshot(
+    instanceIds: readonly string[],
+    documentId?: string,
+    /** List each part's labels too (an editor with #1518). */
+    options: { instanceLabels?: boolean } = {},
+  ) {
     if (instanceIds.length < 1 || instanceIds.length > 64)
       throw new AgentSessionError(
         "INVALID_REQUEST",
@@ -1153,6 +1161,7 @@ export class AgentSessionClient {
       documentId: target,
       projection: "pins",
       instanceIds: [...instanceIds],
+      ...(options.instanceLabels ? { instanceLabels: true } : {}),
     });
     if (!response.ok)
       throw new AgentSessionError(

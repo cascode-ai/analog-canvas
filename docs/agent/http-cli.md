@@ -39,6 +39,9 @@ The process working directory does not select a base. Files survive disconnect;
 an explicit old base remains usable without migration or automatic overwrite.
 Set ANALOG_CANVAS_API_URL to this exact server. The default connector file is
 isolated by origin; ANALOG_CANVAS_MCP_CONNECTOR overrides a file path, never a token.
+CLI commands share the default file as before: they do not take the lease a
+running MCP process holds on it. Give parallel CLI tasks, like their task
+directories, their own ANALOG_CANVAS_MCP_CONNECTOR files.
 For caller-managed exact retries, --http circuit accepts the published Circuit
 request unchanged, including its requestId and transactionId. Keep that request
 before sending; after an uncertain process exit retry it unchanged, never repeat

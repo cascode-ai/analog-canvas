@@ -18,7 +18,7 @@ import {
   type ActionCall,
   type CompiledTransaction,
 } from "./authoring-helper.js";
-import type { AgentSessionSnapshot } from "./schema.js";
+import type { AgentSemanticIntent, AgentSessionSnapshot } from "./schema.js";
 
 /** The diagnostics a transaction answers with, as far as naming reads them. */
 export type PlannedDiagnostics =
@@ -59,9 +59,11 @@ export type ActionPlan =
        * stands.
        */
       naming: "if-unnamed" | "override";
+      /** The list's focus steps, applied in order once it commits. */
+      focus?: AgentSemanticIntent[];
     }
-  /** The list asks for no change. */
-  | { kind: "nothing" }
+  /** The list asks for no change, beyond any focus steps it takes. */
+  | { kind: "nothing"; focus?: AgentSemanticIntent[] }
   /** The list needs several transactions; these are the calls to send. */
   | {
       kind: "split";
@@ -141,51 +143,65 @@ function planWithoutDocument(
     };
   }
   const direct = parsed.data.map((action) => nativeForm(action, allocateId));
+  // A focus changes only the view: it follows the commit of the rest, never
+  // a transaction of its own beside them (#1517). `kept` maps the rest back
+  // to the list.
+  const kept = direct.flatMap((action, index) =>
+    action.kind === "focus" ? [] : [index],
+  );
+  const focus = direct.flatMap((action) =>
+    action.kind === "focus" ? [action.intent] : [],
+  );
+  const rest = kept.map((index) => direct[index]!);
+  if (focus.length > 1 && rest.length === 0) return { kind: "nothing", focus };
+  const after = focus.length ? { focus } : {};
   if (
-    direct.length > 0 &&
-    direct.length <= 64 &&
-    direct.every((action) => action.kind === "connect")
+    rest.length > 0 &&
+    rest.length <= 64 &&
+    rest.every((action) => action.kind === "connect")
   ) {
-    const wires = direct.map((action) =>
-      directConnectIntent(action, allocateId),
-    );
+    const wires = rest.map((action) => directConnectIntent(action, allocateId));
     if (wires.every((wire) => wire !== undefined))
       return {
         kind: "send",
         payload: { wireIntent: wires.length === 1 ? wires[0] : wires },
         actions: direct,
         readSnapshot: false,
-        actionIndexOf: () => (direct.length === 1 ? 0 : undefined),
+        actionIndexOf: () => (rest.length === 1 ? kept[0] : undefined),
         naming: "if-unnamed",
+        ...after,
       };
   }
-  if (direct.length === 1) {
-    const action = direct[0]!;
+  if (direct.length === 1 && direct[0]!.kind === "focus")
+    return {
+      kind: "send",
+      payload: { semanticIntent: direct[0]!.intent },
+      actions: direct,
+      readSnapshot: false,
+      actionIndexOf: () => 0,
+      naming: "if-unnamed",
+    };
+  if (rest.length === 1) {
+    const action = rest[0]!;
     const command = AgentAuthoringCommandSchema.safeParse(action);
-    if (
-      command.success ||
-      action.kind === "focus" ||
-      action.kind === "undo" ||
-      action.kind === "redo"
-    )
+    if (command.success || action.kind === "undo" || action.kind === "redo")
       return {
         kind: "send",
         payload:
-          action.kind === "focus"
-            ? { semanticIntent: action.intent }
-            : action.kind === "undo" || action.kind === "redo"
-              ? { edits: [{ kind: action.kind }] }
-              : { command: command.data },
+          action.kind === "undo" || action.kind === "redo"
+            ? { edits: [{ kind: action.kind }] }
+            : { command: command.data },
         actions: direct,
         readSnapshot: false,
-        actionIndexOf: () => 0,
+        actionIndexOf: () => kept[0],
         naming: "if-unnamed",
+        ...after,
       };
   }
   if (
-    direct.length > 1 &&
-    direct.length <= 64 &&
-    direct.every(
+    rest.length > 1 &&
+    rest.length <= 64 &&
+    rest.every(
       (action) =>
         isBatchableAuthoringCommand(action) &&
         AgentAuthoringCommandSchema.safeParse(action).success,
@@ -194,12 +210,18 @@ function planWithoutDocument(
     // The batch's items are these actions, in order.
     return {
       kind: "send",
-      payload: { command: { kind: "batch", commands: direct } },
+      payload: { command: { kind: "batch", commands: rest } },
       actions: direct,
       readSnapshot: false,
-      actionIndexOf: (diagnostics) =>
-        numberParameter(diagnostics, "actionIndex"),
-      naming: "if-unnamed",
+      actionIndexOf: (diagnostics) => {
+        const item = numberParameter(diagnostics, "actionIndex");
+        return item === undefined ? undefined : kept[item];
+      },
+      // The editor names a batch item; past a focus, that is not the list's.
+      naming: kept.every((index, item) => index === item)
+        ? "if-unnamed"
+        : "override",
+      ...after,
     };
   return { kind: "compile", direct };
 }
@@ -232,6 +254,12 @@ function planOnDocument(
       readSnapshot: true,
     };
   }
+  // Focus steps follow the commit (#1517): they never split the list.
+  const views = compiled.filter((item) => item.form === "semantic");
+  const after = views.length
+    ? { focus: views.map((item) => item.semanticIntent!) }
+    : {};
+  compiled = compiled.filter((item) => item.form !== "semantic");
   if (
     compiled.length > 1 &&
     compiled.every((item) => item.form === "wire-intent")
@@ -243,6 +271,7 @@ function planOnDocument(
       readSnapshot: true,
       actionIndexOf: () => undefined,
       naming: "if-unnamed",
+      ...after,
     };
   const batchCommands = compiled.flatMap((item) =>
     item.form === "command" &&
@@ -255,18 +284,35 @@ function planOnDocument(
     compiled.length > 1 &&
     compiled.length <= 64 &&
     batchCommands.length === compiled.length
-  )
+  ) {
+    // The action each batch item came from; past a focus, an item's own
+    // index is not its action's.
+    const sources = compiled.map((item) => item.actionIndices?.[0]);
     return {
       kind: "send",
       payload: { command: { kind: "batch", commands: batchCommands } },
       actions: direct,
       readSnapshot: true,
-      actionIndexOf: () => undefined,
-      naming: "if-unnamed",
+      actionIndexOf: (diagnostics) => {
+        const item = numberParameter(diagnostics, "actionIndex");
+        return item === undefined ? undefined : sources[item];
+      },
+      naming: sources.every((index, item) => index === item)
+        ? "if-unnamed"
+        : "override",
+      ...after,
     };
-  if (compiled.length === 0) return { kind: "nothing" };
+  }
+  if (compiled.length === 0) return { kind: "nothing", ...after };
   if (compiled.length !== 1) {
     const calls = splitIntoCalls(compiled);
+    // Each focus goes with the last call, after everything it shows.
+    const last = calls.at(-1)!;
+    for (const view of views) {
+      last.actionIndices.push(...(view.actionIndices ?? []));
+      if (!last.actionKinds.includes("focus")) last.actionKinds.push("focus");
+    }
+    last.actionIndices.sort((left, right) => left - right);
     return {
       kind: "split",
       message: describeCallSplit(calls),
@@ -282,14 +328,13 @@ function planOnDocument(
         ? { edits: transaction.edits }
         : transaction.form === "command"
           ? { command: transaction.command }
-          : transaction.form === "semantic"
-            ? { semanticIntent: transaction.semanticIntent }
-            : { wireIntent: transaction.wireIntent },
+          : { wireIntent: transaction.wireIntent },
     actions: direct,
     readSnapshot: true,
     actionIndexOf: (diagnostics) =>
       compiledActionIndex(transaction, diagnostics),
     naming: "override",
+    ...after,
   };
 }
 

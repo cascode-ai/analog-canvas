@@ -144,6 +144,8 @@ export const AgentSnapshotRequestSchema = RequestBaseSchema.extend({
   /** Geometry only: measure each annotation's drawn text as well (#1414). */
   textBounds: z.boolean().optional(),
   instanceIds: z.array(StableIdSchema).min(1).max(64).optional(),
+  /** Full and pins only: each instance lists its labels as well (#1518). */
+  instanceLabels: z.boolean().optional(),
   diagnosticDetail: z.enum(["counts", "items"]).optional(),
   includeSourceSpans: z.boolean().optional(),
   traceNet: z
@@ -483,6 +485,19 @@ const AgentNetlistFactsSchema = z.strictObject({
     .optional(),
 });
 
+/** A label that names or values one part, as its instance lists it (#1518). */
+export const AgentSnapshotInstanceLabelSchema = z.strictObject({
+  id: StableIdSchema,
+  kind: AnnotationSchema.shape.kind,
+  /** The named parameter a value label shows; absent for the part's Value. */
+  parameter: z.string().min(1).optional(),
+  /** Whether the canvas draws it. */
+  visible: z.boolean(),
+  resolvedText: z.string(),
+  /** Where its text stands: the point a move-annotation position sets. */
+  position: DerivedPointSchema,
+});
+
 export const AgentSnapshotInstanceSchema = z.strictObject({
   styleOverride: InstanceStyleOverrideSchema.optional(),
   signalFlowParameters: SignalFlowParametersSchema.optional(),
@@ -522,6 +537,12 @@ export const AgentSnapshotInstanceSchema = z.strictObject({
     .optional(),
   sourceRef: SourceSpanSchema.optional(),
   netlist: AgentNetlistFactsSchema.optional(),
+  annotations: z
+    .array(AgentSnapshotInstanceLabelSchema)
+    .optional()
+    .describe(
+      "Asked for with instanceLabels: the part's name, value and parameter labels (a Cell Pin marker's name label too), by annotation id; absent when it has none.",
+    ),
 });
 
 export const AgentSnapshotNetSchema = z.strictObject({
@@ -923,7 +944,10 @@ export const AgentTransactSuccessResponseSchema = ResponseBaseSchema.extend({
       }),
     )
     .optional(),
-  /** Present only for a successful non-persisting semantic transaction. */
+  /**
+   * A successful semantic transaction's result, or that of the focus an
+   * action list ends with, shown once the list committed (#1517).
+   */
   semantic: AgentSemanticIntentResultSchema.optional(),
   projectStructure: z
     .strictObject({
@@ -1029,6 +1053,9 @@ export type AgentBootstrapSnapshot = z.infer<
 >;
 export type AgentSessionSnapshot = z.infer<typeof AgentSessionSnapshotSchema>;
 export type AgentSnapshotDocument = z.infer<typeof AgentSnapshotDocumentSchema>;
+export type AgentSnapshotInstanceLabel = z.infer<
+  typeof AgentSnapshotInstanceLabelSchema
+>;
 export type AgentFileResourceCapability = z.infer<
   typeof AgentFileResourceCapabilitySchema
 >;

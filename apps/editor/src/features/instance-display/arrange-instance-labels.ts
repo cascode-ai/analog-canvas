@@ -12,6 +12,7 @@ import {
   createLabelClearanceContext,
   defaultInstanceLabelPlacement,
   defaultInstanceParameterLabelPlacement,
+  defaultVddPowerLabelPlacement,
   instanceGroupLabel,
   instanceLabelGroupSeat,
   INSTANCE_LABEL_SIDES,
@@ -104,6 +105,11 @@ export interface ArrangeInstanceLabelsOptions {
   referenceStyle?: "preserve" | "first-letter-subscript" | undefined;
   /** Re-place labels moved by hand too; locked and custom ones stay. */
   includeManual?: boolean | undefined;
+  /**
+   * The side tried first. "outside" is the side away from the drawing's
+   * centre line, so the two halves of a symmetric circuit mirror (#1519).
+   */
+  side?: InstanceLabelSide | "outside" | undefined;
 }
 
 /** The arrangement, and the labels it leaves where they are (#1414). */
@@ -372,6 +378,13 @@ export function arrangeInstanceLabelsReport(
     ),
     alignment: placement.alignment,
   });
+  // The drawing's vertical centre line, for labels asked to face outward.
+  const parts = context.symbols.map((symbol) => symbol.bounds);
+  const centreX = parts.length
+    ? (Math.min(...parts.map((part) => part.x)) +
+        Math.max(...parts.map((part) => part.x + part.width))) /
+      2
+    : 0;
   for (const [ownerId, group] of order) {
     const instance = document.instances.find((i) => i.id === ownerId)!;
     const resolved = resolver.resolve(
@@ -569,6 +582,7 @@ export function arrangeInstanceLabelsReport(
         others(conflicts) +
         others(context.overlapsAt(ink, candidate.id)) +
         context.dotsAt(ink).filter((id) => !conflicts.includes(id)).length / 2 +
+        (context.enclosedAt(ink) ? 1 : 0) +
         cutOff(ink) +
         strayed(ink) +
         mistaken(ink, candidate, siblings.map(box)) +
@@ -716,6 +730,22 @@ export function arrangeInstanceLabelsReport(
       return arrangement;
     };
 
+    // A side asked for comes first; "outside" faces away from the centre
+    // line, and a part on it keeps its default rows.
+    const asked =
+      options.side === "outside"
+        ? owner && owner.x + owner.width / 2 < centreX - grid
+          ? "left"
+          : owner && owner.x + owner.width / 2 > centreX + grid
+            ? "right"
+            : undefined
+        : options.side;
+    const sided = asked && !fixed.length ? onSide(asked) : null;
+    if (sided) {
+      chosen = sided;
+      best = total(sided);
+    }
+
     // A part drawn along a horizontal wire, as a ladder's series inductor
     // is, takes the clear side above the wire where under it its labels
     // would stand in a row with a neighbour's: a Chebyshev ladder's names
@@ -724,6 +754,7 @@ export function arrangeInstanceLabelsReport(
     const neighbours = along.get(ownerId);
     if (
       options.avoidCollisions !== false &&
+      !sided &&
       !fixed.length &&
       neighbours &&
       owner &&
@@ -821,8 +852,67 @@ export function arrangeInstanceLabelsReport(
       context.accept(next);
     }
   }
-  edits.push(...followHiddenMultipliers(), ...arrangePinNames());
+  edits.push(
+    ...followHiddenMultipliers(),
+    ...arrangePinNames(),
+    ...arrangeSupplyNames(),
+  );
   return { edits, leftInPlace: left };
+
+  /**
+   * A VDD marker's supply name, asked for with `side:"top"`, centred over
+   * its bar half a grid step clear of it, as the Gallery's house style and
+   * textbook figures draw it; `side:"right"` puts it back beside the bar
+   * (#1528). Agents had moved it by a guessed offset, or not found it at all.
+   */
+  function arrangeSupplyNames(): SchematicEdit[] {
+    if (options.side !== "top" && options.side !== "right") return [];
+    return [...ids].flatMap((id) => {
+      const instance = document.instances.find((item) => item.id === id)!;
+      const bar = context.symbols.find((symbol) => symbol.id === id)?.bounds;
+      const name = document.annotations.find(
+        (annotation) =>
+          annotation.kind === "power-label" &&
+          annotation.anchor.kind === "object" &&
+          annotation.anchor.objectId === id,
+      );
+      const resolved = resolver.resolve(
+        instance.symbolId,
+        instance.symbolVariantId,
+      );
+      if (
+        instance.symbolId !== "vdd-port" ||
+        !bar ||
+        !name ||
+        name.locked ||
+        !resolved
+      )
+        return [];
+      let next: Annotation;
+      if (options.side === "right") {
+        const beside = defaultVddPowerLabelPlacement(instance, resolved, grid);
+        if (!beside) return [];
+        next = annotationAt(name, beside);
+      } else {
+        const clearOfBar = bar.y - grid / 2;
+        const over = annotationAt(name, {
+          position: { x: bar.x + bar.width / 2, y: clearOfBar },
+          alignment: "middle",
+        });
+        const ink = context.measure(over).inkBounds;
+        next = annotationAt(over, {
+          position: {
+            x: bar.x + bar.width / 2,
+            y: clearOfBar - (ink.y + ink.height - clearOfBar),
+          },
+          alignment: "middle",
+        });
+      }
+      if (JSON.stringify(next) === JSON.stringify(name)) return [];
+      context.accept(next);
+      return [{ kind: "upsert_schematic_annotation", annotation: next }];
+    });
+  }
 
   /**
    * A ×m that a shown W/L prints itself is hidden (#1423), and so is one

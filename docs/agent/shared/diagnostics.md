@@ -24,3 +24,21 @@ Repair the smallest area responsible for a real defect. Preserve clear
 crossings; adding a Junction solely to silence a warning changes topology.
 Zero findings does not prove readability. Review relevant visual changes in
 formal render and report unresolved issues that affect the requested result.
+
+## Response contract
+
+Every Agent operation answers so that the next call needs no guessing, no
+blind retry and no source reading (#1525). New actions keep the same three
+rules:
+
+- **A refusal** names the cause, the object in the way, and a concrete next
+  step: the field or action to change, or the part that fits. For example,
+  `LIMIT_EXCEEDED` says how many placements fit in one call, and an
+  ambiguous name lists the ids it could mean.
+- **A success** returns what the next call needs: created ids, resolved
+  references, label annotation ids and pin landings, where the action makes
+  them.
+- **A success that changed nothing** says so and why. A command whose plan
+  leaves the drawing as it was answers `applied:false` with an information
+  finding, `NOTHING_CHANGED` unless the command gave its own reason (such as
+  `LABELS_LEFT_IN_PLACE`); it never answers a bare `ok`.

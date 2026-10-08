@@ -39,13 +39,22 @@ its name is its terminal's, in `cellTerminal: {id, name, direction}`.
 Use returned endpoints and stable Route/leg IDs; a crossing is not a connection.
 In MCP wiring, use `instance:{kind:"instance",id:"<returned-id>"}` for pin
 targets to avoid full-Snapshot name resolution. Names remain supported when useful.
+`place-component` also takes an `id` of your choosing, refused if an object
+already holds it. Give one to a ground, to each VDD marker and to any part you
+will wire, and the wiring names it by that ID without reading it back first.
+Later actions of the list that places a part may name it by that ID or by its
+Reference. A name several parts share, as every VDD marker's `VDD` is, is
+refused with their IDs; it never means the first of them.
 
 ## Place, name and bind
 
 - Place through native `place-components` (MCP `circuit_place` actions
   `place-component`), which creates attached Reference/Value displays.
   `port`/`port-filled`/`vdd-port` also create the formal Cell terminal and Net
-  atomically; `reference` is the terminal name (VDD defaults to `VDD`). Optional
+  atomically; `reference` is the terminal name (VDD defaults to `VDD`). A
+  `vdd-port`'s supply name stands beside its bar; `arrange-labels` with
+  `side:"top"` centres it over the bar, the house style, and `side:"right"`
+  puts it back. Optional
   `direction` applies to these markers only; native `terminalDirections` keys
   must identify new Cell markers. The first explicit supply in a placement batch
   initializes an absent bulk default; later supplies do not overwrite it.
@@ -60,10 +69,11 @@ targets to avoid full-Snapshot name resolution. Names remain supported when usef
   and ground take neither. Nothing appears only to be hidden a call later.
 - A person may be watching the canvas. After each placement batch, after
   wiring or moves that reach new ground, and when a drawing is done, fit the
-  view to it: `circuit_view` action `{kind:"focus",intent:{kind:"fit-document"}}`
-  (in `apply_actions`, a call of its own), the GUI's F key. For the Cell on
-  show it changes only the view: no revision, no undo entry, and the person's
-  selection or open dialog stays.
+  view to it: `circuit_view` action `{kind:"focus",intent:{kind:"fit-document"}}`,
+  the GUI's F key. In `apply_actions` it may end the list it follows: it is
+  shown once the rest commits and never splits the list into another call.
+  For the Cell on show it changes only the view: no revision, no undo entry,
+  and the person's selection or open dialog stays.
 - Parts are named as the GUI names them. A device's `reference` starts with
   its prefix (R, C, M, …), and a `place-cell` instance's with X. Leave it out,
   on `place-component` or `place-cell`, and the next free name is taken (`R1`,
@@ -131,7 +141,12 @@ targets to avoid full-Snapshot name resolution. Names remain supported when usef
   spans. A same-text string on a bound display leaves its format alone; use
   explicit RichText to restyle it. Fractions/formulas need explicit RichText
   for a structural replacement, not a lossy plain-text projection.
-  Transformer parameter keys are `k/lp/ls`; T-Coil keys are `k/l1/l2/cb`.
+  Transformer parameter keys are `k/lp/ls`; T-Coil keys are `k/l1/l2/cb`;
+  Center-Tap Inductor keys are `k/l1/l2`. `tcoil` is a bridged T-coil: its
+  netlist adds coupling k and a bridge capacitor CB across the two ends. A
+  plain centre-tapped (differential) inductor, such as an LC tank with the
+  supply on its tap, is `center-tap-inductor`: two series halves meeting at
+  pin 3, uncoupled unless k is given.
   A MOS or BJT shows its multiplier with `showParameters:{m:true}`: "×8"
   with its name, bound to `m`, as bandgap and mirror figures print it. A
   MOS's shown W/L already prints its ×m, so the label appears only while
@@ -231,13 +246,25 @@ targets to avoid full-Snapshot name resolution. Names remain supported when usef
   Cell that draws no such supply gains it as a Cell Pin, and the netlist says
   so as information, `MOS_BODY_DEFAULT_SUPPLY`, naming the parts. To give one
   device another body, `connect` its B pin to that Net, as the GUI's Draw
-  action does: the body leaves the Cell default for a dashed body wire. A
-  body tied to its own source is one call,
-  `{kind:"connect",from:{kind:"pin",instance:"MP",pin:"B"},to:{kind:"pin",instance:"MP",pin:"S"}}`,
-  or a `wire-at` tap on the source wire. A default for the whole Cell is an
-  `advanced_transact` of two edits, as the GUI sends them:
-  `{kind:"set_mos_bulk_defaults",pmosNetId:"<Net ID>"}` (`nmosNetId` for
-  NMOS), then `{kind:"reconcile_mos_bulk"}`. In a Cell with two supplies,
+  bulk connection does: the body leaves the Cell default for a dashed body
+  wire. Give its path with `via`, as a person clicks it there, rather than
+  leaving it to automatic routing, which may detour around the circuit. B
+  lands inside the channel and leaves along its `outward` (both in the
+  selected pins): a short stub two grid steps out that way, past the
+  drain and source leads, then the shortest path to the nearest point of the
+  target. For an upright part with B landing at (X,Y), `via:[{x:X+20,y:Y}]`
+  with `to:{kind:"net",net:"VB"}` turns at the stub's end and meets VB at
+  its point nearest there; add the corners of a path that keeps clear when
+  that one is refused, or name the spot with a `wire-at` point or a
+  `junction` on the Net. A body tied to its own source is one call,
+  `{kind:"connect",from:{kind:"pin",instance:"MP",pin:"B"},to:{kind:"pin",instance:"MP",pin:"S"},via:[{x:X+20,y:Y},{x:X+20,y:SY}]}`
+  (SY the source landing's y), or a `wire-at` tap on the source wire. The whole Cell's default is one
+  action, `{kind:"set-mos-bulk-default",mos:"pmos",net:"VB"}` (`circuit_place`;
+  `mos:"nmos"` for NMOS, `net` a Net name or ID, `null` clearing it), planned
+  as the Cell settings in Properties set it: the bodies that followed the
+  old default move to the new Net, bodies wired to a Net keep it. The raw
+  `set_mos_bulk_defaults` and `reconcile_mos_bulk` edits leave bodies already
+  on the old default there. In a Cell with two supplies,
   check the PMOS on the one that is not the default: `MOS_BODY_OTHER_SUPPLY`
   (information) names a body that follows the default onto another supply
   than its source's. With no default set, such a Cell's unwired bodies are
@@ -248,6 +275,10 @@ targets to avoid full-Snapshot name resolution. Names remain supported when usef
 - Name Nets with `add-label` / Net Label `edit-text` (native `set-net-label`).
   This creates the name claim and bound annotation together; free text does not.
   Supply `position` for a new label. RichText text runs use `value`, not `text`.
+  Plain text, a string as native `set-net-label` takes too, is a name: a new
+  label and a relabeled one alike show it in its standard look (`VB1` as V
+  over a B1 subscript), and a relabeled look of its own follows the new name.
+  RichText sets a look of its own.
   Anonymous internal Nets are valid; deliberately name nodes referenced by
   simulation scripts so generated names cannot silently change their meaning.
 
@@ -307,25 +338,30 @@ Multiple placements, wires, labels, model assignments and annotation moves have
 existing atomic batch paths. Failure commits nothing; success has one undo.
 One transaction takes at most 64 expanded edits. A placed part expands to about
 two (the part and its name label; three with `showValue:true`) and a Cell Pin to
-about five, so one `circuit_place` call fits about 20 to 30 parts. A placement batch over the limit
-commits nothing and fails with `LIMIT_EXCEEDED`; its diagnostic gives
-`expandedEdits`, `maxTransactionEdits` and `fittingPlacements`, the number of
-leading placements that fit in one call. An over-limit `delete-selection`
+about five, so one transaction fits about 20 to 30 parts. A placement batch
+(`circuit_place`, up to 64 parts) over the limit needs no splitting: the editor
+places it in as many transactions as it takes, each planned on what the one
+before placed, with one receipt and one undo; a refusal of any leaves none of
+it. A dry run checks one transaction, so over the limit it fails with
+`LIMIT_EXCEEDED`, as a `place-components` sent in the native `command` form
+does; its diagnostic gives `expandedEdits`, `maxTransactionEdits` and `fittingPlacements`, the
+number of leading placements that fit in one call. An over-limit `delete-selection`
 gives the same two counts, the selected count per class
 (`selectedInstances`, `selectedRoutes`, …) and the leading part that fits,
 taken in class order (`fittingInstances`, `fittingRoutes`, …). Delete that
 part, then refresh and delete what remains, since deleting a part also deletes
 wires that only tapped it. Any other command over the limit names itself and
 its `expandedEdits`.
-Display flags, Port directions, VDD mode and terminal removal can share the
-existing command batch. Pure Document presentation batches do not advance the
+Display flags, Port directions, VDD mode, terminal removal and power rails
+(`add-power-rail`, `extend-power-rail`) can share the existing command batch:
+a VDD rail and a VSS rail are one call and one undo. Pure Document presentation batches do not advance the
 Project structure revision. Failures identify the originating action where known.
 Keep unrelated command forms separate rather than assuming arbitrary mixtures
 are atomic. A list that would need several transactions commits nothing and
 fails with `ACTION_BATCH_NOT_ATOMIC`; its `calls` list says which action
-indexes go in which call, in order (a power rail, for example, is a command of
-its own, apart from a placement batch). Both ordinary and full typed editing
-remain available.
+indexes go in which call, in order (a placement batch, for example, goes
+apart from the wires that join its parts; a `focus` goes with the last call).
+Both ordinary and full typed editing remain available.
 
 `route-net` (in `apply_actions`, native `command`) fills missing visible connections for a
 current Net ID/name, one member pin, an explicit list of pins to join, or a
@@ -428,7 +464,15 @@ it would read as that part's, and no label stands within about a character
 (10 units) of another part's label on its row, where the two read as one run.
 A two-terminal part drawn along a horizontal wire, such as a ladder's series
 inductor, takes the clear side above the wire when its labels below would
-stand in a row with those of a part wired to it. Where parts
+stand in a row with those of a part wired to it. A label boxed in by a loop
+of wire, such as inside a varactor's source–drain tie, counts as crowded even
+when it touches no wire. `side:"left"|"right"|"top"|"bottom"` tries that side
+first; `side:"outside"` puts each part's labels on the side away from the
+drawing's centre line, so the two halves of a differential circuit mirror
+(parts on the line keep their default rows). A part `place-component`
+puts where its default labels would cross a wire, a dot or another label,
+or sit inside a loop of wire, has them arranged the same way as it is
+placed. Where parts
 sit too close for both, the value is the one left touching a wire; hide values
 with `set-instance-display` or move the parts apart. A requested Port's name
 that a part or wire now covers moves to the first clear one of its sides. Set `compact:false` or `avoidCollisions:false` to disable
@@ -465,7 +509,11 @@ placed with `showValue:true`. Over the edit
 limit, nothing changes and `LIMIT_EXCEEDED` names the leading parts that fit
 (`fittingParts`); apply it to those, then to the rest.
 
-The focused `circuit_text` action `move-annotation` sets an absolute position,
+A part's labels are listed on it: a full or `pins` Snapshot asked with
+`instanceLabels:true` gives each instance record `annotations`, its name,
+value and parameter labels with their ids, drawn text and `position` (MCP
+object `inspect` asks for you). The focused `circuit_text` action
+`move-annotation` sets that absolute position,
 and with `alignment` (`start`, `middle` or `end`) which end of the text
 stands there, so a label moved to a part's other side needs no width
 (geometry `inspect` with `textBounds:true` reads a drawn label's box when it

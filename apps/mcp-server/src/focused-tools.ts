@@ -84,11 +84,14 @@ export const FOCUSED_TOOLS = [
   {
     name: "circuit_place",
     source: "apply_actions",
+    // A Cell's body default goes with its supplies: circuit_wire and
+    // circuit_properties are at the host's 5,000-byte budget (#1520).
     operations: [
       "place-component",
       "place-cell",
       "place-existing",
       "add-power-rail",
+      "set-mos-bulk-default",
     ],
   },
   {

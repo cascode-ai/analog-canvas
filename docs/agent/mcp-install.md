@@ -27,9 +27,26 @@ download, integrity, stdio readiness, host loading, pairing or editor readiness.
 Connect with the human's claim, then follow the [quickstart](mcp-quickstart.md).
 Later processes can resume the saved revocable connector without a claim.
 Keep its storage private; `ANALOG_CANVAS_MCP_CONNECTOR` overrides a file path,
-never a token. Disconnect or expiry revokes the session; Project switches do not.
+never a token. The default file, one per editor origin, belongs to the first
+running MCP process that uses it, and a restart resumes it. Another MCP process
+running at the same time neither resumes nor overwrites it: it keeps its own
+connector in memory and needs its own claim, so parallel clients never drive
+one page by accident. Give each parallel worker its own
+`ANALOG_CANVAS_MCP_CONNECTOR` file to resume after a restart, or give several
+one file to share a page on purpose. Disconnect or expiry revokes the session;
+Project switches do not.
 A local probe is not live-session acceptance: inspect the authorized context
 and complete the requested operation, including results for simulation.
+
+Automation that opens the editor itself, a headless browser driving batch
+workers for instance, pairs without the panel. Open the editor with
+`?agent=pair` (`/editor?agent=pair`): the page connects on load as
+**Connect Agent** does, without opening the panel or adding a control, and
+`await window.analogCanvasAgent.claimCode()` in that page returns its claim
+for `connect`. It rejects when the page is already paired, when connecting
+failed or when the claim expired; a page that resumed its earlier pairing
+keeps it. The claim lives only in the page: never put it in a URL, storage or
+a log.
 
 Use HTTP only when the user chooses it. The same-origin `/api/agent/kit`
 provides its independent caller workflow. HTTP success does not prove MCP loading.

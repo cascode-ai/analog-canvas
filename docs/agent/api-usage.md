@@ -7,7 +7,10 @@ schemas, response envelopes and limits. The Kit does not replace that contract.
 ## Connect and select a Document
 
 1. Redeem the human's claim with `POST /api/agent/claims` and
-   `{"claimCode":"<claim-code>"}`.
+   `{"claimCode":"<claim-code>"}`. Automation that opened the editor itself
+   with `/editor?agent=pair` reads that page's claim from
+   `await window.analogCanvasAgent.claimCode()` instead; keep it out of URLs,
+   storage and logs.
 2. Retain returned `sessionId`, current `projectId`, `documentIds` and `contextRevision`.
    Keep `agentToken` in memory; store `connectorToken` only in private
    credential storage. Never log credentials or put them in circuit files.

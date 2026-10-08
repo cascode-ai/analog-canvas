@@ -1244,7 +1244,7 @@ it("reads a SKY130 short device name as its reviewed target in a SKY130 Project"
   ).toBeUndefined();
 });
 
-it("says how far a placement batch over the edit limit expands and how much of it fits", async () => {
+it("places a batch over the edit limit in as many transactions as it takes, as one undo step and one receipt (#1516)", async () => {
   const { client, controller } = await folder();
   const actions = [
     ...Array.from({ length: 20 }, (_, index) => ({
@@ -1268,9 +1268,11 @@ it("says how far a placement batch over the edit limit expands and how much of i
     },
   ];
   const before = controller.document.revision;
-  const rejected = await client.applyActions(actions);
+  // A dry run checks one transaction: it says how far the batch expands and
+  // how many leading placements fit, exactly, as the split uses it.
+  const dry = { dryRunOnly: true };
+  const rejected = await client.applyActions(actions, dry);
   expect(rejected).toMatchObject({ ok: false, code: "LIMIT_EXCEEDED" });
-  expect(controller.document.revision).toBe(before);
   const limit = rejected.diagnostics?.[0]?.parameters as
     | {
         expandedEdits: number;
@@ -1283,19 +1285,81 @@ it("says how far a placement batch over the edit limit expands and how much of i
   expect(rejected.message).toContain(
     `22 placements expand to ${limit?.expandedEdits} edits, and one transaction takes at most 64. The first ${limit?.fittingPlacements} fit`,
   );
-  // Split there, both calls succeed: the count is exact, not a guess.
   const fitting = limit!.fittingPlacements;
   expect(fitting).toBeGreaterThan(10);
-  const first = await client.applyActions(actions.slice(0, fitting));
-  expect(first.ok, first.message).toBe(true);
-  const rest = await client.applyActions(actions.slice(fitting));
-  expect(rest.ok, rest.message).toBe(true);
-  expect(controller.document.instances).toHaveLength(22);
-  // One more placement in the first call would not have fitted.
-  const { client: again } = await folder();
-  expect(await again.applyActions(actions.slice(0, fitting + 1))).toMatchObject(
-    { ok: false, code: "LIMIT_EXCEEDED" },
+  expect((await client.applyActions(actions.slice(0, fitting), dry)).ok).toBe(
+    true,
   );
+  expect(
+    await client.applyActions(actions.slice(0, fitting + 1), dry),
+  ).toMatchObject({ ok: false, code: "LIMIT_EXCEEDED" });
+  expect(controller.document.revision).toBe(before);
+
+  const placed = await client.applyActions(actions);
+  expect(placed.ok, placed.message).toBe(true);
+  const ids = controller.document.instances.map((instance) => instance.id);
+  expect(ids).toHaveLength(22);
+  expect(placed.changedObjectIds).toEqual(expect.arrayContaining(ids));
+  expect(placed.revision).toBe(controller.document.revision);
+  // More than one transaction, each within the limit.
+  expect(controller.document.revision).toBeGreaterThan(before + 1);
+  // The ground of the last transaction gave the NMOS of the first their
+  // body, as one transaction would have.
+  const ground = controller.document.nets.find((net) =>
+    net.terminals.some((terminal) =>
+      controller.document.instances.some(
+        (instance) =>
+          instance.id === terminal.instanceId && instance.symbolId === "ground",
+      ),
+    ),
+  );
+  for (const instance of controller.document.instances)
+    if (instance.symbolId === "nmos")
+      expect(ground?.terminals).toContainEqual({
+        instanceId: instance.id,
+        pinName: "B",
+      });
+  // One undo step takes all of it back, one redo brings it again.
+  expect((await client.applyActions([{ kind: "undo" }])).ok).toBe(true);
+  expect(controller.document.instances).toHaveLength(0);
+  expect(controller.canUndo).toBe(false);
+  expect((await client.applyActions([{ kind: "redo" }])).ok).toBe(true);
+  expect(controller.document.instances.map((instance) => instance.id)).toEqual(
+    ids,
+  );
+});
+
+it("leaves nothing of a split placement batch when a later transaction is refused (#1516)", async () => {
+  const { client, controller } = await folder();
+  const instances = Array.from({ length: 22 }, (_, index) => ({
+    // The last reuses the first's ID: only its own transaction finds out.
+    id: index === 21 ? "M1" : `M${index + 1}`,
+    symbolId: "nmos",
+    reference: `M${index + 1}`,
+    placement: {
+      position: { x: (index % 5) * 100, y: Math.floor(index / 5) * 100 },
+      rotation: 0 as const,
+      mirror: "none" as const,
+    },
+  }));
+  const before = structuredClone(controller.document);
+  const refused = await client.applyActions([
+    {
+      kind: "place-components",
+      instances,
+      displays: Object.fromEntries(
+        instances.map((instance) => [instance.id, { showValue: true }]),
+      ),
+    },
+  ]);
+  expect(refused.ok).toBe(false);
+  expect(refused.message).toContain("instances[21]");
+  expect(refused.message).toContain("Object ID already exists: M1");
+  // Its first transaction was committed, then taken back.
+  expect(controller.document.revision).toBeGreaterThan(before.revision);
+  expect(controller.document.instances).toEqual(before.instances);
+  expect(controller.document.annotations).toEqual(before.annotations);
+  expect(controller.canUndo).toBe(false);
 });
 
 it("names the part of an over-limit delete that fits, and both calls succeed", async () => {

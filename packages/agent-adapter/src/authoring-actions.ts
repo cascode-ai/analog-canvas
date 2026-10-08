@@ -3,6 +3,7 @@ import {
   RichTextDocumentSchema,
   InstanceNetlistDataSchema,
   SignalFlowParametersSchema,
+  StableIdSchema,
 } from "@icm/model";
 import {
   AgentAuthoringCommandSchema,
@@ -218,6 +219,9 @@ export const AuthoringActionSchema = z.discriminatedUnion("kind", [
       kind: z.literal("place-component"),
       /** Reviewed built-in Razavi symbol ID from the authoring catalog. */
       symbol: z.string().min(1),
+      id: StableIdSchema.optional().describe(
+        "Your own stable ID for the part, refused if taken. Later actions of the same list name it by this ID, a ground or one of several VDD markers included.",
+      ),
       reference: z
         .string()
         .min(1)

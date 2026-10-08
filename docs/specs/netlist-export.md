@@ -450,7 +450,10 @@ library's values as its defaults. `tcoil` (ports `n1 n2 n3`, for pins 1, 2
 and the centre tap 3) is `L1 n1 n3 {l1}`, `L2 n3 n2 {l2}`, `K12 L1 L2 {k}`
 and the bridge `CB n1 n2 {cb}`; `xfmr` (ports `p_minus p_plus s_minus
 s_plus`) is `LP p_plus p_minus {lp}`, `LS s_plus s_minus {ls}` and
-`K1 LP LS {k}`. Each winding is written from the end the Symbol's polarity
+`K1 LP LS {k}`; `ct_inductor` (ports `n1 n2 n3`), for a Center-Tap
+Inductor, is the T-coil without its bridge: `L1 n1 n3 {l1}`, `L2 n3 n2 {l2}`
+and `K12 L1 L2 {k}`, with `k` defaulting to 0, so its halves are plain series
+inductors unless a coupling is given. Each winding is written from the end the Symbol's polarity
 dot marks, which is the node SPICE and Spectre read as the dot, so a
 T-coil's windings aid from end to end (L1 + L2 + 2M) and a transformer's
 dotted pins are in phase. Spectre writes the same network with `inductor`

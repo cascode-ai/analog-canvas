@@ -191,6 +191,8 @@ export class ActionCompileError extends Error {
 interface SnapshotInstance {
   id: string;
   reference: string | null;
+  /** A Cell Pin marker's name, which a Reference target names it by. */
+  cellPinName?: string;
   symbolId: string;
   placed: boolean;
   position: { x: number; y: number } | undefined;
@@ -215,6 +217,11 @@ interface ResolvedDocument {
   grid: number;
   cellTerminalInstanceIds: Set<string>;
   instances: SnapshotInstance[];
+  /**
+   * Parts placed by earlier actions of the list, for later ones to name
+   * (#1515): their pins as the catalog gives them, with no geometry yet.
+   */
+  listed: SnapshotInstance[];
   nets: {
     id: string;
     name: string | null;
@@ -255,6 +262,9 @@ function resolvedDocument(snapshot: AgentSessionSnapshot): ResolvedDocument {
     instances: document.instances.map((instance) => ({
       id: instance.id,
       reference: instance.reference,
+      ...(instance.cellTerminal
+        ? { cellPinName: instance.cellTerminal.name }
+        : {}),
       symbolId: instance.symbolId,
       placed: instance.placement !== null,
       position: instance.placement?.position,
@@ -290,6 +300,7 @@ function resolvedDocument(snapshot: AgentSessionSnapshot): ResolvedDocument {
           }
         : {}),
     })),
+    listed: [],
     nets: document.nets.map((net) => ({
       id: net.id,
       name: net.name,
@@ -334,6 +345,30 @@ function existingIds(document: ResolvedDocument): Set<string> {
   ]);
 }
 
+/**
+ * The part a Reference (or a Cell Pin's name) names, in the Document or
+ * placed earlier in the list. A name several parts share, as every VDD
+ * marker's is, is refused with their IDs rather than taken to mean the
+ * first (#1515).
+ */
+function instanceNamed(
+  document: ResolvedDocument,
+  index: number,
+  kind: string,
+  name: string,
+): SnapshotInstance | undefined {
+  const named = [...document.instances, ...document.listed].filter(
+    (instance) => (instance.reference ?? instance.cellPinName) === name,
+  );
+  if (named.length > 1)
+    throw new ActionCompileError(
+      index,
+      kind,
+      `"${name}" names ${named.length} parts (${named.map((instance) => instance.id).join(", ")}); name one by {kind:"instance", id}`,
+    );
+  return named[0];
+}
+
 function resolveInstance(
   document: ResolvedDocument,
   index: number,
@@ -344,16 +379,15 @@ function resolveInstance(
     throw new ActionCompileError(index, kind, "expected an instance reference");
   }
   const found = ref.id
-    ? document.instances.find((instance) => instance.id === ref.id)
-    : document.instances.find(
-        (instance) =>
-          "reference" in ref && instance.reference === ref.reference,
-      );
+    ? [...document.instances, ...document.listed].find(
+        (instance) => instance.id === ref.id,
+      )
+    : instanceNamed(document, index, kind, ref.reference ?? "");
   if (!found) {
     throw new ActionCompileError(
       index,
       kind,
-      `no instance matches ${ref.id ? `id "${ref.id}"` : `Reference "${"reference" in ref ? ref.reference : ""}"`}`,
+      `no instance matches ${ref.id ? `id "${ref.id}"` : `Reference "${ref.reference ?? ""}"`}`,
     );
   }
   return found;
@@ -521,6 +555,17 @@ export function compileActions(
         `allocated ID "${id}" collides with an existing object`,
       );
     }
+    usedIds.add(id);
+    return id;
+  };
+  /** An ID the caller chose, refused if an object already holds it. */
+  const claimId = (index: number, kind: string, id: string): string => {
+    if (usedIds.has(id))
+      throw new ActionCompileError(
+        index,
+        kind,
+        `ID "${id}" is already taken; choose another, or leave id out for a new one`,
+      );
     usedIds.add(id);
     return id;
   };
@@ -692,6 +737,7 @@ export function compileActions(
       case "route-net":
       case "set-port-direction":
       case "set-vdd-mode":
+      case "set-mos-bulk-default":
       case "delete-selection":
       case "add-power-rail":
       case "extend-power-rail":
@@ -789,7 +835,10 @@ export function compileActions(
           index,
           action,
           document,
-          allocateId,
+          () =>
+            action.id === undefined
+              ? allocateId("instance")
+              : claimId(index, action.kind, action.id),
           pushPlacement,
         );
         break;
@@ -1186,7 +1235,8 @@ function compilePlaceComponent(
   index: number,
   action: ActionOfKind<"place-component">,
   document: ResolvedDocument,
-  allocateId: AllocateId,
+  /** The part's ID: the caller's own, or a new one. */
+  newId: () => string,
   pushPlacement: PushPlacement,
 ): void {
   if (action.symbol === "vdd") {
@@ -1289,16 +1339,36 @@ function compilePlaceComponent(
   const mirrored = action.mirrorOf
     ? mirroredPlacement(index, action, document)
     : undefined;
+  const id = newId();
+  const placement = mirrored ?? {
+    position: action.position ?? { x: 0, y: 0 },
+    rotation: action.rotation ?? 0,
+    mirror: action.mirror ?? "none",
+  };
+  // Later actions of the list may name it; where a pin anchor puts it is
+  // known only once it lands.
+  document.listed.push({
+    id,
+    reference: cellPin ? null : (reference ?? null),
+    ...(cellPin && reference ? { cellPinName: reference } : {}),
+    symbolId: action.symbol,
+    placed: true,
+    position: action.pinAnchor ? undefined : placement.position,
+    orientation: {
+      rotation: placement.rotation,
+      mirror: placement.mirror,
+    } as Orientation,
+    pins: catalogSymbol.pins.map((pin) => ({
+      name: pin.name,
+      connection: null,
+    })),
+  });
   pushPlacement(index, action.kind, {
-    id: allocateId("instance"),
+    id,
     symbolId: action.symbol,
     ...(reference ? { reference } : {}),
     ...(variant ? { symbolVariantId: variant } : {}),
-    placement: mirrored ?? {
-      position: action.position ?? { x: 0, y: 0 },
-      rotation: action.rotation ?? 0,
-      mirror: action.mirror ?? "none",
-    },
+    placement,
     // Without parameters or control the editor fills the netlist, catalog
     // defaults and the Process's model, exactly as a GUI insert, and leaves a
     // block that emits nothing without one.
@@ -1340,15 +1410,19 @@ function mirroredPlacement(
       "mirrorOf takes rotation and mirror from the part it reflects; omit them",
     );
   const source =
-    document.instances.find((instance) => instance.reference === of.instance) ??
-    document.instances.find((instance) => instance.id === of.instance);
+    instanceNamed(document, index, action.kind, of.instance) ??
+    [...document.instances, ...document.listed].find(
+      (instance) => instance.id === of.instance,
+    );
   if (!source?.position || !source.orientation)
     throw new ActionCompileError(
       index,
       action.kind,
-      source
-        ? `${of.instance} is not placed yet; place it before mirroring it`
-        : `no part ${of.instance} to mirror`,
+      !source
+        ? `no part ${of.instance} to mirror`
+        : source.placed
+          ? `${of.instance} lands by its pin anchor in this list; mirror it in a later call`
+          : `${of.instance} is not placed yet; place it before mirroring it`,
     );
   const position =
     of.x !== undefined

@@ -55,6 +55,7 @@ import {
   labelTextDocument,
   type CircuitProject,
   type Instance,
+  type RichTextDocument,
   type SchematicDocument,
 } from "@icm/model";
 import {
@@ -118,7 +119,14 @@ import {
   planVddRailEdits,
   railSupplyPinEdits,
 } from "../features/component-insert/vdd-rail";
-import { planInitialMosBulkDefault } from "../features/component-insert/mos-bulk-defaults";
+import {
+  planInitialMosBulkDefault,
+  planMosBulkDefaultUpdate,
+} from "../features/component-insert/mos-bulk-defaults";
+import {
+  logicalNetChoiceForNet,
+  logicalNetChoices,
+} from "../features/logical-net-choices";
 import { placedInstanceNetlist } from "../features/component-insert/placed-instance-netlist";
 
 /** What the live editor knows beyond the Project. */
@@ -368,6 +376,12 @@ export function planBrowserAgentCommand(
   command: AgentAuthoringCommand,
   maxTransactionEdits = Number.POSITIVE_INFINITY,
   context: BrowserAgentPlanningContext = {},
+  /**
+   * A batch's command: a rail takes its IDs from the batch's own sequence
+   * and its place in the batch, not from the draft the batch has advanced,
+   * whose revision the next call's commit reaches (#1517).
+   */
+  batchItem?: { sequence: number; index: number },
 ): AgentCommandPlan {
   const document = project.documents.find((item) => item.id === documentId);
   if (!document) throw new Error("Document not found");
@@ -627,6 +641,35 @@ export function planBrowserAgentCommand(
           command.mode,
         ),
       };
+    case "set-mos-bulk-default": {
+      // As the Cell settings in Properties set it: bodies that followed the
+      // old default move to the new one, wired bodies stay (#1520).
+      let netId: string | null = null;
+      if (command.net !== null) {
+        const requested = command.net;
+        const matches = [
+          ...resolveDocumentLogicalNets(document).byBaseNetId,
+        ].filter(
+          ([id, net]) =>
+            id === requested ||
+            net.id === requested ||
+            foldNetName(net.name ?? "") === foldNetName(requested),
+        );
+        if (new Set(matches.map(([, net]) => net.id)).size > 1)
+          throw new Error(
+            `Several Nets are named ${requested}; give the Net ID instead`,
+          );
+        const choice = logicalNetChoiceForNet(
+          logicalNetChoices(document),
+          matches[0]?.[0],
+        );
+        if (!choice) throw new Error(`Net not found: ${requested}`);
+        netId = choice.netId;
+      }
+      return {
+        edits: [...planMosBulkDefaultUpdate(document, command.mos, netId)],
+      };
+    }
     case "add-power-rail": {
       if (
         (command.start.x === command.end.x) ===
@@ -693,7 +736,13 @@ export function planBrowserAgentCommand(
       // GUI contact capture is intentional for its gesture. Agent geometry alone
       // is not permission to join other pins: explicit wiring remains explicit.
       const plan = planVddRailEdits(document, {
-        instanceId: deriveStableId("agent-rail", `${documentId}:${sequence}`),
+        instanceId: batchItem
+          ? deriveStableId(
+              "agent-rail",
+              `${documentId}:${batchItem.sequence}`,
+              String(batchItem.index),
+            )
+          : deriveStableId("agent-rail", `${documentId}:${sequence}`),
         start: command.start,
         end: command.end,
         ...((command.netId ?? named?.[0])
@@ -736,6 +785,7 @@ export function planBrowserAgentCommand(
             item,
             maxTransactionEdits,
             context,
+            { sequence, index },
           );
           onlyDocument &&= !("structureEdits" in plan);
           const next: ProjectStructureEdit[] =
@@ -977,6 +1027,7 @@ export function planBrowserAgentCommand(
                 ? {}
                 : { showDesignator: display.showReference }),
               showValue: display?.showValue === true,
+              clearOfWiring: true,
             },
           ).map((annotation): SchematicEdit => ({
             kind: "upsert_schematic_annotation",
@@ -987,7 +1038,8 @@ export function planBrowserAgentCommand(
       // One transaction takes a bounded number of edits, and each placement
       // expands to several (the part, its labels, a Pin's terminal and Net).
       // A batch over the bound commits nothing; it says what it expanded to
-      // and how many leading placements fit, so it splits without guessing.
+      // and how many leading placements fit, so it splits without guessing:
+      // an action list is split there by the service itself (#1516).
       const expanded = edits.length + (changesInterface ? 1 : 0);
       if (expanded > maxTransactionEdits) {
         let fitting = 0;
@@ -1117,7 +1169,11 @@ export function planBrowserAgentCommand(
         instance,
         resolver,
         resolveDocumentStyleProfile(document.presentation),
-        { showDesignator: false, masterName: child.netlist.name },
+        {
+          showDesignator: false,
+          masterName: child.netlist.name,
+          clearOfWiring: true,
+        },
       );
       return {
         structureEdits: planPlaceCellInstance(
@@ -1173,6 +1229,13 @@ export function planBrowserAgentCommand(
       };
     }
     case "set-net-label": {
+      // Plain text, a string or one text run, is a name: the label shows it
+      // in its look rather than as bare text (#1521).
+      const text: RichTextDocument =
+        typeof command.text === "string"
+          ? { runs: [{ kind: "text", value: command.text }] }
+          : command.text;
+      const plainText = text.runs.length === 1 && text.runs[0]?.kind === "text";
       const existing = document.annotations.find(
         (item) => item.id === command.annotationId,
       );
@@ -1197,7 +1260,7 @@ export function planBrowserAgentCommand(
         const rename = planElectricalMarkerRename(
           document,
           existing.anchor.objectId,
-          flattenRichText(command.text),
+          flattenRichText(text),
         );
         if (rename.status === "rejected") throw new Error(rename.message);
         const edits = rename.status === "ready" ? [...rename.plan.edits] : [];
@@ -1218,10 +1281,7 @@ export function planBrowserAgentCommand(
                 // Plain text is a semantic rename. The shared marker planner
                 // already preserves/customizes its look; only explicit RichText
                 // replaces that format rather than erasing it with bare text.
-                ...(command.text.runs.length === 1 &&
-                command.text.runs[0]?.kind === "text"
-                  ? {}
-                  : { formatOverride: command.text }),
+                ...(plainText ? {} : { formatOverride: text }),
               },
             },
           ],
@@ -1233,24 +1293,22 @@ export function planBrowserAgentCommand(
           item.owner.kind === "net-label" &&
           item.owner.annotationId === command.annotationId,
       );
-      const name = flattenRichText(command.text).trim();
-      const plainText =
-        command.text.runs.length === 1 && command.text.runs[0]?.kind === "text";
+      const name = flattenRichText(text).trim();
+      // A relabeled look of its own follows the new name; a label without
+      // one takes the role look a new label gets (#1521).
       const labelFormat = plainText
-        ? existing
-          ? existing.formatOverride
-            ? renamedLabelFormat(
-                existing,
-                resolveAnnotationName(document, existing),
-                name,
-                document.presentation,
-              )
-            : undefined
+        ? existing?.formatOverride
+          ? renamedLabelFormat(
+              existing,
+              resolveAnnotationName(document, existing),
+              name,
+              document.presentation,
+            )
           : roleLabelFormat(
               net.powerDomain === "none" ? "voltage-node" : "supply",
               name,
             )
-        : command.text;
+        : text;
       const plan = planEnsureNamedNet(document, {
         candidateNetId: netId,
         name,

@@ -22,7 +22,40 @@ import {
 } from "./routing-planner.js";
 import { createContactPlanningDraft } from "./contact-planning-draft.js";
 import { createRouteClearance } from "./route-clearance.js";
-import { resolveWireIntentTarget } from "./wire-intent-target.js";
+import {
+  resolveWireIntentTarget,
+  wireTargetReference,
+} from "./wire-intent-target.js";
+
+/**
+ * A drawn path from landing to landing, as the clearance check reads one: the
+ * lead from a pin's contact to its landing is the pin's own, as a hidden MOS
+ * body's is out of the channel. Read from the contact, a body wire passed
+ * through its own part, so one given via points was refused (#1514).
+ */
+function fromLandings(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  points: readonly Point[],
+  ends: readonly (RouteEndpoint | undefined)[],
+): Point[] {
+  const trim = (path: Point[], end: RouteEndpoint | undefined) => {
+    const connection =
+      end && resolveEndpointConnection(document, resolver, end);
+    if (
+      !connection ||
+      path.length < 2 ||
+      samePoint(connection.contactPoint, connection.gridLanding) ||
+      !samePoint(path[0]!, connection.contactPoint) ||
+      !pointOnSegment(connection.gridLanding, path[0]!, path[1]!)
+    )
+      return path;
+    return samePoint(connection.gridLanding, path[1]!)
+      ? path.slice(1)
+      : [connection.gridLanding, ...path.slice(1)];
+  };
+  return trim(trim([...points], ends[0]).reverse(), ends[1]).reverse();
+}
 
 /**
  * A wire that keeps clear of what it must not touch (#1257): another Net's
@@ -45,10 +78,15 @@ function keepClear(
     document,
     resolver,
     intent.from,
-    intent.to,
+    wireTargetReference(intent.waypoints, "from", intent.to),
   );
   if (typeof from === "string") return intent;
-  const to = resolveWireIntentTarget(document, resolver, intent.to, from);
+  const to = resolveWireIntentTarget(
+    document,
+    resolver,
+    intent.to,
+    wireTargetReference(intent.waypoints, "to", from),
+  );
   if (typeof to === "string") return intent;
   // A wire drawn between points alone is drawn where it is asked: it may
   // end on another wire to join it.
@@ -78,6 +116,7 @@ function keepClear(
   const ends = [from, to].map((anchor) =>
     anchor.kind === "endpoint" ? anchor.endpoint : undefined,
   );
+  points = fromLandings(document, resolver, points, ends);
   const netsOf = (anchor: typeof from): string[] => {
     if (anchor.kind === "route-segment") {
       const netId = document.routes.find(
@@ -419,10 +458,16 @@ export function planWireBatch(
     if (typeof from === "string") return `Wire ${index + 1}: ${from}`;
     const to = rebaseAnchor(intent.to);
     if (typeof to === "string") return `Wire ${index + 1}: ${to}`;
-    const selectedFrom = resolveAnchor(from, to);
+    const selectedFrom = resolveAnchor(
+      from,
+      wireTargetReference(intent.waypoints, "from", to),
+    );
     if (typeof selectedFrom === "string")
       return `Wire ${index + 1}: ${selectedFrom}`;
-    const selectedTo = resolveAnchor(to, selectedFrom);
+    const selectedTo = resolveAnchor(
+      to,
+      wireTargetReference(intent.waypoints, "to", selectedFrom),
+    );
     if (typeof selectedTo === "string")
       return `Wire ${index + 1}: ${selectedTo}`;
     const selected = { ...intent, from: selectedFrom, to: selectedTo };

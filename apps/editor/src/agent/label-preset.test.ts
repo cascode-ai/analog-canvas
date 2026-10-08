@@ -216,6 +216,8 @@ describe("apply-label-preset textbook (#1350)", () => {
       { kind: "apply-label-preset", preset: "textbook" },
     ]);
     expect(again).toMatchObject({ ok: true, applied: false });
+    // It says so, never a bare ok (#1525).
+    expect(JSON.stringify(again)).toContain("NOTHING_CHANGED");
     expect(controller.document.revision).toBe(before.revision + 1);
 
     // One undo takes it all back.

@@ -19,6 +19,7 @@ import {
   legacyPortLabelPlacement,
   previousDefaultInstanceLabelPlacement,
   previousPortLabelPlacement,
+  shallowPortLabelPlacement,
   defaultInstanceParameterLabelPlacement,
   legacyDefaultInstanceParameterLabelPlacement,
   previousDefaultInstanceParameterLabelPlacement,
@@ -171,6 +172,12 @@ function isCanonicalCellPinLabel(
       "reference",
     ),
     previousPortLabelPlacement(
+      before,
+      resolved,
+      profile,
+      document.presentation.grid,
+    ),
+    shallowPortLabelPlacement(
       before,
       resolved,
       profile,

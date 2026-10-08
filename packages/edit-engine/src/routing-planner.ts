@@ -65,6 +65,7 @@ import { splitRoutePieceIds } from "./split-route-ids.js";
 import {
   resolveWireIntentTarget,
   routeTapLanding,
+  wireTargetReference,
 } from "./wire-intent-target.js";
 
 export interface WireEndpointGeometry {
@@ -2334,10 +2335,15 @@ export function proposeWireIntent(
       document,
       resolver,
       intent.from,
-      intent.to,
+      wireTargetReference(intent.waypoints, "from", intent.to),
     );
     if (typeof from === "string") return from;
-    const to = resolveWireIntentTarget(document, resolver, intent.to, from);
+    const to = resolveWireIntentTarget(
+      document,
+      resolver,
+      intent.to,
+      wireTargetReference(intent.waypoints, "to", from),
+    );
     if (typeof to === "string") return to;
     return proposeWireIntent(document, resolver, { ...intent, from, to });
   }
