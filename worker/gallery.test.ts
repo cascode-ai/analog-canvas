@@ -1984,6 +1984,8 @@ describe("newest-first gallery feed", () => {
       "attention=1",
       "parts=0-5",
       "parts=6-10,26-",
+      "ai=ai",
+      "ai=human&netlistable=1",
     ];
     const read = async () => {
       const results = [];
@@ -2003,19 +2005,28 @@ describe("newest-first gallery feed", () => {
       }
       return results;
     };
-    env.gallerySql.exec("DROP INDEX idx_gallery_entries_feed_stats_parts");
+    env.gallerySql.exec("DROP INDEX idx_gallery_entries_feed_stats_ai");
     const before = await read();
     env.gallerySql.exec(createIndex);
     const after = await read();
     expect(after).toEqual(before);
+    // Every count a page carries, the AI and Human pair's among them: one
+    // that read ai_generated off the row walked each entry's Project and SVG
+    // text, about 139,000 pages of a 1,269-entry Gallery per click (#1463).
     const queries = env.galleryQueries.filter(
       (q) =>
         q.includes("FROM gallery_entries e") &&
-        (q.includes("AS total") || q.includes("MAX(e.author)")),
+        (q.includes("AS total") ||
+          q.includes("MAX(e.author)") ||
+          q.includes("e.ai_generated = 1 THEN")),
     );
-    for (const query of queries
-      .filter((q) => (q.match(/\?/g) ?? []).length <= 4)
-      .slice(0, 2)) {
+    expect(queries.some((q) => q.includes("e.ai_generated = 1 THEN"))).toBe(
+      true,
+    );
+    for (const query of [
+      ...queries.filter((q) => (q.match(/\?/g) ?? []).length <= 4).slice(0, 2),
+      queries.find((q) => q.includes("e.ai_generated = 1 THEN"))!,
+    ]) {
       const bindings = Array.from(
         { length: (query.match(/\?/g) ?? []).length },
         () => "",
