@@ -509,7 +509,11 @@ placed with `showValue:true`. Over the edit
 limit, nothing changes and `LIMIT_EXCEEDED` names the leading parts that fit
 (`fittingParts`); apply it to those, then to the rest.
 
-The focused `circuit_text` action `move-annotation` sets an absolute position,
+A part's labels are listed on it: a full or `pins` Snapshot asked with
+`instanceLabels:true` gives each instance record `annotations`, its name,
+value and parameter labels with their ids, drawn text and `position` (MCP
+object `inspect` asks for you). The focused `circuit_text` action
+`move-annotation` sets that absolute position,
 and with `alignment` (`start`, `middle` or `end`) which end of the text
 stands there, so a label moved to a part's other side needs no width
 (geometry `inspect` with `textBounds:true` reads a drawn label's box when it

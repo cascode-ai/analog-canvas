@@ -189,6 +189,125 @@ describe("Agent Document Snapshot", () => {
     expect(route.styleOverride).toEqual({ color: "#123456", arrow: "end" });
   });
 
+  it("lists the labels that name or value each part, where they stand (#1518)", () => {
+    const project = fixtureProject();
+    const document = project.documents[0]!;
+    const label = {
+      alignment: "start" as const,
+      rotation: 0 as const,
+      locked: false,
+    };
+    document.annotations.push(
+      {
+        ...label,
+        id: "m1-name",
+        kind: "instance-label",
+        binding: { kind: "instance-reference", instanceId: "M1" },
+        anchor: {
+          kind: "object",
+          objectId: "M1",
+          localOffset: { x: 20, y: -10 },
+          fallbackPosition: { x: 0, y: 0 },
+        },
+      },
+      {
+        ...label,
+        id: "m1-w",
+        kind: "instance-value",
+        binding: { kind: "instance-value", instanceId: "M1", parameter: "w" },
+        anchor: { kind: "free", position: { x: 210, y: 230 } },
+        visible: false,
+      },
+      {
+        ...label,
+        id: "vout-name",
+        kind: "instance-label",
+        binding: {
+          kind: "cell-terminal-name",
+          terminalId: "cell-terminal-vout",
+        },
+        anchor: {
+          kind: "object",
+          objectId: "VOUT",
+          localOffset: { x: 10, y: 20 },
+          fallbackPosition: { x: 0, y: 0 },
+        },
+      },
+      {
+        ...label,
+        id: "vinp-net",
+        kind: "net-label",
+        netId: "net-vinp",
+        binding: { kind: "net-name", netId: "net-vinp" },
+        anchor: { kind: "free", position: { x: 0, y: 0 } },
+      },
+    );
+    // Without asking, the records keep the shape released clients parse.
+    expect(
+      JSON.stringify(
+        buildAgentSessionSnapshot({ project, document, resolver }).document
+          .instances,
+      ),
+    ).not.toContain('"annotations"');
+    const snapshot = buildAgentSessionSnapshot({
+      project,
+      document,
+      resolver,
+      instanceLabels: true,
+    });
+    const labelsOf = (id: string) =>
+      snapshot.document.instances.find((instance) => instance.id === id)!
+        .annotations;
+    expect(labelsOf("M1")).toEqual([
+      {
+        id: "m1-name",
+        kind: "instance-label",
+        visible: true,
+        resolvedText: "M1",
+        // M1 stands at (180, 200).
+        position: { x: 200, y: 190 },
+      },
+      {
+        id: "m1-w",
+        kind: "instance-value",
+        parameter: "w",
+        visible: false,
+        resolvedText: snapshot.document.annotations.find(
+          (annotation) => annotation.id === "m1-w",
+        )!.resolvedText,
+        position: { x: 210, y: 230 },
+      },
+    ]);
+    // A Cell Pin's name label, and an older drawing's literal one on its marker.
+    expect(labelsOf("VOUT")).toEqual([
+      {
+        id: "label-vout",
+        kind: "instance-label",
+        visible: true,
+        resolvedText: "Vout",
+        position: { x: 390, y: 150 },
+      },
+      {
+        id: "vout-name",
+        kind: "instance-label",
+        visible: true,
+        resolvedText: "VOUT",
+        position: { x: 390, y: 180 },
+      },
+    ]);
+    expect(labelsOf("M2")).toBeUndefined();
+    expect(JSON.stringify(snapshot.document.instances)).not.toContain(
+      "vinp-net",
+    );
+    // A pins read lists the same.
+    expect(
+      selectAgentInstances(
+        { project, document, resolver, instanceLabels: true },
+        ["M1"],
+      )[0]!.annotations,
+    ).toEqual(labelsOf("M1"));
+  });
+
   it("provides complete bidirectional topology and presentation facts", () => {
     const project = fixtureProject();
     const document = project.documents[0]!;

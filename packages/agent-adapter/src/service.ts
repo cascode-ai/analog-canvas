@@ -357,6 +357,7 @@ export function createAgentCircuitService(
         document: SchematicDocument;
         resolver: SymbolResolver;
         includeSourceSpans: boolean;
+        instanceLabels: boolean;
         snapshot: AgentSessionSnapshot;
       }
     | undefined;
@@ -721,6 +722,19 @@ export function createAgentCircuitService(
           );
         }
         if (
+          request.instanceLabels !== undefined &&
+          request.projection !== undefined &&
+          request.projection !== "full" &&
+          request.projection !== "pins"
+        ) {
+          return fail(
+            "snapshot",
+            "INVALID_REQUEST",
+            "instanceLabels applies only to the full and pins projections",
+            document.revision,
+          );
+        }
+        if (
           (request.projection === "pins") !==
             (request.instanceIds !== undefined) ||
           (request.projection === "pins" &&
@@ -734,7 +748,12 @@ export function createAgentCircuitService(
           );
         if (request.projection === "pins") {
           const instances = selectAgentInstances(
-            { document, resolver, ...(project ? { project } : {}) },
+            {
+              document,
+              resolver,
+              ...(project ? { project } : {}),
+              instanceLabels: request.instanceLabels === true,
+            },
             request.instanceIds!,
           );
           const found = new Set(instances.map((instance) => instance.id));
@@ -893,25 +912,29 @@ export function createAgentCircuitService(
             context,
           });
         }
+        const instanceLabels = request.instanceLabels === true;
         const cachedSnapshot = snapshotCache;
         const snapshot =
           cachedSnapshot !== undefined &&
           cachedSnapshot.project === project &&
           cachedSnapshot.document === document &&
           cachedSnapshot.resolver === resolver &&
-          cachedSnapshot.includeSourceSpans === includeSourceSpans
+          cachedSnapshot.includeSourceSpans === includeSourceSpans &&
+          cachedSnapshot.instanceLabels === instanceLabels
             ? cachedSnapshot.snapshot
             : buildAgentSessionSnapshot({
                 ...(project ? { project } : {}),
                 document,
                 resolver,
                 includeSourceSpans,
+                instanceLabels,
               });
         snapshotCache = {
           project,
           document,
           resolver,
           includeSourceSpans,
+          instanceLabels,
           snapshot,
         };
         diagnosticsCache = {
@@ -1013,6 +1036,8 @@ export function createAgentCircuitService(
                 document,
                 resolver,
                 includeSourceSpans: false,
+                instanceLabels:
+                  cached?.snapshot === snapshot && cached.instanceLabels,
                 snapshot,
               };
               return snapshot;

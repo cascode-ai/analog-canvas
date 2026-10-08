@@ -55,7 +55,7 @@ export const agentToolHelp = {
   get_context:
     "Read document identity/revision/counts with a lightweight request or clean cache. refresh:true reconciles external changes. Connect already returns context.",
   inspect:
-    "Read document/objects/nets/traces/activity (the session's last requests from any process, kept by the relay, beside this process's receipts). pins (instanceIds), geometry (objectIds; textBounds:true measures drawn label text) and diagnostics use targeted server projections; full Document facts remain available.",
+    "Read document/objects (a part lists its labels' ids and positions)/nets/traces/activity (the session's last requests from any process, kept by the relay, beside this process's receipts). pins (instanceIds), geometry (objectIds; textBounds:true measures drawn label text) and diagnostics use targeted server projections; full Document facts remain available.",
   search:
     "Case-insensitive search, including LaTeX, over one authorized document or scope:project. Results include documentId. Reuses clean Snapshots by default and loads authorized Project documents concurrently.",
   apply_actions:

@@ -406,6 +406,11 @@ refresh and re-plan; never blindly replay a changed payload.
 
 `inspect` with `target:{kind:"document"},detail:"full"` returns complete
 Document facts.
+`inspect` with `target:{kind:"object"}` on a part also lists its name, value
+and parameter labels as `annotations` (`id`, `kind`, `parameter`, `visible`,
+`resolvedText` and `position`, the point `move-annotation` sets), read with
+one targeted request, so a label is found and moved without a full Document
+read. An Editor without the list answers `annotationsUnavailable` instead.
 `inspect` with `target:{kind:"geometry",objectIds:["…"]}` reads up to 64
 specific authored objects (placement, routes, junctions, annotation anchors,
 drafting and no-connect objects). It returns current revision and missing IDs

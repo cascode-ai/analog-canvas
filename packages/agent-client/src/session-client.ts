@@ -1139,7 +1139,12 @@ export class AgentSessionClient {
     return parsed.data;
   }
 
-  async pinsSnapshot(instanceIds: readonly string[], documentId?: string) {
+  async pinsSnapshot(
+    instanceIds: readonly string[],
+    documentId?: string,
+    /** List each part's labels too (an editor with #1518). */
+    options: { instanceLabels?: boolean } = {},
+  ) {
     if (instanceIds.length < 1 || instanceIds.length > 64)
       throw new AgentSessionError(
         "INVALID_REQUEST",
@@ -1153,6 +1158,7 @@ export class AgentSessionClient {
       documentId: target,
       projection: "pins",
       instanceIds: [...instanceIds],
+      ...(options.instanceLabels ? { instanceLabels: true } : {}),
     });
     if (!response.ok)
       throw new AgentSessionError(

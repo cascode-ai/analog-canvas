@@ -68,6 +68,9 @@
             "$ref": "#/$defs/__schema1"
           }
         },
+        "instanceLabels": {
+          "type": "boolean"
+        },
         "diagnosticDetail": {
           "type": "string",
           "enum": [

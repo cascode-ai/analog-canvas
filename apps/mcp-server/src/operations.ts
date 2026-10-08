@@ -1410,8 +1410,29 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
       switch (parsed.target.kind) {
         case "document":
           return inspectDocument(entry, parsed.detail ?? "compact");
-        case "object":
-          return inspectObject(entry, parsed.target);
+        case "object": {
+          const found = inspectObject(entry, parsed.target);
+          const instance = entry.snapshot.document.instances.find(
+            (candidate) => candidate.id === found.id,
+          );
+          if (!instance) return found;
+          // A part's labels, for a move without a full read (#1518). The
+          // editor lists them only when asked: released clients parse its
+          // instance records strictly.
+          return session.client
+            .pinsSnapshot([instance.id], entry.documentId, {
+              instanceLabels: true,
+            })
+            .then((pins) => ({
+              ...found,
+              annotations: pins.instances[0]?.annotations ?? [],
+            }))
+            .catch((error: unknown) => ({
+              ...found,
+              annotationsUnavailable:
+                error instanceof Error ? error.message : "unknown",
+            }));
+        }
         case "net":
           return inspectObject(entry, parsed.target);
         case "connectivity":

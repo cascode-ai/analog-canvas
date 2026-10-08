@@ -155,6 +155,12 @@ A geometry Snapshot asked with `textBounds` also measures each annotation the
 canvas draws, as label placement measures it: `text.position`, where its
 alignment end stands, and `text.bounds`, the box its glyphs fill. Without the
 option the answer keeps the fields released clients parse strictly.
+A full or `pins` Snapshot asked with `instanceLabels` gives each instance
+record `annotations`: the labels that name or value that part (Reference,
+Value and parameter labels, a Cell Pin marker's name label, an older drawing's
+literal part label), each with `id`, `kind`, `parameter`, `visible`,
+`resolvedText` and `position`, the resolved anchor a `move-annotation` sets.
+It is opt-in for the same reason.
 Persisted Base-Net IDs
 remain valid only while their objects survive the edit lifecycle and are not
 exposed as an alternate Agent naming protocol.
