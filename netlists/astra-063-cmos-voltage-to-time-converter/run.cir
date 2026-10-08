@@ -1,0 +1,32 @@
+CMOS sampled voltage-to-time converter
+.include "circuit.spice"
+.include "models.spice"
+VDD vdd 0 3.3
+II 0 iref 20u
+VB vb 0 .9
+VR vref 0 .8
+VIN vin 0 PWL(0 1.2 150n 1.2 160n 1.6 350n 1.6 360n 2.0 600n 2.0)
+VS sample 0 PULSE(3.3 0 20n 100p 100p 159.9n 200n)
+VRUN run 0 PULSE(0 3.3 20n 100p 100p 159.9n 200n)
+XDUT vdd 0 vin ramp iref run sample vref vb out astra_063_cmos_voltage_to_time_converter
+.temp 27
+.options method=gear reltol=1e-5
+* @spec t1 range 1.5e-8 3e-8 unit=s
+* @spec t2 range 3e-8 5e-8 unit=s
+* @spec t3 range 5e-8 7.5e-8 unit=s
+* @spec sample1 range 1.18 1.22 unit=V
+* @spec sample2 range 1.58 1.62 unit=V
+* @spec sample3 range 1.98 2.02 unit=V
+.control
+set filetype=ascii
+tran 20p 600n
+meas tran t1 TRIG v(run) VAL=1.65 RISE=1 TARG v(out) VAL=1.65 FALL=1
+meas tran t2 TRIG v(run) VAL=1.65 RISE=2 TARG v(out) VAL=1.65 FALL=2
+meas tran t3 TRIG v(run) VAL=1.65 RISE=3 TARG v(out) VAL=1.65 FALL=3
+meas tran sample1 FIND v(ramp) AT=15n
+meas tran sample2 FIND v(ramp) AT=215n
+meas tran sample3 FIND v(ramp) AT=415n
+write out.raw v(out) v(ramp) v(vin) v(run) v(sample)
+quit
+.endc
+.end

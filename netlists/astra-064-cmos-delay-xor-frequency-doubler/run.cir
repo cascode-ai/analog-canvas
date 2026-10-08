@@ -1,0 +1,27 @@
+CMOS delay-XOR frequency doubler
+.include "circuit.spice"
+.include "models.spice"
+VDD vdd 0 3.3
+VCLK clk 0 PULSE(0 3.3 50n 100p 100p 49.9n 100n)
+XDUT vdd 0 clk out astra_064_cmos_delay_xor_frequency_doubler
+.temp 27
+.options method=gear reltol=1e-5
+* @spec rise_peak range 3.2 3.4 unit=V
+* @spec fall_peak range 3.2 3.4 unit=V
+* @spec quiet range -0.02 0.1 unit=V
+* @spec period range 4e-8 6e-8 unit=s
+* @spec width1 range 5e-9 2.5e-8 unit=s
+* @spec width2 range 5e-9 2.5e-8 unit=s
+.control
+set filetype=ascii
+tran 20p 400n
+meas tran rise_peak MAX v(out) FROM=50n TO=80n
+meas tran fall_peak MAX v(out) FROM=100n TO=130n
+meas tran quiet MAX v(out) FROM=82n TO=95n
+meas tran period TRIG v(out) VAL=1.65 RISE=3 TARG v(out) VAL=1.65 RISE=4
+meas tran width1 TRIG v(out) VAL=1.65 RISE=1 TARG v(out) VAL=1.65 FALL=1
+meas tran width2 TRIG v(out) VAL=1.65 RISE=2 TARG v(out) VAL=1.65 FALL=2
+write out.raw v(out) v(clk)
+quit
+.endc
+.end

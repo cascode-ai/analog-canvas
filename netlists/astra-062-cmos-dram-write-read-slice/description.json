@@ -1,0 +1,11 @@
+{
+  "name": "CMOS 1T1C DRAM write/read slice",
+  "description": "One NMOS access transistor and a 1 pF storage capacitor form a dynamic memory cell. Explicit write and midpoint-precharge transmission gates drive its 100 fF bitline; a five-MOS comparator and two inverters restore read data. Fourteen MOS devices and all storage/leakage loads are shown. The saved sequence writes 1, precharges and reads it, then writes and reads 0, checking storage and charge-sharing voltages. The NMOS-written high is threshold-limited and readout is destructive; no refresh or hidden decoder is included. Generic nominal models; retention time, sense margin, refresh timing and PVT are not qualified.",
+  "tags": [
+    "CMOS",
+    "DRAM",
+    "Dynamic Memory",
+    "Charge Sharing",
+    "Sense Readout"
+  ]
+}

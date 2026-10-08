@@ -1,0 +1,11 @@
+{
+  "name": "CMOS sampled voltage-to-time converter",
+  "description": "A transmission gate stores vin on a 1 pF ramp capacitor. A switched NMOS mirror discharges it with a 20 uA reference; an explicit comparator and restoring inverters mark crossing of 0.8 V. Sixteen MOS devices and all loads are shown. The saved experiment samples 1.2, 1.6 and 2.0 V and checks increasing delays and acquired voltages. This converts voltage to interval, rather than pulse width to voltage. Educational nominal models; transfer linearity, offset, jitter, mirror compliance and PVT are not qualified.",
+  "tags": [
+    "CMOS",
+    "Voltage To Time",
+    "Time Encoding",
+    "Current Mirror",
+    "Sampling"
+  ]
+}

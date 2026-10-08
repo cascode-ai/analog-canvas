@@ -1,0 +1,47 @@
+
+Note: No compatibility mode selected!
+
+
+Circuit: cmos sampled voltage-to-time converter
+
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+Initial Transient Solution
+--------------------------
+
+Node                                   Voltage
+----                                   -------
+vdd                                        3.3
+iref                                  0.740386
+vb                                         0.9
+vref                                       0.8
+vin                                        1.2
+sample                                     3.3
+run                                          0
+out                                        3.3
+ramp                                       1.2
+xdut.sampleb                       6.12963e-10
+xdut.net2                              2.37091
+xdut.net0                                  3.3
+xdut.net4                             0.253169
+xdut.net1                          6.12963e-10
+xdut.net3                         -1.53939e-50
+vrun#branch                                  0
+vs#branch                                    0
+vin#branch                        -1.19941e-09
+vr#branch                                    0
+vb#branch                                    0
+vdd#branch                        -8.82515e-05
+
+
+No. of Data Rows : 30588
+t1                  =  2.61482e-08 targ=  4.61982e-08 trig=  2.00500e-08
+t2                  =  4.61255e-08 targ=  2.66175e-07 trig=  2.20050e-07
+t3                  =  6.59478e-08 targ=  4.85998e-07 trig=  4.20050e-07
+sample1             =  1.20000e+00
+sample2             =  1.60000e+00
+sample3             =  2.00000e+00
+ASCII raw file "out.raw"
+ngspice-46 done

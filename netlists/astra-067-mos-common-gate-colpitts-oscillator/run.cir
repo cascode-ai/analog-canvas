@@ -1,0 +1,25 @@
+MOS common-gate Colpitts oscillator
+.include "circuit.spice"
+.include "models.spice"
+VDD vdd 0 3.3
+VG vg 0 1.8
+VB vb 0 .9
+.ic v(tank)=3.3 v(fb)=.85
+XDUT vdd 0 vg vb tank fb out astra_067_mos_common_gate_colpitts_oscillator
+.temp 27
+.options method=gear reltol=1e-5
+* @spec tankpp range 0.2 10 unit=V
+* @spec outpp range 0.1 4 unit=V
+* @spec period range 5e-9 5e-8 unit=s
+* @spec avg range 3 3.5 unit=V
+.control
+set filetype=ascii
+tran 100p 5u
+meas tran tankpp PP v(tank) FROM=3u TO=5u
+meas tran outpp PP v(out) FROM=3u TO=5u
+meas tran period TRIG v(tank) VAL=3.3 RISE=100 TARG v(tank) VAL=3.3 RISE=101
+meas tran avg AVG v(tank) FROM=3u TO=5u
+write out.raw v(tank) v(out)
+quit
+.endc
+.end

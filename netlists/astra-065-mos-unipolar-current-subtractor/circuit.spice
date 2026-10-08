@@ -1,0 +1,11 @@
+
+.subckt astra_065_mos_unipolar_current_subtractor vdd VSS i1 i2 out
+CL out VSS 1p
+M1 i1 i1 VSS VSS ANMOS l=1u w=10u
+M2 net0 i1 VSS VSS ANMOS l=1u w=10u
+M3 net0 net0 vdd vdd APMOS l=1u w=20u
+M4 out net0 vdd vdd APMOS l=1u w=20u
+M5 i2 i2 VSS VSS ANMOS l=1u w=100u
+M6 out i2 VSS VSS ANMOS l=1u w=100u
+RL out VSS 50k
+.ends astra_065_mos_unipolar_current_subtractor

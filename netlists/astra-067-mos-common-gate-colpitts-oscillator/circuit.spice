@@ -1,0 +1,12 @@
+
+.subckt astra_067_mos_common_gate_colpitts_oscillator vdd VSS vg vb tank fb out
+C1 tank fb 10p
+C2 fb VSS 20p
+CL out VSS 100f
+L1 net0 tank 1u
+M1 tank vg fb VSS ANMOS l=1u w=50u
+M2 fb vb VSS VSS ANMOS l=1u w=10u
+M3 vdd tank out VSS ANMOS l=1u w=20u
+M4 out vb VSS VSS ANMOS l=1u w=2u
+RS vdd net0 10
+.ends astra_067_mos_common_gate_colpitts_oscillator

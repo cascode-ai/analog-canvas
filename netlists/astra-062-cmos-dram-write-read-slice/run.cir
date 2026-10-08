@@ -1,0 +1,39 @@
+CMOS 1T1C DRAM write/read slice
+.include "circuit.spice"
+.include "models.spice"
+VDD vdd 0 3.3
+VP vpre 0 1.65
+VR vref 0 1.65
+VB vb 0 .9
+VD din 0 PWL(0 3.3 230n 3.3 240n 0 500n 0)
+VWL wl 0 PWL(0 3.3 50n 3.3 50.1n 0 120n 0 120.1n 3.3 160n 3.3 160.1n 0 250n 0 250.1n 3.3 300n 3.3 300.1n 0 370n 0 370.1n 3.3 410n 3.3 410.1n 0 500n 0)
+VW we 0 PWL(0 3.3 50n 3.3 50.1n 0 250n 0 250.1n 3.3 300n 3.3 300.1n 0 500n 0)
+VWB web 0 PWL(0 0 50n 0 50.1n 3.3 250n 3.3 250.1n 0 300n 0 300.1n 3.3 500n 3.3)
+VPR pre 0 PWL(0 0 70n 0 70.1n 3.3 110n 3.3 110.1n 0 320n 0 320.1n 3.3 360n 3.3 360.1n 0 500n 0)
+VPRB preb 0 PWL(0 3.3 70n 3.3 70.1n 0 110n 0 110.1n 3.3 320n 3.3 320.1n 0 360n 0 360.1n 3.3 500n 3.3)
+XDUT vdd 0 wl cell din vpre bl web we preb pre vref vb dout astra_062_cmos_dram_write_read_slice
+.temp 27
+.options method=gear reltol=1e-5
+* @spec stored1 range 2.1 2.6 unit=V
+* @spec pre1 range 1.63 1.67 unit=V
+* @spec read1 range 3.2 3.4 unit=V
+* @spec share1 range 2 2.5 unit=V
+* @spec stored0 range -0.02 0.02 unit=V
+* @spec pre0 range 1.63 1.67 unit=V
+* @spec read0 range -0.02 0.02 unit=V
+* @spec share0 range 0 0.4 unit=V
+.control
+set filetype=ascii
+tran 100p 500n
+meas tran stored1 FIND v(cell) AT=60n
+meas tran pre1 FIND v(bl) AT=105n
+meas tran read1 FIND v(dout) AT=150n
+meas tran share1 FIND v(bl) AT=150n
+meas tran stored0 FIND v(cell) AT=310n
+meas tran pre0 FIND v(bl) AT=355n
+meas tran read0 FIND v(dout) AT=400n
+meas tran share0 FIND v(bl) AT=400n
+write out.raw v(dout) v(cell) v(bl) v(wl) v(we) v(pre)
+quit
+.endc
+.end

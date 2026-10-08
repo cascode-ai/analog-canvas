@@ -1,0 +1,22 @@
+
+.subckt astra_062_cmos_dram_write_read_slice vdd VSS wl cell din vpre bl web we preb pre vref vb
++ dout
+CB bl VSS 100f
+CL dout VSS 100f
+CS cell VSS 1p
+M1 bl wl cell VSS ANMOS l=1u w=20u
+M10 net3 vb VSS VSS ANMOS l=1u w=10u
+M11 net1 net0 vdd vdd APMOS l=1u w=20u
+M12 net1 net0 VSS VSS ANMOS l=1u w=10u
+M13 dout net1 vdd vdd APMOS l=1u w=20u
+M14 dout net1 VSS VSS ANMOS l=1u w=10u
+M2 din web bl vdd APMOS l=1u w=20u
+M3 din we bl VSS ANMOS l=1u w=10u
+M4 vpre preb bl vdd APMOS l=1u w=20u
+M5 vpre pre bl VSS ANMOS l=1u w=10u
+M6 net2 bl net3 VSS ANMOS l=1u w=10u
+M7 net0 vref net3 VSS ANMOS l=1u w=10u
+M8 net2 net2 vdd vdd APMOS l=1u w=20u
+M9 net0 net2 vdd vdd APMOS l=1u w=20u
+RS cell VSS 10G
+.ends astra_062_cmos_dram_write_read_slice

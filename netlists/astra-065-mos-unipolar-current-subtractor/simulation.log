@@ -1,0 +1,30 @@
+
+Note: No compatibility mode selected!
+
+
+Circuit: mos unipolar current-subtraction cell
+
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+Initial Transient Solution
+--------------------------
+
+Node                                   Voltage
+----                                   -------
+vdd                                        3.3
+i1                                    0.798422
+i2                                    0.644436
+out                                    1.11214
+xdut.net0                              2.47459
+vdd#branch                        -8.37474e-05
+
+
+No. of Data Rows : 8026
+positive1           =  1.11214e+00
+positive2           =  2.04546e+00
+negative1           =  2.48135e-02
+negative2           =  1.30445e-02
+ASCII raw file "out.raw"
+ngspice-46 done

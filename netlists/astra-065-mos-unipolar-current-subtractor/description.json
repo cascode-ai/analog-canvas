@@ -1,0 +1,11 @@
+{
+  "name": "MOS unipolar current-subtraction cell",
+  "description": "An NMOS mirror and PMOS mirror source a copy of i1 into the output, while a second NMOS mirror sinks i2. A 50 kohm load develops an approximate positive current difference; a larger opposing current drives the output toward zero. Six MOS devices and a 1 pF load are explicit. Four input-current pairs test two positive differences and two clamped cases. Educational nominal models; this is not a precision arithmetic element, and mirror error, output compliance, negative-case offset and PVT are not qualified.",
+  "tags": [
+    "CMOS",
+    "Current Arithmetic",
+    "Current Subtraction",
+    "Current Mirror",
+    "Analog Computing"
+  ]
+}

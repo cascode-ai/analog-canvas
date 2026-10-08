@@ -1,0 +1,22 @@
+
+.subckt astra_063_cmos_voltage_to_time_converter vdd VSS vin ramp iref run sample vref vb out
+CL out VSS 100f
+CR ramp VSS 1p
+M1 sampleb sample vdd vdd APMOS l=1u w=20u
+M10 net2 net2 vdd vdd APMOS l=1u w=20u
+M11 net0 net2 vdd vdd APMOS l=1u w=20u
+M12 net4 vb VSS VSS ANMOS l=1u w=10u
+M13 net1 net0 vdd vdd APMOS l=1u w=20u
+M14 net1 net0 VSS VSS ANMOS l=1u w=10u
+M15 out net1 vdd vdd APMOS l=1u w=20u
+M16 out net1 VSS VSS ANMOS l=1u w=10u
+M2 sampleb sample VSS VSS ANMOS l=1u w=10u
+M3 vin sampleb ramp vdd APMOS l=1u w=20u
+M4 vin sample ramp VSS ANMOS l=1u w=10u
+M5 iref iref VSS VSS ANMOS l=1u w=10u
+M6 net3 iref VSS VSS ANMOS l=1u w=10u
+M7 ramp run net3 VSS ANMOS l=1u w=20u
+M8 net2 ramp net4 VSS ANMOS l=1u w=10u
+M9 net0 vref net4 VSS ANMOS l=1u w=10u
+RR ramp VSS 1G
+.ends astra_063_cmos_voltage_to_time_converter

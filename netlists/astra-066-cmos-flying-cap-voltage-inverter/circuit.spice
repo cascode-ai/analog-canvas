@@ -1,0 +1,30 @@
+
+.subckt astra_066_cmos_flying_cap_voltage_inverter vdd VSS out p1 p2
+CF net0 net1 50p
+CG1 g1 out 100f
+CG1B net2 out 100f
+CG2 g2 out 100f
+CG2B net3 out 100f
+CO out VSS 200p
+M1 p1b p1 vdd vdd APMOS l=1u w=20u
+M10 VSS p2 net0 VSS ANMOS l=1u w=10u
+M11 net1 p2b out vdd APMOS l=1u w=20u
+M12 net1 g2 out out ANMOS l=1u w=10u
+M13 g1 p1b vdd vdd APMOS l=1u w=20u
+M14 net2 p1 vdd vdd APMOS l=1u w=20u
+M15 g1 net2 out out ANMOS l=1u w=1u
+M16 net2 g1 out out ANMOS l=1u w=1u
+M17 g2 p2b vdd vdd APMOS l=1u w=20u
+M18 net3 p2 vdd vdd APMOS l=1u w=20u
+M19 g2 net3 out out ANMOS l=1u w=1u
+M2 p1b p1 VSS VSS ANMOS l=1u w=10u
+M20 net3 g2 out out ANMOS l=1u w=1u
+M3 p2b p2 vdd vdd APMOS l=1u w=20u
+M4 p2b p2 VSS VSS ANMOS l=1u w=10u
+M5 vdd p1b net0 vdd APMOS l=1u w=20u
+M6 vdd p1 net0 VSS ANMOS l=1u w=10u
+M7 VSS p1b net1 vdd APMOS l=1u w=20u
+M8 VSS g1 net1 out ANMOS l=1u w=10u
+M9 VSS p2b net0 vdd APMOS l=1u w=20u
+RL out VSS 10meg
+.ends astra_066_cmos_flying_cap_voltage_inverter

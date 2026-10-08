@@ -1,0 +1,74 @@
+{
+  "simulator": "ngspice-46",
+  "models": "Generic educational Level-1 MOS",
+  "temperatureC": 27,
+  "localSpecs": [
+    {
+      "metric": "t1",
+      "min": 1.5e-8,
+      "max": 3e-8,
+      "value": 2.61482e-8,
+      "passed": true
+    },
+    {
+      "metric": "t2",
+      "min": 3e-8,
+      "max": 5e-8,
+      "value": 4.61255e-8,
+      "passed": true
+    },
+    {
+      "metric": "t3",
+      "min": 5e-8,
+      "max": 7.5e-8,
+      "value": 6.59478e-8,
+      "passed": true
+    },
+    {
+      "metric": "sample1",
+      "min": 1.18,
+      "max": 1.22,
+      "value": 1.2,
+      "passed": true
+    },
+    {
+      "metric": "sample2",
+      "min": 1.58,
+      "max": 1.62,
+      "value": 1.6,
+      "passed": true
+    },
+    {
+      "metric": "sample3",
+      "min": 1.98,
+      "max": 2.02,
+      "value": 2,
+      "passed": true
+    }
+  ],
+  "nativeDiagnostics": 0,
+  "canonicalExportMatches": true,
+  "prototypeConnectivityAndParametersMatch": true,
+  "limitations": "Nominal functional verification only; no PVT, noise, mismatch or foundry qualification.",
+  "hosted": {
+    "runId": "8dd80820-97a1-4d0e-9498-2300291e4009",
+    "specs": {
+      "available": true,
+      "total": 6,
+      "passed": 6,
+      "failed": 0,
+      "notEvaluated": 0,
+      "unconstrained": 0
+    },
+    "execution": "completed"
+  },
+  "liveEditorVerification": {
+    "errors": 0,
+    "warnings": 0,
+    "structuralComparison": "equal"
+  },
+  "publicLayoutMatchesNativeProject": true,
+  "publicProjectMatchesExceptSchemaVersion": true,
+  "nativeSchemaVersion": 66,
+  "publicSchemaVersion": 67
+}

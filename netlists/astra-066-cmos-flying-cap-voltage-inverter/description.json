@@ -1,0 +1,11 @@
+{
+  "name": "CMOS flying-capacitor voltage inverter",
+  "description": "Four transmission gates alternate charging a 50 pF flying capacitor from VDD and connecting its upper plate to ground so its lower plate drives a negative output. Two explicit CMOS inverters generate complements of the external nonoverlapping p1/p2 clocks. Twenty MOS devices, a 200 pF reservoir and 10 Mohm load are shown. Two explicit four-MOS negative-domain level shifters drive the negative-passing NMOS gates between out and VDD; their body connections follow out explicitly. Four 100 fF driver loads bound switching transients. The saved nominal run checks negative output, settled ripple and final voltage. Isolated-well/above-supply gate stresses are educational only; no oxide, junction, efficiency or foundry/PVT qualification.",
+  "tags": [
+    "CMOS",
+    "Voltage Inverter",
+    "Flying Capacitor",
+    "Negative Supply",
+    "Switched Capacitor"
+  ]
+}

@@ -1,0 +1,20 @@
+
+.subckt astra_064_cmos_delay_xor_frequency_doubler vdd VSS clk out
+CD net0 VSS 1p
+CL out VSS 100f
+M1 nb net0 vdd vdd APMOS l=1u w=20u
+M10 nb clk net1 VSS ANMOS l=1u w=10u
+M11 net2 net1 vdd vdd APMOS l=1u w=20u
+M12 net2 net1 VSS VSS ANMOS l=1u w=10u
+M13 out net2 vdd vdd APMOS l=1u w=20u
+M14 out net2 VSS VSS ANMOS l=1u w=10u
+M2 nb net0 VSS VSS ANMOS l=1u w=10u
+M3 delay nb vdd vdd APMOS l=1u w=20u
+M4 delay nb VSS VSS ANMOS l=1u w=10u
+M5 clkb clk vdd vdd APMOS l=1u w=20u
+M6 clkb clk VSS VSS ANMOS l=1u w=10u
+M7 delay clk net1 vdd APMOS l=1u w=20u
+M8 delay clkb net1 VSS ANMOS l=1u w=10u
+M9 nb clkb net1 vdd APMOS l=1u w=20u
+RD clk net0 20k
+.ends astra_064_cmos_delay_xor_frequency_doubler

@@ -1,0 +1,24 @@
+MOS unipolar current-subtraction cell
+.include "circuit.spice"
+.include "models.spice"
+VDD vdd 0 3.3
+IA 0 i1 PWL(0 40u 190n 40u 200n 60u 390n 60u 400n 30u 590n 30u 600n 20u 800n 20u)
+IB 0 i2 PWL(0 20u 390n 20u 400n 60u 590n 60u 600n 80u 800n 80u)
+XDUT vdd 0 i1 i2 out astra_065_mos_unipolar_current_subtractor
+.temp 27
+.options method=gear reltol=1e-5
+* @spec positive1 range 0.88 1.12 unit=V
+* @spec positive2 range 1.8 2.2 unit=V
+* @spec negative1 range 0 0.08 unit=V
+* @spec negative2 range 0 0.08 unit=V
+.control
+set filetype=ascii
+tran 100p 800n
+meas tran positive1 FIND v(out) AT=150n
+meas tran positive2 FIND v(out) AT=350n
+meas tran negative1 FIND v(out) AT=550n
+meas tran negative2 FIND v(out) AT=750n
+write out.raw v(out) v(i1) v(i2)
+quit
+.endc
+.end

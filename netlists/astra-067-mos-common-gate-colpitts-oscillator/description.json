@@ -1,0 +1,11 @@
+{
+  "name": "MOS common-gate Colpitts oscillator",
+  "description": "A common-gate NMOS sustains a Colpitts resonator with 1 uH inductance and a 10/20 pF capacitive divider. A tail NMOS supplies bias; an explicit two-NMOS source follower buffers the tank. Four MOS devices, the 10 ohm series loss and all capacitors are shown. The saved initialized transient checks sustained tank/output amplitude, period and tank mean. The feedback is capacitive, distinct from the cross-coupled differential LC oscillator. Generic educational models; startup yield, amplitude/oxide limits, phase noise, tank loss corners and PVT are not qualified.",
+  "tags": [
+    "CMOS",
+    "Colpitts",
+    "LC Oscillator",
+    "Capacitive Feedback",
+    "RF"
+  ]
+}

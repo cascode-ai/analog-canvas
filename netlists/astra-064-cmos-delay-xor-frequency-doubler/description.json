@@ -1,0 +1,11 @@
+{
+  "name": "CMOS delay-XOR frequency doubler",
+  "description": "An RC-delayed clock, two delay inverters and a transmission-gate XOR generate a positive pulse on each rising and falling input edge. Fourteen MOS devices, a 20 kohm/1 pF delay and a 100 fF output load are explicit. A 100 ns input period gives about 50 ns between pulses; both polarities, quiet intervals and widths are checked. This uses XOR of original and delayed states, unlike a rising-edge-only qualifier. Educational nominal models; duty distortion, calibrated pulse width, hazards and PVT are not qualified.",
+  "tags": [
+    "CMOS",
+    "Frequency Doubler",
+    "Delay XOR",
+    "Both Edge",
+    "Clock Timing"
+  ]
+}

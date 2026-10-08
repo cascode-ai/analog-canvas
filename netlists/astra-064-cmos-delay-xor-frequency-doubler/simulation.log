@@ -1,0 +1,37 @@
+
+Note: No compatibility mode selected!
+
+
+Circuit: cmos delay-xor frequency doubler
+
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+Initial Transient Solution
+--------------------------
+
+Node                                   Voltage
+----                                   -------
+vdd                                        3.3
+clk                                          0
+xdut.net0                                    0
+out                                6.12963e-10
+xdut.nb                                    3.3
+xdut.net1                          3.67778e-09
+xdut.net2                                  3.3
+xdut.delay                         2.45185e-09
+xdut.clkb                                  3.3
+vclk#branch                                  0
+vdd#branch                          -2.979e-11
+
+
+No. of Data Rows : 21000
+rise_peak           =  3.30666e+00 at=  6.39323e-08
+fall_peak           =  3.32782e+00 at=  1.13524e-07
+quiet               =  1.54934e-09 at=  8.20014e-08
+period              =  4.99921e-08 targ=  2.00134e-07 trig=  1.50142e-07
+width1              =  1.39903e-08 targ=  6.41311e-08 trig=  5.01408e-08
+width2              =  1.34397e-08 targ=  1.13574e-07 trig=  1.00134e-07
+ASCII raw file "out.raw"
+ngspice-46 done

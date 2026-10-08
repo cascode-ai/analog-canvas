@@ -1,0 +1,22 @@
+CMOS flying-capacitor voltage inverter
+.include "circuit.spice"
+.include "models.spice"
+VDD vdd 0 3.3
+VP1 p1 0 PULSE(0 3.3 20n 10n 10n 430n 1u)
+VP2 p2 0 PULSE(0 3.3 520n 10n 10n 430n 1u)
+XDUT vdd 0 out p1 p2 astra_066_cmos_flying_cap_voltage_inverter
+.temp 27
+.options method=gear reltol=1e-5
+* @spec inverted range -3.4 -2.9 unit=V
+* @spec ripple range 0 0.1 unit=V
+* @spec final range -3.4 -2.9 unit=V
+.control
+set filetype=ascii
+tran 5n 100u
+meas tran inverted AVG v(out) FROM=80u TO=100u
+meas tran ripple PP v(out) FROM=80u TO=100u
+meas tran final FIND v(out) AT=100u
+write out.raw v(out) v(p1) v(p2)
+quit
+.endc
+.end

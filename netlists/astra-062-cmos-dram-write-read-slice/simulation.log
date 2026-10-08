@@ -1,0 +1,55 @@
+
+Note: No compatibility mode selected!
+
+
+Circuit: cmos 1t1c dram write/read slice
+
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+Initial Transient Solution
+--------------------------
+
+Node                                   Voltage
+----                                   -------
+vdd                                        3.3
+vpre                                      1.65
+vref                                      1.65
+vb                                         0.9
+din                                        3.3
+wl                                         3.3
+we                                         3.3
+web                                          0
+pre                                          0
+preb                                       3.3
+bl                                         3.3
+dout                                       3.3
+cell                                   2.33722
+xdut.net3                              2.06427
+xdut.net1                          6.12963e-10
+xdut.net0                                  3.3
+xdut.net2                              2.36091
+vprb#branch                                  0
+vpr#branch                                   0
+vwb#branch                                   0
+vw#branch                                    0
+vwl#branch                                   0
+vd#branch                         -2.49309e-10
+vb#branch                                    0
+vr#branch                                    0
+vp#branch                          -1.2509e-28
+vdd#branch                        -9.37157e-05
+
+
+No. of Data Rows : 5611
+stored1             =  2.32407e+00
+pre1                =  1.65000e+00
+read1               =  3.30000e+00
+share1              =  2.28197e+00
+stored0             =  -1.44070e-02
+pre0                =  1.65000e+00
+read0               =  6.12972e-10
+share0              =  1.91699e-01
+ASCII raw file "out.raw"
+ngspice-46 done
