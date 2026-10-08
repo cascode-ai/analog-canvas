@@ -283,6 +283,9 @@ phase its name label shows; a freshly placed `S1` is clocked by a phase called
 then writes `S1 a b PHI1 VSS ideal_switch`, and every switch showing Φ₁ follows
 the same clock. Drive it with a Net named `Φ1` (a Net Label, or the Net of a
 pulse source) or a Cell Pin `Φ1`; until then `SWITCH_PHASE_NOT_DRIVEN` warns.
+For the complementary phase write `text:"EN_bar"`, drawn E̅N̅: the switch
+follows a Net `EN_bar` when the Cell has one, and otherwise closes while `EN`
+is low (`ideal_switch_bar`), so one clock `EN` drives both phases.
 Free text beside a switch is drawing only and clocks nothing. A Ctrl SW
 (`externally-controlled-switch`) takes its control from its CTRL pin instead.
 

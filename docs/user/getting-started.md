@@ -556,7 +556,11 @@ label becomes a display alias by itself. The SPICE netlist then writes the switc
 as `S1 a b PHI1 VSS ideal_switch`, with one `.model ideal_switch SW(…)` card in
 the same Cell. Draw the clock on a Net named `Φ1`, or give the Cell a Pin named
 `Φ1`, and the switch follows it; until then the netlist warns that nothing
-drives that phase. **Ctrl SW** takes its control from its CTRL pin instead.
+drives that phase. Draw an overbar over the phase, such as `E̅N̅`, for the
+complementary switch: it follows the same clock `EN` and closes while `EN` is
+low, written as `S2 a b EN VSS ideal_switch_bar` with its own
+`.model ideal_switch_bar SW(…)` card (RON and ROFF swapped). **Ctrl SW** takes
+its control from its CTRL pin instead.
 Switches are written in SPICE only.
 
 A diode you place in Abstract, SKY130, IHP SG13G2 or Custom takes the generic

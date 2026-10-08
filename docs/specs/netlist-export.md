@@ -343,6 +343,15 @@ closes through `ideal_switch`, an `SW` model card (RON 1 Ω, ROFF 1e12 Ω, VT
 whose label still shows its own name is clocked by a phase of that name, so a
 freshly placed `S1` prints as `S1 a b S1 VSS ideal_switch` and warns that
 nothing drives `S1`; writing Φ₁ on its label moves it onto that shared clock.
+A phase drawn with an overbar over any of its characters (E̅N̅, Φ̄₁) is first
+the Net drawn the same way: when the Cell has a Net `EN_bar` (a Net Label or
+Cell Pin drawn E̅N̅), the switch reads it through `ideal_switch`. Otherwise it is
+the complement of the phase written without it: the switch reads the same clock
+node, so one Net or Cell Pin `EN` drives both phases and the same
+`SWITCH_PHASE_NOT_DRIVEN` finding names `EN` until something does, and it
+closes while that clock is low. It closes through `ideal_switch_bar`, the
+same card with RON and ROFF swapped (RON 1e12 Ω, ROFF 1 Ω, VT 0.5 V, VH 0),
+printed only in a Cell that uses it: `S2 a b EN VSS ideal_switch_bar`.
 Spectre writes the same Cell-local four-terminal master as a hard conductance
 `bsource`, with those unchanged defaults and phase/CTRL semantics. It neither
 invents a clock nor smooths a transition. The SPDT selector has no primitive.
@@ -350,6 +359,8 @@ Native VACASK uses the same defaults and four-terminal interface through the
 qualified `icm_switch` runtime primitive, which registers hard-edge breakpoints.
 This requires the patched native runtime, not stock upstream 0.3.4; see the
 [runtime patch and qualification](../../containers/vacask/patches/README.md).
+ngspice, Spectre and native VACASK all take RON while the control is above VT
+and ROFF below it, so the swapped card is the complementary switch in each.
 A diode placed in a Process with no diode of its own (Abstract, SKY130, IHP
 SG13G2, Custom) is bound to the generic model `DIODE`, which no library
 defines. A placed Zener is not, and Apply process leaves it alone too: the
