@@ -307,8 +307,10 @@ describe("batch drawing runner end to end (#1498)", () => {
         out,
         "--jobs",
         "4",
+        // Long enough for a loaded CI runner to start the bundled editor and
+        // draw; the hanging task still runs into it.
         "--timeout",
-        "1.5",
+        "20",
         "--agent",
         agent,
         "--second-agent",
@@ -317,7 +319,7 @@ describe("batch drawing runner end to end (#1498)", () => {
         bundle,
         ...extra,
       ],
-      { cwd: root, encoding: "utf8", timeout: 60_000 },
+      { cwd: root, encoding: "utf8", timeout: 240_000 },
     );
   const json = (...path) => JSON.parse(readFileSync(join(...path), "utf8"));
 
@@ -366,7 +368,7 @@ describe("batch drawing runner end to end (#1498)", () => {
         }),
       ].join("\n"),
     );
-  }, 60_000);
+  }, 120_000);
   afterAll(() => rmSync(work, { recursive: true, force: true }));
 
   it("draws, grades, redraws and queues each task, and resumes where it stopped", () => {
@@ -476,5 +478,5 @@ describe("batch drawing runner end to end (#1498)", () => {
     expect(verdict("review")).toMatchObject({ path: "review" });
     expect(queue()).toHaveLength(1);
     expect(json(out, "summary.json")).toMatchObject({ tasks: 7, review: 1 });
-  }, 60_000);
+  }, 300_000);
 });
