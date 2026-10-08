@@ -297,6 +297,12 @@ export const AgentAuthoringCommandSchema = z.discriminatedUnion("kind", [
         .boolean()
         .optional()
         .describe("Also re-place labels moved by hand."),
+      side: z
+        .enum(["left", "right", "top", "bottom", "outside"])
+        .optional()
+        .describe(
+          "Side tried first; outside = away from the drawing's centre line, mirrored halves.",
+        ),
     })
     .describe(
       "Opt-in, bounded one-pass placement of visible default Instance labels. Compact/collision avoidance default true. Preserve manually positioned (unless includeManual), locked and custom-styled labels, bindings and electrical names, and name those left in place (LABELS_LEFT_IN_PLACE); unresolved clashes remain observations.",

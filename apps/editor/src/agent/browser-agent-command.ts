@@ -977,6 +977,7 @@ export function planBrowserAgentCommand(
                 ? {}
                 : { showDesignator: display.showReference }),
               showValue: display?.showValue === true,
+              clearOfWiring: true,
             },
           ).map((annotation): SchematicEdit => ({
             kind: "upsert_schematic_annotation",
@@ -1117,7 +1118,11 @@ export function planBrowserAgentCommand(
         instance,
         resolver,
         resolveDocumentStyleProfile(document.presentation),
-        { showDesignator: false, masterName: child.netlist.name },
+        {
+          showDesignator: false,
+          masterName: child.netlist.name,
+          clearOfWiring: true,
+        },
       );
       return {
         structureEdits: planPlaceCellInstance(

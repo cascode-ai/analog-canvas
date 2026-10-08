@@ -531,6 +531,72 @@ describe("opt-in label arrangement", () => {
       expect(overlapping, device.reference).toBe(false);
     }
   });
+  it("counts a label boxed in by a loop of wire as crowded, and an open one as clear (#1519)", () => {
+    const { doc } = fixture();
+    const box = { x: 290, y: 95, width: 20, height: 10 };
+    wire(doc, "top", { x: 270, y: 80 }, { x: 330, y: 80 });
+    wire(doc, "bottom", { x: 270, y: 120 }, { x: 330, y: 120 });
+    wire(doc, "left", { x: 270, y: 80 }, { x: 270, y: 120 });
+    expect(createLabelClearanceContext(doc, resolver).enclosedAt(box)).toBe(
+      false,
+    );
+    wire(doc, "right", { x: 330, y: 80 }, { x: 330, y: 120 });
+    expect(createLabelClearanceContext(doc, resolver).enclosedAt(box)).toBe(
+      true,
+    );
+  });
+
+  it("puts each part's labels on the side away from the centre line when asked (#1519)", () => {
+    const doc = createEmptyDocument("d", "Pair");
+    const left = transistor(doc, "m1", "nmos", { x: 100, y: 100 });
+    const right = transistor(doc, "m2", "nmos", { x: 400, y: 100 });
+    apply(
+      doc,
+      arrangeInstanceLabels(doc, resolver, [left.id, right.id], {
+        side: "outside",
+      }),
+    );
+    const context = createLabelClearanceContext(doc, resolver);
+    const part = (id: string) =>
+      context.symbols.find((symbol) => symbol.id === id)!.bounds;
+    for (const annotation of doc.annotations) {
+      const ink = context.measure(annotation).inkBounds;
+      const owner =
+        annotation.binding && "instanceId" in annotation.binding
+          ? annotation.binding.instanceId
+          : undefined;
+      if (owner === left.id)
+        expect(ink.x + ink.width).toBeLessThanOrEqual(part(left.id).x);
+      else
+        expect(ink.x).toBeGreaterThanOrEqual(
+          part(right.id).x + part(right.id).width,
+        );
+    }
+  });
+
+  it("arranges a new part's labels at placement when their default rows cross a wire (#1519)", () => {
+    const { doc, instance } = fixture();
+    const style = resolveDocumentStyleProfile(doc.presentation);
+    const value = doc.annotations.find(
+      (a) => a.binding?.kind === "instance-value",
+    )!;
+    const ink = createLabelClearanceContext(doc, resolver).measure(
+      value,
+    ).inkBounds;
+    const y = ink.y + ink.height / 2;
+    doc.annotations = [];
+    wire(doc, "across", { x: ink.x - 20, y }, { x: ink.x + ink.width + 20, y });
+    doc.annotations.push(
+      ...defaultInstanceDisplayAnnotations(doc, instance, resolver, style, {
+        showValue: true,
+        clearOfWiring: true,
+      }),
+    );
+    const context = createLabelClearanceContext(doc, resolver);
+    for (const annotation of doc.annotations)
+      expect(context.conflicts(annotation)).toEqual([]);
+  });
+
   it("moves a crowded label group to a free side of its part (#1307)", () => {
     // A feedback resistor drawn across the top of an op amp: its default
     // value row lands on the amplifier, while the space above is empty.

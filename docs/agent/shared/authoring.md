@@ -433,7 +433,15 @@ it would read as that part's, and no label stands within about a character
 (10 units) of another part's label on its row, where the two read as one run.
 A two-terminal part drawn along a horizontal wire, such as a ladder's series
 inductor, takes the clear side above the wire when its labels below would
-stand in a row with those of a part wired to it. Where parts
+stand in a row with those of a part wired to it. A label boxed in by a loop
+of wire, such as inside a varactor's source–drain tie, counts as crowded even
+when it touches no wire. `side:"left"|"right"|"top"|"bottom"` tries that side
+first; `side:"outside"` puts each part's labels on the side away from the
+drawing's centre line, so the two halves of a differential circuit mirror
+(parts on the line keep their default rows). A part `place-component`
+puts where its default labels would cross a wire, a dot or another label,
+or sit inside a loop of wire, has them arranged the same way as it is
+placed. Where parts
 sit too close for both, the value is the one left touching a wire; hide values
 with `set-instance-display` or move the parts apart. A requested Port's name
 that a part or wire now covers moves to the first clear one of its sides. Set `compact:false` or `avoidCollisions:false` to disable

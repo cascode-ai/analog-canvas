@@ -22,6 +22,7 @@ import {
   defaultInstanceLabel,
   defaultInstanceValue,
 } from "../wiring/route-interaction-geometry";
+import { arrangeInstanceLabelsReport } from "./arrange-instance-labels";
 
 type Instance = SchematicDocument["instances"][number];
 
@@ -33,6 +34,11 @@ export interface DefaultInstanceDisplayOptions {
   readonly formalTerminalId?: string;
   /** The Cell terminal's name, which picks the Pin label's standard look. */
   readonly formalName?: string;
+  /**
+   * Arrange labels whose default rows land on wiring (#1519). An Agent's
+   * placement asks for it; a GUI drop keeps the rows its preview showed.
+   */
+  readonly clearOfWiring?: boolean;
 }
 
 /** Find the visual annotation, without mistaking older hidden defaults for it. */
@@ -182,7 +188,64 @@ export function defaultInstanceDisplayAnnotations(
     }
   }
   if (under) annotations.push(under);
-  return annotations;
+  return options.clearOfWiring
+    ? clearOfWiring(document, instance, resolver, annotations)
+    : annotations;
+}
+
+/**
+ * A new part's labels stay in their default rows unless those cross a wire,
+ * a junction dot or another label, or sit boxed in by a loop of wire; then
+ * they are arranged as `arrange-labels` places them (#1519). Placed by an
+ * Agent beside
+ * existing wiring, a sideways varactor had put its name inside its tie loop,
+ * and short stacked parts their names and values on the next wire.
+ */
+function clearOfWiring(
+  document: SchematicDocument,
+  instance: Instance,
+  resolver: SymbolResolver,
+  annotations: Annotation[],
+): Annotation[] {
+  if (!annotations.length || !instance.placement || !document.routes.length)
+    return annotations;
+  const ids = new Set(annotations.map((annotation) => annotation.id));
+  const placed: SchematicDocument = {
+    ...document,
+    instances: [
+      ...document.instances.filter((item) => item.id !== instance.id),
+      instance,
+    ],
+    annotations: [
+      ...document.annotations.filter((annotation) => !ids.has(annotation.id)),
+      ...annotations,
+    ],
+  };
+  const context = createLabelClearanceContext(placed, resolver);
+  if (
+    annotations.every(
+      (annotation) =>
+        !context.conflicts(annotation).length &&
+        !context.dotsAt(context.measure(annotation).inkBounds).length &&
+        !context.enclosedAt(context.measure(annotation).inkBounds),
+    )
+  )
+    return annotations;
+  const arranged = new Map(
+    arrangeInstanceLabelsReport(
+      placed,
+      resolver,
+      [instance.id],
+      {},
+    ).edits.flatMap((edit) =>
+      edit.kind === "upsert_schematic_annotation"
+        ? [[edit.annotation.id, edit.annotation] as const]
+        : [],
+    ),
+  );
+  return annotations.map(
+    (annotation) => arranged.get(annotation.id) ?? annotation,
+  );
 }
 
 /**

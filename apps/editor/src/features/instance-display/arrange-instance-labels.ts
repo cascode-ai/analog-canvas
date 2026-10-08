@@ -104,6 +104,11 @@ export interface ArrangeInstanceLabelsOptions {
   referenceStyle?: "preserve" | "first-letter-subscript" | undefined;
   /** Re-place labels moved by hand too; locked and custom ones stay. */
   includeManual?: boolean | undefined;
+  /**
+   * The side tried first. "outside" is the side away from the drawing's
+   * centre line, so the two halves of a symmetric circuit mirror (#1519).
+   */
+  side?: InstanceLabelSide | "outside" | undefined;
 }
 
 /** The arrangement, and the labels it leaves where they are (#1414). */
@@ -372,6 +377,13 @@ export function arrangeInstanceLabelsReport(
     ),
     alignment: placement.alignment,
   });
+  // The drawing's vertical centre line, for labels asked to face outward.
+  const parts = context.symbols.map((symbol) => symbol.bounds);
+  const centreX = parts.length
+    ? (Math.min(...parts.map((part) => part.x)) +
+        Math.max(...parts.map((part) => part.x + part.width))) /
+      2
+    : 0;
   for (const [ownerId, group] of order) {
     const instance = document.instances.find((i) => i.id === ownerId)!;
     const resolved = resolver.resolve(
@@ -569,6 +581,7 @@ export function arrangeInstanceLabelsReport(
         others(conflicts) +
         others(context.overlapsAt(ink, candidate.id)) +
         context.dotsAt(ink).filter((id) => !conflicts.includes(id)).length / 2 +
+        (context.enclosedAt(ink) ? 1 : 0) +
         cutOff(ink) +
         strayed(ink) +
         mistaken(ink, candidate, siblings.map(box)) +
@@ -716,6 +729,22 @@ export function arrangeInstanceLabelsReport(
       return arrangement;
     };
 
+    // A side asked for comes first; "outside" faces away from the centre
+    // line, and a part on it keeps its default rows.
+    const asked =
+      options.side === "outside"
+        ? owner && owner.x + owner.width / 2 < centreX - grid
+          ? "left"
+          : owner && owner.x + owner.width / 2 > centreX + grid
+            ? "right"
+            : undefined
+        : options.side;
+    const sided = asked && !fixed.length ? onSide(asked) : null;
+    if (sided) {
+      chosen = sided;
+      best = total(sided);
+    }
+
     // A part drawn along a horizontal wire, as a ladder's series inductor
     // is, takes the clear side above the wire where under it its labels
     // would stand in a row with a neighbour's: a Chebyshev ladder's names
@@ -724,6 +753,7 @@ export function arrangeInstanceLabelsReport(
     const neighbours = along.get(ownerId);
     if (
       options.avoidCollisions !== false &&
+      !sided &&
       !fixed.length &&
       neighbours &&
       owner &&
