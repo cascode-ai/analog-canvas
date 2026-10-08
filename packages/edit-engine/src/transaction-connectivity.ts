@@ -339,6 +339,9 @@ export function physicalContactLicenseForTransaction(
         result.objectIds.add(edit.startJunctionId);
         result.objectIds.add(edit.endJunctionId);
         break;
+      default:
+        // Every other edit licenses no contact (see PhysicalContactLicense).
+        break;
     }
   }
   return result;

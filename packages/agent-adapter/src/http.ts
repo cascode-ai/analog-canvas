@@ -94,7 +94,10 @@ export async function startLoopbackAgentServer(
     throw new Error("Agent HTTP adapter may bind only to a loopback address");
   }
   const maximum = options.maxRequestBytes ?? service.limits.maxRequestBytes;
-  const server = createServer(async (request, response) => {
+  const respond = async (
+    request: IncomingMessage,
+    response: ServerResponse,
+  ): Promise<void> => {
     if (request.method !== "POST") {
       writeJson(
         response,
@@ -167,6 +170,10 @@ export async function startLoopbackAgentServer(
             }),
       );
     }
+  };
+  // `respond` answers every failure itself, from the body read on.
+  const server = createServer((request, response) => {
+    void respond(request, response);
   });
 
   await new Promise<void>((resolve, reject) => {
