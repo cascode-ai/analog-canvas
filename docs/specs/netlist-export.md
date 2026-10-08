@@ -684,31 +684,34 @@ A 16 V device whose size is still none of those exports with the warning
 built outside the editor. A missing W or L counts as the device's default,
 which its wrapper uses.
 
-The other SKY130 MOS devices are modelled over a range that starts at a
-shortest L and a narrowest W per finger (#1474). These are the smallest `lmin`
-and `wmin` of each device's bins in volare sky130A (open_pdks c6d73a35):
+The other SKY130 MOS devices are modelled over a range of sizes. These are the
+sizes each runs at on Production, whose simulator loads the continuous SKY130
+library, measured there by bisection (signed-in `POST /api/simulate`,
+2026-10-08, #1474, #1492):
 
-| Device                             | L from  | W per finger from |
-| ---------------------------------- | ------- | ----------------- |
-| `nfet_01v8`, `pfet_01v8_hvt`       | 0.15 µm | 0.36 µm           |
-| `pfet_01v8`, `nfet_01v8_lvt`       | 0.15 µm | 0.42 µm           |
-| `pfet_01v8_lvt`                    | 0.35 µm | 0.42 µm           |
-| `nfet_03v3_nvt`                    | 0.5 µm  | 0.42 µm           |
-| `nfet_05v0_nvt`                    | 0.9 µm  | 0.42 µm           |
-| `nfet_g5v0d10v5`, `pfet_g5v0d10v5` | 0.5 µm  | 0.42 µm           |
+| Device                                    | L from  | L up to  | W per finger from |
+| ----------------------------------------- | ------- | -------- | ----------------- |
+| `nfet_01v8`, `pfet_01v8`, `nfet_01v8_lvt` | 0.15 µm | 20.2 µm  | 0.42 µm           |
+| `pfet_01v8_hvt`                           | 0.15 µm | 20.2 µm  | 0.42 µm           |
+| `pfet_01v8_lvt`                           | 0.35 µm | 20.2 µm  | 0.42 µm           |
+| `nfet_03v3_nvt`                           | 0.5 µm  | 0.909 µm | 0.42 µm           |
+| `nfet_05v0_nvt`                           | 0.9 µm  | 24.99 µm | 0.42 µm           |
+| `nfet_g5v0d10v5`, `pfet_g5v0d10v5`        | 0.5 µm  | 20.2 µm  | 0.42 µm           |
 
-W per finger is W divided by `nf`. A part below either limit exports with the
+Each device stops 1–2 nm below its shortest L. The longest L is the last one
+that ran: 20.21 µm stops, as do 0.9095 µm for `nfet_03v3_nvt` and 25 µm for
+`nfet_05v0_nvt`, the last on a BSIM4 parameter fatal. W showed no ceiling up
+to 500 µm. volare's binned models differ: they run L up to 100 µm, run
+`nfet_01v8` and `pfet_01v8_hvt` down to W 0.36 µm, and model the NVT pair
+only at a few points.
+
+W per finger is W divided by `nf`. A part outside a limit exports with the
 warning `REVIEWED_SIZE_OUT_OF_RANGE`, which names its size and the limit in
 µm: "XM1 has L 0.08 µm, below the 0.15 µm minimum length of
-sky130_fd_pr__nfet_01v8. …". ngspice 46 stops there with "could not find a
-valid modelname", with volare's binned models and with the hosted continuous
-library alike (an `nfet_01v8` of L 0.08 µm or W 0.3 µm on Production,
-2026-10-08).
-
-Of each device's limits only the shortest are checked. The hosted library
-also stops past a longest L, which is not checked yet (#1492): on Production `nfet_03v3_nvt` runs at
-L 0.9 µm but not 1 µm, and `nfet_05v0_nvt` at 8 µm but not 25 µm, at any W
-from 0.42 to 50 µm (2026-10-08). The 16 V pair is left to
+sky130_fd_pr__nfet_01v8. …", or "XM1 has L 25 µm, above the 20.2 µm longest
+length sky130_fd_pr__nfet_01v8 runs at on Production's simulator, so a
+simulation stops at this line." ngspice 46 stops at such a line with "could
+not find a valid modelname" or a parameter fatal. The 16 V pair is left to
 `REVIEWED_SIZE_UNMODELLED`, so a slip on it gets one finding.
 
 The same warning names an L, or a W per finger, over 1 mm on any reviewed

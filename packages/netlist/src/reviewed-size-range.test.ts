@@ -112,7 +112,7 @@ it("warns of a SKY130 MOSFET finger narrower than its PDK makes one (#1474)", ()
       objectIds: ["XM1"],
       parameter: "w",
       message: expect.stringMatching(
-        /^XM1 has W 0\.3 µm, below the 0\.36 µm minimum width per finger of sky130_fd_pr__nfet_01v8\. /u,
+        /^XM1 has W 0\.3 µm, below the 0\.42 µm minimum width per finger of sky130_fd_pr__nfet_01v8\. /u,
       ),
     },
   ]);
@@ -120,8 +120,8 @@ it("warns of a SKY130 MOSFET finger narrower than its PDK makes one (#1474)", ()
   expect(exportPart(NFET, { W: "300n" }).findings).toEqual([
     expect.objectContaining({ parameter: "W" }),
   ]);
-  // W is the total over the fingers: 0.84 µm on two is 0.42 µm each, above
-  // the 1.8 V NFET's 0.36 µm and exactly the 1.8 V PMOS's narrowest.
+  // W is the total over the fingers: 0.84 µm on two is 0.42 µm each, exactly
+  // the narrowest finger Production runs (#1492).
   expect(exportPart(NFET, { w: "840n", l: "150n", nf: "2" }).findings).toEqual(
     [],
   );
@@ -133,8 +133,40 @@ it("warns of a SKY130 MOSFET finger narrower than its PDK makes one (#1474)", ()
     expect.objectContaining({
       parameter: "w",
       message: expect.stringMatching(
-        /^XM1 has W 0\.6 µm over 2 fingers, 0\.3 µm each, below the 0\.36 µm minimum width per finger/u,
+        /^XM1 has W 0\.6 µm over 2 fingers, 0\.3 µm each, below the 0\.42 µm minimum width per finger/u,
       ),
+    }),
+  ]);
+  // volare's binned NFET runs a 0.36 µm finger; Production's library does not.
+  expect(exportPart(NFET, { w: "360n", l: "150n" }).findings).toEqual([
+    expect.objectContaining({ parameter: "w" }),
+  ]);
+});
+
+it("warns of an L longer than Production's simulator runs the device at (#1492)", () => {
+  expect(exportPart(NFET, { w: "1u", l: "20.2u" }).findings).toEqual([]);
+  expect(exportPart(NFET, { w: "1u", l: "25u" }).findings).toEqual([
+    {
+      severity: "warning",
+      objectIds: ["XM1"],
+      parameter: "l",
+      message:
+        "XM1 has L 25 µm, above the 20.2 µm longest length sky130_fd_pr__nfet_01v8 runs at on Production's simulator, so a simulation stops at this line.",
+    },
+  ]);
+  // Each device has its own: the 3.3 V NVT stops past 0.909 µm.
+  const nvt = "sky130_fd_pr__nfet_03v3_nvt";
+  expect(exportPart(nvt, { w: "1u", l: "0.9u" }).findings).toEqual([]);
+  expect(exportPart(nvt, { w: "1u", l: "1u" }).findings).toEqual([
+    expect.objectContaining({
+      parameter: "l",
+      message: expect.stringContaining("above the 0.909 µm longest length"),
+    }),
+  ]);
+  // A unit slip is still named as one, not as a length too long.
+  expect(exportPart(NFET, { w: "1u", l: "0.15" }).findings).toEqual([
+    expect.objectContaining({
+      message: expect.stringContaining("its unit is likely missing or wrong"),
     }),
   ]);
 });
