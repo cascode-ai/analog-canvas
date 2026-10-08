@@ -151,45 +151,51 @@ describe("planComponentPropertyCodeEdits", () => {
       expect(applied.document.instances[0]?.symbolId).toBe(family);
       expect(applied.document.nets).toEqual([]);
 
-      for (const protectedDocument of [
-        {
-          ...document,
-          junctions: [
-            { id: "J1", netId: "orphan-D", position: { x: 0, y: 0 } },
-          ],
-        },
-        {
-          ...document,
-          noConnects: [
-            {
-              id: "NC1",
-              endpoint: {
-                kind: "terminal" as const,
-                instanceId: "X1",
-                pinName: "D",
+      // Kept, and named: the shrink is refused before any edit (#1457).
+      for (const [protectedDocument, refusal] of [
+        [
+          {
+            ...document,
+            junctions: [
+              { id: "J1", netId: "orphan-D", position: { x: 0, y: 0 } },
+            ],
+          },
+          "X1.D is connected; disconnect it before choosing 2 inputs",
+        ],
+        [
+          {
+            ...document,
+            noConnects: [
+              {
+                id: "NC1",
+                endpoint: {
+                  kind: "terminal" as const,
+                  instanceId: "X1",
+                  pinName: "D",
+                },
               },
-            },
-          ],
-        },
-        {
-          ...document,
-          connectivityEvidence: [
-            {
-              id: "source-D",
-              kind: "spice-source" as const,
-              netId: "orphan-D",
-              sourceNetId: "imported-D",
-            },
-          ],
-        },
-      ]) {
-        expect(
-          planComponentPropertyCodeEdits(
-            protectedDocument,
-            instance,
-            value,
-          ).some((edit) => edit.kind === "disconnect_endpoint"),
-        ).toBe(false);
+            ],
+          },
+          "X1.D is marked No Connect; remove the mark before choosing 2 inputs",
+        ],
+        [
+          {
+            ...document,
+            connectivityEvidence: [
+              {
+                id: "source-D",
+                kind: "spice-source" as const,
+                netId: "orphan-D",
+                sourceNetId: "imported-D",
+              },
+            ],
+          },
+          "X1.D is connected; disconnect it before choosing 2 inputs",
+        ],
+      ] as [typeof document, string][]) {
+        expect(() =>
+          planComponentPropertyCodeEdits(protectedDocument, instance, value),
+        ).toThrow(refusal);
       }
     },
   );

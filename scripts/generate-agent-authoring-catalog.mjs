@@ -59,22 +59,13 @@ function authoringSymbol(definition, category) {
   };
 }
 
-const symbols = [];
-for (const entry of sourceCatalog.entries) {
-  // This is the reviewed, palette-visible product boundary: an Agent places
-  // what a person can pick from the palette. That includes the house entries
-  // drawn for primitives the textbook never drew (the controlled sources, the
-  // plain and SPDT switches, the voltage-controlled switch, Diff gm, ADC and
-  // DAC, #1303); their provenance claims no textbook authority. Manual-only
-  // and provisional assets remain unavailable without an explicit human fact.
-  if (entry.reviewStatus !== "reviewed" || entry.palette !== true) continue;
+/** A reviewed entry's symbol, checked against the catalog's claims. */
+async function reviewedDefinition(entry) {
   if (
     entry.visualAuthority?.kind !== "razavi-reference-v1" &&
     !(entry.provenance === "house" && entry.houseReason)
   ) {
-    fail(
-      `palette entry claims neither Razavi nor house provenance: ${entry.symbolId}`,
-    );
+    fail(`entry claims neither Razavi nor house provenance: ${entry.symbolId}`);
   }
   const assetPath = resolve(assetRoot, entry.assetPath);
   if (!assetPath.startsWith(`${assetRoot}${sep}`)) {
@@ -88,7 +79,41 @@ for (const entry of sourceCatalog.entries) {
   if (JSON.stringify(pinOrder) !== JSON.stringify(entry.pinOrder)) {
     fail(`pin order mismatch for ${entry.symbolId}`);
   }
-  symbols.push(authoringSymbol(definition, entry.category));
+  return definition;
+}
+
+const symbols = [];
+for (const entry of sourceCatalog.entries) {
+  // This is the reviewed, palette-visible product boundary: an Agent places
+  // what a person can pick from the palette. That includes the house entries
+  // drawn for primitives the textbook never drew (the controlled sources, the
+  // plain and SPDT switches, the voltage-controlled switch, Diff gm, ADC and
+  // DAC, #1303); their provenance claims no textbook authority. Manual-only
+  // and provisional assets remain unavailable without an explicit human fact.
+  if (entry.reviewStatus !== "reviewed" || entry.palette !== true) continue;
+  symbols.push(
+    authoringSymbol(await reviewedDefinition(entry), entry.category),
+  );
+}
+
+// A 3- or 4-input gate is a palette gate with more inputs: a person reaches
+// it through that gate's Inputs choice in Properties, so an Agent places it
+// too (#1457).
+for (const entry of sourceCatalog.entries) {
+  const generation = entry.generation;
+  if (entry.reviewStatus !== "reviewed" || generation?.inputCount === undefined)
+    continue;
+  const base = symbols.find(
+    (symbol) => symbol.symbolId === generation.sourceSymbolId,
+  );
+  if (
+    !base ||
+    entry.symbolId !== `${generation.sourceSymbolId}-${generation.inputCount}`
+  )
+    fail(
+      `multi-input gate is no palette gate's Inputs choice: ${entry.symbolId}`,
+    );
+  symbols.push(authoringSymbol(await reviewedDefinition(entry), base.category));
 }
 
 // The palette's extended devices (DMOS, depletion MOS) are a reviewed MOS

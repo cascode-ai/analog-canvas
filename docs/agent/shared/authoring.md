@@ -157,6 +157,14 @@ targets to avoid full-Snapshot name resolution. Names remain supported when usef
   the cells that fit; an empty model returns the gate to its ideal body with
   its default parameters. A cell imported from a SPICE file stays an external
   block with its own rail pins.
+- The AND, NAND, OR, NOR, XOR and XNOR gates come with 2, 3 or 4 inputs.
+  `place-component` places the 3- and 4-input forms by their own IDs
+  (`nor-gate-3`, `xor-gate-4`), and `set-property {target, set:{inputs:"3"}}`
+  switches a placed gate between 2, 3 and 4 inputs, as the Properties Inputs
+  choice does: the symbol and its default netlist target change together and
+  the shared inputs keep their wires. An input that would go is refused while
+  it is wired (disconnect it first), and a gate bound to a standard cell is
+  refused until its model is cleared.
 - `place-component` without `parameters` places a part as the GUI library
   does: each parameter's catalog default, and for a transistor the model of
   the Process the Netlist panel shows. A BJT in a SKY130 Project arrives as

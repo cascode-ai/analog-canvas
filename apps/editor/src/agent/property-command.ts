@@ -23,6 +23,10 @@ import {
 import type { SymbolResolver } from "@icm/symbols";
 
 import type { ComponentPropertyCodeValue } from "../features/properties/component-property-code";
+import {
+  logicGateInputInfo,
+  type LogicGateInputCount,
+} from "../features/properties/logic-gate-input-count";
 import { planPropertyApply } from "../features/properties/property-apply-plan";
 
 type SetProperties = Extract<AgentAuthoringCommand, { kind: "set-properties" }>;
@@ -135,7 +139,33 @@ export function planSetProperties(
     if (formalPin) value.displayName = command.reference;
     else value.netlistName = command.reference;
   }
-  if (command.parameters) {
+  // A gate's input count is its Properties Inputs choice, not a netlist
+  // parameter: set {inputs: "3"} switches the symbol and its default target
+  // as that choice does (#1457).
+  let parameterChange = command.parameters;
+  const inputs = parameterChange?.set?.inputs;
+  // A Library block takes any parameter name, so a gate without the choice
+  // would export `inputs=3` instead of refusing it.
+  if (
+    inputs !== undefined &&
+    !logicGateInputInfo(instance.symbolId) &&
+    subcircuitDescriptor(instance.symbolId)
+  )
+    throw new Error(
+      `${name} (${instance.symbolId}) has no input count; inputs is for the and, nand, or, nor, xor and xnor gates`,
+    );
+  if (inputs !== undefined && logicGateInputInfo(instance.symbolId)) {
+    const count = Number(inputs);
+    if (count !== 2 && count !== 3 && count !== 4)
+      throw new Error(`inputs must be 2, 3, or 4; received "${inputs}"`);
+    value.inputs = count as LogicGateInputCount;
+    const { inputs: _inputs, ...set } = parameterChange!.set!;
+    parameterChange =
+      Object.keys(set).length || parameterChange!.unset?.length
+        ? { ...parameterChange, set }
+        : undefined;
+  }
+  if (parameterChange) {
     if (!instance.netlist)
       throw new Error(
         `${name} has no netlist parameters${
@@ -146,23 +176,23 @@ export function planSetProperties(
         }`,
       );
     const changed = [
-      ...Object.keys(command.parameters.set ?? {}),
-      ...(command.parameters.unset ?? []),
+      ...Object.keys(parameterChange.set ?? {}),
+      ...(parameterChange.unset ?? []),
     ];
     if (changed.some((key) => key.startsWith("spice.")))
       throw new Error(
         "spice.* keys are migration-only; use typed netlist facts",
       );
-    const issue = command.parameters.set
-      ? parameterIssue(project, instance, command.parameters.set)
+    const issue = parameterChange.set
+      ? parameterIssue(project, instance, parameterChange.set)
       : undefined;
     if (issue) throw new Error(issue);
     // Properties holds the whole map: a key left out is removed.
     const parameters = {
       ...instance.netlist.parameters,
-      ...(command.parameters.set ?? {}),
+      ...(parameterChange.set ?? {}),
     };
-    for (const key of command.parameters.unset ?? []) delete parameters[key];
+    for (const key of parameterChange.unset ?? []) delete parameters[key];
     value.parameters = parameters;
   }
   if (command.signalFlow) {

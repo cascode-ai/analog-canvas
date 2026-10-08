@@ -278,7 +278,39 @@ export function planComponentPropertyCodeEdits(
       value.inputs,
       oldGate.count,
     )) {
-      if (!removableOrphanInput(document, instance, pinName)) continue;
+      if (!removableOrphanInput(document, instance, pinName)) {
+        // A dropped input never takes what it carries along: what holds it
+        // is named, before any edit (#1457).
+        const pin = `${instance.reference ?? instance.id}.${pinName}`;
+        const choice = `before choosing ${value.inputs} inputs`;
+        if (
+          document.noConnects.some(
+            (item) =>
+              item.endpoint.instanceId === instance.id &&
+              item.endpoint.pinName === pinName,
+          )
+        )
+          throw new Error(
+            `${pin} is marked No Connect; remove the mark ${choice}`,
+          );
+        if (
+          instance.importProvenance?.terminalMapping?.some(
+            (terminal) => terminal.pinName === pinName,
+          )
+        )
+          throw new Error(`${pin} maps an imported terminal; it stays`);
+        if (
+          document.nets.some((net) =>
+            net.terminals.some(
+              (terminal) =>
+                terminal.instanceId === instance.id &&
+                terminal.pinName === pinName,
+            ),
+          )
+        )
+          throw new Error(`${pin} is connected; disconnect it ${choice}`);
+        continue;
+      }
       edits.push({
         kind: "disconnect_endpoint",
         endpoint: { kind: "terminal", instanceId: instance.id, pinName },
