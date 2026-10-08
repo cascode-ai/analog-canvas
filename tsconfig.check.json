@@ -3,8 +3,6 @@
   "compilerOptions": {
     "jsx": "react-jsx",
     "noEmit": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
     "paths": {
       "@icm/simulation-service": ["./packages/simulation-service/src/index.ts"],
       "@icm/simulation-service/*": ["./packages/simulation-service/src/*"],

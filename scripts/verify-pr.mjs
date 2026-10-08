@@ -4,7 +4,8 @@
  *
  *   pnpm verify:pr [-- --base origin/main] [--no-browser | --mapped]
  *
- * 1. typecheck;
+ * 1. typecheck, then unused files and exports (`pnpm deadcode`, Knip, a few
+ *    seconds; knip.config.js says what counts);
  * 2. Prettier on the changed files it formats;
  * 3. every unit test that imports a changed file (`vitest related`): a leaf
  *    change runs a few, a core package most of the suite, so neither a guess
@@ -103,6 +104,7 @@ if (changed.length === 0) {
 }
 
 step("typecheck", "pnpm", ["typecheck"]);
+step("deadcode", "pnpm", ["deadcode"]);
 
 const formatted = formattedPaths(present);
 if (formatted.length)

@@ -273,6 +273,15 @@ Split an oversized suite by protected behavior, not by arbitrary line count.
 Prefer small shared fixture builders over copying an entire Project when only a
 few facts are relevant.
 
+## Unused code
+
+`pnpm typecheck` refuses unused locals and parameters; prefix a parameter kept
+on purpose with `_`. `pnpm deadcode` runs Knip ([configuration](../../knip.config.js))
+twice: over every file with the tests, then over only what the product
+reaches from its entries. `pnpm verify:pr` runs it after the typecheck; CI
+does not. An export only tests use is dead: delete it with its tests by the
+rules above, or tag it `@internal` with the reason when the test is the point.
+
 ## Coverage
 
 Coverage is diagnostic evidence, not a merge threshold. Use it to find an
