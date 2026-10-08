@@ -16,8 +16,9 @@ Arguments that fail validation return `INVALID_TOOL_INPUT` with
 `recovery:"fix-input"`. Each issue gives its `path` and `code` and says what
 would pass: unknown `keys` beside the `allowed` keys of the branch its
 `kind`/`action`/`operation` selects, the accepted `values`, a `minimum` or
-`maximum` with `inclusive`, or the `expected` type. Submitted values are never
-echoed back.
+`maximum` with `inclusive`, or the `expected` type. A missing or unknown
+`kind`/`action`/`operation` lists the `values` this tool takes at that path.
+Submitted values are never echoed back.
 
 Focused circuit tools retain the `{documentId?, actions:[...]}` call envelope:
 

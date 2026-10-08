@@ -47,6 +47,8 @@ function atPath(input: unknown, path: PropertyKey[]): unknown {
   );
 }
 
+const TAGS = ["action", "operation", "kind"];
+
 function compatibleBranches(
   issue: z.core.$ZodIssueInvalidUnion,
   input: unknown,
@@ -58,7 +60,7 @@ function compatibleBranches(
         (child) =>
           (child.code === "invalid_value" ||
             (child.code === "invalid_union" && child.errors.length === 0)) &&
-          ["action", "operation", "kind"].includes(String(child.path.at(-1))) &&
+          TAGS.includes(String(child.path.at(-1))) &&
           atPath(input, [...path, ...child.path]) !== undefined,
       ),
   );
@@ -66,16 +68,11 @@ function compatibleBranches(
 
 type ContractNode = Record<string, unknown>;
 
-/**
- * The keys the object at `path` takes, from the tool's contract: those of
- * the branches its own kind, action or operation selects, else of every
- * branch there. A contract that cannot be inlined lists none.
- */
-function allowedKeys(
+/** The object branches the value at `path` may take, from the tool's contract. */
+function objectsAt(
   contract: ContractNode,
   path: readonly PropertyKey[],
-  input: unknown,
-): string[] {
+): ContractNode[] {
   let schemas: ContractNode[];
   try {
     schemas = [inlineSchema(contract)];
@@ -90,9 +87,20 @@ function allowedKeys(
           : properties(schema)[String(step)];
       return child === undefined ? [] : [node(child)];
     });
-  const objects = schemas
-    .flatMap(variants)
-    .filter((schema) => schema.properties);
+  return schemas.flatMap(variants).filter((schema) => schema.properties);
+}
+
+/**
+ * The keys the object at `path` takes, from the tool's contract: those of
+ * the branches its own kind, action or operation selects, else of every
+ * branch there. A contract that cannot be inlined lists none.
+ */
+function allowedKeys(
+  contract: ContractNode,
+  path: readonly PropertyKey[],
+  input: unknown,
+): string[] {
+  const objects = objectsAt(contract, path);
   const value = node(atPath(input, [...path]));
   const selected = objects.filter((schema) => {
     const tag = operationTags(schema);
@@ -108,6 +116,67 @@ function allowedKeys(
   ].sort();
 }
 
+type Tag = { key: string; values: string[] };
+const strings = (values: readonly unknown[] | undefined) =>
+  (values ?? []).filter((value): value is string => typeof value === "string");
+
+/**
+ * The kind, action or operation a union refused because no branch takes it
+ * (#1525): a discriminated union names its tag, a plain one refuses the same
+ * tag in every branch. `own` marks an issue whose path ends at the tag.
+ */
+function refusedTag(issue: Issue): (Tag & { own: boolean }) | undefined {
+  if (issue.code !== "invalid_union") return undefined;
+  if (!issue.errors.length) {
+    const values = "options" in issue ? strings(issue.options) : [];
+    return typeof issue.discriminator === "string" && values.length
+      ? { key: issue.discriminator, values, own: true }
+      : undefined;
+  }
+  const tags = issue.errors.map((branch) => {
+    for (const child of branch) {
+      const nested = refusedTag(child);
+      if (!child.path.length && nested && !nested.own) return nested;
+      if (child.path.length !== 1 || !TAGS.includes(String(child.path[0])))
+        continue;
+      if (child.code === "invalid_value")
+        return { key: String(child.path[0]), values: strings(child.values) };
+      if (nested?.own) return nested;
+    }
+    return undefined;
+  });
+  const key = tags[0]?.key;
+  return key && tags.every((tag) => tag?.key === key)
+    ? {
+        key,
+        values: [...new Set(tags.flatMap((tag) => tag!.values))],
+        own: false,
+      }
+    : undefined;
+}
+
+/**
+ * The tag values the contract declares for the object at `path`: a focused
+ * tool's contract lists only its own. A focused simulation tool may name some
+ * `operation` and others `action`, aliases its calls accept alike.
+ */
+function declaredTag(
+  contract: ContractNode,
+  path: readonly PropertyKey[],
+  key: string,
+): Tag | undefined {
+  const tags = objectsAt(contract, path).flatMap(
+    (schema) => operationTags(schema) ?? [],
+  );
+  const values = [...new Set(tags.flatMap((tag) => tag.values))];
+  return values.length
+    ? {
+        key: tags.some((tag) => tag.key === key) ? key : tags[0]!.key,
+        values,
+      }
+    : undefined;
+}
+
 const LIST_LIMIT = 40;
 function listed(items: readonly unknown[]): string {
   const shown = items.slice(0, LIST_LIMIT).map(String).join(", ");
@@ -120,7 +189,7 @@ function counted(count: number, origin: string | undefined): string {
 }
 /** zod's own wording; a schema's own message is kept. */
 const DEFAULT_MESSAGE =
-  /^(Invalid input|Invalid option|Too big|Too small|Unrecognized key)/u;
+  /^(Invalid input|Invalid option|Invalid discriminator|Too big|Too small|Unrecognized key)/u;
 
 /**
  * What the validator knows beyond the rule that failed (#1464): the keys it
@@ -196,6 +265,24 @@ export function inputIssues(
       if (compatible.length === 1)
         return inputIssues(compatible[0]!, input, path, contract);
     }
+    const tag = refusedTag(issue);
+    if (tag) {
+      // A missing or unknown tag answers with the ones this tool takes.
+      const object = tag.own ? path.slice(0, -1) : path;
+      const { key, values } =
+        (contract && declaredTag(contract, object, tag.key)) || tag;
+      const missing = atPath(input, [...object, tag.key]) === undefined;
+      return [
+        {
+          path: [...object, key],
+          code: issue.code,
+          message: DEFAULT_MESSAGE.test(issue.message)
+            ? `${missing ? "Missing" : "Unknown"} "${key}"; expected one of: ${listed(values)}`
+            : issue.message,
+          values,
+        },
+      ];
+    }
     const known = issueFacts(issue, path, input, contract);
     return [
       {
@@ -238,7 +325,9 @@ export function inputIssueDetails(
                 ]),
               ],
             }
-          : { branches: issue.errors.length }
+          : issue.errors.length
+            ? { branches: issue.errors.length }
+            : {}
         : {}),
     };
   });
