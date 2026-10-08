@@ -34,11 +34,11 @@ import type { OperationSession } from "./operation-session.js";
  * docs/agent/local-workspace.md.
  */
 
-export const LOCAL_MODE_USAGE =
+const LOCAL_MODE_USAGE =
   "analog-canvas-mcp --local <dir> [--process <id>] [--new [--name <name>] [--reference <file.sp>]] [--http <command>]";
 
 /** The headless workspace bundle's file name, beside this adapter in a release. */
-export const HEADLESS_BUNDLE_NAME = "analog-canvas-headless.mjs";
+const HEADLESS_BUNDLE_NAME = "analog-canvas-headless.mjs";
 
 /** One workspace's Project, held by this process through the editor's host. */
 export interface LocalWorkspaceHandle {
@@ -96,7 +96,7 @@ export function headlessBundleCandidates(
   ];
 }
 
-export async function loadHeadlessWorkspace(
+async function loadHeadlessWorkspace(
   env: Record<string, string | undefined> = process.env,
 ): Promise<HeadlessWorkspace> {
   const candidates = headlessBundleCandidates(env);
@@ -227,7 +227,7 @@ function wire<T>(request: T): T {
  * call the Project is written if the call changed it, so the file always
  * holds what the Agent was told. Simulation needs the website and is refused.
  */
-export class LocalAgentHttp extends AgentHttpClient {
+class LocalAgentHttp extends AgentHttpClient {
   private saving: Promise<unknown> = Promise.resolve();
 
   constructor(

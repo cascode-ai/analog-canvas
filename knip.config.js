@@ -52,6 +52,8 @@ export default {
         "containers/simulation/*.mjs!",
         "containers/vacask/image-smoke.mjs!",
         "tools/**/*.mjs!",
+        // The batch runner's scripted Agent, run as a command (#1498).
+        "scripts/lib/draw-batch-script-agent.mjs!",
       ],
       project: [
         "scripts/**/*.mjs!",

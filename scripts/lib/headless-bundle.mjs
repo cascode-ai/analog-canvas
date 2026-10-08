@@ -7,7 +7,7 @@ import { build } from "vite";
 
 const root = resolve(import.meta.dirname, "../..");
 
-export const HEADLESS_BUNDLE_NAME = "analog-canvas-headless.mjs";
+const HEADLESS_BUNDLE_NAME = "analog-canvas-headless.mjs";
 
 /**
  * One file, with no chunks beside it, so it can be copied on its own. What

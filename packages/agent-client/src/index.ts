@@ -2,9 +2,18 @@
  * Node-only Agent-side Helper over the four-operation Agent API (Agent rationale).
  * These modules import Node built-ins and are not part of any browser bundle.
  */
-export { ConnectorStore, defaultConnectorFilePath } from "./connector-store.js";
+export {
+  ConnectorStore,
+  defaultConnectorFilePath,
+  type StoredConnectorCredential,
+} from "./connector-store.js";
 export { AgentSessionError } from "./errors.js";
-export { AgentHttpClient, type AgentRequestTiming } from "./http-client.js";
+export {
+  AgentHttpClient,
+  type AgentRelayOperation,
+  type AgentRequestTiming,
+  type ClaimSuccess,
+} from "./http-client.js";
 export { changedObjectIds, type CachedSnapshot } from "./snapshot-cache.js";
 export {
   AgentSessionClient,
