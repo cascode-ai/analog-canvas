@@ -12,7 +12,7 @@ import {
 } from "./site-resource-links";
 
 /** When the notice last changed; update it with the text. */
-export const PRIVACY_UPDATED = "7 October 2026";
+export const PRIVACY_UPDATED = "8 October 2026";
 
 /**
  * Every cookie the site sets. All but `canvas_vid` belong to a feature you
@@ -43,12 +43,6 @@ export const SITE_COOKIES = [
     purpose: "Protects GitHub and Google sign-in against forged requests.",
     lifetime: "10 minutes",
     when: "While you sign in with GitHub or Google",
-  },
-  {
-    name: "icm_simulation_session",
-    purpose: "Connects your simulation runs to this browser.",
-    lifetime: "24 hours",
-    when: "When you run a simulation without signing in",
   },
 ] as const;
 
@@ -183,11 +177,12 @@ export function PrivacyPage() {
 
         <h2>Your account</h2>
         <p>
-          Signing in is optional; you need it to save to the cloud, publish to
-          the Gallery, share components or like circuits. You can sign in with
-          GitHub, Google or a code sent to your email. The site then keeps your
-          email address, your display name, the sign-in method and that
-          method&rsquo;s account number, and a sign-in session.
+          Signing in is optional; you need it to save to the cloud, run
+          simulations, publish to the Gallery, share components or like
+          circuits. You can sign in with GitHub, Google or a code sent to your
+          email. The site then keeps your email address, your display name, the
+          sign-in method and that method&rsquo;s account number, and a sign-in
+          session.
         </p>
         <ul>
           <li>
@@ -239,8 +234,9 @@ export function PrivacyPage() {
             maintain the site can read them.
           </li>
           <li>
-            <strong>Simulations</strong> run on the site&rsquo;s servers. Runs
-            and their results are deleted 24 hours after they finish.
+            <strong>Simulations</strong> run on the site&rsquo;s servers, for
+            signed-in accounts. Runs and their results are deleted 24 hours
+            after they finish.
           </li>
           <li>
             <strong>Duplicate checks</strong> before publishing keep their
@@ -256,12 +252,11 @@ export function PrivacyPage() {
 
         <h2>Cookies and browser storage</h2>
         <p>
-          The site sets only these cookies, all its own. Each of the sign-in and
-          simulation cookies is set only when you use that feature, which needs
-          it. <code>canvas_vid</code> only counts returning visitors to this
-          site: it is never shared or combined with other data, lasts at most a
-          year, and you can refuse it at any time. That is why the site shows no
-          cookie banner.
+          The site sets only these cookies, all its own. The sign-in cookies are
+          set only when you sign in, which needs them. <code>canvas_vid</code>{" "}
+          only counts returning visitors to this site: it is never shared or
+          combined with other data, lasts at most a year, and you can refuse it
+          at any time. That is why the site shows no cookie banner.
         </p>
         <div className="privacy-table-scroll">
           <table className="privacy-cookies">

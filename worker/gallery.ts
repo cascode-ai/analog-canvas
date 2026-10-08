@@ -31,6 +31,7 @@ import {
 } from "@icm/model";
 
 import { AI_ACCOUNT_PROVIDER, sessionUserOf, type SessionUser } from "./auth";
+import { bearerMatches } from "./bearer";
 import { sameOrigin } from "./same-origin";
 import {
   dailySubmissionLimit,
@@ -245,22 +246,6 @@ function readerCopy(response: Response): Response {
   if (policy?.startsWith("public"))
     headers.set("cache-control", policy.replace(/^public/u, "private"));
   return new Response(response.body, { status: response.status, headers });
-}
-
-/** Whether the request's bearer equals `expected`, compared in constant time. */
-function bearerMatches(
-  request: Request,
-  expected: string | undefined,
-): boolean {
-  const supplied = request.headers
-    .get("Authorization")
-    ?.replace(/^Bearer /, "");
-  let difference = 0;
-  if (expected && supplied?.length === expected.length) {
-    for (let i = 0; i < expected.length; i++)
-      difference |= expected.charCodeAt(i) ^ supplied.charCodeAt(i);
-  } else difference = 1;
-  return difference === 0;
 }
 
 /**

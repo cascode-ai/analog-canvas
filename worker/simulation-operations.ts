@@ -18,6 +18,7 @@ import type { AuthEnv, SessionUser } from "./auth-do";
 import type { SimulationControlNamespaceLike } from "./simulation-control-do";
 import {
   routeSimulationRequest,
+  signInToSimulate,
   type SimulationEnv,
   type SimulationRequestBody,
 } from "./simulation";
@@ -78,36 +79,12 @@ export interface SimulationOperationsRuntime {
     request: Request,
     env: SimulationOperationsEnv,
   ): Promise<SessionUser | null>;
-  anonymousPrincipalOf?(
-    request: Request,
-    env: SimulationOperationsEnv,
-    create: boolean,
-  ): Promise<{ principal: SessionUser | null; cookie?: string }>;
   now(): number;
   uuid(): string;
 }
 
 const defaultRuntime: SimulationOperationsRuntime = {
   principalOf: (request, env) => sessionUserOf(request, env),
-  anonymousPrincipalOf: async (request, env, create) => {
-    const stub = control(env);
-    if (!stub) return { principal: null };
-    const response = await stub.fetch(
-      "https://simulation-control/anonymous-session",
-      {
-        method: create ? "POST" : "GET",
-        headers: { cookie: request.headers.get("cookie") ?? "" },
-      },
-    );
-    if (!response.ok) return { principal: null };
-    const body = (await response.json()) as { principal?: SessionUser };
-    return {
-      principal: body.principal ?? null,
-      ...(response.headers.get("set-cookie")
-        ? { cookie: response.headers.get("set-cookie")! }
-        : {}),
-    };
-  },
   now: Date.now,
   uuid: () => crypto.randomUUID(),
 };
@@ -218,25 +195,11 @@ export async function routeManagedSimulationRequest(
       },
       { status: 503 },
     );
-  let principal = await runtime.principalOf(request, env);
-  let ownerCookie: string | undefined;
-  if (!principal && runtime.anonymousPrincipalOf) {
-    const anonymous = await runtime.anonymousPrincipalOf(
-      request,
-      env,
-      url.pathname === "/api/simulation/runs" && request.method === "POST",
-    );
-    principal = anonymous.principal;
-    ownerCookie = anonymous.cookie;
-  }
-  if (!principal)
-    return Response.json(
-      { error: "simulation-authentication-required" },
-      { status: 401 },
-    );
+  // Simulation runs on the operator's host, so it is for signed-in accounts.
+  const principal = await runtime.principalOf(request, env);
+  if (!principal) return signInToSimulate();
   const ownedResponse = (response: Response): Response => {
     response.headers.set("cache-control", "private, no-store");
-    if (ownerCookie) response.headers.append("set-cookie", ownerCookie);
     return response;
   };
 

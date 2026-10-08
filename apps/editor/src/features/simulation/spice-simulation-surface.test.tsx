@@ -2,7 +2,11 @@ import { createEmptyProject, createSimulationFolder } from "@icm/model";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { BrowserSimulationSession } from "./browser-simulation-session";
-import { SpiceSimulationSurface } from "./spice-simulation-surface";
+import type { Run } from "@icm/simulation-service/contract";
+import {
+  preferredResultTab,
+  SpiceSimulationSurface,
+} from "./spice-simulation-surface";
 import type { SimulationAgentGuidanceProps } from "./simulation-agent-guidance";
 
 function render(
@@ -105,5 +109,24 @@ describe("source workspace default cutover", () => {
     expect(markup).toContain('aria-label="Simulation Code workspace"');
     expect(markup).toContain("run.cir");
     expect(markup).not.toContain('aria-label="Measurements settings"');
+  });
+});
+
+describe("the tab a run lands on", () => {
+  it("shows a refused run's problem in Console, where its Sign in button is", () => {
+    const run = (state: Run["state"], error?: Run["error"]) =>
+      ({ id: "run", state, ...(error ? { error } : {}) }) as Run;
+    expect(preferredResultTab(run("finished"))).toBe("specs");
+    expect(
+      preferredResultTab(
+        run("finished", {
+          code: "simulation-authentication-required",
+          message: "Sign in to run simulations.",
+          stage: "read",
+          recovery: "reauthorize",
+        }),
+      ),
+    ).toBe("console");
+    expect(preferredResultTab(run("lost"))).toBe("console");
   });
 });

@@ -17,6 +17,7 @@ import { prepareNgspiceExecutionInput } from "../packages/simulation-service/dis
 import { CapabilitiesSchema } from "../packages/simulation-service/dist/contract.js";
 import { profile } from "./lib/preview-simulation-qualification.mjs";
 import { validatePinnedEnvironment } from "./lib/preview-simulation-validation-core.mjs";
+import { simulationSmokeHeaders } from "./lib/simulation-smoke-headers.mjs";
 
 const origin = new URL(process.argv[2]);
 assert.equal(origin.protocol, "https:");
@@ -215,7 +216,7 @@ for (const gain of [10, 40]) {
   );
   const response = await fetch(new URL("/api/simulate", origin), {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: simulationSmokeHeaders(),
     body: JSON.stringify({
       ...prepared.input,
       timeoutMs: 15000,

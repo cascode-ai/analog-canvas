@@ -526,6 +526,12 @@ generated it, so an Agent can retry the identical start rather than duplicate it
 File Resource `list` recovers session draft IDs after a lost create response;
 it returns revision/entry/expiry metadata, not file bodies.
 
+The hosted site runs simulations for signed-in accounts only (since
+2026-10-08): `start` and the direct `/api/simulate` computation answer a
+signed-out request `401 simulation-authentication-required`, which the editor
+shows with a Sign in button, and no anonymous owner is issued. Discovering the
+Profiles stays open.
+
 The browser owns its presentation receipts, not execution authority. On the
 managed hosted transport, tab loss does not stop an admitted run: the owner can
 list its server records, and bounded immutable input/result evidence remains in

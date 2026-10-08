@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { pathToFileURL } from "node:url";
 
+import { simulationSmokeHeaders } from "./lib/simulation-smoke-headers.mjs";
+
 export const VACASK_PROFILE_ID = "vacask-sky130-candidate";
 export const NGSPICE_PROFILE_ID = "sky130-core-continuous-ngspice46-v1";
 
@@ -39,7 +41,7 @@ export function nativeDividerRequest() {
 async function post(baseUrl, body, fetchImpl) {
   const response = await fetchImpl(new URL("/api/simulate", baseUrl), {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: simulationSmokeHeaders(),
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(120_000),
   });

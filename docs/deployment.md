@@ -265,9 +265,13 @@ to the other.
 Production uses `/api/simulation/runs`. Its durable control object owns
 owner-bound admission, idempotency, leases, cancellation, and bounded run records. Queue
 dispatch sends work to the operator host's declared single slot; R2 holds
-immutable input/result artifacts. Account ownership is preferred; Production can
-issue an opaque HttpOnly anonymous capability. Capacity controls remain active
-for the public service.
+immutable input/result artifacts. Since 2026-10-08 every run belongs to a
+signed-in account: a signed-out request to either route is answered `401`
+`simulation-authentication-required` ("Sign in to run simulations."), and no
+anonymous session is issued. Discovering the Profiles
+(`{"operation":"capabilities"}`) stays open. The deploy's own simulation checks
+send a `SIMULATION_SMOKE_TOKEN` that each deploy makes, masks, puts in the
+Worker and the next deploy replaces. Capacity controls remain active.
 
 `/api/simulate` remains the direct/internal contract and the local transport.
 A managed failure never triggers fallback to it. Production uses its own queue,

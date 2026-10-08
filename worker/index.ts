@@ -20,7 +20,11 @@ import {
   type GalleryReadableDocument,
   type GalleryNamespaceLike,
 } from "./gallery";
-import { routeSimulationRequest, type SimulationEnv } from "./simulation";
+import {
+  routeSimulationRequest,
+  refuseSignedOutSimulation,
+  type SimulationEnv,
+} from "./simulation";
 import {
   consumeSimulationJobs,
   routeManagedSimulationRequest,
@@ -66,6 +70,8 @@ type Env = TopologyTaskEnv &
     GALLERY: GalleryNamespaceLike;
     GALLERY_BACKUP_TOKEN?: string;
     STORE_BACKUP_TOKEN?: string;
+    /** Made by each deploy for its own simulation check; see simulation.ts. */
+    SIMULATION_SMOKE_TOKEN?: string;
     AUTH: AuthNamespaceLike;
     GH_OAUTH_CLIENT_ID?: string;
     GH_OAUTH_CLIENT_SECRET?: string;
@@ -136,6 +142,9 @@ async function route(request: Request, env: Env): Promise<Response> {
     env,
   );
   if (managedSimulationResponse) return managedSimulationResponse;
+
+  const signInResponse = await refuseSignedOutSimulation(request, env);
+  if (signInResponse) return signInResponse;
 
   const simulationResponse = await routeSimulationRequest(request, env);
   if (simulationResponse) return simulationResponse;
