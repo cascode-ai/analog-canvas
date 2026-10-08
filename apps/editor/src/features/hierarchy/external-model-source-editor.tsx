@@ -74,7 +74,7 @@ export function ExternalModelSourceEditor({
     edits: ProjectStructureEdit[],
     definitionId: string,
   ): ExternalDefinitionResult;
-  onPlaceholder(): void;
+  onPlaceholder?: () => void;
   onPlace(definitionId: string): void;
   onDirtyChange(dirty: boolean): void;
   onRequestLeave(action: () => void): void;
@@ -220,33 +220,44 @@ export function ExternalModelSourceEditor({
       d.implementation?.kind === "source" &&
       d.implementation.sourceId === sourceId,
   );
+  const selectedDefinition =
+    definition ??
+    (!forking
+      ? shared.find(
+          (d) =>
+            d.implementation?.kind === "source" &&
+            d.implementation.entry === selected?.name,
+        )
+      : undefined);
+  const selectedDefinitionId = selectedDefinition?.id ?? definitionId;
   const targets = [
-    ...shared.filter((d) => d.id !== definitionId),
-    ...(definition ? [definition] : []),
+    ...shared.filter((d) => d.id !== selectedDefinitionId),
+    ...(selectedDefinition ? [selectedDefinition] : []),
   ];
   const previewTerminals = selected?.ports.map(
     (name) =>
-      definition?.terminals.find((t) => t.name === name) ?? {
-        id: deriveStableId("model-preview-pin", definitionId, name),
+      selectedDefinition?.terminals.find((t) => t.name === name) ?? {
+        id: deriveStableId("model-preview-pin", selectedDefinitionId, name),
         name,
         direction: "passive" as const,
       },
   );
   const previewDefinition: ExternalSubcircuitDefinition | undefined = selected
     ? {
-        id: definitionId,
+        id: selectedDefinitionId,
         name: selected.name,
         terminals: previewTerminals!,
         formalParameters: [],
         interfaceStatus: "declared",
         implementation: { kind: "source", sourceId, entry: selected.name },
-        ...(definition?.presentation
+        ...(selectedDefinition?.presentation
           ? {
               presentation: {
-                ...definition.presentation,
-                pinPlacements: definition.presentation.pinPlacements?.filter(
-                  (p) => previewTerminals?.some((t) => t.id === p.terminalId),
-                ),
+                ...selectedDefinition.presentation,
+                pinPlacements:
+                  selectedDefinition.presentation.pinPlacements?.filter((p) =>
+                    previewTerminals?.some((t) => t.id === p.terminalId),
+                  ),
               },
             }
           : {}),
@@ -256,7 +267,7 @@ export function ExternalModelSourceEditor({
     ? createProjectSymbolResolver(
         { ...project, externalSubcircuitDefinitions: [previewDefinition] },
         [],
-      ).resolve(externalSubcircuitSymbolId(definitionId))?.definition
+      ).resolve(externalSubcircuitSymbolId(selectedDefinitionId))?.definition
     : undefined;
   const apply = (place = false) => {
     if (viewingApplied) return;
@@ -270,12 +281,14 @@ export function ExternalModelSourceEditor({
     }
     const definitions = [
       {
-        definitionId,
+        definitionId: selectedDefinitionId,
         entry: selected.name,
-        ...(portMaps[definitionId] ? { portMap: portMaps[definitionId] } : {}),
+        ...(portMaps[selectedDefinitionId]
+          ? { portMap: portMaps[selectedDefinitionId] }
+          : {}),
       },
       ...shared
-        .filter((d) => d.id !== definitionId)
+        .filter((d) => d.id !== selectedDefinitionId)
         .map((d) => ({
           definitionId: d.id,
           entry:
@@ -292,10 +305,11 @@ export function ExternalModelSourceEditor({
     });
     setResult(outcome);
     if (outcome.ok) {
+      setDefinitionId(selectedDefinitionId);
       setSavedSnapshot(serializeDraft({ portMaps: {} }));
       setBaseRevision(baseRevision + 1);
       setPortMaps({});
-      if (place) onPlace(definitionId);
+      if (place) onPlace(selectedDefinitionId);
     }
   };
   const copyModel = async () => {
@@ -377,12 +391,12 @@ export function ExternalModelSourceEditor({
         },
       });
     }
-    if (!existing || !definition) {
+    if (!existing || !selectedDefinition) {
       edits.push({
         kind: "upsert_external_subcircuit_definition",
         definition: {
           ...definition,
-          id: definitionId,
+          id: selectedDefinitionId,
           name:
             definition?.name ??
             selected?.name ??
@@ -404,9 +418,12 @@ export function ExternalModelSourceEditor({
       files,
       dependencies,
     });
-    const outcome = onSaveDraft(edits, definitionId);
+    const outcome = onSaveDraft(edits, selectedDefinitionId);
     setResult(outcome);
-    if (outcome.ok) setSavedSnapshot(snapshot);
+    if (outcome.ok) {
+      setDefinitionId(selectedDefinitionId);
+      setSavedSnapshot(snapshot);
+    }
   };
   const chooseOwner = (id: string) => {
     setViewingApplied(false);
@@ -715,7 +732,7 @@ export function ExternalModelSourceEditor({
       </div>
       {targets.flatMap((target) => {
         const next =
-          target.id === definitionId
+          target.id === selectedDefinitionId
             ? selected
             : inspection.entries.find(
                 (e) =>
@@ -1009,7 +1026,7 @@ export function ExternalModelSourceEditor({
             <button type="button" onClick={saveDraft} disabled={viewingApplied}>
               Save draft
             </button>
-            {!definition ? (
+            {!definition && onPlaceholder ? (
               <button
                 type="button"
                 onClick={() => onRequestLeave(onPlaceholder)}

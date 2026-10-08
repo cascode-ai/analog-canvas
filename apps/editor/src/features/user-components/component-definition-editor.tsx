@@ -1,6 +1,10 @@
 import { planComponentDefinitionEdit } from "./component-definition-plan";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { InlineConfirm } from "../../components/inline-confirm";
+import {
+  NativeComponentEditor,
+  type CircuitComponentAuthoring,
+} from "./native-component-editor";
 import type { ComponentDefinition } from "@icm/model";
 import {
   AccountMenu,
@@ -25,6 +29,7 @@ export interface ComponentDefinitionEditorProps {
   definition: ComponentDefinition;
   entry?: SharedComponent;
   mode: "new" | "instance" | "library";
+  circuit?: CircuitComponentAuthoring;
   validateApply?(
     definition: ComponentDefinition,
     planner: typeof planComponentDefinitionEdit,
@@ -63,6 +68,11 @@ export default function ComponentDefinitionEditor(
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [pinNames, setPinNames] = useState(true);
+  const [definitionType, setDefinitionType] = useState("json");
+  const [nativeDirty, setNativeDirty] = useState(false);
+  const [pendingLeave, setPendingLeave] = useState<(() => void) | null>(null);
+  const native = definitionType === "circuit" && props.circuit;
+  const dirty = native ? nativeDirty : source !== baseline;
   const dialog = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     dialog.current?.showModal();
@@ -94,14 +104,13 @@ export default function ComponentDefinitionEditor(
       (record.authorId === user?.id && record.status === "shared"));
   const id = canUpdate ? record!.id : newId;
   const revision = canUpdate ? record!.revision : 0;
-  const [discarding, setDiscarding] = useState(false);
+  function requestLeave(action: () => void) {
+    if (dirty) setPendingLeave(() => action);
+    else action();
+  }
   function close() {
     if (busy) return;
-    if (source !== baseline) {
-      setDiscarding(!discarding);
-      return;
-    }
-    props.onClose();
+    requestLeave(props.onClose);
   }
   async function save() {
     if (!parsed.definition || busy || !user || record?.status === "deleted")
@@ -161,6 +170,7 @@ export default function ComponentDefinitionEditor(
       }}
       onKeyDown={(event) => {
         if (
+          !native &&
           (event.metaKey || event.ctrlKey) &&
           event.key.toLowerCase() === "s"
         ) {
@@ -171,39 +181,63 @@ export default function ComponentDefinitionEditor(
     >
       <header>
         <strong>Edit Component Definition</strong>
+        {props.mode === "new" && props.circuit ? (
+          <label className="component-definition-type">
+            Definition type{" "}
+            <select
+              value={definitionType}
+              onChange={(event) => {
+                const next = event.currentTarget.value;
+                requestLeave(() => setDefinitionType(next));
+              }}
+            >
+              <option value="json">JSON artwork / primitive</option>
+              <option value="circuit">Circuit / automatic symbol</option>
+            </select>
+          </label>
+        ) : null}
         <div className="component-definition-actions">
-          {!user && authReady ? <AccountMenu inEditor /> : null}
-          <button
-            type="button"
-            className="primary"
-            disabled={
-              !authReady ||
-              !user ||
-              !parsed.definition ||
-              busy ||
-              record?.status === "deleted"
-            }
-            onClick={() => void save()}
-          >
-            {busy
-              ? "Saving…"
-              : props.mode === "instance"
-                ? "Save & apply"
-                : props.mode === "new"
-                  ? "Save & place"
-                  : canUpdate
-                    ? "Save"
-                    : "Save as new component"}
-          </button>
-          {source !== baseline ? (
+          {!native && !user && authReady ? <AccountMenu inEditor /> : null}
+          {!native ? (
+            <button
+              type="button"
+              className="primary"
+              disabled={
+                !authReady ||
+                !user ||
+                !parsed.definition ||
+                busy ||
+                record?.status === "deleted"
+              }
+              onClick={() => void save()}
+            >
+              {busy
+                ? "Saving…"
+                : props.mode === "instance"
+                  ? "Save & apply"
+                  : props.mode === "new"
+                    ? "Save & place"
+                    : canUpdate
+                      ? "Save"
+                      : "Save as new component"}
+            </button>
+          ) : null}
+          {dirty || pendingLeave ? (
             <InlineConfirm
               aria-label="Close component editor"
               disabled={busy}
-              open={discarding}
-              onOpenChange={setDiscarding}
+              open={!!pendingLeave}
+              onOpenChange={(open) =>
+                setPendingLeave(open ? () => props.onClose : null)
+              }
               confirmLabel="Discard changes"
               cancelLabel="Keep editing"
-              onConfirm={props.onClose}
+              onConfirm={() => {
+                const action = pendingLeave;
+                setPendingLeave(null);
+                if (!native) setSource(baseline);
+                action?.();
+              }}
             >
               ×
             </InlineConfirm>
@@ -219,101 +253,114 @@ export default function ComponentDefinitionEditor(
           )}
         </div>
       </header>
-      <p className="component-definition-note">
-        Saved components are public in User Defined.
-        {props.mode === "instance"
-          ? " Only the selected instance changes."
-          : " Everyone can insert a copy."}
-        {authReady && !user ? " Sign in to save." : ""}
-      </p>
-      <div className="component-definition-workspace">
-        <section
-          className="component-definition-preview"
-          aria-label="Component preview"
-        >
-          {parsed.definition ? (
-            <>
-              <div className="component-definition-art">
-                <SymbolArtwork
-                  symbol={parsed.definition.symbol}
-                  className="component-definition-artwork"
-                  paddingRatio={0.25}
+      {native ? (
+        <NativeComponentEditor
+          authoring={native}
+          onDirtyChange={setNativeDirty}
+          onRequestLeave={requestLeave}
+        />
+      ) : (
+        <>
+          <p className="component-definition-note">
+            Saved components are public in User Defined.
+            {props.mode === "instance"
+              ? " Only the selected instance changes."
+              : " Everyone can insert a copy."}
+            {authReady && !user ? " Sign in to save." : ""}
+          </p>
+          <div className="component-definition-workspace">
+            <section
+              className="component-definition-preview"
+              aria-label="Component preview"
+            >
+              {parsed.definition ? (
+                <>
+                  <div className="component-definition-art">
+                    <SymbolArtwork
+                      symbol={parsed.definition.symbol}
+                      className="component-definition-artwork"
+                      paddingRatio={0.25}
+                    />
+                  </div>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={pinNames}
+                      onChange={(event) => setPinNames(event.target.checked)}
+                    />{" "}
+                    Pin coordinates
+                  </label>
+                  {pinNames ? (
+                    <ul>
+                      {parsed.definition.symbol.pins.map((pin) => (
+                        <li key={pin.name}>
+                          <code>{pin.name}</code> ({pin.at.x}, {pin.at.y}) ·{" "}
+                          {pin.direction}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                  <small>
+                    {parsed.definition.symbol.primitives.length} drawing
+                    primitives · {parsed.definition.symbol.pins.length} pins
+                  </small>
+                </>
+              ) : (
+                <p>Fix the code to update the preview.</p>
+              )}
+            </section>
+            <section className="component-definition-code">
+              <Suspense fallback={<p>Loading code editor…</p>}>
+                <ProjectTextEditor
+                  ariaLabel="Component definition code"
+                  language="json"
+                  value={source}
+                  invalid={!!parsed.error}
+                  onChange={setSource}
+                  onModEnter={() => void save()}
                 />
-              </div>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={pinNames}
-                  onChange={(event) => setPinNames(event.target.checked)}
-                />{" "}
-                Pin coordinates
-              </label>
-              {pinNames ? (
-                <ul>
-                  {parsed.definition.symbol.pins.map((pin) => (
-                    <li key={pin.name}>
-                      <code>{pin.name}</code> ({pin.at.x}, {pin.at.y}) ·{" "}
-                      {pin.direction}
-                    </li>
-                  ))}
-                </ul>
+              </Suspense>
+            </section>
+          </div>
+          {parsed.error ? <p role="alert">{parsed.error}</p> : null}
+          {notice ? <p role="status">{notice}</p> : null}
+          {user?.isAdmin && record ? (
+            <footer className="component-definition-actions">
+              <span>
+                {record.author} · Revision {record.revision} · {record.status}
+              </span>
+              {record.status !== "official" && record.status !== "deleted" ? (
+                <button
+                  type="button"
+                  disabled={busy || source !== baseline}
+                  onClick={() => void manage("official")}
+                >
+                  Promote to official
+                </button>
               ) : null}
-              <small>
-                {parsed.definition.symbol.primitives.length} drawing primitives
-                · {parsed.definition.symbol.pins.length} pins
-              </small>
-            </>
-          ) : (
-            <p>Fix the code to update the preview.</p>
-          )}
-        </section>
-        <section className="component-definition-code">
-          <Suspense fallback={<p>Loading code editor…</p>}>
-            <ProjectTextEditor
-              ariaLabel="Component definition code"
-              language="json"
-              value={source}
-              invalid={!!parsed.error}
-              onChange={setSource}
-              onModEnter={() => void save()}
-            />
-          </Suspense>
-        </section>
-      </div>
-      {parsed.error ? <p role="alert">{parsed.error}</p> : null}
-      {notice ? <p role="status">{notice}</p> : null}
-      {user?.isAdmin && record ? (
-        <footer className="component-definition-actions">
-          <span>
-            {record.author} · Revision {record.revision} · {record.status}
-          </span>
-          {record.status !== "official" && record.status !== "deleted" ? (
-            <button
-              type="button"
-              disabled={busy || source !== baseline}
-              onClick={() => void manage("official")}
-            >
-              Promote to official
-            </button>
+              {record.status !== "shared" ? (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void manage("shared")}
+                >
+                  {record.status === "deleted"
+                    ? "Restore"
+                    : "Return to User Defined"}
+                </button>
+              ) : null}
+              {record.status !== "deleted" ? (
+                <InlineConfirm
+                  disabled={busy}
+                  onConfirm={() => manage("deleted")}
+                >
+                  Delete component
+                </InlineConfirm>
+              ) : null}
+            </footer>
           ) : null}
-          {record.status !== "shared" ? (
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => void manage("shared")}
-            >
-              {record.status === "deleted"
-                ? "Restore"
-                : "Return to User Defined"}
-            </button>
-          ) : null}
-          {record.status !== "deleted" ? (
-            <InlineConfirm disabled={busy} onConfirm={() => manage("deleted")}>
-              Delete component
-            </InlineConfirm>
-          ) : null}
-        </footer>
-      ) : null}
+        </>
+      )}
     </dialog>
   );
 }

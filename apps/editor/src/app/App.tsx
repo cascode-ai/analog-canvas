@@ -68,6 +68,7 @@ const UserComponentsLibrary = lazy(
 
 interface ComponentEditorSession {
   key: string;
+  projectSessionId: string;
   definition: ComponentDefinition;
   mode: "new" | "instance" | "library";
   entry?: SharedComponent;
@@ -4646,6 +4647,7 @@ function WorkspaceEditor({
     setCanvasContextMenu(null);
     setComponentEditor({
       key: crypto.randomUUID(),
+      projectSessionId,
       mode: "instance",
       definition: structuredClone(definition),
       target: {
@@ -4667,6 +4669,77 @@ function WorkspaceEditor({
     } catch (error) {
       setStatus(error instanceof Error ? error.message : String(error));
     }
+  }
+
+  function commitModelEdits(
+    edits: ProjectStructureEdit[],
+    definitionId: string,
+    message: string,
+  ) {
+    const current = definitionProjectRef.current.project;
+    const result = dispatchProjectTransaction({
+      transactionId: `model-${crypto.randomUUID()}`,
+      projectId: current.id,
+      expectedStructureRevision: current.structureRevision,
+      actor: { kind: "human", id: "human-local" },
+      edits,
+    });
+    return {
+      ok: result.ok,
+      definitionId,
+      message: result.ok
+        ? message
+        : (result.diagnostics[0]?.message ?? result.error.message),
+    };
+  }
+
+  function componentSessionIsCurrent() {
+    return (
+      componentEditor?.projectSessionId ===
+      definitionProjectRef.current.projectSessionId
+    );
+  }
+
+  function withComponentSession<T extends { ok: boolean; message: string }>(
+    action: () => T,
+  ) {
+    return componentSessionIsCurrent()
+      ? action()
+      : {
+          ok: false,
+          message: "The Project changed. Reopen the component before applying.",
+        };
+  }
+
+  function placeExternalComponent(definitionId: string): boolean {
+    const candidate = externalSubcircuitInsertCandidates.find(
+      (item) => item.definitionId === definitionId,
+    );
+    if (!candidate) {
+      setStatus("The selected external master has no resolved symbol");
+      return false;
+    }
+    setCellManagerOpen(false);
+    setModelEditorDefinitionId(null);
+    editorCommands.execute({
+      id: "insert.start",
+      launch: {
+        kind: "quick",
+        request: {
+          kind: "external-subcircuit",
+          definitionId,
+          symbolId: candidate.symbol.id,
+          symbolName: candidate.masterName,
+          masterName: candidate.masterName,
+          parameters: {},
+          initialRotation: 0,
+          showReference: !candidate.symbol.hierarchicalBlock,
+          referenceText: null,
+          showValue: true,
+        },
+      },
+    });
+    return true;
   }
 
   function componentEditPlan(
@@ -7539,72 +7612,20 @@ function WorkspaceEditor({
                 externalDefinitions: project.externalSubcircuitDefinitions,
                 onSetExternalDefinition: setExternalSubcircuitDefinition,
                 onCopyModelText: (text) => exportDelivery.copyText(text),
-                onApplyModelSource: (edit) => {
-                  const result = dispatchProjectTransaction({
-                    transactionId: `model-${crypto.randomUUID()}`,
-                    projectId: project.id,
-                    expectedStructureRevision: project.structureRevision,
-                    actor: { kind: "human", id: "human-local" },
-                    edits: [edit],
-                  });
-                  return {
-                    ok: result.ok,
-                    definitionId: edit.definitions[0]!.definitionId,
-                    message: result.ok
-                      ? "Applied shared model definition"
-                      : (result.diagnostics[0]?.message ??
-                        result.error.message),
-                  };
-                },
-                onSaveModelDraft: (edits, definitionId) => {
-                  const result = dispatchProjectTransaction({
-                    transactionId: `model-draft-${crypto.randomUUID()}`,
-                    projectId: project.id,
-                    expectedStructureRevision: project.structureRevision,
-                    actor: { kind: "human", id: "human-local" },
+                onApplyModelSource: (edit) =>
+                  commitModelEdits(
+                    [edit],
+                    edit.definitions[0]!.definitionId,
+                    "Applied shared model definition",
+                  ),
+                onSaveModelDraft: (edits, definitionId) =>
+                  commitModelEdits(
                     edits,
-                  });
-                  return {
-                    ok: result.ok,
                     definitionId,
-                    message: result.ok
-                      ? "Saved draft. Applied model bytes are unchanged."
-                      : (result.diagnostics[0]?.message ??
-                        result.error.message),
-                  };
-                },
+                    "Saved draft. Applied model bytes are unchanged.",
+                  ),
                 onRemoveExternalDefinition: removeExternalSubcircuitDefinition,
-                onPlaceExternal: (definitionId) => {
-                  const candidate = externalSubcircuitInsertCandidates.find(
-                    (item) => item.definitionId === definitionId,
-                  );
-                  if (!candidate) {
-                    setStatus(
-                      "The selected external master has no resolved symbol",
-                    );
-                    return;
-                  }
-                  setCellManagerOpen(false);
-                  setModelEditorDefinitionId(null);
-                  editorCommands.execute({
-                    id: "insert.start",
-                    launch: {
-                      kind: "quick",
-                      request: {
-                        kind: "external-subcircuit",
-                        definitionId,
-                        symbolId: candidate.symbol.id,
-                        symbolName: candidate.masterName,
-                        masterName: candidate.masterName,
-                        parameters: {},
-                        initialRotation: 0,
-                        showReference: !candidate.symbol.hierarchicalBlock,
-                        referenceText: null,
-                        showValue: true,
-                      },
-                    },
-                  });
-                },
+                onPlaceExternal: placeExternalComponent,
                 onPlaceCell: (childDocumentId) => {
                   const candidate = cellInsertCandidates.find(
                     (c) => c.childDocumentId === childDocumentId,
@@ -9956,6 +9977,43 @@ function WorkspaceEditor({
             key={componentEditor.key}
             definition={componentEditor.definition}
             mode={componentEditor.mode}
+            circuit={{
+              project,
+              onApply: (edit) =>
+                withComponentSession(() =>
+                  commitModelEdits(
+                    [edit],
+                    edit.definitions[0]!.definitionId,
+                    "Applied shared model definition",
+                  ),
+                ),
+              onSaveDraft: (edits, definitionId) =>
+                withComponentSession(() =>
+                  commitModelEdits(
+                    edits,
+                    definitionId,
+                    "Saved draft. Applied model bytes are unchanged.",
+                  ),
+                ),
+              onSetDefinition: (definition) =>
+                withComponentSession(() =>
+                  setExternalSubcircuitDefinition(definition),
+                ),
+              onRemoveDefinition: (id) =>
+                withComponentSession(() =>
+                  removeExternalSubcircuitDefinition(id),
+                ),
+              onPlace: (id) => {
+                if (!componentSessionIsCurrent()) {
+                  setStatus(
+                    "The Project changed. Reopen the component before placing.",
+                  );
+                  return;
+                }
+                if (placeExternalComponent(id)) setComponentEditor(null);
+              },
+              onCopyText: (text) => exportDelivery.copyText(text),
+            }}
             {...(componentEditor.entry ? { entry: componentEditor.entry } : {})}
             validateApply={(definition, planner) => {
               if (!componentEditor.target) return null;
@@ -9999,6 +10057,7 @@ function WorkspaceEditor({
               cancelAllTransientInteraction();
               setComponentEditor({
                 key: crypto.randomUUID(),
+                projectSessionId,
                 mode: "new",
                 definition: newComponentDefinition(),
               });
@@ -10007,6 +10066,7 @@ function WorkspaceEditor({
               cancelAllTransientInteraction();
               setComponentEditor({
                 key: crypto.randomUUID(),
+                projectSessionId,
                 mode: "library",
                 definition: entry.definition,
                 entry,

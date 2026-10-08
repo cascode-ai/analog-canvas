@@ -38,6 +38,17 @@ formal defaults are parsed beside a pin-labelled preview. For several entries,
 choose the public entry; helper definitions remain with the same source. New
 definitions can select an existing source owner to expose another entry.
 
+The same native editor is available through **Edit → User Components… →
+Create Component…**. Set **Definition type** to **Circuit / automatic symbol**,
+enter SPICE or Spectre, and Apply or Apply & Place. Choosing an existing source
+and an already exposed entry reuses its definition and stable terminals;
+choosing another entry exposes it without copying the source. Both entrances
+use the same Project model, automatic symbol and instance parameter controls.
+Applied models appear in Cell Manager's External Circuits list for later editing.
+Project Apply does not publish to the public library. **JSON artwork / primitive**
+retains the existing code-and-preview workspace and explicit public Save;
+complete native-model library publication is not available in this slice.
+
 New Model starts with English guidance and commented pin/parameter examples.
 The SPICE declaration example is:
 
