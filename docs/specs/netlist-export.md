@@ -387,9 +387,9 @@ A phase that no Net in its Cell supplies is the Cell's input pin when the Cell
 is printed as a subcircuit, after its authored pins and ground:
 `.subckt chopper VSS Vinp Vinn Voutp Voutn EN EN_bar`. The drawing gains no
 Pin. A Cell that calls one passes its own Net of that name, or, with none,
-takes the phase as a pin of its own, up the hierarchy like a clock tree. Only
-at a deck's top, where nothing else can drive it, is it an undriven node,
-reported as `SWITCH_PHASE_NOT_DRIVEN`.
+takes the phase as a pin of its own, up the hierarchy like a clock tree. A
+deck's top is the testbench (#1489): there the phase is a node of its name,
+for the testbench's own sources or text to drive, and nothing is reported.
 Spectre writes the same Cell-local four-terminal master as a hard conductance
 `bsource`, with those unchanged defaults and phase/CTRL semantics. It neither
 invents a clock nor smooths a transition. The SPDT selector has no primitive.

@@ -296,8 +296,7 @@ then writes `S1 a b PHI1 VSS ideal_switch`, and every switch showing Φ₁ follo
 the same clock. Drive it with a Net named `Φ1` (a Net Label, or the Net of a
 pulse source) or a Cell Pin `Φ1`. A phase nothing in the Cell drives becomes
 the Cell's input pin in its netlist (`.subckt … PHI1`), passed up through any
-Cell that calls it, so the testbench drives it; only at a deck's top does
-`SWITCH_PHASE_NOT_DRIVEN` warn. For a complementary phase write
+Cell that calls it, so the testbench drives it. For a complementary phase write
 `text:"EN_bar"` (drawn E̅N̅): it is its own signal `EN_bar` on the same plain
 switch, never an inverted one. Draw the inverter if the circuit makes
 `EN_bar` from `EN` (or the reverse); otherwise the testbench drives both.

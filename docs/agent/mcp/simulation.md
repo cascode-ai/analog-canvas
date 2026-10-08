@@ -14,6 +14,10 @@ an unfamiliar field only; no full-contract or authoring-help prerequisite.
    not overlap. Profile-managed model loads need no duplicate `.lib`.
    Full capabilities (optionally `profileId`) are for detailed model facts.
 2. Create a saved `simulation_folder`, or reuse the current folder.
+   With `rootDocumentId`, a Cell with drawn pins becomes the DUT of a
+   `testbench.spice` shell (`XDUT`, ports in order) where you write the
+   sources. A Cell without pins is a drawn testbench and runs as the deck's
+   top. `dut` wraps either.
    Without `profileId`, create takes the one Profile whose listed qualified
    devices include every reviewed PDK device the root Cell uses. SKY130's
    high-voltage DMOS devices (16 V, 20 V) count for SKY130 ngspice, which runs

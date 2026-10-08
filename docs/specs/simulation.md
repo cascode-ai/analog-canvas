@@ -148,9 +148,21 @@ devices is never the default. With several such Profiles, or none, the author
 names one. The Agent's `simulation_folder` create refuses with
 `SIMULATION_PROFILE_REQUIRED` and the candidates.
 
-The GUI's new-experiment form mirrors that call field for field (#1489). It
-asks for Name (`name`), then Cell (`rootDocumentId`), then Environment
-(`profileId`):
+A simulation's top is always a testbench (#1489). The create decides how it
+runs the Cell, by whether the Cell draws pins:
+
+- **A Cell with pins** is a DUT. The folder gains a `testbench.spice` shell
+  that calls it (`XDUT`, its ports in exported order, clock phase pins
+  included), and the Agent or author writes the sources there. The circuit
+  binding is a subcircuit.
+- **A Cell without pins** draws its own sources and is the testbench. It runs
+  as the deck's top, with its node names unprefixed.
+- Passing `dut` wraps either kind.
+
+The GUI's new-experiment form mirrors that call field for field. It asks for
+Name (`name`), then Cell (`rootDocumentId`), then shows which testbench the
+Cell gets ("testbench.spice calls this Cell", or "this Cell, which draws no
+pins"), then Environment (`profileId`):
 
 - When the create would take one, the form shows it read-only as
   "(automatic)", even when it is the only environment. Change offers the list,

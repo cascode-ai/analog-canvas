@@ -539,7 +539,7 @@ test("a new experiment takes the environment the Agent would, and asks only when
   });
 });
 
-test("new experiments explicitly bind the selected Cell without requiring a Testbench", async ({
+test("a new experiment wraps a Cell with pins in a testbench shell and runs a drawn testbench as it is (#1489)", async ({
   page,
 }) => {
   const project = parseProject(JSON.stringify(ota));
@@ -567,6 +567,9 @@ test("new experiments explicitly bind the selected Cell without requiring a Test
     exact: true,
   });
   await expect(cell).toHaveValue(project.topDocumentId);
+  // The Testbench Cell draws its sources and no pins: it is the testbench.
+  const testbench = page.getByLabel("Simulation testbench", { exact: true });
+  await expect(testbench).toHaveText("this Cell, which draws no pins");
   const setupCard = page.locator(
     ".simulation-start-workspace > .workspace-inline-name",
   );
@@ -604,6 +607,8 @@ test("new experiments explicitly bind the selected Cell without requiring a Test
     .click();
   await name.fill("OTA direct");
   await cell.selectOption(dut.id);
+  // ota_5t draws pins: a testbench.spice shell calls it, as the Agent's create.
+  await expect(testbench).toHaveText("testbench.spice calls this Cell");
   // Moving between fields must not prematurely create the folder.
   await expect(name).toBeVisible();
   await page.getByRole("button", { name: "Create", exact: true }).click();
@@ -621,6 +626,7 @@ test("new experiments explicitly bind the selected Cell without requiring a Test
     name: "Simulation source editor",
   });
   await expect(editor).toContainText('include "circuit.spice"');
+  await expect(editor).toContainText('include "testbench.spice"');
   await expect(editor).toContainText("op");
   await expect(
     page.getByRole("treeitem", { name: "experiment.json", exact: true }),
@@ -642,13 +648,17 @@ test("new experiments explicitly bind the selected Cell without requiring a Test
       id: "circuit",
       path: "circuit.spice",
       documentId: dut.id,
-      emission: "top-level",
+      emission: "subcircuit",
     },
   ]);
   expect(folder.input.files.map((file) => file.path)).toEqual([
+    "testbench.spice",
     "run.cir",
     "experiment.json",
   ]);
+  expect(
+    folder.input.files.find((file) => file.path === "testbench.spice")!.text,
+  ).toMatch(/^XDUT .*\bota_5t\b/mu);
   expect(saved.topDocumentId).toBe(project.topDocumentId);
   expect(saved.documents).toEqual(
     parseProject(serializeProject(project)).documents,

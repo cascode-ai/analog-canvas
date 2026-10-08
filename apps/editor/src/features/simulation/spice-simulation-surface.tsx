@@ -12,7 +12,11 @@ import {
   readSimulationExperimentConfig,
   type SimulationRunPlanAxis,
 } from "@icm/model";
-import { createSimulationStarter, newFolderProfile } from "@icm/netlist";
+import {
+  createSimulationStarter,
+  newFolderCellRole,
+  newFolderProfile,
+} from "@icm/netlist";
 import { profileEngine } from "@icm/simulation-service";
 import type { SimulationCodeWorkspaceProps } from "./code-workspace";
 import type {
@@ -1014,6 +1018,13 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
                   ? undefined
                   : "Select an existing Cell for this experiment.",
             },
+            // A Cell with pins is the DUT of a testbench.spice shell; one
+            // without is the testbench, as the Agent's create runs it.
+            roleFor: (documentId: string) =>
+              newFolderCellRole(
+                session.currentProject() ?? latestProject,
+                documentId,
+              ),
           }
         : {}),
       validate: (value) =>
@@ -1085,7 +1096,10 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
       }
       const result = createSimulationStarter(namingProject, {
         ...identity,
-        mode: "circuit",
+        mode:
+          newFolderCellRole(namingProject, selection.documentId) === "dut"
+            ? "dut"
+            : "circuit",
         documentId: selection.documentId,
         // Offline authoring uses the same candidate as the native starters.
         // Prepare still requires that the connected service advertises it.
