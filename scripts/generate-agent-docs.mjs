@@ -94,6 +94,25 @@ export function validateRegistry(registry) {
   }
 }
 
+/**
+ * The catalog as an Agent reads it whole: anything that fits a line, such as
+ * a pin with its position or a bounds, on one line. Indenting every point
+ * made pin positions cost half again the catalog's size (#1526).
+ */
+function catalogJson(value, indent = "") {
+  const flat = JSON.stringify(value);
+  if (value === null || typeof value !== "object" || flat.length <= 100)
+    return flat;
+  const inner = `${indent}  `;
+  const items = Array.isArray(value)
+    ? value.map((item) => catalogJson(item, inner))
+    : Object.entries(value).map(
+        ([key, item]) => `${JSON.stringify(key)}: ${catalogJson(item, inner)}`,
+      );
+  const [open, close] = Array.isArray(value) ? "[]" : "{}";
+  return `${open}\n${items.map((item) => inner + item).join(",\n")}\n${indent}${close}`;
+}
+
 export async function compile(registry, repoRoot = root) {
   validateRegistry(registry);
   const outputs = new Map(),
@@ -116,7 +135,7 @@ export async function compile(registry, repoRoot = root) {
       const { agentRazaviAuthoringCatalog } = await import(
         pathToFileURL(path.join(repoRoot, d.source)).href
       );
-      text = JSON.stringify(agentRazaviAuthoringCatalog, null, 2) + "\n";
+      text = catalogJson(agentRazaviAuthoringCatalog) + "\n";
     }
     docs.set(d.id, text);
   }

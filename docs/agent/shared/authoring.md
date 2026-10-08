@@ -21,7 +21,20 @@ simulator: only the supported SPICE projection runs on qualified ngspice.
 
 ## Facts needed to draw
 
-The built-in catalog owns asset IDs, canonical pins and variants. Live Snapshot
+The built-in catalog owns asset IDs, canonical pins and variants. A pin's `at`
+is its offset from the part's origin as drawn, at rotation 0 with y growing down;
+`landing`, where given, is where a wire attaches instead. A variant may hide
+pins (`hiddenPinNames`) and offer `auxiliaryPins` elsewhere on its art.
+`bounds` is the drawn ink, pins included, that a wire must not pass through,
+as the part is placed without a `variant`; each variant has its own. A formula
+block whose frame grows with its text has `bounds: null`; its pins sit where the
+default formula puts them. Orientation turns the offset first, then mirrors it,
+both about the origin: rotation is clockwise on the page, (x, y) going to
+(-y, x) at 90, (-x, -y) at 180 and (y, -x) at 270, so at `rotation:90` a pin
+pointing north points east, and nmos D at (10, -20) lands at origin + (20, 10).
+A resistor lies horizontal with pin 1 on the left at 270; a diode points down
+at 90. `mirror:"horizontal"` then negates x (left-right), `"vertical"` y, and
+`"both"` both. So a pin's landing is known before placing; live Snapshot
 projections own existing IDs, placement, Net membership, revision and bulk.
 Use live resolved facts for imported/custom/PDK assets; ask the human only when
 a needed fact is unavailable. Never infer electrical connectivity from artwork.

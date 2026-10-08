@@ -34,6 +34,81 @@ if (
   fail("unexpected Razavi catalog identity");
 }
 
+/** A primitive's extreme points, or null for a path that gives no bounds. */
+function primitivePoints(primitive) {
+  switch (primitive.kind) {
+    case "line":
+      return [primitive.from, primitive.to];
+    case "polyline":
+    case "polygon":
+      return primitive.points;
+    case "circle": {
+      const { center, radius } = primitive;
+      return [
+        { x: center.x - radius, y: center.y - radius },
+        { x: center.x + radius, y: center.y + radius },
+      ];
+    }
+    case "path": {
+      const box = primitive.bounds;
+      return box
+        ? [box, { x: box.x + box.width, y: box.y + box.height }]
+        : null;
+    }
+    default:
+      fail(`unknown primitive kind ${primitive.kind}`);
+  }
+}
+
+/**
+ * The ink a part draws at rotation 0, as visibleSymbolInkBounds in
+ * @icm/derived measures it and wire clearance treats it as the part's body:
+ * the visible drawing and pins, or the viewBox where a path gives no bounds.
+ * Rounded outward to hundredths; agent-kit.test.ts holds the two equal.
+ * Null for a frame that grows with its formula: its extent is the typeset
+ * text's, which only the editor measures.
+ */
+function inkBounds(definition, variant) {
+  if (definition.formulaPresentation?.adaptiveFrame) return null;
+  const hiddenParts = new Set(variant?.hiddenPrimitiveParts ?? []);
+  const hiddenPins = new Set(variant?.hiddenPinNames ?? []);
+  const sets = [
+    ...definition.primitives,
+    ...(variant?.additionalPrimitives ?? []),
+  ]
+    .filter((primitive) => !primitive.part || !hiddenParts.has(primitive.part))
+    .map(primitivePoints);
+  const points = sets.some((set) => set === null)
+    ? []
+    : [
+        ...sets.flat(),
+        ...definition.pins
+          .filter((pin) => !hiddenPins.has(pin.name))
+          .map((pin) => pin.at),
+      ];
+  if (points.length === 0) return definition.viewBox;
+  const xs = points.map((point) => point.x);
+  const ys = points.map((point) => point.y);
+  const low = (values) => Math.floor(Math.min(...values) * 100 + 1e-6);
+  const high = (values) => Math.ceil(Math.max(...values) * 100 - 1e-6);
+  return {
+    x: low(xs) / 100,
+    y: low(ys) / 100,
+    width: (high(xs) - low(xs)) / 100,
+    height: (high(ys) - low(ys)) / 100,
+  };
+}
+
+/** Where a pin is, from the Symbol origin at rotation 0, and where a wire
+ * lands on it when that is not the pin itself. */
+function pinPlace(pin) {
+  const landing = pin.routing?.preferredLanding;
+  return {
+    at: { x: pin.at.x, y: pin.at.y },
+    ...(landing ? { landing: { x: landing.x, y: landing.y } } : {}),
+  };
+}
+
 /** One symbol as the Agent's place-component reads it. */
 function authoringSymbol(definition, category) {
   return {
@@ -46,15 +121,35 @@ function authoringSymbol(definition, category) {
     // set-signal-flow apply to it, as the Properties formula does in the GUI.
     formula: Boolean(definition.formulaPresentation),
     coefficient: Boolean(definition.formulaPresentation?.supportsCoefficient),
+    // As placed without a variant: in its default variant, if it has one.
+    bounds: inkBounds(
+      definition,
+      definition.variants.find(
+        (variant) => variant.id === definition.defaultVariantId,
+      ),
+    ),
     pins: definition.pins.map((pin) => ({
       name: pin.name,
       role: pin.role,
       direction: pin.direction,
       visibility: pin.presentation.visibility,
+      ...pinPlace(pin),
     })),
     variants: definition.variants.map((variant) => ({
       id: variant.id,
       hiddenPinNames: variant.hiddenPinNames,
+      // A hidden pin a variant still offers to wires, elsewhere on its art,
+      // such as the 3-terminal MOS body once it leaves its Cell's default.
+      ...(variant.auxiliaryPins?.length
+        ? {
+            auxiliaryPins: variant.auxiliaryPins.map((pin) => ({
+              name: pin.name,
+              direction: pin.direction,
+              ...pinPlace(pin),
+            })),
+          }
+        : {}),
+      bounds: inkBounds(definition, variant),
     })),
   };
 }
