@@ -59,7 +59,11 @@ export function inspectSourceFileGraph<T>(
     diagnostics: SimulationSourceDiagnostic[];
   },
   options: {
-    sectionKey: (name: string) => string;
+    sectionKey: (
+      name: string,
+      path: string,
+      declaration?: SourceSpan,
+    ) => string;
     rootFallback?: boolean;
     flatSections?: boolean;
   },
@@ -98,7 +102,7 @@ export function inspectSourceFileGraph<T>(
     from?: SourceSpan,
   ) {
     const selected =
-      section === undefined ? undefined : options.sectionKey(section);
+      section === undefined ? undefined : options.sectionKey(section, path);
     const identity = JSON.stringify([path, selected]);
     if (stack.includes(identity)) {
       fail("SIMULATION_INCLUDE_CYCLE", `Include cycle at ${path}`, path, from);
@@ -148,9 +152,15 @@ export function inspectSourceFileGraph<T>(
             sectionInvalid = true;
             break;
           }
-          if (options.sectionKey(item.section.name) !== selected) continue;
+          if (
+            options.sectionKey(item.section.name, path, item.sourceRef) !==
+            selected
+          )
+            continue;
         }
-        sections.push(options.sectionKey(item.section.name));
+        sections.push(
+          options.sectionKey(item.section.name, path, item.sourceRef),
+        );
         if (sections.at(-1) === selected) found = true;
         continue;
       }

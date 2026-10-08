@@ -1,6 +1,7 @@
 export * from "./extract.js";
 export * from "./export.js";
 export * from "./project-model-source.js";
+export * from "./model-source-transform.js";
 export * from "./draft-preview.js";
 export * from "./ir.js";
 export * from "./equivalence.js";

@@ -26,6 +26,7 @@ export function ExternalCircuitEditor({
   onPlace,
   onDirtyChange,
   onRequestLeave,
+  onCopyText,
 }: {
   project: CircuitProject;
   definition: ExternalSubcircuitDefinition | undefined;
@@ -42,6 +43,7 @@ export function ExternalCircuitEditor({
   onPlace(definitionId: string): void;
   onDirtyChange(dirty: boolean): void;
   onRequestLeave(action: () => void): void;
+  onCopyText?: ((text: string) => Promise<void>) | undefined;
 }) {
   const [result, setResult] = useState<ExternalDefinitionResult | null>(null);
   const [externalName, setExternalName] = useState("");
@@ -99,6 +101,7 @@ export function ExternalCircuitEditor({
         onPlace={onPlace}
         onDirtyChange={onDirtyChange}
         onRequestLeave={onRequestLeave}
+        onCopyText={onCopyText}
         onSaveDraft={onSaveModelDraft}
         onMetadata={onSetExternalDefinition}
         onPlaceholder={() => setPlaceholder(true)}

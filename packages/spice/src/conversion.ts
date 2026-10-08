@@ -41,6 +41,10 @@ export interface NetlistConversionOptions {
   target: NetlistDialect;
   /** A structural include does not acquire a SPICE .end deck terminator. */
   fragment?: boolean;
+  /** Owned include files converted in the same operation; external libraries
+   * retain their actual language rather than being relabelled. */
+  ownedIncludes?: readonly string[];
+  subcircuitNames?: readonly string[];
 }
 export type NetlistConversionResult =
   | {
@@ -304,6 +308,7 @@ function prefix(name: string, wanted: string) {
 interface Context {
   subckts: Set<string>;
   models: Map<string, string>;
+  ownedIncludes: Set<string>;
 }
 function spectreInstance(s: Statement, ctx: Context): string {
   const match = /^(\S+)\s*\(([^()]*)\)\s+(\S+)(?:\s+(.*))?$/u.exec(s.text);
@@ -317,7 +322,7 @@ function spectreInstance(s: Statement, ctx: Context): string {
       refuse(s, `${master} requires ${n} nodes.`, "PIN_ARITY");
   };
   const output = (designator: string, tail: string) =>
-    `${prefix(name!, designator)} ${nodes.join(" ")} ${tail}`.trim();
+    [prefix(name!, designator), ...nodes, tail].join(" ").trimEnd();
   if (["resistor", "capacitor", "inductor"].includes(kind)) {
     arity(2);
     // r, c and l: an inductor's value is l, not its master's first letter.
@@ -517,7 +522,7 @@ function spiceInstance(s: Statement): string {
     let pos = f.findIndex((t) => t.includes("="));
     if (pos < 0) pos = f.length;
     if (f[pos - 1]?.toLowerCase() === "params:") pos--;
-    if (pos < 3) refuse(s, "Cannot locate subcircuit master and nodes.");
+    if (pos < 2) refuse(s, "Cannot locate subcircuit master and nodes.");
     const rest = f.slice(pos).filter((t) => t.toLowerCase() !== "params:");
     return output(
       f.slice(1, pos - 1),
@@ -635,6 +640,8 @@ function translate(s: Statement, ctx: Context): string[] {
       (head === ".model" && f.length < 3)
     )
       refuse(s, "Unsupported library or model declaration.");
+    if (head !== ".model" && ctx.ownedIncludes.has(f[1]!.replace(/^"|"$/g, "")))
+      return [`include ${f[1]}${head === ".lib" ? " section=" + f[2] : ""}`];
     // An included SPICE library remains SPICE. Native Spectre include syntax
     // would incorrectly reinterpret the model file's dialect.
     return ["simulator lang=spice", s.text, "simulator lang=spectre"];
@@ -748,7 +755,14 @@ export function convertNetlist(
         ? text.replace(/^[^\r\n]*/u, "")
         : text;
     const input = statements(inputText, source);
-    const ctx: Context = { subckts: new Set(), models: new Map() };
+    const ctx: Context = {
+      subckts: new Set(
+        options.subcircuitNames?.map((name) => name.toLowerCase()),
+      ),
+      models: new Map(),
+      ownedIncludes: new Set(options.ownedIncludes),
+    };
+    const declared = new Set<string>();
     const globals = new Map<string, string>();
     for (const s of input) {
       const f = fields(s.text, s);
@@ -766,8 +780,9 @@ export function convertNetlist(
       if (["subckt", ".subckt"].includes(f[0]!.toLowerCase()) && !f[1])
         refuse(s, "Subcircuit name is missing.");
       if (["subckt", ".subckt"].includes(f[0]!.toLowerCase()) && f[1]) {
-        if (ctx.subckts.has(f[1].toLowerCase()))
+        if (declared.has(f[1].toLowerCase()))
           refuse(s, "Duplicate subcircuit name.", "REFERENCE_COLLISION");
+        declared.add(f[1].toLowerCase());
         ctx.subckts.add(f[1].toLowerCase());
       }
       if (
@@ -795,13 +810,15 @@ export function convertNetlist(
     const names = new Set<string>();
     const nodeNames = new Map<string, string>();
     let scope = "",
-      depth = 0;
+      depth = 0,
+      subcircuitOutput = -1;
     for (const s of input) {
       const head = s.text.split(/\s+/u)[0]!.toLowerCase();
       if (head === "subckt" || head === ".subckt") {
         if (depth) refuse(s, "Nested subcircuit definitions are unsupported.");
         depth++;
         scope = fields(s.text, s)[1]!.toLowerCase();
+        subcircuitOutput = out.length;
       }
       if (head === "ends" || head === ".ends") {
         if (!depth) refuse(s, "Unmatched subcircuit end.");
@@ -818,6 +835,19 @@ export function convertNetlist(
         s.dialect === "spice" && target !== "spectre"
           ? [s.text]
           : translate(s, ctx);
+      // Spectre subcircuit parameters are callable defaults, not a SPICE
+      // local .param body that could overwrite an instance override.
+      if (
+        s.dialect === "spectre" &&
+        target !== "spectre" &&
+        head === "parameters" &&
+        depth
+      ) {
+        const defaults = translated[0]!.slice(".param ".length);
+        out[subcircuitOutput] +=
+          `${out[subcircuitOutput]!.includes(" params:") ? " " : " params: "}${defaults}`;
+        continue;
+      }
       for (const line of translated) {
         if (!line) continue;
         const isInstance =

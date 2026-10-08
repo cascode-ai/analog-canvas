@@ -1,5 +1,24 @@
 # Circuit authoring
 
+## External model sources
+
+Use `advanced_transact.structureEdits` with `apply_model_source` to define a
+Project-owned SPICE or Spectre source, files, entry and pinned dependencies.
+Optional `transform: {language: "spectre", process: "sg13g2"}` uses the same
+bounded converter as the GUI Format/Process row before the ordinary atomic
+Apply. Read the canonical edit schema with `describe_tool` when needed. Ports
+and formal defaults derive from the applied declaration; zero ports are valid.
+No second implementation or independent process label is stored.
+
+Only reviewed core SKY130 1.8 V / IHP SG13G2 low-voltage MOS replacements are
+currently mapped. Unknown variants, parameters or library identities refuse
+without partial changes. Repair the native source and real dependencies.
+`save_model_source_draft` may retain its own language without replacing applied
+bytes. Export, clipboard and simulation use the applied revision and full owned
+helper closure. Converted spans identify the owner but cannot be reverse edited;
+edit the native model instead. Another native language does not select a new
+simulator: only the supported SPICE projection runs on qualified ngspice.
+
 ## Facts needed to draw
 
 The built-in catalog owns asset IDs, canonical pins and variants. Live Snapshot

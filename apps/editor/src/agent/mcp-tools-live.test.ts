@@ -23,6 +23,7 @@ import {
   type LiveAgentEditorOptions,
 } from "./live-agent-editor.test-support";
 import otaLibrary from "../../../../netlists/native-ota-library/legacy-source.icproj.json";
+import { createExternalSubcircuitInstance } from "@icm/edit-engine";
 
 // Measuring a figure's crop needs a real browser layout; everything around
 // it, the same formal SVG included, runs as it does in the Editor.
@@ -70,6 +71,58 @@ async function connected(options: LiveAgentEditorOptions = {}) {
   ).toMatchObject({ ok: true });
   return editor;
 }
+
+it("MCP applies a native external owner through the GUI contract and derives both copy dialects", async () => {
+  const { tool, controller } = await connected();
+  const result = await tool("advanced_transact", {
+    structureEdits: [
+      {
+        kind: "apply_model_source",
+        source: {
+          id: "native",
+          revision: 0,
+          language: "spice",
+          entry: "rc.spice",
+          dependencies: [],
+          files: [
+            { path: "rc.spice", text: ".subckt rc\nR1 local 0 1k\n.ends rc\n" },
+          ],
+        },
+        definitions: [{ definitionId: "rc", entry: "rc" }],
+        transform: { language: "spectre" },
+      },
+    ],
+  });
+  expect(result).toMatchObject({ ok: true });
+  expect(controller.project.modelSources![0]!.language).toBe("spectre");
+  const instance = createExternalSubcircuitInstance(
+    "X1",
+    controller.project.externalSubcircuitDefinitions[0]!,
+    { position: { x: 100, y: 100 }, rotation: 0, mirror: "none" },
+  );
+  expect(
+    await tool("advanced_transact", {
+      edits: [{ kind: "add_instance", instance }],
+    }),
+  ).toMatchObject({ ok: true });
+  const source = structuredClone(controller.project.modelSources);
+  for (const format of ["spice", "spectre"]) {
+    const copied = await tool("netlist_code", { action: "read", format });
+    expect(copied).toMatchObject({
+      ok: true,
+      netlist: {
+        status: "ready",
+        text: expect.stringContaining(
+          format === "spice" ? ".subckt rc" : "subckt rc ()",
+        ),
+      },
+    });
+  }
+  expect(controller.project.modelSources).toEqual(source);
+  await tool("apply_actions", { actions: [{ kind: "undo" }] });
+  await tool("apply_actions", { actions: [{ kind: "undo" }] });
+  expect(controller.project.modelSources ?? []).toEqual([]);
+});
 
 /** Each Snapshot request the editor answered, by projection. */
 function snapshotReads(http: LiveEditor["http"]) {

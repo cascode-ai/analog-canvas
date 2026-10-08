@@ -11,6 +11,15 @@ Owners: `packages/simulation-service`, `packages/spice-run`, `worker`,
 
 ## Ownership boundary
 
+Native external Spectre definitions use the bounded shared SPICE projection for
+ngspice preparation. Conversion failure is located at the native owner and does
+not replace applied bytes. Preparation aggregates reviewed external device calls
+with the selected Profile's qualified names and verifies declared dependency
+identities, digests, mount paths and library sections. A mixed-process source is
+allowed when that Profile supplies all its declared libraries and qualified calls;
+the canvas Process label alone is not a compatibility verdict. Native Cadence
+Spectre is not an execution engine offered by this application.
+
 The implementation has these boundaries:
 
 - Model owns saved source folders and canonical voltage/current expressions.

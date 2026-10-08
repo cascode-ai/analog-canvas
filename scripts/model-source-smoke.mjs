@@ -20,6 +20,8 @@ import { validatePinnedEnvironment } from "./lib/preview-simulation-validation-c
 
 const origin = new URL(process.argv[2]);
 assert.equal(origin.protocol, "https:");
+const language = process.argv[3] ?? "spice";
+assert(["spice", "spectre"].includes(language));
 let project = createEmptyProject(
   "model-smoke",
   "Owned native model acceptance",
@@ -27,20 +29,32 @@ let project = createEmptyProject(
 const source = {
   id: "finite-source",
   revision: 0,
-  language: "spice",
-  entry: "finite.spice",
+  language,
+  entry: language === "spice" ? "finite.spice" : "finite.scs",
   files: [
     {
-      path: "finite.spice",
-      text: [
-        "* Preserve this native behavior and pole expression.",
-        ".subckt finite_gain IN OUT VSS params: gain=10 poleHz=1000",
-        "B1 DRIVE VSS V={gain*v(IN,VSS)}",
-        "R1 DRIVE OUT 1k",
-        "C1 OUT VSS {1/(6.283185307179586*1k*poleHz)}",
-        ".ends finite_gain",
-        "",
-      ].join("\n"),
+      path: language === "spice" ? "finite.spice" : "finite.scs",
+      text:
+        language === "spectre"
+          ? [
+              "// Native Spectre source; execution uses the verified SPICE projection.",
+              "subckt finite_gain (IN OUT VSS)",
+              "parameters gain=10 poleHz=1000",
+              "E1 (DRIVE VSS IN VSS) vcvs gain=gain",
+              "R1 (DRIVE OUT) resistor r=1k",
+              "C1 (OUT VSS) capacitor c=1/(6.283185307179586*1k*poleHz)",
+              "ends finite_gain",
+              "",
+            ].join("\n")
+          : [
+              "* Preserve this native behavior and pole expression.",
+              ".subckt finite_gain IN OUT VSS params: gain=10 poleHz=1000",
+              "B1 DRIVE VSS V={gain*v(IN,VSS)}",
+              "R1 DRIVE OUT 1k",
+              "C1 OUT VSS {1/(6.283185307179586*1k*poleHz)}",
+              ".ends finite_gain",
+              "",
+            ].join("\n"),
     },
   ],
   dependencies: [],
@@ -182,7 +196,15 @@ for (const gain of [10, 40]) {
   const generated = prepared.input.files.find(
     (f) => f.path === "circuit.spice",
   );
-  assert(generated.text.includes(project.modelSources[0].files[0].text));
+  if (language === "spice")
+    assert(generated.text.includes(project.modelSources[0].files[0].text));
+  else {
+    assert(
+      generated.text.includes(".subckt finite_gain IN OUT VSS params: gain="),
+    );
+    assert(generated.text.includes("E1 DRIVE VSS IN VSS"));
+    assert.equal(project.modelSources[0].language, "spectre");
+  }
   assert(
     prepared.sourceMaps.some((m) =>
       m.segments.some(
@@ -241,4 +263,6 @@ for (const gain of [10, 40]) {
   });
 }
 assert.notEqual(receipts[0].inputRevision, receipts[1].inputRevision);
-console.log(JSON.stringify({ profile: profile.id, receipts }, null, 2));
+console.log(
+  JSON.stringify({ language, profile: profile.id, receipts }, null, 2),
+);

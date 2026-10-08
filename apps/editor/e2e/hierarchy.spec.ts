@@ -39,6 +39,154 @@ import {
 } from "./editor-fixtures.js";
 import { placeComponent } from "./manual-editor-fixtures.js";
 
+test("process shortcuts change only visible model text and clipboard failure stays inline", async ({
+  page,
+}) => {
+  await page.addInitScript(() =>
+    Object.defineProperty(navigator, "clipboard", {
+      value: {
+        writeText: async () => {
+          throw new Error("Denied");
+        },
+      },
+    }),
+  );
+  await page.goto("/editor");
+  await openCellManager(page);
+  const manager = page.getByRole("dialog", {
+    name: "Cell Manager",
+    exact: true,
+  });
+  await manager
+    .getByRole("tab", { name: "External Circuits", exact: true })
+    .click();
+  const editor = manager.getByLabel("External model netlist");
+  await editor.fill(
+    ".subckt pair D G S B\nX1 D G S B sky130_fd_pr__nfet_01v8 w=2 l=0.15 nf=2 m=8\n.ends pair\n",
+  );
+  await expect(manager.getByLabel("Model process")).toHaveValue("sky130");
+  await manager.getByLabel("Model process").selectOption("sg13g2");
+  await expect(editor).toContainText("sg13_lv_nmos");
+  await expect(editor).toContainText("ng=2");
+  await expect(
+    manager.getByRole("button", { name: "Copy model netlist", exact: true }),
+  ).toBeDisabled();
+  await manager
+    .getByRole("button", { name: "Apply model", exact: true })
+    .click();
+  await expect(manager.getByLabel("Model process")).toHaveValue("sg13g2");
+  const before = await editor.innerText();
+  const copy = manager.getByRole("button", {
+    name: "Copy model netlist",
+    exact: true,
+  });
+  await copy.click();
+  await expect(manager.getByRole("status")).toContainText(
+    "Could not copy model netlist.",
+  );
+  await expect(copy).toBeFocused();
+  await expect.poll(() => editor.innerText()).toBe(before);
+  await manager.getByLabel("Model process").focus();
+  await manager.getByLabel("Model process").selectOption("tsmc28");
+  await expect(manager.getByLabel("Model process")).toHaveValue("sg13g2");
+  await expect.poll(() => editor.innerText()).toBe(before);
+  await expect(manager.getByRole("status")).toContainText(
+    "Could not replace process.",
+  );
+  await expect(manager.getByLabel("Model process")).toBeFocused();
+  await expect(page.getByRole("dialog")).toHaveCount(1);
+});
+
+test("converts the external draft with the reused format selector and keeps failed conversion inline", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await openCellManager(page);
+  const manager = page.getByRole("dialog", {
+    name: "Cell Manager",
+    exact: true,
+  });
+  await manager
+    .getByRole("tab", { name: "External Circuits", exact: true })
+    .click();
+  const editor = manager.getByLabel("External model netlist");
+  await editor.fill(
+    ".subckt rc A B params: RVAL=1k\nR1 A B {RVAL}\n.ends rc\n",
+  );
+  await manager.getByLabel("Model format").selectOption("spectre");
+  await expect(editor).toContainText("subckt rc (A B)");
+  await expect(editor).toContainText("parameters RVAL=1000");
+  await editor.press("ControlOrMeta+z");
+  await expect(manager.getByLabel("Model format")).toHaveValue("spice");
+  await expect(editor).toContainText(".subckt rc A B params: RVAL=1k");
+  await editor.press("ControlOrMeta+Shift+z");
+  await expect(manager.getByLabel("Model format")).toHaveValue("spectre");
+  await expect(editor).toContainText("parameters RVAL=1000");
+  await manager
+    .getByRole("button", { name: "Apply model", exact: true })
+    .click();
+  await expect(manager.getByLabel("Model format")).toHaveValue("spectre");
+  await editor.fill("subckt rc (A B)\nB1 (A B) bsource v=sin(time)\nends rc\n");
+  await manager.getByLabel("Model format").focus();
+  await manager.getByLabel("Model format").selectOption("spice");
+  await expect(manager.getByLabel("Model format")).toHaveValue("spectre");
+  await expect(editor).toContainText("bsource v=sin(time)");
+  await expect(manager.getByRole("status")).toContainText("Edit model");
+  await expect(manager.getByRole("status")).toHaveCount(1);
+  await expect(manager.getByRole("alert")).toHaveCount(0);
+  await expect(page.getByRole("dialog")).toHaveCount(1);
+  await expect(manager.getByLabel("Model format")).toBeFocused();
+});
+
+test("starts an external model with English comments and copies only its applied complete definition", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "clipboard", {
+      value: {
+        writeText: async (text: string) => {
+          (window as unknown as { modelClipboard: string }).modelClipboard =
+            text;
+        },
+      },
+    });
+  });
+  await page.goto("/editor");
+  await openCellManager(page);
+  const manager = page.getByRole("dialog", {
+    name: "Cell Manager",
+    exact: true,
+  });
+  await manager
+    .getByRole("tab", { name: "External Circuits", exact: true })
+    .click();
+  const editor = manager.getByLabel("External model netlist");
+  const starter = await editor.innerText();
+  expect(starter.trim().split("\n")).toHaveLength(2);
+  expect(starter).toMatch(/^\* [A-Za-z]/);
+  expect(starter).not.toMatch(/[\u4e00-\u9fff]/);
+  await expect(manager.getByLabel("Model format")).toHaveValue("spice");
+  const copy = manager.getByRole("button", {
+    name: "Copy model netlist",
+    exact: true,
+  });
+  await expect(copy).toBeDisabled();
+  await editor.fill(".subckt empty\n.ends empty\n");
+  await expect(copy).toBeDisabled();
+  await manager
+    .getByRole("button", { name: "Apply model", exact: true })
+    .click();
+  await expect(copy).toBeEnabled();
+  await copy.click();
+  const text = await page.evaluate(
+    () => (window as unknown as { modelClipboard: string }).modelClipboard,
+  );
+  expect(text).toContain(".subckt empty\n.ends empty");
+  expect(text).not.toContain(".subckt dut");
+  await editor.fill(".subckt empty\n* draft\n.ends empty\n");
+  await expect(copy).toBeDisabled();
+});
+
 for (const viewport of [
   { width: 1440, height: 900 },
   { width: 1024, height: 768 },
@@ -75,9 +223,6 @@ for (const viewport of [
     ).toBe(true);
     await manager
       .getByRole("button", { name: "Apply model", exact: true })
-      .click();
-    await manager
-      .getByText("Symbol layout and directions", { exact: true })
       .click();
     const controls = manager.getByLabel("Cell symbol layout", { exact: true });
     const preview = manager.getByLabel("Symbol preview", { exact: true });
@@ -177,10 +322,6 @@ test("searches definitions without discarding the selected model", async ({
   );
   await list.getByRole("searchbox").fill("SEARCH");
   await expect(list.getByRole("button", { name: /searchable/ })).toBeVisible();
-  await expect(manager.locator(".external-model-symbol")).toBeHidden();
-  await manager
-    .getByText("Symbol layout and directions", { exact: true })
-    .click();
   await expect(manager.locator(".external-model-symbol")).toBeVisible();
 });
 
@@ -616,7 +757,9 @@ test("migrates a wired model terminal explicitly in Manager without losing its i
   await manager
     .getByRole("button", { name: "Apply model", exact: true })
     .click();
-  await expect(manager.getByRole("alert")).toContainText("A");
+  await expect(manager.getByRole("status")).toContainText("A");
+  await expect(manager.getByRole("status")).toHaveCount(1);
+  await expect(manager.getByRole("alert")).toHaveCount(0);
   await manager
     .getByLabel("Migrate wired.A", { exact: true })
     .selectOption("INPUT");

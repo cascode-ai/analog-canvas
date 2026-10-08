@@ -31,12 +31,28 @@ unreferenced definition.
 The Manager separates **Cells** (local schematics) from **External Circuits**
 (Project-owned native models or reviewed library declarations). Local Cell
 interfaces come from canvas Pins. Use **New External Circuit**, enter a
-SPICE `.subckt` body and choose **Apply & Place** to start placement in the original
+SPICE `.subckt` or Spectre `subckt` body and choose **Apply & Place** to start placement in the original
 parent. Escape cancels placement and keeps the applied definition. **Apply model**
 applies without placing. Its name, terminal order and
 formal defaults are parsed beside a pin-labelled preview. For several entries,
 choose the public entry; helper definitions remain with the same source. New
 definitions can select an existing source owner to expose another entry.
+
+New Model starts with two English comments: guidance and a declaration example.
+Zero terminals and zero parameters are valid; whitespace is not an unnamed pin.
+The **Format / Process / Copy** row uses the same controls as the right-side
+netlist. Format shows SPICE or SCS (Spectre). Format and Process transform only
+this owner's visible draft; ordinary Apply commits it. Copy includes its applied
+definition and owned helpers, without the enclosing schematic or testbench.
+Unsaved changes or a saved draft disable Copy. Ctrl/Cmd+C still copies selected text.
+
+Process is derived from actual calls and library references. Current replacement
+supports reviewed core SKY130 1.8 V MOS and IHP SG13G2 low-voltage MOS counterparts,
+preserving four terminal roles, W/L units, finger count and multiplier. Other
+devices, variants, custom overrides and pinned libraries require explicit source
+edits. Changing Process does not tune operating points or change canvas devices.
+An unsupported conversion keeps the text and selection, with one inline sentence
+and **Edit model**. It opens no dialog and moves focus only when clicked.
 
 Choose **Place** directly in Manager for either kind. **Import Cell** copies a
 saved Cloud Cell, its children and required models, selects the import and
@@ -77,7 +93,10 @@ disconnect keeps the wire as a stub. Apply errors preserve the previous model.
 Run/Copy use the clearly identified applied version. If no implementation was
 applied, the block is visibly unimplemented and cannot simulate. **Create
 placeholder…** is a secondary interface-only path. Apply checks declarations;
-use Run to check simulator acceptance separately. SPICE models require ngspice.
+use Run to check simulator acceptance separately. Native language is distinct
+from execution engine: a supported Spectre source derives SPICE for ngspice.
+Unsupported native behavior or an unqualified external library blocks that
+target, preserving the owner. Licensed Cadence Spectre execution is not provided.
 
 If another edit changes the applied model while your editor is open, your text
 stays in the editor and Apply refuses the stale version. **Keep my draft on the

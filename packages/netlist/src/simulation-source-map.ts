@@ -7,6 +7,8 @@ export type SimulationTextOrigin =
       revision: number;
       path: string;
       startOffset: number;
+      derived?: boolean;
+      sourceLength?: number;
     }
   | {
       kind: "generated";
@@ -53,7 +55,8 @@ function sliceSegment(
     startOffset: start,
     endOffset: end,
     origin:
-      segment.origin.kind !== "generated"
+      segment.origin.kind !== "generated" &&
+      !(segment.origin.kind === "model-source" && segment.origin.derived)
         ? {
             ...segment.origin,
             startOffset:
@@ -133,7 +136,8 @@ export function locateSimulationText(
     (item) => offset >= item.startOffset && offset < item.endOffset,
   );
   if (!segment) return null;
-  return segment.origin.kind !== "generated"
+  return segment.origin.kind !== "generated" &&
+    !(segment.origin.kind === "model-source" && segment.origin.derived)
     ? {
         ...segment.origin,
         startOffset: segment.origin.startOffset + offset - segment.startOffset,

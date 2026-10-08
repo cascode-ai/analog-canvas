@@ -60,6 +60,168 @@ function nativeSweepFixture() {
 }
 
 describe("ngspice authored input identity", () => {
+  it("accepts mixed reviewed processes when every real library and call is qualified", async () => {
+    const project = createEmptyProject("mixed-process", "Mixed process");
+    const deps = [
+      { id: "sky", mountPath: "sky.lib", sha256: "a".repeat(64) },
+      { id: "ihp", mountPath: "ihp.lib", sha256: "b".repeat(64) },
+    ];
+    const applied = executeProjectTransaction(project, {
+      projectId: project.id,
+      expectedStructureRevision: 0,
+      transactionId: "mixed",
+      actor: { kind: "agent", id: "test" },
+      edits: [
+        {
+          kind: "apply_model_source",
+          source: {
+            id: "owner",
+            revision: 0,
+            language: "spice",
+            entry: "mixed.spice",
+            dependencies: deps,
+            files: [
+              {
+                path: "mixed.spice",
+                text: '.lib "sky.lib" tt\n.lib "ihp.lib" tt\n.subckt mixed\nX1 d g s b sky130_fd_pr__nfet_01v8 w=1 l=0.15\nX2 d g s b sg13_lv_nmos w=1u l=130n\n.ends mixed\n',
+              },
+            ],
+          },
+          definitions: [{ definitionId: "mixed", entry: "mixed" }],
+        },
+      ],
+    });
+    expect(applied.ok).toBe(true);
+    if (!applied.ok) return;
+    const next = applied.project;
+    next.documents[0]!.instances.push(
+      createExternalSubcircuitInstance(
+        "XTOP",
+        next.externalSubcircuitDefinitions[0]!,
+        { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+      ),
+    );
+    const folder = createSimulationFolder({
+      id: "mixed",
+      name: "Mixed",
+      profileId: "ngspice",
+      engine: "ngspice",
+      documentId: next.topDocumentId,
+    });
+    next.simulationFolders = [folder];
+    const caps = nativeSweepFixture().caps;
+    caps.profiles[0]!.devices = ["sky130_fd_pr__nfet_01v8", "sg13_lv_nmos"];
+    caps.profiles[0]!.dependencies = deps.map(({ id, sha256 }) => ({
+      id,
+      sha256,
+    }));
+    const result = await prepareNgspiceExecutionInput(next, folder, caps);
+    expect(result.ok, JSON.stringify(result)).toBe(true);
+    if (result.ok) expect(result.input.dependencies).toEqual(deps);
+  });
+  it.each([
+    true,
+    false,
+    undefined,
+    "local-primitive-shadow",
+    "local-self-contained",
+  ])(
+    "aggregates external source devices against qualified Profile names (%s)",
+    async (qualified) => {
+      const project = createEmptyProject("source-process", "Source process");
+      const applied = executeProjectTransaction(project, {
+        projectId: project.id,
+        expectedStructureRevision: 0,
+        transactionId: "process-source",
+        actor: { kind: "agent", id: "test" },
+        edits: [
+          {
+            kind: "apply_model_source",
+            source: {
+              id: "owner",
+              revision: 0,
+              language: "spice",
+              entry: "mos.spice",
+              dependencies: [],
+              files: [
+                {
+                  path: "mos.spice",
+                  text: ".subckt pair\nX1 d g s b sg13_lv_nmos w=1u l=130n ng=1 m=1\n.ends pair\n",
+                },
+              ],
+            },
+            definitions: [{ definitionId: "pair", entry: "pair" }],
+          },
+        ],
+      });
+      expect(applied.ok).toBe(true);
+      if (!applied.ok) return;
+      const next = applied.project;
+      next.documents[0]!.instances.push(
+        createExternalSubcircuitInstance(
+          "XTOP",
+          next.externalSubcircuitDefinitions[0]!,
+          { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+        ),
+      );
+      const folder = createSimulationFolder({
+        id: "process",
+        name: "Process",
+        profileId: "ngspice",
+        engine: "ngspice",
+        documentId: next.topDocumentId,
+      });
+      next.simulationFolders = [folder];
+      const caps = nativeSweepFixture().caps;
+      caps.profiles[0]!.devices =
+        qualified === undefined
+          ? undefined
+          : qualified === true
+            ? ["sg13_lv_nmos"]
+            : ["sky130_fd_pr__nfet_01v8"];
+      if (qualified === undefined) {
+        // Registered bytes alone do not establish the masters they implement.
+        next.modelSources![0]!.dependencies = [
+          { id: "models", sha256: "a".repeat(64), mountPath: "unrelated.lib" },
+        ];
+        next.modelSources![0]!.files[0]!.text =
+          '.include "unrelated.lib"\n' + next.modelSources![0]!.files[0]!.text;
+      }
+      if (qualified === "local-primitive-shadow") {
+        caps.profiles[0]!.devices = [];
+        caps.profiles[0]!.dependencies = [];
+        next.modelSources![0]!.files[0]!.text =
+          ".subckt hidden\n.model sg13_lv_nmos nmos(level=1)\n.ends hidden\n" +
+          next.modelSources![0]!.files[0]!.text;
+      }
+      if (qualified === "local-self-contained") {
+        caps.profiles[0]!.devices = [];
+        caps.profiles[0]!.dependencies = [];
+        caps.modelLibrary = undefined;
+        next.modelSources![0]!.files[0]!.text =
+          ".subckt pair\n.model local nmos(level=1)\nM1 d g s b local w=1u l=130n\n.ends pair\n";
+      }
+      const before = structuredClone(next);
+      const prepared = await prepareNgspiceExecutionInput(next, folder, caps);
+      expect(prepared.ok, JSON.stringify(prepared)).toBe(
+        qualified === true || qualified === "local-self-contained",
+      );
+      if (prepared.ok && qualified === "local-self-contained")
+        expect(prepared.input.dependencies).toEqual([]);
+      else if (prepared.ok)
+        expect(
+          prepared.input.files.some((f) =>
+            f.text.includes('.lib "icm-models.lib" tt'),
+          ),
+        ).toBe(true);
+      else
+        expect(prepared.error.diagnostics?.[0]).toMatchObject({
+          code: "MODEL_SOURCE_PROFILE_CONFLICT",
+          modelSource: { sourceId: "owner", revision: 1 },
+        });
+      expect(next).toEqual(before);
+    },
+  );
   it.each([false, true])(
     "protects global device models while respecting a testbench's local scope (%s)",
     async (local) => {

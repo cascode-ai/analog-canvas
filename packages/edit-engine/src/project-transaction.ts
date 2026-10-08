@@ -28,7 +28,10 @@ import {
 } from "@icm/symbols";
 import { z } from "zod";
 import { collectProjectModelSources } from "@icm/netlist";
-import { planModelSourceApply } from "./model-source-planner.js";
+import {
+  planModelSourceApply,
+  ModelSourceApplyError,
+} from "./model-source-planner.js";
 import { reviewedExternalDefinitionEditIssue } from "./hierarchy-planner.js";
 
 import {
@@ -58,6 +61,14 @@ export const ProjectStructureEditSchema = z.discriminatedUnion("kind", [
   z.strictObject({
     kind: z.literal("apply_model_source"),
     source: ProjectModelSourceSchema,
+    transform: z
+      .strictObject({
+        language: z.enum(["spice", "spectre"]).optional(),
+        process: z
+          .enum(["abstract", "sky130", "sg13g2", "tsmc28", "tsmc180", "custom"])
+          .optional(),
+      })
+      .optional(),
     definitions: z
       .array(
         z.strictObject({
@@ -79,6 +90,7 @@ export const ProjectStructureEditSchema = z.discriminatedUnion("kind", [
     kind: z.literal("save_model_source_draft"),
     sourceId: z.string().min(1),
     expectedRevision: z.number().int().nonnegative(),
+    language: z.enum(["spice", "spectre"]).optional(),
     entry: SimulationInputPathSchema,
     files: z.array(SimulationRawFileSchema).min(1).max(256),
     dependencies: z.array(SimulationRawDependencySchema).max(256),
@@ -503,6 +515,7 @@ export function executeProjectTransaction(
           "Model source revision is stale or missing; draft was not saved",
         );
       source.draft = {
+        language: edit.language ?? source.language,
         entry: edit.entry,
         files: structuredClone(edit.files),
         dependencies: structuredClone(edit.dependencies),
@@ -520,6 +533,35 @@ export function executeProjectTransaction(
         transaction.edits.splice(editIndex, 1, ...planned);
         editIndex -= 1;
       } catch (error) {
+        if (error instanceof ModelSourceApplyError) {
+          const d = error.diagnostic;
+          return rejectProjectTransaction(
+            project,
+            "EDIT_PRECONDITION",
+            error.message,
+            [
+              {
+                code: d.code,
+                severity: d.severity,
+                message: d.message,
+                parameters: {
+                  ...d.modelSource,
+                  ...((d.path ?? d.sourceRef?.fileId)
+                    ? { file: d.path ?? d.sourceRef?.fileId! }
+                    : {}),
+                  ...(d.sourceRef
+                    ? {
+                        line: d.sourceRef.start.line,
+                        column: d.sourceRef.start.column,
+                        startOffset: d.sourceRef.start.offset,
+                        endOffset: d.sourceRef.end.offset,
+                      }
+                    : {}),
+                },
+              },
+            ],
+          );
+        }
         return rejectProjectTransaction(
           project,
           "EDIT_PRECONDITION",

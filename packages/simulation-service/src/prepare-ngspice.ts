@@ -3,6 +3,8 @@ import type {
   ProjectSimulationFolder,
   SimulationRunVariant,
 } from "@icm/model";
+import { reviewedExternalBindingForMaster } from "@icm/devices";
+import type { InstanceStatement } from "@icm/spice";
 import {
   compileNgspiceSourceSimulation,
   ngspiceSignals as simulationSignals,
@@ -133,11 +135,154 @@ export async function prepareNgspiceExecutionInput(
     });
   const entryIndex = files.findIndex((file) => file.path === compiled.entry);
   const entry = files[entryIndex]!;
-  const needsCanvasModels = compiled.generated.some((file) =>
-    deckNeedsModelLibrary(file.text),
+  const initialGraph = projectedGraph();
+  const callableMasters = new Set(
+    initialGraph.statements
+      .filter((s) => s.statement.kind === "subckt_start")
+      .map((s) => (s.statement as { name: string }).name.toLowerCase()),
   );
+  // X calls require a callable subcircuit. Primitive models retain their
+  // lexical scope and cannot satisfy an unrelated or subcircuit call.
+  const primitiveModels = new Map<string, Set<string>>();
+  const callScopes = new Map<object, string>();
+  const scopes: string[] = [];
+  for (const { statement } of initialGraph.statements) {
+    if (statement.kind === "subckt_start")
+      scopes.push(statement.name.toLowerCase());
+    else if (statement.kind === "subckt_end") scopes.pop();
+    else {
+      const scope = JSON.stringify(scopes);
+      if (statement.kind === "model") {
+        const names = primitiveModels.get(scope) ?? new Set<string>();
+        names.add(statement.name.toLowerCase());
+        primitiveModels.set(scope, names);
+      } else if (statement.kind === "instance")
+        callScopes.set(statement, scope);
+    }
+  }
+  const locallyResolved = (statement: InstanceStatement) =>
+    statement.master &&
+    (statement.family === "subcircuit"
+      ? callableMasters.has(statement.master.toLowerCase())
+      : primitiveModels.get("[]")?.has(statement.master.toLowerCase()) ||
+        primitiveModels
+          .get(callScopes.get(statement) ?? "[]")
+          ?.has(statement.master.toLowerCase()));
+  const reviewedCalls = initialGraph.statements.flatMap(
+    ({ path, statement }) => {
+      if (
+        statement.kind !== "instance" ||
+        !statement.master ||
+        locallyResolved(statement)
+      )
+        return [];
+      const map = sourceMaps.find((m) => m.path === path);
+      const origin = map
+        ? locateSimulationText(map, statement.sourceRef.start.offset)
+        : null;
+      if (
+        origin?.kind !== "model-source" &&
+        !reviewedExternalBindingForMaster(statement.master)
+      )
+        return [];
+      return [{ path, statement, origin }];
+    },
+  );
+  const supported = new Set(profile.devices?.map((name) => name.toLowerCase()));
+  const conflicts = reviewedCalls.filter(
+    (call) =>
+      call.origin?.kind === "model-source" &&
+      (profile.devices
+        ? !supported.has(call.statement.master!.toLowerCase())
+        : true),
+  );
+  if (conflicts.length)
+    return compilationProblem(
+      conflicts.map(({ path, statement, origin }) => {
+        const model =
+          origin?.kind === "model-source"
+            ? project.modelSources?.find((s) => s.id === origin.sourceId)
+            : undefined;
+        const ownerPath = origin?.kind === "model-source" ? origin.path : path;
+        const ownerFile = model?.files.find((f) => f.path === ownerPath);
+        const start =
+          origin?.kind === "model-source"
+            ? origin.startOffset
+            : statement.sourceRef.start.offset;
+        const before = ownerFile?.text.slice(0, start).split("\n");
+        const point = {
+          offset: start,
+          line: before?.length ?? statement.sourceRef.start.line,
+          column: (before?.at(-1)?.length ?? 0) + 1,
+        };
+        return {
+          code: "MODEL_SOURCE_PROFILE_CONFLICT",
+          severity: "error" as const,
+          message: `The selected Profile does not qualify ${statement.master}; edit the model or select a qualified Profile.`,
+          path: ownerPath,
+          sourceRef: { fileId: ownerPath, start: point, end: point },
+          ...(model
+            ? { modelSource: { sourceId: model.id, revision: model.revision } }
+            : {}),
+        };
+      }),
+    );
+  const declaredProfileLibraries = dependencies.filter(
+    (d) => available.get(d.id) === d.sha256,
+  );
+  const allLibrariesLoaded =
+    declaredProfileLibraries.length > 0 &&
+    declaredProfileLibraries.every((d) =>
+      initialGraph.includes.some((load) => load.target === d.mountPath),
+    );
+  for (const dependency of declaredProfileLibraries) {
+    const loads = initialGraph.includes.filter(
+      (load) => load.target === dependency.mountPath,
+    );
+    const invalid = loads.filter(
+      (load) =>
+        load.section !== undefined && !profile.corners.includes(load.section),
+    );
+    if (invalid.length)
+      return compilationProblem(
+        invalid.map((load) => ({
+          code: "SIMULATION_MODEL_CORNER_CONFLICT",
+          severity: "error",
+          message:
+            "The selected Profile does not qualify this library section; edit the model reference.",
+          path: load.path,
+          sourceRef: load.sourceRef,
+        })),
+      );
+    if (new Set(loads.map((load) => load.section?.toLowerCase())).size > 1)
+      return compilationProblem(
+        loads.map((load) => ({
+          code: "SIMULATION_MODEL_CORNER_CONFLICT",
+          severity: "error",
+          message:
+            "The same library is loaded with conflicting sections; edit its references.",
+          path: load.path,
+          sourceRef: load.sourceRef,
+        })),
+      );
+  }
+  const generatedPaths = new Set(compiled.generated.map((file) => file.path));
+  const needsCanvasModels =
+    (initialGraph.statements.some(
+      ({ path, statement }) =>
+        generatedPaths.has(path) &&
+        statement.kind === "instance" &&
+        !locallyResolved(statement) &&
+        deckNeedsModelLibrary(statement.rawText),
+    ) ||
+      reviewedCalls.length > 0) &&
+    !allLibrariesLoaded;
   const requestedCorner = variant?.environment?.corner;
-  if (needsCanvasModels || requestedCorner !== undefined) {
+  if (
+    needsCanvasModels ||
+    requestedCorner !== undefined ||
+    (reviewedCalls.length > 0 && profile.dependencies?.length === 1)
+  ) {
     // Profile-owned models are mounted by identity/digest. Neither the client
     // nor the author needs to know the host's absolute model-library path.
     const libraries = profile.dependencies ?? [];
@@ -401,7 +546,6 @@ export async function prepareNgspiceExecutionInput(
   // A raw run executes the deck and its files alone, so this copy feeds only
   // the run's digests (input metadata and the prepared digest). It is sent
   // only while the whole input, serialized, stays within the input budget.
-  const generatedPaths = new Set(compiled.generated.map((file) => file.path));
   const drawnCircuit = files
     .filter((file) => generatedPaths.has(file.path))
     .map((file) => file.text)

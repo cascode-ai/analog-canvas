@@ -16498,6 +16498,30 @@
             "source": {
               "$ref": "#/$defs/__schema485"
             },
+            "transform": {
+              "type": "object",
+              "properties": {
+                "language": {
+                  "type": "string",
+                  "enum": [
+                    "spice",
+                    "spectre"
+                  ]
+                },
+                "process": {
+                  "type": "string",
+                  "enum": [
+                    "abstract",
+                    "sky130",
+                    "sg13g2",
+                    "tsmc28",
+                    "tsmc180",
+                    "custom"
+                  ]
+                }
+              },
+              "additionalProperties": false
+            },
             "definitions": {
               "minItems": 1,
               "maxItems": 256,
@@ -16546,6 +16570,13 @@
               "type": "integer",
               "minimum": 0,
               "maximum": 9007199254740991
+            },
+            "language": {
+              "type": "string",
+              "enum": [
+                "spice",
+                "spectre"
+              ]
             },
             "entry": {
               "$ref": "#/$defs/__schema487"
@@ -18060,7 +18091,10 @@
     },
     "__schema486": {
       "type": "string",
-      "const": "spice"
+      "enum": [
+        "spice",
+        "spectre"
+      ]
     },
     "__schema487": {
       "type": "string"
@@ -18128,6 +18162,9 @@
     "__schema493": {
       "type": "object",
       "properties": {
+        "language": {
+          "$ref": "#/$defs/__schema486"
+        },
         "entry": {
           "$ref": "#/$defs/__schema487"
         },

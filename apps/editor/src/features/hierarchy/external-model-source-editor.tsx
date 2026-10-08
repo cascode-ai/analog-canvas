@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import {
   createId,
   deriveStableId,
@@ -10,7 +10,24 @@ import {
   createProjectSymbolResolver,
   externalSubcircuitSymbolId,
 } from "@icm/symbols";
-import { inspectProjectModelSource } from "@icm/netlist";
+import {
+  inspectProjectModelSource,
+  inspectProjectModelProcess,
+  renderProjectModelSource,
+  transformProjectModelSource,
+  type SimulationSourceDiagnostic,
+} from "@icm/netlist";
+import {
+  NETLIST_PROFILE_IDS,
+  NETLIST_PROFILE_LABELS,
+  type NetlistProfileId,
+} from "../netlist-export/netlist-process-presets";
+import {
+  NetlistCodeSelect,
+  NetlistCopyButton,
+  netlistFormatOptions,
+} from "../netlist-export/netlist-code-controls";
+import { browserExportDelivery } from "../../hosts/browser-export-delivery";
 import type { ProjectStructureEdit } from "@icm/edit-engine";
 import ProjectTextEditor from "../project-code/project-text-editor";
 import { SymbolArtwork } from "../component-insert/symbol-artwork";
@@ -22,6 +39,18 @@ export type ApplyModelSourceEdit = Extract<
   ProjectStructureEdit,
   { kind: "apply_model_source" }
 >;
+
+function modelStarter(language: ProjectModelSource["language"] = "spice") {
+  return [
+    {
+      path: language === "spice" ? "model.spice" : "model.scs",
+      text:
+        language === "spice"
+          ? "* Add pins and params: NAME=VALUE as needed; finish with .ends my_cell.\n* .subckt my_cell\n"
+          : "// Add pins and parameters NAME=VALUE as needed; finish with ends my_cell.\n// subckt my_cell ()\n",
+    },
+  ];
+}
 
 export function ExternalModelSourceEditor({
   project,
@@ -35,6 +64,7 @@ export function ExternalModelSourceEditor({
   onPlace,
   onDirtyChange,
   onRequestLeave,
+  onCopyText = browserExportDelivery.copyText,
 }: {
   project: CircuitProject;
   definition: ExternalSubcircuitDefinition | undefined;
@@ -48,6 +78,7 @@ export function ExternalModelSourceEditor({
   onPlace(definitionId: string): void;
   onDirtyChange(dirty: boolean): void;
   onRequestLeave(action: () => void): void;
+  onCopyText?: ((text: string) => Promise<void>) | undefined;
   onDelete(): ExternalDefinitionResult;
   onMetadata(
     definition: ExternalSubcircuitDefinition,
@@ -74,10 +105,16 @@ export function ExternalModelSourceEditor({
       existing?.revision ??
       0,
   );
+  const [language, setLanguage] = useState<ProjectModelSource["language"]>(
+    (revealApplied ? existing?.language : existing?.draft?.language) ??
+      existing?.language ??
+      "spice",
+  );
   const [files, setFiles] = useState(() =>
     structuredClone(
       (revealApplied ? existing?.files : existing?.draft?.files) ??
-        existing?.files ?? [{ path: "model.spice", text: "" }],
+        existing?.files ??
+        modelStarter(),
     ),
   );
   const [entryPath, setEntryPath] = useState(
@@ -106,7 +143,11 @@ export function ExternalModelSourceEditor({
     Record<string, Record<string, string | null>>
   >({});
   const [result, setResult] = useState<ExternalDefinitionResult | null>(null);
+  const [conversionDiagnostic, setConversionDiagnostic] =
+    useState<SimulationSourceDiagnostic | null>(null);
+  const workbench = useRef<HTMLElement>(null);
   const currentDraft = {
+    language,
     entryPath,
     files,
     dependencies,
@@ -116,8 +157,39 @@ export function ExternalModelSourceEditor({
   const serializeDraft = (overrides: Partial<typeof currentDraft> = {}) =>
     JSON.stringify({ ...currentDraft, ...overrides });
   const snapshot = serializeDraft();
+  // One history entry restores every owned file and its syntax together.
+  // The text editor's per-file history cannot represent an owner conversion.
+  const draftHistory = useRef<{
+    past: (typeof currentDraft)[];
+    future: (typeof currentDraft)[];
+  }>({ past: [], future: [] });
+  useEffect(() => {
+    draftHistory.current = { past: [], future: [] };
+  }, [sourceId, viewingApplied]);
+  const restoreDraft = (draft: typeof currentDraft) => {
+    setLanguage(draft.language);
+    setFiles(draft.files);
+    setEntryPath(draft.entryPath);
+    setDependencies(draft.dependencies);
+    setEntry(draft.entry);
+    setPortMaps(draft.portMaps);
+    if (!draft.files.some((f) => f.path === filePath))
+      setFilePath(draft.entryPath);
+    setConversionDiagnostic(null);
+    setResult(null);
+  };
+  const editDraft = (overrides: Partial<typeof currentDraft>) => {
+    const next = { ...currentDraft, ...overrides };
+    if (JSON.stringify(next) === snapshot) return;
+    draftHistory.current.past.push(structuredClone(currentDraft));
+    if (draftHistory.current.past.length > 100)
+      draftHistory.current.past.shift();
+    draftHistory.current.future = [];
+    restoreDraft(next);
+  };
   const [savedSnapshot, setSavedSnapshot] = useState(snapshot);
   const dirty = !viewingApplied && savedSnapshot !== snapshot;
+  const stale = Boolean(existing && baseRevision !== existing.revision);
   useEffect(() => {
     onDirtyChange(dirty);
     return () => onDirtyChange(false);
@@ -125,15 +197,19 @@ export function ExternalModelSourceEditor({
   const source: ProjectModelSource = useMemo(
     () => ({
       id: sourceId,
-      language: "spice",
+      language,
       entry: entryPath,
       files,
       dependencies,
       revision: baseRevision,
     }),
-    [sourceId, entryPath, files, dependencies, baseRevision],
+    [sourceId, language, entryPath, files, dependencies, baseRevision],
   );
   const inspection = useMemo(() => inspectProjectModelSource(source), [source]);
+  const modelProcess = useMemo(
+    () => inspectProjectModelProcess(source),
+    [source],
+  );
   const selected =
     inspection.entries.length === 1
       ? inspection.entries[0]
@@ -222,6 +298,63 @@ export function ExternalModelSourceEditor({
       if (place) onPlace(definitionId);
     }
   };
+  const copyModel = async () => {
+    if (
+      !existing ||
+      dirty ||
+      (existing.draft && !viewingApplied) ||
+      baseRevision !== existing.revision
+    )
+      return;
+    try {
+      await onCopyText(renderProjectModelSource(existing).text);
+      setResult({ ok: true, message: "Copied model netlist." });
+    } catch {
+      setResult({ ok: false, message: "Could not copy model netlist." });
+    }
+  };
+  const changeFormat = (value: string) => {
+    const target = value as ProjectModelSource["language"];
+    if (
+      !existing &&
+      JSON.stringify(files) === JSON.stringify(modelStarter(language))
+    ) {
+      const starter = modelStarter(target);
+      editDraft({
+        language: target,
+        files: starter,
+        entryPath: starter[0]!.path,
+      });
+      setFilePath(starter[0]!.path);
+      setResult(null);
+      return;
+    }
+    const converted = transformProjectModelSource(source, { language: target });
+    if (!converted.ok) {
+      setConversionDiagnostic(converted.diagnostic);
+      setResult({ ok: false, message: "Could not convert format." });
+      return;
+    }
+    editDraft({
+      files: converted.source.files,
+      language: converted.source.language,
+    });
+    setConversionDiagnostic(null);
+    setResult(null);
+  };
+  const changeProcess = (value: string) => {
+    const converted = transformProjectModelSource(source, {
+      process: value as NetlistProfileId,
+    });
+    if (!converted.ok) {
+      setConversionDiagnostic(converted.diagnostic);
+      setResult({ ok: false, message: "Could not replace process." });
+      return;
+    }
+    editDraft({ files: converted.source.files });
+    setConversionDiagnostic(null);
+    setResult(null);
+  };
   const saveDraft = () => {
     if (viewingApplied) return;
     const edits: ProjectStructureEdit[] = [];
@@ -230,7 +363,7 @@ export function ExternalModelSourceEditor({
         kind: "upsert_model_source",
         source: {
           id: sourceId,
-          language: "spice",
+          language,
           entry: entryPath,
           files: [{ path: entryPath, text: "" }],
           dependencies: [],
@@ -260,6 +393,7 @@ export function ExternalModelSourceEditor({
       kind: "save_model_source_draft",
       sourceId,
       expectedRevision: baseRevision,
+      language,
       entry: entryPath,
       files,
       dependencies,
@@ -273,9 +407,8 @@ export function ExternalModelSourceEditor({
     const owner = project.modelSources?.find((s) => s.id === id);
     setSourceId(owner?.id ?? createId("model-source"));
     setBaseRevision(owner?.revision ?? 0);
-    setFiles(
-      structuredClone(owner?.files ?? [{ path: "model.spice", text: "" }]),
-    );
+    setLanguage(owner?.language ?? "spice");
+    setFiles(structuredClone(owner?.files ?? modelStarter()));
     setDependencies(structuredClone(owner?.dependencies ?? []));
     setEntryPath(owner?.entry ?? "model.spice");
     setFilePath(owner?.entry ?? "model.spice");
@@ -285,7 +418,8 @@ export function ExternalModelSourceEditor({
     setSavedSnapshot(
       serializeDraft({
         entryPath: owner?.entry ?? "model.spice",
-        files: owner?.files ?? [{ path: "model.spice", text: "" }],
+        language: owner?.language ?? "spice",
+        files: owner?.files ?? modelStarter(),
         dependencies: owner?.dependencies ?? [],
         entry: "",
         portMaps: {},
@@ -306,9 +440,112 @@ export function ExternalModelSourceEditor({
   };
   return (
     <section
+      ref={workbench}
       className="external-model-workbench"
       aria-label="External model source"
+      onKeyDownCapture={(event) => {
+        if (viewingApplied || !(event.ctrlKey || event.metaKey) || event.altKey)
+          return;
+        if (
+          !(event.target instanceof HTMLElement) ||
+          !event.target.closest(
+            ".project-source-editor, .netlist-code-controls",
+          )
+        )
+          return;
+        const key = event.key.toLowerCase();
+        const redo = (key === "z" && event.shiftKey) || key === "y";
+        if (key !== "z" && key !== "y") return;
+        event.preventDefault();
+        event.stopPropagation();
+        const from = redo
+          ? draftHistory.current.future
+          : draftHistory.current.past;
+        const to = redo
+          ? draftHistory.current.past
+          : draftHistory.current.future;
+        const previous = from.pop();
+        if (!previous) return;
+        to.push(structuredClone(currentDraft));
+        restoreDraft(previous);
+      }}
     >
+      <div className="netlist-code-controls">
+        <div className="netlist-code-selects">
+          <NetlistCodeSelect
+            label="Format"
+            ariaLabel="Model format"
+            value={language}
+            options={netlistFormatOptions}
+            disabled={viewingApplied}
+            onChange={changeFormat}
+          />
+          <NetlistCodeSelect
+            label="Process"
+            ariaLabel="Model process"
+            value={modelProcess}
+            options={NETLIST_PROFILE_IDS.map((value) => ({
+              value,
+              label: NETLIST_PROFILE_LABELS[value],
+            }))}
+            disabled={viewingApplied}
+            onChange={changeProcess}
+          />
+        </div>
+        <div className="netlist-code-actions">
+          <NetlistCopyButton
+            label="Copy model netlist"
+            disabled={
+              !existing ||
+              dirty ||
+              Boolean(existing.draft && !viewingApplied) ||
+              baseRevision !== existing?.revision ||
+              binding?.kind !== "source"
+            }
+            onCopy={() => void copyModel()}
+          />
+        </div>
+      </div>
+      {result || failure || stale ? (
+        <p className="cell-external-result" role="status">
+          {stale
+            ? "The applied model changed; keep this draft on the latest version before Apply."
+            : (result?.message ?? "Correct the model source before Apply.")}
+          {stale ? (
+            <button
+              type="button"
+              onClick={() => {
+                setBaseRevision(existing!.revision);
+                setResult(null);
+              }}
+            >
+              Keep my draft on the latest version
+            </button>
+          ) : conversionDiagnostic || failure ? (
+            <button
+              type="button"
+              title={`${(conversionDiagnostic ?? failure)!.path}:${(conversionDiagnostic ?? failure)!.sourceRef?.start.line ?? 1}: ${(conversionDiagnostic ?? failure)!.message}`}
+              onClick={() => {
+                const diagnostic = conversionDiagnostic ?? failure!;
+                if (
+                  diagnostic.path &&
+                  files.some((f) => f.path === diagnostic.path)
+                )
+                  setFilePath(diagnostic.path);
+                requestAnimationFrame(() =>
+                  workbench.current
+                    ?.querySelector<HTMLElement>(
+                      '[aria-label="External model netlist"]',
+                    )
+                    ?.focus(),
+                );
+              }}
+            >
+              Edit model
+            </button>
+          ) : null}
+        </p>
+      ) : null}
       {!definition && !forking && project.modelSources?.length ? (
         <label>
           <span>Source owner</span>
@@ -350,22 +587,6 @@ export function ExternalModelSourceEditor({
           </div>
         </details>
       ) : null}
-      {existing && baseRevision !== existing.revision ? (
-        <p className="cell-external-result" role="alert">
-          Applied model changed to version {existing.revision}. Your text is
-          retained. Keeping this draft as the new base lets Apply replace that
-          newer model.
-          <button
-            type="button"
-            onClick={() => {
-              setBaseRevision(existing.revision);
-              setResult(null);
-            }}
-          >
-            Keep my draft on the latest version
-          </button>
-        </p>
-      ) : null}
       {viewingApplied && existing?.draft ? (
         <p className="cell-external-result" role="status">
           Showing the applied error snapshot. Your saved draft is retained.{" "}
@@ -374,6 +595,7 @@ export function ExternalModelSourceEditor({
             onClick={() => {
               const draft = existing.draft!;
               setViewingApplied(false);
+              setLanguage(draft.language ?? existing.language);
               setBaseRevision(draft.baseRevision);
               setFiles(structuredClone(draft.files));
               setDependencies(
@@ -383,6 +605,7 @@ export function ExternalModelSourceEditor({
               setFilePath(draft.entry);
               setSavedSnapshot(
                 serializeDraft({
+                  language: draft.language ?? existing.language,
                   entryPath: draft.entry,
                   files: draft.files,
                   dependencies: draft.dependencies ?? existing.dependencies,
@@ -438,9 +661,13 @@ export function ExternalModelSourceEditor({
             ? `${sourceId}:${initialLocation!.revision}:${filePath}:${initialLocation!.startOffset}`
             : ""
         }
-        onChange={(text) =>
-          setFiles(files.map((f) => (f.path === filePath ? { ...f, text } : f)))
-        }
+        onChange={(text) => {
+          editDraft({
+            files: files.map((f) => (f.path === filePath ? { ...f, text } : f)),
+          });
+          setResult(null);
+          setConversionDiagnostic(null);
+        }}
         onModEnter={() => apply()}
         invalid={Boolean(failure && files.some((f) => f.text.trim()))}
       />
@@ -477,7 +704,7 @@ export function ExternalModelSourceEditor({
             ) : null}
           </>
         ) : (
-          <span>No .subckt yet</span>
+          <span>No subcircuit yet</span>
         )}
       </div>
       {targets.flatMap((target) => {
@@ -632,49 +859,53 @@ export function ExternalModelSourceEditor({
         </details>
       ) : null}
       {definition ? (
-        <details className="external-model-section external-model-layout-section">
-          <summary>Symbol layout and directions</summary>
-          <div className="external-model-section-body">
-            <div className="external-model-directions">
-              {definition.terminals.map((terminal) => (
-                <label key={terminal.id}>
-                  <span>
-                    <strong>{terminal.name}</strong> direction
-                  </span>
-                  <select
-                    aria-label={"Model " + terminal.name + " direction"}
-                    value={terminal.direction}
-                    onChange={(event) =>
-                      setResult(
-                        onMetadata({
-                          ...definition,
-                          terminals: definition.terminals.map((t) =>
-                            t.id === terminal.id
-                              ? {
-                                  ...t,
-                                  direction: event.currentTarget
-                                    .value as typeof t.direction,
-                                }
-                              : t,
-                          ),
-                        }),
-                      )
-                    }
-                  >
-                    {["passive", "input", "output", "inout"].map(
-                      (direction) => (
-                        <option key={direction} value={direction}>
-                          {direction === "inout"
-                            ? "In/Out"
-                            : direction[0]!.toUpperCase() + direction.slice(1)}
-                        </option>
-                      ),
-                    )}
-                  </select>
-                </label>
-              ))}
-            </div>
-            <div className="external-model-layout">
+        <section className="external-model-layout-section">
+          <header>
+            <h3>Symbol layout and directions</h3>
+            <p>Pin directions and symbol placement for this model.</p>
+          </header>
+          <div className="external-model-layout">
+            <div className="external-model-layout-controls">
+              <div className="external-model-directions">
+                {definition.terminals.map((terminal) => (
+                  <label key={terminal.id}>
+                    <span>
+                      <strong>{terminal.name}</strong> direction
+                    </span>
+                    <select
+                      aria-label={"Model " + terminal.name + " direction"}
+                      value={terminal.direction}
+                      onChange={(event) =>
+                        setResult(
+                          onMetadata({
+                            ...definition,
+                            terminals: definition.terminals.map((t) =>
+                              t.id === terminal.id
+                                ? {
+                                    ...t,
+                                    direction: event.currentTarget
+                                      .value as typeof t.direction,
+                                  }
+                                : t,
+                            ),
+                          }),
+                        )
+                      }
+                    >
+                      {["passive", "input", "output", "inout"].map(
+                        (direction) => (
+                          <option key={direction} value={direction}>
+                            {direction === "inout"
+                              ? "In/Out"
+                              : direction[0]!.toUpperCase() +
+                                direction.slice(1)}
+                          </option>
+                        ),
+                      )}
+                    </select>
+                  </label>
+                ))}
+              </div>
               <CellSymbolLayoutProperties
                 target={{
                   kind: "external",
@@ -716,37 +947,23 @@ export function ExternalModelSourceEditor({
                   )
                 }
               />
-              {preview ? (
-                <figure
-                  className="external-model-layout-preview"
-                  aria-label="Symbol preview"
-                >
-                  <figcaption>Symbol preview</figcaption>
-                  <div className="external-model-preview-frame">
-                    <SymbolArtwork
-                      symbol={preview}
-                      className="external-model-symbol"
-                    />
-                  </div>
-                </figure>
-              ) : null}
             </div>
+            {preview ? (
+              <figure
+                className="external-model-layout-preview"
+                aria-label="Symbol preview"
+              >
+                <figcaption>Preview</figcaption>
+                <div className="external-model-preview-frame">
+                  <SymbolArtwork
+                    symbol={preview}
+                    className="external-model-symbol"
+                  />
+                </div>
+              </figure>
+            ) : null}
           </div>
-        </details>
-      ) : null}
-      {result ? (
-        <p
-          className="cell-external-result"
-          role={result.ok ? "status" : "alert"}
-        >
-          {result.message}
-        </p>
-      ) : null}
-      {failure && !result && files.some((f) => f.text.trim()) ? (
-        <p className="cell-external-result" role="status">
-          {failure.path ? failure.path + ": " : ""}
-          {failure.message}
-        </p>
+        </section>
       ) : null}
       <footer className="external-model-actionbar">
         {!definition ? (

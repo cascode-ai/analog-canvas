@@ -15263,7 +15263,10 @@
     },
     "__schema257": {
       "type": "string",
-      "const": "spice"
+      "enum": [
+        "spice",
+        "spectre"
+      ]
     },
     "__schema258": {
       "minItems": 1,
@@ -15328,6 +15331,9 @@
     "__schema263": {
       "type": "object",
       "properties": {
+        "language": {
+          "$ref": "#/$defs/__schema257"
+        },
         "entry": {
           "$ref": "#/$defs/__schema10"
         },

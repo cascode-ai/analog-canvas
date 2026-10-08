@@ -4,30 +4,34 @@ import type {
   ExternalSubcircuitDefinition,
 } from "@icm/model";
 import {
-  inspectSimulationSource,
   type SubcircuitStartStatement,
   type ModelStatement,
+  convertNetlist,
 } from "@icm/spice";
-import { inspectSimulationSourceGraph } from "./simulation-source-graph.js";
+import {
+  inspectModelSourceGraph,
+  inspectModelSourceFile,
+  modelSourceSectionKey,
+} from "./model-source-syntax.js";
 import type { SimulationSourceDiagnostic } from "./source-file-graph.js";
 import { resolveReviewedLibraryInterface } from "@icm/devices";
 
 /** Native inspection retains opaque bodies; acceptance is not simulator qualification. */
 export function inspectProjectModelSource(source: ProjectModelSource) {
-  const graph = inspectSimulationSourceGraph({
-    kind: "source",
-    entry: source.entry,
-    configPath: "__model_config.json",
-    files: source.files,
-    dependencies: source.dependencies,
-    circuitBindings: [],
-  });
+  const graph = inspectModelSourceGraph(source);
   const diagnostics = [...graph.diagnostics];
-  const entries: SubcircuitStartStatement[] = [];
+  type NativeEntry = SubcircuitStartStatement & {
+    sourceLanguage?: ProjectModelSource["language"];
+  };
+  const entries: NativeEntry[] = [];
   const names = new Set<string>();
-  const globalModels: ModelStatement[] = [];
+  const globalModels: (ModelStatement & {
+    sourceLanguage?: ProjectModelSource["language"];
+  })[] = [];
   const deviceModelNames = new Set<string>();
-  let current: SubcircuitStartStatement | undefined;
+  let current: NativeEntry | undefined;
+  const key = (name: string, language = source.language) =>
+    language === "spectre" ? name : name.toLowerCase();
   for (const { path, statement } of graph.statements) {
     const fail = (message: string) =>
       diagnostics.push({
@@ -40,33 +44,44 @@ export function inspectProjectModelSource(source: ProjectModelSource) {
     if (statement.kind === "subckt_start") {
       if (current)
         fail("Nested model subcircuit declarations are not supported");
-      if (names.has(statement.name.toLowerCase()))
+      if (names.has(key(statement.name, statement.sourceLanguage)))
         fail(`Duplicate model definition ${statement.name}`);
-      names.add(statement.name.toLowerCase());
+      names.add(key(statement.name, statement.sourceLanguage));
       current = statement;
       entries.push(statement);
       if (
-        new Set(statement.ports.map((p) => p.toLowerCase())).size !==
-        statement.ports.length
+        new Set(statement.ports.map((p) => key(p, statement.sourceLanguage)))
+          .size !== statement.ports.length
       )
         fail("Model terminal names must be unique");
       if (
-        new Set(statement.parameters.map((p) => p.name.toLowerCase())).size !==
-        statement.parameters.length
+        new Set(
+          statement.parameters.map((p) =>
+            key(p.name, statement.sourceLanguage),
+          ),
+        ).size !== statement.parameters.length
       )
         fail("Model formal parameter names must be unique");
     } else if (statement.kind === "subckt_end") {
       if (
         !current ||
         (statement.name &&
-          statement.name.toLowerCase() !== current.name.toLowerCase())
+          key(statement.name, statement.sourceLanguage) !==
+            key(current.name, current.sourceLanguage))
       )
         fail("Model .ends does not match its declaration");
       current = undefined;
+    } else if (
+      statement.kind === "parameter" &&
+      source.language === "spectre" &&
+      statement.sourceLanguage !== "spice" &&
+      current
+    ) {
+      current.parameters.push(...statement.parameters);
     } else if (statement.kind === "model") {
       const identity = JSON.stringify([
-        current?.name.toLowerCase(),
-        statement.name.toLowerCase(),
+        current ? key(current.name, current.sourceLanguage) : undefined,
+        key(statement.name, statement.sourceLanguage),
       ]);
       if (deviceModelNames.has(identity))
         fail(`Duplicate device model ${statement.name}`);
@@ -97,6 +112,18 @@ export function inspectProjectModelSource(source: ProjectModelSource) {
       message: `Missing .ends for ${current.name}`,
       sourceRef: current.sourceRef,
     });
+  for (const entry of entries)
+    if (
+      new Set(entry.parameters.map((p) => key(p.name, entry.sourceLanguage)))
+        .size !== entry.parameters.length
+    )
+      diagnostics.push({
+        code: "MODEL_SOURCE_DECLARATION",
+        severity: "error",
+        message: "Model parameter names must be unique",
+        path: entry.sourceRef.fileId,
+        sourceRef: entry.sourceRef,
+      });
   return { entries, globalModels, graph, diagnostics };
 }
 
@@ -159,11 +186,12 @@ export function collectProjectModelSources(
 ) {
   const sources: ProjectModelSource[] = [];
   const diagnostics: SimulationSourceDiagnostic[] = [];
-  const names = new Set(
-    (options.reservedNames ?? []).map((n) => n.toLowerCase()),
-  );
+  const names = (options.reservedNames ?? []).map((name) => ({
+    name,
+    nativeSpectre: options.format === "spectre",
+  }));
   const seen = new Set<string>();
-  const deviceModelNames = new Set<string>();
+  const deviceModelNames: { name: string; nativeSpectre: boolean }[] = [];
   for (const id of ids) {
     const definition = project.externalSubcircuitDefinitions.find(
       (d) => d.id === id,
@@ -205,8 +233,10 @@ export function collectProjectModelSources(
     }
     const inspected = inspectProjectModelSource(source);
     const modelSource = { sourceId: source.id, revision: source.revision };
-    const entry = inspected.entries.find(
-      (e) => e.name.toLowerCase() === implementation.entry.toLowerCase(),
+    const entry = inspected.entries.find((e) =>
+      source.language === "spectre"
+        ? e.name === implementation.entry
+        : e.name.toLowerCase() === implementation.entry.toLowerCase(),
     );
     if (!entry || !modelInterfaceMatches(definition, entry))
       diagnostics.push({
@@ -233,17 +263,33 @@ export function collectProjectModelSources(
         modelSource,
       })),
     );
-    if (options.format && options.format !== "spice")
-      diagnostics.push({
-        code: "MODEL_SOURCE_DIALECT",
-        severity: "error",
-        message: `SPICE model ${definition.name} cannot be silently emitted as ${options.format}`,
-        path: entry?.sourceRef.fileId ?? source.entry,
-        ...(entry ? { sourceRef: entry.sourceRef } : {}),
-        modelSource,
-      });
+    if (
+      options.format &&
+      options.format !== source.language &&
+      !inspected.diagnostics.some((d) => d.severity === "error")
+    ) {
+      const failure =
+        options.format === "spice" || options.format === "spectre"
+          ? projectModelConversionDiagnostic(source, options.format)
+          : {
+              code: "MODEL_SOURCE_DIALECT",
+              severity: "error" as const,
+              message: `Model ${definition.name} cannot be emitted as ${options.format}`,
+              path: source.entry,
+            };
+      if (failure) diagnostics.push({ ...failure, modelSource });
+    }
     for (const declared of inspected.entries) {
-      if (names.has(declared.name.toLowerCase()))
+      const nativeSpectre =
+        (declared.sourceLanguage ?? options.format ?? source.language) ===
+        "spectre";
+      if (
+        names.some((previous) =>
+          previous.nativeSpectre && nativeSpectre
+            ? previous.name === declared.name
+            : previous.name.toLowerCase() === declared.name.toLowerCase(),
+        )
+      )
         diagnostics.push({
           code: "MODEL_SOURCE_NAME_CONFLICT",
           severity: "error",
@@ -252,10 +298,19 @@ export function collectProjectModelSources(
           sourceRef: declared.sourceRef,
           modelSource,
         });
-      names.add(declared.name.toLowerCase());
+      names.push({ name: declared.name, nativeSpectre });
     }
     for (const declared of inspected.globalModels) {
-      if (deviceModelNames.has(declared.name.toLowerCase()))
+      const nativeSpectre =
+        (declared.sourceLanguage ?? options.format ?? source.language) ===
+        "spectre";
+      if (
+        deviceModelNames.some((previous) =>
+          previous.nativeSpectre && nativeSpectre
+            ? previous.name === declared.name
+            : previous.name.toLowerCase() === declared.name.toLowerCase(),
+        )
+      )
         diagnostics.push({
           code: "MODEL_SOURCE_NAME_CONFLICT",
           severity: "error",
@@ -264,7 +319,7 @@ export function collectProjectModelSources(
           sourceRef: declared.sourceRef,
           modelSource,
         });
-      deviceModelNames.add(declared.name.toLowerCase());
+      deviceModelNames.push({ name: declared.name, nativeSpectre });
     }
     sources.push(source);
   }
@@ -278,6 +333,9 @@ export interface ProjectModelSourceLocation {
   startOffset: number;
   endOffset: number;
   sourceOffset: number;
+  /** Converted spans navigate to the owner; they are not byte-reversible. */
+  derived?: boolean;
+  sourceLength?: number;
 }
 
 export interface PrintedProjectModelSource {
@@ -285,10 +343,90 @@ export interface PrintedProjectModelSource {
   segments: ProjectModelSourceLocation[];
 }
 
+/** An external native library is not translated by changing its include card. */
+export function modelSourceLibraryDialectDiagnostic(
+  source: ProjectModelSource,
+  target: "spice" | "spectre",
+): SimulationSourceDiagnostic | undefined {
+  if (source.language !== "spectre" || target !== "spice") return;
+  const inspected = inspectProjectModelSource(source);
+  const native = inspected.graph.includes.find(
+    (load) =>
+      !source.files.some((f) => f.path === load.target) &&
+      inspected.graph.statements.some(
+        (s) =>
+          s.path === load.path &&
+          s.statement.sourceRef.start.offset === load.sourceRef.start.offset &&
+          s.statement.sourceLanguage !== "spice",
+      ),
+  );
+  if (native)
+    return {
+      code: "MODEL_SOURCE_LIBRARY_DIALECT",
+      severity: "error",
+      message:
+        "The external library's native language cannot be qualified for SPICE; edit its real reference.",
+      path: native.path,
+      sourceRef: native.sourceRef,
+    };
+}
+
+export function projectModelConversionDiagnostic(
+  source: ProjectModelSource,
+  target: "spice" | "spectre",
+): SimulationSourceDiagnostic | undefined {
+  const libraryFailure = modelSourceLibraryDialectDiagnostic(source, target);
+  if (libraryFailure) return libraryFailure;
+  const native = renderProjectModelSource(source);
+  const converted = convertExpandedModelSource(source, native.text, target);
+  if (converted.status !== "blocked") return;
+  const issue = converted.issues[0]!;
+  const offset = native.text
+    .split("\n")
+    .slice(0, issue.line - 1)
+    .reduce((sum, line) => sum + line.length + 1, 0);
+  const segment = native.segments.find(
+    (s) => offset >= s.startOffset && offset < s.endOffset,
+  );
+  const path = segment?.path ?? source.entry;
+  const sourceOffset = segment
+    ? segment.sourceOffset + offset - segment.startOffset
+    : 0;
+  const before = source.files
+    .find((f) => f.path === path)!
+    .text.slice(0, sourceOffset)
+    .split("\n");
+  const point = {
+    offset: sourceOffset,
+    line: before.length,
+    column: before.at(-1)!.length + 1,
+  };
+  return {
+    code: "MODEL_SOURCE_DIALECT",
+    severity: "error",
+    message: issue.message,
+    path,
+    sourceRef: { fileId: path, start: point, end: point },
+  };
+}
+
+function convertExpandedModelSource(
+  source: ProjectModelSource,
+  text: string,
+  target: "spice" | "spectre",
+) {
+  return convertNetlist({
+    text,
+    source: source.language,
+    target,
+    fragment: true,
+  });
+}
+
 /** Expand only owned include references; native body bytes and external loads survive. */
 export function renderProjectModelSource(
   source: ProjectModelSource,
-  options: { outputPath?: string } = {},
+  options: { outputPath?: string; format?: "spice" | "spectre" } = {},
 ): PrintedProjectModelSource {
   const inspected = inspectProjectModelSource(source);
   const result: PrintedProjectModelSource = { text: "", segments: [] };
@@ -319,24 +457,34 @@ export function renderProjectModelSource(
       sourceOffset,
     });
   };
-  const emit = (path: string, section?: string, stack: string[] = []) => {
+  const emit = (
+    path: string,
+    section?: string,
+    stack: string[] = [],
+    callerLanguage?: ProjectModelSource["language"],
+  ) => {
     const file = source.files.find((f) => f.path === path);
     if (!file) throw new Error(`Missing owned model file ${path}`);
-    const identity = JSON.stringify([path, section?.toLowerCase()]);
+    const sectionKey = (name: string) =>
+      modelSourceSectionKey(source, path, name);
+    const identity = JSON.stringify([path, section && sectionKey(section)]);
     if (stack.includes(identity))
       throw new Error(`Model include cycle at ${path}`);
     let start = 0;
     let end = file.text.length;
+    let startLanguage = source.language;
     if (section) {
-      const statements = inspectSimulationSource(
-        { path, id: path, text: file.text, hash: "", encoding: "utf-8" },
-        false,
+      const statements = inspectModelSourceFile(
+        source.language,
+        path,
+        file.text,
       ).statements;
       const opening = statements.findIndex(
         (s) =>
           s.kind === "library" &&
           s.mode === "section-start" &&
-          s.section.toLowerCase() === section.toLowerCase(),
+          modelSourceSectionKey(source, path, s.section, s.sourceRef) ===
+            sectionKey(section),
       );
       const closing = statements.find(
         (s, index) =>
@@ -346,7 +494,10 @@ export function renderProjectModelSource(
         throw new Error(`Missing model library section ${section}`);
       start = statements[opening]!.sourceRef.end.offset;
       end = closing.sourceRef.start.offset;
+      startLanguage = statements[opening]!.sourceLanguage ?? source.language;
     }
+    if (source.language === "spectre" && callerLanguage)
+      result.text += `simulator lang=${startLanguage}\n`;
     let offset = start;
     for (const include of includes
       .filter(
@@ -361,8 +512,18 @@ export function renderProjectModelSource(
         file.text.slice(offset, include.sourceRef.start.offset),
         offset,
       );
+      const load = inspected.graph.statements.find(
+        (s) =>
+          s.path === path &&
+          s.statement.sourceRef.start.offset === include.sourceRef.start.offset,
+      );
       if (source.files.some((f) => f.path === include.target))
-        emit(include.target, include.section, [...stack, identity]);
+        emit(
+          include.target,
+          include.section,
+          [...stack, identity],
+          load?.statement.sourceLanguage ?? source.language,
+        );
       else {
         const outputParts = (options.outputPath ?? "netlist.spice")
           .split("/")
@@ -377,15 +538,45 @@ export function renderProjectModelSource(
         );
         // Dependency paths have one declared owner. Only this generated load
         // changes; surrounding native bytes retain exact reverse mappings.
-        result.text += include.section
-          ? `.lib "${requested}" ${include.section}\n`
-          : `.include "${requested}"\n`;
+        result.text +=
+          (load?.statement.sourceLanguage ?? source.language) === "spectre"
+            ? `include "${requested}"${include.section ? " section=" + include.section : ""}\n`
+            : include.section
+              ? `.lib "${requested}" ${include.section}\n`
+              : `.include "${requested}"\n`;
       }
       offset = include.sourceRef.end.offset;
     }
     append(path, file.text.slice(offset, end), offset);
+    if (source.language === "spectre" && callerLanguage)
+      result.text += `simulator lang=${callerLanguage}\n`;
   };
   emit(source.entry);
+  if (options.format && options.format !== source.language) {
+    const failure = modelSourceLibraryDialectDiagnostic(source, options.format);
+    if (failure) throw Error(failure.message);
+    const converted = convertExpandedModelSource(
+      source,
+      result.text,
+      options.format,
+    );
+    if (converted.status === "blocked")
+      throw Error(converted.issues[0]!.message);
+    result.text = converted.text;
+    result.segments = [
+      {
+        sourceId: source.id,
+        revision: source.revision,
+        path: source.entry,
+        startOffset: 0,
+        endOffset: result.text.length,
+        sourceOffset: 0,
+        derived: true,
+        sourceLength: source.files.find((f) => f.path === source.entry)!.text
+          .length,
+      },
+    ];
+  }
   return result;
 }
 
@@ -397,11 +588,12 @@ export function projectModelText(source: ProjectModelSource): string {
 export function appendProjectModelSources(
   text: string,
   sources: readonly ProjectModelSource[],
+  format: "spice" | "spectre" = "spice",
 ): PrintedProjectModelSource {
   const segments: ProjectModelSourceLocation[] = [];
   for (const source of sources) {
-    const model = renderProjectModelSource(source);
-    text += `\n* Project model: applied version ${source.revision}${source.draft ? " (draft pending)" : ""}\n`;
+    const model = renderProjectModelSource(source, { format });
+    text += `\n${format === "spice" ? "*" : "//"} Project model: applied version ${source.revision}${source.draft ? " (draft pending)" : ""}\n`;
     const offset = text.length;
     text += model.text;
     segments.push(
@@ -456,6 +648,8 @@ export function planMappedProjectModelEdit(
   );
   if (!owner)
     return fail("This edit crosses protected source or file boundaries");
+  if (owner.derived)
+    return fail("Converted model text requires an edit at its native owner");
   const source = snapshots.find((s) => s.id === owner.sourceId);
   const file = source?.files.find((f) => f.path === owner.path);
   if (!source || !file || source.revision !== owner.revision)
