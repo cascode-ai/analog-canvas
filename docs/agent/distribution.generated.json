@@ -1,7 +1,7 @@
 {
   "format": "analog-canvas-agent-distribution-v1",
   "version": 1,
-  "registrySha256": "4f5b7a4b47239db216e4c0124735317e907497c0f663e225a92df53577e725de",
+  "registrySha256": "bcb03d34fbe4a63d6e6b9e95e56dfc5bb95de43029919c8b42668eeb894f18b5",
   "sources": [
     {
       "source": "docs/agent/simulation-specs.md",
@@ -110,6 +110,10 @@
     {
       "source": "docs/agent/routegraph.md",
       "sha256": "e6a1f9a92b90a4d43577c9fe716a245fd95257ac89a33cc512b1cab3243aff48"
+    },
+    {
+      "source": "docs/agent/local-workspace.md",
+      "sha256": "5d2fdce12cd2d6aadc7e8bbb50591f9c819517cd909b50235b73ed00b3dc4415"
     },
     {
       "source": "docs/agent/mcp/tool-help.json",
@@ -512,6 +516,16 @@
         "maintainer"
       ],
       "task": "Use optional repository RouteGraph helper",
+      "load": "on-demand",
+      "requires": []
+    },
+    {
+      "id": "repo/local-workspace",
+      "source": "docs/agent/local-workspace.md",
+      "consumers": [
+        "maintainer"
+      ],
+      "task": "Draw in a local workspace without a browser",
       "load": "on-demand",
       "requires": []
     }

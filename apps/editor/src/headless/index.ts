@@ -10,10 +10,13 @@ export {
   readWorkspace,
   writeWorkspace,
   workspaceProjectPath,
+  WORKSPACE_LOCK_FILE,
   WORKSPACE_PROJECT_FILE,
   WORKSPACE_REFERENCE_FILE,
   type LocalWorkspace,
 } from "./workspace";
+/** The Processes a workspace can place new transistors in. */
+export { NETLIST_PROFILE_IDS } from "../features/netlist-export/netlist-process-presets";
 export {
   createLocalEditor,
   LOCAL_AGENT_SCOPES,

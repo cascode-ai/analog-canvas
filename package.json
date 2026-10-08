@@ -34,6 +34,7 @@
     "agent-api:artifacts:check": "pnpm --filter @icm/agent-adapter... build && node scripts/agent-api-artifacts.mjs --check",
     "agent-kit:catalog": "node scripts/generate-agent-authoring-catalog.mjs",
     "agent-kit:catalog:check": "node scripts/generate-agent-authoring-catalog.mjs --check",
+    "headless:package": "node scripts/package-headless.mjs",
     "mcp:package": "pnpm build && node scripts/package-mcp.mjs",
     "mcp:release:package": "pnpm build && node scripts/package-mcp.mjs --verify-declared-release-sha",
     "mcp:distribution:check": "node scripts/check-mcp-distribution.mjs",

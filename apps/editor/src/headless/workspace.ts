@@ -10,7 +10,8 @@ import { createLocalEditor, type LocalEditor } from "./local-editor";
 export const WORKSPACE_PROJECT_FILE = "project.icproj.json";
 /** The netlist a drawing is checked against, when the workspace has one. */
 export const WORKSPACE_REFERENCE_FILE = "reference.sp";
-const LOCK_FILE = ".lock";
+/** Holds the process ID of the live process that holds the workspace. */
+export const WORKSPACE_LOCK_FILE = ".lock";
 
 export function workspaceProjectPath(dir: string): string {
   return join(dir, WORKSPACE_PROJECT_FILE);
@@ -86,7 +87,7 @@ function processAlive(pid: number): boolean {
  * contend, so workers parallelise freely across directories.
  */
 export async function lockWorkspace(dir: string): Promise<() => Promise<void>> {
-  const path = join(dir, LOCK_FILE);
+  const path = join(dir, WORKSPACE_LOCK_FILE);
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
       const handle = await open(path, "wx");

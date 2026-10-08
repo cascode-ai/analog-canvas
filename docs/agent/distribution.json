@@ -474,6 +474,16 @@
       "task": "Use optional repository RouteGraph helper",
       "load": "on-demand",
       "requires": []
+    },
+    {
+      "id": "repo/local-workspace",
+      "source": "docs/agent/local-workspace.md",
+      "consumers": [
+        "maintainer"
+      ],
+      "task": "Draw in a local workspace without a browser",
+      "load": "on-demand",
+      "requires": []
     }
   ],
   "templates": {

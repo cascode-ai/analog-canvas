@@ -30,14 +30,17 @@ export const MCP_SERVER_INFO: McpServerInfo = {
 };
 
 /**
- * Assemble the MCP handler with one process-local Helper and on-demand resources.
+ * Assemble the MCP handler with one process-local Helper and on-demand
+ * resources; local mode passes the session it opened on a workspace.
  */
-export function assembleServer(config: McpServerConfig = resolveConfig()): {
+export function assembleServer(
+  config: McpServerConfig = resolveConfig(),
+  toolSession: ToolSessionState = createOperationSession(config),
+): {
   handler: McpServerHandler;
   serverInfo: McpServerInfo;
   toolSession: ToolSessionState;
 } {
-  const toolSession = createOperationSession(config);
   const handler: McpServerHandler = {
     listTools: listToolDefinitions,
     callTool: (name, args) => callTool(name, args, toolSession),
