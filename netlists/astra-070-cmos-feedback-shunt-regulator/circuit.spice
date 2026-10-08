@@ -1,0 +1,14 @@
+
+.subckt astra_070_cmos_feedback_shunt_regulator vdd VSS vref vb out fb
+CC net0 VSS 2n
+CO out VSS 200p
+M1 net1 fb net2 VSS ANMOS l=1u w=20u
+M2 net0 vref net2 VSS ANMOS l=1u w=20u
+M3 net1 net1 vdd vdd APMOS l=1u w=20u
+M4 net0 net1 vdd vdd APMOS l=1u w=20u
+M5 net2 vb VSS VSS ANMOS l=1u w=10u
+M6 out net0 VSS VSS ANMOS l=1u w=100u
+R1 out fb 100k
+R2 fb VSS 100k
+RF vdd out 1k
+.ends astra_070_cmos_feedback_shunt_regulator

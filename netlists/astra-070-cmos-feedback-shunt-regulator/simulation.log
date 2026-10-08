@@ -1,0 +1,37 @@
+
+Note: No compatibility mode selected!
+
+
+Circuit: cmos feedback shunt regulator
+
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+Initial Transient Solution
+--------------------------
+
+Node                                   Voltage
+----                                   -------
+vdd                                        3.3
+vref                                       1.2
+vb                                         0.9
+out                                    2.39071
+xdut.net0                             0.857976
+xdut.net1                              2.46576
+fb                                     1.19536
+xdut.net2                             0.369928
+vb#branch                                    0
+vr#branch                                    0
+vdd#branch                        -0.000999955
+
+
+No. of Data Rows : 8038
+nominal             =  2.39071e+00
+line                =  2.38598e+00
+load                =  2.38551e+00
+recovery            =  2.38598e+00
+feedback            =  1.19276e+00
+ripple              =  1.70094e-04 from=  3.50000e-05 to=  4.00000e-05
+ASCII raw file "out.raw"
+ngspice-46 done

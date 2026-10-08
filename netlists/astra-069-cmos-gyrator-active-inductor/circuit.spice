@@ -1,0 +1,8 @@
+
+.subckt astra_069_cmos_gyrator_active_inductor vdd VSS iref vb x ind
+CX x VSS 20p
+M1 x vb ind VSS ANMOS l=1u w=10u
+M2 ind x VSS VSS ANMOS l=1u w=5u
+M3 iref iref vdd vdd APMOS l=1u w=10u
+M4 x iref vdd vdd APMOS l=1u w=10u
+.ends astra_069_cmos_gyrator_active_inductor

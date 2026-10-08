@@ -1,0 +1,8 @@
+
+.subckt astra_072_mos_high_side_current_limiter vdd VSS out sense
+CL out VSS 100p
+M1 out gate sense vdd APMOS l=1u w=200u
+M2 gate sense vdd vdd APMOS l=1u w=100u
+RG gate VSS 100k
+RS vdd sense 100
+.ends astra_072_mos_high_side_current_limiter

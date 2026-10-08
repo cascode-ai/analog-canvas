@@ -1,0 +1,58 @@
+
+.subckt astra_068_cmos_phase_frequency_detector vdd VSS up dn ref fb por reset
+CDN dn VSS 100f
+CR reset VSS 100f
+CUP up VSS 100f
+M1 umb net8 vdd vdd APMOS l=1u w=20u
+M10 net9 ref net8 VSS ANMOS l=1u w=10u
+M11 up net12 vdd vdd APMOS l=1u w=20u
+M12 up net12 VSS VSS ANMOS l=1u w=10u
+M13 net13 up vdd vdd APMOS l=1u w=20u
+M14 net13 rstb vdd vdd APMOS l=1u w=20u
+M15 net13 up net10 VSS ANMOS l=1u w=20u
+M16 net10 rstb VSS VSS ANMOS l=1u w=20u
+M17 umb refb net12 vdd APMOS l=1u w=20u
+M18 umb ref net12 VSS ANMOS l=1u w=10u
+M19 net13 ref net12 vdd APMOS l=1u w=20u
+M2 umb net8 VSS VSS ANMOS l=1u w=10u
+M20 net13 refb net12 VSS ANMOS l=1u w=10u
+M21 dmb net0 vdd vdd APMOS l=1u w=20u
+M22 dmb net0 VSS VSS ANMOS l=1u w=10u
+M23 net3 dmb vdd vdd APMOS l=1u w=40u
+M24 net1 reset net3 vdd APMOS l=1u w=40u
+M25 net1 dmb VSS VSS ANMOS l=1u w=10u
+M26 net1 reset VSS VSS ANMOS l=1u w=10u
+M27 rstb fb net0 vdd APMOS l=1u w=20u
+M28 rstb fbb net0 VSS ANMOS l=1u w=10u
+M29 net1 fbb net0 vdd APMOS l=1u w=20u
+M3 net11 umb vdd vdd APMOS l=1u w=40u
+M30 net1 fb net0 VSS ANMOS l=1u w=10u
+M31 dn net4 vdd vdd APMOS l=1u w=20u
+M32 dn net4 VSS VSS ANMOS l=1u w=10u
+M33 net5 dn vdd vdd APMOS l=1u w=20u
+M34 net5 rstb vdd vdd APMOS l=1u w=20u
+M35 net5 dn net2 VSS ANMOS l=1u w=20u
+M36 net2 rstb VSS VSS ANMOS l=1u w=20u
+M37 dmb fbb net4 vdd APMOS l=1u w=20u
+M38 dmb fb net4 VSS ANMOS l=1u w=10u
+M39 net5 fb net4 vdd APMOS l=1u w=20u
+M4 net9 reset net11 vdd APMOS l=1u w=40u
+M40 net5 fbb net4 VSS ANMOS l=1u w=10u
+M41 refb ref vdd vdd APMOS l=1u w=20u
+M42 refb ref VSS VSS ANMOS l=1u w=10u
+M43 fbb fb vdd vdd APMOS l=1u w=20u
+M44 fbb fb VSS VSS ANMOS l=1u w=10u
+M45 net7 por vdd vdd APMOS l=1u w=20u
+M46 rstb up net7 vdd APMOS l=1u w=40u
+M47 rstb dn net7 vdd APMOS l=1u w=40u
+M48 rstb up net6 VSS ANMOS l=1u w=20u
+M49 net6 dn VSS VSS ANMOS l=1u w=20u
+M5 net9 umb VSS VSS ANMOS l=1u w=10u
+M50 rstb por VSS VSS ANMOS l=1u w=10u
+M51 reset rstb vdd vdd APMOS l=1u w=20u
+M52 reset rstb VSS VSS ANMOS l=1u w=10u
+M6 net9 reset VSS VSS ANMOS l=1u w=10u
+M7 rstb ref net8 vdd APMOS l=1u w=20u
+M8 rstb refb net8 VSS ANMOS l=1u w=10u
+M9 net9 refb net8 vdd APMOS l=1u w=20u
+.ends astra_068_cmos_phase_frequency_detector

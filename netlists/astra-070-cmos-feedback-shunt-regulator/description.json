@@ -1,0 +1,11 @@
+{
+  "name": "CMOS feedback shunt regulator",
+  "description": "An explicit five-MOS differential stage compares the divided output with 1.2 V and drives an NMOS shunt device. A 1 kohm feed resistor, equal feedback resistors and dominant 2 nF gate compensation regulate near 2.4 V. Six MOS devices and all passives are shown. The saved run changes supply from 3.3 to 4.3 V and load from 0.2 to 0.8 mA, checking settled line/load regulation and recovery. This dissipates excess current in the shunt and needs headroom; stability corners, reference accuracy, startup and PVT are not qualified.",
+  "tags": [
+    "CMOS",
+    "Shunt Regulator",
+    "Feedback",
+    "Power Management",
+    "Load Regulation"
+  ]
+}

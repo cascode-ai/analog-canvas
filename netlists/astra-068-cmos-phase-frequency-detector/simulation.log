@@ -1,0 +1,69 @@
+
+Note: No compatibility mode selected!
+
+
+Circuit: cmos asynchronous-reset phase-frequency detector
+
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+Initial Transient Solution
+--------------------------
+
+Node                                   Voltage
+----                                   -------
+vdd                                        3.3
+por                                        3.3
+ref                                          0
+fb                                           0
+dn                                 6.12963e-10
+reset                                      3.3
+up                                 6.12963e-10
+xdut.umb                                   3.3
+xdut.net8                          7.43379e-09
+xdut.net9                          6.12963e-10
+xdut.net12                                 3.3
+xdut.net13                                 3.3
+xdut.rstb                          6.20786e-09
+xdut.net10                         7.23794e-41
+xdut.refb                                  3.3
+xdut.dmb                                   3.3
+xdut.net0                          7.43379e-09
+xdut.net3                                  3.3
+xdut.net1                          6.12963e-10
+xdut.fbb                                   3.3
+xdut.net11                                 3.3
+xdut.net4                                  3.3
+xdut.net5                                  3.3
+xdut.net2                          7.66677e-41
+xdut.net7                             0.962517
+xdut.net6                         -3.43663e-15
+vfb#branch                                   0
+vref#branch                                  0
+vpor#branch                                  0
+vdd#branch                        -1.03033e-10
+
+ Reference value :  1.68380e-06
+
+No. of Data Rows : 29345
+u_lead              =  3.30000e+00
+u_other             =  6.75641e-09
+d_lead              =  3.30000e+00
+d_other             =  6.12963e-10
+reset_u             =  4.92300e-07
+reset_d             =  4.92300e-07
+freq_u              =  3.30000e+00
+freq_u_other        =  5.49433e-10
+freq_d              =  3.30000e+00
+freq_d_other        =  6.12963e-10
+coincident_u        =  1.94267e-07
+coincident_d        =  1.94267e-07
+uwidth              =  4.02481e-08 targ=  1.40867e-07 trig=  1.00619e-07
+dwidth              =  2.02563e-08 targ=  3.00875e-07 trig=  2.80619e-07
+uwide               =  2.80149e-07 targ=  1.38077e-06 trig=  1.10062e-06
+dwide               =  2.40256e-07 targ=  1.90088e-06 trig=  1.66062e-06
+coincident_uw       =  2.75612e-10 targ=  2.10089e-06 trig=  2.10062e-06
+coincident_dw       =  2.75716e-10 targ=  2.10089e-06 trig=  2.10062e-06
+ASCII raw file "out.raw"
+ngspice-46 done

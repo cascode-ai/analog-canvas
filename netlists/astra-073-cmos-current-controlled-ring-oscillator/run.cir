@@ -1,0 +1,36 @@
+CMOS current-controlled ring oscillator
+.include "circuit.spice"
+.include "models.spice"
+VDD vdd 0 3.3
+II 0 iref PWL(0 20u 5u 20u 5.02u 40u 10u 40u 10.02u 80u 15u 80u)
+.ic v(core)=.2
+XDUT vdd 0 iref core out astra_073_cmos_current_controlled_ring_oscillator
+.temp 27
+.options method=gear reltol=1e-5
+* @spec p1 range 5e-8 2.5e-7 unit=s
+* @spec p2 range 2.5e-8 1.4e-7 unit=s
+* @spec p3 range 1.2e-8 8e-8 unit=s
+* @spec ratio12 range 1.6 2.4 unit=dimensionless
+* @spec ratio23 range 1.6 2.4 unit=dimensionless
+* @spec high1 range 3.2 3.4 unit=V
+* @spec low1 range -0.02 0.1 unit=V
+* @spec high3 range 3.2 3.4 unit=V
+* @spec low3 range -0.02 0.1 unit=V
+.control
+set filetype=ascii
+tran 200p 15u
+meas tran p1 TRIG v(out) VAL=1.65 RISE=10 TARG v(out) VAL=1.65 RISE=11
+meas tran p2 TRIG v(out) VAL=1.65 TD=6u RISE=1 TARG v(out) VAL=1.65 TD=6u RISE=2
+meas tran p3 TRIG v(out) VAL=1.65 TD=11u RISE=1 TARG v(out) VAL=1.65 TD=11u RISE=2
+let cratio12=0*time+p1/p2
+let cratio23=0*time+p2/p3
+meas tran ratio12 FIND cratio12 AT=14u
+meas tran ratio23 FIND cratio23 AT=14u
+meas tran high1 MAX v(out) FROM=1u TO=4u
+meas tran low1 MIN v(out) FROM=1u TO=4u
+meas tran high3 MAX v(out) FROM=11u TO=14u
+meas tran low3 MIN v(out) FROM=11u TO=14u
+write out.raw v(out) v(core) v(iref)
+quit
+.endc
+.end

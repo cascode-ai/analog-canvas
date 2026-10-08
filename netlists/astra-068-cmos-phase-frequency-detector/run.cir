@@ -1,0 +1,53 @@
+CMOS asynchronous-reset phase-frequency detector
+.include "circuit.spice"
+.include "models.spice"
+VDD vdd 0 3.3
+VPOR por 0 PWL(0 3.3 20n 3.3 21n 0 2400n 0)
+VREF ref 0 PWL(0 0 100n 0 101n 3.3 150n 3.3 151n 0 300n 0 301n 3.3 350n 3.3 351n 0 500n 0 501n 3.3 550n 3.3 551n 0 700n 0 701n 3.3 750n 3.3 751n 0 900n 0 901n 3.3 950n 3.3 951n 0 1100n 0 1101n 3.3 1150n 3.3 1151n 0 1300n 0 1301n 3.3 1350n 3.3 1351n 0 1900n 0 1901n 3.3 1950n 3.3 1951n 0 2100n 0 2101n 3.3 2150n 3.3 2151n 0 2400n 0)
+VFB fb 0 PWL(0 0 140n 0 141n 3.3 190n 3.3 191n 0 280n 0 281n 3.3 330n 3.3 331n 0 540n 0 541n 3.3 590n 3.3 591n 0 660n 0 661n 3.3 710n 3.3 711n 0 940n 0 941n 3.3 990n 3.3 991n 0 1380n 0 1381n 3.3 1430n 3.3 1431n 0 1660n 0 1661n 3.3 1710n 3.3 1711n 0 1860n 0 1861n 3.3 1910n 3.3 1911n 0 2100n 0 2101n 3.3 2150n 3.3 2151n 0 2400n 0)
+XDUT vdd 0 up dn ref fb por reset astra_068_cmos_phase_frequency_detector
+.temp 27
+.options method=gear reltol=1e-5
+* @spec u_lead range 3.2 3.4 unit=V
+* @spec u_other range -0.02 0.02 unit=V
+* @spec d_lead range 3.2 3.4 unit=V
+* @spec d_other range -0.02 0.02 unit=V
+* @spec reset_u range -0.02 0.02 unit=V
+* @spec reset_d range -0.02 0.02 unit=V
+* @spec freq_u range 3.2 3.4 unit=V
+* @spec freq_u_other range -0.02 0.02 unit=V
+* @spec freq_d range 3.2 3.4 unit=V
+* @spec freq_d_other range -0.02 0.02 unit=V
+* @spec coincident_u range -0.02 0.02 unit=V
+* @spec coincident_d range -0.02 0.02 unit=V
+* @spec coincident_uw range 0 2e-9 unit=s
+* @spec coincident_dw range 0 2e-9 unit=s
+* @spec uwidth range 3.5e-8 5e-8 unit=s
+* @spec dwidth range 1.5e-8 3e-8 unit=s
+* @spec uwide range 2.7e-7 3e-7 unit=s
+* @spec dwide range 2.3e-7 2.6e-7 unit=s
+.control
+set filetype=ascii
+tran 100p 2400n
+meas tran u_lead FIND v(up) AT=120n
+meas tran u_other FIND v(dn) AT=120n
+meas tran d_lead FIND v(dn) AT=290n
+meas tran d_other FIND v(up) AT=290n
+meas tran reset_u FIND v(up) AT=180n
+meas tran reset_d FIND v(dn) AT=180n
+meas tran freq_u FIND v(up) AT=1350n
+meas tran freq_u_other FIND v(dn) AT=1350n
+meas tran freq_d FIND v(dn) AT=1880n
+meas tran freq_d_other FIND v(up) AT=1880n
+meas tran coincident_u FIND v(up) AT=2200n
+meas tran coincident_d FIND v(dn) AT=2200n
+meas tran uwidth TRIG v(up) VAL=1.65 RISE=1 TARG v(up) VAL=1.65 FALL=1
+meas tran dwidth TRIG v(dn) VAL=1.65 TD=250n RISE=1 TARG v(dn) VAL=1.65 TD=250n FALL=1
+meas tran uwide TRIG v(up) VAL=1.65 TD=1000n RISE=1 TARG v(up) VAL=1.65 TD=1000n FALL=1
+meas tran dwide TRIG v(dn) VAL=1.65 TD=1600n RISE=1 TARG v(dn) VAL=1.65 TD=1600n FALL=1
+meas tran coincident_uw TRIG v(up) VAL=1.65 TD=2000n RISE=1 TARG v(up) VAL=1.65 TD=2000n FALL=1
+meas tran coincident_dw TRIG v(dn) VAL=1.65 TD=2000n RISE=1 TARG v(dn) VAL=1.65 TD=2000n FALL=1
+write out.raw v(up) v(dn) v(ref) v(fb) v(por) v(reset)
+quit
+.endc
+.end

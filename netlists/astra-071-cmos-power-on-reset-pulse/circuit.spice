@@ -1,0 +1,13 @@
+
+.subckt astra_071_cmos_power_on_reset_pulse vdd VSS por delay
+CL por VSS 100f
+CT delay VSS 20p
+M1 net0 delay vdd vdd APMOS l=1u w=20u
+M2 net0 delay VSS VSS ANMOS l=1u w=10u
+M3 net1 net0 vdd vdd APMOS l=1u w=20u
+M4 net1 net0 VSS VSS ANMOS l=1u w=10u
+M5 por net1 vdd vdd APMOS l=1u w=20u
+M6 por net1 VSS VSS ANMOS l=1u w=10u
+M7 delay delay vdd VSS ANMOS l=1u w=100u
+RT vdd delay 100k
+.ends astra_071_cmos_power_on_reset_pulse

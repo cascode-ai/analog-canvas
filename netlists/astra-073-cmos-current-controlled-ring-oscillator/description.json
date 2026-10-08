@@ -1,0 +1,11 @@
+{
+  "name": "CMOS current-controlled ring oscillator",
+  "description": "Three four-MOS current-starved delay cells form an odd ring. Explicit NMOS/PMOS bias mirrors copy the input reference current into each header/footer; two inverters restore the output. Nineteen MOS devices and four 100 fF loads are shown. An initialized nominal run changes reference current from 20 to 40 to 80 uA, checking periods, near-doubling frequency ratios and logic swing. This continuously converts current to frequency, unlike the enable-controlled ordinary inverter ring. Startup yield, linearity across a wider range, jitter, phase noise and PVT are not qualified.",
+  "tags": [
+    "CMOS",
+    "Current Controlled Oscillator",
+    "Current Starved",
+    "Current To Frequency",
+    "Timing"
+  ]
+}

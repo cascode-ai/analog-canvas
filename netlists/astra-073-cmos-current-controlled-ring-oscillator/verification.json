@@ -1,0 +1,95 @@
+{
+  "simulator": "ngspice-46",
+  "models": "Generic educational Level-1 MOS",
+  "temperatureC": 27,
+  "localSpecs": [
+    {
+      "metric": "p1",
+      "min": 5e-8,
+      "max": 2.5e-7,
+      "value": 1.05047e-7,
+      "passed": true
+    },
+    {
+      "metric": "p2",
+      "min": 2.5e-8,
+      "max": 1.4e-7,
+      "value": 5.06543e-8,
+      "passed": true
+    },
+    {
+      "metric": "p3",
+      "min": 1.2e-8,
+      "max": 8e-8,
+      "value": 2.40645e-8,
+      "passed": true
+    },
+    {
+      "metric": "ratio12",
+      "min": 1.6,
+      "max": 2.4,
+      "value": 2.0738,
+      "passed": true
+    },
+    {
+      "metric": "ratio23",
+      "min": 1.6,
+      "max": 2.4,
+      "value": 2.10493,
+      "passed": true
+    },
+    {
+      "metric": "high1",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.30056,
+      "passed": true
+    },
+    {
+      "metric": "low1",
+      "min": -0.02,
+      "max": 0.1,
+      "value": -0.000445757,
+      "passed": true
+    },
+    {
+      "metric": "high3",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.30228,
+      "passed": true
+    },
+    {
+      "metric": "low3",
+      "min": -0.02,
+      "max": 0.1,
+      "value": -0.00178968,
+      "passed": true
+    }
+  ],
+  "nativeDiagnostics": 0,
+  "canonicalExportMatches": true,
+  "prototypeConnectivityAndParametersMatch": true,
+  "limitations": "Nominal functional verification only; no PVT, noise, mismatch or foundry qualification.",
+  "hosted": {
+    "runId": "624ec0d0-724f-4b51-a141-164d67e161f7",
+    "specs": {
+      "available": true,
+      "total": 9,
+      "passed": 9,
+      "failed": 0,
+      "notEvaluated": 0,
+      "unconstrained": 0
+    },
+    "execution": "completed"
+  },
+  "liveEditorVerification": {
+    "errors": 0,
+    "warnings": 0,
+    "structuralComparison": "equal"
+  },
+  "publicLayoutMatchesNativeProject": true,
+  "publicProjectMatchesExceptSchemaVersion": true,
+  "nativeSchemaVersion": 66,
+  "publicSchemaVersion": 67
+}

@@ -1,0 +1,31 @@
+
+Note: No compatibility mode selected!
+
+
+Circuit: cmos biased gyrator-c active inductor
+
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+No. of Data Rows : 2
+port_bias           =  8.88340e-01
+m1_margin           =  3.62969e-01
+m2_margin           =  9.48252e-02
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+No. of Data Rows : 91
+resistance          =  3.70234e+00
+react100            =  4.66235e+01
+react500            =  2.31720e+02
+l100                =  7.42037e-05
+l500                =  7.37589e-05
+ASCII raw file "out.raw"
+ngspice-46 done
+
+Note: Starting dynamic gmin stepping
+Note: Dynamic gmin stepping completed
+Note: Starting dynamic gmin stepping
+Note: Dynamic gmin stepping completed

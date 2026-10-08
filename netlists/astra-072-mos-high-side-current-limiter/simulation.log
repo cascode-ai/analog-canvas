@@ -1,0 +1,33 @@
+
+Note: No compatibility mode selected!
+
+
+Circuit: mos high-side current limiter
+
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+Initial Transient Solution
+--------------------------
+
+Node                                   Voltage
+----                                   -------
+vdd                                        3.3
+out                                     2.9279
+xdut.gate                             3.31e-07
+sense                                  3.00721
+vdd#branch                          -0.0029279
+
+
+No. of Data Rows : 6088
+normal_voltage      =  2.92790e+00
+overload            =  6.49788e-03
+short_current       =  6.49903e-03
+overload_voltage    =  6.49788e-01
+short_voltage       =  6.49903e-02
+ASCII raw file "out.raw"
+ngspice-46 done
+
+Note: Starting dynamic gmin stepping
+Note: Dynamic gmin stepping completed

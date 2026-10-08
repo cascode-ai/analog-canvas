@@ -1,0 +1,39 @@
+CMOS biased gyrator-C active inductor
+.include "circuit.spice"
+.include "models.spice"
+VDD vdd 0 3.3
+VB vb 0 1.8
+IR iref 0 20u
+IP 0 ind DC 300u AC 1
+XDUT vdd 0 iref vb x ind astra_069_cmos_gyrator_active_inductor
+.temp 27
+.options method=gear reltol=1e-5
+* @spec m1_margin range 0.02 1 unit=V
+* @spec m2_margin range 0.02 0.5 unit=V
+* @spec port_bias range 0.8 1.2 unit=V
+* @spec resistance range 0 250 unit=ohm
+* @spec react100 range 20 150 unit=ohm
+* @spec react500 range 100 750 unit=ohm
+* @spec l100 range 0.00006 0.00013 unit=H
+* @spec l500 range 0.00006 0.00013 unit=H
+.control
+set filetype=ascii
+dc IP 300u 301u 1u
+meas dc port_bias FIND v(ind) AT=300u
+let margin2=v(ind)-(v(x)-.6)
+let margin1=v(x)-1.8+.6+.4*(sqrt(.7+v(ind))-sqrt(.7))
+meas dc m1_margin FIND margin1 AT=300u
+meas dc m2_margin FIND margin2 AT=300u
+ac dec 30 100k 100Meg
+let zr=real(v(ind))
+let zi=imag(v(ind))
+let induct=zi/(2*3.141592653589793*frequency)
+meas ac resistance FIND zr AT=100k
+meas ac react100 FIND zi AT=100k
+meas ac react500 FIND zi AT=500k
+meas ac l100 FIND induct AT=100k
+meas ac l500 FIND induct AT=500k
+write out.raw v(ind)
+quit
+.endc
+.end

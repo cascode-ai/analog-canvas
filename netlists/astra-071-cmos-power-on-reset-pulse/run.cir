@@ -1,0 +1,28 @@
+CMOS power-on reset pulse generator
+.include "circuit.spice"
+.include "models.spice"
+VDD vdd 0 PWL(0 0 100n 0 120n 3.3 10u 3.3 10.02u 0 15u 0 15.02u 3.3 25u 3.3)
+XDUT vdd 0 por delay astra_071_cmos_power_on_reset_pulse
+.temp 27
+.options method=gear reltol=1e-5
+* @spec initial_high range 3.2 3.4 unit=V
+* @spec initial_clear range -0.02 0.02 unit=V
+* @spec repeat_high range 3.2 3.4 unit=V
+* @spec repeat_clear range -0.02 0.02 unit=V
+* @spec width1 range 3e-7 0.0000025 unit=s
+* @spec width2 range 3e-7 0.0000025 unit=s
+* @spec discharged range 0 0.1 unit=V
+.control
+set filetype=ascii
+tran 1n 25u
+meas tran initial_high FIND v(por) AT=300n
+meas tran initial_clear FIND v(por) AT=5u
+meas tran repeat_high FIND v(por) AT=15.3u
+meas tran repeat_clear FIND v(por) AT=20u
+meas tran width1 TRIG v(por) VAL=1.65 RISE=1 TARG v(por) VAL=1.65 FALL=1
+meas tran width2 TRIG v(por) VAL=1.65 RISE=2 TARG v(por) VAL=1.65 FALL=2
+meas tran discharged FIND v(delay) AT=14.8u
+write out.raw v(por) v(delay) v(vdd)
+quit
+.endc
+.end

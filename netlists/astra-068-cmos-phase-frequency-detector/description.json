@@ -1,0 +1,11 @@
+{
+  "name": "CMOS asynchronous-reset phase-frequency detector",
+  "description": "Two explicit positive-edge master/slave flip-flops remember which clock arrived first. A six-MOS AOI21 and inverter reset both stages when UP and DN are high or POR is asserted. Reset-dominant master NOR and slave NAND feedback avoid clock-dependent reset contention. Fifty-two MOS devices and three 100 fF loads are shown. Tests cover either phase lead, pulse widths, automatic reset, an extra edge while waiting for the slower clock, and coincidence. Generic nominal models; dead-zone, metastability, clock skew, PLL lock and PVT are not qualified.",
+  "tags": [
+    "CMOS",
+    "Phase Frequency Detector",
+    "PLL",
+    "Asynchronous Reset",
+    "Timing"
+  ]
+}

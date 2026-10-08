@@ -1,0 +1,26 @@
+
+.subckt astra_073_cmos_current_controlled_ring_oscillator vdd VSS iref core out
+C0 net7 VSS 100f
+C1 net8 VSS 100f
+C2 core VSS 100f
+CL out VSS 100f
+M1 iref iref VSS VSS ANMOS l=1u w=10u
+M10 net8 net7 net1 VSS ANMOS l=1u w=20u
+M11 net1 iref VSS VSS ANMOS l=1u w=10u
+M12 net6 pb vdd vdd APMOS l=1u w=20u
+M13 core net8 net6 vdd APMOS l=1u w=40u
+M14 core net8 net2 VSS ANMOS l=1u w=20u
+M15 net2 iref VSS VSS ANMOS l=1u w=10u
+M16 net3 core vdd vdd APMOS l=1u w=20u
+M17 net3 core VSS VSS ANMOS l=1u w=10u
+M18 out net3 vdd vdd APMOS l=1u w=20u
+M19 out net3 VSS VSS ANMOS l=1u w=10u
+M2 pb iref VSS VSS ANMOS l=1u w=10u
+M3 pb pb vdd vdd APMOS l=1u w=20u
+M4 net4 pb vdd vdd APMOS l=1u w=20u
+M5 net7 core net4 vdd APMOS l=1u w=40u
+M6 net7 core net0 VSS ANMOS l=1u w=20u
+M7 net0 iref VSS VSS ANMOS l=1u w=10u
+M8 net5 pb vdd vdd APMOS l=1u w=20u
+M9 net8 net7 net5 vdd APMOS l=1u w=40u
+.ends astra_073_cmos_current_controlled_ring_oscillator

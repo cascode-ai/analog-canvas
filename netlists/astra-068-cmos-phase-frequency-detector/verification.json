@@ -1,0 +1,158 @@
+{
+  "simulator": "ngspice-46",
+  "models": "Generic educational Level-1 MOS",
+  "temperatureC": 27,
+  "localSpecs": [
+    {
+      "metric": "u_lead",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "u_other",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 6.75641e-9,
+      "passed": true
+    },
+    {
+      "metric": "d_lead",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "d_other",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 6.12963e-10,
+      "passed": true
+    },
+    {
+      "metric": "reset_u",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 4.923e-7,
+      "passed": true
+    },
+    {
+      "metric": "reset_d",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 4.923e-7,
+      "passed": true
+    },
+    {
+      "metric": "freq_u",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "freq_u_other",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 5.49433e-10,
+      "passed": true
+    },
+    {
+      "metric": "freq_d",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "freq_d_other",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 6.12963e-10,
+      "passed": true
+    },
+    {
+      "metric": "coincident_u",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 1.94267e-7,
+      "passed": true
+    },
+    {
+      "metric": "coincident_d",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 1.94267e-7,
+      "passed": true
+    },
+    {
+      "metric": "coincident_uw",
+      "min": 0,
+      "max": 2e-9,
+      "value": 2.75612e-10,
+      "passed": true
+    },
+    {
+      "metric": "coincident_dw",
+      "min": 0,
+      "max": 2e-9,
+      "value": 2.75716e-10,
+      "passed": true
+    },
+    {
+      "metric": "uwidth",
+      "min": 3.5e-8,
+      "max": 5e-8,
+      "value": 4.02481e-8,
+      "passed": true
+    },
+    {
+      "metric": "dwidth",
+      "min": 1.5e-8,
+      "max": 3e-8,
+      "value": 2.02563e-8,
+      "passed": true
+    },
+    {
+      "metric": "uwide",
+      "min": 2.7e-7,
+      "max": 3e-7,
+      "value": 2.80149e-7,
+      "passed": true
+    },
+    {
+      "metric": "dwide",
+      "min": 2.3e-7,
+      "max": 2.6e-7,
+      "value": 2.40256e-7,
+      "passed": true
+    }
+  ],
+  "nativeDiagnostics": 0,
+  "canonicalExportMatches": true,
+  "prototypeConnectivityAndParametersMatch": true,
+  "limitations": "Nominal functional verification only; no PVT, noise, mismatch or foundry qualification.",
+  "hosted": {
+    "runId": "e1491726-352d-48c2-87df-2e07298f9558",
+    "specs": {
+      "available": true,
+      "total": 18,
+      "passed": 18,
+      "failed": 0,
+      "notEvaluated": 0,
+      "unconstrained": 0
+    },
+    "execution": "completed"
+  },
+  "liveEditorVerification": {
+    "errors": 0,
+    "warnings": 0,
+    "structuralComparison": "equal"
+  },
+  "publicLayoutMatchesNativeProject": true,
+  "publicProjectMatchesExceptSchemaVersion": true,
+  "nativeSchemaVersion": 66,
+  "publicSchemaVersion": 67
+}

@@ -1,0 +1,29 @@
+CMOS feedback shunt regulator
+.include "circuit.spice"
+.include "models.spice"
+VDD vdd 0 PWL(0 3.3 10u 3.3 10.02u 4.3 40u 4.3)
+VR vref 0 1.2
+VB vb 0 .9
+IL out 0 PWL(0 .2m 20u .2m 20.02u .8m 30u .8m 30.02u .2m 40u .2m)
+XDUT vdd 0 vref vb out fb astra_070_cmos_feedback_shunt_regulator
+.temp 27
+.options method=gear reltol=1e-5
+* @spec nominal range 2.3 2.5 unit=V
+* @spec line range 2.3 2.5 unit=V
+* @spec load range 2.3 2.5 unit=V
+* @spec recovery range 2.3 2.5 unit=V
+* @spec feedback range 1.15 1.25 unit=V
+* @spec ripple range 0 0.1 unit=V
+.control
+set filetype=ascii
+tran 5n 40u
+meas tran nominal FIND v(out) AT=8u
+meas tran line FIND v(out) AT=18u
+meas tran load FIND v(out) AT=28u
+meas tran recovery FIND v(out) AT=38u
+meas tran feedback FIND v(fb) AT=28u
+meas tran ripple PP v(out) FROM=35u TO=40u
+write out.raw v(out) v(fb) v(vdd)
+quit
+.endc
+.end

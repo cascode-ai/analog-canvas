@@ -1,0 +1,67 @@
+{
+  "simulator": "ngspice-46",
+  "models": "Generic educational Level-1 MOS",
+  "temperatureC": 27,
+  "localSpecs": [
+    {
+      "metric": "normal_voltage",
+      "min": 2.8,
+      "max": 3.2,
+      "value": 2.9279,
+      "passed": true
+    },
+    {
+      "metric": "overload",
+      "min": 0.0055,
+      "max": 0.0075,
+      "value": 0.00649788,
+      "passed": true
+    },
+    {
+      "metric": "short_current",
+      "min": 0.0055,
+      "max": 0.0075,
+      "value": 0.00649903,
+      "passed": true
+    },
+    {
+      "metric": "overload_voltage",
+      "min": 0.55,
+      "max": 0.75,
+      "value": 0.649788,
+      "passed": true
+    },
+    {
+      "metric": "short_voltage",
+      "min": 0.055,
+      "max": 0.075,
+      "value": 0.0649903,
+      "passed": true
+    }
+  ],
+  "nativeDiagnostics": 0,
+  "canonicalExportMatches": true,
+  "prototypeConnectivityAndParametersMatch": true,
+  "limitations": "Nominal functional verification only; no PVT, noise, mismatch or foundry qualification.",
+  "hosted": {
+    "runId": "d392cdfc-69ce-416a-85a5-ea15b13676f6",
+    "specs": {
+      "available": true,
+      "total": 5,
+      "passed": 5,
+      "failed": 0,
+      "notEvaluated": 0,
+      "unconstrained": 0
+    },
+    "execution": "completed"
+  },
+  "liveEditorVerification": {
+    "errors": 0,
+    "warnings": 0,
+    "structuralComparison": "equal"
+  },
+  "publicLayoutMatchesNativeProject": true,
+  "publicProjectMatchesExceptSchemaVersion": true,
+  "nativeSchemaVersion": 66,
+  "publicSchemaVersion": 67
+}

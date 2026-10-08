@@ -1,0 +1,26 @@
+MOS high-side current limiter
+.include "circuit.spice"
+.include "models.spice"
+VDD vdd 0 3.3
+BLOAD out 0 I=v(out)*(0.001+0.009*u(time-2u)+0.09*u(time-4u))
+XDUT vdd 0 out sense astra_072_mos_high_side_current_limiter
+.temp 27
+.options method=gear reltol=1e-5
+* @spec normal_voltage range 2.8 3.2 unit=V
+* @spec overload range 0.0055 0.0075 unit=A
+* @spec short_current range 0.0055 0.0075 unit=A
+* @spec overload_voltage range 0.55 0.75 unit=V
+* @spec short_voltage range 0.055 0.075 unit=V
+.control
+set filetype=ascii
+tran 1n 6u
+let current=(v(vdd)-v(sense))/100
+meas tran normal_voltage FIND v(out) AT=1.5u
+meas tran overload FIND current AT=3.5u
+meas tran short_current FIND current AT=5.5u
+meas tran overload_voltage FIND v(out) AT=3.5u
+meas tran short_voltage FIND v(out) AT=5.5u
+write out.raw v(out) v(sense) v(vdd)
+quit
+.endc
+.end

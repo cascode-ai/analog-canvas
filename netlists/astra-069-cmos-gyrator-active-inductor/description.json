@@ -1,0 +1,11 @@
+{
+  "name": "CMOS biased gyrator-C active inductor",
+  "description": "A common-gate NMOS and common-source NMOS convert a 20 pF capacitor into an inductive small-signal port impedance. An explicit PMOS mirror supplies the 20 uA branch bias; the port is biased by an external 300 uA source. Four MOS devices are shown, with no physical coil or behavioral inductor. DC bias, positive saturation margins, positive reactance and effective inductance at 100/500 kHz are checked. The circuit consumes supply power and has finite resistance and a bounded inductive frequency range; Q, noise, large-signal swing and PVT are not qualified.",
+  "tags": [
+    "CMOS",
+    "Active Inductor",
+    "Gyrator C",
+    "Impedance",
+    "Analog RF"
+  ]
+}

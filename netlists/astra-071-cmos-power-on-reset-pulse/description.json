@@ -1,0 +1,11 @@
+{
+  "name": "CMOS power-on reset pulse generator",
+  "description": "A 100 kohm/20 pF supply delay drives three explicit CMOS inverters to produce a temporary active-high POR pulse after power rises. A diode-connected NMOS discharges the timing capacitor toward a falling supply so a later power cycle produces another pulse. Seven MOS devices and all loads are shown. The nominal sequence checks cold/repeated pulses, cleared output, pulse widths and discharge. The output is not guaranteed valid below the logic supply threshold; arbitrary ramps, brief brownouts, precise timing and PVT are not qualified.",
+  "tags": [
+    "CMOS",
+    "Power On Reset",
+    "Supply Sequencing",
+    "Timing",
+    "MOS Discharge"
+  ]
+}
