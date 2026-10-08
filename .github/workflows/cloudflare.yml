@@ -123,6 +123,21 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       - name: Verify the pinned MCP release before deployment
         run: node scripts/verify-agent-manifest.mjs --asset-only
+      # Running a simulation needs a signed-in account, so the checks below
+      # use a credential this deploy makes and the next one replaces; it is
+      # masked and never stored in GitHub. It goes into the Worker before the
+      # new code: a new version takes moments to reach every edge, and the
+      # one an edge still serves must already accept it (a check that sent
+      # it just after the code once met the previous deploy's credential).
+      - name: Make this deploy's simulation check credential
+        run: |
+          token="$(openssl rand -hex 32)"
+          echo "::add-mask::$token"
+          echo "SIMULATION_SMOKE_TOKEN=$token" >> "$GITHUB_ENV"
+          printf '%s' "$token" | pnpm dlx wrangler@4.120.1 secret put SIMULATION_SMOKE_TOKEN
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       - name: Deploy the verified candidate
         id: deploy_worker
         run: |
@@ -135,14 +150,6 @@ jobs:
           CANDIDATE_DIR: ${{ runner.temp }}/analog-canvas-candidate
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      # Running a simulation needs a signed-in account, so the checks below
-      # use a credential this deploy makes and the next one replaces; it is
-      # masked and never stored in GitHub.
-      - name: Make this deploy's simulation check credential
-        run: |
-          token="$(openssl rand -hex 32)"
-          echo "::add-mask::$token"
-          echo "SIMULATION_SMOKE_TOKEN=$token" >> "$GITHUB_ENV"
       # Secrets in the cloudflare-production environment are synced to the
       # Worker on every deploy; rotate by updating that secret and re-running
       # this workflow. A name GitHub does not hold is skipped, which
@@ -153,7 +160,7 @@ jobs:
       # GITHUB_, hence GH_OAUTH_*.
       - name: Sync worker secrets
         run: |
-          for name in GH_OAUTH_CLIENT_ID GH_OAUTH_CLIENT_SECRET GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET RESEND_API_KEY AUTH_EMAIL_FROM ADMIN_EMAILS ADMIN_EMAILS_EXTRA SIMULATION_UPSTREAM_TOKEN GALLERY_BACKUP_TOKEN STORE_BACKUP_TOKEN SIMULATION_SMOKE_TOKEN; do
+          for name in GH_OAUTH_CLIENT_ID GH_OAUTH_CLIENT_SECRET GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET RESEND_API_KEY AUTH_EMAIL_FROM ADMIN_EMAILS ADMIN_EMAILS_EXTRA SIMULATION_UPSTREAM_TOKEN GALLERY_BACKUP_TOKEN STORE_BACKUP_TOKEN; do
             value="${!name}"
             if [ -z "$value" ]; then
               echo "$name is not configured; skipping"
