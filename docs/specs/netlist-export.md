@@ -634,7 +634,8 @@ on ground or the lowest supply; it is on mir. Use it as a diode, or with its
 collector grounded". A PNP mirror load drawn with it exported ready and
 simulated its output at 0.93 V, where the textbook mirror sits near
 VDD − V_EB. Ground is the Cell's ground node, and the lowest supply a Net named
-like one (`VSS`, `AVSS`, `GND`, `VEE`, `SUB`, `VSUB`, any case).
+like one (`VSS`, `AVSS`, `GND`, `VEE`, `VNEG`, `SUB`, `VSUB`, any case),
+the negative-supply names below among them.
 
 A Cell may draw a negative supply: a supply marker or rail named like `VEE`,
 `VSS` or `VNEG` (#1530). The drawing holds no voltages, so that name is what

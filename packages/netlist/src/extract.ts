@@ -21,6 +21,7 @@ import {
   drawnSwitchPhase,
   mosBodiesOffSourceSupply,
   mosBulkKind,
+  namesNegativeSupply,
   resolveMosBulkConnection,
   resolveDocumentLogicalNets,
   type DrawnMagneticNetwork,
@@ -1299,8 +1300,16 @@ function sizeOutOfRangeMessage(
   return `${reference} has ${label} ${size}, below the ${micrometres(found.limit)} minimum ${found.role === "width" ? "width per finger" : "length"} of ${master}. Its PDK has no model that ${found.role === "width" ? "narrow" : "short"}, so a simulation stops at this line.`;
 }
 
-/** A Net named as a Cell's ground or negative rail: VSS, AVSS, GND, VEE, SUB. */
-const LOWEST_SUPPLY_NAME = /^[ad]?(?:vss|gnd|vee|v?sub)[a-z0-9_]*$/iu;
+/** A Net named as a Cell's ground or substrate: GND, AGND, SUB, VSUB. */
+const GROUND_OR_SUBSTRATE_NAME = /^[ad]?(?:gnd|v?sub)[a-z0-9_]*$/iu;
+
+/**
+ * A Net named as a Cell's lowest supply: ground or substrate by name, or a
+ * negative rail by the same rule the Process reads (VSS, AVSS, VEE, VNEG), so
+ * a substrate bound to the Cell's negative supply is never reported here.
+ */
+const namesLowestSupply = (name: string) =>
+  GROUND_OR_SUBSTRATE_NAME.test(name) || namesNegativeSupply(name);
 
 /**
  * A terminal the PDK ties to the p-substrate belongs on ground or the lowest
@@ -1327,7 +1336,7 @@ function reportSubstrateTerminals(
       node.netName.startsWith("<unconnected:") ||
       node.netName === ground ||
       node.netName === "0" ||
-      LOWEST_SUPPLY_NAME.test(node.netName)
+      namesLowestSupply(node.netName)
     )
       continue;
     const reference = instance.reference ?? instance.id;

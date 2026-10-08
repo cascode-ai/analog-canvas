@@ -200,6 +200,16 @@ export function drawnSupplyLogicalNetIds(
 const NEGATIVE_SUPPLY_NAME = /^[ad]?(?:vee|vss|vneg)[a-z0-9_]*$/iu;
 
 /**
+ * Whether a Net name reads as a negative rail (VEE, VSS, VNEG; an a/d
+ * prefix, any suffix). The one rule {@link drawnNegativeSupplyNet} and the
+ * export's lowest-supply check share, so a substrate the Process puts on that
+ * rail is never also reported off the lowest supply (#1530).
+ */
+export function namesNegativeSupply(name: string): boolean {
+  return NEGATIVE_SUPPLY_NAME.test(name);
+}
+
+/**
  * The Cell's one drawn negative supply, or nothing (#1530). A negative rail
  * is drawn with the same supply marker as VDD, so its domain says only that
  * it is a supply; which one sits below ground is a voltage the drawing does
@@ -214,7 +224,7 @@ export function drawnNegativeSupplyNet(
   const resolved = logicalNets ?? resolveDocumentLogicalNets(document);
   const drawn = drawnSupplyNets(document, "vdd", resolved);
   const negative = drawn.nets.filter((_net, index) =>
-    NEGATIVE_SUPPLY_NAME.test(
+    namesNegativeSupply(
       resolved.byId.get(drawn.logicalNetIds[index]!)?.name ?? "",
     ),
   );

@@ -11,8 +11,8 @@ const NPN = "sky130_fd_pr__npn_05v5_W1p00L1p00";
  * SKY130 BJTs wired by `pins` ({reference: Net names}): three names make a
  * vertical PNP ([C, B, E]), four an NPN ([C, B, E, S], S its hidden
  * substrate, as the PDK's own subcircuits take them). A Net named 0 is the
- * ground marker's; VCC and VEE are drawn with supply markers, as a positive
- * and a negative rail are; the rest are labelled.
+ * ground marker's; VCC, VEE and VNEG are drawn with supply markers, as a
+ * positive and a negative rail are; the rest are labelled.
  */
 function bjtProject(pins: Record<string, readonly string[]>) {
   const project = createEmptyProject("bjt", "BJT", "main");
@@ -64,7 +64,7 @@ function bjtProject(pins: Record<string, readonly string[]>) {
         placement: null,
       });
       terminals.push({ instanceId: "GND", pinName: "0" });
-    } else if (name === "VCC" || name === "VEE") {
+    } else if (name === "VCC" || name === "VEE" || name === "VNEG") {
       document.instances.push({
         id: name,
         symbolId: "vdd-port",
@@ -180,5 +180,22 @@ describe("an NPN's hidden substrate beside a negative supply (#1530)", () => {
     const single = bjtProject({ Q1: ["VCC", "vi", "vo", "0"] });
     expect(substrateFindings(single, ABOVE)).toEqual([]);
     expect(bjtLines(single)).toEqual([`XQ1 VCC vi vo VSS ${NPN}`]);
+  });
+
+  it("takes a drawn VNEG as the lowest supply as well as the negative one", () => {
+    // The Process binds a substrate placed after a VNEG rail to it; the
+    // lowest-supply check reads the same name, so that binding is quiet.
+    const onVneg = bjtProject({ Q1: ["n1", "vi", "VNEG", "VNEG"] });
+    expect(substrateFindings(onVneg)).toEqual([]);
+    expect(substrateFindings(onVneg, ABOVE)).toEqual([]);
+    expect(bjtLines(onVneg)).toEqual([`XQ1 n1 vi VNEG VNEG ${NPN}`]);
+    const onGround = bjtProject({
+      Q1: ["n1", "vi", "VNEG", "VNEG"],
+      Q2: ["n2", "vi", "VNEG", "0"],
+    });
+    expect(substrateFindings(onGround)).toEqual([]);
+    expect(substrateFindings(onGround, ABOVE)).toEqual([
+      "warning Q2.S is a p-substrate terminal on ground, while this Cell draws VNEG, its negative supply. The substrate belongs on the lowest supply: an NPN collector below it forward-biases. Set its Substrate Net to VNEG",
+    ]);
   });
 });
