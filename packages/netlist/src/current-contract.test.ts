@@ -12,8 +12,6 @@ import {
   createDesignNetlistExport,
   printSpiceNetlist,
   printSpiceWithLocations,
-  printVacaskWithLocations,
-  SIMULATION_DECK_GROUND,
   type DesignNetlistAnalysisOptions,
 } from "./index.js";
 
@@ -1936,19 +1934,23 @@ describe("voltage-controlled switch", () => {
     });
     claimNet(document, "net-b", "0");
 
+    // Printed as a subcircuit, the Cell takes the phase S1 as a pin (#1475).
     const analysis = analyzeDesignNetlist(project);
+    expect(analysis.diagnostics).toEqual([]);
+    const text = printSpiceNetlist(analysis.ir!);
+    expect(text).toMatch(/^\.subckt \S+ S1$/mu);
+    expect(text).toContain("S1 vout 0 S1 0 ideal_switch");
+    // At a deck's top nothing can drive it; the warning says how to share a
+    // clock, not only how to drive S1.
+    const top = analyzeDesignNetlist(project, { rootAsTopLevel: true });
     expect(
-      analysis.diagnostics.map((diagnostic) => [
+      top.diagnostics.map((diagnostic) => [
         diagnostic.code,
         diagnostic.severity,
       ]),
     ).toEqual([["SWITCH_PHASE_NOT_DRIVEN", "warning"]]);
-    // The warning says how to share a clock, not only how to drive S1.
-    expect(analysis.diagnostics[0]!.message).toContain(
+    expect(top.diagnostics[0]!.message).toContain(
       "write its phase on its label (a display alias such as Φ1)",
-    );
-    expect(printSpiceNetlist(analysis.ir!)).toContain(
-      "S1 vout 0 S1 0 ideal_switch",
     );
   });
 
@@ -2140,15 +2142,12 @@ describe("drawn switches", () => {
     expect(
       analysis.diagnostics.filter((item) => item.severity === "error"),
     ).toEqual([]);
-    // No Net named Φ1 is drawn yet, so the phase is a node of its own.
-    expect(
-      analysis.diagnostics.find(
-        (item) => item.code === "SWITCH_PHASE_NOT_DRIVEN",
-      )?.message,
-    ).toBe(
-      "No Net named Φ1 in this Cell drives switch S1: name the clock's Net Φ1, or add a Cell Pin Φ1",
+    // No Net named Φ1 is drawn, so the Cell takes the phase as a pin.
+    expect(analysis.diagnostics.map((item) => item.code)).not.toContain(
+      "SWITCH_PHASE_NOT_DRIVEN",
     );
     const text = printSpiceNetlist(analysis.ir!);
+    expect(text).toMatch(/^\.subckt \S+ PHI1$/mu);
     expect(text).toContain("S1 in out PHI1 0 ideal_switch");
     expect(text).toContain(
       ".model ideal_switch SW(RON=1 ROFF=1e12 VT=0.5 VH=0)",
@@ -2211,6 +2210,14 @@ describe("drawn switches", () => {
     expect(text).not.toContain(".subckt");
     expect(text.indexOf(".model ideal_switch")).toBeLessThan(
       text.indexOf("S1 in out PHI1 0 ideal_switch"),
+    );
+    // Nothing above a deck's top can drive the phase.
+    expect(
+      analysis.diagnostics.find(
+        (item) => item.code === "SWITCH_PHASE_NOT_DRIVEN",
+      )?.message,
+    ).toBe(
+      "No Net named Φ1 in this Cell drives switch S1: name the clock's Net Φ1, or add a Cell Pin Φ1",
     );
   });
 
@@ -2356,40 +2363,58 @@ describe("drawn switches", () => {
       return project;
     }
 
-    it("closes its switch on the same clock node while that clock is low", () => {
+    it("names the signal EN_bar and clocks both on the one plain switch", () => {
       const analysis = analyzeDesignNetlist(pair([en(false), en(true)]));
       expect(
         analysis.diagnostics.filter((item) => item.severity === "error"),
       ).toEqual([]);
-      // Both switches wait on the one clock EN; the bar names no node of its own.
-      expect(
-        analysis.diagnostics
-          .filter((item) => item.code === "SWITCH_PHASE_NOT_DRIVEN")
-          .map((item) => item.message),
-      ).toEqual([
-        "No Net named EN in this Cell drives switch S1: name the clock's Net EN, or add a Cell Pin EN",
-        "No Net named EN in this Cell drives switch S2: name the clock's Net EN, or add a Cell Pin EN, or draw its complementary clock on a Net EN_bar",
-      ]);
-      const text = printSpiceNetlist(analysis.ir!);
-      expect(text).toContain("S1 in a EN 0 ideal_switch\n");
-      expect(text).toContain("S2 in b EN 0 ideal_switch_bar\n");
-      expect(text).toContain(
-        ".model ideal_switch SW(RON=1 ROFF=1e12 VT=0.5 VH=0)",
-      );
-      // On (RON) above the threshold is now open; below it, closed.
-      expect(text).toContain(
-        ".model ideal_switch_bar SW(RON=1e12 ROFF=1 VT=0.5 VH=0)",
-      );
-    });
-
-    it("is driven by the one clock Net that drives the plain phase", () => {
-      const analysis = analyzeDesignNetlist(pair([en(false), en(true)], true));
+      // Nothing here drives EN or EN_bar: both are the Cell's pins, for the
+      // testbench to drive, complementary or with dead time (#1475).
       expect(analysis.diagnostics.map((item) => item.code)).not.toContain(
         "SWITCH_PHASE_NOT_DRIVEN",
       );
       const text = printSpiceNetlist(analysis.ir!);
-      expect(text).toContain("V1 EN 0");
-      expect(text).toContain("S2 in b EN 0 ideal_switch_bar");
+      expect(text).toMatch(/^\.subckt \S+ EN EN_bar$/mu);
+      expect(text).toContain("S1 in a EN 0 ideal_switch\n");
+      expect(text).toContain("S2 in b EN_bar 0 ideal_switch\n");
+      expect(text.match(/^\.model .*$/gmu)).toEqual([
+        ".model ideal_switch SW(RON=1 ROFF=1e12 VT=0.5 VH=0)",
+      ]);
+    });
+
+    it("follows the drawn inverter's output, not an inverted switch", () => {
+      // EN comes in; the author drew EN_bar as a Net of its own.
+      const project = pair([en(false), en(true)], true);
+      const document = project.documents[0]!;
+      document.instances.push({
+        id: "V2",
+        symbolId: "voltage-source",
+        placement: null,
+        reference: "V2",
+        netlist: { parameters: { dc: "0" } },
+      });
+      document.nets.push({
+        id: "net-en-bar",
+        terminals: [{ instanceId: "V2", pinName: "+" }],
+      });
+      claimNet(document, "net-en-bar", "EN_bar");
+      document.nets
+        .find((net) => net.id === "net-ground")!
+        .terminals.push({ instanceId: "V2", pinName: "-" });
+      const text = printSpiceNetlist(analyzeDesignNetlist(project).ir!);
+      expect(text).not.toMatch(/^\.subckt \S+ .*\bEN/mu);
+      expect(text).toContain("S1 in a EN 0 ideal_switch\n");
+      expect(text).toContain("S2 in b EN_bar 0 ideal_switch\n");
+    });
+
+    it("reads a label typed EN_bar and one drawn E̅N̅ as one signal", () => {
+      const typed = { runs: [{ kind: "text" as const, value: "EN_bar" }] };
+      const text = printSpiceNetlist(
+        analyzeDesignNetlist(pair([typed, en(true)])).ir!,
+      );
+      expect(text).toMatch(/^\.subckt \S+ EN_bar$/mu);
+      expect(text).toContain("S1 in a EN_bar 0 ideal_switch\n");
+      expect(text).toContain("S2 in b EN_bar 0 ideal_switch\n");
     });
 
     // Φ̄₁: the bar over Φ, the 1 a subscript, as a Net Label drawn so reads.
@@ -2410,82 +2435,135 @@ describe("drawn switches", () => {
     it.each([
       ["E̅N̅", en(true), "EN_bar", "EN_bar"],
       ["Φ̄₁", phiBar, "Φ_1_bar", "PHI_1_bar"],
-    ])(
-      "meets a Net drawn the same way as %s through the plain switch",
-      (_, label, netName, node) => {
-        const project = pair([label]);
-        const document = project.documents[0]!;
-        document.instances.push({
-          id: "V2",
-          symbolId: "voltage-source",
-          placement: null,
-          reference: "V2",
-          netlist: { parameters: { dc: "1" } },
-        });
-        document.nets.push(
-          {
-            id: "net-barred",
-            terminals: [{ instanceId: "V2", pinName: "+" }],
-          },
-          {
-            id: "net-ground",
-            terminals: [{ instanceId: "V2", pinName: "-" }],
-          },
-        );
-        claimNet(document, "net-barred", netName);
-        claimNet(document, "net-ground", "0", "global", "ground");
-        const analysis = analyzeDesignNetlist(project);
-        expect(analysis.diagnostics.map((item) => item.code)).not.toContain(
-          "SWITCH_PHASE_NOT_DRIVEN",
-        );
-        expect(printSpiceNetlist(analysis.ir!)).toContain(
-          `S1 in a ${node} 0 ideal_switch\n`,
-        );
-      },
-    );
-
-    it("does not take another switch's undriven phase for the barred Net", () => {
-      // S1's label reads EN_bar as plain text; nothing drives that phase.
-      const plain = { runs: [{ kind: "text" as const, value: "EN_bar" }] };
-      const text = printSpiceNetlist(
-        analyzeDesignNetlist(pair([plain, en(true)], true)).ir!,
-      );
-      expect(text).toContain("S2 in b EN 0 ideal_switch_bar\n");
-    });
-
-    it("carries only the inverted card when every switch is barred", () => {
-      const text = printSpiceNetlist(
-        analyzeDesignNetlist(pair([en(true)])).ir!,
-      );
-      expect(text.match(/^\.model .*$/gmu)).toEqual([
-        ".model ideal_switch_bar SW(RON=1e12 ROFF=1 VT=0.5 VH=0)",
-      ]);
-    });
-
-    it("prints the same inverted law in Spectre and native VACASK", () => {
-      const project = pair([en(false), en(true)]);
-      const spectre = createDesignNetlistExport(project, { format: "spectre" });
-      expect(spectre.status, JSON.stringify(spectre.diagnostics)).toBe("ready");
-      if (spectre.status !== "ready") return;
-      const barred = spectre.file.text.slice(
-        spectre.file.text.indexOf("subckt ideal_switch_bar (p n cp cn)"),
-      );
-      expect(barred).toMatch(
-        /^subckt ideal_switch_bar \(p n cp cn\)\nparameters ron=1e12 roff=1 vt=0\.5\ncore \(p n\) bsource i=v\(p,n\)\/\(v\(cp,cn\)>vt \? ron : roff\)\nends ideal_switch_bar$/mu,
-      );
-      expect(spectre.file.text).toContain("S2 (in b EN VSS) ideal_switch_bar");
-
-      const deck = analyzeDesignNetlist(project, {
-        ...SIMULATION_DECK_GROUND,
-        rootAsTopLevel: true,
+    ])("meets a Net drawn the same way as %s", (_, label, netName, node) => {
+      const project = pair([label]);
+      const document = project.documents[0]!;
+      document.instances.push({
+        id: "V2",
+        symbolId: "voltage-source",
+        placement: null,
+        reference: "V2",
+        netlist: { parameters: { dc: "1" } },
       });
-      const vacask = printVacaskWithLocations(deck.ir!, true);
-      expect(vacask.ok).toBe(true);
-      if (!vacask.ok) return;
-      expect(vacask.text).toMatch(
-        /^subckt ideal_switch_bar \(p n cp cn\)\nparameters \$mfactor=1\nimplementation \(p n cp cn\) __icm_switch \$mfactor=\$mfactor ron=1e\+12 roff=1 vt=0\.5\nends$/mu,
+      document.nets.push(
+        {
+          id: "net-barred",
+          terminals: [{ instanceId: "V2", pinName: "+" }],
+        },
+        {
+          id: "net-ground",
+          terminals: [{ instanceId: "V2", pinName: "-" }],
+        },
       );
-      expect(vacask.text).toMatch(/^S2 \(in b EN 0\) ideal_switch_bar\b/mu);
+      claimNet(document, "net-barred", netName);
+      claimNet(document, "net-ground", "0", "global", "ground");
+      const text = printSpiceNetlist(analyzeDesignNetlist(project).ir!);
+      expect(text).toContain(`S1 in a ${node} 0 ideal_switch\n`);
+      expect(text).not.toMatch(/^\.subckt \S+ \S/mu);
+    });
+  });
+
+  describe("a phase nothing in its Cell drives", () => {
+    /** Top calls Chop, whose switch S1 is clocked by EN. */
+    function chopper() {
+      const project = createEmptyProject("project", "Project");
+      const child = createEmptyDocument("chop", "Chop");
+      child.netlist!.name = "Chop";
+      project.documents.push(child);
+      child.instances.push({
+        id: "S1",
+        symbolId: "ideal-switch",
+        placement: null,
+        reference: "S1",
+        netlist: { parameters: {} },
+      });
+      child.annotations.push({
+        id: "label-S1",
+        kind: "instance-label",
+        anchor: {
+          kind: "object",
+          objectId: "S1",
+          localOffset: { x: 20, y: 0 },
+          fallbackPosition: { x: 20, y: 0 },
+        },
+        content: { runs: [{ kind: "text", value: "EN" }] },
+        alignment: "start",
+        rotation: 0,
+        locked: false,
+      });
+      for (const [pinName, name] of [
+        ["1", "in"],
+        ["2", "out"],
+      ] as const) {
+        child.nets.push({
+          id: `net-${name}`,
+          terminals: [{ instanceId: "S1", pinName }],
+        });
+        claimNet(child, `net-${name}`, name);
+      }
+      const top = project.documents[0]!;
+      top.instances.push({
+        id: "X1",
+        reference: "X1",
+        symbolId: "block",
+        placement: null,
+        netlist: {
+          parameters: {},
+          binding: { kind: "subcircuit", childDocumentId: child.id },
+        },
+      });
+      return { project, top };
+    }
+
+    it("is a pin of every caller up to a Net of its name", () => {
+      const { project } = chopper();
+      const text = printSpiceNetlist(analyzeDesignNetlist(project).ir!);
+      expect(text).toMatch(/^\.subckt Chop EN$/mu);
+      expect(text).toMatch(/^X1 EN Chop$/mu);
+      // Top draws no EN either, so it takes the phase as its own pin.
+      expect(text).toMatch(/^\.subckt dut EN$/mu);
+    });
+
+    it("is driven by the caller's Net of that name", () => {
+      const { project, top } = chopper();
+      top.instances.push({
+        id: "V1",
+        symbolId: "voltage-source",
+        placement: null,
+        reference: "V1",
+        netlist: { parameters: { dc: "1" } },
+      });
+      top.nets.push(
+        { id: "net-en", terminals: [{ instanceId: "V1", pinName: "+" }] },
+        { id: "net-ground", terminals: [{ instanceId: "V1", pinName: "-" }] },
+      );
+      claimNet(top, "net-en", "EN");
+      claimNet(top, "net-ground", "0", "global", "ground");
+      const analysis = analyzeDesignNetlist(project);
+      const text = printSpiceNetlist(analysis.ir!);
+      expect(text).toMatch(/^X1 EN Chop$/mu);
+      expect(text).toMatch(/^\.subckt dut$/mu);
+      expect(analysis.diagnostics.map((item) => item.code)).not.toContain(
+        "SWITCH_PHASE_NOT_DRIVEN",
+      );
+    });
+
+    it("is reported where a deck's top leaves it undriven", () => {
+      const { project, top } = chopper();
+      const analysis = analyzeDesignNetlist(project, {
+        rootAsTopLevel: true,
+        rootDocumentId: top.id,
+      });
+      expect(
+        analysis.diagnostics
+          .filter((item) => item.code === "SWITCH_PHASE_NOT_DRIVEN")
+          .map((item) => [item.documentId, item.message]),
+      ).toEqual([
+        [
+          top.id,
+          "No Net named EN in this Cell drives the switch phase EN of X1: name the clock's Net EN",
+        ],
+      ]);
     });
   });
 

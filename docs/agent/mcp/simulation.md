@@ -8,7 +8,10 @@ an unfamiliar field only; no full-contract or authoring-help prerequisite.
 1. Discover `simulation_run` capabilities once when you need another Profile
    than the default (VACASK, say) or its engine's facts. Read
    `netlist_code`/the relevant Cell interface for a drawn DUT,
-   not the entire drawing. Profile-managed model loads need no duplicate `.lib`.
+   not the entire drawing. Switch clock phases the DUT does not drive are its
+   last pins (`EN EN_bar`, `PHI1 PHI2`); give each a clock source, a pair such
+   as `EN`/`EN_bar` opposite pulses, with dead time when the phases must
+   not overlap. Profile-managed model loads need no duplicate `.lib`.
    Full capabilities (optionally `profileId`) are for detailed model facts.
 2. Create a saved `simulation_folder`, or reuse the current folder.
    Without `profileId`, create takes the one Profile whose listed qualified

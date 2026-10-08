@@ -47,17 +47,17 @@ function phaseOf(content: RichTextDocument) {
 }
 
 describe("drawnSwitchPhase", () => {
-  it("complements the phase when the bar covers only some characters", () => {
+  it("names the _bar signal when the bar covers only some characters", () => {
     expect(
       phaseOf({
         runs: [span("overbar", text("Φ")), span("subscript", text("1"))],
       }),
-    ).toEqual({ name: "Φ1", complement: true, barredNet: "Φ_1_bar" });
+    ).toEqual({ name: "Φ1_bar", drawnName: "Φ_1_bar" });
   });
 
-  it("does not complement the phase for a bar over no text", () => {
+  it("names the plain signal for a bar over no text", () => {
     expect(phaseOf({ runs: [text("EN"), span("overbar", text(" "))] })).toEqual(
-      { name: "EN", complement: false },
+      { name: "EN" },
     );
   });
 });

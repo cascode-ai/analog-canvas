@@ -294,10 +294,13 @@ phase its name label shows; a freshly placed `S1` is clocked by a phase called
 `circuit_properties` `set-display-alias {target, text:"Φ_1"}`: the netlist
 then writes `S1 a b PHI1 VSS ideal_switch`, and every switch showing Φ₁ follows
 the same clock. Drive it with a Net named `Φ1` (a Net Label, or the Net of a
-pulse source) or a Cell Pin `Φ1`; until then `SWITCH_PHASE_NOT_DRIVEN` warns.
-For the complementary phase write `text:"EN_bar"`, drawn E̅N̅: the switch
-follows a Net `EN_bar` when the Cell has one, and otherwise closes while `EN`
-is low (`ideal_switch_bar`), so one clock `EN` drives both phases.
+pulse source) or a Cell Pin `Φ1`. A phase nothing in the Cell drives becomes
+the Cell's input pin in its netlist (`.subckt … PHI1`), passed up through any
+Cell that calls it, so the testbench drives it; only at a deck's top does
+`SWITCH_PHASE_NOT_DRIVEN` warn. For a complementary phase write
+`text:"EN_bar"` (drawn E̅N̅): it is its own signal `EN_bar` on the same plain
+switch, never an inverted one. Draw the inverter if the circuit makes
+`EN_bar` from `EN` (or the reverse); otherwise the testbench drives both.
 Free text beside a switch is drawing only and clocks nothing. A Ctrl SW
 (`externally-controlled-switch`) takes its control from its CTRL pin instead.
 
