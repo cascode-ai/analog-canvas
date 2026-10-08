@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useMemo } from "react";
-import type { ComponentProps, SVGProps } from "react";
+import type { ComponentProps, ReactNode, SVGProps } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { flushSync } from "react-dom";
 import { createPointerPreviewFrame } from "./pointer-preview-frame";
@@ -110,6 +110,8 @@ export interface EditorCanvasSurfaceProps {
   interactionPreviews: ComponentProps<typeof EditorInteractionPreviews>;
   /** Text the Text tool is writing before it is placed. */
   textDraft?: ComponentProps<typeof TextDraftEditorOverlay>;
+  /** A card in the middle of the canvas, above the drawing. */
+  notice?: ReactNode;
 }
 
 function CanvasShortcutChord({ keys }: { keys: readonly string[] }) {
@@ -150,6 +152,7 @@ export function EditorCanvasSurface({
   draftingHandles,
   interactionPreviews,
   textDraft,
+  notice,
 }: EditorCanvasSurfaceProps) {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const onPointerMoveRef = useRef(eventHandlers.onPointerMove);
@@ -374,6 +377,7 @@ export function EditorCanvasSurface({
           {textDraft ? <TextDraftEditorOverlay {...textDraft} /> : null}
         </g>
       </svg>
+      {notice}
     </section>
   );
 }
