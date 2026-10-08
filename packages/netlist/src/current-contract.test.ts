@@ -1940,18 +1940,10 @@ describe("voltage-controlled switch", () => {
     const text = printSpiceNetlist(analysis.ir!);
     expect(text).toMatch(/^\.subckt \S+ S1$/mu);
     expect(text).toContain("S1 vout 0 S1 0 ideal_switch");
-    // At a deck's top nothing can drive it; the warning says how to share a
-    // clock, not only how to drive S1.
+    // At a deck's top, the testbench, it is a node its own text drives.
     const top = analyzeDesignNetlist(project, { rootAsTopLevel: true });
-    expect(
-      top.diagnostics.map((diagnostic) => [
-        diagnostic.code,
-        diagnostic.severity,
-      ]),
-    ).toEqual([["SWITCH_PHASE_NOT_DRIVEN", "warning"]]);
-    expect(top.diagnostics[0]!.message).toContain(
-      "write its phase on its label (a display alias such as Φ1)",
-    );
+    expect(top.diagnostics).toEqual([]);
+    expect(printSpiceNetlist(top.ir!)).toContain("S1 vout 0 S1 0 ideal_switch");
   });
 
   it("projects the reviewed SKY130 MOS and physical passives in production", () => {
@@ -2143,9 +2135,6 @@ describe("drawn switches", () => {
       analysis.diagnostics.filter((item) => item.severity === "error"),
     ).toEqual([]);
     // No Net named Φ1 is drawn, so the Cell takes the phase as a pin.
-    expect(analysis.diagnostics.map((item) => item.code)).not.toContain(
-      "SWITCH_PHASE_NOT_DRIVEN",
-    );
     const text = printSpiceNetlist(analysis.ir!);
     expect(text).toMatch(/^\.subckt \S+ PHI1$/mu);
     expect(text).toContain("S1 in out PHI1 0 ideal_switch");
@@ -2180,9 +2169,6 @@ describe("drawn switches", () => {
     });
     claimNet(document, "net-ground", "0", "global", "ground");
     const analysis = analyzeDesignNetlist(project);
-    expect(analysis.diagnostics.map((item) => item.code)).not.toContain(
-      "SWITCH_PHASE_NOT_DRIVEN",
-    );
     const text = printSpiceNetlist(analysis.ir!);
     expect(text).toContain("S1 in out PHI2 0 ideal_switch");
     expect(text).toContain("V1 PHI2 0");
@@ -2211,14 +2197,8 @@ describe("drawn switches", () => {
     expect(text.indexOf(".model ideal_switch")).toBeLessThan(
       text.indexOf("S1 in out PHI1 0 ideal_switch"),
     );
-    // Nothing above a deck's top can drive the phase.
-    expect(
-      analysis.diagnostics.find(
-        (item) => item.code === "SWITCH_PHASE_NOT_DRIVEN",
-      )?.message,
-    ).toBe(
-      "No Net named Φ1 in this Cell drives switch S1: name the clock's Net Φ1, or add a Cell Pin Φ1",
-    );
+    // The testbench's text drives PHI1; the export reports nothing.
+    expect(analysis.diagnostics).toEqual([]);
   });
 
   it("keeps the ideal switch's name out of the editable fields", () => {
@@ -2370,9 +2350,6 @@ describe("drawn switches", () => {
       ).toEqual([]);
       // Nothing here drives EN or EN_bar: both are the Cell's pins, for the
       // testbench to drive, complementary or with dead time (#1475).
-      expect(analysis.diagnostics.map((item) => item.code)).not.toContain(
-        "SWITCH_PHASE_NOT_DRIVEN",
-      );
       const text = printSpiceNetlist(analysis.ir!);
       expect(text).toMatch(/^\.subckt \S+ EN EN_bar$/mu);
       expect(text).toContain("S1 in a EN 0 ideal_switch\n");
@@ -2543,27 +2520,18 @@ describe("drawn switches", () => {
       const text = printSpiceNetlist(analysis.ir!);
       expect(text).toMatch(/^X1 EN Chop$/mu);
       expect(text).toMatch(/^\.subckt dut$/mu);
-      expect(analysis.diagnostics.map((item) => item.code)).not.toContain(
-        "SWITCH_PHASE_NOT_DRIVEN",
-      );
     });
 
-    it("is reported where a deck's top leaves it undriven", () => {
+    it("is a node of its name at a deck's top, for the testbench to drive", () => {
       const { project, top } = chopper();
       const analysis = analyzeDesignNetlist(project, {
         rootAsTopLevel: true,
         rootDocumentId: top.id,
       });
-      expect(
-        analysis.diagnostics
-          .filter((item) => item.code === "SWITCH_PHASE_NOT_DRIVEN")
-          .map((item) => [item.documentId, item.message]),
-      ).toEqual([
-        [
-          top.id,
-          "No Net named EN in this Cell drives the switch phase EN of X1: name the clock's Net EN",
-        ],
-      ]);
+      expect(analysis.diagnostics).toEqual([]);
+      const text = printSpiceWithLocations(analysis.ir!, true).text;
+      expect(text).toMatch(/^X1 EN Chop$/mu);
+      expect(text).not.toMatch(/^\.subckt dut/mu);
     });
   });
 

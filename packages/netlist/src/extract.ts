@@ -1764,21 +1764,21 @@ function definesGenericModel(
   return texts.some((text) => text !== undefined && definition.test(text));
 }
 
-/** Phase nodes no drawn Net supplies, per Cell: each switch on one is told. */
+/** Phase nodes no drawn Net supplies, per Cell: its pins as a subcircuit. */
 const undrivenPhaseNodes = new WeakMap<CellNetContext, Set<string>>();
 
 /**
  * A clock phase a Cell took as a pin because nothing in it drives the phase
  * (extractDrawnSwitch) reaches its callers by name, as a clock tree does: each
  * call passes the caller's Net of that name, or, where it has none, the caller
- * takes the phase as a pin of its own. At a deck's top nothing else can drive
- * it, so it is reported there (#1475).
+ * takes the phase as a pin of its own. A deck's top is the testbench: there
+ * the phase is a node of its name, for the testbench's own text to drive
+ * (#1475, #1489).
  */
 function bubblePhasePins(
   cells: DesignNetlistCell[],
   documentsById: ReadonlyMap<string, SchematicDocument>,
   options: ResolvedDesignNetlistAnalysisOptions,
-  diagnostics: NetlistDiagnostic[],
 ): void {
   const cellsById = new Map(cells.map((cell) => [cell.id, cell]));
   const phaseNetId = (cellId: string, name: string) =>
@@ -1810,16 +1810,7 @@ function bubblePhasePins(
             scope: "local",
           };
           cell.nets.push(net);
-          if (atTop)
-            diagnostic(
-              diagnostics,
-              cell.id,
-              "SWITCH_PHASE_NOT_DRIVEN",
-              `No Net named ${port.name} in this Cell drives the switch phase ${port.name} of ${instance.reference}: name the clock's Net ${port.name}`,
-              [instance.id],
-              "warning",
-            );
-          else
+          if (!atTop)
             cell.ports.push({ id: net.id, name: port.name, netName: net.name });
         }
         instance.nodes.push({ pinName: port.name, netName: net.name });
@@ -1841,7 +1832,8 @@ function isDrawnSwitch(symbolId: string, project?: CircuitProject): boolean {
  * A phase names its node the way a Net Label would, so the switch meets the
  * clock drawn on a Net of that name, or a Cell Pin of that name. A phase
  * nothing in the Cell drives becomes a pin of a Cell printed as a subcircuit
- * (see bubblePhasePins), and an undriven node only at a deck's top.
+ * (see bubblePhasePins); at a deck's top, the testbench, it is a node its text
+ * drives.
  */
 function extractDrawnSwitch(
   document: SchematicDocument,
@@ -1902,25 +1894,6 @@ function extractDrawnSwitch(
         scope: "local",
       });
     }
-    // Printed as a subcircuit, the Cell takes the phase as a pin for its
-    // caller or testbench to drive; at a deck's top nothing else can.
-    if (
-      added.has(controlNode) &&
-      options.rootAsTopLevel &&
-      document.id === options.rootDocumentId
-    )
-      diagnostic(
-        diagnostics,
-        document.id,
-        "SWITCH_PHASE_NOT_DRIVEN",
-        // Clocked by its own name, a switch shares no clock: say how to give
-        // it one before asking for a Net named after the switch.
-        drawnPhase === null
-          ? `No Net named ${phase} in this Cell drives switch ${reference}, which is clocked by its own name: write its phase on its label (a display alias such as Φ1) to share one clock, and draw that clock on a Net or Cell Pin of the same name`
-          : `No Net named ${phase} in this Cell drives switch ${reference}: name the clock's Net ${phase}, or add a Cell Pin ${phase}`,
-        [instance.id],
-        "warning",
-      );
   } else {
     controlNode = terminalNetName(
       document,
@@ -3505,7 +3478,7 @@ function analyzeDesign(
       cells.push(cell);
     }
   }
-  bubblePhasePins(cells, documentsById, resolvedOptions, diagnostics);
+  bubblePhasePins(cells, documentsById, resolvedOptions);
   // Each kind of drawn magnetic device calls one coupled-winding subcircuit,
   // defined once in the file under the library's name. A Cell or external
   // subcircuit already exporting that name would make the call ambiguous.

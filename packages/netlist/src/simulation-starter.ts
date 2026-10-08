@@ -1,5 +1,9 @@
 import { reviewedExternalBindingForMaster } from "@icm/devices";
-import { createSimulationFolder, type CircuitProject } from "@icm/model";
+import {
+  createSimulationFolder,
+  projectCellInterface,
+  type CircuitProject,
+} from "@icm/model";
 import { analyzeDesignNetlist } from "./extract.js";
 
 export interface SimulationStarterDut {
@@ -69,6 +73,26 @@ export function createSimulationStarter(
       dut: { name: root.name, ports: root.ports.map((port) => port.netName) },
     }),
   };
+}
+
+/**
+ * How a new experiment runs its Cell, for the Agent's `simulation_folder`
+ * create and the GUI's new-experiment form alike (#1489). A simulation's top
+ * is always a testbench: a Cell with drawn pins is a DUT, which a
+ * testbench.spice shell calls (`XDUT … dut`, its ports in order) for the
+ * Agent or author to drive; a Cell with none draws its own sources and is the
+ * testbench, run as the deck's top.
+ */
+export function newFolderCellRole(
+  project: CircuitProject,
+  documentId: string,
+): "dut" | "testbench" {
+  const netlist = project.documents.find(
+    (document) => document.id === documentId,
+  )?.netlist;
+  return netlist && projectCellInterface(netlist).ports.length
+    ? "dut"
+    : "testbench";
 }
 
 /** An advertised simulation Profile, as far as a new folder's default reads it. */

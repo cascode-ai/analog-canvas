@@ -4,6 +4,7 @@ import ota from "../../../netlists/native-ota-library/legacy-source.icproj.json"
 import hostedSky130 from "../../../containers/ngspice/hosted-sky130-profile.json";
 import {
   createSimulationStarter,
+  newFolderCellRole,
   newFolderProfile,
 } from "./simulation-starter.js";
 import { compileSourceSimulation } from "./simulation-source-compile.js";
@@ -152,6 +153,17 @@ describe("simulation starting points", () => {
     ).list();
     expect(scopes).toEqual([{ bindingId: "circuit", callPath: ["XDUT"] }]);
     expect(JSON.stringify(project)).toBe(before);
+  });
+
+  it("wraps a Cell with pins as a DUT and runs one without as the testbench (#1489)", () => {
+    // ota_5t draws six pins; both testbenches draw sources and none.
+    expect(newFolderCellRole(project, "document-ota-5t")).toBe("dut");
+    expect(newFolderCellRole(project, "document-ota-5t-testbench")).toBe(
+      "testbench",
+    );
+    expect(newFolderCellRole(project, "document-ota-5t-testbench-sin")).toBe(
+      "testbench",
+    );
   });
 });
 

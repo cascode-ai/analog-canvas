@@ -39,7 +39,16 @@ is the Run target even while viewing another file. Invalid SPICE or JSON can
 be saved; preparation reports what needs repair rather than losing the draft.
 
 **New experiment** asks for a Name, a Cell and an Environment, the fields of
-an Agent's `simulation_folder` create, and starts with an OP analysis. The
+an Agent's `simulation_folder` create, and starts with an OP analysis. A
+simulation always runs a testbench, and the form shows which one:
+
+- **A Cell with pins** is the circuit under test. The experiment gets a
+  `testbench.spice` that calls it (`XDUT …`, the ports already in order),
+  where you or the Agent add sources, loads and clocks.
+- **A Cell without pins** is a testbench you drew, with its own sources. It
+  runs as it is.
+
+The
 environment is chosen as the Agent's is: the one Profile qualified for every
 PDK device the Cell uses is shown as "(automatic)" (SKY130 ngspice on
 Production); **Change** picks another, such as VACASK. When no single Profile

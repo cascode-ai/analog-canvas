@@ -34,6 +34,8 @@ interface NameRequest {
     options: readonly { id: string; name: string }[];
     validate(documentId: string): string | undefined;
   };
+  /** Whether the Cell is a DUT a testbench shell calls, or the testbench. */
+  roleFor?(documentId: string): "dut" | "testbench";
 }
 interface NameResult {
   name: string;
@@ -421,6 +423,18 @@ function NameInput() {
               </option>
             ))}
           </select>
+        </div>
+      ) : null}
+      {request.roleFor && documentId ? (
+        <div className="workspace-testbench">
+          <span className="workspace-field-label" aria-hidden="true">
+            Testbench
+          </span>
+          <output aria-label="Simulation testbench">
+            {request.roleFor(documentId) === "dut"
+              ? "testbench.spice calls this Cell"
+              : "this Cell, which draws no pins"}
+          </output>
         </div>
       ) : null}
       {profiles.length ? (

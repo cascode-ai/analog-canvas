@@ -198,6 +198,7 @@
    create takes name, rootDocumentId and an optional profileId (#1489). */
 .workspace-name-row,
 .workspace-cell-selection,
+.workspace-testbench,
 .workspace-environment {
   display: grid;
   grid-template-columns: 76px minmax(0, 1fr) auto;
@@ -222,6 +223,7 @@
 .workspace-environment label {
   color: var(--icm-text-muted);
 }
+.workspace-testbench output,
 .workspace-environment output {
   min-width: 0;
   overflow-wrap: anywhere;
