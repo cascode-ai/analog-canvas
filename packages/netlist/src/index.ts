@@ -1,4 +1,9 @@
 export * from "./extract.js";
+export {
+  GENERIC_DIODE_MODEL,
+  GENERIC_NPN_MODEL,
+  GENERIC_PNP_MODEL,
+} from "./extract-generic-models.js";
 export * from "./export.js";
 export * from "./project-model-source.js";
 export * from "./model-source-transform.js";
