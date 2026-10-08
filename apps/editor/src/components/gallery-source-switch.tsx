@@ -3,19 +3,32 @@ import type { GallerySource } from "../gallery-sources";
 
 type SourceCount = GallerySource & { count: number };
 
+/** The datasets the switch lists: those with circuits, the open one, or all. */
+export function offeredGallerySources<T extends { key: string; count: number }>(
+  sources: readonly T[],
+  source: string | null,
+  showEmpty: boolean,
+): T[] {
+  return sources.filter(
+    (item) => showEmpty || item.count > 0 || item.key === source,
+  );
+}
+
 /**
  * Which wall the Gallery shows (#1510): the community's, or one reference
- * dataset's. It offers only datasets that hold circuits, so it stays out of
- * sight until one is imported, and a reader who never picks one never sees
- * a dataset.
+ * dataset's. A reader is offered only datasets that hold circuits, so it
+ * stays out of sight until one is imported; the Owner, who imports them, is
+ * offered every dataset, empty ones with their 0.
  */
 export function GallerySourceSwitch({
   source,
   onChange,
+  showEmpty = false,
   fetchLike = fetch,
 }: {
   source: string | null;
   onChange: (source: string | null) => void;
+  showEmpty?: boolean;
   fetchLike?: typeof fetch;
 }) {
   const [sources, setSources] = useState<SourceCount[]>([]);
@@ -32,9 +45,7 @@ export function GallerySourceSwitch({
       cancelled = true;
     };
   }, [fetchLike]);
-  const offered = sources.filter(
-    (item) => item.count > 0 || item.key === source,
-  );
+  const offered = offeredGallerySources(sources, source, showEmpty);
   if (offered.length === 0) return null;
   return (
     <label className="gallery-source-switch">
