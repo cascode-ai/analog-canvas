@@ -1647,6 +1647,25 @@ div.gallery-contributor-status {
   border-bottom: 1px solid var(--icm-border);
 }
 
+/* Every quick filter leads with a mark of one width, so the names line up:
+   the AI word mark takes the icons' size here, not a tile badge's. */
+.gallery-sidebar-quick .gallery-tag-mark > svg,
+.gallery-sidebar-quick .gallery-tag-mark > .gallery-tile-ai {
+  flex: 0 0 14px;
+}
+
+.gallery-sidebar-quick .gallery-tile-ai {
+  box-sizing: border-box;
+  width: 14px;
+  height: 12px;
+  margin-left: 0;
+  padding: 0;
+  border-radius: 3px;
+  font-size: 8.5px;
+  line-height: 12px;
+  text-align: center;
+}
+
 .gallery-sidebar-heading {
   display: flex;
   align-items: center;
