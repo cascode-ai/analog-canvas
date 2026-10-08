@@ -588,7 +588,11 @@ interface ToolEntry {
   handle: (args: unknown, session: ToolSessionState) => Promise<unknown>;
 }
 
-export function operationError(error: unknown, input?: unknown): unknown {
+export function operationError(
+  error: unknown,
+  input?: unknown,
+  contract?: Record<string, unknown>,
+): unknown {
   if (error instanceof ContractQueryError)
     return {
       ok: false,
@@ -605,7 +609,7 @@ export function operationError(error: unknown, input?: unknown): unknown {
         code: "INVALID_TOOL_INPUT",
         message: "Tool arguments do not match the input contract.",
         recovery: "fix-input",
-        issues: inputIssues(error.issues, input),
+        issues: inputIssues(error.issues, input, [], contract),
         details: inputIssueDetails(error.issues, input),
       },
     };
@@ -1622,7 +1626,11 @@ export async function executeOperation(
       );
     result = await tool.handle(input, session);
   } catch (error) {
-    result = operationError(error, input);
+    result = operationError(
+      error,
+      input,
+      error instanceof z.ZodError ? tool.definition.inputSchema : undefined,
+    );
   }
   return withTiming(
     result,

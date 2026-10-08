@@ -88,6 +88,63 @@ describe("caller input contracts", () => {
     });
   });
 
+  it("says what would pass: the known keys, values, limits and type (#1464)", async () => {
+    const issue = async (tool: string, args: unknown) => {
+      const result = await callTool(tool, args, {} as never);
+      expect(result.isError).toBe(true);
+      return JSON.parse(result.content[0]!.text!).error.issues[0];
+    };
+    // describe_tool takes `tool`, not `name`.
+    expect(
+      await issue("describe_tool", { name: "circuit_properties" }),
+    ).toMatchObject({
+      path: [],
+      code: "unrecognized_keys",
+      keys: ["name"],
+      allowed: ["editKind", "field", "operations", "tool"],
+      message: 'Unknown key "name"; allowed: editKind, field, operations, tool',
+    });
+    // An object in a union lists the keys of the branch its action selects.
+    expect(
+      await issue("simulation_files", { request: { action: "list", page: 2 } }),
+    ).toMatchObject({
+      path: ["request"],
+      code: "unrecognized_keys",
+      keys: ["page"],
+      allowed: ["action", "owner"],
+    });
+    expect(await issue("render", { mode: "raw" })).toMatchObject({
+      path: ["mode"],
+      code: "invalid_value",
+      values: ["formal", "diagnostics"],
+      message: "Expected one of: formal, diagnostics",
+    });
+    expect(
+      await issue("render", { bounds: { x: 0, y: 0, width: 0, height: 10 } }),
+    ).toMatchObject({
+      path: ["bounds", "width"],
+      code: "too_small",
+      minimum: 0,
+      inclusive: false,
+      message: "Must be more than 0",
+    });
+    expect(
+      await issue("describe_tool", { operations: Array(65).fill("x") }),
+    ).toMatchObject({
+      path: ["operations"],
+      code: "too_big",
+      maximum: 64,
+      inclusive: true,
+      message: "At most 64 items",
+    });
+    expect(await issue("render", { documentId: 5 })).toMatchObject({
+      path: ["documentId"],
+      code: "invalid_type",
+      expected: "string",
+      message: "Expected string",
+    });
+  });
+
   it("does not guess a union branch for an unknown operation or expose submitted values", async () => {
     const result = await callTool(
       "simulation_files",
