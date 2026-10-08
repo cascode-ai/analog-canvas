@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { createDesignNetlistExport } from "@icm/netlist";
 
 import { createEmptyDocument, createEmptyProject } from "@icm/model";
-import type { Annotation, CircuitProject, RichTextDocument } from "@icm/model";
+import type { Annotation, RichTextDocument } from "@icm/model";
 import {
   createHierarchicalBlockSymbol,
   createProjectHierarchicalSymbols,
@@ -1721,59 +1721,6 @@ describe("reviewed external MOS model targets", () => {
         parameters: fixture.expected,
       });
     }
-  });
-
-  it("leaves the size of a part that already has the 16 V device to its author (#1483)", () => {
-    const project = createEmptyProject("project", "Project");
-    project.documents[0]!.instances.push({
-      id: "M1",
-      symbolId: "ndmos",
-      placement: null,
-      reference: "M1",
-      netlist: { parameters: {} },
-    });
-    const commit = (source: CircuitProject, edits: ProjectStructureEdit[]) => {
-      const result = executeProjectTransaction(source, {
-        transactionId: "edit",
-        projectId: source.id,
-        expectedStructureRevision: source.structureRevision,
-        actor: { kind: "human", id: "test" },
-        edits,
-      });
-      if (!result.ok) throw new Error(result.error.message);
-      return result.project;
-    };
-    const choose = (source: CircuitProject) =>
-      planSetDeviceModelTarget(
-        source,
-        source.topDocumentId,
-        "M1",
-        "sky130_fd_pr__nfet_g5v0d16v0",
-      );
-    const bound = commit(project, choose(project));
-    // Its author then types a size SKY130 has no 16 V model for.
-    const document = bound.documents[0]!;
-    const typed = commit(bound, [
-      {
-        kind: "transact_document",
-        documentId: document.id,
-        expectedRevision: document.revision,
-        edits: [
-          {
-            kind: "bulk_patch_instance_netlist",
-            assignments: [{ instanceId: "M1", set: { w: "10u", l: "1u" } }],
-          },
-        ],
-      },
-    ]);
-    // Choosing the same device again, as Default or a Process does, keeps it.
-    expect(choose(typed)).toEqual([]);
-    expect(typed.documents[0]!.instances[0]!.netlist?.parameters).toEqual({
-      w: "10u",
-      l: "1u",
-      nf: "1",
-      m: "1",
-    });
   });
 
   it("reuses frozen passive symbols and replaces scalar values with reviewed geometry", () => {

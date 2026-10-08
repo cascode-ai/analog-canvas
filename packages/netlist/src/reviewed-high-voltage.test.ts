@@ -113,18 +113,44 @@ it("warns that a 16 V device at a size SKY130 does not model cannot run (#1483)"
   }
 });
 
+it("writes each 20 V device's own channel on its X line (#1486)", () => {
+  // The volare wrappers' w_*/hvnel_*/l_* values; the hosted continuous library
+  // stops without them (checked on Production 2026-10-08).
+  for (const [device, master, line] of [
+    [0, "sky130_fd_pr__nfet_20v0", "l=2.95 w=29.41 m=1"],
+    [0, "sky130_fd_pr__nfet_20v0_nvt", "l=1.5 w=30 m=1"],
+    [0, "sky130_fd_pr__nfet_20v0_zvt", "l=5 w=30 m=1"],
+    [1, "sky130_fd_pr__pfet_20v0", "l=0.5 w=30 m=1"],
+  ] as const) {
+    const { project } = highVoltageProject();
+    project.externalSubcircuitDefinitions[device]!.name = master;
+    project.documents[0]!.instances[device]!.netlist!.parameters = { m: "1" };
+    const exported = createDesignNetlistExport(project, { format: "spice" });
+    expect(exported.status).toBe("ready");
+    if (exported.status !== "ready") continue;
+    expect(
+      exported.file.text
+        .split("\n")
+        .find((text) => text.includes(master))
+        ?.endsWith(`${master} ${line}`),
+      master,
+    ).toBe(true);
+  }
+});
+
 it("prints SKY130's high-voltage wrappers and probes the MOSFET each one holds", () => {
   const { project, folder } = highVoltageProject();
   const exported = createDesignNetlistExport(project, { format: "spice" });
   expect(exported.status, JSON.stringify(exported.diagnostics)).toBe("ready");
   if (exported.status !== "ready") return;
-  // 16 V takes binned plain-micrometre geometry; 20 V fixes its channel
-  // inside the wrapper and takes only the parallel count.
+  // 16 V takes binned plain-micrometre geometry; 20 V takes only the parallel
+  // count, and its line always gives the wrapper's own channel, which the
+  // hosted continuous library needs (#1486).
   expect(exported.file.text).toMatch(
     /^XM1 \S+ \S+ \S+ \S+ sky130_fd_pr__nfet_g5v0d16v0 l=0\.7 w=5 nf=1 m=1$/mu,
   );
   expect(exported.file.text).toMatch(
-    /^XM2 \S+ \S+ \S+ \S+ sky130_fd_pr__pfet_20v0 m=2$/mu,
+    /^XM2 \S+ \S+ \S+ \S+ sky130_fd_pr__pfet_20v0 l=0\.5 w=30 m=2$/mu,
   );
   // Operating points read the MOSFET inside: nested one level down at 16 V,
   // named m1 at 20 V (both checked against the SKY130 wrappers in ngspice 46).

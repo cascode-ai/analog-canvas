@@ -130,6 +130,14 @@ export interface ReviewedExternalDeviceBinding {
    * with "could not find a valid modelname" at any other size (#1483).
    */
   readonly modelledSizes?: ReviewedModelledSizes;
+  /**
+   * Parameters the X line always gives this device, ahead of the part's own
+   * and in this order: a channel the device has only one of (#1486).
+   */
+  readonly fixedParameters?: readonly {
+    readonly name: string;
+    readonly value: string;
+  }[];
 }
 
 /** A device's model bins, in metres as its library gives them. */
@@ -224,10 +232,30 @@ export function projectLengthToSky130Micrometres(value: string): string {
   return `${Number((parseSpiceNumber(value) / 1e-6).toPrecision(12))}`;
 }
 
+/** Which of a device's sizes: its W or its L. */
+export type ReviewedSizeRole = "width" | "length";
+
 const sizeParameter = (
   binding: ReviewedExternalDeviceBinding,
-  role: "width" | "length",
+  role: ReviewedSizeRole,
 ) => binding.parameters.find((parameter) => parameter.displayRole === role);
+
+/**
+ * The reviewed device an external definition calls, unless the Project gives
+ * the definition its own artwork or body.
+ */
+export function reviewedBindingOfDefinition(definition: {
+  readonly name: string;
+  readonly terminals: readonly { readonly name: string }[];
+  readonly presentation?: unknown;
+  readonly implementation?: unknown;
+}): ReviewedExternalDeviceBinding | undefined {
+  if (definition.presentation || definition.implementation) return undefined;
+  return resolveReviewedExternalBinding(
+    definition.name,
+    definition.terminals.map((terminal) => terminal.name),
+  );
+}
 
 /** One of a part's sizes, as a reviewed device takes it. */
 export interface ReviewedSize {
@@ -249,7 +277,7 @@ export function reviewedSize(
   readonly width: ReviewedSize | undefined;
   readonly length: ReviewedSize | undefined;
 } {
-  const read = (role: "width" | "length"): ReviewedSize | undefined => {
+  const read = (role: ReviewedSizeRole): ReviewedSize | undefined => {
     const parameter = sizeParameter(binding, role);
     const text =
       parameter &&
@@ -302,25 +330,46 @@ export function reviewedSizeModelled(
 }
 
 /**
- * What gives a part a size its device has a model for, when its own is none:
- * the device's own W and L, except where an expression stands, which stays.
- * Empty when the part's size is modelled or open.
+ * What gives a part a size its device has a model for, when its own is none.
+ * One of its W and L, the first that is enough, becomes the device's own
+ * value; both do when neither alone is enough. W goes before L, and a size in
+ * `kept` (one an edit just set) after the other. An expression never changes.
+ * Written under the part's own parameter names. Empty when the part's size is
+ * modelled or open.
  */
 export function reviewedModelledSizeChanges(
   binding: ReviewedExternalDeviceBinding,
   parameters: Readonly<Record<string, string>>,
+  kept: readonly ReviewedSizeRole[] = [],
 ): Record<string, string> {
   if (reviewedSizeModelled(binding, parameters) !== false) return {};
   const size = reviewedSize(binding, parameters);
-  return Object.fromEntries(
-    (["width", "length"] as const).flatMap((role) => {
-      const parameter = sizeParameter(binding, role);
-      return parameter?.defaultValue !== undefined &&
-        size[role]?.metres !== undefined
-        ? [[parameter.name, parameter.defaultValue]]
-        : [];
-    }),
+  const change = (role: ReviewedSizeRole): [string, string] | [] => {
+    const parameter = sizeParameter(binding, role);
+    if (
+      parameter?.defaultValue === undefined ||
+      size[role]?.metres === undefined
+    )
+      return [];
+    const name =
+      Object.keys(parameters).find(
+        (key) => key.toLowerCase() === parameter.name.toLowerCase(),
+      ) ?? parameter.name;
+    return [name, parameter.defaultValue];
+  };
+  const roles = (["width", "length"] as const).toSorted(
+    (left, right) => Number(kept.includes(left)) - Number(kept.includes(right)),
   );
+  const candidates = [
+    ...roles.map((role) => [change(role)]),
+    roles.map(change),
+  ].map((entries) =>
+    Object.fromEntries(entries.filter((entry) => entry.length === 2)),
+  );
+  const fits = (changes: Record<string, string>) =>
+    Object.keys(changes).length > 0 &&
+    reviewedSizeModelled(binding, { ...parameters, ...changes }) !== false;
+  return candidates.find(fits) ?? candidates.at(-1)!;
 }
 
 const mosTerminals = (): readonly ReviewedExternalTerminalBinding[] =>
@@ -377,14 +426,17 @@ const SKY130_PFET_16V_SIZES: ReviewedModelledSizes = {
 };
 
 /**
- * The 20 V drain-extended wrappers fix their channel inside (the N devices
- * about 29.4 um by 2.95 um, the P device 30 um by 0.5 um) and ignore the W and
- * L they are called with, so only the parallel count is offered.
+ * The 20 V drain-extended wrappers have one channel each, so only the
+ * parallel count is offered. volare's wrappers fix it inside and ignore the W
+ * and L they are called with; the hosted continuous library's take them, and
+ * stop at their own defaults (#1486). So the X line always gives the channel
+ * the volare wrapper fixes, in plain micrometres.
  */
 const sky130FixedMosBinding = (
   id: ReviewedExternalBindingId,
   masterName: string,
   symbolId: "ndmos" | "pdmos",
+  channel: { readonly length: string; readonly width: string },
 ): ReviewedExternalDeviceBinding => ({
   id,
   libraryId: "sky130_fd_pr",
@@ -394,6 +446,10 @@ const sky130FixedMosBinding = (
   deviceClass: "mos",
   terminals: mosTerminals(),
   parameters: [count("m", "M", "ngspice X-line parallel multiplier", 0)],
+  fixedParameters: [
+    { name: "l", value: channel.length },
+    { name: "w", value: channel.width },
+  ],
   nativeElement: "m1",
 });
 
@@ -770,25 +826,31 @@ export const reviewedExternalDeviceBindings: readonly ReviewedExternalDeviceBind
       ),
       modelledSizes: SKY130_PFET_16V_SIZES,
     },
+    // Each 20 V wrapper's own channel (w_*/hvnel_*/l_* in its volare
+    // subcircuit file), in micrometres.
     sky130FixedMosBinding(
       "sky130-nfet-20v0",
       "sky130_fd_pr__nfet_20v0",
       "ndmos",
+      { length: "2.95", width: "29.41" },
     ),
     sky130FixedMosBinding(
       "sky130-nfet-20v0-nvt",
       "sky130_fd_pr__nfet_20v0_nvt",
       "ndmos",
+      { length: "1.5", width: "30" },
     ),
     sky130FixedMosBinding(
       "sky130-nfet-20v0-zvt",
       "sky130_fd_pr__nfet_20v0_zvt",
       "ndmos",
+      { length: "5", width: "30" },
     ),
     sky130FixedMosBinding(
       "sky130-pfet-20v0",
       "sky130_fd_pr__pfet_20v0",
       "pdmos",
+      { length: "0.5", width: "30" },
     ),
     sky130MosBinding(
       "sky130-pfet-01v8-hvt",

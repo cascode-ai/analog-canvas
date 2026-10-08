@@ -63,6 +63,49 @@ describe("EditorDocumentController", () => {
     expect(controller.canUndo).toBe(true);
   });
 
+  it("fits a 16 V part the GUI resizes to a size SKY130 models (#1485)", () => {
+    const project = createEmptyProject("controller", "Controller");
+    project.externalSubcircuitDefinitions.push({
+      id: "definition-16v",
+      name: "sky130_fd_pr__nfet_g5v0d16v0",
+      interfaceStatus: "declared",
+      terminals: ["D", "G", "S", "B"].map((name) => ({
+        id: `terminal-${name}`,
+        name,
+        direction: "passive" as const,
+      })),
+      formalParameters: [],
+    });
+    project.documents[0]!.instances.push({
+      id: "M1",
+      reference: "M1",
+      symbolId: "ndmos",
+      placement: null,
+      netlist: {
+        binding: {
+          kind: "external-subcircuit",
+          definitionId: "definition-16v",
+        },
+        parameters: { w: "5u", l: "2.2u", nf: "1", m: "1" },
+      },
+    });
+    const controller = new EditorDocumentController(project);
+    // W 55 µm is modelled only at L 0.7 µm: the typed W stays, L follows.
+    const result = controller.transact([
+      {
+        kind: "bulk_patch_instance_netlist",
+        assignments: [{ instanceId: "M1", set: { w: "55u" } }],
+      },
+    ]);
+    expect(result.ok && result.applied).toBe(true);
+    expect(controller.document.instances[0]!.netlist?.parameters).toEqual({
+      w: "55u",
+      l: "700n",
+      nf: "1",
+      m: "1",
+    });
+  });
+
   it("undoes chronologically across Cells without changing the viewed Cell", () => {
     const controller = new EditorDocumentController(hierarchicalProject());
     controller.transact([{ kind: "add_instance", instance: instance("Rtop") }]);

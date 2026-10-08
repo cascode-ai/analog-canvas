@@ -997,7 +997,10 @@ export function executeProjectTransaction(
         actor: transaction.actor as EditActor,
         edits: edit.edits,
       },
-      { symbolResolver: resolver },
+      {
+        symbolResolver: resolver,
+        externalSubcircuitDefinitions: candidate.externalSubcircuitDefinitions,
+      },
     );
     documentResults.push(result);
     if (!result.ok) {

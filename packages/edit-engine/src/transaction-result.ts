@@ -1,4 +1,7 @@
-import type { SchematicDocument } from "@icm/model";
+import type {
+  ExternalSubcircuitDefinition,
+  SchematicDocument,
+} from "@icm/model";
 import type { DocumentContactEvidence } from "@icm/derived";
 import type { SymbolResolver } from "@icm/symbols";
 
@@ -95,6 +98,12 @@ export interface EditExecutionContext {
    * part's, their pins gain no connection by landing on a wire (#1316).
    */
   pinsMovedInstanceIds?: ReadonlySet<string>;
+  /**
+   * The Project's external definitions, so a part bound to a device its
+   * library models only at a few sizes keeps one of them (#1485). Without
+   * them no part is fitted.
+   */
+  externalSubcircuitDefinitions?: readonly ExternalSubcircuitDefinition[];
 }
 
 export function rejectTransaction(

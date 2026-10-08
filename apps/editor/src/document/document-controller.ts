@@ -364,6 +364,8 @@ export class EditorDocumentController {
       const { expectedStructureRevision: _, ...envelope } = request;
       result = executeTransaction(document, envelope, {
         symbolResolver: this.liveResolver,
+        externalSubcircuitDefinitions:
+          this.projectValue.externalSubcircuitDefinitions,
       });
     } catch (error) {
       return rejectTransaction(

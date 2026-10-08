@@ -208,18 +208,40 @@ describe("reviewed external device bindings", () => {
         { w: "1u", l: "150n" },
       ),
     ).toBeUndefined();
-    // A part with no modelled size takes the device's own, but an expression
-    // stays: only L changes beside a W expression.
-    expect(reviewedModelledSizeChanges(pfet, { w: "1u", l: "150n" })).toEqual({
-      w: "5u",
-      l: "660n",
+  });
+
+  it("gives a part the device's own W or L in place of one SKY130 does not model (#1483, #1485)", () => {
+    const nfet = reviewedExternalBindingForMaster(
+      "sky130_fd_pr__nfet_g5v0d16v0",
+    )!;
+    const pfet = reviewedExternalBindingForMaster(
+      "sky130_fd_pr__pfet_g5v0d16v0",
+    )!;
+    const fit = (
+      binding: typeof nfet,
+      parameters: Record<string, string>,
+      kept: readonly ("width" | "length")[] = [],
+    ) => reviewedModelledSizeChanges(binding, parameters, kept);
+    // A modelled size, or one an expression leaves open, stays.
+    expect(fit(nfet, { w: "5u", l: "700n" })).toEqual({});
+    expect(fit(nfet, { w: "{wd}", l: "700n" })).toEqual({});
+    // Only the size that has no model with the other changes, to the
+    // device's own: W 10 µm is no 16 V width, L 1 µm no length.
+    expect(fit(nfet, { w: "10u", l: "2.2u" })).toEqual({ w: "5u" });
+    expect(fit(nfet, { w: "20u", l: "1u" })).toEqual({ l: "700n" });
+    // Both when neither alone will do; an expression never changes.
+    expect(fit(pfet, { w: "1u", l: "150n" })).toEqual({ w: "5u", l: "660n" });
+    expect(fit(nfet, { w: "{wd}", l: "150n" })).toEqual({ l: "700n" });
+    // What an edit just set stays where the device has a model with it.
+    expect(fit(nfet, { w: "55u", l: "2.2u" }, ["width"])).toEqual({
+      l: "700n",
     });
-    expect(reviewedModelledSizeChanges(nfet, { w: "{wd}", l: "150n" })).toEqual(
-      { l: "700n" },
-    );
-    expect(reviewedModelledSizeChanges(nfet, { w: "5u", l: "700n" })).toEqual(
-      {},
-    );
+    expect(fit(nfet, { w: "55u", l: "2.2u" }, ["length"])).toEqual({
+      w: "5u",
+    });
+    expect(fit(nfet, { w: "10u", l: "700n" }, ["width"])).toEqual({ w: "5u" });
+    // The part's own parameter names are kept.
+    expect(fit(nfet, { W: "1u", L: "150n" })).toEqual({ W: "5u", L: "700n" });
   });
 
   it("converts reviewed geometry in both directions without aliasing counts", () => {

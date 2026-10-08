@@ -267,6 +267,18 @@ R1 VDD OUT 10k
       ).status,
     ).toBe("equal");
   });
+  it("reads a 20 V device's own channel where a line leaves it out (#1486)", async () => {
+    const written = await ir(
+      sky130("XM1 OUT IN VSS VSS sky130_fd_pr__nfet_20v0 l=2.95 w=29.41 m=1"),
+    );
+    const countOnly = await ir(
+      sky130("XM1 OUT IN VSS VSS sky130_fd_pr__nfet_20v0 m=1"),
+    );
+    expect(compareCircuitIR(written, countOnly, "amp")).toMatchObject({
+      status: "equal",
+      differences: [],
+    });
+  });
   it("keeps devices apart when their references collide or differ", async () => {
     const expected = await ir(
       sky130("M1 OUT IN VSS VSS sky130_fd_pr__nfet_01v8 l=150n w=1u"),
