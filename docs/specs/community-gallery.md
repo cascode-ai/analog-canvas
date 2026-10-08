@@ -556,7 +556,8 @@ database stores only SHA-256 hashes of session tokens and sign-in codes.
     accounts only.
 - `GET /api/auth/me` — `{user}` with `id`, `displayName`, `email`,
   `provider`, `role` (`user`/`moderator`), the per-request `isAdmin` flag,
-  and for an AI account its `seat` and, while switched, `switchedFrom`.
+  for an AI account its `seat` and, while switched, `switchedFrom`, and
+  `isOwner` for one of the Owner's own accounts (see Administration).
 - `POST /api/auth/profile` — rename the caller's display name (trimmed,
   1–40 chars). `POST /api/auth/logout` ends the session. Both are
   same-origin gated like submissions.
@@ -684,6 +685,25 @@ unreadable, ruleVersion, remaining}`). Every entry stores the rule version
   the whole store has outgrown; whole-store rollback is point-in-time recovery.
   This same-origin endpoint is an emergency rollback operation, not a general
   import surface.
+
+The Owner's own accounts, listed by account ID in code (`OWNER_ACCOUNT_IDS`:
+the Owner's Google and GitHub sign-ins), have one more view that no other
+administrator has: the account page's **Data** tab. `GET /api/auth/me` marks
+such an account `isOwner`; a browser switched to an AI account is not one.
+`GET /api/gallery/owner-data` answers only them (401 signed out, including
+the read-only credential; 403 otherwise), with public facts only, what the
+wall itself shows:
+
+- each author's public circuits, grouped as the wall's contributors are (by
+  account, or `legacy:` and the byline for an entry without one): the count,
+  the average part count of those whose count is known, how many carry the
+  AI mark and the netlist mark, their likes and the newest one's
+  publication time;
+- with `author=<key>`, that author's public circuits, newest first, each with
+  its parts, marks and likes.
+
+The tab shows the totals, the authors as a table searchable by byline, and
+one author's circuits on a click, each linking to its `/g/<id>` page.
 
 ## Retention and privacy
 

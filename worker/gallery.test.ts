@@ -43,7 +43,7 @@ import {
   type GalleryEnv,
   type GalleryPreviewCache,
 } from "./gallery";
-import { AI_SEATS, AuthDO, type AuthEnv } from "./auth";
+import { AI_SEATS, AuthDO, OWNER_ACCOUNT_IDS, type AuthEnv } from "./auth";
 import workerEntry, {
   AuthDO as DeployedAuthDO,
   GalleryDO as DeployedGalleryDO,
@@ -98,6 +98,8 @@ function sqliteState(queries?: string[]) {
 
 type Harness = GalleryEnv & {
   authDurable: AuthDO;
+  /** The accounts' storage, for an account a route cannot create. */
+  authSql: ReturnType<typeof sqliteState>["storage"]["sql"];
   /** The gallery's own storage, for seeding rows a route cannot create. */
   gallerySql: ReturnType<typeof sqliteState>["storage"]["sql"];
   galleryQueries: string[];
@@ -111,7 +113,8 @@ function environment(): Harness {
   const galleryQueries: string[] = [];
   const galleryState = sqliteState(galleryQueries);
   const durable = new DeployedGalleryDO(galleryState);
-  const authDurable = new DeployedAuthDO(sqliteState(), {
+  const authState = sqliteState();
+  const authDurable = new DeployedAuthDO(authState, {
     RESEND_API_KEY: "rk",
     ADMIN_EMAILS: "owner@example.com",
   } as AuthEnv);
@@ -132,6 +135,7 @@ function environment(): Harness {
       }),
     },
     authDurable,
+    authSql: authState.storage.sql,
     gallerySql: galleryState.storage.sql,
     galleryQueries,
   };
@@ -1095,6 +1099,25 @@ function makerOf(env: Harness): Promise<string> {
   return signIn(env.authDurable, "maker@example.com");
 }
 
+/** One of the Owner's own accounts (OWNER_ACCOUNT_IDS), signed in. */
+async function ownerAccountOf(env: Harness): Promise<string> {
+  const cookie = await signIn(env.authDurable, "zhishuai@example.com");
+  const [user] = env.authSql
+    .exec<{ id: string }>(
+      "SELECT id FROM users WHERE email = ?",
+      "zhishuai@example.com",
+    )
+    .toArray();
+  const owner = OWNER_ACCOUNT_IDS[1]!;
+  env.authSql.exec("UPDATE users SET id = ? WHERE id = ?", owner, user!.id);
+  env.authSql.exec(
+    "UPDATE sessions SET user_id = ? WHERE user_id = ?",
+    owner,
+    user!.id,
+  );
+  return cookie;
+}
+
 /** A browser the Owner switched to an AI account (seat). */
 async function seatOf(env: Harness): Promise<string> {
   const admin = await adminOf(env);
@@ -1206,6 +1229,152 @@ describe("AI account bylines", () => {
     expect(authors("gallery_entry_versions")).toEqual([
       { id: "seat-v1", author: seat.displayName },
     ]);
+  });
+});
+
+describe("the Owner's Data tab (#1446)", () => {
+  it("answers only the Owner's own accounts, with public facts", async () => {
+    const env = environment();
+    const maker = await makerOf(env);
+    const submit = (name: string, ip: string) =>
+      submitOne(env, name, { cookie: maker, ip });
+    const bandgap = await submit("Bandgap", "203.0.113.21");
+    const mirror = await submit("Mirror", "203.0.113.22");
+    const legacy = await submit("Old ring", "203.0.113.23");
+    const spam = await submit("Spam", "203.0.113.24");
+    const stale = await submit("Withdrawn long ago", "203.0.113.25");
+    const ago = (days: number) =>
+      new Date(Date.now() - days * 86_400_000).toISOString();
+    const sql = env.gallerySql;
+    const set = (id: string, assignments: string, ...values: unknown[]) =>
+      sql.exec(
+        `UPDATE gallery_entries SET ${assignments} WHERE id = ?`,
+        ...values,
+        id,
+      );
+    set(
+      bandgap,
+      "ai_generated = 1, netlistable = 1, component_count = 10, component_count_version = 1",
+    );
+    set(
+      mirror,
+      "ai_generated = 0, netlistable = 0, component_count = 4, component_count_version = 1",
+    );
+    set(
+      legacy,
+      "owner_user_id = NULL, author = 'Old hand', ai_generated = 0, netlistable = 1, component_count_version = 0",
+    );
+    set(
+      spam,
+      "status = 'rejected', reject_reason = 'Not a circuit', reviewed_at = ?, reviewed_by = 'moderator-1'",
+      ago(2),
+    );
+    set(stale, "status = 'recycled', recycled_at = ?", ago(40));
+    sql.exec(
+      "INSERT INTO gallery_likes(entry_id, user_id, liked_at) VALUES (?, ?, ?)",
+      bandgap,
+      "someone",
+      ago(1),
+    );
+    const read = async (cookie?: string, query = "") =>
+      route(
+        env,
+        new Request(
+          `${ORIGIN}/api/gallery/owner-data${query}`,
+          cookie ? { headers: cookieHeaders(cookie) } : {},
+        ),
+      );
+    // The read-only credential, an administrator, a member and an AI account
+    // are all refused: the Owner's accounts only.
+    expect(
+      (
+        await route(
+          env,
+          new Request(`${ORIGIN}/api/gallery/owner-data`, {
+            headers: { Authorization: `Bearer ${READER_TOKEN}` },
+          }),
+        )
+      ).status,
+    ).toBe(401);
+    expect((await read(await adminOf(env))).status).toBe(403);
+    expect((await read(maker)).status).toBe(403);
+    expect((await read(await seatOf(env))).status).toBe(403);
+    const owner = await ownerAccountOf(env);
+    const me = (cookie: string) =>
+      env.authDurable
+        .fetch(
+          new Request(`${ORIGIN}/api/auth/me`, { headers: { Cookie: cookie } }),
+        )
+        .then((response) => response.json() as Promise<any>);
+    expect((await me(owner)).user.isOwner).toBe(true);
+    expect((await me(await adminOf(env))).user.isOwner).toBeUndefined();
+
+    const response = await read(owner);
+    expect(response.status).toBe(200);
+    const data = (await response.json()) as any;
+    const [made] = sql
+      .exec<{ author: string; owner_user_id: string; latest: string }>(
+        "SELECT author, owner_user_id, MAX(created_at) AS latest FROM gallery_entries WHERE id IN (?, ?)",
+        bandgap,
+        mirror,
+      )
+      .toArray();
+    expect(data.authors).toEqual([
+      {
+        author: made!.author,
+        key: made!.owner_user_id,
+        circuits: 2,
+        averageParts: 7,
+        ai: 1,
+        withNetlist: 1,
+        likes: 1,
+        latest: made!.latest,
+      },
+      {
+        author: "Old hand",
+        key: "legacy:Old hand",
+        circuits: 1,
+        averageParts: null,
+        ai: 0,
+        withNetlist: 1,
+        likes: 0,
+        latest: expect.any(String),
+      },
+    ]);
+    // A rejected or withdrawn circuit is no public fact: not counted, not
+    // named, and neither is who reviewed it.
+    expect(JSON.stringify(data)).not.toContain("Spam");
+    expect(JSON.stringify(data)).not.toContain("Withdrawn long ago");
+    expect(JSON.stringify(data)).not.toContain("moderator-1");
+    expect(JSON.stringify(data)).not.toContain("@example.com");
+
+    const circuits = async (key: string) =>
+      (
+        (await (
+          await read(owner, `?author=${encodeURIComponent(key)}`)
+        ).json()) as any
+      ).circuits;
+    expect(
+      (await circuits(made!.owner_user_id))
+        .map((item: any) => item.name)
+        .sort(),
+    ).toEqual(["Bandgap", "Mirror"]);
+    expect(
+      (await circuits(made!.owner_user_id)).find(
+        (item: any) => item.id === bandgap,
+      ),
+    ).toEqual({
+      id: bandgap,
+      name: "Bandgap",
+      createdAt: expect.any(String),
+      parts: 10,
+      netlistable: true,
+      aiGenerated: true,
+      likes: 1,
+    });
+    expect(
+      (await circuits("legacy:Old hand")).map((item: any) => item.id),
+    ).toEqual([legacy]);
   });
 });
 

@@ -1901,6 +1901,26 @@ export async function routeGalleryRequest(
   }
   if (
     segments.length === 1 &&
+    segments[0] === "owner-data" &&
+    request.method === "GET"
+  ) {
+    // The Owner's own accounts only, not every administrator (#1446).
+    const user = await sessionUserOf(request, env);
+    if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
+    if (!user.isOwner)
+      return Response.json({ error: "owner-only" }, { status: 403 });
+    const author = url.searchParams.get("author");
+    const { payload } = await callGallery(
+      env,
+      "owner-data",
+      author ? { author } : {},
+    );
+    return Response.json(payload, {
+      headers: { "cache-control": "no-store" },
+    });
+  }
+  if (
+    segments.length === 1 &&
     segments[0] === "rejected" &&
     request.method === "GET"
   ) {

@@ -19,6 +19,8 @@ export interface SessionUser {
   isAdmin: boolean;
   /** An AI account's seat, such as ai-designer-1. */
   seat?: string;
+  /** One of the Owner's own accounts, which open the Data tab (#1446). */
+  isOwner?: boolean;
   /** The Owner who switched this browser to the AI account, and can switch back. */
   switchedFrom?: { displayName: string };
 }

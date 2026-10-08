@@ -229,6 +229,35 @@ describe("AccountMenuView", () => {
     );
   });
 
+  it("shows Data to the Owner's own accounts alone (#1446)", () => {
+    const account = {
+      id: "u1",
+      displayName: "Token Zhang",
+      email: "owner@example.com",
+      provider: "google",
+      role: "user",
+      isAdmin: true,
+    };
+    // Another administrator has no Data tab, and its link opens the circuits.
+    const admin = pageFor(account, "data");
+    expect(admin).not.toContain("account-tab-data");
+    expect(admin).toContain('data-testid="account-panel-circuits"');
+    const owner = pageFor({ ...account, isOwner: true }, "data");
+    const tabs = [
+      'data-testid="account-tab-moderation"',
+      'data-testid="account-tab-data"',
+      'data-testid="account-tab-ai"',
+    ].map((needle) => owner.indexOf(needle));
+    expect(tabs.every((index) => index >= 0)).toBe(true);
+    expect([...tabs].sort((left, right) => left - right)).toEqual(tabs);
+    expect(owner).toContain('data-testid="account-panel-data"');
+    expect(owner).toContain("Loading the Gallery&#x27;s numbers…");
+    // An Owner account that is no administrator still has it.
+    const plain = pageFor({ ...account, isAdmin: false, isOwner: true });
+    expect(plain).toContain("account-tab-data");
+    expect(plain).not.toContain("account-tab-moderation");
+  });
+
   it("keeps deleting the account last, in Settings", () => {
     const markup = pageFor(
       {
