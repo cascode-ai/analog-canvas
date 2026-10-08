@@ -564,12 +564,11 @@ on its label, such as `Φ₁`, to share one clock among several switches; the
 label becomes a display alias by itself. The SPICE netlist then writes the switch
 as `S1 a b PHI1 VSS ideal_switch`, with one `.model ideal_switch SW(…)` card in
 the same Cell. Draw the clock on a Net named `Φ1`, or give the Cell a Pin named
-`Φ1`, and the switch follows it; until then the netlist warns that nothing
-drives that phase. Draw an overbar over the phase, such as `E̅N̅`, for the
-complementary switch: it follows a Net drawn `E̅N̅` (named `EN_bar`) when the
-Cell has one, and otherwise the same clock `EN`, closing while `EN` is low,
-written as `S2 a b EN VSS ideal_switch_bar` with its own
-`.model ideal_switch_bar SW(…)` card (RON and ROFF swapped). **Ctrl SW** takes
+`Φ1`, and the switch follows it. A phase nothing in the Cell drives becomes an
+input of the Cell in its netlist (`.subckt … PHI1`), for the testbench or the
+Cell that uses it to drive. A phase written with an overbar, such as `E̅N̅`, is
+its own signal `EN_bar` on the same plain switch: draw an inverter if `EN_bar`
+comes from `EN` in your circuit, or let the testbench drive both. **Ctrl SW** takes
 its control from its CTRL pin instead.
 Switches are written in SPICE only.
 

@@ -367,23 +367,29 @@ names: a label drawn Φ₁ means phase `Φ1`, written `PHI1` like any Greek name
 A single-ended switch is controlled by its CTRL pin. Both read the control
 against the Cell's ground (`VSS` in a structural netlist, `0` at a deck's top),
 so a Cell holding one states a ground. The phase node is the Net of that name
-in the same Cell, from a Net Label or a Cell Pin. A phase no Net supplies is a
-node of its own, reported as `SWITCH_PHASE_NOT_DRIVEN`. Every such switch
-closes through `ideal_switch`, an `SW` model card (RON 1 Ω, ROFF 1e12 Ω, VT
-0.5 V, VH 0) printed once inside each Cell that uses it. A two-terminal switch
-whose label still shows its own name is clocked by a phase of that name, so a
-freshly placed `S1` prints as `S1 a b S1 VSS ideal_switch` and warns that
-nothing drives `S1`; writing Φ₁ on its label moves it onto that shared clock.
-A phase drawn with an overbar over any of its characters (E̅N̅, Φ̄₁) is first
-the Net drawn the same way: when the Cell has a Net `EN_bar` (a Net Label or
-Cell Pin drawn E̅N̅; `Φ_1_bar` or `Φ1_bar` for Φ̄₁), the switch reads it through
-`ideal_switch`. Otherwise it is
-the complement of the phase written without it: the switch reads the same clock
-node, so one Net or Cell Pin `EN` drives both phases and the same
-`SWITCH_PHASE_NOT_DRIVEN` finding names `EN` until something does, and it
-closes while that clock is low. It closes through `ideal_switch_bar`, the
-same card with RON and ROFF swapped (RON 1e12 Ω, ROFF 1 Ω, VT 0.5 V, VH 0),
-printed only in a Cell that uses it: `S2 a b EN VSS ideal_switch_bar`.
+in the same Cell, from a Net Label or a Cell Pin, named as typed or as a Net
+Label drawn the same way is named (`Φ_1` for Φ₁). Every such switch closes
+through `ideal_switch`, an `SW` model card (RON 1 Ω, ROFF 1e12 Ω, VT 0.5 V,
+VH 0) printed once inside each Cell that uses it. A two-terminal switch whose
+label still shows its own name is clocked by a phase of that name, so a freshly
+placed `S1` prints as `S1 a b S1 VSS ideal_switch`; writing Φ₁ on its label
+moves it onto that shared clock.
+
+A label drawn with an overbar over any of its characters names a signal of its
+own, `_bar` appended, as a Net drawn so is named: E̅N̅ is `EN_bar`, Φ̄₁ is
+`Φ1_bar` (or a Net `Φ_1_bar` drawn so). A bar is a name, never an inverted
+switch: every switch closes through the one `ideal_switch`, and the export adds
+no inverter. Whether `EN_bar` is the complement of `EN` is the author's to
+draw (an inverter from `EN` to `EN_bar`, or the other way) or the
+testbench's to drive, complementary or with dead time (#1475).
+
+A phase that no Net in its Cell supplies is the Cell's input pin when the Cell
+is printed as a subcircuit, after its authored pins and ground:
+`.subckt chopper VSS Vinp Vinn Voutp Voutn EN EN_bar`. The drawing gains no
+Pin. A Cell that calls one passes its own Net of that name, or, with none,
+takes the phase as a pin of its own, up the hierarchy like a clock tree. Only
+at a deck's top, where nothing else can drive it, is it an undriven node,
+reported as `SWITCH_PHASE_NOT_DRIVEN`.
 Spectre writes the same Cell-local four-terminal master as a hard conductance
 `bsource`, with those unchanged defaults and phase/CTRL semantics. It neither
 invents a clock nor smooths a transition. The SPDT selector has no primitive.

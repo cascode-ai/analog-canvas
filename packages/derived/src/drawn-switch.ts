@@ -28,25 +28,22 @@ export function drawnSwitchControl(
 
 /** The clock phase a two-terminal switch's label names. */
 export interface DrawnSwitchPhase {
-  /** The phase's name, without its bar: Φ1 for Φ₁, EN for E̅N̅. */
+  /**
+   * The phase's node: Φ1 for Φ₁, and for a label drawn with an overbar the
+   * signal named with `_bar`, EN_bar for E̅N̅, as a Net drawn so is named. A
+   * bar is a name, never an inverted switch (#1475).
+   */
   readonly name: string;
   /**
-   * Drawn with an overbar: the switch follows the Net drawn the same way when
-   * its Cell has one, and otherwise closes while the phase is low.
+   * The name a Net Label drawn the same way has, where it differs, as
+   * richTextIdentifier spells it: Φ_1 for Φ₁, Φ_1_bar for Φ̄₁.
    */
-  readonly complement: boolean;
-  /**
-   * For a barred label, the name a Net Label drawn the same way has, as
-   * richTextIdentifier spells it: EN_bar for E̅N̅, Φ_1_bar for Φ̄₁.
-   */
-  readonly barredNet?: string;
+  readonly drawnName?: string;
 }
 
 /**
- * The clock phase a switch's label names — Φ1 for a label drawn Φ₁ — or null
- * while the label shows the switch's own name. An overbar over any of its
- * characters names the Net drawn the same way, or, where the Cell has none,
- * the complement of the phase written without it.
+ * The clock phase a switch's label names — Φ1 for a label drawn Φ₁, EN_bar
+ * for E̅N̅ — or null while the label shows the switch's own name.
  */
 export function drawnSwitchPhase(
   document: SchematicDocument,
@@ -63,9 +60,12 @@ export function drawnSwitchPhase(
   if (!label?.content) return null;
   const name = phaseName(label.content);
   if (!name) return null;
-  return barsText(label.content.runs)
-    ? { name, complement: true, barredNet: richTextIdentifier(label.content) }
-    : { name, complement: false };
+  const node = barsText(label.content.runs) ? `${name}_bar` : name;
+  const drawnName = richTextIdentifier(label.content);
+  // A bar over blank text spells no name of its own.
+  return drawnName === node || /\s/u.test(drawnName)
+    ? { name: node }
+    : { name: node, drawnName };
 }
 
 function phaseName(content: RichTextDocument): string {

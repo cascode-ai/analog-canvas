@@ -113,14 +113,8 @@ import {
   idealAnalogBlockCell,
   projectSubcircuitNames,
 } from "./ideal-analog-block-models.js";
-import {
-  IDEAL_SWITCH_BAR_MODEL,
-  IDEAL_SWITCH_MODEL,
-} from "./ideal-switch-model.js";
-export {
-  IDEAL_SWITCH_BAR_MODEL,
-  IDEAL_SWITCH_MODEL,
-} from "./ideal-switch-model.js";
+import { IDEAL_SWITCH_MODEL } from "./ideal-switch-model.js";
+export { IDEAL_SWITCH_MODEL } from "./ideal-switch-model.js";
 
 /** A target with a shared generated recipe: logic, multiplier, converters. */
 function isBehaviouralTarget(target: string): boolean {
@@ -1773,6 +1767,68 @@ function definesGenericModel(
 /** Phase nodes no drawn Net supplies, per Cell: each switch on one is told. */
 const undrivenPhaseNodes = new WeakMap<CellNetContext, Set<string>>();
 
+/**
+ * A clock phase a Cell took as a pin because nothing in it drives the phase
+ * (extractDrawnSwitch) reaches its callers by name, as a clock tree does: each
+ * call passes the caller's Net of that name, or, where it has none, the caller
+ * takes the phase as a pin of its own. At a deck's top nothing else can drive
+ * it, so it is reported there (#1475).
+ */
+function bubblePhasePins(
+  cells: DesignNetlistCell[],
+  documentsById: ReadonlyMap<string, SchematicDocument>,
+  options: ResolvedDesignNetlistAnalysisOptions,
+  diagnostics: NetlistDiagnostic[],
+): void {
+  const cellsById = new Map(cells.map((cell) => [cell.id, cell]));
+  const phaseNetId = (cellId: string, name: string) =>
+    deriveStableId("netlist", "switch-phase", cellId, name);
+  const visited = new Set<string>();
+  const visit = (cell: DesignNetlistCell) => {
+    if (visited.has(cell.id)) return;
+    visited.add(cell.id);
+    const document = documentsById.get(cell.id);
+    const atTop = options.rootAsTopLevel && cell.id === options.rootDocumentId;
+    for (const instance of cell.instances) {
+      const binding = document?.instances.find(
+        (candidate) => candidate.id === instance.id,
+      )?.netlist?.binding;
+      if (binding?.kind !== "subcircuit") continue;
+      const child = cellsById.get(binding.childDocumentId);
+      if (!child) continue;
+      visit(child);
+      for (const port of child.ports) {
+        if (port.id !== phaseNetId(child.id, port.name)) continue;
+        let net = cell.nets.find(
+          (candidate) =>
+            candidate.name.toLowerCase() === port.name.toLowerCase(),
+        );
+        if (!net) {
+          net = {
+            id: phaseNetId(cell.id, port.name),
+            name: port.name,
+            scope: "local",
+          };
+          cell.nets.push(net);
+          if (atTop)
+            diagnostic(
+              diagnostics,
+              cell.id,
+              "SWITCH_PHASE_NOT_DRIVEN",
+              `No Net named ${port.name} in this Cell drives the switch phase ${port.name} of ${instance.reference}: name the clock's Net ${port.name}`,
+              [instance.id],
+              "warning",
+            );
+          else
+            cell.ports.push({ id: net.id, name: port.name, netName: net.name });
+        }
+        instance.nodes.push({ pinName: port.name, netName: net.name });
+      }
+    }
+  };
+  for (const cell of cells) visit(cell);
+}
+
 /** Whether a Symbol is a drawn switch, whose control is read against ground. */
 function isDrawnSwitch(symbolId: string, project?: CircuitProject): boolean {
   const definition = deviceDescriptor(symbolId, project);
@@ -1783,9 +1839,9 @@ function isDrawnSwitch(symbolId: string, project?: CircuitProject): boolean {
  * A drawn switch as the SPICE `S` card it means: its two switched nodes, then
  * its control against the Cell's ground, closing through the ideal switch.
  * A phase names its node the way a Net Label would, so the switch meets the
- * clock drawn on a Net of that name, or a Cell Pin of that name. An
- * overbarred phase meets the Net drawn the same way, or, where the Cell has
- * none, reads the plain phase through the complementary switch.
+ * clock drawn on a Net of that name, or a Cell Pin of that name. A phase
+ * nothing in the Cell drives becomes a pin of a Cell printed as a subcircuit
+ * (see bubblePhasePins), and an undriven node only at a deck's top.
  */
 function extractDrawnSwitch(
   document: SchematicDocument,
@@ -1798,18 +1854,14 @@ function extractDrawnSwitch(
 ): DesignNetlistInstance | null {
   const reference = instance.reference!;
   let controlNode: string | null;
-  let complement = false;
   if (control === "phase") {
     // A switch whose label still shows its own name is clocked by a phase of
     // that name, so a freshly placed switch netlists at once. Writing Φ1 on
-    // the label moves it onto a shared clock. A phase drawn with an overbar
-    // (E̅N̅, Φ̄₁) is the Net drawn so (EN_bar, Φ_1_bar, or Φ1_bar as typed)
-    // when the Cell has one, and otherwise the complement of the phase
-    // without it: the same clock node, through the switch that closes while
-    // that clock is low. Another switch's undriven phase is no such Net.
+    // the label moves it onto a shared clock, and E̅N̅ is the signal EN_bar,
+    // never an inverted switch: a complement is drawn, or the testbench's.
+    // The phase is a Net named as typed, or as a Net Label drawn the same
+    // way is named (Φ_1 for Φ₁).
     const drawnPhase = drawnSwitchPhase(document, instance);
-    const added = undrivenPhaseNodes.get(context) ?? new Set<string>();
-    undrivenPhaseNodes.set(context, added);
     const existingNode = (name: string) => {
       const encoded = encodeCandidate(name, "local", options);
       return (
@@ -1821,14 +1873,11 @@ function extractDrawnSwitch(
           : undefined)
       );
     };
-    const barredNet = drawnPhase?.complement
-      ? [drawnPhase.barredNet, `${drawnPhase.name}_bar`].find((name) => {
-          const node = name === undefined ? undefined : existingNode(name);
-          return node !== undefined && !added.has(node);
-        })
-      : undefined;
-    complement = !barredNet && (drawnPhase?.complement ?? false);
-    const phase = barredNet ?? drawnPhase?.name ?? reference;
+    const phase = drawnPhase
+      ? ([drawnPhase.drawnName, drawnPhase.name].find(
+          (name) => name !== undefined && existingNode(name) !== undefined,
+        ) ?? drawnPhase.name)
+      : reference;
     const encoded = encodeCandidate(phase, "local", options);
     if (!encoded.ok) {
       diagnostic(
@@ -1841,6 +1890,8 @@ function extractDrawnSwitch(
       return null;
     }
     const token = encoded.token;
+    const added = undrivenPhaseNodes.get(context) ?? new Set<string>();
+    undrivenPhaseNodes.set(context, added);
     controlNode = existingNode(phase) ?? null;
     if (!controlNode) {
       controlNode = token;
@@ -1851,7 +1902,13 @@ function extractDrawnSwitch(
         scope: "local",
       });
     }
-    if (added.has(controlNode))
+    // Printed as a subcircuit, the Cell takes the phase as a pin for its
+    // caller or testbench to drive; at a deck's top nothing else can.
+    if (
+      added.has(controlNode) &&
+      options.rootAsTopLevel &&
+      document.id === options.rootDocumentId
+    )
       diagnostic(
         diagnostics,
         document.id,
@@ -1860,7 +1917,7 @@ function extractDrawnSwitch(
         // it one before asking for a Net named after the switch.
         drawnPhase === null
           ? `No Net named ${phase} in this Cell drives switch ${reference}, which is clocked by its own name: write its phase on its label (a display alias such as Φ1) to share one clock, and draw that clock on a Net or Cell Pin of the same name`
-          : `No Net named ${phase} in this Cell drives switch ${reference}: name the clock's Net ${phase}, or add a Cell Pin ${phase}${complement ? `, or draw its complementary clock on a Net ${phase}_bar` : ""}`,
+          : `No Net named ${phase} in this Cell drives switch ${reference}: name the clock's Net ${phase}, or add a Cell Pin ${phase}`,
         [instance.id],
         "warning",
       );
@@ -1886,7 +1943,7 @@ function extractDrawnSwitch(
     reference,
     invocationKind: "primitive",
     deviceClass: "switch",
-    target: (complement ? IDEAL_SWITCH_BAR_MODEL : IDEAL_SWITCH_MODEL).name,
+    target: IDEAL_SWITCH_MODEL.name,
     nodes: [
       ...nodes,
       { pinName: control === "pin" ? "CTRL" : "CP", netName: controlNode },
@@ -3207,14 +3264,14 @@ function extractCell(
     if (extracted) instances.push(extracted);
   }
   const models: DesignNetlistModel[] = [];
-  for (const model of [IDEAL_SWITCH_MODEL, IDEAL_SWITCH_BAR_MODEL])
-    if (
-      instances.some(
-        (instance) =>
-          instance.deviceClass === "switch" && instance.target === model.name,
-      )
+  if (
+    instances.some(
+      (instance) =>
+        instance.deviceClass === "switch" &&
+        instance.target === IDEAL_SWITCH_MODEL.name,
     )
-      models.push(structuredClone(model));
+  )
+    models.push(structuredClone(IDEAL_SWITCH_MODEL));
   // The parts a generic card stands in for, and the Cell then carries it.
   // SPICE only (VACASK prints them from the SPICE cards). A Spectre export
   // still names DIODE, NPN and PNP for the reader's libraries to define.
@@ -3275,6 +3332,13 @@ function extractCell(
       ],
     });
   }
+  // A clock phase nothing here drives is this Cell's pin, after the authored
+  // ones and ground, for its caller or testbench to drive (#1475).
+  if (printedAsSubcircuit)
+    for (const token of undrivenPhaseNodes.get(context) ?? []) {
+      const net = context.nets.find((candidate) => candidate.name === token)!;
+      ports.push({ id: net.id, name: token, netName: token });
+    }
   return {
     id: document.id,
     name:
@@ -3441,6 +3505,7 @@ function analyzeDesign(
       cells.push(cell);
     }
   }
+  bubblePhasePins(cells, documentsById, resolvedOptions, diagnostics);
   // Each kind of drawn magnetic device calls one coupled-winding subcircuit,
   // defined once in the file under the library's name. A Cell or external
   // subcircuit already exporting that name would make the call ambiguous.
