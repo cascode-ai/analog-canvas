@@ -28,9 +28,10 @@ vh#branch                                9e-13
 vl#branch                                9e-13
 vdd#branch                        -1.86435e-11
 
- Reference value :  1.58020e-04
- Reference value :  3.34021e-04
- Reference value :  5.09020e-04
+ Reference value :  1.69951e-04
+ Reference value :  3.47452e-04
+ Reference value :  5.25452e-04
+
 No. of Data Rows : 246299
 low_sin             =  6.94668e-02 from=  2.00000e-04 to=  6.00000e-04
 low_cos             =  -4.63310e-02 from=  2.00000e-04 to=  6.00000e-04

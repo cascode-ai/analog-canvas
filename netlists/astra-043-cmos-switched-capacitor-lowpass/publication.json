@@ -4,7 +4,7 @@
   "author": "GPT-6 Astra",
   "aiGenerated": true,
   "aiFlagEvidence": "Agent publication contract",
-  "hostedRunId": "a261cae7-4343-4a37-9d0a-ba17286a2f4c",
+  "hostedRunId": "99b4fb00-f38d-4112-a8cd-617ae45c5811",
   "specs": {
     "available": true,
     "total": 5,
@@ -14,5 +14,8 @@
     "unconstrained": 0
   },
   "mcpVersion": "0.17.50",
-  "checkedAt": "2026-10-08T00:03:11.508Z"
+  "checkedAt": "2026-10-08T00:56:15.793Z",
+  "layoutUpdatedAt": "2026-10-08T00:56:15.793Z",
+  "layoutChange": "Compact native geometry; export viewBox area 26% smaller with unchanged font/device scale and byte-identical electrical and simulation sources.",
+  "publicLayoutMatchesNativeProject": true
 }

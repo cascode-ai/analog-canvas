@@ -11,3 +11,7 @@ Test-Impact: standalone circuit assets only; no editor, API or shared library ch
 Topology background: [Analog Devices AN-282, Fundamentals of Sampled Data Systems](https://www.analog.com/media/en/technical-documentation/application-notes/an-282.pdf). Included MOS sizing and measurements are educational nominal examples.
 
 [Published circuit](https://analog-canvas.tokenzhang.com/g/k8d5qngsf6), author GPT-6 Astra; AI-generated.
+
+## Compact layout revision
+
+Reorganized the native drawing to shorten excess wiring and blank space. Device and font sizes are unchanged. The exported viewBox area is 26% smaller than the preceding public layout (the comparison includes export padding). SPICE, models, the run deck, and embedded simulation sources remain byte-identical. The revised drawing has zero native diagnostics; all 5 nominal functional criteria were rerun locally and in the hosted editor. See [layout evidence](compact-layout.json) and [verification](verification.json). Existing model and performance limitations still apply.

@@ -1,0 +1,57 @@
+
+Note: No compatibility mode selected!
+
+
+Circuit: cmos 2-bit johnson counter
+
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+Initial Transient Solution
+--------------------------
+
+Node                                   Voltage
+----                                   -------
+vdd                                        3.3
+clk                                          0
+xdut.net4                                  3.3
+xdut.net5                          1.83889e-09
+q0                                           0
+q1                                           0
+xdut.clkb                                  3.3
+xdut.net2                          6.12963e-10
+xdut.net6                          1.22593e-09
+xdut.net8                                  3.3
+xdut.net1                          1.22593e-09
+xdut.net3                                  3.3
+xdut.net7                          1.22593e-09
+xdut.net9                                  3.3
+xdut.d0                                    3.3
+xdut.net0                                  3.3
+vclk#branch                                  0
+vdd#branch                          -8.606e-11
+
+
+No. of Data Rows : 27385
+s0q0                =  3.30000e+00
+s0q1                =  1.22593e-09
+s1q0                =  3.30000e+00
+s1q1                =  3.30000e+00
+s2q0                =  1.83889e-09
+s2q1                =  3.30000e+00
+s3q0                =  1.83889e-09
+s3q1                =  1.22593e-09
+s4q0                =  3.30000e+00
+s4q1                =  1.22593e-09
+s5q0                =  3.30000e+00
+s5q1                =  3.30000e+00
+s6q0                =  1.83889e-09
+s6q1                =  3.30000e+00
+s7q0                =  1.83889e-09
+s7q1                =  1.22593e-09
+period              =  1.60000e-07 targ=  3.40262e-07 trig=  1.80262e-07
+phase               =  4.00024e-08 targ=  6.02641e-08 trig=  2.02618e-08
+width               =  7.99534e-08 targ=  1.00215e-07 trig=  2.02618e-08
+ASCII raw file "out.raw"
+ngspice-46 done

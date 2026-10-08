@@ -1,0 +1,11 @@
+{
+  "name": "CMOS rising-edge pulse generator",
+  "description": "An RC-delayed input controls one inverter; a CMOS NAND and restoring inverter qualify the original input with the inverse delayed state. Eight MOS devices, a 10 kohm / 500 fF delay and 100 fF output load generate a short positive pulse on each rising edge. The saved experiment with a 40 ns clock checks rising pulses, suppression around falling edges, quiet intervals, output width and repetition period. Generic nominal models; RC tolerance, calibrated pulse width, jitter and PVT limits are not qualified.",
+  "tags": [
+    "CMOS",
+    "Edge Detector",
+    "Pulse Generator",
+    "RC Delay",
+    "Clock Timing"
+  ]
+}

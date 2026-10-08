@@ -1,0 +1,14 @@
+
+.subckt astra_048_cmos_rising_edge_pulse_generator vdd VSS inp out
+CD net2 VSS 500f
+CL out VSS 100f
+M1 db net2 vdd vdd APMOS l=1u w=20u
+M2 db net2 VSS VSS ANMOS l=1u w=10u
+M3 net0 inp vdd vdd APMOS l=1u w=20u
+M4 net0 db vdd vdd APMOS l=1u w=20u
+M5 net0 inp net1 VSS ANMOS l=1u w=10u
+M6 net1 db VSS VSS ANMOS l=1u w=10u
+M7 out net0 vdd vdd APMOS l=1u w=20u
+M8 out net0 VSS VSS ANMOS l=1u w=10u
+RD inp net2 10k
+.ends astra_048_cmos_rising_edge_pulse_generator

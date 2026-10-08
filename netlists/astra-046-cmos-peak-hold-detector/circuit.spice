@@ -1,0 +1,17 @@
+
+.subckt astra_046_cmos_peak_hold_detector vdd VSS vin vb reset hold
+CH hold VSS 10p
+M1 net1 vin net2 VSS ANMOS l=1u w=10u
+M10 vin enb hold vdd APMOS l=1u w=20u
+M11 vin en hold VSS ANMOS l=1u w=10u
+M12 hold reset VSS VSS ANMOS l=1u w=40u
+M2 net0 hold net2 VSS ANMOS l=1u w=10u
+M3 net1 net1 vdd vdd APMOS l=1u w=20u
+M4 net0 net1 vdd vdd APMOS l=1u w=20u
+M5 net2 vb VSS VSS ANMOS l=1u w=10u
+M6 enb net0 vdd vdd APMOS l=1u w=4u
+M7 enb net0 VSS VSS ANMOS l=1u w=2u
+M8 en enb vdd vdd APMOS l=1u w=20u
+M9 en enb VSS VSS ANMOS l=1u w=10u
+RL hold VSS 1G
+.ends astra_046_cmos_peak_hold_detector

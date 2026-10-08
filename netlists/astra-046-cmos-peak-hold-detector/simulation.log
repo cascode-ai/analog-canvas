@@ -1,0 +1,38 @@
+
+Note: No compatibility mode selected!
+
+
+Circuit: cmos peak-hold detector
+
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+Initial Transient Solution
+--------------------------
+
+Node                                   Voltage
+----                                   -------
+vdd                                        3.3
+vb                                         0.9
+reset                                      3.3
+vin                                        0.5
+hold                                 0.0921213
+xdut.net1                              2.69995
+xdut.net2                        -1.52505e-134
+xdut.enb                           4.46724e-09
+xdut.en                                    3.3
+xdut.net0                              2.69995
+vin#branch                         -0.00195948
+vr#branch                                    0
+vb#branch                                    0
+vdd#branch                        -1.85102e-11
+
+
+No. of Data Rows : 6182
+peak1               =  1.19997e+00
+keep1               =  1.18915e+00
+peak2               =  1.79993e+00
+keep2               =  1.79126e+00
+ASCII raw file "out.raw"
+ngspice-46 done

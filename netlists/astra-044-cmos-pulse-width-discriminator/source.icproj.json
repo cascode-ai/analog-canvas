@@ -115,12 +115,12 @@
           "type": "pmos",
           "name": "M2",
           "id": "M2",
-          "coordinate": [300, 0],
+          "coordinate": [260, 0],
           "parameters": { "l": "1u", "w": "10u" },
           "labels": [
             {
               "alignment": "start",
-              "anchor": { "fallback": [314, 5], "offset": [14, 5] },
+              "anchor": { "fallback": [274, 5], "offset": [14, 5] },
               "bind": "name",
               "format": {
                 "runs": [
@@ -149,16 +149,16 @@
         {
           "type": "vdd-port",
           "id": "vdd-M2",
-          "coordinate": [310, -50]
+          "coordinate": [270, -50]
         },
         {
           "type": "port",
           "id": "port-iref",
-          "coordinate": [110, 100],
+          "coordinate": [110, 80],
           "rotation": 270,
           "labels": [
             {
-              "anchor": { "fallback": [110, 126], "offset": [0, 26] },
+              "anchor": { "fallback": [110, 106], "offset": [0, 26] },
               "bind": { "kind": "cell-terminal-name", "terminalId": "terminal-iref" },
               "id": "port-label-iref",
               "kind": "net-label",
@@ -171,12 +171,12 @@
           "type": "pmos",
           "name": "M3",
           "id": "M3",
-          "coordinate": [300, 80],
+          "coordinate": [260, 80],
           "parameters": { "l": "1u", "w": "40u" },
           "labels": [
             {
               "alignment": "start",
-              "anchor": { "fallback": [314, 85], "offset": [14, 5] },
+              "anchor": { "fallback": [274, 85], "offset": [14, 5] },
               "bind": "name",
               "format": {
                 "runs": [
@@ -201,12 +201,12 @@
           "type": "nmos",
           "name": "M4",
           "id": "M4",
-          "coordinate": [300, 240],
+          "coordinate": [260, 220],
           "parameters": { "l": "1u", "w": "40u" },
           "labels": [
             {
               "alignment": "start",
-              "anchor": { "fallback": [315, 245], "offset": [15, 5] },
+              "anchor": { "fallback": [275, 225], "offset": [15, 5] },
               "bind": "name",
               "format": {
                 "runs": [
@@ -230,18 +230,18 @@
         {
           "type": "ground",
           "id": "gnd18",
-          "coordinate": [310, 280]
+          "coordinate": [270, 260]
         },
         {
           "type": "pmos",
           "name": "M5",
           "id": "M5",
-          "coordinate": [120, 240],
+          "coordinate": [120, 220],
           "parameters": { "l": "1u", "w": "20u" },
           "labels": [
             {
               "alignment": "start",
-              "anchor": { "fallback": [134, 245], "offset": [14, 5] },
+              "anchor": { "fallback": [134, 225], "offset": [14, 5] },
               "bind": "name",
               "format": {
                 "runs": [
@@ -266,12 +266,12 @@
           "type": "nmos",
           "name": "M6",
           "id": "M6",
-          "coordinate": [120, 320],
+          "coordinate": [120, 300],
           "parameters": { "l": "1u", "w": "10u" },
           "labels": [
             {
               "alignment": "start",
-              "anchor": { "fallback": [135, 325], "offset": [15, 5] },
+              "anchor": { "fallback": [135, 305], "offset": [15, 5] },
               "bind": "name",
               "format": {
                 "runs": [
@@ -295,21 +295,21 @@
         {
           "type": "vdd-port",
           "id": "vdd-M5",
-          "coordinate": [130, 190]
+          "coordinate": [130, 170]
         },
         {
           "type": "ground",
           "id": "gnd28",
-          "coordinate": [130, 360]
+          "coordinate": [130, 340]
         },
         {
           "type": "port",
           "id": "port-inp",
-          "coordinate": [80, 280],
+          "coordinate": [80, 260],
           "labels": [
             {
               "alignment": "end",
-              "anchor": { "fallback": [66, 284], "offset": [-14, 4] },
+              "anchor": { "fallback": [66, 264], "offset": [-14, 4] },
               "bind": { "kind": "cell-terminal-name", "terminalId": "terminal-inp" },
               "id": "port-label-inp",
               "kind": "net-label",
@@ -322,12 +322,12 @@
           "type": "capacitor",
           "name": "CT",
           "id": "CT",
-          "coordinate": [400, 250],
+          "coordinate": [350, 220],
           "parameters": { "value": "1p" },
           "labels": [
             {
               "alignment": "start",
-              "anchor": { "fallback": [412, 255], "offset": [12, 5] },
+              "anchor": { "fallback": [362, 225], "offset": [12, 5] },
               "bind": "name",
               "format": {
                 "runs": [
@@ -347,7 +347,7 @@
             },
             {
               "alignment": "start",
-              "anchor": { "fallback": [412, 275], "offset": [12, 25] },
+              "anchor": { "fallback": [362, 245], "offset": [12, 25] },
               "bind": "value",
               "id": "CT-value",
               "kind": "instance-value",
@@ -358,19 +358,19 @@
         {
           "type": "ground",
           "id": "gnd44",
-          "coordinate": [400, 290]
+          "coordinate": [350, 260]
         },
         {
           "type": "resistor",
           "name": "RL",
           "id": "RL",
-          "coordinate": [490, 250],
+          "coordinate": [440, 220],
           "parameters": { "value": "1G" },
           "target": { "deviceClass": "resistor", "kind": "primitive" },
           "labels": [
             {
               "alignment": "start",
-              "anchor": { "fallback": [499, 255], "offset": [9, 5] },
+              "anchor": { "fallback": [449, 225], "offset": [9, 5] },
               "bind": "name",
               "format": {
                 "runs": [
@@ -390,7 +390,7 @@
             },
             {
               "alignment": "start",
-              "anchor": { "fallback": [499, 275], "offset": [9, 25] },
+              "anchor": { "fallback": [449, 245], "offset": [9, 25] },
               "bind": "value",
               "id": "RL-value",
               "kind": "instance-value",
@@ -401,19 +401,19 @@
         {
           "type": "ground",
           "id": "gnd46",
-          "coordinate": [490, 290]
+          "coordinate": [440, 260]
         },
         {
           "type": "pmos",
           "name": "M9",
           "id": "M9",
-          "coordinate": [560, 0],
+          "coordinate": [520, 0],
           "mirror": "horizontal",
           "parameters": { "l": "1u", "w": "20u" },
           "labels": [
             {
               "alignment": "end",
-              "anchor": { "fallback": [546, 5], "offset": [-14, 5] },
+              "anchor": { "fallback": [506, 5], "offset": [-14, 5] },
               "bind": "name",
               "format": {
                 "runs": [
@@ -438,12 +438,12 @@
           "type": "pmos",
           "name": "M10",
           "id": "M10",
-          "coordinate": [680, 0],
+          "coordinate": [640, 0],
           "parameters": { "l": "1u", "w": "20u" },
           "labels": [
             {
               "alignment": "start",
-              "anchor": { "fallback": [694, 5], "offset": [14, 5] },
+              "anchor": { "fallback": [654, 5], "offset": [14, 5] },
               "bind": "name",
               "format": {
                 "runs": [
@@ -467,23 +467,23 @@
         {
           "type": "vdd-port",
           "id": "vdd-M9",
-          "coordinate": [550, -50]
+          "coordinate": [510, -50]
         },
         {
           "type": "vdd-port",
           "id": "vdd-M10",
-          "coordinate": [690, -50]
+          "coordinate": [650, -50]
         },
         {
           "type": "nmos",
           "name": "M7",
           "id": "M7",
-          "coordinate": [540, 160],
+          "coordinate": [500, 140],
           "parameters": { "l": "1u", "w": "10u" },
           "labels": [
             {
               "alignment": "start",
-              "anchor": { "fallback": [555, 165], "offset": [15, 5] },
+              "anchor": { "fallback": [515, 145], "offset": [15, 5] },
               "bind": "name",
               "format": {
                 "runs": [
@@ -508,12 +508,12 @@
           "type": "nmos",
           "name": "M8",
           "id": "M8",
-          "coordinate": [680, 160],
+          "coordinate": [640, 140],
           "parameters": { "l": "1u", "w": "10u" },
           "labels": [
             {
               "alignment": "start",
-              "anchor": { "fallback": [695, 165], "offset": [15, 5] },
+              "anchor": { "fallback": [655, 145], "offset": [15, 5] },
               "bind": "name",
               "format": {
                 "runs": [
@@ -538,12 +538,12 @@
           "type": "nmos",
           "name": "M11",
           "id": "M11",
-          "coordinate": [620, 290],
+          "coordinate": [580, 250],
           "parameters": { "l": "1u", "w": "4u" },
           "labels": [
             {
               "alignment": "start",
-              "anchor": { "fallback": [635, 295], "offset": [15, 5] },
+              "anchor": { "fallback": [595, 255], "offset": [15, 5] },
               "bind": "name",
               "format": {
                 "runs": [
@@ -567,16 +567,16 @@
         {
           "type": "ground",
           "id": "gnd58",
-          "coordinate": [630, 330]
+          "coordinate": [590, 290]
         },
         {
           "type": "port",
           "id": "port-vref",
-          "coordinate": [650, 160],
+          "coordinate": [610, 140],
           "labels": [
             {
               "alignment": "end",
-              "anchor": { "fallback": [636, 164], "offset": [-14, 4] },
+              "anchor": { "fallback": [596, 144], "offset": [-14, 4] },
               "bind": { "kind": "cell-terminal-name", "terminalId": "terminal-vref" },
               "id": "port-label-vref",
               "kind": "net-label",
@@ -588,11 +588,11 @@
         {
           "type": "port",
           "id": "port-vb",
-          "coordinate": [590, 290],
+          "coordinate": [550, 250],
           "labels": [
             {
               "alignment": "end",
-              "anchor": { "fallback": [576, 294], "offset": [-14, 4] },
+              "anchor": { "fallback": [536, 254], "offset": [-14, 4] },
               "bind": { "kind": "cell-terminal-name", "terminalId": "terminal-vb" },
               "id": "port-label-vb",
               "kind": "net-label",
@@ -605,12 +605,12 @@
           "type": "pmos",
           "name": "M12",
           "id": "M12",
-          "coordinate": [820, 60],
+          "coordinate": [720, 40],
           "parameters": { "l": "1u", "w": "20u" },
           "labels": [
             {
               "alignment": "start",
-              "anchor": { "fallback": [834, 65], "offset": [14, 5] },
+              "anchor": { "fallback": [734, 45], "offset": [14, 5] },
               "bind": "name",
               "format": {
                 "runs": [
@@ -635,12 +635,12 @@
           "type": "nmos",
           "name": "M13",
           "id": "M13",
-          "coordinate": [820, 140],
+          "coordinate": [720, 120],
           "parameters": { "l": "1u", "w": "10u" },
           "labels": [
             {
               "alignment": "start",
-              "anchor": { "fallback": [835, 145], "offset": [15, 5] },
+              "anchor": { "fallback": [735, 125], "offset": [15, 5] },
               "bind": "name",
               "format": {
                 "runs": [
@@ -664,23 +664,23 @@
         {
           "type": "vdd-port",
           "id": "vdd-M12",
-          "coordinate": [830, 10]
+          "coordinate": [730, -10]
         },
         {
           "type": "ground",
-          "id": "gnd85",
-          "coordinate": [830, 180]
+          "id": "gnd89",
+          "coordinate": [730, 160]
         },
         {
           "type": "pmos",
           "name": "M14",
           "id": "M14",
-          "coordinate": [850, 260],
+          "coordinate": [750, 240],
           "parameters": { "l": "1u", "w": "20u" },
           "labels": [
             {
               "alignment": "start",
-              "anchor": { "fallback": [864, 265], "offset": [14, 5] },
+              "anchor": { "fallback": [764, 245], "offset": [14, 5] },
               "bind": "name",
               "format": {
                 "runs": [
@@ -705,12 +705,12 @@
           "type": "pmos",
           "name": "M15",
           "id": "M15",
-          "coordinate": [850, 320],
+          "coordinate": [750, 300],
           "parameters": { "l": "1u", "w": "20u" },
           "labels": [
             {
               "alignment": "start",
-              "anchor": { "fallback": [864, 325], "offset": [14, 5] },
+              "anchor": { "fallback": [764, 305], "offset": [14, 5] },
               "bind": "name",
               "format": {
                 "runs": [
@@ -734,18 +734,18 @@
         {
           "type": "vdd-port",
           "id": "vdd-M14",
-          "coordinate": [860, 210]
+          "coordinate": [760, 190]
         },
         {
           "type": "nmos",
           "name": "M16",
           "id": "M16",
-          "coordinate": [790, 460],
+          "coordinate": [690, 420],
           "parameters": { "l": "1u", "w": "10u" },
           "labels": [
             {
               "alignment": "start",
-              "anchor": { "fallback": [805, 465], "offset": [15, 5] },
+              "anchor": { "fallback": [705, 425], "offset": [15, 5] },
               "bind": "name",
               "format": {
                 "runs": [
@@ -770,12 +770,12 @@
           "type": "nmos",
           "name": "M17",
           "id": "M17",
-          "coordinate": [910, 460],
+          "coordinate": [810, 420],
           "parameters": { "l": "1u", "w": "10u" },
           "labels": [
             {
               "alignment": "start",
-              "anchor": { "fallback": [925, 465], "offset": [15, 5] },
+              "anchor": { "fallback": [825, 425], "offset": [15, 5] },
               "bind": "name",
               "format": {
                 "runs": [
@@ -798,24 +798,24 @@
         },
         {
           "type": "ground",
-          "id": "gnd103",
-          "coordinate": [800, 500]
+          "id": "gnd107",
+          "coordinate": [700, 460]
         },
         {
           "type": "ground",
-          "id": "gnd105",
-          "coordinate": [920, 500]
+          "id": "gnd109",
+          "coordinate": [820, 460]
         },
         {
           "type": "capacitor",
           "name": "CL",
           "id": "CL",
-          "coordinate": [1000, 470],
+          "coordinate": [890, 410],
           "parameters": { "value": "200f" },
           "labels": [
             {
               "alignment": "start",
-              "anchor": { "fallback": [1012, 475], "offset": [12, 5] },
+              "anchor": { "fallback": [902, 415], "offset": [12, 5] },
               "bind": "name",
               "format": {
                 "runs": [
@@ -835,7 +835,7 @@
             },
             {
               "alignment": "start",
-              "anchor": { "fallback": [1012, 495], "offset": [12, 25] },
+              "anchor": { "fallback": [902, 435], "offset": [12, 25] },
               "bind": "value",
               "id": "CL-value",
               "kind": "instance-value",
@@ -845,18 +845,18 @@
         },
         {
           "type": "ground",
-          "id": "gnd128",
-          "coordinate": [1000, 510]
+          "id": "gnd132",
+          "coordinate": [890, 450]
         },
         {
           "type": "port",
           "id": "port-out",
-          "coordinate": [1020, 380],
+          "coordinate": [910, 360],
           "mirror": "horizontal",
           "labels": [
             {
               "alignment": "start",
-              "anchor": { "fallback": [1034, 384], "offset": [14, 4] },
+              "anchor": { "fallback": [924, 364], "offset": [14, 4] },
               "bind": { "kind": "cell-terminal-name", "terminalId": "terminal-out" },
               "id": "port-label-out",
               "kind": "net-label",
@@ -1144,184 +1144,196 @@
           "start": { "junction": "j74" }
         },
         {
-          "end": { "terminal": ["M7", "G"] },
-          "id": "wire80",
-          "legId": "route-leg-98669065b06c32b9",
+          "end": { "junction": "j80" },
+          "id": "wire81",
+          "legId": "route-leg-8069b26f32a237ba",
           "start": { "junction": "j50" }
         },
         {
+          "end": { "junction": "j82" },
+          "id": "wire83",
+          "legId": "route-leg-6e5b82531d4966ac",
+          "start": { "junction": "j80" }
+        },
+        {
+          "end": { "terminal": ["M7", "G"] },
+          "id": "wire84",
+          "legId": "route-leg-3e1960577be4a4d5",
+          "start": { "junction": "j82" }
+        },
+        {
           "end": { "terminal": ["port-vref", "P"] },
-          "id": "wire81",
-          "legId": "route-leg-8069b26f32a237ba",
+          "id": "wire85",
+          "legId": "route-leg-20c8eab733d7ddf6",
           "start": { "terminal": ["M8", "G"] }
         },
         {
           "end": { "terminal": ["port-vb", "P"] },
-          "id": "wire82",
-          "legId": "route-leg-b03af08d867ba51b",
+          "id": "wire86",
+          "legId": "route-leg-55edc07f51f41737",
           "start": { "terminal": ["M11", "G"] }
         },
         {
           "end": { "terminal": ["M12", "S"] },
-          "id": "wire83",
-          "legId": "route-leg-6e5b82531d4966ac",
+          "id": "wire87",
+          "legId": "route-leg-689552475c92c558",
           "start": { "terminal": ["vdd-M12", "P"] }
         },
         {
-          "end": { "terminal": ["gnd85", "0"] },
-          "id": "wire86",
-          "legId": "route-leg-55edc07f51f41737",
-          "start": { "terminal": ["M13", "S"] }
-        },
-        {
-          "end": { "junction": "j87" },
-          "id": "wire88",
-          "legId": "route-leg-1cf698a1533261a1",
-          "start": { "terminal": ["M12", "G"] }
-        },
-        {
-          "end": { "junction": "j89" },
+          "end": { "terminal": ["gnd89", "0"] },
           "id": "wire90",
           "legId": "route-leg-cfb36361a14e3d1c",
-          "start": { "junction": "j87" }
+          "start": { "terminal": ["M13", "S"] }
         },
         {
           "end": { "junction": "j91" },
           "id": "wire92",
           "legId": "route-leg-e1c1937db6a70e2a",
-          "start": { "junction": "j89" }
+          "start": { "terminal": ["M12", "G"] }
         },
         {
-          "end": { "terminal": ["M13", "G"] },
-          "id": "wire93",
-          "legId": "route-leg-a500f171c071b3a9",
+          "end": { "junction": "j93" },
+          "id": "wire94",
+          "legId": "route-leg-c9ed3355e0979bc8",
           "start": { "junction": "j91" }
         },
         {
-          "end": { "junction": "j94" },
-          "id": "wire95",
-          "legId": "route-leg-b745a18dd5f8eda7",
+          "end": { "junction": "j95" },
+          "id": "wire96",
+          "legId": "route-leg-85c1436f80adb566",
+          "start": { "junction": "j93" }
+        },
+        {
+          "end": { "terminal": ["M13", "G"] },
+          "id": "wire97",
+          "legId": "route-leg-9dbe4165fe77e6c5",
+          "start": { "junction": "j95" }
+        },
+        {
+          "end": { "junction": "j98" },
+          "id": "wire99",
+          "legId": "route-leg-5b0ed17f9fd12bf3",
           "start": { "terminal": ["M12", "D"] }
         },
         {
           "end": { "terminal": ["M13", "D"] },
-          "id": "wire96",
-          "legId": "route-leg-85c1436f80adb566",
-          "start": { "junction": "j94" }
-        },
-        {
-          "end": { "junction": "j97" },
-          "id": "wire98",
-          "legId": "route-leg-68990b9de05b0a64",
-          "start": { "junction": "j94" }
-        },
-        {
-          "end": { "junction": "j89" },
           "id": "wire100",
           "legId": "route-leg-8b00162852a030a5",
+          "start": { "junction": "j98" }
+        },
+        {
+          "end": { "junction": "j101" },
+          "id": "wire102",
+          "legId": "route-leg-a2d4765028afa307",
+          "start": { "junction": "j98" }
+        },
+        {
+          "end": { "junction": "j93" },
+          "id": "wire104",
+          "legId": "route-leg-eaa13de0516b2d89",
           "start": { "junction": "j69" }
         },
         {
           "end": { "terminal": ["M14", "S"] },
-          "id": "wire101",
-          "legId": "route-leg-c7c1183448d62e46",
+          "id": "wire105",
+          "legId": "route-leg-cd506840095dc38a",
           "start": { "terminal": ["vdd-M14", "P"] }
         },
         {
-          "end": { "terminal": ["gnd103", "0"] },
-          "id": "wire104",
-          "legId": "route-leg-eaa13de0516b2d89",
+          "end": { "terminal": ["gnd107", "0"] },
+          "id": "wire108",
+          "legId": "route-leg-644e1e6669668e8d",
           "start": { "terminal": ["M16", "S"] }
         },
         {
-          "end": { "terminal": ["gnd105", "0"] },
-          "id": "wire106",
-          "legId": "route-leg-02759e08277a9feb",
+          "end": { "terminal": ["gnd109", "0"] },
+          "id": "wire110",
+          "legId": "route-leg-bf6253e80f9df618",
           "start": { "terminal": ["M17", "S"] }
         },
         {
           "end": { "terminal": ["M15", "S"] },
-          "id": "wire107",
-          "legId": "route-leg-0fffb826680447fc",
+          "id": "wire111",
+          "legId": "route-leg-b20eb9c9cf42b6f7",
           "start": { "terminal": ["M14", "D"] }
         },
         {
-          "end": { "junction": "j108" },
-          "id": "wire109",
-          "legId": "route-leg-60a7407087e3d50e",
+          "end": { "junction": "j112" },
+          "id": "wire113",
+          "legId": "route-leg-94e661f82eefd595",
           "start": { "terminal": ["M15", "D"] }
         },
         {
-          "end": { "junction": "j110" },
-          "id": "wire111",
-          "legId": "route-leg-b20eb9c9cf42b6f7",
-          "start": { "junction": "j108" }
+          "end": { "junction": "j114" },
+          "id": "wire115",
+          "legId": "route-leg-0c5be9d803ca44db",
+          "start": { "junction": "j112" }
         },
         {
           "end": { "terminal": ["M16", "D"] },
-          "id": "wire112",
-          "legId": "route-leg-7ce9e401b1267db6",
-          "start": { "junction": "j110" }
+          "id": "wire116",
+          "legId": "route-leg-d736b40fe5ad687a",
+          "start": { "junction": "j114" }
         },
         {
-          "end": { "junction": "j113" },
-          "id": "wire114",
-          "legId": "route-leg-ca7c7b9d9a98066c",
-          "start": { "junction": "j108" }
+          "end": { "junction": "j117" },
+          "id": "wire118",
+          "legId": "route-leg-58485c244eab6680",
+          "start": { "junction": "j112" }
         },
         {
           "end": { "terminal": ["M17", "D"] },
-          "id": "wire115",
-          "legId": "route-leg-0c5be9d803ca44db",
-          "start": { "junction": "j113" }
+          "id": "wire119",
+          "legId": "route-leg-4af4c2060e50275f",
+          "start": { "junction": "j117" }
         },
         {
-          "end": { "junction": "j116" },
-          "id": "wire117",
-          "legId": "route-leg-f48789b02dbad279",
+          "end": { "junction": "j120" },
+          "id": "wire121",
+          "legId": "route-leg-2bd45cac1e9cdcdc",
           "start": { "terminal": ["M14", "G"] }
         },
         {
-          "end": { "junction": "j119" },
-          "id": "wire120",
-          "legId": "route-leg-18f5cae413ceec4b",
+          "end": { "junction": "j123" },
+          "id": "wire124",
+          "legId": "route-leg-13669ad853478d67",
           "start": { "terminal": ["M15", "G"] }
         },
         {
-          "end": { "junction": "j122" },
-          "id": "wire123",
-          "legId": "route-leg-388e951e69b23eea",
+          "end": { "junction": "j126" },
+          "id": "wire127",
+          "legId": "route-leg-dc8e451033b8e626",
           "start": { "terminal": ["M16", "G"] }
         },
         {
-          "end": { "junction": "j125" },
-          "id": "wire126",
-          "legId": "route-leg-f48b4306b1831785",
+          "end": { "junction": "j129" },
+          "id": "wire130",
+          "legId": "route-leg-fb49567ca454062e",
           "start": { "terminal": ["M17", "G"] }
         },
         {
-          "end": { "terminal": ["gnd128", "0"] },
-          "id": "wire129",
-          "legId": "route-leg-c4ba04e85da9aa24",
+          "end": { "terminal": ["gnd132", "0"] },
+          "id": "wire133",
+          "legId": "route-leg-2b1a949af82d738f",
           "start": { "terminal": ["CL", "2"] }
         },
         {
-          "end": { "junction": "j130" },
-          "id": "wire131",
-          "legId": "route-leg-fd3d347284652b2d",
-          "start": { "junction": "j113" }
+          "end": { "junction": "j134" },
+          "id": "wire135",
+          "legId": "route-leg-5e915c2a84a1bc91",
+          "start": { "junction": "j117" }
         },
         {
           "end": { "terminal": ["CL", "1"] },
-          "id": "wire132",
-          "legId": "route-leg-3dc2266302cc21b0",
-          "start": { "junction": "j130" }
+          "id": "wire136",
+          "legId": "route-leg-4387f66ec3821fe4",
+          "start": { "junction": "j134" }
         },
         {
           "end": { "terminal": ["port-out", "P"] },
-          "id": "wire133",
-          "legId": "route-leg-2b1a949af82d738f",
-          "start": { "junction": "j130" }
+          "id": "wire137",
+          "legId": "route-leg-35fdbc5082f84173",
+          "start": { "junction": "j134" }
         }
       ],
       "connections": {
@@ -1379,10 +1391,10 @@
           ],
           [
             {
-              "junction": "j119"
+              "junction": "j123"
             },
             {
-              "junction": "j125"
+              "junction": "j129"
             },
             {
               "junction": "j20"
@@ -1402,10 +1414,10 @@
               "terminal": ["CT", "2"]
             },
             {
-              "terminal": ["gnd103", "0"]
+              "terminal": ["gnd107", "0"]
             },
             {
-              "terminal": ["gnd105", "0"]
+              "terminal": ["gnd109", "0"]
             },
             {
               "terminal": ["gnd18", "0"]
@@ -1420,7 +1432,7 @@
               "terminal": ["gnd58", "0"]
             },
             {
-              "terminal": ["gnd85", "0"]
+              "terminal": ["gnd89", "0"]
             },
             {
               "terminal": ["M11", "B"]
@@ -1449,13 +1461,13 @@
           ],
           [
             {
-              "junction": "j116"
+              "junction": "j101"
             },
             {
-              "junction": "j122"
+              "junction": "j120"
             },
             {
-              "junction": "j94"
+              "junction": "j126"
             }
           ]
         ]
@@ -1528,132 +1540,140 @@
           "id": "j5"
         },
         {
-          "coordinate": [220, 60],
+          "coordinate": [200, 60],
           "id": "j7"
         },
         {
-          "coordinate": [220, 0],
+          "coordinate": [200, 0],
           "id": "j9"
         },
         {
-          "coordinate": [310, 160],
+          "coordinate": [270, 160],
           "id": "j15"
         },
         {
-          "coordinate": [270, 80],
+          "coordinate": [230, 80],
           "id": "j20"
         },
         {
-          "coordinate": [270, 240],
+          "coordinate": [230, 220],
           "id": "j23"
         },
         {
-          "coordinate": [90, 240],
+          "coordinate": [90, 220],
           "id": "j30"
         },
         {
-          "coordinate": [90, 280],
+          "coordinate": [90, 260],
           "id": "j32"
         },
         {
-          "coordinate": [90, 320],
+          "coordinate": [90, 300],
           "id": "j34"
         },
         {
-          "coordinate": [130, 280],
+          "coordinate": [130, 260],
           "id": "j37"
         },
         {
-          "coordinate": [150, 280],
+          "coordinate": [150, 260],
           "id": "j41"
         },
         {
-          "coordinate": [400, 160],
+          "coordinate": [350, 160],
           "id": "j48"
         },
         {
-          "coordinate": [490, 160],
+          "coordinate": [440, 160],
           "id": "j50"
         },
         {
-          "coordinate": [550, 60],
+          "coordinate": [510, 60],
           "id": "j60"
         },
         {
-          "coordinate": [620, 60],
+          "coordinate": [580, 60],
           "id": "j63"
         },
         {
-          "coordinate": [620, 0],
+          "coordinate": [580, 0],
           "id": "j65"
         },
         {
-          "coordinate": [690, 100],
+          "coordinate": [650, 80],
           "id": "j69"
         },
         {
-          "coordinate": [550, 220],
+          "coordinate": [510, 200],
           "id": "j72"
         },
         {
-          "coordinate": [630, 220],
+          "coordinate": [590, 200],
           "id": "j74"
         },
         {
-          "coordinate": [690, 220],
+          "coordinate": [650, 200],
           "id": "j76"
         },
         {
-          "coordinate": [790, 60],
-          "id": "j87"
+          "coordinate": [470, 160],
+          "id": "j80"
         },
         {
-          "coordinate": [790, 100],
-          "id": "j89"
+          "coordinate": [470, 140],
+          "id": "j82"
         },
         {
-          "coordinate": [790, 140],
+          "coordinate": [690, 40],
           "id": "j91"
         },
         {
-          "coordinate": [830, 100],
-          "id": "j94"
+          "coordinate": [690, 80],
+          "id": "j93"
         },
         {
-          "coordinate": [850, 100],
-          "id": "j97"
+          "coordinate": [690, 120],
+          "id": "j95"
         },
         {
-          "coordinate": [860, 380],
-          "id": "j108"
+          "coordinate": [730, 80],
+          "id": "j98"
         },
         {
-          "coordinate": [800, 380],
-          "id": "j110"
+          "coordinate": [750, 80],
+          "id": "j101"
         },
         {
-          "coordinate": [920, 380],
-          "id": "j113"
+          "coordinate": [760, 360],
+          "id": "j112"
         },
         {
-          "coordinate": [820, 260],
-          "id": "j116"
+          "coordinate": [700, 360],
+          "id": "j114"
         },
         {
-          "coordinate": [820, 320],
-          "id": "j119"
+          "coordinate": [820, 360],
+          "id": "j117"
         },
         {
-          "coordinate": [760, 460],
-          "id": "j122"
+          "coordinate": [720, 240],
+          "id": "j120"
         },
         {
-          "coordinate": [880, 460],
-          "id": "j125"
+          "coordinate": [720, 300],
+          "id": "j123"
         },
         {
-          "coordinate": [1000, 380],
-          "id": "j130"
+          "coordinate": [660, 420],
+          "id": "j126"
+        },
+        {
+          "coordinate": [780, 420],
+          "id": "j129"
+        },
+        {
+          "coordinate": [890, 360],
+          "id": "j134"
         }
       ],
       "annotations": [
@@ -1683,7 +1703,7 @@
         {
           "anchor": {
             "kind": "free",
-            "position": { "x": 310, "y": -60 }
+            "position": { "x": 270, "y": -60 }
           },
           "bind": { "kind": "net-name", "netId": "net-vdd" },
           "format": {
@@ -1707,7 +1727,7 @@
           "alignment": "end",
           "anchor": {
             "kind": "free",
-            "position": { "x": 260, "y": 84 }
+            "position": { "x": 220, "y": 84 }
           },
           "bind": { "kind": "net-name", "netId": "net-inb" },
           "id": "name-22",
@@ -1719,7 +1739,7 @@
           "alignment": "end",
           "anchor": {
             "kind": "free",
-            "position": { "x": 260, "y": 244 }
+            "position": { "x": 220, "y": 224 }
           },
           "bind": { "kind": "net-name", "netId": "net-inb" },
           "id": "name-25",
@@ -1730,7 +1750,7 @@
         {
           "anchor": {
             "kind": "free",
-            "position": { "x": 130, "y": 180 }
+            "position": { "x": 130, "y": 160 }
           },
           "bind": { "kind": "net-name", "netId": "net-vdd" },
           "format": {
@@ -1754,7 +1774,7 @@
           "alignment": "start",
           "anchor": {
             "kind": "free",
-            "position": { "x": 160, "y": 284 }
+            "position": { "x": 160, "y": 264 }
           },
           "bind": { "kind": "net-name", "netId": "net-inb" },
           "id": "name-43",
@@ -1765,7 +1785,7 @@
         {
           "anchor": {
             "kind": "free",
-            "position": { "x": 550, "y": -60 }
+            "position": { "x": 510, "y": -60 }
           },
           "bind": { "kind": "net-name", "netId": "net-vdd" },
           "format": {
@@ -1788,7 +1808,7 @@
         {
           "anchor": {
             "kind": "free",
-            "position": { "x": 690, "y": -60 }
+            "position": { "x": 650, "y": -60 }
           },
           "bind": { "kind": "net-name", "netId": "net-vdd" },
           "format": {
@@ -1811,7 +1831,7 @@
         {
           "anchor": {
             "kind": "free",
-            "position": { "x": 830, "y": 0 }
+            "position": { "x": 730, "y": -20 }
           },
           "bind": { "kind": "net-name", "netId": "net-vdd" },
           "format": {
@@ -1826,7 +1846,7 @@
               }
             ]
           },
-          "id": "name-84",
+          "id": "name-88",
           "kind": "power-label",
           "netId": "net-vdd",
           "order": 29
@@ -1835,10 +1855,10 @@
           "alignment": "start",
           "anchor": {
             "kind": "free",
-            "position": { "x": 860, "y": 104 }
+            "position": { "x": 760, "y": 84 }
           },
           "bind": { "kind": "net-name", "netId": "net-below" },
-          "id": "name-99",
+          "id": "name-103",
           "kind": "net-label",
           "netId": "net-below",
           "order": 30
@@ -1846,7 +1866,7 @@
         {
           "anchor": {
             "kind": "free",
-            "position": { "x": 860, "y": 200 }
+            "position": { "x": 760, "y": 180 }
           },
           "bind": { "kind": "net-name", "netId": "net-vdd" },
           "format": {
@@ -1861,7 +1881,7 @@
               }
             ]
           },
-          "id": "name-102",
+          "id": "name-106",
           "kind": "power-label",
           "netId": "net-vdd",
           "order": 33
@@ -1870,10 +1890,10 @@
           "alignment": "end",
           "anchor": {
             "kind": "free",
-            "position": { "x": 810, "y": 264 }
+            "position": { "x": 710, "y": 244 }
           },
           "bind": { "kind": "net-name", "netId": "net-below" },
-          "id": "name-118",
+          "id": "name-122",
           "kind": "net-label",
           "netId": "net-below",
           "order": 36
@@ -1882,10 +1902,10 @@
           "alignment": "end",
           "anchor": {
             "kind": "free",
-            "position": { "x": 810, "y": 324 }
+            "position": { "x": 710, "y": 304 }
           },
           "bind": { "kind": "net-name", "netId": "net-inb" },
-          "id": "name-121",
+          "id": "name-125",
           "kind": "net-label",
           "netId": "net-inb",
           "order": 37
@@ -1894,10 +1914,10 @@
           "alignment": "end",
           "anchor": {
             "kind": "free",
-            "position": { "x": 750, "y": 464 }
+            "position": { "x": 650, "y": 424 }
           },
           "bind": { "kind": "net-name", "netId": "net-below" },
-          "id": "name-124",
+          "id": "name-128",
           "kind": "net-label",
           "netId": "net-below",
           "order": 38
@@ -1906,10 +1926,10 @@
           "alignment": "end",
           "anchor": {
             "kind": "free",
-            "position": { "x": 870, "y": 464 }
+            "position": { "x": 770, "y": 424 }
           },
           "bind": { "kind": "net-name", "netId": "net-inb" },
-          "id": "name-127",
+          "id": "name-131",
           "kind": "net-label",
           "netId": "net-inb",
           "order": 39
@@ -1987,61 +2007,61 @@
           "scope": "local"
         },
         {
-          "id": "claim-84",
+          "id": "claim-88",
           "kind": "name-claim",
           "name": "vdd",
           "netId": "net-vdd",
-          "owner": { "kind": "power-marker", "objectId": "name-84" },
+          "owner": { "kind": "power-marker", "objectId": "name-88" },
           "powerDomain": "vdd",
           "scope": "local"
         },
         {
-          "id": "claim-99",
+          "id": "claim-103",
           "kind": "name-claim",
           "name": "below",
           "netId": "net-below",
-          "owner": { "annotationId": "name-99", "kind": "net-label" },
+          "owner": { "annotationId": "name-103", "kind": "net-label" },
           "scope": "local"
         },
         {
-          "id": "claim-102",
+          "id": "claim-106",
           "kind": "name-claim",
           "name": "vdd",
           "netId": "net-vdd",
-          "owner": { "kind": "power-marker", "objectId": "name-102" },
+          "owner": { "kind": "power-marker", "objectId": "name-106" },
           "powerDomain": "vdd",
           "scope": "local"
         },
         {
-          "id": "claim-118",
+          "id": "claim-122",
           "kind": "name-claim",
           "name": "below",
           "netId": "net-below",
-          "owner": { "annotationId": "name-118", "kind": "net-label" },
+          "owner": { "annotationId": "name-122", "kind": "net-label" },
           "scope": "local"
         },
         {
-          "id": "claim-121",
+          "id": "claim-125",
           "kind": "name-claim",
           "name": "inb",
           "netId": "net-inb",
-          "owner": { "annotationId": "name-121", "kind": "net-label" },
+          "owner": { "annotationId": "name-125", "kind": "net-label" },
           "scope": "local"
         },
         {
-          "id": "claim-124",
+          "id": "claim-128",
           "kind": "name-claim",
           "name": "below",
           "netId": "net-below",
-          "owner": { "annotationId": "name-124", "kind": "net-label" },
+          "owner": { "annotationId": "name-128", "kind": "net-label" },
           "scope": "local"
         },
         {
-          "id": "claim-127",
+          "id": "claim-131",
           "kind": "name-claim",
           "name": "inb",
           "netId": "net-inb",
-          "owner": { "annotationId": "name-127", "kind": "net-label" },
+          "owner": { "annotationId": "name-131", "kind": "net-label" },
           "scope": "local"
         }
       ],

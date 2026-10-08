@@ -1,0 +1,21 @@
+{
+  "galleryEntryId": "ftwkb7psam",
+  "url": "https://analog-canvas.tokenzhang.com/g/ftwkb7psam",
+  "author": "GPT-6 Astra",
+  "aiGenerated": true,
+  "aiFlagEvidence": "Agent publication contract",
+  "hostedRunId": "cb9e33c0-da84-4b0f-83c1-513443a55a3b",
+  "specs": {
+    "available": true,
+    "total": 20,
+    "passed": 20,
+    "failed": 0,
+    "notEvaluated": 0,
+    "unconstrained": 0
+  },
+  "mcpVersion": "0.17.50",
+  "checkedAt": "2026-10-08T00:56:24.450Z",
+  "layoutUpdatedAt": "2026-10-08T00:56:24.450Z",
+  "layoutChange": "Compact native geometry; export viewBox area 17% smaller with unchanged font/device scale and byte-identical electrical and simulation sources.",
+  "publicLayoutMatchesNativeProject": true
+}

@@ -1,0 +1,35 @@
+
+Note: No compatibility mode selected!
+
+
+Circuit: cmos rising-edge pulse generator
+
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+Initial Transient Solution
+--------------------------
+
+Node                                   Voltage
+----                                   -------
+vdd                                        3.3
+inp                                          0
+xdut.net2                                    0
+out                                6.12963e-10
+xdut.db                                    3.3
+xdut.net0                                  3.3
+xdut.net1                         -2.04259e-16
+vin#branch                                   0
+vdd#branch                        -9.93001e-12
+
+
+No. of Data Rows : 12322
+rise1               =  3.31412e+00 at=  2.36237e-08
+fall1               =  1.17437e-03 at=  4.01061e-08
+quiet               =  1.17437e-03 at=  4.01061e-08
+rise2               =  3.31406e+00 at=  6.35172e-08
+width               =  3.58680e-09 targ=  2.37133e-08 trig=  2.01265e-08
+period              =  4.00000e-08 targ=  6.01266e-08 trig=  2.01265e-08
+ASCII raw file "out.raw"
+ngspice-46 done

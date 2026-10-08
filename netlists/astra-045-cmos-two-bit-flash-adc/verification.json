@@ -86,7 +86,7 @@
   "prototypeConnectivityAndParametersMatch": true,
   "limitations": "Nominal functional verification only; no PVT, noise, mismatch or foundry qualification.",
   "hosted": {
-    "runId": "8b86328b-dc60-45fa-8163-ec2f3c0ba83e",
+    "runId": "68dc3a86-7f17-4133-a0c0-0b481702f269",
     "specs": {
       "available": true,
       "total": 11,
@@ -101,5 +101,6 @@
     "errors": 0,
     "warnings": 0,
     "structuralComparison": "equal"
-  }
+  },
+  "publicLayoutMatchesNativeProject": true
 }

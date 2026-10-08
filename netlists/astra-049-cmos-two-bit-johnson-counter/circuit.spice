@@ -1,0 +1,43 @@
+
+.subckt astra_049_cmos_two_bit_johnson_counter vdd VSS q0 q1 clk
+CM0 net4 VSS 200f
+CM1 net5 VSS 200f
+CQ0 q0 VSS 500f
+CQ1 q1 VSS 500f
+M1 clkb clk vdd vdd APMOS l=1u w=20u
+M10 net4 net2 VSS VSS ANMOS l=1u w=10u
+M11 net4 clkb net6 vdd APMOS l=1u w=20u
+M12 net4 clk net6 VSS ANMOS l=1u w=10u
+M13 net8 net6 vdd vdd APMOS l=1u w=20u
+M14 net8 net6 VSS VSS ANMOS l=1u w=10u
+M15 q0 clk net6 vdd APMOS l=1u w=20u
+M16 q0 clkb net6 VSS ANMOS l=1u w=10u
+M17 q0 net8 vdd vdd APMOS l=1u w=20u
+M18 q0 net8 VSS VSS ANMOS l=1u w=10u
+M19 q0 clk net1 vdd APMOS l=1u w=20u
+M2 clkb clk VSS VSS ANMOS l=1u w=10u
+M20 q0 clkb net1 VSS ANMOS l=1u w=10u
+M21 net3 net1 vdd vdd APMOS l=1u w=20u
+M22 net3 net1 VSS VSS ANMOS l=1u w=10u
+M23 net5 clkb net1 vdd APMOS l=1u w=20u
+M24 net5 clk net1 VSS ANMOS l=1u w=10u
+M25 net5 net3 vdd vdd APMOS l=1u w=20u
+M26 net5 net3 VSS VSS ANMOS l=1u w=10u
+M27 net5 clkb net7 vdd APMOS l=1u w=20u
+M28 net5 clk net7 VSS ANMOS l=1u w=10u
+M29 net9 net7 vdd vdd APMOS l=1u w=20u
+M3 d0 clk net0 vdd APMOS l=1u w=20u
+M30 net9 net7 VSS VSS ANMOS l=1u w=10u
+M31 q1 clk net7 vdd APMOS l=1u w=20u
+M32 q1 clkb net7 VSS ANMOS l=1u w=10u
+M33 q1 net9 vdd vdd APMOS l=1u w=20u
+M34 q1 net9 VSS VSS ANMOS l=1u w=10u
+M35 d0 q1 vdd vdd APMOS l=1u w=20u
+M36 d0 q1 VSS VSS ANMOS l=1u w=10u
+M4 d0 clkb net0 VSS ANMOS l=1u w=10u
+M5 net2 net0 vdd vdd APMOS l=1u w=20u
+M6 net2 net0 VSS VSS ANMOS l=1u w=10u
+M7 net4 clkb net0 vdd APMOS l=1u w=20u
+M8 net4 clk net0 VSS ANMOS l=1u w=10u
+M9 net4 net2 vdd vdd APMOS l=1u w=20u
+.ends astra_049_cmos_two_bit_johnson_counter

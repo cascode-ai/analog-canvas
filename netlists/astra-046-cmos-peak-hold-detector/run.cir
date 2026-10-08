@@ -1,0 +1,25 @@
+CMOS peak-hold detector
+.include "circuit.spice"
+.include "models.spice"
+VDD vdd 0 3.3
+VB vb 0 0.9
+VR reset 0 PWL(0 3.3 10n 3.3 10.1n 0 600n 0)
+VIN vin 0 PWL(0 0.5 20n 0.5 120n 1.2 150n 1.2 230n 0.7 260n 0.7 360n 1.8 390n 1.8 500n 0.9 600n 0.9)
+XDUT vdd 0 vin vb reset hold astra_046_cmos_peak_hold_detector
+.temp 27
+.options method=gear reltol=1e-5
+* @spec peak1 range 1.17 1.23 unit=V
+* @spec keep1 range 1.18 1.22 unit=V
+* @spec peak2 range 1.77 1.83 unit=V
+* @spec keep2 range 1.78 1.82 unit=V
+.control
+set filetype=ascii
+tran 100p 600n
+meas tran peak1 FIND v(hold) AT=145n
+meas tran keep1 FIND v(hold) AT=255n
+meas tran peak2 FIND v(hold) AT=385n
+meas tran keep2 FIND v(hold) AT=590n
+write out.raw
+quit
+.endc
+.end

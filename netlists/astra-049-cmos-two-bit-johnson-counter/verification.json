@@ -1,0 +1,162 @@
+{
+  "simulator": "ngspice-46",
+  "models": "Generic educational Level-1 MOS",
+  "temperatureC": 27,
+  "localSpecs": [
+    {
+      "metric": "s0q0",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "s0q1",
+      "min": -0.01,
+      "max": 0.01,
+      "value": 1.22593e-9,
+      "passed": true
+    },
+    {
+      "metric": "s1q0",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "s1q1",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "s2q0",
+      "min": -0.01,
+      "max": 0.01,
+      "value": 1.83889e-9,
+      "passed": true
+    },
+    {
+      "metric": "s2q1",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "s3q0",
+      "min": -0.01,
+      "max": 0.01,
+      "value": 1.83889e-9,
+      "passed": true
+    },
+    {
+      "metric": "s3q1",
+      "min": -0.01,
+      "max": 0.01,
+      "value": 1.22593e-9,
+      "passed": true
+    },
+    {
+      "metric": "s4q0",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "s4q1",
+      "min": -0.01,
+      "max": 0.01,
+      "value": 1.22593e-9,
+      "passed": true
+    },
+    {
+      "metric": "s5q0",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "s5q1",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "s6q0",
+      "min": -0.01,
+      "max": 0.01,
+      "value": 1.83889e-9,
+      "passed": true
+    },
+    {
+      "metric": "s6q1",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "s7q0",
+      "min": -0.01,
+      "max": 0.01,
+      "value": 1.83889e-9,
+      "passed": true
+    },
+    {
+      "metric": "s7q1",
+      "min": -0.01,
+      "max": 0.01,
+      "value": 1.22593e-9,
+      "passed": true
+    },
+    {
+      "metric": "period",
+      "min": 1.59e-7,
+      "max": 1.61e-7,
+      "value": 1.6e-7,
+      "passed": true
+    },
+    {
+      "metric": "phase",
+      "min": 3.9e-8,
+      "max": 4.1e-8,
+      "value": 4.00024e-8,
+      "passed": true
+    },
+    {
+      "metric": "width",
+      "min": 7.9e-8,
+      "max": 8.1e-8,
+      "value": 7.99534e-8,
+      "passed": true
+    }
+  ],
+  "nativeDiagnostics": 0,
+  "canonicalExportMatches": true,
+  "prototypeConnectivityAndParametersMatch": true,
+  "limitations": "Nominal functional verification only; no PVT, noise, mismatch or foundry qualification.",
+  "hosted": {
+    "runId": "185baf7d-cd6b-40e7-bb0e-0a61dad719dc",
+    "specs": {
+      "available": true,
+      "total": 19,
+      "passed": 19,
+      "failed": 0,
+      "notEvaluated": 0,
+      "unconstrained": 0
+    },
+    "execution": "completed"
+  },
+  "liveEditorVerification": {
+    "errors": 0,
+    "warnings": 0,
+    "structuralComparison": "equal"
+  },
+  "publicLayoutMatchesNativeProject": true
+}

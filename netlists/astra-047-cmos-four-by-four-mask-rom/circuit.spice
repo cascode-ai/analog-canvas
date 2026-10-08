@@ -1,0 +1,28 @@
+
+.subckt astra_047_cmos_four_by_four_mask_rom vdd VSS preb w0 w1 w2 w3 b0 b1 b2 b3
+C0 net0 VSS 100f
+C1 net1 VSS 100f
+C2 net2 VSS 100f
+C3 net3 VSS 100f
+M1 net0 preb vdd vdd APMOS l=1u w=20u
+M10 net2 w2 VSS VSS ANMOS l=1u w=10u
+M11 net3 w2 VSS VSS ANMOS l=1u w=10u
+M12 net0 w3 VSS VSS ANMOS l=1u w=10u
+M13 net1 w3 VSS VSS ANMOS l=1u w=10u
+M14 b0 net0 vdd vdd APMOS l=1u w=20u
+M15 b0 net0 VSS VSS ANMOS l=1u w=10u
+M16 b1 net1 vdd vdd APMOS l=1u w=20u
+M17 b1 net1 VSS VSS ANMOS l=1u w=10u
+M18 b2 net2 vdd vdd APMOS l=1u w=20u
+M19 b2 net2 VSS VSS ANMOS l=1u w=10u
+M2 net1 preb vdd vdd APMOS l=1u w=20u
+M20 b3 net3 vdd vdd APMOS l=1u w=20u
+M21 b3 net3 VSS VSS ANMOS l=1u w=10u
+M3 net2 preb vdd vdd APMOS l=1u w=20u
+M4 net3 preb vdd vdd APMOS l=1u w=20u
+M5 net1 w0 VSS VSS ANMOS l=1u w=10u
+M6 net3 w0 VSS VSS ANMOS l=1u w=10u
+M7 net1 w1 VSS VSS ANMOS l=1u w=10u
+M8 net2 w1 VSS VSS ANMOS l=1u w=10u
+M9 net0 w2 VSS VSS ANMOS l=1u w=10u
+.ends astra_047_cmos_four_by_four_mask_rom

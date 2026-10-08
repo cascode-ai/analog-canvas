@@ -1,0 +1,11 @@
+{
+  "name": "CMOS 2-bit Johnson counter",
+  "description": "Two static master/slave D flip-flops share a clock inverter and feed back inverse Q1 into the first stage. Thirty-six MOS devices implement the four-state cycle (q1q0)=00\u219201\u219211\u219210\u219200. With a 40 ns input period, both outputs repeat after 160 ns and their rising edges are 40 ns apart. Four capacitors load the master/storage outputs. The saved initialized transient checks two full state cycles, period, high duration and phase. Initial Q0=Q1=0 sets simulation phase; no hardware reset is included. Educational nominal models; clock-tree, setup/hold, metastability, startup phase and PVT limits are not qualified.",
+  "tags": [
+    "CMOS",
+    "Johnson Counter",
+    "Twisted Ring",
+    "Quadrature",
+    "Sequential Logic"
+  ]
+}

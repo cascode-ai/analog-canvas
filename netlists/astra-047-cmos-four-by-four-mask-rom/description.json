@@ -1,0 +1,11 @@
+{
+  "name": "CMOS 4-by-4 NOR mask ROM",
+  "description": "Four precharge PMOS devices, nine hard-wired NMOS cells and four output inverters implement a 4-by-4 NOR mask ROM, for twenty-one MOS devices. The words are 0xA, 0x6, 0xD, 0x3; b0 is the least-significant bit. A present pulldown cell stores 1. With preb low all word lines must be low; after precharge, preb rises and one word line selects a word. Four 100 fF bitline capacitors retain the dynamic state. The saved test checks all 16 read bits plus four precharge outputs. No address decoder is hidden: w0\u2013w3 are external one-hot word lines. Educational nominal models; no retention-time, read-margin, glitch or PVT guarantee.",
+  "tags": [
+    "CMOS",
+    "Mask ROM",
+    "Memory",
+    "Precharge",
+    "Dynamic Logic"
+  ]
+}

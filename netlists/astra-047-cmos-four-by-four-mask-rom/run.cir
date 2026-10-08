@@ -1,0 +1,59 @@
+CMOS 4-by-4 NOR mask ROM
+.include "circuit.spice"
+.include "models.spice"
+VDD vdd 0 3.3
+VP preb 0 PULSE(0 3.3 10n 100p 100p 29.9n 40n)
+VW0 w0 0 PULSE(0 3.3 10n 100p 100p 19.9n 160n)
+VW1 w1 0 PULSE(0 3.3 50n 100p 100p 19.9n 160n)
+VW2 w2 0 PULSE(0 3.3 90n 100p 100p 19.9n 160n)
+VW3 w3 0 PULSE(0 3.3 130n 100p 100p 19.9n 160n)
+XDUT vdd 0 preb w0 w1 w2 w3 b0 b1 b2 b3 astra_047_cmos_four_by_four_mask_rom
+.temp 27
+.options method=gear reltol=1e-5
+* @spec w0b0 range -0.01 0.01 unit=V
+* @spec w0b1 range 3.2 3.4 unit=V
+* @spec w0b2 range -0.01 0.01 unit=V
+* @spec w0b3 range 3.2 3.4 unit=V
+* @spec w1b0 range -0.01 0.01 unit=V
+* @spec w1b1 range 3.2 3.4 unit=V
+* @spec w1b2 range 3.2 3.4 unit=V
+* @spec w1b3 range -0.01 0.01 unit=V
+* @spec w2b0 range 3.2 3.4 unit=V
+* @spec w2b1 range -0.01 0.01 unit=V
+* @spec w2b2 range 3.2 3.4 unit=V
+* @spec w2b3 range 3.2 3.4 unit=V
+* @spec w3b0 range 3.2 3.4 unit=V
+* @spec w3b1 range 3.2 3.4 unit=V
+* @spec w3b2 range -0.01 0.01 unit=V
+* @spec w3b3 range -0.01 0.01 unit=V
+* @spec pre0 range -0.01 0.01 unit=V
+* @spec pre1 range -0.01 0.01 unit=V
+* @spec pre2 range -0.01 0.01 unit=V
+* @spec pre3 range -0.01 0.01 unit=V
+.control
+set filetype=ascii
+tran 20p 160n
+meas tran w0b0 FIND v(b0) AT=25n
+meas tran w0b1 FIND v(b1) AT=25n
+meas tran w0b2 FIND v(b2) AT=25n
+meas tran w0b3 FIND v(b3) AT=25n
+meas tran w1b0 FIND v(b0) AT=65n
+meas tran w1b1 FIND v(b1) AT=65n
+meas tran w1b2 FIND v(b2) AT=65n
+meas tran w1b3 FIND v(b3) AT=65n
+meas tran w2b0 FIND v(b0) AT=105n
+meas tran w2b1 FIND v(b1) AT=105n
+meas tran w2b2 FIND v(b2) AT=105n
+meas tran w2b3 FIND v(b3) AT=105n
+meas tran w3b0 FIND v(b0) AT=145n
+meas tran w3b1 FIND v(b1) AT=145n
+meas tran w3b2 FIND v(b2) AT=145n
+meas tran w3b3 FIND v(b3) AT=145n
+meas tran pre0 FIND v(b0) AT=45n
+meas tran pre1 FIND v(b1) AT=45n
+meas tran pre2 FIND v(b2) AT=45n
+meas tran pre3 FIND v(b3) AT=45n
+write out.raw
+quit
+.endc
+.end

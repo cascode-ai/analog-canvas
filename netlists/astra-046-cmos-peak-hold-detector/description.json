@@ -1,0 +1,11 @@
+{
+  "name": "CMOS peak-hold detector",
+  "description": "A five-MOS comparator turns on a transmission gate whenever vin exceeds a held voltage. Two restoring inverters provide complementary switch controls; a reset NMOS initializes the 10 pF hold capacitor. Twelve MOS devices and a 1 Gohm leakage load are explicit. With vb=0.9 V at 3.3 V, the saved ramp/plateau experiment captures 1.2 V and 1.8 V peaks and retains them as vin falls. This unclocked feedback loop can chatter near equality. Generic nominal models; no precision-peak error, acquisition-time, noise, long-term droop or PVT qualification.",
+  "tags": [
+    "CMOS",
+    "Peak Detector",
+    "Sample Hold",
+    "Sensors",
+    "Mixed Signal"
+  ]
+}
