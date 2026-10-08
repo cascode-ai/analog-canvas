@@ -392,8 +392,9 @@ the netlist does not have. Each guide wire takes the cheapest of a few simple
 paths that avoids them: the plain L, a short lead out of a pin, or a detour
 along a free row or column. When none does, or a pin already sits on another
 Net's wire, the whole operation is refused and the message names the pin, part
-or Route in the way; move parts apart or give a trunk. Where a Net cannot
-cross the drawing, such as a cascode bias line reaching both halves of an
+or Route in the way and the two points of the wire between which it meets it;
+move parts apart or give a trunk. Where a Net cannot cross the drawing, such
+as a cascode bias line reaching both halves of an
 amplifier, name it at each end instead: `connect` the pin to an open
 `{kind:"point"}` a grid step or two out, then `add-label` with the Net's name
 and the pin as its target, `{kind:"pin",instance:"M4",pin:"G"}`, which puts the

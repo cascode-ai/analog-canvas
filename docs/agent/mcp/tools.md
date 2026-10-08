@@ -112,10 +112,13 @@ order can follow without doubling back are refused with a reason rather than
 committed as another path. A wire from a pin or Junction, whether to another,
 to a `net`, to a tap on a wire or to an open `point`, also keeps clear of other
 Nets' pins and wires and of parts' bodies: without `via` it detours, with
-`via` that would meet one it is refused with the obstacle named, and with no
-clear path at all it is refused like `route-net`. A wire drawn between points
-alone is drawn as asked, and may end on another wire to join it. A
-transaction that would put a Junction on another Net's wire is refused too.
+`via` that would meet one it is refused, naming the obstacle and the two
+points of the path between which it meets it, then the clear path the editor
+finds as `via` points to send next (or to leave `via` out), or why leaving the
+route to the editor fails too. With no clear path at all it is refused like
+`route-net`. A wire drawn between points alone is drawn as asked, and may end
+on another wire to join it. A transaction that would put a Junction on another
+Net's wire is refused too.
 A `route-segment` target uses the Route's stable `legId` and a `point`; the
 server owns splitting and Junction creation.
 Name Nets through labels/markers, never raw Base-Net fields.
