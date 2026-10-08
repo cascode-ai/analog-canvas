@@ -515,7 +515,7 @@ the separate [save-history contract](persistence-and-recovery.md#private-save-hi
 
 ## Reference datasets
 
-Published circuit datasets (AnalogGenie, CircuitThink, AMS-Net, #1510) can be
+Published circuit datasets (AnalogGenie, CircuitThink, AMS-Net, #1510; AnalogRetriever, #1498) can be
 read beside the community wall without crowding it. `config/gallery-sources.json`
 lists each dataset once: `key`, entry-id `prefix`, display `name`, the `byline`
 its circuits carry, `license`, and its `homepage` and `paper` links.
