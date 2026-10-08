@@ -737,6 +737,7 @@ export function compileActions(
       case "route-net":
       case "set-port-direction":
       case "set-vdd-mode":
+      case "set-mos-bulk-default":
       case "delete-selection":
       case "add-power-rail":
       case "extend-power-rail":

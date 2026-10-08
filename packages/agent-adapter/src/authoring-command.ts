@@ -218,6 +218,19 @@ const BatchItemSchema = z.discriminatedUnion("kind", [
     instanceId: StableIdSchema,
     mode: z.enum(["cell-pin", "global"]),
   }),
+  z
+    .strictObject({
+      kind: z.literal("set-mos-bulk-default"),
+      mos: z.enum(["nmos", "pmos"]),
+      net: z
+        .string()
+        .min(1)
+        .nullable()
+        .describe("Net ID or name; null clears the default."),
+    })
+    .describe(
+      "The Cell's NMOS or PMOS body default, as its settings in Properties set it: bodies on the old default move to the Net; wired bodies stay.",
+    ),
   z.strictObject({
     kind: z.literal("remove-cell-terminal"),
     terminalId: StableIdSchema,
@@ -356,7 +369,7 @@ export const AgentAuthoringCommandSchema = z.discriminatedUnion("kind", [
       .min(1)
       .max(64)
       .describe(
-        "Ordered atomic route-net, power rail, label, model, display, annotation move, direction, VDD mode or terminal removal commands; one undo, no partial commit. Total expanded edit limit still applies.",
+        "Ordered atomic route-net, power rail, label, model, display, annotation move, direction, VDD mode, bulk default or terminal removal commands; one undo, no partial commit. Total expanded edit limit still applies.",
       ),
   }),
   z.strictObject({

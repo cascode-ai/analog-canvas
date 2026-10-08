@@ -119,7 +119,14 @@ import {
   planVddRailEdits,
   railSupplyPinEdits,
 } from "../features/component-insert/vdd-rail";
-import { planInitialMosBulkDefault } from "../features/component-insert/mos-bulk-defaults";
+import {
+  planInitialMosBulkDefault,
+  planMosBulkDefaultUpdate,
+} from "../features/component-insert/mos-bulk-defaults";
+import {
+  logicalNetChoiceForNet,
+  logicalNetChoices,
+} from "../features/logical-net-choices";
 import { placedInstanceNetlist } from "../features/component-insert/placed-instance-netlist";
 
 /** What the live editor knows beyond the Project. */
@@ -634,6 +641,35 @@ export function planBrowserAgentCommand(
           command.mode,
         ),
       };
+    case "set-mos-bulk-default": {
+      // As the Cell settings in Properties set it: bodies that followed the
+      // old default move to the new one, wired bodies stay (#1520).
+      let netId: string | null = null;
+      if (command.net !== null) {
+        const requested = command.net;
+        const matches = [
+          ...resolveDocumentLogicalNets(document).byBaseNetId,
+        ].filter(
+          ([id, net]) =>
+            id === requested ||
+            net.id === requested ||
+            foldNetName(net.name ?? "") === foldNetName(requested),
+        );
+        if (new Set(matches.map(([, net]) => net.id)).size > 1)
+          throw new Error(
+            `Several Nets are named ${requested}; give the Net ID instead`,
+          );
+        const choice = logicalNetChoiceForNet(
+          logicalNetChoices(document),
+          matches[0]?.[0],
+        );
+        if (!choice) throw new Error(`Net not found: ${requested}`);
+        netId = choice.netId;
+      }
+      return {
+        edits: [...planMosBulkDefaultUpdate(document, command.mos, netId)],
+      };
+    }
     case "add-power-rail": {
       if (
         (command.start.x === command.end.x) ===

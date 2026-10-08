@@ -11,6 +11,7 @@ import { AgentSessionClient } from "../../../../packages/agent-client/src/sessio
 import { FakeAgentHttp } from "../../../../packages/agent-client/src/test-support/fake-relay";
 import { EditorDocumentController } from "../document/document-controller";
 import { planPropertyApply } from "../features/properties/property-apply-plan";
+import { planMosBulkDefaultUpdate } from "../features/component-insert/mos-bulk-defaults";
 import { BrowserAgentHost } from "./browser-agent-host";
 
 /** An Agent session over the live editor controller, as MCP reaches it. */
@@ -517,6 +518,64 @@ describe("Agent property actions are planned as Apply in Properties", () => {
         },
       ]),
     ).toContain("has no VDD supply to choose");
+  });
+
+  it("changes a Cell's body default as Properties does, moving the bodies that followed the old one (#1520)", async () => {
+    const { controller, apply, refuse, instance } = await session();
+    // The supply placed after them gives their bodies the Cell default.
+    await apply([
+      place("pmos", "M1", 100),
+      place("pmos", "M2", 300),
+      place("vdd-port", "VDD", 100, 0),
+      place("port", "VB", 400, 0),
+    ]);
+    // M2's body is wired to its source, a body the default does not own.
+    await apply([
+      {
+        kind: "connect",
+        from: { kind: "pin", instance: "M2", pin: "B" },
+        to: { kind: "pin", instance: "M2", pin: "S" },
+      },
+    ]);
+    const netOf = (instanceId: string, pinName: string) =>
+      controller.document.nets.find((net) =>
+        net.terminals.some(
+          (pin) => pin.instanceId === instanceId && pin.pinName === pinName,
+        ),
+      )?.id;
+    const m1 = instance("M1").id;
+    const m2 = instance("M2").id;
+    const vdd = netOf(m1, "B");
+    const vb = netOf(
+      controller.document.instances.find((item) => item.symbolId === "port")!
+        .id,
+      "P",
+    )!;
+    expect(vdd).toBeDefined();
+    expect(controller.document.mosBulkDefaults?.pmosNetId).toBe(vdd);
+    // What the Cell settings in Properties commit for the same choice.
+    const gui = new EditorDocumentController(
+      structuredClone(controller.project),
+    );
+    expect(
+      gui.transact(planMosBulkDefaultUpdate(gui.document, "pmos", vb)).ok,
+    ).toBe(true);
+
+    await apply([{ kind: "set-mos-bulk-default", mos: "pmos", net: "VB" }]);
+    expect(controller.document.nets).toEqual(gui.document.nets);
+    expect(controller.document.instances).toEqual(gui.document.instances);
+    expect(controller.document.mosBulkDefaults?.pmosNetId).toBe(vb);
+    expect(netOf(m1, "B")).toBe(vb);
+    expect(netOf(m2, "B")).toBe(netOf(m2, "S"));
+
+    // One undo step; null clears the default.
+    await apply([{ kind: "undo" }]);
+    expect(netOf(m1, "B")).toBe(vdd);
+    await apply([{ kind: "set-mos-bulk-default", mos: "pmos", net: null }]);
+    expect(controller.document.mosBulkDefaults?.pmosNetId).toBeUndefined();
+    expect(
+      await refuse([{ kind: "set-mos-bulk-default", mos: "nmos", net: "VX" }]),
+    ).toContain("Net not found: VX");
   });
 
   it("sets a formula block's drawing and drops an old formula's look", async () => {

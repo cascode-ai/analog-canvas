@@ -709,7 +709,12 @@ export function revokeInvalidatedSupplyBulkDefaults(
     const remainsSupply =
       afterLogical.byBaseNetId.get(afterDefaultId)?.powerDomain ===
       expectedDomain;
-    if (!wasSupply || remainsSupply) continue;
+    // The old supply keeps its claim: the transaction moved the default to
+    // another Net, such as a body-bias Net, and that choice stands (#1520).
+    const keptClaim =
+      afterLogical.byBaseNetId.get(beforeDefaultId)?.powerDomain ===
+      expectedDomain;
+    if (!wasSupply || remainsSupply || keptClaim) continue;
 
     const replacementGroups = afterLogical.groups.filter(
       (group) =>

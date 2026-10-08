@@ -249,10 +249,13 @@ refused with their IDs; it never means the first of them.
   action does: the body leaves the Cell default for a dashed body wire. A
   body tied to its own source is one call,
   `{kind:"connect",from:{kind:"pin",instance:"MP",pin:"B"},to:{kind:"pin",instance:"MP",pin:"S"}}`,
-  or a `wire-at` tap on the source wire. A default for the whole Cell is an
-  `advanced_transact` of two edits, as the GUI sends them:
-  `{kind:"set_mos_bulk_defaults",pmosNetId:"<Net ID>"}` (`nmosNetId` for
-  NMOS), then `{kind:"reconcile_mos_bulk"}`. In a Cell with two supplies,
+  or a `wire-at` tap on the source wire. The whole Cell's default is one
+  action, `{kind:"set-mos-bulk-default",mos:"pmos",net:"VB"}` (`circuit_place`;
+  `mos:"nmos"` for NMOS, `net` a Net name or ID, `null` clearing it), planned
+  as the Cell settings in Properties set it: the bodies that followed the
+  old default move to the new Net, bodies wired to a Net keep it. The raw
+  `set_mos_bulk_defaults` and `reconcile_mos_bulk` edits leave bodies already
+  on the old default there. In a Cell with two supplies,
   check the PMOS on the one that is not the default: `MOS_BODY_OTHER_SUPPLY`
   (information) names a body that follows the default onto another supply
   than its source's. With no default set, such a Cell's unwired bodies are
