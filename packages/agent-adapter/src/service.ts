@@ -1075,8 +1075,28 @@ export function createAgentCircuitService(
                 : { ...base, edits: [{ kind: "noop" }] };
             } else {
               // A completed convenience plan may have nothing left to do.
-              // Do not synthesize a persisted noop/Undo entry for a repeat.
+              // Do not synthesize a persisted noop/Undo entry for a repeat,
+              // and never answer a bare ok: a caller learns that nothing
+              // changed and that the drawing already is as asked (#1525).
               if (planned.edits.length === 0) {
+                if (!commandNotes.length) {
+                  const kinds =
+                    request.command.kind === "batch"
+                      ? [
+                          ...new Set(
+                            request.command.commands.map((item) => item.kind),
+                          ),
+                        ]
+                      : [request.command.kind];
+                  commandNotes = [
+                    {
+                      code: "NOTHING_CHANGED",
+                      severity: "info",
+                      message: `Nothing changed: the drawing is already as ${kinds.join(", ")} asks, so no edit or Undo step was made.`,
+                      objectIds: [],
+                    },
+                  ];
+                }
                 return response({
                   apiVersion: request.apiVersion,
                   requestId: request.requestId,
