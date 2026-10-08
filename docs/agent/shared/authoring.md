@@ -66,10 +66,11 @@ refused with their IDs; it never means the first of them.
   and ground take neither. Nothing appears only to be hidden a call later.
 - A person may be watching the canvas. After each placement batch, after
   wiring or moves that reach new ground, and when a drawing is done, fit the
-  view to it: `circuit_view` action `{kind:"focus",intent:{kind:"fit-document"}}`
-  (in `apply_actions`, a call of its own), the GUI's F key. For the Cell on
-  show it changes only the view: no revision, no undo entry, and the person's
-  selection or open dialog stays.
+  view to it: `circuit_view` action `{kind:"focus",intent:{kind:"fit-document"}}`,
+  the GUI's F key. In `apply_actions` it may end the list it follows: it is
+  shown once the rest commits and never splits the list into another call.
+  For the Cell on show it changes only the view: no revision, no undo entry,
+  and the person's selection or open dialog stays.
 - Parts are named as the GUI names them. A device's `reference` starts with
   its prefix (R, C, M, …), and a `place-cell` instance's with X. Leave it out,
   on `place-component` or `place-cell`, and the next free name is taken (`R1`,
@@ -328,15 +329,16 @@ taken in class order (`fittingInstances`, `fittingRoutes`, …). Delete that
 part, then refresh and delete what remains, since deleting a part also deletes
 wires that only tapped it. Any other command over the limit names itself and
 its `expandedEdits`.
-Display flags, Port directions, VDD mode and terminal removal can share the
-existing command batch. Pure Document presentation batches do not advance the
+Display flags, Port directions, VDD mode, terminal removal and power rails
+(`add-power-rail`, `extend-power-rail`) can share the existing command batch:
+a VDD rail and a VSS rail are one call and one undo. Pure Document presentation batches do not advance the
 Project structure revision. Failures identify the originating action where known.
 Keep unrelated command forms separate rather than assuming arbitrary mixtures
 are atomic. A list that would need several transactions commits nothing and
 fails with `ACTION_BATCH_NOT_ATOMIC`; its `calls` list says which action
-indexes go in which call, in order (a power rail, for example, is a command of
-its own, apart from a placement batch). Both ordinary and full typed editing
-remain available.
+indexes go in which call, in order (a placement batch, for example, goes
+apart from the wires that join its parts; a `focus` goes with the last call).
+Both ordinary and full typed editing remain available.
 
 `route-net` (in `apply_actions`, native `command`) fills missing visible connections for a
 current Net ID/name, one member pin, an explicit list of pins to join, or a

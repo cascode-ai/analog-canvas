@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createAgentCircuitService } from "@icm/agent-adapter";
 import {
+  buildProjectConnectivityIndex,
   diagnoseVisualQuality,
   resolveEndpointConnection,
   resolveMosBulkConnection,
@@ -19,22 +20,48 @@ import { AgentSessionClient } from "../../../../packages/agent-client/src/sessio
 import { FakeAgentHttp } from "../../../../packages/agent-client/src/test-support/fake-relay";
 import { EditorDocumentController } from "../document/document-controller";
 import { planPlacedCellPin } from "../features/component-insert/cell-pin-placement";
+import { createAgentSemanticIntentHandler } from "./agent-semantic-intent-handler";
 import { BrowserAgentHost } from "./browser-agent-host";
 
-/** One editor, reached by an Agent client that sends it action lists. */
-async function editor() {
+/**
+ * One editor, reached by an Agent client that sends it action lists. Given
+ * `fitDocument`, the session may steer the view: the editor's own semantic
+ * handler takes its requests, and the view's fit is that callback.
+ */
+async function editor(
+  view: { fitDocument?: (documentId: string) => void } = {},
+) {
   const project = createEmptyProject("project-1", "Action plan");
   project.documents[0]!.id = "main";
   project.topDocumentId = "main";
   const controller = new EditorDocumentController(project);
+  const fitDocument = view.fitDocument;
   const service = createAgentCircuitService({
     agentId: "test",
-    host: new BrowserAgentHost(controller),
+    host: new BrowserAgentHost(
+      controller,
+      undefined,
+      fitDocument
+        ? (request) =>
+            createAgentSemanticIntentHandler({
+              project: controller.project,
+              resolver: controller.resolver,
+              connectivityIndex: buildProjectConnectivityIndex(
+                controller.project,
+                controller.resolver,
+              ),
+              navigateToLocator: () => {},
+              fitDocument,
+              clearFocus: () => {},
+              highlightNet: () => {},
+            })(request)
+        : undefined,
+    ),
     permissions: {
       snapshot: true,
       render: true,
       sourceSpans: false,
-      semanticControl: false,
+      semanticControl: fitDocument !== undefined,
       edit: { geometry: true, connectivity: true, presentation: true },
     },
   });
@@ -349,6 +376,78 @@ describe("the editor plans an Agent's action list", () => {
         'actions[0] (connect): "VDD" names 2 parts (vdd-left, vdd-right); name one by {kind:"instance", id}',
     });
     expect(controller.document).toEqual(before);
+  });
+
+  it("draws two power rails and fits the view in one call and one undo, and a third rail in a later call (#1517)", async () => {
+    const fits: string[] = [];
+    const { controller, client, http } = await editor({
+      fitDocument: (documentId) => fits.push(documentId),
+    });
+    const rail = (name: string, y: number) => ({
+      kind: "add-power-rail",
+      name,
+      start: { x: 0, y },
+      end: { x: 400, y },
+    });
+    const fit = { kind: "focus", intent: { kind: "fit-document" } };
+    const calls = http.circuitCalls.length;
+    const both = await client.applyActions([
+      rail("VDD", -200),
+      rail("VDDA", -400),
+      fit,
+    ]);
+    expect(both.ok, both.message).toBe(true);
+    // One transaction: the editor ran both rails as one batch, then fit the
+    // view to them.
+    expect(
+      http.circuitCalls
+        .slice(calls)
+        .filter(({ request }) => request.operation === "transact"),
+    ).toHaveLength(1);
+    expect(fits).toEqual(["main"]);
+    expect(both.semantic).toMatchObject({
+      kind: "fit-document",
+      documentId: "main",
+    });
+    const rails = () =>
+      controller.document.routes.filter(
+        (route) => route.presentation === "power-rail",
+      );
+    expect(rails()).toHaveLength(2);
+    // Each rail of the batch has IDs of its own, which a rail drawn later
+    // does not take again.
+    const third = await client.applyActions([rail("VDDB", -600)]);
+    expect(third.ok, third.message).toBe(true);
+    expect(rails()).toHaveLength(3);
+    expect(new Set(controller.document.nets.map((net) => net.id)).size).toBe(
+      controller.document.nets.length,
+    );
+    // A view that cannot show the focus leaves the commit standing.
+    const unseen = await client.applyActions([
+      rail("VDDC", -800),
+      { kind: "focus", intent: { kind: "highlight-net", netId: "net-gone" } },
+    ]);
+    expect(unseen.ok, unseen.message).toBe(true);
+    expect(rails()).toHaveLength(4);
+    expect(unseen.diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: "OBJECT_NOT_FOUND",
+        severity: "warning",
+        message: expect.stringMatching(
+          /^The edit committed; its focus was not shown: Net net-gone/u,
+        ),
+      }),
+    );
+    for (let undo = 0; undo < 3; undo++)
+      await client.applyActions([{ kind: "undo" }]);
+    expect(rails()).toEqual([]);
+
+    // A session that may not steer the view sends none of such a list.
+    const blind = await editor();
+    expect(
+      await blind.client.applyActions([rail("VDD", -200), fit]),
+    ).toMatchObject({ ok: false, code: "PERMISSION_DENIED" });
+    expect(blind.controller.document.routes).toEqual([]);
   });
 
   it("plans on the Document as a person left it, yet refuses a stale undo", async () => {

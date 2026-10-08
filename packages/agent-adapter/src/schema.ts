@@ -923,7 +923,10 @@ export const AgentTransactSuccessResponseSchema = ResponseBaseSchema.extend({
       }),
     )
     .optional(),
-  /** Present only for a successful non-persisting semantic transaction. */
+  /**
+   * A successful semantic transaction's result, or that of the focus an
+   * action list ends with, shown once the list committed (#1517).
+   */
   semantic: AgentSemanticIntentResultSchema.optional(),
   projectStructure: z
     .strictObject({

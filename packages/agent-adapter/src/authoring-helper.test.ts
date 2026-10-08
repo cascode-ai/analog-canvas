@@ -92,7 +92,7 @@ it("says which actions go in which call when a list needs several (#1269)", () =
     ]),
   );
   expect(calls).toEqual([
-    { actionIndices: [0], actionKinds: ["add-power-rail"], sends: "command" },
+    { actionIndices: [0], actionKinds: ["add-power-rail"], sends: "commands" },
     {
       actionIndices: [1, 2, 3],
       actionKinds: ["place-component"],
@@ -105,7 +105,7 @@ it("says which actions go in which call when a list needs several (#1269)", () =
   expect(describeCallSplit(calls)).toBe(
     "These actions need 5 calls; one call sends one transaction. Send them " +
       "in this order, each group in its own call: actions[0] (add-power-rail) " +
-      "as a command of its own; actions[1..3] (place-component) as one " +
+      "as commands that share one call; actions[1..3] (place-component) as one " +
       "placement batch; actions[4..5] (set-model) as commands that share one " +
       "call; actions[6] (connect) as wires that share one call; actions[7] " +
       "(move) as commands that share one call. Nothing was changed.",

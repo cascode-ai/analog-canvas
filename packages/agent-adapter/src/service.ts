@@ -26,7 +26,10 @@ import {
   agentProjectDiagnostics,
   agentVisualDiagnostics,
 } from "./diagnostics.js";
-import type { AgentOperationHost } from "./host.js";
+import type {
+  AgentHostSemanticIntentResult,
+  AgentOperationHost,
+} from "./host.js";
 import { AgentCommandPlanningError } from "./host.js";
 import { parseAgentCircuitRequest } from "./request-contract.js";
 import {
@@ -843,7 +846,57 @@ export function createAgentCircuitService(
             },
             diagnostics: [],
           });
-        if (plan.kind === "nothing")
+        // A list's focus steps change only the view, once it has committed
+        // (#1517). Without the right to steer the view, nothing is sent.
+        const focus = plan.focus ?? [];
+        if (focus.length && !options.permissions.semanticControl)
+          return fail(
+            "transact",
+            "PERMISSION_DENIED",
+            "Semantic editor-control permission is not granted",
+            document.revision,
+          );
+        if (
+          focus.length &&
+          (!host.applySemanticIntent || !host.semanticControlAvailable?.())
+        )
+          return fail(
+            "transact",
+            "SEMANTIC_CONTROL_UNAVAILABLE",
+            "This Agent host does not provide a live editor control surface",
+            document.revision,
+          );
+        /** Each focus step in order: the last shown, or the first refused. */
+        const showFocus = () => {
+          let shown:
+            Extract<AgentHostSemanticIntentResult, { ok: true }> | undefined;
+          for (const intent of focus) {
+            const result = host.applySemanticIntent!({
+              documentId,
+              intent,
+            });
+            if (!result.ok) return result;
+            shown = result;
+          }
+          return shown;
+        };
+        const semanticOf = (
+          shown: Extract<AgentHostSemanticIntentResult, { ok: true }>,
+        ) => ({
+          kind: shown.kind,
+          documentId: shown.documentId,
+          objectIds: [...shown.objectIds],
+          ...(shown.netId ? { netId: shown.netId } : {}),
+        });
+        if (plan.kind === "nothing") {
+          const shown = showFocus();
+          if (shown && !shown.ok)
+            return fail(
+              "transact",
+              shown.code,
+              shown.message,
+              document.revision,
+            );
           return response({
             apiVersion: request.apiVersion,
             requestId: request.requestId,
@@ -868,7 +921,9 @@ export function createAgentCircuitService(
                 ? { removedIds: [] }
                 : {}),
             },
+            ...(shown ? { semantic: semanticOf(shown) } : {}),
           });
+        }
         const { actions: _actions, ...rest } = request;
         // A list that needs the Document is planned on the one held now and
         // committed in the same step. A list that goes through as it is
@@ -885,7 +940,38 @@ export function createAgentCircuitService(
             : {}),
           ...plan.payload,
         });
-        if (answer.ok) return answer;
+        if (answer.ok) {
+          if (
+            answer.operation !== "transact" ||
+            !focus.length ||
+            request.dryRun
+          )
+            return answer;
+          const shown = showFocus();
+          if (!shown || shown.ok)
+            return response({
+              ...answer,
+              ...(shown ? { semantic: semanticOf(shown) } : {}),
+            });
+          // The edit stands; only the view did not follow it.
+          const unshown: AgentDiagnostic = {
+            code: shown.code,
+            severity: "warning",
+            message: `The edit committed; its focus was not shown: ${shown.message}`,
+          };
+          return response({
+            ...answer,
+            diagnostics: [...answer.diagnostics, unshown],
+            ...(answer.diagnosticDelta
+              ? {
+                  diagnosticDelta: {
+                    ...answer.diagnosticDelta,
+                    added: [...answer.diagnosticDelta.added, unshown],
+                  },
+                }
+              : {}),
+          });
+        }
         const firstNamed = answer.diagnostics.find(
           (diagnostic) =>
             typeof diagnostic.parameters?.actionIndex === "number",

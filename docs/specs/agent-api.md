@@ -96,7 +96,11 @@ commands, focus, undo or redo) is checked against `expectedRevision` as its
 form is. A list resolved against the Document, by Reference or target, needs
 Snapshot permission; it is planned on the Document as it stands and committed
 in the same step, so no edit lands between the two. A list that changes nothing answers
-`applied: false` and adds no history entry.
+`applied: false` and adds no history entry. A `focus` beside other actions
+never adds a transaction: it is shown once the rest commits (not on a dry
+run), its result in `semantic`, and it needs `editor.semantic-control` like a
+focus alone; a view that cannot show it leaves the commit standing with a
+warning diagnostic.
 
 Undo/redo uses the shared browser Document/Project history and requires all
 edit permissions. Dry-run does not advance history; there is no private Agent

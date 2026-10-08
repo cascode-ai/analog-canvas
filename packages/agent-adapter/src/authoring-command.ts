@@ -276,6 +276,30 @@ const BatchItemSchema = z.discriminatedUnion("kind", [
     .describe(
       "Absolute drawing position; preserve electrical binding and object ownership.",
     ),
+  // A VDD rail and a VSS rail draw in one call and one undo (#1517).
+  z.strictObject({
+    kind: z.literal("add-power-rail"),
+    start: PointSchema,
+    end: PointSchema,
+    netId: StableIdSchema.optional(),
+    name: NameSchema.optional(),
+    scope: z
+      .enum(["local", "global"])
+      .optional()
+      .describe(
+        "Defaults to the existing Net scope, otherwise local; global must be intentional.",
+      ),
+  }),
+  z
+    .strictObject({
+      kind: z.literal("extend-power-rail"),
+      routeId: StableIdSchema.describe("Any segment of the rail."),
+      start: PointSchema,
+      end: PointSchema,
+    })
+    .describe(
+      "Set a straight Power Rail's two ends on its own line. Taps and the one label stay; no pin is joined.",
+    ),
 ]);
 export function isBatchableAuthoringCommand(command: {
   kind: string;
@@ -330,7 +354,7 @@ export const AgentAuthoringCommandSchema = z.discriminatedUnion("kind", [
       .min(1)
       .max(64)
       .describe(
-        "Ordered atomic route-net, label, model, display, annotation move, direction, VDD mode or terminal removal commands; one undo, no partial commit. Total expanded edit limit still applies.",
+        "Ordered atomic route-net, power rail, label, model, display, annotation move, direction, VDD mode or terminal removal commands; one undo, no partial commit. Total expanded edit limit still applies.",
       ),
   }),
   z.strictObject({
@@ -364,29 +388,6 @@ export const AgentAuthoringCommandSchema = z.discriminatedUnion("kind", [
         "By new device Instance ID: its labels from the start. Left out, the name shows alone; showValue:true shows the value given, else the catalog default (#1435).",
       ),
   }),
-  z.strictObject({
-    kind: z.literal("add-power-rail"),
-    start: PointSchema,
-    end: PointSchema,
-    netId: StableIdSchema.optional(),
-    name: NameSchema.optional(),
-    scope: z
-      .enum(["local", "global"])
-      .optional()
-      .describe(
-        "Defaults to the existing Net scope, otherwise local; global must be intentional.",
-      ),
-  }),
-  z
-    .strictObject({
-      kind: z.literal("extend-power-rail"),
-      routeId: StableIdSchema.describe("Any segment of the rail."),
-      start: PointSchema,
-      end: PointSchema,
-    })
-    .describe(
-      "Set a straight Power Rail's two ends on its own line. Taps and the one label stay; no pin is joined.",
-    ),
   z.strictObject({
     kind: z.literal("place-existing"),
     instanceId: StableIdSchema,

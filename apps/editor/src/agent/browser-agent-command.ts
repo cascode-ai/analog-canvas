@@ -368,6 +368,12 @@ export function planBrowserAgentCommand(
   command: AgentAuthoringCommand,
   maxTransactionEdits = Number.POSITIVE_INFINITY,
   context: BrowserAgentPlanningContext = {},
+  /**
+   * A batch's command: a rail takes its IDs from the batch's own sequence
+   * and its place in the batch, not from the draft the batch has advanced,
+   * whose revision the next call's commit reaches (#1517).
+   */
+  batchItem?: { sequence: number; index: number },
 ): AgentCommandPlan {
   const document = project.documents.find((item) => item.id === documentId);
   if (!document) throw new Error("Document not found");
@@ -693,7 +699,13 @@ export function planBrowserAgentCommand(
       // GUI contact capture is intentional for its gesture. Agent geometry alone
       // is not permission to join other pins: explicit wiring remains explicit.
       const plan = planVddRailEdits(document, {
-        instanceId: deriveStableId("agent-rail", `${documentId}:${sequence}`),
+        instanceId: batchItem
+          ? deriveStableId(
+              "agent-rail",
+              `${documentId}:${batchItem.sequence}`,
+              String(batchItem.index),
+            )
+          : deriveStableId("agent-rail", `${documentId}:${sequence}`),
         start: command.start,
         end: command.end,
         ...((command.netId ?? named?.[0])
@@ -736,6 +748,7 @@ export function planBrowserAgentCommand(
             item,
             maxTransactionEdits,
             context,
+            { sequence, index },
           );
           onlyDocument &&= !("structureEdits" in plan);
           const next: ProjectStructureEdit[] =
