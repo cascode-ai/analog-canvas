@@ -33,6 +33,21 @@ export function unitSourcePaths(paths) {
 }
 
 /**
+ * Files `pnpm lint` checks: workspace code, its tests and the browser specs
+ * (.oxlintrc.json leaves out generated code). A change to the lint
+ * configuration checks them all.
+ */
+export function lintPaths(paths) {
+  if (paths.includes(".oxlintrc.json"))
+    return ["apps", "packages", "worker", "scripts"];
+  return paths.filter(
+    (path) =>
+      /^(?:apps|packages|worker|scripts)\//u.test(path) &&
+      /\.(?:[cm]?[jt]sx?)$/u.test(path),
+  );
+}
+
+/**
  * Whether the unit step runs strictly. `vitest related` passes when it finds
  * no test, as a change no test imports needs, but that also passes a
  * describe left empty by deleting its last case, which the full run in the

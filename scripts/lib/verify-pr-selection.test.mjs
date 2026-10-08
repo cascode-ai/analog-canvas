@@ -7,6 +7,7 @@ import {
   changedBrowserCases,
   changedLines,
   formattedPaths,
+  lintPaths,
   strictUnitRun,
   testStartLines,
   unitSourcePaths,
@@ -60,6 +61,25 @@ describe("verify:pr selection", () => {
     // fails here as it would in the merge queue.
     expect(strictUnitRun(unitSourcePaths(changed))).toBe(true);
     expect(strictUnitRun(["scripts/verify-pr.mjs"])).toBe(false);
+  });
+
+  it("lints workspace code, tests and specs, and everything when the rules change", () => {
+    // .oxlintrc.json skips the generated file, as a whole-repo run does.
+    expect(lintPaths([...changed, "worker/agent-session-do.ts"])).toEqual([
+      "packages/netlist/src/extract.ts",
+      "packages/netlist/src/extract.test.ts",
+      "apps/editor/src/features/component-insert/use-component-placement.ts",
+      "apps/editor/e2e/gallery.spec.ts",
+      "apps/mcp-server/src/resources.generated.ts",
+      "scripts/verify-pr.mjs",
+      "worker/agent-session-do.ts",
+    ]);
+    expect(lintPaths(["docs/README.md", ".oxlintrc.json"])).toEqual([
+      "apps",
+      "packages",
+      "worker",
+      "scripts",
+    ]);
   });
 
   it("names the census for placement and netlist code, not their tests", () => {

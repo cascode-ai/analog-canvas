@@ -7,12 +7,14 @@
  * 1. typecheck, then unused files and exports (`pnpm deadcode`, Knip, a few
  *    seconds; knip.config.js says what counts);
  * 2. Prettier on the changed files it formats;
- * 3. every unit test that imports a changed file (`vitest related`): a leaf
+ * 3. the type-aware lint (`pnpm lint`) on the changed code: its errors fail,
+ *    and it prints the warnings on the lines the change touched;
+ * 4. every unit test that imports a changed file (`vitest related`): a leaf
  *    change runs a few, a core package most of the suite, so neither a guess
  *    at the "touched areas" nor the whole suite. A change to a test file runs
  *    strictly, so a describe its deletions emptied fails here, not in the
  *    merge queue;
- * 4. the browser cases the change adds or edits, by `file:line`, on the built
+ * 5. the browser cases the change adds or edits, by `file:line`, on the built
  *    editor with 4 workers (a change a spec file's tests share runs that
  *    file). `--mapped` runs every spec the merge queue maps instead.
  *
@@ -38,6 +40,7 @@ import {
   changedBrowserCases,
   changedLines,
   formattedPaths,
+  lintPaths,
   strictUnitRun,
   unitSourcePaths,
 } from "./lib/verify-pr-selection.mjs";
@@ -110,6 +113,11 @@ const formatted = formattedPaths(present);
 if (formatted.length)
   step("format", "pnpm", ["exec", "prettier", "--check", ...formatted]);
 else skip("format", "no changed file Prettier formats");
+
+const linted = lintPaths(present);
+if (linted.length)
+  step("lint", "node", ["scripts/lint.mjs", "--base", base, ...linted]);
+else skip("lint", "no changed file the lint checks");
 
 const sources = unitSourcePaths(present);
 if (sources.length)
