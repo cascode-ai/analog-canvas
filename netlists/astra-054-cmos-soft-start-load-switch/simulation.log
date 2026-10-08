@@ -1,0 +1,35 @@
+
+Note: No compatibility mode selected!
+
+
+Circuit: cmos soft-start load switch
+
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+Initial Transient Solution
+--------------------------
+
+Node                                   Voltage
+----                                   -------
+vdd                                        3.3
+en                                           0
+g                                          3.3
+out                                 1.5317e-10
+xdut.net0                                  3.3
+xdut.enb                                   3.3
+ven#branch                                   0
+vdd#branch                           -9.93e-12
+
+
+No. of Data Rows : 16696
+on1                 =  3.29913e+00
+off1                =  1.53170e-10
+on2                 =  3.29913e+00
+gate_on             =  3.39341e-01
+gate_off            =  3.30000e+00
+delay               =  3.00355e-06 targ=  8.00855e-06 trig=  5.00500e-06
+risetime            =  6.52394e-07 targ=  8.24079e-06 trig=  7.58840e-06
+ASCII raw file "out.raw"
+ngspice-46 done

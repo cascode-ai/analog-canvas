@@ -1,0 +1,114 @@
+CMOS four-input priority encoder
+.include "circuit.spice"
+.include "models.spice"
+VDD vdd 0 3.3
+V0 d0 0 PULSE(0 3.3 50n 100p 100p 49.9n 100n)
+V1 d1 0 PULSE(0 3.3 100n 100p 100p 99.9n 200n)
+V2 d2 0 PULSE(0 3.3 200n 100p 100p 199.9n 400n)
+V3 d3 0 PULSE(0 3.3 400n 100p 100p 399.9n 800n)
+XDUT vdd 0 d2 d3 b1 d1 d2b b0 d0 valid astra_052_cmos_four_input_priority_encoder
+.temp 27
+.options method=gear reltol=1e-5
+* @spec s0b0 range -0.01 0.01 unit=V
+* @spec s0b1 range -0.01 0.01 unit=V
+* @spec s0valid range -0.01 0.01 unit=V
+* @spec s1b0 range -0.01 0.01 unit=V
+* @spec s1b1 range -0.01 0.01 unit=V
+* @spec s1valid range 3.2 3.4 unit=V
+* @spec s2b0 range 3.2 3.4 unit=V
+* @spec s2b1 range -0.01 0.01 unit=V
+* @spec s2valid range 3.2 3.4 unit=V
+* @spec s3b0 range 3.2 3.4 unit=V
+* @spec s3b1 range -0.01 0.01 unit=V
+* @spec s3valid range 3.2 3.4 unit=V
+* @spec s4b0 range -0.01 0.01 unit=V
+* @spec s4b1 range 3.2 3.4 unit=V
+* @spec s4valid range 3.2 3.4 unit=V
+* @spec s5b0 range -0.01 0.01 unit=V
+* @spec s5b1 range 3.2 3.4 unit=V
+* @spec s5valid range 3.2 3.4 unit=V
+* @spec s6b0 range -0.01 0.01 unit=V
+* @spec s6b1 range 3.2 3.4 unit=V
+* @spec s6valid range 3.2 3.4 unit=V
+* @spec s7b0 range -0.01 0.01 unit=V
+* @spec s7b1 range 3.2 3.4 unit=V
+* @spec s7valid range 3.2 3.4 unit=V
+* @spec s8b0 range 3.2 3.4 unit=V
+* @spec s8b1 range 3.2 3.4 unit=V
+* @spec s8valid range 3.2 3.4 unit=V
+* @spec s9b0 range 3.2 3.4 unit=V
+* @spec s9b1 range 3.2 3.4 unit=V
+* @spec s9valid range 3.2 3.4 unit=V
+* @spec s10b0 range 3.2 3.4 unit=V
+* @spec s10b1 range 3.2 3.4 unit=V
+* @spec s10valid range 3.2 3.4 unit=V
+* @spec s11b0 range 3.2 3.4 unit=V
+* @spec s11b1 range 3.2 3.4 unit=V
+* @spec s11valid range 3.2 3.4 unit=V
+* @spec s12b0 range 3.2 3.4 unit=V
+* @spec s12b1 range 3.2 3.4 unit=V
+* @spec s12valid range 3.2 3.4 unit=V
+* @spec s13b0 range 3.2 3.4 unit=V
+* @spec s13b1 range 3.2 3.4 unit=V
+* @spec s13valid range 3.2 3.4 unit=V
+* @spec s14b0 range 3.2 3.4 unit=V
+* @spec s14b1 range 3.2 3.4 unit=V
+* @spec s14valid range 3.2 3.4 unit=V
+* @spec s15b0 range 3.2 3.4 unit=V
+* @spec s15b1 range 3.2 3.4 unit=V
+* @spec s15valid range 3.2 3.4 unit=V
+.control
+set filetype=ascii
+tran 20p 800n
+meas tran s0b0 FIND v(b0) AT=30n
+meas tran s0b1 FIND v(b1) AT=30n
+meas tran s0valid FIND v(valid) AT=30n
+meas tran s1b0 FIND v(b0) AT=80n
+meas tran s1b1 FIND v(b1) AT=80n
+meas tran s1valid FIND v(valid) AT=80n
+meas tran s2b0 FIND v(b0) AT=130n
+meas tran s2b1 FIND v(b1) AT=130n
+meas tran s2valid FIND v(valid) AT=130n
+meas tran s3b0 FIND v(b0) AT=180n
+meas tran s3b1 FIND v(b1) AT=180n
+meas tran s3valid FIND v(valid) AT=180n
+meas tran s4b0 FIND v(b0) AT=230n
+meas tran s4b1 FIND v(b1) AT=230n
+meas tran s4valid FIND v(valid) AT=230n
+meas tran s5b0 FIND v(b0) AT=280n
+meas tran s5b1 FIND v(b1) AT=280n
+meas tran s5valid FIND v(valid) AT=280n
+meas tran s6b0 FIND v(b0) AT=330n
+meas tran s6b1 FIND v(b1) AT=330n
+meas tran s6valid FIND v(valid) AT=330n
+meas tran s7b0 FIND v(b0) AT=380n
+meas tran s7b1 FIND v(b1) AT=380n
+meas tran s7valid FIND v(valid) AT=380n
+meas tran s8b0 FIND v(b0) AT=430n
+meas tran s8b1 FIND v(b1) AT=430n
+meas tran s8valid FIND v(valid) AT=430n
+meas tran s9b0 FIND v(b0) AT=480n
+meas tran s9b1 FIND v(b1) AT=480n
+meas tran s9valid FIND v(valid) AT=480n
+meas tran s10b0 FIND v(b0) AT=530n
+meas tran s10b1 FIND v(b1) AT=530n
+meas tran s10valid FIND v(valid) AT=530n
+meas tran s11b0 FIND v(b0) AT=580n
+meas tran s11b1 FIND v(b1) AT=580n
+meas tran s11valid FIND v(valid) AT=580n
+meas tran s12b0 FIND v(b0) AT=630n
+meas tran s12b1 FIND v(b1) AT=630n
+meas tran s12valid FIND v(valid) AT=630n
+meas tran s13b0 FIND v(b0) AT=680n
+meas tran s13b1 FIND v(b1) AT=680n
+meas tran s13valid FIND v(valid) AT=680n
+meas tran s14b0 FIND v(b0) AT=730n
+meas tran s14b1 FIND v(b1) AT=730n
+meas tran s14valid FIND v(valid) AT=730n
+meas tran s15b0 FIND v(b0) AT=780n
+meas tran s15b1 FIND v(b1) AT=780n
+meas tran s15valid FIND v(valid) AT=780n
+write out.raw v(b0) v(b1) v(valid) v(d0) v(d1) v(d2) v(d3)
+quit
+.endc
+.end

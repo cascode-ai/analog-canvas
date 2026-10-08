@@ -1,0 +1,40 @@
+MOS Gilbert double-balanced mixer
+.include "circuit.spice"
+.include "models.spice"
+VDD vdd 0 3.3
+VB vb 0 0.9
+VRP rfp 0 SIN(1.3 10m 100k)
+VRN rfn 0 SIN(1.3 10m 100k 0 0 180)
+VLP lop 0 SIN(2.0 .7 1Meg)
+VLN lon 0 SIN(2.0 .7 1Meg 0 0 180)
+XDUT vdd 0 op om rfp rfn lop lon vb astra_055_mos_gilbert_balanced_mixer
+.temp 27
+.options method=gear reltol=1e-5
+* @spec lower_cos range -0.15 -0.01 unit=V
+* @spec lower_sin range -0.03 0.03 unit=V
+* @spec upper_cos range 0.01 0.15 unit=V
+* @spec upper_sin range -0.03 0.03 unit=V
+* @spec rf_feedthrough range -0.005 0.005 unit=V
+* @spec lo_feedthrough range -0.005 0.005 unit=V
+* @spec common range 2.6 3.2 unit=V
+.control
+set filetype=ascii
+tran 2n 40u
+let vd = v(op)-v(om)
+let lo_c = vd*cos(2*pi*900k*time)
+let lo_s = vd*sin(2*pi*900k*time)
+let hi_c = vd*cos(2*pi*1.1Meg*time)
+let hi_s = vd*sin(2*pi*1.1Meg*time)
+let rf_leak = vd*sin(2*pi*100k*time)
+let lo_leak = vd*sin(2*pi*1Meg*time)
+meas tran lower_cos AVG lo_c FROM=20u TO=40u
+meas tran lower_sin AVG lo_s FROM=20u TO=40u
+meas tran upper_cos AVG hi_c FROM=20u TO=40u
+meas tran upper_sin AVG hi_s FROM=20u TO=40u
+meas tran rf_feedthrough AVG rf_leak FROM=20u TO=40u
+meas tran lo_feedthrough AVG lo_leak FROM=20u TO=40u
+meas tran common AVG v(op) FROM=20u TO=40u
+write out.raw v(op) v(om) v(rfp) v(rfn) v(lop) v(lon) v(vb)
+quit
+.endc
+.end

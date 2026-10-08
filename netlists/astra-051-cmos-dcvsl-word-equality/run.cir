@@ -1,0 +1,82 @@
+CMOS DCVSL two-bit equality comparator
+.include "circuit.spice"
+.include "models.spice"
+VDD vdd 0 3.3
+V0 a0 0 PULSE(0 3.3 50n 100p 100p 49.9n 100n)
+V1 a1 0 PULSE(0 3.3 100n 100p 100p 99.9n 200n)
+V2 b0 0 PULSE(0 3.3 200n 100p 100p 199.9n 400n)
+V3 b1 0 PULSE(0 3.3 400n 100p 100p 399.9n 800n)
+XDUT vdd 0 eq ne a0 a1 b0 b1 astra_051_cmos_dcvsl_word_equality
+.temp 27
+.options method=gear reltol=1e-5
+* @spec s0eq range 3.2 3.4 unit=V
+* @spec s0ne range -0.01 0.01 unit=V
+* @spec s1eq range -0.01 0.01 unit=V
+* @spec s1ne range 3.2 3.4 unit=V
+* @spec s2eq range -0.01 0.01 unit=V
+* @spec s2ne range 3.2 3.4 unit=V
+* @spec s3eq range -0.01 0.01 unit=V
+* @spec s3ne range 3.2 3.4 unit=V
+* @spec s4eq range -0.01 0.01 unit=V
+* @spec s4ne range 3.2 3.4 unit=V
+* @spec s5eq range 3.2 3.4 unit=V
+* @spec s5ne range -0.01 0.01 unit=V
+* @spec s6eq range -0.01 0.01 unit=V
+* @spec s6ne range 3.2 3.4 unit=V
+* @spec s7eq range -0.01 0.01 unit=V
+* @spec s7ne range 3.2 3.4 unit=V
+* @spec s8eq range -0.01 0.01 unit=V
+* @spec s8ne range 3.2 3.4 unit=V
+* @spec s9eq range -0.01 0.01 unit=V
+* @spec s9ne range 3.2 3.4 unit=V
+* @spec s10eq range 3.2 3.4 unit=V
+* @spec s10ne range -0.01 0.01 unit=V
+* @spec s11eq range -0.01 0.01 unit=V
+* @spec s11ne range 3.2 3.4 unit=V
+* @spec s12eq range -0.01 0.01 unit=V
+* @spec s12ne range 3.2 3.4 unit=V
+* @spec s13eq range -0.01 0.01 unit=V
+* @spec s13ne range 3.2 3.4 unit=V
+* @spec s14eq range -0.01 0.01 unit=V
+* @spec s14ne range 3.2 3.4 unit=V
+* @spec s15eq range 3.2 3.4 unit=V
+* @spec s15ne range -0.01 0.01 unit=V
+.control
+set filetype=ascii
+tran 20p 800n
+meas tran s0eq FIND v(eq) AT=30n
+meas tran s0ne FIND v(ne) AT=30n
+meas tran s1eq FIND v(eq) AT=80n
+meas tran s1ne FIND v(ne) AT=80n
+meas tran s2eq FIND v(eq) AT=130n
+meas tran s2ne FIND v(ne) AT=130n
+meas tran s3eq FIND v(eq) AT=180n
+meas tran s3ne FIND v(ne) AT=180n
+meas tran s4eq FIND v(eq) AT=230n
+meas tran s4ne FIND v(ne) AT=230n
+meas tran s5eq FIND v(eq) AT=280n
+meas tran s5ne FIND v(ne) AT=280n
+meas tran s6eq FIND v(eq) AT=330n
+meas tran s6ne FIND v(ne) AT=330n
+meas tran s7eq FIND v(eq) AT=380n
+meas tran s7ne FIND v(ne) AT=380n
+meas tran s8eq FIND v(eq) AT=430n
+meas tran s8ne FIND v(ne) AT=430n
+meas tran s9eq FIND v(eq) AT=480n
+meas tran s9ne FIND v(ne) AT=480n
+meas tran s10eq FIND v(eq) AT=530n
+meas tran s10ne FIND v(ne) AT=530n
+meas tran s11eq FIND v(eq) AT=580n
+meas tran s11ne FIND v(ne) AT=580n
+meas tran s12eq FIND v(eq) AT=630n
+meas tran s12ne FIND v(ne) AT=630n
+meas tran s13eq FIND v(eq) AT=680n
+meas tran s13ne FIND v(ne) AT=680n
+meas tran s14eq FIND v(eq) AT=730n
+meas tran s14ne FIND v(ne) AT=730n
+meas tran s15eq FIND v(eq) AT=780n
+meas tran s15ne FIND v(ne) AT=780n
+write out.raw "v(eq)" "v(ne)" v(a0) v(a1) v(b0) v(b1)
+quit
+.endc
+.end

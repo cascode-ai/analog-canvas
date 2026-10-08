@@ -1,0 +1,32 @@
+
+Note: No compatibility mode selected!
+
+
+Circuit: mos two-phase dickson charge pump
+
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+Initial Transient Solution
+--------------------------
+
+Node                                   Voltage
+----                                   -------
+vdd                                        3.3
+clk                                          0
+xdut.net0                              2.33218
+xdut.p1                            6.12963e-10
+xdut.net1                              1.47145
+xdut.p2                                    3.3
+out                                    0.72299
+vclk#branch                                  0
+vdd#branch                        -7.23173e-08
+
+
+No. of Data Rows : 76797
+boost               =  6.28710e+00 from=  1.50000e-04 to=  2.00000e-04
+ripple              =  2.08289e-02 from=  1.50000e-04 to=  2.00000e-04
+final               =  6.29217e+00
+ASCII raw file "out.raw"
+ngspice-46 done

@@ -1,0 +1,11 @@
+{
+  "name": "CMOS DCVSL two-bit equality comparator",
+  "description": "Cross-coupled PMOS loads and complementary NMOS logic trees compare two two-bit words. Four CMOS inverters supply input complements. eq is high exactly when (a1,a0) equals (b1,b0); ne is its complementary output. Twenty-six MOS devices and two 100 fF loads are explicit. The saved transient checks both outputs for all sixteen input combinations after settling. Generic nominal models; dynamic hazards, metastability, timing corners and mismatch are not qualified.",
+  "tags": [
+    "CMOS",
+    "DCVSL",
+    "Equality Comparator",
+    "Dual Rail",
+    "Digital Logic"
+  ]
+}

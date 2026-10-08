@@ -1,0 +1,14 @@
+
+.subckt astra_055_mos_gilbert_balanced_mixer vdd VSS op om rfp rfn lop lon vb
+CN om VSS 100f
+CP op VSS 100f
+M1 net1 rfp net0 VSS ANMOS l=1u w=20u
+M2 net2 rfn net0 VSS ANMOS l=1u w=20u
+M3 op lop net1 VSS ANMOS l=1u w=20u
+M4 om lon net1 VSS ANMOS l=1u w=20u
+M5 op lon net2 VSS ANMOS l=1u w=20u
+M6 om lop net2 VSS ANMOS l=1u w=20u
+M7 net0 vb VSS VSS ANMOS l=1u w=10u
+RN vdd om 10k
+RP vdd op 10k
+.ends astra_055_mos_gilbert_balanced_mixer

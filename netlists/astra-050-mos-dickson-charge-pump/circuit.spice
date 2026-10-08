@@ -1,0 +1,14 @@
+
+.subckt astra_050_mos_dickson_charge_pump vdd VSS out clk
+C1 net0 p1 10p
+C2 net1 p2 10p
+CO out VSS 20p
+M1 vdd vdd net0 VSS ANMOS l=1u w=20u
+M2 net0 net0 net1 VSS ANMOS l=1u w=20u
+M3 net1 net1 out VSS ANMOS l=1u w=20u
+M4 p2 clk vdd vdd APMOS l=1u w=20u
+M5 p2 clk VSS VSS ANMOS l=1u w=10u
+M6 p1 p2 vdd vdd APMOS l=1u w=20u
+M7 p1 p2 VSS VSS ANMOS l=1u w=10u
+RL out VSS 10meg
+.ends astra_050_mos_dickson_charge_pump

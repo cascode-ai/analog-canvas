@@ -1,0 +1,31 @@
+
+.subckt astra_051_cmos_dcvsl_word_equality vdd VSS eq ne a0 a1 b0 b1
+CE eq VSS 100f
+CN ne VSS 100f
+M1 eq ne vdd vdd APMOS l=1u w=5u
+M10 b1b b1 VSS VSS ANMOS l=1u w=10u
+M11 eq a0 net5 VSS ANMOS l=1u w=10u
+M12 net5 b0b VSS VSS ANMOS l=1u w=10u
+M13 eq a0b net6 VSS ANMOS l=1u w=10u
+M14 net6 b0 VSS VSS ANMOS l=1u w=10u
+M15 eq a1 net7 VSS ANMOS l=1u w=10u
+M16 net7 b1b VSS VSS ANMOS l=1u w=10u
+M17 eq a1b net8 VSS ANMOS l=1u w=10u
+M18 net8 b1 VSS VSS ANMOS l=1u w=10u
+M19 ne a0 net0 VSS ANMOS l=1u w=10u
+M2 ne eq vdd vdd APMOS l=1u w=5u
+M20 net0 b0 net4 VSS ANMOS l=1u w=10u
+M21 ne a0b net1 VSS ANMOS l=1u w=10u
+M22 net1 b0b net4 VSS ANMOS l=1u w=10u
+M23 net4 a1 net2 VSS ANMOS l=1u w=10u
+M24 net2 b1 VSS VSS ANMOS l=1u w=10u
+M25 net4 a1b net3 VSS ANMOS l=1u w=10u
+M26 net3 b1b VSS VSS ANMOS l=1u w=10u
+M3 a0b a0 vdd vdd APMOS l=1u w=20u
+M4 a0b a0 VSS VSS ANMOS l=1u w=10u
+M5 a1b a1 vdd vdd APMOS l=1u w=20u
+M6 a1b a1 VSS VSS ANMOS l=1u w=10u
+M7 b0b b0 vdd vdd APMOS l=1u w=20u
+M8 b0b b0 VSS VSS ANMOS l=1u w=10u
+M9 b1b b1 vdd vdd APMOS l=1u w=20u
+.ends astra_051_cmos_dcvsl_word_equality

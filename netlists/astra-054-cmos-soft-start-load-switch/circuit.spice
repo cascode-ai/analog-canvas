@@ -1,0 +1,13 @@
+
+.subckt astra_054_cmos_soft_start_load_switch vdd VSS g out en
+CG g vdd 10p
+CL out VSS 100p
+M1 out g vdd vdd APMOS l=1u w=200u
+M2 net0 en VSS VSS ANMOS l=1u w=20u
+M3 g en vdd vdd APMOS l=1u w=20u
+M4 out enb VSS VSS ANMOS l=1u w=40u
+M5 enb en vdd vdd APMOS l=1u w=20u
+M6 enb en VSS VSS ANMOS l=1u w=10u
+RG g net0 1meg
+RL out VSS 100k
+.ends astra_054_cmos_soft_start_load_switch

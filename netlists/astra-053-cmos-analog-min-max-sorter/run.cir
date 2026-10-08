@@ -1,0 +1,33 @@
+CMOS two-input analog min/max sorter
+.include "circuit.spice"
+.include "models.spice"
+VDD vdd 0 3.3
+VB vb 0 0.9
+VP vp 0 PWL(0 0.9 190n 0.9 200n 1.8 390n 1.8 400n 1.1 590n 1.1 600n 1.7 800n 1.7)
+VN vn 0 PWL(0 1.5 190n 1.5 200n 1.2 390n 1.2 400n 1.6 590n 1.6 600n 1.0 800n 1.0)
+XDUT vdd 0 vp vn vb max min astra_053_cmos_analog_min_max_sorter
+.temp 27
+.options method=gear reltol=1e-5
+* @spec s0max range 1.48 1.52 unit=V
+* @spec s0min range 0.88 0.92 unit=V
+* @spec s1max range 1.78 1.82 unit=V
+* @spec s1min range 1.18 1.22 unit=V
+* @spec s2max range 1.58 1.62 unit=V
+* @spec s2min range 1.08 1.12 unit=V
+* @spec s3max range 1.68 1.72 unit=V
+* @spec s3min range 0.98 1.02 unit=V
+.control
+set filetype=ascii
+tran 100p 800n
+meas tran s0max FIND v(max) AT=150n
+meas tran s0min FIND v(min) AT=150n
+meas tran s1max FIND v(max) AT=350n
+meas tran s1min FIND v(min) AT=350n
+meas tran s2max FIND v(max) AT=550n
+meas tran s2min FIND v(min) AT=550n
+meas tran s3max FIND v(max) AT=750n
+meas tran s3min FIND v(min) AT=750n
+write out.raw v(max) v(min) v(vp) v(vn) v(vb) v(vdd)
+quit
+.endc
+.end

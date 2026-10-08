@@ -1,0 +1,11 @@
+{
+  "name": "CMOS two-input analog min/max sorter",
+  "description": "A five-MOS comparator and two restoring inverters steer four transmission gates so max follows the larger of vp/vn and min follows the smaller. Seventeen MOS devices, two 1 pF loads and two 1 Gohm leakage loads are explicit. The saved experiment checks both outputs for four ordered input pairs and polarity reversals. This continuously routes the inputs; it does not hold past extrema. Nominal educational models; behavior near equality, switching glitches, source impedance, settling limits and PVT are not qualified.",
+  "tags": [
+    "CMOS",
+    "Analog Sorting",
+    "Min Max",
+    "Transmission Gate",
+    "Sensors"
+  ]
+}

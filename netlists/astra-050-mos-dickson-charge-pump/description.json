@@ -1,0 +1,11 @@
+{
+  "name": "MOS two-phase Dickson charge pump",
+  "description": "Three diode-connected NMOS devices and two clocked 10 pF capacitors form a Dickson voltage pump. Two explicit CMOS inverters drive complementary 1 MHz phases; a 20 pF reservoir drives a 10 Mohm load. The saved nominal transient checks the boosted output, settled ripple and final voltage. All seven MOS devices are explicit. This uses educational models with body effect; no oxide-voltage, breakdown, efficiency or foundry qualification is claimed.",
+  "tags": [
+    "CMOS",
+    "Charge Pump",
+    "Dickson",
+    "Voltage Boost",
+    "Switched Capacitor"
+  ]
+}

@@ -1,0 +1,77 @@
+
+Note: No compatibility mode selected!
+
+
+Circuit: cmos dcvsl two-bit equality comparator
+
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+Initial Transient Solution
+--------------------------
+
+Node                                   Voltage
+----                                   -------
+vdd                                        3.3
+a0                                           0
+a1                                           0
+b0                                           0
+b1                                           0
+eq                                         3.3
+ne                                 2.45185e-09
+xdut.b1b                                   3.3
+xdut.net5                        -7.83875e-180
+xdut.b0b                                   3.3
+xdut.a0b                                   3.3
+xdut.net6                              2.33746
+xdut.net7                        -7.80435e-180
+xdut.a1b                                   3.3
+xdut.net8                              2.33746
+xdut.net0                          3.27373e-24
+xdut.net4                          1.22593e-09
+xdut.net1                          1.83889e-09
+xdut.net2                         -1.03432e-25
+xdut.net3                          6.12963e-10
+v3#branch                                    0
+v2#branch                                    0
+v1#branch                                    0
+v0#branch                                    0
+vdd#branch                        -3.91799e-11
+
+
+No. of Data Rows : 41112
+s0eq                =  3.30000e+00
+s0ne                =  2.45185e-09
+s1eq                =  1.22660e-09
+s1ne                =  3.30000e+00
+s2eq                =  1.23471e-09
+s2ne                =  3.30000e+00
+s3eq                =  6.08467e-10
+s3ne                =  3.30000e+00
+s4eq                =  1.22646e-09
+s4ne                =  3.30000e+00
+s5eq                =  3.30000e+00
+s5ne                =  2.45445e-09
+s6eq                =  6.13233e-10
+s6ne                =  3.30000e+00
+s7eq                =  1.24304e-09
+s7ne                =  3.30000e+00
+s8eq                =  1.24129e-09
+s8ne                =  3.30000e+00
+s9eq                =  6.09321e-10
+s9ne                =  3.30000e+00
+s10eq               =  3.30000e+00
+s10ne               =  2.45412e-09
+s11eq               =  1.22633e-09
+s11ne               =  3.30000e+00
+s12eq               =  6.13228e-10
+s12ne               =  3.30000e+00
+s13eq               =  1.24169e-09
+s13ne               =  3.30000e+00
+s14eq               =  1.22593e-09
+s14ne               =  3.30000e+00
+s15eq               =  3.30000e+00
+s15ne               =  2.45458e-09
+ASCII raw file "out.raw"
+ngspice-46 done

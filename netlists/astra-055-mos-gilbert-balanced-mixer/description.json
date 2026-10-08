@@ -1,0 +1,11 @@
+{
+  "name": "MOS Gilbert double-balanced mixer",
+  "description": "A seven-NMOS Gilbert cell combines a differential RF transconductance pair, LO switching quad and tail-current device. Two 10 kohm loads and two 100 fF loads develop differential output. The saved 100 kHz RF / 1 MHz LO experiment checks coherent projections at 900 kHz and 1.1 MHz, RF/LO feedthrough, and common-mode bias. Every transistor is explicit. Generic educational models; no RF noise, linearity, matching, power-gain, impedance or PVT qualification.",
+  "tags": [
+    "CMOS",
+    "Gilbert Cell",
+    "Double Balanced Mixer",
+    "Frequency Conversion",
+    "RF"
+  ]
+}

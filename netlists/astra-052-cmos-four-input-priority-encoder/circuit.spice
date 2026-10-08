@@ -1,0 +1,32 @@
+
+.subckt astra_052_cmos_four_input_priority_encoder vdd VSS d2 d3 b1 d1 d2b b0 d0 valid
+C0 b0 VSS 100f
+C1 b1 VSS 100f
+CV valid VSS 100f
+M1 d2b d2 vdd vdd APMOS l=1u w=20u
+M10 net0 d1 net4 vdd APMOS l=1u w=20u
+M11 net0 d2b net4 vdd APMOS l=1u w=20u
+M12 net0 d1 net2 VSS ANMOS l=1u w=10u
+M13 net2 d2b VSS VSS ANMOS l=1u w=10u
+M14 net0 d3 VSS VSS ANMOS l=1u w=10u
+M15 b0 net0 vdd vdd APMOS l=1u w=20u
+M16 b0 net0 VSS VSS ANMOS l=1u w=10u
+M17 net3 d0 net6 vdd APMOS l=1u w=20u
+M18 net6 d1 net7 vdd APMOS l=1u w=20u
+M19 net7 d2 net8 vdd APMOS l=1u w=20u
+M2 d2b d2 VSS VSS ANMOS l=1u w=10u
+M20 net8 d3 vdd vdd APMOS l=1u w=20u
+M21 net3 d0 VSS VSS ANMOS l=1u w=10u
+M22 net3 d1 VSS VSS ANMOS l=1u w=10u
+M23 net3 d2 VSS VSS ANMOS l=1u w=10u
+M24 net3 d3 VSS VSS ANMOS l=1u w=10u
+M25 valid net3 vdd vdd APMOS l=1u w=20u
+M26 valid net3 VSS VSS ANMOS l=1u w=10u
+M3 net1 d3 net5 vdd APMOS l=1u w=20u
+M4 net5 d2 vdd vdd APMOS l=1u w=20u
+M5 net1 d3 VSS VSS ANMOS l=1u w=10u
+M6 net1 d2 VSS VSS ANMOS l=1u w=10u
+M7 b1 net1 vdd vdd APMOS l=1u w=20u
+M8 b1 net1 VSS VSS ANMOS l=1u w=10u
+M9 net4 d3 vdd vdd APMOS l=1u w=20u
+.ends astra_052_cmos_four_input_priority_encoder

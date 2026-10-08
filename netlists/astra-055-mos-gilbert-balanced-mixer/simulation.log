@@ -1,0 +1,44 @@
+
+Note: No compatibility mode selected!
+
+
+Circuit: mos gilbert double-balanced mixer
+
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+Initial Transient Solution
+--------------------------
+
+Node                                   Voltage
+----                                   -------
+vdd                                        3.3
+vb                                         0.9
+rfp                                        1.3
+rfn                                        1.3
+lop                                          2
+lon                                          2
+om                                      2.8459
+op                                      2.8459
+xdut.net1                              1.09415
+xdut.net0                             0.455045
+xdut.net2                              1.09415
+vln#branch                                   0
+vlp#branch                                   0
+vrn#branch                                   0
+vrp#branch                                   0
+vb#branch                                    0
+vdd#branch                        -9.08191e-05
+
+
+No. of Data Rows : 20008
+lower_cos           =  -3.85748e-02 from=  2.00000e-05 to=  4.00000e-05
+lower_sin           =  -2.35281e-04 from=  2.00000e-05 to=  4.00000e-05
+upper_cos           =  3.85741e-02 from=  2.00000e-05 to=  4.00000e-05
+upper_sin           =  2.88799e-04 from=  2.00000e-05 to=  4.00000e-05
+rf_feedthrough      =  -3.41677e-08 from=  2.00000e-05 to=  4.00000e-05
+lo_feedthrough      =  -5.79703e-10 from=  2.00000e-05 to=  4.00000e-05
+common              =  2.84590e+00 from=  2.00000e-05 to=  4.00000e-05
+ASCII raw file "out.raw"
+ngspice-46 done

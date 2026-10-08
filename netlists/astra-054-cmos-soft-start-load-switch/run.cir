@@ -1,0 +1,29 @@
+CMOS soft-start load switch
+.include "circuit.spice"
+.include "models.spice"
+VDD vdd 0 3.3
+VEN en 0 PULSE(0 3.3 5u 10n 10n 24.99u 40u)
+XDUT vdd 0 g out en astra_054_cmos_soft_start_load_switch
+.temp 27
+.options method=gear reltol=1e-5
+* @spec on1 range 3.2 3.4 unit=V
+* @spec off1 range -0.01 0.01 unit=V
+* @spec on2 range 3.2 3.4 unit=V
+* @spec gate_on range 0 0.4 unit=V
+* @spec gate_off range 3.2 3.4 unit=V
+* @spec delay range 0.000001 0.000005 unit=s
+* @spec risetime range 1e-7 0.000004 unit=s
+.control
+set filetype=ascii
+tran 5n 80u
+meas tran on1 FIND v(out) AT=28u
+meas tran off1 FIND v(out) AT=35u
+meas tran on2 FIND v(out) AT=68u
+meas tran gate_on FIND v(g) AT=28u
+meas tran gate_off FIND v(g) AT=35u
+meas tran delay TRIG v(en) VAL=1.65 RISE=1 TARG v(out) VAL=1.65 RISE=1
+meas tran risetime TRIG v(out) VAL=.33 RISE=1 TARG v(out) VAL=2.97 RISE=1
+write out.raw v(out) v(g) v(en) v(xdut.enb) v(vdd)
+quit
+.endc
+.end

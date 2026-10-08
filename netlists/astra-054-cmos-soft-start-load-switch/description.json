@@ -1,0 +1,11 @@
+{
+  "name": "CMOS soft-start load switch",
+  "description": "A high-side PMOS supplies the load while a 1 Mohm / 10 pF gate network slows turn-on. An NMOS enables the gate discharge path; a PMOS restores its gate to VDD at disable. A CMOS control inverter drives a separate NMOS that actively discharges the 100 pF output. All six MOS devices and the 100 kohm load are explicit. The saved transient checks two enable cycles, disabled discharge, gate levels, turn-on delay and rise time. Educational nominal models; no current limit, safe operating area, inrush limit or PVT guarantee.",
+  "tags": [
+    "CMOS",
+    "Load Switch",
+    "Soft Start",
+    "Power Gating",
+    "Power Management"
+  ]
+}

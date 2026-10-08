@@ -1,0 +1,24 @@
+
+.subckt astra_053_cmos_analog_min_max_sorter vdd VSS vp vn vb max min
+CMAX max VSS 1p
+CMIN min VSS 1p
+M1 net1 vp net2 VSS ANMOS l=1u w=10u
+M10 vp enb max vdd APMOS l=1u w=20u
+M11 vp en max VSS ANMOS l=1u w=10u
+M12 vn en max vdd APMOS l=1u w=20u
+M13 vn enb max VSS ANMOS l=1u w=10u
+M14 vp en min vdd APMOS l=1u w=20u
+M15 vp enb min VSS ANMOS l=1u w=10u
+M16 vn enb min vdd APMOS l=1u w=20u
+M17 vn en min VSS ANMOS l=1u w=10u
+M2 net0 vn net2 VSS ANMOS l=1u w=10u
+M3 net1 net1 vdd vdd APMOS l=1u w=20u
+M4 net0 net1 vdd vdd APMOS l=1u w=20u
+M5 net2 vb VSS VSS ANMOS l=1u w=10u
+M6 enb net0 vdd vdd APMOS l=1u w=4u
+M7 enb net0 VSS VSS ANMOS l=1u w=2u
+M8 en enb vdd vdd APMOS l=1u w=20u
+M9 en enb VSS VSS ANMOS l=1u w=10u
+RMAX max VSS 1G
+RMIN min VSS 1G
+.ends astra_053_cmos_analog_min_max_sorter

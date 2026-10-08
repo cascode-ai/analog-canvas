@@ -1,0 +1,11 @@
+{
+  "name": "CMOS four-input priority encoder",
+  "description": "Twenty-six explicit MOS devices implement a four-request priority encoder with d3 highest and d0 lowest. b1/b0 identify the highest asserted request, while valid marks any asserted request; all-zero input gives valid=0 and code 00. The AOI path masks d1 when d2 is asserted. Three 100 fF outputs are checked for all sixteen input patterns, including simultaneous requests. Generic nominal models; asynchronous hazards and timing/PVT limits are not qualified.",
+  "tags": [
+    "CMOS",
+    "Priority Encoder",
+    "Arbitration",
+    "Combinational Logic",
+    "Digital"
+  ]
+}

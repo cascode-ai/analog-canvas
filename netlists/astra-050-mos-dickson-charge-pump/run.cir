@@ -1,0 +1,21 @@
+MOS two-phase Dickson charge pump
+.include "circuit.spice"
+.include "models.spice"
+VDD vdd 0 3.3
+VCLK clk 0 PULSE(0 3.3 100n 1n 1n 499n 1u)
+XDUT vdd 0 out clk astra_050_mos_dickson_charge_pump
+.temp 27
+.options method=gear reltol=1e-5
+* @spec boost range 5.5 7 unit=V
+* @spec ripple range 0 0.2 unit=V
+* @spec final range 5.5 7 unit=V
+.control
+set filetype=ascii
+tran 5n 200u
+meas tran boost AVG v(out) FROM=150u TO=200u
+meas tran ripple PP v(out) FROM=150u TO=200u
+meas tran final FIND v(out) AT=200u
+write out.raw v(out) v(clk) v(xdut.p1) v(xdut.p2)
+quit
+.endc
+.end
