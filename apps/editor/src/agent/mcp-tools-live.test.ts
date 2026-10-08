@@ -960,6 +960,88 @@ describe("MCP tools on the live editor", () => {
     ).toEqual({ x: 40, y: 60 });
   });
 
+  /** R1, M1, a Port Vout and two VDD markers, with their IDs. */
+  async function namedParts() {
+    const editor = await connected();
+    const marker = (symbol: string, x: number, extra = {}) => ({
+      kind: "place-component",
+      symbol,
+      position: { x, y: -200 },
+      ...extra,
+    });
+    await apply(editor, [
+      place("resistor", "R1", 100),
+      place("nmos", "M1", 300),
+      marker("port", 500, { reference: "Vout" }),
+      marker("vdd-port", 100),
+      marker("vdd-port", 600),
+    ]);
+    const instances = editor.controller.document.instances;
+    const idOf = (symbolId: string) =>
+      instances.find((item) => item.symbolId === symbolId)!.id;
+    return {
+      editor,
+      r1: idOf("resistor"),
+      m1: idOf("nmos"),
+      vout: idOf("port"),
+      vdd: instances
+        .filter((item) => item.symbolId === "vdd-port")
+        .map((item) => item.id),
+    };
+  }
+
+  it("reads pins by Reference or Pin name and says which names it could not resolve (#1525)", async () => {
+    const { editor, r1, m1, vout, vdd } = await namedParts();
+    const read = await editor.tool("inspect", {
+      target: { kind: "pins", instanceIds: ["R1", "Vout", m1, "VDD", "Q9"] },
+    });
+    expect(
+      read.instances.map((item: { id: string }) => item.id).sort(),
+    ).toEqual([r1, m1, vout].sort());
+    expect(read.resolvedNames).toEqual({ R1: r1, Vout: vout });
+    expect(read.missingInstanceIds).toEqual(["VDD", "Q9"]);
+    expect(read.unresolved).toEqual([
+      {
+        name: "VDD",
+        reason: expect.stringContaining("names 2 parts"),
+        candidates: expect.arrayContaining(
+          vdd.map((id) => ({ kind: "instance", id, name: "VDD" })),
+        ),
+      },
+      { name: "Q9", reason: expect.stringContaining("No part") },
+    ]);
+  });
+
+  it("refuses an unknown name in the shape every tool answers with (#1525)", async () => {
+    const { editor, r1 } = await namedParts();
+    const refusal = async (target: Record<string, unknown>) => {
+      const result = await editor.call("inspect", { target });
+      expect(result.isError).toBe(true);
+      return parseText(result);
+    };
+    // Names match exactly, as actions match them; a case slip is pointed out.
+    expect(await refusal({ kind: "object", name: "r1" })).toEqual({
+      ok: false,
+      error: {
+        code: "OBJECT_NOT_FOUND",
+        message: expect.stringContaining("only in case"),
+        recovery: "fix-input",
+        reference: "r1",
+        candidates: [{ kind: "instance", id: r1, name: "R1" }],
+      },
+    });
+    // A Net target looks at Nets only.
+    expect(await refusal({ kind: "net", name: "R1" })).toMatchObject({
+      error: { code: "OBJECT_NOT_FOUND", reference: "R1" },
+    });
+    expect(await refusal({ kind: "connectivity", name: "Q9" })).toMatchObject({
+      error: {
+        code: "OBJECT_NOT_FOUND",
+        message: expect.stringContaining('search {"query":"Q9"}'),
+      },
+    });
+  });
+
   it("apply_actions returns the editor's refusal of a list that needs several calls, after one request", async () => {
     const editor = await connected();
     await apply(editor, [place("resistor", "R1", 100)]);

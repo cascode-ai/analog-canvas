@@ -415,6 +415,14 @@ and parameter labels as `annotations` (`id`, `kind`, `parameter`, `visible`,
 `resolvedText` and `position`, the point `move-annotation` sets), read with
 one targeted request, so a label is found and moved without a full Document
 read. An Editor without the list answers `annotationsUnavailable` instead.
+Names match exactly, as actions match them. A name nothing has is refused
+as `OBJECT_NOT_FOUND`, one several parts share as `NAME_AMBIGUOUS`, both in
+the `error:{code,message,recovery}` shape with the `candidates` (kind, id,
+name) it could mean; a `net` target looks at Nets only.
+`inspect` with `target:{kind:"pins",instanceIds:[…]}` also takes a part's
+Reference, or a Cell Pin's name: `resolvedNames` maps each to its ID, and an
+entry naming no single part stays in `missingInstanceIds` and is explained
+in `unresolved` (reason and candidate IDs).
 `inspect` with `target:{kind:"geometry",objectIds:["…"]}` reads up to 64
 specific authored objects (placement, routes, junctions, annotation anchors,
 drafting and no-connect objects). It returns current revision and missing IDs

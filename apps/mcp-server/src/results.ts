@@ -245,17 +245,147 @@ type OptionalReference = {
   name?: string | undefined;
 };
 
+type SnapshotDocument = AgentSessionSnapshot["document"];
+type SnapshotInstance = SnapshotDocument["instances"][number];
+type SnapshotNet = SnapshotDocument["nets"][number];
+interface NameCandidate {
+  kind: "instance" | "net";
+  id: string;
+  name: string | null;
+}
+
+/** A part's name as actions take it: its Reference, or a Cell Pin's name. */
+function partName(instance: SnapshotInstance): string | null {
+  return instance.reference ?? instance.cellTerminal?.name ?? null;
+}
+
+function candidate(item: SnapshotInstance | SnapshotNet): NameCandidate {
+  return "pins" in item
+    ? { kind: "instance", id: item.id, name: partName(item) }
+    : { kind: "net", id: item.id, name: item.name };
+}
+
+/** A refusal in the shape every tool answers with (#1525). */
+function lookupRefusal(
+  code: "OBJECT_NOT_FOUND" | "NAME_AMBIGUOUS",
+  message: string,
+  reference: string,
+  candidates: readonly NameCandidate[],
+): Record<string, unknown> {
+  return {
+    ok: false,
+    error: {
+      code,
+      message,
+      recovery: "fix-input",
+      reference,
+      ...(candidates.length ? { candidates } : {}),
+    },
+  };
+}
+
+/**
+ * Names that differ from one only in case, offered when nothing has it:
+ * names are matched exactly, as actions match them.
+ */
+function nearNames(
+  document: SnapshotDocument,
+  reference: string,
+  only?: "net",
+): NameCandidate[] {
+  const folded = reference.toLowerCase();
+  return [...(only ? [] : document.instances), ...document.nets]
+    .filter((item) => {
+      const name = "pins" in item ? partName(item) : item.name;
+      return name?.toLowerCase() === folded;
+    })
+    .slice(0, 10)
+    .map(candidate);
+}
+
+function notFound(
+  document: SnapshotDocument,
+  reference: string,
+  only?: "net",
+): Record<string, unknown> {
+  const near = nearNames(document, reference, only);
+  return lookupRefusal(
+    "OBJECT_NOT_FOUND",
+    reference
+      ? `Nothing in Cell "${document.name}" has the ID or name "${reference}"${
+          near.length
+            ? "; names differ from these only in case"
+            : `; search {"query":"${reference}"} finds partial and label matches`
+        }`
+      : "Give the object's id or name",
+    reference,
+    near,
+  );
+}
+
+/**
+ * Entries of a `pins` read that are not part IDs (#1525): each a part's
+ * Reference, or a Cell Pin marker's Pin name, resolved exactly as actions
+ * resolve it, or the reason it is not one, with the IDs it could mean.
+ */
+export function resolvePartNames(
+  document: SnapshotDocument,
+  names: readonly string[],
+): {
+  ids: Record<string, string>;
+  unresolved: { name: string; reason: string; candidates?: NameCandidate[] }[];
+} {
+  const ids: Record<string, string> = {};
+  const unresolved: {
+    name: string;
+    reason: string;
+    candidates?: NameCandidate[];
+  }[] = [];
+  for (const name of new Set(names)) {
+    const named = document.instances.filter(
+      (instance) => partName(instance) === name,
+    );
+    if (named.length === 1) {
+      ids[name] = named[0]!.id;
+      continue;
+    }
+    const near = named.length
+      ? named.map(candidate)
+      : nearNames(document, name).filter((item) => item.kind === "instance");
+    unresolved.push({
+      name,
+      reason: named.length
+        ? `"${name}" names ${named.length} parts; ask for one by its id`
+        : `No part has the ID, Reference or Pin name "${name}"`,
+      ...(near.length ? { candidates: near } : {}),
+    });
+  }
+  return { ids, unresolved };
+}
+
 export function inspectObject(
   entry: CachedSnapshot,
   target: OptionalReference,
 ): Record<string, unknown> {
   const document = entry.snapshot.document;
   const reference = target.id ?? target.name ?? "";
-  const instance = document.instances.find(
-    (candidate) =>
-      candidate.id === reference || candidate.reference === reference,
+  const byId = document.instances.find(
+    (candidate) => candidate.id === reference,
   );
-  if (instance) return inspectInstanceValue(instance);
+  if (byId) return inspectInstanceValue(byId);
+  const named = document.instances.filter(
+    (candidate) => candidate.reference === reference,
+  );
+  if (named.length > 1)
+    return lookupRefusal(
+      "NAME_AMBIGUOUS",
+      `"${reference}" names ${named.length} parts; inspect one by its id`,
+      reference,
+      [...named, ...document.nets.filter((net) => net.name === reference)].map(
+        candidate,
+      ),
+    );
+  if (named[0]) return inspectInstanceValue(named[0]);
   const net = document.nets.find(
     (candidate) => candidate.id === reference || candidate.name === reference,
   );
@@ -303,10 +433,20 @@ export function inspectObject(
       diagnosticCount: drafting.diagnostics.length,
     } as unknown as Record<string, unknown>;
   }
-  return {
-    error: "no object matches the reference in the cached snapshot",
-    reference,
-  };
+  return notFound(document, reference);
+}
+
+/** A Net target: a Net only, by ID or name; a part's name never stands in. */
+export function inspectNet(
+  entry: CachedSnapshot,
+  target: OptionalReference,
+): Record<string, unknown> {
+  const document = entry.snapshot.document;
+  const reference = target.id ?? target.name ?? "";
+  const net = document.nets.find(
+    (candidate) => candidate.id === reference || candidate.name === reference,
+  );
+  return net ? inspectNetValue(net) : notFound(document, reference, "net");
 }
 
 export function inspectConnectivity(
@@ -316,10 +456,18 @@ export function inspectConnectivity(
   const document = entry.snapshot.document;
   const reference = target?.id ?? target?.name;
   if (reference) {
-    const instance = document.instances.find(
+    const named = document.instances.filter(
       (candidate) =>
         candidate.id === reference || candidate.reference === reference,
     );
+    if (named.length > 1)
+      return lookupRefusal(
+        "NAME_AMBIGUOUS",
+        `"${reference}" names ${named.length} parts; inspect one by its id`,
+        reference,
+        named.map(candidate),
+      );
+    const instance = named[0];
     if (instance) {
       return {
         instanceId: instance.id,
@@ -348,6 +496,7 @@ export function inspectConnectivity(
         }),
       };
     }
+    return notFound(document, reference);
   }
   return {
     nets: document.nets.map((net) => ({

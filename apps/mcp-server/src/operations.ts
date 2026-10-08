@@ -48,7 +48,9 @@ import {
   compactActionReport,
   inspectConnectivity,
   inspectDocument,
+  inspectNet,
   inspectObject,
+  resolvePartNames,
   searchSnapshot,
   verifyInformation,
   type SearchKind,
@@ -594,6 +596,41 @@ const RenderArgs = z.strictObject({
     .optional(),
   documentId: z.string().min(1).optional(),
 });
+
+/**
+ * A pins read by part ID, Reference or Cell Pin name (#1525). The editor's
+ * projection takes IDs; what it does not know is resolved against the
+ * Cell's Snapshot and read again, and whatever names no single part is
+ * listed with its reason and the IDs it could mean, never dropped.
+ */
+async function inspectPins(
+  session: ToolSessionState,
+  requested: readonly string[],
+  documentId?: string,
+) {
+  const first = await session.client.pinsSnapshot(requested, documentId);
+  if (!first.missingInstanceIds.length) return first;
+  const entry = await session.client.snapshot(first.documentId);
+  const { ids, unresolved } = resolvePartNames(
+    entry.snapshot.document,
+    first.missingInstanceIds,
+  );
+  const wanted = [...new Set(Object.values(ids))];
+  const second = wanted.length
+    ? await session.client.pinsSnapshot(wanted, first.documentId)
+    : null;
+  const seen = new Set(first.instances.map((instance) => instance.id));
+  return {
+    ...(second ?? first),
+    instances: [
+      ...first.instances,
+      ...(second?.instances ?? []).filter((instance) => !seen.has(instance.id)),
+    ],
+    missingInstanceIds: unresolved.map((item) => item.name),
+    ...(wanted.length ? { resolvedNames: ids } : {}),
+    ...(unresolved.length ? { unresolved } : {}),
+  };
+}
 
 interface ToolEntry {
   definition: ContractTool;
@@ -1401,7 +1438,8 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
           parsed.documentId,
         );
       if (parsed.target.kind === "pins")
-        return session.client.pinsSnapshot(
+        return inspectPins(
+          session,
           parsed.target.instanceIds,
           parsed.documentId,
         );
@@ -1452,7 +1490,7 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
             }));
         }
         case "net":
-          return inspectObject(entry, parsed.target);
+          return inspectNet(entry, parsed.target);
         case "connectivity":
           return inspectConnectivity(entry, parsed.target);
       }
