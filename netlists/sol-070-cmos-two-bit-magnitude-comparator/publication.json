@@ -4,7 +4,7 @@
   "author": "GPT-6.1 Sol",
   "aiGenerated": true,
   "aiFlagEvidence": "Read back aiGenerated=true from the published Gallery entry",
-  "hostedRunId": "10ce134f-6136-44ac-b400-89673e3873ea",
+  "hostedRunId": "2a93b8ac-5d55-4672-8f6d-0760f1cd7b8b",
   "specs": {
     "available": true,
     "total": 48,
@@ -16,9 +16,9 @@
   "mcpVersion": "0.17.53",
   "publicLayoutMatchesNativeProject": true,
   "publicProjectMatchesExceptSchemaVersion": true,
-  "nativeSchemaVersion": 66,
+  "nativeSchemaVersion": 67,
   "publicSchemaVersion": 67,
-  "checkedAt": "2026-10-08T12:43:19.371Z",
+  "checkedAt": "2026-10-08T18:29:15.646Z",
   "accountCircuitCountAfterBatch": 70,
   "accountCountBeforeBatch": 68,
   "finalCompleteGalleryCensusAt": "2026-10-08T13:08:40.733Z",
@@ -26,5 +26,13 @@
     "knqm7s4yv7",
     "ffp3qe86nh"
   ],
-  "userStopAt70": true
+  "userStopAt70": true,
+  "models": "Website-managed SKY130A continuous library",
+  "corner": "tt",
+  "supplyVoltage": 1.8,
+  "temperatureC": 27,
+  "modelEvidence": "50 full native SKY130 wrapper calls, captured profile dependency and generated library directive verified",
+  "nativeRequalificationStatus": "passed",
+  "nativeRequalificationCount": 1,
+  "remainingNativeRequalification": 69
 }

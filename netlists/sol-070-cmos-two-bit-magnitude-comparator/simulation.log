@@ -13,90 +13,139 @@ Initial Transient Solution
 
 Node                                   Voltage
 ----                                   -------
-vdd                                        3.3
+vdd                                        1.8
 a0                                           0
 a1                                           0
 b0                                           0
 b1                                           0
-eq                                         3.3
-gt                                 1.22593e-09
-lt                                 1.22593e-09
-xdut.a0b                                   3.3
-xdut.b0b                                   3.3
-xdut.e0                                    3.3
-xdut.a1b                                   3.3
-xdut.e1                                    3.3
-xdut.b1b                                   3.3
-xdut.net0                          1.22593e-09
-xdut.net1                          6.12963e-10
-xdut.g1b                                   3.3
-xdut.net4                         3.09376e-133
-xdut.g0b                                   3.3
-xdut.net2                              2.33749
-xdut.net3                         3.57911e-135
-xdut.net5                          6.12963e-10
-xdut.l1b                                   3.3
-xdut.net8                              2.33748
-xdut.l0b                                   3.3
-xdut.net6                              2.33747
-xdut.net7                              2.33746
-xdut.net9                          6.12963e-10
+eq                                         1.8
+gt                                 1.50156e-09
+lt                                 1.50156e-09
+xdut.a0b                                   1.8
+xdut.b0b                                   1.8
+xdut.e0                                    1.8
+xdut.a1b                                   1.8
+xdut.e1                                    1.8
+xdut.b1b                                   1.8
+xdut.net0                          1.50156e-09
+xdut.net1                          7.50781e-10
+xdut.g1b                                   1.8
+xdut.net4                          3.03823e-10
+xdut.g0b                                   1.8
+xdut.net2                               1.4505
+xdut.net3                          2.90235e-10
+xdut.net5                          7.50781e-10
+xdut.l1b                                   1.8
+xdut.net8                              1.44371
+xdut.l0b                                   1.8
+xdut.net6                              1.43847
+xdut.net7                              1.42363
+xdut.net9                          7.50781e-10
 vb1#branch                                   0
 vb0#branch                                   0
-va1#branch                            3.31e-12
-va0#branch                            3.31e-12
-vdd#branch                        -9.49098e-11
+va1#branch                         2.81801e-12
+va0#branch                         2.81801e-12
+vdd#branch                         -6.8331e-11
 
- Reference value :  1.18448e-06
-
-No. of Data Rows : 14786
-c0eq                =  3.30000e+00
-c0gt                =  1.22593e-09
-c0lt                =  1.22593e-09
-c1eq                =  6.12963e-10
-c1gt                =  3.30000e+00
-c1lt                =  1.22598e-09
-c2eq                =  6.13041e-10
-c2gt                =  3.30000e+00
-c2lt                =  1.22593e-09
-c3eq                =  6.12963e-10
-c3gt                =  3.30000e+00
-c3lt                =  1.22593e-09
-c4eq                =  6.12963e-10
-c4gt                =  1.22599e-09
-c4lt                =  3.30000e+00
-c5eq                =  3.30000e+00
-c5gt                =  1.22593e-09
-c5lt                =  1.22604e-09
-c6eq                =  6.12963e-10
-c6gt                =  3.30000e+00
-c6lt                =  1.22593e-09
-c7eq                =  6.13043e-10
-c7gt                =  3.30000e+00
-c7lt                =  1.22593e-09
-c8eq                =  6.13042e-10
-c8gt                =  1.22593e-09
-c8lt                =  3.30000e+00
-c9eq                =  6.12964e-10
-c9gt                =  1.22593e-09
-c9lt                =  3.30000e+00
-c10eq               =  3.30000e+00
-c10gt               =  1.22618e-09
-c10lt               =  1.22654e-09
-c11eq               =  6.12963e-10
-c11gt               =  3.30000e+00
-c11lt               =  1.22598e-09
-c12eq               =  6.12963e-10
-c12gt               =  1.22593e-09
-c12lt               =  3.30000e+00
-c13eq               =  6.13042e-10
-c13gt               =  1.22593e-09
-c13lt               =  3.30000e+00
-c14eq               =  6.12963e-10
-c14gt               =  1.22600e-09
-c14lt               =  3.30000e+00
-c15eq               =  3.30000e+00
-c15gt               =  1.22591e-09
-c15lt               =  1.22604e-09
+ Reference value :  0.00000e+00
+ Reference value :  3.52280e-08
+ Reference value :  7.22280e-08
+ Reference value :  8.14736e-08
+ Reference value :  1.02829e-07
+ Reference value :  1.39729e-07
+ Reference value :  1.60319e-07
+ Reference value :  1.75627e-07
+ Reference value :  2.12827e-07
+ Reference value :  2.40180e-07
+ Reference value :  2.64064e-07
+ Reference value :  3.00864e-07
+ Reference value :  3.20575e-07
+ Reference value :  3.24503e-07
+ Reference value :  3.53913e-07
+ Reference value :  3.90613e-07
+ Reference value :  4.01648e-07
+ Reference value :  4.17967e-07
+ Reference value :  4.54767e-07
+ Reference value :  4.80267e-07
+ Reference value :  4.87370e-07
+ Reference value :  5.24270e-07
+ Reference value :  5.59538e-07
+ Reference value :  5.79785e-07
+ Reference value :  6.16685e-07
+ Reference value :  6.40406e-07
+ Reference value :  6.43996e-07
+ Reference value :  6.80596e-07
+ Reference value :  7.17396e-07
+ Reference value :  7.31237e-07
+ Reference value :  7.68137e-07
+ Reference value :  8.00007e-07
+ Reference value :  8.02667e-07
+ Reference value :  8.30974e-07
+ Reference value :  8.67774e-07
+ Reference value :  8.80882e-07
+ Reference value :  8.95929e-07
+ Reference value :  9.32629e-07
+ Reference value :  9.60181e-07
+ Reference value :  9.61816e-07
+ Reference value :  9.93054e-07
+ Reference value :  1.02995e-06
+ Reference value :  1.04699e-06
+ Reference value :  1.08409e-06
+ Reference value :  1.11951e-06
+ Reference value :  1.12176e-06
+ Reference value :  1.14805e-06
+ Reference value :  1.18495e-06
+ Reference value :  1.20101e-06
+ Reference value :  1.21208e-06
+ Reference value :  1.24878e-06
+No. of Data Rows : 15897
+c0eq                =  1.80000e+00
+c0gt                =  1.50156e-09
+c0lt                =  1.50156e-09
+c1eq                =  7.55325e-10
+c1gt                =  1.79997e+00
+c1lt                =  8.34441e-09
+c2eq                =  1.24646e-08
+c2gt                =  1.80000e+00
+c2lt                =  1.51187e-09
+c3eq                =  7.52876e-10
+c3gt                =  1.80000e+00
+c3lt                =  1.50157e-09
+c4eq                =  7.54743e-10
+c4gt                =  2.03967e-08
+c4lt                =  1.79997e+00
+c5eq                =  1.80000e+00
+c5gt                =  2.15732e-08
+c5lt                =  1.79257e-08
+c6eq                =  5.00686e-09
+c6gt                =  1.80000e+00
+c6lt                =  1.52193e-09
+c7eq                =  1.13359e-08
+c7gt                =  1.80000e+00
+c7lt                =  1.07983e-08
+c8eq                =  2.23164e-09
+c8gt                =  1.92412e-08
+c8lt                =  1.80000e+00
+c9eq                =  7.55752e-10
+c9gt                =  3.92595e-09
+c9lt                =  1.80000e+00
+c10eq               =  1.80000e+00
+c10gt               =  4.86633e-08
+c10lt               =  4.17812e-08
+c11eq               =  7.55232e-10
+c11gt               =  1.79997e+00
+c11lt               =  9.58055e-09
+c12eq               =  5.70311e-09
+c12gt               =  1.30107e-08
+c12lt               =  1.80000e+00
+c13eq               =  1.13198e-08
+c13gt               =  1.50954e-09
+c13lt               =  1.80000e+00
+c14eq               =  7.53537e-10
+c14gt               =  1.22231e-08
+c14lt               =  1.79997e+00
+c15eq               =  1.80000e+00
+c15gt               =  1.88541e-08
+c15lt               =  1.84487e-08
 ASCII raw file "out.raw"
 ngspice-46 done

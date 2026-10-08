@@ -1,4 +1,6 @@
 CMOS two-bit magnitude comparator
+* Profile models (generated)
+.lib "icm-models.lib" tt
 .include "circuit.spice"
 VDD vdd 0 1.8
 VA0 a0 0 PWL(0 0.0 79.5n 0.0 80.5n 1.8 159.5n 1.8 160.5n 0.0 239.5n 0.0 240.5n 1.8 319.5n 1.8 320.5n 0.0 399.5n 0.0 400.5n 1.8 479.5n 1.8 480.5n 0.0 559.5n 0.0 560.5n 1.8 639.5n 1.8 640.5n 0.0 719.5n 0.0 720.5n 1.8 799.5n 1.8 800.5n 0.0 879.5n 0.0 880.5n 1.8 959.5n 1.8 960.5n 0.0 1039.5n 0.0 1040.5n 1.8 1119.5n 1.8 1120.5n 0.0 1199.5n 0.0 1200.5n 1.8 1280n 1.8)

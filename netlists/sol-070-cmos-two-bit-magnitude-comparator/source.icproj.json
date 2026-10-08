@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 66,
+  "schemaVersion": 67,
   "id": "astra-sol-070-cmos-two-bit-magnitude-comparator",
   "name": "CMOS two-bit magnitude comparator",
   "topDocumentId": "document-main",
@@ -11,11 +11,17 @@
         "target": { "deviceClass": "capacitor", "kind": "primitive" }
       },
       "nmos": {
-        "target": { "deviceClass": "mos", "kind": "model", "name": "ANMOS" }
+        "target": {
+          "definitionId": "external-subcircuit-e5ee3d17d0c7c89a",
+          "kind": "external-subcircuit"
+        }
       },
       "pmos": {
-        "parameters": { "l": "1u", "w": "20u" },
-        "target": { "deviceClass": "mos", "kind": "model", "name": "APMOS" }
+        "parameters": { "l": "1u", "m": "1", "nf": "1", "w": "20u" },
+        "target": {
+          "definitionId": "external-subcircuit-27f716b14d59fc10",
+          "kind": "external-subcircuit"
+        }
       }
     },
     "label": { "alignment": "middle", "locked": false, "rotation": 0 },
@@ -132,7 +138,7 @@
           "id": "M10",
           "coordinate": [140, 120],
           "rotation": 270,
-          "parameters": { "l": "1u", "w": "10u" },
+          "parameters": { "l": "1u", "m": "1", "nf": "1", "w": "10u" },
           "labels": [
             {
               "alignment": "start",
@@ -193,7 +199,7 @@
           "id": "M12",
           "coordinate": [140, 270],
           "rotation": 270,
-          "parameters": { "l": "1u", "w": "10u" },
+          "parameters": { "l": "1u", "m": "1", "nf": "1", "w": "10u" },
           "labels": [
             {
               "alignment": "start",
@@ -254,7 +260,7 @@
           "id": "M14",
           "coordinate": [140, 470],
           "rotation": 270,
-          "parameters": { "l": "1u", "w": "10u" },
+          "parameters": { "l": "1u", "m": "1", "nf": "1", "w": "10u" },
           "labels": [
             {
               "alignment": "start",
@@ -315,7 +321,7 @@
           "id": "M16",
           "coordinate": [140, 620],
           "rotation": 270,
-          "parameters": { "l": "1u", "w": "10u" },
+          "parameters": { "l": "1u", "m": "1", "nf": "1", "w": "10u" },
           "labels": [
             {
               "alignment": "start",
@@ -414,7 +420,7 @@
           "name": "M19",
           "id": "M19",
           "coordinate": [550, 120],
-          "parameters": { "l": "1u", "w": "20u" },
+          "parameters": { "l": "1u", "m": "1", "nf": "1", "w": "20u" },
           "labels": [
             {
               "alignment": "start",
@@ -444,7 +450,7 @@
           "name": "M20",
           "id": "M20",
           "coordinate": [550, 200],
-          "parameters": { "l": "1u", "w": "20u" },
+          "parameters": { "l": "1u", "m": "1", "nf": "1", "w": "20u" },
           "labels": [
             {
               "alignment": "start",
@@ -508,7 +514,7 @@
           "name": "M22",
           "id": "M22",
           "coordinate": [800, 120],
-          "parameters": { "l": "1u", "w": "10u" },
+          "parameters": { "l": "1u", "m": "1", "nf": "1", "w": "10u" },
           "labels": [
             {
               "alignment": "start",
@@ -675,7 +681,7 @@
           "name": "M25",
           "id": "M25",
           "coordinate": [400, 450],
-          "parameters": { "l": "1u", "w": "20u" },
+          "parameters": { "l": "1u", "m": "1", "nf": "1", "w": "20u" },
           "labels": [
             {
               "alignment": "start",
@@ -705,7 +711,7 @@
           "name": "M26",
           "id": "M26",
           "coordinate": [400, 530],
-          "parameters": { "l": "1u", "w": "20u" },
+          "parameters": { "l": "1u", "m": "1", "nf": "1", "w": "20u" },
           "labels": [
             {
               "alignment": "start",
@@ -774,7 +780,7 @@
           "name": "M30",
           "id": "M30",
           "coordinate": [740, 450],
-          "parameters": { "l": "1u", "w": "30u" },
+          "parameters": { "l": "1u", "m": "1", "nf": "1", "w": "30u" },
           "labels": [
             {
               "alignment": "start",
@@ -838,7 +844,7 @@
           "name": "M31",
           "id": "M31",
           "coordinate": [740, 530],
-          "parameters": { "l": "1u", "w": "30u" },
+          "parameters": { "l": "1u", "m": "1", "nf": "1", "w": "30u" },
           "labels": [
             {
               "alignment": "start",
@@ -902,7 +908,7 @@
           "name": "M32",
           "id": "M32",
           "coordinate": [740, 610],
-          "parameters": { "l": "1u", "w": "30u" },
+          "parameters": { "l": "1u", "m": "1", "nf": "1", "w": "30u" },
           "labels": [
             {
               "alignment": "start",
@@ -1006,7 +1012,7 @@
           "name": "M35",
           "id": "M35",
           "coordinate": [1160, 450],
-          "parameters": { "l": "1u", "w": "20u" },
+          "parameters": { "l": "1u", "m": "1", "nf": "1", "w": "20u" },
           "labels": [
             {
               "alignment": "start",
@@ -1036,7 +1042,7 @@
           "name": "M36",
           "id": "M36",
           "coordinate": [1160, 530],
-          "parameters": { "l": "1u", "w": "20u" },
+          "parameters": { "l": "1u", "m": "1", "nf": "1", "w": "20u" },
           "labels": [
             {
               "alignment": "start",
@@ -1198,7 +1204,7 @@
           "name": "M39",
           "id": "M39",
           "coordinate": [400, 890],
-          "parameters": { "l": "1u", "w": "20u" },
+          "parameters": { "l": "1u", "m": "1", "nf": "1", "w": "20u" },
           "labels": [
             {
               "alignment": "start",
@@ -1228,7 +1234,7 @@
           "name": "M40",
           "id": "M40",
           "coordinate": [400, 970],
-          "parameters": { "l": "1u", "w": "20u" },
+          "parameters": { "l": "1u", "m": "1", "nf": "1", "w": "20u" },
           "labels": [
             {
               "alignment": "start",
@@ -1297,7 +1303,7 @@
           "name": "M44",
           "id": "M44",
           "coordinate": [740, 890],
-          "parameters": { "l": "1u", "w": "30u" },
+          "parameters": { "l": "1u", "m": "1", "nf": "1", "w": "30u" },
           "labels": [
             {
               "alignment": "start",
@@ -1361,7 +1367,7 @@
           "name": "M45",
           "id": "M45",
           "coordinate": [740, 970],
-          "parameters": { "l": "1u", "w": "30u" },
+          "parameters": { "l": "1u", "m": "1", "nf": "1", "w": "30u" },
           "labels": [
             {
               "alignment": "start",
@@ -1425,7 +1431,7 @@
           "name": "M46",
           "id": "M46",
           "coordinate": [740, 1050],
-          "parameters": { "l": "1u", "w": "30u" },
+          "parameters": { "l": "1u", "m": "1", "nf": "1", "w": "30u" },
           "labels": [
             {
               "alignment": "start",
@@ -1529,7 +1535,7 @@
           "name": "M49",
           "id": "M49",
           "coordinate": [1160, 890],
-          "parameters": { "l": "1u", "w": "20u" },
+          "parameters": { "l": "1u", "m": "1", "nf": "1", "w": "20u" },
           "labels": [
             {
               "alignment": "start",
@@ -1559,7 +1565,7 @@
           "name": "M50",
           "id": "M50",
           "coordinate": [1160, 970],
-          "parameters": { "l": "1u", "w": "20u" },
+          "parameters": { "l": "1u", "m": "1", "nf": "1", "w": "20u" },
           "labels": [
             {
               "alignment": "start",
@@ -1681,7 +1687,7 @@
           "name": "M2",
           "id": "M2",
           "coordinate": [100, 840],
-          "parameters": { "l": "1u", "w": "10u" },
+          "parameters": { "l": "1u", "m": "1", "nf": "1", "w": "10u" },
           "labels": [
             {
               "alignment": "start",
@@ -1766,7 +1772,7 @@
           "name": "M4",
           "id": "M4",
           "coordinate": [100, 1070],
-          "parameters": { "l": "1u", "w": "10u" },
+          "parameters": { "l": "1u", "m": "1", "nf": "1", "w": "10u" },
           "labels": [
             {
               "alignment": "start",
@@ -1851,7 +1857,7 @@
           "name": "M6",
           "id": "M6",
           "coordinate": [410, 140],
-          "parameters": { "l": "1u", "w": "10u" },
+          "parameters": { "l": "1u", "m": "1", "nf": "1", "w": "10u" },
           "labels": [
             {
               "alignment": "start",
@@ -1936,7 +1942,7 @@
           "name": "M8",
           "id": "M8",
           "coordinate": [600, 690],
-          "parameters": { "l": "1u", "w": "10u" },
+          "parameters": { "l": "1u", "m": "1", "nf": "1", "w": "10u" },
           "labels": [
             {
               "alignment": "start",
@@ -2002,52 +2008,10 @@
           "start": { "junction": "j1" }
         },
         {
-          "end": { "junction": "j4" },
-          "id": "wire5",
-          "legId": "route-leg-b409767e93488afb",
-          "start": { "terminal": ["M9", "S"] }
-        },
-        {
-          "end": { "terminal": ["M10", "S"] },
-          "id": "wire6",
-          "legId": "route-leg-7ee4c0b6752c881a",
-          "start": { "junction": "j4" }
-        },
-        {
-          "end": { "junction": "j7" },
-          "id": "wire8",
-          "legId": "route-leg-fff668cade2a8620",
-          "start": { "terminal": ["M9", "G"] }
-        },
-        {
           "end": { "junction": "j10" },
           "id": "wire11",
           "legId": "route-leg-f82b5d4c30bb9813",
           "start": { "terminal": ["M10", "G"] }
-        },
-        {
-          "end": { "junction": "j13" },
-          "id": "wire14",
-          "legId": "route-leg-aed33f060561fd50",
-          "start": { "terminal": ["M11", "D"] }
-        },
-        {
-          "end": { "terminal": ["M12", "D"] },
-          "id": "wire15",
-          "legId": "route-leg-9c2b2d3dfac275af",
-          "start": { "junction": "j13" }
-        },
-        {
-          "end": { "junction": "j16" },
-          "id": "wire17",
-          "legId": "route-leg-c4becd17fc6bf0cd",
-          "start": { "terminal": ["M11", "S"] }
-        },
-        {
-          "end": { "terminal": ["M12", "S"] },
-          "id": "wire18",
-          "legId": "route-leg-707066d7fb09aa3c",
-          "start": { "junction": "j16" }
         },
         {
           "end": { "junction": "j19" },
@@ -2056,40 +2020,10 @@
           "start": { "terminal": ["M11", "G"] }
         },
         {
-          "end": { "junction": "j22" },
-          "id": "wire23",
-          "legId": "route-leg-d8069b0979e870f6",
-          "start": { "terminal": ["M12", "G"] }
-        },
-        {
           "end": { "junction": "j25" },
           "id": "wire26",
           "legId": "route-leg-4fa440b7f67cc5b9",
           "start": { "junction": "j1" }
-        },
-        {
-          "end": { "junction": "j28" },
-          "id": "wire29",
-          "legId": "route-leg-b8b90ad5e1b0c8c0",
-          "start": { "junction": "j13" }
-        },
-        {
-          "end": { "junction": "j31" },
-          "id": "wire32",
-          "legId": "route-leg-86f113b3e75ed01c",
-          "start": { "junction": "j4" }
-        },
-        {
-          "end": { "junction": "j33" },
-          "id": "wire34",
-          "legId": "route-leg-3cfef3c1c6be4866",
-          "start": { "junction": "j31" }
-        },
-        {
-          "end": { "junction": "j16" },
-          "id": "wire35",
-          "legId": "route-leg-54fbf1b8448879c5",
-          "start": { "junction": "j33" }
         },
         {
           "end": { "junction": "j36" },
@@ -2104,52 +2038,10 @@
           "start": { "junction": "j36" }
         },
         {
-          "end": { "junction": "j39" },
-          "id": "wire40",
-          "legId": "route-leg-8fd1ecb0c29d4965",
-          "start": { "terminal": ["M13", "S"] }
-        },
-        {
-          "end": { "terminal": ["M14", "S"] },
-          "id": "wire41",
-          "legId": "route-leg-c73ef712ee8fd806",
-          "start": { "junction": "j39" }
-        },
-        {
-          "end": { "junction": "j42" },
-          "id": "wire43",
-          "legId": "route-leg-b4fa66f6d908d468",
-          "start": { "terminal": ["M13", "G"] }
-        },
-        {
           "end": { "junction": "j45" },
           "id": "wire46",
           "legId": "route-leg-01f37ce6cd3449ab",
           "start": { "terminal": ["M14", "G"] }
-        },
-        {
-          "end": { "junction": "j48" },
-          "id": "wire49",
-          "legId": "route-leg-60251f4f2d9d7ece",
-          "start": { "terminal": ["M15", "D"] }
-        },
-        {
-          "end": { "terminal": ["M16", "D"] },
-          "id": "wire50",
-          "legId": "route-leg-c4342a707f9b0ed8",
-          "start": { "junction": "j48" }
-        },
-        {
-          "end": { "junction": "j51" },
-          "id": "wire52",
-          "legId": "route-leg-7c67c2e056e02776",
-          "start": { "terminal": ["M15", "S"] }
-        },
-        {
-          "end": { "terminal": ["M16", "S"] },
-          "id": "wire53",
-          "legId": "route-leg-99b838809eecee55",
-          "start": { "junction": "j51" }
         },
         {
           "end": { "junction": "j54" },
@@ -2158,40 +2050,10 @@
           "start": { "terminal": ["M15", "G"] }
         },
         {
-          "end": { "junction": "j57" },
-          "id": "wire58",
-          "legId": "route-leg-5d1a32acbea87f40",
-          "start": { "terminal": ["M16", "G"] }
-        },
-        {
           "end": { "junction": "j60" },
           "id": "wire61",
           "legId": "route-leg-2b523b8ac456869c",
           "start": { "junction": "j36" }
-        },
-        {
-          "end": { "junction": "j63" },
-          "id": "wire64",
-          "legId": "route-leg-12e479b6f9013727",
-          "start": { "junction": "j48" }
-        },
-        {
-          "end": { "junction": "j66" },
-          "id": "wire67",
-          "legId": "route-leg-e1601b98a3b5fee6",
-          "start": { "junction": "j39" }
-        },
-        {
-          "end": { "junction": "j68" },
-          "id": "wire69",
-          "legId": "route-leg-c437e3c7036353e4",
-          "start": { "junction": "j66" }
-        },
-        {
-          "end": { "junction": "j51" },
-          "id": "wire70",
-          "legId": "route-leg-fac7355b4a0dafee",
-          "start": { "junction": "j68" }
         },
         {
           "end": { "terminal": ["M17", "S"] },
@@ -2212,58 +2074,10 @@
           "start": { "terminal": ["M20", "S"] }
         },
         {
-          "end": { "junction": "j79" },
-          "id": "wire80",
-          "legId": "route-leg-98669065b06c32b9",
-          "start": { "terminal": ["M17", "D"] }
-        },
-        {
-          "end": { "junction": "j81" },
-          "id": "wire82",
-          "legId": "route-leg-b03af08d867ba51b",
-          "start": { "junction": "j79" }
-        },
-        {
-          "end": { "terminal": ["M18", "D"] },
-          "id": "wire83",
-          "legId": "route-leg-6e5b82531d4966ac",
-          "start": { "junction": "j81" }
-        },
-        {
-          "end": { "terminal": ["M19", "D"] },
-          "id": "wire84",
-          "legId": "route-leg-3e1960577be4a4d5",
-          "start": { "junction": "j79" }
-        },
-        {
           "end": { "terminal": ["M20", "D"] },
           "id": "wire85",
           "legId": "route-leg-20c8eab733d7ddf6",
           "start": { "terminal": ["M19", "S"] }
-        },
-        {
-          "end": { "junction": "j86" },
-          "id": "wire87",
-          "legId": "route-leg-689552475c92c558",
-          "start": { "terminal": ["M17", "G"] }
-        },
-        {
-          "end": { "junction": "j89" },
-          "id": "wire90",
-          "legId": "route-leg-cfb36361a14e3d1c",
-          "start": { "terminal": ["M18", "G"] }
-        },
-        {
-          "end": { "junction": "j92" },
-          "id": "wire93",
-          "legId": "route-leg-a500f171c071b3a9",
-          "start": { "terminal": ["M19", "G"] }
-        },
-        {
-          "end": { "junction": "j95" },
-          "id": "wire96",
-          "legId": "route-leg-85c1436f80adb566",
-          "start": { "terminal": ["M20", "G"] }
         },
         {
           "end": { "terminal": ["M21", "S"] },
@@ -2278,30 +2092,6 @@
           "start": { "terminal": ["M22", "S"] }
         },
         {
-          "end": { "junction": "j102" },
-          "id": "wire103",
-          "legId": "route-leg-b57c8818334f2aa8",
-          "start": { "terminal": ["M21", "G"] }
-        },
-        {
-          "end": { "junction": "j104" },
-          "id": "wire105",
-          "legId": "route-leg-cd506840095dc38a",
-          "start": { "junction": "j102" }
-        },
-        {
-          "end": { "junction": "j106" },
-          "id": "wire107",
-          "legId": "route-leg-0fffb826680447fc",
-          "start": { "junction": "j104" }
-        },
-        {
-          "end": { "terminal": ["M22", "G"] },
-          "id": "wire108",
-          "legId": "route-leg-644e1e6669668e8d",
-          "start": { "junction": "j106" }
-        },
-        {
           "end": { "junction": "j109" },
           "id": "wire110",
           "legId": "route-leg-bf6253e80f9df618",
@@ -2312,12 +2102,6 @@
           "id": "wire111",
           "legId": "route-leg-b20eb9c9cf42b6f7",
           "start": { "junction": "j109" }
-        },
-        {
-          "end": { "junction": "j104" },
-          "id": "wire112",
-          "legId": "route-leg-7ce9e401b1267db6",
-          "start": { "junction": "j81" }
         },
         {
           "end": { "terminal": ["gnd113", "0"] },
@@ -2392,22 +2176,10 @@
           "start": { "terminal": ["M25", "S"] }
         },
         {
-          "end": { "junction": "j132" },
-          "id": "wire133",
-          "legId": "route-leg-2b1a949af82d738f",
-          "start": { "terminal": ["M23", "G"] }
-        },
-        {
           "end": { "junction": "j135" },
           "id": "wire136",
           "legId": "route-leg-4387f66ec3821fe4",
           "start": { "terminal": ["M24", "G"] }
-        },
-        {
-          "end": { "junction": "j138" },
-          "id": "wire139",
-          "legId": "route-leg-78ad2c36e19efc45",
-          "start": { "terminal": ["M25", "G"] }
         },
         {
           "end": { "junction": "j141" },
@@ -2422,34 +2194,16 @@
           "start": { "terminal": ["vdd-M27", "P"] }
         },
         {
-          "end": { "junction": "j146" },
-          "id": "wire147",
-          "legId": "route-leg-4a5c876f12d1a2a0",
-          "start": { "terminal": ["M27", "G"] }
-        },
-        {
           "end": { "junction": "j149" },
           "id": "wire150",
           "legId": "route-leg-0b8bb03595cf3bc4",
           "start": { "terminal": ["M27", "D"] }
         },
         {
-          "end": { "junction": "j151" },
-          "id": "wire152",
-          "legId": "route-leg-c38848a56ce511f2",
-          "start": { "terminal": ["M30", "G"] }
-        },
-        {
           "end": { "terminal": ["M28", "S"] },
           "id": "wire154",
           "legId": "route-leg-aa01687d9564e490",
           "start": { "terminal": ["vdd-M28", "P"] }
-        },
-        {
-          "end": { "junction": "j156" },
-          "id": "wire157",
-          "legId": "route-leg-bfecf68f8c6ed80d",
-          "start": { "terminal": ["M28", "G"] }
         },
         {
           "end": { "junction": "j159" },
@@ -2462,12 +2216,6 @@
           "id": "wire161",
           "legId": "route-leg-1b012c1132a63f98",
           "start": { "junction": "j149" }
-        },
-        {
-          "end": { "junction": "j162" },
-          "id": "wire163",
-          "legId": "route-leg-d888bc2ad42ec736",
-          "start": { "terminal": ["M31", "G"] }
         },
         {
           "end": { "terminal": ["M31", "D"] },
@@ -2686,22 +2434,10 @@
           "start": { "terminal": ["M37", "G"] }
         },
         {
-          "end": { "junction": "j234" },
-          "id": "wire235",
-          "legId": "route-leg-0fed4728184738c0",
-          "start": { "terminal": ["M38", "G"] }
-        },
-        {
           "end": { "junction": "j237" },
           "id": "wire238",
           "legId": "route-leg-beacdd320322a81b",
           "start": { "terminal": ["M39", "G"] }
-        },
-        {
-          "end": { "junction": "j240" },
-          "id": "wire241",
-          "legId": "route-leg-91977804e402d6eb",
-          "start": { "terminal": ["M40", "G"] }
         },
         {
           "end": { "terminal": ["M41", "S"] },
@@ -2710,22 +2446,10 @@
           "start": { "terminal": ["vdd-M41", "P"] }
         },
         {
-          "end": { "junction": "j245" },
-          "id": "wire246",
-          "legId": "route-leg-56e2f231055e6546",
-          "start": { "terminal": ["M41", "G"] }
-        },
-        {
           "end": { "junction": "j248" },
           "id": "wire249",
           "legId": "route-leg-2c3080412481dbd3",
           "start": { "terminal": ["M41", "D"] }
-        },
-        {
-          "end": { "junction": "j250" },
-          "id": "wire251",
-          "legId": "route-leg-fccde12e4353921a",
-          "start": { "terminal": ["M44", "G"] }
         },
         {
           "end": { "terminal": ["M42", "S"] },
@@ -2770,12 +2494,6 @@
           "start": { "terminal": ["vdd-M43", "P"] }
         },
         {
-          "end": { "junction": "j267" },
-          "id": "wire268",
-          "legId": "route-leg-ea7a773cd251843a",
-          "start": { "terminal": ["M43", "G"] }
-        },
-        {
           "end": { "junction": "j270" },
           "id": "wire271",
           "legId": "route-leg-61a653815f00b6d0",
@@ -2786,12 +2504,6 @@
           "id": "wire272",
           "legId": "route-leg-7791e193560aaa4d",
           "start": { "junction": "j258" }
-        },
-        {
-          "end": { "junction": "j273" },
-          "id": "wire274",
-          "legId": "route-leg-aafe71c78a5a5193",
-          "start": { "terminal": ["M46", "G"] }
         },
         {
           "end": { "terminal": ["M46", "D"] },
@@ -2932,30 +2644,6 @@
           "start": { "terminal": ["M2", "S"] }
         },
         {
-          "end": { "junction": "j321" },
-          "id": "wire322",
-          "legId": "route-leg-1a37ff7507b913c3",
-          "start": { "terminal": ["M1", "G"] }
-        },
-        {
-          "end": { "junction": "j323" },
-          "id": "wire324",
-          "legId": "route-leg-8b06779493b439fd",
-          "start": { "junction": "j321" }
-        },
-        {
-          "end": { "junction": "j325" },
-          "id": "wire326",
-          "legId": "route-leg-be37cf66d1bff15f",
-          "start": { "junction": "j323" }
-        },
-        {
-          "end": { "terminal": ["M2", "G"] },
-          "id": "wire327",
-          "legId": "route-leg-cb8b6985121b3080",
-          "start": { "junction": "j325" }
-        },
-        {
           "end": { "junction": "j328" },
           "id": "wire329",
           "legId": "route-leg-4a79c170a91d327a",
@@ -2966,12 +2654,6 @@
           "id": "wire330",
           "legId": "route-leg-37fd124921197424",
           "start": { "junction": "j328" }
-        },
-        {
-          "end": { "junction": "j323" },
-          "id": "wire331",
-          "legId": "route-leg-251ee081164c26b3",
-          "start": { "terminal": ["port-a0", "P"] }
         },
         {
           "end": { "junction": "j332" },
@@ -2992,30 +2674,6 @@
           "start": { "terminal": ["M4", "S"] }
         },
         {
-          "end": { "junction": "j339" },
-          "id": "wire340",
-          "legId": "route-leg-f196c238bace852b",
-          "start": { "terminal": ["M3", "G"] }
-        },
-        {
-          "end": { "junction": "j341" },
-          "id": "wire342",
-          "legId": "route-leg-d9c26210e4bf12c9",
-          "start": { "junction": "j339" }
-        },
-        {
-          "end": { "junction": "j343" },
-          "id": "wire344",
-          "legId": "route-leg-9749922a8646f747",
-          "start": { "junction": "j341" }
-        },
-        {
-          "end": { "terminal": ["M4", "G"] },
-          "id": "wire345",
-          "legId": "route-leg-a49dac48c6a30fe8",
-          "start": { "junction": "j343" }
-        },
-        {
           "end": { "junction": "j346" },
           "id": "wire347",
           "legId": "route-leg-b6e23c64dc2a1386",
@@ -3026,12 +2684,6 @@
           "id": "wire348",
           "legId": "route-leg-8c2fca74fb4d8a13",
           "start": { "junction": "j346" }
-        },
-        {
-          "end": { "junction": "j341" },
-          "id": "wire349",
-          "legId": "route-leg-9f0dfc3d061ad784",
-          "start": { "terminal": ["port-a1", "P"] }
         },
         {
           "end": { "junction": "j350" },
@@ -3052,30 +2704,6 @@
           "start": { "terminal": ["M6", "S"] }
         },
         {
-          "end": { "junction": "j357" },
-          "id": "wire358",
-          "legId": "route-leg-3b0425950c45f846",
-          "start": { "terminal": ["M5", "G"] }
-        },
-        {
-          "end": { "junction": "j359" },
-          "id": "wire360",
-          "legId": "route-leg-0c2f783e51ea9805",
-          "start": { "junction": "j357" }
-        },
-        {
-          "end": { "junction": "j361" },
-          "id": "wire362",
-          "legId": "route-leg-2b0ad00ff3af0de7",
-          "start": { "junction": "j359" }
-        },
-        {
-          "end": { "terminal": ["M6", "G"] },
-          "id": "wire363",
-          "legId": "route-leg-385e6a2e340a4d08",
-          "start": { "junction": "j361" }
-        },
-        {
           "end": { "junction": "j364" },
           "id": "wire365",
           "legId": "route-leg-5032ca560a19bf6a",
@@ -3086,12 +2714,6 @@
           "id": "wire366",
           "legId": "route-leg-309a001bb4366ccb",
           "start": { "junction": "j364" }
-        },
-        {
-          "end": { "junction": "j359" },
-          "id": "wire367",
-          "legId": "route-leg-437891e3bf045d5c",
-          "start": { "terminal": ["port-b0", "P"] }
         },
         {
           "end": { "junction": "j368" },
@@ -3112,30 +2734,6 @@
           "start": { "terminal": ["M8", "S"] }
         },
         {
-          "end": { "junction": "j375" },
-          "id": "wire376",
-          "legId": "route-leg-6221230be462af5a",
-          "start": { "terminal": ["M7", "G"] }
-        },
-        {
-          "end": { "junction": "j377" },
-          "id": "wire378",
-          "legId": "route-leg-e332cb204d60ad60",
-          "start": { "junction": "j375" }
-        },
-        {
-          "end": { "junction": "j379" },
-          "id": "wire380",
-          "legId": "route-leg-58b2ab6dd26802ef",
-          "start": { "junction": "j377" }
-        },
-        {
-          "end": { "terminal": ["M8", "G"] },
-          "id": "wire381",
-          "legId": "route-leg-6606c58c12c41b90",
-          "start": { "junction": "j379" }
-        },
-        {
           "end": { "junction": "j382" },
           "id": "wire383",
           "legId": "route-leg-784b75a8284b558e",
@@ -3148,16 +2746,458 @@
           "start": { "junction": "j382" }
         },
         {
+          "end": { "junction": "j386" },
+          "id": "wire387",
+          "legId": "route-leg-7f8da5b3ea4448f2",
+          "start": { "junction": "j382" }
+        },
+        {
+          "end": { "junction": "j13" },
+          "id": "wire29",
+          "legId": "route-leg-b8b90ad5e1b0c8c0",
+          "start": { "junction": "j28" }
+        },
+        {
+          "end": { "junction": "j13" },
+          "id": "wire14",
+          "legId": "route-leg-aed33f060561fd50",
+          "start": { "terminal": ["M11", "D"] }
+        },
+        {
+          "end": { "terminal": ["M12", "D"] },
+          "id": "wire15",
+          "legId": "route-leg-9c2b2d3dfac275af",
+          "start": { "junction": "j13" }
+        },
+        {
+          "end": { "junction": "j323" },
+          "id": "wire331",
+          "legId": "route-leg-251ee081164c26b3",
+          "start": { "terminal": ["port-a0", "P"] }
+        },
+        {
+          "id": "wire322",
+          "legs": [
+            {
+              "bend": "route-bend-7d7172e0e1cef5b1",
+              "coordinate": [70, 760],
+              "id": "route-leg-1a37ff7507b913c3"
+            },
+            {
+              "id": "route-leg-7b7d94eb01bdd0b2",
+              "terminal": ["M1", "G"]
+            }
+          ],
+          "start": { "junction": "j323" }
+        },
+        {
+          "id": "wire326",
+          "legs": [
+            {
+              "bend": "route-bend-b3303df9042b60ad",
+              "coordinate": [70, 840],
+              "id": "route-leg-be37cf66d1bff15f"
+            },
+            {
+              "id": "route-leg-b13c6003241a3bae",
+              "terminal": ["M2", "G"]
+            }
+          ],
+          "start": { "junction": "j323" }
+        },
+        {
+          "end": { "terminal": ["M31", "G"] },
+          "id": "wire163",
+          "legId": "route-leg-d888bc2ad42ec736",
+          "start": { "junction": "j162" }
+        },
+        {
+          "end": { "terminal": ["M28", "G"] },
+          "id": "wire157",
+          "legId": "route-leg-bfecf68f8c6ed80d",
+          "start": { "junction": "j156" }
+        },
+        {
+          "end": { "junction": "j48" },
+          "id": "wire64",
+          "legId": "route-leg-12e479b6f9013727",
+          "start": { "junction": "j63" }
+        },
+        {
+          "end": { "junction": "j48" },
+          "id": "wire49",
+          "legId": "route-leg-60251f4f2d9d7ece",
+          "start": { "terminal": ["M15", "D"] }
+        },
+        {
+          "end": { "terminal": ["M16", "D"] },
+          "id": "wire50",
+          "legId": "route-leg-c4342a707f9b0ed8",
+          "start": { "junction": "j48" }
+        },
+        {
+          "end": { "terminal": ["M23", "G"] },
+          "id": "wire133",
+          "legId": "route-leg-2b1a949af82d738f",
+          "start": { "junction": "j132" }
+        },
+        {
+          "end": { "terminal": ["M25", "G"] },
+          "id": "wire139",
+          "legId": "route-leg-78ad2c36e19efc45",
+          "start": { "junction": "j138" }
+        },
+        {
+          "end": { "junction": "j341" },
+          "id": "wire349",
+          "legId": "route-leg-9f0dfc3d061ad784",
+          "start": { "terminal": ["port-a1", "P"] }
+        },
+        {
+          "id": "wire344",
+          "legs": [
+            {
+              "bend": "route-bend-c2309f4286f3eb25",
+              "coordinate": [70, 1070],
+              "id": "route-leg-9749922a8646f747"
+            },
+            {
+              "id": "route-leg-fef1a14e7d29e8c6",
+              "terminal": ["M4", "G"]
+            }
+          ],
+          "start": { "junction": "j341" }
+        },
+        {
+          "id": "wire340",
+          "legs": [
+            {
+              "bend": "route-bend-bf84595eb44aa929",
+              "coordinate": [70, 990],
+              "id": "route-leg-f196c238bace852b"
+            },
+            {
+              "id": "route-leg-fc44fb6aaa8003aa",
+              "terminal": ["M3", "G"]
+            }
+          ],
+          "start": { "junction": "j341" }
+        },
+        {
+          "end": { "junction": "j22" },
+          "id": "wire23",
+          "legId": "route-leg-d8069b0979e870f6",
+          "start": { "terminal": ["M12", "G"] }
+        },
+        {
+          "end": { "terminal": ["M9", "G"] },
+          "id": "wire8",
+          "legId": "route-leg-fff668cade2a8620",
+          "start": { "junction": "j7" }
+        },
+        {
+          "end": { "junction": "j359" },
+          "id": "wire367",
+          "legId": "route-leg-437891e3bf045d5c",
+          "start": { "terminal": ["port-b0", "P"] }
+        },
+        {
+          "id": "wire362",
+          "legs": [
+            {
+              "bend": "route-bend-5dfc66e0c46f85c5",
+              "coordinate": [380, 140],
+              "id": "route-leg-2b0ad00ff3af0de7"
+            },
+            {
+              "id": "route-leg-45ff68ea46a55466",
+              "terminal": ["M6", "G"]
+            }
+          ],
+          "start": { "junction": "j359" }
+        },
+        {
+          "id": "wire358",
+          "legs": [
+            {
+              "bend": "route-bend-64ba5e6a7ab00856",
+              "coordinate": [380, 60],
+              "id": "route-leg-3b0425950c45f846"
+            },
+            {
+              "id": "route-leg-7cb75c60f87a39b5",
+              "terminal": ["M5", "G"]
+            }
+          ],
+          "start": { "junction": "j359" }
+        },
+        {
+          "end": { "terminal": ["M46", "G"] },
+          "id": "wire274",
+          "legId": "route-leg-aafe71c78a5a5193",
+          "start": { "junction": "j273" }
+        },
+        {
+          "end": { "terminal": ["M43", "G"] },
+          "id": "wire268",
+          "legId": "route-leg-ea7a773cd251843a",
+          "start": { "junction": "j267" }
+        },
+        {
+          "end": { "terminal": ["M13", "G"] },
+          "id": "wire43",
+          "legId": "route-leg-b4fa66f6d908d468",
+          "start": { "junction": "j42" }
+        },
+        {
+          "end": { "junction": "j57" },
+          "id": "wire58",
+          "legId": "route-leg-5d1a32acbea87f40",
+          "start": { "terminal": ["M16", "G"] }
+        },
+        {
+          "end": { "terminal": ["M40", "G"] },
+          "id": "wire241",
+          "legId": "route-leg-91977804e402d6eb",
+          "start": { "junction": "j240" }
+        },
+        {
+          "end": { "junction": "j234" },
+          "id": "wire235",
+          "legId": "route-leg-0fed4728184738c0",
+          "start": { "terminal": ["M38", "G"] }
+        },
+        {
           "end": { "junction": "j377" },
           "id": "wire385",
           "legId": "route-leg-c7910d44132e72c4",
           "start": { "terminal": ["port-b1", "P"] }
         },
         {
-          "end": { "junction": "j386" },
-          "id": "wire387",
-          "legId": "route-leg-7f8da5b3ea4448f2",
-          "start": { "junction": "j382" }
+          "id": "wire376",
+          "legs": [
+            {
+              "bend": "route-bend-4876f90d6e13c6da",
+              "coordinate": [570, 610],
+              "id": "route-leg-6221230be462af5a"
+            },
+            {
+              "id": "route-leg-5ec05703ea6b53d9",
+              "terminal": ["M7", "G"]
+            }
+          ],
+          "start": { "junction": "j377" }
+        },
+        {
+          "id": "wire380",
+          "legs": [
+            {
+              "bend": "route-bend-92915d9ef3b059bd",
+              "coordinate": [570, 690],
+              "id": "route-leg-58b2ab6dd26802ef"
+            },
+            {
+              "id": "route-leg-909d7fa9139f34be",
+              "terminal": ["M8", "G"]
+            }
+          ],
+          "start": { "junction": "j377" }
+        },
+        {
+          "end": { "terminal": ["M10", "S"] },
+          "id": "wire6",
+          "legId": "route-leg-7ee4c0b6752c881a",
+          "start": { "junction": "j4" }
+        },
+        {
+          "id": "wire32",
+          "legs": [
+            {
+              "bend": "route-bend-e52084e6f02122bc",
+              "coordinate": [240, 100],
+              "id": "route-leg-86f113b3e75ed01c"
+            },
+            {
+              "bend": "route-bend-d242731ee5540bab",
+              "coordinate": [240, 250],
+              "id": "route-leg-d242731ee5540bab"
+            },
+            {
+              "id": "route-leg-a2713500917a9e4a",
+              "junction": "j16"
+            }
+          ],
+          "start": { "junction": "j4" }
+        },
+        {
+          "end": { "terminal": ["M9", "S"] },
+          "id": "wire5",
+          "legId": "route-leg-b409767e93488afb",
+          "start": { "junction": "j4" }
+        },
+        {
+          "end": { "junction": "j16" },
+          "id": "wire17",
+          "legId": "route-leg-c4becd17fc6bf0cd",
+          "start": { "terminal": ["M11", "S"] }
+        },
+        {
+          "end": { "terminal": ["M12", "S"] },
+          "id": "wire18",
+          "legId": "route-leg-707066d7fb09aa3c",
+          "start": { "junction": "j16" }
+        },
+        {
+          "end": { "terminal": ["M19", "G"] },
+          "id": "wire93",
+          "legId": "route-leg-a500f171c071b3a9",
+          "start": { "junction": "j92" }
+        },
+        {
+          "end": { "terminal": ["M17", "G"] },
+          "id": "wire87",
+          "legId": "route-leg-689552475c92c558",
+          "start": { "junction": "j86" }
+        },
+        {
+          "end": { "junction": "j39" },
+          "id": "wire40",
+          "legId": "route-leg-8fd1ecb0c29d4965",
+          "start": { "terminal": ["M13", "S"] }
+        },
+        {
+          "end": { "terminal": ["M14", "S"] },
+          "id": "wire41",
+          "legId": "route-leg-c73ef712ee8fd806",
+          "start": { "junction": "j39" }
+        },
+        {
+          "id": "wire67",
+          "legs": [
+            {
+              "bend": "route-bend-841bba1fc5015a76",
+              "coordinate": [240, 450],
+              "id": "route-leg-e1601b98a3b5fee6"
+            },
+            {
+              "bend": "route-bend-a16c2fc00d0e2155",
+              "coordinate": [240, 600],
+              "id": "route-leg-a16c2fc00d0e2155"
+            },
+            {
+              "id": "route-leg-cbe821afedbc41d8",
+              "junction": "j51"
+            }
+          ],
+          "start": { "junction": "j39" }
+        },
+        {
+          "end": { "junction": "j51" },
+          "id": "wire52",
+          "legId": "route-leg-7c67c2e056e02776",
+          "start": { "terminal": ["M15", "S"] }
+        },
+        {
+          "end": { "terminal": ["M16", "S"] },
+          "id": "wire53",
+          "legId": "route-leg-99b838809eecee55",
+          "start": { "junction": "j51" }
+        },
+        {
+          "end": { "terminal": ["M20", "G"] },
+          "id": "wire96",
+          "legId": "route-leg-85c1436f80adb566",
+          "start": { "junction": "j95" }
+        },
+        {
+          "end": { "junction": "j89" },
+          "id": "wire90",
+          "legId": "route-leg-cfb36361a14e3d1c",
+          "start": { "terminal": ["M18", "G"] }
+        },
+        {
+          "end": { "terminal": ["M27", "G"] },
+          "id": "wire147",
+          "legId": "route-leg-4a5c876f12d1a2a0",
+          "start": { "junction": "j146" }
+        },
+        {
+          "end": { "terminal": ["M30", "G"] },
+          "id": "wire152",
+          "legId": "route-leg-c38848a56ce511f2",
+          "start": { "junction": "j151" }
+        },
+        {
+          "end": { "terminal": ["M41", "G"] },
+          "id": "wire246",
+          "legId": "route-leg-56e2f231055e6546",
+          "start": { "junction": "j245" }
+        },
+        {
+          "end": { "terminal": ["M44", "G"] },
+          "id": "wire251",
+          "legId": "route-leg-fccde12e4353921a",
+          "start": { "junction": "j250" }
+        },
+        {
+          "end": { "junction": "j79" },
+          "id": "wire84",
+          "legId": "route-leg-3e1960577be4a4d5",
+          "start": { "terminal": ["M19", "D"] }
+        },
+        {
+          "end": { "junction": "j79" },
+          "id": "wire80",
+          "legId": "route-leg-98669065b06c32b9",
+          "start": { "terminal": ["M17", "D"] }
+        },
+        {
+          "end": { "junction": "j81" },
+          "id": "wire82",
+          "legId": "route-leg-b03af08d867ba51b",
+          "start": { "junction": "j79" }
+        },
+        {
+          "end": { "junction": "j81" },
+          "id": "wire83",
+          "legId": "route-leg-6e5b82531d4966ac",
+          "start": { "terminal": ["M18", "D"] }
+        },
+        {
+          "end": { "junction": "j104" },
+          "id": "wire112",
+          "legId": "route-leg-7ce9e401b1267db6",
+          "start": { "junction": "j81" }
+        },
+        {
+          "id": "wire107",
+          "legs": [
+            {
+              "bend": "route-bend-62131caaa567ac9c",
+              "coordinate": [770, 120],
+              "id": "route-leg-0fffb826680447fc"
+            },
+            {
+              "id": "route-leg-5488828c64dd2b0b",
+              "terminal": ["M22", "G"]
+            }
+          ],
+          "start": { "junction": "j104" }
+        },
+        {
+          "id": "wire103",
+          "legs": [
+            {
+              "bend": "route-bend-28b505fba3078ec8",
+              "coordinate": [770, 40],
+              "id": "route-leg-b57c8818334f2aa8"
+            },
+            {
+              "id": "route-leg-160d74339868e0a7",
+              "terminal": ["M21", "G"]
+            }
+          ],
+          "start": { "junction": "j104" }
         }
       ],
       "connections": {
@@ -3188,7 +3228,7 @@
               "junction": "j273"
             },
             {
-              "junction": "j357"
+              "junction": "j359"
             },
             {
               "junction": "j7"
@@ -3495,7 +3535,7 @@
               "junction": "j162"
             },
             {
-              "junction": "j321"
+              "junction": "j323"
             }
           ],
           [
@@ -3520,7 +3560,7 @@
               "junction": "j240"
             },
             {
-              "junction": "j375"
+              "junction": "j377"
             },
             {
               "junction": "j42"
@@ -3577,7 +3617,7 @@
               "junction": "j138"
             },
             {
-              "junction": "j339"
+              "junction": "j341"
             },
             {
               "junction": "j48"
@@ -3789,14 +3829,6 @@
           "id": "j28"
         },
         {
-          "coordinate": [240, 100],
-          "id": "j31"
-        },
-        {
-          "coordinate": [240, 250],
-          "id": "j33"
-        },
-        {
           "coordinate": [120, 450],
           "id": "j36"
         },
@@ -3837,14 +3869,6 @@
           "id": "j63"
         },
         {
-          "coordinate": [240, 450],
-          "id": "j66"
-        },
-        {
-          "coordinate": [240, 600],
-          "id": "j68"
-        },
-        {
           "coordinate": [560, 80],
           "id": "j79"
         },
@@ -3869,16 +3893,8 @@
           "id": "j95"
         },
         {
-          "coordinate": [770, 40],
-          "id": "j102"
-        },
-        {
           "coordinate": [770, 80],
           "id": "j104"
-        },
-        {
-          "coordinate": [770, 120],
-          "id": "j106"
         },
         {
           "coordinate": [810, 80],
@@ -4081,16 +4097,8 @@
           "id": "j313"
         },
         {
-          "coordinate": [70, 760],
-          "id": "j321"
-        },
-        {
           "coordinate": [70, 800],
           "id": "j323"
-        },
-        {
-          "coordinate": [70, 840],
-          "id": "j325"
         },
         {
           "coordinate": [110, 800],
@@ -4101,16 +4109,8 @@
           "id": "j332"
         },
         {
-          "coordinate": [70, 990],
-          "id": "j339"
-        },
-        {
           "coordinate": [70, 1030],
           "id": "j341"
-        },
-        {
-          "coordinate": [70, 1070],
-          "id": "j343"
         },
         {
           "coordinate": [110, 1030],
@@ -4121,16 +4121,8 @@
           "id": "j350"
         },
         {
-          "coordinate": [380, 60],
-          "id": "j357"
-        },
-        {
           "coordinate": [380, 100],
           "id": "j359"
-        },
-        {
-          "coordinate": [380, 140],
-          "id": "j361"
         },
         {
           "coordinate": [420, 100],
@@ -4141,16 +4133,8 @@
           "id": "j368"
         },
         {
-          "coordinate": [570, 610],
-          "id": "j375"
-        },
-        {
           "coordinate": [570, 650],
           "id": "j377"
-        },
-        {
-          "coordinate": [570, 690],
-          "id": "j379"
         },
         {
           "coordinate": [610, 650],
@@ -5908,12 +5892,201 @@
           "netId": "net-b1b",
           "owner": { "annotationId": "name-388", "kind": "net-label" },
           "scope": "local"
+        },
+        {
+          "id": "connectivity-evidence-80670be61f0384f2",
+          "kind": "name-claim",
+          "name": "vdd",
+          "netId": "net-vdd",
+          "owner": { "kind": "power-marker", "objectId": "vdd-M17" },
+          "powerDomain": "vdd",
+          "scope": "local"
+        },
+        {
+          "id": "connectivity-evidence-80670ee61f038a0b",
+          "kind": "name-claim",
+          "name": "vdd",
+          "netId": "net-vdd",
+          "owner": { "kind": "power-marker", "objectId": "vdd-M18" },
+          "powerDomain": "vdd",
+          "scope": "local"
+        },
+        {
+          "id": "connectivity-evidence-805d15e61efb416b",
+          "kind": "name-claim",
+          "name": "vdd",
+          "netId": "net-vdd",
+          "owner": { "kind": "power-marker", "objectId": "vdd-M21" },
+          "powerDomain": "vdd",
+          "scope": "local"
+        },
+        {
+          "id": "connectivity-evidence-805d17e61efb44d1",
+          "kind": "name-claim",
+          "name": "vdd",
+          "netId": "net-vdd",
+          "owner": { "kind": "power-marker", "objectId": "vdd-M23" },
+          "powerDomain": "vdd",
+          "scope": "local"
+        },
+        {
+          "id": "connectivity-evidence-805d18e61efb4684",
+          "kind": "name-claim",
+          "name": "vdd",
+          "netId": "net-vdd",
+          "owner": { "kind": "power-marker", "objectId": "vdd-M24" },
+          "powerDomain": "vdd",
+          "scope": "local"
+        },
+        {
+          "id": "connectivity-evidence-805d1be61efb4b9d",
+          "kind": "name-claim",
+          "name": "vdd",
+          "netId": "net-vdd",
+          "owner": { "kind": "power-marker", "objectId": "vdd-M27" },
+          "powerDomain": "vdd",
+          "scope": "local"
+        },
+        {
+          "id": "connectivity-evidence-805d0ce61efb3220",
+          "kind": "name-claim",
+          "name": "vdd",
+          "netId": "net-vdd",
+          "owner": { "kind": "power-marker", "objectId": "vdd-M28" },
+          "powerDomain": "vdd",
+          "scope": "local"
+        },
+        {
+          "id": "connectivity-evidence-805d0de61efb33d3",
+          "kind": "name-claim",
+          "name": "vdd",
+          "netId": "net-vdd",
+          "owner": { "kind": "power-marker", "objectId": "vdd-M29" },
+          "powerDomain": "vdd",
+          "scope": "local"
+        },
+        {
+          "id": "connectivity-evidence-806097e61efe5428",
+          "kind": "name-claim",
+          "name": "vdd",
+          "netId": "net-vdd",
+          "owner": { "kind": "power-marker", "objectId": "vdd-M33" },
+          "powerDomain": "vdd",
+          "scope": "local"
+        },
+        {
+          "id": "connectivity-evidence-80609ee61efe600d",
+          "kind": "name-claim",
+          "name": "vdd",
+          "netId": "net-vdd",
+          "owner": { "kind": "power-marker", "objectId": "vdd-M34" },
+          "powerDomain": "vdd",
+          "scope": "local"
+        },
+        {
+          "id": "connectivity-evidence-80609be61efe5af4",
+          "kind": "name-claim",
+          "name": "vdd",
+          "netId": "net-vdd",
+          "owner": { "kind": "power-marker", "objectId": "vdd-M37" },
+          "powerDomain": "vdd",
+          "scope": "local"
+        },
+        {
+          "id": "connectivity-evidence-806092e61efe4ba9",
+          "kind": "name-claim",
+          "name": "vdd",
+          "netId": "net-vdd",
+          "owner": { "kind": "power-marker", "objectId": "vdd-M38" },
+          "powerDomain": "vdd",
+          "scope": "local"
+        },
+        {
+          "id": "connectivity-evidence-807199e61f0ccac1",
+          "kind": "name-claim",
+          "name": "vdd",
+          "netId": "net-vdd",
+          "owner": { "kind": "power-marker", "objectId": "vdd-M41" },
+          "powerDomain": "vdd",
+          "scope": "local"
+        },
+        {
+          "id": "connectivity-evidence-807196e61f0cc5a8",
+          "kind": "name-claim",
+          "name": "vdd",
+          "netId": "net-vdd",
+          "owner": { "kind": "power-marker", "objectId": "vdd-M42" },
+          "powerDomain": "vdd",
+          "scope": "local"
+        },
+        {
+          "id": "connectivity-evidence-807197e61f0cc75b",
+          "kind": "name-claim",
+          "name": "vdd",
+          "netId": "net-vdd",
+          "owner": { "kind": "power-marker", "objectId": "vdd-M43" },
+          "powerDomain": "vdd",
+          "scope": "local"
+        },
+        {
+          "id": "connectivity-evidence-80719be61f0cce27",
+          "kind": "name-claim",
+          "name": "vdd",
+          "netId": "net-vdd",
+          "owner": { "kind": "power-marker", "objectId": "vdd-M47" },
+          "powerDomain": "vdd",
+          "scope": "local"
+        },
+        {
+          "id": "connectivity-evidence-807190e61f0cbb76",
+          "kind": "name-claim",
+          "name": "vdd",
+          "netId": "net-vdd",
+          "owner": { "kind": "power-marker", "objectId": "vdd-M48" },
+          "powerDomain": "vdd",
+          "scope": "local"
+        },
+        {
+          "id": "connectivity-evidence-1be73d102b2a937c",
+          "kind": "name-claim",
+          "name": "vdd",
+          "netId": "net-vdd",
+          "owner": { "kind": "power-marker", "objectId": "vdd-M1" },
+          "powerDomain": "vdd",
+          "scope": "local"
+        },
+        {
+          "id": "connectivity-evidence-1be73f102b2a96e2",
+          "kind": "name-claim",
+          "name": "vdd",
+          "netId": "net-vdd",
+          "owner": { "kind": "power-marker", "objectId": "vdd-M3" },
+          "powerDomain": "vdd",
+          "scope": "local"
+        },
+        {
+          "id": "connectivity-evidence-1be739102b2a8cb0",
+          "kind": "name-claim",
+          "name": "vdd",
+          "netId": "net-vdd",
+          "owner": { "kind": "power-marker", "objectId": "vdd-M5" },
+          "powerDomain": "vdd",
+          "scope": "local"
+        },
+        {
+          "id": "connectivity-evidence-1be73b102b2a9016",
+          "kind": "name-claim",
+          "name": "vdd",
+          "netId": "net-vdd",
+          "owner": { "kind": "power-marker", "objectId": "vdd-M7" },
+          "powerDomain": "vdd",
+          "scope": "local"
         }
       ],
       "layoutGroups": [],
       "constraints": [],
-      "sourceStatus": "in-sync",
-      "revision": 0,
+      "sourceStatus": "connectivity-modified",
+      "revision": 52,
       "noConnects": []
     }
   ],
@@ -6579,7 +6752,98 @@
       }
     }
   ],
-  "externalSubcircuitDefinitions": [],
+  "externalSubcircuitDefinitions": [
+    {
+      "formalParameters": [
+        {
+          "defaultValue": "1",
+          "name": "w"
+        },
+        {
+          "defaultValue": "0.15",
+          "name": "l"
+        },
+        {
+          "defaultValue": "1",
+          "name": "nf"
+        },
+        {
+          "defaultValue": "1",
+          "name": "m"
+        }
+      ],
+      "id": "external-subcircuit-27f716b14d59fc10",
+      "interfaceStatus": "declared",
+      "name": "sky130_fd_pr__pfet_01v8",
+      "terminals": [
+        {
+          "direction": "passive",
+          "id": "external-subcircuit-terminal-7921a0096089118d",
+          "name": "D"
+        },
+        {
+          "direction": "passive",
+          "id": "external-subcircuit-terminal-79219f0960890fda",
+          "name": "G"
+        },
+        {
+          "direction": "passive",
+          "id": "external-subcircuit-terminal-79219e0960890e27",
+          "name": "S"
+        },
+        {
+          "direction": "passive",
+          "id": "external-subcircuit-terminal-79219d0960890c74",
+          "name": "B"
+        }
+      ]
+    },
+    {
+      "formalParameters": [
+        {
+          "defaultValue": "1",
+          "name": "w"
+        },
+        {
+          "defaultValue": "0.15",
+          "name": "l"
+        },
+        {
+          "defaultValue": "1",
+          "name": "nf"
+        },
+        {
+          "defaultValue": "1",
+          "name": "m"
+        }
+      ],
+      "id": "external-subcircuit-e5ee3d17d0c7c89a",
+      "interfaceStatus": "declared",
+      "name": "sky130_fd_pr__nfet_01v8",
+      "terminals": [
+        {
+          "direction": "passive",
+          "id": "external-subcircuit-terminal-353df4da271bcc2b",
+          "name": "D"
+        },
+        {
+          "direction": "passive",
+          "id": "external-subcircuit-terminal-353df3da271bca78",
+          "name": "G"
+        },
+        {
+          "direction": "passive",
+          "id": "external-subcircuit-terminal-353df6da271bcf91",
+          "name": "S"
+        },
+        {
+          "direction": "passive",
+          "id": "external-subcircuit-terminal-353df5da271bcdde",
+          "name": "B"
+        }
+      ]
+    }
+  ],
   "simulationFolders": [
     {
       "id": "verify",
@@ -6598,15 +6862,11 @@
         "files": [
           {
             "path": "run.cir",
-            "text": "CMOS two-bit magnitude comparator\n.include \"circuit.spice\"\n.include \"models.spice\"\nVDD vdd 0 3.3\nVA0 a0 0 PWL(0 0.0 79.5n 0.0 80.5n 3.3 159.5n 3.3 160.5n 0.0 239.5n 0.0 240.5n 3.3 319.5n 3.3 320.5n 0.0 399.5n 0.0 400.5n 3.3 479.5n 3.3 480.5n 0.0 559.5n 0.0 560.5n 3.3 639.5n 3.3 640.5n 0.0 719.5n 0.0 720.5n 3.3 799.5n 3.3 800.5n 0.0 879.5n 0.0 880.5n 3.3 959.5n 3.3 960.5n 0.0 1039.5n 0.0 1040.5n 3.3 1119.5n 3.3 1120.5n 0.0 1199.5n 0.0 1200.5n 3.3 1280n 3.3)\nVA1 a1 0 PWL(0 0.0 79.5n 0.0 80.5n 0.0 159.5n 0.0 160.5n 3.3 239.5n 3.3 240.5n 3.3 319.5n 3.3 320.5n 0.0 399.5n 0.0 400.5n 0.0 479.5n 0.0 480.5n 3.3 559.5n 3.3 560.5n 3.3 639.5n 3.3 640.5n 0.0 719.5n 0.0 720.5n 0.0 799.5n 0.0 800.5n 3.3 879.5n 3.3 880.5n 3.3 959.5n 3.3 960.5n 0.0 1039.5n 0.0 1040.5n 0.0 1119.5n 0.0 1120.5n 3.3 1199.5n 3.3 1200.5n 3.3 1280n 3.3)\nVB0 b0 0 PWL(0 0.0 79.5n 0.0 80.5n 0.0 159.5n 0.0 160.5n 0.0 239.5n 0.0 240.5n 0.0 319.5n 0.0 320.5n 3.3 399.5n 3.3 400.5n 3.3 479.5n 3.3 480.5n 3.3 559.5n 3.3 560.5n 3.3 639.5n 3.3 640.5n 0.0 719.5n 0.0 720.5n 0.0 799.5n 0.0 800.5n 0.0 879.5n 0.0 880.5n 0.0 959.5n 0.0 960.5n 3.3 1039.5n 3.3 1040.5n 3.3 1119.5n 3.3 1120.5n 3.3 1199.5n 3.3 1200.5n 3.3 1280n 3.3)\nVB1 b1 0 PWL(0 0.0 79.5n 0.0 80.5n 0.0 159.5n 0.0 160.5n 0.0 239.5n 0.0 240.5n 0.0 319.5n 0.0 320.5n 0.0 399.5n 0.0 400.5n 0.0 479.5n 0.0 480.5n 0.0 559.5n 0.0 560.5n 0.0 639.5n 0.0 640.5n 3.3 719.5n 3.3 720.5n 3.3 799.5n 3.3 800.5n 3.3 879.5n 3.3 880.5n 3.3 959.5n 3.3 960.5n 3.3 1039.5n 3.3 1040.5n 3.3 1119.5n 3.3 1120.5n 3.3 1199.5n 3.3 1200.5n 3.3 1280n 3.3)\nXDUT vdd 0 eq gt lt a0 a1 b0 b1 sol_070_cmos_two_bit_magnitude_comparator\n.temp 27\n.options method=gear reltol=1e-5\n* @spec c0eq range 3.2 3.4 unit=V\n* @spec c0gt range -0.02 0.02 unit=V\n* @spec c0lt range -0.02 0.02 unit=V\n* @spec c1eq range -0.02 0.02 unit=V\n* @spec c1gt range 3.2 3.4 unit=V\n* @spec c1lt range -0.02 0.02 unit=V\n* @spec c2eq range -0.02 0.02 unit=V\n* @spec c2gt range 3.2 3.4 unit=V\n* @spec c2lt range -0.02 0.02 unit=V\n* @spec c3eq range -0.02 0.02 unit=V\n* @spec c3gt range 3.2 3.4 unit=V\n* @spec c3lt range -0.02 0.02 unit=V\n* @spec c4eq range -0.02 0.02 unit=V\n* @spec c4gt range -0.02 0.02 unit=V\n* @spec c4lt range 3.2 3.4 unit=V\n* @spec c5eq range 3.2 3.4 unit=V\n* @spec c5gt range -0.02 0.02 unit=V\n* @spec c5lt range -0.02 0.02 unit=V\n* @spec c6eq range -0.02 0.02 unit=V\n* @spec c6gt range 3.2 3.4 unit=V\n* @spec c6lt range -0.02 0.02 unit=V\n* @spec c7eq range -0.02 0.02 unit=V\n* @spec c7gt range 3.2 3.4 unit=V\n* @spec c7lt range -0.02 0.02 unit=V\n* @spec c8eq range -0.02 0.02 unit=V\n* @spec c8gt range -0.02 0.02 unit=V\n* @spec c8lt range 3.2 3.4 unit=V\n* @spec c9eq range -0.02 0.02 unit=V\n* @spec c9gt range -0.02 0.02 unit=V\n* @spec c9lt range 3.2 3.4 unit=V\n* @spec c10eq range 3.2 3.4 unit=V\n* @spec c10gt range -0.02 0.02 unit=V\n* @spec c10lt range -0.02 0.02 unit=V\n* @spec c11eq range -0.02 0.02 unit=V\n* @spec c11gt range 3.2 3.4 unit=V\n* @spec c11lt range -0.02 0.02 unit=V\n* @spec c12eq range -0.02 0.02 unit=V\n* @spec c12gt range -0.02 0.02 unit=V\n* @spec c12lt range 3.2 3.4 unit=V\n* @spec c13eq range -0.02 0.02 unit=V\n* @spec c13gt range -0.02 0.02 unit=V\n* @spec c13lt range 3.2 3.4 unit=V\n* @spec c14eq range -0.02 0.02 unit=V\n* @spec c14gt range -0.02 0.02 unit=V\n* @spec c14lt range 3.2 3.4 unit=V\n* @spec c15eq range 3.2 3.4 unit=V\n* @spec c15gt range -0.02 0.02 unit=V\n* @spec c15lt range -0.02 0.02 unit=V\n.control\nset filetype=ascii\ntran 100p 1280n\nmeas tran c0eq FIND v(eq) AT=55n\nmeas tran c0gt FIND v(gt) AT=55n\nmeas tran c0lt FIND v(lt) AT=55n\nmeas tran c1eq FIND v(eq) AT=135n\nmeas tran c1gt FIND v(gt) AT=135n\nmeas tran c1lt FIND v(lt) AT=135n\nmeas tran c2eq FIND v(eq) AT=215n\nmeas tran c2gt FIND v(gt) AT=215n\nmeas tran c2lt FIND v(lt) AT=215n\nmeas tran c3eq FIND v(eq) AT=295n\nmeas tran c3gt FIND v(gt) AT=295n\nmeas tran c3lt FIND v(lt) AT=295n\nmeas tran c4eq FIND v(eq) AT=375n\nmeas tran c4gt FIND v(gt) AT=375n\nmeas tran c4lt FIND v(lt) AT=375n\nmeas tran c5eq FIND v(eq) AT=455n\nmeas tran c5gt FIND v(gt) AT=455n\nmeas tran c5lt FIND v(lt) AT=455n\nmeas tran c6eq FIND v(eq) AT=535n\nmeas tran c6gt FIND v(gt) AT=535n\nmeas tran c6lt FIND v(lt) AT=535n\nmeas tran c7eq FIND v(eq) AT=615n\nmeas tran c7gt FIND v(gt) AT=615n\nmeas tran c7lt FIND v(lt) AT=615n\nmeas tran c8eq FIND v(eq) AT=695n\nmeas tran c8gt FIND v(gt) AT=695n\nmeas tran c8lt FIND v(lt) AT=695n\nmeas tran c9eq FIND v(eq) AT=775n\nmeas tran c9gt FIND v(gt) AT=775n\nmeas tran c9lt FIND v(lt) AT=775n\nmeas tran c10eq FIND v(eq) AT=855n\nmeas tran c10gt FIND v(gt) AT=855n\nmeas tran c10lt FIND v(lt) AT=855n\nmeas tran c11eq FIND v(eq) AT=935n\nmeas tran c11gt FIND v(gt) AT=935n\nmeas tran c11lt FIND v(lt) AT=935n\nmeas tran c12eq FIND v(eq) AT=1015n\nmeas tran c12gt FIND v(gt) AT=1015n\nmeas tran c12lt FIND v(lt) AT=1015n\nmeas tran c13eq FIND v(eq) AT=1095n\nmeas tran c13gt FIND v(gt) AT=1095n\nmeas tran c13lt FIND v(lt) AT=1095n\nmeas tran c14eq FIND v(eq) AT=1175n\nmeas tran c14gt FIND v(gt) AT=1175n\nmeas tran c14lt FIND v(lt) AT=1175n\nmeas tran c15eq FIND v(eq) AT=1255n\nmeas tran c15gt FIND v(gt) AT=1255n\nmeas tran c15lt FIND v(lt) AT=1255n\nwrite out.raw \"v(eq)\" \"v(gt)\" \"v(lt)\"\nquit\n.endc\n.end\n"
+            "text": "CMOS two-bit magnitude comparator\n.include \"circuit.spice\"\nVDD vdd 0 1.8\nVA0 a0 0 PWL(0 0.0 79.5n 0.0 80.5n 1.8 159.5n 1.8 160.5n 0.0 239.5n 0.0 240.5n 1.8 319.5n 1.8 320.5n 0.0 399.5n 0.0 400.5n 1.8 479.5n 1.8 480.5n 0.0 559.5n 0.0 560.5n 1.8 639.5n 1.8 640.5n 0.0 719.5n 0.0 720.5n 1.8 799.5n 1.8 800.5n 0.0 879.5n 0.0 880.5n 1.8 959.5n 1.8 960.5n 0.0 1039.5n 0.0 1040.5n 1.8 1119.5n 1.8 1120.5n 0.0 1199.5n 0.0 1200.5n 1.8 1280n 1.8)\nVA1 a1 0 PWL(0 0.0 79.5n 0.0 80.5n 0.0 159.5n 0.0 160.5n 1.8 239.5n 1.8 240.5n 1.8 319.5n 1.8 320.5n 0.0 399.5n 0.0 400.5n 0.0 479.5n 0.0 480.5n 1.8 559.5n 1.8 560.5n 1.8 639.5n 1.8 640.5n 0.0 719.5n 0.0 720.5n 0.0 799.5n 0.0 800.5n 1.8 879.5n 1.8 880.5n 1.8 959.5n 1.8 960.5n 0.0 1039.5n 0.0 1040.5n 0.0 1119.5n 0.0 1120.5n 1.8 1199.5n 1.8 1200.5n 1.8 1280n 1.8)\nVB0 b0 0 PWL(0 0.0 79.5n 0.0 80.5n 0.0 159.5n 0.0 160.5n 0.0 239.5n 0.0 240.5n 0.0 319.5n 0.0 320.5n 1.8 399.5n 1.8 400.5n 1.8 479.5n 1.8 480.5n 1.8 559.5n 1.8 560.5n 1.8 639.5n 1.8 640.5n 0.0 719.5n 0.0 720.5n 0.0 799.5n 0.0 800.5n 0.0 879.5n 0.0 880.5n 0.0 959.5n 0.0 960.5n 1.8 1039.5n 1.8 1040.5n 1.8 1119.5n 1.8 1120.5n 1.8 1199.5n 1.8 1200.5n 1.8 1280n 1.8)\nVB1 b1 0 PWL(0 0.0 79.5n 0.0 80.5n 0.0 159.5n 0.0 160.5n 0.0 239.5n 0.0 240.5n 0.0 319.5n 0.0 320.5n 0.0 399.5n 0.0 400.5n 0.0 479.5n 0.0 480.5n 0.0 559.5n 0.0 560.5n 0.0 639.5n 0.0 640.5n 1.8 719.5n 1.8 720.5n 1.8 799.5n 1.8 800.5n 1.8 879.5n 1.8 880.5n 1.8 959.5n 1.8 960.5n 1.8 1039.5n 1.8 1040.5n 1.8 1119.5n 1.8 1120.5n 1.8 1199.5n 1.8 1200.5n 1.8 1280n 1.8)\nXDUT vdd 0 eq gt lt a0 a1 b0 b1 sol_070_cmos_two_bit_magnitude_comparator\n.temp 27\n.options method=gear reltol=1e-5\n* @spec c0eq range 1.7 1.9 unit=V\n* @spec c0gt range -0.02 0.02 unit=V\n* @spec c0lt range -0.02 0.02 unit=V\n* @spec c1eq range -0.02 0.02 unit=V\n* @spec c1gt range 1.7 1.9 unit=V\n* @spec c1lt range -0.02 0.02 unit=V\n* @spec c2eq range -0.02 0.02 unit=V\n* @spec c2gt range 1.7 1.9 unit=V\n* @spec c2lt range -0.02 0.02 unit=V\n* @spec c3eq range -0.02 0.02 unit=V\n* @spec c3gt range 1.7 1.9 unit=V\n* @spec c3lt range -0.02 0.02 unit=V\n* @spec c4eq range -0.02 0.02 unit=V\n* @spec c4gt range -0.02 0.02 unit=V\n* @spec c4lt range 1.7 1.9 unit=V\n* @spec c5eq range 1.7 1.9 unit=V\n* @spec c5gt range -0.02 0.02 unit=V\n* @spec c5lt range -0.02 0.02 unit=V\n* @spec c6eq range -0.02 0.02 unit=V\n* @spec c6gt range 1.7 1.9 unit=V\n* @spec c6lt range -0.02 0.02 unit=V\n* @spec c7eq range -0.02 0.02 unit=V\n* @spec c7gt range 1.7 1.9 unit=V\n* @spec c7lt range -0.02 0.02 unit=V\n* @spec c8eq range -0.02 0.02 unit=V\n* @spec c8gt range -0.02 0.02 unit=V\n* @spec c8lt range 1.7 1.9 unit=V\n* @spec c9eq range -0.02 0.02 unit=V\n* @spec c9gt range -0.02 0.02 unit=V\n* @spec c9lt range 1.7 1.9 unit=V\n* @spec c10eq range 1.7 1.9 unit=V\n* @spec c10gt range -0.02 0.02 unit=V\n* @spec c10lt range -0.02 0.02 unit=V\n* @spec c11eq range -0.02 0.02 unit=V\n* @spec c11gt range 1.7 1.9 unit=V\n* @spec c11lt range -0.02 0.02 unit=V\n* @spec c12eq range -0.02 0.02 unit=V\n* @spec c12gt range -0.02 0.02 unit=V\n* @spec c12lt range 1.7 1.9 unit=V\n* @spec c13eq range -0.02 0.02 unit=V\n* @spec c13gt range -0.02 0.02 unit=V\n* @spec c13lt range 1.7 1.9 unit=V\n* @spec c14eq range -0.02 0.02 unit=V\n* @spec c14gt range -0.02 0.02 unit=V\n* @spec c14lt range 1.7 1.9 unit=V\n* @spec c15eq range 1.7 1.9 unit=V\n* @spec c15gt range -0.02 0.02 unit=V\n* @spec c15lt range -0.02 0.02 unit=V\n.control\nset filetype=ascii\ntran 100p 1280n\nmeas tran c0eq FIND v(eq) AT=55n\nmeas tran c0gt FIND v(gt) AT=55n\nmeas tran c0lt FIND v(lt) AT=55n\nmeas tran c1eq FIND v(eq) AT=135n\nmeas tran c1gt FIND v(gt) AT=135n\nmeas tran c1lt FIND v(lt) AT=135n\nmeas tran c2eq FIND v(eq) AT=215n\nmeas tran c2gt FIND v(gt) AT=215n\nmeas tran c2lt FIND v(lt) AT=215n\nmeas tran c3eq FIND v(eq) AT=295n\nmeas tran c3gt FIND v(gt) AT=295n\nmeas tran c3lt FIND v(lt) AT=295n\nmeas tran c4eq FIND v(eq) AT=375n\nmeas tran c4gt FIND v(gt) AT=375n\nmeas tran c4lt FIND v(lt) AT=375n\nmeas tran c5eq FIND v(eq) AT=455n\nmeas tran c5gt FIND v(gt) AT=455n\nmeas tran c5lt FIND v(lt) AT=455n\nmeas tran c6eq FIND v(eq) AT=535n\nmeas tran c6gt FIND v(gt) AT=535n\nmeas tran c6lt FIND v(lt) AT=535n\nmeas tran c7eq FIND v(eq) AT=615n\nmeas tran c7gt FIND v(gt) AT=615n\nmeas tran c7lt FIND v(lt) AT=615n\nmeas tran c8eq FIND v(eq) AT=695n\nmeas tran c8gt FIND v(gt) AT=695n\nmeas tran c8lt FIND v(lt) AT=695n\nmeas tran c9eq FIND v(eq) AT=775n\nmeas tran c9gt FIND v(gt) AT=775n\nmeas tran c9lt FIND v(lt) AT=775n\nmeas tran c10eq FIND v(eq) AT=855n\nmeas tran c10gt FIND v(gt) AT=855n\nmeas tran c10lt FIND v(lt) AT=855n\nmeas tran c11eq FIND v(eq) AT=935n\nmeas tran c11gt FIND v(gt) AT=935n\nmeas tran c11lt FIND v(lt) AT=935n\nmeas tran c12eq FIND v(eq) AT=1015n\nmeas tran c12gt FIND v(gt) AT=1015n\nmeas tran c12lt FIND v(lt) AT=1015n\nmeas tran c13eq FIND v(eq) AT=1095n\nmeas tran c13gt FIND v(gt) AT=1095n\nmeas tran c13lt FIND v(lt) AT=1095n\nmeas tran c14eq FIND v(eq) AT=1175n\nmeas tran c14gt FIND v(gt) AT=1175n\nmeas tran c14lt FIND v(lt) AT=1175n\nmeas tran c15eq FIND v(eq) AT=1255n\nmeas tran c15gt FIND v(gt) AT=1255n\nmeas tran c15lt FIND v(lt) AT=1255n\nwrite out.raw \"v(eq)\" \"v(gt)\" \"v(lt)\"\nquit\n.endc\n.end\n"
           },
           {
             "path": "experiment.json",
             "text": "{\n  \"version\": 2,\n  \"environment\": {\n    \"profileId\": \"sky130-core-continuous-ngspice46-v1\"\n  }\n}\n"
-          },
-          {
-            "path": "models.spice",
-            "text": "* Educational generic models by GPT-6-Astra. Not vendor or foundry models.\n* Nominal 27 C; intended for topology/function demonstrations, not signoff.\n.model ANPN NPN(IS=1e-15 BF=150 VAF=100 IKF=0.1 RB=20 RC=1 RE=0.2 CJE=8p CJC=3p TF=300p TR=20n)\n.model APNP PNP(IS=1e-15 BF=100 VAF=80 IKF=0.1 RB=30 RC=1 RE=0.2 CJE=10p CJC=4p TF=500p TR=30n)\n.model ANMOS NMOS(LEVEL=1 VTO=0.6 KP=200u GAMMA=0.4 PHI=0.7 LAMBDA=0.02 CGSO=200p CGDO=200p CJ=100u CJSW=300p)\n.model APMOS PMOS(LEVEL=1 VTO=-0.6 KP=80u GAMMA=0.4 PHI=0.7 LAMBDA=0.02 CGSO=200p CGDO=200p CJ=100u CJSW=300p)\n.model AD D(IS=2n N=1.8 RS=0.5 CJO=2p TT=4n)\n"
           }
         ],
         "kind": "source"
@@ -6617,5 +6877,5 @@
   ],
   "source": { "dialect": "none", "entry": null, "files": [], "sourcePolicy": "copy" },
   "symbolLibrary": { "hash": "razavi-reference-v1", "id": "razavi-symbols", "version": "1" },
-  "structureRevision": 0
+  "structureRevision": 3
 }

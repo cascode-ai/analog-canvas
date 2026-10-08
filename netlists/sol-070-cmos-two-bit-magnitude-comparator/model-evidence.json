@@ -1,0 +1,64 @@
+{
+  "profileId": "sky130-core-continuous-ngspice46-v1",
+  "models": {
+    "id": "sky130A-continuous",
+    "contentSha256": "0bf299f0e3e1616478203d370107865635fd08935bb1a9cf9db18efd31703100"
+  },
+  "dependencies": [
+    {
+      "id": "sky130A-continuous",
+      "sha256": "0bf299f0e3e1616478203d370107865635fd08935bb1a9cf9db18efd31703100",
+      "mountPath": "icm-models.lib"
+    }
+  ],
+  "generatedLibraryDirective": ".lib \"icm-models.lib\" tt",
+  "nativeModelCards": 50,
+  "legacyModelsInActiveSource": false,
+  "metadata": {
+    "schemaVersion": 1,
+    "input": {
+      "inputRevision": "ca850b4887a45f962e36a4844a642ed1544181e5f4693015beacc0e5b9e4d4f1",
+      "netlistSha256": "9936afbfdeade447cb0a9c4b2b549e07a89a429be9ebf3546fac934ca15f7586",
+      "testbenchSha256": "f5ae1c54f68db7cad73eda45ea9f730e6a836f5d1e0b3521097a318d6e4d7716",
+      "deckSha256": "f5ae1c54f68db7cad73eda45ea9f730e6a836f5d1e0b3521097a318d6e4d7716"
+    },
+    "configuration": {
+      "modelLibrary": null
+    },
+    "environment": {
+      "executor": "hosted-container",
+      "reproducibility": "pinned",
+      "profileId": "sky130-core-continuous-ngspice46-v1",
+      "platform": "linux/x64",
+      "simulator": {
+        "name": "ngspice",
+        "version": "ngspice-46",
+        "binarySha256": "e9b0e776ac656de5e470f6b339c4a7254c961d77714b4b94f4b71be2422e7b46"
+      },
+      "models": {
+        "id": "sky130A-continuous",
+        "contentSha256": "0bf299f0e3e1616478203d370107865635fd08935bb1a9cf9db18efd31703100"
+      },
+      "startupSha256": "5ad94681e17bba379ac84d01fe7773458b34f9bbd77c127a3738f1af47ad5634",
+      "fingerprint": "33c245e5df6dc12077b6a2e4ebf308777b0e9014fe9bfdafc3285c614688561d"
+    }
+  },
+  "normalizedLogSha256": "8da368493fb27eac12361794d83194bada5e06331b64798e8d2f3b9ddda49a65",
+  "logNormalization": "Owned simulation.log normalizes carriage-return progress lines and trailing whitespace; original captured log hash is retained in capturedSourceHashes.log.txt and the unchanged downloaded artifact.",
+  "capturedSourceHashes": {
+    "executed.cir": "f5ae1c54f68db7cad73eda45ea9f730e6a836f5d1e0b3521097a318d6e4d7716",
+    "log.txt": "d1b2645f9b74c7807c7902822e6e99a2e34d8a93724be1d07c12b3ef6eafffd6",
+    "circuit.spice": "9936afbfdeade447cb0a9c4b2b549e07a89a429be9ebf3546fac934ca15f7586",
+    "specs.json": "f828acfafdac4108cbd7d15b5010468c5997ce7143823777ebf3eb510e9e8514"
+  },
+  "capturedSourceHashScope": "These hashes identify the original downloaded run artifacts. The captured circuit.spice has a Generated banner; the authored directory export omits it, with identical circuit body. Asset hashes are listed separately.",
+  "assetHashes": {
+    "source.icproj.json": "a19c534180c098d574bda31fe0b242da8ba98bafdcb29935f57a74dc0c96fe42",
+    "circuit.spice": "13c8a76f1e70e6364f583b12e8437419f471ba83316ddd426465a3b8295e5e2b",
+    "run.cir": "1c454e7d776480d2a2ec1d55341efa0dc1ce2abdf9f9b62931d55da009f887b2",
+    "executed.cir": "f5ae1c54f68db7cad73eda45ea9f730e6a836f5d1e0b3521097a318d6e4d7716",
+    "simulation.log": "8da368493fb27eac12361794d83194bada5e06331b64798e8d2f3b9ddda49a65",
+    "specs.json": "f828acfafdac4108cbd7d15b5010468c5997ce7143823777ebf3eb510e9e8514",
+    "specs.csv": "b07288a07a20e6886cbc8deeab89b8b90e39c0c9f7cb17f6de878dcc44063f40"
+  }
+}
