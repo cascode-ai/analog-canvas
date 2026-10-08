@@ -1,4 +1,3 @@
-import { flushSync } from "react-dom";
 import {
   holdWorkspaceWindow,
   workspaceWindowId,
@@ -22,7 +21,6 @@ import {
   type ArrowPreset,
 } from "../features/drafting/arrow-presets";
 import {
-  lazy,
   Suspense,
   useCallback,
   useEffect,
@@ -31,23 +29,11 @@ import {
   useRef,
   useState,
 } from "react";
-import type { ComponentDefinition } from "@icm/model";
-import type { SharedComponent } from "../features/user-components/component-library-contract";
-import { publishedDefinition } from "../features/user-components/component-library-contract";
-import {
-  newComponentDefinition,
-  sharedComponentInsertRequest,
-} from "../features/user-components/component-definition-edit";
-
-const UserComponentsLibrary = lazy(
-  () => import("../features/user-components/user-components-library"),
-);
 
 import type { CSSProperties } from "react";
 import "../styles/editor-entry.css";
 import {
   instanceValueAnnotation,
-  planProjectCellImport,
   planSetVddConnectionMode,
   planRenameCellTerminal,
   planAngledWireRepairs,
@@ -194,7 +180,6 @@ import {
   isTypingTarget,
   RenderCrashProbe,
 } from "./editor-runtime-helpers";
-import { EditorDialogLayer } from "./editor-dialog-layer";
 import { EditorAppChrome } from "./editor-app-chrome";
 import { EditorRightDock } from "./editor-right-dock";
 import {
@@ -204,7 +189,6 @@ import {
 import { EditorPropertiesDock } from "./editor-properties-dock";
 import { LazyProjectCodePanel as ProjectCodePanel } from "./lazy-editor-dialogs";
 import { LazyExamplesPanel as ExamplesPanel } from "./lazy-editor-dialogs";
-import { LazyComponentDefinitionEditor as ComponentDefinitionEditor } from "./lazy-editor-dialogs";
 import { recoverSourceDrafts } from "../features/simulation/source-draft-cache";
 import { useProjectCheck } from "./use-project-check";
 import { summarizeVisualDiagnostics } from "../features/selection/selection-inspector-details";
@@ -226,14 +210,8 @@ import {
   createProjectStructureCommands,
   cellPlacementIssue,
 } from "../features/hierarchy/project-structure-commands";
-import { loadCloudProjectForCellImport } from "../features/hierarchy/cloud-cell-import";
 import type { PublishGalleryDraft } from "../features/editor-shell/publish-gallery-dialog";
-import {
-  publishProjectToGallery,
-  updateGalleryEntry,
-  canUpdateGalleryPublication,
-} from "../features/editor-shell/gallery-publish";
-import { primeGalleryPreview } from "../gallery-client";
+import { canUpdateGalleryPublication } from "../features/editor-shell/gallery-publish";
 import { GalleryDailyLimitCard } from "../features/editor-shell/gallery-daily-limit-card";
 import { projectWithTopologyRoot } from "../features/editor-shell/gallery-topology-project";
 import { LazyGalleryTopologyTaskNotice as GalleryTopologyTaskNotice } from "./lazy-editor-dialogs";
@@ -297,6 +275,8 @@ import {
   useSimulationSurface,
 } from "./use-simulation-surface";
 import { EditorSimulationSurface } from "./editor-simulation-surface";
+import { EditorDialogs } from "./editor-dialogs";
+import { EditorComponentEditor } from "./editor-component-editor";
 import {
   useAgentProjectResources,
   useAgentStartupRecovery,
@@ -3933,39 +3913,6 @@ function WorkspaceEditor({
     });
   }
 
-  function insertSharedComponent(entry: SharedComponent): void {
-    try {
-      editorDocumentController.offerComponentDefinition(entry.definition);
-      synchronizeExternalCommit();
-      editorCommands.execute({
-        id: "insert.start",
-        launch: { kind: "quick", request: sharedComponentInsertRequest(entry) },
-      });
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : String(error));
-    }
-  }
-
-  function componentEditPlan(
-    definition: ComponentDefinition,
-    planComponentDefinitionEdit: typeof import("../features/user-components/component-definition-plan").planComponentDefinitionEdit,
-  ) {
-    const target = componentEditor?.target;
-    const live = definitionProjectRef.current;
-    if (!target || live.projectSessionId !== target.projectSessionId)
-      return {
-        ok: false as const,
-        message: "The Project changed. Reopen the component before applying.",
-      };
-    return planComponentDefinitionEdit(
-      live.project,
-      target.documentId,
-      target.instance.id,
-      target.instance,
-      definition,
-    );
-  }
-
   function nextRoutingSuffix(): number {
     routeCounter.current =
       Math.max(routeCounter.current, maxRoutingCounter(document)) + 1;
@@ -5612,477 +5559,118 @@ function WorkspaceEditor({
           },
         }}
       />
-      <EditorDialogLayer
-        chunkLoadFailure={
-          chunkLoadFailure === null
-            ? null
-            : {
-                feature: chunkLoadFailure,
-                onDismiss: () => setChunkLoadFailure(null),
-              }
-        }
-        recoveryFailure={
-          (recoveryState === "quota-exceeded" ||
-            recoveryState === "unavailable" ||
-            recoveryState === "failed") &&
-          isDirtyWork() &&
-          !recoveryFailureDismissed
-            ? {
-                state: recoveryState,
-                onDownload: () => void downloadCurrentProjectBackup(),
-                onDismiss: () => setRecoveryFailureDismissed(true),
-              }
-            : null
-        }
-        recoveryAvailable={
-          startupRecovery?.latest
-            ? {
-                projectName: startupRecovery.projectName,
-                updatedAt: startupRecovery.latest.updatedAt,
-                onRestore: () => {
-                  startupCloudRestoreAttemptedRef.current = true;
-                  dismissStartupRecovery();
-                  restoreRecoverySession(
-                    startupRecovery.workingCopyId,
-                    "latest",
-                  );
-                },
-                onDownload: () =>
-                  downloadRecoveryBackup(
-                    startupRecovery.workingCopyId,
-                    "latest",
-                  ),
-                onDismiss: dismissStartupRecovery,
-              }
-            : null
-        }
-        workspaceReopen={
-          workspaceReopen
-            ? {
-                names: workspaceReopen.summary.names,
-                savedAt: workspaceReopen.summary.savedAt,
-                onReopen: () => void reopenClosedWindowTabs(),
-                onDismiss: () => setWorkspaceReopen(null),
-              }
-            : null
-        }
-        recentRecovery={
-          recoveryDialogOpen && recoverySessions.length > 0
-            ? {
-                sessions: recoverySessions,
-                onRestore: restoreRecoverySession,
-                onDownloadBackup: downloadRecoveryBackup,
-                onDeleteSession: deleteRecoverySessionFromDialog,
-                onClose: () => setRecoveryDialogOpen(false),
-              }
-            : null
-        }
-        replaceGuard={
-          replaceGuard !== null
-            ? {
-                intent: replaceGuard.intent,
-                cloudProjectLimit: projectStore?.limit ?? 0,
-                exportOnly: projectStore === null,
-                nativeSave: nativeProjectStore !== undefined,
-                saving: replaceGuardSaving,
-                onCancel: cancelReplaceGuard,
-                onSaveAndContinue: saveAndContinueReplaceGuard,
-                onDiscard: confirmReplaceGuard,
-              }
-            : null
-        }
-        projectInfo={
-          projectInfoOpen
-            ? {
-                name: project.name,
-                documentName: document.name,
-                publication: galleryEntryContext,
-                onSave: editProjectInfo,
-                onClose: () => setProjectInfoOpen(false),
-              }
-            : null
-        }
-        search={
-          searchOpen
-            ? {
-                open: searchOpen,
-                query: searchQuery,
-                results: searchResults,
-                onQueryChange: setSearchQuery,
-                onSelect: selectSearchResult,
-                onClose: closeSearch,
-              }
-            : null
-        }
-        insertComponent={
-          insertDialogOpen
-            ? {
-                open: insertDialogOpen,
-                styleProfileId: document.presentation.styleProfileId,
-                recentSymbolIds,
-                cells: cellInsertCandidates,
-                externalDefinitions: insertDialogExternalCandidates,
-                scope: insertScope,
-                initialSelectionId: insertInitialSelectionId,
-                onApply: (request) =>
-                  editorCommands.execute({
-                    id: "insert.start",
-                    launch: { kind: "quick", request },
-                  }),
-                onCancel: cancelComponentInsertFromHook,
-              }
-            : null
-        }
-        cellManager={
-          cellManagerOpen
-            ? {
-                open: cellManagerOpen,
-                initialExternalId: modelEditorDefinitionId,
-                initialModelLocation: modelEditorLocation,
-                cells: cellManagerEntries,
-                project,
-                hierarchyCalls: projectConnectivityIndex.hierarchy.calls,
-                onOpenOccurrence: (documentId, hierarchyPath) => {
-                  navigateToLocator(
-                    {
-                      documentId,
-                      hierarchyPath: [...hierarchyPath],
-                      kind: "document",
-                      objectId: documentId,
-                    },
-                    "Opened Cell occurrence",
-                  );
-                  setCellManagerOpen(false);
-                },
-                activeDocumentId: document.id,
-                onClose: () => {
-                  setCellManagerOpen(false);
-                  setModelEditorDefinitionId(null);
-                  setModelEditorLocation(undefined);
-                },
-                onCreate: (name) => {
-                  createCell(name);
-                  setCellManagerOpen(false);
-                },
-                onOpen: (documentId) => {
-                  setCellManagerOpen(false);
-                  setDocumentStack([]);
-                  switchDocument(documentId);
-                },
-                onRename: renameCell,
-                onReorder: (documentIds, topDocumentId) => {
-                  commitStructure("reorder-cells", [
-                    { kind: "reorder_documents", documentIds },
-                    { kind: "set_top_document", documentId: topDocumentId },
-                  ]);
-                },
-                onDelete: (documentId) => {
-                  if (deleteCell(documentId)) {
-                    setCellManagerOpen(false);
-                  }
-                },
-                onJumpToCaller: jumpToCaller,
-                onSetPortDirection: (documentId, portId, direction) =>
-                  updateCellPortDirection(portId, direction, documentId),
-                onMovePort: (documentId, portId, delta) =>
-                  moveCellPort(portId, delta, documentId),
-                onEditParameter: (documentId, name, change) =>
-                  editCellParameter(name, change, documentId),
-                externalDefinitions: project.externalSubcircuitDefinitions,
-                onSetExternalDefinition: setExternalSubcircuitDefinition,
-                onCopyModelText: (text) => exportDelivery.copyText(text),
-                onApplyModelSource: (edit) => {
-                  const result = dispatchProjectTransaction({
-                    transactionId: `model-${crypto.randomUUID()}`,
-                    projectId: project.id,
-                    expectedStructureRevision: project.structureRevision,
-                    actor: { kind: "human", id: "human-local" },
-                    edits: [edit],
-                  });
-                  return {
-                    ok: result.ok,
-                    definitionId: edit.definitions[0]!.definitionId,
-                    message: result.ok
-                      ? "Applied shared model definition"
-                      : (result.diagnostics[0]?.message ??
-                        result.error.message),
-                  };
-                },
-                onSaveModelDraft: (edits, definitionId) => {
-                  const result = dispatchProjectTransaction({
-                    transactionId: `model-draft-${crypto.randomUUID()}`,
-                    projectId: project.id,
-                    expectedStructureRevision: project.structureRevision,
-                    actor: { kind: "human", id: "human-local" },
-                    edits,
-                  });
-                  return {
-                    ok: result.ok,
-                    definitionId,
-                    message: result.ok
-                      ? "Saved draft. Applied model bytes are unchanged."
-                      : (result.diagnostics[0]?.message ??
-                        result.error.message),
-                  };
-                },
-                onRemoveExternalDefinition: removeExternalSubcircuitDefinition,
-                onPlaceExternal: (definitionId) => {
-                  const candidate = externalSubcircuitInsertCandidates.find(
-                    (item) => item.definitionId === definitionId,
-                  );
-                  if (!candidate) {
-                    setStatus(
-                      "The selected external master has no resolved symbol",
-                    );
-                    return;
-                  }
-                  setCellManagerOpen(false);
-                  setModelEditorDefinitionId(null);
-                  editorCommands.execute({
-                    id: "insert.start",
-                    launch: {
-                      kind: "quick",
-                      request: {
-                        kind: "external-subcircuit",
-                        definitionId,
-                        symbolId: candidate.symbol.id,
-                        symbolName: candidate.masterName,
-                        masterName: candidate.masterName,
-                        parameters: {},
-                        initialRotation: 0,
-                        showReference: !candidate.symbol.hierarchicalBlock,
-                        referenceText: null,
-                        showValue: true,
-                      },
-                    },
-                  });
-                },
-                onPlaceCell: (childDocumentId) => {
-                  const candidate = cellInsertCandidates.find(
-                    (c) => c.childDocumentId === childDocumentId,
-                  );
-                  if (!candidate) return;
-                  setCellManagerOpen(false);
-                  setModelEditorDefinitionId(null);
-                  editorCommands.execute({
-                    id: "insert.start",
-                    launch: {
-                      kind: "quick",
-                      request: {
-                        kind: "cell",
-                        symbolId: candidate.symbol.id,
-                        symbolName: candidate.cellName,
-                        childDocumentId,
-                        cellName: candidate.cellName,
-                        parameters: {},
-                        initialRotation: 0,
-                        showReference: false,
-                        referenceText: null,
-                        showValue: true,
-                      },
-                    },
-                  });
-                },
-                cloudProjects,
-                activeCloudProjectId: cloudBinding?.id ?? null,
-                onLoadCloudProject: loadCloudProjectForCellImport,
-                onImportCloudCell: async (source, sourceDocumentId) => {
-                  const plan = planProjectCellImport(
-                    project,
-                    source,
-                    sourceDocumentId,
-                  );
-                  if (!plan.ok) {
-                    return { ok: false, message: plan.message };
-                  }
-                  if (plan.status === "already-imported") {
-                    setStatus(
-                      "Cell is already imported; opened the existing copy",
-                    );
-                    return {
-                      ok: true,
-                      message: "Cell already imported",
-                      documentId: plan.rootDocumentId,
-                    };
-                  }
-                  const committed = commitStructure("import-cloud-cell", [
-                    ...plan.edits,
-                  ]);
-                  if (!committed) {
-                    return {
-                      ok: false,
-                      message:
-                        "Cell import was rejected; refresh and try again",
-                    };
-                  }
-                  setStatus(
-                    `Imported ${plan.importedDocumentIds.length} Cell${plan.importedDocumentIds.length === 1 ? "" : "s"} from ${source.name}`,
-                  );
-                  return {
-                    ok: true,
-                    message: "Cell imported",
-                    documentId: plan.rootDocumentId,
-                  };
-                },
-              }
-            : null
-        }
-        netlistPreflight={
-          netlistPreflightOpen
-            ? {
-                open: netlistPreflightOpen,
-                project,
-                format: netlistPreferences.format,
-                rootDocumentId: netlistRootDocumentId,
-                // The dialog only renders while open, so this IS the
-                // explicit check the author asked for.
-                electricalDiagnostics: requestElectricalDiagnostics(),
-                onClose: () => setNetlistPreflightOpen(false),
-                onNavigate: navigateToNetlistDiagnostic,
-                onNavigateElectrical: jumpToProjectDiagnostic,
-                onExport: (namingProfile) =>
-                  void exportDesignNetlist(
-                    netlistPreferences.format,
-                    namingProfile,
-                  ),
-              }
-            : null
-        }
-        publishGallery={
-          publishGalleryOpen
-            ? {
-                draft: publishDraft,
-                onDraftChange: setPublishDraft,
-                defaultName: galleryEntryContext?.name ?? project.name,
-                session: publishSession,
-                gateReport: publishGates,
-                topologyProject: galleryTopologyProject,
-                openedFromCheckNotice,
-                publicationLinkLoading,
-                publicationLinkError,
-                publicationLinkNotice,
-                onRetryPublicationLink: () =>
-                  setPublicationLinkRetry((value) => value + 1),
-                ...(cloudBinding
-                  ? { onLinkExisting: linkExistingPublication }
-                  : {}),
-                updateTarget: canUpdateGalleryPublication(
-                  galleryEntryContext,
-                  publishSession,
-                )
-                  ? {
-                      id: galleryEntryContext!.id,
-                      name: galleryEntryContext!.name,
-                    }
-                  : null,
-                updateDefaults: galleryEntryContext
-                  ? {
-                      description: galleryEntryContext.description,
-                      tags: galleryEntryContext.tags,
-                      aiGenerated: galleryEntryContext.aiGenerated === true,
-                    }
-                  : null,
-                agentEdited: editorDocumentController.agentEdited,
-                quota: publishQuota,
-                publish: (fields) =>
-                  publishProjectToGallery(project, fields, fetch, cloudBinding),
-                ...(galleryEntryContext
-                  ? {
-                      publishUpdate: (fields) =>
-                        updateGalleryEntry(
-                          galleryEntryContext.id,
-                          project,
-                          fields,
-                          fetch,
-                          cloudBinding,
-                        ),
-                    }
-                  : {}),
-                onPublished: (outcome) => {
-                  if (
-                    recordGalleryPublication(
-                      outcome,
-                      projectSessionId,
-                      "person",
-                    )
-                  ) {
-                    setPublishGalleryOpen(false);
-                    setPublishDraft(null);
-                  }
-                },
-                ...(galleryEntryContext
-                  ? {
-                      onShowHistory: () => {
-                        setPublishGalleryOpen(false);
-                        setVersionHistoryOpen(true);
-                      },
-                    }
-                  : {}),
-                onClose: () => setPublishGalleryOpen(false),
-              }
-            : null
-        }
-        versionHistory={
-          versionHistoryOpen && galleryEntryContext
-            ? {
-                entryId: galleryEntryContext.id,
-                entryName: galleryEntryContext.name,
-                onBranch: async (snapshot) => {
-                  // The tab guard reads the committed dialog state. Waiting a
-                  // frame can still race a concurrent React render here.
-                  flushSync(() => setVersionHistoryOpen(false));
-                  return openProjectInTabRef.current(
-                    snapshot,
-                    DEFAULT_VIEWBOX,
-                    { source: "opened-file", persistenceState: "dirty" },
-                  );
-                },
-                onRestored: ({ previewRevision }) => {
-                  void primeGalleryPreview(
-                    galleryEntryContext.id,
-                    previewRevision,
-                  );
-                  galleryLoadGenerationRef.current += 1;
-                  setGalleryRefreshSignal((previous) => previous + 1);
-                  setVersionHistoryOpen(false);
-                  setStatus("Version restored — reloading the entry");
-                  void openGalleryEntryById(galleryEntryContext.id);
-                },
-                onClose: () => setVersionHistoryOpen(false),
-              }
-            : null
-        }
-        agentConnection={
-          publicAgentUiEnabled && agentPanelOpen
-            ? {
-                open: agentPanelOpen,
-                status: agentSession.status,
-                pendingOperation: agentSession.pendingOperation,
-                claimCode: agentSession.claimCode,
-                claimExpiresAt: agentSession.claimExpiresAt,
-                scopes: agentSession.scopes,
-                expiresAt: agentSession.expiresAt,
-                error: agentSession.error,
-                backgroundRequests: agentSession.backgroundRequests,
-                now: Date.now(),
-                onPause: () => void agentSession.pause(),
-                onResume: () => void agentSession.resume(),
-                onReconnect: agentSession.reconnect,
-                onNewConnection: () => void agentSession.newConnection(),
-                onRevoke: () => void agentSession.revoke(),
-                onClose: () => setAgentPanelOpen(false),
-              }
-            : null
-        }
-        agentFileApproval={
-          publicAgentUiEnabled && agentFileCandidate
-            ? {
-                candidate: agentFileCandidate,
-                onReject: rejectAgentFileCandidate,
-                onApprove: approveAgentFileCandidate,
-              }
-            : null
-        }
+      <EditorDialogs
+        projectStore={projectStore}
+        nativeProjectStore={nativeProjectStore}
+        exportDelivery={exportDelivery}
+        publicAgentUiEnabled={publicAgentUiEnabled}
+        setStatus={setStatus}
+        searchOpen={searchOpen}
+        searchQuery={searchQuery}
+        setSearchQuery={setSearchQuery}
+        agentPanelOpen={agentPanelOpen}
+        setAgentPanelOpen={setAgentPanelOpen}
+        closeSearch={closeSearch}
+        galleryLoadGenerationRef={galleryLoadGenerationRef}
+        setGalleryRefreshSignal={setGalleryRefreshSignal}
+        recoveryFailureDismissed={recoveryFailureDismissed}
+        setRecoveryFailureDismissed={setRecoveryFailureDismissed}
+        chunkLoadFailure={chunkLoadFailure}
+        setChunkLoadFailure={setChunkLoadFailure}
+        recoveryState={recoveryState}
+        recoverySessions={recoverySessions}
+        project={project}
+        document={document}
+        dispatchProjectTransaction={dispatchProjectTransaction}
+        editorDocumentController={editorDocumentController}
+        projectSessionId={projectSessionId}
+        galleryTopologyProject={galleryTopologyProject}
+        projectConnectivityIndex={projectConnectivityIndex}
+        setDocumentStack={setDocumentStack}
+        cellManagerOpen={cellManagerOpen}
+        setCellManagerOpen={setCellManagerOpen}
+        modelEditorDefinitionId={modelEditorDefinitionId}
+        setModelEditorDefinitionId={setModelEditorDefinitionId}
+        modelEditorLocation={modelEditorLocation}
+        setModelEditorLocation={setModelEditorLocation}
+        netlistPreflightOpen={netlistPreflightOpen}
+        setNetlistPreflightOpen={setNetlistPreflightOpen}
+        netlistPreferences={netlistPreferences}
+        netlistRootDocumentId={netlistRootDocumentId}
+        projectInfoOpen={projectInfoOpen}
+        setProjectInfoOpen={setProjectInfoOpen}
+        publishGalleryOpen={publishGalleryOpen}
+        setPublishGalleryOpen={setPublishGalleryOpen}
+        openedFromCheckNotice={openedFromCheckNotice}
+        versionHistoryOpen={versionHistoryOpen}
+        setVersionHistoryOpen={setVersionHistoryOpen}
+        publishSession={publishSession}
+        cloudProjects={cloudProjects}
+        galleryEntryContext={galleryEntryContext}
+        publicationLinkLoading={publicationLinkLoading}
+        publicationLinkError={publicationLinkError}
+        publicationLinkNotice={publicationLinkNotice}
+        setPublicationLinkRetry={setPublicationLinkRetry}
+        publishGates={publishGates}
+        publishQuota={publishQuota}
+        openProjectInTabRef={openProjectInTabRef}
+        agentFileCandidate={agentFileCandidate}
+        cloudBinding={cloudBinding}
+        replaceGuard={replaceGuard}
+        replaceGuardSaving={replaceGuardSaving}
+        recoveryDialogOpen={recoveryDialogOpen}
+        startupRecovery={startupRecovery}
+        setRecoveryDialogOpen={setRecoveryDialogOpen}
+        isDirtyWork={isDirtyWork}
+        downloadCurrentProjectBackup={downloadCurrentProjectBackup}
+        cancelReplaceGuard={cancelReplaceGuard}
+        confirmReplaceGuard={confirmReplaceGuard}
+        saveAndContinueReplaceGuard={saveAndContinueReplaceGuard}
+        dismissStartupRecovery={dismissStartupRecovery}
+        restoreRecoverySession={restoreRecoverySession}
+        downloadRecoveryBackup={downloadRecoveryBackup}
+        deleteRecoverySessionFromDialog={deleteRecoverySessionFromDialog}
+        linkExistingPublication={linkExistingPublication}
+        startupCloudRestoreAttemptedRef={startupCloudRestoreAttemptedRef}
+        agentSession={agentSession}
+        approveAgentFileCandidate={approveAgentFileCandidate}
+        rejectAgentFileCandidate={rejectAgentFileCandidate}
+        commitStructure={commitStructure}
+        createCell={createCell}
+        renameCell={renameCell}
+        editProjectInfo={editProjectInfo}
+        deleteCell={deleteCell}
+        updateCellPortDirection={updateCellPortDirection}
+        moveCellPort={moveCellPort}
+        editCellParameter={editCellParameter}
+        setExternalSubcircuitDefinition={setExternalSubcircuitDefinition}
+        removeExternalSubcircuitDefinition={removeExternalSubcircuitDefinition}
+        openGalleryEntryById={openGalleryEntryById}
+        publishDraft={publishDraft}
+        setPublishDraft={setPublishDraft}
+        searchResults={searchResults}
+        requestElectricalDiagnostics={requestElectricalDiagnostics}
+        cellInsertCandidates={cellInsertCandidates}
+        externalSubcircuitInsertCandidates={externalSubcircuitInsertCandidates}
+        insertDialogExternalCandidates={insertDialogExternalCandidates}
+        cancelComponentInsertFromHook={cancelComponentInsertFromHook}
+        insertDialogOpen={insertDialogOpen}
+        insertInitialSelectionId={insertInitialSelectionId}
+        insertScope={insertScope}
+        recentSymbolIds={recentSymbolIds}
+        switchDocument={switchDocument}
+        jumpToCaller={jumpToCaller}
+        navigateToLocator={navigateToLocator}
+        navigateToNetlistDiagnostic={navigateToNetlistDiagnostic}
+        selectSearchResult={selectSearchResult}
+        jumpToProjectDiagnostic={jumpToProjectDiagnostic}
+        cellManagerEntries={cellManagerEntries}
+        editorCommands={editorCommands}
+        exportDesignNetlist={exportDesignNetlist}
+        workspaceReopen={workspaceReopen}
+        setWorkspaceReopen={setWorkspaceReopen}
+        reopenClosedWindowTabs={reopenClosedWindowTabs}
+        recordGalleryPublication={recordGalleryPublication}
       />
       <div
         className={
@@ -8099,72 +7687,23 @@ function WorkspaceEditor({
           />
         ) : null}
       </div>
-      {capabilities.community && componentEditor ? (
-        <Suspense fallback={null}>
-          <ComponentDefinitionEditor
-            key={componentEditor.key}
-            definition={componentEditor.definition}
-            mode={componentEditor.mode}
-            {...(componentEditor.entry ? { entry: componentEditor.entry } : {})}
-            validateApply={(definition, planner) => {
-              if (!componentEditor.target) return null;
-              const plan = componentEditPlan(
-                publishedDefinition(definition, componentEditor.key, 1),
-                planner,
-              );
-              return plan.ok ? null : plan.message;
-            }}
-            onSaved={(entry, planner) => {
-              setComponentLibraryRefresh((value) => value + 1);
-              if (componentEditor.target) {
-                const plan = componentEditPlan(entry.definition, planner);
-                if (!plan.ok) return plan.message;
-                try {
-                  commitProjectStructure(plan.project, plan.activeDocumentId);
-                  selectOnly("instance", [componentEditor.target.instance.id]);
-                  setStatus(
-                    "Saved publicly and applied to the selected component",
-                  );
-                } catch (error) {
-                  return error instanceof Error ? error.message : String(error);
-                }
-              } else if (componentEditor.mode === "new")
-                insertSharedComponent(entry);
-              if (componentEditor.mode !== "library") setComponentEditor(null);
-              return null;
-            }}
-            onManaged={() => setComponentLibraryRefresh((value) => value + 1)}
-            onClose={() => setComponentEditor(null)}
-          />
-        </Suspense>
-      ) : null}
-      {capabilities.community ? (
-        <Suspense fallback={null}>
-          <UserComponentsLibrary
-            open={userComponentsOpen}
-            refresh={componentLibraryRefresh}
-            onClose={() => setUserComponentsOpen(false)}
-            onCreate={() => {
-              cancelAllTransientInteraction();
-              setComponentEditor({
-                key: crypto.randomUUID(),
-                mode: "new",
-                definition: newComponentDefinition(),
-              });
-            }}
-            onEdit={(entry) => {
-              cancelAllTransientInteraction();
-              setComponentEditor({
-                key: crypto.randomUUID(),
-                mode: "library",
-                definition: entry.definition,
-                entry,
-              });
-            }}
-            onInsert={insertSharedComponent}
-          />
-        </Suspense>
-      ) : null}
+      <EditorComponentEditor
+        capabilities={capabilities}
+        setStatus={setStatus}
+        componentEditor={componentEditor}
+        setComponentEditor={setComponentEditor}
+        componentLibraryRefresh={componentLibraryRefresh}
+        setComponentLibraryRefresh={setComponentLibraryRefresh}
+        userComponentsOpen={userComponentsOpen}
+        setUserComponentsOpen={setUserComponentsOpen}
+        commitProjectStructure={commitProjectStructure}
+        editorDocumentController={editorDocumentController}
+        synchronizeExternalCommit={synchronizeExternalCommit}
+        definitionProjectRef={definitionProjectRef}
+        selectOnly={selectOnly}
+        cancelAllTransientInteraction={cancelAllTransientInteraction}
+        editorCommands={editorCommands}
+      />
       <SelectionFilterPopover
         open={selectionFilterOpen}
         filter={selectionFilter}
