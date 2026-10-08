@@ -55,6 +55,7 @@ import {
   labelTextDocument,
   type CircuitProject,
   type Instance,
+  type RichTextDocument,
   type SchematicDocument,
 } from "@icm/model";
 import {
@@ -1191,6 +1192,13 @@ export function planBrowserAgentCommand(
       };
     }
     case "set-net-label": {
+      // Plain text, a string or one text run, is a name: the label shows it
+      // in its look rather than as bare text (#1521).
+      const text: RichTextDocument =
+        typeof command.text === "string"
+          ? { runs: [{ kind: "text", value: command.text }] }
+          : command.text;
+      const plainText = text.runs.length === 1 && text.runs[0]?.kind === "text";
       const existing = document.annotations.find(
         (item) => item.id === command.annotationId,
       );
@@ -1215,7 +1223,7 @@ export function planBrowserAgentCommand(
         const rename = planElectricalMarkerRename(
           document,
           existing.anchor.objectId,
-          flattenRichText(command.text),
+          flattenRichText(text),
         );
         if (rename.status === "rejected") throw new Error(rename.message);
         const edits = rename.status === "ready" ? [...rename.plan.edits] : [];
@@ -1236,10 +1244,7 @@ export function planBrowserAgentCommand(
                 // Plain text is a semantic rename. The shared marker planner
                 // already preserves/customizes its look; only explicit RichText
                 // replaces that format rather than erasing it with bare text.
-                ...(command.text.runs.length === 1 &&
-                command.text.runs[0]?.kind === "text"
-                  ? {}
-                  : { formatOverride: command.text }),
+                ...(plainText ? {} : { formatOverride: text }),
               },
             },
           ],
@@ -1251,24 +1256,22 @@ export function planBrowserAgentCommand(
           item.owner.kind === "net-label" &&
           item.owner.annotationId === command.annotationId,
       );
-      const name = flattenRichText(command.text).trim();
-      const plainText =
-        command.text.runs.length === 1 && command.text.runs[0]?.kind === "text";
+      const name = flattenRichText(text).trim();
+      // A relabeled look of its own follows the new name; a label without
+      // one takes the role look a new label gets (#1521).
       const labelFormat = plainText
-        ? existing
-          ? existing.formatOverride
-            ? renamedLabelFormat(
-                existing,
-                resolveAnnotationName(document, existing),
-                name,
-                document.presentation,
-              )
-            : undefined
+        ? existing?.formatOverride
+          ? renamedLabelFormat(
+              existing,
+              resolveAnnotationName(document, existing),
+              name,
+              document.presentation,
+            )
           : roleLabelFormat(
               net.powerDomain === "none" ? "voltage-node" : "supply",
               name,
             )
-        : command.text;
+        : text;
       const plan = planEnsureNamedNet(document, {
         candidateNetId: netId,
         name,

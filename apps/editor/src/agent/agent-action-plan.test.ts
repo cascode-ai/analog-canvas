@@ -7,7 +7,11 @@ import {
   resolveMosBulkConnection,
 } from "@icm/derived";
 import { proposePlacementContact } from "@icm/edit-engine";
-import { createEmptyProject, routeEndpoints } from "@icm/model";
+import {
+  createEmptyProject,
+  roleLabelFormat,
+  routeEndpoints,
+} from "@icm/model";
 import { createDesignNetlistExport } from "@icm/netlist";
 import { renderDocumentSvg } from "@icm/render-svg";
 import {
@@ -448,6 +452,66 @@ describe("the editor plans an Agent's action list", () => {
       await blind.client.applyActions([rail("VDD", -200), fit]),
     ).toMatchObject({ ok: false, code: "PERMISSION_DENIED" });
     expect(blind.controller.document.routes).toEqual([]);
+  });
+
+  it("relabels a Net label from plain text in the look a new label gets, natively from a string too (#1521)", async () => {
+    const { controller, client } = await editor();
+    const apply = async (actions: unknown[]) => {
+      const report = await client.applyActions(actions);
+      expect(report.ok, report.message).toBe(true);
+    };
+    await apply([place("resistor", "R1", 100)]);
+    await apply([
+      {
+        kind: "connect",
+        from: pin("R1", "2"),
+        to: { kind: "point", x: 300, y: 100 },
+      },
+    ]);
+    // OUT has no standard look: the label shows its name as it is.
+    await apply([{ kind: "add-label", target: pin("R1", "2"), text: "OUT" }]);
+    const label = () =>
+      controller.document.annotations.find(
+        (annotation) => annotation.kind === "net-label",
+      )!;
+    const { id, netId } = label();
+    expect(label().formatOverride).toBeUndefined();
+    // Renamed VB1, it reads V over a B1 subscript, as a new VB1 label does.
+    await apply([
+      {
+        kind: "edit-text",
+        target: { kind: "annotation", id },
+        text: "VB1",
+      },
+    ]);
+    expect(label().formatOverride).toEqual(
+      roleLabelFormat("voltage-node", "VB1"),
+    );
+    // Native set-net-label takes the name as a plain string.
+    await apply([
+      { kind: "set-net-label", annotationId: id, netId, text: "OUT" },
+    ]);
+    expect(label().formatOverride).toBeUndefined();
+    await apply([
+      { kind: "set-net-label", annotationId: id, netId, text: "VBN" },
+    ]);
+    expect(label().formatOverride).toEqual(
+      roleLabelFormat("voltage-node", "VBN"),
+    );
+    // RichText still sets a look of its own.
+    const own = {
+      runs: [
+        {
+          kind: "span",
+          style: "bold",
+          children: [{ kind: "text", value: "VBN" }],
+        },
+      ],
+    };
+    await apply([
+      { kind: "set-net-label", annotationId: id, netId, text: own },
+    ]);
+    expect(label().formatOverride).toEqual(own);
   });
 
   it("plans on the Document as a person left it, yet refuses a stale undo", async () => {

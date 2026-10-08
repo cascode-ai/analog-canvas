@@ -260,6 +260,10 @@ refused with their IDs; it never means the first of them.
 - Name Nets with `add-label` / Net Label `edit-text` (native `set-net-label`).
   This creates the name claim and bound annotation together; free text does not.
   Supply `position` for a new label. RichText text runs use `value`, not `text`.
+  Plain text, a string as native `set-net-label` takes too, is a name: a new
+  label and a relabeled one alike show it in its standard look (`VB1` as V
+  over a B1 subscript), and a relabeled look of its own follows the new name.
+  RichText sets a look of its own.
   Anonymous internal Nets are valid; deliberately name nodes referenced by
   simulation scripts so generated names cannot silently change their meaning.
 

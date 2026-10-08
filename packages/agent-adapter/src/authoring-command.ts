@@ -253,7 +253,9 @@ const BatchItemSchema = z.discriminatedUnion("kind", [
     kind: z.literal("set-net-label"),
     annotationId: StableIdSchema,
     netId: StableIdSchema,
-    text: RichTextDocumentSchema,
+    text: TextInputSchema.describe(
+      "Plain text takes the label's standard look (VB1 reads V over a B1 subscript); RichText sets its own.",
+    ),
     position: PointSchema.optional(),
   }),
   z.strictObject({
