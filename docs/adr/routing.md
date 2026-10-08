@@ -6,8 +6,10 @@ Owners: `packages/derived`, `packages/edit-engine`, `packages/render-svg`, `apps
 
 ## Decision
 
-Resolve authored Route identities into shared read-only geometry and evaluate
-one typed edit plan for preview and commit. The rules belong to
+Resolve authored Route identities into shared read-only geometry and use one
+typed edit plan for preview and commit. Coordinate-only editor previews may
+project that plan without per-frame transactions; electrical changes and every
+commit retain the strict transaction gate. The rules belong to
 [connectivity and routing](../specs/connectivity-and-routing.md) and
 [Edit Engine](../specs/edit-engine.md); [visual language](../specs/visual-language.md)
 owns rendering and diagnostic presentation.
@@ -25,7 +27,11 @@ Shared resolved geometry closes visual seams without changing electrical
 contacts or moving persisted endpoints.
 
 Evaluating the actual typed transaction makes its resulting Document the
-preview. Independently comparing electrical effects catches a planner's
+authoritative electrical preview. Existing-object coordinate projections avoid
+whole-Document transactions on ordinary pointer frames without creating a
+second edit vocabulary. They remain transient and may repaint non-rigid
+attachments, but cannot certify electrical effects or bypass release validation.
+Independently comparing electrical effects catches a planner's
 unintended merge or owner change; trusting its changed-ID list would not.
 Plans remain transient because persisting them duplicates Project facts.
 

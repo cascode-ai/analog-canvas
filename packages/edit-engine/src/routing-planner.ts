@@ -31,6 +31,7 @@ import {
   proposeWireSegmentDrag,
   type JunctionMoveProposal,
   type RouteStretchProposal,
+  type RoutingTranslationSource,
 } from "./route-operations.js";
 import type {
   Instance,
@@ -354,6 +355,7 @@ export function proposeGroupMoveEdits(
   moves: readonly { instanceId: string; position: Point }[],
   additionalJunctionIds: readonly string[] = [],
   explicitDelta?: Point,
+  source?: RoutingTranslationSource,
 ): GroupMoveEditProposal {
   const proposal = proposeGroupMove(
     document,
@@ -361,6 +363,7 @@ export function proposeGroupMoveEdits(
     moves,
     additionalJunctionIds,
     explicitDelta,
+    source,
   );
   return {
     preview: {
@@ -556,9 +559,11 @@ export function proposeJunctionMoveEdits(
   document: SchematicDocument,
   resolver: SymbolResolver,
   moves: readonly JunctionMoveProposal[],
+  source?: RoutingTranslationSource,
 ): GroupMoveEditProposal {
   const proposal = proposeJunctionGroupTranslation(document, resolver, moves, {
     preserveBranchDirections: true,
+    ...(source ? { source } : {}),
   });
   return {
     preview: proposal,

@@ -1,5 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { createEmptyProject, createRoutePath } from "@icm/model";
+import { resolveEndpointConnection, resolveRouteGeometry } from "@icm/derived";
+import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 
 import {
   chooseComponent,
@@ -17,6 +19,308 @@ async function placeComponent(
   await page.getByTestId("schematic-canvas").click({ position });
   await page.keyboard.press("Escape");
 }
+
+test("visual-only M reaches a one-unit text landing without Document-grid rounding", async ({
+  page,
+}) => {
+  await page.addInitScript(() =>
+    localStorage.setItem("icm.annotation-grid.v1", "1"),
+  );
+  const project = createEmptyProject("fine-move", "Fine move");
+  const doc = project.documents[0]!;
+  doc.drafting = {
+    objects: [
+      {
+        id: "note",
+        kind: "text",
+        content: { runs: [{ kind: "text", value: "fine text" }] },
+        anchor: { kind: "free", position: { x: 413, y: 407 } },
+        alignment: "start",
+        rotation: 0,
+        locked: false,
+        zIndex: 0,
+      },
+    ],
+  };
+  await page.goto("/editor");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "fine-move.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  await closeProjectTools(page);
+  const canvas = page.getByTestId("schematic-canvas");
+  const note = page.locator('[data-object-id="note"][data-kind="draft-text"]');
+  const before = (await note.boundingBox())!;
+  const scale = await canvas.evaluate(
+    (element) => (element as SVGSVGElement).getScreenCTM()!.a,
+  );
+  await canvas.focus();
+  await page.keyboard.press("Control+a");
+  await page.keyboard.press("m");
+  const landing = await canvas.evaluate((element) => {
+    const point = new DOMPoint(414, 407).matrixTransform(
+      (element as SVGSVGElement).getScreenCTM()!,
+    );
+    return { x: point.x, y: point.y };
+  });
+  await page.mouse.move(landing.x, landing.y);
+  await expect
+    .poll(async () =>
+      Math.round(((await note.boundingBox())!.x - before.x) / scale),
+    )
+    .toBe(1);
+  await expect
+    .poll(async () =>
+      Math.round(((await note.boundingBox())!.y - before.y) / scale),
+    )
+    .toBe(0);
+  await page.mouse.click(landing.x, landing.y);
+  const saved = parseSavedProject(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(
+      "utf8",
+    ),
+  ) as typeof project;
+  expect(saved.documents[0]!.drafting!.objects[0]!.anchor).toEqual({
+    kind: "free",
+    position: { x: 414, y: 407 },
+  });
+  await canvas.focus();
+  await page.keyboard.press("Control+z");
+  await expect
+    .poll(async () =>
+      Math.round(((await note.boundingBox())!.x - before.x) / scale),
+    )
+    .toBe(0);
+});
+
+test("M preserves Alt's no-contact preview at an unchanged placement click", async ({
+  page,
+}) => {
+  const project = createEmptyProject("alt-move", "Alt move");
+  const doc = project.documents[0]!;
+  doc.instances.push(
+    {
+      id: "R",
+      symbolId: "resistor",
+      placement: { position: { x: 400, y: 400 }, rotation: 0, mirror: "none" },
+    },
+    {
+      id: "target",
+      symbolId: "resistor",
+      placement: { position: { x: 440, y: 360 }, rotation: 0, mirror: "none" },
+    },
+  );
+  await page.goto("/editor");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "alt-move.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  await closeProjectTools(page);
+  const canvas = page.getByTestId("schematic-canvas");
+  await page.getByTestId("hit-R").click();
+  await canvas.focus();
+  await page.keyboard.press("m");
+  await page.keyboard.down("Alt");
+  const landing = await canvas.evaluate((element) => {
+    const point = new DOMPoint(440, 400).matrixTransform(
+      (element as SVGSVGElement).getScreenCTM()!,
+    );
+    return { x: point.x, y: point.y };
+  });
+  await page.mouse.move(landing.x, landing.y);
+  await page.mouse.click(landing.x, landing.y);
+  await page.keyboard.up("Alt");
+  const saved = parseSavedProject(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(
+      "utf8",
+    ),
+  ) as typeof project;
+  expect(
+    saved.documents[0]!.instances.find((instance) => instance.id === "R")!
+      .placement!.position,
+  ).toEqual({ x: 440, y: 400 });
+  // Coincident pins alone must not turn Alt's explicit no-contact move into a bond.
+  expect(
+    saved.documents[0]!.nets.some(
+      (net) =>
+        net.terminals.some((pin) => pin.instanceId === "R") &&
+        net.terminals.some((pin) => pin.instanceId === "target"),
+    ),
+  ).toBe(false);
+  await canvas.focus();
+  await page.keyboard.press("Control+z");
+  const restored = parseSavedProject(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(
+      "utf8",
+    ),
+  ) as typeof project;
+  expect(
+    restored.documents[0]!.instances.find((instance) => instance.id === "R")!
+      .placement!.position,
+  ).toEqual({ x: 400, y: 400 });
+});
+
+test("a boundary-wire DraftText and an attached arrow follow the same proposal during drag and after drop", async ({
+  page,
+}) => {
+  const project = createEmptyProject(
+    "boundary-attachments",
+    "Boundary attachments",
+  );
+  const doc = project.documents[0]!;
+  const resolver = new InMemorySymbolResolver(builtInSymbols);
+  doc.instances.push(
+    {
+      id: "R",
+      symbolId: "resistor",
+      placement: { position: { x: 400, y: 400 }, rotation: 0, mirror: "none" },
+    },
+    {
+      id: "stationary",
+      symbolId: "resistor",
+      placement: { position: { x: 600, y: 400 }, rotation: 0, mirror: "none" },
+    },
+  );
+  const pin = resolveEndpointConnection(doc, resolver, {
+    kind: "terminal",
+    instanceId: "R",
+    pinName: "1",
+  })!.contactPoint;
+  doc.nets.push({
+    id: "n",
+    terminals: [
+      { instanceId: "R", pinName: "1" },
+      { instanceId: "stationary", pinName: "1" },
+    ],
+  });
+  const route = createRoutePath({
+    id: "wire",
+    netId: "n",
+    start: { kind: "terminal", instanceId: "R", pinName: "1" },
+    end: { kind: "terminal", instanceId: "stationary", pinName: "1" },
+    bends: [],
+    modes: ["manual"],
+  });
+  doc.routes.push(route);
+  const geometry = resolveRouteGeometry(doc, resolver, route)!;
+  doc.drafting = {
+    objects: [
+      {
+        id: "note",
+        kind: "text",
+        content: { runs: [{ kind: "text", value: "wire note" }] },
+        anchor: {
+          kind: "route",
+          routeId: "wire",
+          legId: geometry.segments[0]!.address.legId,
+          t: 0.5,
+          normalOffset: 30,
+          direction: "forward",
+          orientation: "horizontal",
+          fallbackPosition: { x: 500, y: pin.y + 30 },
+        },
+        alignment: "start",
+        rotation: 0,
+        locked: false,
+        zIndex: 0,
+      },
+      {
+        id: "arrow",
+        kind: "arrow",
+        anchor: { kind: "free", position: { x: 500, y: 450 } },
+        from: {
+          kind: "object",
+          objectId: "R",
+          localOffset: { x: 60, y: 50 },
+          fallbackPosition: { x: 460, y: 450 },
+        },
+        to: { kind: "free", position: { x: 650, y: 450 } },
+        locked: false,
+        zIndex: 0,
+      },
+    ],
+  };
+  await page.goto("/editor");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "boundary-attachments.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  await closeProjectTools(page);
+  const canvas = page.getByTestId("schematic-canvas");
+  const hit = page.getByTestId("hit-R");
+  // Inspect the visible formal ink: semantic previews intentionally hide the
+  // source hit plane until commit, so its boxes are not preview geometry.
+  const note = page.locator('[data-object-id="note"][data-kind="draft-text"]');
+  const arrow = page.locator(
+    '[data-object-id="arrow"][data-kind="draft-arrow"]',
+  );
+  const beforeNote = (await note.boundingBox())!;
+  const beforeArrow = (await arrow.boundingBox())!;
+  const halo = page.getByTestId("selection-halo-selected");
+  const scale = await canvas.evaluate(
+    (element) => (element as SVGSVGElement).getScreenCTM()!.a,
+  );
+  const start = await canvas.evaluate((element) => {
+    const point = new DOMPoint(400, 400).matrixTransform(
+      (element as SVGSVGElement).getScreenCTM()!,
+    );
+    return { x: point.x, y: point.y };
+  });
+  await hit.click();
+  const beforeHalo = (await halo.boundingBox())!;
+  await page.keyboard.down("Alt");
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  await page.mouse.move(start.x + 40 * scale, start.y);
+  await expect
+    .poll(async () =>
+      Math.round(((await halo.boundingBox())!.x - beforeHalo.x) / scale),
+    )
+    .toBe(40);
+  await expect
+    .poll(async () =>
+      Math.round(((await note.boundingBox())!.x - beforeNote.x) / scale),
+    )
+    .toBe(20);
+  await expect
+    .poll(async () =>
+      Math.round(((await arrow.boundingBox())!.x - beforeArrow.x) / scale),
+    )
+    .toBe(40);
+  // Only the attached end moves; the fixed endpoint keeps the arrow's right edge.
+  expect(
+    Math.round(
+      ((await arrow.boundingBox())!.width - beforeArrow.width) / scale,
+    ),
+  ).toBe(-40);
+  await page.mouse.up();
+  await page.keyboard.up("Alt");
+  await expect
+    .poll(async () =>
+      Math.round(((await note.boundingBox())!.x - beforeNote.x) / scale),
+    )
+    .toBe(20);
+  expect(
+    Math.round(
+      ((await arrow.boundingBox())!.width - beforeArrow.width) / scale,
+    ),
+  ).toBe(-40);
+  await canvas.focus();
+  await page.keyboard.press("Control+z");
+  await expect
+    .poll(async () =>
+      Math.round(((await note.boundingBox())!.x - beforeNote.x) / scale),
+    )
+    .toBe(0);
+  await expect
+    .poll(async () =>
+      Math.round(((await arrow.boundingBox())!.x - beforeArrow.x) / scale),
+    )
+    .toBe(0);
+});
 
 for (const zoomOutSteps of [0, 4, 8]) {
   test(`mixed drag reaches adjacent grid landings without self-contact at zoom level ${zoomOutSteps}`, async ({
@@ -96,7 +400,15 @@ for (const zoomOutSteps of [0, 4, 8]) {
     await page.mouse.move(start.x, start.y);
     await page.mouse.down();
     for (const dx of [40, 50, 60]) {
-      await page.mouse.move(start.x + dx * frame.scale, start.y);
+      if (dx === 50) {
+        // A real stream of sub-pixel inputs must leave the previous grid cell;
+        // cached input keys may not drift along with unevaluated pointer steps.
+        for (let step = 1; step <= 20; step++)
+          await page.mouse.move(
+            start.x + (40 + step * 0.5) * frame.scale,
+            start.y,
+          );
+      } else await page.mouse.move(start.x + dx * frame.scale, start.y);
       await expect
         .poll(async () =>
           Math.round(((await hit.boundingBox())!.x - before.x) / frame.scale),
@@ -570,6 +882,30 @@ test("a single selected rectangle carries its unselected text during preview", a
       start,
     ),
   ).toBe("host");
+  // Visual-only M uses the same closure/proposal as pointer movement. Its
+  // cancellation releases preview state without changing the attachment.
+  await canvas.focus();
+  await page.keyboard.press("Control+a");
+  await page.keyboard.press("m");
+  const destination = await canvas.evaluate((element) => {
+    const point = new DOMPoint(430, 410).matrixTransform(
+      (element as SVGSVGElement).getScreenCTM()!,
+    );
+    return { x: point.x, y: point.y };
+  });
+  await page.mouse.move(destination.x, destination.y);
+  await expect
+    .poll(async () =>
+      Math.round(((await note.boundingBox())!.x - beforeNote.x) / scale),
+    )
+    .toBe(30);
+  await page.keyboard.press("Escape");
+  await expect
+    .poll(async () =>
+      Math.round(((await note.boundingBox())!.x - beforeNote.x) / scale),
+    )
+    .toBe(0);
+  await host.click();
   await page.keyboard.down("Alt");
   await page.mouse.move(start.x, start.y);
   await page.mouse.down();
@@ -600,6 +936,97 @@ test("a single selected rectangle carries its unselected text during preview", a
       Math.round(((await note.boundingBox())!.x - beforeNote.x) / scale),
     )
     .toBe(0);
+});
+
+test("M drop recomputes its mixed-selection landing after the camera pans under a stationary pointer", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  const project = createEmptyProject("camera-move", "Camera move");
+  const document = project.documents[0]!;
+  document.instances.push({
+    id: "R",
+    symbolId: "resistor",
+    placement: { position: { x: 400, y: 400 }, rotation: 0, mirror: "none" },
+  });
+  document.drafting = {
+    objects: [
+      {
+        id: "note",
+        kind: "text",
+        content: { runs: [{ kind: "text", value: "note" }] },
+        anchor: { kind: "free", position: { x: 500, y: 440 } },
+        alignment: "start",
+        rotation: 0,
+        locked: false,
+        zIndex: 0,
+      },
+    ],
+  };
+  await page.goto("/editor");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "camera-move.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  await closeProjectTools(page);
+  const canvas = page.getByTestId("schematic-canvas");
+  await canvas.focus();
+  await page.keyboard.press("Control+a");
+  await page.keyboard.press("m");
+  const pointer = await canvas.evaluate((element) => {
+    const point = new DOMPoint(440, 400).matrixTransform(
+      (element as SVGSVGElement).getScreenCTM()!,
+    );
+    return { x: point.x, y: point.y };
+  });
+  await page.mouse.move(pointer.x, pointer.y);
+  await expect(canvas).toHaveClass(/semantic-move-preview/);
+  const cameraBefore = await canvas.getAttribute("viewBox");
+  // Horizontal trackpad pan changes the logical point under this same cursor.
+  await page.mouse.wheel(120, 0);
+  await expect
+    .poll(() => canvas.getAttribute("viewBox"))
+    .not.toBe(cameraBefore);
+  const landing = await canvas.evaluate((element, pointer) => {
+    const point = new DOMPoint(pointer.x, pointer.y).matrixTransform(
+      (element as SVGSVGElement).getScreenCTM()!.inverse(),
+    );
+    return {
+      x: Math.round(point.x / 10) * 10,
+      y: Math.round(point.y / 10) * 10,
+    };
+  }, pointer);
+  expect(landing).not.toEqual({ x: 440, y: 400 });
+  await page.mouse.click(pointer.x, pointer.y);
+  await expect(canvas).not.toHaveClass(/semantic-move-preview/);
+  const saved = parseSavedProject(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(
+      "utf8",
+    ),
+  ) as typeof project;
+  expect(saved.documents[0]!.instances[0]!.placement!.position).toEqual(
+    landing,
+  );
+  expect(saved.documents[0]!.drafting!.objects[0]!.anchor).toEqual({
+    kind: "free",
+    position: { x: 500 + landing.x - 400, y: 440 + landing.y - 400 },
+  });
+  await canvas.focus();
+  await page.keyboard.press("Control+z");
+  const restored = parseSavedProject(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(
+      "utf8",
+    ),
+  ) as typeof project;
+  expect(restored.documents[0]!.instances[0]!.placement!.position).toEqual({
+    x: 400,
+    y: 400,
+  });
+  expect(restored.documents[0]!.drafting!.objects[0]!.anchor).toEqual({
+    kind: "free",
+    position: { x: 500, y: 440 },
+  });
 });
 
 test("selection traces the device and marks carried wires as would-move", async ({

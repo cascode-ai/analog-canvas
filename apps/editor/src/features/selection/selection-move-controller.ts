@@ -1,8 +1,8 @@
 import {
-  planInstanceContactTransform,
+  prepareInstanceContactTransform,
   projectRoutingTransformGeometry,
+  canProjectRoutingEditGeometry,
   gateRoutingOperationPlan,
-  planRoutingTransform,
   transformMaySeparateDirectContact,
   type RoutingOperationPlan,
   type ExpectedElectricalEffect,
@@ -20,6 +20,7 @@ import {
   resolveEndpointConnection,
   type RoutedComponent,
   type DocumentContactEvidence,
+  type ResolvedDocumentRoutingGeometry,
   deriveNetConnectivityContext,
 } from "@icm/derived";
 import {
@@ -28,6 +29,7 @@ import {
   type DerivedPoint,
   type Point,
   type RouteEndpoint,
+  type VisualAnchor,
   type SchematicDocument,
 } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
@@ -35,6 +37,7 @@ import type { SymbolResolver } from "@icm/symbols";
 import { closestPointOnSegment } from "../../canvas/canvas-geometry";
 import {
   buildInstanceAnchors,
+  buildDraftingAnchors,
   buildSceneSnapTargets,
   sceneSnapTargetsExcluding,
   type SceneSnapTargetIndex,
@@ -57,20 +60,56 @@ import {
   endpointNetId,
   type RouteGeometryRecord,
 } from "../wiring/route-interaction-geometry";
-import type {
-  InstanceMovePreview,
-  ProjectedInstanceMove,
-} from "./use-selection-interaction";
-import type { SelectionMovePlan } from "./selection-move-plan";
+import {
+  selectionMovePitch,
+  type SelectionMovePlan,
+} from "./selection-move-plan";
 
 type TransactionResult = { ok: boolean };
 
-export interface PreparedInstanceMove {
+/** Frozen source membership and pointer origin for one editor gesture. */
+export interface SelectionMovePreview {
+  instanceIds: string[];
+  primaryInstanceId: string | null;
+  originalPositions: Record<string, Point>;
+  pointerStart: Point;
+  movePlan: SelectionMovePlan;
+}
+
+export interface ResolvedSelectionMove {
+  snap: SnapResult;
+  moves: { instanceId: string; position: Point }[];
+  prepared?: PreparedSelectionMove;
+  preparationError?: string;
+}
+
+export interface ProjectedSelectionMove {
+  document: SchematicDocument;
+  prefixEdits: readonly SchematicEdit[];
+  resolvedMove?: ResolvedSelectionMove;
+}
+
+export interface PreparedSelectionMove {
   plan: RoutingOperationPlan;
   /** Transient geometry, never a replacement for the committed Document. */
   previewDocument: SchematicDocument;
   /** Reuse existing SVG nodes while topology is unchanged. */
   visualRoutePoints?: ReadonlyMap<string, readonly Point[]>;
+}
+
+interface GestureSourceFacts {
+  source: SchematicDocument;
+  preview: SelectionMovePreview;
+  endpoints: readonly WireSource[];
+  routes: readonly RouteGeometryRecord[];
+  contacts: readonly RoutedComponent[];
+  movingIds: ReadonlySet<string>;
+  movingObjectIds: ReadonlySet<string>;
+  carriedRouteIds: ReadonlySet<string>;
+  movingAnchors: readonly SnapAnchor[];
+  staticTargets: readonly SnapAnchor[];
+  routingGeometry: ResolvedDocumentRoutingGeometry;
+  planTransform: ReturnType<typeof prepareInstanceContactTransform>;
 }
 
 export function createSelectionMoveController({
@@ -83,6 +122,7 @@ export function createSelectionMoveController({
   transactConnectivity,
   setStatus,
   contactEvidence,
+  annotationGrid = document.presentation.grid,
 }: {
   document: SchematicDocument;
   resolver: SymbolResolver;
@@ -97,9 +137,10 @@ export function createSelectionMoveController({
   ) => TransactionResult | null;
   setStatus: (status: string) => void;
   nextRoutingSuffix: () => number;
+  annotationGrid?: number;
   /**
    * This Document's contact evidence, as the editor's connectivity index
-   * already derived it. The per-frame routing plan gate runs a transaction
+   * already derived it. A contact-changing preview gate runs a transaction
    * over that same Document, and contact reconciliation would otherwise
    * re-derive the whole Document's evidence on every pointer frame.
    */
@@ -111,18 +152,20 @@ export function createSelectionMoveController({
     sourceDocument: SchematicDocument = document,
   ): SchematicEdit[] => {
     const annotationRouteGeometryRecords =
-      sourceDocument === document
-        ? routeGeometryRecords
-        : (() => {
-            const resolved = resolveDocumentRoutingGeometry(
-              sourceDocument,
-              resolver,
-            );
-            return sourceDocument.routes.flatMap((route) => {
-              const geometry = resolved.routes.get(route.id);
-              return geometry ? [{ route, geometry }] : [];
-            });
-          })();
+      gestureFacts?.source === sourceDocument
+        ? gestureFacts.routes
+        : sourceDocument === document
+          ? routeGeometryRecords
+          : (() => {
+              const resolved = resolveDocumentRoutingGeometry(
+                sourceDocument,
+                resolver,
+              );
+              return sourceDocument.routes.flatMap((route) => {
+                const geometry = resolved.routes.get(route.id);
+                return geometry ? [{ route, geometry }] : [];
+              });
+            })();
     return [
       ...movePlan.independentAnnotationIds.flatMap((annotationId) => {
         const annotation = sourceDocument.annotations.find(
@@ -137,6 +180,9 @@ export function createSelectionMoveController({
           annotationGrid: 1,
           resolver,
           routeGeometryRecords: annotationRouteGeometryRecords,
+          ...(gestureFacts?.source === sourceDocument
+            ? { routingGeometry: gestureFacts.routingGeometry }
+            : {}),
         };
         const position = annotationDragPosition(geometryContext, annotation);
         return [
@@ -177,39 +223,6 @@ export function createSelectionMoveController({
     ];
   };
 
-  const completeVisualSelectionMove = (
-    movePlan: SelectionMovePlan,
-    delta: Point,
-  ): void => {
-    if (delta.x === 0 && delta.y === 0) return;
-    const routingPlan = planRoutingTransform(
-      document,
-      resolver,
-      {
-        instanceIds: movePlan.instanceIds,
-        routeIds: movePlan.translatedRouteIds,
-        junctionIds: movePlan.translatedJunctionIds,
-      },
-      { kind: "translate", delta },
-    );
-    const blocking = routingPlan.diagnostics.find(
-      (item) => item.severity === "error",
-    );
-    if (blocking) {
-      setStatus(blocking.message);
-      return;
-    }
-    const result = transactConnectivity("transform", [
-      ...routingPlan.edits,
-      ...visualMoveEdits(movePlan, delta),
-    ]);
-    if (result?.ok && movePlan.fixedObjectIds.length > 0) {
-      setStatus(
-        `Moved selection; ${movePlan.fixedObjectIds.length} attached object(s) remained fixed`,
-      );
-    }
-  };
-
   const visualMoveOrigin = (movePlan: SelectionMovePlan): Point => {
     const independentAnnotation = movePlan.independentAnnotationIds
       .map((id) => document.annotations.find((item) => item.id === id))
@@ -247,8 +260,8 @@ export function createSelectionMoveController({
     );
   };
 
-  const resolveInstanceMove = (
-    preview: InstanceMovePreview,
+  const resolveSelectionMove = (
+    preview: SelectionMovePreview,
     position: DerivedPoint,
     tolerance: number,
     suppressSnap: boolean,
@@ -256,28 +269,65 @@ export function createSelectionMoveController({
     projectedDocument?: SchematicDocument,
   ) => {
     const sourceDocument = projectedDocument ?? document;
-    const sourceVisibleEndpoints: WireSource[] = projectedDocument
-      ? [
-          ...sourceDocument.instances.flatMap((instance) => {
-            if (!instance.placement) return [];
-            const resolved = resolver.resolve(
-              instance.symbolId,
-              instance.symbolVariantId,
-            );
-            if (!resolved) return [];
-            return resolved.definition.pins
-              .filter((pin) =>
-                isVisibleEndpoint(sourceDocument, resolver, {
-                  kind: "terminal",
-                  instanceId: instance.id,
-                  pinName: pin.name,
-                }),
-              )
-              .flatMap((pin): WireSource[] => {
+    const cachedFacts =
+      gestureFacts?.source === sourceDocument &&
+      gestureFacts.preview === preview
+        ? gestureFacts
+        : undefined;
+    const sourceVisibleEndpoints =
+      cachedFacts?.endpoints ??
+      (projectedDocument
+        ? [
+            ...sourceDocument.instances.flatMap((instance) => {
+              if (!instance.placement) return [];
+              const resolved = resolver.resolve(
+                instance.symbolId,
+                instance.symbolVariantId,
+              );
+              if (!resolved) return [];
+              return resolved.definition.pins
+                .filter((pin) =>
+                  isVisibleEndpoint(sourceDocument, resolver, {
+                    kind: "terminal",
+                    instanceId: instance.id,
+                    pinName: pin.name,
+                  }),
+                )
+                .flatMap((pin): WireSource[] => {
+                  const endpoint: RouteEndpoint = {
+                    kind: "terminal",
+                    instanceId: instance.id,
+                    pinName: pin.name,
+                  };
+                  const connection = resolveEndpointConnection(
+                    sourceDocument,
+                    resolver,
+                    endpoint,
+                  );
+                  return connection
+                    ? [
+                        {
+                          endpoint,
+                          connection,
+                          netId: endpointNetId(sourceDocument, endpoint),
+                          preludeEdits: [],
+                          ...(isMosBulkTerminal(sourceDocument, endpoint)
+                            ? { routePresentation: "bulk-dashed" as const }
+                            : {}),
+                        },
+                      ]
+                    : [];
+                });
+            }),
+            ...sourceDocument.junctions
+              .filter((junction) => {
+                const role = junction.role ?? "branch";
+                return role === "branch" || role === "route-anchor";
+              })
+              .flatMap((junction): WireSource[] => {
                 const endpoint: RouteEndpoint = {
-                  kind: "terminal",
-                  instanceId: instance.id,
-                  pinName: pin.name,
+                  kind: "junction",
+                  junctionId: junction.id,
                 };
                 const connection = resolveEndpointConnection(
                   sourceDocument,
@@ -289,88 +339,102 @@ export function createSelectionMoveController({
                       {
                         endpoint,
                         connection,
-                        netId: endpointNetId(sourceDocument, endpoint),
+                        netId: junction.netId,
                         preludeEdits: [],
-                        ...(isMosBulkTerminal(sourceDocument, endpoint)
-                          ? { routePresentation: "bulk-dashed" as const }
-                          : {}),
                       },
                     ]
                   : [];
-              });
-          }),
-          ...sourceDocument.junctions
-            .filter((junction) => {
-              const role = junction.role ?? "branch";
-              return role === "branch" || role === "route-anchor";
-            })
-            .flatMap((junction): WireSource[] => {
-              const endpoint: RouteEndpoint = {
-                kind: "junction",
-                junctionId: junction.id,
-              };
-              const connection = resolveEndpointConnection(
-                sourceDocument,
-                resolver,
-                endpoint,
-              );
-              return connection
-                ? [
-                    {
-                      endpoint,
-                      connection,
-                      netId: junction.netId,
-                      preludeEdits: [],
-                    },
-                  ]
-                : [];
-            }),
-        ]
-      : [...visibleEndpoints];
-    const sourceRouteGeometryRecords = projectedDocument
-      ? (() => {
-          const routingGeometry = resolveDocumentRoutingGeometry(
-            sourceDocument,
-            resolver,
-          );
-          return sourceDocument.routes.flatMap((route) => {
-            const geometry = routingGeometry.routes.get(route.id);
-            return geometry ? [{ route, geometry }] : [];
-          });
-        })()
-      : routeGeometryRecords;
-    const sourceContactComponents = projectedDocument
-      ? (() => {
-          // One shared geometry+contacts pass; deriving them per net made
-          // every keyboard-Move pointer event quadratic in net count.
-          const connectivityContext = deriveNetConnectivityContext(
-            sourceDocument,
-            resolver,
-          );
-          return sourceDocument.nets.flatMap(
-            (net) =>
-              deriveNetConnectivity(
-                sourceDocument,
-                resolver,
-                net,
-                connectivityContext,
-              ).components,
-          );
-        })()
-      : contactComponents;
+              }),
+          ]
+        : visibleEndpoints);
+    const sourceRouteGeometryRecords =
+      cachedFacts?.routes ??
+      (projectedDocument
+        ? (() => {
+            const routingGeometry = resolveDocumentRoutingGeometry(
+              sourceDocument,
+              resolver,
+            );
+            return sourceDocument.routes.flatMap((route) => {
+              const geometry = routingGeometry.routes.get(route.id);
+              return geometry ? [{ route, geometry }] : [];
+            });
+          })()
+        : routeGeometryRecords);
+    const sourceContactComponents =
+      cachedFacts?.contacts ??
+      (projectedDocument
+        ? (() => {
+            // One shared geometry+contacts pass; deriving them per net made
+            // every keyboard-Move pointer event quadratic in net count.
+            const connectivityContext = deriveNetConnectivityContext(
+              sourceDocument,
+              resolver,
+            );
+            return sourceDocument.nets.flatMap(
+              (net) =>
+                deriveNetConnectivity(
+                  sourceDocument,
+                  resolver,
+                  net,
+                  connectivityContext,
+                ).components,
+            );
+          })()
+        : contactComponents);
     const rawDelta = {
       x: position.x - preview.pointerStart.x,
       y: position.y - preview.pointerStart.y,
     };
-    const movingIds = new Set(preview.instanceIds);
-    const movingObjectIds = new Set(preview.movePlan.previewObjectIds);
-    const carriedRouteIds = new Set(preview.movePlan.translatedRouteIds);
-    const movingAnchors = buildInstanceAnchors(
-      sourceDocument,
-      resolver,
-      sourceVisibleEndpoints,
-      movingIds,
+    const movingIds = cachedFacts?.movingIds ?? new Set(preview.instanceIds);
+    const movingObjectIds =
+      cachedFacts?.movingObjectIds ??
+      new Set(preview.movePlan.previewObjectIds);
+    const carriedRouteIds =
+      cachedFacts?.carriedRouteIds ??
+      new Set(preview.movePlan.translatedRouteIds);
+    const movingAnchors =
+      cachedFacts?.movingAnchors ??
+      (preview.primaryInstanceId
+        ? buildInstanceAnchors(
+            sourceDocument,
+            resolver,
+            sourceVisibleEndpoints,
+            movingIds,
+          )
+        : [
+            {
+              id: "selection:origin",
+              point: { x: 0, y: 0 },
+              kind: "grid" as const,
+              axes: [],
+            },
+            {
+              id: "selection:visual",
+              point: visualMoveOrigin(preview.movePlan),
+              kind: "drafting" as const,
+            },
+            ...buildDraftingAnchors(
+              sourceDocument,
+              resolver,
+              new Set(preview.movePlan.draftingIds),
+            ),
+          ]);
+    const pitch = selectionMovePitch(
+      preview.movePlan,
+      sourceDocument.presentation.grid,
+      annotationGrid,
     );
+    const primaryAnchorId = preview.primaryInstanceId
+      ? `instance:${preview.primaryInstanceId}:origin`
+      : "selection:origin";
+    const profile = preview.primaryInstanceId
+      ? SNAP_PROFILES.instanceMove
+      : {
+          ...SNAP_PROFILES.draftingMove,
+          gridAlignedTranslation: true,
+          captureWithinGridStep: true,
+        };
     const routeTargets: SnapAnchor[] = suppressSnap
       ? []
       : movingAnchors.flatMap((moving): SnapAnchor[] => {
@@ -419,14 +483,43 @@ export function createSelectionMoveController({
           });
         });
     const staticTargets =
-      !projectedDocument && sceneSnapTargetIndex
+      cachedFacts?.staticTargets ??
+      (!projectedDocument && sceneSnapTargetIndex
         ? sceneSnapTargetsExcluding(sceneSnapTargetIndex, movingObjectIds)
         : buildSceneSnapTargets(
             sourceDocument,
             resolver,
             sourceVisibleEndpoints,
             movingObjectIds,
-          );
+          ));
+    gestureFacts = cachedFacts ?? {
+      source: sourceDocument,
+      preview,
+      endpoints: sourceVisibleEndpoints,
+      routes: sourceRouteGeometryRecords,
+      contacts: sourceContactComponents,
+      movingIds,
+      movingObjectIds,
+      carriedRouteIds,
+      movingAnchors,
+      staticTargets,
+      routingGeometry: {
+        documentId: sourceDocument.id,
+        documentRevision: sourceDocument.revision,
+        routes: new Map(
+          sourceRouteGeometryRecords.map((record) => [
+            record.route.id,
+            record.geometry,
+          ]),
+        ),
+        endpointJoins: [],
+      },
+      planTransform: prepareInstanceContactTransform(sourceDocument, resolver, {
+        instanceIds: preview.movePlan.instanceIds,
+        routeIds: preview.movePlan.translatedRouteIds,
+        junctionIds: preview.movePlan.translatedJunctionIds,
+      }),
+    };
     let snap: SnapResult = suppressSnap
       ? { delta: rawDelta, guides: [] }
       : resolveTranslationSnap(
@@ -434,10 +527,10 @@ export function createSelectionMoveController({
             rawDelta,
             movingAnchors,
             targetAnchors: [...staticTargets, ...routeTargets],
-            primaryAnchorId: `instance:${preview.primaryInstanceId}:origin`,
-            grid: sourceDocument.presentation.grid,
+            primaryAnchorId,
+            grid: pitch,
             tolerance,
-            profile: SNAP_PROFILES.instanceMove,
+            profile,
           },
           previous,
         );
@@ -474,26 +567,36 @@ export function createSelectionMoveController({
             rawDelta,
             movingAnchors,
             targetAnchors: staticTargets,
-            primaryAnchorId: `instance:${preview.primaryInstanceId}:origin`,
-            grid: sourceDocument.presentation.grid,
+            primaryAnchorId,
+            grid: pitch,
             tolerance,
-            profile: SNAP_PROFILES.instanceMove,
+            profile,
           },
           previous,
         );
       }
     }
+    const primaryOriginal = preview.primaryInstanceId
+      ? preview.originalPositions[preview.primaryInstanceId]
+      : null;
+    const landing = primaryOriginal
+      ? snapGridPoint(
+          {
+            x: primaryOriginal.x + snap.delta.x,
+            y: primaryOriginal.y + snap.delta.y,
+          },
+          pitch,
+        )
+      : snapGridPoint(snap.delta, pitch);
+    const delta = primaryOriginal
+      ? { x: landing.x - primaryOriginal.x, y: landing.y - primaryOriginal.y }
+      : landing;
+    snap = { ...snap, delta };
     const moves = preview.instanceIds.map((instanceId) => {
       const original = preview.originalPositions[instanceId]!;
       return {
         instanceId,
-        position: snapGridPoint(
-          {
-            x: original.x + snap.delta.x,
-            y: original.y + snap.delta.y,
-          },
-          sourceDocument.presentation.grid,
-        ),
+        position: { x: original.x + delta.x, y: original.y + delta.y },
       };
     });
     try {
@@ -512,43 +615,56 @@ export function createSelectionMoveController({
     }
   };
 
+  let gestureFacts: GestureSourceFacts | undefined;
   let preparedCache:
-    | { source: SchematicDocument; key: string; value: PreparedInstanceMove }
+    | {
+        source: SchematicDocument;
+        preview: SelectionMovePreview;
+        delta: Point;
+        contact: boolean;
+        value: PreparedSelectionMove;
+      }
     | undefined;
   let contactBoundaryCache:
-    { source: SchematicDocument; key: string; separates: boolean } | undefined;
+    | {
+        source: SchematicDocument;
+        preview: SelectionMovePreview;
+        separates: boolean;
+      }
+    | undefined;
+  const dispose = (): void => {
+    gestureFacts = undefined;
+    preparedCache = undefined;
+    contactBoundaryCache = undefined;
+  };
   const prepareResolvedMove = (
-    preview: InstanceMovePreview,
+    preview: SelectionMovePreview,
     resolved: {
       snap: SnapResult;
       moves: { instanceId: string; position: Point }[];
     },
     sourceDocument: SchematicDocument,
-  ): PreparedInstanceMove => {
-    const first = resolved.moves[0]!;
-    const original = preview.originalPositions[first.instanceId]!;
-    const delta = {
-      x: first.position.x - original.x,
-      y: first.position.y - original.y,
-    };
-    const key = JSON.stringify([
-      preview.movePlan,
-      delta,
-      Boolean(resolved.snap.electricalMatch),
-    ]);
-    if (preparedCache?.source === sourceDocument && preparedCache.key === key)
+  ): PreparedSelectionMove => {
+    const delta = resolved.snap.delta;
+    const contact = Boolean(resolved.snap.electricalMatch);
+    if (
+      preparedCache?.source === sourceDocument &&
+      preparedCache.preview === preview &&
+      preparedCache.delta.x === delta.x &&
+      preparedCache.delta.y === delta.y &&
+      preparedCache.contact === contact
+    )
       return preparedCache.value;
-    const routingPlan = planInstanceContactTransform(
-      sourceDocument,
-      resolver,
-      {
-        instanceIds: preview.movePlan.instanceIds,
-        routeIds: preview.movePlan.translatedRouteIds,
-        junctionIds: preview.movePlan.translatedJunctionIds,
-      },
-      delta,
-      Boolean(resolved.snap.electricalMatch),
-    );
+    const planTransform =
+      gestureFacts?.source === sourceDocument &&
+      gestureFacts.preview === preview
+        ? gestureFacts.planTransform
+        : prepareInstanceContactTransform(sourceDocument, resolver, {
+            instanceIds: preview.movePlan.instanceIds,
+            routeIds: preview.movePlan.translatedRouteIds,
+            junctionIds: preview.movePlan.translatedJunctionIds,
+          });
+    const routingPlan = planTransform(delta, contact);
     const plan = {
       ...routingPlan,
       edits: [
@@ -563,7 +679,7 @@ export function createSelectionMoveController({
       !plan.diagnostics.some((d) => d.severity === "error")
     ) {
       const geometry = resolveDocumentRoutingGeometry(sourceDocument, resolver);
-      const value: PreparedInstanceMove = {
+      const value: PreparedSelectionMove = {
         plan,
         previewDocument: sourceDocument,
         visualRoutePoints: new Map(
@@ -576,24 +692,26 @@ export function createSelectionMoveController({
           }),
         ),
       };
-      preparedCache = { source: sourceDocument, key, value };
+      preparedCache = {
+        source: sourceDocument,
+        preview,
+        delta,
+        contact,
+        value,
+      };
       return value;
     }
     const blocking = plan.diagnostics.find((d) => d.severity === "error");
     if (blocking) throw new Error(blocking.message);
-    const boundaryKey = JSON.stringify([
-      plan.affected.instances,
-      plan.affected.internalJunctions,
-    ]);
     if (
       contactBoundaryCache?.source !== sourceDocument ||
-      contactBoundaryCache.key !== boundaryKey
+      contactBoundaryCache.preview !== preview
     ) {
       const movingInstances = new Set(plan.affected.instances);
       const movingJunctions = new Set(plan.affected.internalJunctions);
       contactBoundaryCache = {
         source: sourceDocument,
-        key: boundaryKey,
+        preview,
         separates: transformMaySeparateDirectContact(
           sourceDocument,
           resolver,
@@ -609,11 +727,8 @@ export function createSelectionMoveController({
     const geometryOnly =
       plan.intent === "transform" &&
       !contactBoundaryCache.separates &&
-      plan.edits.every(
-        (edit) =>
-          edit.kind === "move_instance" ||
-          edit.kind === "move_junction" ||
-          edit.kind === "set_route_path",
+      plan.edits.every((edit) =>
+        canProjectRoutingEditGeometry(sourceDocument, edit),
       );
     let finalDocument: SchematicDocument;
     if (geometryOnly)
@@ -639,14 +754,56 @@ export function createSelectionMoveController({
     const sameIds = (
       before: readonly { id: string }[],
       after: readonly { id: string }[],
-    ) =>
-      before.length === after.length &&
-      after.every((item) => before.some((old) => old.id === item.id));
-    const value: PreparedInstanceMove = {
+    ) => {
+      const ids = new Set(before.map((item) => item.id));
+      return (
+        before.length === after.length &&
+        after.every((item) => ids.has(item.id))
+      );
+    };
+    const value: PreparedSelectionMove = {
       plan,
       previewDocument: finalDocument,
     };
+    const movingObjects = new Set(preview.movePlan.previewObjectIds);
+    const movingRoutes = new Set([
+      ...plan.affected.internalRoutes,
+      ...plan.affected.boundaryRoutes,
+    ]);
+    const translatedRoutes = new Set(preview.movePlan.translatedRouteIds);
+    const anchorMoves = (anchor: VisualAnchor) =>
+      anchor.kind === "object"
+        ? movingObjects.has(anchor.objectId)
+        : anchor.kind === "route" && movingRoutes.has(anchor.routeId);
+    // A boundary-wire text/marker or attached arrow/Leader/Callout can move
+    // separately from its body. Paint these non-rigid cases from the same
+    // coordinate projection instead of translating an entire SVG group.
+    const nonRigid =
+      sourceDocument.annotations.some(
+        (annotation) =>
+          (annotation.kind === "route-marker" &&
+            preview.movePlan.independentAnnotationIds.includes(annotation.id) &&
+            annotation.anchor.kind === "route") ||
+          (annotation.anchor.kind === "route" &&
+            movingRoutes.has(annotation.anchor.routeId) &&
+            !translatedRoutes.has(annotation.anchor.routeId)),
+      ) ||
+      (sourceDocument.drafting?.objects.some(
+        (object) =>
+          ((object.kind === "leader" || object.kind === "callout") &&
+            (movingObjects.has(object.id) || anchorMoves(object.target))) ||
+          (object.kind === "text" &&
+            object.anchor.kind === "route" &&
+            movingRoutes.has(object.anchor.routeId) &&
+            !translatedRoutes.has(object.anchor.routeId)) ||
+          (object.kind === "arrow" &&
+            (movingObjects.has(object.id) ||
+              anchorMoves(object.from) ||
+              anchorMoves(object.to))),
+      ) ??
+        false);
     if (
+      !nonRigid &&
       plan.intent === "transform" &&
       sameIds(sourceDocument.routes, finalDocument.routes) &&
       sameIds(sourceDocument.junctions, finalDocument.junctions)
@@ -662,24 +819,24 @@ export function createSelectionMoveController({
         }),
       );
     }
-    preparedCache = { source: sourceDocument, key, value };
+    preparedCache = { source: sourceDocument, preview, delta, contact, value };
     return value;
   };
 
-  const completeInstanceMove = (
-    preview: InstanceMovePreview,
+  const completeSelectionMove = (
+    preview: SelectionMovePreview,
     position: DerivedPoint,
     tolerance: number,
     suppressSnap: boolean,
     previous?: SnapResult,
-    projection?: ProjectedInstanceMove,
+    projection?: ProjectedSelectionMove,
   ): void => {
     const sourceDocument = projection?.document ?? document;
     const prefixEdits = [...(projection?.prefixEdits ?? [])];
     try {
       const resolved =
         projection?.resolvedMove ??
-        resolveInstanceMove(
+        resolveSelectionMove(
           preview,
           position,
           tolerance,
@@ -689,12 +846,8 @@ export function createSelectionMoveController({
         );
       if (resolved.preparationError) throw new Error(resolved.preparationError);
       if (
-        resolved.moves.every((move) => {
-          const original = preview.originalPositions[move.instanceId]!;
-          return (
-            original.x === move.position.x && original.y === move.position.y
-          );
-        }) &&
+        resolved.snap.delta.x === 0 &&
+        resolved.snap.delta.y === 0 &&
         prefixEdits.length === 0
       )
         return;
@@ -730,17 +883,21 @@ export function createSelectionMoveController({
       else if (prepared.plan.intent !== "transform")
         setStatus("Snapped pin endpoints and connected them without a wire");
       else if (disconnectedEndpointKeys.length)
-        setStatus("Moved selection without wires; original endpoints are open");
+        setStatus(
+          "Moved selection without its wires; original endpoints are open",
+        );
       else if (prefixEdits.length) setStatus("Moved and transformed selection");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Move failed");
+    } finally {
+      dispose();
     }
   };
 
   return {
-    completeVisualSelectionMove,
     visualMoveOrigin,
-    resolveInstanceMove,
-    completeInstanceMove,
+    resolveSelectionMove,
+    completeSelectionMove,
+    dispose,
   };
 }

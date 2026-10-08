@@ -1,5 +1,6 @@
 import {
   useRef,
+  useEffect,
   type MutableRefObject,
   type PointerEvent as ReactPointerEvent,
 } from "react";
@@ -15,7 +16,7 @@ import {
   prepareProjectCopy,
   planProjectCopyPlacement,
 } from "../clipboard/project-copy";
-import { endpointKey, resolveDocumentRoutingGeometry } from "@icm/derived";
+import { endpointKey } from "@icm/derived";
 import {
   createRoutingOperationPlan,
   executeTransaction,
@@ -47,25 +48,23 @@ import { planDetachedMove } from "./detached-move";
 import type { VisualSelection } from "./visual-selection";
 import {
   planSelectionMove,
-  selectionMovePitch,
   type SelectionMovePlan,
 } from "./selection-move-plan";
+import type {
+  createSelectionMoveController,
+  SelectionMovePreview,
+  ResolvedSelectionMove,
+} from "./selection-move-controller";
 
 type TransactionResult = { ok: boolean; revision: number };
 
-interface ResolvedInstanceMove {
-  snap: SnapResult;
-  moves: { instanceId: string; position: Point }[];
-  prepared?: import("./selection-move-controller").PreparedInstanceMove;
-  preparationError?: string;
-}
-
 interface MoveProjectionInput {
   screenPoint: Point;
+  camera: string | null;
   suppressSnap: boolean;
   tolerance: number;
-  sourceRevision: number;
-  resolved: ResolvedInstanceMove;
+  source: SchematicDocument;
+  resolved: ResolvedSelectionMove;
 }
 
 interface MoveProjectionCache extends MoveProjectionInput {
@@ -76,21 +75,12 @@ interface VisualMoveProjectionCache extends MoveProjectionInput {
   routePoints: ReadonlyMap<string, readonly Point[]>;
 }
 
-export interface InstanceMovePreview {
-  instanceIds: string[];
-  primaryInstanceId: string;
-  originalPositions: Record<string, Point>;
-  pointerStart: Point;
-  movePlan: SelectionMovePlan;
-}
-
-interface CommandMoveSession {
+interface MoveGestureSession {
+  controller: ReturnType<typeof createSelectionMoveController>;
   semanticPreview?: boolean;
-  documentId: string;
-  baseRevision: number;
+  source: SchematicDocument;
   movePlan: SelectionMovePlan;
-  instancePreview: InstanceMovePreview | null;
-  pointerOrigin: Point;
+  selectionPreview: SelectionMovePreview;
   visual: ReturnType<typeof startCanvasDragVisual> | null;
   routeVisual: ReturnType<typeof startCanvasDragVisual> | null;
   projectedDocument: SchematicDocument;
@@ -100,13 +90,6 @@ interface CommandMoveSession {
   svg: SVGSVGElement | null;
   lastProjection: MoveProjectionCache | VisualMoveProjectionCache | null;
   lastSnap?: SnapResult;
-  lastDelta: Point;
-}
-
-export interface ProjectedInstanceMove {
-  document: SchematicDocument;
-  prefixEdits: readonly SchematicEdit[];
-  resolvedMove?: ResolvedInstanceMove;
 }
 
 const isSameMoveProjectionInput = <T extends MoveProjectionInput>(
@@ -114,17 +97,23 @@ const isSameMoveProjectionInput = <T extends MoveProjectionInput>(
   screenPoint: Point,
   suppressSnap: boolean,
   tolerance: number,
-  sourceRevision: number,
+  source: SchematicDocument,
+  camera: string | null,
+  allowRoundedClick = false,
 ): cached is T =>
   cached !== null &&
   // PointerEvent keeps sub-pixel coordinates while its following MouseEvent
   // rounds them to integers. Treat that browser precision loss as the same
   // physical input, but never reuse a projection for a genuinely new click.
-  Math.abs(cached.screenPoint.x - screenPoint.x) < 1 &&
-  Math.abs(cached.screenPoint.y - screenPoint.y) < 1 &&
+  (allowRoundedClick
+    ? Math.abs(cached.screenPoint.x - screenPoint.x) < 1 &&
+      Math.abs(cached.screenPoint.y - screenPoint.y) < 1
+    : cached.screenPoint.x === screenPoint.x &&
+      cached.screenPoint.y === screenPoint.y) &&
   cached.suppressSnap === suppressSnap &&
   cached.tolerance === tolerance &&
-  cached.sourceRevision === sourceRevision;
+  cached.source === source &&
+  cached.camera === camera;
 
 export interface UseSelectionInteractionOptions {
   project: CircuitProject;
@@ -180,36 +169,14 @@ export interface UseSelectionInteractionOptions {
     svg: SVGSVGElement,
     snapToGrid: false,
   ) => Point;
-  completeVisualSelectionMove: (
-    movePlan: SelectionMovePlan,
-    delta: Point,
-  ) => void;
+  moveController: ReturnType<typeof createSelectionMoveController>;
   snapCoordinate: (value: number, grid: number) => number;
-  /** The finer step labels and drawing objects move by on their own. */
-  annotationGrid?: number;
   updateInstanceSelection: (instanceId: string, additive: boolean) => void;
   suppressInstanceClickRef: MutableRefObject<boolean>;
-  resolveInstanceMove: (
-    preview: InstanceMovePreview,
-    position: Point,
-    tolerance: number,
-    suppressSnap: boolean,
-    previous?: SnapResult,
-    projectedDocument?: SchematicDocument,
-  ) => ResolvedInstanceMove;
-  completeInstanceMove: (
-    preview: InstanceMovePreview,
-    position: Point,
-    tolerance: number,
-    suppressSnap: boolean,
-    previous?: SnapResult,
-    projection?: ProjectedInstanceMove,
-  ) => void;
   logicalRadiusForPixels: (svg: SVGSVGElement, pixels: number) => number;
   snapGuides: (guides: SnapGuideLine[]) => void;
   setProjectedMovePreview: (document: SchematicDocument | null) => void;
   beginSelectionMoveInteraction: () => void;
-  visualMoveOrigin: (movePlan: SelectionMovePlan) => Point;
 }
 
 /**
@@ -220,7 +187,30 @@ export interface UseSelectionInteractionOptions {
 export function useSelectionInteraction(
   options: UseSelectionInteractionOptions,
 ) {
-  const commandMoveSessionRef = useRef<CommandMoveSession | null>(null);
+  const commandMoveSessionRef = useRef<MoveGestureSession | null>(null);
+  const pointerMoveSessionRef = useRef<{
+    source: SchematicDocument;
+    cancel: () => void;
+  } | null>(null);
+  useEffect(() => {
+    if (
+      commandMoveSessionRef.current?.source !== options.document &&
+      commandMoveSessionRef.current
+    ) {
+      clearCommandMoveSession();
+      options.snapGuides([]);
+      options.cancelInteraction();
+    }
+    if (pointerMoveSessionRef.current?.source !== options.document)
+      pointerMoveSessionRef.current?.cancel();
+  }, [options.document]);
+  useEffect(
+    () => () => {
+      commandMoveSessionRef.current?.controller.dispose();
+      pointerMoveSessionRef.current?.cancel();
+    },
+    [],
+  );
   /** Uniquifies Junction ids minted by successive Ctrl+drag detach moves. */
   const detachSequenceRef = useRef(0);
   const transactConnectivity = (
@@ -283,9 +273,9 @@ export function useSelectionInteraction(
   };
 
   const projectedInstancePreview = (
-    session: CommandMoveSession,
-  ): InstanceMovePreview | null => {
-    const primaryInstanceId = session.instancePreview?.primaryInstanceId;
+    session: MoveGestureSession,
+  ): SelectionMovePreview | null => {
+    const primaryInstanceId = session.selectionPreview?.primaryInstanceId;
     if (!primaryInstanceId) return null;
     const primary = session.projectedDocument.instances.find(
       (instance) => instance.id === primaryInstanceId,
@@ -312,13 +302,10 @@ export function useSelectionInteraction(
   const commandMoveTransformReason = (): string | null => {
     const session = commandMoveSessionRef.current;
     if (!session) return "Move is not active";
-    if (
-      session.documentId !== options.document.id ||
-      session.baseRevision !== options.document.revision
-    ) {
+    if (session.source !== options.document) {
       return "The document changed; restart Move before transforming";
     }
-    if (!session.instancePreview) {
+    if (!session.selectionPreview.primaryInstanceId) {
       return "Rotate and mirror during Move require a component selection";
     }
     if (
@@ -334,145 +321,214 @@ export function useSelectionInteraction(
   const clearCommandMoveSession = (): void => {
     commandMoveSessionRef.current?.visual?.restore();
     commandMoveSessionRef.current?.routeVisual?.restore();
+    commandMoveSessionRef.current?.controller.dispose();
     commandMoveSessionRef.current = null;
     options.setProjectedMovePreview(null);
   };
 
-  /**
-   * The formal renderer is the sole semantic preview authority for Instance
-   * movement. A dry-run applies exactly the same typed edits as commit, so
-   * upright labels, Route markers, miter bridges, pin names and NoConnects are
-   * all derived from one projected Document instead of ad-hoc DOM transforms.
-   */
-  const projectInstanceMove = (
-    sourceDocument: SchematicDocument,
-    moves: readonly { instanceId: string; position: Point }[],
-    movePlan?: SelectionMovePlan,
-  ): SchematicDocument => {
-    const first = moves[0];
-    const original = first
-      ? sourceDocument.instances.find((item) => item.id === first.instanceId)
-          ?.placement?.position
-      : undefined;
-    const delta =
-      first && original
-        ? { x: first.position.x - original.x, y: first.position.y - original.y }
-        : { x: 0, y: 0 };
-    const plan = planRoutingTransform(
-      sourceDocument,
-      options.resolver,
-      {
-        instanceIds:
-          movePlan?.instanceIds ?? moves.map((move) => move.instanceId),
-        routeIds: movePlan?.translatedRouteIds ?? [],
-        junctionIds: movePlan?.translatedJunctionIds ?? [],
-      },
-      { kind: "translate", delta },
-    );
-    const blocking = plan.diagnostics.find((item) => item.severity === "error");
-    if (blocking) throw new Error(blocking.message);
-    const result = executeTransaction(
-      sourceDocument,
-      {
-        transactionId: "selection-move-semantic-preview",
-        documentId: sourceDocument.id,
-        expectedRevision: sourceDocument.revision,
-        actor: { kind: "human", id: "selection-move-preview" },
-        dryRun: true,
-        edits: [...plan.edits],
-      },
-      { symbolResolver: options.resolver },
-    );
-    if (!result.ok) throw new Error(result.error.message);
-    return result.document;
+  /** One frame solver and painter for pointer, M, and visual-only movement. */
+  const paintMoveFrame = (
+    session: MoveGestureSession,
+    point: Point,
+    screenPoint: Point,
+    svg: SVGSVGElement,
+    suppressSnap: boolean,
+    allowRoundedClick = false,
+  ): boolean => {
+    session.latestPoint = point;
+    session.latestScreenPoint = screenPoint;
+    session.svg = svg;
+    const tolerance = options.logicalRadiusForPixels(svg, 7);
+    const matrix = svg.getScreenCTM();
+    const camera = matrix
+      ? [matrix.a, matrix.b, matrix.c, matrix.d, matrix.e, matrix.f].join(",")
+      : null;
+    try {
+      const cached = isSameMoveProjectionInput(
+        session.lastProjection,
+        screenPoint,
+        suppressSnap,
+        tolerance,
+        session.projectedDocument,
+        camera,
+        allowRoundedClick,
+      )
+        ? session.lastProjection
+        : null;
+      // Never slide the cache key along with an unevaluated sub-pixel input.
+      // Otherwise a stream of small pointer steps can retain its first frame.
+      if (cached) return true;
+      const resolved = session.controller.resolveSelectionMove(
+        session.selectionPreview,
+        point,
+        tolerance,
+        suppressSnap,
+        session.lastSnap,
+        session.projectedDocument === session.source
+          ? undefined
+          : session.projectedDocument,
+      );
+      if (resolved.preparationError) throw new Error(resolved.preparationError);
+      const prepared = resolved.prepared;
+      if (!prepared)
+        throw new Error("Move could not prepare the pointer position");
+      session.lastSnap = resolved.snap;
+      options.snapGuides(resolved.snap.guides);
+      // A topology/pose preview replaces SVG nodes. Stay on the formal path
+      // for the rest of that gesture; imperative handles then refer to old ink.
+      session.semanticPreview ||=
+        !prepared.visualRoutePoints || session.prefixEdits.length > 0;
+      const input = {
+        screenPoint: { ...screenPoint },
+        camera,
+        suppressSnap,
+        tolerance,
+        source: session.projectedDocument,
+        resolved,
+      };
+      if (session.semanticPreview) {
+        session.visual?.restore();
+        session.routeVisual?.restore();
+        session.lastProjection = {
+          ...input,
+          document: prepared.previewDocument,
+        };
+        options.setProjectedMovePreview(prepared.previewDocument);
+      } else {
+        const routePoints = prepared.visualRoutePoints!;
+        session.lastProjection = { ...input, routePoints };
+        session.visual ??= startCanvasDragVisual(
+          svg,
+          session.movePlan.previewObjectIds.filter(
+            (id) => !session.movePlan.translatedRouteIds.includes(id),
+          ),
+        );
+        session.routeVisual ??= startCanvasDragVisual(svg, [
+          ...routePoints.keys(),
+        ]);
+        session.visual.translate(resolved.snap.delta);
+        for (const [id, points] of routePoints)
+          session.routeVisual.setObjectPolyline(id, points);
+        options.setProjectedMovePreview(session.projectedDocument);
+      }
+      return true;
+    } catch (error) {
+      session.lastProjection = null;
+      session.visual?.restore();
+      session.routeVisual?.restore();
+      options.setProjectedMovePreview(null);
+      options.setStatus(
+        error instanceof Error ? error.message : "Move preview failed",
+      );
+      return false;
+    }
   };
 
-  /**
-   * Lightweight geometry for the live pointer path. The routing planner stays
-   * authoritative, but applying its three translation edit kinds to a shallow
-   * projection avoids a full schema transaction and formal SVG render on every
-   * animation frame. Commit still runs the normal typed transaction.
-   */
-  const projectInstanceMoveVisual = (
-    sourceDocument: SchematicDocument,
-    moves: readonly { instanceId: string; position: Point }[],
-    movePlan: SelectionMovePlan,
-  ): ReadonlyMap<string, readonly Point[]> => {
-    const first = moves[0];
-    const original = first
-      ? sourceDocument.instances.find((item) => item.id === first.instanceId)
-          ?.placement?.position
-      : undefined;
-    const delta =
-      first && original
-        ? { x: first.position.x - original.x, y: first.position.y - original.y }
-        : { x: 0, y: 0 };
-    const plan = planRoutingTransform(
-      sourceDocument,
-      options.resolver,
-      {
-        instanceIds: movePlan.instanceIds,
-        routeIds: movePlan.translatedRouteIds,
-        junctionIds: movePlan.translatedJunctionIds,
-      },
-      { kind: "translate", delta },
-    );
-    const blocking = plan.diagnostics.find((item) => item.severity === "error");
-    if (blocking) throw new Error(blocking.message);
+  const createMoveSession = (
+    preview: SelectionMovePreview,
+    source: SchematicDocument,
+    prefixEdits: SchematicEdit[],
+  ): MoveGestureSession => ({
+    controller: options.moveController,
+    source: options.document,
+    movePlan: preview.movePlan,
+    selectionPreview: preview,
+    projectedDocument: source,
+    prefixEdits,
+    visual: null,
+    routeVisual: null,
+    latestPoint: null,
+    latestScreenPoint: null,
+    svg: null,
+    lastProjection: null,
+  });
 
-    const movedInstances = new Map(
-      plan.edits.flatMap((edit) =>
-        edit.kind === "move_instance"
-          ? [[edit.instanceId, edit.position] as const]
-          : [],
-      ),
-    );
-    const movedJunctions = new Map(
-      plan.edits.flatMap((edit) =>
-        edit.kind === "move_junction"
-          ? [[edit.junctionId, edit.position] as const]
-          : [],
-      ),
-    );
-    const changedRoutes = new Map(
-      plan.edits.flatMap((edit) =>
-        edit.kind === "set_route_path"
-          ? [[edit.route.id, edit.route] as const]
-          : [],
-      ),
-    );
-    const projected: SchematicDocument = {
-      ...sourceDocument,
-      instances: sourceDocument.instances.map((instance) => {
-        const position = movedInstances.get(instance.id);
-        return position && instance.placement
-          ? {
-              ...instance,
-              placement: { ...instance.placement, position },
-            }
-          : instance;
-      }),
-      junctions: sourceDocument.junctions.map((junction) => {
-        const position = movedJunctions.get(junction.id);
-        return position ? { ...junction, position } : junction;
-      }),
-      routes: sourceDocument.routes.map(
-        (route) => changedRoutes.get(route.id) ?? route,
-      ),
+  const startPointerSelectionMove = (
+    event: ReactPointerEvent<SVGElement>,
+    hitTarget: SVGElement,
+    preview: SelectionMovePreview,
+    source: SchematicDocument,
+    prefixEdits: SchematicEdit[],
+    onFinish?: (dragged: boolean) => void,
+  ): void => {
+    options.canvasDragSessionRef.current?.cancel();
+    const svg = (hitTarget.ownerSVGElement ?? hitTarget) as SVGSVGElement;
+    const session = createMoveSession(preview, source, prefixEdits);
+    const restore = () => {
+      session.visual?.restore();
+      session.routeVisual?.restore();
+      session.controller.dispose();
+      options.setProjectedMovePreview(null);
+      options.snapGuides([]);
     };
-    const geometry = resolveDocumentRoutingGeometry(
-      projected,
-      options.resolver,
-    );
-    return new Map(
-      [
-        ...plan.affected.internalRoutes,
-        ...plan.affected.boundaryRoutes,
-      ].flatMap((routeId) => {
-        const route = geometry.routes.get(routeId);
-        return route ? [[routeId, route.centerline] as const] : [];
-      }),
-    );
+    options.canvasDragSessionRef.current = startCanvasDragSession({
+      target: hitTarget,
+      pointerId: event.pointerId,
+      startClient: { x: event.clientX, y: event.clientY },
+      thresholdPx: 4,
+      onPreview: (client) => {
+        paintMoveFrame(
+          session,
+          options.pointFromClient(client.x, client.y, svg, false),
+          { x: client.x, y: client.y },
+          svg,
+          Boolean(client.altKey),
+        );
+      },
+      onFinish: ({ client, dragged }) => {
+        pointerMoveSessionRef.current = null;
+        options.canvasDragSessionRef.current = null;
+        try {
+          if (dragged) {
+            const point = options.pointFromClient(
+              client.x,
+              client.y,
+              svg,
+              false,
+            );
+            const suppressSnap = Boolean(client.altKey);
+            if (
+              !paintMoveFrame(
+                session,
+                point,
+                { x: client.x, y: client.y },
+                svg,
+                suppressSnap,
+              )
+            )
+              return;
+            // Release consumes this exact frame proposal. The controller then
+            // applies the strict connectivity gate in one undoable transaction.
+            session.visual?.restore();
+            session.routeVisual?.restore();
+            session.controller.completeSelectionMove(
+              preview,
+              point,
+              options.logicalRadiusForPixels(svg, 7),
+              suppressSnap,
+              session.lastSnap,
+              {
+                document: source,
+                prefixEdits,
+                resolvedMove: session.lastProjection!.resolved,
+              },
+            );
+          }
+          onFinish?.(dragged);
+        } finally {
+          restore();
+        }
+      },
+      onCancel: () => {
+        pointerMoveSessionRef.current = null;
+        options.canvasDragSessionRef.current = null;
+        restore();
+      },
+    });
+    pointerMoveSessionRef.current = {
+      source: options.document,
+      cancel: () => options.canvasDragSessionRef.current?.cancel(),
+    };
   };
 
   const beginKeyboardSelectionMove = (
@@ -526,7 +582,7 @@ export function useSelectionInteraction(
     const primary = primaryInstanceId
       ? baseDocument.instances.find((item) => item.id === primaryInstanceId)
       : undefined;
-    const instancePreview = primary?.placement
+    const selectionPreview = primary?.placement
       ? {
           instanceIds: movePlan.instanceIds,
           primaryInstanceId: primaryInstanceId!,
@@ -543,25 +599,18 @@ export function useSelectionInteraction(
           pointerStart: { ...primary.placement.position },
           movePlan,
         }
-      : null;
-    commandMoveSessionRef.current = {
-      documentId: options.document.id,
-      baseRevision: options.document.revision,
-      movePlan,
-      instancePreview,
-      pointerOrigin: instancePreview
-        ? instancePreview.pointerStart
-        : options.visualMoveOrigin(movePlan),
-      visual: null,
-      routeVisual: null,
-      projectedDocument: baseDocument,
-      prefixEdits: detachEdits,
-      latestPoint: null,
-      latestScreenPoint: null,
-      svg: null,
-      lastProjection: null,
-      lastDelta: { x: 0, y: 0 },
-    };
+      : {
+          instanceIds: [],
+          primaryInstanceId: null,
+          originalPositions: {},
+          pointerStart: options.moveController.visualMoveOrigin(movePlan),
+          movePlan,
+        };
+    commandMoveSessionRef.current = createMoveSession(
+      selectionPreview,
+      baseDocument,
+      detachEdits,
+    );
     options.setProjectedMovePreview(null);
     options.beginSelectionMoveInteraction();
     options.setStatus(
@@ -576,149 +625,25 @@ export function useSelectionInteraction(
     screenPoint: Point,
     svg: SVGSVGElement,
     suppressSnap: boolean,
+    allowRoundedClick = false,
   ): boolean => {
     const session = commandMoveSessionRef.current;
-    if (!session || session.documentId !== options.document.id) return false;
-    if (session.baseRevision !== options.document.revision) {
+    if (!session) return false;
+    if (session.source !== options.document) {
       clearCommandMoveSession();
       options.snapGuides([]);
       options.cancelInteraction();
       options.setStatus("Move cancelled because the document changed");
       return false;
     }
-    session.latestPoint = point;
-    session.latestScreenPoint = screenPoint;
-    session.svg = svg;
-    if (session.instancePreview) {
-      const tolerance = options.logicalRadiusForPixels(svg, 7);
-      const cached = isSameMoveProjectionInput(
-        session.lastProjection,
-        screenPoint,
-        suppressSnap,
-        tolerance,
-        session.projectedDocument.revision,
-      )
-        ? session.lastProjection
-        : null;
-      const resolved =
-        cached?.resolved ??
-        options.resolveInstanceMove(
-          session.instancePreview,
-          point,
-          tolerance,
-          suppressSnap,
-          session.lastSnap,
-          session.projectedDocument === options.document
-            ? undefined
-            : session.projectedDocument,
-        );
-      session.lastSnap = resolved.snap;
-      const primary = resolved.moves.find(
-        (move) =>
-          move.instanceId === session.instancePreview!.primaryInstanceId,
-      );
-      const original =
-        session.instancePreview.originalPositions[
-          session.instancePreview.primaryInstanceId
-        ];
-      if (!primary || !original) return false;
-      session.lastDelta = {
-        x: primary.position.x - original.x,
-        y: primary.position.y - original.y,
-      };
-      options.snapGuides(resolved.snap.guides);
-      try {
-        if (resolved.preparationError)
-          throw new Error(resolved.preparationError);
-        session.semanticPreview ||= Boolean(
-          resolved.prepared && !resolved.prepared.visualRoutePoints,
-        );
-        if (
-          session.semanticPreview ||
-          session.projectedDocument !== options.document
-        ) {
-          const projectedDocument =
-            resolved.prepared?.previewDocument ??
-            (cached && "document" in cached
-              ? cached.document
-              : projectInstanceMove(
-                  session.projectedDocument,
-                  resolved.moves,
-                  session.movePlan,
-                ));
-          session.lastProjection = {
-            screenPoint: { ...screenPoint },
-            suppressSnap,
-            tolerance,
-            sourceRevision: session.projectedDocument.revision,
-            resolved,
-            document: projectedDocument,
-          };
-          options.setProjectedMovePreview(projectedDocument);
-          return true;
-        }
-        const routePoints =
-          resolved.prepared?.visualRoutePoints ??
-          (cached && "routePoints" in cached
-            ? cached.routePoints
-            : projectInstanceMoveVisual(
-                session.projectedDocument,
-                resolved.moves,
-                session.movePlan,
-              ));
-        session.lastProjection = {
-          screenPoint: { ...screenPoint },
-          suppressSnap,
-          tolerance,
-          sourceRevision: session.projectedDocument.revision,
-          resolved,
-          routePoints,
-        };
-        session.visual ??= startCanvasDragVisual(
-          svg,
-          session.movePlan.previewObjectIds.filter(
-            (objectId) =>
-              !session.movePlan.translatedRouteIds.includes(objectId),
-          ),
-        );
-        session.routeVisual ??= startCanvasDragVisual(svg, [
-          ...routePoints.keys(),
-        ]);
-        session.visual.translate(session.lastDelta);
-        for (const [routeId, points] of routePoints) {
-          session.routeVisual.setObjectPolyline(routeId, points);
-        }
-        options.setProjectedMovePreview(session.projectedDocument);
-      } catch (error) {
-        session.lastProjection = null;
-        session.visual?.restore();
-        session.routeVisual?.restore();
-        options.setProjectedMovePreview(null);
-        options.setStatus(
-          error instanceof Error ? error.message : "Move preview failed",
-        );
-        return false;
-      }
-      return true;
-    }
-
-    const pitch = selectionMovePitch(
-      session.movePlan,
-      options.document.presentation.grid,
-      options.annotationGrid ?? options.document.presentation.grid,
-    );
-    session.lastDelta = {
-      x: options.snapCoordinate(point.x - session.pointerOrigin.x, pitch),
-      y: options.snapCoordinate(point.y - session.pointerOrigin.y, pitch),
-    };
-    options.setProjectedMovePreview(null);
-    options.snapGuides([]);
-    session.visual ??= startCanvasDragVisual(
+    return paintMoveFrame(
+      session,
+      point,
+      screenPoint,
       svg,
-      session.movePlan.previewObjectIds,
+      suppressSnap,
+      allowRoundedClick,
     );
-    session.visual.translate(session.lastDelta);
-    return true;
   };
 
   const transformCommandMove = (
@@ -784,7 +709,12 @@ export function useSelectionInteraction(
       }
       session.projectedDocument = result.document;
       session.prefixEdits.push(...plan.edits);
-      session.instancePreview = projectedInstancePreview(session);
+      const preview = projectedInstancePreview(session);
+      if (!preview)
+        throw new Error("Move transform lost the selected component");
+      session.selectionPreview = preview;
+      session.controller.dispose();
+      const suppressSnap = session.lastProjection?.suppressSnap ?? false;
       session.lastProjection = null;
       delete session.lastSnap;
       if (session.latestPoint && session.latestScreenPoint && session.svg) {
@@ -793,7 +723,7 @@ export function useSelectionInteraction(
             session.latestPoint,
             session.latestScreenPoint,
             session.svg,
-            false,
+            suppressSnap,
           )
         ) {
           return false;
@@ -821,18 +751,20 @@ export function useSelectionInteraction(
     point: Point,
     screenPoint: Point,
     svg: SVGSVGElement,
+    suppressSnap: boolean,
   ): void => {
     if (!commandMoveSessionRef.current) return;
     // Click intent is authoritative. Re-resolve a genuinely new click against
     // the projected orientation Document; only the same physical pointer spot
     // may reuse preview because click events discard pointer sub-pixels.
-    if (!updateCommandMovePreview(point, screenPoint, svg, false)) return;
+    if (!updateCommandMovePreview(point, screenPoint, svg, suppressSnap, true))
+      return;
     const session = commandMoveSessionRef.current!;
     session.visual?.restore();
     session.routeVisual?.restore();
     commandMoveSessionRef.current = null;
     options.setProjectedMovePreview(null);
-    if (session.instancePreview) {
+    if (session.selectionPreview) {
       const resolvedMove = session.lastProjection?.resolved;
       if (!resolvedMove) {
         options.setStatus("Move could not resolve the clicked position");
@@ -840,11 +772,11 @@ export function useSelectionInteraction(
         options.cancelInteraction();
         return;
       }
-      options.completeInstanceMove(
-        session.instancePreview,
+      session.controller.completeSelectionMove(
+        session.selectionPreview,
         point,
         options.logicalRadiusForPixels(svg, 7),
-        false,
+        suppressSnap,
         session.lastSnap,
         {
           document: session.projectedDocument,
@@ -852,8 +784,6 @@ export function useSelectionInteraction(
           resolvedMove,
         },
       );
-    } else {
-      options.completeVisualSelectionMove(session.movePlan, session.lastDelta);
     }
     options.snapGuides([]);
     options.cancelInteraction();
@@ -1006,7 +936,7 @@ export function useSelectionInteraction(
       svg,
       false,
     );
-    const preview: InstanceMovePreview = {
+    const preview: SelectionMovePreview = {
       instanceIds: movingIds,
       primaryInstanceId: instanceId,
       originalPositions: Object.fromEntries(
@@ -1021,191 +951,20 @@ export function useSelectionInteraction(
       movePlan,
     };
     options.setProjectedMovePreview(null);
-    const tolerance = options.logicalRadiusForPixels(svg, 7);
-    let lastSnap: SnapResult | undefined;
-    let semanticPreview = false;
-    let lastProjection: MoveProjectionCache | VisualMoveProjectionCache | null =
-      null;
-    let movingVisual: ReturnType<typeof startCanvasDragVisual> | null = null;
-    let boundaryRouteVisual: ReturnType<typeof startCanvasDragVisual> | null =
-      null;
-    const resolveProjection = (
-      point: Point,
-      screenPoint: Point,
-      suppressSnap: boolean,
-    ): MoveProjectionCache | VisualMoveProjectionCache => {
-      if (
-        isSameMoveProjectionInput(
-          lastProjection,
-          screenPoint,
-          suppressSnap,
-          tolerance,
-          options.document.revision,
-        )
-      ) {
-        return lastProjection;
-      }
-      const resolved = options.resolveInstanceMove(
-        preview,
-        point,
-        tolerance,
-        suppressSnap,
-        lastSnap,
-        detachDrag ? previewBaseDocument : undefined,
-      );
-      lastSnap = resolved.snap;
-      if (resolved.preparationError) throw new Error(resolved.preparationError);
-      const input = {
-        screenPoint: { ...screenPoint },
-        suppressSnap,
-        tolerance,
-        sourceRevision: options.document.revision,
-        resolved,
-      };
-      semanticPreview ||= Boolean(
-        resolved.prepared && !resolved.prepared.visualRoutePoints,
-      );
-      lastProjection =
-        detachDrag || semanticPreview
-          ? {
-              ...input,
-              document:
-                resolved.prepared?.previewDocument ??
-                projectInstanceMove(
-                  previewBaseDocument,
-                  resolved.moves,
-                  preview.movePlan,
-                ),
-            }
-          : {
-              ...input,
-              routePoints:
-                resolved.prepared?.visualRoutePoints ??
-                projectInstanceMoveVisual(
-                  options.document,
-                  resolved.moves,
-                  preview.movePlan,
-                ),
-            };
-      return lastProjection;
-    };
-    options.canvasDragSessionRef.current = startCanvasDragSession({
-      target: hitTarget,
-      pointerId: event.pointerId,
-      startClient: { x: event.clientX, y: event.clientY },
-      thresholdPx: 4,
-      onPreview: (client) => {
-        try {
-          const projection = resolveProjection(
-            options.pointFromClient(client.x, client.y, svg, false),
-            { x: client.x, y: client.y },
-            Boolean(client.altKey),
-          );
-          options.snapGuides(projection.resolved.snap.guides);
-          if ("document" in projection) {
-            options.setProjectedMovePreview(projection.document);
-          } else {
-            movingVisual ??= startCanvasDragVisual(
-              svg,
-              preview.movePlan.previewObjectIds.filter(
-                (objectId) =>
-                  !preview.movePlan.translatedRouteIds.includes(objectId),
-              ),
-            );
-            boundaryRouteVisual ??= startCanvasDragVisual(svg, [
-              ...projection.routePoints.keys(),
-            ]);
-            const primary = projection.resolved.moves.find(
-              (move) => move.instanceId === preview.primaryInstanceId,
-            );
-            const original =
-              preview.originalPositions[preview.primaryInstanceId];
-            if (primary && original) {
-              movingVisual.translate({
-                x: primary.position.x - original.x,
-                y: primary.position.y - original.y,
-              });
-            }
-            for (const [routeId, points] of projection.routePoints) {
-              boundaryRouteVisual.setObjectPolyline(routeId, points);
-            }
-            // Keep the established semantic-preview class without replacing
-            // the formal scene: this is the exact same base Document object.
-            options.setProjectedMovePreview(options.document);
-          }
-        } catch (error) {
-          lastProjection = null;
-          movingVisual?.restore();
-          boundaryRouteVisual?.restore();
-          options.setProjectedMovePreview(null);
-          options.setStatus(
-            error instanceof Error ? error.message : "Move preview failed",
-          );
-        }
-      },
-      onFinish: ({ client, dragged }) => {
-        options.canvasDragSessionRef.current = null;
-        options.setProjectedMovePreview(null);
-        options.snapGuides([]);
-        if (dragged) {
-          const point = options.pointFromClient(client.x, client.y, svg, false);
-          const suppressSnap = Boolean(client.altKey);
-          let projection: MoveProjectionCache | VisualMoveProjectionCache;
-          try {
-            projection = resolveProjection(
-              point,
-              { x: client.x, y: client.y },
-              suppressSnap,
-            );
-          } catch (error) {
-            movingVisual?.restore();
-            boundaryRouteVisual?.restore();
-            options.setStatus(
-              error instanceof Error ? error.message : "Move failed",
-            );
-            return;
-          }
-          movingVisual?.restore();
-          boundaryRouteVisual?.restore();
-          options.completeInstanceMove(
-            preview,
-            point,
-            tolerance,
-            suppressSnap,
-            projection.resolved.snap,
-            {
-              // The detached projection, so the commit's routing transform
-              // plans against the topology the prefix edits will create —
-              // otherwise it would re-stretch the wires the detach just
-              // anchored in place.
-              document: previewBaseDocument,
-              prefixEdits: detachEdits,
-              resolvedMove: projection.resolved,
-            },
-          );
-          if (detachDrag) {
-            selectInstance(instanceId, false);
-          }
-          if (detachEdits.length > 0) {
-            options.setStatus(
-              `Moved ${instanceId} without its wires; original wire endpoints remain open`,
-            );
-          }
-        } else if (detachDrag) {
-          // The drag never crossed the threshold: keep the plain
-          // ctrl-click toggle-selection meaning.
+    startPointerSelectionMove(
+      event,
+      hitTarget,
+      preview,
+      previewBaseDocument,
+      detachEdits,
+      (dragged) => {
+        if (dragged && detachDrag) selectInstance(instanceId, false);
+        else if (!dragged && detachDrag) {
           selectInstance(instanceId, true);
           options.setStatus(`Selected ${instanceId}`);
         }
       },
-      onCancel: () => {
-        options.canvasDragSessionRef.current = null;
-        movingVisual?.restore();
-        boundaryRouteVisual?.restore();
-        options.setProjectedMovePreview(null);
-        options.snapGuides([]);
-      },
-    });
+    );
   };
 
   const beginVisualSelectionMove = (
@@ -1225,52 +984,20 @@ export function useSelectionInteraction(
     options.cancelInteraction();
     event.preventDefault();
     event.stopPropagation();
-    options.canvasDragSessionRef.current?.cancel();
     const svg = (hitTarget.ownerSVGElement ?? hitTarget) as SVGSVGElement;
-    const start = options.pointFromClient(
-      event.clientX,
-      event.clientY,
-      svg,
-      false,
-    );
-    let visual: ReturnType<typeof startCanvasDragVisual> | null = null;
-    const dragVisual = () =>
-      (visual ??= startCanvasDragVisual(svg, movePlan.previewObjectIds));
-    const pitch = selectionMovePitch(
+    const preview: SelectionMovePreview = {
+      instanceIds: [],
+      primaryInstanceId: null,
+      originalPositions: {},
+      pointerStart: options.pointFromClient(
+        event.clientX,
+        event.clientY,
+        svg,
+        false,
+      ),
       movePlan,
-      options.document.presentation.grid,
-      options.annotationGrid ?? options.document.presentation.grid,
-    );
-    const deltaAt = (client: Point): Point => {
-      const point = options.pointFromClient(client.x, client.y, svg, false);
-      return {
-        x: options.snapCoordinate(point.x - start.x, pitch),
-        y: options.snapCoordinate(point.y - start.y, pitch),
-      };
     };
-    options.canvasDragSessionRef.current = startCanvasDragSession({
-      target: hitTarget,
-      pointerId: event.pointerId,
-      startClient: { x: event.clientX, y: event.clientY },
-      thresholdPx: 4,
-      onPreview: (client) => {
-        dragVisual().translate(deltaAt(client));
-        options.paintSnapGuides([]);
-      },
-      onFinish: ({ client, dragged }) => {
-        options.canvasDragSessionRef.current = null;
-        visual?.restore();
-        options.paintSnapGuides([]);
-        if (dragged) {
-          options.completeVisualSelectionMove(movePlan, deltaAt(client));
-        }
-      },
-      onCancel: () => {
-        options.canvasDragSessionRef.current = null;
-        visual?.restore();
-        options.paintSnapGuides([]);
-      },
-    });
+    startPointerSelectionMove(event, hitTarget, preview, options.document, []);
   };
 
   const deleteSelectedJunction = (): void => {

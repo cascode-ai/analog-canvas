@@ -49,7 +49,7 @@ export function resolveVisualAnchor(
   document: SchematicDocument,
   resolver: SymbolResolver,
   anchor: VisualAnchor,
-  routingGeometry = resolveDocumentRoutingGeometry(document, resolver),
+  routingGeometry?: ResolvedDocumentRoutingGeometry,
 ): ResolvedAnchor {
   switch (anchor.kind) {
     case "free":
@@ -57,7 +57,11 @@ export function resolveVisualAnchor(
     case "object":
       return resolveObjectAnchor(document, anchor);
     case "route":
-      return resolveRouteAnchor(document, anchor, routingGeometry);
+      return resolveRouteAnchor(
+        document,
+        anchor,
+        routingGeometry ?? resolveDocumentRoutingGeometry(document, resolver),
+      );
   }
 }
 

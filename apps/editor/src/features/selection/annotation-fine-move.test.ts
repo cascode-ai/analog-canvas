@@ -48,7 +48,18 @@ describe("annotation group movement", () => {
       annotationIds: ["note"],
       draftingIds: [],
     });
-    controller.completeVisualSelectionMove(movePlan, { x: 10, y: 0 });
+    controller.completeSelectionMove(
+      {
+        instanceIds: [],
+        primaryInstanceId: null,
+        originalPositions: {},
+        pointerStart: { x: 0, y: 0 },
+        movePlan,
+      },
+      { x: 10, y: 0 },
+      4,
+      true,
+    );
     const upsert = captured
       .flat()
       .find((edit) => edit.kind === "upsert_schematic_annotation");
@@ -123,7 +134,18 @@ describe("annotation group movement", () => {
       draftingIds: [],
     });
 
-    controller.completeVisualSelectionMove(movePlan, { x: 10, y: 20 });
+    controller.completeSelectionMove(
+      {
+        instanceIds: [],
+        primaryInstanceId: null,
+        originalPositions: {},
+        pointerStart: { x: 0, y: 0 },
+        movePlan,
+      },
+      { x: 10, y: 20 },
+      4,
+      true,
+    );
 
     const anchors = captured
       .flat()

@@ -540,6 +540,38 @@ fixed; its lock does not freeze a moving attachment's resolved position.
 Route-anchored DraftText follows a translated Route but cannot independently
 translate off a stationary Route; the closure reports it as fixed in that case.
 
+Pointer movement and `M`, including selections without Instances, share one
+editor-local gesture session. It freezes the source Document, selection closure,
+source route geometry/internal group facts and stationary Snap targets; the same
+Engine planner reuses those facts across changed pointer deltas. All members use
+the same grid-disciplined displacement
+while retaining their relative fine offsets. A changed orientation/detach source
+invalidates the prepared facts. The session and its one-frame cache are discarded
+on completion, cancellation or Document replacement; they are not project data.
+
+Coordinate-only text/drafting placement joins the routing geometry projection
+without advancing revision or running a transaction during every preview frame.
+Content, binding or topology changes cannot use that projection. Non-rigid
+attachments (a current marker, DraftText on a stretched boundary wire, an attached
+arrow endpoint, or a Callout target) are
+painted from the same projected Document, not a rigid translation of their SVG.
+The selection halo uses that same projected geometry. Release consumes the last
+identical pointer/modifier proposal and still runs the strict
+connectivity transaction once, with the existing atomic Undo semantics. Pointer
+frame cache keys retain exact sub-pixel input; only the following rounded click
+may reuse its corresponding keyboard-move frame. A changed canvas-to-screen
+mapping invalidates that frame even when the screen pointer is stationary.
+Keyboard Move carries the click's Alt suppression into final planning; changing
+Alt at placement invalidates the old proposal instead of silently changing its
+connection policy. Pointer drag, keyboard preview and placement all supply raw
+canvas coordinates; only the common move solver applies the selection's pitch,
+including the finer annotation grid for visual-only movement.
+
+The opt-in `ICM_PERF=1` mixed-selection case in
+`apps/editor/e2e/performance.spec.ts` records a production-build, physical drag
+through small pointer steps plus committed movement and Undo. Timing artifacts
+are machine-dependent evidence, not a fixed FPS or absolute timing gate.
+
 The same boundary applies to `C` and Delete. `C` remains the existing modal
 copy-placement gesture (not Ctrl+C/Paste): its preview and commit use one
 preallocated clone mapping, internal routing is copied, and ordinary boundary

@@ -32,6 +32,7 @@ import {
   visibleSymbolLocalBounds,
   type EndpointConnection,
   type ResolvedDocumentRoutingGeometry,
+  type InternalGroupSelection,
 } from "@icm/derived";
 import {
   moveRouteSegment,
@@ -50,6 +51,13 @@ export interface RouteStretchProposal {
   segmentModes: SegmentMode[];
   /** The endpoints now coincide: retain membership, remove redundant geometry. */
   collapsedToContact?: true;
+}
+
+/** Read-only source facts scoped to one immutable translation gesture. */
+export interface RoutingTranslationSource {
+  readonly document: SchematicDocument;
+  readonly routingGeometry: ResolvedDocumentRoutingGeometry;
+  readonly internalSelection: InternalGroupSelection;
 }
 
 /**
@@ -756,7 +764,10 @@ export function proposeJunctionGroupTranslation(
   document: SchematicDocument,
   resolver: SymbolResolver,
   moves: readonly JunctionMoveProposal[],
-  options: { preserveBranchDirections?: boolean } = {},
+  options: {
+    preserveBranchDirections?: boolean;
+    source?: RoutingTranslationSource;
+  } = {},
 ): WireSegmentDragProposal {
   return tidyDragProposal(
     document,
@@ -769,7 +780,10 @@ function proposeJunctionTranslationGeometry(
   document: SchematicDocument,
   resolver: SymbolResolver,
   moves: readonly JunctionMoveProposal[],
-  options: { preserveBranchDirections?: boolean },
+  options: {
+    preserveBranchDirections?: boolean;
+    source?: RoutingTranslationSource;
+  },
 ): WireSegmentDragProposal {
   const movedJunctions = new Map(
     moves.map((move) => [move.junctionId, move.position] as const),
@@ -779,7 +793,10 @@ function proposeJunctionTranslationGeometry(
       throw new Error(`Junction not found: ${junctionId}`);
     }
   }
-  const routingGeometry = resolveDocumentRoutingGeometry(document, resolver);
+  const routingGeometry =
+    options.source?.document === document
+      ? options.source.routingGeometry
+      : resolveDocumentRoutingGeometry(document, resolver);
   const movedDocument = {
     ...document,
     junctions: document.junctions.map((junction) => ({
@@ -1419,6 +1436,7 @@ export function proposeGroupMove(
   moves: readonly InstanceMoveProposal[],
   additionalJunctionIds: readonly string[] = [],
   explicitDelta?: Point,
+  source?: RoutingTranslationSource,
 ): GroupMoveProposal {
   const moveByInstance = new Map(
     moves.map((move) => [move.instanceId, move.position]),
@@ -1444,9 +1462,12 @@ export function proposeGroupMove(
   ) {
     throw new Error("Group members must move by one common delta");
   }
-  const internalSelection = deriveRoutingInternalGroupSelection(document, [
-    ...moveByInstance.keys(),
-  ]);
+  const internalSelection =
+    source?.document === document
+      ? source.internalSelection
+      : deriveRoutingInternalGroupSelection(document, [
+          ...moveByInstance.keys(),
+        ]);
   const internalNetIds = new Set(internalSelection.netIds);
   const movableJunctionIds = new Set(internalSelection.junctionIds);
   for (const junctionId of additionalJunctionIds) {
@@ -1454,7 +1475,10 @@ export function proposeGroupMove(
       movableJunctionIds.add(junctionId);
     }
   }
-  const routingGeometry = resolveDocumentRoutingGeometry(document, resolver);
+  const routingGeometry =
+    source?.document === document
+      ? source.routingGeometry
+      : resolveDocumentRoutingGeometry(document, resolver);
   const movedDocument = structuredClone(document);
   for (const instance of movedDocument.instances) {
     const target = moveByInstance.get(instance.id);

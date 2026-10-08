@@ -3421,18 +3421,14 @@ function WorkspaceEditor({
     setVddRailStart,
     setVddRailPreviewPoint,
   });
-  const {
-    completeVisualSelectionMove,
-    visualMoveOrigin: commandMoveVisualOrigin,
-    resolveInstanceMove: instanceMoveAt,
-    completeInstanceMove,
-  } = createSelectionMoveController({
+  const selectionMoveController = createSelectionMoveController({
     document,
     resolver,
     visibleEndpoints,
     routeGeometryRecords,
     contactComponents,
     sceneSnapTargetIndex,
+    annotationGrid,
     transactConnectivity,
     setStatus,
     nextRoutingSuffix,
@@ -3629,18 +3625,14 @@ function WorkspaceEditor({
     tool,
     canvasDragSessionRef,
     pointFromClient,
-    completeVisualSelectionMove,
+    moveController: selectionMoveController,
     snapCoordinate,
-    annotationGrid,
     updateInstanceSelection,
     suppressInstanceClickRef: suppressInstanceClick,
-    resolveInstanceMove: instanceMoveAt,
-    completeInstanceMove,
     logicalRadiusForPixels,
     snapGuides: paintSnapGuides,
     setProjectedMovePreview: setProjectedMovePreviewDocument,
     beginSelectionMoveInteraction,
-    visualMoveOrigin: commandMoveVisualOrigin,
   });
 
   const textEditingTarget = textEditing
@@ -9344,7 +9336,7 @@ function WorkspaceEditor({
           grid={{ visible: gridDotsVisible, viewBox }}
           sceneInnerHtml={sceneInnerHtml}
           selectionHalo={{
-            document,
+            document: renderedDocument,
             resolver,
             styleProfile,
             selectedInstanceIds:

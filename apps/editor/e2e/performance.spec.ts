@@ -45,6 +45,202 @@ let server: PreviewServer | undefined;
 let origin = "";
 
 test.describe("editor latency on a large Project", () => {
+  // Identical physical mixed-selection trajectory for before/after builds.
+  // Timing is evidence only; commit and Undo are observable correctness gates.
+  test("records mixed-selection drag through sub-pixel pointer steps", async ({
+    page,
+  }) => {
+    test.setTimeout(180_000);
+    await page.setViewportSize({ width: 1600, height: 1000 });
+    const project = createBrowserPerformanceProject();
+    project.documents[0]!.drafting = {
+      objects: Array.from({ length: 32 }, (_, index) => ({
+        id: `perf-text-${index}`,
+        kind: "text" as const,
+        content: { runs: [{ kind: "text" as const, value: `note-${index}` }] },
+        anchor: {
+          kind: "free" as const,
+          position: {
+            x: 93 + (index % 20) * 80,
+            y: 111 + Math.floor(index / 20) * 80,
+          },
+        },
+        alignment: "start" as const,
+        rotation: 0,
+        locked: false,
+        zIndex: 0,
+      })),
+    };
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    await page.addInitScript(() => {
+      const perf = {
+        frames: [] as number[],
+        tasks: [] as { start: number; duration: number }[],
+      };
+
+      (
+        window as unknown as {
+          __mixedPerf: {
+            frames: number[];
+            tasks: { start: number; duration: number }[];
+          };
+        }
+      ).__mixedPerf = perf;
+      new PerformanceObserver((list) => {
+        for (const entry of list.getEntries())
+          perf.tasks.push({ start: entry.startTime, duration: entry.duration });
+      }).observe({ entryTypes: ["longtask"] });
+      const tick = (time: number) => {
+        perf.frames.push(time);
+        requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    });
+    await page.goto(origin + "editor");
+    await page.getByTestId("project-file").setInputFiles({
+      name: "mixed-profile.icproj.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(JSON.stringify(project)),
+    });
+    await page.getByTestId("hit-R001").waitFor();
+    const netlist = page.getByTestId("netlist-panel-toggle");
+    if ((await netlist.getAttribute("aria-pressed")) === "true")
+      await netlist.click();
+    await page.waitForTimeout(2000);
+    const measurements: unknown[] = [];
+    for (let sample = 0; sample < 4; sample++) {
+      await page.getByTestId("schematic-canvas").focus();
+      await page.keyboard.press("Control+a");
+      const start = await page.evaluate(() => {
+        const canvas = document.querySelector(
+          '[data-testid="schematic-canvas"]',
+        ) as SVGSVGElement;
+        for (const hit of document.querySelectorAll(
+          '[data-canvas-hit-kind="instance"]',
+        )) {
+          const r = hit.getBoundingClientRect();
+          for (const fx of [0.5, 0.25, 0.75])
+            for (const fy of [0.5, 0.25, 0.75]) {
+              const x = r.x + r.width * fx,
+                y = r.y + r.height * fy;
+              if (
+                document
+                  .elementFromPoint(x, y)
+                  ?.closest("[data-canvas-hit-id]") === hit
+              )
+                return {
+                  x,
+                  y,
+                  id: hit.getAttribute("data-canvas-hit-id")!,
+                  scale: canvas.getScreenCTM()!.a,
+                };
+            }
+        }
+        throw new Error("No unoccluded instance body for a real mixed drag");
+      });
+      const hit = page.getByTestId(`hit-${start.id}`);
+      const before = (await hit.boundingBox())!;
+      await page.keyboard.down("Alt");
+      await page.mouse.move(start.x, start.y);
+      const from = await page.evaluate(() => performance.now());
+      await page.mouse.down();
+      for (let step = 1; step <= 60; step++)
+        await page.mouse.move(
+          start.x + step * start.scale,
+          start.y + (step * start.scale) / 3,
+        );
+      await page.locator(".schematic-canvas.semantic-move-preview").waitFor();
+      await page.evaluate(
+        () =>
+          new Promise<void>((resolve) =>
+            requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+          ),
+      );
+      await page.mouse.up();
+      await page.keyboard.up("Alt");
+      const to = await page.evaluate(() => performance.now());
+      await expect
+        .poll(async () =>
+          Math.round(((await hit.boundingBox())!.x - before.x) / start.scale),
+        )
+        .toBe(60);
+      measurements.push(
+        await page.evaluate(
+          ({ from, to }) => {
+            const perf = (
+              window as unknown as {
+                __mixedPerf: {
+                  frames: number[];
+                  tasks: { start: number; duration: number }[];
+                };
+              }
+            ).__mixedPerf as {
+              frames: number[];
+              tasks: { start: number; duration: number }[];
+            };
+            const frames = perf.frames.filter(
+              (time) => time >= from && time <= to,
+            );
+            const gaps = frames
+              .slice(1)
+              .map((time, index) => time - frames[index]!)
+              .sort((a, b) => a - b);
+            return {
+              durationMs: to - from,
+              paintedFrames: frames.length,
+              frameGapMedianMs: gaps[Math.floor(gaps.length / 2)],
+              frameGapP95Ms: gaps[Math.ceil(gaps.length * 0.95) - 1],
+              longTasks: perf.tasks.filter(
+                (task) => task.start >= from && task.start <= to,
+              ),
+            };
+          },
+          { from, to },
+        ),
+      );
+      await page.getByTestId("schematic-canvas").focus();
+      await page.keyboard.press("Control+z");
+      await expect
+        .poll(async () =>
+          Math.round(((await hit.boundingBox())!.x - before.x) / start.scale),
+        )
+        .toBe(0);
+      await page.waitForTimeout(1000);
+    }
+    if (errors.length) throw new Error(JSON.stringify(errors));
+    const report = {
+      commit: execFileSync("git", ["rev-parse", "HEAD"], {
+        encoding: "utf8",
+      }).trim(),
+      dirty:
+        execFileSync("git", ["status", "--porcelain"], {
+          encoding: "utf8",
+        }).trim().length > 0,
+      builtIndexSha256: createHash("sha256")
+        .update(readFileSync("apps/editor/dist/index.html"))
+        .digest("hex"),
+      browser: page.context().browser()?.version(),
+      viewport: page.viewportSize(),
+      fixture: {
+        instances: 260,
+        routes: 580,
+        junctions: 232,
+        annotations: 264,
+        draftText: 32,
+      },
+      trajectory:
+        "Ctrl+A; Alt+physical body drag, 60 CDP pointer steps over (60,20) logical units; Undo between samples",
+      measurements,
+      note: "Production build, synthetic dense fixture and browser bridge included; cold first sample, remaining warm. No timing assertions; no active test/build workload during comparable runs.",
+    };
+    mkdirSync("output/performance", { recursive: true });
+    writeFileSync(
+      `output/performance/mixed-profile-${process.env.PROFILE_LABEL ?? "trial"}-${Date.now()}.json`,
+      JSON.stringify(report, null, 2),
+    );
+    process.stdout.write(JSON.stringify(report, null, 2));
+  });
   test.skip(!enabled, "set ICM_PERF=1 to run the latency harness");
 
   test.beforeAll(async () => {

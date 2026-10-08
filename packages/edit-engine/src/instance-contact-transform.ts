@@ -8,7 +8,7 @@ import {
   placementWireSources,
   proposePlacementContact,
 } from "./instance-contact-planner.js";
-import { planRoutingTransform } from "./routing-transform-planner.js";
+import { prepareRoutingTransform } from "./routing-transform-planner.js";
 import {
   createRoutingOperationPlan,
   type RoutingOperationPlan,
@@ -37,10 +37,39 @@ export function planInstanceContactTransform(
   delta: Point,
   connectAtDrop: boolean,
 ): RoutingOperationPlan {
-  const transform = planRoutingTransform(document, resolver, seed, {
-    kind: "translate",
-    delta,
-  });
+  return prepareInstanceContactTransform(
+    document,
+    resolver,
+    seed,
+  )(delta, connectAtDrop);
+}
+
+/** One immutable source/closure for repeated final-position proposals. */
+export function prepareInstanceContactTransform(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  seed: RoutingSelectionSeed,
+): (delta: Point, connectAtDrop: boolean) => RoutingOperationPlan {
+  const planTransform = prepareRoutingTransform(document, resolver, seed);
+  return (delta, connectAtDrop) =>
+    planContactAtDrop(
+      document,
+      resolver,
+      seed,
+      delta,
+      connectAtDrop,
+      planTransform({ kind: "translate", delta }),
+    );
+}
+
+function planContactAtDrop(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  seed: RoutingSelectionSeed,
+  delta: Point,
+  connectAtDrop: boolean,
+  transform: RoutingOperationPlan,
+): RoutingOperationPlan {
   if (
     !connectAtDrop ||
     (delta.x === 0 && delta.y === 0) ||

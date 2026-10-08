@@ -174,7 +174,7 @@ function runMove(options: {
     x: 500 + (options.target.x - options.pinStart.x),
     y: 500 + (options.target.y - options.pinStart.y),
   };
-  const resolved = controller.resolveInstanceMove(
+  const resolved = controller.resolveSelectionMove(
     preview,
     position,
     7,
@@ -182,7 +182,7 @@ function runMove(options: {
     undefined,
     document,
   );
-  controller.completeInstanceMove(preview, position, 7, false, resolved.snap, {
+  controller.completeSelectionMove(preview, position, 7, false, resolved.snap, {
     document,
     prefixEdits: [],
     resolvedMove: resolved,
