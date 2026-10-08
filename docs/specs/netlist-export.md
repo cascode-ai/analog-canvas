@@ -343,6 +343,11 @@ closes through `ideal_switch`, an `SW` model card (RON 1 Ω, ROFF 1e12 Ω, VT
 whose label still shows its own name is clocked by a phase of that name, so a
 freshly placed `S1` prints as `S1 a b S1 VSS ideal_switch` and warns that
 nothing drives `S1`; writing Φ₁ on its label moves it onto that shared clock.
+A bar over the label (E̅N̅, Φ̄₁; the overbar style, or combining overlines or
+macrons) names the phase's complement: the switch takes the plain phase's node
+and closes through `ideal_switch_bar`, the same card with RON 1e12 Ω and ROFF
+1 Ω, which conducts while that phase is low. One clock then drives both
+phases, as a chopper or a two-phase figure draws them.
 Spectre writes the same Cell-local four-terminal master as a hard conductance
 `bsource`, with those unchanged defaults and phase/CTRL semantics. It neither
 invents a clock nor smooths a transition. The SPDT selector has no primitive.

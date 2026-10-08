@@ -2155,6 +2155,102 @@ describe("drawn switches", () => {
     expect(text.match(/\.model/gu)).toHaveLength(1);
   });
 
+  it("closes a switch drawn on a phase's complement while that phase is low (#1475)", () => {
+    const overbar = (value: string) => ({
+      runs: [
+        {
+          kind: "span" as const,
+          style: "overbar" as const,
+          children: [{ kind: "text" as const, value }],
+        },
+      ],
+    });
+    // E̅N̅ as an overbar style, E̅N̅ typed with combining overlines, and Φ̄₁
+    // with the bar over Φ alone: each is the complement of the plain phase.
+    for (const [label, node] of [
+      [overbar("EN"), "EN"],
+      [{ runs: [{ kind: "text" as const, value: "E\u0305N\u0305" }] }, "EN"],
+      [
+        {
+          runs: [
+            ...overbar("Φ").runs,
+            {
+              kind: "span" as const,
+              style: "subscript" as const,
+              children: [{ kind: "text" as const, value: "1" }],
+            },
+          ],
+        },
+        "PHI1",
+      ],
+    ] as const) {
+      const project = switched("ideal-switch", label as never);
+      // A switch on the plain phase beside it, in the same Cell.
+      const document = project.documents[0]!;
+      document.instances.push({
+        id: "S2",
+        symbolId: "ideal-switch",
+        placement: null,
+        reference: "S2",
+        netlist: { parameters: {} },
+      });
+      for (const [pinName, name] of [
+        ["1", "in2"],
+        ["2", "out2"],
+      ] as const) {
+        document.nets.push({
+          id: `net-${name}`,
+          terminals: [{ instanceId: "S2", pinName }],
+        });
+        claimNet(document, `net-${name}`, name);
+      }
+      document.annotations.push({
+        id: "label-S2",
+        kind: "instance-label",
+        anchor: {
+          kind: "object",
+          objectId: "S2",
+          localOffset: { x: 20, y: 0 },
+          fallbackPosition: { x: 20, y: 0 },
+        },
+        content: {
+          runs: [
+            {
+              kind: "text",
+              value: node === "EN" ? "EN" : "Φ",
+            },
+            ...(node === "EN"
+              ? []
+              : [
+                  {
+                    kind: "span" as const,
+                    style: "subscript" as const,
+                    children: [{ kind: "text" as const, value: "1" }],
+                  },
+                ]),
+          ],
+        },
+        alignment: "start",
+        rotation: 0,
+        locked: false,
+      });
+      const analysis = analyzeDesignNetlist(project);
+      expect(
+        analysis.diagnostics.filter((item) => item.severity === "error"),
+      ).toEqual([]);
+      const text = printSpiceNetlist(analysis.ir!);
+      // One clock node, two models: the complement closes while it is low.
+      expect(text).toContain(`S1 in out ${node} 0 ideal_switch_bar`);
+      expect(text).toContain(`S2 in2 out2 ${node} 0 ideal_switch`);
+      expect(text).toContain(
+        ".model ideal_switch_bar SW(RON=1e12 ROFF=1 VT=0.5 VH=0)",
+      );
+      expect(text).toContain(
+        ".model ideal_switch SW(RON=1 ROFF=1e12 VT=0.5 VH=0)",
+      );
+    }
+  });
+
   it("meets the clock drawn on a Net of the phase's name, in either case", () => {
     const project = switched("closed-switch", {
       runs: [{ kind: "text", value: "φ2" }],

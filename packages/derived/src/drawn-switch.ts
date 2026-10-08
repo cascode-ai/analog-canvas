@@ -2,6 +2,7 @@ import type { DeviceDescriptor } from "@icm/devices";
 import {
   flattenRichText,
   type Instance,
+  type RichTextRun,
   type SchematicDocument,
 } from "@icm/model";
 
@@ -23,14 +24,27 @@ export function drawnSwitchControl(
     : null;
 }
 
+/** A bar drawn over text: COMBINING OVERLINE or COMBINING MACRON. */
+const BAR = /[\u0304\u0305]/u;
+
+function overbarred(runs: readonly RichTextRun[]): boolean {
+  return runs.some(
+    (run) =>
+      run.kind === "span" &&
+      (run.style === "overbar" || overbarred(run.children)),
+  );
+}
+
 /**
  * The clock phase a switch's label names — Φ1 for a label drawn Φ₁ — or null
- * while the label shows the switch's own name.
+ * while the label shows the switch's own name. A bar over the label (E̅N̅,
+ * Φ̄₁), drawn as the overbar style or typed with combining bars, names the
+ * phase's complement: the switch closes while that phase is low (#1475).
  */
 export function drawnSwitchPhase(
   document: SchematicDocument,
   instance: Instance,
-): string | null {
+): { phase: string; complement: boolean } | null {
   const label = document.annotations.find(
     (annotation) =>
       annotation.kind === "instance-label" &&
@@ -40,8 +54,14 @@ export function drawnSwitchPhase(
       annotation.content,
   );
   if (!label?.content) return null;
-  const phase = flattenRichText(label.content)
+  const text = flattenRichText(label.content).normalize("NFD");
+  const phase = text
+    .replace(/[\u0304\u0305]/gu, "")
     .normalize("NFKC")
     .replace(/\s+/gu, "");
-  return phase || null;
+  if (!phase) return null;
+  return {
+    phase,
+    complement: BAR.test(text) || overbarred(label.content.runs),
+  };
 }

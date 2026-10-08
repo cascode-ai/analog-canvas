@@ -96,8 +96,14 @@ import {
   idealAnalogBlockCell,
   projectSubcircuitNames,
 } from "./ideal-analog-block-models.js";
-import { IDEAL_SWITCH_MODEL } from "./ideal-switch-model.js";
-export { IDEAL_SWITCH_MODEL } from "./ideal-switch-model.js";
+import {
+  IDEAL_SWITCH_COMPLEMENT_MODEL,
+  IDEAL_SWITCH_MODEL,
+} from "./ideal-switch-model.js";
+export {
+  IDEAL_SWITCH_COMPLEMENT_MODEL,
+  IDEAL_SWITCH_MODEL,
+} from "./ideal-switch-model.js";
 
 /** A target with a shared generated recipe: logic, multiplier, converters. */
 function isBehaviouralTarget(target: string): boolean {
@@ -1615,11 +1621,15 @@ function extractDrawnSwitch(
 ): DesignNetlistInstance | null {
   const reference = instance.reference!;
   let controlNode: string | null;
+  let complement = false;
   if (control === "phase") {
     // A switch whose label still shows its own name is clocked by a phase of
     // that name, so a freshly placed switch netlists at once. Writing Φ1 on
-    // the label moves it onto a shared clock.
-    const drawnPhase = drawnSwitchPhase(document, instance);
+    // the label moves it onto a shared clock; a bar over it, onto the same
+    // clock's complement.
+    const drawn = drawnSwitchPhase(document, instance);
+    const drawnPhase = drawn?.phase ?? null;
+    complement = drawn?.complement ?? false;
     const phase = drawnPhase ?? reference;
     const encoded = encodeCandidate(phase, "local", options);
     if (!encoded.ok) {
@@ -1684,7 +1694,9 @@ function extractDrawnSwitch(
     reference,
     invocationKind: "primitive",
     deviceClass: "switch",
-    target: IDEAL_SWITCH_MODEL.name,
+    target: complement
+      ? IDEAL_SWITCH_COMPLEMENT_MODEL.name
+      : IDEAL_SWITCH_MODEL.name,
     nodes: [
       ...nodes,
       { pinName: control === "pin" ? "CTRL" : "CP", netName: controlNode },
@@ -3005,14 +3017,14 @@ function extractCell(
     if (extracted) instances.push(extracted);
   }
   const models: DesignNetlistModel[] = [];
-  if (
-    instances.some(
-      (instance) =>
-        instance.deviceClass === "switch" &&
-        instance.target === IDEAL_SWITCH_MODEL.name,
+  for (const model of [IDEAL_SWITCH_MODEL, IDEAL_SWITCH_COMPLEMENT_MODEL])
+    if (
+      instances.some(
+        (instance) =>
+          instance.deviceClass === "switch" && instance.target === model.name,
+      )
     )
-  )
-    models.push(structuredClone(IDEAL_SWITCH_MODEL));
+      models.push(structuredClone(model));
   // The parts a generic card stands in for, and the Cell then carries it.
   // SPICE only (VACASK prints them from the SPICE cards). A Spectre export
   // still names DIODE, NPN and PNP for the reader's libraries to define.

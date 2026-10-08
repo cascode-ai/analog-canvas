@@ -13,6 +13,22 @@ export const IDEAL_SWITCH_MODEL: DesignNetlistModel = {
   ],
 };
 
+/**
+ * A switch drawn on a phase's complement (E̅N̅, Φ̄₁): the same switch with its
+ * on and off resistances exchanged, so it closes while the phase is low and
+ * one clock drives both phases (#1475).
+ */
+export const IDEAL_SWITCH_COMPLEMENT_MODEL: DesignNetlistModel = {
+  name: "ideal_switch_bar",
+  type: "SW",
+  parameters: [
+    { name: "RON", rawValue: "1e12" },
+    { name: "ROFF", rawValue: "1" },
+    { name: "VT", rawValue: "0.5" },
+    { name: "VH", rawValue: "0" },
+  ],
+};
+
 /** Hard, non-hysteretic conductance. No hidden smoothing or parasitics. */
 export function switchBehavioralDefinition(
   model: DesignNetlistModel,
