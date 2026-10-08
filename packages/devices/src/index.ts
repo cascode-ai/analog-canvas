@@ -9,3 +9,4 @@ export * from "./instance-parameters.js";
 export * from "./built-in-model-contracts.js";
 export * from "./adder.js";
 export * from "./ideal-comparator.js";
+export * from "./ideal-opamp.js";

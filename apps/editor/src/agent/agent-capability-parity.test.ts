@@ -172,7 +172,8 @@ it("gives Agent-placed comparators the same isolated model as GUI placement", as
   });
   expect(controller.document.instances[1]?.netlist).toEqual({
     binding: { kind: "unresolved-subcircuit", name: "opamp" },
-    parameters: { gain: "1e6" },
+    // Its limits follow its supplies until a number is typed (#1463).
+    parameters: { gain: "1e6", vhigh: "VDD", vlow: "VSS" },
   });
 });
 

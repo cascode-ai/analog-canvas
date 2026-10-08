@@ -174,12 +174,33 @@ library model or PDK.
 
 Each exportable electrical device Symbol has one reviewed `DeviceDescriptor`
 in `packages/devices`. Built-in Analog Blocks have a subcircuit descriptor: a
-master name and ordered ports, including fixed supply ports. Five amplifier
-targets now have built-in, frequency-independent ideal E/G-source masters;
-their VDD/VSS ports remain in the interface but do not power or clamp the
-model. The default opamp gain is 1e6, voltage-amplifier gain is 1, and
+master name and ordered ports, including fixed supply ports. Four amplifier
+targets have built-in, frequency-independent ideal E/G-source masters: the
+voltage amplifier, both transconductors and the fully differential op-amp.
+Their VDD/VSS ports remain in the interface but do not power or clamp the
+model, and their outputs may exceed supply rails. The default
+differential op-amp gain is 1e6, voltage-amplifier gain is 1, and
 transconductance is 1m siemens; these are raw instance overrides named `gain`
-or `gm`, not a foundry model. Outputs may exceed supply rails. The logic
+or `gm`, not a foundry model.
+
+The op-amp is limited (#1463). Its output is `gain`·V(IN+, IN−) (default
+1e6) from ground, exact between a low and a high limit, and bends onto each
+limit within a ten-thousandth of their span; a linear stage of its own keeps
+ngspice solving oscillators and Schmitt triggers that drive it into a limit.
+`vhigh` and `vlow` set the limits: each is a level in volts, or the op-amp's
+own supply, `VDD` and `VSS`, the defaults. An op-amp is powered when its VDD
+is a Net, selected in Properties or the Cell's one drawn positive supply; a
+powered op-amp's supply limits read that VDD and its VSS, usually ground. An
+op-amp with no supply drawn reads +5 V and −5 V for them (owner decision,
+2026-10-08), so a textbook figure drawn without supplies still saturates. As
+with the comparator, each kind of limit chooses a body of its own:
+`opamp` for two levels, `icm_opamp_vdd`, `icm_opamp_vss` or
+`icm_opamp_vdd_vss` for limits read from the supplies. No call carries
+`vhigh=VDD`, so a Project's own `opamp` definition, which replaces every
+body, never receives one. A limit that is neither a number nor its supply,
+or two levels with no room between them, is `INVALID_IDEAL_OPAMP_LIMIT`. The
+fully differential op-amp stays unlimited: its outputs sit about ground,
+with no common mode a limit could keep. The logic
 Symbols — gates, buffer, inverter, adder, multiplier and the
 D flip-flops — are Blocks on that same contract: the drawing says what the
 block is and which nodes it meets. Their ports follow the Symbol's own pins, a
@@ -817,7 +838,8 @@ choice with `circuit_properties` `set-block-supply {target, supply, net}`;
 
 Some built-in bodies never read their supplies: the ideal amplifiers and the
 adder in either format, and the multiplier and the ideal comparator with a
-numeric high level in SPICE. When such a Block has neither a selected nor a
+numeric high level in SPICE. The op-amp reads its supplies only once a drawn
+or selected VDD powers it, so it, too, takes no default supply. When such a Block has neither a selected nor a
 drawn supply, the unused port is tied to node `0` and nothing blocks. A
 textbook switched-capacitor integrator therefore exports without a supply
 drawn. The ideal comparator whose high level is `VDD` reads VDD alone: it
