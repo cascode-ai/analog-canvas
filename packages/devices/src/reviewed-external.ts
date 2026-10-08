@@ -122,6 +122,24 @@ export interface ReviewedExternalDeviceBinding {
    * high-voltage ones nest it or name it otherwise.
    */
   readonly nativeElement?: string;
+  /**
+   * The only sizes the process library models, for a device it models at a
+   * few sizes rather than over a range (SKY130's 16 V pair). ngspice picks a
+   * model by the W and L the X line gives (by total W, as the hosted profile
+   * runs it; a PDK spinit with `ngbehavior=hsa` takes W per finger) and stops
+   * with "could not find a valid modelname" at any other size (#1483).
+   */
+  readonly modelledSizes?: ReviewedModelledSizes;
+}
+
+/** A device's model bins, in metres as its library gives them. */
+export interface ReviewedModelledSizes {
+  readonly bins: readonly {
+    readonly length: readonly [min: number, max: number];
+    readonly width: readonly [min: number, max: number];
+  }[];
+  /** The bins for people, as a finding names them. */
+  readonly description: string;
 }
 
 const geometry = (
@@ -206,6 +224,105 @@ export function projectLengthToSky130Micrometres(value: string): string {
   return `${Number((parseSpiceNumber(value) / 1e-6).toPrecision(12))}`;
 }
 
+const sizeParameter = (
+  binding: ReviewedExternalDeviceBinding,
+  role: "width" | "length",
+) => binding.parameters.find((parameter) => parameter.displayRole === role);
+
+/** One of a part's sizes, as a reviewed device takes it. */
+export interface ReviewedSize {
+  /** The part's value, or the device's default when the part has none. */
+  readonly text: string;
+  /** In metres; undefined when an expression or unreadable text gives it. */
+  readonly metres?: number;
+}
+
+/**
+ * The W and L a part's parameters give a reviewed device. A missing one is
+ * the device's default, as its wrapper takes it; undefined when the device
+ * has no such size.
+ */
+export function reviewedSize(
+  binding: ReviewedExternalDeviceBinding,
+  parameters: Readonly<Record<string, string>>,
+): {
+  readonly width: ReviewedSize | undefined;
+  readonly length: ReviewedSize | undefined;
+} {
+  const read = (role: "width" | "length"): ReviewedSize | undefined => {
+    const parameter = sizeParameter(binding, role);
+    const text =
+      parameter &&
+      (Object.entries(parameters).find(
+        ([name]) => name.toLowerCase() === parameter.name.toLowerCase(),
+      )?.[1] ??
+        parameter.defaultValue);
+    if (text === undefined) return undefined;
+    if (parameterExpressionBody(text) !== undefined) return { text };
+    try {
+      return { text, metres: parseSpiceNumber(text) };
+    } catch {
+      return { text };
+    }
+  };
+  return { width: read("width"), length: read("length") };
+}
+
+/**
+ * Whether a device's library has a model at the W and L a part's parameters
+ * give it. Undefined when that cannot be said: the device declares no
+ * modelled sizes, or an expression leaves it open.
+ */
+export function reviewedSizeModelled(
+  binding: ReviewedExternalDeviceBinding,
+  parameters: Readonly<Record<string, string>>,
+): boolean | undefined {
+  const sizes = binding.modelledSizes;
+  if (!sizes) return undefined;
+  const size = reviewedSize(binding, parameters);
+  const width = size.width?.metres;
+  const length = size.length?.metres;
+  // ngspice 46 (inpgmod.c) takes a value inside a bin or within 1e-9 m of
+  // either edge. An unknown value fits any bin.
+  const inside = (
+    value: number | undefined,
+    [low, high]: readonly [number, number],
+  ) =>
+    value === undefined ||
+    Math.abs(value - low) < 1e-9 ||
+    Math.abs(value - high) < 1e-9 ||
+    (low < value && value < high);
+  if (
+    !sizes.bins.some(
+      (bin) => inside(length, bin.length) && inside(width, bin.width),
+    )
+  )
+    return false;
+  return width === undefined || length === undefined ? undefined : true;
+}
+
+/**
+ * What gives a part a size its device has a model for, when its own is none:
+ * the device's own W and L, except where an expression stands, which stays.
+ * Empty when the part's size is modelled or open.
+ */
+export function reviewedModelledSizeChanges(
+  binding: ReviewedExternalDeviceBinding,
+  parameters: Readonly<Record<string, string>>,
+): Record<string, string> {
+  if (reviewedSizeModelled(binding, parameters) !== false) return {};
+  const size = reviewedSize(binding, parameters);
+  return Object.fromEntries(
+    (["width", "length"] as const).flatMap((role) => {
+      const parameter = sizeParameter(binding, role);
+      return parameter?.defaultValue !== undefined &&
+        size[role]?.metres !== undefined
+        ? [[parameter.name, parameter.defaultValue]]
+        : [];
+    }),
+  );
+}
+
 const mosTerminals = (): readonly ReviewedExternalTerminalBinding[] =>
   ["D", "G", "S", "B"].map((name) => ({
     targetName: name,
@@ -236,6 +353,28 @@ const sky130MosBinding = (
   ],
   ...(nativeElement ? { nativeElement } : {}),
 });
+
+/**
+ * The bins of SKY130's 16 V models (sky130_fd_pr__nfet_g5v0d16v0.pm3.spice
+ * and sky130_fd_pr__pfet_g5v0d16v0.pm3.spice, open_pdks c6d73a35).
+ */
+const SKY130_NFET_16V_SIZES: ReviewedModelledSizes = {
+  bins: [
+    { length: [6.95e-7, 7.05e-7], width: [1.9995e-5, 2.00005e-5] },
+    { length: [6.95e-7, 7.05e-7], width: [4.995e-6, 5.0005e-6] },
+    { length: [6.95e-7, 7.05e-7], width: [4.995e-5, 6.0005e-5] },
+    { length: [2.195e-6, 2.25e-6], width: [1.9995e-5, 2.0005e-5] },
+    { length: [2.195e-6, 2.25e-6], width: [4.995e-6, 5.005e-6] },
+  ],
+  description: "W 5, 20 or 50–60 µm at L 0.7 µm, or W 5 or 20 µm at L 2.2 µm",
+};
+const SKY130_PFET_16V_SIZES: ReviewedModelledSizes = {
+  bins: [
+    { length: [6.55e-7, 6.65e-7], width: [4.99e-6, 5.01e-5] },
+    { length: [2.15e-6, 2.17e-6], width: [4.99e-6, 5.01e-5] },
+  ],
+  description: "W 5–50 µm at L 0.66 or 2.16 µm",
+};
 
 /**
  * The 20 V drain-extended wrappers fix their channel inside (the N devices
@@ -608,23 +747,29 @@ export const reviewedExternalDeviceBindings: readonly ReviewedExternalDeviceBind
       "500n",
     ),
     // Drain-extended devices are drawn with the DMOS symbols. The 16 V pair
-    // keeps binned geometry: N at L 0.7 or 2.2 um, P at L 0.66 or 2.16 um.
-    sky130MosBinding(
-      "sky130-nfet-g5v0d16v0",
-      "sky130_fd_pr__nfet_g5v0d16v0",
-      "ndmos",
-      "5u",
-      "700n",
-      "xmain1.msky130_fd_pr__nfet_g5v0d16v0__base",
-    ),
-    sky130MosBinding(
-      "sky130-pfet-g5v0d16v0",
-      "sky130_fd_pr__pfet_g5v0d16v0",
-      "pdmos",
-      "5u",
-      "660n",
-      "xmain1.msky130_fd_pr__pfet_g5v0d16v0__base",
-    ),
+    // is modelled only at a few sizes, its defaults among them.
+    {
+      ...sky130MosBinding(
+        "sky130-nfet-g5v0d16v0",
+        "sky130_fd_pr__nfet_g5v0d16v0",
+        "ndmos",
+        "5u",
+        "700n",
+        "xmain1.msky130_fd_pr__nfet_g5v0d16v0__base",
+      ),
+      modelledSizes: SKY130_NFET_16V_SIZES,
+    },
+    {
+      ...sky130MosBinding(
+        "sky130-pfet-g5v0d16v0",
+        "sky130_fd_pr__pfet_g5v0d16v0",
+        "pdmos",
+        "5u",
+        "660n",
+        "xmain1.msky130_fd_pr__pfet_g5v0d16v0__base",
+      ),
+      modelledSizes: SKY130_PFET_16V_SIZES,
+    },
     sky130FixedMosBinding(
       "sky130-nfet-20v0",
       "sky130_fd_pr__nfet_20v0",
