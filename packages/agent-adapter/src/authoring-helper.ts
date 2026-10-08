@@ -366,7 +366,14 @@ function instanceNamed(
       kind,
       `"${name}" names ${named.length} parts (${named.map((instance) => instance.id).join(", ")}); name one by {kind:"instance", id}`,
     );
-  return named[0];
+  // A part with no Reference of its own, such as a ground, is named by the
+  // id its placement chose, in a later call as in the same list.
+  return (
+    named[0] ??
+    [...document.instances, ...document.listed].find(
+      (instance) => instance.id === name,
+    )
+  );
 }
 
 function resolveInstance(
@@ -387,7 +394,7 @@ function resolveInstance(
     throw new ActionCompileError(
       index,
       kind,
-      `no instance matches ${ref.id ? `id "${ref.id}"` : `Reference "${ref.reference ?? ""}"`}`,
+      `no instance matches ${ref.id ? `id "${ref.id}"` : `Reference or id "${ref.reference ?? ""}"`}`,
     );
   }
   return found;

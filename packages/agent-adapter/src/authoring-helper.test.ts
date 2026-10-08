@@ -1236,7 +1236,7 @@ describe("authoring helper compilation", () => {
           targets: [{ kind: "instance", reference: "M9" }],
         },
       ],
-      'no instance matches Reference "M9"',
+      'no instance matches Reference or id "M9"',
     );
     for (const action of [
       {
