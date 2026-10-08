@@ -37,6 +37,13 @@ import {
   type SessionUser,
 } from "./auth";
 import { bearerMatches } from "./bearer";
+import {
+  GALLERY_SOURCES,
+  galleryStoreName,
+  gallerySourceByKey,
+  gallerySourceOfEntryId,
+  type GallerySource,
+} from "./gallery-sources";
 import { sameOrigin } from "./same-origin";
 import {
   dailySubmissionLimit,
@@ -1743,6 +1750,127 @@ async function directGalleryResource(
   });
 }
 
+/** The same bindings, with the Gallery store of a reference dataset. */
+function withGalleryStore(env: GalleryEnv, source: GallerySource): GalleryEnv {
+  return {
+    ...env,
+    GALLERY: {
+      getByName: () => env.GALLERY.getByName(galleryStoreName(source)),
+    } as unknown as GalleryEnv["GALLERY"],
+  };
+}
+
+/** Every reference dataset, with how many circuits its store shows. */
+async function gallerySourceCounts(env: GalleryEnv) {
+  return Promise.all(
+    GALLERY_SOURCES.map(async (source) => {
+      const { payload } = await callGallery<{ count?: number }>(
+        withGalleryStore(env, source),
+        "public-count",
+        {},
+      );
+      return { ...source, count: Number(payload.count ?? 0) };
+    }),
+  );
+}
+
+/** Circuits one import request may carry. */
+export const GALLERY_SOURCE_IMPORT_BATCH = 10;
+
+/**
+ * The Owner imports circuits into a reference dataset (#1510): each under
+ * the id its dataset gives it, inserted or replaced in place, attributed to
+ * the dataset. Same checks as a submission's Project; nothing else writes
+ * to a dataset's store.
+ */
+async function handleSourceImport(
+  request: Request,
+  env: GalleryEnv,
+  source: GallerySource,
+): Promise<Response> {
+  if (!sameOrigin(request))
+    return Response.json({ error: "forbidden" }, { status: 403 });
+  const user = await sessionUserOf(request, env);
+  if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
+  if (!user.isOwner)
+    return Response.json({ error: "owner-only" }, { status: 403 });
+  const body = (await request.json().catch(() => null)) as {
+    entries?: unknown;
+  } | null;
+  const entries = Array.isArray(body?.entries) ? body.entries : null;
+  if (
+    !entries ||
+    entries.length === 0 ||
+    entries.length > GALLERY_SOURCE_IMPORT_BATCH
+  )
+    return Response.json({ error: "invalid-fields" }, { status: 400 });
+  const store = withGalleryStore(env, source);
+  const results = [];
+  for (const item of entries as Record<string, unknown>[]) {
+    const id = typeof item?.id === "string" ? item.id : "";
+    const refuse = (error: string) => ({ id, ok: false, error });
+    if (gallerySourceOfEntryId(id)?.key !== source.key) {
+      results.push(refuse("invalid-id"));
+      continue;
+    }
+    const name = fieldText(item.name, GALLERY_MAX_NAME_LENGTH);
+    const description =
+      item.description === undefined
+        ? ""
+        : fieldText(item.description, GALLERY_MAX_DESCRIPTION_LENGTH);
+    const createdAt =
+      typeof item.createdAt === "string" &&
+      !Number.isNaN(Date.parse(item.createdAt))
+        ? new Date(item.createdAt).toISOString()
+        : undefined;
+    if (!name || description === null) {
+      results.push(refuse("invalid-fields"));
+      continue;
+    }
+    if (
+      typeof item.projectText !== "string" ||
+      new TextEncoder().encode(item.projectText).length >
+        GALLERY_MAX_PROJECT_BYTES
+    ) {
+      results.push(refuse("invalid-project"));
+      continue;
+    }
+    let project: CircuitProject;
+    try {
+      project = parseProject(item.projectText);
+    } catch {
+      results.push(refuse("invalid-project"));
+      continue;
+    }
+    project.name = name;
+    const { status, payload } = await callGallery<Record<string, unknown>>(
+      store,
+      "import-entry",
+      {
+        id,
+        at: new Date().toISOString(),
+        ...(createdAt ? { createdAt } : {}),
+        name,
+        author: source.byline,
+        description,
+        projectText: serializeProject(project),
+        svgText: await renderPreview(
+          project,
+          createProjectSymbolResolver(project, builtInSymbols),
+        ),
+        schemaVersion: CURRENT_PROJECT_FILE_VERSION,
+        netlistable: designExtractsNetlist(project) ? 1 : 0,
+        componentCount: galleryComponentCount(project),
+        tags: wrapTags(sanitizeGalleryTags(item.tags)),
+      },
+    );
+    results.push(
+      status === 200 ? { ...payload, ok: true } : refuse(`http-${status}`),
+    );
+  }
+  return Response.json({ source: source.key, results });
+}
+
 export async function routeGalleryRequest(
   request: Request,
   env: GalleryEnv,
@@ -1853,6 +1981,34 @@ export async function routeGalleryRequest(
       { error: "sign-in-required" },
       { status: 401, headers: { "cache-control": "no-store" } },
     );
+  }
+
+  // Reference datasets (#1510). Each lives in a store of its own: a request
+  // reaches it by the import route, its entry's id, or the wall's `source`.
+  // Nothing writes there but the Owner's import.
+  if (segments[0] === "sources") {
+    if (segments.length === 1 && request.method === "GET")
+      return Response.json(
+        { sources: await gallerySourceCounts(env) },
+        { headers: { "cache-control": "no-store" } },
+      );
+    const named = gallerySourceByKey(segments[1]);
+    if (
+      named &&
+      segments.length === 3 &&
+      segments[2] === "entries" &&
+      request.method === "POST"
+    )
+      return handleSourceImport(request, env, named);
+    return Response.json({ error: "not-found" }, { status: 404 });
+  }
+  const source =
+    (segments[0] ? gallerySourceOfEntryId(segments[0]) : null) ??
+    gallerySourceByKey(url.searchParams.get("source"));
+  if (source) {
+    if (request.method !== "GET" && request.method !== "HEAD")
+      return Response.json({ error: "dataset-read-only" }, { status: 403 });
+    env = withGalleryStore(env, source);
   }
 
   if (

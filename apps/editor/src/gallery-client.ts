@@ -370,6 +370,8 @@ export function removeGalleryAuthorEntry(
 
 /** The server filters one wall asks for. */
 export interface GalleryFeedQuery {
+  /** A reference dataset's wall instead of the community's (#1510). */
+  source?: string | null;
   /**
    * Words the server searches names, bylines, descriptions and tags for,
    * before it pages, so an older match comes back on the first page.
@@ -395,6 +397,7 @@ export interface GalleryFeedQuery {
 
 function galleryFeedParams(query: GalleryFeedQuery): URLSearchParams {
   const params = new URLSearchParams();
+  if (query.source) params.set("source", query.source);
   if (query.q?.trim()) params.set("q", query.q.trim());
   if (query.attention) params.set("attention", "1");
   if (query.attention && query.attentionKind)

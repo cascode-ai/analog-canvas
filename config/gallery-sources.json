@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "sources": [
+    {
+      "key": "analoggenie",
+      "prefix": "ag",
+      "name": "AnalogGenie",
+      "byline": "AnalogGenie (redrawn)",
+      "license": "MIT",
+      "homepage": "https://github.com/xz-group/AnalogGenie",
+      "paper": "https://openreview.net/forum?id=jCPak79Kev"
+    },
+    {
+      "key": "circuitthink",
+      "prefix": "ct",
+      "name": "CircuitThink",
+      "byline": "CircuitThink (redrawn)",
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/7jiangyq/CircuitThink"
+    },
+    {
+      "key": "amsnet",
+      "prefix": "amsnet",
+      "name": "AMS-Net",
+      "byline": "AMS-Net (redrawn)",
+      "license": "GPL-3.0 website; data licence unconfirmed",
+      "homepage": "https://ams-net.github.io",
+      "paper": "https://arxiv.org/abs/2405.09045"
+    }
+  ]
+}

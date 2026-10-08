@@ -975,6 +975,16 @@ export class GalleryDO {
     switch (operation) {
       case "submit":
         return this.submit(body);
+      case "import-entry":
+        return this.importEntry(body);
+      case "public-count":
+        return Response.json({
+          count: this.sql
+            .exec<{ count: number }>(
+              "SELECT COUNT(*) AS count FROM gallery_entries WHERE status = 'public'",
+            )
+            .one().count,
+        });
       case "topology-inventory":
         return Response.json({
           ids: this.sql
@@ -1873,6 +1883,69 @@ export class GalleryDO {
         },
         true,
       ),
+    });
+  }
+
+  /**
+   * One circuit of a reference dataset (#1510), under the id its importer
+   * names: inserted, or replaced in place with the version it had saved. A
+   * dataset's entry belongs to no account and stays public.
+   */
+  private importEntry(body: Record<string, unknown>): Response {
+    const id = String(body.id);
+    const svgText = String(body.svgText);
+    const previewRevision = sha256Hex(svgText);
+    const previewDimensions = svgPreviewDimensions(svgText);
+    const at = String(body.at);
+    const row = this.sql
+      .exec<EntryRow>("SELECT * FROM gallery_entries WHERE id = ?", id)
+      .toArray()[0];
+    const fields = [
+      String(body.name),
+      String(body.author),
+      String(body.description),
+      Number(body.schemaVersion),
+      typeof body.tags === "string" ? body.tags : "",
+      String(body.projectText),
+      svgText,
+      Number(body.netlistable) === 1 ? 1 : 0,
+      NETLIST_MARK_RULE_VERSION,
+      ...countedParts(body.componentCount),
+      previewRevision,
+      previewDimensions?.width ?? null,
+      previewDimensions?.height ?? null,
+    ];
+    this.state.storage.transactionSync(() => {
+      if (row) {
+        this.snapshotEntry(row, at);
+        this.sql.exec(
+          `UPDATE gallery_entries
+           SET name = ?, author = ?, description = ?, schema_version = ?,
+               tags = ?, project_text = ?, svg_text = ?, netlistable = ?,
+               netlistable_version = ?, component_count = ?,
+               component_count_version = ?, preview_revision = ?,
+               preview_width = ?, preview_height = ?, status = 'public'
+           WHERE id = ?`,
+          ...fields,
+          id,
+        );
+      } else
+        this.sql.exec(
+          `INSERT INTO gallery_entries(
+            name, author, description, schema_version, tags, project_text,
+            svg_text, netlistable, netlistable_version, component_count,
+            component_count_version, preview_revision, preview_width,
+            preview_height, id, created_at, status, owner_user_id, ai_generated
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'public', NULL, 0)`,
+          ...fields,
+          id,
+          typeof body.createdAt === "string" ? body.createdAt : at,
+        );
+    });
+    return Response.json({
+      id,
+      created: !row,
+      previewRevision,
     });
   }
 
