@@ -221,7 +221,7 @@ Responses are private and not cached. Full-store backup/restore includes these
 snapshots; [Gallery-only backups](../gallery-backup.md) intentionally do not.
 The executable storage/retention boundary is
 [Cloud Project storage](../../worker/gallery-store-cloud-projects.ts); authorization and restore
-reuse live in [the HTTP handler](../../worker/gallery.ts).
+reuse live in [the HTTP handler](../../worker/gallery-cloud-projects.ts).
 
 ### Working-copy transitions
 

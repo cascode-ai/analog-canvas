@@ -28,12 +28,12 @@ import { CLOUD_PROJECT_LIMIT } from "./gallery-store-cloud-projects";
 import { GALLERY_NETLIST_PAGE_CHARACTERS } from "./gallery-store-maintenance";
 import {
   forgetEarlierOpens,
-  galleryReadableDocument,
-  refreshNetlistMarks,
   GalleryDO,
   routeGalleryRequest,
   type GalleryPreviewCache,
 } from "./gallery";
+import { galleryReadableDocument } from "./gallery-documents";
+import { refreshNetlistMarks } from "./gallery-maintenance";
 import {
   GALLERY_AI_SEAT_DAILY_LIMIT,
   GALLERY_DAILY_SUBMISSION_LIMIT,
