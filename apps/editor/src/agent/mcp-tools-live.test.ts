@@ -1012,6 +1012,30 @@ describe("MCP tools on the live editor", () => {
     ]);
   });
 
+  it("lists each part's id, name, symbol and position in one document read (#1525)", async () => {
+    const { editor, r1, vout } = await namedParts();
+    const listed = await editor.tool("inspect", {
+      target: { kind: "document" },
+      detail: "parts",
+    });
+    expect(listed.parts).toHaveLength(5);
+    expect(listed.parts).toEqual(
+      expect.arrayContaining([
+        {
+          id: r1,
+          name: "R1",
+          symbol: "resistor",
+          position: { x: 100, y: 100 },
+        },
+        expect.objectContaining({ id: vout, name: "Vout", symbol: "port" }),
+      ]),
+    );
+    expect(listed.nets).toEqual(
+      expect.arrayContaining([expect.objectContaining({ name: "Vout" })]),
+    );
+    expect(listed).not.toHaveProperty("instances");
+  });
+
   it("refuses an unknown name in the shape every tool answers with (#1525)", async () => {
     const { editor, r1 } = await namedParts();
     const refusal = async (target: Record<string, unknown>) => {

@@ -158,7 +158,7 @@ export function compactActionReport(report: ApplyActionsReport) {
 
 export function inspectDocument(
   entry: CachedSnapshot,
-  detail: "compact" | "full",
+  detail: "compact" | "parts" | "full",
 ): Record<string, unknown> {
   const document = entry.snapshot.document;
   const compact = {
@@ -186,6 +186,30 @@ export function inspectDocument(
     })),
   };
   if (detail === "compact") return compact;
+  // Every part and Net by name and ID in one call (#1525), a fraction of
+  // the full Snapshot: 3.4 KB for a 30-part Gallery Cell read in full as
+  // 101 KB.
+  if (detail === "parts")
+    return {
+      ...compact,
+      parts: document.instances.map((instance) => ({
+        id: instance.id,
+        name: partName(instance),
+        symbol: instance.symbolId,
+        position: instance.placement?.position ?? null,
+        ...(instance.placement?.rotation
+          ? { rotation: instance.placement.rotation }
+          : {}),
+        ...(instance.placement && instance.placement.mirror !== "none"
+          ? { mirror: instance.placement.mirror }
+          : {}),
+      })),
+      nets: document.nets.map((net) => ({
+        id: net.id,
+        name: net.name,
+        ...(net.powerDomain !== "none" ? { powerDomain: net.powerDomain } : {}),
+      })),
+    };
   return {
     ...compact,
     project: entry.snapshot.project,

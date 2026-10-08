@@ -3,7 +3,11 @@ import { readFileSync } from "node:fs";
 import { parseProject } from "@icm/project-protocol";
 import { buildAgentSessionSnapshot } from "@icm/agent-adapter";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
-import { searchSnapshot, compactActionReport } from "./results.js";
+import {
+  compactActionReport,
+  inspectDocument,
+  searchSnapshot,
+} from "./results.js";
 import type { CachedSnapshot } from "@icm/agent-client";
 
 it("summarizes repeated successful diagnostics without dropping errors or mutating full detail", () => {
@@ -98,4 +102,45 @@ it("searches resolved bound labels rather than absent literal content", () => {
       ),
     ).toContain(annotation.id);
   }
+});
+
+it("lists every part and Net by name and ID in one document read, a fraction of the full one (#1525)", () => {
+  const project = parseProject(
+    readFileSync("fixtures/gallery-redline/3tfmrzevfe.icproj.json", "utf8"),
+  );
+  const document = project.documents[0]!;
+  const snapshot = buildAgentSessionSnapshot({
+    project,
+    document,
+    resolver: new InMemorySymbolResolver(builtInSymbols),
+  });
+  const entry = {
+    snapshot,
+    diagnostics: [],
+    revision: document.revision,
+  } as unknown as CachedSnapshot;
+  const listed = inspectDocument(entry, "parts") as {
+    parts: { id: string; name: string | null; symbol: string }[];
+    nets: { id: string; name: string | null }[];
+  };
+  expect(listed.parts).toHaveLength(document.instances.length);
+  for (const instance of snapshot.document.instances)
+    expect(listed.parts).toContainEqual(
+      expect.objectContaining({
+        id: instance.id,
+        name: instance.reference ?? instance.cellTerminal?.name ?? null,
+        symbol: instance.symbolId,
+        position: instance.placement?.position ?? null,
+      }),
+    );
+  expect(listed.nets.map((net) => net.id)).toEqual(
+    snapshot.document.nets.map((net) => net.id),
+  );
+  // Measured 3,359 bytes for these 30 parts and 18 Nets, against 101,498
+  // for the full read; twice that is a tripwire, not a budget.
+  const bytes = (value: unknown) => JSON.stringify(value).length;
+  expect(bytes(listed)).toBeLessThan(7_000);
+  expect(bytes(listed)).toBeLessThan(
+    bytes(inspectDocument(entry, "full")) / 10,
+  );
 });

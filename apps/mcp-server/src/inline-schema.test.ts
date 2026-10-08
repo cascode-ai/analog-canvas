@@ -19,7 +19,7 @@ describe("host-facing inline schemas", () => {
     for (const schema of [advertised, toolInputSchema("inspect")!]) {
       expect(schema.properties).toMatchObject({
         refresh: { type: "boolean", description: expect.any(String) },
-        detail: { type: "string", enum: ["compact", "full"] },
+        detail: { type: "string", enum: ["compact", "parts", "full"] },
       });
       expect(JSON.stringify(schema)).not.toContain('"allOf"');
     }

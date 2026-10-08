@@ -411,7 +411,10 @@ would hide: a MOS body given a supply nobody wired, as a Cell Pin nobody drew
 refresh and re-plan; never blindly replay a changed payload.
 
 `inspect` with `target:{kind:"document"},detail:"full"` returns complete
-Document facts.
+Document facts; `detail:"parts"` lists only every part (`id`, `name`,
+`symbol`, `position`, and `rotation`/`mirror` when set) and every Net (`id`,
+`name`, `powerDomain` when a supply), a few KB where the full read is often
+100 KB.
 `inspect` with `target:{kind:"object"}` on a part also lists its name, value
 and parameter labels as `annotations` (`id`, `kind`, `parameter`, `visible`,
 `resolvedText` and `position`, the point `move-annotation` sets), read with

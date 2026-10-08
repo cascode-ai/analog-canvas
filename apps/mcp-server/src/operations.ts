@@ -518,10 +518,10 @@ const InspectArgs = z.strictObject({
     }),
   ]),
   detail: z
-    .enum(["compact", "full"])
+    .enum(["compact", "parts", "full"])
     .optional()
     .describe(
-      "Document targets only: compact summary (default) or full Snapshot.",
+      "Document targets only: compact summary (default); parts adds each part's id, name, symbol and position and each Net's id and name; full is the whole Snapshot.",
     ),
 });
 
