@@ -113,6 +113,17 @@ function environment(): Harness {
   const galleryQueries: string[] = [];
   const galleryState = sqliteState(galleryQueries);
   const durable = new DeployedGalleryDO(galleryState);
+  // Each store by its name, as the Worker binds them: the community wall's,
+  // and each reference dataset's of its own (#1510).
+  const stores = new Map<string, InstanceType<typeof DeployedGalleryDO>>([
+    ["gallery", durable],
+  ]);
+  const store = (name: string) => {
+    let found = stores.get(name);
+    if (!found)
+      stores.set(name, (found = new DeployedGalleryDO(sqliteState())));
+    return found;
+  };
   const authState = sqliteState();
   const authDurable = new DeployedAuthDO(authState, {
     RESEND_API_KEY: "rk",
@@ -121,9 +132,9 @@ function environment(): Harness {
   return {
     GALLERY_BACKUP_TOKEN: READER_TOKEN,
     GALLERY: {
-      getByName: () => ({
+      getByName: (name: string) => ({
         fetch: (input: string, init?: RequestInit) =>
-          durable.fetch(new Request(input, init)),
+          store(name).fetch(new Request(input, init)),
       }),
     },
     AUTH: {
@@ -1346,6 +1357,103 @@ describe("AI accounts taking over each other's circuits (#1499)", () => {
       // byline still becomes its listed name.
       { id: "v1", author: sol!.displayName },
       { id: "v2", author: claude!.displayName },
+    ]);
+  });
+});
+
+describe("reference datasets in stores of their own (#1510)", () => {
+  it("lets the Owner import a dataset's circuits, which open only under their source and stay read-only", async () => {
+    const env = environment();
+    const owner = await ownerAccountOf(env);
+    const maker = await makerOf(env);
+    await submitOne(env, "Community circuit", { cookie: maker });
+    const call = (path: string, init: RequestInit = {}, cookie = owner) =>
+      route(
+        env,
+        new Request(`${ORIGIN}${path}`, {
+          ...init,
+          headers: {
+            Origin: ORIGIN,
+            Cookie: cookie,
+            "content-type": "application/json",
+          },
+        }),
+      );
+    const importing = (cookie: string, entries: unknown[]) =>
+      call(
+        "/api/gallery/sources/analoggenie/entries",
+        { method: "POST", body: JSON.stringify({ entries }) },
+        cookie,
+      );
+    const circuit = (id: string) => ({
+      id,
+      name: `AnalogGenie ${id}`,
+      description: "Redrawn from the dataset's figure.",
+      tags: ["amplifier"],
+      projectText: projectText(id),
+    });
+
+    // Only the Owner imports.
+    expect((await importing(maker, [circuit("ag-308")])).status).toBe(403);
+    const imported = await importing(owner, [
+      circuit("ag-308"),
+      // An id another dataset, or the community, would own is refused.
+      circuit("ct-1"),
+    ]);
+    expect(imported.status).toBe(200);
+    expect(await imported.json()).toMatchObject({
+      source: "analoggenie",
+      results: [
+        { id: "ag-308", ok: true, created: true },
+        { id: "ct-1", ok: false, error: "invalid-id" },
+      ],
+    });
+
+    // The dataset's wall holds it under the dataset's name; the community's
+    // does not.
+    const wall = async (query: string) =>
+      (
+        (await (await call(`/api/gallery${query}`)).json()) as {
+          entries: { id: string; author: string }[];
+        }
+      ).entries;
+    expect(await wall("?source=analoggenie")).toEqual([
+      expect.objectContaining({
+        id: "ag-308",
+        author: "AnalogGenie (redrawn)",
+      }),
+    ]);
+    expect((await wall("")).map((entry) => entry.id)).not.toContain("ag-308");
+    expect((await call("/api/gallery/ag-308")).status).toBe(200);
+    expect(
+      (await (await call("/api/gallery/sources")).json()) as {
+        sources: { key: string; count: number }[];
+      },
+    ).toMatchObject({
+      sources: expect.arrayContaining([
+        expect.objectContaining({ key: "analoggenie", count: 1 }),
+        expect.objectContaining({ key: "circuitthink", count: 0 }),
+      ]),
+    });
+
+    // Read-only: no like, update or withdraw reaches it.
+    for (const [path, method] of [
+      ["/api/gallery/ag-308/like", "POST"],
+      ["/api/gallery/ag-308", "PUT"],
+      ["/api/gallery/ag-308/recycle", "POST"],
+    ] as const)
+      expect(await (await call(path, { method, body: "{}" })).json()).toEqual({
+        error: "dataset-read-only",
+      });
+
+    // Importing it again replaces it in place.
+    expect(
+      await (
+        await importing(owner, [{ ...circuit("ag-308"), name: "Renamed" }])
+      ).json(),
+    ).toMatchObject({ results: [{ id: "ag-308", ok: true, created: false }] });
+    expect(await wall("?source=analoggenie")).toEqual([
+      expect.objectContaining({ id: "ag-308" }),
     ]);
   });
 });
@@ -3389,7 +3497,7 @@ describe("private Cloud Projects", () => {
       ),
     ).toEqual([5, 4, 3]);
     const maintenance = async (action: string, body: unknown) => {
-      const response = await env.GALLERY.getByName("global").fetch(
+      const response = await env.GALLERY.getByName("gallery").fetch(
         `https://gallery/${action}`,
         {
           method: "POST",
