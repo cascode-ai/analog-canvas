@@ -35,10 +35,16 @@ export function unitSourcePaths(paths) {
 /**
  * Files `pnpm lint` checks: workspace code, its tests and the browser specs
  * (.oxlintrc.json leaves out generated code). A change to the lint
- * configuration checks them all.
+ * configuration or to a tsconfig, which decides the types each file is
+ * linted with, checks them all.
  */
 export function lintPaths(paths) {
-  if (paths.includes(".oxlintrc.json"))
+  if (
+    paths.some(
+      (path) =>
+        path === ".oxlintrc.json" || /(?:^|\/)tsconfig[^/]*\.json$/u.test(path),
+    )
+  )
     return ["apps", "packages", "worker", "scripts"];
   return paths.filter(
     (path) =>

@@ -63,7 +63,7 @@ describe("verify:pr selection", () => {
     expect(strictUnitRun(["scripts/verify-pr.mjs"])).toBe(false);
   });
 
-  it("lints workspace code, tests and specs, and everything when the rules change", () => {
+  it("lints workspace code, tests and specs, and everything when the rules or types change", () => {
     // .oxlintrc.json skips the generated file, as a whole-repo run does.
     expect(lintPaths([...changed, "worker/agent-session-do.ts"])).toEqual([
       "packages/netlist/src/extract.ts",
@@ -74,12 +74,18 @@ describe("verify:pr selection", () => {
       "scripts/verify-pr.mjs",
       "worker/agent-session-do.ts",
     ]);
-    expect(lintPaths(["docs/README.md", ".oxlintrc.json"])).toEqual([
-      "apps",
-      "packages",
-      "worker",
-      "scripts",
-    ]);
+    for (const config of [
+      ".oxlintrc.json",
+      "tsconfig.json",
+      "tsconfig.base.json",
+      "packages/model/tsconfig.json",
+    ])
+      expect(lintPaths(["docs/README.md", config])).toEqual([
+        "apps",
+        "packages",
+        "worker",
+        "scripts",
+      ]);
   });
 
   it("names the census for placement and netlist code, not their tests", () => {

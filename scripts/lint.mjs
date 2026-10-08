@@ -11,10 +11,14 @@
  *                                   every error, and the warnings on lines
  *                                   changed since the merge base with <ref>
  *
- * A type-aware rule reads each file through its nearest tsconfig.json, where
- * an @icm/* import resolves to that package's dist/ types, so the packages
- * are built first (a second or two when nothing changed). Without them a call
- * into another package has no type, and its promise goes unchecked.
+ * A type-aware rule reads each file through the nearest tsconfig.json that
+ * includes it: its package's, or for tests, worker/, scripts/ and the other
+ * code no package claims, the root one. A file no tsconfig.json included would
+ * get Node's types only when another file in the same run happened to load
+ * them, so one file linted alone could pass with a floating promise. An @icm/*
+ * import resolves to that package's dist/ types, so the packages are built
+ * first (a second or two when nothing changed). Without them a call into
+ * another package has no type, and its promise goes unchecked.
  */
 import { execFileSync, spawnSync } from "node:child_process";
 
