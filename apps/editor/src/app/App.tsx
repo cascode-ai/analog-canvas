@@ -166,14 +166,7 @@ import {
   keptDocumentStyleOfSelection,
   releaseKeptDocumentStyleEdit,
 } from "../features/editor-shell/kept-document-style";
-import {
-  deriveSimulationProbeOptions,
-  simulationProbeHierarchyPath,
-} from "../features/simulation/simulation-probe-options";
-import {
-  sameSimulationOccurrence,
-  terminalCurrentDirectionPartners,
-} from "../features/simulation/terminal-current-pick";
+import { terminalCurrentDirectionPartners } from "../features/simulation/terminal-current-pick";
 import { PUBLIC_SIMULATION_UI_ENABLED } from "../features/simulation/public-simulation-ui";
 import { useCellSymbolLayout } from "../features/hierarchy/use-cell-symbol-layout";
 import { selectedBlockSymbolTarget } from "../features/hierarchy/block-symbol-layout-target";
@@ -210,7 +203,6 @@ import {
 } from "./editor-project-dock";
 import { EditorPropertiesDock } from "./editor-properties-dock";
 import { LazyProjectCodePanel as ProjectCodePanel } from "./lazy-editor-dialogs";
-import { LazySpiceSimulationSurface } from "./lazy-editor-dialogs";
 import { LazyExamplesPanel as ExamplesPanel } from "./lazy-editor-dialogs";
 import { LazyComponentDefinitionEditor as ComponentDefinitionEditor } from "./lazy-editor-dialogs";
 import { recoverSourceDrafts } from "../features/simulation/source-draft-cache";
@@ -299,6 +291,13 @@ import {
   useRestoredTabLinks,
 } from "./use-gallery-entry";
 import {
+  useActiveSimulationFolder,
+  useSimulationPickCommands,
+  useSimulationPicking,
+  useSimulationSurface,
+} from "./use-simulation-surface";
+import { EditorSimulationSurface } from "./editor-simulation-surface";
+import {
   useAgentProjectResources,
   useAgentStartupRecovery,
   useBrowserAgentHost,
@@ -307,7 +306,6 @@ import {
 import { recoveryStateLabel } from "../components/recovery-banners";
 import { BrowserAgentProjectHost } from "../agent/browser-agent-project-host";
 import { createAgentGalleryPublisher } from "../agent/agent-gallery-publish";
-import { BrowserSimulationSession } from "../features/simulation/browser-simulation-session";
 import { createAgentSemanticIntentHandler } from "../agent/agent-semantic-intent-handler";
 import { PUBLIC_AGENT_UI_ENABLED } from "../agent/public-agent-ui";
 import { WorkspaceAgentProvider } from "../agent/workspace-agent";
@@ -919,16 +917,14 @@ function WorkspaceEditor({
     setModelEditorLocation(location);
     setCellManagerOpen(true);
   };
-  const [activeSimulationFolderId, setActiveSimulationFolderId] = useState<
-    string | null
-  >(null);
-  const activeSimulationFolder =
-    project.simulationFolders.find(
-      (folder) => folder.id === activeSimulationFolderId,
-    ) ?? project.simulationFolders[0];
-  useEffect(() => {
-    setActiveSimulationFolderId(null);
-  }, [projectSessionId]);
+  const {
+    activeSimulationFolderId,
+    setActiveSimulationFolderId,
+    activeSimulationFolder,
+  } = useActiveSimulationFolder({
+    project,
+    projectSessionId,
+  });
   const [canvasContextMenu, setCanvasContextMenu] = useState<{
     x: number;
     y: number;
@@ -1071,69 +1067,29 @@ function WorkspaceEditor({
       }),
     [browserAgentHost, editorDocumentController, projectSessionId],
   );
-  const [analogSimulationState, setAnalogSimulationState] = useState<
-    "closed" | "open" | "maximized" | "minimized"
-  >("closed");
-  const simulationSourceBuffer = useRef<{
-    dirty: boolean;
-    flush(): Promise<boolean>;
-  } | null>(null);
-  const analogSimulationOpened = analogSimulationState !== "closed";
-  const analogSimulationOpen =
-    analogSimulationState === "open" || analogSimulationState === "maximized";
-  const analogSimulationMaximized = analogSimulationState === "maximized";
-  const humanSimulationSession = useMemo(
-    () =>
-      analogSimulationOpened
-        ? new BrowserSimulationSession({
-            runHistory: projectRunHistory,
-            owner: "human",
-            getProjectSessionId: () =>
-              editorDocumentController.projectSessionId,
-            getProject: () => editorDocumentController.project,
-            projectFiles: createSimulationProjectFileHost({
-              getProject: () => editorDocumentController.project,
-              getProjectSessionId: () =>
-                editorDocumentController.projectSessionId,
-              dispatch: (request) => dispatchProjectTransaction(request),
-              actor: { kind: "human", id: "human-local" },
-            }),
-            transport: simulationTransport,
-          })
-        : null,
-    [
-      analogSimulationOpened,
-      projectRunHistory,
-      editorDocumentController,
-      projectSessionId,
-      simulationTransport,
-    ],
-  );
-  useEffect(
-    () => () => {
-      void humanSimulationSession?.clear();
-    },
-    [humanSimulationSession],
-  );
-  const openAnalogSimulation = (): void => {
-    if (!publicSimulationUiEnabled) return;
-    setProjectPanel(null);
-    setAnalogSimulationState("open");
-  };
-  const minimizeAnalogSimulation = (): void => {
-    setSimulationPickModeState(null);
-    setAnalogSimulationState("minimized");
-  };
-  const toggleAnalogSimulationMaximized = (): void => {
-    setAnalogSimulationState((current) =>
-      current === "maximized" ? "open" : "maximized",
-    );
-  };
-  const exitAnalogSimulation = (): void => {
-    setSimulationPickModeState(null);
-    void humanSimulationSession?.clear();
-    setAnalogSimulationState("closed");
-  };
+  const {
+    simulationPickMode,
+    setSimulationPickModeState,
+    analogSimulationState,
+    setAnalogSimulationState,
+    simulationSourceBuffer,
+    analogSimulationOpened,
+    analogSimulationOpen,
+    analogSimulationMaximized,
+    humanSimulationSession,
+    openAnalogSimulation,
+    minimizeAnalogSimulation,
+    toggleAnalogSimulationMaximized,
+    exitAnalogSimulation,
+  } = useSimulationSurface({
+    publicSimulationUiEnabled,
+    dispatchProjectTransaction,
+    editorDocumentController,
+    projectSessionId,
+    simulationTransport,
+    setProjectPanel,
+    projectRunHistory,
+  });
   const [codeDraftDirty, setCodeDraftDirty] = useState(false);
   const noteCodeDraftDirty = useCallback((dirty: boolean) => {
     setCodeDraftDirty(dirty);
@@ -1538,16 +1494,11 @@ function WorkspaceEditor({
   );
   const [highlightedNetOrigin, setHighlightedNetOrigin] =
     useState<HighlightedNetOrigin | null>(null);
-  const [codeNetPreview, setCodeNetPreview] =
-    useState<HighlightedNetOrigin | null>(null);
   const [controlOptionPreview, setControlOptionPreview] = useState<{
     documentId: string;
     instanceId: string;
     netId: string;
   } | null>(null);
-  const [simulationPickMode, setSimulationPickModeState] = useState<
-    "net" | "terminal" | null
-  >(null);
   const [controlPickState, setControlPickState] =
     useState<ControlPickState | null>(null);
   const controlPickMode =
@@ -1556,53 +1507,29 @@ function WorkspaceEditor({
       : controlPickState?.kind === "current"
         ? "sensor"
         : null;
-  const simulationPickNetsActive = simulationPickMode === "net";
-  const simulationPickTerminalsActive = simulationPickMode === "terminal";
-  const simulationPickActive = simulationPickMode !== null;
-  const [simulationHoverNetId, setSimulationHoverNetId] = useState<
-    string | null
-  >(null);
-  const [analogPickedNet, setAnalogPickedNet] = useState<{
-    sequence: number;
-    documentId: string;
-    netId: string;
-    occurrence?: readonly string[];
-  } | null>(null);
-  const [analogPickedTerminal, setAnalogPickedTerminal] = useState<{
-    sequence: number;
-    documentId: string;
-    instanceId: string;
-    pinName: string;
-    directionPinName?: string;
-    occurrence?: readonly string[];
-  } | null>(null);
-  const [simulationTerminalPickStart, setSimulationTerminalPickStart] =
-    useState<{
-      documentId: string;
-      instanceId: string;
-      pinName: string;
-      partnerPinNames: readonly string[];
-      occurrence?: readonly string[];
-    } | null>(null);
-  useEffect(() => {
-    // Net-pick is a hierarchy traversal mode: keep it armed while the author
-    // enters a DUT Cell, so an internal Net can be picked with its occurrence
-    // path intact. Closing/minimising Simulation still cancels it explicitly.
-    if (!analogSimulationOpen) setSimulationPickModeState(null);
-    setSimulationTerminalPickStart(null);
-    setSimulationHoverNetId(null);
-    setControlPickState(null);
-  }, [document.id]);
-  useEffect(() => {
-    setSimulationPickModeState(null);
-    setAnalogPickedNet(null);
-    setAnalogPickedTerminal(null);
-    setSimulationTerminalPickStart(null);
-    setControlPickState(null);
-  }, [projectSessionId]);
-  useEffect(() => {
-    setSimulationTerminalPickStart(null);
-  }, [activeSimulationFolderId]);
+  const {
+    codeNetPreview,
+    setCodeNetPreview,
+    simulationPickNetsActive,
+    simulationPickTerminalsActive,
+    simulationPickActive,
+    simulationHoverNetId,
+    setSimulationHoverNetId,
+    analogPickedNet,
+    setAnalogPickedNet,
+    analogPickedTerminal,
+    setAnalogPickedTerminal,
+    simulationTerminalPickStart,
+    setSimulationTerminalPickStart,
+  } = useSimulationPicking({
+    document,
+    projectSessionId,
+    activeSimulationFolderId,
+    analogSimulationOpen,
+    simulationPickMode,
+    setSimulationPickModeState,
+    setControlPickState,
+  });
   const routeCounter = useRef(0);
   const canvasDragSessionRef = useRef<CanvasDragSession | null>(null);
   /**
@@ -2057,27 +1984,39 @@ function WorkspaceEditor({
     setSelectionOpen(true);
     setIssuesFocusToken((token) => token + 1);
   }
-  const simulationPickHighlight = useMemo(
-    () =>
-      (simulationPickNetsActive || controlPickMode === "net") &&
-      simulationHoverNetId
-        ? computeNetHighlight(
-            projectConnectivityIndex,
-            document.id,
-            simulationHoverNetId,
-            undefined,
-            documentStack,
-          )
-        : undefined,
-    [
-      document.id,
-      documentStack,
-      projectConnectivityIndex,
-      simulationHoverNetId,
-      simulationPickMode,
-      controlPickMode,
-    ],
-  );
+  const {
+    simulationPickHighlight,
+    codeNetHighlight,
+    simulationCurrentEndpointKeys,
+    pickAnalogSimulationNet,
+    pickSimulationTerminal,
+    setSimulationPickMode,
+    setSimulationNetPickMode,
+    setSimulationTerminalPickMode,
+  } = useSimulationPickCommands({
+    setStatus,
+    project,
+    document,
+    projectConnectivityIndex,
+    documentStack,
+    activeSimulationFolder,
+    analogSimulationOpen,
+    simulationPickMode,
+    setSimulationPickModeState,
+    setControlPickState,
+    controlPickMode,
+    codeNetPreview,
+    simulationPickNetsActive,
+    simulationPickTerminalsActive,
+    simulationHoverNetId,
+    setSimulationHoverNetId,
+    setAnalogPickedNet,
+    setAnalogPickedTerminal,
+    simulationTerminalPickStart,
+    setSimulationTerminalPickStart,
+    logicalNets,
+    activateTool,
+  });
   const controlOptionHighlight = useMemo(
     () =>
       selectionOpen &&
@@ -2105,102 +2044,6 @@ function WorkspaceEditor({
   useEffect(() => {
     setControlOptionPreview(null);
   }, [selectionOpen, documentSettingsOpen, document.id, selectedInstance?.id]);
-  const codeNetHighlight = useMemo(
-    () =>
-      analogSimulationOpen &&
-      codeNetPreview &&
-      codeNetPreview.documentId === document.id &&
-      JSON.stringify(codeNetPreview.hierarchyPath) ===
-        JSON.stringify(documentStack)
-        ? computeNetHighlight(
-            projectConnectivityIndex,
-            document.id,
-            codeNetPreview.netId,
-            undefined,
-            documentStack,
-          )
-        : undefined,
-    [
-      analogSimulationOpen,
-      codeNetPreview,
-      document.id,
-      documentStack,
-      projectConnectivityIndex,
-    ],
-  );
-  const canonicalSimulationNetId = (netId: string): string | null => {
-    const group =
-      logicalNets.byBaseNetId.get(netId) ??
-      logicalNets.groups.find((candidate) => candidate.id === netId);
-    return group?.baseNetIds[0] ?? null;
-  };
-  const simulationPickRootDocumentId =
-    activeSimulationFolder?.input.circuitBindings.find(
-      (binding) => binding.emission === "top-level",
-    )?.documentId;
-  const simulationPickOccurrence: readonly string[] | undefined =
-    documentStack.length > 0
-      ? documentStack.map((frame) => frame.instanceId)
-      : simulationPickRootDocumentId === document.id
-        ? []
-        : undefined;
-  const activeSimulationPickOccurrence = (): readonly string[] | undefined =>
-    simulationPickOccurrence;
-  const simulationCurrentProbeOptions = useMemo(
-    () =>
-      simulationPickTerminalsActive && simulationPickRootDocumentId
-        ? deriveSimulationProbeOptions(project, simulationPickRootDocumentId)
-            .terminalCurrent
-        : [],
-    [project, simulationPickRootDocumentId, simulationPickTerminalsActive],
-  );
-  const simulationCurrentTargetsInView = useMemo(
-    () =>
-      simulationCurrentProbeOptions.filter(
-        ({ target }) =>
-          target.documentId === document.id &&
-          (simulationPickOccurrence === undefined ||
-            sameSimulationOccurrence(
-              target.occurrence,
-              simulationPickOccurrence,
-            )),
-      ),
-    [document.id, simulationCurrentProbeOptions, simulationPickOccurrence],
-  );
-  const simulationCurrentPinNamesByInstance = useMemo(() => {
-    const result = new Map<string, string[]>();
-    for (const { target } of simulationCurrentTargetsInView) {
-      const pins = result.get(target.instanceId) ?? [];
-      if (!pins.includes(target.pinName)) pins.push(target.pinName);
-      result.set(target.instanceId, pins);
-    }
-    return result;
-  }, [simulationCurrentTargetsInView]);
-  const simulationCurrentEndpointKeys = useMemo(
-    () =>
-      new Set(
-        simulationCurrentTargetsInView.map(
-          ({ target }) => `${target.instanceId}\u0000${target.pinName}`,
-        ),
-      ),
-    [simulationCurrentTargetsInView],
-  );
-  const pickAnalogSimulationNet = (netId: string): void => {
-    const baseNetId = canonicalSimulationNetId(netId);
-    if (!baseNetId) {
-      setStatus(`Could not resolve Net ${netId}`);
-      return;
-    }
-    const group = logicalNets.byBaseNetId.get(baseNetId);
-    const occurrence = activeSimulationPickOccurrence();
-    setAnalogPickedNet((current) => ({
-      sequence: (current?.sequence ?? 0) + 1,
-      documentId: document.id,
-      netId: baseNetId,
-      ...(occurrence === undefined ? {} : { occurrence }),
-    }));
-    setStatus(`Added voltage Output ${group?.name ?? baseNetId}`);
-  };
   const startControlPick = (): void => {
     if (
       !selectedInstance ||
@@ -2349,109 +2192,6 @@ function WorkspaceEditor({
     }
     setStatus(result.message);
   };
-  const pickSimulationTerminal = (endpoint: WireSource): void => {
-    if (endpoint.endpoint.kind !== "terminal" || !analogSimulationOpen) return;
-    const terminal = endpoint.endpoint;
-    const occurrence = activeSimulationPickOccurrence();
-    const referenceFor = (instanceId: string): string =>
-      document.instances.find((instance) => instance.id === instanceId)
-        ?.reference ?? instanceId;
-    const clickedKey = `${terminal.instanceId}\u0000${terminal.pinName}`;
-    if (!simulationCurrentEndpointKeys.has(clickedKey)) {
-      setStatus(
-        `${referenceFor(terminal.instanceId)}.${terminal.pinName} is not a measurable current terminal in this Testbench occurrence`,
-      );
-      return;
-    }
-    const commitPick = (
-      picked: {
-        documentId: string;
-        instanceId: string;
-        pinName: string;
-        occurrence?: readonly string[];
-      },
-      directionPinName?: string,
-    ): void => {
-      setAnalogPickedTerminal((current) => ({
-        sequence: (current?.sequence ?? 0) + 1,
-        ...picked,
-        ...(directionPinName ? { directionPinName } : {}),
-      }));
-      setSimulationTerminalPickStart(null);
-      const reference = referenceFor(picked.instanceId);
-      setStatus(
-        directionPinName
-          ? `Added current ${reference}.${picked.pinName} → ${reference}.${directionPinName} · positive current enters ${picked.pinName}`
-          : `Added terminal current ${reference}.${picked.pinName} · positive current enters the terminal`,
-      );
-    };
-    if (
-      simulationTerminalPickStart &&
-      simulationTerminalPickStart.documentId === document.id &&
-      simulationTerminalPickStart.instanceId === terminal.instanceId &&
-      sameSimulationOccurrence(
-        simulationTerminalPickStart.occurrence,
-        occurrence,
-      )
-    ) {
-      if (simulationTerminalPickStart.pinName === terminal.pinName) {
-        setSimulationTerminalPickStart(null);
-        setStatus("Current direction cancelled · choose the first terminal");
-        return;
-      }
-      if (
-        simulationTerminalPickStart.partnerPinNames.includes(terminal.pinName)
-      ) {
-        commitPick(simulationTerminalPickStart, terminal.pinName);
-        return;
-      }
-    }
-
-    const instance = document.instances.find(
-      (candidate) => candidate.id === terminal.instanceId,
-    );
-    const measurablePins =
-      simulationCurrentPinNamesByInstance.get(terminal.instanceId) ?? [];
-    const partnerPinNames = instance
-      ? terminalCurrentDirectionPartners(
-          instance,
-          terminal.pinName,
-          measurablePins,
-        )
-      : [];
-    const picked = {
-      documentId: document.id,
-      instanceId: terminal.instanceId,
-      pinName: terminal.pinName,
-      ...(occurrence === undefined ? {} : { occurrence }),
-    };
-    if (partnerPinNames.length === 0) {
-      commitPick(picked);
-      return;
-    }
-    setSimulationTerminalPickStart({ ...picked, partnerPinNames });
-    setStatus(
-      `Current starts at ${referenceFor(terminal.instanceId)}.${terminal.pinName} · choose ${partnerPinNames.join(" or ")} to confirm direction`,
-    );
-  };
-  const setSimulationPickMode = (mode: "net" | "terminal" | null): void => {
-    if (mode) activateTool("pointer");
-    if (mode) setControlPickState(null);
-    setSimulationPickModeState(mode);
-    if (mode !== "terminal") setSimulationTerminalPickStart(null);
-    if (mode !== "net") setSimulationHoverNetId(null);
-    setStatus(
-      mode === "net"
-        ? "Pick Nets: click a wire, label, junction, or connected pin · Esc exits"
-        : mode === "terminal"
-          ? "Pick current: choose a device terminal, then its direction · Esc exits"
-          : "Finished picking simulation Outputs",
-    );
-  };
-  const setSimulationNetPickMode = (active: boolean): void =>
-    setSimulationPickMode(active ? "net" : null);
-  const setSimulationTerminalPickMode = (active: boolean): void =>
-    setSimulationPickMode(active ? "terminal" : null);
   const selectedBlockLayout = useMemo(
     () => selectedBlockSymbolTarget(project, selectedInstance),
     [project, selectedInstance],
@@ -6516,158 +6256,43 @@ function WorkspaceEditor({
           onRestoreSimulation={openAnalogSimulation}
           code={
             analogSimulationOpened && humanSimulationSession ? (
-              <Suspense fallback={null}>
-                <LazySpiceSimulationSurface
-                  key={projectSessionId}
-                  session={humanSimulationSession}
-                  runHistory={projectRunHistory}
-                  project={project}
-                  activeDocumentId={document.id}
-                  selectedCircuitObject={
-                    selectedInstance
-                      ? {
-                          documentId: document.id,
-                          instanceId: selectedInstance.id,
-                        }
-                      : undefined
-                  }
-                  selectedFolderId={activeSimulationFolder?.id ?? null}
-                  onSelectFolderId={setActiveSimulationFolderId}
-                  agentGuidance={
-                    publicAgentUiEnabled
-                      ? {
-                          status: agentSession.status,
-                          onOpen: openAgentConnection,
-                        }
-                      : undefined
-                  }
-                  onOpenExample={async (exampleProject) => {
-                    await guardDirtyReplacement(
-                      `Open ${exampleProject.name} example`,
-                      () => {
-                        replaceActiveProject(exampleProject, DEFAULT_VIEWBOX);
-                        setActiveSimulationFolderId(
-                          exampleProject.simulationFolders[0]?.id ?? null,
-                        );
-                        setAnalogSimulationState("open");
-                        setStatus(
-                          `Opened simulation example: ${exampleProject.name}`,
-                        );
-                      },
-                    );
-                  }}
-                  open={analogSimulationOpen}
-                  maximized={analogSimulationMaximized}
-                  onToggleMaximized={toggleAnalogSimulationMaximized}
-                  onMinimize={minimizeAnalogSimulation}
-                  onExit={exitAnalogSimulation}
-                  onHistoryBoundary={(direction) => {
-                    transact([{ kind: direction }]);
-                  }}
-                  onOpenModelSource={openProjectModelSource}
-                  onSourceBuffer={(buffer) => {
-                    simulationSourceBuffer.current = buffer;
-                  }}
-                  onSaveFolder={(
-                    folder,
-                    expectedRevision = project.structureRevision,
-                  ) => {
-                    const result = dispatchProjectTransaction({
-                      transactionId: `upsert-simulation-${crypto.randomUUID()}`,
-                      projectId: project.id,
-                      expectedStructureRevision: expectedRevision,
-                      actor: { kind: "human", id: "human-local" },
-                      edits: [{ kind: "upsert_simulation_folder", folder }],
-                    });
-                    if (result.ok) {
-                      setActiveSimulationFolderId(folder.id);
-                      setStatus(
-                        result.applied
-                          ? `Updated simulation folder ${folder.name}`
-                          : `Simulation folder ${folder.name} is already up to date`,
-                      );
-                      return {
-                        status: result.applied ? "applied" : "unchanged",
-                      };
-                    }
-                    const firstDiagnostic = result.diagnostics[0];
-                    const message =
-                      firstDiagnostic?.message ?? result.error.message;
-                    setStatus(`${result.error.code}: ${message}`);
-                    return {
-                      status: "rejected",
-                      problem: {
-                        code: result.error.code,
-                        message,
-                        stage: "input",
-                        recovery: "fix-input",
-                        ...(result.diagnostics.length
-                          ? {
-                              diagnostics: result.diagnostics.map(
-                                (diagnostic) => ({
-                                  code: diagnostic.code,
-                                  message: diagnostic.message,
-                                  severity: diagnostic.severity,
-                                  ...(diagnostic.path?.length
-                                    ? { field: diagnostic.path.join(".") }
-                                    : {}),
-                                }),
-                              ),
-                            }
-                          : {}),
-                      },
-                    };
-                  }}
-                  onDeleteFolder={(
-                    folderId,
-                    expectedRevision = project.structureRevision,
-                  ) => {
-                    const result = dispatchProjectTransaction({
-                      transactionId: `remove-simulation-folder-${crypto.randomUUID()}`,
-                      projectId: project.id,
-                      expectedStructureRevision: expectedRevision,
-                      actor: { kind: "human", id: "human-local" },
-                      edits: [{ kind: "remove_simulation_folder", folderId }],
-                    });
-                    const committed = result.ok;
-                    if (!result.ok)
-                      setStatus(
-                        `${result.error.code}: ${result.error.message}`,
-                      );
-                    if (committed && activeSimulationFolderId === folderId) {
-                      setActiveSimulationFolderId(null);
-                    }
-                    return committed;
-                  }}
-                  pickNetsActive={simulationPickNetsActive}
-                  pickedNet={analogPickedNet}
-                  onPickNetsChange={setSimulationNetPickMode}
-                  pickTerminalsActive={simulationPickTerminalsActive}
-                  pickedTerminal={analogPickedTerminal}
-                  onPickTerminalsChange={setSimulationTerminalPickMode}
-                  onFocusDiagnostic={(locator) =>
-                    navigateToLocator(locator, `Located ${locator.kind}`)
-                  }
-                  onPreviewSignal={(target) => {
-                    const hierarchyPath =
-                      target &&
-                      simulationProbeHierarchyPath(
-                        project,
-                        target.rootDocumentId,
-                        target.occurrence,
-                      );
-                    setCodeNetPreview(
-                      target && hierarchyPath
-                        ? {
-                            documentId: target.documentId,
-                            netId: target.netId,
-                            hierarchyPath,
-                          }
-                        : null,
-                    );
-                  }}
-                />
-              </Suspense>
+              <EditorSimulationSurface
+                projectSessionId={projectSessionId}
+                humanSimulationSession={humanSimulationSession}
+                projectRunHistory={projectRunHistory}
+                project={project}
+                document={document}
+                selectedInstance={selectedInstance}
+                activeSimulationFolder={activeSimulationFolder}
+                activeSimulationFolderId={activeSimulationFolderId}
+                setActiveSimulationFolderId={setActiveSimulationFolderId}
+                publicAgentUiEnabled={publicAgentUiEnabled}
+                agentSession={agentSession}
+                openAgentConnection={openAgentConnection}
+                guardDirtyReplacement={guardDirtyReplacement}
+                replaceActiveProject={replaceActiveProject}
+                setAnalogSimulationState={setAnalogSimulationState}
+                setStatus={setStatus}
+                analogSimulationOpen={analogSimulationOpen}
+                analogSimulationMaximized={analogSimulationMaximized}
+                toggleAnalogSimulationMaximized={
+                  toggleAnalogSimulationMaximized
+                }
+                minimizeAnalogSimulation={minimizeAnalogSimulation}
+                exitAnalogSimulation={exitAnalogSimulation}
+                transact={transact}
+                openProjectModelSource={openProjectModelSource}
+                simulationSourceBuffer={simulationSourceBuffer}
+                dispatchProjectTransaction={dispatchProjectTransaction}
+                simulationPickNetsActive={simulationPickNetsActive}
+                analogPickedNet={analogPickedNet}
+                setSimulationNetPickMode={setSimulationNetPickMode}
+                simulationPickTerminalsActive={simulationPickTerminalsActive}
+                analogPickedTerminal={analogPickedTerminal}
+                setSimulationTerminalPickMode={setSimulationTerminalPickMode}
+                navigateToLocator={navigateToLocator}
+                setCodeNetPreview={setCodeNetPreview}
+              />
             ) : null
           }
           project={
@@ -8604,4 +8229,3 @@ function WorkspaceEditor({
     </main>
   );
 }
-import { createSimulationProjectFileHost } from "../features/simulation/project-file-host";
