@@ -627,7 +627,17 @@ export function GalleryFeed({
   const [signedIn, setSignedIn] = useState(false);
   const [isOwner, setIsOwner] = useState(false);
   const [ownerBusy, setOwnerBusy] = useState<string | null>(null);
-  const [ownerNotice, setOwnerNotice] = useState<string | null>(null);
+  // A withdraw or reject says how it went in a passing message over the
+  // wall, as Publish does, so the wall never moves (#1504).
+  const [ownerNotice, setOwnerNotice] = useState<{
+    text: string;
+    ok: boolean;
+  } | null>(null);
+  useEffect(() => {
+    if (!ownerNotice) return;
+    const timer = window.setTimeout(() => setOwnerNotice(null), 8_000);
+    return () => window.clearTimeout(timer);
+  }, [ownerNotice]);
   const [rejecting, setRejecting] = useState<GalleryFeedEntry | null>(null);
   const [reviewing, setReviewing] = useState<GalleryFeedEntry | null>(null);
   const [tagOptions, setTagOptions] = useState<
@@ -1069,13 +1079,17 @@ export function GalleryFeed({
       if (!response.ok) throw new Error();
       removeManagedEntry(entry);
       announceGalleryChange({ entryId: entry.id });
-      setOwnerNotice(
-        isOwner
+      setOwnerNotice({
+        ok: true,
+        text: isOwner
           ? `“${entry.name}” was moved to the recycle bin.`
           : `“${entry.name}” was withdrawn. Restore it from My submissions.`,
-      );
+      });
     } catch {
-      setOwnerNotice(`Could not withdraw “${entry.name}”. Try again.`);
+      setOwnerNotice({
+        ok: false,
+        text: `Could not withdraw “${entry.name}”. Try again.`,
+      });
     } finally {
       setOwnerBusy(null);
     }
@@ -1095,12 +1109,16 @@ export function GalleryFeed({
       if (!response.ok) throw new Error();
       removeManagedEntry(rejecting);
       announceGalleryChange({ entryId: rejecting.id });
-      setOwnerNotice(
-        `“${rejecting.name}” was rejected and hidden from the Gallery.`,
-      );
+      setOwnerNotice({
+        ok: true,
+        text: `“${rejecting.name}” was rejected and hidden from the Gallery.`,
+      });
       setRejecting(null);
     } catch {
-      setOwnerNotice(`Could not reject “${rejecting.name}”.`);
+      setOwnerNotice({
+        ok: false,
+        text: `Could not reject “${rejecting.name}”.`,
+      });
     } finally {
       setOwnerBusy(null);
     }
@@ -1662,9 +1680,25 @@ export function GalleryFeed({
               </div>
             ) : null}
             {ownerNotice ? (
-              <p className="gallery-status" data-testid="gallery-owner-notice">
-                {ownerNotice}
-              </p>
+              <aside
+                className="gallery-owner-toast"
+                data-testid="gallery-owner-notice"
+                data-ok={ownerNotice.ok}
+              >
+                <span role="status">
+                  <span className="gallery-owner-toast-mark" aria-hidden="true">
+                    {ownerNotice.ok ? "✓" : "!"}
+                  </span>{" "}
+                  {ownerNotice.text}
+                </span>
+                <button
+                  type="button"
+                  aria-label="Dismiss"
+                  onClick={() => setOwnerNotice(null)}
+                >
+                  ×
+                </button>
+              </aside>
             ) : null}
             {focusMissing ? (
               <p className="gallery-status" data-testid="gallery-focus-missing">
