@@ -1,0 +1,72 @@
+CMOS four-phase asynchronous pipeline latch
+.include "circuit.spice"
+.include "models.spice"
+VDD vdd 0 3.3
+VREQI reqi 0 PWL(0 0.0 99.5n 0.0 100.5n 3.3 199.5n 3.3 200.5n 0.0 299.5n 0.0 300.5n 0.0 399.5n 0.0 400.5n 0.0 499.5n 0.0 500.5n 3.3 599.5n 3.3 600.5n 3.3 699.5n 3.3 700.5n 0.0 799.5n 0.0 800.5n 0.0 900n 0.0)
+VACKO acko 0 PWL(0 0.0 99.5n 0.0 100.5n 0.0 199.5n 0.0 200.5n 0.0 299.5n 0.0 300.5n 3.3 399.5n 3.3 400.5n 0.0 499.5n 0.0 500.5n 0.0 599.5n 0.0 600.5n 3.3 699.5n 3.3 700.5n 3.3 799.5n 3.3 800.5n 0.0 900n 0.0)
+VDIN din 0 PWL(0 0.0 79.5n 0.0 80.5n 3.3 179.5n 3.3 180.5n 0.0 279.5n 0.0 280.5n 0.0 379.5n 0.0 380.5n 3.3 479.5n 3.3 480.5n 0.0 579.5n 0.0 580.5n 3.3 679.5n 3.3 680.5n 3.3 779.5n 3.3 780.5n 0.0 900n 0.0)
+.ic v(reqo)=0 v(xdut.rb)=3.3 v(dout)=0
+XDUT vdd 0 reqi reqo acko din dout acki sol_069_cmos_four_phase_pipeline_latch
+.temp 27
+.options method=gear reltol=1e-5
+* @spec h0reqo range -0.02 0.02 unit=V
+* @spec h0acki range -0.02 0.02 unit=V
+* @spec h0dout range -0.02 0.02 unit=V
+* @spec h1reqo range 3.2 3.4 unit=V
+* @spec h1acki range 3.2 3.4 unit=V
+* @spec h1dout range 3.2 3.4 unit=V
+* @spec h2reqo range 3.2 3.4 unit=V
+* @spec h2acki range 3.2 3.4 unit=V
+* @spec h2dout range 3.2 3.4 unit=V
+* @spec h3reqo range -0.02 0.02 unit=V
+* @spec h3acki range -0.02 0.02 unit=V
+* @spec h3dout range -0.02 0.02 unit=V
+* @spec h4reqo range -0.02 0.02 unit=V
+* @spec h4acki range -0.02 0.02 unit=V
+* @spec h4dout range 3.2 3.4 unit=V
+* @spec h5reqo range 3.2 3.4 unit=V
+* @spec h5acki range 3.2 3.4 unit=V
+* @spec h5dout range -0.02 0.02 unit=V
+* @spec h6reqo range 3.2 3.4 unit=V
+* @spec h6acki range 3.2 3.4 unit=V
+* @spec h6dout range -0.02 0.02 unit=V
+* @spec h7reqo range -0.02 0.02 unit=V
+* @spec h7acki range -0.02 0.02 unit=V
+* @spec h7dout range 3.2 3.4 unit=V
+* @spec h8reqo range -0.02 0.02 unit=V
+* @spec h8acki range -0.02 0.02 unit=V
+* @spec h8dout range -0.02 0.02 unit=V
+.control
+set filetype=ascii
+tran 100p 900n
+meas tran h0reqo FIND v(reqo) AT=70n
+meas tran h0acki FIND v(acki) AT=70n
+meas tran h0dout FIND v(dout) AT=70n
+meas tran h1reqo FIND v(reqo) AT=170n
+meas tran h1acki FIND v(acki) AT=170n
+meas tran h1dout FIND v(dout) AT=170n
+meas tran h2reqo FIND v(reqo) AT=270n
+meas tran h2acki FIND v(acki) AT=270n
+meas tran h2dout FIND v(dout) AT=270n
+meas tran h3reqo FIND v(reqo) AT=370n
+meas tran h3acki FIND v(acki) AT=370n
+meas tran h3dout FIND v(dout) AT=370n
+meas tran h4reqo FIND v(reqo) AT=470n
+meas tran h4acki FIND v(acki) AT=470n
+meas tran h4dout FIND v(dout) AT=470n
+meas tran h5reqo FIND v(reqo) AT=570n
+meas tran h5acki FIND v(acki) AT=570n
+meas tran h5dout FIND v(dout) AT=570n
+meas tran h6reqo FIND v(reqo) AT=670n
+meas tran h6acki FIND v(acki) AT=670n
+meas tran h6dout FIND v(dout) AT=670n
+meas tran h7reqo FIND v(reqo) AT=770n
+meas tran h7acki FIND v(acki) AT=770n
+meas tran h7dout FIND v(dout) AT=770n
+meas tran h8reqo FIND v(reqo) AT=870n
+meas tran h8acki FIND v(acki) AT=870n
+meas tran h8dout FIND v(dout) AT=870n
+write out.raw v(reqi) v(reqo) v(acko) v(acki) v(din) v(dout)
+quit
+.endc
+.end

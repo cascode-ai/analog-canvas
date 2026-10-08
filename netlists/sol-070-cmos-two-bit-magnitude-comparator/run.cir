@@ -1,0 +1,114 @@
+CMOS two-bit magnitude comparator
+.include "circuit.spice"
+.include "models.spice"
+VDD vdd 0 3.3
+VA0 a0 0 PWL(0 0.0 79.5n 0.0 80.5n 3.3 159.5n 3.3 160.5n 0.0 239.5n 0.0 240.5n 3.3 319.5n 3.3 320.5n 0.0 399.5n 0.0 400.5n 3.3 479.5n 3.3 480.5n 0.0 559.5n 0.0 560.5n 3.3 639.5n 3.3 640.5n 0.0 719.5n 0.0 720.5n 3.3 799.5n 3.3 800.5n 0.0 879.5n 0.0 880.5n 3.3 959.5n 3.3 960.5n 0.0 1039.5n 0.0 1040.5n 3.3 1119.5n 3.3 1120.5n 0.0 1199.5n 0.0 1200.5n 3.3 1280n 3.3)
+VA1 a1 0 PWL(0 0.0 79.5n 0.0 80.5n 0.0 159.5n 0.0 160.5n 3.3 239.5n 3.3 240.5n 3.3 319.5n 3.3 320.5n 0.0 399.5n 0.0 400.5n 0.0 479.5n 0.0 480.5n 3.3 559.5n 3.3 560.5n 3.3 639.5n 3.3 640.5n 0.0 719.5n 0.0 720.5n 0.0 799.5n 0.0 800.5n 3.3 879.5n 3.3 880.5n 3.3 959.5n 3.3 960.5n 0.0 1039.5n 0.0 1040.5n 0.0 1119.5n 0.0 1120.5n 3.3 1199.5n 3.3 1200.5n 3.3 1280n 3.3)
+VB0 b0 0 PWL(0 0.0 79.5n 0.0 80.5n 0.0 159.5n 0.0 160.5n 0.0 239.5n 0.0 240.5n 0.0 319.5n 0.0 320.5n 3.3 399.5n 3.3 400.5n 3.3 479.5n 3.3 480.5n 3.3 559.5n 3.3 560.5n 3.3 639.5n 3.3 640.5n 0.0 719.5n 0.0 720.5n 0.0 799.5n 0.0 800.5n 0.0 879.5n 0.0 880.5n 0.0 959.5n 0.0 960.5n 3.3 1039.5n 3.3 1040.5n 3.3 1119.5n 3.3 1120.5n 3.3 1199.5n 3.3 1200.5n 3.3 1280n 3.3)
+VB1 b1 0 PWL(0 0.0 79.5n 0.0 80.5n 0.0 159.5n 0.0 160.5n 0.0 239.5n 0.0 240.5n 0.0 319.5n 0.0 320.5n 0.0 399.5n 0.0 400.5n 0.0 479.5n 0.0 480.5n 0.0 559.5n 0.0 560.5n 0.0 639.5n 0.0 640.5n 3.3 719.5n 3.3 720.5n 3.3 799.5n 3.3 800.5n 3.3 879.5n 3.3 880.5n 3.3 959.5n 3.3 960.5n 3.3 1039.5n 3.3 1040.5n 3.3 1119.5n 3.3 1120.5n 3.3 1199.5n 3.3 1200.5n 3.3 1280n 3.3)
+XDUT vdd 0 eq gt lt a0 a1 b0 b1 sol_070_cmos_two_bit_magnitude_comparator
+.temp 27
+.options method=gear reltol=1e-5
+* @spec c0eq range 3.2 3.4 unit=V
+* @spec c0gt range -0.02 0.02 unit=V
+* @spec c0lt range -0.02 0.02 unit=V
+* @spec c1eq range -0.02 0.02 unit=V
+* @spec c1gt range 3.2 3.4 unit=V
+* @spec c1lt range -0.02 0.02 unit=V
+* @spec c2eq range -0.02 0.02 unit=V
+* @spec c2gt range 3.2 3.4 unit=V
+* @spec c2lt range -0.02 0.02 unit=V
+* @spec c3eq range -0.02 0.02 unit=V
+* @spec c3gt range 3.2 3.4 unit=V
+* @spec c3lt range -0.02 0.02 unit=V
+* @spec c4eq range -0.02 0.02 unit=V
+* @spec c4gt range -0.02 0.02 unit=V
+* @spec c4lt range 3.2 3.4 unit=V
+* @spec c5eq range 3.2 3.4 unit=V
+* @spec c5gt range -0.02 0.02 unit=V
+* @spec c5lt range -0.02 0.02 unit=V
+* @spec c6eq range -0.02 0.02 unit=V
+* @spec c6gt range 3.2 3.4 unit=V
+* @spec c6lt range -0.02 0.02 unit=V
+* @spec c7eq range -0.02 0.02 unit=V
+* @spec c7gt range 3.2 3.4 unit=V
+* @spec c7lt range -0.02 0.02 unit=V
+* @spec c8eq range -0.02 0.02 unit=V
+* @spec c8gt range -0.02 0.02 unit=V
+* @spec c8lt range 3.2 3.4 unit=V
+* @spec c9eq range -0.02 0.02 unit=V
+* @spec c9gt range -0.02 0.02 unit=V
+* @spec c9lt range 3.2 3.4 unit=V
+* @spec c10eq range 3.2 3.4 unit=V
+* @spec c10gt range -0.02 0.02 unit=V
+* @spec c10lt range -0.02 0.02 unit=V
+* @spec c11eq range -0.02 0.02 unit=V
+* @spec c11gt range 3.2 3.4 unit=V
+* @spec c11lt range -0.02 0.02 unit=V
+* @spec c12eq range -0.02 0.02 unit=V
+* @spec c12gt range -0.02 0.02 unit=V
+* @spec c12lt range 3.2 3.4 unit=V
+* @spec c13eq range -0.02 0.02 unit=V
+* @spec c13gt range -0.02 0.02 unit=V
+* @spec c13lt range 3.2 3.4 unit=V
+* @spec c14eq range -0.02 0.02 unit=V
+* @spec c14gt range -0.02 0.02 unit=V
+* @spec c14lt range 3.2 3.4 unit=V
+* @spec c15eq range 3.2 3.4 unit=V
+* @spec c15gt range -0.02 0.02 unit=V
+* @spec c15lt range -0.02 0.02 unit=V
+.control
+set filetype=ascii
+tran 100p 1280n
+meas tran c0eq FIND v(eq) AT=55n
+meas tran c0gt FIND v(gt) AT=55n
+meas tran c0lt FIND v(lt) AT=55n
+meas tran c1eq FIND v(eq) AT=135n
+meas tran c1gt FIND v(gt) AT=135n
+meas tran c1lt FIND v(lt) AT=135n
+meas tran c2eq FIND v(eq) AT=215n
+meas tran c2gt FIND v(gt) AT=215n
+meas tran c2lt FIND v(lt) AT=215n
+meas tran c3eq FIND v(eq) AT=295n
+meas tran c3gt FIND v(gt) AT=295n
+meas tran c3lt FIND v(lt) AT=295n
+meas tran c4eq FIND v(eq) AT=375n
+meas tran c4gt FIND v(gt) AT=375n
+meas tran c4lt FIND v(lt) AT=375n
+meas tran c5eq FIND v(eq) AT=455n
+meas tran c5gt FIND v(gt) AT=455n
+meas tran c5lt FIND v(lt) AT=455n
+meas tran c6eq FIND v(eq) AT=535n
+meas tran c6gt FIND v(gt) AT=535n
+meas tran c6lt FIND v(lt) AT=535n
+meas tran c7eq FIND v(eq) AT=615n
+meas tran c7gt FIND v(gt) AT=615n
+meas tran c7lt FIND v(lt) AT=615n
+meas tran c8eq FIND v(eq) AT=695n
+meas tran c8gt FIND v(gt) AT=695n
+meas tran c8lt FIND v(lt) AT=695n
+meas tran c9eq FIND v(eq) AT=775n
+meas tran c9gt FIND v(gt) AT=775n
+meas tran c9lt FIND v(lt) AT=775n
+meas tran c10eq FIND v(eq) AT=855n
+meas tran c10gt FIND v(gt) AT=855n
+meas tran c10lt FIND v(lt) AT=855n
+meas tran c11eq FIND v(eq) AT=935n
+meas tran c11gt FIND v(gt) AT=935n
+meas tran c11lt FIND v(lt) AT=935n
+meas tran c12eq FIND v(eq) AT=1015n
+meas tran c12gt FIND v(gt) AT=1015n
+meas tran c12lt FIND v(lt) AT=1015n
+meas tran c13eq FIND v(eq) AT=1095n
+meas tran c13gt FIND v(gt) AT=1095n
+meas tran c13lt FIND v(lt) AT=1095n
+meas tran c14eq FIND v(eq) AT=1175n
+meas tran c14gt FIND v(gt) AT=1175n
+meas tran c14lt FIND v(lt) AT=1175n
+meas tran c15eq FIND v(eq) AT=1255n
+meas tran c15gt FIND v(gt) AT=1255n
+meas tran c15lt FIND v(lt) AT=1255n
+write out.raw "v(eq)" "v(gt)" "v(lt)"
+quit
+.endc
+.end

@@ -1,0 +1,102 @@
+
+Note: No compatibility mode selected!
+
+
+Circuit: cmos two-bit magnitude comparator
+
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+Initial Transient Solution
+--------------------------
+
+Node                                   Voltage
+----                                   -------
+vdd                                        3.3
+a0                                           0
+a1                                           0
+b0                                           0
+b1                                           0
+eq                                         3.3
+gt                                 1.22593e-09
+lt                                 1.22593e-09
+xdut.a0b                                   3.3
+xdut.b0b                                   3.3
+xdut.e0                                    3.3
+xdut.a1b                                   3.3
+xdut.e1                                    3.3
+xdut.b1b                                   3.3
+xdut.net0                          1.22593e-09
+xdut.net1                          6.12963e-10
+xdut.g1b                                   3.3
+xdut.net4                         3.09376e-133
+xdut.g0b                                   3.3
+xdut.net2                              2.33749
+xdut.net3                         3.57911e-135
+xdut.net5                          6.12963e-10
+xdut.l1b                                   3.3
+xdut.net8                              2.33748
+xdut.l0b                                   3.3
+xdut.net6                              2.33747
+xdut.net7                              2.33746
+xdut.net9                          6.12963e-10
+vb1#branch                                   0
+vb0#branch                                   0
+va1#branch                            3.31e-12
+va0#branch                            3.31e-12
+vdd#branch                        -9.49098e-11
+
+ Reference value :  1.18448e-06
+
+No. of Data Rows : 14786
+c0eq                =  3.30000e+00
+c0gt                =  1.22593e-09
+c0lt                =  1.22593e-09
+c1eq                =  6.12963e-10
+c1gt                =  3.30000e+00
+c1lt                =  1.22598e-09
+c2eq                =  6.13041e-10
+c2gt                =  3.30000e+00
+c2lt                =  1.22593e-09
+c3eq                =  6.12963e-10
+c3gt                =  3.30000e+00
+c3lt                =  1.22593e-09
+c4eq                =  6.12963e-10
+c4gt                =  1.22599e-09
+c4lt                =  3.30000e+00
+c5eq                =  3.30000e+00
+c5gt                =  1.22593e-09
+c5lt                =  1.22604e-09
+c6eq                =  6.12963e-10
+c6gt                =  3.30000e+00
+c6lt                =  1.22593e-09
+c7eq                =  6.13043e-10
+c7gt                =  3.30000e+00
+c7lt                =  1.22593e-09
+c8eq                =  6.13042e-10
+c8gt                =  1.22593e-09
+c8lt                =  3.30000e+00
+c9eq                =  6.12964e-10
+c9gt                =  1.22593e-09
+c9lt                =  3.30000e+00
+c10eq               =  3.30000e+00
+c10gt               =  1.22618e-09
+c10lt               =  1.22654e-09
+c11eq               =  6.12963e-10
+c11gt               =  3.30000e+00
+c11lt               =  1.22598e-09
+c12eq               =  6.12963e-10
+c12gt               =  1.22593e-09
+c12lt               =  3.30000e+00
+c13eq               =  6.13042e-10
+c13gt               =  1.22593e-09
+c13lt               =  3.30000e+00
+c14eq               =  6.12963e-10
+c14gt               =  1.22600e-09
+c14lt               =  3.30000e+00
+c15eq               =  3.30000e+00
+c15gt               =  1.22591e-09
+c15lt               =  1.22604e-09
+ASCII raw file "out.raw"
+ngspice-46 done

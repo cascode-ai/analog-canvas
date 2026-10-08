@@ -1,0 +1,223 @@
+{
+  "simulator": "ngspice-46",
+  "models": "Generic educational Level-1 MOS",
+  "temperatureC": 27,
+  "localSpecs": [
+    {
+      "metric": "h0reqo",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 6.14408e-10,
+      "passed": true
+    },
+    {
+      "metric": "h0acki",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 6.12963e-10,
+      "passed": true
+    },
+    {
+      "metric": "h0dout",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 1.22593e-9,
+      "passed": true
+    },
+    {
+      "metric": "h1reqo",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "h1acki",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "h1dout",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "h2reqo",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "h2acki",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "h2dout",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "h3reqo",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 2.69125e-7,
+      "passed": true
+    },
+    {
+      "metric": "h3acki",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 6.12963e-10,
+      "passed": true
+    },
+    {
+      "metric": "h3dout",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 1.22453e-9,
+      "passed": true
+    },
+    {
+      "metric": "h4reqo",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 5.6477e-8,
+      "passed": true
+    },
+    {
+      "metric": "h4acki",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 6.12963e-10,
+      "passed": true
+    },
+    {
+      "metric": "h4dout",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "h5reqo",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "h5acki",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "h5dout",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 2.45632e-9,
+      "passed": true
+    },
+    {
+      "metric": "h6reqo",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "h6acki",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "h6dout",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 2.45109e-9,
+      "passed": true
+    },
+    {
+      "metric": "h7reqo",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 2.69163e-7,
+      "passed": true
+    },
+    {
+      "metric": "h7acki",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 6.12963e-10,
+      "passed": true
+    },
+    {
+      "metric": "h7dout",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "h8reqo",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 5.67601e-8,
+      "passed": true
+    },
+    {
+      "metric": "h8acki",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 6.12963e-10,
+      "passed": true
+    },
+    {
+      "metric": "h8dout",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 1.22583e-9,
+      "passed": true
+    }
+  ],
+  "nativeDiagnostics": 0,
+  "canonicalExportMatches": true,
+  "prototypeConnectivityAndParametersMatch": true,
+  "limitations": "Nominal functional verification only; no PVT, noise, mismatch or foundry qualification.",
+  "hosted": {
+    "runId": "11e51968-c2a9-4049-b030-e7ad9d3382fe",
+    "specs": {
+      "available": true,
+      "total": 27,
+      "passed": 27,
+      "failed": 0,
+      "notEvaluated": 0,
+      "unconstrained": 0
+    },
+    "execution": "completed"
+  },
+  "liveEditorVerification": {
+    "errors": 0,
+    "warnings": 0,
+    "structuralComparison": "equal"
+  },
+  "visualReview": "Full 1500px and 500px previews inspected; default fonts and symbol dimensions retained.",
+  "internalObservationsMappedToActualDutNodes": true,
+  "publicLayoutMatchesNativeProject": true,
+  "publicProjectMatchesExceptSchemaVersion": true,
+  "nativeSchemaVersion": 66,
+  "publicSchemaVersion": 67
+}

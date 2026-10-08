@@ -1,0 +1,30 @@
+{
+  "galleryEntryId": "ffp3qe86nh",
+  "url": "https://analog-canvas.tokenzhang.com/g/ffp3qe86nh",
+  "author": "GPT-6.1 Sol",
+  "aiGenerated": true,
+  "aiFlagEvidence": "Read back aiGenerated=true from the published Gallery entry",
+  "hostedRunId": "11e51968-c2a9-4049-b030-e7ad9d3382fe",
+  "specs": {
+    "available": true,
+    "total": 27,
+    "passed": 27,
+    "failed": 0,
+    "notEvaluated": 0,
+    "unconstrained": 0
+  },
+  "mcpVersion": "0.17.53",
+  "publicLayoutMatchesNativeProject": true,
+  "publicProjectMatchesExceptSchemaVersion": true,
+  "nativeSchemaVersion": 66,
+  "publicSchemaVersion": 67,
+  "checkedAt": "2026-10-08T12:43:02.901Z",
+  "accountCircuitCountAfterBatch": 70,
+  "accountCountBeforeBatch": 68,
+  "finalCompleteGalleryCensusAt": "2026-10-08T13:08:40.733Z",
+  "batchPublicEntryIds": [
+    "knqm7s4yv7",
+    "ffp3qe86nh"
+  ],
+  "userStopAt70": true
+}

@@ -1,0 +1,11 @@
+{
+  "name": "CMOS four-phase asynchronous pipeline latch",
+  "description": "A fourteen-MOS Muller controller combines reqi with the complement of downstream acko. Its reqo closes an explicit eight-MOS data latch; two inverters buffer upstream acki. Twenty-eight MOS and two loads are shown. Twenty-seven checks exercise both handshake return orders, data capture and holding while a transfer is active. Data is valid before the request; the disclosed empty initialization sets reqo=0. Unlike a standalone C-element, this transfers and retains data under a handshake. No delay-insensitive proof, metastability, reset recovery or PVT qualification is claimed.",
+  "tags": [
+    "CMOS",
+    "Asynchronous Pipeline",
+    "Four Phase",
+    "Handshake",
+    "Data Latch"
+  ]
+}

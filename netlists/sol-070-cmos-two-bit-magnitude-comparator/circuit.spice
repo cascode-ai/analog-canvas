@@ -1,0 +1,56 @@
+
+.subckt sol_070_cmos_two_bit_magnitude_comparator vdd VSS eq gt lt a0 a1 b0 b1
+CE eq VSS 100f
+CG gt VSS 100f
+CL lt VSS 100f
+M1 a0b a0 vdd vdd APMOS l=1u w=20u
+M10 a0b b0b e0 VSS ANMOS l=1u w=10u
+M11 a0 b0b e0 vdd APMOS l=1u w=20u
+M12 a0 b0 e0 VSS ANMOS l=1u w=10u
+M13 a1b b1 e1 vdd APMOS l=1u w=20u
+M14 a1b b1b e1 VSS ANMOS l=1u w=10u
+M15 a1 b1b e1 vdd APMOS l=1u w=20u
+M16 a1 b1 e1 VSS ANMOS l=1u w=10u
+M17 net0 e0 vdd vdd APMOS l=1u w=20u
+M18 net0 e1 vdd vdd APMOS l=1u w=20u
+M19 net0 e0 net1 VSS ANMOS l=1u w=20u
+M2 a0b a0 VSS VSS ANMOS l=1u w=10u
+M20 net1 e1 VSS VSS ANMOS l=1u w=20u
+M21 eq net0 vdd vdd APMOS l=1u w=20u
+M22 eq net0 VSS VSS ANMOS l=1u w=10u
+M23 g1b a1 vdd vdd APMOS l=1u w=20u
+M24 g1b b1b vdd vdd APMOS l=1u w=20u
+M25 g1b a1 net4 VSS ANMOS l=1u w=20u
+M26 net4 b1b VSS VSS ANMOS l=1u w=20u
+M27 g0b e1 vdd vdd APMOS l=1u w=20u
+M28 g0b a0 vdd vdd APMOS l=1u w=20u
+M29 g0b b0b vdd vdd APMOS l=1u w=20u
+M3 a1b a1 vdd vdd APMOS l=1u w=20u
+M30 g0b e1 net2 VSS ANMOS l=1u w=30u
+M31 net2 a0 net3 VSS ANMOS l=1u w=30u
+M32 net3 b0b VSS VSS ANMOS l=1u w=30u
+M33 gt g1b vdd vdd APMOS l=1u w=20u
+M34 gt g0b vdd vdd APMOS l=1u w=20u
+M35 gt g1b net5 VSS ANMOS l=1u w=20u
+M36 net5 g0b VSS VSS ANMOS l=1u w=20u
+M37 l1b a1b vdd vdd APMOS l=1u w=20u
+M38 l1b b1 vdd vdd APMOS l=1u w=20u
+M39 l1b a1b net8 VSS ANMOS l=1u w=20u
+M4 a1b a1 VSS VSS ANMOS l=1u w=10u
+M40 net8 b1 VSS VSS ANMOS l=1u w=20u
+M41 l0b e1 vdd vdd APMOS l=1u w=20u
+M42 l0b a0b vdd vdd APMOS l=1u w=20u
+M43 l0b b0 vdd vdd APMOS l=1u w=20u
+M44 l0b e1 net6 VSS ANMOS l=1u w=30u
+M45 net6 a0b net7 VSS ANMOS l=1u w=30u
+M46 net7 b0 VSS VSS ANMOS l=1u w=30u
+M47 lt l1b vdd vdd APMOS l=1u w=20u
+M48 lt l0b vdd vdd APMOS l=1u w=20u
+M49 lt l1b net9 VSS ANMOS l=1u w=20u
+M5 b0b b0 vdd vdd APMOS l=1u w=20u
+M50 net9 l0b VSS VSS ANMOS l=1u w=20u
+M6 b0b b0 VSS VSS ANMOS l=1u w=10u
+M7 b1b b1 vdd vdd APMOS l=1u w=20u
+M8 b1b b1 VSS VSS ANMOS l=1u w=10u
+M9 a0b b0 e0 vdd APMOS l=1u w=20u
+.ends sol_070_cmos_two_bit_magnitude_comparator

@@ -1,0 +1,33 @@
+
+.subckt sol_069_cmos_four_phase_pipeline_latch vdd VSS reqi reqo acko din dout acki
+CD dout VSS 100f
+CQ reqo VSS 100f
+M1 net1 reqi vdd vdd APMOS l=1u w=20u
+M10 net6 reqo VSS VSS ANMOS l=1u w=10u
+M11 rb ackob net7 VSS ANMOS l=1u w=10u
+M12 net7 reqo VSS VSS ANMOS l=1u w=10u
+M13 reqo rb vdd vdd APMOS l=1u w=20u
+M14 reqo rb VSS VSS ANMOS l=1u w=10u
+M15 ackob acko vdd vdd APMOS l=1u w=20u
+M16 ackob acko VSS VSS ANMOS l=1u w=10u
+M17 din reqo net4 vdd APMOS l=1u w=20u
+M18 din rb net4 VSS ANMOS l=1u w=10u
+M19 net3 net4 vdd vdd APMOS l=1u w=20u
+M2 net1 ackob vdd vdd APMOS l=1u w=20u
+M20 net3 net4 VSS VSS ANMOS l=1u w=10u
+M21 dout net3 vdd vdd APMOS l=1u w=20u
+M22 dout net3 VSS VSS ANMOS l=1u w=10u
+M23 dout rb net4 vdd APMOS l=1u w=20u
+M24 dout reqo net4 VSS ANMOS l=1u w=10u
+M25 net0 reqo vdd vdd APMOS l=1u w=20u
+M26 net0 reqo VSS VSS ANMOS l=1u w=10u
+M27 acki net0 vdd vdd APMOS l=1u w=20u
+M28 acki net0 VSS VSS ANMOS l=1u w=10u
+M3 net2 reqi net1 vdd APMOS l=1u w=20u
+M4 net2 reqo net1 vdd APMOS l=1u w=20u
+M5 rb ackob net2 vdd APMOS l=1u w=20u
+M6 rb reqo net2 vdd APMOS l=1u w=20u
+M7 rb reqi net5 VSS ANMOS l=1u w=10u
+M8 net5 ackob VSS VSS ANMOS l=1u w=10u
+M9 rb reqi net6 VSS ANMOS l=1u w=10u
+.ends sol_069_cmos_four_phase_pipeline_latch
