@@ -775,6 +775,9 @@ export function planBrowserAgentCommand(
       const edits: ProjectStructureEdit[] = [];
       let onlyDocument = true;
       const sourceActions: number[] = [];
+      // What each item's plan wants its caller told, such as the markers a
+      // move carried (#1531), reaches the receipt as one call's would.
+      const notes: AgentCommandPlanNote[] = [];
       for (const [index, item] of command.commands.entries()) {
         try {
           const current = draft.documents.find((d) => d.id === documentId)!;
@@ -788,6 +791,7 @@ export function planBrowserAgentCommand(
             { sequence, index },
           );
           onlyDocument &&= !("structureEdits" in plan);
+          if ("notes" in plan) notes.push(...(plan.notes ?? []));
           const next: ProjectStructureEdit[] =
             "structureEdits" in plan
               ? [...plan.structureEdits]
@@ -831,6 +835,7 @@ export function planBrowserAgentCommand(
                 ? edit.edits.map(() => sourceActions[index]!)
                 : [],
             ),
+            ...(notes.length ? { notes } : {}),
           }
         : { structureEdits: edits, sourceActions };
     }

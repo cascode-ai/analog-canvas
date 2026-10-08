@@ -111,8 +111,12 @@ refused with their IDs; it never means the first of them.
   of `position` for a placed Instance, preserving its rotation/mirror and using
   the current resolved pin landing, and names the nearest reachable landing
   when a pin cannot land where asked; tray Instances use `place-existing`
-  (with a `pinAnchor`, its `placement` may be left out). No electrical
-  connection is inferred. For a symmetric half, place each part with
+  (with a `pinAnchor`, its `placement` may be left out). A `move` that turns
+  and mirrors nothing carries the grounds, supply markers and Cell Pins that
+  stand on the part's pins with no wire of their own, as one piece; the
+  receipt's `MARKERS_MOVED_ALONG` note names them. A marker that is wired,
+  shares the point with another pin or is locked stays, joined by a wire.
+  No electrical connection is inferred. For a symmetric half, place each part with
   `mirrorOf:{instance, x}` (or `y`): the mirror image of a placed part about
   that line, exact, Ports and their names included. Or use the selection
   `transform` mirror with an explicit center. Neither copies connectivity nor
