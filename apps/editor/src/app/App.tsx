@@ -1249,6 +1249,7 @@ function WorkspaceEditor({
         getActiveDocumentId: () => editorDocumentController.document.id,
         commitProjectStructure: (next, active) =>
           browserAgentHost.commitProjectStructure(next, active),
+        describeOpenBlocker: () => projectSwitchBlockerRef.current(),
         openProjectInNewTab: (candidate, background) =>
           openProjectInTabRef.current(
             candidate,
@@ -1432,6 +1433,8 @@ function WorkspaceEditor({
   const noteCodeDraftDirty = useCallback((dirty: boolean) => {
     setCodeDraftDirty(dirty);
   }, []);
+  /** The tab guard's blocker, for Agent hosts built before it (#1462). */
+  const projectSwitchBlockerRef = useRef<() => string | null>(() => null);
   const openProjectInTabRef = useRef<
     (
       project: CircuitProject,
@@ -6057,6 +6060,40 @@ function WorkspaceEditor({
       tabs: [...restoredTabs.value.tabs, { id, session: createTabSession() }],
     };
   });
+  /**
+   * What keeps the editor from leaving this Project now, in words a person
+   * and an Agent can act on, or null (#1462). A text edit counts only while
+   * its label is on screen to finish.
+   */
+  const projectSwitchBlocker = (): string | null =>
+    (
+      [
+        [
+          isSaveInFlight() || nativeWorkspaceSaving.current,
+          "a save is still running",
+        ],
+        [
+          replaceGuard,
+          "a dialog asks whether to save before replacing the Project",
+        ],
+        [recoveryDialogOpen, "the recovery dialog is open"],
+        [publishGalleryOpen, "the Publish to Gallery dialog is open"],
+        [componentEditor, "the component editor is open"],
+        [documentSettingsOpen, "Document settings are open"],
+        [versionHistoryOpen, "Version history is open"],
+        [projectInfoOpen, "Project Info is open"],
+        [
+          projectNameEditing.current,
+          "the Project's name is being edited on its tab",
+        ],
+        [
+          textEditing && textEditingTarget,
+          "a label's text is being edited on the canvas",
+        ],
+        [codeDraftDirty, "a code panel holds a draft that is not applied"],
+      ] as const
+    ).find(([active]) => active)?.[1] ?? null;
+  projectSwitchBlockerRef.current = projectSwitchBlocker;
   const projectTabs = useProjectTabs<TabSession>({
     initial: initialTabs,
     persist: persistTabs,
@@ -6075,22 +6112,10 @@ function WorkspaceEditor({
       galleryId: session.publication?.id ?? null,
     }),
     prepare: async () => {
-      if (
-        isSaveInFlight() ||
-        nativeWorkspaceSaving.current ||
-        replaceGuard ||
-        recoveryDialogOpen ||
-        publishGalleryOpen ||
-        componentEditor ||
-        documentSettingsOpen ||
-        versionHistoryOpen ||
-        projectInfoOpen ||
-        projectNameEditing.current ||
-        textEditing ||
-        codeDraftDirty
-      ) {
+      const blocker = projectSwitchBlocker();
+      if (blocker) {
         setStatus(
-          "Finish or cancel the current edit or dialog before switching project tabs. No work was discarded.",
+          `Can't switch project tabs yet: ${blocker}. No work was discarded.`,
         );
         return false;
       }
@@ -6486,7 +6511,7 @@ function WorkspaceEditor({
           ? success({ action: "activate", applied })
           : fail(
               "WORKSPACE_BUSY",
-              "Finish the current edit before switching Projects",
+              `Can't switch Projects yet: ${projectSwitchBlocker() ?? "another Project operation is running"}`,
             );
       }
       if (request.action === "open") {
@@ -6658,7 +6683,7 @@ function WorkspaceEditor({
           ? success({ action: "new", applied: true, workspaceId })
           : fail(
               "WORKSPACE_BUSY",
-              "Finish the current edit before opening a Project",
+              `Can't open a Project yet: ${projectSwitchBlocker() ?? "another Project operation is running"}`,
             );
       }
       if (request.action === "rename") {
@@ -6797,6 +6822,7 @@ function WorkspaceEditor({
         getActiveDocumentId: () => controller.document.id,
         commitProjectStructure: (next, active) =>
           host.commitProjectStructure(next, active),
+        describeOpenBlocker: () => projectSwitchBlockerRef.current(),
         openProjectInNewTab: (candidate, background) =>
           openProjectInTabRef.current(
             candidate,
