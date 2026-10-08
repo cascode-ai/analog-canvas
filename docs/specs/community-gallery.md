@@ -371,6 +371,8 @@ boundaries still apply. Diagnostic codes:
   and `ERC_FLOATING_GATE`. A name on a singleton local Net is not electrical
   connectivity. The sanctioned cases are a real peer connection, a formal
   boundary, a reviewed global supply, an implicit pin, or explicit NoConnect.
+  `ERC_UNDRIVEN_GATE_NET`, a Net of several gates, bulks or block inputs that
+  nothing drives, is an editor warning only and is not part of this advice.
 - `empty-project` — fewer than 2 instances AND no substantial drawing
   (3+ drafting objects including a text); pure block diagrams pass.
 
