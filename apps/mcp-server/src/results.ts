@@ -324,6 +324,56 @@ function notFound(
 }
 
 /**
+ * Ground by the names people and netlists give it (#1515). The Snapshot
+ * calls it "0", SPICE's global node, while a Cell's netlist names its
+ * ground pin VSS, or GND when VSS names another Net. A Net or part that
+ * really has the name, in any case, is that one instead.
+ */
+const GROUND_NAMES = new Set(["0", "gnd", "vss", "ground"]);
+const GROUND_NOTE =
+  'Ground is Net "0" here; a Cell\'s netlist names its ground pin VSS, or GND when VSS names another Net.';
+
+/** A Net by ID or exact name, else ground by one of its names. */
+function netNamed(
+  document: SnapshotDocument,
+  reference: string,
+):
+  { net: SnapshotNet; ground?: true } | { grounds: SnapshotNet[] } | undefined {
+  const net = document.nets.find(
+    (candidate) => candidate.id === reference || candidate.name === reference,
+  );
+  if (net) return { net };
+  const folded = reference.toLowerCase();
+  if (
+    !GROUND_NAMES.has(folded) ||
+    document.nets.some((item) => item.name?.toLowerCase() === folded) ||
+    document.instances.some((item) => partName(item)?.toLowerCase() === folded)
+  )
+    return undefined;
+  const grounds = document.nets.filter((item) => item.powerDomain === "ground");
+  if (grounds.length === 1) return { net: grounds[0]!, ground: true };
+  return grounds.length ? { grounds } : undefined;
+}
+
+/** What a Net lookup found, said as inspect says it. */
+function netAnswer(
+  reference: string,
+  found: NonNullable<ReturnType<typeof netNamed>>,
+  value: (net: SnapshotNet) => Record<string, unknown>,
+): Record<string, unknown> {
+  if ("grounds" in found)
+    return lookupRefusal(
+      "NAME_AMBIGUOUS",
+      `"${reference}" could mean any of ${found.grounds.length} ground Nets; inspect one by its id`,
+      reference,
+      found.grounds.map(candidate),
+    );
+  return found.ground
+    ? { ...value(found.net), matchedAs: "ground", note: GROUND_NOTE }
+    : value(found.net);
+}
+
+/**
  * Entries of a `pins` read that are not part IDs (#1525): each a part's
  * Reference, or a Cell Pin marker's Pin name, resolved exactly as actions
  * resolve it, or the reason it is not one, with the IDs it could mean.
@@ -386,10 +436,8 @@ export function inspectObject(
       ),
     );
   if (named[0]) return inspectInstanceValue(named[0]);
-  const net = document.nets.find(
-    (candidate) => candidate.id === reference || candidate.name === reference,
-  );
-  if (net) return inspectNetValue(net);
+  const net = netNamed(document, reference);
+  if (net) return netAnswer(reference, net, inspectNetValue);
   const route = document.routes.find((candidate) => candidate.id === reference);
   if (route) {
     return {
@@ -443,10 +491,10 @@ export function inspectNet(
 ): Record<string, unknown> {
   const document = entry.snapshot.document;
   const reference = target.id ?? target.name ?? "";
-  const net = document.nets.find(
-    (candidate) => candidate.id === reference || candidate.name === reference,
-  );
-  return net ? inspectNetValue(net) : notFound(document, reference, "net");
+  const net = netNamed(document, reference);
+  return net
+    ? netAnswer(reference, net, inspectNetValue)
+    : notFound(document, reference, "net");
 }
 
 export function inspectConnectivity(
@@ -479,13 +527,11 @@ export function inspectConnectivity(
         ...(instance.mosBulk ? { mosBulk: instance.mosBulk } : {}),
       };
     }
-    const net = document.nets.find(
-      (candidate) => candidate.id === reference || candidate.name === reference,
-    );
-    if (net) {
-      return {
-        ...inspectNetValue(net),
-        terminalsResolved: net.terminals.map((terminal) => {
+    const net = netNamed(document, reference);
+    if (net)
+      return netAnswer(reference, net, (found) => ({
+        ...inspectNetValue(found),
+        terminalsResolved: found.terminals.map((terminal) => {
           const owner = document.instances.find(
             (candidate) => candidate.id === terminal.instanceId,
           );
@@ -494,8 +540,7 @@ export function inspectConnectivity(
             pin: terminal.pinName,
           };
         }),
-      };
-    }
+      }));
     return notFound(document, reference);
   }
   return {

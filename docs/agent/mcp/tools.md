@@ -418,7 +418,11 @@ read. An Editor without the list answers `annotationsUnavailable` instead.
 Names match exactly, as actions match them. A name nothing has is refused
 as `OBJECT_NOT_FOUND`, one several parts share as `NAME_AMBIGUOUS`, both in
 the `error:{code,message,recovery}` shape with the `candidates` (kind, id,
-name) it could mean; a `net` target looks at Nets only.
+name) it could mean; a `net` target looks at Nets only. Ground is Net `0`
+in the Snapshot; `GND`, `VSS`, `gnd` or `ground` find it too, marked
+`matchedAs:"ground"`, unless a Net or part really has that name (a Port VSS,
+say). A Cell's netlist names its ground pin VSS, or GND when VSS names
+another Net.
 `inspect` with `target:{kind:"pins",instanceIds:[…]}` also takes a part's
 Reference, or a Cell Pin's name: `resolvedNames` maps each to its ID, and an
 entry naming no single part stays in `missingInstanceIds` and is explained

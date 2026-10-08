@@ -1042,6 +1042,84 @@ describe("MCP tools on the live editor", () => {
     });
   });
 
+  it("finds ground by GND, VSS or gnd, as the netlist names its pin (#1515)", async () => {
+    const editor = await connected();
+    // R1 from a Port IN to ground: a Cell the netlist can write.
+    await apply(editor, [
+      place("resistor", "R1", 300, { parameters: { value: "1k" } }),
+      {
+        kind: "place-component",
+        symbol: "port",
+        reference: "IN",
+        position: { x: 100, y: 100 },
+      },
+      {
+        kind: "place-component",
+        symbol: "ground",
+        id: "tail-ground",
+        position: { x: 300, y: 300 },
+      },
+    ]);
+    await apply(editor, [
+      {
+        kind: "connect",
+        from: pin("R1", "1"),
+        to: { kind: "pin", instance: "IN", pin: "P" },
+      },
+      {
+        kind: "connect",
+        from: pin("R1", "2"),
+        to: {
+          kind: "pin",
+          instance: { kind: "instance", id: "tail-ground" },
+          pin: "0",
+        },
+      },
+    ]);
+    const inspect = (kind: string, name: string) =>
+      editor.tool("inspect", { target: { kind, name } });
+    const ground = await inspect("net", "0");
+    expect(ground).not.toHaveProperty("matchedAs");
+    for (const name of ["GND", "VSS", "gnd"])
+      expect(await inspect("object", name)).toMatchObject({
+        id: ground.id,
+        name: "0",
+        matchedAs: "ground",
+        note: expect.stringContaining("VSS"),
+      });
+    expect(await inspect("connectivity", "vss")).toMatchObject({
+      id: ground.id,
+      terminalsResolved: expect.arrayContaining([{ instance: "R1", pin: "2" }]),
+    });
+    const pinsOf = async () =>
+      (
+        await editor.tool("netlist_code", { action: "read", format: "spice" })
+      ).netlist.text
+        .match(/^\.subckt \S+ (.*)$/mu)?.[1]
+        ?.split(/\s+/u);
+    expect(await pinsOf()).toContain("VSS");
+
+    // A Port named VSS is that Net; ground's pin is then GND, and GND finds it.
+    await apply(editor, [
+      {
+        kind: "place-component",
+        symbol: "port",
+        reference: "VSS",
+        position: { x: 600, y: 300 },
+      },
+    ]);
+    expect(await inspect("net", "VSS")).not.toHaveProperty("matchedAs");
+    expect(await inspect("net", "vss")).toMatchObject({
+      ok: false,
+      error: { candidates: [{ kind: "net", name: "VSS" }] },
+    });
+    expect(await inspect("net", "GND")).toMatchObject({
+      name: "0",
+      matchedAs: "ground",
+    });
+    expect(await pinsOf()).toEqual(expect.arrayContaining(["GND", "VSS"]));
+  });
+
   it("apply_actions returns the editor's refusal of a list that needs several calls, after one request", async () => {
     const editor = await connected();
     await apply(editor, [place("resistor", "R1", 100)]);
