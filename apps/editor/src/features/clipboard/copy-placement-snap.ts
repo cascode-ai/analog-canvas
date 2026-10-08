@@ -57,7 +57,7 @@ export function snapPendingCopyPlacement(options: {
     primaryAnchorId: primary.id,
     grid: options.grid,
     tolerance: options.tolerance,
-    profile: SNAP_PROFILES.instanceMove,
+    profile: SNAP_PROFILES.instancePlacement,
   });
   return {
     point: {

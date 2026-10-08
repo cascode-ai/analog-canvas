@@ -3,6 +3,7 @@ import {
   resolveRouteAttachment,
   resolveVisualAnchor,
   type ResolvedRouteGeometry,
+  type ResolvedDocumentRoutingGeometry,
 } from "@icm/derived";
 import type {
   Annotation,
@@ -25,6 +26,7 @@ export interface AnnotationDragGeometryContext {
   /** Rounding pitch for dragged labels; 1-unit precision is valid. */
   annotationGrid: number;
   resolver: SymbolResolver;
+  routingGeometry?: ResolvedDocumentRoutingGeometry;
   routeGeometryRecords: readonly {
     route: RouteBranch;
     geometry: ResolvedRouteGeometry;
@@ -37,7 +39,12 @@ export interface AnnotationDragGeometryContext {
  * preview from one point and commit from another.
  */
 export function annotationDragPosition(
-  { document, resolver, routeGeometryRecords }: AnnotationDragGeometryContext,
+  {
+    document,
+    resolver,
+    routeGeometryRecords,
+    routingGeometry,
+  }: AnnotationDragGeometryContext,
   annotation: Annotation,
 ): Point {
   const currentAttachment = effectiveRouteAttachment(annotation);
@@ -53,7 +60,12 @@ export function annotationDragPosition(
   if (isRoutedMarker(annotation) && markerPlacement) {
     return markerPlacement.labelPoint;
   }
-  return resolveVisualAnchor(document, resolver, annotation.anchor).position;
+  return resolveVisualAnchor(
+    document,
+    resolver,
+    annotation.anchor,
+    routingGeometry,
+  ).position;
 }
 
 /** How far from its own wire a dropped Net Label still stands on it. */

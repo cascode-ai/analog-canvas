@@ -120,7 +120,7 @@ export function snapPendingComponentPlacement(options: {
     primaryAnchorId: `instance:${instanceId}:origin`,
     grid: options.document.presentation.grid,
     tolerance: options.tolerance,
-    profile: SNAP_PROFILES.instanceMove,
+    profile: SNAP_PROFILES.instancePlacement,
   });
   return {
     position: {

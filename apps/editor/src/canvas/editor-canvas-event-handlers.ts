@@ -52,6 +52,7 @@ interface CanvasEventHandlerDependencies {
       point: Point,
       clientPoint: Point,
       canvas: SVGSVGElement,
+      suppressSnap: boolean,
     ) => void;
     clearDraftingSelection: () => void;
     /**
@@ -254,9 +255,15 @@ export function createEditorCanvasEventHandlers({
           event.preventDefault();
           event.stopPropagation();
           commitCommandMove(
-            pointFromClient(event.clientX, event.clientY, event.currentTarget),
+            pointFromClient(
+              event.clientX,
+              event.clientY,
+              event.currentTarget,
+              false,
+            ),
             { x: event.clientX, y: event.clientY },
             event.currentTarget,
+            event.altKey,
           );
         }
         return;

@@ -8,7 +8,7 @@ import {
   placementWireSources,
   proposePlacementContact,
 } from "./instance-contact-planner.js";
-import { planRoutingTransform } from "./routing-transform-planner.js";
+import { prepareRoutingTransform } from "./routing-transform-planner.js";
 import {
   createRoutingOperationPlan,
   type RoutingOperationPlan,
@@ -37,10 +37,39 @@ export function planInstanceContactTransform(
   delta: Point,
   connectAtDrop: boolean,
 ): RoutingOperationPlan {
-  const transform = planRoutingTransform(document, resolver, seed, {
-    kind: "translate",
-    delta,
-  });
+  return prepareInstanceContactTransform(
+    document,
+    resolver,
+    seed,
+  )(delta, connectAtDrop);
+}
+
+/** One immutable source/closure for repeated final-position proposals. */
+export function prepareInstanceContactTransform(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  seed: RoutingSelectionSeed,
+): (delta: Point, connectAtDrop: boolean) => RoutingOperationPlan {
+  const planTransform = prepareRoutingTransform(document, resolver, seed);
+  return (delta, connectAtDrop) =>
+    planContactAtDrop(
+      document,
+      resolver,
+      seed,
+      delta,
+      connectAtDrop,
+      planTransform({ kind: "translate", delta }),
+    );
+}
+
+function planContactAtDrop(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  seed: RoutingSelectionSeed,
+  delta: Point,
+  connectAtDrop: boolean,
+  transform: RoutingOperationPlan,
+): RoutingOperationPlan {
   if (
     !connectAtDrop ||
     (delta.x === 0 && delta.y === 0) ||
@@ -54,7 +83,11 @@ export function planInstanceContactTransform(
   const targets: WireSource[] = projected.instances
     .filter((i) => !movingIds.has(i.id))
     .flatMap((i) => placementWireSources(projected, resolver, i));
+  const carriedJunctions = new Set(transform.affected.internalJunctions);
   for (const junction of projected.junctions) {
+    // A carried anchor belongs to the move, not to the stationary conductors
+    // an explicitly snapped pin may join at drop.
+    if (carriedJunctions.has(junction.id)) continue;
     const endpoint = { kind: "junction" as const, junctionId: junction.id };
     const connection = resolveEndpointConnection(projected, resolver, endpoint);
     if (connection)

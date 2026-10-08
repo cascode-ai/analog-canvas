@@ -29,9 +29,17 @@ Routing gestures and planners cross one transient `RoutingOperationPlan`
 boundary before commit. The plan carries the source revision, typed edits,
 affected closure, stable-ID remap and an explicit expected electrical effect.
 `evaluateRoutingOperationPlan()` runs the same transaction used by commit and
-independently compares before/after electrical projections. The evaluated
-Document is the only valid full preview; the plan has no untyped preview
-payload and is not persisted. NoConnect and unrelated drafting/presentation
+independently compares before/after electrical projections. Its evaluated
+Document is the authoritative electrical preview. An editor gesture may project
+the same typed plan's existing-object coordinate edits into a transient Document
+without running a transaction for every pointer frame. This projection does not
+advance revision, normalize topology, persist state or certify electrical
+effects; it may supply a full SVG repaint for non-rigid visual attachments.
+Content, binding, identity and topology changes (including separating a direct
+contact or making a snapped connection) require the evaluated transaction
+preview. Every release validates the same prepared proposal through the strict
+gate and commits atomically. The plan has no untyped preview payload and is not
+persisted. NoConnect and unrelated drafting/presentation
 edits continue to use the ordinary transaction directly.
 
 [The edit schema](../../packages/edit-engine/src/edit-schema.ts) owns the

@@ -528,7 +528,7 @@ export function createCanvasGestureController({
     const interactionKind = getInteractionKind();
     if (interactionKind === "moving-selection") {
       updateCommandMovePreview(
-        pointFromClient(event.clientX, event.clientY, event.currentTarget),
+        rawPointFromClient(event.clientX, event.clientY, event.currentTarget),
         { x: event.clientX, y: event.clientY },
         event.currentTarget,
         event.altKey,

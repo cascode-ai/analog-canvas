@@ -169,7 +169,7 @@ function runMove(targetX: number) {
   // pin contact starts at (30, 390); rawDelta = (targetX-30, -95.7).
   const position = { x: 500 + (targetX - 30), y: 500 - 95.7 };
   const tolerance = 7;
-  const resolved = controller.resolveInstanceMove(
+  const resolved = controller.resolveSelectionMove(
     preview,
     position,
     tolerance,
@@ -177,7 +177,7 @@ function runMove(targetX: number) {
     undefined,
     document,
   );
-  controller.completeInstanceMove(
+  controller.completeSelectionMove(
     preview,
     position,
     tolerance,
@@ -391,7 +391,7 @@ describe("two-pin device moved onto one wire", () => {
     // both strictly inside the wire span (0,300)-(110,300).
     const position = { x: 500, y: 500 + 120 };
     const tolerance = 7;
-    const resolved = controller.resolveInstanceMove(
+    const resolved = controller.resolveSelectionMove(
       preview,
       position,
       tolerance,
@@ -399,7 +399,7 @@ describe("two-pin device moved onto one wire", () => {
       undefined,
       document,
     );
-    controller.completeInstanceMove(
+    controller.completeSelectionMove(
       preview,
       position,
       tolerance,
