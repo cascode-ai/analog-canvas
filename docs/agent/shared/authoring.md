@@ -39,6 +39,12 @@ its name is its terminal's, in `cellTerminal: {id, name, direction}`.
 Use returned endpoints and stable Route/leg IDs; a crossing is not a connection.
 In MCP wiring, use `instance:{kind:"instance",id:"<returned-id>"}` for pin
 targets to avoid full-Snapshot name resolution. Names remain supported when useful.
+`place-component` also takes an `id` of your choosing, refused if an object
+already holds it. Give one to a ground, to each VDD marker and to any part you
+will wire, and the wiring names it by that ID without reading it back first.
+Later actions of the list that places a part may name it by that ID or by its
+Reference. A name several parts share, as every VDD marker's `VDD` is, is
+refused with their IDs; it never means the first of them.
 
 ## Place, name and bind
 

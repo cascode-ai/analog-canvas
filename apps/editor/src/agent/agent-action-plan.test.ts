@@ -282,6 +282,75 @@ describe("the editor plans an Agent's action list", () => {
     }
   });
 
+  it("wires a ground and each of two VDD markers by the IDs the Agent gave them (#1515)", async () => {
+    const { controller, client } = await editor();
+    const byId = (id: string, name: string) => ({
+      kind: "pin",
+      instance: { kind: "instance", id },
+      pin: name,
+    });
+    const marker = (symbol: string, id: string, x: number, y: number) => ({
+      kind: "place-component",
+      symbol,
+      id,
+      position: { x, y },
+    });
+    const actions = [
+      { ...place("nmos", "M1", 300), id: "m-tail" },
+      marker("ground", "gnd-tail", 300, 400),
+      marker("vdd-port", "vdd-left", 100, -200),
+      marker("vdd-port", "vdd-right", 600, -200),
+      { kind: "connect", from: pin("M1", "S"), to: byId("gnd-tail", "0") },
+      { kind: "connect", from: byId("vdd-left", "P"), to: pin("M1", "D") },
+      {
+        kind: "connect",
+        from: byId("vdd-right", "P"),
+        to: { kind: "point", x: 600, y: -100 },
+      },
+    ];
+    // The wires name parts the list places: it plans whole, as two calls.
+    const report = await client.applyActions(actions);
+    expect(report).toMatchObject({
+      ok: false,
+      code: "ACTION_BATCH_NOT_ATOMIC",
+      calls: [{ actionIndices: [0, 1, 2, 3] }, { actionIndices: [4, 5, 6] }],
+    });
+    for (const call of (report as { calls: { actionIndices: number[] }[] })
+      .calls) {
+      const sent = await client.applyActions(
+        call.actionIndices.map((index) => actions[index]),
+      );
+      expect(sent.ok, sent.message).toBe(true);
+    }
+    const netOf = (instanceId: string, pinName: string) =>
+      controller.document.nets.find((net) =>
+        net.terminals.some(
+          (terminal) =>
+            terminal.instanceId === instanceId && terminal.pinName === pinName,
+        ),
+      )?.id;
+    expect(netOf("m-tail", "S")).toBe(netOf("gnd-tail", "0"));
+    expect(netOf("m-tail", "D")).toBe(netOf("vdd-left", "P"));
+    expect(netOf("vdd-right", "P")).toBeDefined();
+    // Both markers are named VDD: the name alone picks neither.
+    const before = structuredClone(controller.document);
+    expect(
+      await client.applyActions([
+        {
+          kind: "connect",
+          from: pin("VDD", "P"),
+          to: { kind: "point", x: 100, y: -100 },
+        },
+      ]),
+    ).toMatchObject({
+      ok: false,
+      code: "ACTION_COMPILE_FAILED",
+      message:
+        'actions[0] (connect): "VDD" names 2 parts (vdd-left, vdd-right); name one by {kind:"instance", id}',
+    });
+    expect(controller.document).toEqual(before);
+  });
+
   it("plans on the Document as a person left it, yet refuses a stale undo", async () => {
     const { controller, client } = await editor();
     expect(
