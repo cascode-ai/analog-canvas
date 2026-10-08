@@ -67,7 +67,7 @@ function fromLandings(
  * OTA to reach its bias Net. The planner's own path is kept when it is
  * clear. Otherwise a wire with no via points takes the cheapest clear path,
  * and one with via points, which the caller chose, is refused with what it
- * would meet.
+ * would meet, where, and what to send instead.
  */
 function keepClear(
   document: SchematicDocument,
@@ -169,9 +169,22 @@ function keepClear(
   const problem = clearance.conflict(points, ends);
   if (!problem)
     return tapOwnWire(document, resolver, resolved, points, nets) ?? intent;
-  if (intent.waypoints?.length)
-    return `the requested path ${problem}, so it would read as connected there; give via points that keep clear of it`;
   const clear = clearance.path(endOf(from), endOf(to));
+  if (intent.waypoints?.length) {
+    // What the caller can send instead, so it need not guess new via
+    // points: a hand-routed body wire was refused where leaving the route
+    // to the editor worked, and nothing said so (#1527).
+    const { waypoints: _refused, ...unforced } = intent;
+    const editor = keepClear(document, resolver, unforced);
+    const bends = typeof clear === "string" ? [] : corners(clear.points!);
+    const instead =
+      typeof editor === "string"
+        ? `Leaving the route to the editor fails too: ${editor}`
+        : bends.length
+          ? `The editor finds a clear path: send via ${JSON.stringify(bends)} (a wireIntent's waypoints) in the next call, or omit via to let it route`
+          : "Omit via to let the editor route it clear";
+    return `the requested path ${problem}, so it would read as connected there. ${instead}`;
+  }
   if (typeof clear === "string") return clear;
   // The detour is orthogonal and its corners the planner's, never a
   // caller's diagonal to refuse (#1437).
@@ -285,6 +298,26 @@ function tapOwnWire(
     waypoints: bends,
     routingMode: intent.routingMode ?? "orthogonal",
   };
+}
+
+/** The corners of an orthogonal path between its ends: as via points, they
+ * draw it again whatever the corner order. */
+function corners(points: readonly Point[]): Point[] {
+  const kept: Point[] = [];
+  for (const point of points) {
+    if (kept.length && samePoint(kept.at(-1)!, point)) continue;
+    const [before, last] = [kept.at(-2), kept.at(-1)];
+    // A point on the line through the two before it bends nothing.
+    if (
+      before &&
+      last &&
+      (before.x - last.x) * (last.y - point.y) ===
+        (before.y - last.y) * (last.x - point.x)
+    )
+      kept.pop();
+    kept.push(point);
+  }
+  return kept.slice(1, -1);
 }
 
 /** Where a resolved wire end is: its endpoint, or the point of a tap or an

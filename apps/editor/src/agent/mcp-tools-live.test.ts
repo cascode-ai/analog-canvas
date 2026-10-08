@@ -579,6 +579,32 @@ describe("MCP tools on the live editor", () => {
       "list-flat",
     ]);
   });
+  it("connect lists the editor's edit kinds on pairing and counts them on a resume (#1525)", async () => {
+    const editor = mcp();
+    const reply = async (args: unknown) =>
+      (await editor.call("connect", args)).content[0]!.text!;
+    const paired = JSON.parse(await reply({ claimCode: "session-1.code" }));
+    const { editKinds, ...summary } = paired.capabilities;
+    expect(paired.mode).toBe("claimed");
+    expect(editKinds).toContain("transact_document");
+    const text = await reply({});
+    const resumed = JSON.parse(text);
+    expect(resumed).toMatchObject({
+      mode: "resumed",
+      compatibility: paired.compatibility,
+      context: paired.context,
+    });
+    expect(resumed.capabilities).toEqual({
+      ...summary,
+      editKindCount: editKinds.length,
+      details: { tool: "connect", detail: "full" },
+    });
+    // A tripwire: the reply is about 1.7 kB here, 3.9 kB with the edit kinds.
+    expect(Buffer.byteLength(text)).toBeLessThan(3_000);
+    const asked = await editor.tool("connect", { detail: "full" });
+    expect(asked.capabilities).toEqual(paired.capabilities);
+  });
+
   it("get_context returns the compact context of the editor's Document", async () => {
     const editor = await connected();
     await apply(editor, [
@@ -932,6 +958,236 @@ describe("MCP tools on the live editor", () => {
     expect(
       (await labelsOfR1()).find((label) => label.id === name.id)!.position,
     ).toEqual({ x: 40, y: 60 });
+  });
+
+  /** R1, M1, a Port Vout and two VDD markers, with their IDs. */
+  async function namedParts() {
+    const editor = await connected();
+    const marker = (symbol: string, x: number, extra = {}) => ({
+      kind: "place-component",
+      symbol,
+      position: { x, y: -200 },
+      ...extra,
+    });
+    await apply(editor, [
+      place("resistor", "R1", 100),
+      place("nmos", "M1", 300),
+      marker("port", 500, { reference: "Vout" }),
+      marker("vdd-port", 100),
+      marker("vdd-port", 600),
+    ]);
+    const instances = editor.controller.document.instances;
+    const idOf = (symbolId: string) =>
+      instances.find((item) => item.symbolId === symbolId)!.id;
+    return {
+      editor,
+      r1: idOf("resistor"),
+      m1: idOf("nmos"),
+      vout: idOf("port"),
+      vdd: instances
+        .filter((item) => item.symbolId === "vdd-port")
+        .map((item) => item.id),
+    };
+  }
+
+  it("reads pins by Reference or Pin name and says which names it could not resolve (#1525)", async () => {
+    const { editor, r1, m1, vout, vdd } = await namedParts();
+    const read = await editor.tool("inspect", {
+      target: { kind: "pins", instanceIds: ["R1", "Vout", m1, "VDD", "Q9"] },
+    });
+    expect(
+      read.instances.map((item: { id: string }) => item.id).sort(),
+    ).toEqual([r1, m1, vout].sort());
+    expect(read.resolvedNames).toEqual({ R1: r1, Vout: vout });
+    expect(read.missingInstanceIds).toEqual(["VDD", "Q9"]);
+    expect(read.unresolved).toEqual([
+      {
+        name: "VDD",
+        reason: expect.stringContaining("names 2 parts"),
+        candidates: expect.arrayContaining(
+          vdd.map((id) => ({ kind: "instance", id, name: "VDD" })),
+        ),
+      },
+      { name: "Q9", reason: expect.stringContaining("No part") },
+    ]);
+  });
+
+  it("lists each part's id, name, symbol and position in one document read (#1525)", async () => {
+    const { editor, r1, vout } = await namedParts();
+    const listed = await editor.tool("inspect", {
+      target: { kind: "document" },
+      detail: "parts",
+    });
+    expect(listed.parts).toHaveLength(5);
+    expect(listed.parts).toEqual(
+      expect.arrayContaining([
+        {
+          id: r1,
+          name: "R1",
+          symbol: "resistor",
+          position: { x: 100, y: 100 },
+        },
+        expect.objectContaining({ id: vout, name: "Vout", symbol: "port" }),
+      ]),
+    );
+    expect(listed.nets).toEqual(
+      expect.arrayContaining([expect.objectContaining({ name: "Vout" })]),
+    );
+    expect(listed).not.toHaveProperty("instances");
+  });
+
+  it("refuses an unknown name in the shape every tool answers with (#1525)", async () => {
+    const { editor, r1 } = await namedParts();
+    const refusal = async (target: Record<string, unknown>) => {
+      const result = await editor.call("inspect", { target });
+      expect(result.isError).toBe(true);
+      return parseText(result);
+    };
+    // Names match exactly, as actions match them; a case slip is pointed out.
+    expect(await refusal({ kind: "object", name: "r1" })).toEqual({
+      ok: false,
+      error: {
+        code: "OBJECT_NOT_FOUND",
+        message: expect.stringContaining("only in case"),
+        recovery: "fix-input",
+        reference: "r1",
+        candidates: [{ kind: "instance", id: r1, name: "R1" }],
+      },
+    });
+    // A Net target looks at Nets only.
+    expect(await refusal({ kind: "net", name: "R1" })).toMatchObject({
+      error: { code: "OBJECT_NOT_FOUND", reference: "R1" },
+    });
+    expect(await refusal({ kind: "connectivity", name: "Q9" })).toMatchObject({
+      error: {
+        code: "OBJECT_NOT_FOUND",
+        message: expect.stringContaining('search {"query":"Q9"}'),
+      },
+    });
+  });
+
+  it("says which ID each placed part got, by its Reference, in the receipt (#1525)", async () => {
+    const editor = await connected();
+    const sent = snapshotReads(editor.http).length;
+    const receipt = await editor.tool("apply_actions", {
+      actions: [
+        place("resistor", "R1", 100),
+        { ...place("capacitor", "C1", 300), id: "c-mine" },
+        {
+          kind: "place-component",
+          symbol: "ground",
+          position: { x: 100, y: 300 },
+        },
+      ],
+    });
+    const instances = editor.controller.document.instances;
+    const idOf = (symbolId: string) =>
+      instances.find((item) => item.symbolId === symbolId)!.id;
+    expect(receipt).toMatchObject({ ok: true, applied: true });
+    expect(receipt.placed).toEqual([
+      { id: idOf("resistor"), reference: "R1", symbol: "resistor" },
+      { id: "c-mine", reference: "C1", symbol: "capacitor" },
+      { id: idOf("ground"), symbol: "ground" },
+    ]);
+    // Every name was given: nothing was read back.
+    expect(snapshotReads(editor.http).length).toBe(sent);
+
+    // A part placed without a Reference is named by the editor; one pins
+    // read tells the receipt that name.
+    const unnamed = await editor.tool("apply_actions", {
+      actions: [
+        {
+          kind: "place-component",
+          symbol: "resistor",
+          position: { x: 500, y: 100 },
+        },
+      ],
+    });
+    const added = editor.controller.document.instances.find(
+      (item) => item.symbolId === "resistor" && item.reference !== "R1",
+    )!;
+    expect(unnamed.placed).toEqual([
+      { id: added.id, reference: added.reference, symbol: "resistor" },
+    ]);
+    expect(snapshotReads(editor.http).slice(sent)).toEqual(["pins"]);
+  });
+
+  it("finds ground by GND, VSS or gnd, as the netlist names its pin (#1515)", async () => {
+    const editor = await connected();
+    // R1 from a Port IN to ground: a Cell the netlist can write.
+    await apply(editor, [
+      place("resistor", "R1", 300, { parameters: { value: "1k" } }),
+      {
+        kind: "place-component",
+        symbol: "port",
+        reference: "IN",
+        position: { x: 100, y: 100 },
+      },
+      {
+        kind: "place-component",
+        symbol: "ground",
+        id: "tail-ground",
+        position: { x: 300, y: 300 },
+      },
+    ]);
+    await apply(editor, [
+      {
+        kind: "connect",
+        from: pin("R1", "1"),
+        to: { kind: "pin", instance: "IN", pin: "P" },
+      },
+      {
+        kind: "connect",
+        from: pin("R1", "2"),
+        to: {
+          kind: "pin",
+          instance: { kind: "instance", id: "tail-ground" },
+          pin: "0",
+        },
+      },
+    ]);
+    const inspect = (kind: string, name: string) =>
+      editor.tool("inspect", { target: { kind, name } });
+    const ground = await inspect("net", "0");
+    expect(ground).not.toHaveProperty("matchedAs");
+    for (const name of ["GND", "VSS", "gnd"])
+      expect(await inspect("object", name)).toMatchObject({
+        id: ground.id,
+        name: "0",
+        matchedAs: "ground",
+        note: expect.stringContaining("VSS"),
+      });
+    expect(await inspect("connectivity", "vss")).toMatchObject({
+      id: ground.id,
+      terminalsResolved: expect.arrayContaining([{ instance: "R1", pin: "2" }]),
+    });
+    const pinsOf = async () =>
+      (
+        await editor.tool("netlist_code", { action: "read", format: "spice" })
+      ).netlist.text
+        .match(/^\.subckt \S+ (.*)$/mu)?.[1]
+        ?.split(/\s+/u);
+    expect(await pinsOf()).toContain("VSS");
+
+    // A Port named VSS is that Net; ground's pin is then GND, and GND finds it.
+    await apply(editor, [
+      {
+        kind: "place-component",
+        symbol: "port",
+        reference: "VSS",
+        position: { x: 600, y: 300 },
+      },
+    ]);
+    expect(await inspect("net", "VSS")).not.toHaveProperty("matchedAs");
+    expect(await inspect("net", "vss")).toMatchObject({
+      ok: false,
+      error: { candidates: [{ kind: "net", name: "VSS" }] },
+    });
+    expect(await inspect("net", "GND")).toMatchObject({
+      name: "0",
+      matchedAs: "ground",
+    });
+    expect(await pinsOf()).toEqual(expect.arrayContaining(["GND", "VSS"]));
   });
 
   it("apply_actions returns the editor's refusal of a list that needs several calls, after one request", async () => {

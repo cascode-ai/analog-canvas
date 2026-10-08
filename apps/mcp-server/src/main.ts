@@ -10,6 +10,11 @@ import {
 } from "./http-cli.js";
 import { installMcp } from "./install.js";
 import { createOperationSession } from "./operation-session.js";
+import { z } from "zod";
+
+// zod declares itself free of side effects, so the release bundle dropped its
+// English messages and most input errors read only "Invalid input" (#1525).
+z.config(z.locales.en());
 
 if (process.argv[2] === "--install") {
   try {

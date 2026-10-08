@@ -228,7 +228,7 @@ export const AuthoringActionSchema = z.discriminatedUnion("kind", [
         .max(128)
         .optional()
         .describe(
-          "A device's Reference, or a Port's name. Left out, a device takes the next free name, as a GUI insert does (the receipt's created objects name it); VDD defaults to VDD. Omit for ground.",
+          "A device's Reference, or a Port's name. Left out, a device takes the next free name, as a GUI insert does (the receipt's placed list names it); VDD defaults to VDD. Omit for ground.",
         ),
       position: PointInputSchema.optional().describe(
         "Instance origin; supply exactly one of position, pinAnchor or mirrorOf.",

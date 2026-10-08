@@ -16,8 +16,9 @@ Arguments that fail validation return `INVALID_TOOL_INPUT` with
 `recovery:"fix-input"`. Each issue gives its `path` and `code` and says what
 would pass: unknown `keys` beside the `allowed` keys of the branch its
 `kind`/`action`/`operation` selects, the accepted `values`, a `minimum` or
-`maximum` with `inclusive`, or the `expected` type. Submitted values are never
-echoed back.
+`maximum` with `inclusive`, or the `expected` type. A missing or unknown
+`kind`/`action`/`operation` lists the `values` this tool takes at that path.
+Submitted values are never echoed back.
 
 Focused circuit tools retain the `{documentId?, actions:[...]}` call envelope:
 
@@ -112,10 +113,13 @@ order can follow without doubling back are refused with a reason rather than
 committed as another path. A wire from a pin or Junction, whether to another,
 to a `net`, to a tap on a wire or to an open `point`, also keeps clear of other
 Nets' pins and wires and of parts' bodies: without `via` it detours, with
-`via` that would meet one it is refused with the obstacle named, and with no
-clear path at all it is refused like `route-net`. A wire drawn between points
-alone is drawn as asked, and may end on another wire to join it. A
-transaction that would put a Junction on another Net's wire is refused too.
+`via` that would meet one it is refused, naming the obstacle and the two
+points of the path between which it meets it, then the clear path the editor
+finds as `via` points to send next (or to leave `via` out), or why leaving the
+route to the editor fails too. With no clear path at all it is refused like
+`route-net`. A wire drawn between points alone is drawn as asked, and may end
+on another wire to join it. A transaction that would put a Junction on another
+Net's wire is refused too.
 A `route-segment` target uses the Route's stable `legId` and a `point`; the
 server owns splitting and Junction creation.
 Name Nets through labels/markers, never raw Base-Net fields.
@@ -234,8 +238,10 @@ changes; the electrical parameter remains authoritative.
 `connect`/`disconnect` pin targets accept an Instance Reference string or
 `instance:{kind:"instance",id:"…"}`; use the latter for imported formal Cell Pins.
 `place-component` may omit a device's Reference: the editor takes the next free
-one, as a GUI insert does (R1, X1), and a block that emits nothing gets none;
-read the name from the receipt's created objects or Snapshot. Omit it for
+one, as a GUI insert does (R1, X1), and a block that emits nothing gets none.
+The receipt's `placed` lists each part the list's `place-component` actions
+placed, in order: `{id, reference, symbol}`, the editor's name included, so
+wiring needs no read to learn IDs (a ground has no name). Omit it for
 `ground` and `vdd-port`. For `port` and `port-filled`, `reference` supplies the new
 Cell terminal's name, with passive direction by default. Without `parameters`
 or `control` the editor fills the netlist as the GUI does, with catalog defaults
@@ -405,12 +411,27 @@ would hide: a MOS body given a supply nobody wired, as a Cell Pin nobody drew
 refresh and re-plan; never blindly replay a changed payload.
 
 `inspect` with `target:{kind:"document"},detail:"full"` returns complete
-Document facts.
+Document facts; `detail:"parts"` lists only every part (`id`, `name`,
+`symbol`, `position`, and `rotation`/`mirror` when set) and every Net (`id`,
+`name`, `powerDomain` when a supply), a few KB where the full read is often
+100 KB.
 `inspect` with `target:{kind:"object"}` on a part also lists its name, value
 and parameter labels as `annotations` (`id`, `kind`, `parameter`, `visible`,
 `resolvedText` and `position`, the point `move-annotation` sets), read with
 one targeted request, so a label is found and moved without a full Document
 read. An Editor without the list answers `annotationsUnavailable` instead.
+Names match exactly, as actions match them. A name nothing has is refused
+as `OBJECT_NOT_FOUND`, one several parts share as `NAME_AMBIGUOUS`, both in
+the `error:{code,message,recovery}` shape with the `candidates` (kind, id,
+name) it could mean; a `net` target looks at Nets only. Ground is Net `0`
+in the Snapshot; `GND`, `VSS`, `gnd` or `ground` find it too, marked
+`matchedAs:"ground"`, unless a Net or part really has that name (a Port VSS,
+say). A Cell's netlist names its ground pin VSS, or GND when VSS names
+another Net.
+`inspect` with `target:{kind:"pins",instanceIds:[…]}` also takes a part's
+Reference, or a Cell Pin's name: `resolvedNames` maps each to its ID, and an
+entry naming no single part stays in `missingInstanceIds` and is explained
+in `unresolved` (reason and candidate IDs).
 `inspect` with `target:{kind:"geometry",objectIds:["…"]}` reads up to 64
 specific authored objects (placement, routes, junctions, annotation anchors,
 drafting and no-connect objects). It returns current revision and missing IDs

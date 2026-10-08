@@ -435,6 +435,59 @@ describe("an Agent connect keeps clear of parts and other Nets (#1257)", () => {
     );
     expect(refused).toMatch(/passes through R3/);
     expect(chosen.document.routes).toEqual([]);
+
+    // The refusal names the leg that meets it and the clear path to send
+    // instead (#1527); sent back as via points, that path is committed.
+    const leg = before
+      .slice(1)
+      .map((to, index) => [before[index]!, to] as const)
+      .find(([p, q]) => conflict(crossing, [p, q]))!;
+    expect(refused).toContain(
+      `passes through R3 between (${leg[0].x}, ${leg[0].y}) and (${leg[1].x}, ${leg[1].y}), so it would read as connected there. The editor finds a clear path: send via [`,
+    );
+    expect(refused).toContain("or omit via to let it route");
+    const via = JSON.parse(
+      String(refused).match(/send via (\[.*?\]) /)![1]!,
+    ) as { x: number; y: number }[];
+    expect(via).toEqual(cleared.slice(1, -1));
+    const resent = parts(obstacle);
+    expect(committedPath(resent, { keepClear: true }, via)).toEqual(cleared);
+  });
+
+  it("says to leave via out when the editor's straight path is clear (#1527)", () => {
+    // R1.2 at (0,20) looks straight down at R2.1 at (0,80); the via points
+    // take the wire out along x=100, over R3's pins.
+    const document = createEmptyDocument("doc", "Straight");
+    document.instances.push(
+      resistor("R1", 0, 0),
+      resistor("R2", 0, 100),
+      resistor("R3", 100, 50),
+    );
+    const h = history(document);
+    const refused = committedPath(h, { keepClear: true }, [
+      { x: 100, y: 20 },
+      { x: 100, y: 80 },
+    ]);
+    expect(refused).toBe(
+      "the requested path passes over pin R3.1, which is on no Net, at (100, 30) between (100, 20) and (100, 80), so it would read as connected there. Omit via to let the editor route it clear",
+    );
+    expect(committedPath(h, { keepClear: true })).toEqual([
+      { x: 0, y: 20 },
+      { x: 0, y: 80 },
+    ]);
+  });
+
+  it("says when leaving the route to the editor fails too (#1527)", () => {
+    // Another Net's wire already runs over R2.1: no path helps.
+    const h = parts();
+    commit(h, [wire("foreign", free(180, 80), free(220, 80))]);
+    const refused = committedPath(h, { keepClear: true }, [{ x: 0, y: 80 }]);
+    expect(refused).toMatch(
+      /^the requested path R2\.1 sits on Route \S+ of a different Net \(.+\), so it would read as connected there\. Leaving the route to the editor fails too: R2\.1 sits on Route \S+ of a different Net \(.+\); move that wire off the pin first$/,
+    );
+    expect(committedPath(h, { keepClear: true })).toMatch(
+      /^R2\.1 sits on Route .+; move that wire off the pin first$/,
+    );
   });
 
   it("keeps clear of an adder's sign marks, as visual diagnostics see them (#1324)", () => {
@@ -483,7 +536,9 @@ describe("an Agent connect keeps clear of parts and other Nets (#1257)", () => {
 
     // Once B subtracts, the same L runs through the plus: refused, and the
     // wire goes round by the other corner.
-    expect(conflict(drawn("-"), direct)).toBe("passes through S1");
+    expect(conflict(drawn("-"), direct)).toBe(
+      "passes through S1 between (40, 90) and (80, 90)",
+    );
     const h = drawn("-");
     const cleared = committedPath(h, { keepClear: true });
     expect(cleared).toEqual([

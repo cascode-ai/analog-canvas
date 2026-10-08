@@ -147,11 +147,58 @@ export interface ApplyActionsReport {
   /** ACTION_BATCH_NOT_ATOMIC: the calls to send instead, in order. */
   calls?: ActionCall[];
   changedObjectIds?: string[];
+  /**
+   * The parts the list's place-component actions placed, in order, with
+   * the ID each got and its Reference (or Cell Pin name), so wiring needs
+   * no read to learn them (#1525). A ground has no name.
+   */
+  placed?: PlacedPart[];
   errors?: number;
   /** How many of `errors` are pins not wired yet (MISSING_PIN_NET). */
   unwiredPins?: number;
   warnings?: number;
   dryRun?: boolean;
+}
+
+export interface PlacedPart {
+  id: string;
+  reference?: string;
+  symbol: string;
+}
+
+/**
+ * Give each place-component action that names no ID one of its own, as
+ * the editor would (`instance-<uuid>`), so the receipt knows which part
+ * each action made. An ID the caller chose is kept.
+ */
+function withPlacementIds(actions: readonly unknown[]): {
+  actions: unknown[];
+  placed: PlacedPart[];
+} {
+  const placed: PlacedPart[] = [];
+  const sent = actions.map((action) => {
+    const place = action as {
+      kind?: unknown;
+      id?: unknown;
+      symbol?: unknown;
+      reference?: unknown;
+    } | null;
+    if (place?.kind !== "place-component" || typeof place.symbol !== "string")
+      return action;
+    const id =
+      typeof place.id === "string"
+        ? place.id
+        : `instance-${crypto.randomUUID()}`;
+    placed.push({
+      id,
+      ...(typeof place.reference === "string"
+        ? { reference: place.reference }
+        : {}),
+      symbol: place.symbol,
+    });
+    return place.id === undefined ? { ...place, id } : action;
+  });
+  return { actions: sent, placed };
 }
 
 function baseRequest(requestId: string): {
@@ -1273,14 +1320,53 @@ export class AgentSessionClient {
         message:
           "The open editor page runs an older version that cannot plan action lists. Reload the editor page, then retry.",
       };
-    return this.submitTransaction(
+    const sent = withPlacementIds(actions);
+    const report = await this.submitTransaction(
       await this.revisionFor(options.documentId),
-      { actions },
+      { actions: sent.actions },
       {
         dryRun: options.dryRunOnly ?? false,
         diagnosticDeltaDetail: options.diagnosticDeltaDetail ?? "full",
       },
     );
+    if (report.ok && report.applied && !report.dryRun && sent.placed.length)
+      report.placed = await this.namePlaced(sent.placed, report.documentId);
+    return report;
+  }
+
+  /**
+   * The names the editor gave parts placed without one, read back by ID in
+   * one pins read per 64; a read that fails leaves them unnamed. A ground
+   * never has a name, so it is not asked about.
+   */
+  private async namePlaced(
+    placed: readonly PlacedPart[],
+    documentId?: string,
+  ): Promise<PlacedPart[]> {
+    const unnamed = placed
+      .filter(
+        (part) => part.reference === undefined && part.symbol !== "ground",
+      )
+      .map((part) => part.id);
+    const names = new Map<string, string>();
+    for (let start = 0; start < unnamed.length; start += 64) {
+      try {
+        const read = await this.pinsSnapshot(
+          unnamed.slice(start, start + 64),
+          documentId,
+        );
+        for (const instance of read.instances) {
+          const name = instance.reference ?? instance.cellTerminal?.name;
+          if (name) names.set(instance.id, name);
+        }
+      } catch {
+        break;
+      }
+    }
+    return placed.map((part) => {
+      const reference = part.reference ?? names.get(part.id);
+      return reference === undefined ? { ...part } : { ...part, reference };
+    });
   }
 
   /** Same four-operation API; the helper only supplies identity and revisions. */
