@@ -172,14 +172,24 @@ describe("Cloudflare deploy workflow", () => {
     const made = workflow.indexOf(
       "name: Make this deploy's simulation check credential",
     );
-    // In before the new code, so whichever version an edge still serves
-    // already accepts it.
+    // Put after the code (wrangler refuses a secret put while the latest
+    // version is not deployed, as after a rollback), and the checks wait
+    // until the edge accepts it.
     const deploy = workflow.indexOf("id: deploy_worker");
-    expect(made).toBeGreaterThan(-1);
-    expect(made).toBeLessThan(deploy);
-    const step = workflow.slice(made, deploy);
-    expect(step).toContain("::add-mask::$token");
-    expect(step).toContain("secret put SIMULATION_SMOKE_TOKEN");
+    const secrets = workflow.indexOf("name: Sync worker secrets");
+    const verify = workflow.indexOf("id: verify");
+    expect(made).toBeGreaterThan(deploy);
+    expect(made).toBeLessThan(secrets);
+    expect(workflow.slice(made, secrets)).toContain("::add-mask::$token");
+    expect(workflow.slice(made, secrets)).not.toContain("secret put");
+    expect(workflow.slice(secrets, verify)).toMatch(
+      /for name in SIMULATION_SMOKE_TOKEN /u,
+    );
+    const checks = workflow.slice(verify);
+    expect(checks.indexOf("deploy-check-credential-probe")).toBeGreaterThan(-1);
+    expect(checks.indexOf("deploy-check-credential-probe")).toBeLessThan(
+      checks.indexOf("node scripts/preview-simulation-smoke.mjs"),
+    );
     expect(simulationSmokeHeaders({ SIMULATION_SMOKE_TOKEN: "this" })).toEqual({
       "content-type": "application/json",
       authorization: "Bearer this",
