@@ -1100,6 +1100,13 @@
   color: var(--icm-text-muted);
 }
 
+/* The wall the reader had, held while the next filters load: it dims only
+   after a moment, so a quick answer replaces it without a flicker. */
+.gallery-wall.is-refreshing {
+  opacity: 0.55;
+  transition: opacity 150ms ease 150ms;
+}
+
 .gallery-tag-mark {
   display: inline-flex;
   align-items: center;
@@ -1586,7 +1593,7 @@ div.gallery-contributor-status {
     -apple-system, BlinkMacSystemFont, sans-serif;
   position: relative;
   box-sizing: border-box;
-  width: var(--gallery-sidebar-width, 238px);
+  width: var(--gallery-sidebar-width, 262px);
   min-width: 0;
   border-right: 1px solid var(--icm-border);
   background: var(--icm-surface);
@@ -1645,6 +1652,25 @@ div.gallery-contributor-status {
   padding-bottom: 12px;
   margin-bottom: 12px;
   border-bottom: 1px solid var(--icm-border);
+}
+
+/* Every quick filter leads with a mark of one width, so the names line up:
+   the AI word mark takes the icons' size here, not a tile badge's. */
+.gallery-sidebar-quick .gallery-tag-mark > svg,
+.gallery-sidebar-quick .gallery-tag-mark > .gallery-tile-ai {
+  flex: 0 0 14px;
+}
+
+.gallery-sidebar-quick .gallery-tile-ai {
+  box-sizing: border-box;
+  width: 14px;
+  height: 12px;
+  margin-left: 0;
+  padding: 0;
+  border-radius: 3px;
+  font-size: 8.5px;
+  line-height: 12px;
+  text-align: center;
 }
 
 .gallery-sidebar-heading {

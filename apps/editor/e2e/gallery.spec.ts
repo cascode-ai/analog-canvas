@@ -2659,6 +2659,8 @@ test("the left sidebar hosts overall search and grouped tags at desktop, half-sc
     const itemStyle = getComputedStyle(items[0]!);
     const first = items[0]!.getBoundingClientRect();
     const second = items[1]!.getBoundingClientRect();
+    const name = summary.querySelector(".gallery-tag-group-name")!;
+    const check = items[0]!.querySelector(".gallery-tag-check")!;
     return {
       fontMatches: summaryStyle.fontFamily === itemStyle.fontFamily,
       colorMatches: summaryStyle.color === itemStyle.color,
@@ -2670,6 +2672,9 @@ test("the left sidebar hosts overall search and grouped tags at desktop, half-sc
       ],
       groupMarginBottom: getComputedStyle(group).marginBottom,
       itemGap: second.top - first.bottom,
+      // A tag's box starts where its group's name does.
+      tagIndent:
+        check.getBoundingClientRect().left - name.getBoundingClientRect().left,
     };
   });
   expect(sidebarRhythm).toEqual({
@@ -2677,9 +2682,11 @@ test("the left sidebar hosts overall search and grouped tags at desktop, half-sc
     colorMatches: true,
     summaryFontSize: "12px",
     summaryFontWeight: "600",
-    summaryPaddingBlock: ["6px", "6px"],
+    // With a mouse, rows sit about a tenth closer than touch rows.
+    summaryPaddingBlock: ["4.5px", "4.5px"],
     groupMarginBottom: "4px",
-    itemGap: 2,
+    itemGap: 1,
+    tagIndent: 0,
   });
   const search = page.getByTestId("gallery-search");
   await expect(search).toHaveCount(1);
@@ -2828,20 +2835,20 @@ test("the tag sidebar resizes by dragging and keyboard, remembers width and adap
     await page.mouse.move(x + delta, y + 70, { steps: 5 });
     await page.mouse.up();
   };
-  await expectWidth(238);
+  await expectWidth(262);
   await expect(handle).toHaveCSS("cursor", "col-resize");
   await drag(110);
-  await expectWidth(348);
+  await expectWidth(372);
   await page.reload();
-  await expectWidth(348);
+  await expectWidth(372);
   await drag(-80);
-  await expectWidth(268);
+  await expectWidth(292);
   // Releasing away from the edge must terminate the captured drag.
   await page.mouse.move(700, 500);
-  await expectWidth(268);
+  await expectWidth(292);
   await handle.focus();
   await page.keyboard.press("ArrowRight");
-  await expectWidth(276);
+  await expectWidth(300);
   await page.keyboard.press("Home");
   await expectWidth(180);
   await drag(-100);

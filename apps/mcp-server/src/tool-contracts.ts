@@ -52,18 +52,18 @@ export class ContractQueryError extends Error {
   }
 }
 
-const node = (value: unknown): Schema =>
+export const node = (value: unknown): Schema =>
   value !== null && typeof value === "object" && !Array.isArray(value)
     ? (value as Schema)
     : {};
-const properties = (schema: Schema) => node(schema.properties);
+export const properties = (schema: Schema) => node(schema.properties);
 const unionKey = (schema: Schema) =>
   Array.isArray(schema.oneOf)
     ? "oneOf"
     : Array.isArray(schema.anyOf)
       ? "anyOf"
       : undefined;
-const operationTags = (
+export const operationTags = (
   schema: Schema,
 ): { key: string; values: string[] } | undefined => {
   for (const key of ["action", "operation", "kind"]) {
@@ -78,7 +78,7 @@ const operationTags = (
   return undefined;
 };
 
-function variants(schema: Schema): Schema[] {
+export function variants(schema: Schema): Schema[] {
   const key = unionKey(schema);
   return key ? (schema[key] as Schema[]).flatMap(variants) : [schema];
 }

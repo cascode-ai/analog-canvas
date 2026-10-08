@@ -195,6 +195,10 @@ import {
   createEditorFileCommands,
   type SpiceImportReport,
 } from "../features/editor-shell/editor-file-commands";
+import {
+  editInProgressReason,
+  projectHoldReason,
+} from "../features/editor-shell/edit-blockers";
 import { EditorStatusbar } from "../features/editor-shell/editor-statusbar";
 import {
   EditorServicesProvider,
@@ -1253,6 +1257,7 @@ function WorkspaceEditor({
         getActiveDocumentId: () => editorDocumentController.document.id,
         commitProjectStructure: (next, active) =>
           browserAgentHost.commitProjectStructure(next, active),
+        describeOpenBlocker: () => projectSwitchBlockerRef.current(),
         openProjectInNewTab: (candidate, background) =>
           openProjectInTabRef.current(
             candidate,
@@ -1436,6 +1441,8 @@ function WorkspaceEditor({
   const noteCodeDraftDirty = useCallback((dirty: boolean) => {
     setCodeDraftDirty(dirty);
   }, []);
+  /** The tab guard's blocker, for Agent hosts built before it (#1462). */
+  const projectSwitchBlockerRef = useRef<() => string | null>(() => null);
   const openProjectInTabRef = useRef<
     (
       project: CircuitProject,
@@ -1521,6 +1528,7 @@ function WorkspaceEditor({
     hasPendingEdits: () => simulationSourceBuffer.current?.dirty === true,
     beforeSnapshot: captureAuthoredProject,
     onRecoverBuffers: recoverSourceDrafts,
+    describeOpenBlocker: () => projectSwitchBlockerRef.current(),
     project,
     projectSessionId,
     viewBox,
@@ -6062,6 +6070,27 @@ function WorkspaceEditor({
       tabs: [...restoredTabs.value.tabs, { id, session: createTabSession() }],
     };
   });
+  // What keeps the editor on this Project now (#1462).
+  const editInProgress = () => ({
+    componentEditor: !!componentEditor,
+    documentSettingsOpen,
+    projectInfoOpen,
+    projectNameEditing: projectNameEditing.current,
+    textEditing: !!textEditing,
+    textOnScreen: !!textEditingTarget,
+    codeDraftDirty,
+  });
+  const currentEditBlocker = () => editInProgressReason(editInProgress());
+  const projectSwitchBlocker = () =>
+    projectHoldReason({
+      ...editInProgress(),
+      saving: isSaveInFlight() || nativeWorkspaceSaving.current,
+      replaceGuard: !!replaceGuard,
+      recoveryDialogOpen,
+      publishGalleryOpen,
+      versionHistoryOpen,
+    });
+  projectSwitchBlockerRef.current = projectSwitchBlocker;
   const projectTabs = useProjectTabs<TabSession>({
     initial: initialTabs,
     persist: persistTabs,
@@ -6080,22 +6109,10 @@ function WorkspaceEditor({
       galleryId: session.publication?.id ?? null,
     }),
     prepare: async () => {
-      if (
-        isSaveInFlight() ||
-        nativeWorkspaceSaving.current ||
-        replaceGuard ||
-        recoveryDialogOpen ||
-        publishGalleryOpen ||
-        componentEditor ||
-        documentSettingsOpen ||
-        versionHistoryOpen ||
-        projectInfoOpen ||
-        projectNameEditing.current ||
-        textEditing ||
-        codeDraftDirty
-      ) {
+      const blocker = projectSwitchBlocker();
+      if (blocker) {
         setStatus(
-          "Finish or cancel the current edit or dialog before switching project tabs. No work was discarded.",
+          `Can't switch project tabs yet: ${blocker}. No work was discarded.`,
         );
         return false;
       }
@@ -6396,18 +6413,11 @@ function WorkspaceEditor({
     if (!nativeProjectStore)
       return { status: "failed", message: "Local storage is unavailable" };
     if (id === projectTabs.activeId) {
-      if (
-        projectInfoOpen ||
-        projectNameEditing.current ||
-        textEditing ||
-        componentEditor ||
-        documentSettingsOpen ||
-        codeDraftDirty
-      )
+      const blocker = currentEditBlocker();
+      if (blocker)
         return {
           status: "failed",
-          message:
-            "Finish or cancel the current edit before saving and closing.",
+          message: `Can't save and close yet: ${blocker}.`,
         };
       return saveProjectToNative();
     }
@@ -6434,14 +6444,7 @@ function WorkspaceEditor({
       nativeOperation.current ||
       nativeWorkspaceSaving.current,
     pendingEdits:
-      projectInfoOpen ||
-      projectNameEditing.current ||
-      !!textEditing ||
-      !!componentEditor ||
-      documentSettingsOpen ||
-      codeDraftDirty ||
-      !!replaceGuard ||
-      recoveryDialogOpen,
+      currentEditBlocker() !== null || !!replaceGuard || recoveryDialogOpen,
   });
   const nativeBridgeRef = useRef({
     state: nativeWorkspaceState,
@@ -6497,7 +6500,7 @@ function WorkspaceEditor({
           ? success({ action: "activate", applied })
           : fail(
               "WORKSPACE_BUSY",
-              "Finish the current edit before switching Projects",
+              `Can't switch Projects yet: ${projectSwitchBlocker() ?? "another Project operation is running"}`,
             );
       }
       if (request.action === "open") {
@@ -6669,7 +6672,7 @@ function WorkspaceEditor({
           ? success({ action: "new", applied: true, workspaceId })
           : fail(
               "WORKSPACE_BUSY",
-              "Finish the current edit before opening a Project",
+              `Can't open a Project yet: ${projectSwitchBlocker() ?? "another Project operation is running"}`,
             );
       }
       if (request.action === "rename") {
@@ -6808,6 +6811,7 @@ function WorkspaceEditor({
         getActiveDocumentId: () => controller.document.id,
         commitProjectStructure: (next, active) =>
           host.commitProjectStructure(next, active),
+        describeOpenBlocker: () => projectSwitchBlockerRef.current(),
         openProjectInNewTab: (candidate, background) =>
           openProjectInTabRef.current(
             candidate,

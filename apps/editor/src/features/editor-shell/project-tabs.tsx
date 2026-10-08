@@ -72,6 +72,21 @@ export function ProjectTabs({
       nameInput.current?.select();
     }
   }, [editing]);
+  // A rename ends with its tab, or with the strip: a name field removed while
+  // focused never blurs, and the editor kept refusing every Project switch
+  // for an edit nobody could see (#1462).
+  const editedTabGone =
+    editing !== null && !tabs.some((tab) => tab.id === editing.id);
+  useEffect(() => {
+    if (editedTabGone) finishRename(null);
+  }, [editedTabGone]);
+  // The strip's own lifetime; the callback only clears the editor's flag.
+  useEffect(
+    () => () => {
+      if (renameSession.current) onEditingChange(false);
+    },
+    [],
+  );
   const [closing, setClosing] = useState<string | null>(null);
   const selecting = useRef<{ id: string; promise: Promise<boolean> } | null>(
     null,

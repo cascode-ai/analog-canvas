@@ -111,7 +111,9 @@ function controlledSource(
  * Idealized, frequency-independent E/G-source macros. VDD/VSS stay in the
  * reviewed block interface for existing drawings, but deliberately do not
  * limit or power this model. The ground-referenced output can therefore
- * exceed those rails; a powered/limited amplifier needs a separate model.
+ * exceed those rails. The single-ended op-amp is limited and has bodies of
+ * its own (generated-models.ts); the fully differential op-amp's outputs sit
+ * about ground, with no common mode a limit could keep.
  */
 export function idealAnalogBlockCell(
   target: string,
@@ -151,18 +153,16 @@ export function idealAnalogBlockCell(
         e("ESUMA", ["Y", "nsum", "A", "0"], gain(adderSigns[0])),
         e("ESUMB", ["nsum", "0", "B", "0"], gain(adderSigns[1])),
       ]
-    : model.implementation === "opamp"
-      ? [e("ECORE", ["VOUT", "0", "VIP", "VIN"])]
-      : model.implementation === "opamp_differential"
-        ? [
-            e("EPLUS", ["VOP", "0", "VIP", "VIN"], "gain/2"),
-            e("EMINUS", ["VON", "0", "VIN", "VIP"], "gain/2"),
-          ]
-        : model.implementation === "voltage_amplifier"
-          ? [e("ECORE", ["VOUT", "0", "VIN", "0"])]
-          : model.implementation === "transconductance"
-            ? [g(["0", "VOUT", "VIN", "0"])]
-            : [g(["0", "VOUT", "VIP", "VIN"])];
+    : model.implementation === "opamp_differential"
+      ? [
+          e("EPLUS", ["VOP", "0", "VIP", "VIN"], "gain/2"),
+          e("EMINUS", ["VON", "0", "VIN", "VIP"], "gain/2"),
+        ]
+      : model.implementation === "voltage_amplifier"
+        ? [e("ECORE", ["VOUT", "0", "VIN", "0"])]
+        : model.implementation === "transconductance"
+          ? [g(["0", "VOUT", "VIN", "0"])]
+          : [g(["0", "VOUT", "VIP", "VIN"])];
 
   return {
     origin: "generated-model",

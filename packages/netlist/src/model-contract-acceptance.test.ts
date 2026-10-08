@@ -9,6 +9,7 @@ import {
   builtInSubcircuitDescriptors,
   builtInModelContract,
 } from "@icm/devices";
+import { generatedBehavioralModel } from "./generated-models.js";
 import { compileSourceSimulation } from "./simulation-source-compile.js";
 import { compileNgspiceSourceSimulation } from "./simulation-source-ngspice.js";
 import {
@@ -494,10 +495,12 @@ describe("shared built-in model acceptance", () => {
       expect(edit.ok && edit.changes).toMatchObject([
         { instanceId: "block", parameter: "gain", value: "456" },
       ]);
+      // The op-amp's body is generated; VACASK writes its sources lower case.
+      expect(source.source.text).toMatch(/^bcore /imu);
       expect(
         planCircuitSourceEdit(
           source.source,
-          source.source.text.replace("ECORE", "EBROKEN"),
+          source.source.text.replace(/^bcore /imu, "Bbroken "),
         ).ok,
       ).toBe(false);
     },
@@ -520,8 +523,9 @@ describe("shared built-in model acceptance", () => {
     const compiled = compileSourceSimulation(project, folder);
     expect(compiled.ok, JSON.stringify(compiled)).toBe(true);
     if (!compiled.ok) return;
+    // The fixture binds VDD, so the op-amp's limits read its supplies.
     expect(compiled.generated[0]!.text).toContain(
-      "subckt opamp (VDD VSS VIP VIN VOUT)",
+      "subckt icm_opamp_vdd_vss (VDD VSS VIP VIN VOUT)",
     );
     expect(
       compiled.generated[0]!.parameters.some(
@@ -574,9 +578,71 @@ describe("shared built-in model acceptance", () => {
         : 1;
     expect(rows("op.txt")[0]![1]).toBeCloseTo(expected, 6);
     expect(rows("dc.txt").at(-1)![1]).toBeCloseTo(expected, 6);
-    expect(rows("ac.txt")[0]![1]).toBeCloseTo(expected / 0.01, 6);
+    // The op-amp's output, 0.8 V below its 1.8 V supply limit, bends its
+    // small-signal gain 2e-8 short of the gain (#1463).
+    expect(rows("ac.txt")[0]![1]).toBeCloseTo(
+      expected / 0.01,
+      symbol === "opamp" ? 4 : 6,
+    );
     expect(rows("tran.txt").flat().every(Number.isFinite)).toBe(true);
   });
+
+  // With the gain inside its limit, the Wien bridge stopped ngspice with
+  // "timestep too small" as its output reached the limit (#1463).
+  it.skipIf(!process.env.NGSPICE_BIN).each([
+    {
+      // R1 = R2, so f = 1/(2RC ln 3).
+      circuit: "astable",
+      cards: "RT out n1 10k\nCT n1 0 100n\nR1 out n0 10k\nR2 n0 0 10k",
+      start: ".ic v(n1)=0.01\n.tran 2u 40m uic",
+      hertz: 1 / (2 * 1e4 * 1e-7 * Math.log(3)),
+      tolerance: 0.01,
+    },
+    {
+      // f = 1/(2πRC); a loop gain of 3.2 starts it and the limit holds it.
+      circuit: "Wien-bridge",
+      cards:
+        "C1 out n2 10n\nR1 n2 n0 10k\nC2 n0 0 10n\nR2 n0 0 10k\nR3 out n1 22k\nR4 n1 0 10k\nIKICK 0 n0 PULSE(0 1u 0 1u 1u 10u)",
+      start: ".tran 1u 40m",
+      hertz: 1 / (2 * Math.PI * 1e4 * 1e-8),
+      tolerance: 0.03,
+    },
+  ])(
+    "saturates an op-amp $circuit oscillator at ±5 V in real ngspice",
+    ({ cards, start, hertz, tolerance }) => {
+      const dir = mkdtempSync(join(tmpdir(), "icm-opamp-limit-"));
+      writeFileSync(
+        join(dir, "deck.cir"),
+        [
+          "Ideal op-amp oscillator",
+          ...generatedBehavioralModel("opamp"),
+          cards,
+          "X1 0 0 n0 n1 out opamp",
+          start,
+          ".meas tran t1 when v(out)=0 rise=3 from=20m",
+          ".meas tran t2 when v(out)=0 rise=4 from=20m",
+          ".meas tran top max v(out) from=20m",
+          ".meas tran bottom min v(out) from=20m",
+          ".end",
+        ].join("\n"),
+      );
+      const run = spawnSync(process.env.NGSPICE_BIN!, ["-b", "deck.cir"], {
+        cwd: dir,
+        encoding: "utf8",
+        timeout: 30000,
+        windowsHide: true,
+      });
+      const log = run.stdout + run.stderr;
+      expect(log).not.toMatch(/timestep too small/iu);
+      const measured = (name: string) =>
+        Number(new RegExp(`^${name}\\s*=\\s*(\\S+)`, "mu").exec(log)?.[1]);
+      expect(
+        Math.abs(1 / (measured("t2") - measured("t1")) / hertz - 1),
+      ).toBeLessThan(tolerance);
+      expect(measured("top")).toBeCloseTo(5, 2);
+      expect(measured("bottom")).toBeCloseTo(-5, 2);
+    },
+  );
 
   it
     .skipIf(!process.env.VACASK_BIN && !process.env.VACASK_WSL_BIN)

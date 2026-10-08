@@ -62,7 +62,11 @@ describe("built-in model registration", () => {
           : "included",
       );
     }
-    expect(builtInModelDefaults("opamp")).toEqual({ gain: "1e6" });
+    expect(builtInModelDefaults("opamp")).toEqual({
+      gain: "1e6",
+      vhigh: "VDD",
+      vlow: "VSS",
+    });
     expect(builtInModelDefaults("nand_gate_4")).toEqual({
       vt: "10m",
       td: "10p",

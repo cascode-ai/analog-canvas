@@ -12,6 +12,13 @@ remain `analog-canvas://contract/edits/{kind}` and
 steps required before calls. Unknown selectors fail explicitly; overly broad
 queries return a narrower-selection hint, never a silently truncated schema.
 
+Arguments that fail validation return `INVALID_TOOL_INPUT` with
+`recovery:"fix-input"`. Each issue gives its `path` and `code` and says what
+would pass: unknown `keys` beside the `allowed` keys of the branch its
+`kind`/`action`/`operation` selects, the accepted `values`, a `minimum` or
+`maximum` with `inclusive`, or the `expected` type. Submitted values are never
+echoed back.
+
 Focused circuit tools retain the `{documentId?, actions:[...]}` call envelope:
 
 | Tool                 | Scope                                                                                                       |

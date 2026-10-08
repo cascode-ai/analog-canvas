@@ -15,6 +15,7 @@ import {
   drawnMagneticNetwork,
   drawnMagneticParameters,
   drawnSupplyNet,
+  drawsSupply,
   drawnSwitchControl,
   drawnSwitchPhase,
   mosBodiesOffSourceSupply,
@@ -40,6 +41,12 @@ import {
   ADDER_TARGET,
   IDEAL_COMPARATOR_BODIES,
   IDEAL_COMPARATOR_SUPPLY_TARGET,
+  IDEAL_OPAMP_BODIES,
+  OPAMP_HIGH_LIMIT,
+  OPAMP_LIMIT_SUPPLIES,
+  OPAMP_LOW_LIMIT,
+  OPAMP_TARGET,
+  UNPOWERED_OPAMP_LIMITS,
   adderInputSigns,
   adderBodySigns,
   builtInModelContract,
@@ -47,9 +54,17 @@ import {
   deviceDescriptor,
   HIGH_LEVEL_PARAMETER,
   callsIdealComparatorBody,
+  callsIdealOpampBody,
   idealComparatorBodyPorts,
   idealComparatorBodyContract,
+  idealOpampBodyContract,
+  idealOpampBodyFor,
+  idealOpampBodyReads,
   isIdealComparatorBody,
+  isIdealOpampBody,
+  isSupplyLimit,
+  isSupplyLimitParameter,
+  limitFollowsSupply,
   instanceBuiltInSubcircuit,
   isSupplyHighLevel,
   milliScaleReading,
@@ -1477,6 +1492,19 @@ function extractBuiltInSubcircuitInstance(
       );
     }
   }
+  // A Project's own definition of the op-amp's name replaces every body.
+  const idealOpamp =
+    callsIdealOpampBody(definition, target) &&
+    !projectNames.has(target.toLowerCase());
+  const opampParameters = Object.fromEntries(parameters);
+  const followsSupply = idealOpamp && {
+    VDD: limitFollowsSupply(opampParameters, OPAMP_HIGH_LIMIT),
+    VSS: limitFollowsSupply(opampParameters, OPAMP_LOW_LIMIT),
+  };
+  // Whether a selected VDD, or the one positive supply the author drew,
+  // powers the block (ideal-opamp.ts). The default VDD the netlist adds for
+  // other parts of a Cell that drew none does not.
+  let powered = false;
   // The ideal comparator's call lowers only the ports its body reads.
   const nodes = (
     idealComparator
@@ -1493,7 +1521,10 @@ function extractBuiltInSubcircuitInstance(
       const explicitName = explicit
         ? context.nameByNetId.get(explicit.id)
         : undefined;
-      if (explicitName) return [{ pinName: port.name, netName: explicitName }];
+      if (explicitName) {
+        if (port.supply === "VDD") powered = true;
+        return [{ pinName: port.name, netName: explicitName }];
+      }
       if (explicit) {
         diagnostic(
           diagnostics,
@@ -1511,10 +1542,47 @@ function extractBuiltInSubcircuitInstance(
         port.supply === "VDD" ? "vdd" : "ground",
       );
       const drawnName = drawn ? context.nameByNetId.get(drawn.id) : undefined;
-      if (drawnName) return [{ pinName: port.name, netName: drawnName }];
+      if (drawnName) {
+        if (
+          port.supply === "VDD" &&
+          drawn!.id !== implicitSupplyNetId(document.id, "VDD")
+        )
+          powered = true;
+        return [{ pinName: port.name, netName: drawnName }];
+      }
       // An ideal op-amp in a figure without supplies, such as a textbook
       // switched-capacitor integrator: the port is in the call but unused.
-      if (supplyFree) return [{ pinName: port.name, netName: "0" }];
+      // Where the Cell drew several, a limit following that supply cannot
+      // read one until the author chooses: the op-amp says what it reads.
+      if (supplyFree) {
+        if (
+          followsSupply &&
+          (port.supply === "VDD"
+            ? followsSupply.VDD || followsSupply.VSS
+            : powered && followsSupply.VSS) &&
+          drawsSupply(document, port.supply === "VDD" ? "vdd" : "ground")
+        )
+          diagnostic(
+            diagnostics,
+            document.id,
+            "IDEAL_OPAMP_SUPPLY_AMBIGUOUS",
+            port.supply === "VDD"
+              ? `Ideal op-amp ${reference}'s ${[
+                  followsSupply.VDD &&
+                    `high limit reads +${UNPOWERED_OPAMP_LIMITS[OPAMP_HIGH_LIMIT]} V`,
+                  followsSupply.VSS &&
+                    `low limit reads ${UNPOWERED_OPAMP_LIMITS[OPAMP_LOW_LIMIT].replace("-", "−")} V`,
+                ]
+                  .filter(Boolean)
+                  .join(
+                    " and ",
+                  )}: several drawn supplies could be its VDD. Select its VDD in Properties to limit it at its supplies`
+              : `Ideal op-amp ${reference}'s low limit reads ground: several drawn Nets could be its VSS. Select its VSS in Properties`,
+            [instance.id],
+            "warning",
+          );
+        return [{ pinName: port.name, netName: "0" }];
+      }
       diagnostic(
         diagnostics,
         document.id,
@@ -1535,24 +1603,93 @@ function extractBuiltInSubcircuitInstance(
       { pinName: port.name, netName: netName ?? `<unconnected:${port.name}>` },
     ];
   });
+  const opampBody = idealOpamp
+    ? idealOpampBody(
+        document,
+        instance,
+        reference,
+        parameters,
+        powered,
+        diagnostics,
+      )
+    : undefined;
   return {
     id: instance.id,
     reference,
     invocationKind: "subcircuit",
     deviceClass: "hierarchical",
-    target,
+    target: opampBody ?? target,
     nodes,
     // A comparator's call keeps the authored order. Its body that reads VDD
-    // takes no vhigh, so that call carries none.
+    // takes no vhigh, so that call carries none. An op-amp's limit set to its
+    // supply is the body's choice, never a parameter: whichever body is
+    // called, even a Project's own, reads no `vhigh=VDD`.
     parameters: (idealComparator
       ? parameters.filter(
           ([name]) =>
             target !== IDEAL_COMPARATOR_SUPPLY_TARGET ||
             name.toLowerCase() !== HIGH_LEVEL_PARAMETER,
         )
-      : parameters.sort(([a], [b]) => compareText(a, b))
+      : parameters
+          .filter(
+            ([name, rawValue]) =>
+              definition.target !== OPAMP_TARGET ||
+              !isSupplyLimitParameter(name, rawValue),
+          )
+          .sort(([a], [b]) => compareText(a, b))
     ).map(([name, rawValue]) => ({ name, rawValue })),
   };
+}
+
+/**
+ * The body an ideal op-amp calls (ideal-opamp.ts), with its limits checked:
+ * each is a number or its supply, and two numeric levels, typed or read for
+ * want of a supply, leave the output room between them.
+ */
+function idealOpampBody(
+  document: SchematicDocument,
+  instance: Instance,
+  reference: string,
+  parameters: readonly (readonly [string, string])[],
+  powered: boolean,
+  diagnostics: NetlistDiagnostic[],
+) {
+  const body = idealOpampBodyFor(Object.fromEntries(parameters), powered);
+  const reads = idealOpampBodyReads(body);
+  const levels: number[] = [];
+  for (const limit of [OPAMP_HIGH_LIMIT, OPAMP_LOW_LIMIT] as const) {
+    if (reads[limit === OPAMP_HIGH_LIMIT ? "vdd" : "vss"]) continue;
+    const entry = parameters.find(([name]) => name.toLowerCase() === limit);
+    if (!entry || isSupplyLimit(limit, entry[1])) {
+      levels.push(Number(UNPOWERED_OPAMP_LIMITS[limit]));
+      continue;
+    }
+    const parsed = parseSpiceNumber(entry[1].trim());
+    if (parsed && Number.isFinite(parsed.value)) {
+      levels.push(parsed.value);
+      continue;
+    }
+    diagnostic(
+      diagnostics,
+      document.id,
+      "INVALID_IDEAL_OPAMP_LIMIT",
+      `Ideal op-amp ${reference} requires ${entry[0]} to be a number or ${OPAMP_LIMIT_SUPPLIES[limit]}`,
+      [instance.id],
+      "error",
+      entry[0],
+    );
+  }
+  if (levels.length === 2 && !(levels[0]! > levels[1]!))
+    diagnostic(
+      diagnostics,
+      document.id,
+      "INVALID_IDEAL_OPAMP_LIMIT",
+      `Ideal op-amp ${reference}'s output high limit, ${levels[0]} V, must be above its low limit, ${levels[1]} V`,
+      [instance.id],
+      "error",
+      parameters.find(([name]) => name.toLowerCase() === OPAMP_HIGH_LIMIT)?.[0],
+    );
+  return body;
 }
 
 /**
@@ -3339,36 +3476,53 @@ function analyzeDesign(
         magneticSubcircuits.set(name, magneticSubcircuit(network, definition));
     }
   }
-  // Each generated comparator body reserves its name while an ideal
-  // comparator is used, whichever body its high level chooses: a Cell or an
-  // external subcircuit of that name would shadow it.
-  const comparatorConflicts = IDEAL_COMPARATOR_BODIES.flatMap((name) => {
-    const cell = cellNames.get(name);
-    const external = externalNames.get(name);
-    return cell || external
-      ? [
-          `${cell ? `Cell ${cell.authoredName}` : `external subcircuit ${external}`} named ${name}`,
-        ]
-      : [];
-  });
-  if (comparatorConflicts.length) {
+  // Each generated comparator or op-amp body reserves its name while such a
+  // block is used, whichever body its parameters choose: a Cell or an
+  // external subcircuit of that name would shadow it. The op-amp's own name
+  // is not one: a Project defining `opamp` replaces every body.
+  for (const reserved of [
+    {
+      names: IDEAL_COMPARATOR_BODIES,
+      calls: callsIdealComparatorBody,
+      code: "IDEAL_COMPARATOR_NAME_COLLISION",
+      block: "Ideal comparator",
+    },
+    {
+      names: IDEAL_OPAMP_BODIES.filter((name) => name !== OPAMP_TARGET),
+      calls: (descriptor: BuiltInSubcircuitDescriptor, target: string) =>
+        callsIdealOpampBody(descriptor, target) &&
+        !projectNames.has(target.toLowerCase()),
+      code: "IDEAL_OPAMP_NAME_COLLISION",
+      block: "Ideal op-amp",
+    },
+  ]) {
+    const conflicts = reserved.names.flatMap((name) => {
+      const cell = cellNames.get(name);
+      const external = externalNames.get(name);
+      return cell || external
+        ? [
+            `${cell ? `Cell ${cell.authoredName}` : `external subcircuit ${external}`} named ${name}`,
+          ]
+        : [];
+    });
+    if (!conflicts.length) continue;
     for (const document of documents) {
       for (const instance of document.instances) {
         const descriptor = subcircuitDescriptor(instance.symbolId, project);
         if (
           !descriptor ||
-          !callsIdealComparatorBody(
+          !reserved.calls(
             descriptor,
             builtInBlockCallTarget(instance, descriptor, projectNames),
           )
         )
           continue;
-        for (const conflict of comparatorConflicts)
+        for (const conflict of conflicts)
           diagnostic(
             diagnostics,
             document.id,
-            "IDEAL_COMPARATOR_NAME_COLLISION",
-            `Ideal comparator ${instance.reference ?? instance.id} conflicts with ${conflict}`,
+            reserved.code,
+            `${reserved.block} ${instance.reference ?? instance.id} conflicts with ${conflict}`,
             [instance.id],
           );
       }
@@ -3445,6 +3599,7 @@ function analyzeDesign(
     // back to the bare target `comparator`, which nothing defines unless
     // the Project declares an external definition of that name.
     ...IDEAL_COMPARATOR_BODIES,
+    ...IDEAL_OPAMP_BODIES,
   ]);
   for (const cell of cells) {
     for (const instance of cell.instances) {
@@ -3459,8 +3614,10 @@ function analyzeDesign(
       const target = instance.target.toLowerCase();
       const emittedPorts = isIdealComparatorBody(target)
         ? idealComparatorBodyContract(target).ports
-        : builtInModelContract(adderBodySigns(target) ? ADDER_TARGET : target)
-            ?.ports;
+        : isIdealOpampBody(target)
+          ? idealOpampBodyContract(target).ports
+          : builtInModelContract(adderBodySigns(target) ? ADDER_TARGET : target)
+              ?.ports;
       const callPorts =
         descriptor && callsIdealComparatorBody(descriptor, target)
           ? idealComparatorBodyPorts(target, descriptor.ports)
@@ -3595,6 +3752,11 @@ function analyzeDesign(
     if (!descriptor) continue;
     const target = builtInBlockCallTarget(instance, descriptor, projectNames);
     if (callsIdealComparatorBody(descriptor, target)) continue;
+    if (
+      callsIdealOpampBody(descriptor, target) &&
+      !projectNames.has(target.toLowerCase())
+    )
+      continue;
     externalMasters.set(`builtin:${target.toLowerCase()}`, {
       id: descriptor.id,
       name: target,
@@ -3661,13 +3823,15 @@ function analyzeDesign(
       topCellId: resolvedOptions.rootDocumentId,
       cells: [...idealCells, ...cells],
       generatedDefinitions: [
-        ...IDEAL_COMPARATOR_BODIES.filter(
-          (name) =>
-            !projectNames.has(name.toLowerCase()) &&
-            cells.some((cell) =>
-              cell.instances.some((instance) => instance.target === name),
-            ),
-        ).map((name) => ({ kind: "behavioral" as const, name })),
+        ...[...IDEAL_COMPARATOR_BODIES, ...IDEAL_OPAMP_BODIES]
+          .filter(
+            (name) =>
+              !projectNames.has(name.toLowerCase()) &&
+              cells.some((cell) =>
+                cell.instances.some((instance) => instance.target === name),
+              ),
+          )
+          .map((name) => ({ kind: "behavioral" as const, name })),
         ...behaviouralBodies.map((name) => ({
           kind: "behavioral" as const,
           name,

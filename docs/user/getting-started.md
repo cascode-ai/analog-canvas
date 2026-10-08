@@ -180,6 +180,15 @@ recognize such a network, so both are placed by hand.
   never in the drawing; an exported module states ground as its `VSS` Pin. A
   comparator's output swings up to its own VDD (`vhigh` `VDD`, the default),
   so it gets the `VDD` Pin alone; a number in `vhigh` sets a fixed level.
+  An op-amp's output stops at its own supplies once a VDD is drawn or
+  selected for it (`vhigh` `VDD` and `vlow` `VSS`, the defaults), and at
+  +5 V and −5 V when none is; numbers in `vhigh` and `vlow` set fixed
+  limits. So op-amp oscillators and Schmitt triggers saturate as drawn.
+  With several positive supplies drawn, select the op-amp's VDD in
+  Properties; until then a warning says which limit falls back to +5 V or
+  −5 V. Likewise, when an op-amp with a VDD has several grounds or negative
+  supplies to choose from, select its VSS; until then its low limit is
+  ground. The fully differential op-amp is not limited.
   Explicitly Global supplies stay global, and separate supplies such as `AVDD`
   and `DVDD` retain their connections: when several compete, choose one in
   Properties.

@@ -76,8 +76,14 @@
   cursor: pointer;
 }
 
-.gallery-tag-group-name {
-  overflow-wrap: anywhere;
+/* A name keeps one line: one too long for the sidebar ends in an ellipsis
+   where the width runs out, and its title says it whole. */
+.gallery-tag-group-name,
+.gallery-tag-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .gallery-tag-group-expand {
@@ -114,6 +120,12 @@
   margin-top: 2px;
 }
 
+/* A group's tags start where its name does, so a tag's box never sits
+   beside the group's own. */
+.gallery-tag-group .gallery-sidebar-tag {
+  padding-left: 21px;
+}
+
 .gallery-sidebar-tag,
 .gallery-sidebar-tag .gallery-tag-name,
 .gallery-sidebar-tag .gallery-sidebar-count {
@@ -146,11 +158,6 @@
   background: var(--icm-accent);
 }
 
-.gallery-tag-name {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
 .gallery-sidebar-count {
   margin-left: auto;
   color: var(--icm-text-muted);
@@ -172,4 +179,27 @@
   padding: 4px 8px;
   color: var(--icm-text-muted);
   font-size: 12px;
+}
+
+/* With a mouse, rows sit about a tenth closer, still at least 24 px apart;
+   touch keeps the larger rows. */
+@media (pointer: fine) {
+  .gallery-sidebar-option,
+  .gallery-sidebar-quick .gallery-tag-option {
+    padding-top: 3px;
+    padding-bottom: 3px;
+  }
+
+  .gallery-sidebar-tag + .gallery-sidebar-tag {
+    margin-top: 1px;
+  }
+
+  .gallery-tag-group-select {
+    padding-top: 4.5px;
+    padding-bottom: 4.5px;
+  }
+
+  .gallery-tag-group-expand {
+    min-height: 25px;
+  }
 }

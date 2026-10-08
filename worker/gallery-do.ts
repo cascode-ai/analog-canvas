@@ -817,13 +817,17 @@ export class GalleryDO {
     // Keep after the additive columns for existing databases. No query, cursor,
     // permission, freshness or result ordering changes; SQLite maintains this
     // index atomically with the same writes that update Gallery metadata.
-    // The part count joined the counts and filters later, so the index that
-    // covers them was rebuilt with it.
+    // The part count and the AI mark joined the counts and filters later, so
+    // the index that covers them was rebuilt with each. Without the AI mark,
+    // every page's AI and Human counts read it off the row, walking each
+    // entry's Project and SVG text: about 139,000 pages of a 1,269-entry
+    // Gallery per click, against about 100 with it.
     this.sql.exec("DROP INDEX IF EXISTS idx_gallery_entries_feed_stats");
+    this.sql.exec("DROP INDEX IF EXISTS idx_gallery_entries_feed_stats_parts");
     this.sql.exec(`
-      CREATE INDEX IF NOT EXISTS idx_gallery_entries_feed_stats_parts
-      ON gallery_entries(status, owner_user_id, author, netlistable, tags,
-        curation_json, component_count)
+      CREATE INDEX IF NOT EXISTS idx_gallery_entries_feed_stats_ai
+      ON gallery_entries(status, owner_user_id, author, netlistable,
+        ai_generated, tags, curation_json, component_count)
     `);
     this.syncAiSeatBylines();
     this.sql.exec(`
