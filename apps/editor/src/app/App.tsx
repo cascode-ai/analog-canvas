@@ -5,10 +5,6 @@ import {
   type ProjectWorkspace,
 } from "../document/project-workspace";
 import { resolveAnnotationName } from "@icm/derived";
-import {
-  branchGalleryVersion,
-  loadGalleryVersionProject,
-} from "../components/gallery-version-project";
 import { InstanceCodePanel } from "../features/properties/instance-code-panel";
 import { NetlistCodePanel } from "../features/netlist-export/netlist-code-panel";
 import { NetlistProfileCode } from "../features/netlist-export/netlist-profile-code";
@@ -244,28 +240,12 @@ import {
   publishProjectToGallery,
   updateGalleryEntry,
   canUpdateGalleryPublication,
-  loadGalleryPublicationContext,
-  loadGalleryQuota,
-  type GalleryPublicationRecord,
-  type GalleryQuota,
 } from "../features/editor-shell/gallery-publish";
-import {
-  announceGalleryChange,
-  localhostExamplesEnabled,
-  primeGalleryPreview,
-  subscribeGalleryRefresh,
-  type GalleryDailyOpenLimit,
-} from "../gallery-client";
+import { primeGalleryPreview } from "../gallery-client";
 import { GalleryDailyLimitCard } from "../features/editor-shell/gallery-daily-limit-card";
 import { projectWithTopologyRoot } from "../features/editor-shell/gallery-topology-project";
 import { LazyGalleryTopologyTaskNotice as GalleryTopologyTaskNotice } from "./lazy-editor-dialogs";
 import { LazyGalleryPublishedNotice as GalleryPublishedNotice } from "./lazy-editor-dialogs";
-import type { GalleryPublishedNoticeState } from "../features/editor-shell/gallery-published-notice";
-import type { SessionUser } from "../components/account";
-import {
-  evaluateSubmissionGates,
-  type SubmissionGateReport,
-} from "@icm/derived";
 import {
   EDITOR_PROJECT_TRANSACTION_OPTIONS,
   useDocumentController,
@@ -307,6 +287,18 @@ import {
   createAgentWorkspaceTargets,
 } from "./agent-workspace-requests";
 import {
+  useGalleryPublicationLink,
+  useGalleryPublicationRecord,
+  useGalleryPublishing,
+  useGalleryRefresh,
+} from "./use-gallery-publishing";
+import {
+  createLeaveForGallery,
+  useBootLink,
+  useGalleryTabEntry,
+  useRestoredTabLinks,
+} from "./use-gallery-entry";
+import {
   useAgentProjectResources,
   useAgentStartupRecovery,
   useBrowserAgentHost,
@@ -338,7 +330,6 @@ import {
   type ControlPickState,
 } from "../features/properties/controlled-source-canvas-pick";
 import { currentControlOptions } from "../features/properties/current-control-options";
-import type { CloudProjectSummary } from "../features/editor-shell/cloud-projects";
 import {
   defaultRazaviSymbolVariantId,
   materializeRazaviProjectBulkConnections,
@@ -571,22 +562,6 @@ export function App(props: AppProps) {
   );
 }
 
-/**
- * Takes `new=1` out of the address once the new circuit is open. The address
- * is what the window's tabs are saved under, so a refresh then brings back
- * what was drawn, and only a fresh New Circuit starts another.
- */
-function forgetNewProjectRequest(): void {
-  const url = new URL(window.location.href);
-  if (url.searchParams.get("new") !== "1") return;
-  url.searchParams.delete("new");
-  window.history.replaceState(
-    window.history.state,
-    "",
-    url.pathname + url.search + url.hash,
-  );
-}
-
 function propertiesMosBulkDefaultNetId(
   document: SchematicDocument,
   kind: "nmos" | "pmos",
@@ -743,15 +718,11 @@ function WorkspaceEditor({
   const visibleLibraryPanelOpen = compactLayout
     ? compactLibraryPanelOpen
     : libraryPanelOpen;
-  const [, setGalleryRefreshSignal] = useState(0);
-  const galleryLoadGenerationRef = useRef(0);
-  useEffect(() => {
-    if (!capabilities.community || !visibleLibraryPanelOpen) return;
-    return subscribeGalleryRefresh(() => {
-      galleryLoadGenerationRef.current += 1;
-      setGalleryRefreshSignal((previous) => previous + 1);
+  const { setGalleryRefreshSignal, galleryLoadGenerationRef } =
+    useGalleryRefresh({
+      capabilities,
+      visibleLibraryPanelOpen,
     });
-  }, [capabilities.community, visibleLibraryPanelOpen]);
 
   const [recoveryFailureDismissed, setRecoveryFailureDismissed] =
     useState(false);
@@ -1000,120 +971,41 @@ function WorkspaceEditor({
   const [documentSettingsOpen, setDocumentSettingsOpen] = useState(false);
   const [projectInfoOpen, setProjectInfoOpen] = useState(false);
   const projectNameEditing = useRef(false);
-  const [publishGalleryOpen, setPublishGalleryOpen] = useState(false);
-  // Opened from the duplicate check's notice, which asks for that check's
-  // results whatever circuit it checked (#1417).
-  const [openedFromCheckNotice, setOpenedFromCheckNotice] = useState(false);
-  const [publishedNotice, setPublishedNotice] =
-    useState<GalleryPublishedNoticeState | null>(null);
-  const [versionHistoryOpen, setVersionHistoryOpen] = useState(false);
-  const [galleryDailyLimit, setGalleryDailyLimit] =
-    useState<GalleryDailyOpenLimit | null>(null);
-  const [publishSession, setPublishSession] = useState<SessionUser | null>(
-    null,
-  );
-  /** The signed-in account's private formal Projects, newest first. */
-  const [cloudProjects, setCloudProjects] = useState<
-    readonly CloudProjectSummary[]
-  >([]);
-  const [cloudProjectsReady, setCloudProjectsReady] = useState(false);
-  const cloudListRequestRef = useRef(0);
-  const cloudListMutationRef = useRef(0);
-  const reloadCloudProjects = useCallback(async (): Promise<void> => {
-    if (!projectStore) {
-      setCloudProjectsReady(true);
-      return;
-    }
-    const request = ++cloudListRequestRef.current;
-    const mutationAtStart = cloudListMutationRef.current;
-    const outcome = await projectStore.list();
-    if (request !== cloudListRequestRef.current) return;
-    setCloudProjectsReady(true);
-    if (outcome.status !== "listed") return;
-    // A Save or Delete acknowledged after this request began is newer than
-    // the response, so the stale list must not erase that mutation.
-    if (mutationAtStart !== cloudListMutationRef.current) return;
-    setCloudProjects(outcome.projects);
-  }, [projectStore]);
-  const [galleryEntryContext, setGalleryEntryContext] =
-    useState<GalleryEntryContext | null>(null);
-  const [publicationLinkLoading, setPublicationLinkLoading] = useState(false);
-  const [publicationLinkError, setPublicationLinkError] = useState<
-    string | null
-  >(null);
-  const [publicationLinkNotice, setPublicationLinkNotice] = useState<
-    string | null
-  >(null);
-  const [publicationLinkRetry, setPublicationLinkRetry] = useState(0);
-  // The moment any OTHER Project replaces the opened gallery entry (new
-  // circuit, bundled example, import, …), the update offer must vanish —
-  // otherwise a later publish silently overwrites the stale entry.
-  const activeProjectId = project.id;
-  useEffect(() => {
-    setGalleryEntryContext((previous) =>
-      previous && previous.projectId !== activeProjectId ? null : previous,
-    );
-  }, [activeProjectId]);
-  // The Examples panel reads the same community gallery as the landing
-  // feed; null means unreachable, so the bundled list stands in.
-  const [publishGates, setPublishGates] = useState<SubmissionGateReport | null>(
-    null,
-  );
-  // Account state owns publishing authority and the private Cloud Project
-  // list shown by the File menu.
-  useEffect(() => {
-    let cancelled = false;
-    if (!identity) return;
-    void identity.getSessionUser().then(async (user) => {
-      if (cancelled) return;
-      setPublishSession(user);
-      if (!user) {
-        setCloudProjectsReady(true);
-        return;
-      }
-      await reloadCloudProjects();
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [identity, reloadCloudProjects]);
-
-  useEffect(() => {
-    if (!publishSession) return;
-    const refreshAfterReturning = () => void reloadCloudProjects();
-    window.addEventListener("focus", refreshAfterReturning);
-    return () => window.removeEventListener("focus", refreshAfterReturning);
-  }, [publishSession, reloadCloudProjects]);
-
-  const [publishQuota, setPublishQuota] = useState<GalleryQuota | null>(null);
-  // What the account may still publish today, read each time the dialog opens.
-  const publishAccountId = publishSession?.id ?? null;
-  useEffect(() => {
-    // An earlier count is no promise for this opening: say nothing until read.
-    setPublishQuota(null);
-    if (!publishGalleryOpen || !publishAccountId) return;
-    let cancelled = false;
-    void loadGalleryQuota().then((quota) => {
-      if (!cancelled) setPublishQuota(quota);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [publishGalleryOpen, publishAccountId]);
-  useEffect(() => {
-    if (!publishGalleryOpen) return;
-    let cancelled = false;
-    if (!identity) return;
-    void identity.getSessionUser().then((user) => {
-      if (!cancelled) setPublishSession(user);
-    });
-    // The same evaluator the worker enforces, run live on the open Project.
-    setPublishGates(evaluateSubmissionGates(project, resolver));
-    return () => {
-      cancelled = true;
-    };
-    // oxlint-disable-next-line react-hooks/exhaustive-deps -- evaluated once per dialog open
-  }, [identity, publishGalleryOpen]);
+  const {
+    publishGalleryOpen,
+    setPublishGalleryOpen,
+    openedFromCheckNotice,
+    setOpenedFromCheckNotice,
+    publishedNotice,
+    setPublishedNotice,
+    versionHistoryOpen,
+    setVersionHistoryOpen,
+    galleryDailyLimit,
+    setGalleryDailyLimit,
+    publishSession,
+    cloudProjects,
+    setCloudProjects,
+    cloudProjectsReady,
+    cloudListMutationRef,
+    reloadCloudProjects,
+    galleryEntryContext,
+    setGalleryEntryContext,
+    publicationLinkLoading,
+    setPublicationLinkLoading,
+    publicationLinkError,
+    setPublicationLinkError,
+    publicationLinkNotice,
+    setPublicationLinkNotice,
+    publicationLinkRetry,
+    setPublicationLinkRetry,
+    publishGates,
+    publishQuota,
+  } = useGalleryPublishing({
+    identity,
+    projectStore,
+    project,
+    resolver,
+  });
   /** The tab guard's blocker, for Agent hosts built before it (#1462). */
   const projectSwitchBlockerRef = useRef<() => string | null>(() => null);
   const openProjectInTabRef = useRef<
@@ -1377,82 +1269,22 @@ function WorkspaceEditor({
       return nextDocument;
     },
   });
-  useEffect(() => {
-    let cancelled = false;
-    setPublicationLinkError(null);
-    setPublicationLinkNotice(null);
-    if (
-      !capabilities.community ||
-      !projectStore ||
-      !cloudBinding ||
-      galleryEntryContext
-    ) {
-      setPublicationLinkLoading(false);
-      return;
-    }
-    setPublicationLinkLoading(true);
-    void (async () => {
-      try {
-        // Read current metadata even for recovery: another tab may have changed the source.
-        const listed = await projectStore.list();
-        const saved =
-          listed.status === "listed"
-            ? listed.projects.find((item) => item.id === cloudBinding.id)
-            : null;
-        if (!saved)
-          throw new Error(
-            "Could not load the saved Project’s publication link. Retry before publishing.",
-          );
-        const entryId = saved.galleryEntryId ?? null;
-        const context = entryId
-          ? await loadGalleryPublicationContext(entryId, project.id)
-          : null;
-        if (cancelled) return;
-        noteGalleryPublication(entryId);
-        if (context) {
-          setGalleryEntryContext(context);
-        } else if (entryId) {
-          setPublicationLinkNotice(
-            "The original Gallery entry is unavailable. Publishing creates a new entry; the Shelf draft is preserved.",
-          );
-        }
-      } catch (error) {
-        if (!cancelled)
-          setPublicationLinkError(
-            error instanceof Error
-              ? error.message
-              : "Could not load the publication link.",
-          );
-      } finally {
-        if (!cancelled) setPublicationLinkLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    cloudBinding?.id,
-    projectSessionId,
-    galleryEntryContext,
-    publicationLinkRetry,
+  const linkExistingPublication = useGalleryPublicationLink({
     projectStore,
-  ]);
-
-  const linkExistingPublication = async (input: string): Promise<void> => {
-    const match = input
-      .trim()
-      .match(/^(?:https?:\/\/[^/]+)?\/g\/([^/?#]+)(?:[?#].*)?$/u);
-    const id = match?.[1] ?? input.trim();
-    if (!/^[a-zA-Z0-9-]+$/u.test(id))
-      throw new Error("Paste a Gallery link or entry id.");
-    const sessionId = editorDocumentController.projectSessionId;
-    const context = await loadGalleryPublicationContext(id, project.id);
-    if (!context || !canUpdateGalleryPublication(context, publishSession))
-      throw new Error("Choose a Gallery entry you own or may edit.");
-    if (sessionId !== editorDocumentController.projectSessionId)
-      throw new Error("The active Project changed. Reopen Publish.");
-    setGalleryEntryContext(context);
-  };
+    capabilities,
+    project,
+    editorDocumentController,
+    projectSessionId,
+    publishSession,
+    galleryEntryContext,
+    setGalleryEntryContext,
+    setPublicationLinkLoading,
+    setPublicationLinkError,
+    setPublicationLinkNotice,
+    publicationLinkRetry,
+    cloudBinding,
+    noteGalleryPublication,
+  });
 
   const startupCloudRestoreAttemptedRef = useRef(false);
   const hasExplicitBootTarget =
@@ -4196,109 +4028,21 @@ function WorkspaceEditor({
     toggleExamplesPanelFromShell();
   }
 
-  // A Gallery URL is an explicit open intent, even when another project tab
-  // was active when this browser window last saved its workspace.
-  const restoredGalleryLink = useRef(
-    capabilities.community && restoredWorkspace && !restoreAfterRefresh
-      ? initialGalleryEntryId
-      : null,
-  );
-  const restoredCloudLink = useRef(
-    restoredWorkspace && !restoreAfterRefresh && !initialGalleryEntryId
-      ? new URLSearchParams(window.location.search).get("project")
-      : null,
-  );
-  // So is New Circuit: it opens a new tab beside the ones brought back,
-  // rather than showing the circuit this window drew last.
-  const restoredNewLink = useRef(
-    restoredWorkspace !== null &&
-      !restoreAfterRefresh &&
+  const { restoredGalleryLink, restoredCloudLink, restoredNewLink } =
+    useBootLink({
+      initialGalleryEntryId,
+      restoredWorkspace,
+      capabilities,
       bootRequestsNewProject,
-  );
-
-  // boot Project only; ordinary sessions never re-run these.
-  const bootTargetHandled = useRef(false);
-  useEffect(() => {
-    if (!capabilities.community || bootTargetHandled.current) return;
-    bootTargetHandled.current = true;
-    // A safe recovery refresh reloads the same URL: the pending restore owns
-    // this boot. Re-running the URL's boot target here would fork the
-    // working-copy identity and orphan the snapshot the restore is about to
-    // read.
-    if (restoreAfterRefresh || restoredWorkspace) return;
-    const exampleId = new URLSearchParams(window.location.search).get(
-      "example",
-    );
-    // A tile on the shelf opens straight into its Project.
-    const shelfProjectId = new URLSearchParams(window.location.search).get(
-      "project",
-    );
-    const requestsNewProject = bootRequestsNewProject;
-    if (initialGalleryEntryId) {
-      void openGalleryEntryById(initialGalleryEntryId, false, true);
-      return;
-    }
-    const historySearch = new URLSearchParams(window.location.search);
-    const historyEntryId = historySearch.get("history");
-    if (historyEntryId) {
-      const versionId = historySearch.get("version");
-      const versionNo = Number(historySearch.get("versionNo"));
-      if (!versionId || !Number.isInteger(versionNo) || versionNo < 1) {
-        setStatus("Invalid historical branch link");
-        return;
-      }
-      setStatus("Opening historical version as a new branch…");
-      void loadGalleryVersionProject(historyEntryId, versionId)
-        .then(async (snapshot) => {
-          await openProjectInTabRef.current(
-            branchGalleryVersion(snapshot, versionNo),
-            DEFAULT_VIEWBOX,
-            { source: "opened-file", persistenceState: "dirty" },
-          );
-        })
-        .catch((error: unknown) =>
-          setStatus(error instanceof Error ? error.message : String(error)),
-        );
-      return;
-    }
-    if (requestsNewProject) {
-      replaceActiveProject(preparedInitialProject, DEFAULT_VIEWBOX);
-      setStatus("Created a new Project");
-      return;
-    }
-    if (shelfProjectId) {
-      setStatus("Opening your Cloud Project…");
-      void openCloudProjectById(shelfProjectId, true);
-      return;
-    }
-    if (exampleId) {
-      if (!localhostExamplesEnabled()) {
-        setStatus("Built-in examples are available only on localhost");
-        return;
-      }
-      void import("../examples/library-examples")
-        .then(({ createLibraryExampleProject, libraryProjectExamples }) => {
-          const exampleProject = createLibraryExampleProject(exampleId);
-          const example = libraryProjectExamples.find(
-            (candidate) => candidate.id === exampleId,
-          );
-          if (!exampleProject || !example) return;
-          replaceActiveProject(
-            prepareNetlistExample(
-              exampleProject,
-              netlistPreferences.preferences.profiles[
-                netlistPreferences.selected
-              ],
-            ),
-            DEFAULT_VIEWBOX,
-          );
-          setStatus(`Opened example: ${example.name}`);
-        })
-        .catch(() => {
-          setStatus("Built-in example could not load");
-        });
-    }
-  }, [initialGalleryEntryId, restoreAfterRefresh]);
+      preparedInitialProject,
+      setStatus,
+      netlistPreferences,
+      openProjectInTabRef,
+      restoreAfterRefresh,
+      replaceActiveProject,
+      openCloudProjectById,
+      openGalleryEntryById,
+    });
 
   function resetInteractionState(): void {
     exitCellSymbolLayout();
@@ -5624,82 +5368,36 @@ function WorkspaceEditor({
     cancelAllTransientInteraction,
     nativeWorkspaceSaving,
   });
-  // The daily-limit card speaks about one attempt; another tab or a
-  // replaced project is not it.
-  useEffect(
-    () => setGalleryDailyLimit(null),
-    [projectTabs.activeId, projectSessionId],
-  );
-  openGalleryProjectInTabRef.current = (next, view, context) => {
-    // A fresh deep link has only a boot placeholder, not a user Project to
-    // preserve. Fill it so opening a Gallery circuit does not leave an empty
-    // extra tab; restored workspaces always take the additive path below.
-    if (
-      !restoredWorkspace &&
-      initialGalleryEntryId === context.id &&
-      projectTabs.tabs.length === 1 &&
-      project.id === preparedInitialProject.id &&
-      !isDirtyWork() &&
-      !hasUnsafeWork() &&
-      !codeDraftDirty
-    ) {
-      replaceActiveProject(next, view);
-      setGalleryEntryContext(context);
-      return Promise.resolve(true);
-    }
-    return projectTabs.open(
-      () => ({
-        ...createTabSession(next, view, {
-          source: "opened-file",
-          persistenceState: "unbound",
-        }),
-        publication: context,
-      }),
-      null,
-      context.id,
-    );
-  };
-  useEffect(() => {
-    const entryId = restoredGalleryLink.current;
-    if (restoringWorkspace || !entryId) return;
-    const matching = projectTabs
-      .entries()
-      .find(({ session }) => session.publication?.id === entryId);
-    if (matching && matching.id !== projectTabs.activeId) {
-      void projectTabs.select(matching.id).then((selected) => {
-        if (!selected) restoredGalleryLink.current = null;
-      });
-      return;
-    }
-    restoredGalleryLink.current = null;
-    if (!matching) {
-      void openGalleryEntryById(entryId, false, true);
-    } else if (
-      !matching.session.dirty &&
-      !matching.session.unsafe &&
-      !codeDraftDirty
-    ) {
-      void refreshGalleryEntry(matching.session.publication!);
-    }
-  }, [restoringWorkspace, projectTabs.activeId]);
-  useEffect(() => {
-    const cloudId = restoredCloudLink.current;
-    if (restoringWorkspace || !cloudId) return;
-    restoredCloudLink.current = null;
-    void openCloudProjectById(cloudId, true);
-  }, [restoringWorkspace]);
-  useEffect(() => {
-    if (restoringWorkspace || !restoredNewLink.current) return;
-    restoredNewLink.current = false;
-    forgetNewProjectRequest();
-    // Tabs that could not be restored leave their message standing.
-    if (restoredTabs.value) setStatus("Created a new Project");
-  }, [restoringWorkspace]);
-  useEffect(() => {
-    // A new circuit this window opened fresh is simply the working one now.
-    if (bootRequestsNewProject && !restoredNewLink.current)
-      forgetNewProjectRequest();
-  }, []);
+  useGalleryTabEntry({
+    initialGalleryEntryId,
+    restoredWorkspace,
+    preparedInitialProject,
+    project,
+    projectSessionId,
+    setGalleryDailyLimit,
+    setGalleryEntryContext,
+    codeDraftDirty,
+    openGalleryProjectInTabRef,
+    isDirtyWork,
+    hasUnsafeWork,
+    replaceActiveProject,
+    createTabSession,
+    projectTabs,
+  });
+  useRestoredTabLinks({
+    restoringWorkspace,
+    bootRequestsNewProject,
+    setStatus,
+    codeDraftDirty,
+    openCloudProjectById,
+    openGalleryEntryById,
+    refreshGalleryEntry,
+    restoredGalleryLink,
+    restoredCloudLink,
+    restoredNewLink,
+    restoredTabs,
+    projectTabs,
+  });
   const {
     recentNativeFiles,
     nativeBusy,
@@ -5760,104 +5458,33 @@ function WorkspaceEditor({
   });
   const allowNextBrowserUnload = useUnsavedWorkGuard(projectTabs.hasUnsafeTabs);
 
-  agentGalleryPublicationRef.current = () => ({
-    controller: editorDocumentController,
-    sessionId: editorDocumentController.projectSessionId,
-    project: editorDocumentController.project,
-    linked: galleryEntryContext,
+  const recordGalleryPublication = useGalleryPublicationRecord({
+    setStatus,
+    setGalleryRefreshSignal,
+    galleryLoadGenerationRef,
+    editorDocumentController,
+    setPublishedNotice,
+    publishSession,
+    galleryEntryContext,
+    setGalleryEntryContext,
+    agentGalleryPublicationRef,
+    recordGalleryPublicationRef,
     cloudBinding,
+    noteGalleryPublication,
+    noteProjectPublished,
   });
-  /**
-   * What a publication to the Gallery leaves behind, whether a person used
-   * the Publish dialog or an Agent published: the working copy is bound to the
-   * entry, the wall refreshes, and a notice says where it went. A working copy
-   * that changed meanwhile only announces the change.
-   */
-  function recordGalleryPublication(
-    {
-      id,
-      name,
-      description,
-      tags,
-      aiGenerated,
-      updated,
-      previewRevision,
-      ownerUserId,
-      author,
-    }: GalleryPublicationRecord,
-    sessionId: string,
-    by: "person" | "agent",
-  ): boolean {
-    if (editorDocumentController.projectSessionId !== sessionId) {
-      announceGalleryChange({ entryId: id });
-      return false;
-    }
-    // The gallery now holds these exact bytes: leaving, refreshing or closing
-    // the tab loses nothing until the next edit.
-    noteProjectPublished();
-    noteGalleryPublication(id);
-    // Publishing establishes the same update-in-place binding as opening an
-    // existing Gallery entry. Keep it attached to this Project only;
-    // replacing the Project clears it above.
-    setGalleryEntryContext({
-      id,
-      name,
-      projectId: editorDocumentController.project.id,
-      ownerUserId: updated
-        ? (ownerUserId ??
-          galleryEntryContext?.ownerUserId ??
-          publishSession?.id ??
-          null)
-        : (publishSession?.id ?? null),
-      author: updated
-        ? (author ??
-          galleryEntryContext?.author ??
-          publishSession?.displayName ??
-          "")
-        : (publishSession?.displayName ?? ""),
-      description,
-      tags,
-      aiGenerated,
-    });
-    void primeGalleryPreview(id, previewRevision);
-    announceGalleryChange({
-      entryId: id,
-      ...(previewRevision === undefined ? {} : { previewRevision }),
-    });
-    galleryLoadGenerationRef.current += 1;
-    setGalleryRefreshSignal((previous) => previous + 1);
-    setStatus(
-      by === "agent"
-        ? updated
-          ? `The Agent updated "${name}" in the gallery`
-          : `The Agent published "${name}" to the gallery`
-        : updated
-          ? `Updated "${name}" in the gallery`
-          : `Published "${name}" to the gallery`,
-    );
-    setPublishedNotice({ id, name, updated });
-    return true;
-  }
-  recordGalleryPublicationRef.current = recordGalleryPublication;
 
-  // The header's Gallery link and the daily-limit card leave the same way:
-  // through the guard for unsaved work, with a recovery copy kept.
-  const leaveForGallery = (): void => {
-    void guardDirtyReplacement("Go to Gallery", async (discarded) => {
-      if (discarded) await dropDiscardedWork();
-      else {
-        const snapshot = await captureAuthoredProject();
-        if (!snapshot) return;
-        stageRecovery(snapshot, {
-          unsavedAtSnapshot: isDirtyWork() || snapshot !== project,
-          cloudBinding,
-        });
-        await flushRecovery();
-      }
-      allowNextBrowserUnload();
-      window.location.assign("/");
-    });
-  };
+  const leaveForGallery = createLeaveForGallery({
+    project,
+    stageRecovery,
+    flushRecovery,
+    captureAuthoredProject,
+    cloudBinding,
+    isDirtyWork,
+    guardDirtyReplacement,
+    dropDiscardedWork,
+    allowNextBrowserUnload,
+  });
 
   return (
     <main className="app-shell">
