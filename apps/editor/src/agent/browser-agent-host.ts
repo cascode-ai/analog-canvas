@@ -138,6 +138,16 @@ export class BrowserAgentHost implements AgentOperationHost {
     return result;
   }
 
+  commitAsOneStep(commit: () => boolean): boolean {
+    this.assertBound();
+    const before = this.controller.project;
+    const kept = this.controller.commitAsOneStep(commit);
+    // The commits it undid were shown; show the Project they left.
+    if (!kept && this.controller.project !== before)
+      this.onTransactionCommitted?.();
+    return kept;
+  }
+
   /**
    * A whole-Project change the Agent's file and Project hosts planned and
    * validated against the current Project session, committed like a

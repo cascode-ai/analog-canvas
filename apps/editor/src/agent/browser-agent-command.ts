@@ -1002,7 +1002,8 @@ export function planBrowserAgentCommand(
       // One transaction takes a bounded number of edits, and each placement
       // expands to several (the part, its labels, a Pin's terminal and Net).
       // A batch over the bound commits nothing; it says what it expanded to
-      // and how many leading placements fit, so it splits without guessing.
+      // and how many leading placements fit, so it splits without guessing:
+      // an action list is split there by the service itself (#1516).
       const expanded = edits.length + (changesInterface ? 1 : 0);
       if (expanded > maxTransactionEdits) {
         let fitting = 0;

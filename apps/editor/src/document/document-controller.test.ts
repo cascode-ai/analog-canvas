@@ -338,6 +338,42 @@ describe("EditorDocumentController", () => {
     expect(controller.resolver).toBe(resolverBefore);
   });
 
+  it("keeps the transactions of one step as one undo item, or none of them (#1516)", () => {
+    const controller = new EditorDocumentController(hierarchicalProject());
+    controller.transact([{ kind: "add_instance", instance: instance("R0") }]);
+    controller.transact([{ kind: "undo" }]);
+    const before = structuredClone(controller.document);
+    const add = (id: string) =>
+      controller.dispatchTransaction({
+        transactionId: id,
+        documentId: controller.activeDocumentId,
+        expectedRevision: controller.document.revision,
+        actor: { kind: "agent", id: "codex" },
+        edits: [{ kind: "add_instance", instance: instance(id) }],
+      }).ok;
+
+    // Refused after its first commit: that one is taken back, the redo stays.
+    expect(controller.commitAsOneStep(() => add("R1") && false)).toBe(false);
+    expect(controller.document.instances).toEqual(before.instances);
+    expect(controller.document.revision).toBeGreaterThan(before.revision);
+    expect(controller.canUndo).toBe(false);
+    expect(controller.canRedo).toBe(true);
+
+    expect(controller.commitAsOneStep(() => add("R1") && add("R2"))).toBe(true);
+    expect(controller.document.instances.map((item) => item.id)).toEqual([
+      "R1",
+      "R2",
+    ]);
+    controller.transact([{ kind: "undo" }]);
+    expect(controller.document.instances).toEqual(before.instances);
+    expect(controller.canUndo).toBe(false);
+    controller.transact([{ kind: "redo" }]);
+    expect(controller.document.instances.map((item) => item.id)).toEqual([
+      "R1",
+      "R2",
+    ]);
+  });
+
   it("rebuilds symbols for a definition-level Document edit", () => {
     const controller = new EditorDocumentController(hierarchicalProject());
     controller.openDocument("document-child");

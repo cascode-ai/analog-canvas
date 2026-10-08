@@ -95,6 +95,8 @@ export class EditorDocumentController {
   private resolverValue: ProjectSymbolResolver;
   private readonly undoStack: ProjectHistoryEntry[] = [];
   private readonly redoStack: ProjectHistoryEntry[] = [];
+  /** The one undo step {@link commitAsOneStep}'s commits share, once made. */
+  private step: { entry?: ProjectHistoryEntry } | undefined;
   // Retain revision high-water marks for deleted/recreated Cells too.
   private readonly documentRevisions = new Map<string, number>();
   private readonly availableComponents = new Map<string, ComponentDefinition>();
@@ -229,11 +231,60 @@ export class EditorDocumentController {
     documentId: string,
     structural: boolean,
   ): void {
-    this.undoStack.push({ project, documentId, structural });
+    // A later commit of one step: its entry already holds the Project from
+    // before the first.
+    if (this.step?.entry) {
+      this.step.entry.structural ||= structural;
+      this.rememberRevisions();
+      return;
+    }
+    const entry = { project, documentId, structural };
+    if (this.step) this.step.entry = entry;
+    this.undoStack.push(entry);
     if (this.undoStack.length > DEFAULT_DOCUMENT_HISTORY_LIMIT)
       this.undoStack.shift();
     this.redoStack.length = 0;
     this.rememberRevisions();
+  }
+
+  /**
+   * Runs `commit`, whose transactions become one undo step, as one gesture's
+   * would. When it answers false (or throws), the Project returns to where it
+   * was before them, with no step left and the redo it had.
+   */
+  commitAsOneStep(commit: () => boolean): boolean {
+    if (this.step) return commit();
+    const step: { entry?: ProjectHistoryEntry } = {};
+    const redo = [...this.redoStack];
+    this.step = step;
+    let kept = false;
+    try {
+      kept = commit();
+    } finally {
+      this.step = undefined;
+      if (!kept && step.entry) {
+        const document =
+          this.projectValue.documents.find(
+            (item) => item.id === step.entry!.documentId,
+          ) ??
+          this.projectValue.documents.find(
+            (item) => item.id === this.projectValue.topDocumentId,
+          )!;
+        this.restoreHistory(
+          {
+            transactionId: "one-step-rollback",
+            documentId: document.id,
+            expectedRevision: document.revision,
+            expectedStructureRevision: this.projectValue.structureRevision,
+            actor: { kind: "human", id: "human-local" },
+            edits: [{ kind: "undo" }],
+          },
+          "undo",
+        );
+        this.redoStack.splice(0, this.redoStack.length, ...redo);
+      }
+    }
+    return kept;
   }
 
   /** Share immutable document objects after whole-Project validation cloned them. */

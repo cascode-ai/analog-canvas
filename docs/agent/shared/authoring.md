@@ -326,10 +326,14 @@ Multiple placements, wires, labels, model assignments and annotation moves have
 existing atomic batch paths. Failure commits nothing; success has one undo.
 One transaction takes at most 64 expanded edits. A placed part expands to about
 two (the part and its name label; three with `showValue:true`) and a Cell Pin to
-about five, so one `circuit_place` call fits about 20 to 30 parts. A placement batch over the limit
-commits nothing and fails with `LIMIT_EXCEEDED`; its diagnostic gives
-`expandedEdits`, `maxTransactionEdits` and `fittingPlacements`, the number of
-leading placements that fit in one call. An over-limit `delete-selection`
+about five, so one transaction fits about 20 to 30 parts. A placement batch
+(`circuit_place`, up to 64 parts) over the limit needs no splitting: the editor
+places it in as many transactions as it takes, each planned on what the one
+before placed, with one receipt and one undo; a refusal of any leaves none of
+it. A dry run checks one transaction, so over the limit it fails with
+`LIMIT_EXCEEDED`, as a `place-components` sent in the native `command` form
+does; its diagnostic gives `expandedEdits`, `maxTransactionEdits` and `fittingPlacements`, the
+number of leading placements that fit in one call. An over-limit `delete-selection`
 gives the same two counts, the selected count per class
 (`selectedInstances`, `selectedRoutes`, …) and the leading part that fits,
 taken in class order (`fittingInstances`, `fittingRoutes`, …). Delete that
