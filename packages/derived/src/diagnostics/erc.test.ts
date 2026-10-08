@@ -930,6 +930,77 @@ describe("ERC engine", () => {
     );
   });
 
+  it("warns when a Net reaches only gates and inputs and nothing drives it (#1473)", () => {
+    const project = emptyProject();
+    const document = project.documents[0]!;
+    const part = (id: string, symbolId: string) => ({
+      id,
+      symbolId,
+      placement: null,
+    });
+    document.instances = [
+      ...["M1", "M2", "M3", "M4", "M5", "M6", "M7", "M8"].map((id) =>
+        part(id, "nmos"),
+      ),
+      part("X1", "inverter"),
+      part("R1", "resistor"),
+    ];
+    const net = (id: string, ...terminals: [string, string][]) =>
+      document.nets.push({
+        id,
+        terminals: terminals.map(([instanceId, pinName]) => ({
+          instanceId,
+          pinName,
+        })),
+      });
+    // Two gates and nothing else, as a bias line drawn to its mirror's
+    // gates but never to the branch that biases them.
+    net("net-bias", ["M1", "G"], ["M2", "G"]);
+    // A logic input and a bulk: they sense, nothing drives.
+    net("net-logic", ["X1", "A"], ["M3", "B"]);
+    // A resistor carries the Net: not undriven.
+    net("net-resistor", ["M4", "G"], ["M5", "G"], ["R1", "1"]);
+    // A global name drives it from elsewhere.
+    net("net-global", ["M6", "G"], ["M7", "G"]);
+    document.annotations.push({
+      id: "label-vb",
+      kind: "net-label",
+      binding: { kind: "net-name", netId: "net-global" },
+      netId: "net-global",
+      anchor: { kind: "free", position: { x: 0, y: 0 } },
+      alignment: "start",
+      rotation: 0,
+      locked: false,
+    });
+    document.connectivityEvidence.push({
+      id: "claim-vb",
+      kind: "name-claim",
+      netId: "net-global",
+      name: "VB",
+      owner: { kind: "net-label", annotationId: "label-vb" },
+      scope: "global",
+    });
+    // A lone gate stays ERC_FLOATING_GATE's.
+    net("net-single", ["M8", "G"]);
+
+    const undriven = runErcChecks(
+      project,
+      buildProjectConnectivityIndex(project, resolver),
+      resolver,
+    ).filter((diagnostic) => diagnostic.code === "ERC_UNDRIVEN_GATE_NET");
+    expect(undriven.map((diagnostic) => diagnostic.primary.objectId)).toEqual([
+      "net-bias",
+      "net-logic",
+    ]);
+    expect(undriven[0]).toMatchObject({
+      severity: "warning",
+      gateEligible: false,
+      message:
+        "Net net-bias reaches only M1.G and M2.G, and nothing drives it: connect the source or bias branch meant to set it, a Cell Pin or a global supply",
+      parameters: { netId: "net-bias", endpoints: "M1.G, M2.G" },
+    });
+  });
+
   it("reports a Net that shorts reviewed VDD and ground symbols", () => {
     const project = emptyProject();
     const document = project.documents[0]!;

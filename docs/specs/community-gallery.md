@@ -366,7 +366,8 @@ boundaries still apply. Diagnostic codes:
 
 - `erc-errors` — any ERC diagnostic with `severity: "error"`.
 - `floating-endpoints` — `ERC_UNCONNECTED_PIN`, `ERC_BULK_UNRESOLVED`,
-  and `ERC_FLOATING_GATE`. A name on a singleton local Net is not electrical
+  `ERC_FLOATING_GATE` and `ERC_UNDRIVEN_GATE_NET` (whose example lists the
+  Net's endpoints). A name on a singleton local Net is not electrical
   connectivity. The sanctioned cases are a real peer connection, a formal
   boundary, a reviewed global supply, an implicit pin, or explicit NoConnect.
 - `empty-project` — fewer than 2 instances AND no substantial drawing

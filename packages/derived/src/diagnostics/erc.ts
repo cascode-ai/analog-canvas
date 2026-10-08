@@ -17,6 +17,7 @@ import type { Diagnostic, DiagnosticSeverity } from "./diagnostic.js";
 import { findExternalMasterCollisions } from "../master-names.js";
 import {
   deviceDescriptor,
+  subcircuitDescriptor,
   instanceParameterContract,
   milliScaleReading,
   validateDeviceParameters,
@@ -31,6 +32,17 @@ import { supplyMarkerForSymbol } from "../supply-marker.js";
  * Electrical findings remain distinct from visual observations; observation
  * counts are not evidence of electrical correctness (Net connectivity rationale).
  */
+
+/** Pin roles that only sense their Net: they draw no current to set it. */
+const SENSING_PIN_ROLES = new Set([
+  "gate",
+  "bulk",
+  "input",
+  "non-inverting-input",
+  "inverting-input",
+  "clock",
+  "reset",
+]);
 
 /** Compatibility aliases for ERC consumers; their protocol is Diagnostic. */
 export type ErcSeverity = DiagnosticSeverity;
@@ -151,6 +163,68 @@ export function runErcChecks(
         primary: directObjectLocator(document.id, "net", net.id),
         related: [],
         parameters: { netId: net.id },
+      });
+    }
+
+    // ERC_UNDRIVEN_GATE_NET (#1473): a Net whose every endpoint only senses
+    // (MOS gates and bulks, inputs of gates and blocks) and that nothing
+    // drives: no Cell Pin, global or supply name, and no terminal that
+    // carries current. The netlist exports it cleanly while the gates float,
+    // as a bias line drawn to a mirror's gates but never to its branch. A
+    // lone gate is ERC_FLOATING_GATE's; a Cell instance's pins and imported
+    // source Nets are never assumed to sense.
+    for (const net of logicalNets.groups) {
+      if (
+        net.formalTerminalIds.length > 0 ||
+        net.scope === "global" ||
+        net.powerDomain !== "none" ||
+        net.sourceNetIds.length > 0
+      )
+        continue;
+      const endpoints = document.nets
+        .filter((item) => net.baseNetIds.includes(item.id))
+        .flatMap((item) => item.terminals);
+      if (endpoints.length < 2) continue;
+      const senses = endpoints.every((terminal) => {
+        const instance = document.instances.find(
+          (item) => item.id === terminal.instanceId,
+        );
+        // A Library part or block, never a Cell whose inside could drive it.
+        if (
+          !instance ||
+          !(
+            deviceDescriptor(instance.symbolId, project) ??
+            subcircuitDescriptor(instance.symbolId, project)
+          )
+        )
+          return false;
+        const role = resolver
+          .resolve(instance.symbolId, instance.symbolVariantId)
+          ?.definition.pins.find((pin) => pin.name === terminal.pinName)
+          ?.role.toLowerCase();
+        return role !== undefined && SENSING_PIN_ROLES.has(role);
+      });
+      if (!senses) continue;
+      const labels = endpoints.map(
+        (terminal) => `${terminal.instanceId}.${terminal.pinName}`,
+      );
+      const listed =
+        labels.length > 1
+          ? `${labels.slice(0, -1).join(", ")} and ${labels.at(-1)}`
+          : labels[0]!;
+      diagnostics.push({
+        id: `erc:undriven-gate-net:${document.id}:${net.id}`,
+        domain: "erc",
+        code: "ERC_UNDRIVEN_GATE_NET",
+        severity: "warning",
+        confidence: "high",
+        gateEligible: false,
+        message: `Net ${net.name ?? net.id} reaches only ${listed}, and nothing drives it: connect the source or bias branch meant to set it, a Cell Pin or a global supply`,
+        primary: directObjectLocator(document.id, "net", net.id),
+        related: endpoints.map((terminal) =>
+          terminalLocator(document.id, terminal.instanceId, terminal.pinName),
+        ),
+        parameters: { netId: net.id, endpoints: labels.join(", ") },
       });
     }
 

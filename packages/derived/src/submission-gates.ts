@@ -38,6 +38,7 @@ export interface SubmissionGateReport {
 const FLOATING_CODES = new Set([
   "ERC_UNCONNECTED_PIN",
   "ERC_FLOATING_GATE",
+  "ERC_UNDRIVEN_GATE_NET",
   "ERC_BULK_UNRESOLVED",
 ]);
 
@@ -46,8 +47,11 @@ const EXAMPLE_LIMIT = 5;
 function terminalLabel(parameters: Record<string, unknown>): string {
   const instanceId = parameters.instanceId;
   const pinName = parameters.pinName;
-  return typeof instanceId === "string" && typeof pinName === "string"
-    ? `${instanceId}.${pinName}`
+  if (typeof instanceId === "string" && typeof pinName === "string")
+    return `${instanceId}.${pinName}`;
+  // A Net's finding names the endpoints it reaches.
+  return typeof parameters.endpoints === "string"
+    ? parameters.endpoints
     : "(terminal)";
 }
 

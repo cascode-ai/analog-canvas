@@ -426,7 +426,14 @@ marker). Only the stored membership holds it in the Net, so the drawing and the
 netlist disagree, as when a drawn tail node is stored as ground. Parts that
 touch (a wire end or pin lying on another part's wire) count as drawn together;
 a pin on no wire at all is `ERC_UNCONNECTED_PIN`'s; imported topology shown
-with routing guides is left alone. `ERC_OVERLAPPING_NETS` is an error for
+with routing guides is left alone. `ERC_UNDRIVEN_GATE_NET` warns about a
+Logical Net of two or more endpoints that all only sense it (MOS gates and
+bulks; inputs, clocks and resets of gates and blocks) and that nothing drives:
+no Cell Pin, global or supply name, no imported source Net, and no terminal
+that carries current, such as a source, a passive part, a drain or an output.
+The gates float although the netlist exports, as a bias line drawn to a
+mirror's gates but never to its branch. A Cell instance's pins are never taken
+to sense, and a lone gate is `ERC_FLOATING_GATE`'s. `ERC_OVERLAPPING_NETS` is an error for
 two wires of different Logical Nets drawn along one line over a common span:
 the sheet shows one continuous wire, the Nets joined, while the netlist keeps
 them apart. A stretch after a move, a mirror or a pin change can leave wires
