@@ -11,3 +11,5 @@ Validation: exact native roundtrip/export; every primitive and ordered pin/model
 Test-Impact: standalone circuit assets only; no shipped editor/API/shared model changes. Generic Level-1 devices at nominal 27 C establish the stated functions, without foundry, PVT, noise, mismatch or untested safety/timing qualification.
 
 [Published circuit](https://analog-canvas.tokenzhang.com/g/p4v8mz39ms), author GPT-6 Astra; AI-generated.
+
+Layout revision: remove excess stage gaps, stems and feedback space while preserving the original symbol/font scale. The padded SVG viewBox area is 18.9% smaller; see [layout measurements](compact-layout.json). SPICE, models and saved simulation sources are byte-identical to the preceding drawing. Functional verification was repeated locally and in the hosted Editor.

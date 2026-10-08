@@ -105,11 +105,11 @@
           "type": "pmos",
           "name": "M4",
           "id": "M4",
-          "coordinate": [310, 0],
+          "coordinate": [270, 0],
           "labels": [
             {
               "alignment": "start",
-              "anchor": { "fallback": [324, 5], "offset": [14, 5] },
+              "anchor": { "fallback": [284, 5], "offset": [14, 5] },
               "bind": "name",
               "format": {
                 "runs": [
@@ -138,16 +138,16 @@
         {
           "type": "vdd-port",
           "id": "vdd-M4",
-          "coordinate": [320, -50]
+          "coordinate": [280, -50]
         },
         {
           "type": "port",
           "id": "port-iref",
-          "coordinate": [110, 120],
+          "coordinate": [110, 100],
           "rotation": 270,
           "labels": [
             {
-              "anchor": { "fallback": [110, 146], "offset": [0, 26] },
+              "anchor": { "fallback": [110, 126], "offset": [0, 26] },
               "bind": { "kind": "cell-terminal-name", "terminalId": "terminal-iref" },
               "id": "port-label-iref",
               "kind": "net-label",
@@ -160,12 +160,12 @@
           "type": "nmos",
           "name": "M1",
           "id": "M1",
-          "coordinate": [310, 160],
+          "coordinate": [270, 130],
           "parameters": { "l": "1u", "w": "10u" },
           "labels": [
             {
               "alignment": "start",
-              "anchor": { "fallback": [325, 165], "offset": [15, 5] },
+              "anchor": { "fallback": [285, 135], "offset": [15, 5] },
               "bind": "name",
               "format": {
                 "runs": [
@@ -189,11 +189,11 @@
         {
           "type": "port",
           "id": "port-vb",
-          "coordinate": [280, 160],
+          "coordinate": [240, 130],
           "labels": [
             {
               "alignment": "end",
-              "anchor": { "fallback": [266, 164], "offset": [-14, 4] },
+              "anchor": { "fallback": [226, 134], "offset": [-14, 4] },
               "bind": { "kind": "cell-terminal-name", "terminalId": "terminal-vb" },
               "id": "port-label-vb",
               "kind": "net-label",
@@ -206,12 +206,12 @@
           "type": "nmos",
           "name": "M2",
           "id": "M2",
-          "coordinate": [560, 260],
+          "coordinate": [500, 210],
           "parameters": { "l": "1u", "w": "5u" },
           "labels": [
             {
               "alignment": "start",
-              "anchor": { "fallback": [575, 265], "offset": [15, 5] },
+              "anchor": { "fallback": [515, 215], "offset": [15, 5] },
               "bind": "name",
               "format": {
                 "runs": [
@@ -235,19 +235,19 @@
         {
           "type": "ground",
           "id": "gnd15",
-          "coordinate": [570, 300]
+          "coordinate": [510, 250]
         },
         {
           "type": "capacitor",
           "name": "CX",
           "id": "CX",
-          "coordinate": [410, 160],
+          "coordinate": [350, 130],
           "parameters": { "value": "20p" },
           "target": { "deviceClass": "capacitor", "kind": "primitive" },
           "labels": [
             {
               "alignment": "start",
-              "anchor": { "fallback": [422, 165], "offset": [12, 5] },
+              "anchor": { "fallback": [362, 135], "offset": [12, 5] },
               "bind": "name",
               "format": {
                 "runs": [
@@ -267,7 +267,7 @@
             },
             {
               "alignment": "start",
-              "anchor": { "fallback": [422, 185], "offset": [12, 25] },
+              "anchor": { "fallback": [362, 155], "offset": [12, 25] },
               "bind": "value",
               "id": "CX-value",
               "kind": "instance-value",
@@ -278,17 +278,17 @@
         {
           "type": "ground",
           "id": "gnd17",
-          "coordinate": [410, 200]
+          "coordinate": [350, 170]
         },
         {
           "type": "port",
           "id": "port-x",
-          "coordinate": [520, 50],
+          "coordinate": [460, 50],
           "mirror": "horizontal",
           "labels": [
             {
               "alignment": "start",
-              "anchor": { "fallback": [534, 54], "offset": [14, 4] },
+              "anchor": { "fallback": [474, 54], "offset": [14, 4] },
               "bind": { "kind": "cell-terminal-name", "terminalId": "terminal-x" },
               "id": "port-label-x",
               "kind": "net-label",
@@ -300,11 +300,11 @@
         {
           "type": "port",
           "id": "port-ind",
-          "coordinate": [150, 240],
+          "coordinate": [150, 190],
           "labels": [
             {
               "alignment": "end",
-              "anchor": { "fallback": [136, 244], "offset": [-14, 4] },
+              "anchor": { "fallback": [136, 194], "offset": [-14, 4] },
               "bind": { "kind": "cell-terminal-name", "terminalId": "terminal-ind" },
               "id": "port-label-ind",
               "kind": "net-label",
@@ -519,35 +519,35 @@
           "id": "j5"
         },
         {
-          "coordinate": [220, 70],
+          "coordinate": [180, 70],
           "id": "j8"
         },
         {
-          "coordinate": [220, 0],
+          "coordinate": [180, 0],
           "id": "j10"
         },
         {
-          "coordinate": [320, 80],
+          "coordinate": [280, 80],
           "id": "j19"
         },
         {
-          "coordinate": [410, 80],
+          "coordinate": [350, 80],
           "id": "j22"
         },
         {
-          "coordinate": [500, 80],
+          "coordinate": [440, 80],
           "id": "j24"
         },
         {
-          "coordinate": [500, 260],
+          "coordinate": [440, 210],
           "id": "j26"
         },
         {
-          "coordinate": [500, 50],
+          "coordinate": [440, 50],
           "id": "j30"
         },
         {
-          "coordinate": [320, 240],
+          "coordinate": [280, 190],
           "id": "j33"
         }
       ],
@@ -578,7 +578,7 @@
         {
           "anchor": {
             "kind": "free",
-            "position": { "x": 320, "y": -60 }
+            "position": { "x": 280, "y": -60 }
           },
           "bind": { "kind": "net-name", "netId": "net-vdd" },
           "format": {

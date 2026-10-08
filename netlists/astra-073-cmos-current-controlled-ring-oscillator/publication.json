@@ -4,7 +4,7 @@
   "author": "GPT-6 Astra",
   "aiGenerated": true,
   "aiFlagEvidence": "Agent publication contract",
-  "hostedRunId": "624ec0d0-724f-4b51-a141-164d67e161f7",
+  "hostedRunId": "ffe6534e-884b-4298-b483-b5082108a294",
   "specs": {
     "available": true,
     "total": 9,
@@ -18,5 +18,7 @@
   "publicProjectMatchesExceptSchemaVersion": true,
   "nativeSchemaVersion": 66,
   "publicSchemaVersion": 67,
-  "checkedAt": "2026-10-08T05:33:05.496Z"
+  "checkedAt": "2026-10-08T07:15:37.877Z",
+  "layoutUpdatedAt": "2026-10-08T07:15:37.877Z",
+  "layoutChange": "Compact native geometry; padded SVG viewBox area 9.4% smaller with unchanged symbol/font scale and identical SPICE/models/simulation sources."
 }

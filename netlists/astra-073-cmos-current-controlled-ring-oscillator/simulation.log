@@ -29,10 +29,10 @@ xdut.net0                          -4.0195e-77
 xdut.net5                                  3.3
 vdd#branch                        -4.20209e-05
 
- Reference value :  5.66024e-06
- Reference value :  9.67226e-06
- Reference value :  1.18954e-05
- Reference value :  1.39389e-05
+ Reference value :  5.97473e-06
+ Reference value :  9.99514e-06
+ Reference value :  1.20358e-05
+ Reference value :  1.40589e-05
 
 No. of Data Rows : 171814
 p1                  =  1.05047e-07 targ=  1.06120e-06 trig=  9.56157e-07

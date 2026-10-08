@@ -65,7 +65,7 @@
   "prototypeConnectivityAndParametersMatch": true,
   "limitations": "Nominal functional verification only; no PVT, noise, mismatch or foundry qualification.",
   "hosted": {
-    "runId": "2bb2100b-8cd8-4088-827c-72ab4881a79e",
+    "runId": "35918dfc-a8b2-4393-ba01-5db3ee3d8b88",
     "specs": {
       "available": true,
       "total": 8,
@@ -84,5 +84,10 @@
   "publicLayoutMatchesNativeProject": true,
   "publicProjectMatchesExceptSchemaVersion": true,
   "nativeSchemaVersion": 66,
-  "publicSchemaVersion": 67
+  "publicSchemaVersion": 67,
+  "layoutOnlyRevision": {
+    "fontAndSymbolScaleUnchanged": true,
+    "electricalAndSimulationSourcesUnchanged": true,
+    "exportBoundsAreaReductionPercent": 19.8
+  }
 }
