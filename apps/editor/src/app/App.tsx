@@ -290,7 +290,9 @@ import {
   localhostExamplesEnabled,
   primeGalleryPreview,
   subscribeGalleryRefresh,
+  type GalleryDailyOpenLimit,
 } from "../gallery-client";
+import { GalleryDailyLimitCard } from "../features/editor-shell/gallery-daily-limit-card";
 import { projectWithTopologyRoot } from "../features/editor-shell/gallery-topology-project";
 import { LazyGalleryTopologyTaskNotice as GalleryTopologyTaskNotice } from "./lazy-editor-dialogs";
 import { LazyGalleryPublishedNotice as GalleryPublishedNotice } from "./lazy-editor-dialogs";
@@ -1105,6 +1107,8 @@ function WorkspaceEditor({
   const [publishedNotice, setPublishedNotice] =
     useState<GalleryPublishedNoticeState | null>(null);
   const [versionHistoryOpen, setVersionHistoryOpen] = useState(false);
+  const [galleryDailyLimit, setGalleryDailyLimit] =
+    useState<GalleryDailyOpenLimit | null>(null);
   const [publishSession, setPublishSession] = useState<SessionUser | null>(
     null,
   );
@@ -1882,6 +1886,7 @@ function WorkspaceEditor({
     cancelAllTransientInteraction,
     setGalleryEntryContext,
     setStatus,
+    setDailyOpenLimit: setGalleryDailyLimit,
   });
   const [draftingInspectorSegment, setDraftingInspectorSegment] = useState<{
     objectId: string;
@@ -6241,6 +6246,12 @@ function WorkspaceEditor({
       setStatus(error instanceof Error ? error.message : String(error));
     }
   }, [projectTabs.activeId]);
+  // The daily-limit card speaks about one attempt; another tab or a
+  // replaced project is not it.
+  useEffect(
+    () => setGalleryDailyLimit(null),
+    [projectTabs.activeId, projectSessionId],
+  );
   openProjectInTabRef.current = (next, view, options, background) =>
     background
       ? Promise.resolve(
@@ -6959,6 +6970,25 @@ function WorkspaceEditor({
     }
   };
 
+  // The header's Gallery link and the daily-limit card leave the same way:
+  // through the guard for unsaved work, with a recovery copy kept.
+  const leaveForGallery = (): void => {
+    void guardDirtyReplacement("Go to Gallery", async (discarded) => {
+      if (discarded) await dropDiscardedWork();
+      else {
+        const snapshot = await captureAuthoredProject();
+        if (!snapshot) return;
+        stageRecovery(snapshot, {
+          unsavedAtSnapshot: isDirtyWork() || snapshot !== project,
+          cloudBinding,
+        });
+        await flushRecovery();
+      }
+      allowNextBrowserUnload();
+      window.location.assign("/");
+    });
+  };
+
   return (
     <main className="app-shell">
       {publishedNotice ? (
@@ -7093,22 +7123,7 @@ function WorkspaceEditor({
         projectName={project.name}
         projectSchemaVersion={project.schemaVersion}
         hasUnsavedWork={hasUnsavedChanges()}
-        onOpenGallery={() => {
-          void guardDirtyReplacement("Go to Gallery", async (discarded) => {
-            if (discarded) await dropDiscardedWork();
-            else {
-              const snapshot = await captureAuthoredProject();
-              if (!snapshot) return;
-              stageRecovery(snapshot, {
-                unsavedAtSnapshot: isDirtyWork() || snapshot !== project,
-                cloudBinding,
-              });
-              await flushRecovery();
-            }
-            allowNextBrowserUnload();
-            window.location.assign("/");
-          });
-        }}
+        onOpenGallery={leaveForGallery}
         fileCommands={{
           ...(NativeFileCommands ? { NativeFileCommands } : {}),
           ...(nativeProjectStore
@@ -9867,6 +9882,15 @@ function WorkspaceEditor({
               setStatus("Text cancelled");
             },
           }}
+          notice={
+            galleryDailyLimit ? (
+              <GalleryDailyLimitCard
+                limit={galleryDailyLimit}
+                onBackToGallery={leaveForGallery}
+                onClose={() => setGalleryDailyLimit(null)}
+              />
+            ) : null
+          }
         />
         {canvasContextMenu ? (
           <CanvasContextMenu

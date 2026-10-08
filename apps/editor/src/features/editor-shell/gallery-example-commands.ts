@@ -6,7 +6,10 @@ import { normalizeImportedProject } from "../../document/project-import-normaliz
 import type { ReplaceProjectOptions } from "../../document/use-project-file-lifecycle";
 import type { LibraryProjectExample } from "../../examples/library-examples";
 import type { SchematicClipboard } from "../clipboard/clipboard";
-import { dailyOpenLimitMessage } from "../../gallery-client";
+import {
+  dailyOpenLimit,
+  type GalleryDailyOpenLimit,
+} from "../../gallery-client";
 import { captureGalleryDrawing } from "./gallery-import";
 
 export interface GalleryEntryContext {
@@ -62,6 +65,11 @@ export interface GalleryExampleCommandDependencies {
   cancelAllTransientInteraction: () => void;
   setGalleryEntryContext: (context: GalleryEntryContext) => void;
   setStatus: (status: string) => void;
+  /**
+   * The card saying the account has opened its share of Gallery circuits for
+   * the day; null clears one an earlier attempt left.
+   */
+  setDailyOpenLimit: (limit: GalleryDailyOpenLimit | null) => void;
   fetchImpl?: typeof fetch;
 }
 
@@ -91,6 +99,7 @@ export function createGalleryExampleCommands({
   cancelAllTransientInteraction,
   setGalleryEntryContext,
   setStatus,
+  setDailyOpenLimit,
   fetchImpl = fetch,
 }: GalleryExampleCommandDependencies) {
   const repairOnOpen = (imported: CircuitProject): CircuitProject =>
@@ -169,6 +178,7 @@ export function createGalleryExampleCommands({
     protectCurrentProject = true,
     inTab = false,
   ): Promise<void> => {
+    setDailyOpenLimit(null);
     try {
       const response = await fetchImpl(`/api/gallery/${entryId}`, {
         credentials: "same-origin",
@@ -177,9 +187,9 @@ export function createGalleryExampleCommands({
         setStatus("Sign in to open Community Gallery circuits");
         return;
       }
-      const limited = await dailyOpenLimitMessage(response);
+      const limited = await dailyOpenLimit(response);
       if (limited) {
-        setStatus(limited);
+        setDailyOpenLimit(limited);
         return;
       }
       if (!response.ok) {
@@ -249,6 +259,7 @@ export function createGalleryExampleCommands({
   };
 
   const insertGalleryEntryById = async (entryId: string): Promise<void> => {
+    setDailyOpenLimit(null);
     try {
       const response = await fetchImpl(`/api/gallery/${entryId}`, {
         credentials: "same-origin",
@@ -257,9 +268,9 @@ export function createGalleryExampleCommands({
         setStatus("Sign in to insert Community Gallery circuits");
         return;
       }
-      const limited = await dailyOpenLimitMessage(response);
+      const limited = await dailyOpenLimit(response);
       if (limited) {
-        setStatus(limited);
+        setDailyOpenLimit(limited);
         return;
       }
       const payload = response.ok

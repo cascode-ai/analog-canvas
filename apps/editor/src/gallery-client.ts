@@ -509,13 +509,19 @@ export async function loadGalleryFeed(
   }
 }
 
+/** The day's Gallery opens are spent: how many, and when more open. */
+export interface GalleryDailyOpenLimit {
+  limit: number;
+  resetAt: string;
+}
+
 /**
- * What to tell a reader whose account has opened its daily share of other
+ * The refusal of a reader whose account has opened its daily share of other
  * people's circuits, or null when `response` is any other answer.
  */
-export async function dailyOpenLimitMessage(
+export async function dailyOpenLimit(
   response: Response,
-): Promise<string | null> {
+): Promise<GalleryDailyOpenLimit | null> {
   if (response.status !== 429) return null;
   try {
     const body = (await response.clone().json()) as {
@@ -524,14 +530,28 @@ export async function dailyOpenLimitMessage(
       resetAt?: string;
     };
     if (body.error !== "daily-open-limit") return null;
-    const time = new Date(body.resetAt ?? "").toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-    return `You have opened ${body.limit} Gallery circuits today; more open at ${time}`;
+    return { limit: Number(body.limit), resetAt: String(body.resetAt) };
   } catch {
     return null;
   }
+}
+
+/** The reset time in the reader's own clock, hours and minutes. */
+export function dailyOpenResetTime(limit: GalleryDailyOpenLimit): string {
+  return new Date(limit.resetAt).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+/** The same refusal as one line, for a dialog or an Agent; null otherwise. */
+export async function dailyOpenLimitMessage(
+  response: Response,
+): Promise<string | null> {
+  const limit = await dailyOpenLimit(response);
+  return limit
+    ? `You have opened ${limit.limit} Gallery circuits today; more open at ${dailyOpenResetTime(limit)}`
+    : null;
 }
 
 /**

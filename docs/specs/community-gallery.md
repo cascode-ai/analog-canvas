@@ -43,7 +43,9 @@ Compare and Agent Gallery reads do — spends one of the account's 100 daily
 opens (`GALLERY_DAILY_OPEN_LIMIT`, per UTC day). Each circuit counts once a
 day. Past the allowance the read answers
 `429 {"error":"daily-open-limit","limit":100,"resetAt":…}` with `Retry-After`,
-the editor says when more open, and an Agent read fails with
+opening or inserting in the editor shows a card in the middle of the canvas
+saying when more open (with Back to Gallery and Close; the next attempt or a
+tab change clears it), and an Agent read fails with
 `GALLERY_DAILY_LIMIT`. The wall, search, tags, previews and
 `GET /api/gallery/<id>?summary=1` (the entry's details without its Project
 Code, used by links and publishing) are not counted, nor are an author's own

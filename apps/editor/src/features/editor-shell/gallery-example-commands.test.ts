@@ -25,6 +25,7 @@ function dependencies(fetchImpl: typeof fetch = vi.fn<typeof fetch>()) {
     cancelAllTransientInteraction: vi.fn(),
     setGalleryEntryContext: vi.fn(),
     setStatus: vi.fn(),
+    setDailyOpenLimit: vi.fn(),
     fetchImpl,
   };
 }
@@ -358,7 +359,7 @@ describe("Gallery and example commands", () => {
     });
   });
 
-  it("says when the account has opened its daily share of Gallery circuits", async () => {
+  it("shows the daily-limit card when the account has opened its share of Gallery circuits", async () => {
     const limited = vi.fn<typeof fetch>(async () =>
       Response.json(
         {
@@ -376,11 +377,15 @@ describe("Gallery and example commands", () => {
     await commands.insertGalleryEntryById("someone-elses");
 
     expect(input.replaceActiveProject).not.toHaveBeenCalled();
-    for (const [message] of input.setStatus.mock.calls)
-      expect(message).toMatch(
-        /^You have opened 100 Gallery circuits today; more open at /u,
-      );
-    expect(input.setStatus).toHaveBeenCalledTimes(2);
+    const limit = { limit: 100, resetAt: "2026-10-08T00:00:00.000Z" };
+    // Each attempt first clears a card an earlier one left.
+    expect(input.setDailyOpenLimit.mock.calls).toEqual([
+      [null],
+      [limit],
+      [null],
+      [limit],
+    ]);
+    expect(input.setStatus).not.toHaveBeenCalled();
   });
 
   it("reports unavailable Gallery payloads without replacing the Project", async () => {
