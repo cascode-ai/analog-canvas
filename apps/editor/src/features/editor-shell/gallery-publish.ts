@@ -21,6 +21,11 @@ export interface GalleryPublishFields {
    * leaves it out keeps the entry's mark.
    */
   aiGenerated?: boolean;
+  /**
+   * An AI account's update that takes another AI account's entry over
+   * (#1499): the entry moves to the signed-in AI account's name.
+   */
+  takeOver?: boolean;
 }
 
 /**
@@ -166,7 +171,14 @@ export interface PublishSessionUser {
 }
 
 export type GalleryPublishOutcome =
-  | { status: "published"; id: string; previewRevision?: string }
+  | {
+      status: "published";
+      id: string;
+      previewRevision?: string;
+      /** After a take-over, the entry's new owner and byline. */
+      ownerUserId?: string;
+      author?: string;
+    }
   | { status: "gate-failed"; failures: readonly SubmissionGateFailure[] }
   | { status: "unauthorized" }
   | { status: "too-large" }
@@ -196,6 +208,7 @@ async function sendGalleryProject(
         ...(fields.aiGenerated === undefined
           ? {}
           : { aiGenerated: fields.aiGenerated }),
+        ...(fields.takeOver ? { takeOver: true } : {}),
         // Publishing a drawing must not also publish private source comments
         // or model files. The frozen topology still supports routing guidance.
         projectText: serializeProject({
@@ -224,6 +237,8 @@ async function sendGalleryProject(
     const payload = (await response.json().catch(() => null)) as {
       id?: unknown;
       previewRevision?: unknown;
+      ownerUserId?: unknown;
+      author?: unknown;
     } | null;
     const previewRevision =
       typeof payload?.previewRevision === "string" &&
@@ -234,6 +249,11 @@ async function sendGalleryProject(
       status: "published",
       id: typeof payload?.id === "string" ? payload.id : "",
       ...(previewRevision === undefined ? {} : { previewRevision }),
+      // A take-over names the entry's new owner and byline.
+      ...(typeof payload?.ownerUserId === "string" &&
+      typeof payload.author === "string"
+        ? { ownerUserId: payload.ownerUserId, author: payload.author }
+        : {}),
     };
   }
   if (response.status === 422) {
@@ -314,8 +334,10 @@ export function describePublishOutcome(outcome: GalleryPublishOutcome): string {
             : outcome.message === "invalid-project"
               ? "The Project failed strict validation on the server"
               : outcome.message === "forbidden"
-                ? "Only the entry's owner or a moderator can update it"
-                : `The gallery rejected the submission (${outcome.message})`;
+                ? "Only the entry's owner or a moderator can update it; an AI account can take over another AI account's circuit with a take-over"
+                : outcome.message === "take-over-forbidden"
+                  ? "Only an AI account can take over a circuit, and only another AI account's: a person's circuit is never taken over"
+                  : `The gallery rejected the submission (${outcome.message})`;
     case "unreachable":
       return `Could not reach the gallery: ${outcome.message}`;
   }

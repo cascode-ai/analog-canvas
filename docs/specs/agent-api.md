@@ -204,7 +204,10 @@ signed-in Editor session, with the Publish dialog's fields (`name`,
 mark; only its author changes that, in the Editor. An update defaults to the
 entry the working copy was published as or opened from in the Editor and
 keeps every field it does not name. Both answer `galleryEntryId`, `url` and
-`previewRevision`.
+`previewRevision`. Signed in as an AI account, `update-gallery-entry` with
+`takeOver: true` publishes a redrawn version of another AI account's entry
+under the signed-in account's name ([take-over](community-gallery.md));
+a person's entry is never taken over.
 `read-project-code` / `replace-project-code` and
 `read-netlist` / `replace-netlist` expose the live Editor's existing code
 planners with Project structure-revision guards. Project Code replacement can

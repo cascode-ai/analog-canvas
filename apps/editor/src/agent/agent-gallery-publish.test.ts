@@ -27,11 +27,16 @@ function galleryServer(status = 201) {
             ownerUserId: "u1",
           })
         : new Response(null, { status: 404 });
-    sent.push({ method, url, body: JSON.parse(String(init?.body)) });
+    const body = JSON.parse(String(init?.body));
+    sent.push({ method, url, body });
     return Response.json(
       {
         id: method === "POST" ? "entry-new" : "entry-7",
         previewRevision: "r1",
+        // A take-over answers the entry's new owner and byline.
+        ...(body.takeOver
+          ? { ownerUserId: "seat-1", author: "Claude Opus 5.5" }
+          : {}),
       },
       { status: method === "POST" ? status : status === 201 ? 200 : status },
     );
@@ -141,6 +146,28 @@ describe("an Agent publishes to the Gallery (#1415)", () => {
         updated: true,
         ownerUserId: "u1",
         author: "Opus 5.5",
+      }),
+    ]);
+  });
+
+  it("takes another AI account's entry over when asked, and records its new owner (#1499)", async () => {
+    const server = galleryServer();
+    const { client, recorded } = editorWith(server);
+    await client.connect("session-1.code");
+    expect(
+      await client.projectResource({
+        ...envelope,
+        operation: "update-gallery-entry",
+        galleryEntryId: "entry-7",
+        takeOver: true,
+      }),
+    ).toMatchObject({ ok: true, galleryEntryId: "entry-7" });
+    expect(server.sent[0]!.body).toMatchObject({ takeOver: true });
+    expect(recorded).toEqual([
+      expect.objectContaining({
+        updated: true,
+        ownerUserId: "seat-1",
+        author: "Claude Opus 5.5",
       }),
     ]);
   });

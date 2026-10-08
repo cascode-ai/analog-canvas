@@ -1119,14 +1119,14 @@ async function ownerAccountOf(env: Harness): Promise<string> {
 }
 
 /** A browser the Owner switched to an AI account (seat). */
-async function seatOf(env: Harness): Promise<string> {
+async function seatOf(env: Harness, seat = 0): Promise<string> {
   const admin = await adminOf(env);
   return (
     await env.authDurable.fetch(
       new Request(`${ORIGIN}/api/auth/ai-accounts/switch`, {
         method: "POST",
         headers: { Origin: ORIGIN, Cookie: admin },
-        body: JSON.stringify({ userId: AI_SEATS[0]!.userId }),
+        body: JSON.stringify({ userId: AI_SEATS[seat]!.userId }),
       }),
     )
   ).headers
@@ -1228,6 +1228,124 @@ describe("AI account bylines", () => {
     ]);
     expect(authors("gallery_entry_versions")).toEqual([
       { id: "seat-v1", author: seat.displayName },
+    ]);
+  });
+});
+
+describe("AI accounts taking over each other's circuits (#1499)", () => {
+  it("moves an AI account's circuit to the AI account whose update takes it over, never a person's", async () => {
+    const env = environment();
+    const [claude, , sol] = AI_SEATS;
+    const solCookie = await seatOf(env, 2);
+    const claudeCookie = await seatOf(env, 0);
+    const id = await submitOne(env, "Wien bridge", { cookie: solCookie });
+    const update = (entryId: string, cookie: string, takeOver?: boolean) =>
+      route(
+        env,
+        new Request(`${ORIGIN}/api/gallery/${entryId}`, {
+          method: "PUT",
+          headers: {
+            Origin: ORIGIN,
+            Cookie: cookie,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({
+            name: "Wien bridge",
+            description: "Redone",
+            projectText: projectText("Wien bridge"),
+            ...(takeOver === undefined ? {} : { takeOver }),
+          }),
+        }),
+      );
+    // Without a take-over, another account's circuit stays its own.
+    expect((await update(id, claudeCookie)).status).toBe(403);
+    const taken = await update(id, claudeCookie, true);
+    expect(taken.status).toBe(200);
+    expect(await taken.json()).toMatchObject({
+      id,
+      ownerUserId: claude!.userId,
+      author: claude!.displayName,
+    });
+    const entry = () =>
+      env.gallerySql
+        .exec<{ owner_user_id: string; author: string; ai_generated: number }>(
+          "SELECT owner_user_id, author, ai_generated FROM gallery_entries WHERE id = ?",
+          id,
+        )
+        .toArray()[0];
+    expect(entry()).toEqual({
+      owner_user_id: claude!.userId,
+      author: claude!.displayName,
+      ai_generated: 1,
+    });
+    // The version it replaced keeps the account that made it.
+    expect(
+      env.gallerySql
+        .exec<{ author: string }>(
+          "SELECT author FROM gallery_entry_versions WHERE entry_id = ?",
+          id,
+        )
+        .toArray(),
+    ).toEqual([{ author: sol!.displayName }]);
+    // The new owner updates it as its own; the former one no longer can.
+    expect((await update(id, claudeCookie)).status).toBe(200);
+    expect((await update(id, solCookie)).status).toBe(403);
+
+    // A person's circuit is never taken over, and a person takes over none.
+    const person = await makerOf(env);
+    const mine = await submitOne(env, "Mine", { cookie: person });
+    const refused = await update(mine, claudeCookie, true);
+    expect(refused.status).toBe(403);
+    expect(await refused.json()).toEqual({ error: "take-over-forbidden" });
+    expect((await update(id, person, true)).status).toBe(403);
+    expect(entry()!.owner_user_id).toBe(claude!.userId);
+  });
+
+  it("keeps the AI account that made each earlier version when the Gallery starts", () => {
+    const state = sqliteState();
+    new GalleryDO(state);
+    const sql = state.storage.sql;
+    const [claude, , sol] = AI_SEATS;
+    const at = "2026-10-08T00:00:00.000Z";
+    sql.exec(
+      `INSERT INTO gallery_entries
+       (id, name, author, description, created_at, schema_version, status,
+        owner_user_id, project_text, svg_text)
+       VALUES ('taken', 'taken', ?, '', ?, ?, 'public', ?, ?, '<svg/>')`,
+      claude!.displayName,
+      at,
+      CURRENT_PROJECT_FILE_VERSION,
+      claude!.userId,
+      projectText("taken"),
+    );
+    for (const [id, author] of [
+      ["v1", sol!.displayName],
+      ["v2", claude!.formerName!],
+    ])
+      sql.exec(
+        `INSERT INTO gallery_entry_versions
+         (id, entry_id, version_no, name, author, description,
+          schema_version, project_text, svg_text, created_at)
+         VALUES (?, 'taken', ?, 'taken', ?, '', ?, ?, '<svg/>', ?)`,
+        id,
+        id === "v1" ? 1 : 2,
+        author,
+        CURRENT_PROJECT_FILE_VERSION,
+        projectText("taken"),
+        at,
+      );
+    new GalleryDO(state);
+    expect(
+      sql
+        .exec<{ id: string; author: string }>(
+          "SELECT id, author FROM gallery_entry_versions ORDER BY id",
+        )
+        .toArray(),
+    ).toEqual([
+      // Another AI account's version keeps its name; this account's former
+      // byline still becomes its listed name.
+      { id: "v1", author: sol!.displayName },
+      { id: "v2", author: claude!.displayName },
     ]);
   });
 });

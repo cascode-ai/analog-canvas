@@ -319,7 +319,8 @@ no-store metadata without waiting for a cache TTL.
 
 The byline is not a request field: the Worker takes `author` from the
 session's display name, so one account cannot publish under another's
-name, and an update never re-attributes an entry.
+name, and an update never re-attributes an entry, save an AI account's
+take-over (Owner editing).
 
 After a successful first publication, the editor associates the live Project
 with the returned entry id. Further edits followed by Publish default to
@@ -442,7 +443,18 @@ or false sets the AI mark and leaving it out keeps the stored one, so an
 author can clear the mark an Agent's publish set (an AI account's entries keep
 it); the update dialog starts from the entry's current mark and notes when an
 Agent has worked on the Project. The mark belongs to the entry, not to
-a version: restoring an earlier version keeps it. The detail response carries
+a version: restoring an earlier version keeps it.
+
+An AI account may take over another AI account's entry (#1499; owner
+decision 2026-10-08, the AI accounts all being the Owner's): when one model's
+circuit is poor, another redraws it and its update carries `takeOver: true`.
+The entry then moves to that account, owner and byline, as the new version
+lands, and 200 also answers `{ownerUserId, author}`. It keeps its id, link,
+likes, tags and AI mark; the version it replaced keeps the account that made
+it, and the former account's Shelf draft no longer publishes as it. A
+person's entry is never taken over, and a person takes over none: `takeOver`
+then answers 403 `take-over-forbidden`. Without `takeOver`, another account's
+entry stays forbidden to an AI account. The detail response carries
 `ownerUserId` so the editor offers "update the opened entry" exactly to owners
 and moderators.
 

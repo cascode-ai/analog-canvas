@@ -198,6 +198,12 @@ const GalleryCircuitsArgs = z.discriminatedUnion("action", [
         "Defaults to the entry the working copy was published as or opened from.",
       ),
     ...AgentGalleryEntryFields,
+    takeOver: z
+      .boolean()
+      .optional()
+      .describe(
+        "Signed in as an AI account, publish this redrawn version of another AI account's circuit under your own name: the entry, its link and likes stay, and its earlier versions keep their maker. A person's circuit is never taken over.",
+      ),
   }),
 ]);
 const ProjectCodeArgs = z.discriminatedUnion("action", [
