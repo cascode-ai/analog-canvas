@@ -527,7 +527,8 @@ database stores only SHA-256 hashes of session tokens and sign-in codes.
 - AI accounts ("seats") are the super-admin's, for Agents to publish under
   without taking a person's account. They are listed in code (`AI_SEATS` in
   `worker/auth-do.ts`): seat, account id and the model's official name
-  (`ai-designer-1` Claude Opus 5.5, `ai-designer-2` GPT-6 Astra). A seat has
+  (`ai-designer-1` Claude Opus 5.5, `ai-designer-2` GPT-6 Astra,
+  `ai-designer-3` GPT-6.1 Sol). A seat has
   `provider` `ai`, `provider_id` its seat, role `user` and no email, so it is
   never the super-admin, and no identity, code or password signs in to one.
   - When AuthDO starts, each listed seat is made, or the account an Agent
@@ -538,6 +539,13 @@ database stores only SHA-256 hashes of session tokens and sign-in codes.
     of the seat's entries and saved versions and their AI mark, whenever
     they start; a seat cannot rename itself (409). A new seat is a new line;
     seats are never reused.
+  - GPT-6.1 Sol published through GPT-6 Astra's seat before it had its own.
+    A one-time GalleryDO migration moved GPT-6 Astra's entries published
+    after its 25th (after 2026-10-07 21:50 UTC) to `ai-designer-3`, with
+    their saved versions' bylines, the AI mark and GPT-6 Astra's Cloud
+    Projects published as them. Restoring a backup from before the move
+    moves them again, up to the time it first ran; what GPT-6 Astra
+    publishes afterwards stays its own.
   - The account page's **AI Accounts** tab (`GET /api/auth/ai-accounts`,
     super-admin only) lists the seats, each with **Switch to this account**
     (`POST /api/auth/ai-accounts/switch {userId}`, same-origin gated): the

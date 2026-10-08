@@ -56,6 +56,12 @@ export const AI_SEATS: readonly {
     displayName: "GPT-6 Astra",
     formerName: "GPT-6-Astra",
   },
+  // New on 2026-10-08; it had been publishing through GPT-6 Astra's account.
+  {
+    seat: "ai-designer-3",
+    userId: "6ac307cd-655d-4f06-bf8d-bc5975ebf6a6",
+    displayName: "GPT-6.1 Sol",
+  },
 ];
 /**
  * The site's Owner, by account: the Google and the GitHub sign-in (#1446).

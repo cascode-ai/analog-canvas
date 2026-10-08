@@ -509,6 +509,13 @@ const MAGIC_LI_LEGACY_BYLINE = "3187863239-netizen";
 const MAGIC_LI_BYLINE = "Magic Li";
 const VERSION_RETENTION_MIGRATION = "2026-08-27-gallery-version-retention-2";
 const PREVIEW_DIMENSIONS_MIGRATION = "2026-09-02-gallery-preview-dimensions";
+const SOL_FROM_ASTRA_MIGRATION = "2026-10-08-gpt-6-1-sol-from-gpt-6-astra";
+/**
+ * GPT-6 Astra drew its account's first 25 circuits, the last at 21:37 on
+ * 2026-10-07; every one published after this through that account was
+ * GPT-6.1 Sol's (the Owner, 2026-10-08). The next began at 22:05.
+ */
+const SOL_FROM_ASTRA_AFTER = "2026-10-07T21:50:00.000Z";
 /**
  * A part count as stored: with this build's rule version when the writer
  * counted it, or unversioned, so the scheduled refresh counts it, when not.
@@ -928,6 +935,22 @@ export class GalleryDO {
         "INSERT INTO data_migrations(id, applied_at) VALUES (?, ?)",
         VERSION_RETENTION_MIGRATION,
         new Date().toISOString(),
+      );
+    });
+    this.state.storage.transactionSync(() => {
+      const applied = this.sql
+        .exec<{ id: string }>(
+          "SELECT id FROM data_migrations WHERE id = ?",
+          SOL_FROM_ASTRA_MIGRATION,
+        )
+        .toArray();
+      if (applied.length > 0) return;
+      const appliedAt = new Date().toISOString();
+      this.moveSolFromAstra(appliedAt);
+      this.sql.exec(
+        "INSERT INTO data_migrations(id, applied_at) VALUES (?, ?)",
+        SOL_FROM_ASTRA_MIGRATION,
+        appliedAt,
       );
     });
     // Direct publishing retired the review queue. An entry still waiting for
@@ -1906,6 +1929,58 @@ export class GalleryDO {
    * AI mark. Cheap when they already do, so it runs whenever the Gallery
    * starts and after a restore.
    */
+  /**
+   * GPT-6.1 Sol's circuits published through GPT-6 Astra's seat until
+   * `through` move to its own: owner, byline, the bylines of their saved
+   * versions, the AI mark, and GPT-6 Astra's Cloud Projects published as
+   * them (SOL_FROM_ASTRA_AFTER).
+   */
+  private moveSolFromAstra(through: string): void {
+    const astra = AI_SEATS.find((seat) => seat.seat === "ai-designer-2")!;
+    const sol = AI_SEATS.find((seat) => seat.seat === "ai-designer-3")!;
+    const moved = `SELECT id FROM gallery_entries
+       WHERE owner_user_id = ? AND created_at > ? AND created_at <= ?`;
+    this.sql.exec(
+      `UPDATE gallery_entry_versions SET author = ? WHERE entry_id IN (${moved})`,
+      sol.displayName,
+      astra.userId,
+      SOL_FROM_ASTRA_AFTER,
+      through,
+    );
+    this.sql.exec(
+      `UPDATE gallery_entries SET owner_user_id = ?, author = ?, ai_generated = 1
+       WHERE id IN (${moved})`,
+      sol.userId,
+      sol.displayName,
+      astra.userId,
+      SOL_FROM_ASTRA_AFTER,
+      through,
+    );
+    this.sql.exec(
+      `UPDATE cloud_projects SET user_id = ?
+       WHERE user_id = ? AND gallery_entry_id IN (${moved})`,
+      sol.userId,
+      astra.userId,
+      sol.userId,
+      SOL_FROM_ASTRA_AFTER,
+      through,
+    );
+  }
+
+  /** A restored backup from before the move moves again, as far as it went. */
+  private reapplySolFromAstra(): void {
+    const applied = this.sql
+      .exec<{ applied_at: string }>(
+        "SELECT applied_at FROM data_migrations WHERE id = ?",
+        SOL_FROM_ASTRA_MIGRATION,
+      )
+      .toArray()[0];
+    if (applied)
+      this.state.storage.transactionSync(() =>
+        this.moveSolFromAstra(applied.applied_at),
+      );
+  }
+
   private syncAiSeatBylines(): void {
     this.state.storage.transactionSync(() => {
       for (const { userId, displayName, formerName } of AI_SEATS) {
@@ -2737,8 +2812,10 @@ export class GalleryDO {
         )
         .one().count;
     });
-    // A backup from before an AI account was one names it as it was.
+    // A backup from before an AI account was one names it as it was, and
+    // one from before GPT-6.1 Sol's circuits moved has them under GPT-6 Astra.
     this.syncAiSeatBylines();
+    this.reapplySolFromAstra();
     const retainedCloudVersions = this.sql
       .exec<{ count: number }>(
         "SELECT COUNT(*) AS count FROM cloud_project_versions",

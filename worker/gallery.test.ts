@@ -1684,6 +1684,196 @@ describe("gallery data migrations", () => {
     ).toBe("3187863239-netizen");
   });
 
+  it("moves GPT-6 Astra's circuits after its 25th to GPT-6.1 Sol, once and after a restore", async () => {
+    const state = sqliteState();
+    const gallery = new GalleryDO(state);
+    const [astra, sol] = ["ai-designer-2", "ai-designer-3"].map((seat) =>
+      AI_SEATS.find((item) => item.seat === seat)!,
+    );
+    const sql = state.storage.sql;
+    const insert = (
+      id: string,
+      owner: string,
+      author: string,
+      createdAt: string,
+      status = "public",
+    ) =>
+      sql.exec(
+        `INSERT INTO gallery_entries
+         (id, name, author, description, created_at, schema_version, status,
+          owner_user_id, project_text, svg_text, ai_generated)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
+        id,
+        id,
+        author,
+        "",
+        createdAt,
+        CURRENT_PROJECT_FILE_VERSION,
+        status,
+        owner,
+        projectText(id),
+        "<svg/>",
+      );
+    const version = (entryId: string) =>
+      sql.exec(
+        `INSERT INTO gallery_entry_versions
+         (id, entry_id, version_no, name, author, description, schema_version,
+          project_text, svg_text, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `${entryId}-v1`,
+        entryId,
+        1,
+        entryId,
+        "GPT-6 Astra",
+        "",
+        CURRENT_PROJECT_FILE_VERSION,
+        projectText(entryId),
+        "<svg/>",
+        "2026-10-07T21:00:00.000Z",
+      );
+    const draft = (id: string, entryId: string | null) =>
+      sql.exec(
+        `INSERT INTO cloud_projects
+         (id, user_id, name, created_at, updated_at, schema_version,
+          project_text, gallery_entry_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        id,
+        astra!.userId,
+        id,
+        "2026-10-07T21:00:00.000Z",
+        "2026-10-07T21:00:00.000Z",
+        CURRENT_PROJECT_FILE_VERSION,
+        projectText(id),
+        entryId,
+      );
+    // GPT-6 Astra's 25th circuit, the 26th, a later withdrawn one, another
+    // account's from the same evening, saved versions, and GPT-6 Astra's
+    // Cloud Projects behind the 25th, the 26th and nothing.
+    insert(
+      "astra-25th",
+      astra!.userId,
+      "GPT-6 Astra",
+      "2026-10-07T21:37:12.000Z",
+    );
+    insert(
+      "sol-26th",
+      astra!.userId,
+      "GPT-6 Astra",
+      "2026-10-07T22:05:40.000Z",
+    );
+    insert(
+      "sol-withdrawn",
+      astra!.userId,
+      "GPT-6 Astra",
+      "2026-10-08T09:44:00.000Z",
+      "recycled",
+    );
+    insert("someone-else", "member-1", "Member", "2026-10-07T23:00:00.000Z");
+    version("astra-25th");
+    version("sol-26th");
+    draft("draft-25th", "astra-25th");
+    draft("draft-26th", "sol-26th");
+    draft("draft-loose", null);
+    const maintenance = async (action: string, body: unknown) =>
+      (
+        await gallery.fetch(
+          new Request(`https://gallery/${action}`, {
+            method: "POST",
+            body: JSON.stringify(body),
+          }),
+        )
+      ).json();
+    const before = await pagedStoreBackup((query) =>
+      maintenance("schema-backup", query),
+    );
+    sql.exec("DELETE FROM data_migrations WHERE id LIKE '%gpt-6-1-sol%'");
+
+    const moved = () => ({
+      entries: sql
+        .exec<{
+          id: string;
+          owner_user_id: string;
+          author: string;
+          ai_generated: number;
+        }>(
+          "SELECT id, owner_user_id, author, ai_generated FROM gallery_entries ORDER BY id",
+        )
+        .toArray(),
+      versions: sql
+        .exec<{ id: string; author: string }>(
+          "SELECT id, author FROM gallery_entry_versions ORDER BY id",
+        )
+        .toArray(),
+      drafts: sql
+        .exec<{ id: string; user_id: string }>(
+          "SELECT id, user_id FROM cloud_projects ORDER BY id",
+        )
+        .toArray(),
+    });
+    const expected = {
+      entries: [
+        {
+          id: "astra-25th",
+          owner_user_id: astra!.userId,
+          author: "GPT-6 Astra",
+          ai_generated: 1,
+        },
+        {
+          id: "sol-26th",
+          owner_user_id: sol!.userId,
+          author: "GPT-6.1 Sol",
+          ai_generated: 1,
+        },
+        {
+          id: "sol-withdrawn",
+          owner_user_id: sol!.userId,
+          author: "GPT-6.1 Sol",
+          ai_generated: 1,
+        },
+        {
+          id: "someone-else",
+          owner_user_id: "member-1",
+          author: "Member",
+          ai_generated: 0,
+        },
+      ],
+      versions: [
+        { id: "astra-25th-v1", author: "GPT-6 Astra" },
+        { id: "sol-26th-v1", author: "GPT-6.1 Sol" },
+      ],
+      drafts: [
+        { id: "draft-25th", user_id: astra!.userId },
+        { id: "draft-26th", user_id: sol!.userId },
+        { id: "draft-loose", user_id: astra!.userId },
+      ],
+    };
+    const migrated = new GalleryDO(state);
+    expect(moved()).toEqual(expected);
+
+    // A backup from before the move, restored, moves again.
+    await (
+      await migrated.fetch(
+        new Request("https://gallery/schema-restore", {
+          method: "POST",
+          body: JSON.stringify({ backup: before }),
+        }),
+      )
+    ).json();
+    expect(moved()).toEqual(expected);
+
+    // Once: what GPT-6 Astra publishes after the move stays its own.
+    insert(
+      "astra-later",
+      astra!.userId,
+      "GPT-6 Astra",
+      "2099-01-01T00:00:00.000Z",
+    );
+    new GalleryDO(state);
+    expect(
+      moved().entries.find((row) => row.id === "astra-later"),
+    ).toMatchObject({ owner_user_id: astra!.userId, author: "GPT-6 Astra" });
+  });
+
   it("migrates histories to three versions and removes orphaned data", () => {
     const state = sqliteState();
     new GalleryDO(state);
