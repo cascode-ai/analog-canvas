@@ -1,0 +1,34 @@
+CMOS first-order sigma-delta modulator
+.include "circuit.spice"
+.include "models.spice"
+VDD vdd 0 3.3
+VCM vcm 0 1.65
+VB vb 0 .9
+VLO vlo 0 1.0
+VHI vhi 0 2.3
+VIN vin 0 PWL(0 1.35 200u 1.35 200.1u 1.65 400u 1.65 400.1u 1.95 600u 1.95)
+VCLK clk 0 PULSE(0 3.3 .5u 1n 1n .499u 1u)
+VR reset 0 PWL(0 3.3 2u 3.3 2.001u 0 600u 0)
+XDUT vdd 0 vcm vb vin ramp cmp q clk reset vlo vhi astra_080_cmos_first_order_sigma_delta
+.temp 27
+.options method=gear reltol=1e-5
+* @spec den0 range 0.22423077000000002 0.31423077 unit=dimensionless
+* @spec den1 range 0.455 0.545 unit=dimensionless
+* @spec den2 range 0.68576923 0.7757692300000001 unit=dimensionless
+* @spec ramp_lo range 0.5 1.65 unit=V
+* @spec ramp_hi range 1.65 2.8 unit=V
+* @spec sum_bias range 1.6 1.7 unit=V
+.control
+set filetype=ascii
+tran 5n 600u
+let density=v(q)/3.3
+meas tran den0 AVG density FROM=100u TO=190u
+meas tran den1 AVG density FROM=300u TO=390u
+meas tran den2 AVG density FROM=500u TO=590u
+meas tran ramp_lo MIN v(ramp) FROM=100u TO=590u
+meas tran ramp_hi MAX v(ramp) FROM=100u TO=590u
+meas tran sum_bias AVG v(xdut.sum) FROM=100u TO=190u
+write out.raw v(q) v(ramp) v(xdut.sum) v(vin)
+quit
+.endc
+.end

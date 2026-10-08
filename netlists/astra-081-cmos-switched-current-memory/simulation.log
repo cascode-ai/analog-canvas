@@ -1,0 +1,42 @@
+
+Note: No compatibility mode selected!
+
+
+Circuit: cmos switched-current sample-and-hold
+
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+Initial Transient Solution
+--------------------------
+
+Node                                   Voltage
+----                                   -------
+vdd                                        3.3
+out                                        1.2
+sample                                     3.3
+iref                                  0.670241
+reset                                        0
+xdut.net0                             0.670241
+xdut.sampleb                       6.12963e-10
+vr#branch                                    0
+vs#branch                                    0
+vout#branch                       -5.05227e-06
+vdd#branch                        -5.00001e-06
+
+
+No. of Data Rows : 20667
+track0              =  5.05227e-06
+hold0               =  5.05786e-06
+track1              =  1.51415e-05
+hold1               =  1.53273e-05
+track2              =  3.02530e-05
+hold2               =  3.02531e-05
+compliance          =  1.53273e-05
+cleared             =  1.21000e-12
+ASCII raw file "out.raw"
+ngspice-46 done
+
+Note: Starting dynamic gmin stepping
+Note: Dynamic gmin stepping completed

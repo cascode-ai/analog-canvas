@@ -1,0 +1,11 @@
+{
+  "name": "MOS full-wave current rectifier",
+  "description": "An NMOS diode detects positive input current; a PMOS diode detects negative current. The latter mirror drives a second NMOS diode/mirror referenced to -1.8 V, folding both polarities into a positive output sink. Six MOS devices and a weak zero-current bias resistor are explicit. NMOS bodies connect to -1.8 V and PMOS bodies to +1.8 V to avoid clamping either input polarity. The nominal output is biased at 1.2 V; tests rectify both signs of 5, 15 and 30 uA plus zero. This is absolute-current rectification, unlike the one-sided current-subtraction cell. Compliance range, near-zero crossover accuracy and PVT are not qualified.",
+  "tags": [
+    "MOS",
+    "Full Wave",
+    "Current Rectifier",
+    "Absolute Value",
+    "Current Mode"
+  ]
+}

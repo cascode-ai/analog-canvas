@@ -1,0 +1,32 @@
+MOS full-wave current rectifier
+.include "circuit.spice"
+.include "models.spice"
+VDD vdd 0 1.8
+VEE vee 0 -1.8
+VOUT out 0 1.2
+IIN 0 iin PWL(0 5u 10u 5u 10.01u -5u 20u -5u 20.01u 15u 30u 15u 30.01u -15u 40u -15u 40.01u 30u 50u 30u 50.01u -30u 60u -30u 60.01u 0 70u 0)
+XDUT vdd vee 0 iin out astra_082_mos_full_wave_current_rectifier
+.temp 27
+.options method=gear reltol=1e-5
+* @spec abs0 range 0.0000047 0.000005600000000000001 unit=A
+* @spec abs1 range 0.0000047 0.000005600000000000001 unit=A
+* @spec abs2 range 0.000014099999999999999 0.000016800000000000002 unit=A
+* @spec abs3 range 0.000014099999999999999 0.000016800000000000002 unit=A
+* @spec abs4 range 0.000028199999999999998 0.000033600000000000004 unit=A
+* @spec abs5 range 0.000028199999999999998 0.000033600000000000004 unit=A
+* @spec zero range 0 1e-8 unit=A
+.control
+set filetype=ascii
+tran 5n 70u
+let io=-i(VOUT)
+meas tran abs0 FIND io AT=7u
+meas tran abs1 FIND io AT=17u
+meas tran abs2 FIND io AT=27u
+meas tran abs3 FIND io AT=37u
+meas tran abs4 FIND io AT=47u
+meas tran abs5 FIND io AT=57u
+meas tran zero FIND io AT=67u
+write out.raw v(iin) v(xdut.net0) i(vout)
+quit
+.endc
+.end

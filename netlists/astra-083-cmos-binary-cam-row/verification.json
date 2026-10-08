@@ -1,0 +1,201 @@
+{
+  "simulator": "ngspice-46",
+  "models": "Generic educational Level-1 MOS",
+  "temperatureC": 27,
+  "localSpecs": [
+    {
+      "metric": "lookup0",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 4.04217e-10,
+      "passed": true
+    },
+    {
+      "metric": "lookup1",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "lookup2",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "lookup3",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "lookup4",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "lookup5",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 4.40904e-10,
+      "passed": true
+    },
+    {
+      "metric": "lookup6",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "lookup7",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "lookup8",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "lookup9",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "lookup10",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 4.37075e-10,
+      "passed": true
+    },
+    {
+      "metric": "lookup11",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "lookup12",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "lookup13",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "lookup14",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "lookup15",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 4.75606e-10,
+      "passed": true
+    },
+    {
+      "metric": "store0b0",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 3.06482e-10,
+      "passed": true
+    },
+    {
+      "metric": "store0b1",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 3.06482e-10,
+      "passed": true
+    },
+    {
+      "metric": "store1b0",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "store1b1",
+      "min": -0.02,
+      "max": 0.02,
+      "value": -1.21678e-8,
+      "passed": true
+    },
+    {
+      "metric": "store2b0",
+      "min": -0.02,
+      "max": 0.02,
+      "value": -1.32294e-8,
+      "passed": true
+    },
+    {
+      "metric": "store2b1",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "store3b0",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "store3b1",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    }
+  ],
+  "nativeDiagnostics": 0,
+  "canonicalExportMatches": true,
+  "prototypeConnectivityAndParametersMatch": true,
+  "limitations": "Nominal functional verification only; no PVT, noise, mismatch or foundry qualification.",
+  "hosted": {
+    "runId": "7bb7bf92-8868-48e5-9119-4829666d913c",
+    "specs": {
+      "available": true,
+      "total": 24,
+      "passed": 24,
+      "failed": 0,
+      "notEvaluated": 0,
+      "unconstrained": 0
+    },
+    "execution": "completed"
+  },
+  "liveEditorVerification": {
+    "errors": 0,
+    "warnings": 0,
+    "structuralComparison": "equal"
+  },
+  "internalObservationsMappedToActualDutNodes": true,
+  "publicLayoutMatchesNativeProject": true,
+  "publicProjectMatchesExceptSchemaVersion": true,
+  "nativeSchemaVersion": 66,
+  "publicSchemaVersion": 67
+}

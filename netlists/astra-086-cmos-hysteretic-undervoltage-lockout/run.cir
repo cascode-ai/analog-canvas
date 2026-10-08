@@ -1,0 +1,31 @@
+CMOS hysteretic under-voltage lockout
+.include "circuit.spice"
+.include "models.spice"
+VDD vdd 0 PWL(0 2.1 60u 3.6 90u 3.6 150u 2.1 180u 2.1 240u 3.6)
+VREF vref 0 1.0
+VB vb 0 .9
+XDUT vdd 0 vref vb en astra_086_cmos_hysteretic_undervoltage_lockout
+.temp 27
+.options method=gear reltol=1e-5
+* @spec rising range 2.9 3.1 unit=V
+* @spec falling range 2.4 2.65 unit=V
+* @spec rising2 range 2.9 3.1 unit=V
+* @spec off1 range 0 0.01 unit=dimensionless
+* @spec on1 range 0.99 1.01 unit=dimensionless
+* @spec off2 range 0 0.01 unit=dimensionless
+* @spec on2 range 0.99 1.01 unit=dimensionless
+.control
+set filetype=ascii
+tran 5n 240u
+let enabled=v(en)/v(vdd)
+meas tran rising FIND v(vdd) WHEN enabled=.5 RISE=1
+meas tran falling FIND v(vdd) WHEN enabled=.5 FALL=1
+meas tran rising2 FIND v(vdd) WHEN enabled=.5 RISE=2
+meas tran off1 FIND enabled AT=20u
+meas tran on1 FIND enabled AT=80u
+meas tran off2 FIND enabled AT=170u
+meas tran on2 FIND enabled AT=235u
+write out.raw v(en) v(vdd) v(xdut.sense)
+quit
+.endc
+.end

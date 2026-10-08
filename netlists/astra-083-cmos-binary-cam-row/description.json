@@ -1,0 +1,11 @@
+{
+  "name": "CMOS two-bit binary CAM row",
+  "description": "Two writable six-MOS SRAM cells drive four-NMOS mismatch trees on a shared precharged match line. A clock footer, miss inverter and two search-complement inverters bring the total to 28 MOS. A matching stored/search word leaves ml high and miss low; any mismatch discharges ml. All four stored words and all four searches are checked, plus storage bits. This compares a retained word rather than two continuously driven inputs; write bitlines are differential and search runs only after write. Search delay, retention yield, disturb margins and PVT are not qualified.",
+  "tags": [
+    "CMOS",
+    "CAM",
+    "Associative Memory",
+    "SRAM",
+    "Match Line"
+  ]
+}

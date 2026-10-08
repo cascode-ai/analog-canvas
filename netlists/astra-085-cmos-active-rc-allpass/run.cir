@@ -1,0 +1,34 @@
+CMOS active-RC all-pass phase shifter
+.include "circuit.spice"
+.include "models.spice"
+VDD vdd 0 3.3
+VB vb 0 .9
+VCM vcm 0 1.65
+VIN vin 0 DC 1.65 AC 1
+XDUT vdd 0 vb vin vcm out astra_085_cmos_active_rc_allpass
+.temp 27
+.options method=gear reltol=1e-5
+* @spec bias range 1.6 1.7 unit=V
+* @spec glo range 0.85 1.1 unit=V/V
+* @spec gmid range 0.85 1.1 unit=V/V
+* @spec ghi range 0.85 1.1 unit=V/V
+* @spec plo range -20 0 unit=degree
+* @spec pmid range -105 -75 unit=degree
+* @spec phi range -180 -150 unit=degree
+.control
+set filetype=ascii
+dc VIN 1.65 1.651 .001
+meas dc bias FIND v(out) AT=1.6505
+ac dec 60 1k 1Meg
+let gain=mag(v(out))
+let phase=57.295779513*ph(v(out))
+meas ac glo FIND gain AT=1k
+meas ac gmid FIND gain AT=15.915k
+meas ac ghi FIND gain AT=100k
+meas ac plo FIND phase AT=1k
+meas ac pmid FIND phase AT=15.915k
+meas ac phi FIND phase AT=100k
+write out.raw v(out)
+quit
+.endc
+.end

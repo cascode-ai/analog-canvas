@@ -1,0 +1,10 @@
+
+.subckt astra_082_mos_full_wave_current_rectifier vdd vee VSS iin out
+M1 iin iin VSS vee ANMOS l=1u w=10u
+M2 out iin VSS vee ANMOS l=1u w=10u
+M3 iin iin VSS vdd APMOS l=1u w=20u
+M4 net0 iin VSS vdd APMOS l=1u w=20u
+M5 net0 net0 vee vee ANMOS l=1u w=10u
+M6 out net0 vee vee ANMOS l=1u w=10u
+RZ iin VSS 10G
+.ends astra_082_mos_full_wave_current_rectifier

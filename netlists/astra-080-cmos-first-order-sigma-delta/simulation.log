@@ -1,0 +1,77 @@
+
+Note: No compatibility mode selected!
+
+
+Circuit: cmos first-order sigma-delta modulator
+
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+Initial Transient Solution
+--------------------------
+
+Node                                   Voltage
+----                                   -------
+vdd                                        3.3
+vcm                                       1.65
+vb                                         0.9
+vlo                                          1
+vhi                                        2.3
+vin                                       1.35
+clk                                          0
+reset                                      3.3
+xdut.sum                               1.64654
+ramp                                   1.64761
+q                                      1.59207
+xdut.net6                               2.4603
+xdut.net7                             0.699057
+xdut.net1                             0.700705
+xdut.clkb                                  3.3
+cmp                                    3.04776
+xdut.net2                              3.04776
+xdut.net3                          6.76128e-10
+xdut.net4                                  3.3
+xdut.net5                              1.59207
+xdut.qb                                1.59207
+xdut.dac                               1.64654
+xdut.resetb                        6.12963e-10
+xdut.net0                              2.46246
+vr#branch                                    0
+vclk#branch                                  0
+vin#branch                         2.96544e-06
+vhi#branch                            -1.3e-12
+vlo#branch                             1.3e-12
+vb#branch                                    0
+vcm#branch                                   0
+vdd#branch                         -0.00221658
+
+ Reference value :  3.00004e-05
+ Reference value :  6.15008e-05
+ Reference value :  9.35007e-05
+ Reference value :  1.25501e-04
+ Reference value :  1.57501e-04
+ Reference value :  1.89501e-04
+ Reference value :  2.18001e-04
+ Reference value :  2.46045e-04
+ Reference value :  2.72501e-04
+ Reference value :  2.99198e-04
+ Reference value :  3.25501e-04
+ Reference value :  3.53994e-04
+ Reference value :  3.80500e-04
+ Reference value :  4.08501e-04
+ Reference value :  4.40502e-04
+ Reference value :  4.73538e-04
+ Reference value :  5.06188e-04
+ Reference value :  5.39001e-04
+ Reference value :  5.71501e-04
+
+No. of Data Rows : 285558
+den0                =  2.61061e-01 from=  1.00000e-04 to=  1.90000e-04
+den1                =  4.94438e-01 from=  3.00000e-04 to=  3.90000e-04
+den2                =  7.27763e-01 from=  5.00000e-04 to=  5.90000e-04
+ramp_lo             =  8.14066e-01 at=  5.76501e-04
+ramp_hi             =  2.53574e+00 at=  1.14501e-04
+sum_bias            =  1.65232e+00 from=  1.00000e-04 to=  1.90000e-04
+ASCII raw file "out.raw"
+ngspice-46 done

@@ -1,0 +1,12 @@
+
+.subckt astra_081_cmos_switched_current_memory vdd VSS iref reset sample out
+CG net0 VSS 100p
+M1 iref net0 VSS VSS ANMOS l=1u w=10u
+M2 out net0 VSS VSS ANMOS l=1u w=10u
+M3 iref sampleb net0 vdd APMOS l=1u w=20u
+M4 iref sample net0 VSS ANMOS l=1u w=10u
+M5 sampleb sample vdd vdd APMOS l=1u w=20u
+M6 sampleb sample VSS VSS ANMOS l=1u w=10u
+M7 net0 reset VSS VSS ANMOS l=1u w=10u
+RG net0 VSS 100G
+.ends astra_081_cmos_switched_current_memory

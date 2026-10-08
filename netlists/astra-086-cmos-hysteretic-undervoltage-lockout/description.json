@@ -1,0 +1,11 @@
+{
+  "name": "CMOS hysteretic under-voltage lockout",
+  "description": "A five-MOS comparator senses a divided supply against an external 1.0 V reference. Two output inverters and one NMOS feed a positive-feedback resistor path, giving distinct rising/falling supply thresholds near 3.0/2.5 V. Ten MOS and all divider/feedback/compensation loads are explicit. Two slow supply rises and a fall verify both trip points and enabled/disabled levels. Unlike a power-on-reset pulse or window detector, enable is a retained hysteretic level. The 0.9 V tail bias and reference must already be available; fast brownouts, startup availability, hysteresis accuracy and PVT are not qualified.",
+  "tags": [
+    "CMOS",
+    "UVLO",
+    "Hysteresis",
+    "Supply Monitor",
+    "Power Management"
+  ]
+}

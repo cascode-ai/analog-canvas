@@ -1,0 +1,35 @@
+CMOS switched-current sample-and-hold
+.include "circuit.spice"
+.include "models.spice"
+VDD vdd 0 3.3
+VOUT out 0 PWL(0 1.2 48u 1.2 48.1u 1.8 58u 1.8 58.1u 1.2 100u 1.2)
+VS sample 0 PULSE(3.3 0 8u 1n 1n 21.999u 30u)
+IIN vdd iref PWL(0 5u 8u 5u 8.001u 0 30u 0 30.001u 15u 38u 15u 38.001u 0 60u 0 60.001u 30u 68u 30u 68.001u 0 100u 0)
+VR reset 0 PWL(0 0 90u 0 90.001u 3.3 95u 3.3 95.001u 0 100u 0)
+XDUT vdd 0 iref reset sample out astra_081_cmos_switched_current_memory
+.temp 27
+.options method=gear reltol=1e-5
+* @spec track0 range 0.0000047 0.000005300000000000001 unit=A
+* @spec hold0 range 0.0000047 0.000005300000000000001 unit=A
+* @spec track1 range 0.000014099999999999999 0.0000159 unit=A
+* @spec hold1 range 0.000014099999999999999 0.0000159 unit=A
+* @spec track2 range 0.000028199999999999998 0.0000318 unit=A
+* @spec hold2 range 0.000028199999999999998 0.0000318 unit=A
+* @spec compliance range 0.0000141 0.0000162 unit=A
+* @spec cleared range 0 1e-8 unit=A
+.control
+set filetype=ascii
+tran 5n 100u
+let io=-i(VOUT)
+meas tran track0 FIND io AT=7u
+meas tran hold0 FIND io AT=20u
+meas tran track1 FIND io AT=37u
+meas tran hold1 FIND io AT=50u
+meas tran track2 FIND io AT=67u
+meas tran hold2 FIND io AT=80u
+meas tran compliance FIND io AT=54u
+meas tran cleared FIND io AT=94u
+write out.raw v(xdut.net0) v(sample) v(reset) i(vout)
+quit
+.endc
+.end

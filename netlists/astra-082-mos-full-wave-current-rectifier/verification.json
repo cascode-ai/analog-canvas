@@ -1,0 +1,82 @@
+{
+  "simulator": "ngspice-46",
+  "models": "Generic educational Level-1 MOS",
+  "temperatureC": 27,
+  "localSpecs": [
+    {
+      "metric": "abs0",
+      "min": 0.0000047,
+      "max": 0.000005600000000000001,
+      "value": 0.00000502269,
+      "passed": true
+    },
+    {
+      "metric": "abs1",
+      "min": 0.0000047,
+      "max": 0.000005600000000000001,
+      "value": 0.00000524554,
+      "passed": true
+    },
+    {
+      "metric": "abs2",
+      "min": 0.000014099999999999999,
+      "max": 0.000016800000000000002,
+      "value": 0.0000150531,
+      "passed": true
+    },
+    {
+      "metric": "abs3",
+      "min": 0.000014099999999999999,
+      "max": 0.000016800000000000002,
+      "value": 0.0000156875,
+      "passed": true
+    },
+    {
+      "metric": "abs4",
+      "min": 0.000028199999999999998,
+      "max": 0.000033600000000000004,
+      "value": 0.0000300768,
+      "passed": true
+    },
+    {
+      "metric": "abs5",
+      "min": 0.000028199999999999998,
+      "max": 0.000033600000000000004,
+      "value": 0.000031279,
+      "passed": true
+    },
+    {
+      "metric": "zero",
+      "min": 0,
+      "max": 1e-8,
+      "value": 1.92525e-11,
+      "passed": true
+    }
+  ],
+  "nativeDiagnostics": 0,
+  "canonicalExportMatches": true,
+  "prototypeConnectivityAndParametersMatch": true,
+  "limitations": "Nominal functional verification only; no PVT, noise, mismatch or foundry qualification.",
+  "hosted": {
+    "runId": "3ab82ffa-f171-46f7-ab8a-c9f0db76bc0a",
+    "specs": {
+      "available": true,
+      "total": 7,
+      "passed": 7,
+      "failed": 0,
+      "notEvaluated": 0,
+      "unconstrained": 0
+    },
+    "execution": "completed"
+  },
+  "liveEditorVerification": {
+    "errors": 0,
+    "warnings": 0,
+    "structuralComparison": "equal"
+  },
+  "internalObservationsMappedToActualDutNodes": true,
+  "publicLayoutMatchesNativeProject": true,
+  "publicProjectMatchesExceptSchemaVersion": true,
+  "nativeSchemaVersion": 66,
+  "publicSchemaVersion": 67
+}

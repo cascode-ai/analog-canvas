@@ -1,0 +1,25 @@
+
+Note: No compatibility mode selected!
+
+
+Circuit: cmos active-rc all-pass phase shifter
+
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+No. of Data Rows : 2
+bias                =  1.65698e+00
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+No. of Data Rows : 181
+glo                 =  9.91963e-01
+gmid                =  9.70038e-01
+ghi                 =  9.48552e-01
+plo                 =  -7.02933e+00
+pmid                =  -8.86789e+01
+phi                 =  -1.61520e+02
+ASCII raw file "out.raw"
+ngspice-46 done

@@ -1,0 +1,70 @@
+CMOS two-bit binary CAM row
+.include "circuit.spice"
+.include "models.spice"
+VDD vdd 0 3.3
+VCLK clk 0 PULSE(0 3.3 50n 100p 100p 39.9n 100n)
+VWL wl 0 PULSE(3.3 0 20n 100p 100p 379.9n 400n)
+VBL0 bl0 0 PWL(0 0.0 399.5n 0.0 400.5n 3.3 799.5n 3.3 800.5n 0.0 1199.5n 0.0 1200.5n 3.3 1600n 3.3)
+VBL0B bl0b 0 PWL(0 3.3 399.5n 3.3 400.5n 0.0 799.5n 0.0 800.5n 3.3 1199.5n 3.3 1200.5n 0.0 1600n 0.0)
+VSL0 sl0 0 PWL(0 0.0 99.5n 0.0 100.5n 3.3 199.5n 3.3 200.5n 0.0 299.5n 0.0 300.5n 3.3 399.5n 3.3 400.5n 0.0 499.5n 0.0 500.5n 3.3 599.5n 3.3 600.5n 0.0 699.5n 0.0 700.5n 3.3 799.5n 3.3 800.5n 0.0 899.5n 0.0 900.5n 3.3 999.5n 3.3 1000.5n 0.0 1099.5n 0.0 1100.5n 3.3 1199.5n 3.3 1200.5n 0.0 1299.5n 0.0 1300.5n 3.3 1399.5n 3.3 1400.5n 0.0 1499.5n 0.0 1500.5n 3.3 1600n 3.3)
+VBL1 bl1 0 PWL(0 0.0 399.5n 0.0 400.5n 0.0 799.5n 0.0 800.5n 3.3 1199.5n 3.3 1200.5n 3.3 1600n 3.3)
+VBL1B bl1b 0 PWL(0 3.3 399.5n 3.3 400.5n 3.3 799.5n 3.3 800.5n 0.0 1199.5n 0.0 1200.5n 0.0 1600n 0.0)
+VSL1 sl1 0 PWL(0 0.0 99.5n 0.0 100.5n 0.0 199.5n 0.0 200.5n 3.3 299.5n 3.3 300.5n 3.3 399.5n 3.3 400.5n 0.0 499.5n 0.0 500.5n 0.0 599.5n 0.0 600.5n 3.3 699.5n 3.3 700.5n 3.3 799.5n 3.3 800.5n 0.0 899.5n 0.0 900.5n 0.0 999.5n 0.0 1000.5n 3.3 1099.5n 3.3 1100.5n 3.3 1199.5n 3.3 1200.5n 0.0 1299.5n 0.0 1300.5n 0.0 1399.5n 0.0 1400.5n 3.3 1499.5n 3.3 1500.5n 3.3 1600n 3.3)
+XDUT vdd 0 wl bl0 bl0b q0 q0b bl1 bl1b q1 q1b clk miss sl0 sl1 astra_083_cmos_binary_cam_row
+.temp 27
+.options method=gear reltol=1e-5
+* @spec lookup0 range -0.02 0.02 unit=V
+* @spec lookup1 range 3.2 3.4 unit=V
+* @spec lookup2 range 3.2 3.4 unit=V
+* @spec lookup3 range 3.2 3.4 unit=V
+* @spec lookup4 range 3.2 3.4 unit=V
+* @spec lookup5 range -0.02 0.02 unit=V
+* @spec lookup6 range 3.2 3.4 unit=V
+* @spec lookup7 range 3.2 3.4 unit=V
+* @spec lookup8 range 3.2 3.4 unit=V
+* @spec lookup9 range 3.2 3.4 unit=V
+* @spec lookup10 range -0.02 0.02 unit=V
+* @spec lookup11 range 3.2 3.4 unit=V
+* @spec lookup12 range 3.2 3.4 unit=V
+* @spec lookup13 range 3.2 3.4 unit=V
+* @spec lookup14 range 3.2 3.4 unit=V
+* @spec lookup15 range -0.02 0.02 unit=V
+* @spec store0b0 range -0.02 0.02 unit=V
+* @spec store0b1 range -0.02 0.02 unit=V
+* @spec store1b0 range 3.2 3.4 unit=V
+* @spec store1b1 range -0.02 0.02 unit=V
+* @spec store2b0 range -0.02 0.02 unit=V
+* @spec store2b1 range 3.2 3.4 unit=V
+* @spec store3b0 range 3.2 3.4 unit=V
+* @spec store3b1 range 3.2 3.4 unit=V
+.control
+set filetype=ascii
+tran 100p 1600n
+meas tran lookup0 FIND v(miss) AT=75n
+meas tran lookup1 FIND v(miss) AT=175n
+meas tran lookup2 FIND v(miss) AT=275n
+meas tran lookup3 FIND v(miss) AT=375n
+meas tran lookup4 FIND v(miss) AT=475n
+meas tran lookup5 FIND v(miss) AT=575n
+meas tran lookup6 FIND v(miss) AT=675n
+meas tran lookup7 FIND v(miss) AT=775n
+meas tran lookup8 FIND v(miss) AT=875n
+meas tran lookup9 FIND v(miss) AT=975n
+meas tran lookup10 FIND v(miss) AT=1075n
+meas tran lookup11 FIND v(miss) AT=1175n
+meas tran lookup12 FIND v(miss) AT=1275n
+meas tran lookup13 FIND v(miss) AT=1375n
+meas tran lookup14 FIND v(miss) AT=1475n
+meas tran lookup15 FIND v(miss) AT=1575n
+meas tran store0b0 FIND v(q0) AT=30n
+meas tran store0b1 FIND v(q1) AT=30n
+meas tran store1b0 FIND v(q0) AT=430n
+meas tran store1b1 FIND v(q1) AT=430n
+meas tran store2b0 FIND v(q0) AT=830n
+meas tran store2b1 FIND v(q1) AT=830n
+meas tran store3b0 FIND v(q0) AT=1230n
+meas tran store3b1 FIND v(q1) AT=1230n
+write out.raw v(miss) v(xdut.ml) v(q0) v(q1) v(clk)
+quit
+.endc
+.end

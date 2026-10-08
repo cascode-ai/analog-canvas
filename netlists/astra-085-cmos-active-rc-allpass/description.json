@@ -1,0 +1,11 @@
+{
+  "name": "CMOS active-RC all-pass phase shifter",
+  "description": "An explicit five-MOS differential stage with equal input/feedback resistors realizes approximately 2*LP-VIN, where a 100 kohm/100 pF branch makes LP. The ideal first-order transfer changes phase from zero toward -180 degrees while retaining unit magnitude; nominal gain/phase are checked at 1, 15.915 and 100 kHz, plus DC bias. This equalizes phase rather than attenuating a low/high band. Finite amplifier gain affects the ideal response. Bandwidth outside those points, linear swing, noise and PVT are not qualified.",
+  "tags": [
+    "CMOS",
+    "All Pass",
+    "Phase Shifter",
+    "Active RC",
+    "Phase Equalization"
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "name": "CMOS first-order sigma-delta modulator",
+  "description": "A five-MOS capacitive integrator and five-MOS comparator feed a clocked sixteen-MOS master/slave quantizer. Four DAC MOS devices select 1.0 or 2.3 V from the stored bit; explicit clock/reset complements and a reset TG bring the total to 36 MOS. The 1 MHz bit density tracks three DC inputs around 1.65 V, unlike the fixed-interval dual-slope converter. Tests check density and bounded integrator state. This is a modulator only; no decimation filter, ENOB, noise shaping spectrum, clock-jitter or PVT qualification.",
+  "tags": [
+    "CMOS",
+    "Sigma Delta",
+    "Pulse Density",
+    "Oversampling",
+    "Conversion"
+  ]
+}

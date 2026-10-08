@@ -1,0 +1,11 @@
+{
+  "name": "CMOS three-bit Fibonacci LFSR",
+  "description": "Three explicit sixteen-MOS master/slave stages shift a stored state; two transmission gates compute q2 XOR q0 for feedback, using complementary latch outputs. A clock inverter brings the total to 54 MOS. From disclosed seed 001, the recurrence visits 001,011,111,110,101,010,100 and repeats, giving a seven-state pseudo-random sequence. Fifteen sampled states (45 bit checks) verify two cycles. Unlike the Johnson counter, XOR feedback excludes zero and is not a regular binary count. No seed loader is included; zero is a lock state. Spectral randomness, fault recovery and PVT are not qualified.",
+  "tags": [
+    "CMOS",
+    "LFSR",
+    "Pseudo Random",
+    "Sequence Generator",
+    "Digital State"
+  ]
+}

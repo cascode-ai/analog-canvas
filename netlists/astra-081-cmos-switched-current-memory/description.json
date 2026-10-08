@@ -1,0 +1,11 @@
+{
+  "name": "CMOS switched-current sample-and-hold",
+  "description": "A transmission gate diode-connects an NMOS reference while sample is high. Its 100 pF gate capacitor retains the programmed mirror bias during hold, driving a separate current output. An explicit complement inverter and reset NMOS bring the total to seven MOS. Tests acquire 5, 15 and 30 uA, hold after the input current turns off, change output compliance during hold and reset the stored bias. This stores analog current rather than an input voltage or digital bit. The source must supply current only during acquire; feedthrough, long retention, matching and PVT are not qualified.",
+  "tags": [
+    "CMOS",
+    "Switched Current",
+    "Analog Memory",
+    "Sample And Hold",
+    "Current Mirror"
+  ]
+}

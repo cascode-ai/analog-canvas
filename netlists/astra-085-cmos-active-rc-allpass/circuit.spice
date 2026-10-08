@@ -1,0 +1,13 @@
+
+.subckt astra_085_cmos_active_rc_allpass vdd VSS vb vin vcm out
+CL out VSS 100f
+CT net2 vcm 100p
+M1 net0 net2 net1 VSS ANMOS l=1u w=10u
+M2 out fb net1 VSS ANMOS l=1u w=10u
+M3 net0 net0 vdd vdd APMOS l=1u w=20u
+M4 out net0 vdd vdd APMOS l=1u w=20u
+M5 net1 vb VSS VSS ANMOS l=1u w=10u
+RF out fb 100k
+RI vin fb 100k
+RT vin net2 100k
+.ends astra_085_cmos_active_rc_allpass

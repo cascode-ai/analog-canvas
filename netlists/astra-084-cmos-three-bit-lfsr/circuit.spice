@@ -1,0 +1,60 @@
+
+.subckt astra_084_cmos_three_bit_lfsr vdd VSS q0 q1 q2 clk fb
+C0 q0 VSS 100f
+C1 q1 VSS 100f
+C2 q2 VSS 100f
+M1 clkb clk vdd vdd APMOS l=1u w=20u
+M10 net2 net1 VSS VSS ANMOS l=1u w=10u
+M11 net2 clkb net3 vdd APMOS l=1u w=20u
+M12 net2 clk net3 VSS ANMOS l=1u w=10u
+M13 q0b net3 vdd vdd APMOS l=1u w=20u
+M14 q0b net3 VSS VSS ANMOS l=1u w=10u
+M15 q0 clk net3 vdd APMOS l=1u w=20u
+M16 q0 clkb net3 VSS ANMOS l=1u w=10u
+M17 q0 q0b vdd vdd APMOS l=1u w=20u
+M18 q0 q0b VSS VSS ANMOS l=1u w=10u
+M19 q0 clk net4 vdd APMOS l=1u w=20u
+M2 clkb clk VSS VSS ANMOS l=1u w=10u
+M20 q0 clkb net4 VSS ANMOS l=1u w=10u
+M21 net5 net4 vdd vdd APMOS l=1u w=20u
+M22 net5 net4 VSS VSS ANMOS l=1u w=10u
+M23 net6 clkb net4 vdd APMOS l=1u w=20u
+M24 net6 clk net4 VSS ANMOS l=1u w=10u
+M25 net6 net5 vdd vdd APMOS l=1u w=20u
+M26 net6 net5 VSS VSS ANMOS l=1u w=10u
+M27 net6 clkb net7 vdd APMOS l=1u w=20u
+M28 net6 clk net7 VSS ANMOS l=1u w=10u
+M29 q1b net7 vdd vdd APMOS l=1u w=20u
+M3 fb clk net0 vdd APMOS l=1u w=20u
+M30 q1b net7 VSS VSS ANMOS l=1u w=10u
+M31 q1 clk net7 vdd APMOS l=1u w=20u
+M32 q1 clkb net7 VSS ANMOS l=1u w=10u
+M33 q1 q1b vdd vdd APMOS l=1u w=20u
+M34 q1 q1b VSS VSS ANMOS l=1u w=10u
+M35 q1 clk net8 vdd APMOS l=1u w=20u
+M36 q1 clkb net8 VSS ANMOS l=1u w=10u
+M37 net9 net8 vdd vdd APMOS l=1u w=20u
+M38 net9 net8 VSS VSS ANMOS l=1u w=10u
+M39 net10 clkb net8 vdd APMOS l=1u w=20u
+M4 fb clkb net0 VSS ANMOS l=1u w=10u
+M40 net10 clk net8 VSS ANMOS l=1u w=10u
+M41 net10 net9 vdd vdd APMOS l=1u w=20u
+M42 net10 net9 VSS VSS ANMOS l=1u w=10u
+M43 net10 clkb net11 vdd APMOS l=1u w=20u
+M44 net10 clk net11 VSS ANMOS l=1u w=10u
+M45 q2b net11 vdd vdd APMOS l=1u w=20u
+M46 q2b net11 VSS VSS ANMOS l=1u w=10u
+M47 q2 clk net11 vdd APMOS l=1u w=20u
+M48 q2 clkb net11 VSS ANMOS l=1u w=10u
+M49 q2 q2b vdd vdd APMOS l=1u w=20u
+M5 net1 net0 vdd vdd APMOS l=1u w=20u
+M50 q2 q2b VSS VSS ANMOS l=1u w=10u
+M51 q0 q2 fb vdd APMOS l=1u w=20u
+M52 q0 q2b fb VSS ANMOS l=1u w=10u
+M53 q0b q2b fb vdd APMOS l=1u w=20u
+M54 q0b q2 fb VSS ANMOS l=1u w=10u
+M6 net1 net0 VSS VSS ANMOS l=1u w=10u
+M7 net2 clkb net0 vdd APMOS l=1u w=20u
+M8 net2 clk net0 VSS ANMOS l=1u w=10u
+M9 net2 net1 vdd vdd APMOS l=1u w=20u
+.ends astra_084_cmos_three_bit_lfsr

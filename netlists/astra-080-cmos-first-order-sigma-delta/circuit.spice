@@ -1,0 +1,43 @@
+
+.subckt astra_080_cmos_first_order_sigma_delta vdd VSS vcm vb vin ramp cmp q clk reset vlo vhi
+CF sum ramp 10p
+CQ q VSS 100f
+M1 net6 vcm net7 VSS ANMOS l=1u w=10u
+M10 net1 vb VSS VSS ANMOS l=1u w=10u
+M11 clkb clk vdd vdd APMOS l=1u w=20u
+M12 clkb clk VSS VSS ANMOS l=1u w=10u
+M13 cmp clk net2 vdd APMOS l=1u w=20u
+M14 cmp clkb net2 VSS ANMOS l=1u w=10u
+M15 net3 net2 vdd vdd APMOS l=1u w=20u
+M16 net3 net2 VSS VSS ANMOS l=1u w=10u
+M17 net4 clkb net2 vdd APMOS l=1u w=20u
+M18 net4 clk net2 VSS ANMOS l=1u w=10u
+M19 net4 net3 vdd vdd APMOS l=1u w=20u
+M2 ramp sum net7 VSS ANMOS l=1u w=10u
+M20 net4 net3 VSS VSS ANMOS l=1u w=10u
+M21 net4 clkb net5 vdd APMOS l=1u w=20u
+M22 net4 clk net5 VSS ANMOS l=1u w=10u
+M23 qb net5 vdd vdd APMOS l=1u w=20u
+M24 qb net5 VSS VSS ANMOS l=1u w=10u
+M25 q clk net5 vdd APMOS l=1u w=20u
+M26 q clkb net5 VSS ANMOS l=1u w=10u
+M27 q qb vdd vdd APMOS l=1u w=20u
+M28 q qb VSS VSS ANMOS l=1u w=10u
+M29 vlo qb dac vdd APMOS l=1u w=20u
+M3 net6 net6 vdd vdd APMOS l=1u w=20u
+M30 vlo q dac VSS ANMOS l=1u w=10u
+M31 vhi q dac vdd APMOS l=1u w=20u
+M32 vhi qb dac VSS ANMOS l=1u w=10u
+M33 resetb reset vdd vdd APMOS l=1u w=20u
+M34 resetb reset VSS VSS ANMOS l=1u w=10u
+M35 ramp resetb sum vdd APMOS l=1u w=20u
+M36 ramp reset sum VSS ANMOS l=1u w=10u
+M4 ramp net6 vdd vdd APMOS l=1u w=20u
+M5 net7 vb VSS VSS ANMOS l=1u w=10u
+M6 net0 vcm net1 VSS ANMOS l=1u w=10u
+M7 cmp ramp net1 VSS ANMOS l=1u w=10u
+M8 net0 net0 vdd vdd APMOS l=1u w=20u
+M9 cmp net0 vdd vdd APMOS l=1u w=20u
+RF dac sum 100k
+RI vin sum 100k
+.ends astra_080_cmos_first_order_sigma_delta

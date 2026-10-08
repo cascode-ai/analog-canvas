@@ -1,0 +1,35 @@
+
+.subckt astra_083_cmos_binary_cam_row vdd VSS wl bl0 bl0b q0 q0b bl1 bl1b q1 q1b clk miss sl0 sl1
+C0 q0 VSS 30f
+C1 q1 VSS 30f
+CL miss VSS 100f
+CM ml VSS 100f
+M1 q0 q0b vdd vdd APMOS l=1u w=5u
+M10 net2 sl0 foot VSS ANMOS l=1u w=10u
+M11 q1 q1b vdd vdd APMOS l=1u w=5u
+M12 q1 q1b VSS VSS ANMOS l=1u w=20u
+M13 q1b q1 vdd vdd APMOS l=1u w=5u
+M14 q1b q1 VSS VSS ANMOS l=1u w=20u
+M15 q1 wl bl1 VSS ANMOS l=1u w=60u
+M16 q1b wl bl1b VSS ANMOS l=1u w=60u
+M17 ml q1 net1 VSS ANMOS l=1u w=10u
+M18 net1 sl1b foot VSS ANMOS l=1u w=10u
+M19 ml q1b net3 VSS ANMOS l=1u w=10u
+M2 q0 q0b VSS VSS ANMOS l=1u w=20u
+M20 net3 sl1 foot VSS ANMOS l=1u w=10u
+M21 ml clk vdd vdd APMOS l=1u w=20u
+M22 foot clk VSS VSS ANMOS l=1u w=40u
+M23 miss ml vdd vdd APMOS l=1u w=20u
+M24 miss ml VSS VSS ANMOS l=1u w=10u
+M25 sl0b sl0 vdd vdd APMOS l=1u w=20u
+M26 sl0b sl0 VSS VSS ANMOS l=1u w=10u
+M27 sl1b sl1 vdd vdd APMOS l=1u w=20u
+M28 sl1b sl1 VSS VSS ANMOS l=1u w=10u
+M3 q0b q0 vdd vdd APMOS l=1u w=5u
+M4 q0b q0 VSS VSS ANMOS l=1u w=20u
+M5 q0 wl bl0 VSS ANMOS l=1u w=60u
+M6 q0b wl bl0b VSS ANMOS l=1u w=60u
+M7 ml q0 net0 VSS ANMOS l=1u w=10u
+M8 net0 sl0b foot VSS ANMOS l=1u w=10u
+M9 ml q0b net2 VSS ANMOS l=1u w=10u
+.ends astra_083_cmos_binary_cam_row

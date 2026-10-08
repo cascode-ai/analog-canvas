@@ -1,0 +1,18 @@
+
+.subckt astra_086_cmos_hysteretic_undervoltage_lockout vdd VSS vref vb en
+CC net2 VSS 200f
+CL en VSS 100f
+M1 net0 sense net1 VSS ANMOS l=1u w=10u
+M10 net4 en sense VSS ANMOS l=1u w=10u
+M2 net2 vref net1 VSS ANMOS l=1u w=10u
+M3 net0 net0 vdd vdd APMOS l=1u w=20u
+M4 net2 net0 vdd vdd APMOS l=1u w=20u
+M5 net1 vb VSS VSS ANMOS l=1u w=10u
+M6 net3 net2 vdd vdd APMOS l=1u w=20u
+M7 net3 net2 VSS VSS ANMOS l=1u w=10u
+M8 en net3 vdd vdd APMOS l=1u w=20u
+M9 en net3 VSS VSS ANMOS l=1u w=10u
+RB sense VSS 100k
+RH vdd net4 600k
+RT vdd sense 200k
+.ends astra_086_cmos_hysteretic_undervoltage_lockout

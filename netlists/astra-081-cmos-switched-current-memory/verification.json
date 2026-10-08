@@ -1,0 +1,89 @@
+{
+  "simulator": "ngspice-46",
+  "models": "Generic educational Level-1 MOS",
+  "temperatureC": 27,
+  "localSpecs": [
+    {
+      "metric": "track0",
+      "min": 0.0000047,
+      "max": 0.000005300000000000001,
+      "value": 0.00000505227,
+      "passed": true
+    },
+    {
+      "metric": "hold0",
+      "min": 0.0000047,
+      "max": 0.000005300000000000001,
+      "value": 0.00000505786,
+      "passed": true
+    },
+    {
+      "metric": "track1",
+      "min": 0.000014099999999999999,
+      "max": 0.0000159,
+      "value": 0.0000151415,
+      "passed": true
+    },
+    {
+      "metric": "hold1",
+      "min": 0.000014099999999999999,
+      "max": 0.0000159,
+      "value": 0.0000153273,
+      "passed": true
+    },
+    {
+      "metric": "track2",
+      "min": 0.000028199999999999998,
+      "max": 0.0000318,
+      "value": 0.000030253,
+      "passed": true
+    },
+    {
+      "metric": "hold2",
+      "min": 0.000028199999999999998,
+      "max": 0.0000318,
+      "value": 0.0000302531,
+      "passed": true
+    },
+    {
+      "metric": "compliance",
+      "min": 0.0000141,
+      "max": 0.0000162,
+      "value": 0.0000153273,
+      "passed": true
+    },
+    {
+      "metric": "cleared",
+      "min": 0,
+      "max": 1e-8,
+      "value": 1.21e-12,
+      "passed": true
+    }
+  ],
+  "nativeDiagnostics": 0,
+  "canonicalExportMatches": true,
+  "prototypeConnectivityAndParametersMatch": true,
+  "limitations": "Nominal functional verification only; no PVT, noise, mismatch or foundry qualification.",
+  "hosted": {
+    "runId": "275c09ca-695b-474a-880a-d27b9b608080",
+    "specs": {
+      "available": true,
+      "total": 8,
+      "passed": 8,
+      "failed": 0,
+      "notEvaluated": 0,
+      "unconstrained": 0
+    },
+    "execution": "completed"
+  },
+  "liveEditorVerification": {
+    "errors": 0,
+    "warnings": 0,
+    "structuralComparison": "equal"
+  },
+  "internalObservationsMappedToActualDutNodes": true,
+  "publicLayoutMatchesNativeProject": true,
+  "publicProjectMatchesExceptSchemaVersion": true,
+  "nativeSchemaVersion": 66,
+  "publicSchemaVersion": 67
+}

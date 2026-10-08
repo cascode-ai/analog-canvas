@@ -1,0 +1,35 @@
+
+Note: No compatibility mode selected!
+
+
+Circuit: mos full-wave current rectifier
+
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+Initial Transient Solution
+--------------------------
+
+Node                                   Voltage
+----                                   -------
+vdd                                        1.8
+vee                                       -1.8
+out                                        1.2
+iin                                   0.967827
+xdut.net0                             -1.19995
+vout#branch                       -5.02269e-06
+vee#branch                         1.79415e-11
+vdd#branch                        -7.47212e-12
+
+
+No. of Data Rows : 14254
+abs0                =  5.02269e-06
+abs1                =  5.24554e-06
+abs2                =  1.50531e-05
+abs3                =  1.56875e-05
+abs4                =  3.00768e-05
+abs5                =  3.12790e-05
+zero                =  1.92525e-11
+ASCII raw file "out.raw"
+ngspice-46 done
