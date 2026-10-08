@@ -534,9 +534,11 @@ its circuits carry, `license`, and its `homepage` and `paper` links.
   editor makes an ordinary working copy that publishes as a new community
   entry, never as an update.
 - **Switch.** `GET /api/gallery/sources` answers `{sources: [... , count]}`.
-  The wall shows a Source switch beside the circuit count only when at least
-  one dataset holds circuits: Community (the default) or one dataset at a time,
-  each with its count. A dataset wall drops the like control and the author
+  The wall shows a Source switch beside the circuit count: Community (the
+  default) or one dataset at a time, each with its count. A reader is offered
+  only the datasets that hold circuits, so the switch stays hidden until one
+  is imported; an Owner account is always offered every dataset, empty ones
+  with their 0. A dataset wall drops the like control and the author
   tools and opens with one line naming the dataset, its licence and links. The
   choice rides in the URL as `source=<key>`; switching clears the author and
   attention narrowings.

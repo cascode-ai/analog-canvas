@@ -1137,6 +1137,7 @@ export function GalleryFeed({
   const entries = state.entries;
   const needsBundledFallback =
     localhostExamplesEnabled() &&
+    !datasetWall &&
     state.status !== "loading" &&
     entries.length === 0 &&
     !galleryFiltersNarrowQuery(filters) &&
@@ -1422,6 +1423,7 @@ export function GalleryFeed({
         {view === "gallery" ? (
           <GallerySourceSwitch
             source={source}
+            showEmpty={isOwner}
             onChange={(next) =>
               // An author, a like or a review is the community's; the
               // other filters carry over.
@@ -2039,13 +2041,15 @@ export function GalleryFeed({
                                       : "No circuits made by hand here yet."}
                       </p>
                     ) : null}
-                    {!localhostExamplesEnabled() &&
+                    {(!localhostExamplesEnabled() || datasetWall) &&
                     entries.length === 0 &&
                     !galleryFiltersNarrowQuery(filters) ? (
                       <p className="gallery-status" data-testid="gallery-empty">
                         {state.status === "unavailable"
                           ? "Gallery is unavailable. Try again later."
-                          : "No published circuits yet."}
+                          : datasetWall
+                            ? `No ${datasetWall.name} circuits imported yet.`
+                            : "No published circuits yet."}
                       </p>
                     ) : null}
                     {/* Two empty states, because only one of them is a verdict:
