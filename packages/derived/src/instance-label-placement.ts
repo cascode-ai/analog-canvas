@@ -849,6 +849,8 @@ function portLabelPlacement(
    * already clears its subscript.
    */
   verticalGap = grid / 2,
+  sizeScale = 1,
+  belowAscent = PORT_LABEL_BELOW_ASCENT,
 ): InstanceLabelPlacement | null {
   return (
     portLabelSides(
@@ -858,9 +860,18 @@ function portLabelPlacement(
       grid,
       rowOffset,
       verticalGap,
+      sizeScale,
+      belowAscent,
     )?.[0] ?? null
   );
 }
+
+/**
+ * How far a name under a Pin's artwork drops its baseline past the gap, in
+ * ems: room for its capitals and an overbar or tall math over them. At 0.7 em
+ * the capitals of a downward Pin's name touched its circle (#1529).
+ */
+const PORT_LABEL_BELOW_ASCENT = 0.9;
 
 /**
  * Where a Cell Pin's name may go, best first: the side away from its wire,
@@ -883,6 +894,8 @@ function portLabelSides(
   grid: number,
   rowOffset: number,
   verticalGap: number,
+  sizeScale = 1,
+  belowAscent = PORT_LABEL_BELOW_ASCENT,
 ): InstanceLabelPlacement[] | null {
   const pin = resolved.definition.pins[0];
   const bounds = transformedBounds(
@@ -899,7 +912,8 @@ function portLabelSides(
   const centreY = bounds.y + bounds.height / 2;
   const towardWireX = pinWorld.x - centreX;
   const towardWireY = pinWorld.y - centreY;
-  const fontSize = profile.typography.instanceFontSize;
+  // Larger text needs more room, above, below and beside alike.
+  const fontSize = profile.typography.instanceFontSize * sizeScale;
   const gap = grid;
   const baseline = Math.round(centreY + fontSize * 0.35 + rowOffset);
   const left: InstanceLabelPlacement = {
@@ -923,7 +937,11 @@ function portLabelSides(
     position: {
       x,
       y: Math.round(
-        bounds.y + bounds.height + verticalGap + fontSize * 0.7 + rowOffset,
+        bounds.y +
+          bounds.height +
+          verticalGap +
+          fontSize * belowAscent +
+          rowOffset,
       ),
     },
     alignment: "middle",
@@ -946,7 +964,32 @@ export function previousPortLabelPlacement(
 ): InstanceLabelPlacement | null {
   if (instance.symbolId !== "port" && instance.symbolId !== "port-filled")
     return null;
-  return portLabelPlacement(instance, resolved, profile, grid, 0, grid);
+  return portLabelPlacement(instance, resolved, profile, grid, 0, grid, 1, 0.7);
+}
+
+/**
+ * Where a Cell Pin's name under its artwork was placed from 2026-09-29 to
+ * 2026-10-08: half a grid step and 0.7 em below it, which let its capitals
+ * touch the circle (#1529). Labels still sitting there count as untouched.
+ */
+export function shallowPortLabelPlacement(
+  instance: SchematicDocument["instances"][number],
+  resolved: ResolvedSymbol,
+  profile: SchematicStyleProfile,
+  grid: number,
+): InstanceLabelPlacement | null {
+  if (instance.symbolId !== "port" && instance.symbolId !== "port-filled")
+    return null;
+  return portLabelPlacement(
+    instance,
+    resolved,
+    profile,
+    grid,
+    0,
+    grid / 2,
+    1,
+    0.7,
+  );
 }
 
 /**
@@ -1148,6 +1191,8 @@ function defaultPlacementWith(
       profile,
       grid,
       slot === "value" ? valueRow : 0,
+      grid / 2,
+      sizeScale,
     );
   }
 
