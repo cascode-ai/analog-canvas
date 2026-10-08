@@ -38,5 +38,15 @@ Project switches do not.
 A local probe is not live-session acceptance: inspect the authorized context
 and complete the requested operation, including results for simulation.
 
+Automation that opens the editor itself, a headless browser driving batch
+workers for instance, pairs without the panel. Open the editor with
+`?agent=pair` (`/editor?agent=pair`): the page connects on load as
+**Connect Agent** does, without opening the panel or adding a control, and
+`await window.analogCanvasAgent.claimCode()` in that page returns its claim
+for `connect`. It rejects when the page is already paired, when connecting
+failed or when the claim expired; a page that resumed its earlier pairing
+keeps it. The claim lives only in the page: never put it in a URL, storage or
+a log.
+
 Use HTTP only when the user chooses it. The same-origin `/api/agent/kit`
 provides its independent caller workflow. HTTP success does not prove MCP loading.

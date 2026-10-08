@@ -20,6 +20,13 @@ time keeps its connector in memory and pairs with its own claim, and a stale
 lease left by an exited holder passes to the next one. An explicit connector
 path takes no lease.
 
+Automation that opens the editor itself pairs headlessly: with `?agent=pair`
+in the editor URL, the page creates a connection on load, as Connect Agent
+does but without opening the panel or adding a control, unless it recovered
+one, and offers its claim code only to script in that page as
+`window.analogCanvasAgent.claimCode()`. The claim code never enters a URL,
+storage or logs.
+
 ## Resources
 
 Browser reconnect credentials are scoped to the current tab's sessionStorage.
