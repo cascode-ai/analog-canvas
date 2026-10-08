@@ -7,6 +7,42 @@ import {
 } from "./project-model-source.js";
 
 describe("native Project model closure", () => {
+  it("separates an unterminated helper line from generated language directives", () => {
+    const source: ProjectModelSource = {
+      id: "unterminated-helper",
+      revision: 1,
+      language: "spectre",
+      entry: "main.scs",
+      dependencies: [],
+      files: [
+        {
+          path: "main.scs",
+          text: 'include "helper.scs"\nsubckt top (A B)\nX1 (A B) helper\nends top',
+        },
+        {
+          path: "helper.scs",
+          text: "subckt helper (A B)\nR1 (A B) resistor r=1k\nends helper",
+        },
+      ],
+    };
+    const rendered = renderProjectModelSource(source);
+    expect(rendered.text).toContain("ends helper\nsimulator lang=spectre\n");
+    expect(
+      inspectProjectModelSource({
+        ...source,
+        files: [{ path: source.entry, text: rendered.text }],
+      }).diagnostics,
+    ).toEqual([]);
+    for (const segment of rendered.segments) {
+      const original = source.files.find((file) => file.path === segment.path)!;
+      expect(rendered.text.slice(segment.startOffset, segment.endOffset)).toBe(
+        original.text.slice(
+          segment.sourceOffset,
+          segment.sourceOffset + segment.endOffset - segment.startOffset,
+        ),
+      );
+    }
+  });
   it("resolves embedded SPICE section case while preserving native Spectre sections", () => {
     const source: ProjectModelSource = {
       id: "mixed-section",

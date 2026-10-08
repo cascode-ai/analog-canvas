@@ -68,6 +68,8 @@ interface Statement {
   line: number;
   text: string;
   dialect: "spice" | "spectre";
+  /** Authored expression identifiers collected while translating values. */
+  parameterReferences?: Set<string>;
 }
 function refuse(
   s: Statement,
@@ -257,6 +259,14 @@ function value(
     (_match, base: string, suffix: string) => numeric(base, suffix),
   );
   fields(converted, s);
+  if (source === "spice") {
+    const expression = converted.replace(
+      /(?<![A-Za-z0-9_])(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?/giu,
+      " ",
+    );
+    for (const name of expression.match(/[A-Za-z_]\w*/gu) ?? [])
+      (s.parameterReferences ??= new Set()).add(name);
+  }
   return source === "spectre" ? `{${converted}}` : `(${converted})`;
 }
 type Parameters = Map<string, { name: string; raw: string }>;
@@ -720,6 +730,67 @@ function checkNodeCase(
   }
 }
 
+/** Check native names after structural translation, when values have already
+ * been tokenized and numeric suffixes converted. Never case-fold raw source:
+ * paths, model cards and case-sensitive native libraries must stay untouched. */
+function checkSpiceReferenceCase(
+  records: readonly { statement: Statement; scope: string; lines: string[] }[],
+  externalSubckts: readonly string[],
+) {
+  const subckts = new Map(
+    externalSubckts.map((name) => [name.toLowerCase(), name]),
+  );
+  const defaults = new Map<string, Map<string, string>>();
+  for (const { statement, scope, lines } of records) {
+    for (const line of lines) {
+      const f = fields(line, statement);
+      if (f[0] === "subckt") subckts.set(f[1]!.toLowerCase(), f[1]!);
+      if (f[0] === "parameters") {
+        const names = defaults.get(scope) ?? new Map<string, string>();
+        for (const { name } of parameters(f.slice(1), statement).values())
+          names.set(name.toLowerCase(), name);
+        defaults.set(scope, names);
+      }
+    }
+  }
+  const check = (name: string, declared: string | undefined, s: Statement) => {
+    if (declared && declared !== name)
+      refuse(
+        s,
+        `Identifiers ${declared} and ${name} differ only in case; use the declaration's spelling before converting to Spectre.`,
+        "IDENTIFIER_CASE_COLLISION",
+      );
+  };
+  for (const { statement, scope, lines } of records) {
+    for (const line of lines) {
+      const f = fields(line, statement);
+      if (f[0] === "ends" && f[1])
+        check(f[1], subckts.get(f[1].toLowerCase()), statement);
+      if (f[0] !== "parameters") {
+        // Native instance parameters evaluate in the caller, but override names
+        // belong to the callee's interface (not to the caller's local scope).
+        if (!/^x/iu.test(statement.text) || !f[1]?.startsWith("(")) continue;
+        const master = f[2]!;
+        check(master, subckts.get(master.toLowerCase()), statement);
+        const values = parameters(f.slice(3), statement);
+        const formal = defaults.get(master.toLowerCase());
+        if (subckts.has(master.toLowerCase()))
+          for (const { name } of values.values())
+            check(name, formal?.get(name.toLowerCase()), statement);
+      }
+    }
+    // Only authored values carry references. Generated enums such as type=pulse
+    // and K's inductor names are not parameters; K/analysis expressions are.
+    for (const name of statement.parameterReferences ?? [])
+      check(
+        name,
+        defaults.get(scope)?.get(name.toLowerCase()) ??
+          defaults.get("")?.get(name.toLowerCase()),
+        statement,
+      );
+  }
+}
+
 export function convertNetlist(
   options: NetlistConversionOptions,
 ): NetlistConversionResult {
@@ -809,6 +880,11 @@ export function convertNetlist(
     ];
     const names = new Set<string>();
     const nodeNames = new Map<string, string>();
+    const caseRecords: {
+      statement: Statement;
+      scope: string;
+      lines: string[];
+    }[] = [];
     let scope = "",
       depth = 0,
       subcircuitOutput = -1;
@@ -835,6 +911,8 @@ export function convertNetlist(
         s.dialect === "spice" && target !== "spectre"
           ? [s.text]
           : translate(s, ctx);
+      if (source !== "spectre" && target === "spectre")
+        caseRecords.push({ statement: s, scope, lines: translated });
       // Spectre subcircuit parameters are callable defaults, not a SPICE
       // local .param body that could overwrite an instance override.
       if (
@@ -870,6 +948,8 @@ export function convertNetlist(
       if (!depth) scope = "";
     }
     if (depth) refuse(input.at(-1)!, "Unclosed subcircuit definition.");
+    if (caseRecords.length)
+      checkSpiceReferenceCase(caseRecords, options.subcircuitNames ?? []);
     if (
       target !== "spectre" &&
       options.fragment === false &&

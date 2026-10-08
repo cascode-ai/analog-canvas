@@ -45,6 +45,12 @@ SPICE/Spectre language implementation.
   common arithmetic expressions. Optional Spectre port parentheses are removed
   for SPICE. Numeric suffixes are converted explicitly: Spectre `M` is mega,
   SPICE `M` is milli. Node case aliases that would change meaning are rejected.
+  SPICE-to-Spectre conversion also rejects case-mismatched subcircuit calls,
+  closing names, parameter references and known formal overrides. Parameters
+  are checked in their local/global scopes; override values use the caller's
+  scope. Owned model conversion checks the complete helper closure as well as
+  each file, and returns a located refusal without replacing the source. This
+  is not name resolution for opaque external libraries or model-card bodies.
 - Independent DC and AC sources, complete PULSE and PWL waveforms, and SIN
   waveforms including damping and phase. Missing values or unhandled extras
   cause diagnostics rather than invented values or dropped parameters.

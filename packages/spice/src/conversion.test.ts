@@ -23,6 +23,59 @@ function converted(
 }
 
 describe("netlist-crawler structural conversion", () => {
+  it.each([
+    ".subckt Amp a b\nR1 a b 1k\n.ends Amp\nX1 a b amp",
+    ".subckt Amp a b params: GAIN=2\nE1 a b a b {gain}\n.ends Amp",
+    ".subckt Amp a b params: GAIN=2\nR1 a b {GAIN}\n.ends Amp\nX1 a b Amp gain=3",
+    ".param BIAS=2\nR1 a 0 {bias*1e3}",
+    ".param STEP=1n\n.tran {step} 1u",
+    ".param COUPLING=0.8\nL1 a 0 1n\nL2 b 0 1n\nK1 L1 L2 {coupling}",
+    ".subckt Amp a b\nR1 a b 1k\n.ends amp",
+  ])(
+    "blocks SPICE identifier aliases rather than changing their meaning: %s",
+    (text) => {
+      const result = convertNetlist({
+        text,
+        source: "spice",
+        target: "spectre",
+      });
+      expect(result).toMatchObject({
+        status: "blocked",
+        issues: [
+          expect.objectContaining({ code: "IDENTIFIER_CASE_COLLISION" }),
+        ],
+      });
+      expect(result).not.toHaveProperty("text");
+    },
+  );
+  it("preserves consistent case, local parameter shadowing and caller-side override expressions", () => {
+    const text =
+      ".param gain=2\n.subckt Amp A B params: GAIN=3\nE1 A B A B {GAIN*1e-3}\n.ends Amp\n.subckt Other A B params: gain=4\nX1 A B Amp GAIN={gain}\n.ends Other\n";
+    const result = converted(text, "spice");
+    expect(result).toContain("parameters GAIN=3");
+    expect(result).toContain("gain=(GAIN*0.001)");
+    expect(result).toContain("X1 (A B) Amp GAIN=(gain)");
+  });
+  it("distinguishes generated primitive names from authored subcircuit calls", () => {
+    expect(
+      converted(
+        ".subckt Resistor A B params: R=1\nR1 A B 1k\n.ends Resistor\nX1 a b Resistor R=2",
+        "spice",
+      ),
+    ).toContain("R1 (A B) resistor r=1000");
+  });
+  it.each([
+    ["SINE", "SIN(0 1 1k)", "sine"],
+    ["PULSE", "PULSE(0 1 0 1n 1n 1u 2u)", "pulse"],
+    ["PWL", "PWL(0 0 1n 1)", "pwl"],
+  ])(
+    "does not interpret generated waveform type %s as a parameter",
+    (name, waveform, type) => {
+      expect(
+        converted(`.param ${name}=1\nV1 a 0 ${waveform}\n`, "spice"),
+      ).toContain(`type=${type}`);
+    },
+  );
   it("converts optional subcircuit port parentheses without changing order", async () => {
     for (const ports of ["(z a)", "z a"]) {
       const spice = converted(
