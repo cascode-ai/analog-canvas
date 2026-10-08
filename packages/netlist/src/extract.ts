@@ -58,10 +58,13 @@ import {
   requiredParameterNames,
   resolveReviewedExternalBinding,
   reviewedExternalBindingForMaster,
+  reviewedSize,
+  reviewedSizeModelled,
   subcircuitDescriptor,
   type BuiltInSubcircuitDescriptor,
   type DeviceDescriptor,
   type ReviewedExternalDeviceBinding,
+  type ReviewedSize,
 } from "@icm/devices";
 import { parseSpiceNumber } from "@icm/spice";
 
@@ -1203,6 +1206,25 @@ function extractExternalSubcircuitInstance(
     : parameters
         .sort(([a], [b]) => compareText(a, b))
         .map(([name, rawValue]) => ({ name, rawValue }));
+  // A device its library models only at a few sizes runs at no other (#1483).
+  if (
+    reviewed?.modelledSizes &&
+    reviewedSizeModelled(reviewed, netlist.parameters) === false
+  ) {
+    const size = reviewedSize(reviewed, netlist.parameters);
+    const shown = (value: ReviewedSize | undefined) =>
+      value?.metres === undefined
+        ? (value?.text ?? "its default")
+        : `${Number((value.metres / 1e-6).toPrecision(6))} µm`;
+    diagnostic(
+      diagnostics,
+      document.id,
+      "REVIEWED_SIZE_UNMODELLED",
+      `${instance.reference!} is W ${shown(size.width)}, L ${shown(size.length)}, a size ${definition.name} has no model for: its library models it only at ${reviewed.modelledSizes.description}, so the simulation stops at this line. Give it one of those sizes.`,
+      [instance.id],
+      "warning",
+    );
+  }
   return {
     id: instance.id,
     reference: instance.reference!,

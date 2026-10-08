@@ -14,6 +14,7 @@ import {
   compileNgspiceSourceSimulation,
 } from "@icm/netlist";
 import { createLibraryExampleProject } from "../../examples/library-examples";
+import { placedInstanceNetlist } from "../component-insert/placed-instance-netlist";
 import { createDefaultNetlistExportPreferences } from "./netlist-export-preferences";
 import {
   createNetlistExportProfile,
@@ -366,6 +367,45 @@ describe("a part placed into a Process (#1251)", () => {
     expect(target("sky130", "ndmos")).toBe("sky130_fd_pr__nfet_g5v0d16v0");
     expect(target("abstract", "nmos")).toBe("NMOS");
     expect(target("sky130", "resistor")).toBeUndefined();
+  });
+
+  it("gives a placed DMOS the 16 V device's own size, which SKY130 models (#1483)", () => {
+    const project = createEmptyProject("dmos", "DMOS");
+    for (const [symbolId, master, length] of [
+      ["ndmos", "sky130_fd_pr__nfet_g5v0d16v0", "700n"],
+      ["pdmos", "sky130_fd_pr__pfet_g5v0d16v0", "660n"],
+    ] as const) {
+      // A GUI or Agent placement carries the catalog's W 1u / L 150n, a size
+      // SKY130's 16 V models do not have.
+      const placement = place(symbolId);
+      const netlist = placedInstanceNetlist(
+        symbolId,
+        {},
+        placementModelTarget(project, preferences("sky130"), symbolId),
+      );
+      expect(netlist?.parameters).toMatchObject({ w: "1u", l: "150n" });
+      const placed = commit(
+        project,
+        placementProcessFill(
+          project,
+          preferences("sky130"),
+          project.topDocumentId,
+          [
+            {
+              ...placement,
+              instance: {
+                ...placement.instance,
+                reference: "M1",
+                netlist: netlist!,
+              },
+            },
+          ],
+        )!,
+      );
+      const [part] = placed.documents[0]!.instances;
+      expect(instanceModelTarget(placed, part!)).toBe(master);
+      expect(part!.netlist?.parameters).toMatchObject({ w: "5u", l: length });
+    }
   });
 
   it("leaves a placed Zener's model to its BV or its author", () => {

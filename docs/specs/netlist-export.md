@@ -584,6 +584,33 @@ simulated its output at 0.93 V, where the textbook mirror sits near
 VDD − V_EB. Ground is the Cell's ground node, and the lowest supply a Net named
 like one (`VSS`, `AVSS`, `GND`, `VEE`, `SUB`, `VSUB`, any case).
 
+A DMOS symbol in SKY130 takes the drain-extended 16 V device
+(`sky130_fd_pr__nfet_g5v0d16v0`, `sky130_fd_pr__pfet_g5v0d16v0`), or a 20 V
+one chosen in Properties (`nfet_20v0`, `nfet_20v0_nvt`, `nfet_20v0_zvt`,
+`pfet_20v0`), which fixes its channel inside and takes only `m`. SKY130 models
+the 16 V pair only at a few sizes:
+
+- N: W 5, 20 or 50–60 µm at L 0.7 µm, or W 5 or 20 µm at L 2.2 µm;
+- P: W 5–50 µm at L 0.66 or 2.16 µm.
+
+ngspice 46 picks one by the X line's W and L, accepting either bin edge within
+1e-9 m. As the hosted profile runs it, W is the total width whatever the finger
+count; a PDK spinit with `ngbehavior=hsa` takes W per finger instead. At any
+other size ngspice stops with "could not find a valid modelname".
+
+A part that takes a 16 V device keeps its W and L when they are one of those
+sizes, or when an expression leaves that open. Otherwise it takes the device's
+own: W 5 µm with L 0.7 µm (N) or 0.66 µm (P) (#1483). A W or L given as an
+expression stays as written; only a numeric one changes. This holds whether the
+part is placed, filled by a process, or given the model in Properties or by an
+Agent. A part that already has the device keeps what its author gave it, also
+through Default. Its previous size does not come back when it leaves the
+device.
+
+A 16 V device whose size is none of those exports with the warning
+`REVIEWED_SIZE_UNMODELLED`, which names the sizes. A missing W or L counts as
+the device's default, which its wrapper uses.
+
 IHP SG13G2 binds reviewed devices the way IHP-Open-PDK's own xschem symbols
 call them: `sg13_lv_nmos`/`sg13_lv_pmos` and the 3.3 V `sg13_hv_*` (`d g s b`;
 `w l ng m`), the HBTs `npn13G2`, `npn13G2l`, `npn13G2v` (`c b e bn`, substrate
@@ -780,12 +807,15 @@ chooses the format independently of the adjacent Process selector. The compact
 NMOS/PMOS/R/C/L selectors apply their target to that device family. Ideal R/C/L
 remain the default; selecting a reviewed physical passive uses its geometry,
 not a numerical conversion of an ideal resistance/capacitance/inductance.
-Authored W/L and values survive process changes, and reviewed SKY130 calls use
+Authored W/L and values survive process changes, except the size of a DMOS
+taking a 16 V device that has no model for it (see above), and reviewed SKY130
+calls use
 the existing canonical unit/interface conversion. TSMC 28 maps `m` to `multi`;
 switching back restores `m`. Process selection preserves names and stable
 instance IDs; dialect naming happens only during extraction. Custom external
 blocks keep their own interfaces. Default restores the mapping the editor starts
-in and output preferences, without overwriting authored parameter values. A
+in and output preferences, without overwriting authored parameter values,
+apart from that same DMOS exception. A
 circuit drawn before a process was chosen says so: the panel counts the devices
 that still have no model — the same plan, counted rather than committed — and
 offers them in one undoable click, filling only what is missing. These choices are remembered locally.

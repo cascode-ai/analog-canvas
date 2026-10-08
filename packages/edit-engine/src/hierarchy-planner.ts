@@ -26,6 +26,7 @@ import {
   reviewedExternalBindingForMaster,
   reviewedExternalBindingSupportsSymbol,
   reviewedExternalModelSuggestions,
+  reviewedModelledSizeChanges,
   standardCellBindingForMaster,
   subcircuitDescriptor,
 } from "@icm/devices";
@@ -674,7 +675,7 @@ export function planSetDeviceModelTarget(
     const parameterNames = new Set(
       verified.parameters.map((parameter) => parameter.name.toLowerCase()),
     );
-    const set = Object.fromEntries(
+    const set: Record<string, string> = Object.fromEntries(
       verified.parameters.flatMap((parameter) =>
         instance.netlist!.parameters[parameter.name] === undefined &&
         parameter.defaultValue !== undefined
@@ -682,6 +683,16 @@ export function planSetDeviceModelTarget(
           : [],
       ),
     );
+    // A part taking a device its library models only at a few sizes
+    // (SKY130's 16 V pair) keeps its W and L when they are one of them and
+    // otherwise takes the device's own: a placed DMOS's catalog 1u/150n is
+    // none, and no simulator runs that line (#1483). A part that already has
+    // the device keeps what its author gave it.
+    if (currentExternal?.binding.id !== verified.id)
+      Object.assign(
+        set,
+        reviewedModelledSizeChanges(verified, instance.netlist.parameters),
+      );
     const unset = Object.keys(instance.netlist.parameters).filter(
       (name) => !parameterNames.has(name.toLowerCase()),
     );
