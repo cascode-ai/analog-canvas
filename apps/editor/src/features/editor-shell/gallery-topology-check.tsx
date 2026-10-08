@@ -75,8 +75,8 @@ export function GalleryTopologyCheck({
   // they are not shown unless asked for from the check's notice; an edited
   // Cell's stay, marked as historical.
   const shown = otherCell && !openedFromCheckNotice ? null : report;
-  const start = () => galleryTopologyTask.start(project);
-  const stop = () => galleryTopologyTask.cancel();
+  const start = () => void galleryTopologyTask.start(project);
+  const stop = () => void galleryTopologyTask.cancel();
 
   const exactCount =
     shown?.exactMatches ??

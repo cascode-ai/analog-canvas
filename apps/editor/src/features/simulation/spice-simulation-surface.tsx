@@ -307,7 +307,7 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
         "run" in reply &&
         ["running", "cancelling"].includes(reply.run.state)
       )
-        timer = setTimeout(poll, 500);
+        timer = setTimeout(() => void poll(), 500);
     };
     void poll();
     return () => {
@@ -352,7 +352,7 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
         }
       }
       if (["running", "cancelling"].includes(reply.batch.state))
-        timer = setTimeout(poll, 500);
+        timer = setTimeout(() => void poll(), 500);
     };
     void poll();
     return () => {
@@ -1119,7 +1119,7 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
   };
   const createFolder = () => void folderAction("new", []);
   const revealSpec = async (source: {
-    kind?: "log";
+    kind?: "log" | undefined;
     path: string;
     line: number;
     text: string;
@@ -1155,6 +1155,19 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
       line: source.line,
       column: 1,
     });
+  };
+  const confirmExit = async () => {
+    if (
+      await interaction.confirm({
+        title: "Exit Simulation?",
+        message:
+          "Unsaved source drafts and temporary run files will be discarded. An active run will be cancelled.",
+        acceptLabel: "Exit Simulation",
+      })
+    ) {
+      codeRef.current?.discard();
+      props.onExit();
+    }
   };
   const historyContent = (
     <details className="simulation-run-history">
@@ -1267,7 +1280,7 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
             report={run?.outputData?.specs}
             hasRun={!!run?.result}
             stale={activeDirty || run?.inputStatus === "changed"}
-            onSource={revealSpec}
+            onSource={(source) => void revealSpec(source)}
           />
         ) : null}
         {resultTab === "console" ? (
@@ -1463,19 +1476,7 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
         </button>
         <button
           className="simulation-close-button"
-          onClick={async () => {
-            if (
-              await interaction.confirm({
-                title: "Exit Simulation?",
-                message:
-                  "Unsaved source drafts and temporary run files will be discarded. An active run will be cancelled.",
-                acceptLabel: "Exit Simulation",
-              })
-            ) {
-              codeRef.current?.discard();
-              props.onExit();
-            }
-          }}
+          onClick={() => void confirmExit()}
           aria-label="Exit simulation"
         >
           ×

@@ -115,7 +115,7 @@ function failingRequest(error: DOMException): IDBRequest {
     onerror: null,
   };
   let onsuccess: ((event: Event) => void) | null = null;
-  Promise.resolve().then(() => {
+  void Promise.resolve().then(() => {
     pending.onerror?.(new Event("error"));
     onsuccess?.(new Event("success"));
   });
