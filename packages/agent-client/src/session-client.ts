@@ -285,9 +285,12 @@ export class AgentSessionClient {
     if (claimCode === undefined || claimCode.trim() === "") {
       const resumed = await this.tryResume(startedAt);
       if (resumed === null) {
+        const holder = this.connectorStore?.heldBy;
         throw new AgentSessionError(
           "CLAIM_REQUIRED",
-          "no valid saved connector; pass a claim code from the editor's connect panel",
+          holder
+            ? `another running MCP process (pid ${holder}) holds this origin's saved connector, so this one does not share its page; pass a claim code for a page of its own, or set ANALOG_CANVAS_MCP_CONNECTOR to one file to share a connector deliberately`
+            : "no valid saved connector; pass a claim code from the editor's connect panel",
           "unrecoverable-credential",
         );
       }

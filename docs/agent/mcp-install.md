@@ -27,7 +27,14 @@ download, integrity, stdio readiness, host loading, pairing or editor readiness.
 Connect with the human's claim, then follow the [quickstart](mcp-quickstart.md).
 Later processes can resume the saved revocable connector without a claim.
 Keep its storage private; `ANALOG_CANVAS_MCP_CONNECTOR` overrides a file path,
-never a token. Disconnect or expiry revokes the session; Project switches do not.
+never a token. The default file, one per editor origin, belongs to the first
+running MCP process that uses it, and a restart resumes it. Another MCP process
+running at the same time neither resumes nor overwrites it: it keeps its own
+connector in memory and needs its own claim, so parallel clients never drive
+one page by accident. Give each parallel worker its own
+`ANALOG_CANVAS_MCP_CONNECTOR` file to resume after a restart, or give several
+one file to share a page on purpose. Disconnect or expiry revokes the session;
+Project switches do not.
 A local probe is not live-session acceptance: inspect the authorized context
 and complete the requested operation, including results for simulation.
 

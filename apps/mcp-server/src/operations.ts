@@ -84,7 +84,7 @@ const ConnectArgs = z.strictObject({
     .min(1)
     .optional()
     .describe(
-      "Claim code from the editor connect panel. Omit to resume the browser-approved connector saved for this MCP host.",
+      "Claim code from the editor connect panel. Omit to resume the browser-approved connector saved for this MCP host, unless another running MCP process holds it.",
     ),
 });
 const SimulationArgs = z

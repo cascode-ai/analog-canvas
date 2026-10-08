@@ -57,7 +57,7 @@
     },
     {
       "source": "docs/agent/http-cli.md",
-      "sha256": "c3f4e603ed0e8e796359cf14b33e86c84a87f16a43252968b53006ee64a74883"
+      "sha256": "d4629030fa8848f66d6270c7e423621bb503acefe48bfee3fe93ebae6ee1b9c3"
     },
     {
       "source": "packages/agent-adapter/src/agent-authoring-catalog.generated.ts",
@@ -77,7 +77,7 @@
     },
     {
       "source": "docs/agent/mcp-install.md",
-      "sha256": "6003e3bc050c8b05cb5b852eafb3d4c9fcc1a7232ccf772023f44ad8069c8ac3"
+      "sha256": "4f2afcd823f8b92d8272d06ece691681565aa657067e21e2ffe92091b8e4bc86"
     },
     {
       "source": "docs/agent/api-usage.md",
@@ -573,7 +573,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/circuit-style-knowledge.md"
       ],
-      "sha256": "e046e57fb785e61d1da2130cb6c8e7c535cfcc0becd13f364899722bc6303386"
+      "sha256": "36fb2ffd937d33b2f41e858e5429f19cc2c1717d0a4ae86b72f6ab041849b67d"
     },
     {
       "file": "packages/agent-adapter/src/agent-docs.generated.ts",

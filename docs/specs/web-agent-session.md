@@ -14,6 +14,11 @@ session-bound connector credential. A still-valid claim may be redeemed again
 only to rotate both credentials. Bearers are never persisted. The local MCP
 Helper may persist the connector in the user's private profile; the relay
 stores only its verifier, and session revoke invalidates both credentials.
+A long-running Helper holds its default per-origin connector file by a lease
+(holder process id, checked for liveness): a second Helper running at the same
+time keeps its connector in memory and pairs with its own claim, and a stale
+lease left by an exited holder passes to the next one. An explicit connector
+path takes no lease.
 
 ## Resources
 
