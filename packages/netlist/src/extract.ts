@@ -60,11 +60,13 @@ import {
   reviewedExternalBindingForMaster,
   reviewedSize,
   reviewedSizeModelled,
+  reviewedSizeOutOfRange,
   subcircuitDescriptor,
   type BuiltInSubcircuitDescriptor,
   type DeviceDescriptor,
   type ReviewedExternalDeviceBinding,
   type ReviewedSize,
+  type ReviewedSizeOutOfRange,
 } from "@icm/devices";
 import { parseSpiceNumber } from "@icm/spice";
 
@@ -96,8 +98,14 @@ import {
   idealAnalogBlockCell,
   projectSubcircuitNames,
 } from "./ideal-analog-block-models.js";
-import { IDEAL_SWITCH_MODEL } from "./ideal-switch-model.js";
-export { IDEAL_SWITCH_MODEL } from "./ideal-switch-model.js";
+import {
+  IDEAL_SWITCH_BAR_MODEL,
+  IDEAL_SWITCH_MODEL,
+} from "./ideal-switch-model.js";
+export {
+  IDEAL_SWITCH_BAR_MODEL,
+  IDEAL_SWITCH_MODEL,
+} from "./ideal-switch-model.js";
 
 /** A target with a shared generated recipe: logic, multiplier, converters. */
 function isBehaviouralTarget(target: string): boolean {
@@ -1222,7 +1230,7 @@ function extractExternalSubcircuitInstance(
     const shown = (value: ReviewedSize | undefined) =>
       value?.metres === undefined
         ? (value?.text ?? "its default")
-        : `${Number((value.metres / 1e-6).toPrecision(6))} µm`;
+        : micrometres(value.metres);
     diagnostic(
       diagnostics,
       document.id,
@@ -1232,6 +1240,20 @@ function extractExternalSubcircuitInstance(
       "warning",
     );
   }
+  // A size the PDK does not make, or one a unit slip left in metres (#1474).
+  // The part exports as drawn: which size was meant is the author's to say.
+  for (const found of reviewed
+    ? reviewedSizeOutOfRange(reviewed, netlist.parameters)
+    : [])
+    diagnostic(
+      diagnostics,
+      document.id,
+      "REVIEWED_SIZE_OUT_OF_RANGE",
+      sizeOutOfRangeMessage(instance.reference!, definition.name, found),
+      [instance.id],
+      "warning",
+      found.parameter,
+    );
   return {
     id: instance.id,
     reference: instance.reference!,
@@ -1242,6 +1264,28 @@ function extractExternalSubcircuitInstance(
     nodes,
     parameters: projectedParameters,
   };
+}
+
+const micrometres = (metres: number) =>
+  `${Number((metres / 1e-6).toPrecision(6))} µm`;
+
+/** What REVIEWED_SIZE_OUT_OF_RANGE says of one size (#1474). */
+function sizeOutOfRangeMessage(
+  reference: string,
+  master: string,
+  found: ReviewedSizeOutOfRange,
+): string {
+  const label = found.role === "width" ? "W" : "L";
+  if (found.bound === "slip") {
+    const text = found.text.trim();
+    const bare = /^[+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?$/iu.test(text);
+    return `${reference} has ${label} ${text}, which is ${found.fingers > 1 ? `${micrometres(found.metres / found.fingers)} per finger` : micrometres(found.metres)}: over ${found.limit / 1e-3} mm, larger than ${master} is made, so its unit is likely missing or wrong.${bare ? ` A size without a unit is in metres; write ${text}u if you mean ${text} µm.` : ""}`;
+  }
+  const size =
+    found.fingers === 1
+      ? micrometres(found.metres)
+      : `${micrometres(found.metres)} over ${found.fingers} fingers, ${micrometres(found.metres / found.fingers)} each`;
+  return `${reference} has ${label} ${size}, below the ${micrometres(found.limit)} minimum ${found.role === "width" ? "width per finger" : "length"} of ${master}. Its PDK has no model that ${found.role === "width" ? "narrow" : "short"}, so a simulation stops at this line or gives results outside what the PDK covers.`;
 }
 
 /** A Net named as a Cell's ground or negative rail: VSS, AVSS, GND, VEE, SUB. */
@@ -1600,9 +1644,10 @@ function isDrawnSwitch(symbolId: string, project?: CircuitProject): boolean {
 
 /**
  * A drawn switch as the SPICE `S` card it means: its two switched nodes, then
- * its control against the Cell's ground, closing through the ideal switch.
- * A phase names its node the way a Net Label would, so the switch meets the
- * clock drawn on a Net of that name, or a Cell Pin of that name.
+ * its control against the Cell's ground, closing through the ideal switch
+ * (or, for an overbarred phase, its complement). A phase names its node the
+ * way a Net Label would, so the switch meets the clock drawn on a Net of that
+ * name, or a Cell Pin of that name.
  */
 function extractDrawnSwitch(
   document: SchematicDocument,
@@ -1615,12 +1660,32 @@ function extractDrawnSwitch(
 ): DesignNetlistInstance | null {
   const reference = instance.reference!;
   let controlNode: string | null;
+  let complement = false;
   if (control === "phase") {
     // A switch whose label still shows its own name is clocked by a phase of
     // that name, so a freshly placed switch netlists at once. Writing Φ1 on
-    // the label moves it onto a shared clock.
+    // the label moves it onto a shared clock. A phase drawn with an overbar
+    // (E̅N̅) is the Net drawn so, EN_bar, when the Cell has one, and otherwise
+    // the complement of the phase without it: the same clock node, through
+    // the switch that closes while that clock is low.
     const drawnPhase = drawnSwitchPhase(document, instance);
-    const phase = drawnPhase ?? reference;
+    const existingNode = (name: string) => {
+      const encoded = encodeCandidate(name, "local", options);
+      return (
+        context.nameByAuthoredName.get(foldNetName(name)) ??
+        (encoded.ok
+          ? context.nets.find(
+              (net) => net.name.toLowerCase() === encoded.token.toLowerCase(),
+            )?.name
+          : undefined)
+      );
+    };
+    const barredNet =
+      drawnPhase?.complement && existingNode(`${drawnPhase.name}_bar`)
+        ? `${drawnPhase.name}_bar`
+        : undefined;
+    complement = !barredNet && (drawnPhase?.complement ?? false);
+    const phase = barredNet ?? drawnPhase?.name ?? reference;
     const encoded = encodeCandidate(phase, "local", options);
     if (!encoded.ok) {
       diagnostic(
@@ -1635,11 +1700,7 @@ function extractDrawnSwitch(
     const token = encoded.token;
     const added = undrivenPhaseNodes.get(context) ?? new Set<string>();
     undrivenPhaseNodes.set(context, added);
-    controlNode =
-      context.nameByAuthoredName.get(foldNetName(phase)) ??
-      context.nets.find((net) => net.name.toLowerCase() === token.toLowerCase())
-        ?.name ??
-      null;
+    controlNode = existingNode(phase) ?? null;
     if (!controlNode) {
       controlNode = token;
       added.add(token);
@@ -1684,7 +1745,7 @@ function extractDrawnSwitch(
     reference,
     invocationKind: "primitive",
     deviceClass: "switch",
-    target: IDEAL_SWITCH_MODEL.name,
+    target: (complement ? IDEAL_SWITCH_BAR_MODEL : IDEAL_SWITCH_MODEL).name,
     nodes: [
       ...nodes,
       { pinName: control === "pin" ? "CTRL" : "CP", netName: controlNode },
@@ -3005,14 +3066,14 @@ function extractCell(
     if (extracted) instances.push(extracted);
   }
   const models: DesignNetlistModel[] = [];
-  if (
-    instances.some(
-      (instance) =>
-        instance.deviceClass === "switch" &&
-        instance.target === IDEAL_SWITCH_MODEL.name,
+  for (const model of [IDEAL_SWITCH_MODEL, IDEAL_SWITCH_BAR_MODEL])
+    if (
+      instances.some(
+        (instance) =>
+          instance.deviceClass === "switch" && instance.target === model.name,
+      )
     )
-  )
-    models.push(structuredClone(IDEAL_SWITCH_MODEL));
+      models.push(structuredClone(model));
   // The parts a generic card stands in for, and the Cell then carries it.
   // SPICE only (VACASK prints them from the SPICE cards). A Spectre export
   // still names DIODE, NPN and PNP for the reader's libraries to define.

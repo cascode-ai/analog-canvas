@@ -343,6 +343,15 @@ closes through `ideal_switch`, an `SW` model card (RON 1 Ω, ROFF 1e12 Ω, VT
 whose label still shows its own name is clocked by a phase of that name, so a
 freshly placed `S1` prints as `S1 a b S1 VSS ideal_switch` and warns that
 nothing drives `S1`; writing Φ₁ on its label moves it onto that shared clock.
+A phase drawn with an overbar over any of its characters (E̅N̅, Φ̄₁) is first
+the Net drawn the same way: when the Cell has a Net `EN_bar` (a Net Label or
+Cell Pin drawn E̅N̅), the switch reads it through `ideal_switch`. Otherwise it is
+the complement of the phase written without it: the switch reads the same clock
+node, so one Net or Cell Pin `EN` drives both phases and the same
+`SWITCH_PHASE_NOT_DRIVEN` finding names `EN` until something does, and it
+closes while that clock is low. It closes through `ideal_switch_bar`, the
+same card with RON and ROFF swapped (RON 1e12 Ω, ROFF 1 Ω, VT 0.5 V, VH 0),
+printed only in a Cell that uses it: `S2 a b EN VSS ideal_switch_bar`.
 Spectre writes the same Cell-local four-terminal master as a hard conductance
 `bsource`, with those unchanged defaults and phase/CTRL semantics. It neither
 invents a clock nor smooths a transition. The SPDT selector has no primitive.
@@ -350,6 +359,8 @@ Native VACASK uses the same defaults and four-terminal interface through the
 qualified `icm_switch` runtime primitive, which registers hard-edge breakpoints.
 This requires the patched native runtime, not stock upstream 0.3.4; see the
 [runtime patch and qualification](../../containers/vacask/patches/README.md).
+ngspice, Spectre and native VACASK all take RON while the control is above VT
+and ROFF below it, so the swapped card is the complementary switch in each.
 A diode placed in a Process with no diode of its own (Abstract, SKY130, IHP
 SG13G2, Custom) is bound to the generic model `DIODE`, which no library
 defines. A placed Zener is not, and Apply process leaves it alone too: the
@@ -634,6 +645,43 @@ A 16 V device whose size is still none of those exports with the warning
 `REVIEWED_SIZE_UNMODELLED`, which names the sizes. This can happen to a Project
 built outside the editor. A missing W or L counts as the device's default,
 which its wrapper uses.
+
+The other SKY130 MOS devices are modelled over a range that starts at a
+shortest L and a narrowest W per finger (#1474). These are the smallest `lmin`
+and `wmin` of each device's bins in volare sky130A (open_pdks c6d73a35):
+
+| Device                             | L from  | W per finger from |
+| ---------------------------------- | ------- | ----------------- |
+| `nfet_01v8`, `pfet_01v8_hvt`       | 0.15 µm | 0.36 µm           |
+| `pfet_01v8`, `nfet_01v8_lvt`       | 0.15 µm | 0.42 µm           |
+| `pfet_01v8_lvt`                    | 0.35 µm | 0.42 µm           |
+| `nfet_03v3_nvt`                    | 0.5 µm  | 0.42 µm           |
+| `nfet_05v0_nvt`                    | 0.9 µm  | 0.42 µm           |
+| `nfet_g5v0d10v5`, `pfet_g5v0d10v5` | 0.5 µm  | 0.42 µm           |
+
+W per finger is W divided by `nf`. A part below either limit exports with the
+warning `REVIEWED_SIZE_OUT_OF_RANGE`, which names its size and the limit in
+µm: "XM1 has L 0.08 µm, below the 0.15 µm minimum length of
+sky130_fd_pr__nfet_01v8. …". ngspice 46 stops there with "could not find a
+valid modelname", with volare's binned models and with the hosted continuous
+library alike (an `nfet_01v8` of L 0.08 µm or W 0.3 µm on Production,
+2026-10-08).
+
+Only the shortest sizes are checked. The hosted library also stops past a
+longest L, which is not checked yet: on Production `nfet_03v3_nvt` runs at
+L 0.9 µm but not 1 µm, and `nfet_05v0_nvt` at 8 µm but not 25 µm, at any W
+from 0.42 to 50 µm (2026-10-08). The 16 V pair is left to
+`REVIEWED_SIZE_UNMODELLED`, so a slip on it gets one finding.
+
+The same warning names an L, or a W per finger, over 1 mm on any reviewed
+device whose library takes micrometres (the SKY130 MOS devices, resistors, MIM
+capacitors and varactor). Such a size is almost always a unit slip: a bare
+`0.15` is 0.15 m, which the X line writes as `l=150000`. A bare number gets the
+hint "write 0.15u if you mean 0.15 µm".
+
+Both checks only warn. The part exports as drawn and nothing changes its size:
+which size was meant is the author's to say. A size or `nf` given by an
+expression is not checked, and a missing one counts as the device's default.
 
 IHP SG13G2 binds reviewed devices the way IHP-Open-PDK's own xschem symbols
 call them: `sg13_lv_nmos`/`sg13_lv_pmos` and the 3.3 V `sg13_hv_*` (`d g s b`;

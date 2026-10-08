@@ -11,6 +11,8 @@ import {
   createDesignNetlistExport,
   printSpiceNetlist,
   printSpiceWithLocations,
+  printVacaskWithLocations,
+  SIMULATION_DECK_GROUND,
   type DesignNetlistAnalysisOptions,
 } from "./index.js";
 
@@ -2257,6 +2259,204 @@ describe("drawn switches", () => {
       expect(project).toEqual(before);
     },
   );
+
+  describe("an overbarred phase", () => {
+    // EN, and E̅N̅ the way the Gallery's Chopper draws it: a bar over the
+    // italic, bold name.
+    const en = (overbar: boolean) => {
+      const name = {
+        kind: "span" as const,
+        style: "italic" as const,
+        children: [
+          {
+            kind: "span" as const,
+            style: "bold" as const,
+            children: [{ kind: "text" as const, value: "EN" }],
+          },
+        ],
+      };
+      return {
+        runs: [
+          overbar
+            ? {
+                kind: "span" as const,
+                style: "overbar" as const,
+                children: [name],
+              }
+            : name,
+        ],
+      };
+    };
+    /** S1 from in to a and S2 from in to b, labelled with these phases. */
+    function pair(
+      labels: readonly ReturnType<typeof en>[],
+      clock = false,
+    ): CircuitProject {
+      const project = createEmptyProject("project", "Project");
+      const document = project.documents[0]!;
+      labels.forEach((label, index) => {
+        const id = `S${index + 1}`;
+        document.instances.push({
+          id,
+          symbolId: "ideal-switch",
+          placement: null,
+          reference: id,
+          netlist: { parameters: {} },
+        });
+        document.annotations.push({
+          id: `label-${id}`,
+          kind: "instance-label",
+          anchor: {
+            kind: "object",
+            objectId: id,
+            localOffset: { x: 20, y: 0 },
+            fallbackPosition: { x: 20, y: 0 },
+          },
+          content: label,
+          alignment: "start",
+          rotation: 0,
+          locked: false,
+        });
+      });
+      document.nets.push({
+        id: "net-in",
+        terminals: labels.map((_, index) => ({
+          instanceId: `S${index + 1}`,
+          pinName: "1",
+        })),
+      });
+      claimNet(document, "net-in", "in");
+      labels.forEach((_, index) => {
+        document.nets.push({
+          id: `net-out-${index}`,
+          terminals: [{ instanceId: `S${index + 1}`, pinName: "2" }],
+        });
+        claimNet(document, `net-out-${index}`, "ab"[index]!);
+      });
+      if (clock) {
+        document.instances.push({
+          id: "V1",
+          symbolId: "voltage-source",
+          placement: null,
+          reference: "V1",
+          netlist: { parameters: { dc: "1" } },
+        });
+        document.nets.push({
+          id: "net-clock",
+          terminals: [{ instanceId: "V1", pinName: "+" }],
+        });
+        claimNet(document, "net-clock", "EN");
+        document.nets.push({
+          id: "net-ground",
+          terminals: [{ instanceId: "V1", pinName: "-" }],
+        });
+        claimNet(document, "net-ground", "0", "global", "ground");
+      }
+      return project;
+    }
+
+    it("closes its switch on the same clock node while that clock is low", () => {
+      const analysis = analyzeDesignNetlist(pair([en(false), en(true)]));
+      expect(
+        analysis.diagnostics.filter((item) => item.severity === "error"),
+      ).toEqual([]);
+      // Both switches wait on the one clock EN; the bar names no node of its own.
+      expect(
+        analysis.diagnostics
+          .filter((item) => item.code === "SWITCH_PHASE_NOT_DRIVEN")
+          .map((item) => item.message),
+      ).toEqual([
+        "No Net named EN in this Cell drives switch S1: name the clock's Net EN, or add a Cell Pin EN",
+        "No Net named EN in this Cell drives switch S2: name the clock's Net EN, or add a Cell Pin EN",
+      ]);
+      const text = printSpiceNetlist(analysis.ir!);
+      expect(text).toContain("S1 in a EN 0 ideal_switch\n");
+      expect(text).toContain("S2 in b EN 0 ideal_switch_bar\n");
+      expect(text).toContain(
+        ".model ideal_switch SW(RON=1 ROFF=1e12 VT=0.5 VH=0)",
+      );
+      // On (RON) above the threshold is now open; below it, closed.
+      expect(text).toContain(
+        ".model ideal_switch_bar SW(RON=1e12 ROFF=1 VT=0.5 VH=0)",
+      );
+    });
+
+    it("is driven by the one clock Net that drives the plain phase", () => {
+      const analysis = analyzeDesignNetlist(pair([en(false), en(true)], true));
+      expect(analysis.diagnostics.map((item) => item.code)).not.toContain(
+        "SWITCH_PHASE_NOT_DRIVEN",
+      );
+      const text = printSpiceNetlist(analysis.ir!);
+      expect(text).toContain("V1 EN 0");
+      expect(text).toContain("S2 in b EN 0 ideal_switch_bar");
+    });
+
+    it("meets a Net drawn the same way, EN_bar, through the plain switch", () => {
+      const project = pair([en(true)]);
+      const document = project.documents[0]!;
+      document.instances.push({
+        id: "V2",
+        symbolId: "voltage-source",
+        placement: null,
+        reference: "V2",
+        netlist: { parameters: { dc: "1" } },
+      });
+      document.nets.push(
+        {
+          id: "net-en-bar",
+          terminals: [{ instanceId: "V2", pinName: "+" }],
+        },
+        {
+          id: "net-ground",
+          terminals: [{ instanceId: "V2", pinName: "-" }],
+        },
+      );
+      claimNet(document, "net-en-bar", "EN_bar");
+      claimNet(document, "net-ground", "0", "global", "ground");
+      const analysis = analyzeDesignNetlist(project);
+      expect(analysis.diagnostics.map((item) => item.code)).not.toContain(
+        "SWITCH_PHASE_NOT_DRIVEN",
+      );
+      expect(printSpiceNetlist(analysis.ir!)).toContain(
+        "S1 in a EN_bar 0 ideal_switch\n",
+      );
+    });
+
+    it("carries only the inverted card when every switch is barred", () => {
+      const text = printSpiceNetlist(
+        analyzeDesignNetlist(pair([en(true)])).ir!,
+      );
+      expect(text.match(/^\.model .*$/gmu)).toEqual([
+        ".model ideal_switch_bar SW(RON=1e12 ROFF=1 VT=0.5 VH=0)",
+      ]);
+    });
+
+    it("prints the same inverted law in Spectre and native VACASK", () => {
+      const project = pair([en(false), en(true)]);
+      const spectre = createDesignNetlistExport(project, { format: "spectre" });
+      expect(spectre.status, JSON.stringify(spectre.diagnostics)).toBe("ready");
+      if (spectre.status !== "ready") return;
+      const barred = spectre.file.text.slice(
+        spectre.file.text.indexOf("subckt ideal_switch_bar (p n cp cn)"),
+      );
+      expect(barred).toMatch(
+        /^subckt ideal_switch_bar \(p n cp cn\)\nparameters ron=1e12 roff=1 vt=0\.5\ncore \(p n\) bsource i=v\(p,n\)\/\(v\(cp,cn\)>vt \? ron : roff\)\nends ideal_switch_bar$/mu,
+      );
+      expect(spectre.file.text).toContain("S2 (in b EN VSS) ideal_switch_bar");
+
+      const deck = analyzeDesignNetlist(project, {
+        ...SIMULATION_DECK_GROUND,
+        rootAsTopLevel: true,
+      });
+      const vacask = printVacaskWithLocations(deck.ir!, true);
+      expect(vacask.ok).toBe(true);
+      if (!vacask.ok) return;
+      expect(vacask.text).toMatch(
+        /^subckt ideal_switch_bar \(p n cp cn\)\nparameters \$mfactor=1\nimplementation \(p n cp cn\) __icm_switch \$mfactor=\$mfactor ron=1e\+12 roff=1 vt=0\.5\nends$/mu,
+      );
+      expect(vacask.text).toMatch(/^S2 \(in b EN 0\) ideal_switch_bar\b/mu);
+    });
+  });
 
   it("refuses a label that cannot name a node", () => {
     const analysis = analyzeDesignNetlist(

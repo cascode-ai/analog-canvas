@@ -38,11 +38,12 @@ them directly, use completion/hover help, or insert a template. The entry file
 is the Run target even while viewing another file. Invalid SPICE or JSON can
 be saved; preparation reports what needs repair rather than losing the draft.
 
-**New experiment** asks for a name and, when multiple Profiles are available,
-an environment. It uses the selected Cell and an OP starter. The environment
-starts on the one Profile qualified for every PDK device that Cell uses, as an
-Agent's new folder does (SKY130 ngspice on Production); to use VACASK, choose
-it under Environment.
+**New experiment** asks for a Name, a Cell and an Environment, the fields of
+an Agent's `simulation_folder` create, and starts with an OP analysis. The
+environment is chosen as the Agent's is: the one Profile qualified for every
+PDK device the Cell uses is shown as "(automatic)" (SKY130 ngspice on
+Production); **Change** picks another, such as VACASK. When no single Profile
+fits, the Environment list asks for one and **Create** waits until you choose.
 Helper offers analysis commands and argument hints without adding
 text to the saved file until you explicitly insert or type it.
 

@@ -145,12 +145,23 @@ experiment without
 a Cell uses no PDK device. No Profile qualifies ideal blocks, the generic diode
 or authored models, so they do not count. A Profile that lists no qualified
 devices is never the default. With several such Profiles, or none, the author
-names one: the Agent's `simulation_folder` create refuses with
-`SIMULATION_PROFILE_REQUIRED` and the candidates, and the GUI's new-experiment
-dialog keeps its first environment. The GUI waits for the advertised
-environments before it asks; only offline does it fall back to the VACASK
-candidate. On Production the default is the SKY130 ngspice Profile; VACASK is
-chosen explicitly.
+names one. The Agent's `simulation_folder` create refuses with
+`SIMULATION_PROFILE_REQUIRED` and the candidates.
+
+The GUI's new-experiment form mirrors that call field for field (#1489). It
+asks for Name (`name`), then Cell (`rootDocumentId`), then Environment
+(`profileId`):
+
+- When the create would take one, the form shows it read-only as
+  "(automatic)", even when it is the only environment. Change offers the list,
+  like passing `profileId`, and the choice then stays when the Cell changes.
+- When the create would refuse, the list asks for a choice, and Create waits
+  for it with the create's reason, such as
+  "No Profile qualifies sky130_fd_pr__cap_var_lvt."
+
+The GUI waits for the advertised environments before it asks; only offline does
+it fall back to the VACASK candidate. On Production the default is the SKY130
+ngspice Profile; VACASK is chosen explicitly.
 
 SPICE owns `.param`, `.temp`, `.lib`, analyses, `save`/`.probe`, `let`, `meas`
 and control loops.

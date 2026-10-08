@@ -110,7 +110,8 @@
   height: 30px;
   border-radius: 4px;
 }
-.simulation-start-workspace > .workspace-inline-name .workspace-cell-selection {
+.simulation-start-workspace > .workspace-inline-name .workspace-cell-selection,
+.simulation-start-workspace > .workspace-inline-name .workspace-environment {
   margin-top: 8px;
 }
 .simulation-start-workspace > .workspace-inline-name button {

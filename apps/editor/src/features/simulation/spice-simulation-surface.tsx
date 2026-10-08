@@ -991,11 +991,10 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
             // The Profile an Agent's new folder for the Cell takes (#1349).
             profileFor: (documentId: string) => {
               const project = session.currentProject() ?? latestProject;
-              const choice = newFolderProfile(
+              return newFolderProfile(
                 environments.profiles,
                 documentId ? { project, documentId } : undefined,
               );
-              return choice.ok ? choice.profileId : undefined;
             },
           }
         : {}),
