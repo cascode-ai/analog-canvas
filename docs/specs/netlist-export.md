@@ -345,7 +345,8 @@ freshly placed `S1` prints as `S1 a b S1 VSS ideal_switch` and warns that
 nothing drives `S1`; writing Φ₁ on its label moves it onto that shared clock.
 A phase drawn with an overbar over any of its characters (E̅N̅, Φ̄₁) is first
 the Net drawn the same way: when the Cell has a Net `EN_bar` (a Net Label or
-Cell Pin drawn E̅N̅), the switch reads it through `ideal_switch`. Otherwise it is
+Cell Pin drawn E̅N̅; `Φ_1_bar` or `Φ1_bar` for Φ̄₁), the switch reads it through
+`ideal_switch`. Otherwise it is
 the complement of the phase written without it: the switch reads the same clock
 node, so one Net or Cell Pin `EN` drives both phases and the same
 `SWITCH_PHASE_NOT_DRIVEN` finding names `EN` until something does, and it
@@ -667,8 +668,8 @@ valid modelname", with volare's binned models and with the hosted continuous
 library alike (an `nfet_01v8` of L 0.08 µm or W 0.3 µm on Production,
 2026-10-08).
 
-Only the shortest sizes are checked. The hosted library also stops past a
-longest L, which is not checked yet: on Production `nfet_03v3_nvt` runs at
+Of each device's limits only the shortest are checked. The hosted library
+also stops past a longest L, which is not checked yet (#1492): on Production `nfet_03v3_nvt` runs at
 L 0.9 µm but not 1 µm, and `nfet_05v0_nvt` at 8 µm but not 25 µm, at any W
 from 0.42 to 50 µm (2026-10-08). The 16 V pair is left to
 `REVIEWED_SIZE_UNMODELLED`, so a slip on it gets one finding.

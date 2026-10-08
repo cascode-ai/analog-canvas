@@ -254,6 +254,10 @@
   font-weight: 600;
   cursor: pointer;
 }
+.workspace-setup-actions button:hover,
+.workspace-environment button:hover {
+  filter: brightness(0.93);
+}
 .workspace-setup-caption {
   min-width: 0;
   color: var(--icm-text-muted);

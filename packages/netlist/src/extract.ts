@@ -1644,10 +1644,11 @@ function isDrawnSwitch(symbolId: string, project?: CircuitProject): boolean {
 
 /**
  * A drawn switch as the SPICE `S` card it means: its two switched nodes, then
- * its control against the Cell's ground, closing through the ideal switch
- * (or, for an overbarred phase, its complement). A phase names its node the
- * way a Net Label would, so the switch meets the clock drawn on a Net of that
- * name, or a Cell Pin of that name.
+ * its control against the Cell's ground, closing through the ideal switch.
+ * A phase names its node the way a Net Label would, so the switch meets the
+ * clock drawn on a Net of that name, or a Cell Pin of that name. An
+ * overbarred phase meets the Net drawn the same way, or, where the Cell has
+ * none, reads the plain phase through the complementary switch.
  */
 function extractDrawnSwitch(
   document: SchematicDocument,
@@ -1665,10 +1666,13 @@ function extractDrawnSwitch(
     // A switch whose label still shows its own name is clocked by a phase of
     // that name, so a freshly placed switch netlists at once. Writing Φ1 on
     // the label moves it onto a shared clock. A phase drawn with an overbar
-    // (E̅N̅) is the Net drawn so, EN_bar, when the Cell has one, and otherwise
-    // the complement of the phase without it: the same clock node, through
-    // the switch that closes while that clock is low.
+    // (E̅N̅, Φ̄₁) is the Net drawn so (EN_bar, Φ_1_bar, or Φ1_bar as typed)
+    // when the Cell has one, and otherwise the complement of the phase
+    // without it: the same clock node, through the switch that closes while
+    // that clock is low. Another switch's undriven phase is no such Net.
     const drawnPhase = drawnSwitchPhase(document, instance);
+    const added = undrivenPhaseNodes.get(context) ?? new Set<string>();
+    undrivenPhaseNodes.set(context, added);
     const existingNode = (name: string) => {
       const encoded = encodeCandidate(name, "local", options);
       return (
@@ -1680,10 +1684,12 @@ function extractDrawnSwitch(
           : undefined)
       );
     };
-    const barredNet =
-      drawnPhase?.complement && existingNode(`${drawnPhase.name}_bar`)
-        ? `${drawnPhase.name}_bar`
-        : undefined;
+    const barredNet = drawnPhase?.complement
+      ? [drawnPhase.barredNet, `${drawnPhase.name}_bar`].find((name) => {
+          const node = name === undefined ? undefined : existingNode(name);
+          return node !== undefined && !added.has(node);
+        })
+      : undefined;
     complement = !barredNet && (drawnPhase?.complement ?? false);
     const phase = barredNet ?? drawnPhase?.name ?? reference;
     const encoded = encodeCandidate(phase, "local", options);
@@ -1698,8 +1704,6 @@ function extractDrawnSwitch(
       return null;
     }
     const token = encoded.token;
-    const added = undrivenPhaseNodes.get(context) ?? new Set<string>();
-    undrivenPhaseNodes.set(context, added);
     controlNode = existingNode(phase) ?? null;
     if (!controlNode) {
       controlNode = token;
@@ -1719,7 +1723,7 @@ function extractDrawnSwitch(
         // it one before asking for a Net named after the switch.
         drawnPhase === null
           ? `No Net named ${phase} in this Cell drives switch ${reference}, which is clocked by its own name: write its phase on its label (a display alias such as Φ1) to share one clock, and draw that clock on a Net or Cell Pin of the same name`
-          : `No Net named ${phase} in this Cell drives switch ${reference}: name the clock's Net ${phase}, or add a Cell Pin ${phase}`,
+          : `No Net named ${phase} in this Cell drives switch ${reference}: name the clock's Net ${phase}, or add a Cell Pin ${phase}${complement ? `, or draw its complementary clock on a Net ${phase}_bar` : ""}`,
         [instance.id],
         "warning",
       );
