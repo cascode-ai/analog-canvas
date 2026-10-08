@@ -131,7 +131,12 @@ targets to avoid full-Snapshot name resolution. Names remain supported when usef
   spans. A same-text string on a bound display leaves its format alone; use
   explicit RichText to restyle it. Fractions/formulas need explicit RichText
   for a structural replacement, not a lossy plain-text projection.
-  Transformer parameter keys are `k/lp/ls`; T-Coil keys are `k/l1/l2/cb`.
+  Transformer parameter keys are `k/lp/ls`; T-Coil keys are `k/l1/l2/cb`;
+  Center-Tap Inductor keys are `k/l1/l2`. `tcoil` is a bridged T-coil: its
+  netlist adds coupling k and a bridge capacitor CB across the two ends. A
+  plain centre-tapped (differential) inductor, such as an LC tank with the
+  supply on its tap, is `center-tap-inductor`: two series halves meeting at
+  pin 3, uncoupled unless k is given.
   A MOS or BJT shows its multiplier with `showParameters:{m:true}`: "×8"
   with its name, bound to `m`, as bandgap and mirror figures print it. A
   MOS's shown W/L already prints its ×m, so the label appears only while

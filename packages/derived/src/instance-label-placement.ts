@@ -137,7 +137,7 @@ const SIDE_LABEL_SYMBOLS = new Set([
   "pulse-voltage-source",
 ]);
 
-const TOP_LABEL_SYMBOLS = new Set(["tcoil"]);
+const TOP_LABEL_SYMBOLS = new Set(["tcoil", "center-tap-inductor"]);
 
 export function isMosSymbol(resolved: ResolvedSymbol): boolean {
   const roles = new Set(resolved.definition.pins.map((pin) => pin.role));
@@ -1455,6 +1455,15 @@ function magneticParameterAnchor(
         // The Reference sits on this side of the Symbol; the value goes one
         // row past it.
         return { parts: TCOIL_BRIDGE, side: "top", rows: 1 };
+    }
+  if (symbolId === "center-tap-inductor")
+    switch (parameter) {
+      case "k":
+        return { parts: ["winding-center-link"], side: "top" };
+      case "l1":
+        return { parts: ["winding-1"], side: "bottom" };
+      case "l2":
+        return { parts: ["winding-2"], side: "bottom" };
     }
   if (symbolId === "xfmr")
     switch (parameter) {

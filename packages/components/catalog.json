@@ -38,6 +38,7 @@
     "inductor-compact",
     "tcoil",
     "xfmr",
+    "center-tap-inductor",
     "inverter",
     "nand-gate",
     "nand-gate-3",
@@ -153,6 +154,7 @@
     "ground",
     "vdd-port",
     "tcoil",
+    "center-tap-inductor",
     "xfmr"
   ]
 }

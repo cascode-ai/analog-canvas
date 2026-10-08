@@ -80,9 +80,32 @@ const TRANSFORMER: DrawnMagneticNetwork = {
   capacitors: [],
 };
 
+/**
+ * A centre-tapped inductor: two series windings meeting at the tap, pin 3,
+ * with no bridge capacitor (#1513). Its coupling defaults to 0, so the
+ * halves are plain series inductors until a value is given; given one, they
+ * aid end to end like the T-coil's, written from pin 1 and the tap.
+ */
+const CENTER_TAP: DrawnMagneticNetwork = {
+  subcircuit: "ct_inductor",
+  ports: [
+    { pinName: "1", port: "n1" },
+    { pinName: "2", port: "n2" },
+    { pinName: "3", port: "n3" },
+  ],
+  windings: [
+    { element: "L1", dotted: "n1", undotted: "n3", parameter: "l1" },
+    { element: "L2", dotted: "n3", undotted: "n2", parameter: "l2" },
+  ],
+  coupling: { element: "K12", parameter: "k" },
+  capacitors: [],
+};
+
+/** Each network by the library Symbol drawing it. */
 const NETWORKS: ReadonlyMap<string, DrawnMagneticNetwork> = new Map([
-  [T_COIL.subcircuit, T_COIL],
-  [TRANSFORMER.subcircuit, TRANSFORMER],
+  ["tcoil", T_COIL],
+  ["xfmr", TRANSFORMER],
+  ["center-tap-inductor", CENTER_TAP],
 ]);
 
 /** Every parameter a network reads, in the order its subcircuit declares them. */
@@ -98,7 +121,7 @@ export function drawnMagneticParameters(
 
 /**
  * The coupled network a device lowers to, or null for every other device.
- * The T-coil and transformer qualify, including the copies a saved Project
+ * The T-coil, transformer and centre-tap inductor qualify, including the copies a saved Project
  * carries of them, while they still have the library's identity, its pins in
  * its order, its parameters, and no netlist target of their own. Which end of
  * a winding is dotted belongs to the pins, as the library draws them.

@@ -788,6 +788,36 @@ export const agentRazaviAuthoringCatalog = {
       variants: [],
     },
     {
+      symbolId: "center-tap-inductor",
+      name: "Center-Tap Inductor",
+      category: "passive",
+      defaultVariantId: null,
+      labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
+      pins: [
+        {
+          name: "1",
+          role: "passive",
+          direction: "west",
+          visibility: "visible",
+        },
+        {
+          name: "2",
+          role: "passive",
+          direction: "east",
+          visibility: "visible",
+        },
+        {
+          name: "3",
+          role: "passive",
+          direction: "south",
+          visibility: "visible",
+        },
+      ],
+      variants: [],
+    },
+    {
       symbolId: "inverter",
       name: "Inverter",
       category: "logic",

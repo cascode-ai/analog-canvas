@@ -307,7 +307,8 @@ and values placed with `showValue:true`, are object-attached; power markers own 
 power claims. Use `set-instance-display` with `instanceIds`, `showReference`
 and/or `showValue` to change visibility without creating duplicate annotations.
 For transformer (`xfmr`) parameters use `showParameters:{k:true,lp:true,ls:false}`;
-for T-Coil use `k`, `l1`, `l2`, `cb`. Keys are lowercase, omitted keys stay
+for T-Coil use `k`, `l1`, `l2`, `cb`; for Center-Tap Inductor `k`, `l1`, `l2`.
+Keys are lowercase, omitted keys stay
 unchanged, and unsupported keys for any selected device reject the whole action.
 Set the electrical parameter values before showing them. Hide/show reuses the
 same attached labels and preserves their authored placement and style.

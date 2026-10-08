@@ -37,6 +37,7 @@ const PRODUCT_IDS = [
   "inductor-compact",
   "tcoil",
   "xfmr",
+  "center-tap-inductor",
   "inverter",
   "nand-gate",
   "nmos",

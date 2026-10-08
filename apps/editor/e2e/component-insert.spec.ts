@@ -2186,7 +2186,7 @@ test("shows the complete foldable categorized Library, quick-places a device, an
   const extendedCategory = page.getByTestId("shapes-category-extended-devices");
   await expect(
     extendedCategory.locator('[data-testid^="shapes-chip-"]'),
-  ).toHaveCount(11);
+  ).toHaveCount(12);
   await expect(
     extendedCategory.getByTestId("shapes-chip-depletion-nmos"),
   ).toContainText("D-NMOS");

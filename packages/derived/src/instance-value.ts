@@ -95,7 +95,7 @@ export function symbolSupportsValueAnnotation(symbolId: string): boolean {
 export function magneticDisplayParameters(
   symbolId: string,
 ): readonly DeviceParameterDefinition[] {
-  if (symbolId !== "xfmr" && symbolId !== "tcoil") return [];
+  if (!["xfmr", "tcoil", "center-tap-inductor"].includes(symbolId)) return [];
   const parameters = deviceDescriptor(symbolId)?.parameters ?? [];
   return [
     ...parameters.filter((parameter) => parameter.name === "k"),
