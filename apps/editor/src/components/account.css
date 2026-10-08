@@ -595,3 +595,101 @@
   background: var(--icm-accent);
   font-weight: 600;
 }
+
+/* The Owner's Data tab (#1446): plain tables of the Gallery's numbers. */
+.owner-data {
+  display: grid;
+  gap: 16px;
+}
+
+.owner-data-search {
+  max-width: 20rem;
+  padding: 7px 10px;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
+  color: var(--icm-text);
+  background: var(--icm-surface);
+  font: inherit;
+  font-size: 13px;
+}
+
+.owner-data-scroll {
+  overflow-x: auto;
+}
+
+.owner-data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.owner-data-table th {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--icm-border);
+  color: var(--icm-text-muted);
+  font-weight: 600;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.owner-data-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--icm-border);
+  vertical-align: top;
+}
+
+.owner-data-table .owner-data-number {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.owner-data .owner-data-author {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  color: var(--icm-accent);
+  background: none;
+  box-shadow: none;
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.owner-data .owner-data-author[aria-expanded="true"] {
+  color: var(--icm-text);
+}
+
+/* A name, not a button: no box under the pointer either. */
+.owner-data .owner-data-author:hover:not(:disabled) {
+  background: none;
+  text-decoration: underline;
+}
+
+.owner-data .owner-data-author:focus-visible {
+  outline: 2px solid var(--icm-accent);
+  outline-offset: 2px;
+}
+
+.owner-data-table a {
+  color: var(--icm-accent);
+  text-decoration: none;
+}
+
+.owner-data-table a:hover {
+  text-decoration: underline;
+}
+
+.owner-data-table .owner-data-date {
+  white-space: nowrap;
+}
+
+.owner-data-detail > td {
+  padding: 4px 8px 12px 20px;
+  background: var(--icm-surface-hover);
+}
+
+.owner-data-detail .owner-data-table td {
+  border-bottom-color: transparent;
+}

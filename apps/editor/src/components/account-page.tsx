@@ -16,6 +16,7 @@ import {
 import { AiAccountsContent } from "./ai-accounts";
 import { GalleryChrome } from "./gallery-chrome";
 import { ModerationContent } from "./moderation";
+import { OwnerDataContent } from "./owner-data";
 import { MySubmissionsContent } from "./my-submissions";
 
 const ShelfWall = lazy(() =>
@@ -179,12 +180,13 @@ export function AccountDeleteDialog({
 }
 
 export type AccountTab =
-  "circuits" | "projects" | "moderation" | "ai" | "settings";
+  "circuits" | "projects" | "moderation" | "data" | "ai" | "settings";
 
 const TAB_LABELS: Record<AccountTab, string> = {
   circuits: "Circuits",
   projects: "Cloud Projects",
   moderation: "Moderation",
+  data: "Data",
   ai: "AI Accounts",
   settings: "Settings",
 };
@@ -193,12 +195,18 @@ const TAB_LABELS: Record<AccountTab, string> = {
  * The tabs this account has: its published circuits, then its private Cloud
  * Projects, which the editor's File menu no longer lists. Moderation and
  * the AI accounts are the Owner's: a moderator's tools are on each circuit's
- * own page, so there is nothing for them to open here.
+ * own page, so there is nothing for them to open here. Data is the Owner's
+ * own accounts' alone, not every administrator's (#1446).
  */
 export function accountTabs(user: SessionUser): AccountTab[] {
-  return user.isAdmin
-    ? ["circuits", "projects", "moderation", "ai", "settings"]
-    : ["circuits", "projects", "settings"];
+  return [
+    "circuits",
+    "projects",
+    ...(user.isAdmin ? (["moderation"] as const) : []),
+    ...(user.isOwner ? (["data"] as const) : []),
+    ...(user.isAdmin ? (["ai"] as const) : []),
+    "settings",
+  ];
 }
 
 /** The tab a link names (`?tab=…`), or the circuits. */
@@ -206,6 +214,7 @@ export function accountTabFromSearch(search: string): AccountTab {
   const tab = new URLSearchParams(search).get("tab");
   return tab === "projects" ||
     tab === "moderation" ||
+    tab === "data" ||
     tab === "ai" ||
     tab === "settings"
     ? tab
@@ -457,6 +466,8 @@ export function AccountDashboard({
           </Suspense>
         ) : tab === "moderation" ? (
           <ModerationContent isAdmin={user.isAdmin} />
+        ) : tab === "data" ? (
+          <OwnerDataContent />
         ) : tab === "ai" ? (
           <AiAccountsContent />
         ) : (

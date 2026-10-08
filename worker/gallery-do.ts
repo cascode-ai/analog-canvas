@@ -1009,6 +1009,8 @@ export class GalleryDO {
         return this.tagCounts(body);
       case "authors":
         return this.authorCounts();
+      case "owner-data":
+        return this.ownerData(body);
       case "rename-owner":
         return this.renameOwner(body);
       case "update-entry":
@@ -3428,6 +3430,92 @@ export class GalleryDO {
         ...summaryOf(row),
         rejectReason: row.reject_reason,
         reviewedAt: row.reviewed_at,
+      })),
+    });
+  }
+
+  /**
+   * The Owner's Data tab (#1446): each author's public circuits counted, or
+   * with `author` (an account ID, or `legacy:` and a byline) that author's
+   * public circuits. Public facts only: what the wall shows.
+   */
+  private ownerData(body: Record<string, unknown>): Response {
+    const likes =
+      "(SELECT COUNT(*) FROM gallery_likes l WHERE l.entry_id = e.id)";
+    const parts =
+      "CASE WHEN e.component_count_version > 0 THEN e.component_count END";
+    if (typeof body.author === "string") {
+      const legacy = body.author.startsWith("legacy:")
+        ? body.author.slice("legacy:".length)
+        : null;
+      const rows = this.sql
+        .exec<{
+          id: string;
+          name: string;
+          created_at: string;
+          parts: number | null;
+          netlistable: number;
+          ai_generated: number;
+          likes: number;
+        }>(
+          `SELECT e.id, e.name, e.created_at, ${parts} AS parts,
+                  e.netlistable, e.ai_generated, ${likes} AS likes
+           FROM gallery_entries e
+           WHERE e.status = 'public' AND ${
+             legacy === null
+               ? "e.owner_user_id = ?"
+               : "COALESCE(e.owner_user_id, '') = '' AND e.author = ?"
+           }
+           ORDER BY e.created_at DESC, e.id DESC`,
+          legacy ?? body.author,
+        )
+        .toArray();
+      return Response.json({
+        circuits: rows.map((row) => ({
+          id: row.id,
+          name: row.name,
+          createdAt: row.created_at,
+          parts: row.parts,
+          netlistable: row.netlistable === 1,
+          aiGenerated: row.ai_generated === 1,
+          likes: Number(row.likes),
+        })),
+      });
+    }
+    const authors = this.sql
+      .exec<{
+        author: string;
+        key: string;
+        circuits: number;
+        parts: number | null;
+        ai: number;
+        netlist: number;
+        likes: number;
+        latest: string;
+      }>(
+        `SELECT MAX(e.author) AS author,
+                COALESCE(NULLIF(e.owner_user_id, ''), 'legacy:' || e.author)
+                  AS key,
+                COUNT(*) AS circuits, AVG(${parts}) AS parts,
+                SUM(e.ai_generated = 1) AS ai, SUM(e.netlistable = 1) AS netlist,
+                SUM(${likes}) AS likes, MAX(e.created_at) AS latest
+         FROM gallery_entries e
+         WHERE e.status = 'public' AND TRIM(e.author) <> ''
+         GROUP BY key
+         ORDER BY circuits DESC, author COLLATE NOCASE ASC, author ASC`,
+      )
+      .toArray();
+    return Response.json({
+      authors: authors.map((row) => ({
+        author: row.author,
+        key: row.key,
+        circuits: Number(row.circuits),
+        averageParts:
+          row.parts === null ? null : Math.round(Number(row.parts) * 10) / 10,
+        ai: Number(row.ai),
+        withNetlist: Number(row.netlist),
+        likes: Number(row.likes),
+        latest: row.latest,
       })),
     });
   }

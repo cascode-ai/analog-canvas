@@ -57,6 +57,16 @@ export const AI_SEATS: readonly {
     formerName: "GPT-6-Astra",
   },
 ];
+/**
+ * The site's Owner, by account: the Google and the GitHub sign-in (#1446).
+ * Only these open the account page's Data tab and the numbers behind it;
+ * other administrators do not, nor does an AI account a browser was
+ * switched to. Listed by account ID, never by address.
+ */
+export const OWNER_ACCOUNT_IDS: readonly string[] = [
+  "01933810-6668-4d6b-86cd-62f91a5b1686", // Google
+  "60334273-e419-4469-a756-7a557af16029", // GitHub
+];
 /** The super-admin's own session, kept while the browser is an AI account. */
 export const AUTH_OWNER_COOKIE = "icm_owner_session";
 
@@ -121,6 +131,8 @@ export interface SessionUser {
   isAdmin: boolean;
   /** An AI account's seat, such as ai-designer-1. */
   seat?: string;
+  /** One of the Owner's own accounts (OWNER_ACCOUNT_IDS). */
+  isOwner?: true;
   /**
    * The super-admin who switched this browser to the AI account it is
    * signed in as, and can switch it back (`/api/auth/me` only).
@@ -511,6 +523,7 @@ export class AuthDO {
       ...(row.provider === AI_ACCOUNT_PROVIDER
         ? { seat: row.provider_id }
         : {}),
+      ...(OWNER_ACCOUNT_IDS.includes(row.id) ? { isOwner: true as const } : {}),
     };
   }
 
