@@ -269,7 +269,7 @@
       "uri": "analog-canvas://catalog/builtins",
       "kitPath": "references/razavi-authoring-catalog.json",
       "name": "Reviewed built-in catalog",
-      "description": "Canonical built-in palette symbols and pins.",
+      "description": "Canonical built-in palette symbols and pins, with the 3- and 4-input gates their Inputs choice reaches.",
       "mimeType": "application/json"
     },
     {

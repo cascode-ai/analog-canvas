@@ -42,7 +42,8 @@ GET  /api/agent/openapi.json
 private scratch folder. It contains `README.md`, `AGENTS.md`, one session
 `SKILL.md`, concise authoring rules, and a projection of the reviewed
 built-in palette catalog: every symbol a person can pick from the palette,
-Razavi-reference and house entries alike. It contains no Project data, claim code, token, or mutation
+Razavi-reference and house entries alike, with the forms Properties reaches
+from them (extended MOS devices, 3- and 4-input gates). It contains no Project data, claim code, token, or mutation
 operation; it is not part of the Circuit OpenAPI. The catalog supplies only
 known built-in authoring facts before first placement; a Snapshot remains the
 authority for every object in the live Project. The Agent fetches the Kit only

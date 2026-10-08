@@ -143,6 +143,116 @@ describe("Agent property actions are planned as Apply in Properties", () => {
     expect(instance("F1").netlist).not.toHaveProperty("control");
   });
 
+  it("switches a gate's input count as its Properties Inputs choice does (#1457)", async () => {
+    const { controller, apply, refuse, instance } = await session();
+    await apply([place("nor-gate", "X1", 100)]);
+    const before = structuredClone(controller.project);
+    const gate = { kind: "instance", reference: "X1" };
+    await apply([{ kind: "set-property", target: gate, set: { inputs: "3" } }]);
+    // The same choice in Properties.
+    const document = before.documents[0]!;
+    const plan = planPropertyApply(
+      {
+        project: before,
+        document,
+        resolver: createProjectSymbolResolver(before, builtInSymbols),
+        instance: document.instances.find((item) => item.reference === "X1")!,
+      },
+      { placement: null, appearance: { color: "auto" }, inputs: 3 },
+    );
+    expect(plan.kind).toBe("edits");
+    const gui = new EditorDocumentController(before);
+    if (plan.kind === "edits") expect(gui.transact(plan.edits).ok).toBe(true);
+    expect(instance("X1")).toEqual(
+      gui.document.instances.find((item) => item.reference === "X1"),
+    );
+    expect(instance("X1").symbolId).toBe("nor-gate-3");
+    await apply([{ kind: "set-property", target: gate, set: { inputs: "2" } }]);
+    expect(instance("X1").symbolId).toBe("nor-gate");
+    expect(
+      await refuse([
+        { kind: "set-property", target: gate, set: { inputs: "5" } },
+      ]),
+    ).toContain("inputs must be 2, 3, or 4");
+    // An input wired to something stays: dropping it is refused, as in
+    // Properties, and nothing changes.
+    await apply([{ kind: "set-property", target: gate, set: { inputs: "3" } }]);
+    await apply([place("resistor", "R1", 100, 300)]);
+    await apply([
+      {
+        kind: "connect",
+        from: { kind: "pin", instance: "X1", pin: "C" },
+        to: { kind: "pin", instance: "R1", pin: "1" },
+      },
+    ]);
+    const wired = structuredClone(controller.project);
+    expect(
+      await refuse([
+        { kind: "set-property", target: gate, set: { inputs: "2" } },
+      ]),
+    ).toContain("X1.C is connected; disconnect it before choosing 2 inputs");
+    expect(controller.project).toEqual(wired);
+    // A pin marked No Connect is named too; a block without the choice
+    // refuses it rather than exporting it as a parameter.
+    await apply([place("nor-gate-3", "X2", 300), place("inverter", "X3", 500)]);
+    await apply([
+      {
+        kind: "disconnect",
+        target: { kind: "pin", instance: "X2", pin: "C" },
+        noConnect: true,
+      },
+    ]);
+    expect(
+      await refuse([
+        {
+          kind: "set-property",
+          target: { kind: "instance", reference: "X2" },
+          set: { inputs: "2" },
+        },
+      ]),
+    ).toContain("X2.C is marked No Connect; remove the mark");
+    expect(
+      await refuse([
+        {
+          kind: "set-property",
+          target: { kind: "instance", reference: "X3" },
+          set: { inputs: "3" },
+        },
+      ]),
+    ).toContain("X3 (inverter) has no input count");
+  });
+
+  it("places a 3- or 4-input gate as the Inputs choice leaves one (#1457)", async () => {
+    const { apply, instance } = await session();
+    await apply([
+      place("nor-gate-3", "X1", 100),
+      place("and-gate-4", "X2", 300),
+      place("nor-gate", "X3", 500),
+      place("and-gate", "X4", 700),
+    ]);
+    // Names resolve against the call's Snapshot, so the switch is a call
+    // of its own.
+    await apply([
+      {
+        kind: "set-property",
+        target: { kind: "instance", reference: "X3" },
+        set: { inputs: "3" },
+      },
+      {
+        kind: "set-property",
+        target: { kind: "instance", reference: "X4" },
+        set: { inputs: "4" },
+      },
+    ]);
+    const gate = (reference: string) => {
+      const { symbolId, symbolVariantId, netlist } = instance(reference);
+      return { symbolId, symbolVariantId, netlist };
+    };
+    expect(gate("X1")).toEqual(gate("X3"));
+    expect(gate("X2")).toEqual(gate("X4"));
+    expect(gate("X2").symbolId).toBe("and-gate-4");
+  });
+
   it("makes an adder input subtract as its Properties sign does (#1324)", async () => {
     const { controller, apply, refuse, instance } = await session();
     await apply([

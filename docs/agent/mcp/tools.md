@@ -247,7 +247,10 @@ set:{signB:"-"}}` (`signA` for input A; `+` or `-`, and a Unicode minus `−`
 is stored as `-`). The drawing then marks each input + or −, and the netlist
 calls `adder_minus_b` (or `adder_minus_a`, `adder_minus_ab`), whose source for
 B has gain −1. Do not add a −1 gain block for a subtraction the figure does
-not draw.
+not draw. A logic gate's input count is likewise a Properties choice, not a
+netlist parameter: `set-property {target, set:{inputs:"3"}}` switches an AND,
+NAND, OR, NOR, XOR or XNOR gate between 2, 3 and 4 inputs, and
+`place-component` places `nor-gate-3`, `xor-gate-4` and the like directly.
 `set-display-alias {target, text}` draws a part's name label as other text
 while its Reference (or Pin name) stays in the netlist, as the Properties
 display alias does: an op-amp stays `X1` and shows `A1`; `text:null` shows its
