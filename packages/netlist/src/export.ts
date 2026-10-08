@@ -275,7 +275,7 @@ export function createDesignNetlistExport(
   file.text = file.text.slice(file.text.indexOf("\n") + 1).trimStart();
   if (format === "spice") file.text = `\n${file.text}`;
   const shift = file.text.length - originalLength;
-  const composed = appendProjectModelSources(file.text, models.sources);
+  const composed = appendProjectModelSources(file.text, models.sources, format);
   file.text = composed.text;
   const locations = printed
     ? shiftDesignNetlistLocations(printed.locations, shift)

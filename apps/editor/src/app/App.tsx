@@ -7546,6 +7546,7 @@ function WorkspaceEditor({
                   editCellParameter(name, change, documentId),
                 externalDefinitions: project.externalSubcircuitDefinitions,
                 onSetExternalDefinition: setExternalSubcircuitDefinition,
+                onCopyModelText: (text) => exportDelivery.copyText(text),
                 onApplyModelSource: (edit) => {
                   const result = dispatchProjectTransaction({
                     transactionId: `model-${crypto.randomUUID()}`,

@@ -138,7 +138,8 @@ export const CircuitProjectSchema = z
       string,
       z.infer<typeof ExternalSubcircuitDefinitionSchema>
     >();
-    const externalDefinitionNames = new Set<string>();
+    const externalDefinitionNames: { name: string; nativeSpectre: boolean }[] =
+      [];
     for (const [
       definitionIndex,
       definition,
@@ -149,15 +150,30 @@ export const CircuitProjectSchema = z
         `externalSubcircuitDefinitions.${definitionIndex}.terminals`,
         context,
       );
-      const normalizedName = definition.name.toLowerCase();
-      if (externalDefinitionNames.has(normalizedName)) {
+      const nativeSpectre =
+        definition.implementation?.kind === "source" &&
+        project.modelSources?.some(
+          (source) =>
+            source.id === definition.implementation?.sourceId &&
+            source.language === "spectre",
+        );
+      if (
+        externalDefinitionNames.some((previous) =>
+          previous.nativeSpectre && nativeSpectre
+            ? previous.name === definition.name
+            : previous.name.toLowerCase() === definition.name.toLowerCase(),
+        )
+      ) {
         context.addIssue({
           code: "custom",
           message: `Duplicate external subcircuit name: ${definition.name}`,
           path: ["externalSubcircuitDefinitions", definitionIndex, "name"],
         });
       }
-      externalDefinitionNames.add(normalizedName);
+      externalDefinitionNames.push({
+        name: definition.name,
+        nativeSpectre: Boolean(nativeSpectre),
+      });
       for (const [field, values] of [
         ["terminals", definition.terminals.map((terminal) => terminal.name)],
         [
@@ -167,7 +183,7 @@ export const CircuitProjectSchema = z
       ] as const) {
         const seen = new Set<string>();
         for (const [index, value] of values.entries()) {
-          const normalized = value.toLowerCase();
+          const normalized = nativeSpectre ? value : value.toLowerCase();
           if (seen.has(normalized)) {
             context.addIssue({
               code: "custom",

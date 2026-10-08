@@ -186,6 +186,7 @@ export function generateCircuitSource(
     for (const model of models.sources) {
       const rendered = renderProjectModelSource(model, {
         outputPath: binding.path,
+        format: "spice",
       });
       printed.text += `\n* Project model: applied version ${model.revision}${model.draft ? " (draft pending)" : ""}\n`;
       const offset = printed.text.length;

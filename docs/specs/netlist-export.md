@@ -908,6 +908,17 @@ include; it never repairs a broken hierarchy or invents foundry model data.
 
 ## Simulation boundary
 
+Project-owned external sources are native SPICE or Spectre. Their applied
+revision owns both generated dialects, including the owned helper closure and
+explicit third-party references. No independently editable converted model is
+stored. Cross-dialect output carries derived owner mappings; edits that cannot
+reverse exactly return MODEL_SOURCE_EDIT_REQUIRES_OWNER instead of changing an
+experiment copy. Unsupported syntax reports a native file position. External
+Spectre library references cannot be relabelled as SPICE; explicit SPICE language
+sections retain their real language. Model Copy omits enclosing root/testbench
+and refuses pending drafts. The GUI shares only Format/Process/Copy controls
+with the right panel; their mutation scope remains the current model owner.
+
 [Simulation source authoring and compilation](simulation.md) compose explicit
 environment, source and analysis intent with the electrical projection.
 [Execution](simulation-execution.md) owns preparation and runs. Structural

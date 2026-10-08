@@ -479,7 +479,10 @@ export function compileNgspiceSourceSimulation(
     const file = generated[0];
     file.modelSources = [];
     for (const source of projectModels.sources) {
-      const model = renderProjectModelSource(source, { outputPath: file.path });
+      const model = renderProjectModelSource(source, {
+        outputPath: file.path,
+        format: "spice",
+      });
       file.text += `\n* Project model: applied version ${source.revision}\n`;
       const offset = file.text.length;
       file.text += model.text;
@@ -696,6 +699,9 @@ export function compileNgspiceSourceSimulation(
               revision: s.revision,
               path: s.path,
               startOffset: s.sourceOffset,
+              ...(s.derived
+                ? { derived: true, sourceLength: s.sourceLength }
+                : {}),
             },
           });
           offset = s.endOffset;

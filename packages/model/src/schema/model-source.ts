@@ -8,16 +8,18 @@ import {
 } from "./simulation.js";
 
 /** Applied native model source; draft text never replaces executable bytes. */
+export const ModelSourceLanguageSchema = z.enum(["spice", "spectre"]);
 export const ProjectModelSourceSchema = z
   .strictObject({
     id: StableIdSchema,
-    language: z.literal("spice"),
+    language: ModelSourceLanguageSchema,
     entry: SimulationInputPathSchema,
     files: z.array(SimulationRawFileSchema).min(1).max(256),
     dependencies: z.array(SimulationRawDependencySchema).max(256).default([]),
     revision: z.number().int().nonnegative(),
     draft: z
       .strictObject({
+        language: ModelSourceLanguageSchema.optional(),
         entry: SimulationInputPathSchema,
         files: z.array(SimulationRawFileSchema).min(1).max(256),
         baseRevision: z.number().int().nonnegative(),

@@ -163,6 +163,8 @@ export const SimulationFileResultSchema = z.union([
           startOffset: Revision,
           endOffset: Revision,
           sourceOffset: Revision,
+          derived: z.boolean().optional(),
+          sourceLength: Revision.optional(),
         }),
       )
       .optional(),

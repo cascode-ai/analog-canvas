@@ -20,6 +20,11 @@ import {
 import type { NetlistDiagnostic, PrintedNetlistInstance } from "@icm/netlist";
 import type { CircuitProject, ObjectLocator } from "@icm/model";
 import {
+  NetlistCodeSelect,
+  NetlistCopyButton,
+  netlistFormatOptions,
+} from "./netlist-code-controls";
+import {
   inferNetlistProcess,
   prepareNetlistProcess,
   netlistFamilyTarget,
@@ -436,37 +441,27 @@ export function NetlistCodePanel({
               </select>
             </label>
           ) : null}
-          <label>
-            <span>Format</span>
-            <select
-              aria-label="Netlist format"
-              value={format}
-              onChange={(event) =>
-                onFormatChange(event.currentTarget.value as NetlistFormat)
-              }
-            >
-              <option value="spice">SPICE</option>
-              <option value="spectre">SCS</option>
-            </select>
-          </label>
-          <label>
-            <span>Process</span>
-            <select
-              aria-label="Netlist process"
-              value={process}
-              disabled={dirty}
-              onChange={(event) => {
-                const id = event.currentTarget.value as NetlistProfileId;
-                if (applyProcess(profiles[id])) onProcessChange(id);
-              }}
-            >
-              {NETLIST_PROFILE_IDS.map((id) => (
-                <option key={id} value={id}>
-                  {NETLIST_PROFILE_LABELS[id]}
-                </option>
-              ))}
-            </select>
-          </label>
+          <NetlistCodeSelect
+            label="Format"
+            ariaLabel="Netlist format"
+            value={format}
+            options={netlistFormatOptions}
+            onChange={(value) => onFormatChange(value as NetlistFormat)}
+          />
+          <NetlistCodeSelect
+            label="Process"
+            ariaLabel="Netlist process"
+            value={process}
+            disabled={dirty}
+            options={NETLIST_PROFILE_IDS.map((id) => ({
+              value: id,
+              label: NETLIST_PROFILE_LABELS[id],
+            }))}
+            onChange={(value) => {
+              const id = value as NetlistProfileId;
+              if (applyProcess(profiles[id])) onProcessChange(id);
+            }}
+          />
         </div>
         <div className="netlist-code-actions">
           {hasModelSources && dirty ? (
@@ -510,30 +505,16 @@ export function NetlistCodePanel({
           </button>
           {/* Copying is at hand beside the code it copies. An unapplied draft
               is not the circuit yet, so copying waits for Apply or Discard. */}
-          <button
-            type="button"
-            className="netlist-code-copy"
-            data-testid="copy-netlist-panel"
-            aria-label="Copy netlist"
+          <NetlistCopyButton
+            testId="copy-netlist-panel"
             title={
               draftPreview
                 ? "Copy netlist · finish each ? first"
                 : "Copy netlist"
             }
             disabled={dirty || !!draftPreview}
-            onClick={onCopy}
-          >
-            <svg viewBox="0 0 20 20" aria-hidden="true">
-              <path
-                d="M7 7h10v10H7z M13 7V3H3v10h4"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </button>
+            onCopy={onCopy}
+          />
         </div>
       </div>
       <div

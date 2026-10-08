@@ -175,10 +175,15 @@ test("Agent and GUI apply the same owned model and preserve atomic refusal", asy
   await expect(manager.getByLabel("External model netlist")).toContainText(
     "13k",
   );
+  await expect(manager.getByLabel("External model netlist")).toBeFocused();
+  await expect(manager.getByRole("status")).toHaveCount(1);
+  await expect(manager.getByRole("alert")).toHaveCount(0);
   await manager
     .getByRole("button", { name: "Apply model", exact: true })
     .click();
-  await expect(manager).toContainText("Model source revision is stale");
+  await expect(manager.getByRole("status")).toContainText(
+    "The applied model changed;",
+  );
   expect(
     (await client.refreshSnapshot()).snapshot.project.modelSources?.[0]
       ?.revision,

@@ -17481,6 +17481,30 @@
                   "source": {
                     "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema485"
                   },
+                  "transform": {
+                    "type": "object",
+                    "properties": {
+                      "language": {
+                        "type": "string",
+                        "enum": [
+                          "spice",
+                          "spectre"
+                        ]
+                      },
+                      "process": {
+                        "type": "string",
+                        "enum": [
+                          "abstract",
+                          "sky130",
+                          "sg13g2",
+                          "tsmc28",
+                          "tsmc180",
+                          "custom"
+                        ]
+                      }
+                    },
+                    "additionalProperties": false
+                  },
                   "definitions": {
                     "minItems": 1,
                     "maxItems": 256,
@@ -17529,6 +17553,13 @@
                     "type": "integer",
                     "minimum": 0,
                     "maximum": 9007199254740991
+                  },
+                  "language": {
+                    "type": "string",
+                    "enum": [
+                      "spice",
+                      "spectre"
+                    ]
                   },
                   "entry": {
                     "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema487"
@@ -19043,7 +19074,10 @@
           },
           "__schema486": {
             "type": "string",
-            "const": "spice"
+            "enum": [
+              "spice",
+              "spectre"
+            ]
           },
           "__schema487": {
             "type": "string"
@@ -19111,6 +19145,9 @@
           "__schema493": {
             "type": "object",
             "properties": {
+              "language": {
+                "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema486"
+              },
               "entry": {
                 "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema487"
               },
@@ -34999,7 +35036,10 @@
           },
           "__schema257": {
             "type": "string",
-            "const": "spice"
+            "enum": [
+              "spice",
+              "spectre"
+            ]
           },
           "__schema258": {
             "minItems": 1,
@@ -35064,6 +35104,9 @@
           "__schema263": {
             "type": "object",
             "properties": {
+              "language": {
+                "$ref": "#/components/schemas/agentCircuitResponse/$defs/__schema257"
+              },
               "entry": {
                 "$ref": "#/components/schemas/agentCircuitResponse/$defs/__schema10"
               },
@@ -36550,6 +36593,12 @@
                                   "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema18"
                                 },
                                 "sourceOffset": {
+                                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema18"
+                                },
+                                "derived": {
+                                  "type": "boolean"
+                                },
+                                "sourceLength": {
                                   "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema18"
                                 }
                               },

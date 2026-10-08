@@ -1058,7 +1058,7 @@ export function resolveReviewedLibraryInterface(
 }
 
 /** The process each reviewed library belongs to: a PDK's standard cells ride with its primitives. */
-const LIBRARY_PROCESS: Readonly<
+export const LIBRARY_PROCESS: Readonly<
   Record<ReviewedExternalDeviceBinding["libraryId"], string>
 > = {
   sky130_fd_pr: "sky130",

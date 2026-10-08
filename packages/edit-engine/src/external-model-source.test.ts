@@ -10,6 +10,7 @@ import {
   compileSourceSimulation,
   generateCircuitSource,
   planCircuitSourceEdit,
+  planMappedProjectModelEdit,
 } from "@icm/netlist";
 import { describe, expect, it } from "vitest";
 import { executeProjectTransaction } from "./project-transaction.js";
@@ -25,6 +26,539 @@ import type { ProjectStructureEdit } from "./project-transaction.js";
 import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 
 describe("Project-owned external model source", () => {
+  it("rejects colliding global SPICE models inside separate native Spectre owners", () => {
+    let project = createEmptyProject("mixed-collision", "Mixed collision");
+    for (const [index, name] of ["Local", "local"].entries()) {
+      const result = executeProjectTransaction(project, {
+        projectId: project.id,
+        expectedStructureRevision: project.structureRevision,
+        transactionId: "owner-" + index,
+        actor: { kind: "agent", id: "test" },
+        edits: [
+          {
+            kind: "apply_model_source",
+            source: {
+              id: "owner-" + index,
+              revision: 0,
+              language: "spectre",
+              entry: "model.scs",
+              dependencies: [],
+              files: [
+                {
+                  path: "model.scs",
+                  text: `simulator lang=spice\n.model ${name} D(Is=1e-14)\nsimulator lang=spectre\nsubckt demo${index} ()\nends demo${index}\n`,
+                },
+              ],
+            },
+            definitions: [
+              { definitionId: "demo-" + index, entry: "demo" + index },
+            ],
+          },
+        ],
+      });
+      if (!index) {
+        expect(result.ok, JSON.stringify(result)).toBe(true);
+        if (!result.ok) return;
+        project = result.project;
+      } else
+        expect(result).toMatchObject({
+          ok: false,
+          diagnostics: [
+            expect.objectContaining({ code: "MODEL_SOURCE_NAME_CONFLICT" }),
+          ],
+        });
+    }
+  });
+  it("retains structured Agent refusal locations without changing the Project", () => {
+    const project = createEmptyProject("located-refusal", "Located refusal");
+    const result = executeProjectTransaction(project, {
+      projectId: project.id,
+      expectedStructureRevision: 0,
+      transactionId: "refused-language",
+      actor: { kind: "agent", id: "test" },
+      edits: [
+        {
+          kind: "apply_model_source",
+          source: {
+            id: "owner",
+            revision: 0,
+            language: "spectre",
+            entry: "model.scs",
+            dependencies: [],
+            files: [
+              {
+                path: "model.scs",
+                text: "subckt demo ()\nB1 (a 0) bsource v=sin(time)\nends demo\n",
+              },
+            ],
+          },
+          definitions: [{ definitionId: "demo", entry: "demo" }],
+          transform: { language: "spice" },
+        },
+      ],
+    });
+    expect(result).toMatchObject({
+      ok: false,
+      project,
+      diagnostics: [
+        expect.objectContaining({
+          code: "UNSUPPORTED_SYNTAX",
+          parameters: expect.objectContaining({
+            file: "model.scs",
+            line: 2,
+            sourceId: "owner",
+            revision: 0,
+          }),
+        }),
+      ],
+    });
+    expect(project.modelSources).toBeUndefined();
+    const open = executeProjectTransaction(project, {
+      projectId: project.id,
+      expectedStructureRevision: 0,
+      transactionId: "unclosed",
+      actor: { kind: "agent", id: "test" },
+      edits: [
+        {
+          kind: "apply_model_source",
+          source: {
+            id: "owner",
+            revision: 0,
+            language: "spectre",
+            entry: "open.scs",
+            files: [{ path: "open.scs", text: "subckt open ()\n" }],
+            dependencies: [],
+          },
+          definitions: [{ definitionId: "open", entry: "open" }],
+        },
+      ],
+    });
+    expect(open).toMatchObject({
+      ok: false,
+      diagnostics: [
+        expect.objectContaining({
+          code: "MODEL_SOURCE_DECLARATION",
+          parameters: expect.objectContaining({ file: "open.scs", line: 1 }),
+        }),
+      ],
+    });
+  });
+  it("preserves native Spectre case distinctions and refuses an incompatible SPICE projection", () => {
+    const project = createEmptyProject("native-case", "Native case");
+    const result = executeProjectTransaction(project, {
+      projectId: project.id,
+      expectedStructureRevision: 0,
+      transactionId: "native-case",
+      actor: { kind: "agent", id: "test" },
+      edits: [
+        {
+          kind: "apply_model_source",
+          source: {
+            id: "owner",
+            revision: 0,
+            language: "spectre",
+            entry: "model.scs",
+            dependencies: [],
+            files: [
+              {
+                path: "model.scs",
+                text: "subckt demo (A a)\nparameters R=1000 r=2000\nR1 (A a) resistor r=R\nends demo\n",
+              },
+            ],
+          },
+          definitions: [{ definitionId: "demo", entry: "demo" }],
+        },
+      ],
+    });
+    expect(result.ok, JSON.stringify(result)).toBe(true);
+    if (!result.ok) return;
+    expect(
+      result.project.externalSubcircuitDefinitions[0]?.terminals.map(
+        (t) => t.name,
+      ),
+    ).toEqual(["A", "a"]);
+    const document = result.project.documents[0]!;
+    const definition = result.project.externalSubcircuitDefinitions[0]!;
+    document.instances.push(
+      createExternalSubcircuitInstance("X1", definition, {
+        position: { x: 0, y: 0 },
+        rotation: 0,
+        mirror: "none",
+      }),
+    );
+    document.noConnects.push(
+      ...definition.terminals.map((t) => ({
+        id: "nc-" + t.id,
+        endpoint: {
+          kind: "terminal" as const,
+          instanceId: "X1",
+          pinName: t.name,
+        },
+      })),
+    );
+    expect(
+      createDesignNetlistExport(result.project, { format: "spectre" }).status,
+    ).toBe("ready");
+    expect(
+      createDesignNetlistExport(result.project, { format: "spice" }).status,
+    ).toBe("blocked");
+  });
+  it("preserves the entire transaction when a process override or library identity is unproven", () => {
+    for (const suffix of ["unknown=7", "nf=2"]) {
+      const project = createEmptyProject("refused-process", "Refused process");
+      const original = structuredClone(project);
+      const source: ProjectModelSource = {
+        id: "owner",
+        revision: 0,
+        language: "spice",
+        entry: "mos.spice",
+        dependencies:
+          suffix === "nf=2"
+            ? [
+                {
+                  id: "vendor",
+                  mountPath: "vendor.lib",
+                  sha256: "a".repeat(64),
+                },
+              ]
+            : [],
+        files: [
+          {
+            path: "mos.spice",
+            text:
+              ".subckt pair D G S B\nX1 D G S B sky130_fd_pr__nfet_01v8 w=2 l=0.15 " +
+              suffix +
+              "\n.ends pair\n",
+          },
+        ],
+      };
+      const result = executeProjectTransaction(project, {
+        projectId: project.id,
+        expectedStructureRevision: 0,
+        transactionId: "refused",
+        actor: { kind: "agent", id: "test" },
+        edits: [
+          {
+            kind: "apply_model_source",
+            source,
+            definitions: [{ definitionId: "pair", entry: "pair" }],
+            transform: { process: "sg13g2" },
+          },
+        ],
+      });
+      expect(result.ok).toBe(false);
+      expect(project).toEqual(original);
+    }
+  });
+  it("replaces reviewed source devices atomically with their pin roles, units and counts intact", () => {
+    const project = createEmptyProject("process-owner", "Process owner");
+    const source: ProjectModelSource = {
+      id: "mos-owner",
+      revision: 0,
+      language: "spice",
+      entry: "mos.spice",
+      dependencies: [],
+      files: [
+        {
+          path: "mos.spice",
+          text: ".subckt pair D G S B\nX1 D G S B sky130_fd_pr__nfet_01v8 w=2 l=0.15 nf=2 m=8\n.ends pair\n",
+        },
+      ],
+    };
+    const result = executeProjectTransaction(project, {
+      projectId: project.id,
+      expectedStructureRevision: 0,
+      transactionId: "process",
+      actor: { kind: "agent", id: "test" },
+      edits: [
+        {
+          kind: "apply_model_source",
+          source,
+          definitions: [{ definitionId: "pair", entry: "pair" }],
+          transform: { process: "sg13g2" },
+        },
+      ],
+    });
+    expect(result.ok, JSON.stringify(result)).toBe(true);
+    if (!result.ok) return;
+    const text = result.project.modelSources![0]!.files[0]!.text;
+    expect(text).toContain("X1 D G S B sg13_lv_nmos");
+    expect(text).toContain("w=2u");
+    expect(text).toContain("l=150n");
+    expect(text).toContain("ng=2");
+    expect(text).toContain("m=8");
+    expect(
+      result.project.externalSubcircuitDefinitions[0]!.terminals.map(
+        (t) => t.name,
+      ),
+    ).toEqual(["D", "G", "S", "B"]);
+    expect(source.files[0]!.text).toContain("sky130_fd_pr__nfet_01v8");
+  });
+  it("locates converted model output at its owner and refuses unverified reverse edits", () => {
+    const p = createEmptyProject("mapped-spectre", "Mapped Spectre");
+    const applied = executeProjectTransaction(p, {
+      projectId: p.id,
+      expectedStructureRevision: 0,
+      transactionId: "mapped",
+      actor: { kind: "human", id: "test" },
+      edits: [
+        {
+          kind: "apply_model_source",
+          source: {
+            id: "owner",
+            revision: 0,
+            language: "spectre",
+            entry: "model.scs",
+            dependencies: [],
+            files: [
+              {
+                path: "model.scs",
+                text: "subckt rc ()\nR1 (a 0) resistor r=1k\nends rc\n",
+              },
+            ],
+          },
+          definitions: [{ definitionId: "rc", entry: "rc" }],
+        },
+      ],
+    });
+    expect(applied.ok).toBe(true);
+    if (!applied.ok) return;
+    const project = applied.project;
+    project.documents[0]!.instances.push(
+      createExternalSubcircuitInstance(
+        "X1",
+        project.externalSubcircuitDefinitions[0]!,
+        { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+      ),
+    );
+    const out = createDesignNetlistExport(project, {
+      format: "spice",
+      includeLocations: true,
+    });
+    expect(out.status).toBe("ready");
+    if (out.status !== "ready") return;
+    expect(out.locations?.modelSources?.[0]?.sourceId).toBe("owner");
+    const edit = planMappedProjectModelEdit(
+      out.file.text,
+      out.file.text.replace("R1 a 0 1000", "R1 a 0 2000"),
+      out.locations!.modelSources!,
+      project.modelSources!,
+    );
+    expect(edit).toMatchObject({
+      matched: true,
+      ok: false,
+      code: "MODEL_SOURCE_EDIT_REQUIRES_OWNER",
+    });
+    expect(project.modelSources![0]!.files[0]!.text).toContain("r=1k");
+  });
+  it("rejects an unsupported model language boundary without losing its diagnostic", () => {
+    const project = createEmptyProject(
+      "unsupported-language",
+      "Unsupported language",
+    );
+    const result = executeProjectTransaction(project, {
+      projectId: project.id,
+      expectedStructureRevision: 0,
+      transactionId: "unsupported",
+      actor: { kind: "human", id: "test" },
+      edits: [
+        {
+          kind: "apply_model_source",
+          source: {
+            id: "unsupported-source",
+            revision: 0,
+            language: "spectre",
+            entry: "bad.scs",
+            dependencies: [],
+            files: [
+              {
+                path: "bad.scs",
+                text: "simulator lang=veriloga\nsubckt fake ()\nends fake\n",
+              },
+            ],
+          },
+          definitions: [{ definitionId: "fake", entry: "fake" }],
+        },
+      ],
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.message).toContain("bad.scs:1");
+    expect(project.externalSubcircuitDefinitions).toEqual([]);
+  });
+  it("retains a local device model's SPICE language when converting its external owner", () => {
+    const project = createEmptyProject(
+      "local-model-conversion",
+      "Local model conversion",
+    );
+    const applied = executeProjectTransaction(project, {
+      projectId: project.id,
+      expectedStructureRevision: 0,
+      transactionId: "clip",
+      actor: { kind: "human", id: "test" },
+      edits: [
+        {
+          kind: "apply_model_source",
+          source: {
+            id: "clip-source",
+            revision: 0,
+            language: "spice",
+            entry: "clip.spice",
+            dependencies: [],
+            files: [
+              {
+                path: "clip.spice",
+                text: ".subckt clip A B\nD1 A B local\n.model local D (is=1e-14 n=1)\n.ends clip\n",
+              },
+            ],
+          },
+          definitions: [{ definitionId: "clip", entry: "clip" }],
+          transform: { language: "spectre" },
+        },
+      ],
+    });
+    expect(applied.ok, JSON.stringify(applied)).toBe(true);
+    if (!applied.ok) return;
+    const p = applied.project;
+    p.documents[0]!.instances.push(
+      createExternalSubcircuitInstance(
+        "X1",
+        p.externalSubcircuitDefinitions[0]!,
+        { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+      ),
+    );
+    for (const pinName of ["A", "B"])
+      p.documents[0]!.noConnects.push({
+        id: "nc-" + pinName,
+        endpoint: { kind: "terminal", instanceId: "X1", pinName },
+      });
+    const output = createDesignNetlistExport(p, { format: "spice" });
+    expect(output.status, JSON.stringify(output)).toBe("ready");
+    if (output.status === "ready")
+      expect(output.file.text).toContain(".model local D (is=1e-14 n=1)");
+    expect(p.modelSources![0]!.files[0]!.text).toContain(
+      "simulator lang=spice",
+    );
+  });
+  it("converts an owned helper closure in one Apply and retains complete copy and simulation input", () => {
+    const project = createEmptyProject(
+      "helper-conversion",
+      "Helper conversion",
+    );
+    const result = executeProjectTransaction(project, {
+      projectId: project.id,
+      expectedStructureRevision: 0,
+      transactionId: "convert-helpers",
+      actor: { kind: "agent", id: "test" },
+      edits: [
+        {
+          kind: "apply_model_source",
+          source: {
+            id: "helpers",
+            revision: 0,
+            language: "spice",
+            entry: "main.spice",
+            dependencies: [],
+            files: [
+              {
+                path: "main.spice",
+                text: '.include "helpers/leaf.spice"\n.subckt outer\nX0 leaf\n.ends outer\n',
+              },
+              {
+                path: "helpers/leaf.spice",
+                text: ".subckt leaf\nR1 local 0 1k\n.ends leaf\n",
+              },
+            ],
+          },
+          definitions: [{ definitionId: "outer", entry: "outer" }],
+          transform: { language: "spectre" },
+        },
+      ],
+    });
+    expect(result.ok, JSON.stringify(result)).toBe(true);
+    if (!result.ok) return;
+    const next = result.project;
+    expect(next.modelSources![0]!.language).toBe("spectre");
+    expect(next.modelSources![0]!.files[0]!.text).toContain(
+      'include "helpers/leaf.spice"',
+    );
+    next.documents[0]!.instances.push(
+      createExternalSubcircuitInstance(
+        "XTOP",
+        next.externalSubcircuitDefinitions[0]!,
+        { position: { x: 100, y: 100 }, rotation: 0, mirror: "none" },
+      ),
+    );
+    for (const format of ["spice", "spectre"] as const) {
+      const exported = createDesignNetlistExport(next, { format });
+      expect(exported.status, JSON.stringify(exported)).toBe("ready");
+      if (exported.status === "ready") {
+        expect(exported.file.text).toMatch(
+          format === "spice" ? /X0 leaf/ : /X0 \(\) leaf/,
+        );
+        expect(
+          exported.file.text.match(
+            format === "spice" ? /\.subckt leaf/g : /subckt leaf/g,
+          ),
+        ).toHaveLength(1);
+        expect(exported.file.text).not.toContain(
+          'include "helpers/leaf.spice"',
+        );
+      }
+    }
+  });
+  it("applies a Spectre source once and exports both dialects without changing its native owner", () => {
+    const project = createEmptyProject("spectre-owner", "Spectre owner");
+    const text =
+      "subckt rc (A B)\nparameters RVAL=1k\nR1 (A B) resistor r=RVAL\nends rc\n";
+    const applied = executeProjectTransaction(project, {
+      projectId: project.id,
+      expectedStructureRevision: 0,
+      transactionId: "spectre-apply",
+      actor: { kind: "human", id: "test" },
+      edits: [
+        {
+          kind: "apply_model_source",
+          source: {
+            id: "spectre-source",
+            revision: 0,
+            language: "spectre",
+            entry: "model.scs",
+            files: [{ path: "model.scs", text }],
+            dependencies: [],
+          },
+          definitions: [{ definitionId: "rc", entry: "rc" }],
+        },
+      ],
+    });
+    expect(applied.ok, JSON.stringify(applied)).toBe(true);
+    if (!applied.ok) return;
+    const next = applied.project;
+    const definition = next.externalSubcircuitDefinitions[0]!;
+    expect(definition.terminals.map((t) => t.name)).toEqual(["A", "B"]);
+    expect(definition.formalParameters).toEqual([
+      { name: "RVAL", defaultValue: "1k" },
+    ]);
+    next.documents[0]!.instances.push(
+      createExternalSubcircuitInstance("X1", definition, {
+        position: { x: 100, y: 100 },
+        rotation: 0,
+        mirror: "none",
+      }),
+    );
+    for (const pinName of ["A", "B"])
+      next.documents[0]!.noConnects.push({
+        id: "nc-" + pinName,
+        endpoint: { kind: "terminal", instanceId: "X1", pinName },
+      });
+    const spice = createDesignNetlistExport(next, { format: "spice" });
+    const spectre = createDesignNetlistExport(next, { format: "spectre" });
+    expect(spice.status, JSON.stringify(spice)).toBe("ready");
+    expect(spectre.status, JSON.stringify(spectre)).toBe("ready");
+    if (spice.status === "ready")
+      expect(spice.file.text).toContain(".subckt rc A B params: RVAL=1000");
+    if (spectre.status === "ready") expect(spectre.file.text).toContain(text);
+    expect(next.modelSources![0]!.files[0]!.text).toBe(text);
+  });
   it("rejects custom artwork missing an added model port without applying any part of the batch", () => {
     const project = createEmptyProject("added-custom", "Added custom");
     const symbol = {

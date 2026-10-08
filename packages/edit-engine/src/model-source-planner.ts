@@ -3,7 +3,11 @@ import {
   type CircuitProject,
   type ExternalSubcircuitDefinition,
 } from "@icm/model";
-import { inspectProjectModelSource } from "@icm/netlist";
+import {
+  inspectProjectModelSource,
+  transformProjectModelSource,
+  type SimulationSourceDiagnostic,
+} from "@icm/netlist";
 import {
   instanceReferencesPin,
   planCallerInterfaceChanges,
@@ -13,18 +17,36 @@ import { executeTransaction } from "./transaction.js";
 import type { ProjectStructureEdit } from "./project-transaction.js";
 import { resolveReviewedLibraryInterface } from "@icm/devices";
 
+export class ModelSourceApplyError extends Error {
+  constructor(readonly diagnostic: SimulationSourceDiagnostic) {
+    super(
+      `${diagnostic.path ?? diagnostic.sourceRef?.fileId ?? "model"}:${diagnostic.sourceRef?.start.line ?? 1}: ${diagnostic.message}`,
+    );
+  }
+}
+
 /** Native source Apply plans ordinary edits; all callers share the atomic boundary. */
 export function planModelSourceApply(
   project: CircuitProject,
   edit: Extract<ProjectStructureEdit, { kind: "apply_model_source" }>,
 ): ProjectStructureEdit[] {
-  const source = structuredClone(edit.source);
+  const transformed = transformProjectModelSource(
+    edit.source,
+    edit.transform ?? {},
+  );
+  if (!transformed.ok)
+    throw new ModelSourceApplyError({
+      ...transformed.diagnostic,
+      modelSource: { sourceId: edit.source.id, revision: edit.source.revision },
+    });
+  const source = transformed.source;
   const inspected = inspectProjectModelSource(source);
   const failure = inspected.diagnostics.find((d) => d.severity === "error");
   if (failure)
-    throw Error(
-      `${failure.path ?? source.entry}${failure.sourceRef ? ":" + failure.sourceRef.start.line : ""}: ${failure.message}`,
-    );
+    throw new ModelSourceApplyError({
+      ...failure,
+      modelSource: { sourceId: source.id, revision: source.revision },
+    });
   const previous = project.modelSources?.find((s) => s.id === source.id);
   if (previous && previous.revision !== source.revision)
     throw Error("Model source revision is stale");
@@ -78,8 +100,10 @@ export function planModelSourceApply(
     }
   };
   for (const [id, target] of targets) {
-    const entry = inspected.entries.find(
-      (e) => e.name.toLowerCase() === target.entry.toLowerCase(),
+    const entry = inspected.entries.find((e) =>
+      source.language === "spectre"
+        ? e.name === target.entry
+        : e.name.toLowerCase() === target.entry.toLowerCase(),
     );
     if (!entry) throw Error(`Missing model entry ${target.entry}`);
     const old = working.externalSubcircuitDefinitions.find((d) => d.id === id);

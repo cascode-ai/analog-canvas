@@ -84,12 +84,14 @@ export function CellManagerDialog({
   onPlaceCell,
   onApplyModelSource,
   onSaveModelDraft,
+  onCopyModelText,
   cloudProjects,
   activeCloudProjectId,
   onLoadCloudProject,
   onImportCloudCell,
 }: {
   open: boolean;
+  onCopyModelText?(text: string): Promise<void>;
   cells: readonly ProjectCellSummary[];
   project: CircuitProject;
   hierarchyCalls: readonly HierarchyFrame[];
@@ -592,6 +594,7 @@ export function CellManagerDialog({
                       : undefined
                   }
                   project={project}
+                  onCopyText={onCopyModelText}
                   onPlace={setPendingPlacement}
                   onDirtyChange={setModelDirty}
                   onRequestLeave={requestLeave}

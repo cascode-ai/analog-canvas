@@ -232,6 +232,13 @@ isolated executor; its capability does not grant host-shell access.
 
 ## Validation
 
+`apply_model_source` accepts native `spice` and `spectre` owners and optional
+`transform.language` / `transform.process`. GUI shortcuts and Agent transactions
+share one converter, dependency validation and atomic Apply authority.
+Saved model drafts can retain a distinct language. File Resource model-source
+spans may carry `derived:true` and `sourceLength`; these navigate to the native
+owner and explicitly do not authorize byte-reverse edits.
+
 Generated JSON Schema and OpenAPI artifacts are checked against the runtime
 schemas. Contract tests cover authentication, exact version rejection,
 capabilities closure, complete Snapshot topology, typed-edit parity,

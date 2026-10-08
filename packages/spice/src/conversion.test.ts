@@ -28,7 +28,7 @@ describe("netlist-crawler structural conversion", () => {
       const spice = converted(
         `simulator lang=spectre\nsubckt amp ${ports}\nparameters gain=2\nR1 (z a) resistor r=(gain*1k)\nends amp`,
       );
-      expect(spice).toContain(".subckt amp z a\n");
+      expect(spice).toContain(".subckt amp z a params: gain=2\n");
       expect(spice).toContain("R1 z a {(gain*1000)}");
       const imported = await importSpiceSources(
         [{ path: "circuit.spi", bytes: new TextEncoder().encode(spice) }],

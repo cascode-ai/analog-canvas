@@ -200,6 +200,23 @@ export function tryParseProjectWithMetadata(
   let current: Record<string, unknown>;
   try {
     if (
+      sourceSchemaVersion < 67 &&
+      Array.isArray(parsed.modelSources) &&
+      parsed.modelSources.some(
+        (s: unknown) =>
+          isRecord(s) &&
+          (s.language === "spectre" ||
+            (isRecord(s.draft) && Object.hasOwn(s.draft, "language"))),
+      )
+    )
+      throw new ProjectFormatError([
+        {
+          code: "INVALID_PROJECT",
+          message: "Native model languages require Project schema 67",
+          path: ["modelSources"],
+        },
+      ]);
+    if (
       sourceSchemaVersion < 66 &&
       (Object.hasOwn(parsed, "modelSources") ||
         (Array.isArray(parsed.externalSubcircuitDefinitions) &&
