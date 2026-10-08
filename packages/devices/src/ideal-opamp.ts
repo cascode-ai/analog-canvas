@@ -72,6 +72,15 @@ export function isSupplyLimit(limit: OpampLimit, value: string): boolean {
   return isKeyword(value, [OPAMP_LIMIT_SUPPLIES[limit]]);
 }
 
+/** Whether a parameter, by its name in any case, is a limit set to its supply. */
+export function isSupplyLimitParameter(name: string, value: string): boolean {
+  const limit = name.toLowerCase();
+  return (
+    (limit === OPAMP_HIGH_LIMIT || limit === OPAMP_LOW_LIMIT) &&
+    isSupplyLimit(limit, value)
+  );
+}
+
 /** A limit's value as the op-amp's parameters hold it, in any case. */
 export function opampLimitValue(
   parameters: Readonly<Record<string, string>> | undefined,
@@ -82,22 +91,27 @@ export function opampLimitValue(
   )?.[1];
 }
 
+/** Whether a limit is left at its default or set to its supply, any case. */
+export function limitFollowsSupply(
+  parameters: Readonly<Record<string, string>> | undefined,
+  limit: OpampLimit,
+): boolean {
+  const value = opampLimitValue(parameters, limit);
+  return value === undefined || isSupplyLimit(limit, value);
+}
+
 /**
- * The body an ideal op-amp with these parameters calls. A limit left at
- * its default, or set to its supply in any case, reads that supply when the
- * op-amp is powered; any other value is a level for the numeric body, which
- * export checks is a number.
+ * The body an ideal op-amp with these parameters calls. A limit that
+ * follows its supply reads that supply when the op-amp is powered; any
+ * other value is a level for the numeric body, which export checks is a
+ * number.
  */
 export function idealOpampBodyFor(
   parameters: Readonly<Record<string, string>> | undefined,
   powered: boolean,
 ): IdealOpampBody {
-  const reads = (limit: OpampLimit) => {
-    const value = opampLimitValue(parameters, limit);
-    return powered && (value === undefined || isSupplyLimit(limit, value));
-  };
-  const vdd = reads(OPAMP_HIGH_LIMIT);
-  const vss = reads(OPAMP_LOW_LIMIT);
+  const vdd = powered && limitFollowsSupply(parameters, OPAMP_HIGH_LIMIT);
+  const vss = powered && limitFollowsSupply(parameters, OPAMP_LOW_LIMIT);
   return vdd && vss
     ? "icm_opamp_vdd_vss"
     : vdd

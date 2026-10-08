@@ -15,6 +15,7 @@ import {
   drawnMagneticNetwork,
   drawnMagneticParameters,
   drawnSupplyNet,
+  drawsSupply,
   drawnSwitchControl,
   drawnSwitchPhase,
   mosBodiesOffSourceSupply,
@@ -62,6 +63,8 @@ import {
   isIdealComparatorBody,
   isIdealOpampBody,
   isSupplyLimit,
+  isSupplyLimitParameter,
+  limitFollowsSupply,
   instanceBuiltInSubcircuit,
   isSupplyHighLevel,
   milliScaleReading,
@@ -1493,7 +1496,14 @@ function extractBuiltInSubcircuitInstance(
   const idealOpamp =
     callsIdealOpampBody(definition, target) &&
     !projectNames.has(target.toLowerCase());
-  // Whether a selected or drawn VDD powers the block (ideal-opamp.ts).
+  const opampParameters = Object.fromEntries(parameters);
+  const followsSupply = idealOpamp && {
+    VDD: limitFollowsSupply(opampParameters, OPAMP_HIGH_LIMIT),
+    VSS: limitFollowsSupply(opampParameters, OPAMP_LOW_LIMIT),
+  };
+  // Whether a selected VDD, or the one positive supply the author drew,
+  // powers the block (ideal-opamp.ts). The default VDD the netlist adds for
+  // other parts of a Cell that drew none does not.
   let powered = false;
   // The ideal comparator's call lowers only the ports its body reads.
   const nodes = (
@@ -1533,12 +1543,46 @@ function extractBuiltInSubcircuitInstance(
       );
       const drawnName = drawn ? context.nameByNetId.get(drawn.id) : undefined;
       if (drawnName) {
-        if (port.supply === "VDD") powered = true;
+        if (
+          port.supply === "VDD" &&
+          drawn!.id !== implicitSupplyNetId(document.id, "VDD")
+        )
+          powered = true;
         return [{ pinName: port.name, netName: drawnName }];
       }
       // An ideal op-amp in a figure without supplies, such as a textbook
       // switched-capacitor integrator: the port is in the call but unused.
-      if (supplyFree) return [{ pinName: port.name, netName: "0" }];
+      // Where the Cell drew several, a limit following that supply cannot
+      // read one until the author chooses: the op-amp says what it reads.
+      if (supplyFree) {
+        if (
+          followsSupply &&
+          (port.supply === "VDD"
+            ? followsSupply.VDD || followsSupply.VSS
+            : powered && followsSupply.VSS) &&
+          drawsSupply(document, port.supply === "VDD" ? "vdd" : "ground")
+        )
+          diagnostic(
+            diagnostics,
+            document.id,
+            "IDEAL_OPAMP_SUPPLY_AMBIGUOUS",
+            port.supply === "VDD"
+              ? `Ideal op-amp ${reference}'s ${[
+                  followsSupply.VDD &&
+                    `high limit reads +${UNPOWERED_OPAMP_LIMITS[OPAMP_HIGH_LIMIT]} V`,
+                  followsSupply.VSS &&
+                    `low limit reads ${UNPOWERED_OPAMP_LIMITS[OPAMP_LOW_LIMIT].replace("-", "−")} V`,
+                ]
+                  .filter(Boolean)
+                  .join(
+                    " and ",
+                  )}: several drawn supplies could be its VDD. Select its VDD in Properties to limit it at its supplies`
+              : `Ideal op-amp ${reference}'s low limit reads ground: several drawn Nets could be its VSS. Select its VSS in Properties`,
+            [instance.id],
+            "warning",
+          );
+        return [{ pinName: port.name, netName: "0" }];
+      }
       diagnostic(
         diagnostics,
         document.id,
@@ -1590,18 +1634,11 @@ function extractBuiltInSubcircuitInstance(
           .filter(
             ([name, rawValue]) =>
               definition.target !== OPAMP_TARGET ||
-              !isOpampLimit(name) ||
-              !isSupplyLimit(name.toLowerCase() as OpampLimit, rawValue),
+              !isSupplyLimitParameter(name, rawValue),
           )
           .sort(([a], [b]) => compareText(a, b))
     ).map(([name, rawValue]) => ({ name, rawValue })),
   };
-}
-
-type OpampLimit = typeof OPAMP_HIGH_LIMIT | typeof OPAMP_LOW_LIMIT;
-function isOpampLimit(name: string): boolean {
-  const folded = name.toLowerCase();
-  return folded === OPAMP_HIGH_LIMIT || folded === OPAMP_LOW_LIMIT;
 }
 
 /**
@@ -3435,73 +3472,53 @@ function analyzeDesign(
         magneticSubcircuits.set(name, magneticSubcircuit(network, definition));
     }
   }
-  // Each generated comparator body reserves its name while an ideal
-  // comparator is used, whichever body its high level chooses: a Cell or an
-  // external subcircuit of that name would shadow it.
-  const comparatorConflicts = IDEAL_COMPARATOR_BODIES.flatMap((name) => {
-    const cell = cellNames.get(name);
-    const external = externalNames.get(name);
-    return cell || external
-      ? [
-          `${cell ? `Cell ${cell.authoredName}` : `external subcircuit ${external}`} named ${name}`,
-        ]
-      : [];
-  });
-  if (comparatorConflicts.length) {
+  // Each generated comparator or op-amp body reserves its name while such a
+  // block is used, whichever body its parameters choose: a Cell or an
+  // external subcircuit of that name would shadow it. The op-amp's own name
+  // is not one: a Project defining `opamp` replaces every body.
+  for (const reserved of [
+    {
+      names: IDEAL_COMPARATOR_BODIES,
+      calls: callsIdealComparatorBody,
+      code: "IDEAL_COMPARATOR_NAME_COLLISION",
+      block: "Ideal comparator",
+    },
+    {
+      names: IDEAL_OPAMP_BODIES.filter((name) => name !== OPAMP_TARGET),
+      calls: (descriptor: BuiltInSubcircuitDescriptor, target: string) =>
+        callsIdealOpampBody(descriptor, target) &&
+        !projectNames.has(target.toLowerCase()),
+      code: "IDEAL_OPAMP_NAME_COLLISION",
+      block: "Ideal op-amp",
+    },
+  ]) {
+    const conflicts = reserved.names.flatMap((name) => {
+      const cell = cellNames.get(name);
+      const external = externalNames.get(name);
+      return cell || external
+        ? [
+            `${cell ? `Cell ${cell.authoredName}` : `external subcircuit ${external}`} named ${name}`,
+          ]
+        : [];
+    });
+    if (!conflicts.length) continue;
     for (const document of documents) {
       for (const instance of document.instances) {
         const descriptor = subcircuitDescriptor(instance.symbolId, project);
         if (
           !descriptor ||
-          !callsIdealComparatorBody(
+          !reserved.calls(
             descriptor,
             builtInBlockCallTarget(instance, descriptor, projectNames),
           )
         )
           continue;
-        for (const conflict of comparatorConflicts)
+        for (const conflict of conflicts)
           diagnostic(
             diagnostics,
             document.id,
-            "IDEAL_COMPARATOR_NAME_COLLISION",
-            `Ideal comparator ${instance.reference ?? instance.id} conflicts with ${conflict}`,
-            [instance.id],
-          );
-      }
-    }
-  }
-  // Likewise each body an ideal op-amp's supplies choose. The op-amp's own
-  // name is not one: a Project defining `opamp` replaces every body.
-  const opampConflicts = IDEAL_OPAMP_BODIES.flatMap((name) => {
-    if (name === OPAMP_TARGET) return [];
-    const cell = cellNames.get(name);
-    const external = externalNames.get(name);
-    return cell || external
-      ? [
-          `${cell ? `Cell ${cell.authoredName}` : `external subcircuit ${external}`} named ${name}`,
-        ]
-      : [];
-  });
-  if (opampConflicts.length) {
-    for (const document of documents) {
-      for (const instance of document.instances) {
-        const descriptor = subcircuitDescriptor(instance.symbolId, project);
-        const target = descriptor
-          ? builtInBlockCallTarget(instance, descriptor, projectNames)
-          : undefined;
-        if (
-          !descriptor ||
-          !target ||
-          !callsIdealOpampBody(descriptor, target) ||
-          projectNames.has(target.toLowerCase())
-        )
-          continue;
-        for (const conflict of opampConflicts)
-          diagnostic(
-            diagnostics,
-            document.id,
-            "IDEAL_OPAMP_NAME_COLLISION",
-            `Ideal op-amp ${instance.reference ?? instance.id} conflicts with ${conflict}`,
+            reserved.code,
+            `${reserved.block} ${instance.reference ?? instance.id} conflicts with ${conflict}`,
             [instance.id],
           );
       }

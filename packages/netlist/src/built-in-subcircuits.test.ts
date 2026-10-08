@@ -4,6 +4,7 @@ import {
   createEmptyProject,
   createSimulationFolder,
   type CircuitProject,
+  type SchematicDocument,
 } from "@icm/model";
 import {
   subcircuitDescriptor,
@@ -453,6 +454,131 @@ describe("built-in Analog Block subcircuits", () => {
       "subckt icm_opamp_vdd_vss (VDD VSS VIP VIN VOUT)",
     );
     expect(spectre).toContain("Blin (nlin 0) bsource v=gain*(v(VIP)-v(VIN))");
+  });
+
+  it("powers an op-amp only from a supply the author drew or chose (#1463)", () => {
+    const opampWith = (change: (document: SchematicDocument) => void) => {
+      const project = analogBlockProject(
+        ["opamp"],
+        [
+          ["IN+", "plus"],
+          ["IN-", "minus"],
+          ["OUT", "out"],
+        ],
+      );
+      change(project.documents[0]!);
+      return createDesignNetlistExport(project);
+    };
+    // No VDD drawn, but an inverter's body takes the default VDD Pin: the
+    // op-amp stays on its ±5 V levels.
+    const defaulted = opampWith((document) => {
+      document.instances = document.instances.filter((i) => i.id !== "VDD");
+      document.nets = document.nets.filter((net) => net.id !== "VDD");
+      document.netlist!.terminals = document.netlist!.terminals.filter(
+        (terminal) => terminal.netId !== "VDD",
+      );
+      document.instances.push({
+        id: "inverter",
+        reference: "X9",
+        symbolId: "inverter",
+        placement: null,
+      });
+      for (const pinName of ["A", "Y"])
+        document.nets.push({
+          id: `inverter-${pinName}`,
+          terminals: [{ instanceId: "inverter", pinName }],
+        });
+    });
+    expect(
+      defaulted.status,
+      JSON.stringify(
+        defaulted.diagnostics.filter((d) => d.severity === "error"),
+      ),
+    ).toBe("ready");
+    if (defaulted.status === "ready") {
+      expect(defaulted.file.text).toMatch(/^X1 VDD VSS \S+ \S+ \S+ opamp$/mu);
+      expect(defaulted.file.text).not.toContain("icm_opamp");
+    }
+    // Two positive supplies drawn: the limits fall back, and say so.
+    const addVdda = (document: SchematicDocument) => {
+      document.instances.push({
+        id: "VDDA",
+        symbolId: "vdd-port",
+        placement: null,
+      });
+      document.nets.push({
+        id: "net-vdda",
+        terminals: [{ instanceId: "VDDA", pinName: "P" }],
+      });
+      document.connectivityEvidence.push({
+        id: "vdda-claim",
+        kind: "name-claim",
+        netId: "net-vdda",
+        name: "VDDA",
+        scope: "global",
+        powerDomain: "vdd",
+        owner: { kind: "power-marker", objectId: "VDDA" },
+      });
+    };
+    const competing = opampWith(addVdda);
+    expect(
+      competing.status,
+      JSON.stringify(
+        competing.diagnostics.filter((d) => d.severity === "error"),
+      ),
+    ).toBe("ready");
+    if (competing.status === "ready")
+      expect(competing.file.text).toContain("X1 0 VSS plus minus out opamp\n");
+    expect(competing.diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: "IDEAL_OPAMP_SUPPLY_AMBIGUOUS",
+        severity: "warning",
+        message: expect.stringContaining(
+          "X1's high limit reads +5 V and low limit reads −5 V: several drawn supplies",
+        ),
+      }),
+    );
+    // A typed level stays; the warning names only the limit that falls back.
+    const typed = opampWith((document) => {
+      addVdda(document);
+      document.instances.find(
+        (i) => i.id === "block-1",
+      )!.netlist!.parameters.vhigh = "12";
+    });
+    expect(typed.diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: "IDEAL_OPAMP_SUPPLY_AMBIGUOUS",
+        message: expect.stringContaining(
+          "X1's low limit reads −5 V: several drawn supplies",
+        ),
+      }),
+    );
+    // Powered, with two candidates for its VSS: the low limit reads ground.
+    const grounds = opampWith((document) => {
+      document.instances.push({
+        id: "GND2",
+        symbolId: "ground",
+        placement: null,
+      });
+      document.nets.push({
+        id: "net-gnd2",
+        terminals: [{ instanceId: "GND2", pinName: "0" }],
+      });
+    });
+    expect(grounds.diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: "IDEAL_OPAMP_SUPPLY_AMBIGUOUS",
+        message: expect.stringContaining(
+          "X1's low limit reads ground: several drawn Nets could be its VSS",
+        ),
+      }),
+    );
+    // A warning, never a block.
+    expect(grounds.status).toBe("ready");
+    if (grounds.status === "ready")
+      expect(grounds.file.text).toContain(
+        "X1 VDD 0 plus minus out icm_opamp_vdd_vss\n",
+      );
   });
 
   it("passes a raw gain override through the ideal model call", () => {

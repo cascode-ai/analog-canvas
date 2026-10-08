@@ -195,6 +195,10 @@ import {
   createEditorFileCommands,
   type SpiceImportReport,
 } from "../features/editor-shell/editor-file-commands";
+import {
+  editInProgressReason,
+  projectHoldReason,
+} from "../features/editor-shell/edit-blockers";
 import { EditorStatusbar } from "../features/editor-shell/editor-statusbar";
 import {
   EditorServicesProvider,
@@ -1524,6 +1528,7 @@ function WorkspaceEditor({
     hasPendingEdits: () => simulationSourceBuffer.current?.dirty === true,
     beforeSnapshot: captureAuthoredProject,
     onRecoverBuffers: recoverSourceDrafts,
+    describeOpenBlocker: () => projectSwitchBlockerRef.current(),
     project,
     projectSessionId,
     viewBox,
@@ -6065,39 +6070,26 @@ function WorkspaceEditor({
       tabs: [...restoredTabs.value.tabs, { id, session: createTabSession() }],
     };
   });
-  /**
-   * What keeps the editor from leaving this Project now, in words a person
-   * and an Agent can act on, or null (#1462). A text edit counts only while
-   * its label is on screen to finish.
-   */
-  const projectSwitchBlocker = (): string | null =>
-    (
-      [
-        [
-          isSaveInFlight() || nativeWorkspaceSaving.current,
-          "a save is still running",
-        ],
-        [
-          replaceGuard,
-          "a dialog asks whether to save before replacing the Project",
-        ],
-        [recoveryDialogOpen, "the recovery dialog is open"],
-        [publishGalleryOpen, "the Publish to Gallery dialog is open"],
-        [componentEditor, "the component editor is open"],
-        [documentSettingsOpen, "Document settings are open"],
-        [versionHistoryOpen, "Version history is open"],
-        [projectInfoOpen, "Project Info is open"],
-        [
-          projectNameEditing.current,
-          "the Project's name is being edited on its tab",
-        ],
-        [
-          textEditing && textEditingTarget,
-          "a label's text is being edited on the canvas",
-        ],
-        [codeDraftDirty, "a code panel holds a draft that is not applied"],
-      ] as const
-    ).find(([active]) => active)?.[1] ?? null;
+  // What keeps the editor on this Project now (#1462).
+  const editInProgress = () => ({
+    componentEditor: !!componentEditor,
+    documentSettingsOpen,
+    projectInfoOpen,
+    projectNameEditing: projectNameEditing.current,
+    textEditing: !!textEditing,
+    textOnScreen: !!textEditingTarget,
+    codeDraftDirty,
+  });
+  const currentEditBlocker = () => editInProgressReason(editInProgress());
+  const projectSwitchBlocker = () =>
+    projectHoldReason({
+      ...editInProgress(),
+      saving: isSaveInFlight() || nativeWorkspaceSaving.current,
+      replaceGuard: !!replaceGuard,
+      recoveryDialogOpen,
+      publishGalleryOpen,
+      versionHistoryOpen,
+    });
   projectSwitchBlockerRef.current = projectSwitchBlocker;
   const projectTabs = useProjectTabs<TabSession>({
     initial: initialTabs,
@@ -6421,18 +6413,11 @@ function WorkspaceEditor({
     if (!nativeProjectStore)
       return { status: "failed", message: "Local storage is unavailable" };
     if (id === projectTabs.activeId) {
-      if (
-        projectInfoOpen ||
-        projectNameEditing.current ||
-        textEditing ||
-        componentEditor ||
-        documentSettingsOpen ||
-        codeDraftDirty
-      )
+      const blocker = currentEditBlocker();
+      if (blocker)
         return {
           status: "failed",
-          message:
-            "Finish or cancel the current edit before saving and closing.",
+          message: `Can't save and close yet: ${blocker}.`,
         };
       return saveProjectToNative();
     }
@@ -6459,14 +6444,7 @@ function WorkspaceEditor({
       nativeOperation.current ||
       nativeWorkspaceSaving.current,
     pendingEdits:
-      projectInfoOpen ||
-      projectNameEditing.current ||
-      !!textEditing ||
-      !!componentEditor ||
-      documentSettingsOpen ||
-      codeDraftDirty ||
-      !!replaceGuard ||
-      recoveryDialogOpen,
+      currentEditBlocker() !== null || !!replaceGuard || recoveryDialogOpen,
   });
   const nativeBridgeRef = useRef({
     state: nativeWorkspaceState,

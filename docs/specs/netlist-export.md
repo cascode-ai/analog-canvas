@@ -126,9 +126,10 @@ not a simulator model lookup. Its `definitionId` selects one project-level
 external definition, whose ordered terminals select the emitted `X` nodes and
 whose `name` is the emitted master token. The instance owns raw overrides. An
 `unresolved-subcircuit` binding retains only a master name. For the default
-opamp, differential opamp, voltage amplifier, transconductance amplifier, and
+differential opamp, voltage amplifier, transconductance amplifier, and
 differential transconductance amplifier targets, export supplies one idealized
-E- or G-source subcircuit definition per used target. An explicitly authored
+E- or G-source subcircuit definition per used target; the default opamp calls
+one of its limited bodies (see Device definition). An explicitly authored
 Cell or project external definition of the same name takes precedence, and
 retargeting an instance to another master keeps it external. Other built-in
 Analog Blocks remain black-box calls. Artwork cannot change external
@@ -192,13 +193,22 @@ own supply, `VDD` and `VSS`, the defaults. An op-amp is powered when its VDD
 is a Net, selected in Properties or the Cell's one drawn positive supply; a
 powered op-amp's supply limits read that VDD and its VSS, usually ground. An
 op-amp with no supply drawn reads +5 V and −5 V for them (owner decision,
-2026-10-08), so a textbook figure drawn without supplies still saturates. As
+2026-10-08), so a textbook figure drawn without supplies still saturates.
+The default VDD Pin export adds for other parts of such a Cell powers no
+op-amp. Where the Cell drew several positive supplies, or a powered
+op-amp's VSS has several candidates, a limit following that supply reads
++5 V and −5 V, or ground for the low limit, and the warning
+`IDEAL_OPAMP_SUPPLY_AMBIGUOUS` asks for a selection in Properties; it does
+not block export, because the limit matters only once the output reaches
+it. As
 with the comparator, each kind of limit chooses a body of its own:
 `opamp` for two levels, `icm_opamp_vdd`, `icm_opamp_vss` or
 `icm_opamp_vdd_vss` for limits read from the supplies. No call carries
 `vhigh=VDD`, so a Project's own `opamp` definition, which replaces every
-body, never receives one. A limit that is neither a number nor its supply,
-or two levels with no room between them, is `INVALID_IDEAL_OPAMP_LIMIT`. The
+body, never receives one; a Cell or external definition named after one of
+the `icm_opamp_*` bodies is `IDEAL_OPAMP_NAME_COLLISION`. A limit that is
+neither a number nor its supply, or two levels with no room between them,
+is `INVALID_IDEAL_OPAMP_LIMIT`. The
 fully differential op-amp stays unlimited: its outputs sit about ground,
 with no common mode a limit could keep. The logic
 Symbols — gates, buffer, inverter, adder, multiplier and the
@@ -838,14 +848,18 @@ choice with `circuit_properties` `set-block-supply {target, supply, net}`;
 
 Some built-in bodies never read their supplies: the ideal amplifiers and the
 adder in either format, and the multiplier and the ideal comparator with a
-numeric high level in SPICE. The op-amp reads its supplies only once a drawn
-or selected VDD powers it, so it, too, takes no default supply. When such a Block has neither a selected nor a
-drawn supply, the unused port is tied to node `0` and nothing blocks. A
-textbook switched-capacitor integrator therefore exports without a supply
-drawn. The ideal comparator whose high level is `VDD` reads VDD alone: it
-takes the default VDD described above, but no default ground. An authored
-Cell or a declared external definition of
-the same name replaces the body and may use its supplies, so the rule above
+numeric high level in SPICE. When such a Block has neither a selected nor a
+drawn supply, the unused port is tied to node `0` and nothing blocks; where
+the Cell has a default VDD Pin for other parts, the port takes that Pin, still
+unused. A textbook switched-capacitor integrator therefore exports without a
+supply drawn. The op-amp reads its supplies only once a VDD the author drew
+or selected powers it, so it, too, takes no default supply, and several
+competing candidates never block its export: they fall back as Device
+definition describes, with `IDEAL_OPAMP_SUPPLY_AMBIGUOUS`. The ideal
+comparator whose high level is `VDD` reads VDD alone: it takes the default
+VDD described above, but no default ground. An authored Cell or a declared
+external definition of the same name replaces the body and may use its
+supplies, so the rule above
 applies to it again, as it does to every Block whose body uses VDD and VSS.
 Export never silently declares `.global VDD VSS`; a default supply is a Cell
 Pin, as for MOS bodies.

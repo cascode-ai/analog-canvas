@@ -219,6 +219,8 @@ targets to avoid full-Snapshot name resolution. Names remain supported when usef
   neither takes braces. A supply limit reads the op-amp's own supply once a
   VDD powers it (bound with `set-block-supply`, else the Cell's one drawn
   positive supply); with none, it reads +5 V or −5 V and no supply is added.
+  With several drawn, `IDEAL_OPAMP_SUPPLY_AMBIGUOUS` warns: bind its VDD, or
+  its VSS where several grounds or negative supplies compete.
   So an astable, Wien-bridge or phase-shift oscillator or a Schmitt trigger
   drawn with an op-amp saturates as drawn: set the limits to the swing the
   figure means (`vhigh:"12"`, `vlow:"-12"`) when it states one. The fully
