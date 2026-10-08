@@ -1,0 +1,18 @@
+
+.subckt astra_060_cmos_static_majority_voter vdd VSS a b c vote
+CL vote VSS 100f
+M1 net0 a net1 VSS ANMOS l=1u w=10u
+M10 net5 c net4 vdd APMOS l=1u w=20u
+M11 net0 b net5 vdd APMOS l=1u w=20u
+M12 net0 c net5 vdd APMOS l=1u w=20u
+M13 vote net0 vdd vdd APMOS l=1u w=20u
+M14 vote net0 VSS VSS ANMOS l=1u w=10u
+M2 net1 b VSS VSS ANMOS l=1u w=10u
+M3 net0 a net2 VSS ANMOS l=1u w=10u
+M4 net2 c VSS VSS ANMOS l=1u w=10u
+M5 net0 b net3 VSS ANMOS l=1u w=10u
+M6 net3 c VSS VSS ANMOS l=1u w=10u
+M7 net4 a vdd vdd APMOS l=1u w=20u
+M8 net4 b vdd vdd APMOS l=1u w=20u
+M9 net5 a net4 vdd APMOS l=1u w=20u
+.ends astra_060_cmos_static_majority_voter

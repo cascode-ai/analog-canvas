@@ -1,0 +1,13 @@
+
+.subckt astra_061_mos_bootstrapped_track_switch vdd VSS sampleb vin g sample out
+CB t b 10p
+CL out VSS 5p
+M1 vin g out VSS ANMOS l=1u w=20u
+M2 g sampleb VSS VSS ANMOS l=1u w=20u
+M3 vdd sampleb t VSS ANMOS l=1u w=20u
+M4 b sampleb VSS VSS ANMOS l=1u w=20u
+M5 t sampleb g t APMOS l=1u w=20u
+M6 vin sampleb b vdd APMOS l=1u w=20u
+M7 vin sample b VSS ANMOS l=1u w=10u
+RL out VSS 1G
+.ends astra_061_mos_bootstrapped_track_switch

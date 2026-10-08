@@ -1,0 +1,11 @@
+{
+  "name": "CMOS Schmitt RC relaxation oscillator",
+  "description": "A six-MOS Schmitt inverter with two restoring inverters drives a 100 kohm / 100 pF feedback network. Ten MOS devices and all feedback/storage loads are explicit. Charging and discharging the input capacitor between hysteresis thresholds produces autonomous oscillation without a clock input. The saved initialized transient checks period, high duration, output rails and capacitor extrema. Educational nominal models; startup yield, calibrated frequency, jitter, duty-cycle corners and PVT are not qualified.",
+  "tags": [
+    "CMOS",
+    "Relaxation Oscillator",
+    "Schmitt Trigger",
+    "RC Timing",
+    "Clock Generation"
+  ]
+}

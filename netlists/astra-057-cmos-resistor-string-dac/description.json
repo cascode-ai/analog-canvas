@@ -1,0 +1,11 @@
+{
+  "name": "CMOS one-hot resistor-string DAC",
+  "description": "Three 10 kohm resistors create four taps from 0 to 3.3 V. Four transmission gates, each with an explicit complement inverter, select one tap using external one-hot controls s0-s3. All sixteen MOS devices and the 100 fF/1 Gohm output load are explicit. The saved transient selects 0, 1.1, 2.2 and 3.3 V with a dead interval between selects and checks a return to zero. No binary decoder is hidden. Educational nominal models; simultaneous-select faults, tap accuracy, loading, glitch energy and PVT are not qualified.",
+  "tags": [
+    "CMOS",
+    "Resistor String",
+    "DAC",
+    "One Hot",
+    "Data Conversion"
+  ]
+}

@@ -1,0 +1,28 @@
+CMOS one-hot resistor-string DAC
+.include "circuit.spice"
+.include "models.spice"
+VDD vdd 0 3.3
+VS0 s0 0 PULSE(0 3.3 20n 100p 100p 79.9n 400n)
+VS1 s1 0 PULSE(0 3.3 120n 100p 100p 79.9n 400n)
+VS2 s2 0 PULSE(0 3.3 220n 100p 100p 79.9n 400n)
+VS3 s3 0 PULSE(0 3.3 320n 100p 100p 79.9n 400n)
+XDUT vdd 0 out s0 s1 s2 s3 astra_057_cmos_resistor_string_dac
+.temp 27
+.options method=gear reltol=1e-5
+* @spec level0 range -0.02 0.02 unit=V
+* @spec level1 range 1.08 1.12 unit=V
+* @spec level2 range 2.18 2.22 unit=V
+* @spec level3 range 3.28 3.32 unit=V
+* @spec level4 range -0.02 0.02 unit=V
+.control
+set filetype=ascii
+tran 100p 500n
+meas tran level0 FIND v(out) AT=70n
+meas tran level1 FIND v(out) AT=170n
+meas tran level2 FIND v(out) AT=270n
+meas tran level3 FIND v(out) AT=370n
+meas tran level4 FIND v(out) AT=470n
+write out.raw v(out) v(s0) v(s1) v(s2) v(s3)
+quit
+.endc
+.end

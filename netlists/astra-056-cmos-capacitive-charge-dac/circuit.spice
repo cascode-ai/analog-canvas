@@ -1,0 +1,27 @@
+
+.subckt astra_056_cmos_capacitive_charge_dac vdd VSS d0 d1 d2 reset out
+C0 out net0 1p
+C1 out net1 2p
+C2 out net2 4p
+CD out VSS 1p
+M1 db0 d0 vdd vdd APMOS l=1u w=20u
+M10 vdd d1 net1 VSS ANMOS l=1u w=10u
+M11 VSS d1 net1 vdd APMOS l=1u w=20u
+M12 VSS db1 net1 VSS ANMOS l=1u w=10u
+M13 db2 d2 vdd vdd APMOS l=1u w=20u
+M14 db2 d2 VSS VSS ANMOS l=1u w=10u
+M15 vdd db2 net2 vdd APMOS l=1u w=20u
+M16 vdd d2 net2 VSS ANMOS l=1u w=10u
+M17 VSS d2 net2 vdd APMOS l=1u w=20u
+M18 VSS db2 net2 VSS ANMOS l=1u w=10u
+M19 out reset VSS VSS ANMOS l=1u w=10u
+M2 db0 d0 VSS VSS ANMOS l=1u w=10u
+M3 vdd db0 net0 vdd APMOS l=1u w=20u
+M4 vdd d0 net0 VSS ANMOS l=1u w=10u
+M5 VSS d0 net0 vdd APMOS l=1u w=20u
+M6 VSS db0 net0 VSS ANMOS l=1u w=10u
+M7 db1 d1 vdd vdd APMOS l=1u w=20u
+M8 db1 d1 VSS VSS ANMOS l=1u w=10u
+M9 vdd db1 net1 vdd APMOS l=1u w=20u
+RL out VSS 1G
+.ends astra_056_cmos_capacitive_charge_dac

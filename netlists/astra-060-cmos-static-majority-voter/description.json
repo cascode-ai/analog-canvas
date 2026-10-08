@@ -1,0 +1,11 @@
+{
+  "name": "CMOS static three-input majority voter",
+  "description": "Complementary transistor pull networks and one restoring inverter implement vote=ab+ac+bc. Fourteen MOS devices and a 100 fF load are explicit. The saved experiment checks all eight input combinations, including one differing replica in otherwise agreeing triples. This standalone static voter uses a different switch network from the transmission-gate full-adder circuit. Educational nominal models; fault transients, metastability, physical independence and PVT are not qualified.",
+  "tags": [
+    "CMOS",
+    "Majority Voter",
+    "TMR",
+    "Fault Tolerance",
+    "Static Logic"
+  ]
+}

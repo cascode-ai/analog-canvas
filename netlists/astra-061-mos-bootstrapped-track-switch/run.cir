@@ -1,0 +1,33 @@
+MOS bootstrapped track-and-hold switch
+.include "circuit.spice"
+.include "models.spice"
+VDD vdd 0 3.3
+VS sample 0 PULSE(0 3.3 20n 100p 100p 49.9n 100n)
+VSB sampleb 0 PULSE(3.3 0 20n 100p 100p 49.9n 100n)
+VIN vin 0 PWL(0 .5 79n .5 80n 1.6 179n 1.6 180n 2.8 300n 2.8)
+XDUT vdd 0 sampleb vin g sample out astra_061_mos_bootstrapped_track_switch
+.temp 27
+.options method=gear reltol=1e-5
+* @spec track0 range 0.48 0.52 unit=V
+* @spec gate0 range 2.3 3.5 unit=V
+* @spec track1 range 1.58 1.62 unit=V
+* @spec gate1 range 3.4000000000000004 4.6 unit=V
+* @spec track2 range 2.78 2.82 unit=V
+* @spec gate2 range 4.6 5.8 unit=V
+* @spec hold0 range 0.48 0.52 unit=V
+* @spec hold1 range 1.58 1.62 unit=V
+.control
+set filetype=ascii
+tran 20p 300n
+meas tran track0 FIND v(out) AT=50n
+meas tran gate0 FIND v(g) AT=50n
+meas tran track1 FIND v(out) AT=150n
+meas tran gate1 FIND v(g) AT=150n
+meas tran track2 FIND v(out) AT=250n
+meas tran gate2 FIND v(g) AT=250n
+meas tran hold0 FIND v(out) AT=110n
+meas tran hold1 FIND v(out) AT=210n
+write out.raw v(out) v(g) v(vin) v(sample) v(sampleb)
+quit
+.endc
+.end

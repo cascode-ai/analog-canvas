@@ -1,0 +1,85 @@
+{
+  "simulator": "ngspice-46",
+  "models": "Generic educational Level-1 MOS",
+  "temperatureC": 27,
+  "localSpecs": [
+    {
+      "metric": "s0vote",
+      "min": -0.01,
+      "max": 0.01,
+      "value": 6.12963e-10,
+      "passed": true
+    },
+    {
+      "metric": "s1vote",
+      "min": -0.01,
+      "max": 0.01,
+      "value": 6.14157e-10,
+      "passed": true
+    },
+    {
+      "metric": "s2vote",
+      "min": -0.01,
+      "max": 0.01,
+      "value": 6.1356e-10,
+      "passed": true
+    },
+    {
+      "metric": "s3vote",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "s4vote",
+      "min": -0.01,
+      "max": 0.01,
+      "value": 6.12963e-10,
+      "passed": true
+    },
+    {
+      "metric": "s5vote",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "s6vote",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "s7vote",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    }
+  ],
+  "nativeDiagnostics": 0,
+  "canonicalExportMatches": true,
+  "prototypeConnectivityAndParametersMatch": true,
+  "limitations": "Nominal functional verification only; no PVT, noise, mismatch or foundry qualification.",
+  "hosted": {
+    "runId": "e0ba9d02-6e7f-4c57-a155-56c5affc9bfa",
+    "specs": {
+      "available": true,
+      "total": 8,
+      "passed": 8,
+      "failed": 0,
+      "notEvaluated": 0,
+      "unconstrained": 0
+    },
+    "execution": "completed"
+  },
+  "liveEditorVerification": {
+    "errors": 0,
+    "warnings": 0,
+    "structuralComparison": "equal"
+  },
+  "publicLayoutMatchesNativeProject": true
+}

@@ -1,0 +1,24 @@
+
+.subckt astra_057_cmos_resistor_string_dac vdd VSS out s0 s1 s2 s3
+CL out VSS 100f
+M1 sb0 s0 vdd vdd APMOS l=1u w=20u
+M10 sb2 s2 VSS VSS ANMOS l=1u w=10u
+M11 net1 sb2 out vdd APMOS l=1u w=20u
+M12 net1 s2 out VSS ANMOS l=1u w=10u
+M13 sb3 s3 vdd vdd APMOS l=1u w=20u
+M14 sb3 s3 VSS VSS ANMOS l=1u w=10u
+M15 vdd sb3 out vdd APMOS l=1u w=20u
+M16 vdd s3 out VSS ANMOS l=1u w=10u
+M2 sb0 s0 VSS VSS ANMOS l=1u w=10u
+M3 VSS sb0 out vdd APMOS l=1u w=20u
+M4 VSS s0 out VSS ANMOS l=1u w=10u
+M5 sb1 s1 vdd vdd APMOS l=1u w=20u
+M6 sb1 s1 VSS VSS ANMOS l=1u w=10u
+M7 net0 sb1 out vdd APMOS l=1u w=20u
+M8 net0 s1 out VSS ANMOS l=1u w=10u
+M9 sb2 s2 vdd vdd APMOS l=1u w=20u
+R1 vdd net1 10k
+R2 net1 net0 10k
+R3 net0 VSS 10k
+RL out VSS 1G
+.ends astra_057_cmos_resistor_string_dac

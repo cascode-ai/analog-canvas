@@ -1,0 +1,11 @@
+{
+  "name": "CMOS domino AO21 gate with keeper",
+  "description": "Eight MOS devices implement clocked domino logic out=(a AND b) OR c during evaluation. A clocked PMOS precharges the dynamic node, a clocked NMOS foot enables discharge, a weak PMOS keeper retains its high state, and an explicit inverter restores the output. Two 100 fF loads are shown. All eight input patterns and each precharge output are checked. Inputs are held stable throughout evaluation; no hidden clock or gate is used. Educational nominal models; nonmonotonic input behavior, noise margin, charge sharing and PVT are not qualified.",
+  "tags": [
+    "CMOS",
+    "Domino",
+    "Dynamic Logic",
+    "Keeper",
+    "AO21"
+  ]
+}

@@ -1,0 +1,17 @@
+
+.subckt astra_058_cmos_schmitt_relaxation_oscillator vdd VSS vin out
+CH net2 VSS 100f
+CL out VSS 2p
+CT vin VSS 100p
+M1 net1 vin vdd vdd APMOS l=1u w=20u
+M10 out net3 VSS VSS ANMOS l=1u w=10u
+M2 net2 vin net1 vdd APMOS l=1u w=20u
+M3 VSS net2 net1 vdd APMOS l=1u w=20u
+M4 net2 vin net0 VSS ANMOS l=1u w=10u
+M5 net0 vin VSS VSS ANMOS l=1u w=10u
+M6 vdd net2 net0 VSS ANMOS l=1u w=10u
+M7 net3 net2 vdd vdd APMOS l=1u w=20u
+M8 net3 net2 VSS VSS ANMOS l=1u w=10u
+M9 out net3 vdd vdd APMOS l=1u w=20u
+RT out vin 100k
+.ends astra_058_cmos_schmitt_relaxation_oscillator

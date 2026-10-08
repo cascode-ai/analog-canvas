@@ -1,0 +1,11 @@
+{
+  "name": "MOS bootstrapped track-and-hold switch",
+  "description": "A 10 pF bootstrap capacitor is precharged through an NMOS while its bottom plate is clamped. During track a transmission gate connects the bottom to vin and a PMOS connects the lifted top to the main NMOS gate; an NMOS resets that gate during hold. Seven MOS devices, a 5 pF output load and a 1 Gohm leakage load are explicit. The bootstrap PMOS body is explicitly tied to its floating top node t. External sample/sampleb controls are complementary. Three input levels and two hold intervals are checked, along with lifted gate voltage. Educational models only; above-supply gate/body voltages, oxide limits, body-diode transients, retention and foundry/PVT qualification are not guaranteed.",
+  "tags": [
+    "CMOS",
+    "Bootstrap",
+    "Track Hold",
+    "Sampling Switch",
+    "Switched Capacitor"
+  ]
+}

@@ -1,0 +1,13 @@
+
+.subckt astra_059_cmos_domino_ao21_keeper vdd VSS clk a b c out
+CD net0 VSS 100f
+CL out VSS 100f
+M1 net0 clk vdd vdd APMOS l=1u w=20u
+M2 net0 out vdd vdd APMOS l=1u w=1u
+M3 net0 a net2 VSS ANMOS l=1u w=10u
+M4 net2 b net1 VSS ANMOS l=1u w=10u
+M5 net0 c net1 VSS ANMOS l=1u w=10u
+M6 net1 clk VSS VSS ANMOS l=1u w=20u
+M7 out net0 vdd vdd APMOS l=1u w=20u
+M8 out net0 VSS VSS ANMOS l=1u w=10u
+.ends astra_059_cmos_domino_ao21_keeper

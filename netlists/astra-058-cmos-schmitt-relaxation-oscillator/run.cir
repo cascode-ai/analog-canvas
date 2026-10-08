@@ -1,0 +1,27 @@
+CMOS Schmitt RC relaxation oscillator
+.include "circuit.spice"
+.include "models.spice"
+VDD vdd 0 3.3
+.ic v(vin)=0
+XDUT vdd 0 vin out astra_058_cmos_schmitt_relaxation_oscillator
+.temp 27
+.options method=gear reltol=1e-5
+* @spec period range 0.000005 0.00004 unit=s
+* @spec highwidth range 0.000001 0.00003 unit=s
+* @spec outmax range 3.2 3.4 unit=V
+* @spec outmin range -0.05 0.1 unit=V
+* @spec capmax range 1.8 3.1 unit=V
+* @spec capmin range 0.2 1.5 unit=V
+.control
+set filetype=ascii
+tran 20n 300u
+meas tran period TRIG v(out) VAL=1.65 RISE=5 TARG v(out) VAL=1.65 RISE=6
+meas tran highwidth TRIG v(out) VAL=1.65 RISE=5 TARG v(out) VAL=1.65 FALL=6
+meas tran outmax MAX v(out) FROM=50u TO=300u
+meas tran outmin MIN v(out) FROM=50u TO=300u
+meas tran capmax MAX v(vin) FROM=50u TO=300u
+meas tran capmin MIN v(vin) FROM=50u TO=300u
+write out.raw v(out) v(vin)
+quit
+.endc
+.end

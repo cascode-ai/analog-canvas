@@ -1,0 +1,34 @@
+
+Note: No compatibility mode selected!
+
+
+Circuit: cmos schmitt rc relaxation oscillator
+
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+Initial Transient Solution
+--------------------------
+
+Node                                   Voltage
+----                                   -------
+vdd                                        3.3
+xdut.net2                                  3.3
+out                                    3.29237
+vin                                          0
+xdut.net1                                  3.3
+xdut.net3                          6.12963e-10
+xdut.net0                              2.33745
+vdd#branch                        -3.29237e-05
+
+
+No. of Data Rows : 23996
+period              =  1.06967e-05 targ=  6.87066e-05 trig=  5.80099e-05
+highwidth           =  5.27708e-06 targ=  6.32870e-05 trig=  5.80099e-05
+outmax              =  3.29932e+00 at=  2.98615e-04
+outmin              =  1.35144e-04 at=  1.11493e-04
+capmax              =  2.05858e+00 at=  2.98615e-04
+capmin              =  1.19876e+00 at=  1.43583e-04
+ASCII raw file "out.raw"
+ngspice-46 done

@@ -1,0 +1,34 @@
+CMOS binary capacitive charge-redistribution DAC
+.include "circuit.spice"
+.include "models.spice"
+VDD vdd 0 3.3
+V0 d0 0 PULSE(0 3.3 100n 100p 100p 99.9n 200n)
+V1 d1 0 PULSE(0 3.3 200n 100p 100p 199.9n 400n)
+V2 d2 0 PULSE(0 3.3 400n 100p 100p 399.9n 800n)
+VR reset 0 PWL(0 3.3 15n 3.3 15.1n 0 800n 0)
+XDUT vdd 0 d0 d1 d2 reset out astra_056_cmos_capacitive_charge_dac
+.temp 27
+.options method=gear reltol=1e-5
+* @spec code0 range -0.025 0.025 unit=V
+* @spec code1 range 0.38749999999999996 0.4375 unit=V
+* @spec code2 range 0.7999999999999999 0.85 unit=V
+* @spec code3 range 1.2125 1.2624999999999997 unit=V
+* @spec code4 range 1.625 1.6749999999999998 unit=V
+* @spec code5 range 2.0375 2.0875 unit=V
+* @spec code6 range 2.4499999999999997 2.4999999999999996 unit=V
+* @spec code7 range 2.8625 2.9124999999999996 unit=V
+.control
+set filetype=ascii
+tran 100p 800n
+meas tran code0 FIND v(out) AT=70n
+meas tran code1 FIND v(out) AT=170n
+meas tran code2 FIND v(out) AT=270n
+meas tran code3 FIND v(out) AT=370n
+meas tran code4 FIND v(out) AT=470n
+meas tran code5 FIND v(out) AT=570n
+meas tran code6 FIND v(out) AT=670n
+meas tran code7 FIND v(out) AT=770n
+write out.raw v(out) v(d0) v(d1) v(d2) v(reset)
+quit
+.endc
+.end

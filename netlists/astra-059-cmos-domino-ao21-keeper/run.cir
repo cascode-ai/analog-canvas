@@ -1,0 +1,50 @@
+CMOS domino AO21 gate with keeper
+.include "circuit.spice"
+.include "models.spice"
+VDD vdd 0 3.3
+V0 a 0 PULSE(0 3.3 100n 100p 100p 99.9n 200n)
+V1 b 0 PULSE(0 3.3 200n 100p 100p 199.9n 400n)
+V2 c 0 PULSE(0 3.3 400n 100p 100p 399.9n 800n)
+VCLK clk 0 PULSE(0 3.3 40n 100p 100p 59.9n 100n)
+XDUT vdd 0 clk a b c out astra_059_cmos_domino_ao21_keeper
+.temp 27
+.options method=gear reltol=1e-5
+* @spec eval0 range -0.01 0.01 unit=V
+* @spec pre0 range -0.01 0.01 unit=V
+* @spec eval1 range -0.01 0.01 unit=V
+* @spec pre1 range -0.01 0.01 unit=V
+* @spec eval2 range -0.01 0.01 unit=V
+* @spec pre2 range -0.01 0.01 unit=V
+* @spec eval3 range 3.2 3.4 unit=V
+* @spec pre3 range -0.01 0.01 unit=V
+* @spec eval4 range 3.2 3.4 unit=V
+* @spec pre4 range -0.01 0.01 unit=V
+* @spec eval5 range 3.2 3.4 unit=V
+* @spec pre5 range -0.01 0.01 unit=V
+* @spec eval6 range 3.2 3.4 unit=V
+* @spec pre6 range -0.01 0.01 unit=V
+* @spec eval7 range 3.2 3.4 unit=V
+* @spec pre7 range -0.01 0.01 unit=V
+.control
+set filetype=ascii
+tran 100p 800n
+meas tran eval0 FIND v(out) AT=80n
+meas tran pre0 FIND v(out) AT=25n
+meas tran eval1 FIND v(out) AT=180n
+meas tran pre1 FIND v(out) AT=125n
+meas tran eval2 FIND v(out) AT=280n
+meas tran pre2 FIND v(out) AT=225n
+meas tran eval3 FIND v(out) AT=380n
+meas tran pre3 FIND v(out) AT=325n
+meas tran eval4 FIND v(out) AT=480n
+meas tran pre4 FIND v(out) AT=425n
+meas tran eval5 FIND v(out) AT=580n
+meas tran pre5 FIND v(out) AT=525n
+meas tran eval6 FIND v(out) AT=680n
+meas tran pre6 FIND v(out) AT=625n
+meas tran eval7 FIND v(out) AT=780n
+meas tran pre7 FIND v(out) AT=725n
+write out.raw v(out) v(a) v(b) v(c) v(clk)
+quit
+.endc
+.end

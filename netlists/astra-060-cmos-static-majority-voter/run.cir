@@ -1,0 +1,33 @@
+CMOS static three-input majority voter
+.include "circuit.spice"
+.include "models.spice"
+VDD vdd 0 3.3
+V0 a 0 PULSE(0 3.3 100n 100p 100p 99.9n 200n)
+V1 b 0 PULSE(0 3.3 200n 100p 100p 199.9n 400n)
+V2 c 0 PULSE(0 3.3 400n 100p 100p 399.9n 800n)
+XDUT vdd 0 a b c vote astra_060_cmos_static_majority_voter
+.temp 27
+.options method=gear reltol=1e-5
+* @spec s0vote range -0.01 0.01 unit=V
+* @spec s1vote range -0.01 0.01 unit=V
+* @spec s2vote range -0.01 0.01 unit=V
+* @spec s3vote range 3.2 3.4 unit=V
+* @spec s4vote range -0.01 0.01 unit=V
+* @spec s5vote range 3.2 3.4 unit=V
+* @spec s6vote range 3.2 3.4 unit=V
+* @spec s7vote range 3.2 3.4 unit=V
+.control
+set filetype=ascii
+tran 100p 800n
+meas tran s0vote FIND v(vote) AT=30n
+meas tran s1vote FIND v(vote) AT=130n
+meas tran s2vote FIND v(vote) AT=230n
+meas tran s3vote FIND v(vote) AT=330n
+meas tran s4vote FIND v(vote) AT=430n
+meas tran s5vote FIND v(vote) AT=530n
+meas tran s6vote FIND v(vote) AT=630n
+meas tran s7vote FIND v(vote) AT=730n
+write out.raw v(vote) v(a) v(b) v(c)
+quit
+.endc
+.end
