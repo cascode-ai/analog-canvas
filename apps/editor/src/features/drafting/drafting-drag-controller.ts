@@ -11,6 +11,7 @@ import type {
   Point,
   SchematicDocument,
 } from "@icm/model";
+import { snapGridPoint } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
 import {
@@ -30,11 +31,12 @@ import {
 } from "../../snap/engine";
 import {
   applyDraftingHandle,
-  draftingDragOrigin,
-  translateDraftingObject,
   type DraftingHandle,
 } from "./drafting-manipulation";
+import { draftingMoveOrigin, translateDraftingMove } from "./drafting-move";
 import { draftingPlacementGrid } from "./placement-grid";
+import { planSelectionMove } from "../selection/selection-move-plan";
+import { EMPTY_VISUAL_SELECTION } from "../selection/visual-selection";
 
 export interface DraftingHandlePreview {
   objectId: string;
@@ -103,7 +105,7 @@ export function createDraftingDragController({
     if (event.button !== 0 || object.locked) return;
     if (onCompositeMove(event, hitTarget)) return;
     const additiveSelection = event.shiftKey || event.ctrlKey || event.metaKey;
-    const origin = draftingDragOrigin(object);
+    const origin = draftingMoveOrigin(document, resolver, object);
     if (!origin) {
       selectDraftingObject(object.id, additiveSelection);
       setStatus("This anchored drawing moves with its attachment");
@@ -119,10 +121,14 @@ export function createDraftingDragController({
     const svg = hitTarget.ownerSVGElement!;
     const start = pointFromClient(event.clientX, event.clientY, svg, false);
     const original = { ...origin };
+    const movePlan = planSelectionMove(document, {
+      ...EMPTY_VISUAL_SELECTION,
+      draftingIds: [object.id],
+    });
     selectDraftingObject(object.id);
     let visual: ReturnType<typeof startCanvasDragVisual> | null = null;
     const dragVisual = () =>
-      (visual ??= startCanvasDragVisual(svg, [object.id]));
+      (visual ??= startCanvasDragVisual(svg, movePlan.previewObjectIds));
     const tolerance = logicalRadiusForPixels(svg, snapCaptureRadiusPx);
     const movingAnchors = [
       {
@@ -136,7 +142,7 @@ export function createDraftingDragController({
       document,
       resolver,
       visibleEndpoints,
-      new Set([object.id]),
+      new Set(movePlan.previewObjectIds),
     );
     let lastSnap: SnapResult | undefined;
     const positionAt = (
@@ -166,10 +172,13 @@ export function createDraftingDragController({
             previous,
           );
       return {
-        position: {
-          x: original.x + resolved.delta.x,
-          y: original.y + resolved.delta.y,
-        },
+        position: snapGridPoint(
+          {
+            x: original.x + resolved.delta.x,
+            y: original.y + resolved.delta.y,
+          },
+          1,
+        ),
         snap: resolved,
       };
     };
@@ -213,15 +222,10 @@ export function createDraftingDragController({
           transact([
             {
               kind: "upsert_drafting_object",
-              object: translateDraftingObject(
-                latest,
-                { x: position.x - original.x, y: position.y - original.y },
-                draftingPlacementGrid(
-                  latest.kind,
-                  annotationGrid,
-                  document.presentation.grid,
-                ),
-              ),
+              object: translateDraftingMove(document, resolver, latest, {
+                x: position.x - original.x,
+                y: position.y - original.y,
+              }),
             },
           ]);
         }

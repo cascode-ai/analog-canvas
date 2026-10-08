@@ -268,6 +268,340 @@ for (const zoomOutSteps of [0, 8]) {
   });
 }
 
+for (const selectedFollower of [false, true]) {
+  test(`mixed text follows once and preserves stationary-host offsets (follower selected: ${selectedFollower})`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1600, height: 1000 });
+    const project = createEmptyProject(
+      "anchored-text-move",
+      "Anchored text move",
+    );
+    const doc = project.documents[0]!;
+    for (const [id, x] of [
+      ["R", 400],
+      ["stationary", 800],
+    ] as const)
+      doc.instances.push({
+        id,
+        symbolId: "resistor",
+        placement: { position: { x, y: 400 }, rotation: 0, mirror: "none" },
+      });
+    doc.nets.push({ id: "signal", terminals: [] });
+    doc.annotations.push({
+      id: "label",
+      kind: "net-label",
+      netId: "signal",
+      binding: { kind: "net-name", netId: "signal" },
+      anchor: { kind: "free", position: { x: 453, y: 357 } },
+      alignment: "start",
+      rotation: 0,
+      locked: false,
+    });
+    doc.drafting = {
+      objects: [
+        {
+          id: "note",
+          kind: "text",
+          content: { runs: [{ kind: "text", value: "independent" }] },
+          anchor: {
+            kind: "object",
+            objectId: "stationary",
+            localOffset: { x: 13, y: 47 },
+            fallbackPosition: { x: 813, y: 447 },
+          },
+          alignment: "start",
+          rotation: 0,
+          locked: false,
+          zIndex: 0,
+        },
+        {
+          id: "follower",
+          kind: "text",
+          content: { runs: [{ kind: "text", value: "follows" }] },
+          anchor: {
+            kind: "object",
+            objectId: "R",
+            localOffset: { x: 53, y: 47 },
+            fallbackPosition: { x: 453, y: 447 },
+          },
+          alignment: "start",
+          rotation: 0,
+          locked: false,
+          zIndex: 0,
+        },
+      ],
+    };
+    await page.goto("/editor");
+    await page.getByTestId("project-file").setInputFiles({
+      name: "anchors.icproj.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(JSON.stringify(project)),
+    });
+    const hit = page.getByTestId("hit-R");
+    await expect(hit).toBeVisible();
+    await closeProjectTools(page);
+    const canvas = page.getByTestId("schematic-canvas");
+    await canvas.focus();
+    await page.keyboard.press("Control+a");
+    await page.getByTestId("hit-stationary").click({ modifiers: ["Shift"] });
+    if (!selectedFollower)
+      await page
+        .getByTestId("drafting-hit-follower")
+        .click({ modifiers: ["Shift"] });
+    const note = page.getByTestId("drafting-hit-note");
+    const follower = page.getByTestId("drafting-hit-follower");
+    const before = (await hit.boundingBox())!;
+    const beforeNote = (await note.boundingBox())!;
+    const beforeFollower = (await follower.boundingBox())!;
+    const scale = await canvas.evaluate(
+      (element) => (element as SVGSVGElement).getScreenCTM()!.a,
+    );
+    const start = {
+      x: before.x + before.width / 2,
+      y: before.y + before.height / 2,
+    };
+    await page.keyboard.down("Alt");
+    await page.mouse.move(start.x, start.y);
+    await page.mouse.down();
+    await page.mouse.move(start.x + 30 * scale, start.y + 10 * scale);
+    for (const [target, origin] of [
+      [note, beforeNote],
+      [follower, beforeFollower],
+    ] as const)
+      await expect
+        .poll(async () => ({
+          x: Math.round(((await target.boundingBox())!.x - origin.x) / scale),
+          y: Math.round(((await target.boundingBox())!.y - origin.y) / scale),
+        }))
+        .toEqual({ x: 30, y: 10 });
+    await page.mouse.up();
+    await page.keyboard.up("Alt");
+    const saved = parseSavedProject(
+      (await downloadBytes(page, "File", "Export Project File…")).toString(
+        "utf8",
+      ),
+    ) as typeof project;
+    const moved = saved.documents[0]!;
+    expect(
+      moved.instances.find((instance) => instance.id === "R")!.placement!
+        .position,
+    ).toEqual({ x: 430, y: 410 });
+    expect(
+      moved.instances.find((instance) => instance.id === "stationary")!
+        .placement!.position,
+    ).toEqual({ x: 800, y: 400 });
+    expect(
+      moved.drafting!.objects.find((object) => object.id === "note")!.anchor,
+    ).toEqual({
+      kind: "object",
+      objectId: "stationary",
+      localOffset: { x: 43, y: 57 },
+      fallbackPosition: { x: 843, y: 457 },
+    });
+    expect(
+      moved.drafting!.objects.find((object) => object.id === "follower")!
+        .anchor,
+    ).toEqual(doc.drafting!.objects[1]!.anchor);
+    expect(
+      moved.annotations.find((annotation) => annotation.id === "label")!.anchor,
+    ).toEqual({ kind: "free", position: { x: 483, y: 367 } });
+    expect(moved.nets).toEqual(doc.nets);
+    await canvas.focus();
+    await page.keyboard.press("Control+z");
+    await expect
+      .poll(async () =>
+        Math.round(((await note.boundingBox())!.x - beforeNote.x) / scale),
+      )
+      .toBe(0);
+    await expect
+      .poll(async () =>
+        Math.round(
+          ((await follower.boundingBox())!.x - beforeFollower.x) / scale,
+        ),
+      )
+      .toBe(0);
+  });
+}
+
+test("Alt-dragging object-anchored text commits integer fine placement", async ({
+  page,
+}) => {
+  const project = createEmptyProject("direct-text", "Direct text");
+  const doc = project.documents[0]!;
+  doc.instances.push({
+    id: "host",
+    symbolId: "resistor",
+    placement: { position: { x: 400, y: 400 }, rotation: 0, mirror: "none" },
+  });
+  doc.drafting = {
+    objects: [
+      {
+        id: "note",
+        kind: "text",
+        content: { runs: [{ kind: "text", value: "note" }] },
+        anchor: {
+          kind: "object",
+          objectId: "host",
+          localOffset: { x: 13, y: 47 },
+          fallbackPosition: { x: 413, y: 447 },
+        },
+        alignment: "start",
+        rotation: 0,
+        locked: false,
+        zIndex: 0,
+      },
+    ],
+  };
+  await page.goto("/editor");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "direct-text.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  await expect(page.getByTestId("hit-host")).toBeVisible();
+  await closeProjectTools(page);
+  const canvas = page.getByTestId("schematic-canvas");
+  const note = page.getByTestId("drafting-hit-note");
+  const before = (await note.boundingBox())!;
+  const scale = await canvas.evaluate(
+    (element) => (element as SVGSVGElement).getScreenCTM()!.a,
+  );
+  const start = {
+    x: before.x + before.width / 2,
+    y: before.y + before.height / 2,
+  };
+  await page.keyboard.down("Alt");
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  await page.mouse.move(start.x + 30.25 * scale, start.y + 10.25 * scale);
+  await expect
+    .poll(async () =>
+      Math.round(((await note.boundingBox())!.x - before.x) / scale),
+    )
+    .toBe(30);
+  await page.mouse.up();
+  await page.keyboard.up("Alt");
+  const saved = parseSavedProject(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(
+      "utf8",
+    ),
+  ) as typeof project;
+  expect(saved.documents[0]!.drafting!.objects[0]!.anchor).toEqual({
+    kind: "object",
+    objectId: "host",
+    localOffset: { x: 43, y: 57 },
+    fallbackPosition: { x: 443, y: 457 },
+  });
+  expect(saved.documents[0]!.instances).toEqual(doc.instances);
+  await canvas.focus();
+  await page.keyboard.press("Control+z");
+  await expect
+    .poll(async () =>
+      Math.round(((await note.boundingBox())!.x - before.x) / scale),
+    )
+    .toBe(0);
+});
+
+test("a single selected rectangle carries its unselected text during preview", async ({
+  page,
+}) => {
+  const project = createEmptyProject("shape-text", "Shape text");
+  const doc = project.documents[0]!;
+  doc.drafting = {
+    objects: [
+      {
+        id: "host",
+        kind: "rectangle",
+        center: { x: 400, y: 400 },
+        anchor: { kind: "free", position: { x: 400, y: 400 } },
+        width: 80,
+        height: 40,
+        rotation: 0,
+        lineStyle: "solid",
+        styleOverride: { fillColor: "#ffffff" },
+        locked: false,
+        zIndex: 0,
+      },
+      {
+        id: "note",
+        kind: "text",
+        content: { runs: [{ kind: "text", value: "follows" }] },
+        anchor: {
+          kind: "object",
+          objectId: "host",
+          localOffset: { x: 13, y: 47 },
+          fallbackPosition: { x: 413, y: 447 },
+        },
+        alignment: "start",
+        rotation: 0,
+        locked: false,
+        zIndex: 0,
+      },
+    ],
+  };
+  await page.goto("/editor");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "shape-text.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  const host = page.getByTestId("drafting-hit-host");
+  await expect(host).toBeVisible();
+  await closeProjectTools(page);
+  const canvas = page.getByTestId("schematic-canvas");
+  const note = page.getByTestId("drafting-hit-note");
+  const before = (await host.boundingBox())!;
+  const beforeNote = (await note.boundingBox())!;
+  const scale = await canvas.evaluate(
+    (element) => (element as SVGSVGElement).getScreenCTM()!.a,
+  );
+  const start = {
+    x: before.x + before.width / 2,
+    y: before.y + before.height / 2,
+  };
+  expect(
+    await page.evaluate(
+      ({ x, y }) =>
+        document
+          .elementFromPoint(x, y)
+          ?.closest("[data-canvas-hit-id]")
+          ?.getAttribute("data-canvas-hit-id"),
+      start,
+    ),
+  ).toBe("host");
+  await page.keyboard.down("Alt");
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  await page.mouse.move(start.x + 30 * scale, start.y + 10 * scale);
+  await expect
+    .poll(async () =>
+      Math.round(((await note.boundingBox())!.x - beforeNote.x) / scale),
+    )
+    .toBe(30);
+  await page.mouse.up();
+  await page.keyboard.up("Alt");
+  const saved = parseSavedProject(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(
+      "utf8",
+    ),
+  ) as typeof project;
+  expect(saved.documents[0]!.drafting!.objects[0]!).toMatchObject({
+    kind: "rectangle",
+    center: { x: 430, y: 410 },
+  });
+  expect(saved.documents[0]!.drafting!.objects[1]!.anchor).toEqual(
+    doc.drafting.objects[1]!.anchor,
+  );
+  await canvas.focus();
+  await page.keyboard.press("Control+z");
+  await expect
+    .poll(async () =>
+      Math.round(((await note.boundingBox())!.x - beforeNote.x) / scale),
+    )
+    .toBe(0);
+});
+
 test("selection traces the device and marks carried wires as would-move", async ({
   page,
 }) => {

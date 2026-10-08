@@ -1,11 +1,9 @@
 import { deriveRoutingAffectedClosure } from "@icm/derived";
-import type { Annotation, SchematicDocument } from "@icm/model";
+import type { SchematicDocument, VisualAnchor } from "@icm/model";
 
-import {
-  effectiveRouteAttachment,
-  looseRouteAnchorIds,
-} from "../wiring/route-interaction-geometry";
+import { looseRouteAnchorIds } from "../wiring/route-interaction-geometry";
 import type { VisualSelection } from "./visual-selection";
+import { canMoveDraftingIndependently } from "../drafting/drafting-move";
 
 /**
  * The finite direct-manipulation vocabulary. These are transient editor
@@ -35,6 +33,7 @@ export interface SelectionMovePlan {
   previewObjectIds: string[];
   /** Explicitly selected labels whose anchor target is not moving with them. */
   independentAnnotationIds: string[];
+  /** Selected drawings that own an independent placement edit, not followers. */
   draftingIds: string[];
   fixedObjectIds: string[];
 }
@@ -63,20 +62,15 @@ function stable(ids: Iterable<string>): string[] {
   );
 }
 
-function followsTranslatedObject(
-  annotation: Annotation,
-  instanceIds: ReadonlySet<string>,
-  junctionIds: ReadonlySet<string>,
+function followsTranslatedAnchor(
+  anchor: VisualAnchor,
+  objectIds: ReadonlySet<string>,
   routeIds: ReadonlySet<string>,
 ): boolean {
-  if (annotation.anchor.kind === "object") {
-    return (
-      instanceIds.has(annotation.anchor.objectId) ||
-      junctionIds.has(annotation.anchor.objectId)
-    );
-  }
-  const attachment = effectiveRouteAttachment(annotation);
-  return attachment !== null && routeIds.has(attachment.routeId);
+  return (
+    (anchor.kind === "object" && objectIds.has(anchor.objectId)) ||
+    (anchor.kind === "route" && routeIds.has(anchor.routeId))
+  );
 }
 
 /**
@@ -128,13 +122,37 @@ export function planSelectionMove(
     if (!translatedJunctionIds.has(junctionId)) fixedObjectIds.add(junctionId);
   }
 
-  const instanceIdSet = new Set(instanceIds);
+  const selectedDrafting = (document.drafting?.objects ?? []).filter((object) =>
+    selection.draftingIds.includes(object.id),
+  );
+  const movingObjectIds = new Set([
+    ...instanceIds,
+    ...translatedJunctionIds,
+    ...selectedDrafting
+      .filter(
+        (object) =>
+          !object.locked &&
+          (object.kind === "rectangle" || object.kind === "circle"),
+      )
+      .map((object) => object.id),
+  ]);
+  const followingDraftingIds = (document.drafting?.objects ?? [])
+    .filter(
+      (object) =>
+        object.kind === "text" &&
+        followsTranslatedAnchor(
+          object.anchor,
+          movingObjectIds,
+          translatedRouteIds,
+        ),
+    )
+    .map((object) => object.id);
+  const followingDraftingIdSet = new Set(followingDraftingIds);
   const followingAnnotationIds = document.annotations
     .filter((annotation) =>
-      followsTranslatedObject(
-        annotation,
-        instanceIdSet,
-        translatedJunctionIds,
+      followsTranslatedAnchor(
+        annotation.anchor,
+        movingObjectIds,
         translatedRouteIds,
       ),
     )
@@ -145,7 +163,7 @@ export function planSelectionMove(
       (candidate) => candidate.id === id,
     );
     if (!annotation) return false;
-    if (annotation.locked) {
+    if (annotation.locked && !followingAnnotationIdSet.has(id)) {
       fixedObjectIds.add(id);
       return false;
     }
@@ -159,7 +177,12 @@ export function planSelectionMove(
     const object = document.drafting?.objects.find(
       (candidate) => candidate.id === id,
     );
-    return Boolean(object && !object.locked);
+    if (!object || followingDraftingIdSet.has(id)) return false;
+    if (object.locked || !canMoveDraftingIndependently(object)) {
+      fixedObjectIds.add(id);
+      return false;
+    }
+    return true;
   });
 
   return {
@@ -174,6 +197,7 @@ export function planSelectionMove(
       ...translatedJunctionIds,
       ...followingAnnotationIds,
       ...independentAnnotationIds,
+      ...followingDraftingIds,
       ...draftingIds,
     ]),
     independentAnnotationIds: stable(independentAnnotationIds),

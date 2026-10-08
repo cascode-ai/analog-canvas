@@ -528,6 +528,18 @@ classifies that intent without changing connectivity:
   annotations and free drafting objects translate only when explicitly
   selected.
 
+Annotation and DraftText followers join the visual closure even when not
+explicitly selected. A translated Instance, Junction, rectangle/circle or Route
+owns that following movement: selecting its text as well does not add a second
+anchor edit. Independently selected object-anchored DraftText changes its
+existing local offset from the stationary host; it does not detach or acquire a
+second placement representation. Net Labels retain their electrical binding,
+and a label on a translated Route retains its attachment. Current markers keep
+their existing route-constrained placement rules. Locked independent text stays
+fixed; its lock does not freeze a moving attachment's resolved position.
+Route-anchored DraftText follows a translated Route but cannot independently
+translate off a stationary Route; the closure reports it as fixed in that case.
+
 The same boundary applies to `C` and Delete. `C` remains the existing modal
 copy-placement gesture (not Ctrl+C/Paste): its preview and commit use one
 preallocated clone mapping, internal routing is copied, and ordinary boundary

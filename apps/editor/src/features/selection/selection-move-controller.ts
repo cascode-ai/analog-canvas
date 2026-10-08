@@ -46,9 +46,9 @@ import {
   type SnapResult,
 } from "../../snap/engine";
 import {
-  draftingDragOrigin,
-  translateDraftingObject,
-} from "../drafting/drafting-manipulation";
+  draftingMoveOrigin,
+  translateDraftingMove,
+} from "../drafting/drafting-move";
 import {
   annotationDragPosition,
   draggedAnnotationAtPosition,
@@ -164,7 +164,12 @@ export function createSelectionMoveController({
           ? [
               {
                 kind: "upsert_drafting_object" as const,
-                object: translateDraftingObject(object, delta, 1),
+                object: translateDraftingMove(
+                  sourceDocument,
+                  resolver,
+                  object,
+                  delta,
+                ),
               },
             ]
           : [];
@@ -215,7 +220,9 @@ export function createSelectionMoveController({
           const object = document.drafting?.objects.find(
             (candidate) => candidate.id === id,
           );
-          const origin = object ? draftingDragOrigin(object) : null;
+          const origin = object
+            ? draftingMoveOrigin(document, resolver, object)
+            : null;
           return origin ? [origin] : [];
         })
         .find((point): point is Point => point !== null) ??

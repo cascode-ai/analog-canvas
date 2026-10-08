@@ -3,6 +3,7 @@ import {
   resolveRouteGeometry,
   resolveEndpointConnection,
   resolveDocumentRoutingGeometry,
+  resolveVisualAnchor,
 } from "@icm/derived";
 import { executeTransaction } from "@icm/edit-engine";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
@@ -12,6 +13,369 @@ import { planSelectionMove } from "./selection-move-plan";
 import { EMPTY_VISUAL_SELECTION } from "./visual-selection";
 
 describe("prepared instance movement", () => {
+  it.each(["locked", "route-anchored"] as const)(
+    "does not preview an independent move for %s DraftText",
+    (kind) => {
+      const document = createEmptyDocument("fixed-text", "Fixed text");
+      document.instances.push({
+        id: "R",
+        symbolId: "resistor",
+        placement: {
+          position: { x: 100, y: 100 },
+          rotation: 0,
+          mirror: "none",
+        },
+      });
+      document.nets.push({ id: "wire-net", terminals: [] });
+      document.junctions.push(
+        { id: "a", netId: "wire-net", position: { x: 300, y: 100 } },
+        { id: "b", netId: "wire-net", position: { x: 500, y: 100 } },
+      );
+      document.routes.push(
+        createRoutePath({
+          id: "wire",
+          netId: "wire-net",
+          start: { kind: "junction", junctionId: "a" },
+          end: { kind: "junction", junctionId: "b" },
+          bends: [],
+          modes: ["manual"],
+        }),
+      );
+      const resolver = new InMemorySymbolResolver(builtInSymbols);
+      const geometry = resolveRouteGeometry(
+        document,
+        resolver,
+        document.routes[0]!,
+      )!;
+      document.drafting = {
+        objects: [
+          {
+            id: "note",
+            kind: "text",
+            content: { runs: [{ kind: "text", value: "fixed" }] },
+            anchor:
+              kind === "locked"
+                ? { kind: "free", position: { x: 400, y: 112 } }
+                : {
+                    kind: "route",
+                    routeId: "wire",
+                    legId: geometry.segments[0]!.address.legId,
+                    t: 0.5,
+                    normalOffset: 12,
+                    direction: "forward",
+                    orientation: "horizontal",
+                    fallbackPosition: { x: 400, y: 112 },
+                  },
+            alignment: "start",
+            rotation: 0,
+            locked: kind === "locked",
+            zIndex: 0,
+          },
+        ],
+      };
+      const controller = createSelectionMoveController({
+        document,
+        resolver,
+        visibleEndpoints: [],
+        routeGeometryRecords: [{ route: document.routes[0]!, geometry }],
+        contactComponents: [],
+        transactConnectivity: () => {
+          throw new Error("Preview must not commit");
+        },
+        setStatus: () => {},
+        nextRoutingSuffix: () => 1,
+      });
+      const movePlan = planSelectionMove(document, {
+        ...EMPTY_VISUAL_SELECTION,
+        instanceIds: ["R"],
+        draftingIds: ["note"],
+      });
+      expect(movePlan.previewObjectIds).not.toContain("note");
+      expect(movePlan.fixedObjectIds).toContain("note");
+      const moved = controller.resolveInstanceMove(
+        {
+          instanceIds: ["R"],
+          primaryInstanceId: "R",
+          originalPositions: { R: { x: 100, y: 100 } },
+          pointerStart: { x: 100, y: 100 },
+          movePlan,
+        },
+        { x: 120, y: 110 },
+        4,
+        true,
+      );
+      expect(moved.preparationError).toBeUndefined();
+      expect(
+        moved.prepared!.previewDocument.drafting!.objects[0]!.anchor,
+      ).toEqual(document.drafting!.objects[0]!.anchor);
+    },
+  );
+
+  it("carries a route-anchored Net Label once when its loose wire moves with the group", () => {
+    const document = createEmptyDocument("wire-label-move", "Wire label move");
+    document.instances.push({
+      id: "R",
+      symbolId: "resistor",
+      placement: { position: { x: 100, y: 200 }, rotation: 0, mirror: "none" },
+    });
+    document.nets.push({ id: "loose", terminals: [] });
+    document.junctions.push(
+      { id: "a", netId: "loose", position: { x: 100, y: 100 } },
+      { id: "b", netId: "loose", position: { x: 200, y: 100 } },
+    );
+    document.routes.push(
+      createRoutePath({
+        id: "wire",
+        netId: "loose",
+        start: { kind: "junction", junctionId: "a" },
+        end: { kind: "junction", junctionId: "b" },
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+    const resolver = new InMemorySymbolResolver(builtInSymbols);
+    const geometry = resolveRouteGeometry(
+      document,
+      resolver,
+      document.routes[0]!,
+    )!;
+    document.annotations.push({
+      id: "label",
+      kind: "net-label",
+      netId: "loose",
+      binding: { kind: "net-name", netId: "loose" },
+      anchor: {
+        kind: "route",
+        routeId: "wire",
+        legId: geometry.segments[0]!.address.legId,
+        t: 0.5,
+        normalOffset: 12,
+        direction: "forward",
+        orientation: "horizontal",
+        fallbackPosition: { x: 150, y: 112 },
+      },
+      alignment: "start",
+      rotation: 0,
+      locked: false,
+    });
+    const controller = createSelectionMoveController({
+      document,
+      resolver,
+      visibleEndpoints: [],
+      routeGeometryRecords: [{ route: document.routes[0]!, geometry }],
+      contactComponents: [],
+      transactConnectivity: () => {
+        throw new Error("Preview must not commit");
+      },
+      setStatus: () => {},
+      nextRoutingSuffix: () => 1,
+    });
+    const moved = controller.resolveInstanceMove(
+      {
+        instanceIds: ["R"],
+        primaryInstanceId: "R",
+        originalPositions: { R: { x: 100, y: 200 } },
+        pointerStart: { x: 100, y: 200 },
+        movePlan: planSelectionMove(document, {
+          ...EMPTY_VISUAL_SELECTION,
+          instanceIds: ["R"],
+          routeIds: ["wire"],
+          annotationIds: ["label"],
+        }),
+      },
+      { x: 120, y: 210 },
+      4,
+      true,
+    );
+    expect(moved.preparationError).toBeUndefined();
+    const projected = moved.prepared!.previewDocument;
+    expect(
+      resolveVisualAnchor(projected, resolver, projected.annotations[0]!.anchor)
+        .position,
+    ).toEqual({ x: 170, y: 122 });
+    expect(projected.annotations[0]!.anchor).toEqual(
+      document.annotations[0]!.anchor,
+    );
+    expect(projected.annotations[0]!.binding).toEqual(
+      document.annotations[0]!.binding,
+    );
+  });
+
+  it.each([false, true])(
+    "carries anchored DraftText exactly once with its host (explicit selection: %s)",
+    (explicitlySelected) => {
+      const document = createEmptyDocument("following-text", "Following text");
+      document.instances.push({
+        id: "R",
+        symbolId: "resistor",
+        placement: {
+          position: { x: 100, y: 100 },
+          rotation: 0,
+          mirror: "none",
+        },
+      });
+      document.drafting = {
+        objects: [
+          {
+            id: "note",
+            kind: "text",
+            content: { runs: [{ kind: "text", value: "note" }] },
+            anchor: {
+              kind: "object",
+              objectId: "R",
+              localOffset: { x: 13, y: 7 },
+              fallbackPosition: { x: 113, y: 107 },
+            },
+            alignment: "start",
+            rotation: 0,
+            locked: false,
+            zIndex: 0,
+          },
+        ],
+      };
+      const resolver = new InMemorySymbolResolver(builtInSymbols);
+      const controller = createSelectionMoveController({
+        document,
+        resolver,
+        visibleEndpoints: [],
+        routeGeometryRecords: [],
+        contactComponents: [],
+        transactConnectivity: () => {
+          throw new Error("Preview must not commit");
+        },
+        setStatus: () => {},
+        nextRoutingSuffix: () => 1,
+      });
+      const movePlan = planSelectionMove(document, {
+        ...EMPTY_VISUAL_SELECTION,
+        instanceIds: ["R"],
+        draftingIds: explicitlySelected ? ["note"] : [],
+      });
+      expect(movePlan.previewObjectIds).toContain("note");
+      const moved = controller.resolveInstanceMove(
+        {
+          instanceIds: ["R"],
+          primaryInstanceId: "R",
+          originalPositions: { R: { x: 100, y: 100 } },
+          pointerStart: { x: 100, y: 100 },
+          movePlan,
+        },
+        { x: 120, y: 110 },
+        4,
+        true,
+      );
+      expect(moved.preparationError).toBeUndefined();
+      const projected = moved.prepared!.previewDocument;
+      expect(
+        resolveVisualAnchor(
+          projected,
+          resolver,
+          projected.drafting!.objects[0]!.anchor,
+        ).position,
+      ).toEqual({ x: 133, y: 117 });
+      expect(projected.drafting!.objects[0]!.anchor).toEqual(
+        document.drafting!.objects[0]!.anchor,
+      );
+    },
+  );
+
+  it("moves selected object-anchored text with the group, preserving its fine offset from a stationary host", () => {
+    const document = createEmptyDocument("text-move", "Text move");
+    for (const [id, x] of [
+      ["R", 100],
+      ["stationary", 200],
+    ] as const)
+      document.instances.push({
+        id,
+        symbolId: "resistor",
+        placement: { position: { x, y: 100 }, rotation: 0, mirror: "none" },
+      });
+    document.drafting = {
+      objects: [
+        {
+          id: "note",
+          kind: "text",
+          content: { runs: [{ kind: "text", value: "note" }] },
+          anchor: {
+            kind: "object",
+            objectId: "stationary",
+            localOffset: { x: 13, y: 7 },
+            fallbackPosition: { x: 213, y: 107 },
+          },
+          alignment: "start",
+          rotation: 0,
+          locked: false,
+          zIndex: 0,
+        },
+      ],
+    };
+    const resolver = new InMemorySymbolResolver(builtInSymbols);
+    let committed = document;
+    const controller = createSelectionMoveController({
+      document,
+      resolver,
+      visibleEndpoints: [],
+      routeGeometryRecords: [],
+      contactComponents: [],
+      transactConnectivity: (_intent, edits) => {
+        const result = executeTransaction(
+          document,
+          {
+            transactionId: "release",
+            documentId: document.id,
+            expectedRevision: document.revision,
+            actor: { kind: "human", id: "test" },
+            edits: [...edits],
+          },
+          { symbolResolver: resolver },
+        );
+        if (result.ok) committed = result.document;
+        return result;
+      },
+      setStatus: () => {},
+      nextRoutingSuffix: () => 1,
+    });
+    const preview = {
+      instanceIds: ["R"],
+      primaryInstanceId: "R",
+      originalPositions: { R: { x: 100, y: 100 } },
+      pointerStart: { x: 100, y: 100 },
+      movePlan: planSelectionMove(document, {
+        ...EMPTY_VISUAL_SELECTION,
+        instanceIds: ["R"],
+        draftingIds: ["note"],
+      }),
+    };
+    const moved = controller.resolveInstanceMove(
+      preview,
+      { x: 120, y: 110 },
+      4,
+      true,
+    );
+    expect(moved.preparationError).toBeUndefined();
+    const projected = moved.prepared!.previewDocument;
+    expect(
+      resolveVisualAnchor(
+        projected,
+        resolver,
+        projected.drafting!.objects[0]!.anchor,
+      ).position,
+    ).toEqual({ x: 233, y: 117 });
+    controller.completeInstanceMove(preview, { x: 120, y: 110 }, 4, true);
+    expect(
+      resolveVisualAnchor(
+        committed,
+        resolver,
+        committed.drafting!.objects[0]!.anchor,
+      ).position,
+    ).toEqual({ x: 233, y: 117 });
+    expect(
+      committed.instances.find((instance) => instance.id === "stationary")!
+        .placement!.position,
+    ).toEqual({ x: 200, y: 100 });
+    expect(committed.nets).toEqual(document.nets);
+  });
+
   it("joins an external pin without joining a coincident carried Junction", () => {
     const document = createEmptyDocument(
       "external-contact",
