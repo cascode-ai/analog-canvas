@@ -23,8 +23,31 @@ owns step-by-step operation; [deployment](../deployment.md) owns candidate accep
 Experiments resolve Project-owned external `modelSources` through the same
 inventory as design export. Each reachable SPICE owner and owned helper closure
 emits once. A folder cannot shadow its subcircuit. Analyses, stimuli and native
-controls retain experiment ownership. SPICE models require ngspice; unsupported
-VACASK conversion and unimplemented placeholders refuse before execution.
+controls retain experiment ownership. VACASK projects a bounded subset of
+applied SPICE models through the existing native electrical printer: R/C/L,
+independent sources, linear E/G/F/H controlled sources and X calls to definitions
+in the same owned closure, with ordered ports and formal scalar parameters.
+Native Spectre first passes the existing strict SPICE conversion. It is not
+executed as Spectre, and native source text/language stays authoritative.
+Independent DC/AC/PULSE/SIN/PWL clauses enter the canonical waveform contract.
+An explicit DC bias differing from the native waveform's initial bias refuses
+qualification; it cannot silently change OP semantics.
+
+Owned includes and selected sections expand before projection and each model
+closure emits once across reachable Circuit bindings. SPICE node, parameter and
+master references retain case-insensitive identity in case-sensitive VACASK.
+Authored/generated names cannot shadow owned definitions. Converted cards map
+to native file owners for navigation; converted text is not reverse-editable.
+Prepare receipts capture applied owners without drafts; draft-only saves do not
+change executable bytes or input identity.
+
+Opaque/B sources, model cards, local/global `.param`, `.global`, functions,
+conditionals, external library loads and undeclared helper calls are not yet
+qualified by this projection. Formal `m` needs an explicit native forwarding
+contract. Such constructs and unimplemented placeholders refuse before execution
+with a source-owner diagnostic; use ngspice or an explicitly authored native
+VACASK implementation rather than silently relabelling a library or dropping a
+statement. Static Apply remains less restrictive than execution qualification.
 
 Model dependencies merge by identity, path and digest with folder dependencies
 and must match the selected Profile. Corner variants change only prepared load

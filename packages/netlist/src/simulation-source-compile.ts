@@ -1,6 +1,7 @@
 import {
   readSimulationExperimentConfig,
   SimulationRunVariantSchema,
+  type ProjectModelSource,
   type CircuitProject,
   type ProjectSimulationFolder,
   type SimulationExperimentConfig,
@@ -31,7 +32,10 @@ import type {
   PrintedNetlistParameter,
   PrintedNetlistInstance,
 } from "./printed-netlist.js";
-import { inspectVacaskSourceGraph } from "./vacask-source.js";
+import {
+  inspectVacaskSource,
+  inspectVacaskSourceGraph,
+} from "./vacask-source.js";
 import type { SimulationSourceDiagnostic } from "./source-file-graph.js";
 import { reachableCircuitBindings } from "./source-file-graph.js";
 import { applySimulationParameter } from "./simulation-parameter-target.js";
@@ -40,6 +44,9 @@ import { projectVacaskRunTemperature } from "./vacask-run-temperature.js";
 import {
   collectProjectModelSources,
   projectModelDefinitionIds,
+  appendProjectModelSources,
+  inspectProjectModelSource,
+  type ProjectModelSourceLocation,
 } from "./project-model-source.js";
 import {
   compileNativeDeviceOperatingPoints,
@@ -52,6 +59,7 @@ export interface GeneratedSimulationFile {
   text: string;
   parameters: PrintedNetlistParameter[];
   instances: PrintedNetlistInstance[];
+  modelSources?: ProjectModelSourceLocation[];
 }
 export type SourceSimulationCompilation =
   | { ok: false; diagnostics: SimulationSourceDiagnostic[] }
@@ -75,6 +83,7 @@ export type SourceSimulationCompilation =
       electricalHash: string;
       sourceMaps: SimulationFileSourceMap[];
       includes: ReturnType<typeof inspectVacaskSourceGraph>["includes"];
+      modelSources?: ProjectModelSource[];
     };
 
 /** Public native compilation. Source owns analysis/control; Canvas owns the
@@ -135,16 +144,15 @@ export function compileSourceSimulation(
   }
   variant = parsedVariant.data;
   const graph = inspectVacaskSourceGraph(folder.input);
-  diagnostics.push(
-    ...collectProjectModelSources(
+  const projectModels = collectProjectModelSources(
+    project,
+    projectModelDefinitionIds(
       project,
-      projectModelDefinitionIds(
-        project,
-        reachableCircuitBindings(folder.input, graph).map((b) => b.documentId),
-      ),
-      { format: "vacask", requireImplementation: true },
-    ).diagnostics,
+      reachableCircuitBindings(folder.input, graph).map((b) => b.documentId),
+    ),
+    { format: "vacask", requireImplementation: true },
   );
+  diagnostics.push(...projectModels.diagnostics);
   diagnostics.push(...graph.diagnostics);
   if (diagnostics.some((d) => d.severity === "error"))
     return { ok: false, diagnostics };
@@ -320,6 +328,24 @@ export function compileSourceSimulation(
   }
   let depth = 0;
   const authoredMasters = new Set<string>();
+  const modelMasters = new Set(
+    projectModels.sources.flatMap((source) =>
+      inspectProjectModelSource(source).entries.map((e) => e.name),
+    ),
+  );
+  for (const name of modelMasters) {
+    if (
+      [...names.keys()].some(
+        (existing) => existing.toLowerCase() === name.toLowerCase(),
+      )
+    )
+      fail(
+        "MODEL_SOURCE_NAME_CONFLICT",
+        `Project model ${name} conflicts with a generated Cell/model`,
+      );
+    names.set(name, `project-model:${name}`);
+    authoredMasters.add(name);
+  }
   for (const { path, statement } of graph.statements) {
     const [head, name] = statement.tokens;
     const keyword =
@@ -410,6 +436,26 @@ export function compileSourceSimulation(
   // Existing in the Project is insufficient: the selected source graph must
   // emit the parameter. Reject inert points instead of giving a nominal run
   // the misleading label of a successful sweep member.
+  if (generated[0] && projectModels.sources.length) {
+    // One closure for the entire reachable experiment, not one body per call.
+    const reserved = new Set(authoredMasters);
+    for (const file of generated)
+      for (const s of inspectVacaskSource(file.path, file.text, false)
+        .statements)
+        if (
+          ["model", "subckt"].includes(s.tokens[0]?.value ?? "") &&
+          s.tokens[1]
+        )
+          reserved.add(s.tokens[1].value);
+    const rendered = appendProjectModelSources(
+      generated[0].text,
+      projectModels.sources.map(({ draft: _draft, ...source }) => source),
+      "vacask",
+      reserved,
+    );
+    generated[0].text = rendered.text;
+    generated[0].modelSources = rendered.segments;
+  }
   const emitted = new Set(
     generated.flatMap((file) => file.parameters.map(parameterKey)),
   );
@@ -423,13 +469,43 @@ export function compileSourceSimulation(
     return { ok: false, diagnostics };
   const mapped = [
     ...temperature.files,
-    ...generated.map((f) =>
-      mapSimulationFile(f.path, f.text, {
+    ...generated.map((f) => {
+      const file = mapSimulationFile(f.path, f.text, {
         kind: "generated",
         purpose: "canvas-circuit",
         bindingId: f.bindingId,
-      }),
-    ),
+      });
+      for (const s of f.modelSources ?? []) {
+        const last = file.segments.at(-1)!;
+        if (last.startOffset < s.startOffset) last.endOffset = s.startOffset;
+        else file.segments.pop();
+        file.segments.push({
+          startOffset: s.startOffset,
+          endOffset: s.endOffset,
+          origin: {
+            kind: "model-source",
+            sourceId: s.sourceId,
+            revision: s.revision,
+            path: s.path,
+            startOffset: s.sourceOffset,
+            ...(s.derived
+              ? { derived: true, sourceLength: s.sourceLength ?? 0 }
+              : {}),
+          },
+        });
+        if (s.endOffset < f.text.length)
+          file.segments.push({
+            startOffset: s.endOffset,
+            endOffset: f.text.length,
+            origin: {
+              kind: "generated",
+              purpose: "canvas-circuit",
+              bindingId: f.bindingId,
+            },
+          });
+      }
+      return file;
+    }),
   ];
   const config = structuredClone(parsed.config);
   // Run-only environment intent. The service resolves the Profile's exact
@@ -466,6 +542,13 @@ export function compileSourceSimulation(
           }).includes
         : graph.includes,
     generated,
+    ...(projectModels.sources.length
+      ? {
+          modelSources: projectModels.sources.map(
+            ({ draft: _draft, ...source }) => structuredClone(source),
+          ),
+        }
+      : {}),
     requiredModels: [
       ...new Set(
         [...cells.values()].flatMap((cell) =>
@@ -478,7 +561,16 @@ export function compileSourceSimulation(
       ),
     ].sort(),
     electricalHash: sha256Hex(
-      JSON.stringify([...plans].sort(([a], [b]) => a.localeCompare(b))),
+      JSON.stringify(
+        projectModels.sources.length
+          ? {
+              plans: [...plans].sort(([a], [b]) => a.localeCompare(b)),
+              modelSources: projectModels.sources.map(
+                ({ draft: _draft, ...source }) => source,
+              ),
+            }
+          : [...plans].sort(([a], [b]) => a.localeCompare(b)),
+      ),
     ),
     reachedDocumentIds: [...cells.keys()],
     // Source controls saves. Potential device mappings are captured here; the

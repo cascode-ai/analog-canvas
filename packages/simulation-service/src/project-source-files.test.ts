@@ -8,6 +8,8 @@ import {
   type ProjectSourceSnapshot,
 } from "./files.js";
 import { ProblemSchema, problem } from "./contract.js";
+import { externalModelFixture } from "../../netlist/src/external-model-fixture.test-support.js";
+import { createSimulationFolder } from "@icm/model";
 
 const owner = { kind: "project-folder" as const, folderId: "folder-a" };
 function fixture() {
@@ -81,6 +83,58 @@ function fixture() {
 }
 
 describe("Project and session File Resource ownership", () => {
+  it("reports the blocking native model error, not an earlier pending-draft warning", async () => {
+    const project = externalModelFixture();
+    const source = project.modelSources![0]!;
+    source.draft = {
+      entry: source.entry,
+      baseRevision: source.revision,
+      files: source.files,
+    };
+    const folder = createSimulationFolder({
+      id: "model-error",
+      name: "Model",
+      profileId: "candidate",
+      documentId: project.topDocumentId!,
+    });
+    const files = new SimulationFiles(
+      Date.now,
+      {
+        read: () => ({
+          projectSessionId: "session",
+          project,
+          structureRevision: project.structureRevision,
+          folder,
+        }),
+        commit: () => {
+          throw Error("read must not commit");
+        },
+      },
+      async () => "vacask",
+    );
+    const result = await files.handle({
+      action: "read",
+      owner: { kind: "project-folder", folderId: folder.id },
+      path: folder.input.circuitBindings[0]!.path,
+    });
+    expect(result).toMatchObject({
+      ok: false,
+      error: {
+        code: "SIMULATION_CIRCUIT_UNAVAILABLE",
+        message: expect.stringContaining("behavioral-source"),
+        diagnostics: expect.arrayContaining([
+          expect.objectContaining({
+            code: "MODEL_SOURCE_DIALECT",
+            path: source.entry,
+            modelSource: { sourceId: source.id, revision: source.revision },
+            sourceRef: expect.objectContaining({
+              start: expect.objectContaining({ line: 3 }),
+            }),
+          }),
+        ]),
+      },
+    });
+  });
   it("reads generated code without mappings only when text detail is selected", async () => {
     const { project, folder } = nativeSky130OtaFixture();
     const sourceOwner = {
