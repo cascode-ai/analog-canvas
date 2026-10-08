@@ -837,7 +837,11 @@ export function planBrowserAgentCommand(
             ),
             ...(notes.length ? { notes } : {}),
           }
-        : { structureEdits: edits, sourceActions };
+        : {
+            structureEdits: edits,
+            sourceActions,
+            ...(notes.length ? { notes } : {}),
+          };
     }
     case "move-annotation": {
       const annotation = document.annotations.find(

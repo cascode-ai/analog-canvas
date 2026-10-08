@@ -773,6 +773,72 @@ describe("Agent property actions are planned as Apply in Properties", () => {
         objectIds: ["gnd-r1"],
       }),
     );
+
+    // Beside a command that plans a Project transaction, as a model change
+    // does, the receipt still names the marker.
+    await apply([
+      { ...place("nmos", "M1", 500), parameters: { w: "1u", l: "150n" } },
+    ]);
+    const withModel = await apply([
+      {
+        kind: "move",
+        target: { kind: "instance", reference: "R1" },
+        position: { x: 260, y: 200 },
+      },
+      {
+        kind: "set-model",
+        instanceId: instance("M1").id,
+        model: "sky130_fd_pr__nfet_01v8",
+      },
+    ]);
+    expect(withModel.ok, withModel.message).toBe(true);
+    expect(at("gnd-r1")).toEqual({ x: ground.x + 60, y: ground.y });
+    expect(JSON.stringify(withModel)).toContain("MARKERS_MOVED_ALONG");
+
+    // A marker whose label is locked stays, joined by a wire, rather than
+    // failing the move: here a VDD marker standing on R3's pin.
+    await apply([
+      {
+        kind: "place-component",
+        symbol: "resistor",
+        reference: "R3",
+        parameters: { value: "1k" },
+        pinAnchor: { pinName: "1", position: { x: 600, y: 180 } },
+      },
+    ]);
+    const r3 = instance("R3").id;
+    await apply([
+      {
+        kind: "place-component",
+        symbol: "vdd-port",
+        id: "vdd-r3",
+        pinAnchor: { pinName: "P", position: pinAt(r3, "1") },
+      },
+    ]);
+    const label = controller.document.annotations.find(
+      (annotation) =>
+        annotation.anchor.kind === "object" &&
+        annotation.anchor.objectId === "vdd-r3",
+    )!;
+    expect(
+      controller.transact([
+        {
+          kind: "upsert_schematic_annotation",
+          annotation: { ...label, locked: true },
+        },
+      ]).ok,
+    ).toBe(true);
+    const held = at("vdd-r3");
+    const stayed = await apply([
+      {
+        kind: "move",
+        target: { kind: "instance", reference: "R3" },
+        position: { x: 640, y: 200 },
+      },
+    ]);
+    expect(stayed.ok, stayed.message).toBe(true);
+    expect(at("vdd-r3")).toEqual(held);
+    expect(netOf("vdd-r3", "P")).toBe(netOf(r3, "1"));
   });
 
   it("disconnects a wired pin as its Delete connection does", async () => {

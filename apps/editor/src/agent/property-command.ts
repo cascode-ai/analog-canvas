@@ -136,11 +136,19 @@ function markersOnPinsOnly(
   const wired = new Set(
     document.routes.flatMap((route) => routeEndpoints(route).map(endpointKey)),
   );
-  const locked = new Set(
-    [...document.layoutGroups, ...document.constraints].flatMap((owner) =>
+  // A marker held by a locked group or constraint stays, and so does one
+  // with a locked label: moving it would move that label, and the move would
+  // be refused as a whole.
+  const locked = new Set([
+    ...[...document.layoutGroups, ...document.constraints].flatMap((owner) =>
       owner.locked ? owner.objectIds : [],
     ),
-  );
+    ...document.annotations.flatMap((annotation) =>
+      annotation.locked && annotation.anchor.kind === "object"
+        ? [annotation.anchor.objectId]
+        : [],
+    ),
+  ]);
   let evidence: ReturnType<typeof deriveDocumentContactEvidence> | undefined;
   return document.instances.flatMap((marker) => {
     if (
