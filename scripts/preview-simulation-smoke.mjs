@@ -4,6 +4,7 @@
  * Public test helpers remain exported here; implementation is split by
  * qualification inputs, result validation, and hosted run orchestration.
  */
+import { waitingWhileBusy } from "./lib/simulator-busy-wait.mjs";
 import { pathToFileURL } from "node:url";
 
 import { EXECUTORS, profile } from "./lib/preview-simulation-qualification.mjs";
@@ -65,27 +66,41 @@ async function main() {
   if (scope !== "--full" && scope !== "--production-smoke") {
     throw new Error(`Unknown simulation smoke scope: ${scope}`);
   }
+  // A simulator busy with someone's circuit is waited for, not a failure.
+  const fetchImpl = waitingWhileBusy();
   for (const target of EXECUTORS) {
-    const result = await runPreviewSimulationSmoke({ baseUrl, target });
+    const result = await runPreviewSimulationSmoke({
+      baseUrl,
+      target,
+      fetchImpl,
+    });
     console.log(
       `${result.target}: v(mid)=${result.value}, ${result.simulatorVersion}, environment=${result.environmentFingerprint}`,
     );
   }
 
   for (const target of EXECUTORS) {
-    const result = await runPreviewTransientSmoke({ baseUrl, target });
+    const result = await runPreviewTransientSmoke({
+      baseUrl,
+      target,
+      fetchImpl,
+    });
     console.log(`${result.target}: RC TRAN ${result.pointCount} points passed`);
   }
 
   for (const target of EXECUTORS) {
-    const result = await runPreviewDcSmoke({ baseUrl, target });
+    const result = await runPreviewDcSmoke({ baseUrl, target, fetchImpl });
     console.log(
       `${result.target}: divider DC ${result.pointCount} points passed`,
     );
   }
 
   for (const target of EXECUTORS) {
-    const result = await runPreviewResistorNoiseSmoke({ baseUrl, target });
+    const result = await runPreviewResistorNoiseSmoke({
+      baseUrl,
+      target,
+      fetchImpl,
+    });
     console.log(
       `${result.target}: resistor Noise ${result.pointCount} points passed`,
     );
@@ -102,7 +117,11 @@ async function main() {
   }
 
   for (const target of EXECUTORS) {
-    const result = await runHostedSky130Acceptance({ baseUrl, target });
+    const result = await runHostedSky130Acceptance({
+      baseUrl,
+      target,
+      fetchImpl,
+    });
     console.log(
       `${result.target}: ${result.fixtureId} passed, environment=${result.environmentFingerprint}`,
     );
@@ -111,13 +130,18 @@ async function main() {
     const result = await runHostedSky130TransientAcceptance({
       baseUrl,
       target,
+      fetchImpl,
     });
     console.log(
       `${result.target}: SKY130 OTA TRAN ${result.pointCount} points passed`,
     );
   }
   for (const target of EXECUTORS) {
-    const result = await runHostedSky130NoiseAcceptance({ baseUrl, target });
+    const result = await runHostedSky130NoiseAcceptance({
+      baseUrl,
+      target,
+      fetchImpl,
+    });
     console.log(
       `${result.target}: SKY130 OTA Noise ${result.pointCount} points passed ` +
         `(onoise=${result.integratedOutputNoise}, inoise=${result.integratedInputNoise})`,
@@ -129,6 +153,7 @@ async function main() {
         baseUrl,
         target,
         corner,
+        fetchImpl,
       });
       console.log(
         `${target}: SKY130 ${result.corner.toUpperCase()} corner passed ` +
@@ -138,6 +163,7 @@ async function main() {
         baseUrl,
         target,
         corner,
+        fetchImpl,
       });
       console.log(
         `${target}: SKY130 ${extended.corner.toUpperCase()} extended devices passed`,
