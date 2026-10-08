@@ -259,17 +259,6 @@ describe("built-in Analog Block subcircuits", () => {
 
   it.each([
     {
-      symbolId: "opamp",
-      connections: [
-        ["IN+", "plus"],
-        ["IN-", "minus"],
-        ["OUT", "out"],
-      ],
-      name: "opamp",
-      parameter: "gain=1e6",
-      body: "ECORE VOUT 0 VIP VIN {gain}",
-    },
-    {
       symbolId: "voltage-amplifier",
       connections: [
         ["IN", "input"],
@@ -368,6 +357,104 @@ describe("built-in Analog Block subcircuits", () => {
     expect(result.externalMasterCount).toBe(1);
   });
 
+  it("limits an ideal op-amp to its drawn supplies, and to ±5 V without them (#1463)", () => {
+    const opamp = (
+      parameters: Record<string, string>,
+      powered = true,
+      format: "spice" | "spectre" = "spice",
+    ) => {
+      const project = analogBlockProject(
+        ["opamp"],
+        [
+          ["IN+", "plus"],
+          ["IN-", "minus"],
+          ["OUT", "out"],
+        ],
+      );
+      const document = project.documents[0]!;
+      Object.assign(
+        document.instances.find((item) => item.id === "block-1")!.netlist!
+          .parameters,
+        parameters,
+      );
+      if (!powered) {
+        // A textbook figure: no positive supply drawn.
+        document.instances = document.instances.filter((i) => i.id !== "VDD");
+        document.nets = document.nets.filter((net) => net.id !== "VDD");
+        document.netlist!.terminals = document.netlist!.terminals.filter(
+          (terminal) => terminal.netId !== "VDD",
+        );
+      }
+      return createDesignNetlistExport(project, { format });
+    };
+    const text = (result: ReturnType<typeof opamp>) =>
+      result.status === "ready" ? result.file.text : "";
+
+    // Drawn VDD: both limits read the op-amp's own supplies.
+    const powered = text(opamp({}));
+    expect(powered).toContain("X1 VDD VSS plus minus out icm_opamp_vdd_vss\n");
+    expect(powered).toContain(
+      ".subckt icm_opamp_vdd_vss VDD VSS VIP VIN VOUT params: gain=1e6",
+    );
+    expect(powered).toContain("Blin nlin 0 V={gain*(V(VIP)-V(VIN))}");
+    expect(powered).toContain(
+      "Bcore VOUT 0 V={0.5*(V(VDD)+(0.5*(V(VSS)+V(nlin)",
+    );
+    expect(powered).not.toContain("vhigh");
+
+    // No supply drawn: the numeric body, whose defaults are ±5 V.
+    const unpowered = text(opamp({}, false));
+    expect(unpowered).toContain("X1 0 VSS plus minus out opamp\n");
+    expect(unpowered).toContain(
+      ".subckt opamp VDD VSS VIP VIN VOUT params: gain=1e6 vhigh=5 vlow=-5",
+    );
+    expect(unpowered).toContain(
+      "Bcore VOUT 0 V={0.5*(vhigh+(0.5*(vlow+V(nlin)",
+    );
+
+    // Typed levels win over the supplies; a supply limit may be any case.
+    expect(text(opamp({ vhigh: "12", vlow: "-12" }))).toContain(
+      "X1 VDD VSS plus minus out opamp vhigh=12 vlow=-12",
+    );
+    expect(text(opamp({ vhigh: "vdd", vlow: "0.2" }))).toContain(
+      "X1 VDD VSS plus minus out icm_opamp_vdd vlow=0.2",
+    );
+    expect(text(opamp({ vhigh: "3" }))).toContain(
+      "X1 VDD VSS plus minus out icm_opamp_vss vhigh=3",
+    );
+    // Without a supply, a level below the default high limit still fits.
+    expect(text(opamp({ vlow: "-1" }, false))).toContain(
+      "X1 0 VSS plus minus out opamp vlow=-1",
+    );
+
+    for (const [parameters, powered, message] of [
+      [{ vhigh: "rail" }, true, "requires vhigh to be a number or VDD"],
+      [{ vlow: "VDD" }, true, "requires vlow to be a number or VSS"],
+      [{ vhigh: "1", vlow: "2" }, true, "high limit, 1 V, must be above"],
+      [
+        { vlow: "6" },
+        false,
+        "high limit, 5 V, must be above its low limit, 6 V",
+      ],
+    ] as const) {
+      const refused = opamp(parameters, powered);
+      expect(refused.status).toBe("blocked");
+      expect(refused.diagnostics).toContainEqual(
+        expect.objectContaining({
+          code: "INVALID_IDEAL_OPAMP_LIMIT",
+          message: expect.stringContaining(message),
+        }),
+      );
+    }
+
+    // Spectre prints the same equations as behavioral sources.
+    const spectre = text(opamp({}, true, "spectre"));
+    expect(spectre).toContain(
+      "subckt icm_opamp_vdd_vss (VDD VSS VIP VIN VOUT)",
+    );
+    expect(spectre).toContain("Blin (nlin 0) bsource v=gain*(v(VIP)-v(VIN))");
+  });
+
   it("passes a raw gain override through the ideal model call", () => {
     const project = analogBlockProject(
       ["opamp"],
@@ -384,7 +471,7 @@ describe("built-in Analog Block subcircuits", () => {
     expect(result.status).toBe("ready");
     if (result.status !== "ready") return;
     expect(result.file.text).toContain(
-      "X1 VDD VSS plus minus out opamp gain=2e3",
+      "X1 VDD VSS plus minus out icm_opamp_vdd_vss gain=2e3",
     );
   });
 
@@ -415,11 +502,11 @@ describe("built-in Analog Block subcircuits", () => {
       (file) => file.path === "circuit.spice",
     )!.text;
     expect(generated).toContain(
-      ".subckt opamp VDD VSS VIP VIN VOUT params: gain=1e6",
+      ".subckt icm_opamp_vdd_vss VDD VSS VIP VIN VOUT params: gain=1e6",
     );
-    expect(generated).toContain("ECORE VOUT 0 VIP VIN {gain}");
-    expect(generated).toContain("X1 VDD VSS plus minus out opamp");
-    expect(generated.match(/\.subckt opamp\b/gu)).toHaveLength(1);
+    expect(generated).toContain("Blin nlin 0 V={gain*(V(VIP)-V(VIN))}");
+    expect(generated).toContain("X1 VDD VSS plus minus out icm_opamp_vdd_vss");
+    expect(generated.match(/\.subckt icm_opamp_vdd_vss\b/gu)).toHaveLength(1);
   });
 
   it("includes a logic gate's ideal body in an ngspice simulation", () => {

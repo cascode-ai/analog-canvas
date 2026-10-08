@@ -18,6 +18,7 @@ import {
   IDEAL_COMPARATOR_SUPPLY_TARGET,
   IDEAL_COMPARATOR_TARGET,
   instanceBuiltInSubcircuit,
+  isIdealOpampBody,
   resolveReviewedExternalBinding,
 } from "@icm/devices";
 import type { DesignNetlistAnalysisOptions } from "./extract.js";
@@ -34,7 +35,9 @@ import type { NetlistFormat } from "./net-name-codec.js";
  * SPICE, read neither: that comparator's call has no supply nodes at all,
  * yet a flash ADC drawn with ground and no VDD gained a VDD Cell Pin that
  * nothing inside used. The ideal comparator whose high level is its own VDD
- * reads that supply alone. Every other body reads both. An authored Cell or
+ * reads that supply alone. The ideal op-amp reads its supplies only once a
+ * drawn or selected VDD powers it (ideal-opamp.ts), so an undrawn supply
+ * takes no default. Every other body reads both. An authored Cell or
  * a declared external definition of the same name replaces the body, and may
  * well use both supplies.
  */
@@ -46,6 +49,7 @@ export function bodySupplies(
 ): readonly ("VDD" | "VSS")[] {
   if (projectNames.has(target.toLowerCase())) return ["VDD", "VSS"];
   if (target === IDEAL_COMPARATOR_SUPPLY_TARGET) return ["VDD"];
+  if (isIdealOpampBody(target)) return [];
   return idealAnalogBlockCell(target, format) !== null ||
     (format === "spice" &&
       (target === "multiplier" || target === IDEAL_COMPARATOR_TARGET))

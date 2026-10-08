@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   builtInSubcircuitDescriptors,
+  isIdealOpampBody,
   subcircuitDescriptor,
 } from "@icm/devices";
 import {
@@ -77,6 +78,7 @@ describe("generated block bodies", () => {
     ].filter(
       (target) =>
         target !== "comparator" &&
+        !isIdealOpampBody(target) &&
         !idealAnalogBlockCell(target, "spice") &&
         !IDEAL_LOGIC_TARGETS.includes(target) &&
         !IDEAL_SIGNAL_TARGETS.includes(target),
