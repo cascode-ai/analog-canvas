@@ -41,6 +41,7 @@ export {
   type AgentSessionClientOptions,
   type ApplyActionsReport,
   type ConnectReport,
+  type PlacedPart,
   type StatusReport,
 } from "./session-client.js";
 export type { ActionCall } from "@icm/agent-adapter/authoring";

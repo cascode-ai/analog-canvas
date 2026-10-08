@@ -1042,6 +1042,52 @@ describe("MCP tools on the live editor", () => {
     });
   });
 
+  it("says which ID each placed part got, by its Reference, in the receipt (#1525)", async () => {
+    const editor = await connected();
+    const sent = snapshotReads(editor.http).length;
+    const receipt = await editor.tool("apply_actions", {
+      actions: [
+        place("resistor", "R1", 100),
+        { ...place("capacitor", "C1", 300), id: "c-mine" },
+        {
+          kind: "place-component",
+          symbol: "ground",
+          position: { x: 100, y: 300 },
+        },
+      ],
+    });
+    const instances = editor.controller.document.instances;
+    const idOf = (symbolId: string) =>
+      instances.find((item) => item.symbolId === symbolId)!.id;
+    expect(receipt).toMatchObject({ ok: true, applied: true });
+    expect(receipt.placed).toEqual([
+      { id: idOf("resistor"), reference: "R1", symbol: "resistor" },
+      { id: "c-mine", reference: "C1", symbol: "capacitor" },
+      { id: idOf("ground"), symbol: "ground" },
+    ]);
+    // Every name was given: nothing was read back.
+    expect(snapshotReads(editor.http).length).toBe(sent);
+
+    // A part placed without a Reference is named by the editor; one pins
+    // read tells the receipt that name.
+    const unnamed = await editor.tool("apply_actions", {
+      actions: [
+        {
+          kind: "place-component",
+          symbol: "resistor",
+          position: { x: 500, y: 100 },
+        },
+      ],
+    });
+    const added = editor.controller.document.instances.find(
+      (item) => item.symbolId === "resistor" && item.reference !== "R1",
+    )!;
+    expect(unnamed.placed).toEqual([
+      { id: added.id, reference: added.reference, symbol: "resistor" },
+    ]);
+    expect(snapshotReads(editor.http).slice(sent)).toEqual(["pins"]);
+  });
+
   it("finds ground by GND, VSS or gnd, as the netlist names its pin (#1515)", async () => {
     const editor = await connected();
     // R1 from a Port IN to ground: a Cell the netlist can write.

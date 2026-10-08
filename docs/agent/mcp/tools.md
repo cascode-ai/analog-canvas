@@ -238,8 +238,10 @@ changes; the electrical parameter remains authoritative.
 `connect`/`disconnect` pin targets accept an Instance Reference string or
 `instance:{kind:"instance",id:"…"}`; use the latter for imported formal Cell Pins.
 `place-component` may omit a device's Reference: the editor takes the next free
-one, as a GUI insert does (R1, X1), and a block that emits nothing gets none;
-read the name from the receipt's created objects or Snapshot. Omit it for
+one, as a GUI insert does (R1, X1), and a block that emits nothing gets none.
+The receipt's `placed` lists each part the list's `place-component` actions
+placed, in order: `{id, reference, symbol}`, the editor's name included, so
+wiring needs no read to learn IDs (a ground has no name). Omit it for
 `ground` and `vdd-port`. For `port` and `port-filled`, `reference` supplies the new
 Cell terminal's name, with passive direction by default. Without `parameters`
 or `control` the editor fills the netlist as the GUI does, with catalog defaults
