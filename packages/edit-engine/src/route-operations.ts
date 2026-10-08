@@ -1,4 +1,4 @@
-import { cancelDoubledBackLegs } from "./routing-planner.js";
+import { cancelDoubledBackLegs } from "./wire-draft.js";
 import { routeHasExternalOwner } from "./direct-contact-route-normalization.js";
 import { endpointOwnerNetId } from "./transaction-routing.js";
 import { stretchRouteEndpoint } from "./route-endpoint-stretch.js";

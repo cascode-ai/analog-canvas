@@ -19,7 +19,7 @@ import {
   defaultBoundMosBody,
   proposeWireIntent,
   type WireIntent,
-} from "./routing-planner.js";
+} from "./wire-intent-planner.js";
 import { createContactPlanningDraft } from "./contact-planning-draft.js";
 import { createRouteClearance } from "./route-clearance.js";
 import {

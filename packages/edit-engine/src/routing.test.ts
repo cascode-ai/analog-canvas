@@ -33,15 +33,19 @@ import {
   proposeGroupMoveEdits,
   proposeGroupReflectionEdits,
   proposeGroupRotationEdits,
-  proposeEndpointRouteAttachment,
-  proposeLooseRouteTranslation,
-  proposePowerRailEndpointResize,
-  proposePowerRailTranslation,
-  proposeRouteEndpointMove,
-  proposeWireIntent,
-  proposeVisualRouteDeletion,
   proposeWireSegmentMove,
 } from "./routing-planner.js";
+import { proposeEndpointRouteAttachment } from "./wire-commit-planner.js";
+import {
+  proposeLooseRouteTranslation,
+  proposeRouteEndpointMove,
+} from "./route-endpoint-move.js";
+import {
+  proposePowerRailEndpointResize,
+  proposePowerRailTranslation,
+} from "./power-rail-move-planner.js";
+import { proposeWireIntent } from "./wire-intent-planner.js";
+import { proposeVisualRouteDeletion } from "./visual-route-deletion.js";
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
 const context = { symbolResolver: resolver };

@@ -24,7 +24,7 @@ import {
 import type { DocumentContactEvidence } from "@icm/derived";
 import type { SymbolResolver } from "@icm/symbols";
 
-import { buildManualWirePath } from "./routing-planner.js";
+import { buildManualWirePath } from "./wire-draft.js";
 import {
   endpointOwnerNetId,
   netEndpointGroups,

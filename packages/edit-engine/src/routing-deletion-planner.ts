@@ -14,7 +14,7 @@ import {
   createRoutingOperationPlan,
   type RoutingOperationPlan,
 } from "./routing-operation-plan.js";
-import { proposeVisualRouteDeletion } from "./routing-planner.js";
+import { proposeVisualRouteDeletion } from "./visual-route-deletion.js";
 import type { SchematicEdit } from "./edit-schema.js";
 
 export interface RoutingDeletionSeed extends RoutingSelectionSeed {

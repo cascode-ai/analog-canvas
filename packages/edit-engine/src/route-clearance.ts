@@ -14,7 +14,7 @@ import {
   type SchematicDocument,
 } from "@icm/model";
 import { resolveInstanceSymbol, type SymbolResolver } from "@icm/symbols";
-import { compileWireDraft } from "./routing-planner.js";
+import { compileWireDraft } from "./wire-draft.js";
 
 type Rect = { x: number; y: number; width: number; height: number };
 type CornerOrder = "horizontal-first" | "vertical-first";

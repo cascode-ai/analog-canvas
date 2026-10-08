@@ -13,7 +13,7 @@ import {
   createRoutingOperationPlan,
   type RoutingOperationPlan,
 } from "./routing-operation-plan.js";
-import type { WireSource } from "./routing-planner.js";
+import type { WireSource } from "./wire-commit-planner.js";
 import { projectRoutingEditGeometry } from "./routing-geometry-projection.js";
 
 /** Transient geometry from the same typed plan, before transaction normalization.

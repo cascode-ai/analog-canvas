@@ -11,7 +11,7 @@ import {
   proposeEndpointRouteAttachment,
   proposeEndpointsRouteAttachment,
   type WireSource,
-} from "./routing-planner.js";
+} from "./wire-commit-planner.js";
 import type { ExpectedElectricalEffect } from "./routing-operation-plan.js";
 import type { SchematicEdit } from "./edit-schema.js";
 import { deviceDescriptor } from "@icm/devices";

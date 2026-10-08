@@ -10,7 +10,7 @@ import type { SymbolResolver } from "@icm/symbols";
 
 import type { SchematicEdit } from "./edit-schema.js";
 import { createRouteClearance } from "./route-clearance.js";
-import { compileWireDraft } from "./routing-planner.js";
+import { compileWireDraft } from "./wire-draft.js";
 import { projectRoutingEditGeometry } from "./routing-geometry-projection.js";
 import { executeTransaction } from "./transaction.js";
 
