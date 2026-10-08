@@ -167,6 +167,50 @@ function externalFixture() {
   return source;
 }
 describe("one Project copy path", () => {
+  it("keeps the complete Cell graph and testbench when every selectable object is copied", () => {
+    const source = parseProject(
+      readFileSync(
+        "apps/editor/src/examples/simulation-common-source.icproj.json",
+        "utf8",
+      ),
+    );
+    const document = source.documents.find(
+      (item) => item.id === source.topDocumentId,
+    )!;
+    document.instances.push({
+      id: "R-open",
+      reference: "R-open",
+      symbolId: "resistor",
+      placement: {
+        position: { x: 1200, y: 1200 },
+        rotation: 0,
+        mirror: "none",
+      },
+    });
+    document.noConnects.push({
+      id: "nc-open",
+      endpoint: { kind: "terminal", instanceId: "R-open", pinName: "1" },
+    });
+    const copied = captureProjectCopy(source, document, {
+      instanceIds: document.instances.map((item) => item.id),
+      routeIds: document.routes.map((item) => item.id),
+      junctionIds: document.junctions.map((item) => item.id),
+      annotationIds: document.annotations.map((item) => item.id),
+      draftingIds: (document.drafting?.objects ?? []).map((item) => item.id),
+    })!;
+    expect(copied.cellTerminals).toEqual(document.netlist?.terminals);
+    expect(copied.connectivityEvidence).toEqual(document.connectivityEvidence);
+    expect(copied.noConnects).toEqual(document.noConnects);
+    expect(copied.noConnects).toHaveLength(1);
+    expect(copied.context?.simulationFolders).toHaveLength(4);
+    expect(copied.context?.simulationFolders?.[0]?.input.files).toEqual(
+      source.simulationFolders[0]?.input.files,
+    );
+    expect(copied.annotations.map((item) => item.id)).toEqual(
+      document.annotations.map((item) => item.id),
+    );
+  });
+
   it("transports a placeholder's unfinished model draft without making it executable", () => {
     const source = externalFixture();
     source.externalSubcircuitDefinitions[0]!.implementation = {
@@ -320,6 +364,12 @@ describe("one Project copy path", () => {
       terminals: [{ instanceId: "M1", pinName: "S" }],
     });
     document.mosBulkDefaults = { nmosNetId: "substrate" };
+    // This is a partial selection; the surrounding circuit stays behind.
+    document.instances.push({
+      id: "outside",
+      symbolId: "resistor",
+      placement: { position: { x: 600, y: 600 }, rotation: 0, mirror: "none" },
+    });
     const clipboard = captureProjectCopy(source, document, selection(["M1"]))!;
     expect(clipboard.nets).toEqual([]);
     const target = createEmptyProject("target", "Target");
@@ -473,6 +523,16 @@ describe("one Project copy path", () => {
         modes: ["manual"],
       }),
     );
+    if (partial)
+      document.instances.push({
+        id: "outside",
+        symbolId: "resistor",
+        placement: {
+          position: { x: 600, y: 600 },
+          rotation: 0,
+          mirror: "none",
+        },
+      });
     // Without a selection the whole Cell is composed, as Gallery insertion
     // places it.
     const clipboard = captureProjectCopy(
@@ -690,6 +750,11 @@ describe("one Project copy path", () => {
         interfaceInstanceIds: [id],
       })),
     );
+    document.instances.push({
+      id: "outside",
+      symbolId: "resistor",
+      placement: { position: { x: 600, y: 600 }, rotation: 0, mirror: "none" },
+    });
     const copied = place(
       project,
       captureProjectCopy(project, document, selection(["P1", "P2"]))!,

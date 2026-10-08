@@ -5,7 +5,7 @@ import {
   type CircuitProject,
   type SchematicDocument,
 } from "@icm/model";
-import { captureProjectCopy, cellSimulationFolders } from "./project-copy";
+import { captureProjectCopy } from "./project-copy";
 import type {
   SchematicClipboard,
   ExplicitCopyRoutingSelection,
@@ -35,20 +35,11 @@ export function encodeCircuitClipboard(
   document: SchematicDocument,
   selection: Selection,
 ): string | null {
-  const includes = (items: readonly { id: string }[], ids: readonly string[]) =>
-    items.every((item) => ids.includes(item.id));
-  const whole =
-    includes(document.instances, selection.instanceIds) &&
-    includes(document.routes, selection.routeIds) &&
-    includes(document.junctions, selection.junctionIds) &&
-    includes(document.annotations, selection.annotationIds) &&
-    includes(document.drafting?.objects ?? [], selection.draftingIds);
   // Every copy is a clone of what was selected, placed the way C places it. A
   // partial selection brings nothing from outside it; a whole Cell leaves
   // nothing outside, so its names, No Connects and testbench come too.
   const copied = captureProjectCopy(project, document, selection);
   if (!copied?.context) return null;
-  if (whole) withWholeCell(copied, project, document);
   const context = copied.context;
   const fragment = createEmptyProject(project.id, "Clipboard", document.id);
   fragment.source = context.source;
@@ -59,8 +50,6 @@ export function encodeCircuitClipboard(
   fragment.simulationFolders = context.simulationFolders ?? [];
   fragment.modelSources = context.modelSources ?? [];
   const presentation = structuredClone(context.presentation);
-  // The source Cell's own symbol interface is not part of a partial canvas selection.
-  if (!whole) delete presentation.cellSymbol;
   fragment.documents = [
     {
       ...fragment.documents[0]!,
@@ -135,49 +124,5 @@ export function decodeCircuitClipboard(
     annotationIds: document.annotations.map((item) => item.id),
     draftingIds: (document.drafting?.objects ?? []).map((item) => item.id),
   });
-  if (clipboard) withWholeCell(clipboard, project, document);
   return clipboard;
-}
-
-/**
- * What a copy of a whole Cell keeps beyond its selected objects: the names,
- * provenance and No Connects on the Nets and parts it carries, and the
- * simulation folders bound only to the copied Cells.
- */
-function withWholeCell(
-  clipboard: SchematicClipboard,
-  project: CircuitProject,
-  document: SchematicDocument,
-): void {
-  const nets = new Set(clipboard.nets.map((item) => item.id));
-  const evidence = new Set(
-    clipboard.connectivityEvidence.map((item) => item.id),
-  );
-  clipboard.connectivityEvidence.push(
-    ...structuredClone(
-      document.connectivityEvidence.filter(
-        (item) => nets.has(item.netId) && !evidence.has(item.id),
-      ),
-    ),
-  );
-  const instances = new Set(clipboard.instances.map((item) => item.id));
-  const noConnects = new Set(clipboard.noConnects.map((item) => item.id));
-  clipboard.noConnects.push(
-    ...structuredClone(
-      document.noConnects.filter(
-        (item) =>
-          instances.has(item.endpoint.instanceId) && !noConnects.has(item.id),
-      ),
-    ),
-  );
-  if (clipboard.context)
-    clipboard.context.simulationFolders = structuredClone(
-      cellSimulationFolders(
-        project,
-        new Set([
-          document.id,
-          ...clipboard.context.documents.map((item) => item.id),
-        ]),
-      ),
-    );
 }

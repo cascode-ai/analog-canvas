@@ -11,6 +11,7 @@ import {
 import { createEmptyProject, type CircuitProject } from "@icm/model";
 import { serializeProject } from "@icm/project-protocol";
 import { AgentHttpClient } from "../../../packages/agent-client/src/http-client.js";
+import { finiteGainProject } from "../test-fixtures/finite-gain-copy";
 
 async function insert(page: Page, symbol: string, x: number, y: number) {
   await chooseComponent(page, symbol);
@@ -24,6 +25,152 @@ async function saved(page: Page): Promise<CircuitProject> {
     ),
   ) as CircuitProject;
 }
+
+test("GUI and Agent copy finite_gain across Projects without outside names, and undo/reopen preserve the model", async ({
+  page,
+  context,
+  baseURL,
+}) => {
+  test.slow();
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.goto("/editor?new=1");
+  await awaitEditorReady(page);
+  const sourceProject = finiteGainProject("finite-source-project");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "finite-source.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(serializeProject(sourceProject)),
+  });
+  const sourceBefore = await saved(page);
+  await page.getByTestId("open-agent").click();
+  const panel = page.getByTestId("connect-agent-panel");
+  await expect(panel.getByTestId("agent-copy-text")).toHaveValue(/Claim: /, {
+    timeout: 45_000,
+  });
+  const { claimCode } = JSON.parse(
+    /^Claim: (.+)$/mu.exec(
+      await panel.getByTestId("agent-copy-text").inputValue(),
+    )![1]!,
+  );
+  const client = new AgentHttpClient({ baseUrl: baseURL! });
+  const session = await client.claim(claimCode);
+  await expect(panel.getByTestId("agent-status")).toHaveText("Connected");
+  await panel.getByRole("button", { name: "Close Agent dialog" }).click();
+  for (const path of ["Agent", "C", "Ctrl+C"] as const) {
+    const targetProject = finiteGainProject(`finite-target-${path}`);
+    await page.getByTestId("tab-project-file").setInputFiles({
+      name: `finite-target-${path}.icproj.json`,
+      mimeType: "application/json",
+      buffer: Buffer.from(serializeProject(targetProject)),
+    });
+    const targetTab = page.getByRole("tab").last();
+    const before = await saved(page);
+    await client.status(session.sessionId, session.agentToken);
+    for (const copyNumber of [1, 2]) {
+      if (path === "Agent") {
+        const listing = await client.projects(
+          session.sessionId,
+          session.agentToken,
+          {
+            apiVersion: "3.0",
+            requestId: `finite-list-${copyNumber}`,
+            operation: "workspace",
+            request: { action: "list" },
+          },
+        );
+        if (
+          !listing.ok ||
+          listing.operation !== "workspace" ||
+          listing.result.action !== "list"
+        )
+          throw new Error("Workspace list failed");
+        const source = listing.result.projects.find(
+          (item) => item.projectId === sourceProject.id,
+        )!;
+        const target = listing.result.projects.find(
+          (item) => item.projectId === targetProject.id,
+        )!;
+        const copied = await client.projects(
+          session.sessionId,
+          session.agentToken,
+          {
+            apiVersion: "3.0",
+            requestId: `finite-copy-${copyNumber}`,
+            operation: "workspace",
+            request: {
+              action: "copy",
+              sourceWorkspaceId: source.workspaceId,
+              sourceDocumentId: source.cells[0]!.documentId,
+              sourceRevision: source.cells[0]!.revision,
+              sourceStructureRevision: source.structureRevision,
+              targetWorkspaceId: target.workspaceId,
+              targetDocumentId: target.cells[0]!.documentId,
+              expectedRevision: target.cells[0]!.revision,
+              expectedStructureRevision: target.structureRevision,
+              selection: {
+                instanceIds: ["X1"],
+                routeIds: [],
+                junctionIds: [],
+                annotationIds: [],
+                draftingIds: [],
+              },
+              offset: { x: copyNumber * 2000, y: 0 },
+            },
+          },
+        );
+        expect(copied).toMatchObject({
+          ok: true,
+          operation: "workspace",
+          result: { action: "copy" },
+        });
+      } else {
+        await page.getByRole("tab").first().click();
+        await page.getByTestId("hit-X1").click();
+        await page.keyboard.press(path === "C" ? "c" : "ControlOrMeta+c");
+        await targetTab.click();
+        if (path === "Ctrl+C") await page.keyboard.press("ControlOrMeta+v");
+        const ghost = page.getByTestId("copy-placement-preview");
+        await expect(ghost).toBeVisible();
+        await expect(ghost.locator('[data-kind="net-label"]')).toHaveCount(0);
+        await page.getByTestId("schematic-canvas").click({
+          position: { x: 150 + 200 * copyNumber, y: 100 + 150 * copyNumber },
+        });
+        await page.keyboard.press("Escape");
+      }
+      await expect(page.getByTestId("active-instance-count")).toHaveText(
+        String(copyNumber + 1),
+      );
+    }
+    const copied = await saved(page);
+    expect(copied.documents[0]!.nets).toEqual(before.documents[0]!.nets);
+    expect(copied.documents[0]!.annotations).toEqual(
+      before.documents[0]!.annotations,
+    );
+    expect(copied.documents[0]!.connectivityEvidence).toEqual(
+      before.documents[0]!.connectivityEvidence,
+    );
+    expect(copied.modelSources).toEqual(before.modelSources);
+    expect(copied.externalSubcircuitDefinitions).toEqual(
+      before.externalSubcircuitDefinitions,
+    );
+    await page.keyboard.press("ControlOrMeta+z");
+    await expect(page.getByTestId("active-instance-count")).toHaveText("2");
+    await page.keyboard.press("ControlOrMeta+Shift+z");
+    await expect(page.getByTestId("active-instance-count")).toHaveText("3");
+    expect((await saved(page)).documents[0]!.nets).toEqual(
+      before.documents[0]!.nets,
+    );
+  }
+  await page.getByRole("tab").first().click();
+  expect((await saved(page)).documents).toEqual(sourceBefore.documents);
+  await page.getByRole("tab").last().click();
+  const beforeReload = await saved(page);
+  page.on("dialog", (dialog) => void dialog.accept());
+  await page.reload();
+  await awaitEditorReady(page);
+  expect((await saved(page)).documents).toEqual(beforeReload.documents);
+  expect((await saved(page)).modelSources).toEqual(beforeReload.modelSources);
+});
 
 test("first blank Project has its own stable evidence identity", async ({
   page,
