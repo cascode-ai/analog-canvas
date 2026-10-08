@@ -3,6 +3,11 @@ import type {
   Problem,
   SimulationSourceLocation,
 } from "@icm/simulation-service/contract";
+
+import { requestSignIn } from "../../components/sign-in-request";
+
+/** The hosted service runs simulations for signed-in accounts only. */
+const SIGN_IN_REQUIRED = "simulation-authentication-required";
 const RECOVERY_LABELS: Record<Problem["recovery"], string> = {
   "fix-input": "Review the highlighted input and apply the correction.",
   reprepare: "The input changed. Prepare it again before running.",
@@ -44,7 +49,17 @@ export function SimulationProblemView({
         </small>
       </header>
       <p>{problem.message}</p>
-      <p>{RECOVERY_LABELS[problem.recovery]}</p>
+      {problem.code === SIGN_IN_REQUIRED ? (
+        <button
+          type="button"
+          data-testid="simulation-sign-in"
+          onClick={requestSignIn}
+        >
+          Sign in
+        </button>
+      ) : (
+        <p>{RECOVERY_LABELS[problem.recovery]}</p>
+      )}
       {problem.retryAfterMs !== undefined ? (
         <small>
           Try again after {Math.ceil(problem.retryAfterMs / 1000)} s.

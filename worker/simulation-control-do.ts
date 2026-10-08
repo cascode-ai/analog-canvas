@@ -37,10 +37,6 @@ export type SimulationControlNamespaceLike = {
 type RunRow = { record_json: string };
 type CountRow = { count: number };
 type RequestRow = { request_fingerprint: string; run_id: string };
-type AnonymousSessionRow = { owner_id: string };
-
-export const SIMULATION_SESSION_COOKIE = "icm_simulation_session";
-const SIMULATION_SESSION_TTL_MS = 24 * 60 * 60_000;
 
 const json = (value: unknown, status = 200) => Response.json(value, { status });
 
@@ -75,8 +71,6 @@ export class SimulationControlDO {
   async fetch(request: Request): Promise<Response> {
     await this.ensureAlarm();
     const url = new URL(request.url);
-    if (url.pathname === "/anonymous-session")
-      return this.anonymousSession(request);
     if (url.pathname === "/operations") return this.operations(request);
     if (request.method === "POST" && url.pathname === "/accept") {
       const response = await this.accept(request);
@@ -133,21 +127,14 @@ export class SimulationControlDO {
         PRIMARY KEY (owner_id, request_id)
       ) WITHOUT ROWID
     `);
-    this.sql.exec(`
-      CREATE TABLE IF NOT EXISTS simulation_anonymous_sessions (
-        token_hash TEXT PRIMARY KEY,
-        owner_id TEXT NOT NULL,
-        expires_at INTEGER NOT NULL
-      ) WITHOUT ROWID
-    `);
+    // Signed-out runs were retired on 2026-10-08; their sessions go with them.
+    this.sql.exec("DROP TABLE IF EXISTS simulation_anonymous_sessions");
     this.sql.exec(`
       CREATE TABLE IF NOT EXISTS simulation_operations (
         key TEXT PRIMARY KEY,
         value TEXT NOT NULL
       ) WITHOUT ROWID
     `);
-    this.sql.exec(`CREATE INDEX IF NOT EXISTS simulation_sessions_expiry
-      ON simulation_anonymous_sessions(expires_at)`);
     this.sql.exec(
       `INSERT OR IGNORE INTO simulation_operations (key, value)
        VALUES ('accepting', 'true')`,
@@ -360,52 +347,6 @@ export class SimulationControlDO {
         listener(run);
   }
 
-  private async anonymousSession(request: Request): Promise<Response> {
-    if (request.method !== "GET" && request.method !== "POST")
-      return json({ error: "method-not-allowed" }, 405);
-    const token = cookieValue(
-      request.headers.get("cookie"),
-      SIMULATION_SESSION_COOKIE,
-    );
-    if (token) {
-      const tokenHash = await sha256(token);
-      const row = this.sql
-        .exec<AnonymousSessionRow>(
-          `SELECT owner_id FROM simulation_anonymous_sessions
-           WHERE token_hash = ? AND expires_at > ?`,
-          tokenHash,
-          this.now(),
-        )
-        .toArray()[0];
-      if (row)
-        return json({
-          principal: anonymousPrincipal(row.owner_id),
-        });
-    }
-    if (request.method !== "POST")
-      return json({ error: "simulation-authentication-required" }, 401);
-    const issuedToken = randomToken();
-    const ownerId = `anonymous-${crypto.randomUUID()}`;
-    const expiresAt = this.now() + SIMULATION_SESSION_TTL_MS;
-    this.sql.exec(
-      `INSERT INTO simulation_anonymous_sessions
-        (token_hash, owner_id, expires_at) VALUES (?, ?, ?)`,
-      await sha256(issuedToken),
-      ownerId,
-      expiresAt,
-    );
-    return Response.json(
-      { principal: anonymousPrincipal(ownerId) },
-      {
-        status: 201,
-        headers: {
-          "set-cookie": `${SIMULATION_SESSION_COOKIE}=${issuedToken}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${Math.floor(SIMULATION_SESSION_TTL_MS / 1_000)}`,
-          "cache-control": "no-store",
-        },
-      },
-    );
-  }
-
   private async operations(request: Request): Promise<Response> {
     if (request.method === "POST") {
       const body = (await request.json().catch(() => null)) as {
@@ -442,10 +383,6 @@ export class SimulationControlDO {
   }
 
   private pruneExpired(now: number): void {
-    this.sql.exec(
-      "DELETE FROM simulation_anonymous_sessions WHERE token_hash IN (SELECT token_hash FROM simulation_anonymous_sessions WHERE expires_at <= ? LIMIT 100)",
-      now,
-    );
     this.pruneActive(now);
     const retained = this.sql
       .exec<RunRow>(
@@ -564,12 +501,12 @@ export class SimulationControlDO {
     if (this.env?.SIMULATION_DISPATCH === "alarm")
       await this.state.storage.setAlarm?.(this.now() + 30_000);
     const dispatchDelay = await this.dispatch();
-    // Stop background maintenance once all records are tombstones and sessions
-    // have expired. The next request will schedule maintenance again.
+    // Stop background maintenance once all records are tombstones. The next
+    // request will schedule maintenance again.
     const remaining = this.sql
       .exec<{ present: number }>(
         `SELECT EXISTS(SELECT 1 FROM simulation_runs WHERE state != 'expired')
-        OR EXISTS(SELECT 1 FROM simulation_anonymous_sessions) AS present`,
+        AS present`,
       )
       .one().present;
     if (remaining) {
@@ -580,44 +517,4 @@ export class SimulationControlDO {
       this.alarmScheduled = true;
     }
   }
-}
-
-function cookieValue(header: string | null, name: string): string | null {
-  for (const item of (header ?? "").split(";")) {
-    const [key, ...rest] = item.trim().split("=");
-    if (key === name && rest.length > 0) return rest.join("=");
-  }
-  return null;
-}
-
-function randomToken(): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(32));
-  return [...bytes]
-    .map((value) => value.toString(16).padStart(2, "0"))
-    .join("");
-}
-
-async function sha256(text: string): Promise<string> {
-  const digest = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(text),
-  );
-  return [...new Uint8Array(digest)]
-    .map((value) => value.toString(16).padStart(2, "0"))
-    .join("");
-}
-
-function anonymousPrincipal(ownerId: string) {
-  return {
-    id: ownerId,
-    displayName: "Anonymous simulator",
-    email: null,
-    provider: "simulation-session",
-    role: "user",
-    isAdmin: false,
-  };
-}
-
-export function managedRunNeedsRetention(run: ManagedRunRecord): boolean {
-  return isManagedRunTerminal(run.state) && run.state !== "expired";
 }

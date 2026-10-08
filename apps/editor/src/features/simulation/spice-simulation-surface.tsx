@@ -63,8 +63,9 @@ import {
 
 type ResultTab = SimulationCodeWorkspaceProps["outputPane"];
 
-function preferredResultTab(run: Run): ResultTab {
-  return run.state === "finished" ? "specs" : "console";
+/** A run that ended with a problem opens Console, where the problem is shown. */
+export function preferredResultTab(run: Run): ResultTab {
+  return run.state === "finished" && !run.error ? "specs" : "console";
 }
 
 interface PreparedPresentation {

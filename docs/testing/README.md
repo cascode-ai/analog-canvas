@@ -293,6 +293,9 @@ alone cannot establish electrical correctness.
 
 Project-owned native model acceptance can use
 `node scripts/model-source-smoke.mjs <HTTPS executor origin>` after `pnpm build`.
+The hosted site runs simulations only for signed-in accounts; scripts like this
+one send `SIMULATION_SMOKE_TOKEN` from the environment when it is set, which
+only a Production deploy holds.
 This operator-run check uses the actual Apply, export and preparation boundaries,
 then a qualified ngspice executor; it does not belong to offline CI. Its finite
 gain, single-pole model checks OP and complex AC values against analytic results,

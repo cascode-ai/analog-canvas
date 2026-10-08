@@ -1,10 +1,7 @@
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it, vi } from "vitest";
 
-import {
-  SIMULATION_SESSION_COOKIE,
-  SimulationControlDO,
-} from "./simulation-control-do";
+import { SimulationControlDO } from "./simulation-control-do";
 
 function sqliteState() {
   const db = new DatabaseSync(":memory:");
@@ -73,9 +70,9 @@ describe("simulation control durable object", () => {
       ),
     );
     const path = `https://control/runs/${accepted.run.id}`;
-    expect((await control.fetch(new Request(`${path}?waitMs=20001`))).status).toBe(
-      400,
-    );
+    expect(
+      (await control.fetch(new Request(`${path}?waitMs=20001`))).status,
+    ).toBe(400);
     const waiting = control.fetch(new Request(`${path}?waitMs=20000`));
     await control.fetch(
       new Request(path, {
@@ -201,30 +198,24 @@ describe("simulation control durable object", () => {
     expect(state.storage.setAlarm).not.toHaveBeenCalled();
   });
 
-  it("issues an opaque anonymous owner capability and resolves it later", async () => {
-    const control = new SimulationControlDO(
-      sqliteState(),
-      undefined,
-      () => 100,
+  it("forgets the retired signed-out sessions when it starts and issues none", async () => {
+    const state = sqliteState();
+    state.storage.sql.exec(
+      "CREATE TABLE simulation_anonymous_sessions (token_hash TEXT PRIMARY KEY, owner_id TEXT, expires_at INTEGER)",
     );
+    const control = new SimulationControlDO(state, undefined, () => 100);
+    expect(
+      state.storage.sql
+        .exec<{ name: string }>(
+          "SELECT name FROM sqlite_master WHERE name = 'simulation_anonymous_sessions'",
+        )
+        .toArray(),
+    ).toEqual([]);
     const issued = await control.fetch(
       new Request("https://control/anonymous-session", { method: "POST" }),
     );
-    expect(issued.status).toBe(201);
-    const cookie = issued.headers.get("set-cookie");
-    expect(cookie).toContain(`${SIMULATION_SESSION_COOKIE}=`);
-    expect(cookie).toContain("HttpOnly");
-    expect(cookie).toContain("Secure");
-    const principal = await body<{ principal: { id: string } }>(issued);
-    expect(principal.principal.id).toMatch(/^anonymous-/u);
-
-    const resolved = await control.fetch(
-      new Request("https://control/anonymous-session", {
-        headers: { cookie: cookie!.split(";")[0]! },
-      }),
-    );
-    expect(resolved.status).toBe(200);
-    expect(await body(resolved)).toEqual(principal);
+    expect(issued.status).toBe(404);
+    expect(issued.headers.get("set-cookie")).toBeNull();
   });
 
   it("persists idempotent admission and lifecycle transitions", async () => {

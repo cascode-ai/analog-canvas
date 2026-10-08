@@ -145,7 +145,8 @@ not automatically to a modified example or another simulator.
 **Preview input netlist…**, in the active experiment's context menu, compiles
 without executing and opens the prepared input read-only.
 **Run** captures source and starts the
-ordinary run. A legacy configuration's saved Run Plan can instead start its
+ordinary run. The hosted site runs simulations for signed-in accounts; signed
+out, Run asks you to sign in. A legacy configuration's saved Run Plan can instead start its
 sequential sweep batch. **Cancel run**
 requests cancellation; closing/minimizing a presentation is not cancel.
 Input errors affect that operation, not the Project or Agent session. Correct

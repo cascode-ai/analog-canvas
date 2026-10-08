@@ -2,6 +2,8 @@ import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
+import { simulationSmokeHeaders } from "./lib/simulation-smoke-headers.mjs";
+
 /**
  * The deploy pipeline's own contract.
  *
@@ -163,6 +165,26 @@ describe("Cloudflare deploy workflow", () => {
       /if:\s*failure\(\)\s*&&\s*steps\.deploy_worker\.outcome\s*==\s*'success'/u,
     );
     expect(workflow).toContain("wrangler@4.120.1 rollback");
+  });
+
+  it("gives the simulation checks a credential of this deploy's own", () => {
+    // Running a simulation needs a signed-in account; the checks have none.
+    const made = workflow.indexOf(
+      "name: Make this deploy's simulation check credential",
+    );
+    const secrets = workflow.indexOf("name: Sync worker secrets");
+    const verify = workflow.indexOf("id: verify");
+    expect(made).toBeGreaterThan(-1);
+    expect(made).toBeLessThan(secrets);
+    expect(workflow.slice(made, secrets)).toContain("::add-mask::$token");
+    expect(workflow.slice(secrets, verify)).toContain("SIMULATION_SMOKE_TOKEN");
+    expect(simulationSmokeHeaders({ SIMULATION_SMOKE_TOKEN: "this" })).toEqual({
+      "content-type": "application/json",
+      authorization: "Bearer this",
+    });
+    expect(simulationSmokeHeaders({})).toEqual({
+      "content-type": "application/json",
+    });
   });
 
   it("re-verifies after rolling back", () => {

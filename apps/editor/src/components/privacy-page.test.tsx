@@ -7,7 +7,6 @@ import {
   AUTH_STATE_COOKIE,
 } from "../../../../worker/auth-do";
 import { GALLERY_DAILY_OPEN_LIMIT } from "../../../../worker/gallery-do";
-import { SIMULATION_SESSION_COOKIE } from "../../../../worker/simulation-control-do";
 import {
   ANALYTICS_OPT_OUT_COOKIE,
   ANALYTICS_PERSISTENCE_IDENTITY,
@@ -27,7 +26,6 @@ describe("privacy notice", () => {
       [
         AUTH_SESSION_COOKIE,
         AUTH_STATE_COOKIE,
-        SIMULATION_SESSION_COOKIE,
         ANALYTICS_PERSISTENCE_IDENTITY.visitorCookie,
         ANALYTICS_OPT_OUT_COOKIE,
       ].sort(),
