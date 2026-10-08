@@ -1,0 +1,11 @@
+{
+  "name": "CMOS 2-bit flash ADC",
+  "description": "Three five-MOS comparators simultaneously compare vin with 0.825, 1.65 and 2.475 V from a four-resistor ladder. Restoring inverters and an explicit AOI encoder convert the thermometer decisions into two binary outputs. Thirty-five MOS devices and two 100 fF loads are explicit. The saved 3.3 V DC sweep verifies all four codes and all three thresholds. External vb=0.9 V biases the comparator tails. This is a static flash-conversion demonstration with no clocked output latch. Generic nominal models; sample rate, offset, bubble tolerance, INL/DNL, noise and PVT limits are not qualified.",
+  "tags": [
+    "CMOS",
+    "Flash ADC",
+    "Analog to Digital",
+    "Thermometer Code",
+    "Conversion"
+  ]
+}

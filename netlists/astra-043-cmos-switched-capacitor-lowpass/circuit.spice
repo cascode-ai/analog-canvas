@@ -1,0 +1,15 @@
+
+.subckt astra_043_cmos_switched_capacitor_lowpass vdd VSS vin out p1 p2
+CO out VSS 200p
+CS net0 VSS 20p
+M1 vin p1b net0 vdd APMOS l=1u w=20u
+M2 vin p1 net0 VSS ANMOS l=1u w=10u
+M3 net0 p2b out vdd APMOS l=1u w=20u
+M4 net0 p2 out VSS ANMOS l=1u w=10u
+M5 p1b p1 vdd vdd APMOS l=1u w=20u
+M6 p1b p1 VSS VSS ANMOS l=1u w=10u
+M7 p2b p2 vdd vdd APMOS l=1u w=20u
+M8 p2b p2 VSS VSS ANMOS l=1u w=10u
+RL out VSS 1G
+RX net0 VSS 1G
+.ends astra_043_cmos_switched_capacitor_lowpass

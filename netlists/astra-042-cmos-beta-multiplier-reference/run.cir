@@ -1,0 +1,25 @@
+CMOS beta-multiplier reference with startup
+.include "circuit.spice"
+.include "models.spice"
+VDD vdd 0 PWL(0 0 1u 3.3 5u 3.3 6u 2.8 10u 2.8)
+XDUT vdd 0 na su out astra_042_cmos_beta_multiplier_reference
+.temp 27
+.options method=gear reltol=1e-5
+* @spec i33 range 0.000006 0.000015 unit=A
+* @spec i28 range 0.000006 0.000015 unit=A
+* @spec bias33 range 0.65 1.1 unit=V
+* @spec start_off range 0 0.5 unit=V
+* @spec steady33 range 0 0.000001 unit=A
+.control
+set filetype=ascii
+tran 1n 10u
+let io=(v(vdd)-v(out))/100k
+meas tran i33 AVG io FROM=3u TO=4u
+meas tran i28 AVG io FROM=8u TO=9u
+meas tran bias33 AVG v(na) FROM=3u TO=4u
+meas tran start_off AVG v(su) FROM=3u TO=4u
+meas tran steady33 PP io FROM=3u TO=4u
+write out.raw
+quit
+.endc
+.end

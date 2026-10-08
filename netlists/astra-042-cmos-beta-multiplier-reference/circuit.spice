@@ -1,0 +1,15 @@
+
+.subckt astra_042_cmos_beta_multiplier_reference vdd VSS na su out
+CO out VSS 100f
+CS su VSS 1p
+M1 na net0 vdd vdd APMOS l=1u w=10u
+M2 net0 net0 vdd vdd APMOS l=1u w=10u
+M3 na na VSS VSS ANMOS l=1u w=2u
+M4 net0 na net1 VSS ANMOS l=1u w=8u
+M5 net0 su VSS VSS ANMOS l=1u w=4u
+M6 su na VSS VSS ANMOS l=1u w=20u
+M7 out na VSS VSS ANMOS l=1u w=2u
+RO vdd out 100k
+RS net1 VSS 10k
+RU vdd su 100k
+.ends astra_042_cmos_beta_multiplier_reference

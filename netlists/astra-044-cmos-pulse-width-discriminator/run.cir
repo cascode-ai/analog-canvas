@@ -1,0 +1,32 @@
+CMOS pulse-width discriminator
+.include "circuit.spice"
+.include "models.spice"
+VDD vdd 0 3.3
+IREF iref 0 100u
+VREF vref 0 1.2
+VB vb 0 0.9
+VIN inp 0 PWL(0 0 20n 0 20.1n 3.3 25n 3.3 25.1n 0 80n 0 80.1n 3.3 110n 3.3 110.1n 0 160n 0 160.1n 3.3 167n 3.3 167.1n 0 200n 0 200.1n 3.3 240n 3.3 240.1n 0 260n 0)
+XDUT vdd 0 iref inp vref vb out astra_044_cmos_pulse_width_discriminator
+.temp 27
+.options method=gear reltol=1e-5
+* @spec short1 range -0.01 0.1 unit=V
+* @spec long1 range 3.2 3.4 unit=V
+* @spec delay range 8e-9 2e-8 unit=s
+* @spec width range 1e-8 2.5e-8 unit=s
+* @spec after_long range -0.01 0.01 unit=V
+* @spec short2 range -0.01 0.1 unit=V
+* @spec long2 range 3.2 3.4 unit=V
+.control
+set filetype=ascii
+tran 20p 260n
+meas tran short1 MAX v(out) FROM=20n TO=27n
+meas tran long1 MIN v(out) FROM=105n TO=109n
+meas tran delay TRIG v(inp) VAL=1.65 RISE=2 TARG v(out) VAL=1.65 RISE=1
+meas tran width TRIG v(out) VAL=1.65 RISE=1 TARG v(out) VAL=1.65 FALL=1
+meas tran after_long FIND v(out) AT=120n
+meas tran short2 MAX v(out) FROM=160n TO=170n
+meas tran long2 MIN v(out) FROM=225n TO=238n
+write out.raw
+quit
+.endc
+.end

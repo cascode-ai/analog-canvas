@@ -1,0 +1,11 @@
+{
+  "name": "CMOS pulse-width discriminator",
+  "description": "A PMOS mirror charges a 1 pF timing capacitor while inp is high; an NMOS resets it while inp is low. A five-MOS comparator checks the ramp against 1.2 V, and CMOS logic qualifies the decision with inp. Seventeen MOS devices are explicit. With 100 uA reference, out asserts after roughly 14 ns only while a long pulse remains high. The experiment rejects 5/7 ns pulses, accepts 30/40 ns pulses and checks delay, output width and reset. External 0.9 V tail bias is required. Educational nominal models; no calibrated timing, jitter, metastability or PVT guarantee.",
+  "tags": [
+    "CMOS",
+    "Pulse Width",
+    "Discriminator",
+    "Timing",
+    "Mixed Signal"
+  ]
+}

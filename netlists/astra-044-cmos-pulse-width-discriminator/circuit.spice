@@ -1,0 +1,23 @@
+
+.subckt astra_044_cmos_pulse_width_discriminator vdd VSS iref inp vref vb out
+CL out VSS 200f
+CT net1 VSS 1p
+M1 iref iref vdd vdd APMOS l=1u w=10u
+M10 net0 net2 vdd vdd APMOS l=1u w=20u
+M11 net5 vb VSS VSS ANMOS l=1u w=4u
+M12 below net0 vdd vdd APMOS l=1u w=20u
+M13 below net0 VSS VSS ANMOS l=1u w=10u
+M14 net3 below vdd vdd APMOS l=1u w=20u
+M15 out inb net3 vdd APMOS l=1u w=20u
+M16 out below VSS VSS ANMOS l=1u w=10u
+M17 out inb VSS VSS ANMOS l=1u w=10u
+M2 net4 iref vdd vdd APMOS l=1u w=10u
+M3 net1 inb net4 vdd APMOS l=1u w=40u
+M4 net1 inb VSS VSS ANMOS l=1u w=40u
+M5 inb inp vdd vdd APMOS l=1u w=20u
+M6 inb inp VSS VSS ANMOS l=1u w=10u
+M7 net2 net1 net5 VSS ANMOS l=1u w=10u
+M8 net0 vref net5 VSS ANMOS l=1u w=10u
+M9 net2 net2 vdd vdd APMOS l=1u w=20u
+RL net1 VSS 1G
+.ends astra_044_cmos_pulse_width_discriminator

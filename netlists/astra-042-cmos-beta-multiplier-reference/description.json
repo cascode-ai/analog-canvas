@@ -1,0 +1,11 @@
+{
+  "name": "CMOS beta-multiplier reference with startup",
+  "description": "A resistor-degenerated NMOS pair and a PMOS mirror form a self-biased current-reference loop. A resistor/capacitor pull-up and bias-sensitive NMOS pull-down drive a startup transistor until the loop develops bias. Seven MOS devices are explicit; the weighted NMOS has four times the reference width. A separate output mirror drives 100 kohm and 100 fF. The saved supply ramp and 3.3-to-2.8 V step check nonzero output current, bias, startup turnoff and settled ripple. The startup resistor continues to consume current. Generic Level-1 nominal behavior; no precision, temperature compensation, startup-yield or PVT guarantee.",
+  "tags": [
+    "CMOS",
+    "Beta Multiplier",
+    "Current Reference",
+    "Self Bias",
+    "Startup"
+  ]
+}

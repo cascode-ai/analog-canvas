@@ -1,0 +1,38 @@
+CMOS 2-bit flash ADC
+.include "circuit.spice"
+.include "models.spice"
+VDD vdd 0 3.3
+VB vb 0 0.9
+VIN vin 0 0
+XDUT vdd 0 vin vb b1 b0 astra_045_cmos_two_bit_flash_adc
+.temp 27
+.options method=gear reltol=1e-5
+* @spec lower range 0.78 0.87 unit=V
+* @spec middle range 1.6 1.7 unit=V
+* @spec upper range 2.43 2.52 unit=V
+* @spec code0b0 range -0.01 0.01 unit=V
+* @spec code0b1 range -0.01 0.01 unit=V
+* @spec code1b0 range 3.2 3.4 unit=V
+* @spec code1b1 range -0.01 0.01 unit=V
+* @spec code2b0 range -0.01 0.01 unit=V
+* @spec code2b1 range 3.2 3.4 unit=V
+* @spec code3b0 range 3.2 3.4 unit=V
+* @spec code3b1 range 3.2 3.4 unit=V
+.control
+set filetype=ascii
+dc VIN 0 3.3 0.005
+meas dc lower WHEN v(b0)=1.65 RISE=1
+meas dc middle WHEN v(b1)=1.65 RISE=1
+meas dc upper WHEN v(b0)=1.65 RISE=2
+meas dc code0b0 FIND v(b0) AT=0.2
+meas dc code0b1 FIND v(b1) AT=0.2
+meas dc code1b0 FIND v(b0) AT=1.2
+meas dc code1b1 FIND v(b1) AT=1.2
+meas dc code2b0 FIND v(b0) AT=2.0
+meas dc code2b1 FIND v(b1) AT=2.0
+meas dc code3b0 FIND v(b0) AT=3.0
+meas dc code3b1 FIND v(b1) AT=3.0
+write out.raw
+quit
+.endc
+.end

@@ -1,0 +1,44 @@
+
+.subckt astra_045_cmos_two_bit_flash_adc vdd VSS vin vb b1 b0
+C0 b0 VSS 100f
+C1 b1 VSS 100f
+M1 net5 vin net11 VSS ANMOS l=1u w=10u
+M10 net6 vin net12 VSS ANMOS l=1u w=10u
+M11 net2 vm net12 VSS ANMOS l=1u w=10u
+M12 net6 net6 vdd vdd APMOS l=1u w=20u
+M13 net2 net6 vdd vdd APMOS l=1u w=20u
+M14 net12 vb VSS VSS ANMOS l=1u w=4u
+M15 t2b net2 vdd vdd APMOS l=1u w=20u
+M16 t2b net2 VSS VSS ANMOS l=1u w=10u
+M17 b1 t2b vdd vdd APMOS l=1u w=20u
+M18 b1 t2b VSS VSS ANMOS l=1u w=10u
+M19 net7 vin net13 VSS ANMOS l=1u w=10u
+M2 net0 vl net11 VSS ANMOS l=1u w=10u
+M20 net3 vh net13 VSS ANMOS l=1u w=10u
+M21 net7 net7 vdd vdd APMOS l=1u w=20u
+M22 net3 net7 vdd vdd APMOS l=1u w=20u
+M23 net13 vb VSS VSS ANMOS l=1u w=4u
+M24 net4 net3 vdd vdd APMOS l=1u w=20u
+M25 net4 net3 VSS VSS ANMOS l=1u w=10u
+M26 t3 net4 vdd vdd APMOS l=1u w=20u
+M27 t3 net4 VSS VSS ANMOS l=1u w=10u
+M28 net10 t3 vdd vdd APMOS l=1u w=20u
+M29 net8 t1 net10 vdd APMOS l=1u w=20u
+M3 net5 net5 vdd vdd APMOS l=1u w=20u
+M30 net8 t2b net10 vdd APMOS l=1u w=20u
+M31 net8 t1 net9 VSS ANMOS l=1u w=10u
+M32 net9 t2b VSS VSS ANMOS l=1u w=10u
+M33 net8 t3 VSS VSS ANMOS l=1u w=10u
+M34 b0 net8 vdd vdd APMOS l=1u w=20u
+M35 b0 net8 VSS VSS ANMOS l=1u w=10u
+M4 net0 net5 vdd vdd APMOS l=1u w=20u
+M5 net11 vb VSS VSS ANMOS l=1u w=4u
+M6 net1 net0 vdd vdd APMOS l=1u w=20u
+M7 net1 net0 VSS VSS ANMOS l=1u w=10u
+M8 t1 net1 vdd vdd APMOS l=1u w=20u
+M9 t1 net1 VSS VSS ANMOS l=1u w=10u
+R1 vdd vh 10k
+R2 vh vm 10k
+R3 vm vl 10k
+R4 vl VSS 10k
+.ends astra_045_cmos_two_bit_flash_adc

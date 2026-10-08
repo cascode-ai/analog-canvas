@@ -1,0 +1,11 @@
+{
+  "name": "CMOS switched-capacitor low-pass filter",
+  "description": "Two transmission gates alternately sample vin onto 20 pF and share that charge with a 200 pF output capacitor. Two CMOS inverters provide phase complements: eight MOS devices are explicit. Non-overlapping 1 MHz clocks give an approximate 50 kohm switched-capacitor resistance and 16 kHz cutoff. Two 1 Gohm resistors model leakage. The saved transient applies simultaneous 10 kHz and 100 kHz tones around 1.2 V; coherent in-phase/quadrature averages verify passband transfer, stronger high-frequency attenuation and DC level. This sampled filter also creates clock harmonics. Generic nominal models; no anti-alias, noise, distortion or PVT qualification.",
+  "tags": [
+    "CMOS",
+    "Switched Capacitor",
+    "Low Pass",
+    "Sampled Data",
+    "Filters"
+  ]
+}

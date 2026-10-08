@@ -1,0 +1,24 @@
+
+Note: No compatibility mode selected!
+
+
+Circuit: cmos 2-bit flash adc
+
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+No. of Data Rows : 661
+lower               =  8.22500e-01
+middle              =  1.64750e+00
+upper               =  2.46750e+00
+code0b0             =  6.12963e-10
+code0b1             =  6.12963e-10
+code1b0             =  3.30000e+00
+code1b1             =  6.12963e-10
+code2b0             =  6.12963e-10
+code2b1             =  3.30000e+00
+code3b0             =  3.30000e+00
+code3b1             =  3.30000e+00
+ASCII raw file "out.raw"
+ngspice-46 done
