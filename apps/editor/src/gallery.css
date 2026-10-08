@@ -1100,6 +1100,13 @@
   color: var(--icm-text-muted);
 }
 
+/* The wall the reader had, held while the next filters load: it dims only
+   after a moment, so a quick answer replaces it without a flicker. */
+.gallery-wall.is-refreshing {
+  opacity: 0.55;
+  transition: opacity 150ms ease 150ms;
+}
+
 .gallery-tag-mark {
   display: inline-flex;
   align-items: center;

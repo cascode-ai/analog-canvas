@@ -27,6 +27,7 @@ import {
   type GalleryLandingPreload,
   withLoadedTail,
   type GalleryQuickFilterCounts,
+  type GalleryTagSummary,
 } from "../gallery-client";
 import { galleryEntryMatchesQuery } from "../gallery-search";
 import {
@@ -658,6 +659,15 @@ export function GalleryFeed({
   // not the counts beside it.
   useEffect(() => {
     let cancelled = false;
+    const apply = (payload: GalleryTagSummary) => {
+      setTagOptions(payload.tags);
+      setTagGroupCounts(
+        Object.fromEntries(
+          payload.groups.map(({ group, count }) => [group, count]),
+        ),
+      );
+      setTagCountsScope(tagScope);
+    };
     const request =
       refreshSignal === 0 &&
       tagCountsRefresh === 0 &&
@@ -666,15 +676,7 @@ export function GalleryFeed({
         ? preload.tags
         : loadGalleryTagSummary(fetch, feedQuery);
     void request.then((payload) => {
-      if (!cancelled) {
-        setTagOptions(payload.tags);
-        setTagGroupCounts(
-          Object.fromEntries(
-            payload.groups.map(({ group, count }) => [group, count]),
-          ),
-        );
-        setTagCountsScope(tagScope);
-      }
+      if (!cancelled) apply(payload);
     });
     return () => {
       cancelled = true;
@@ -686,6 +688,10 @@ export function GalleryFeed({
     nextCursor: null,
     total: null,
   });
+  // The tiles on screen when the filters changed, held dimmed until the new
+  // combination answers, so the wall never blanks between two of them.
+  const [heldWall, setHeldWall] = useState<GalleryFeedEntry[]>([]);
+  const shownWallRef = useRef<GalleryFeedEntry[]>([]);
   const loadingMoreRef = useRef(false);
   const firstPageLoadingRef = useRef(true);
   const feedGenerationRef = useRef(0);
@@ -805,6 +811,7 @@ export function GalleryFeed({
     const queryKey = galleryFeedQueryKey(feedQuery);
     const changingQuery = loadedQueryRef.current !== queryKey;
     if (changingQuery) {
+      setHeldWall(shownWallRef.current);
       setState({
         status: "loading",
         entries: [],
@@ -825,6 +832,7 @@ export function GalleryFeed({
     void request.then((page) => {
       if (cancelled || generation !== feedGenerationRef.current) return;
       firstPageLoadingRef.current = false;
+      setHeldWall([]);
       if (page === GALLERY_SIGN_IN_REQUIRED) {
         loadedQueryRef.current = queryKey;
         setState({
@@ -1090,6 +1098,8 @@ export function GalleryFeed({
         galleryEntryMatchesQuery(entry, normalizedSearchQuery),
       )
     : entries;
+  const refreshing = state.status === "loading" && heldWall.length > 0;
+  shownWallRef.current = refreshing ? heldWall : visibleEntries;
 
   // A "View in Gallery" link names one circuit. The wall shows it at once: in
   // its place when the first page holds it, otherwise first on the wall,
@@ -1616,7 +1626,7 @@ export function GalleryFeed({
                 That circuit is not on the wall. It may have been removed.
               </p>
             ) : null}
-            {state.status === "loading" ||
+            {(state.status === "loading" && !refreshing) ||
             (needsBundledFallback &&
               (bundledFallback.status === "idle" ||
                 bundledFallback.status === "loading")) ? (
@@ -1624,7 +1634,13 @@ export function GalleryFeed({
                 Loading gallery…
               </p>
             ) : (
-              <section className="gallery-wall">
+              <section
+                className={
+                  refreshing ? "gallery-wall is-refreshing" : "gallery-wall"
+                }
+                aria-busy={refreshing}
+                inert={refreshing}
+              >
                 {searchingLoaded && state.status === "ready" ? (
                   <GallerySearchProgress
                     checked={entries.length}
@@ -1636,7 +1652,7 @@ export function GalleryFeed({
                 <Masonry
                   aria-label="Published circuits"
                   items={[
-                    ...visibleEntries.map((entry) => ({
+                    ...shownWallRef.current.map((entry) => ({
                       key: entry.id,
                       node: (
                         <div
@@ -1844,104 +1860,110 @@ export function GalleryFeed({
                       : []),
                   ]}
                 />
-                {entries.length === 0 &&
-                selectedTags.length > 0 &&
-                !narrowedToAuthor ? (
-                  <p
-                    className="gallery-status"
-                    data-testid="gallery-tags-empty"
-                  >
-                    No circuits match the selected tags.
-                  </p>
-                ) : null}
-                {entries.length === 0 && narrowedToAuthor ? (
-                  <p
-                    className="gallery-status"
-                    data-testid="gallery-filter-empty"
-                  >
-                    No public circuits by {authorName} yet.
-                  </p>
-                ) : null}
-                {entries.length === 0 &&
-                !narrowedToAuthor &&
-                selectedTags.length === 0 &&
-                !netlistableOnly &&
-                !withoutNetlistOnly &&
-                aiFilter === null &&
-                !likedOnly &&
-                selectedParts.length > 0 ? (
-                  <p
-                    className="gallery-status"
-                    data-testid="gallery-parts-empty"
-                  >
-                    No circuits of the chosen sizes.
-                  </p>
-                ) : null}
-                {entries.length === 0 &&
-                !narrowedToAuthor &&
-                (netlistableOnly ||
-                  withoutNetlistOnly ||
-                  aiFilter !== null ||
-                  likedOnly) ? (
-                  <p
-                    className="gallery-status"
-                    data-testid="gallery-mark-empty"
-                  >
-                    {likedOnly && !signedIn
-                      ? "Sign in to collect the circuits you like."
-                      : likedOnly && netlistableOnly
-                        ? "None of the circuits you liked extracts to a netlist yet."
-                        : likedOnly && !withoutNetlistOnly && aiFilter === null
-                          ? "You have not liked any circuits yet."
-                          : likedOnly ||
-                              [
-                                netlistableOnly,
-                                withoutNetlistOnly,
-                                aiFilter !== null,
-                              ].filter(Boolean).length > 1
-                            ? "No circuits match these filters."
-                            : netlistableOnly
-                              ? "No circuits here extract to a netlist yet."
-                              : withoutNetlistOnly
-                                ? "Every circuit here extracts to a netlist."
-                                : aiFilter === "ai"
-                                  ? "No AI-generated circuits here yet."
-                                  : "No circuits made by hand here yet."}
-                  </p>
-                ) : null}
-                {!localhostExamplesEnabled() &&
-                entries.length === 0 &&
-                !galleryFiltersNarrowQuery(filters) ? (
-                  <p className="gallery-status" data-testid="gallery-empty">
-                    {state.status === "unavailable"
-                      ? "Gallery is unavailable. Try again later."
-                      : "No published circuits yet."}
-                  </p>
-                ) : null}
-                {/* Two empty states, because only one of them is a verdict:
+                {refreshing ? null : (
+                  <>
+                    {entries.length === 0 &&
+                    selectedTags.length > 0 &&
+                    !narrowedToAuthor ? (
+                      <p
+                        className="gallery-status"
+                        data-testid="gallery-tags-empty"
+                      >
+                        No circuits match the selected tags.
+                      </p>
+                    ) : null}
+                    {entries.length === 0 && narrowedToAuthor ? (
+                      <p
+                        className="gallery-status"
+                        data-testid="gallery-filter-empty"
+                      >
+                        No public circuits by {authorName} yet.
+                      </p>
+                    ) : null}
+                    {entries.length === 0 &&
+                    !narrowedToAuthor &&
+                    selectedTags.length === 0 &&
+                    !netlistableOnly &&
+                    !withoutNetlistOnly &&
+                    aiFilter === null &&
+                    !likedOnly &&
+                    selectedParts.length > 0 ? (
+                      <p
+                        className="gallery-status"
+                        data-testid="gallery-parts-empty"
+                      >
+                        No circuits of the chosen sizes.
+                      </p>
+                    ) : null}
+                    {entries.length === 0 &&
+                    !narrowedToAuthor &&
+                    (netlistableOnly ||
+                      withoutNetlistOnly ||
+                      aiFilter !== null ||
+                      likedOnly) ? (
+                      <p
+                        className="gallery-status"
+                        data-testid="gallery-mark-empty"
+                      >
+                        {likedOnly && !signedIn
+                          ? "Sign in to collect the circuits you like."
+                          : likedOnly && netlistableOnly
+                            ? "None of the circuits you liked extracts to a netlist yet."
+                            : likedOnly &&
+                                !withoutNetlistOnly &&
+                                aiFilter === null
+                              ? "You have not liked any circuits yet."
+                              : likedOnly ||
+                                  [
+                                    netlistableOnly,
+                                    withoutNetlistOnly,
+                                    aiFilter !== null,
+                                  ].filter(Boolean).length > 1
+                                ? "No circuits match these filters."
+                                : netlistableOnly
+                                  ? "No circuits here extract to a netlist yet."
+                                  : withoutNetlistOnly
+                                    ? "Every circuit here extracts to a netlist."
+                                    : aiFilter === "ai"
+                                      ? "No AI-generated circuits here yet."
+                                      : "No circuits made by hand here yet."}
+                      </p>
+                    ) : null}
+                    {!localhostExamplesEnabled() &&
+                    entries.length === 0 &&
+                    !galleryFiltersNarrowQuery(filters) ? (
+                      <p className="gallery-status" data-testid="gallery-empty">
+                        {state.status === "unavailable"
+                          ? "Gallery is unavailable. Try again later."
+                          : "No published circuits yet."}
+                      </p>
+                    ) : null}
+                    {/* Two empty states, because only one of them is a verdict:
                   while the cursor chain is unexhausted the true sentence is
                   "nothing in what has loaded", not "nothing". The sentinel
                   below keeps pulling pages whenever the thin wall leaves it
                   in view, so the pending state resolves itself. */}
-                {normalizedSearchQuery &&
-                visibleEntries.length === 0 &&
-                (searchAnswered || entries.length > 0) ? (
-                  searchingLoaded && state.nextCursor !== null ? (
-                    <p
-                      className="gallery-status"
-                      data-testid="gallery-search-pending"
-                    >
-                      No matches yet — searching older circuits…
-                    </p>
-                  ) : (
-                    <p
-                      className="gallery-status"
-                      data-testid="gallery-search-empty"
-                    >
-                      No circuits match “{searchQuery.trim()}”.
-                    </p>
-                  )
-                ) : null}
+                    {normalizedSearchQuery &&
+                    visibleEntries.length === 0 &&
+                    (searchAnswered || entries.length > 0) ? (
+                      searchingLoaded && state.nextCursor !== null ? (
+                        <p
+                          className="gallery-status"
+                          data-testid="gallery-search-pending"
+                        >
+                          No matches yet — searching older circuits…
+                        </p>
+                      ) : (
+                        <p
+                          className="gallery-status"
+                          data-testid="gallery-search-empty"
+                        >
+                          No circuits match “{searchQuery.trim()}”.
+                        </p>
+                      )
+                    ) : null}
+                  </>
+                )}
               </section>
             )}
             <div
