@@ -9,6 +9,7 @@
  * of thing to a reader, so they persist as one thing.
  */
 
+import { gallerySourceByKey, gallerySourceOfEntryId } from "./gallery-sources";
 import { galleryFocusEntryId } from "./gallery-focus";
 
 export type GalleryView = "gallery" | "shelf";
@@ -48,6 +49,11 @@ export interface GalleryFilterState {
    * them matches, and none means every size.
    */
   parts: string[];
+  /**
+   * The reference dataset the wall shows instead of the community's, by its
+   * key (#1510); null for the community wall.
+   */
+  source: string | null;
 }
 
 export const GALLERY_FILTERS_KEY = "icm.gallery-filters.v1";
@@ -72,6 +78,7 @@ const NARROWING_PARAMS = [
   "attention",
   "reason",
   "parts",
+  "source",
 ] as const;
 
 export function createDefaultGalleryFilters(): GalleryFilterState {
@@ -88,6 +95,7 @@ export function createDefaultGalleryFilters(): GalleryFilterState {
     ai: null,
     liked: false,
     parts: [],
+    source: null,
   };
 }
 
@@ -188,6 +196,7 @@ export function parseGalleryFilterQuery(search: string): {
           ? readReason(params.get("reason"))
           : null,
       parts: boundedParts((params.get("parts") ?? "").split(",")),
+      source: gallerySourceByKey(params.get("source"))?.key ?? null,
     },
     narrowed: NARROWING_PARAMS.some((name) => (params.get(name) ?? "") !== ""),
     namesView: params.has("view"),
@@ -224,6 +233,7 @@ export function galleryFilterSearch(
   set("attention", filters.attention ? "1" : null);
   set("reason", filters.attention ? filters.attentionKind : null);
   set("parts", filters.parts.length > 0 ? filters.parts.join(",") : null);
+  set("source", filters.source);
   const query = params.toString();
   return query.length > 0 ? `?${query}` : "";
 }
@@ -265,6 +275,10 @@ export function parseStoredGalleryFilters(
     attentionKind:
       record.attention === true ? readReason(record.attentionKind) : null,
     parts: boundedParts(Array.isArray(record.parts) ? record.parts : []),
+    source:
+      typeof record.source === "string"
+        ? (gallerySourceByKey(record.source)?.key ?? null)
+        : null,
   };
 }
 
@@ -281,6 +295,13 @@ export function resolveGalleryFilters(
 ): GalleryFilterState {
   const { filters, narrowed, namesView } = parseGalleryFilterQuery(search);
   const stored = parseStoredGalleryFilters(storedRaw);
-  if (narrowed || !stored || galleryFocusEntryId(search)) return filters;
+  const focused = galleryFocusEntryId(search);
+  // A linked circuit of a reference dataset opens that dataset's wall.
+  if (focused)
+    return {
+      ...filters,
+      source: gallerySourceOfEntryId(focused)?.key ?? null,
+    };
+  if (narrowed || !stored) return filters;
   return { ...stored, view: namesView ? filters.view : stored.view };
 }

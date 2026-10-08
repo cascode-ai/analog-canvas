@@ -513,6 +513,47 @@ an independent private draft; publishing it is a separate action. There is no
 merge graph or automatic publication. Private Cloud Project history follows
 the separate [save-history contract](persistence-and-recovery.md#private-save-history).
 
+## Reference datasets
+
+Published circuit datasets (AnalogGenie, CircuitThink, AMS-Net, #1510) can be
+read beside the community wall without crowding it. `config/gallery-sources.json`
+lists each dataset once: `key`, entry-id `prefix`, display `name`, the `byline`
+its circuits carry, `license`, and its `homepage` and `paper` links.
+
+- **Separate stores.** Each dataset lives in its own Gallery Durable Object,
+  `source:<key>`; the community store stays `gallery`. No community list,
+  count, tag, search or maintenance pass sees a dataset entry.
+- **Ids say the store.** A dataset entry's id is `<prefix>-<id>` (`ag-308`,
+  `ct-12`, `amsnet-5`); a community id never holds a hyphen. Every
+  `/api/gallery/<id>…` request is answered from the store its id names, so
+  `/g/ag-308` and `/?entry=ag-308` open the dataset circuit directly. The feed
+  and tag list take `source=<key>` to read a dataset's wall.
+- **Read-only.** A request that would change a dataset entry — like, update,
+  withdraw, restore, delete, publish — answers 403 `dataset-read-only`, for
+  every account. Entries carry no owner and no AI mark. Opening one in the
+  editor makes an ordinary working copy that publishes as a new community
+  entry, never as an update.
+- **Switch.** `GET /api/gallery/sources` answers `{sources: [... , count]}`.
+  The wall shows a Source switch beside the circuit count only when at least
+  one dataset holds circuits: Community (the default) or one dataset at a time,
+  each with its count. A dataset wall drops the like control and the author
+  tools and opens with one line naming the dataset, its licence and links. The
+  choice rides in the URL as `source=<key>`; switching clears the author and
+  attention narrowings.
+- **Import (Owner only).** `POST /api/gallery/sources/<key>/entries`
+  (same-origin; an Owner account's session, else 403 `owner-only`) takes
+  `{entries: [{id, name, description?, tags?, projectText, createdAt?}]}`, at
+  most 10 per request. Each entry is checked like a submission — name and
+  description lengths, Project size, Project parse — and its id must carry the
+  dataset's prefix (`invalid-id` otherwise). The server stores the canonical
+  Project, renders its preview, answers its netlist mark and part count, and
+  sets the byline from the configuration. An existing id is replaced in place
+  (its earlier version kept), so a re-import repairs rather than duplicates.
+  The answer lists `{id, ok, created, previewRevision}` or `{id, ok: false,
+  error}` per entry. Import runs from the Owner's signed-in browser
+  (`fetch` from the Gallery page's console or a page script), so no new key or
+  secret exists for it.
+
 ## Accounts and sessions
 
 `AuthDO` (one SQLite Durable Object singleton) owns users and sessions

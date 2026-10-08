@@ -27,8 +27,30 @@ describe("gallery filter preferences", () => {
       attention: false,
       attentionKind: null,
       parts: ["6-10", "26-"],
+      source: null,
     });
     expect(narrowed).toBe(true);
+  });
+
+  it("opens a reference dataset's wall by its link or one of its circuits (#1510)", () => {
+    const linked = parseGalleryFilterQuery("?source=analoggenie");
+    expect(linked.filters.source).toBe("analoggenie");
+    expect(linked.narrowed).toBe(true);
+    expect(galleryFilterSearch("", linked.filters)).toBe("?source=analoggenie");
+    // An unknown source is the community wall.
+    expect(parseGalleryFilterQuery("?source=nowhere").filters.source).toBe(
+      null,
+    );
+    // A dataset circuit's link opens its dataset; a community one, the
+    // community wall, whatever was stored.
+    const stored = JSON.stringify({ source: "circuitthink" });
+    expect(resolveGalleryFilters("?entry=ag-308", stored).source).toBe(
+      "analoggenie",
+    );
+    expect(resolveGalleryFilters("?entry=pxxj67dmag", stored).source).toBe(
+      null,
+    );
+    expect(resolveGalleryFilters("", stored).source).toBe("circuitthink");
   });
 
   it("carries the other side of each pair: without a netlist, AI or by hand", () => {
@@ -181,6 +203,7 @@ describe("gallery filter preferences", () => {
       ai: null,
       liked: false,
       parts: [],
+      source: null,
     });
   });
 

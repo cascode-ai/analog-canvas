@@ -3,6 +3,7 @@ import { createEmptyProject } from "@icm/model";
 import { describe, expect, it } from "vitest";
 
 import {
+  canUpdateGalleryPublication,
   describePublishOutcome,
   loadGalleryPublicationContext,
   loadGalleryQuota,
@@ -22,6 +23,40 @@ function fetchReturning(
     return new Response(JSON.stringify(payload), { status });
   }) as typeof fetch;
 }
+
+describe("canUpdateGalleryPublication", () => {
+  const context = (id: string, ownerUserId: string | null) => ({
+    id,
+    name: "OTA",
+    projectId: "p1",
+    ownerUserId,
+    author: "Someone",
+    description: "",
+    tags: [],
+  });
+  const admin = { id: "a1", isAdmin: true };
+
+  it("offers the update to the owner and the Owner, never on a reference dataset (#1510)", () => {
+    expect(
+      canUpdateGalleryPublication(context("k7m2", "u1"), {
+        id: "u1",
+        isAdmin: false,
+      }),
+    ).toBe(true);
+    expect(
+      canUpdateGalleryPublication(context("k7m2", "u1"), {
+        id: "u2",
+        isAdmin: false,
+      }),
+    ).toBe(false);
+    expect(canUpdateGalleryPublication(context("k7m2", "u1"), admin)).toBe(
+      true,
+    );
+    expect(canUpdateGalleryPublication(context("ag-308", null), admin)).toBe(
+      false,
+    );
+  });
+});
 
 describe("loadGalleryQuota", () => {
   it("reads today's allowance, and nothing when signed out", async () => {

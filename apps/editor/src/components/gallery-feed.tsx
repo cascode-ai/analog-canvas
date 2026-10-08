@@ -77,6 +77,11 @@ import { requestSignIn } from "./sign-in-request";
 import { GalleryChrome } from "./gallery-chrome";
 import { GalleryTagSidebar } from "./gallery-tag-sidebar";
 import { Masonry } from "./masonry";
+import {
+  GallerySourceNote,
+  GallerySourceSwitch,
+} from "./gallery-source-switch";
+import { gallerySourceByKey } from "../gallery-sources";
 import type { GalleryDuplicateReport } from "../gallery-duplicates";
 
 /**
@@ -576,7 +581,10 @@ export function GalleryFeed({
     attention: attentionOnly,
     attentionKind,
     parts: selectedParts,
+    source,
   } = filters;
+  // A reference dataset's wall is read-only: no likes, no owner tools.
+  const datasetWall = gallerySourceByKey(source);
   function updateFilters(patch: Partial<GalleryFilterState>): void {
     setFilters((previous) => ({ ...previous, ...patch }));
   }
@@ -595,6 +603,7 @@ export function GalleryFeed({
   // One query for the first page, every later page and the landing preload.
   const feedQuery = useMemo<GalleryFeedQuery>(
     () => ({
+      source,
       author: queriedAuthor,
       ownerUserId,
       tags: selectedTags,
@@ -619,6 +628,7 @@ export function GalleryFeed({
       attentionKind,
       selectedParts,
       serverSearch,
+      source,
     ],
   );
   const [duplicateReport, setDuplicateReport] =
@@ -1410,6 +1420,23 @@ export function GalleryFeed({
         {/* The shelf states its own count ("N of 20 saved"); this one
             describes the community wall and leaves with it. */}
         {view === "gallery" ? (
+          <GallerySourceSwitch
+            source={source}
+            onChange={(next) =>
+              // An author, a like or a review is the community's; the
+              // other filters carry over.
+              updateFilters({
+                source: next,
+                author: null,
+                ownerUserId: null,
+                liked: false,
+                attention: false,
+                attentionKind: null,
+              })
+            }
+          />
+        ) : null}
+        {view === "gallery" ? (
           <GalleryCountPanel
             total={state.total}
             filtered={galleryFiltersNarrowQuery(filters)}
@@ -1679,6 +1706,7 @@ export function GalleryFeed({
                 </button>
               </div>
             ) : null}
+            {datasetWall ? <GallerySourceNote source={datasetWall} /> : null}
             {ownerNotice ? (
               <aside
                 className="gallery-owner-toast"
@@ -1817,33 +1845,35 @@ export function GalleryFeed({
                                   </>
                                 ) : null}
                                 {savedAtLabel(entry.createdAt)}
-                                {" · "}
-                                <button
-                                  type="button"
-                                  className="gallery-tile-like"
-                                  data-testid={`gallery-like-${entry.id}`}
-                                  aria-pressed={entry.likedByViewer === true}
-                                  title={
-                                    entry.likedByViewer
-                                      ? "Remove your like"
-                                      : "Like this circuit"
-                                  }
-                                  aria-label={
-                                    entry.likedByViewer
-                                      ? `Remove your like from ${entry.name}`
-                                      : `Like ${entry.name}`
-                                  }
-                                  onClick={(event) => {
-                                    event.preventDefault();
-                                    event.stopPropagation();
-                                    void toggleLike(entry.id);
-                                  }}
-                                >
-                                  <HeartIcon
-                                    filled={entry.likedByViewer === true}
-                                  />
-                                  {entry.likes ?? 0}
-                                </button>
+                                {datasetWall ? null : " · "}
+                                {datasetWall ? null : (
+                                  <button
+                                    type="button"
+                                    className="gallery-tile-like"
+                                    data-testid={`gallery-like-${entry.id}`}
+                                    aria-pressed={entry.likedByViewer === true}
+                                    title={
+                                      entry.likedByViewer
+                                        ? "Remove your like"
+                                        : "Like this circuit"
+                                    }
+                                    aria-label={
+                                      entry.likedByViewer
+                                        ? `Remove your like from ${entry.name}`
+                                        : `Like ${entry.name}`
+                                    }
+                                    onClick={(event) => {
+                                      event.preventDefault();
+                                      event.stopPropagation();
+                                      void toggleLike(entry.id);
+                                    }}
+                                  >
+                                    <HeartIcon
+                                      filled={entry.likedByViewer === true}
+                                    />
+                                    {entry.likes ?? 0}
+                                  </button>
+                                )}
                               </span>
                               {entry.description ? (
                                 <span
@@ -1876,8 +1906,9 @@ export function GalleryFeed({
                               ) : null}
                             </span>
                           </a>
-                          {isOwner ||
-                          (!!viewerId && viewerId === entry.ownerUserId) ? (
+                          {!datasetWall &&
+                          (isOwner ||
+                            (!!viewerId && viewerId === entry.ownerUserId)) ? (
                             <Suspense fallback={null}>
                               {isOwner ? (
                                 <GalleryOwnerRejectButton
