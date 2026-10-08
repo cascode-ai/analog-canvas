@@ -1107,6 +1107,47 @@
   transition: opacity 150ms ease 150ms;
 }
 
+/* A withdraw or reject's outcome, passing over the wall like the editor's
+   Publish notice, so no tile moves. It sits at the bottom, clear of the top
+   row's reject and menu buttons, for a reviewer rejecting one after another. */
+.gallery-owner-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: calc(100vw - 32px);
+  padding: 10px 14px;
+  border: 1px solid var(--icm-border);
+  border-radius: 8px;
+  background: var(--icm-surface);
+  color: var(--icm-text);
+  box-shadow: 0 4px 20px rgb(0 0 0 / 12%);
+  font-size: 13px;
+  transform: translateX(-50%);
+}
+
+.gallery-owner-toast-mark {
+  color: #16a34a;
+  font-weight: 700;
+}
+
+.gallery-owner-toast[data-ok="false"] .gallery-owner-toast-mark {
+  color: #dc2626;
+}
+
+.gallery-owner-toast button {
+  border: 0;
+  background: none;
+  color: var(--icm-text-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 16px;
+  line-height: 1;
+}
+
 .gallery-tag-mark {
   display: inline-flex;
   align-items: center;
