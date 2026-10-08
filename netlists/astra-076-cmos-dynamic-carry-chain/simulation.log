@@ -1,0 +1,96 @@
+
+Note: No compatibility mode selected!
+
+
+Circuit: cmos dynamic manchester carry chain
+
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+Initial Transient Solution
+--------------------------
+
+Node                                   Voltage
+----                                   -------
+vdd                                        3.3
+clk                                          0
+cin                                          0
+p0                                         3.3
+g0                                           0
+p1                                         3.3
+g1                                           0
+p2                                         3.3
+g2                                           0
+p3                                         3.3
+g3                                           0
+xdut.net1                                  3.3
+xdut.nc1                                   3.3
+xdut.nc2                                   3.3
+xdut.nc3                                   3.3
+xdut.nc4                                   3.3
+c1                                 6.12963e-10
+c2                                 6.12963e-10
+c3                                 6.12963e-10
+c4                                 6.12963e-10
+xdut.net0                          2.18646e-20
+vg3#branch                                   0
+vp3#branch                                   0
+vg2#branch                                   0
+vp2#branch                                   0
+vg1#branch                                   0
+vp1#branch                                   0
+vg0#branch                                   0
+vp0#branch                                   0
+vcin#branch                                  0
+vclk#branch                                  0
+vdd#branch                          -5.627e-11
+
+
+No. of Data Rows : 22535
+s0c1                =  4.23036e-10
+s0c2                =  4.23036e-10
+s0c3                =  4.23036e-10
+s0c4                =  4.68961e-10
+s1c1                =  3.30000e+00
+s1c2                =  3.30000e+00
+s1c3                =  3.30000e+00
+s1c4                =  3.30000e+00
+s2c1                =  3.30000e+00
+s2c2                =  3.30000e+00
+s2c3                =  3.30000e+00
+s2c4                =  3.30000e+00
+s3c1                =  4.22561e-10
+s3c2                =  3.30000e+00
+s3c3                =  3.30000e+00
+s3c4                =  3.30000e+00
+s4c1                =  4.22556e-10
+s4c2                =  4.22556e-10
+s4c3                =  3.30000e+00
+s4c4                =  3.30000e+00
+s5c1                =  4.22573e-10
+s5c2                =  4.22573e-10
+s5c3                =  4.22573e-10
+s5c4                =  3.30000e+00
+s6c1                =  4.22556e-10
+s6c2                =  3.30000e+00
+s6c3                =  3.30000e+00
+s6c4                =  3.30000e+00
+s7c1                =  3.30000e+00
+s7c2                =  3.30000e+00
+s7c3                =  3.30000e+00
+s7c4                =  3.30000e+00
+s8c1                =  4.22608e-10
+s8c2                =  4.22608e-10
+s8c3                =  4.22608e-10
+s8c4                =  4.68478e-10
+s9c1                =  3.30000e+00
+s9c2                =  3.30000e+00
+s9c3                =  3.30000e+00
+s9c4                =  3.30000e+00
+pre1                =  6.12963e-10
+pre2                =  6.12963e-10
+pre3                =  6.12963e-10
+pre4                =  6.12963e-10
+ASCII raw file "out.raw"
+ngspice-46 done

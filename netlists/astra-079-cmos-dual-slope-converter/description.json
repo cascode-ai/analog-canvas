@@ -1,0 +1,11 @@
+{
+  "name": "CMOS dual-slope voltage-to-time converter",
+  "description": "An explicit five-MOS closed-loop integrator integrates input current through 100 kohm onto a 10 pF feedback capacitor for a fixed interval, then a switched reference reverses the ramp. A second transistor sensing stage and two restoring inverters mark return crossing. Twenty-six MOS devices, all phase complements, three TG switches and loads are shown. Three inputs above common mode check increasing reference-return intervals, integrated ramp and virtual-node bias. This performs two-slope integration rather than acquiring the input directly on a ramp capacitor. Offset, reference accuracy, conversion linearity, phase jitter and PVT are not qualified.",
+  "tags": [
+    "CMOS",
+    "Dual Slope",
+    "Integrating Converter",
+    "Voltage To Time",
+    "Conversion"
+  ]
+}

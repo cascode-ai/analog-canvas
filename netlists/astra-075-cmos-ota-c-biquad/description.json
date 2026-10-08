@@ -1,0 +1,11 @@
+{
+  "name": "CMOS OTA-C band-pass/low-pass biquad",
+  "description": "Two explicit five-MOS transconductors and two 1 nF capacitors form a continuous-time two-integrator loop. A 4.7 kohm damping resistor sets a finite-Q band-pass response at bp, while lp supplies a second-order low-pass output. Ten MOS devices and all passives are shown. DC bias and normalized AC gains at 5, 50 and 500 kHz are checked. This is an active gm-C filter, not a sampled RC or passive LC ladder. Finite output resistance affects the ideal transfer; Q accuracy, tuning range, noise, linear swing and PVT are not qualified.",
+  "tags": [
+    "CMOS",
+    "OTA C",
+    "Biquad",
+    "Band Pass",
+    "Low Pass"
+  ]
+}

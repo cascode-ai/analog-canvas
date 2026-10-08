@@ -1,0 +1,11 @@
+{
+  "name": "CMOS autozero inverter comparator",
+  "description": "A transmission gate closes feedback around a deliberately asymmetric CMOS inverter during az. A 1 pF coupling capacitor stores the acquired input relative to the inverter trip point; after feedback opens, positive or negative changes are restored by an output inverter. Eight MOS devices and all loads are explicit. Tests acquire 0.8, 1.6 and 2.4 V, check a common internal trip bias and resolve plus/minus 0.1 V changes. Unlike external-baseline double sampling, this calibrates the inverter itself. Residual offset, kT/C noise, minimum resolution, hold duration and PVT are not qualified.",
+  "tags": [
+    "CMOS",
+    "Autozero",
+    "Comparator",
+    "Offset Storage",
+    "Switched Capacitor"
+  ]
+}

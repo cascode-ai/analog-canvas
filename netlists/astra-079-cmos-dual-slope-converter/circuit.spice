@@ -1,0 +1,33 @@
+
+.subckt astra_079_cmos_dual_slope_converter vdd VSS vin vref vcm sum vb ramp sample return reset
++ busy
+CF sum ramp 10p
+CL busy VSS 100f
+M1 net5 vcm net6 VSS ANMOS l=1u w=10u
+M10 net4 vb VSS VSS ANMOS l=1u w=10u
+M11 net0 net1 vdd vdd APMOS l=1u w=20u
+M12 net0 net1 VSS VSS ANMOS l=1u w=10u
+M13 busy net0 vdd vdd APMOS l=1u w=20u
+M14 busy net0 VSS VSS ANMOS l=1u w=10u
+M15 sampleb sample vdd vdd APMOS l=1u w=20u
+M16 sampleb sample VSS VSS ANMOS l=1u w=10u
+M17 returnb return vdd vdd APMOS l=1u w=20u
+M18 returnb return VSS VSS ANMOS l=1u w=10u
+M19 resetb reset vdd vdd APMOS l=1u w=20u
+M2 ramp sum net6 VSS ANMOS l=1u w=10u
+M20 resetb reset VSS VSS ANMOS l=1u w=10u
+M21 vin sampleb net3 vdd APMOS l=1u w=20u
+M22 vin sample net3 VSS ANMOS l=1u w=10u
+M23 vref returnb net3 vdd APMOS l=1u w=20u
+M24 vref return net3 VSS ANMOS l=1u w=10u
+M25 ramp resetb sum vdd APMOS l=1u w=20u
+M26 ramp reset sum VSS ANMOS l=1u w=10u
+M3 net5 net5 vdd vdd APMOS l=1u w=20u
+M4 ramp net5 vdd vdd APMOS l=1u w=20u
+M5 net6 vb VSS VSS ANMOS l=1u w=10u
+M6 net2 vcm net4 VSS ANMOS l=1u w=10u
+M7 net1 ramp net4 VSS ANMOS l=1u w=10u
+M8 net2 net2 vdd vdd APMOS l=1u w=20u
+M9 net1 net2 vdd vdd APMOS l=1u w=20u
+RI net3 sum 100k
+.ends astra_079_cmos_dual_slope_converter

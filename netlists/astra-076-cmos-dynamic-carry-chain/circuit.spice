@@ -1,0 +1,35 @@
+
+.subckt astra_076_cmos_dynamic_carry_chain vdd VSS cin clk p0 g0 c1 p1 g1 c2 p2 g2 c3 p3 g3 c4
+C0 net1 VSS 50f
+C1 nc1 VSS 50f
+C2 nc2 VSS 50f
+C3 nc3 VSS 50f
+C4 nc4 VSS 50f
+CL1 c1 VSS 100f
+CL2 c2 VSS 100f
+CL3 c3 VSS 100f
+CL4 c4 VSS 100f
+M1 net1 clk vdd vdd APMOS l=1u w=20u
+M10 nc2 p1 nc1 VSS ANMOS l=1u w=10u
+M11 nc2 g1 net0 VSS ANMOS l=1u w=10u
+M12 c2 nc2 vdd vdd APMOS l=1u w=20u
+M13 c2 nc2 VSS VSS ANMOS l=1u w=10u
+M14 nc3 clk vdd vdd APMOS l=1u w=20u
+M15 nc3 p2 nc2 VSS ANMOS l=1u w=10u
+M16 nc3 g2 net0 VSS ANMOS l=1u w=10u
+M17 c3 nc3 vdd vdd APMOS l=1u w=20u
+M18 c3 nc3 VSS VSS ANMOS l=1u w=10u
+M19 nc4 clk vdd vdd APMOS l=1u w=20u
+M2 net1 cin net0 VSS ANMOS l=1u w=10u
+M20 nc4 p3 nc3 VSS ANMOS l=1u w=10u
+M21 nc4 g3 net0 VSS ANMOS l=1u w=10u
+M22 c4 nc4 vdd vdd APMOS l=1u w=20u
+M23 c4 nc4 VSS VSS ANMOS l=1u w=10u
+M3 net0 clk VSS VSS ANMOS l=1u w=50u
+M4 nc1 clk vdd vdd APMOS l=1u w=20u
+M5 nc1 p0 net1 VSS ANMOS l=1u w=10u
+M6 nc1 g0 net0 VSS ANMOS l=1u w=10u
+M7 c1 nc1 vdd vdd APMOS l=1u w=20u
+M8 c1 nc1 VSS VSS ANMOS l=1u w=10u
+M9 nc2 clk vdd vdd APMOS l=1u w=20u
+.ends astra_076_cmos_dynamic_carry_chain

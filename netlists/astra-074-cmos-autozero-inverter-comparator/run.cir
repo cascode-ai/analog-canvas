@@ -1,0 +1,34 @@
+CMOS autozero inverter comparator
+.include "circuit.spice"
+.include "models.spice"
+VDD vdd 0 3.3
+VAZ az 0 PULSE(3.3 0 50n 100p 100p 299.9n 400n)
+VIN vin 0 PWL(0 .8 80n .8 90n .9 170n .9 180n .7 280n .7 290n .8 350n .8 360n 1.6 480n 1.6 490n 1.7 570n 1.7 580n 1.5 680n 1.5 690n 1.6 750n 1.6 760n 2.4 880n 2.4 890n 2.5 970n 2.5 980n 2.3 1100n 2.3)
+XDUT vdd 0 vin x az out astra_074_cmos_autozero_inverter_comparator
+.temp 27
+.options method=gear reltol=1e-5
+* @spec pos0 range 3.2 3.4 unit=V
+* @spec neg0 range -0.02 0.02 unit=V
+* @spec zero0 range 1.2 1.3 unit=V
+* @spec pos1 range 3.2 3.4 unit=V
+* @spec neg1 range -0.02 0.02 unit=V
+* @spec zero1 range 1.2 1.3 unit=V
+* @spec pos2 range 3.2 3.4 unit=V
+* @spec neg2 range -0.02 0.02 unit=V
+* @spec zero2 range 1.2 1.3 unit=V
+.control
+set filetype=ascii
+tran 100p 1100n
+meas tran pos0 FIND v(out) AT=140n
+meas tran neg0 FIND v(out) AT=240n
+meas tran zero0 FIND v(x) AT=40n
+meas tran pos1 FIND v(out) AT=540n
+meas tran neg1 FIND v(out) AT=640n
+meas tran zero1 FIND v(x) AT=440n
+meas tran pos2 FIND v(out) AT=940n
+meas tran neg2 FIND v(out) AT=1040n
+meas tran zero2 FIND v(x) AT=840n
+write out.raw v(out) v(x) v(vin) v(az)
+quit
+.endc
+.end

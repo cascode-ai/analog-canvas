@@ -1,0 +1,14 @@
+
+.subckt astra_074_cmos_autozero_inverter_comparator vdd VSS vin x az out
+CL out VSS 100f
+CS vin x 1p
+M1 net0 x vdd vdd APMOS l=1u w=10u
+M2 net0 x VSS VSS ANMOS l=1u w=20u
+M3 net0 azb x vdd APMOS l=1u w=20u
+M4 net0 az x VSS ANMOS l=1u w=10u
+M5 azb az vdd vdd APMOS l=1u w=20u
+M6 azb az VSS VSS ANMOS l=1u w=10u
+M7 out net0 vdd vdd APMOS l=1u w=20u
+M8 out net0 VSS VSS ANMOS l=1u w=10u
+RX x VSS 10G
+.ends astra_074_cmos_autozero_inverter_comparator

@@ -1,0 +1,11 @@
+{
+  "name": "CMOS dynamic Manchester carry chain",
+  "description": "A shared evaluation footer and five precharged nodes evaluate four carry recurrences from explicit propagate/generate inputs and cin. Propagate NMOS devices pass a prior discharge; generate devices create a local discharge. Four inverters restore positive carries. Twenty-three MOS devices and all node/output loads are shown. Ten carry patterns plus precharge are checked. This is a dynamic arithmetic carry network rather than a full-adder or AO21 gate; inputs must settle before evaluation. Keeper strength, leakage retention, input monotonicity hazards and PVT are not qualified.",
+  "tags": [
+    "CMOS",
+    "Manchester Carry",
+    "Carry Propagation",
+    "Dynamic Logic",
+    "Arithmetic"
+  ]
+}

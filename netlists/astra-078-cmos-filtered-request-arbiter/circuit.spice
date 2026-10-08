@@ -1,0 +1,21 @@
+
+.subckt astra_078_cmos_filtered_request_arbiter vdd VSS ra rb ga gb
+CA ga VSS 100f
+CB gb VSS 100f
+M1 na ra vdd vdd APMOS l=1u w=20u
+M10 net3 na nb VSS ANMOS l=1u w=100u
+M11 ga net2 vdd vdd APMOS l=1u w=20u
+M12 ga net2 VSS VSS ANMOS l=1u w=10u
+M13 gb net3 vdd vdd APMOS l=1u w=20u
+M14 gb net3 VSS VSS ANMOS l=1u w=10u
+M2 na nb vdd vdd APMOS l=1u w=20u
+M3 na ra net0 VSS ANMOS l=1u w=20u
+M4 net0 nb VSS VSS ANMOS l=1u w=20u
+M5 nb rb vdd vdd APMOS l=1u w=20u
+M6 nb na vdd vdd APMOS l=1u w=20u
+M7 nb rb net1 VSS ANMOS l=1u w=20u
+M8 net1 na VSS VSS ANMOS l=1u w=20u
+M9 net2 nb na VSS ANMOS l=1u w=100u
+RA vdd net2 10k
+RB vdd net3 10k
+.ends astra_078_cmos_filtered_request_arbiter

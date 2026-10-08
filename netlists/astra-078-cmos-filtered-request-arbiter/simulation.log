@@ -1,0 +1,53 @@
+
+Note: No compatibility mode selected!
+
+
+Circuit: cmos filtered two-request arbiter
+
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+Initial Transient Solution
+--------------------------
+
+Node                                   Voltage
+----                                   -------
+vdd                                        3.3
+ra                                           0
+rb                                           0
+ga                                 6.12963e-10
+gb                                 6.12963e-10
+xdut.na                                    3.3
+xdut.net3                                  3.3
+xdut.nb                                    3.3
+xdut.net2                                  3.3
+xdut.net0                         -4.35986e-19
+xdut.net1                         -4.35986e-19
+vrb#branch                                   0
+vra#branch                                   0
+vdd#branch                          -2.648e-11
+
+
+No. of Data Rows : 10986
+grant0ga            =  6.12963e-10
+grant0gb            =  6.12963e-10
+grant1ga            =  3.30000e+00
+grant1gb            =  6.12972e-10
+grant2ga            =  3.30000e+00
+grant2gb            =  6.12963e-10
+grant3ga            =  6.12988e-10
+grant3gb            =  3.30000e+00
+grant4ga            =  6.12963e-10
+grant4gb            =  6.12963e-10
+grant5ga            =  6.12972e-10
+grant5gb            =  3.30000e+00
+grant6ga            =  6.12963e-10
+grant6gb            =  3.30000e+00
+grant7ga            =  3.30000e+00
+grant7gb            =  6.12988e-10
+grant8ga            =  6.12963e-10
+grant8gb            =  6.12963e-10
+exclusive           =  1.85755e-10 at=  9.20068e-07
+ASCII raw file "out.raw"
+ngspice-46 done

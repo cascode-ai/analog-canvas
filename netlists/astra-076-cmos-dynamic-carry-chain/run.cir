@@ -1,0 +1,112 @@
+CMOS dynamic Manchester carry chain
+.include "circuit.spice"
+.include "models.spice"
+VDD vdd 0 3.3
+VCLK clk 0 PULSE(0 3.3 100n 100p 100p 89.9n 200n)
+VCIN cin 0 PWL(0 0.0 199.5n 0.0 200.5n 3.3 399.5n 3.3 400.5n 0.0 599.5n 0.0 600.5n 0.0 799.5n 0.0 800.5n 0.0 999.5n 0.0 1000.5n 0.0 1199.5n 0.0 1200.5n 0.0 1399.5n 0.0 1400.5n 0.0 1599.5n 0.0 1600.5n 3.3 1799.5n 3.3 1800.5n 3.3 2000n 3.3)
+VP0 p0 0 PWL(0 3.3 199.5n 3.3 200.5n 3.3 399.5n 3.3 400.5n 0.0 599.5n 0.0 600.5n 0.0 799.5n 0.0 800.5n 0.0 999.5n 0.0 1000.5n 0.0 1199.5n 0.0 1200.5n 3.3 1399.5n 3.3 1400.5n 0.0 1599.5n 0.0 1600.5n 0.0 1799.5n 0.0 1800.5n 3.3 2000n 3.3)
+VG0 g0 0 PWL(0 0.0 199.5n 0.0 200.5n 0.0 399.5n 0.0 400.5n 3.3 599.5n 3.3 600.5n 0.0 799.5n 0.0 800.5n 0.0 999.5n 0.0 1000.5n 0.0 1199.5n 0.0 1200.5n 0.0 1399.5n 0.0 1400.5n 3.3 1599.5n 3.3 1600.5n 0.0 1799.5n 0.0 1800.5n 0.0 2000n 0.0)
+VP1 p1 0 PWL(0 3.3 199.5n 3.3 200.5n 3.3 399.5n 3.3 400.5n 3.3 599.5n 3.3 600.5n 0.0 799.5n 0.0 800.5n 0.0 999.5n 0.0 1000.5n 0.0 1199.5n 0.0 1200.5n 0.0 1399.5n 0.0 1400.5n 3.3 1599.5n 3.3 1600.5n 0.0 1799.5n 0.0 1800.5n 3.3 2000n 3.3)
+VG1 g1 0 PWL(0 0.0 199.5n 0.0 200.5n 0.0 399.5n 0.0 400.5n 0.0 599.5n 0.0 600.5n 3.3 799.5n 3.3 800.5n 0.0 999.5n 0.0 1000.5n 0.0 1199.5n 0.0 1200.5n 3.3 1399.5n 3.3 1400.5n 0.0 1599.5n 0.0 1600.5n 0.0 1799.5n 0.0 1800.5n 0.0 2000n 0.0)
+VP2 p2 0 PWL(0 3.3 199.5n 3.3 200.5n 3.3 399.5n 3.3 400.5n 3.3 599.5n 3.3 600.5n 3.3 799.5n 3.3 800.5n 0.0 999.5n 0.0 1000.5n 0.0 1199.5n 0.0 1200.5n 3.3 1399.5n 3.3 1400.5n 0.0 1599.5n 0.0 1600.5n 0.0 1799.5n 0.0 1800.5n 3.3 2000n 3.3)
+VG2 g2 0 PWL(0 0.0 199.5n 0.0 200.5n 0.0 399.5n 0.0 400.5n 0.0 599.5n 0.0 600.5n 0.0 799.5n 0.0 800.5n 3.3 999.5n 3.3 1000.5n 0.0 1199.5n 0.0 1200.5n 0.0 1399.5n 0.0 1400.5n 3.3 1599.5n 3.3 1600.5n 0.0 1799.5n 0.0 1800.5n 0.0 2000n 0.0)
+VP3 p3 0 PWL(0 3.3 199.5n 3.3 200.5n 3.3 399.5n 3.3 400.5n 3.3 599.5n 3.3 600.5n 3.3 799.5n 3.3 800.5n 3.3 999.5n 3.3 1000.5n 0.0 1199.5n 0.0 1200.5n 0.0 1399.5n 0.0 1400.5n 3.3 1599.5n 3.3 1600.5n 0.0 1799.5n 0.0 1800.5n 0.0 2000n 0.0)
+VG3 g3 0 PWL(0 0.0 199.5n 0.0 200.5n 0.0 399.5n 0.0 400.5n 0.0 599.5n 0.0 600.5n 0.0 799.5n 0.0 800.5n 0.0 999.5n 0.0 1000.5n 3.3 1199.5n 3.3 1200.5n 3.3 1399.5n 3.3 1400.5n 0.0 1599.5n 0.0 1600.5n 0.0 1799.5n 0.0 1800.5n 3.3 2000n 3.3)
+XDUT vdd 0 cin clk p0 g0 c1 p1 g1 c2 p2 g2 c3 p3 g3 c4 astra_076_cmos_dynamic_carry_chain
+.temp 27
+.options method=gear reltol=1e-5
+* @spec s0c1 range -0.02 0.02 unit=V
+* @spec s0c2 range -0.02 0.02 unit=V
+* @spec s0c3 range -0.02 0.02 unit=V
+* @spec s0c4 range -0.02 0.02 unit=V
+* @spec s1c1 range 3.2 3.4 unit=V
+* @spec s1c2 range 3.2 3.4 unit=V
+* @spec s1c3 range 3.2 3.4 unit=V
+* @spec s1c4 range 3.2 3.4 unit=V
+* @spec s2c1 range 3.2 3.4 unit=V
+* @spec s2c2 range 3.2 3.4 unit=V
+* @spec s2c3 range 3.2 3.4 unit=V
+* @spec s2c4 range 3.2 3.4 unit=V
+* @spec s3c1 range -0.02 0.02 unit=V
+* @spec s3c2 range 3.2 3.4 unit=V
+* @spec s3c3 range 3.2 3.4 unit=V
+* @spec s3c4 range 3.2 3.4 unit=V
+* @spec s4c1 range -0.02 0.02 unit=V
+* @spec s4c2 range -0.02 0.02 unit=V
+* @spec s4c3 range 3.2 3.4 unit=V
+* @spec s4c4 range 3.2 3.4 unit=V
+* @spec s5c1 range -0.02 0.02 unit=V
+* @spec s5c2 range -0.02 0.02 unit=V
+* @spec s5c3 range -0.02 0.02 unit=V
+* @spec s5c4 range 3.2 3.4 unit=V
+* @spec s6c1 range -0.02 0.02 unit=V
+* @spec s6c2 range 3.2 3.4 unit=V
+* @spec s6c3 range 3.2 3.4 unit=V
+* @spec s6c4 range 3.2 3.4 unit=V
+* @spec s7c1 range 3.2 3.4 unit=V
+* @spec s7c2 range 3.2 3.4 unit=V
+* @spec s7c3 range 3.2 3.4 unit=V
+* @spec s7c4 range 3.2 3.4 unit=V
+* @spec s8c1 range -0.02 0.02 unit=V
+* @spec s8c2 range -0.02 0.02 unit=V
+* @spec s8c3 range -0.02 0.02 unit=V
+* @spec s8c4 range -0.02 0.02 unit=V
+* @spec s9c1 range 3.2 3.4 unit=V
+* @spec s9c2 range 3.2 3.4 unit=V
+* @spec s9c3 range 3.2 3.4 unit=V
+* @spec s9c4 range 3.2 3.4 unit=V
+* @spec pre1 range -0.02 0.02 unit=V
+* @spec pre2 range -0.02 0.02 unit=V
+* @spec pre3 range -0.02 0.02 unit=V
+* @spec pre4 range -0.02 0.02 unit=V
+.control
+set filetype=ascii
+tran 100p 2u
+meas tran s0c1 FIND v(c1) AT=160n
+meas tran s0c2 FIND v(c2) AT=160n
+meas tran s0c3 FIND v(c3) AT=160n
+meas tran s0c4 FIND v(c4) AT=160n
+meas tran s1c1 FIND v(c1) AT=360n
+meas tran s1c2 FIND v(c2) AT=360n
+meas tran s1c3 FIND v(c3) AT=360n
+meas tran s1c4 FIND v(c4) AT=360n
+meas tran s2c1 FIND v(c1) AT=560n
+meas tran s2c2 FIND v(c2) AT=560n
+meas tran s2c3 FIND v(c3) AT=560n
+meas tran s2c4 FIND v(c4) AT=560n
+meas tran s3c1 FIND v(c1) AT=760n
+meas tran s3c2 FIND v(c2) AT=760n
+meas tran s3c3 FIND v(c3) AT=760n
+meas tran s3c4 FIND v(c4) AT=760n
+meas tran s4c1 FIND v(c1) AT=960n
+meas tran s4c2 FIND v(c2) AT=960n
+meas tran s4c3 FIND v(c3) AT=960n
+meas tran s4c4 FIND v(c4) AT=960n
+meas tran s5c1 FIND v(c1) AT=1160n
+meas tran s5c2 FIND v(c2) AT=1160n
+meas tran s5c3 FIND v(c3) AT=1160n
+meas tran s5c4 FIND v(c4) AT=1160n
+meas tran s6c1 FIND v(c1) AT=1360n
+meas tran s6c2 FIND v(c2) AT=1360n
+meas tran s6c3 FIND v(c3) AT=1360n
+meas tran s6c4 FIND v(c4) AT=1360n
+meas tran s7c1 FIND v(c1) AT=1560n
+meas tran s7c2 FIND v(c2) AT=1560n
+meas tran s7c3 FIND v(c3) AT=1560n
+meas tran s7c4 FIND v(c4) AT=1560n
+meas tran s8c1 FIND v(c1) AT=1760n
+meas tran s8c2 FIND v(c2) AT=1760n
+meas tran s8c3 FIND v(c3) AT=1760n
+meas tran s8c4 FIND v(c4) AT=1760n
+meas tran s9c1 FIND v(c1) AT=1960n
+meas tran s9c2 FIND v(c2) AT=1960n
+meas tran s9c3 FIND v(c3) AT=1960n
+meas tran s9c4 FIND v(c4) AT=1960n
+meas tran pre1 FIND v(c1) AT=50n
+meas tran pre2 FIND v(c2) AT=50n
+meas tran pre3 FIND v(c3) AT=50n
+meas tran pre4 FIND v(c4) AT=50n
+write out.raw v(c1) v(c2) v(c3) v(c4) v(clk) v(cin)
+quit
+.endc
+.end

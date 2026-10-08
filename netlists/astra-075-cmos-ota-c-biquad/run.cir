@@ -1,0 +1,34 @@
+CMOS OTA-C band-pass/low-pass biquad
+.include "circuit.spice"
+.include "models.spice"
+VDD vdd 0 3.3
+VIN vin 0 DC 1.65 AC 1
+VCM vcm 0 1.65
+VB vb 0 .8
+XDUT vdd 0 vin vb vcm bp lp astra_075_cmos_ota_c_biquad
+.temp 27
+.options method=gear reltol=1e-5
+* @spec bias_bp range 1.6 1.7 unit=V
+* @spec bias_lp range 1.6 1.7 unit=V
+* @spec bp_low range 0.08 0.25 unit=V/V
+* @spec bp_mid range 0.8 1.8 unit=V/V
+* @spec bp_high range 0.05 0.15 unit=V/V
+* @spec lp_low range 0.9 1.15 unit=V/V
+* @spec lp_high range 0 0.03 unit=V/V
+.control
+set filetype=ascii
+dc VIN 1.65 1.651 .001
+meas dc bias_bp FIND v(bp) AT=1.6505
+meas dc bias_lp FIND v(lp) AT=1.6505
+ac dec 40 1k 1Meg
+let bmag=mag(v(bp))
+let lmag=mag(v(lp))
+meas ac bp_low FIND bmag AT=5k
+meas ac bp_mid FIND bmag AT=50k
+meas ac bp_high FIND bmag AT=500k
+meas ac lp_low FIND lmag AT=5k
+meas ac lp_high FIND lmag AT=500k
+write out.raw v(bp) v(lp)
+quit
+.endc
+.end

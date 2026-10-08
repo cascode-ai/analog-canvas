@@ -1,0 +1,11 @@
+{
+  "name": "CMOS 4-bit cyclic barrel shifter",
+  "description": "Two levels of four transmission-gate selectors rotate a four-bit word left by zero, one, two or three positions. Two CMOS inverters create selector complements. Thirty-six explicit MOS devices drive four 100 fF output loads, with no logic black boxes. All 16 words at all four shift settings are checked, giving 256 bit criteria. The network preserves and permutes all four data lanes, unlike a single analog-input mux. Switching glitches, fanout limits, delay and PVT are not qualified.",
+  "tags": [
+    "CMOS",
+    "Barrel Shifter",
+    "Bit Rotation",
+    "Permutation",
+    "Digital Datapath"
+  ]
+}

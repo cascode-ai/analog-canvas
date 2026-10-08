@@ -1,0 +1,170 @@
+{
+  "simulator": "ngspice-46",
+  "models": "Generic educational Level-1 MOS",
+  "temperatureC": 27,
+  "localSpecs": [
+    {
+      "metric": "grant0ga",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 6.12963e-10,
+      "passed": true
+    },
+    {
+      "metric": "grant0gb",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 6.12963e-10,
+      "passed": true
+    },
+    {
+      "metric": "grant1ga",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "grant1gb",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 6.12972e-10,
+      "passed": true
+    },
+    {
+      "metric": "grant2ga",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "grant2gb",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 6.12963e-10,
+      "passed": true
+    },
+    {
+      "metric": "grant3ga",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 6.12988e-10,
+      "passed": true
+    },
+    {
+      "metric": "grant3gb",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "grant4ga",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 6.12963e-10,
+      "passed": true
+    },
+    {
+      "metric": "grant4gb",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 6.12963e-10,
+      "passed": true
+    },
+    {
+      "metric": "grant5ga",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 6.12972e-10,
+      "passed": true
+    },
+    {
+      "metric": "grant5gb",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "grant6ga",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 6.12963e-10,
+      "passed": true
+    },
+    {
+      "metric": "grant6gb",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "grant7ga",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "grant7gb",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 6.12988e-10,
+      "passed": true
+    },
+    {
+      "metric": "grant8ga",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 6.12963e-10,
+      "passed": true
+    },
+    {
+      "metric": "grant8gb",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 6.12963e-10,
+      "passed": true
+    },
+    {
+      "metric": "exclusive",
+      "min": -0.01,
+      "max": 0.02,
+      "value": 1.85755e-10,
+      "passed": true
+    }
+  ],
+  "nativeDiagnostics": 0,
+  "canonicalExportMatches": true,
+  "prototypeConnectivityAndParametersMatch": true,
+  "limitations": "Nominal functional verification only; no PVT, noise, mismatch or foundry qualification.",
+  "hosted": {
+    "runId": "4fa54160-9df6-4452-83a4-f08f44ff518c",
+    "specs": {
+      "available": true,
+      "total": 19,
+      "passed": 19,
+      "failed": 0,
+      "notEvaluated": 0,
+      "unconstrained": 0
+    },
+    "execution": "completed"
+  },
+  "layoutOnlyRevision": {
+    "fontAndSymbolScaleUnchanged": true,
+    "electricalAndSimulationSourcesUnchanged": true,
+    "exportBoundsAreaReductionPercent": 18.6
+  },
+  "liveEditorVerification": {
+    "errors": 0,
+    "warnings": 0,
+    "structuralComparison": "equal"
+  },
+  "publicLayoutMatchesNativeProject": true,
+  "publicProjectMatchesExceptSchemaVersion": true,
+  "nativeSchemaVersion": 66,
+  "publicSchemaVersion": 67
+}

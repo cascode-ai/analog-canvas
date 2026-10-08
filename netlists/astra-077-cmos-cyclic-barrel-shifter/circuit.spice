@@ -1,0 +1,43 @@
+
+.subckt astra_077_cmos_cyclic_barrel_shifter vdd VSS d0 y0 d1 y1 d2 y2 d3 y3 s0 s1
+CL0 y0 VSS 100f
+CL1 y1 VSS 100f
+CL2 y2 VSS 100f
+CL3 y3 VSS 100f
+M1 s0b s0 vdd vdd APMOS l=1u w=20u
+M10 d1 s0b x1 VSS ANMOS l=1u w=10u
+M11 d0 s0b x1 vdd APMOS l=1u w=20u
+M12 d0 s0 x1 VSS ANMOS l=1u w=10u
+M13 d2 s0 x2 vdd APMOS l=1u w=20u
+M14 d2 s0b x2 VSS ANMOS l=1u w=10u
+M15 d1 s0b x2 vdd APMOS l=1u w=20u
+M16 d1 s0 x2 VSS ANMOS l=1u w=10u
+M17 d3 s0 x3 vdd APMOS l=1u w=20u
+M18 d3 s0b x3 VSS ANMOS l=1u w=10u
+M19 d2 s0b x3 vdd APMOS l=1u w=20u
+M2 s0b s0 VSS VSS ANMOS l=1u w=10u
+M20 d2 s0 x3 VSS ANMOS l=1u w=10u
+M21 x0 s1 y0 vdd APMOS l=1u w=20u
+M22 x0 s1b y0 VSS ANMOS l=1u w=10u
+M23 x2 s1b y0 vdd APMOS l=1u w=20u
+M24 x2 s1 y0 VSS ANMOS l=1u w=10u
+M25 x1 s1 y1 vdd APMOS l=1u w=20u
+M26 x1 s1b y1 VSS ANMOS l=1u w=10u
+M27 x3 s1b y1 vdd APMOS l=1u w=20u
+M28 x3 s1 y1 VSS ANMOS l=1u w=10u
+M29 x2 s1 y2 vdd APMOS l=1u w=20u
+M3 s1b s1 vdd vdd APMOS l=1u w=20u
+M30 x2 s1b y2 VSS ANMOS l=1u w=10u
+M31 x0 s1b y2 vdd APMOS l=1u w=20u
+M32 x0 s1 y2 VSS ANMOS l=1u w=10u
+M33 x3 s1 y3 vdd APMOS l=1u w=20u
+M34 x3 s1b y3 VSS ANMOS l=1u w=10u
+M35 x1 s1b y3 vdd APMOS l=1u w=20u
+M36 x1 s1 y3 VSS ANMOS l=1u w=10u
+M4 s1b s1 VSS VSS ANMOS l=1u w=10u
+M5 d0 s0 x0 vdd APMOS l=1u w=20u
+M6 d0 s0b x0 VSS ANMOS l=1u w=10u
+M7 d3 s0b x0 vdd APMOS l=1u w=20u
+M8 d3 s0 x0 VSS ANMOS l=1u w=10u
+M9 d1 s0 x1 vdd APMOS l=1u w=20u
+.ends astra_077_cmos_cyclic_barrel_shifter

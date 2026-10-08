@@ -1,0 +1,51 @@
+CMOS dual-slope voltage-to-time converter
+.include "circuit.spice"
+.include "models.spice"
+VDD vdd 0 3.3
+VCM vcm 0 1.65
+VREF vref 0 1.15
+VB vb 0 .9
+VIN vin 0 PWL(0 1.85 4.8u 1.85 4.9u 2.05 9.8u 2.05 9.9u 2.25 15u 2.25)
+VS sample 0 PULSE(0 3.3 .6u 10n 10n .98u 5u)
+VR return 0 PULSE(0 3.3 1.7u 10n 10n 1.78u 5u)
+VZ reset 0 PULSE(3.3 0 .5u 10n 10n 3.48u 5u)
+XDUT vdd 0 vin vref vcm sum vb ramp sample return reset busy astra_079_cmos_dual_slope_converter
+.temp 27
+.options method=gear reltol=1e-5
+* @spec t0 range 3e-7 5.5e-7 unit=s
+* @spec drop0 range 1.35 1.6 unit=V
+* @spec bias0 range 1.6 1.7 unit=V
+* @spec active0 range 3.2 3.4 unit=V
+* @spec done0 range -0.02 0.02 unit=V
+* @spec t1 range 6.5e-7 0.000001 unit=s
+* @spec drop1 range 1.15 1.4 unit=V
+* @spec bias1 range 1.6 1.7 unit=V
+* @spec active1 range 3.2 3.4 unit=V
+* @spec done1 range -0.02 0.02 unit=V
+* @spec t2 range 0.000001 0.0000015 unit=s
+* @spec drop2 range 0.95 1.2 unit=V
+* @spec bias2 range 1.6 1.7 unit=V
+* @spec active2 range 3.2 3.4 unit=V
+* @spec done2 range -0.02 0.02 unit=V
+.control
+set filetype=ascii
+tran 1n 15u
+meas tran t0 TRIG v(return) VAL=1.65 TD=1.6u RISE=1 TARG v(busy) VAL=1.65 TD=1.7u FALL=1
+meas tran drop0 FIND v(ramp) AT=1.58u
+meas tran bias0 FIND v(sum) AT=1.2u
+meas tran active0 FIND v(busy) AT=1.9u
+meas tran done0 FIND v(busy) AT=2.5u
+meas tran t1 TRIG v(return) VAL=1.65 TD=6.6u RISE=1 TARG v(busy) VAL=1.65 TD=6.7u FALL=1
+meas tran drop1 FIND v(ramp) AT=6.58u
+meas tran bias1 FIND v(sum) AT=6.2u
+meas tran active1 FIND v(busy) AT=7.1u
+meas tran done1 FIND v(busy) AT=7.8u
+meas tran t2 TRIG v(return) VAL=1.65 TD=11.6u RISE=1 TARG v(busy) VAL=1.65 TD=11.7u FALL=1
+meas tran drop2 FIND v(ramp) AT=11.58u
+meas tran bias2 FIND v(sum) AT=11.2u
+meas tran active2 FIND v(busy) AT=12.3u
+meas tran done2 FIND v(busy) AT=13.3u
+write out.raw v(busy) v(ramp) v(sum) v(sample) v(return) v(reset)
+quit
+.endc
+.end

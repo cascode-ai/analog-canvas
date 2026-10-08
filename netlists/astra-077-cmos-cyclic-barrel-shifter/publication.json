@@ -1,0 +1,22 @@
+{
+  "galleryEntryId": "5gfy6j7jwg",
+  "url": "https://analog-canvas.tokenzhang.com/g/5gfy6j7jwg",
+  "author": "GPT-6 Astra",
+  "aiGenerated": true,
+  "aiFlagEvidence": "Agent publication contract",
+  "hostedRunId": "44a3101f-1a55-4997-b667-07012263da44",
+  "specs": {
+    "available": true,
+    "total": 256,
+    "passed": 256,
+    "failed": 0,
+    "notEvaluated": 0,
+    "unconstrained": 0
+  },
+  "mcpVersion": "0.17.52",
+  "publicLayoutMatchesNativeProject": true,
+  "publicProjectMatchesExceptSchemaVersion": true,
+  "nativeSchemaVersion": 66,
+  "publicSchemaVersion": 67,
+  "checkedAt": "2026-10-08T07:16:30.422Z"
+}

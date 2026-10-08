@@ -1,0 +1,100 @@
+{
+  "simulator": "ngspice-46",
+  "models": "Generic educational Level-1 MOS",
+  "temperatureC": 27,
+  "localSpecs": [
+    {
+      "metric": "pos0",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "neg0",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 0.00246524,
+      "passed": true
+    },
+    {
+      "metric": "zero0",
+      "min": 1.2,
+      "max": 1.3,
+      "value": 1.25239,
+      "passed": true
+    },
+    {
+      "metric": "pos1",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "neg1",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 0.00246525,
+      "passed": true
+    },
+    {
+      "metric": "zero1",
+      "min": 1.2,
+      "max": 1.3,
+      "value": 1.25239,
+      "passed": true
+    },
+    {
+      "metric": "pos2",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "neg2",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 0.00246527,
+      "passed": true
+    },
+    {
+      "metric": "zero2",
+      "min": 1.2,
+      "max": 1.3,
+      "value": 1.25239,
+      "passed": true
+    }
+  ],
+  "nativeDiagnostics": 0,
+  "canonicalExportMatches": true,
+  "prototypeConnectivityAndParametersMatch": true,
+  "limitations": "Nominal functional verification only; no PVT, noise, mismatch or foundry qualification.",
+  "hosted": {
+    "runId": "79b11915-ce59-4081-bc1b-84b2c027c240",
+    "specs": {
+      "available": true,
+      "total": 9,
+      "passed": 9,
+      "failed": 0,
+      "notEvaluated": 0,
+      "unconstrained": 0
+    },
+    "execution": "completed"
+  },
+  "layoutOnlyRevision": {
+    "fontAndSymbolScaleUnchanged": true,
+    "electricalAndSimulationSourcesUnchanged": true,
+    "exportBoundsAreaReductionPercent": 15.1
+  },
+  "liveEditorVerification": {
+    "errors": 0,
+    "warnings": 0,
+    "structuralComparison": "equal"
+  },
+  "publicLayoutMatchesNativeProject": true,
+  "publicProjectMatchesExceptSchemaVersion": true,
+  "nativeSchemaVersion": 66,
+  "publicSchemaVersion": 67
+}

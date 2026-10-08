@@ -1,0 +1,16 @@
+
+.subckt astra_075_cmos_ota_c_biquad vdd VSS vin vb vcm bp lp
+C1 bp VSS 1n
+C2 lp VSS 1n
+M1 net2 vin net3 VSS ANMOS l=1u w=10u
+M10 net1 vb VSS VSS ANMOS l=1u w=10u
+M2 bp lp net3 VSS ANMOS l=1u w=10u
+M3 net2 net2 vdd vdd APMOS l=1u w=20u
+M4 bp net2 vdd vdd APMOS l=1u w=20u
+M5 net3 vb VSS VSS ANMOS l=1u w=10u
+M6 net0 bp net1 VSS ANMOS l=1u w=10u
+M7 lp vcm net1 VSS ANMOS l=1u w=10u
+M8 net0 net0 vdd vdd APMOS l=1u w=20u
+M9 lp net0 vdd vdd APMOS l=1u w=20u
+RB bp vcm 4.7k
+.ends astra_075_cmos_ota_c_biquad

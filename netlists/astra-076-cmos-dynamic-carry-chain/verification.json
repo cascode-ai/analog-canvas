@@ -1,0 +1,345 @@
+{
+  "simulator": "ngspice-46",
+  "models": "Generic educational Level-1 MOS",
+  "temperatureC": 27,
+  "localSpecs": [
+    {
+      "metric": "s0c1",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 4.23036e-10,
+      "passed": true
+    },
+    {
+      "metric": "s0c2",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 4.23036e-10,
+      "passed": true
+    },
+    {
+      "metric": "s0c3",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 4.23036e-10,
+      "passed": true
+    },
+    {
+      "metric": "s0c4",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 4.68961e-10,
+      "passed": true
+    },
+    {
+      "metric": "s1c1",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "s1c2",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "s1c3",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "s1c4",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "s2c1",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "s2c2",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "s2c3",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "s2c4",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "s3c1",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 4.22561e-10,
+      "passed": true
+    },
+    {
+      "metric": "s3c2",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "s3c3",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "s3c4",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "s4c1",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 4.22556e-10,
+      "passed": true
+    },
+    {
+      "metric": "s4c2",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 4.22556e-10,
+      "passed": true
+    },
+    {
+      "metric": "s4c3",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "s4c4",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "s5c1",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 4.22573e-10,
+      "passed": true
+    },
+    {
+      "metric": "s5c2",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 4.22573e-10,
+      "passed": true
+    },
+    {
+      "metric": "s5c3",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 4.22573e-10,
+      "passed": true
+    },
+    {
+      "metric": "s5c4",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "s6c1",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 4.22556e-10,
+      "passed": true
+    },
+    {
+      "metric": "s6c2",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "s6c3",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "s6c4",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "s7c1",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "s7c2",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "s7c3",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "s7c4",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "s8c1",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 4.22608e-10,
+      "passed": true
+    },
+    {
+      "metric": "s8c2",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 4.22608e-10,
+      "passed": true
+    },
+    {
+      "metric": "s8c3",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 4.22608e-10,
+      "passed": true
+    },
+    {
+      "metric": "s8c4",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 4.68478e-10,
+      "passed": true
+    },
+    {
+      "metric": "s9c1",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "s9c2",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "s9c3",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "s9c4",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "pre1",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 6.12963e-10,
+      "passed": true
+    },
+    {
+      "metric": "pre2",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 6.12963e-10,
+      "passed": true
+    },
+    {
+      "metric": "pre3",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 6.12963e-10,
+      "passed": true
+    },
+    {
+      "metric": "pre4",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 6.12963e-10,
+      "passed": true
+    }
+  ],
+  "nativeDiagnostics": 0,
+  "canonicalExportMatches": true,
+  "prototypeConnectivityAndParametersMatch": true,
+  "limitations": "Nominal functional verification only; no PVT, noise, mismatch or foundry qualification.",
+  "hosted": {
+    "runId": "c37f64d5-ae54-4f23-b448-e53cfbb15a21",
+    "specs": {
+      "available": true,
+      "total": 44,
+      "passed": 44,
+      "failed": 0,
+      "notEvaluated": 0,
+      "unconstrained": 0
+    },
+    "execution": "completed"
+  },
+  "layoutOnlyRevision": {
+    "fontAndSymbolScaleUnchanged": true,
+    "electricalAndSimulationSourcesUnchanged": true,
+    "exportBoundsAreaReductionPercent": 11.3
+  },
+  "liveEditorVerification": {
+    "errors": 0,
+    "warnings": 0,
+    "structuralComparison": "equal"
+  },
+  "publicLayoutMatchesNativeProject": true,
+  "publicProjectMatchesExceptSchemaVersion": true,
+  "nativeSchemaVersion": 66,
+  "publicSchemaVersion": 67
+}

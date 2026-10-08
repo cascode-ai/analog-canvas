@@ -1,0 +1,11 @@
+{
+  "name": "CMOS filtered two-request arbiter",
+  "description": "Cross-coupled NAND stages retain an ordered request winner. Two NMOS devices sense opposite gate/source latch voltages; pull-up loads and output inverters withhold grants while the differential state is unresolved. Fourteen MOS devices and all loads are explicit. Tests cover either request first, holding while both request, transfer after release, idle and settled exclusivity after a simultaneous request. This adds an analog differential filter to request arbitration, unlike a bare SR latch. Simultaneous requests may remain unresolved; bounded resolution time, asynchronous hazard freedom, metastability MTBF and PVT are not qualified.",
+  "tags": [
+    "CMOS",
+    "Arbiter",
+    "Mutual Exclusion",
+    "Differential Filter",
+    "Asynchronous Logic"
+  ]
+}

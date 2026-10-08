@@ -1,0 +1,64 @@
+
+Note: No compatibility mode selected!
+
+
+Circuit: cmos dual-slope voltage-to-time converter
+
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+Initial Transient Solution
+--------------------------
+
+Node                                   Voltage
+----                                   -------
+vdd                                        3.3
+vcm                                       1.65
+vref                                      1.15
+vb                                         0.9
+vin                                       1.85
+sample                                       0
+return                                       0
+reset                                      3.3
+sum                                    1.65333
+ramp                                   1.65333
+busy                                   3.29997
+xdut.net5                              2.46408
+xdut.net6                             0.701935
+xdut.net4                             0.701935
+xdut.net0                             0.609423
+xdut.net1                              1.65333
+xdut.sampleb                               3.3
+xdut.returnb                               3.3
+xdut.resetb                        6.12963e-10
+xdut.net3                              1.65333
+xdut.net2                              2.46408
+vz#branch                                    0
+vr#branch                                    0
+vs#branch                                    0
+vin#branch                              -4e-13
+vb#branch                                    0
+vref#branch                              1e-12
+vcm#branch                                   0
+vdd#branch                          -0.0011062
+
+
+No. of Data Rows : 17465
+t0                  =  4.27363e-07 targ=  2.13236e-06 trig=  1.70500e-06
+drop0               =  1.47138e+00
+bias0               =  1.65818e+00
+active0             =  3.30000e+00
+done0               =  1.28380e-08
+t1                  =  8.19291e-07 targ=  7.52429e-06 trig=  6.70500e-06
+drop1               =  1.28709e+00
+bias1               =  1.66310e+00
+active1             =  3.30000e+00
+done1               =  1.86765e-08
+t2                  =  1.21050e-06 targ=  1.29155e-05 trig=  1.17050e-05
+drop2               =  1.10284e+00
+bias2               =  1.66803e+00
+active2             =  3.30000e+00
+done2               =  1.20898e-08
+ASCII raw file "out.raw"
+ngspice-46 done

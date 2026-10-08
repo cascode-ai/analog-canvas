@@ -1,0 +1,86 @@
+{
+  "simulator": "ngspice-46",
+  "models": "Generic educational Level-1 MOS",
+  "temperatureC": 27,
+  "localSpecs": [
+    {
+      "metric": "bias_bp",
+      "min": 1.6,
+      "max": 1.7,
+      "value": 1.64756,
+      "passed": true
+    },
+    {
+      "metric": "bias_lp",
+      "min": 1.6,
+      "max": 1.7,
+      "value": 1.65474,
+      "passed": true
+    },
+    {
+      "metric": "bp_low",
+      "min": 0.08,
+      "max": 0.25,
+      "value": 0.108759,
+      "passed": true
+    },
+    {
+      "metric": "bp_mid",
+      "min": 0.8,
+      "max": 1.8,
+      "value": 1.32801,
+      "passed": true
+    },
+    {
+      "metric": "bp_high",
+      "min": 0.05,
+      "max": 0.15,
+      "value": 0.0931674,
+      "passed": true
+    },
+    {
+      "metric": "lp_low",
+      "min": 0.9,
+      "max": 1.15,
+      "value": 1.00655,
+      "passed": true
+    },
+    {
+      "metric": "lp_high",
+      "min": 0,
+      "max": 0.03,
+      "value": 0.0086269,
+      "passed": true
+    }
+  ],
+  "nativeDiagnostics": 0,
+  "canonicalExportMatches": true,
+  "prototypeConnectivityAndParametersMatch": true,
+  "limitations": "Nominal functional verification only; no PVT, noise, mismatch or foundry qualification.",
+  "hosted": {
+    "runId": "5d4f66a9-6d04-41bd-9188-5d029fcdaeaf",
+    "specs": {
+      "available": true,
+      "total": 7,
+      "passed": 7,
+      "failed": 0,
+      "notEvaluated": 0,
+      "unconstrained": 0
+    },
+    "execution": "completed"
+  },
+  "layoutOnlyRevision": {
+    "fontAndSymbolScaleUnchanged": true,
+    "electricalAndSimulationSourcesUnchanged": true,
+    "exportBoundsAreaReductionPercent": 23.5
+  },
+  "liveEditorVerification": {
+    "errors": 0,
+    "warnings": 0,
+    "structuralComparison": "equal"
+  },
+  "publicLayoutMatchesNativeProject": true,
+  "publicProjectMatchesExceptSchemaVersion": true,
+  "nativeSchemaVersion": 66,
+  "publicSchemaVersion": 67
+}
