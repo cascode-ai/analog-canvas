@@ -86,6 +86,12 @@ const ConnectArgs = z.strictObject({
     .describe(
       "Claim code from the editor connect panel. Omit to resume the browser-approved connector saved for this MCP host, unless another running MCP process holds it.",
     ),
+  detail: z
+    .enum(["summary", "full"])
+    .optional()
+    .describe(
+      "Pairing lists every capability; a resume summarizes them, counting edit kinds (editKindCount). full lists them on a resume too.",
+    ),
 });
 const SimulationArgs = z
   .strictObject({
@@ -688,13 +694,25 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
           }
         },
       );
+      // The edit kinds are most of the reply; a resume counts them and
+      // names the call that lists them, which pairing already did (#1525).
+      const { editKinds, ...summary } = report.capabilities;
+      const detail =
+        parsed.detail ?? (report.mode === "claimed" ? "full" : "summary");
       return {
         ok: true,
         mode: report.mode,
         projectId: report.projectId,
         documentIds: report.documentIds,
         tokenExpiresAt: report.tokenExpiresAt,
-        capabilities: report.capabilities,
+        capabilities:
+          detail === "full"
+            ? report.capabilities
+            : {
+                ...summary,
+                editKindCount: editKinds.length,
+                details: { tool: "connect", detail: "full" },
+              },
         compatibility: {
           adapterVersion: AGENT_MCP_VERSION,
           status: unsupportedEditKinds.length ? "partial" : "compatible",

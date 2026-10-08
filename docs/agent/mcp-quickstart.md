@@ -9,8 +9,11 @@ checks are not part of ordinary pairing.
 
 Call `connect` with the Claim once, or omit it to resume the saved connector.
 Its reply already includes lightweight authoritative context. Capabilities and
-that bootstrap Snapshot are fetched in parallel. Use the returned identity,
-counts and revisions immediately; no duplicate `get_context` is required. Use
+that bootstrap Snapshot are fetched in parallel. Pairing lists every capability;
+a resume keeps operations, permissions and limits but counts the edit kinds
+(`editKindCount`), and `connect({"detail":"full"})` lists them again. Use the
+returned identity, counts and revisions immediately; no duplicate `get_context`
+is required. Use
 `inspect` when you need objects. For new instance endpoints, use
 `inspect({"target":{"kind":"pins","instanceIds":["<stable-id>"]}})`:
 up to 64 selected instances, resolved pins and bulk, without full Snapshot.

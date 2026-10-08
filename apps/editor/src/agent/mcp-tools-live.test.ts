@@ -579,6 +579,32 @@ describe("MCP tools on the live editor", () => {
       "list-flat",
     ]);
   });
+  it("connect lists the editor's edit kinds on pairing and counts them on a resume (#1525)", async () => {
+    const editor = mcp();
+    const reply = async (args: unknown) =>
+      (await editor.call("connect", args)).content[0]!.text!;
+    const paired = JSON.parse(await reply({ claimCode: "session-1.code" }));
+    const { editKinds, ...summary } = paired.capabilities;
+    expect(paired.mode).toBe("claimed");
+    expect(editKinds).toContain("transact_document");
+    const text = await reply({});
+    const resumed = JSON.parse(text);
+    expect(resumed).toMatchObject({
+      mode: "resumed",
+      compatibility: paired.compatibility,
+      context: paired.context,
+    });
+    expect(resumed.capabilities).toEqual({
+      ...summary,
+      editKindCount: editKinds.length,
+      details: { tool: "connect", detail: "full" },
+    });
+    // A tripwire: the reply is about 1.7 kB here, 3.9 kB with the edit kinds.
+    expect(Buffer.byteLength(text)).toBeLessThan(3_000);
+    const asked = await editor.tool("connect", { detail: "full" });
+    expect(asked.capabilities).toEqual(paired.capabilities);
+  });
+
   it("get_context returns the compact context of the editor's Document", async () => {
     const editor = await connected();
     await apply(editor, [
