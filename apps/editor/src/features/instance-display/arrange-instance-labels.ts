@@ -12,6 +12,7 @@ import {
   createLabelClearanceContext,
   defaultInstanceLabelPlacement,
   defaultInstanceParameterLabelPlacement,
+  defaultVddPowerLabelPlacement,
   instanceGroupLabel,
   instanceLabelGroupSeat,
   INSTANCE_LABEL_SIDES,
@@ -851,8 +852,67 @@ export function arrangeInstanceLabelsReport(
       context.accept(next);
     }
   }
-  edits.push(...followHiddenMultipliers(), ...arrangePinNames());
+  edits.push(
+    ...followHiddenMultipliers(),
+    ...arrangePinNames(),
+    ...arrangeSupplyNames(),
+  );
   return { edits, leftInPlace: left };
+
+  /**
+   * A VDD marker's supply name, asked for with `side:"top"`, centred over
+   * its bar half a grid step clear of it, as the Gallery's house style and
+   * textbook figures draw it; `side:"right"` puts it back beside the bar
+   * (#1528). Agents had moved it by a guessed offset, or not found it at all.
+   */
+  function arrangeSupplyNames(): SchematicEdit[] {
+    if (options.side !== "top" && options.side !== "right") return [];
+    return [...ids].flatMap((id) => {
+      const instance = document.instances.find((item) => item.id === id)!;
+      const bar = context.symbols.find((symbol) => symbol.id === id)?.bounds;
+      const name = document.annotations.find(
+        (annotation) =>
+          annotation.kind === "power-label" &&
+          annotation.anchor.kind === "object" &&
+          annotation.anchor.objectId === id,
+      );
+      const resolved = resolver.resolve(
+        instance.symbolId,
+        instance.symbolVariantId,
+      );
+      if (
+        instance.symbolId !== "vdd-port" ||
+        !bar ||
+        !name ||
+        name.locked ||
+        !resolved
+      )
+        return [];
+      let next: Annotation;
+      if (options.side === "right") {
+        const beside = defaultVddPowerLabelPlacement(instance, resolved, grid);
+        if (!beside) return [];
+        next = annotationAt(name, beside);
+      } else {
+        const clearOfBar = bar.y - grid / 2;
+        const over = annotationAt(name, {
+          position: { x: bar.x + bar.width / 2, y: clearOfBar },
+          alignment: "middle",
+        });
+        const ink = context.measure(over).inkBounds;
+        next = annotationAt(over, {
+          position: {
+            x: bar.x + bar.width / 2,
+            y: clearOfBar - (ink.y + ink.height - clearOfBar),
+          },
+          alignment: "middle",
+        });
+      }
+      if (JSON.stringify(next) === JSON.stringify(name)) return [];
+      context.accept(next);
+      return [{ kind: "upsert_schematic_annotation", annotation: next }];
+    });
+  }
 
   /**
    * A ×m that a shown W/L prints itself is hidden (#1423), and so is one

@@ -22,6 +22,7 @@ import {
 import { defaultInstanceDisplayAnnotations } from "./default-instance-display";
 import { arrangeInstanceLabels } from "./arrange-instance-labels";
 import { instanceParameterVisibilityEdits } from "./instance-parameter-display";
+import { vddPowerLabelAnnotation } from "../component-insert/vdd-power-label";
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
 function fixture() {
@@ -595,6 +596,46 @@ describe("opt-in label arrangement", () => {
     const context = createLabelClearanceContext(doc, resolver);
     for (const annotation of doc.annotations)
       expect(context.conflicts(annotation)).toEqual([]);
+  });
+
+  it("centres a VDD marker's supply name over its bar on request, and puts it back beside it (#1528)", () => {
+    const doc = createEmptyDocument("d", "Supply");
+    const instance = {
+      id: "vdd1",
+      symbolId: "vdd-port",
+      placement: {
+        position: { x: 100, y: 100 },
+        rotation: 0 as const,
+        mirror: "none" as const,
+      },
+    };
+    doc.instances.push(instance);
+    doc.nets.push({ id: "vdd", terminals: [] });
+    const beside = vddPowerLabelAnnotation({
+      instance,
+      resolved: resolver.resolve("vdd-port")!,
+      netId: "vdd",
+      grid: doc.presentation.grid,
+      name: "VDD",
+    });
+    doc.annotations.push(beside);
+    apply(
+      doc,
+      arrangeInstanceLabels(doc, resolver, [instance.id], { side: "top" }),
+    );
+    const context = createLabelClearanceContext(doc, resolver);
+    const bar = context.symbols.find((symbol) => symbol.id === "vdd1")!.bounds;
+    const ink = context.measure(doc.annotations[0]!).inkBounds;
+    expect(
+      Math.abs(ink.x + ink.width / 2 - (bar.x + bar.width / 2)),
+    ).toBeLessThan(1);
+    expect(ink.y + ink.height).toBeLessThanOrEqual(bar.y - 4);
+    expect(ink.y + ink.height).toBeGreaterThan(bar.y - 10);
+    apply(
+      doc,
+      arrangeInstanceLabels(doc, resolver, [instance.id], { side: "right" }),
+    );
+    expect(doc.annotations[0]).toEqual(beside);
   });
 
   it("moves a crowded label group to a free side of its part (#1307)", () => {

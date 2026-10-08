@@ -51,7 +51,10 @@ refused with their IDs; it never means the first of them.
 - Place through native `place-components` (MCP `circuit_place` actions
   `place-component`), which creates attached Reference/Value displays.
   `port`/`port-filled`/`vdd-port` also create the formal Cell terminal and Net
-  atomically; `reference` is the terminal name (VDD defaults to `VDD`). Optional
+  atomically; `reference` is the terminal name (VDD defaults to `VDD`). A
+  `vdd-port`'s supply name stands beside its bar; `arrange-labels` with
+  `side:"top"` centres it over the bar, the house style, and `side:"right"`
+  puts it back. Optional
   `direction` applies to these markers only; native `terminalDirections` keys
   must identify new Cell markers. The first explicit supply in a placement batch
   initializes an absent bulk default; later supplies do not overwrite it.
