@@ -5,6 +5,8 @@ export * from "./document-structural-sharing.js";
 export * from "./route-geometry-edit.js";
 export * from "./angled-wire-repair.js";
 export * from "./route-operations.js";
+export * from "./wire-segment-drag.js";
+export * from "./group-rigid-transform.js";
 export * from "./routing-planner.js";
 export * from "./wire-draft.js";
 export * from "./wire-commit-planner.js";

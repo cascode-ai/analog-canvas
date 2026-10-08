@@ -28,7 +28,7 @@ import { describe, expect, it } from "vitest";
 import { executeTransaction } from "./transaction.js";
 import { normalizeSameNetConductorTopology } from "./conductor-topology.js";
 import { isOrthogonal } from "./route-geometry-edit.js";
-import { proposeWireSegmentDrag } from "./route-operations.js";
+import { proposeWireSegmentDrag } from "./wire-segment-drag.js";
 import {
   proposeGroupMoveEdits,
   proposeGroupReflectionEdits,

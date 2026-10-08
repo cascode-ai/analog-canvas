@@ -2,15 +2,17 @@
 import { endpointKey, resolveRouteGeometry } from "@icm/derived";
 import {
   proposeGroupMove,
-  proposeGroupReflection,
-  proposeGroupRotation,
-  type GroupRotationProposal,
   proposeJunctionGroupTranslation,
-  proposeWireSegmentDrag,
   type JunctionMoveProposal,
   type RouteStretchProposal,
   type RoutingTranslationSource,
 } from "./route-operations.js";
+import {
+  proposeGroupReflection,
+  proposeGroupRotation,
+  type GroupRotationProposal,
+} from "./group-rigid-transform.js";
+import { proposeWireSegmentDrag } from "./wire-segment-drag.js";
 import type { Point, SchematicDocument, ScreenFlip } from "@icm/model";
 import { routeEndpoints } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";

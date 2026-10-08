@@ -16,8 +16,8 @@ import { describe, expect, it } from "vitest";
 import {
   proposeGroupMove,
   proposeJunctionGroupTranslation,
-  proposeWireSegmentDrag,
 } from "./route-operations.js";
+import { proposeWireSegmentDrag } from "./wire-segment-drag.js";
 import { executeTransaction } from "./transaction.js";
 import { planRoutingTransform } from "./routing-transform-planner.js";
 
