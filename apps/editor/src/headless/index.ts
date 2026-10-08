@@ -1,7 +1,8 @@
 /**
  * The headless drawing workspace (#1498): the editor's own Agent host over
  * Project files, for Node. Bundled on its own (scripts/package-headless.mjs)
- * and loaded by the MCP's --local mode and the batch runner.
+ * and loaded by the MCP's --local mode and the batch runner
+ * (scripts/draw-batch.mjs), which grades drawings with `gradeNetlists`.
  */
 export {
   createWorkspace,
@@ -28,3 +29,10 @@ export {
   workspaceSvg,
   type NetlistComparison,
 } from "./artifacts";
+export {
+  gradeNetlists,
+  structuralSpice,
+  type GradeDetails,
+  type GradeOptions,
+  type NetlistGrade,
+} from "./grade";
