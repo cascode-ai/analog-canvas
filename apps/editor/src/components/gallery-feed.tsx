@@ -31,6 +31,11 @@ import {
 } from "../gallery-client";
 import { galleryEntryMatchesQuery } from "../gallery-search";
 import {
+  CONTRIBUTOR_ORDER_KEY,
+  orderContributors,
+  type ContributorOrder,
+} from "../gallery-contributor-order";
+import {
   GALLERY_FILTERS_KEY,
   createDefaultGalleryFilters,
   galleryFilterSearch,
@@ -324,6 +329,24 @@ export function GalleryCountPanel({
 }) {
   const label = galleryCountLabel(total, { filtered, search, searched });
   const rootRef = useRef<HTMLDetailsElement | null>(null);
+  // By circuits or by name (#1502), remembered in this browser.
+  const [order, setOrder] = useState<ContributorOrder>(() => {
+    try {
+      return localStorage.getItem(CONTRIBUTOR_ORDER_KEY) === "name"
+        ? "name"
+        : "count";
+    } catch {
+      return "count";
+    }
+  });
+  const chooseOrder = (next: ContributorOrder) => {
+    setOrder(next);
+    try {
+      localStorage.setItem(CONTRIBUTOR_ORDER_KEY, next);
+    } catch {
+      // The list still sorts; only the memory of it is lost.
+    }
+  };
   if (label === null) return null;
   return (
     <details
@@ -350,6 +373,28 @@ export function GalleryCountPanel({
             {partial ? " so far" : ""}
           </span>
         </div>
+        <div
+          className="gallery-contributor-order"
+          role="group"
+          aria-label="Sort contributors"
+        >
+          {(
+            [
+              ["count", "Circuits"],
+              ["name", "A to Z"],
+            ] as const
+          ).map(([value, text]) => (
+            <button
+              key={value}
+              type="button"
+              data-testid={`gallery-contributor-order-${value}`}
+              aria-pressed={order === value}
+              onClick={() => chooseOrder(value)}
+            >
+              {text}
+            </button>
+          ))}
+        </div>
         {author ? (
           // Narrowed to one byline, the board lists only that author; the
           // way back to everyone sits where readers look for the others.
@@ -375,7 +420,7 @@ export function GalleryCountPanel({
           </p>
         ) : (
           <ol className="gallery-contributor-list">
-            {authors.map((option, index) => (
+            {orderContributors(authors, order).map((option, index) => (
               <GalleryContributorRow
                 key={`${option.ownerUserId ?? "legacy"}:${option.author}`}
                 option={option}
