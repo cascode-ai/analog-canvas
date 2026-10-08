@@ -1274,6 +1274,31 @@
   padding: 4px 6px 10px;
 }
 
+/* By circuits or by name: two choices, one of them pressed. */
+.gallery-contributor-order {
+  display: flex;
+  gap: 4px;
+  padding: 0 6px 8px;
+}
+
+.gallery-contributor-order button {
+  padding: 3px 10px;
+  border: 1px solid var(--icm-border);
+  border-radius: 999px;
+  color: var(--icm-text-muted);
+  background: var(--icm-surface);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.gallery-contributor-order button[aria-pressed="true"] {
+  border-color: var(--icm-accent);
+  color: var(--icm-accent);
+  background: var(--icm-accent-soft);
+  font-weight: 600;
+}
+
 .gallery-contributor-heading strong {
   color: var(--icm-text);
   font-size: 14px;
