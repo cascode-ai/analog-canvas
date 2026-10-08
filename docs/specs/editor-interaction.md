@@ -493,6 +493,14 @@ routing closure. The editor keeps only gesture state; the Edit Engine's
 the typed edits committed on pointer release. Neither object is Project data or
 an Agent API payload, and no pointer handler invents an independent follow set.
 
+Snap targets exclude that entire moving closure, including carried Junctions,
+Routes and drafting objects, not only the selected Instances. For a grid-aligned
+translation, alignment/contact capture and release are bounded by half a grid
+step so zooming out cannot make several legal landings unreachable. Grid
+rounding itself has no capture state. Exact electrical contact respects retained
+axis matches until release; it may add connection semantics at the same landing,
+but cannot replace a still-captured axis with a different landing.
+
 Schematic movement follows the Virtuoso pairing. Plain `M` translates the
 selection while internal conductors follow and boundary Routes stretch without
 changing connectivity. `Shift+M` (and its Ctrl/Cmd-drag direct gesture) moves

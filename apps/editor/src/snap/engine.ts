@@ -34,6 +34,8 @@ export interface SnapProfile {
   kinds: ReadonlySet<SnapTargetKind>;
   exactElectrical: boolean;
   gridAlignedTranslation: boolean;
+  /** Existing selections must reach each grid step; placement keeps its pin magnet radius. */
+  captureWithinGridStep?: boolean;
 }
 
 export interface SnapGuideLine {
@@ -78,16 +80,24 @@ export interface TranslationSnapRequest {
   profile: SnapProfile;
 }
 
+const INSTANCE_SNAP_KINDS = new Set<SnapTargetKind>([
+  "grid",
+  "instance-center",
+  "instance-edge",
+  "pin",
+  "junction",
+  "route",
+]);
+
 export const SNAP_PROFILES = {
   instanceMove: {
-    kinds: new Set<SnapTargetKind>([
-      "grid",
-      "instance-center",
-      "instance-edge",
-      "pin",
-      "junction",
-      "route",
-    ]),
+    kinds: INSTANCE_SNAP_KINDS,
+    exactElectrical: true,
+    gridAlignedTranslation: true,
+    captureWithinGridStep: true,
+  },
+  instancePlacement: {
+    kinds: INSTANCE_SNAP_KINDS,
     exactElectrical: true,
     gridAlignedTranslation: true,
   },
@@ -219,7 +229,9 @@ function retainedCandidate(
   previous: SnapMatch | undefined,
   releaseTolerance: number,
 ): AxisCandidate | undefined {
-  if (!previous) return undefined;
+  // Grid rounding has no capture state: keeping yesterday's grid point would
+  // stop a freely moving selection from reaching the next one.
+  if (!previous || previous.targetKind === "grid") return undefined;
   return candidates.find(
     (candidate) =>
       candidate.movingAnchorId === previous.movingAnchorId &&
@@ -264,6 +276,7 @@ function translationLandsOnGrid(
 function exactElectricalCandidate(
   request: TranslationSnapRequest,
   primary: SnapAnchor,
+  retainedAxes: readonly (AxisCandidate | undefined)[],
 ): ElectricalSnapMatch | undefined {
   if (!request.profile.exactElectrical) return undefined;
   const candidates = request.movingAnchors.flatMap((moving) => {
@@ -291,14 +304,37 @@ function exactElectricalCandidate(
         y: request.rawDelta.y + target.point.y - moved.y,
       };
       if (
+        retainedAxes.some(
+          (retained) =>
+            retained &&
+            Math.abs(
+              delta[retained.axis] -
+                request.rawDelta[retained.axis] -
+                retained.correction,
+            ) > 1e-6,
+        )
+      ) {
+        return [];
+      }
+      if (
         request.profile.gridAlignedTranslation &&
         !translationLandsOnGrid(primary, delta, request.grid)
       ) {
         return [];
       }
-      return distance <= request.tolerance
-        ? [{ moving, target, distance }]
-        : [];
+      // Grid-bounded movement captures/releases by axis, just like retained
+      // alignment. A diagonal nudge must not lose contact while both axes
+      // still hold the exact same terminal position.
+      const withinCapture = request.profile.captureWithinGridStep
+        ? (["x", "y"] as const).every(
+            (axis) =>
+              // Retained axes have already passed the release threshold and
+              // landing check. Only uncaptured axes use the capture threshold.
+              retainedAxes.some((retained) => retained?.axis === axis) ||
+              Math.abs(target.point[axis] - moved[axis]) <= request.tolerance,
+          )
+        : distance <= request.tolerance;
+      return withinCapture ? [{ moving, target, distance }] : [];
     });
   });
   const closest = candidates.sort(
@@ -322,50 +358,15 @@ export function resolveTranslationSnap(
       (anchor) => anchor.id === request.primaryAnchorId,
     ) ?? request.movingAnchors[0];
   if (!primary) return { delta: request.rawDelta, guides: [] };
-  const electricalMatch = exactElectricalCandidate(request, primary);
-  if (electricalMatch) {
-    const moved = {
-      x: electricalMatch.moving.point.x + request.rawDelta.x,
-      y: electricalMatch.moving.point.y + request.rawDelta.y,
-    };
-    const correction = {
-      x: electricalMatch.target.point.x - moved.x,
-      y: electricalMatch.target.point.y - moved.y,
-    };
-    const makeMatch = (axis: SnapAxis): SnapMatch => ({
-      axis,
-      movingAnchorId: electricalMatch.moving.id,
-      targetAnchorId: electricalMatch.target.id,
-      targetKind: electricalMatch.target.kind,
-      coordinate: electricalMatch.target.point[axis],
-      correction: correction[axis],
-    });
-    const xCandidate: AxisCandidate = {
-      ...makeMatch("x"),
-      distance: Math.abs(correction.x),
-      priority: 0,
-      movingPoint: moved,
-      targetPoint: electricalMatch.target.point,
-    };
-    const yCandidate: AxisCandidate = {
-      ...makeMatch("y"),
-      distance: Math.abs(correction.y),
-      priority: 0,
-      movingPoint: moved,
-      targetPoint: electricalMatch.target.point,
-    };
-    return {
-      delta: {
-        x: request.rawDelta.x + correction.x,
-        y: request.rawDelta.y + correction.y,
-      },
-      xMatch: makeMatch("x"),
-      yMatch: makeMatch("y"),
-      electricalMatch,
-      guides: [guideFor(xCandidate), guideFor(yCandidate)],
-    };
-  }
-
+  // Screen-space tolerances grow in drawing units when zooming out. A grid
+  // move must still reach every adjacent grid point, not stick for several
+  // steps to a distant alignment/contact.
+  const gridRadius =
+    request.profile.captureWithinGridStep && request.grid > 0
+      ? request.grid / 2
+      : Infinity;
+  const captureTolerance = Math.min(request.tolerance, gridRadius);
+  const releaseTolerance = Math.min(request.tolerance * 1.5, gridRadius);
   const candidates: Record<SnapAxis, AxisCandidate[]> = { x: [], y: [] };
   for (const moving of request.movingAnchors) {
     const moved = {
@@ -379,7 +380,7 @@ export function resolveTranslationSnap(
         if (!axes(target).includes(axis)) continue;
         const correction = target.point[axis] - moved[axis];
         const distance = Math.abs(correction);
-        if (distance > request.tolerance * 1.5) continue;
+        if (distance > releaseTolerance) continue;
         if (
           request.profile.gridAlignedTranslation &&
           !coordinateLandsOnGrid(
@@ -427,16 +428,63 @@ export function resolveTranslationSnap(
     }
   }
 
-  const choose = (axis: SnapAxis): AxisCandidate | undefined =>
+  const retained = (axis: SnapAxis): AxisCandidate | undefined =>
     retainedCandidate(
       candidates[axis],
       axis === "x" ? previous?.xMatch : previous?.yMatch,
-      request.tolerance * 1.5,
-    ) ??
+      releaseTolerance,
+    );
+  const retainedX = retained("x");
+  const retainedY = retained("y");
+  // Filter against the retained landing before selecting the closest pin.
+  // Rejecting only the first candidate would lose a still-held contact when
+  // another equally close pin happened to sort ahead of it.
+  const electricalMatch = exactElectricalCandidate(
+    { ...request, tolerance: captureTolerance },
+    primary,
+    [retainedX, retainedY],
+  );
+  if (electricalMatch) {
+    const moved = {
+      x: electricalMatch.moving.point.x + request.rawDelta.x,
+      y: electricalMatch.moving.point.y + request.rawDelta.y,
+    };
+    const correction = {
+      x: electricalMatch.target.point.x - moved.x,
+      y: electricalMatch.target.point.y - moved.y,
+    };
+    const match = (axis: SnapAxis): AxisCandidate => ({
+      axis,
+      movingAnchorId: electricalMatch.moving.id,
+      targetAnchorId: electricalMatch.target.id,
+      targetKind: electricalMatch.target.kind,
+      coordinate: electricalMatch.target.point[axis],
+      correction: correction[axis],
+      distance: Math.abs(correction[axis]),
+      priority: KIND_PRIORITY[electricalMatch.target.kind],
+      movingPoint: moved,
+      targetPoint: electricalMatch.target.point,
+    });
+    const x = match("x");
+    const y = match("y");
+    return {
+      delta: {
+        x: request.rawDelta.x + correction.x,
+        y: request.rawDelta.y + correction.y,
+      },
+      xMatch: x,
+      yMatch: y,
+      electricalMatch,
+      guides: [guideFor(x), guideFor(y)],
+    };
+  }
+
+  const choose = (axis: SnapAxis): AxisCandidate | undefined =>
+    (axis === "x" ? retainedX : retainedY) ??
     candidates[axis]
       .filter(
         (candidate) =>
-          candidate.distance <= request.tolerance ||
+          candidate.distance <= captureTolerance ||
           candidate.targetKind === "grid",
       )
       .sort(compareCandidate)[0];

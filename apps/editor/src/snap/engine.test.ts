@@ -7,6 +7,178 @@ import {
 } from "./engine";
 
 describe("unified Snap Engine", () => {
+  it("keeps the retained contact when another equally close pin sorts first", () => {
+    const pin = (id: string, x: number) => ({
+      id,
+      point: { x, y: 0 },
+      kind: "pin" as const,
+      electrical: {
+        kind: "endpoint" as const,
+        endpoint: { kind: "terminal" as const, instanceId: id, pinName: "1" },
+        netId: null,
+      },
+    });
+    const request = {
+      rawDelta: { x: 30, y: 0 },
+      movingAnchors: [pin("moving", 0)],
+      targetAnchors: [pin("a-left", 20), pin("z-right", 30)],
+      primaryAnchorId: "moving",
+      grid: 10,
+      tolerance: 14,
+      profile: SNAP_PROFILES.instanceMove,
+    };
+    const captured = resolveTranslationSnap(request);
+    const retained = resolveTranslationSnap(
+      { ...request, rawDelta: { x: 25, y: 0 } },
+      captured,
+    );
+    expect(retained.delta).toEqual({ x: 30, y: 0 });
+    expect(retained.electricalMatch?.target.id).toBe("z-right");
+  });
+
+  it.each([
+    { tolerance: 14, nudge: 4 },
+    { tolerance: 2, nudge: 2.5 },
+  ])(
+    "keeps electrical contact while both captured axes are retained (tolerance $tolerance)",
+    ({ tolerance, nudge }) => {
+      const pin = (id: string, x: number, y: number) => ({
+        id,
+        point: { x, y },
+        kind: "pin" as const,
+        electrical: {
+          kind: "endpoint" as const,
+          endpoint: { kind: "terminal" as const, instanceId: id, pinName: "1" },
+          netId: null,
+        },
+      });
+      const request = {
+        rawDelta: { x: 20, y: 20 },
+        movingAnchors: [pin("moving", 0, 0)],
+        targetAnchors: [pin("target", 20, 20)],
+        primaryAnchorId: "moving",
+        grid: 10,
+        tolerance,
+        profile: SNAP_PROFILES.instanceMove,
+      };
+      const captured = resolveTranslationSnap(request);
+      expect(captured.electricalMatch?.target.id).toBe("target");
+      const retained = resolveTranslationSnap(
+        { ...request, rawDelta: { x: 20 + nudge, y: 20 + nudge } },
+        captured,
+      );
+      expect(retained.delta).toEqual({ x: 20, y: 20 });
+      expect(retained.electricalMatch?.target.id).toBe("target");
+      const released = resolveTranslationSnap(
+        { ...request, rawDelta: { x: 26, y: 26 } },
+        retained,
+      );
+      expect(released.delta).toEqual({ x: 30, y: 30 });
+      expect(released.electricalMatch).toBeUndefined();
+    },
+  );
+
+  it("does not let an exact contact steal an axis before its release condition", () => {
+    const request = {
+      rawDelta: { x: 29, y: 10 },
+      movingAnchors: [
+        {
+          id: "origin",
+          point: { x: 0, y: 0 },
+          kind: "instance-center" as const,
+        },
+        {
+          id: "pin",
+          point: { x: 0, y: 0 },
+          kind: "pin" as const,
+          electrical: {
+            kind: "endpoint" as const,
+            endpoint: {
+              kind: "terminal" as const,
+              instanceId: "R",
+              pinName: "1",
+            },
+            netId: null,
+          },
+        },
+      ],
+      targetAnchors: [
+        {
+          id: "alignment",
+          point: { x: 30, y: 1000 },
+          kind: "instance-center" as const,
+          axes: ["x" as const],
+        },
+        {
+          id: "contact",
+          point: { x: 20, y: 0 },
+          kind: "pin" as const,
+          electrical: {
+            kind: "endpoint" as const,
+            endpoint: {
+              kind: "terminal" as const,
+              instanceId: "other",
+              pinName: "1",
+            },
+            netId: null,
+          },
+        },
+      ],
+      primaryAnchorId: "origin",
+      grid: 10,
+      tolerance: 14,
+      profile: SNAP_PROFILES.instanceMove,
+    };
+    const captured = resolveTranslationSnap(request);
+    const retained = resolveTranslationSnap(
+      { ...request, rawDelta: { x: 25, y: 0 } },
+      captured,
+    );
+    expect(retained.delta).toEqual({ x: 30, y: 0 });
+    expect(retained.electricalMatch).toBeUndefined();
+    const released = resolveTranslationSnap(
+      { ...request, rawDelta: { x: 24, y: 0 } },
+      retained,
+    );
+    expect(released.delta).toEqual({ x: 20, y: 0 });
+    expect(released.electricalMatch?.target.id).toBe("contact");
+  });
+
+  it("can reach each next grid step even when zoomed-out alignment tolerance covers several steps", () => {
+    const request = {
+      rawDelta: { x: 10, y: 0 },
+      movingAnchors: [
+        {
+          id: "moving",
+          point: { x: 0, y: 0 },
+          kind: "instance-center" as const,
+        },
+      ],
+      targetAnchors: [
+        {
+          id: "alignment",
+          point: { x: 10, y: 100 },
+          kind: "instance-center" as const,
+          axes: ["x" as const],
+        },
+      ],
+      primaryAnchorId: "moving",
+      grid: 10,
+      tolerance: 28,
+      profile: SNAP_PROFILES.instanceMove,
+    };
+    let previous = resolveTranslationSnap(request);
+    const deltas = [previous.delta.x];
+    for (const x of [20, 30, 40]) {
+      previous = resolveTranslationSnap(
+        { ...request, rawDelta: { x, y: 0 } },
+        previous,
+      );
+      deltas.push(previous.delta.x);
+    }
+    expect(deltas).toEqual([10, 20, 30, 40]);
+  });
+
   it("resolves independent x/y extension-line matches before the grid", () => {
     const result = resolveTranslationSnap({
       rawDelta: { x: 18, y: 27 },

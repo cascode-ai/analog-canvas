@@ -54,7 +54,11 @@ export function planInstanceContactTransform(
   const targets: WireSource[] = projected.instances
     .filter((i) => !movingIds.has(i.id))
     .flatMap((i) => placementWireSources(projected, resolver, i));
+  const carriedJunctions = new Set(transform.affected.internalJunctions);
   for (const junction of projected.junctions) {
+    // A carried anchor belongs to the move, not to the stationary conductors
+    // an explicitly snapped pin may join at drop.
+    if (carriedJunctions.has(junction.id)) continue;
     const endpoint = { kind: "junction" as const, junctionId: junction.id };
     const connection = resolveEndpointConnection(projected, resolver, endpoint);
     if (connection)

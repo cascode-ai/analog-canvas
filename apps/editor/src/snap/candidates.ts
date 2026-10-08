@@ -369,20 +369,17 @@ export function buildSceneSnapTargets(
   document: SchematicDocument,
   resolver: SymbolResolver,
   visibleEndpoints: readonly WireSource[],
-  excludedInstanceIds: ReadonlySet<string> = new Set(),
-  excludedDraftingIds: ReadonlySet<string> = new Set(),
+  excludedObjectIds: ReadonlySet<string> = new Set(),
 ): SnapAnchor[] {
   return sceneSnapTargetsExcluding(
     buildSceneSnapTargetIndex(document, resolver, visibleEndpoints),
-    excludedInstanceIds,
-    excludedDraftingIds,
+    excludedObjectIds,
   );
 }
 
 interface IndexedSceneSnapTarget {
   anchor: SnapAnchor;
-  instanceId?: string;
-  draftingId?: string;
+  objectId: string;
 }
 
 /**
@@ -406,15 +403,16 @@ export function buildSceneSnapTargetIndex(
   const targets: IndexedSceneSnapTarget[] = [];
   for (const instance of document.instances) {
     for (const anchor of buildInstanceGeometryAnchors(instance, resolver)) {
-      targets.push({ anchor, instanceId: instance.id });
+      targets.push({ anchor, objectId: instance.id });
     }
   }
   for (const source of visibleEndpoints) {
     targets.push({
       anchor: endpointSnapAnchor(source),
-      ...(source.endpoint.kind === "terminal"
-        ? { instanceId: source.endpoint.instanceId }
-        : {}),
+      objectId:
+        source.endpoint.kind === "terminal"
+          ? source.endpoint.instanceId
+          : source.endpoint.junctionId,
     });
   }
   for (const object of document.drafting?.objects ?? []) {
@@ -429,7 +427,7 @@ export function buildSceneSnapTargetIndex(
         point,
         kind: "drafting",
       };
-      targets.push({ anchor, draftingId: object.id });
+      targets.push({ anchor, objectId: object.id });
     }
   }
   return { targets };
@@ -437,13 +435,9 @@ export function buildSceneSnapTargetIndex(
 
 export function sceneSnapTargetsExcluding(
   index: SceneSnapTargetIndex,
-  excludedInstanceIds: ReadonlySet<string> = new Set(),
-  excludedDraftingIds: ReadonlySet<string> = new Set(),
+  excludedObjectIds: ReadonlySet<string> = new Set(),
 ): SnapAnchor[] {
   return index.targets.flatMap((target) =>
-    (target.instanceId && excludedInstanceIds.has(target.instanceId)) ||
-    (target.draftingId && excludedDraftingIds.has(target.draftingId))
-      ? []
-      : [target.anchor],
+    excludedObjectIds.has(target.objectId) ? [] : [target.anchor],
   );
 }

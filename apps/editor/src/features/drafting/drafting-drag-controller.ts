@@ -136,7 +136,6 @@ export function createDraftingDragController({
       document,
       resolver,
       visibleEndpoints,
-      new Set(),
       new Set([object.id]),
     );
     let lastSnap: SnapResult | undefined;

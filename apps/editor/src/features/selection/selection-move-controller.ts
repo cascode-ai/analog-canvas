@@ -356,6 +356,8 @@ export function createSelectionMoveController({
       y: position.y - preview.pointerStart.y,
     };
     const movingIds = new Set(preview.instanceIds);
+    const movingObjectIds = new Set(preview.movePlan.previewObjectIds);
+    const carriedRouteIds = new Set(preview.movePlan.translatedRouteIds);
     const movingAnchors = buildInstanceAnchors(
       sourceDocument,
       resolver,
@@ -376,7 +378,8 @@ export function createSelectionMoveController({
                 endpoint.kind === "terminal" &&
                 movingIds.has(endpoint.instanceId),
             );
-            if (belongsToMovingInstance) return [];
+            if (belongsToMovingInstance || carriedRouteIds.has(route.id))
+              return [];
             return geometry.centerline
               .slice(0, -1)
               .flatMap((from, segmentIndex) => {
@@ -410,12 +413,12 @@ export function createSelectionMoveController({
         });
     const staticTargets =
       !projectedDocument && sceneSnapTargetIndex
-        ? sceneSnapTargetsExcluding(sceneSnapTargetIndex, movingIds)
+        ? sceneSnapTargetsExcluding(sceneSnapTargetIndex, movingObjectIds)
         : buildSceneSnapTargets(
             sourceDocument,
             resolver,
             sourceVisibleEndpoints,
-            movingIds,
+            movingObjectIds,
           );
     let snap: SnapResult = suppressSnap
       ? { delta: rawDelta, guides: [] }
