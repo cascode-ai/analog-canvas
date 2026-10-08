@@ -312,7 +312,7 @@
       "apps/editor/src/features/editor-shell/gallery-example-commands.ts",
       "apps/editor/src/features/project-code/project-text-editor.tsx",
       "packages/spice/src/syntax.ts",
-      "packages/netlist/src/extract.ts",
+      "packages/netlist/src/extract*.ts",
       "packages/netlist/src/export.ts",
       "packages/netlist/src/printed-netlist.ts",
       "packages/netlist/src/printers.ts",
