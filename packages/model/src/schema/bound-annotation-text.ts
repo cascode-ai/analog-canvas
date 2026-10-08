@@ -1,6 +1,3 @@
-import { semanticTextDocument } from "../semantic-text.js";
-import type { RichTextDocument } from "../schema.js";
-
 /**
  * The Document shape this reader needs. It is stated structurally rather than
  * as the parsed `SchematicDocument` so the compatibility layer can call it on
@@ -92,23 +89,4 @@ export function boundAnnotationName(
             evidence.owner.objectId === annotation.id))),
   );
   return nameClaim?.name ?? "";
-}
-
-export function boundAnnotationSemanticText(
-  document: BoundAnnotationSource,
-  annotation: BoundAnnotationLike,
-): RichTextDocument | null {
-  const name = boundAnnotationName(document, annotation);
-  return name === null
-    ? null
-    : semanticTextDocument(
-        name,
-        annotation.binding?.kind === "instance-reference"
-          ? "instance-label"
-          : annotation.binding?.kind === "cell-terminal-name"
-            ? "formal-port"
-            : annotation.kind === "power-label"
-              ? "power-label"
-              : "net-label",
-      );
 }

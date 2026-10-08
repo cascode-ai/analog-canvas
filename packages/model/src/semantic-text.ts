@@ -160,7 +160,7 @@ export interface PortLabelFormatOptions {
   suffixPlacement: PortLabelSuffixPlacement;
 }
 
-export const DEFAULT_PORT_LABEL_FORMAT: PortLabelFormatOptions = {
+const DEFAULT_PORT_LABEL_FORMAT: PortLabelFormatOptions = {
   suffixCase: "preserve",
   suffixPlacement: "subscript",
 };

@@ -27,7 +27,7 @@ export interface TopologyCorrespondence {
 }
 
 // Structural evidence dominates; parameters can never rescue an unmatched device.
-export const TOPOLOGY_STRUCTURE_WEIGHT = 0.85;
+const TOPOLOGY_STRUCTURE_WEIGHT = 0.85;
 type Device = {
   vertex: number;
   type: string;

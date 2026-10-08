@@ -47,7 +47,7 @@ export function reflectedTextAlignment(
   return alignment === "start" ? "end" : "start";
 }
 
-export function rectCenter(rect: Rect): Point {
+function rectCenter(rect: Rect): Point {
   return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
 }
 

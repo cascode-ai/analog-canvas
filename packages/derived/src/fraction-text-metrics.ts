@@ -16,6 +16,7 @@ const glyphs =
  * Every character these tables measure. The schematic font the editor
  * serves holds them all (packages/exporters/fonts, #1413), so text measured
  * here is drawn in the face it was measured in.
+ * @internal The font test checks the served face holds each one.
  */
 export const SCHEMATIC_MEASURED_GLYPHS = glyphs;
 const plainAdvances = [

@@ -530,6 +530,7 @@ export function topologyGraph(graph: ElectricalGraph): ElectricalGraph {
  * Exact graph isomorphism after removing author-facing names and interface
  * representation. Device classes, transistor polarity, pin roles and actual
  * connectivity remain structural evidence.
+ * @internal Tests pin topologyGraph's equivalence rules through it.
  */
 export function compareElectricalTopologies(
   a: ElectricalGraph,

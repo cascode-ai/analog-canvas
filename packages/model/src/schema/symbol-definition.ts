@@ -36,7 +36,7 @@ function routingLandingIssue(pin: {
  * contact does not itself lie on the connection grid. The preferred landing
  * is geometry only: electrical identity remains the canonical pin name.
  */
-export const SymbolPinRoutingSchema = z.strictObject({
+const SymbolPinRoutingSchema = z.strictObject({
   escape: z.literal("outward"),
   preferredLanding: SymbolLocalPointSchema.optional(),
 });

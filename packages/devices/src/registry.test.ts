@@ -4,17 +4,19 @@ import {
   builtInDeviceDescriptors,
   builtInSubcircuitDescriptors,
   deviceDescriptor,
-  deviceDescriptorById,
-  devicePinSemanticRole,
   referencePolicyForSymbol,
   subcircuitDescriptor,
   validateDeviceDescriptors,
+  type DeviceDescriptor,
 } from "./index.js";
+
+const devicePinSemanticRole = (descriptor: DeviceDescriptor, pinName: string) =>
+  descriptor.pinSemantics?.find((semantic) => semantic.pinName === pinName)
+    ?.role;
 
 describe("built-in device registry", () => {
   it("contains internally valid, uniquely identified descriptors", () => {
     expect(validateDeviceDescriptors(builtInDeviceDescriptors)).toEqual([]);
-    expect(deviceDescriptorById("nmos")).toBe(deviceDescriptor("nmos"));
   });
 
   it("preserves MOS electrical and netlist behavior", () => {

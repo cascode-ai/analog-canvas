@@ -43,7 +43,10 @@ type FlipFlop = {
   complement: boolean;
 };
 
-/** Every subcircuit target this module gives a body. */
+/**
+ * Every subcircuit target this module gives a body.
+ * @internal Tests hold every logic model contract to a body.
+ */
 export const IDEAL_LOGIC_TARGETS: readonly string[] = builtInModelContracts
   .filter((model) => model.family === "logic")
   .map((model) => model.target);
@@ -165,7 +168,10 @@ export function idealLogicModel(target: string): BehavioralModel {
   };
 }
 
-/** Existing SPICE consumer API, projected from the shared recipe. */
+/**
+ * Existing SPICE consumer API, projected from the shared recipe.
+ * @internal Tests run each printed body in ngspice.
+ */
 export function spiceIdealLogicSubcircuit(target: string): string[] {
   return printSpiceBehavioralModel(idealLogicModel(target));
 }

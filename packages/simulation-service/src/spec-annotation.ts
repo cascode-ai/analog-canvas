@@ -13,7 +13,7 @@ import {
  * [label=…]` in ngspice source, the same after `//` in VACASK source. The
  * grammar after the marker is shared.
  */
-export const SIMULATION_SPEC_LINE = /^\s*(?:\*|\/\/)\s*@spec\b/iu;
+const SIMULATION_SPEC_LINE = /^\s*(?:\*|\/\/)\s*@spec\b/iu;
 
 const DECIMAL = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/iu;
 const number = (text: string | undefined): number | null =>

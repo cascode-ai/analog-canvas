@@ -11,7 +11,7 @@ import sansObliqueUrl from "../fonts/DejaVuSans-Oblique.schematic.woff?url";
  * characters schematic text uses (scripts/generate-schematic-fonts.mjs);
  * anything else falls back glyph by glyph to the rest of the stack.
  */
-export const SCHEMATIC_FONT_FAMILY = "DejaVu Sans";
+const SCHEMATIC_FONT_FAMILY = "DejaVu Sans";
 
 /** The characters the faces hold, as their generator subsets them. */
 export const SCHEMATIC_FONT_UNICODE_RANGE = [

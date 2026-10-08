@@ -72,10 +72,3 @@ export function inverseTransformPoint(
   const mirrored = mirrorLocal(translated, orientation.mirror);
   return inverseRotateLocal(mirrored, orientation.rotation);
 }
-
-export function manhattanDistance(
-  left: GridPoint | DerivedPoint,
-  right: GridPoint | DerivedPoint,
-): number {
-  return Math.abs(left.x - right.x) + Math.abs(left.y - right.y);
-}

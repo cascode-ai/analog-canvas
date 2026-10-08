@@ -15,10 +15,10 @@ export const SIMULATION_NOISE_INPUT_DENSITY_ID = "noise-input-density";
  * here. Source values (DC, AC magnitude and phase, waveforms) live on the
  * source Instances in the Testbench Cell, never in the folder.
  */
-export const SimulationOperatingPointAnalysisSchema = z.strictObject({
+const SimulationOperatingPointAnalysisSchema = z.strictObject({
   kind: z.literal("op"),
 });
-export const SimulationAcAnalysisSchema = z
+const SimulationAcAnalysisSchema = z
   .strictObject({
     kind: z.literal("ac"),
     /** `dec` and `oct` count points per interval; `lin` counts them in total. */
@@ -31,7 +31,7 @@ export const SimulationAcAnalysisSchema = z
     message: "AC stop frequency must be greater than the start frequency",
     path: ["stopHz"],
   });
-export const SimulationTransientAnalysisSchema = z
+const SimulationTransientAnalysisSchema = z
   .strictObject({
     kind: z.literal("tran"),
     /** Requested output interval, in seconds (`tstep` in ngspice). */
@@ -52,7 +52,7 @@ export const SimulationTransientAnalysisSchema = z
       path: ["stopSeconds"],
     },
   );
-export const SimulationDcAnalysisSchema = z
+const SimulationDcAnalysisSchema = z
   .strictObject({
     kind: z.literal("dc"),
     /** Independent voltage/current source in the Testbench root Cell. */
@@ -108,7 +108,7 @@ const SimulationVoltageExpressionSchema = SimulationVoltageProbeSchema.extend({
   kind: z.literal("voltage"),
 });
 
-export const SimulationNoiseAnalysisSchema = z
+const SimulationNoiseAnalysisSchema = z
   .strictObject({
     kind: z.literal("noise"),
     output: z.strictObject({
@@ -171,42 +171,41 @@ export type SimulationExpression =
  * Analog Canvas after ngspice returns primitive vectors; no authored text is
  * executed by JavaScript or passed through as an ngspice expression.
  */
-export const SimulationExpressionSchema: z.ZodType<SimulationExpression> =
-  z.lazy(() =>
-    z.discriminatedUnion("kind", [
-      SimulationVoltageExpressionSchema,
-      SimulationCurrentExpressionSchema,
+const SimulationExpressionSchema: z.ZodType<SimulationExpression> = z.lazy(() =>
+  z.discriminatedUnion("kind", [
+    SimulationVoltageExpressionSchema,
+    SimulationCurrentExpressionSchema,
+    z.strictObject({
+      kind: z.literal("constant"),
+      value: z.number().finite(),
+    }),
+    ...(
+      [
+        "negate",
+        "magnitude",
+        "db20",
+        "phase",
+        "real",
+        "imaginary",
+        "absolute",
+      ] as const
+    ).map((kind) =>
       z.strictObject({
-        kind: z.literal("constant"),
-        value: z.number().finite(),
+        kind: z.literal(kind),
+        operand: SimulationExpressionSchema,
       }),
-      ...(
-        [
-          "negate",
-          "magnitude",
-          "db20",
-          "phase",
-          "real",
-          "imaginary",
-          "absolute",
-        ] as const
-      ).map((kind) =>
-        z.strictObject({
-          kind: z.literal(kind),
-          operand: SimulationExpressionSchema,
-        }),
-      ),
-      ...(["add", "subtract", "multiply", "divide"] as const).map((kind) =>
-        z.strictObject({
-          kind: z.literal(kind),
-          left: SimulationExpressionSchema,
-          right: SimulationExpressionSchema,
-        }),
-      ),
-    ]),
-  );
+    ),
+    ...(["add", "subtract", "multiply", "divide"] as const).map((kind) =>
+      z.strictObject({
+        kind: z.literal(kind),
+        left: SimulationExpressionSchema,
+        right: SimulationExpressionSchema,
+      }),
+    ),
+  ]),
+);
 
-export const SimulationOutputSpecSchema = z.strictObject({
+const SimulationOutputSpecSchema = z.strictObject({
   id: StableIdSchema,
   /** Authored display name used by plots and exports, never for binding. */
   label: z.string().trim().min(1).max(128),
@@ -226,7 +225,7 @@ export const SimulationDeviceOperatingPointSpecSchema = z.strictObject({
   occurrence: SimulationProbeOccurrenceSchema,
 });
 
-export const SimulationMeasurementWindowSchema = z
+const SimulationMeasurementWindowSchema = z
   .strictObject({
     /** Analysis-domain coordinate in SI units (V/A, Hz, or seconds). */
     start: z.number().finite(),
@@ -238,7 +237,7 @@ export const SimulationMeasurementWindowSchema = z
     path: ["stop"],
   });
 
-export const SimulationMeasurementMethodSchema = z.discriminatedUnion("kind", [
+const SimulationMeasurementMethodSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("value") }),
   z.strictObject({
     kind: z.literal("sample-at"),
@@ -303,7 +302,7 @@ export const SimulationEnvironmentSelectionSchema = z.strictObject({
 });
 
 /** One exact authored parameter controlled by a named Design Variable. */
-export const SimulationDesignVariableBindingSchema = z.strictObject({
+const SimulationDesignVariableBindingSchema = z.strictObject({
   documentId: StableIdSchema,
   instanceId: StableIdSchema,
   parameter: z.string().trim().min(1).max(128),

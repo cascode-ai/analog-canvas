@@ -1,11 +1,8 @@
-import { createEmptyDocument, createEmptyProject } from "@icm/model";
+import { createEmptyProject } from "@icm/model";
 import { describe, expect, it } from "vitest";
 
 import { executeProjectTransaction } from "./project-transaction.js";
-import {
-  proposeSetCellFormalParameters,
-  proposeUpsertExternalSubcircuitDefinition,
-} from "./hierarchy-planner.js";
+import { proposeUpsertExternalSubcircuitDefinition } from "./hierarchy-planner.js";
 import { externalSubcircuitSymbolId } from "@icm/symbols";
 import { reviewedExternalBindingForMaster } from "@icm/devices";
 
@@ -60,26 +57,6 @@ describe("subcircuit interface proposals", () => {
         presentation: { pinPlacements: [] },
       }).diagnostics,
     ).toEqual([]);
-  });
-  it("edits ordered internal formal parameters through one project transaction", () => {
-    const project = createEmptyProject("project", "Project");
-    const child = createEmptyDocument("child", "Child");
-    child.netlist = { name: "Child", terminals: [], formalParameters: [] };
-    project.documents.push(child);
-    const proposal = proposeSetCellFormalParameters(project, child.id, [
-      { name: "gain", defaultValue: "10" },
-      { name: "bias" },
-    ]);
-
-    expect(proposal.callers).toEqual([]);
-    const result = transaction(project, proposal.edits);
-
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(
-      result.project.documents.find((document) => document.id === child.id)
-        ?.netlist?.formalParameters,
-    ).toEqual([{ name: "gain", defaultValue: "10" }, { name: "bias" }]);
   });
 
   it("reports caller impact before an external definition drops a connected pin", () => {

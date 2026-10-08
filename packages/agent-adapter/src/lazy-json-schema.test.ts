@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
 import * as adapter from "./index.js";
-import * as model from "@icm/model";
 
 // Count every JSON Schema conversion made through zod in this module graph.
 const conversions = vi.hoisted(() => ({ count: 0 }));
@@ -36,10 +35,5 @@ describe("published JSON Schemas", () => {
       adapter.agentCircuitRequestJsonSchema(),
     );
     expect(conversions.count).toBe(converted);
-
-    expect(model.circuitProjectJsonSchema()).toBe(
-      model.circuitProjectJsonSchema(),
-    );
-    expect(conversions.count).toBe(converted + 1);
   });
 });

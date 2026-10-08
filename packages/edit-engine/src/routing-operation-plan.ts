@@ -451,7 +451,7 @@ function mergeGroupsFromEdits(
   });
 }
 
-export function expectedElectricalEffectForOperation(
+function expectedElectricalEffectForOperation(
   document: SchematicDocument,
   intent: RoutingOperationIntent,
   edits: readonly SchematicEdit[],

@@ -338,9 +338,3 @@ export async function createSourceBundle(
     diagnostics,
   };
 }
-
-export function sourceText(bundle: SourceBundle, fileId: string): string {
-  const source = bundle.files.find((candidate) => candidate.id === fileId);
-  if (!source) throw new Error(`Unknown source file: ${fileId}`);
-  return source.text;
-}

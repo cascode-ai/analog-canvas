@@ -1,7 +1,6 @@
 import {
   resolveReviewedExternalBinding,
   reviewedExternalBindingForMaster,
-  reviewedExternalModelSuggestions,
 } from "@icm/devices";
 
 import { expandedDeviceCatalogEntry } from "./expanded-device-catalog.js";
@@ -32,13 +31,6 @@ export interface PdkSymbolMappingOverride {
   symbolId: string;
   pinNames: readonly string[];
   registryId: string;
-}
-
-export function reviewedSky130MosModelSuggestions(
-  symbolId: string,
-): readonly string[] {
-  if (symbolId !== "nmos" && symbolId !== "pmos") return [];
-  return reviewedExternalModelSuggestions(symbolId, "sky130_fd_pr");
 }
 
 export function resolvePdkSymbolMapping(

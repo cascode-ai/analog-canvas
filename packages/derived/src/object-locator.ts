@@ -1,10 +1,6 @@
 import type { ObjectLocator, ObjectLocatorKind } from "@icm/model";
 
-export {
-  HierarchyFrameSchema,
-  ObjectLocatorKindSchema,
-  ObjectLocatorSchema,
-} from "@icm/model";
+export { HierarchyFrameSchema, ObjectLocatorSchema } from "@icm/model";
 export type {
   HierarchyFrame,
   ObjectLocator,

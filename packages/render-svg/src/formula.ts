@@ -24,8 +24,8 @@ function escapeXml(value: string): string {
 }
 
 /** Formula typography markers; a stored preview without them is redrawn. */
-export const LABEL_FORMULA_TYPOGRAPHY = "label-v5";
-export const MATHJAX_FORMULA_TYPOGRAPHY = "sans-v4";
+const LABEL_FORMULA_TYPOGRAPHY = "label-v5";
+const MATHJAX_FORMULA_TYPOGRAPHY = "sans-v4";
 
 /**
  * A formula set in label type: text in the labels' own font, letters in

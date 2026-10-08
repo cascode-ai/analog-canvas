@@ -389,7 +389,7 @@ export function reviewedModelledSizeChanges(
  * A micrometre-geometry size past this (1 mm) is almost always a unit slip,
  * such as SKY130's 0.15 kept without its unit and read as 0.15 m (#1474).
  */
-export const REVIEWED_SIZE_SLIP_LIMIT = 1e-3;
+const REVIEWED_SIZE_SLIP_LIMIT = 1e-3;
 
 /** One of a part's sizes that its device cannot have (#1474). */
 export interface ReviewedSizeOutOfRange {

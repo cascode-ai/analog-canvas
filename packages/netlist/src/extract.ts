@@ -114,8 +114,6 @@ import {
   projectSubcircuitNames,
 } from "./ideal-analog-block-models.js";
 import { IDEAL_SWITCH_MODEL } from "./ideal-switch-model.js";
-export { IDEAL_SWITCH_MODEL } from "./ideal-switch-model.js";
-
 /** A target with a shared generated recipe: logic, multiplier, converters. */
 function isBehaviouralTarget(target: string): boolean {
   const family = builtInModelContract(target)?.family;
@@ -337,7 +335,7 @@ export const SIMULATION_DECK_GROUND = {
 } as const satisfies DesignNetlistAnalysisOptions;
 
 /** The formal pin name a Cell's ground takes, matching the Block libraries. */
-export const GROUND_PORT_NAME = "VSS";
+const GROUND_PORT_NAME = "VSS";
 
 type ResolvedDesignNetlistAnalysisOptions =
   Required<DesignNetlistAnalysisOptions>;

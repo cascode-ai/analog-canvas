@@ -7,6 +7,7 @@ import type {
   CellSymbolPinPlacement,
   CellSymbolPresentation,
   CircuitProject,
+  ComponentDefinitionSource,
   SchematicDocument,
 } from "@icm/model";
 
@@ -24,7 +25,6 @@ import type { SymbolDefinition } from "./schema.js";
 
 export {
   freeHierarchicalBlockOffsets,
-  hierarchicalBlockPinSlots,
   type HierarchicalBlockPinSlot,
 } from "./hierarchical-block-geometry.js";
 
@@ -357,10 +357,7 @@ export function projectSymbolSources(
   project: Pick<CircuitProject, "documents" | "topDocumentId"> &
     Partial<Pick<CircuitProject, "externalSubcircuitDefinitions">>,
 ) {
-  const sources = new Map<
-    string,
-    import("@icm/model").ComponentDefinitionSource
-  >();
+  const sources = new Map<string, ComponentDefinitionSource>();
   for (const document of project.documents) {
     if (!document.netlist) continue;
     sources.set(hierarchicalSymbolId(document.netlist.name), {

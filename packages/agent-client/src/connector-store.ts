@@ -20,7 +20,7 @@ export interface StoredConnectorCredential {
   storedAt: number;
 }
 
-export const CONNECTOR_FILE_VERSION = 1;
+const CONNECTOR_FILE_VERSION = 1;
 
 export interface ConnectorStoreOptions {
   /**

@@ -1533,24 +1533,6 @@ export function planReorderCellPort(
   ];
 }
 
-export function proposeSetCellFormalParameters(
-  project: CircuitProject,
-  documentId: string,
-  formalParameters: NonNullable<
-    SchematicDocument["netlist"]
-  >["formalParameters"],
-): SubcircuitInterfaceProposal {
-  const document = requireDocument(project, documentId);
-  if (!document.netlist) {
-    throw new Error(`Cell has no formal interface: ${documentId}`);
-  }
-  return interfaceProposal(project, { kind: "internal", id: documentId }, [
-    transactDocument(project, documentId, [
-      { kind: "set_cell_formal_parameters", formalParameters },
-    ]),
-  ]);
-}
-
 /** Reviewed library semantics stay fixed through every Project write entrance. */
 export function reviewedExternalDefinitionEditIssue(
   previous: ExternalSubcircuitDefinition | undefined,
@@ -1655,30 +1637,6 @@ export function proposeUpsertExternalSubcircuitDefinition(
     ],
     diagnostics,
   );
-}
-
-export function planSetCellTerminalPlacement(
-  project: CircuitProject,
-  documentId: string,
-  terminalId: string,
-  side: CellSymbolSide | "auto",
-  offset: number,
-): ProjectStructureEdit[] {
-  if (!Number.isInteger(offset) || offset % 10 !== 0) {
-    throw new Error("Cell Pin position must be a multiple of 10");
-  }
-  const document = requireDocument(project, documentId);
-  const current = document.presentation.cellSymbol;
-  const pinPlacements = (current?.pinPlacements ?? []).filter(
-    (placement) => placement.terminalId !== terminalId,
-  );
-  if (side !== "auto") pinPlacements.push({ terminalId, side, offset });
-  return planSetCellSymbolPresentation(project, documentId, {
-    ...(current?.minimumBodySize
-      ? { minimumBodySize: current.minimumBodySize }
-      : {}),
-    ...(pinPlacements.length > 0 ? { pinPlacements } : {}),
-  });
 }
 
 /**

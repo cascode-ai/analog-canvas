@@ -10,7 +10,7 @@ import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 
 import {
-  AgentCircuitRequestSchema,
+  AgentProductionCircuitRequestSchema,
   AgentBootstrapSnapshotSchema,
   AgentSessionSnapshotSchema,
   AgentSchematicEditSchema,
@@ -476,7 +476,7 @@ describe("Agent Document Snapshot", () => {
       resolver,
     });
     expect(
-      AgentCircuitRequestSchema.safeParse({
+      AgentProductionCircuitRequestSchema.safeParse({
         apiVersion: "3.0",
         requestId: "replace-document",
         operation: "transact",

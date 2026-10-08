@@ -493,6 +493,7 @@ export function placeUprightInstanceLabel(
  * The upright placer until 2026-10-06: above the part a value row stood a
  * row further out than its name (#1384). Labels still where it put them,
  * by default or by an arrangement, count as untouched.
+ * @internal Tests place labels where the old placer did.
  */
 export function outwardPlaceUprightInstanceLabel(
   instance: SchematicDocument["instances"][number],

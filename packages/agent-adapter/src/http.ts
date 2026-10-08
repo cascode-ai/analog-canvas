@@ -79,6 +79,7 @@ async function readJsonBody(
   }
 }
 
+/** @public The `./loopback` entry point's server for desktop and scripted hosts. */
 export async function startLoopbackAgentServer(
   service: AgentCircuitService,
   options: LoopbackAgentServerOptions,

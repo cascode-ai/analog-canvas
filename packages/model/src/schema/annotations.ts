@@ -30,7 +30,7 @@ export const VisualAnchorSchema = z.discriminatedUnion("kind", [
   }),
 ]);
 
-export const AnnotationKindSchema = z.enum([
+const AnnotationKindSchema = z.enum([
   "instance-label",
   "instance-value",
   "net-label",
@@ -62,7 +62,7 @@ export const AnnotationTextBindingSchema = z.discriminatedUnion("kind", [
     terminalId: StableIdSchema,
   }),
 ]);
-export const RouteMarkerKindSchema = z.enum(["current", "voltage"]);
+const RouteMarkerKindSchema = z.enum(["current", "voltage"]);
 export const RouteAnnotationAttachmentSchema = z.strictObject({
   routeId: StableIdSchema,
   legId: StableIdSchema,

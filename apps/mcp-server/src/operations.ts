@@ -637,7 +637,7 @@ interface ToolEntry {
   handle: (args: unknown, session: ToolSessionState) => Promise<unknown>;
 }
 
-export function operationError(
+function operationError(
   error: unknown,
   input?: unknown,
   contract?: Record<string, unknown>,

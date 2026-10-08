@@ -5,7 +5,7 @@ import { builtInSymbols } from "./builtins.js";
 import { createProjectSymbolResolver } from "./resolver.js";
 import type { SymbolDefinition } from "./schema.js";
 
-export function referencedProjectSymbolIds(
+function referencedProjectSymbolIds(
   project: Pick<CircuitProject, "documents">,
 ): string[] {
   return [

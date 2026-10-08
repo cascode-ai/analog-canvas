@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  inverseTransformPoint,
-  manhattanDistance,
-  transformPoint,
-} from "./geometry.js";
+import { inverseTransformPoint, transformPoint } from "./geometry.js";
 import type { Mirror, Rotation } from "./schema.js";
 
 describe("coordinate transforms", () => {
@@ -35,9 +31,5 @@ describe("coordinate transforms", () => {
     );
     expect(point.x).toBeCloseTo(100 + Math.sqrt(50), 10);
     expect(point.y).toBeCloseTo(80 + Math.sqrt(50), 10);
-  });
-
-  it("computes Manhattan distance without geometry inference", () => {
-    expect(manhattanDistance({ x: -5, y: 9 }, { x: 7, y: -3 })).toBe(24);
   });
 });

@@ -84,7 +84,7 @@ export function entryResult(name: string, result: unknown) {
   return textResult(result, failed);
 }
 
-export function textResult(value: unknown, isError = false) {
+function textResult(value: unknown, isError = false) {
   return {
     content: [{ type: "text" as const, text: JSON.stringify(value, null, 2) }],
     ...(isError ? { isError: true } : {}),

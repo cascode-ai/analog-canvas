@@ -1,5 +1,5 @@
 /** Insert before analyses, or extend the save statement under the cursor. */
-export function ngspiceSaveEdit(
+function ngspiceSaveEdit(
   text: string,
   cursor: number,
   vectors: readonly string[],

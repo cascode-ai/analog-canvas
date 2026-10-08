@@ -1,7 +1,7 @@
 import { createEmptyProject } from "@icm/model";
 import { describe, expect, it } from "vitest";
 
-import { planUndrawnInstanceDrawing } from "./undrawn-instances.js";
+import { planUndrawnInstancePlacements } from "./undrawn-instances.js";
 
 function documentWith(
   instances: { id: string; drawn: boolean }[],
@@ -27,7 +27,7 @@ function documentWith(
 describe("undrawn Instance repair", () => {
   it("plans nothing when the drawing already shows every Instance", () => {
     expect(
-      planUndrawnInstanceDrawing(documentWith([{ id: "R1", drawn: true }])),
+      planUndrawnInstancePlacements(documentWith([{ id: "R1", drawn: true }])),
     ).toEqual([]);
   });
 
@@ -38,20 +38,19 @@ describe("undrawn Instance repair", () => {
       { id: "R3", drawn: false },
     ]);
 
-    const edits = planUndrawnInstanceDrawing(document);
+    const placements = planUndrawnInstancePlacements(document);
 
-    expect(edits.map((edit) => edit.kind)).toEqual([
-      "place_instance",
-      "place_instance",
+    expect(placements.map(({ instanceId }) => instanceId)).toEqual([
+      "R2",
+      "R3",
     ]);
-    for (const edit of edits) {
-      if (edit.kind !== "place_instance") throw new Error("unexpected edit");
-      expect(edit.placement.position.x % document.presentation.grid).toBe(0);
-      expect(edit.placement.position.y % document.presentation.grid).toBe(0);
+    for (const { placement } of placements) {
+      expect(placement.position.x % document.presentation.grid).toBe(0);
+      expect(placement.position.y % document.presentation.grid).toBe(0);
       // Below the Instance that is already drawn, so nothing lands on top of it.
-      expect(edit.placement.position.y).toBeGreaterThan(100);
+      expect(placement.position.y).toBeGreaterThan(100);
     }
     // Deterministic: the same Document plans the same drawing.
-    expect(planUndrawnInstanceDrawing(document)).toEqual(edits);
+    expect(planUndrawnInstancePlacements(document)).toEqual(placements);
   });
 });

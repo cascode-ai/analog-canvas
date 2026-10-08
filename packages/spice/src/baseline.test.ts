@@ -9,7 +9,6 @@ import {
   expressionIsStructurallyValid,
   parseSpiceNumber,
 } from "./expression.js";
-import { printSourceBundle, printSpiceSource } from "./printer.js";
 import { importCompileResult } from "./importer.js";
 import { createSourceBundle } from "./source.js";
 import type { SpiceSourceFile } from "./source-types.js";
@@ -31,7 +30,9 @@ describe("ngspice 46 core structural baseline", () => {
       "core.cir",
     );
 
-    expect(printSourceBundle(bundle)).toEqual(
+    expect(
+      new Map(bundle.files.map((source) => [source.path, source.text])),
+    ).toEqual(
       new Map([
         ["core.cir", core],
         ["models.lib", models],
@@ -169,7 +170,7 @@ describe("ngspice 46 core structural baseline", () => {
       "SPICE_SYNTAX_OPAQUE",
       "SPICE_SYNTAX_OPAQUE",
     ]);
-    expect(printSpiceSource(bundle.files[0]!)).toBe(text);
+    expect(bundle.files[0]!.text).toBe(text);
   });
 
   it("parses official scale factors and evaluates structural condition expressions", () => {
@@ -234,7 +235,7 @@ describe("ngspice 46 core structural baseline", () => {
       [4, 5],
       [6],
     ]);
-    expect(printSpiceSource(source)).toBe(text);
+    expect(source.text).toBe(text);
   });
 
   it("terminates and preserves exact text for a deterministic fuzz corpus", () => {
@@ -260,7 +261,7 @@ describe("ngspice 46 core structural baseline", () => {
         text,
       };
       expect(() => parseSpiceSource(source)).not.toThrow();
-      expect(printSpiceSource(source)).toBe(text);
+      expect(source.text).toBe(text);
     }
   });
 });

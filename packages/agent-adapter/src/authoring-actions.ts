@@ -34,7 +34,7 @@ const RotationInputSchema = z.union([
 const MirrorInputSchema = z.enum(["none", "horizontal", "vertical", "both"]);
 
 /** Reference an Instance by stable object ID or authored Reference. */
-export const InstanceRefSchema = z
+const InstanceRefSchema = z
   .strictObject({
     kind: z.literal("instance"),
     id: z.string().min(1).optional(),

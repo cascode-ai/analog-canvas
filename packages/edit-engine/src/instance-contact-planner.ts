@@ -5,7 +5,6 @@ import {
   type SeriesSplicePlan,
 } from "./series-splice-planner.js";
 import { createContactPlanningDraft } from "./contact-planning-draft.js";
-import { planElectricalMarkerRename } from "./net-name-operation-planner.js";
 import { planEnsurePowerNet } from "./power-net-planner.js";
 import { endpointOwnerNetId } from "./transaction-routing.js";
 import {
@@ -31,7 +30,6 @@ import {
 import type {
   ElectricalContactCandidate,
   ElectricalContactTarget,
-  SupplyMarker,
   EndpointObjectLookup,
   ResolvedDocumentLogicalNets,
   ResolvedDocumentRoutingGeometry,
@@ -40,13 +38,6 @@ import type {
 import { deriveStableId, routeEndpoints } from "@icm/model";
 import type { Instance, RouteEndpoint, SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
-
-/**
- * Which supply a marker symbol authors. The table moved down to @icm/derived
- * when the MOS body policy started asking the same question; this name stays
- * because placement is what most callers here are doing.
- */
-export type SymbolPowerConnection = SupplyMarker;
 
 export const powerConnectionForSymbol = supplyMarkerForSymbol;
 
@@ -773,41 +764,5 @@ export function proposedStandalonePowerConnection(
     ambiguous: false,
     powerNetId: plan.netId,
     powerEndpoint: endpoint,
-  };
-}
-
-/**
- * Put one supply marker on a supply of its own.
- *
- * Every VDD marker joins the Net named VDD, which is right: two markers
- * carrying the same name are the same supply, and renaming that Net renames
- * the supply everywhere it is used. What was missing is the other intent —
- * "this one is a different rail" — because a design routinely carries VDDH
- * and VDDL, or VDD1 and VDD2, at once.
- *
- * So a new name detaches rather than renames: the marker leaves the shared
- * Net, takes a Net of its own, and claims the new name there. The supply it
- * left keeps its name and every other marker on it. Naming it back to VDD
- * rejoins the shared Net by the same rule, because that is what the name
- * means.
- */
-export function proposedSupplyPortRename(
-  document: SchematicDocument,
-  instance: Instance,
-  name: string,
-): { edits: SchematicEdit[]; netId?: string; rejected?: string } {
-  const result = planElectricalMarkerRename(document, instance.id, name);
-  if (result.status === "rejected") {
-    return { edits: [], rejected: result.message };
-  }
-  if (result.status === "noop") return { edits: [] };
-  const netId = result.plan.edits
-    .flatMap((edit) =>
-      edit.kind === "connect_endpoints" && edit.newNetId ? [edit.newNetId] : [],
-    )
-    .at(-1);
-  return {
-    edits: [...result.plan.edits],
-    ...(netId ? { netId } : {}),
   };
 }

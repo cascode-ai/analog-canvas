@@ -449,27 +449,3 @@ export function shiftDesignNetlistLocations(
     fields: locations.fields.map(shift),
   };
 }
-
-/** Compatibility entry for callers that already have presentation text. Main
- * export/draft paths use the single-pass result directly, never reprint here. */
-export function locateDesignNetlist(
-  format: NetlistFormat,
-  ir: DesignNetlistIR,
-  text: string,
-): DesignNetlistLocations {
-  const printed = printDesignNetlistWithLocations(format, ir);
-  const locations = shiftDesignNetlistLocations(
-    printed.locations,
-    text.length - printed.file.text.length,
-  );
-  for (const [index, span] of locations.instances.entries()) {
-    const before = printed.locations.instances[index]!;
-    if (
-      span.startOffset < 0 ||
-      text.slice(span.startOffset, span.endOffset) !==
-        printed.file.text.slice(before.startOffset, before.endOffset)
-    )
-      throw new Error("Printed design card is missing from its source");
-  }
-  return locations;
-}

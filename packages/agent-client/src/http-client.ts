@@ -68,7 +68,7 @@ function responseIssueSummary(issues: readonly ResponseIssue[]): string {
  * that so the relay's own 504 reaches the caller; a 30 s client timeout
  * races the relay and masks the cause as a bare abort.
  */
-export const REQUEST_TIMEOUT_MS = 35_000;
+const REQUEST_TIMEOUT_MS = 35_000;
 
 export interface ClaimSuccess {
   contextRevision?: string | undefined;

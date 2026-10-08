@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createSourceBundle, sourceText } from "./source.js";
+import { createSourceBundle } from "./source.js";
 
 const encoder = new TextEncoder();
 const input = (path: string, text: string) => ({
@@ -18,7 +18,8 @@ describe("SPICE SourceBundle", () => {
     );
     expect(bundle.diagnostics).toEqual([]);
     expect(bundle.files[0]!.encoding).toBe("utf-8-bom");
-    expect(sourceText(bundle, bundle.entryFileId!)).toBe(text.slice(1));
+    const entry = bundle.files.find((file) => file.id === bundle.entryFileId);
+    expect(entry?.text).toBe(text.slice(1));
     const resistor = bundle.syntaxFiles[0]!.logicalLines[1]!;
     expect(resistor.text).toBe("R0 A B 1k tc=1");
     expect(resistor.rawText).toBe("R0 A B 1k\r\n+ tc=1");

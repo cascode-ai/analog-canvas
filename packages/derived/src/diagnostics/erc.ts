@@ -13,7 +13,7 @@ import { resolveEndpointPoint } from "../endpoint.js";
 import { resolveDocumentRoutingGeometry } from "../resolved-route-geometry.js";
 import { findRouteSegmentsAtPoint } from "../route-query.js";
 import { directObjectLocator, type ObjectLocator } from "../object-locator.js";
-import type { Diagnostic, DiagnosticSeverity } from "./diagnostic.js";
+import type { Diagnostic } from "./diagnostic.js";
 import { findExternalMasterCollisions } from "../master-names.js";
 import {
   deviceDescriptor,
@@ -32,8 +32,7 @@ import { supplyMarkerForSymbol } from "../supply-marker.js";
  * counts are not evidence of electrical correctness (Net connectivity rationale).
  */
 
-/** Compatibility aliases for ERC consumers; their protocol is Diagnostic. */
-export type ErcSeverity = DiagnosticSeverity;
+/** Compatibility alias for ERC consumers; its protocol is Diagnostic. */
 export type ErcDiagnostic = Diagnostic & { domain: "erc" };
 
 /**

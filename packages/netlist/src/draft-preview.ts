@@ -19,7 +19,7 @@ import {
 } from "./project-model-source.js";
 
 /** What a draft netlist prints where the drawing does not yet say. */
-export const DRAFT_NETLIST_PLACEHOLDER = "?";
+const DRAFT_NETLIST_PLACEHOLDER = "?";
 
 export interface DraftNetlistPreview {
   text: string;

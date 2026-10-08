@@ -10,13 +10,13 @@ import { ProjectModelSourceSchema } from "./model-source.js";
 import { reportDuplicateIds } from "./validation.js";
 import { projectCellInterface } from "../cell-interface-projection.js";
 
-export const ExternalSubcircuitTerminalSchema = z.strictObject({
+const ExternalSubcircuitTerminalSchema = z.strictObject({
   /** Stable interface identity. Name and presentation may change independently. */
   id: StableIdSchema,
   name: z.string().min(1).max(128),
   direction: z.enum(["input", "output", "inout", "passive"]),
 });
-export const ExternalSubcircuitFormalParameterSchema = z.strictObject({
+const ExternalSubcircuitFormalParameterSchema = z.strictObject({
   name: z.string().min(1).max(128),
   defaultValue: z.string().min(1).max(1024).optional(),
 });
@@ -387,18 +387,3 @@ export const CircuitProjectSchema = z
     };
     for (const document of project.documents) visit(document.id, []);
   });
-
-function buildCircuitProjectJsonSchema() {
-  return z.toJSONSchema(CircuitProjectSchema, { target: "draft-2020-12" });
-}
-let builtCircuitProjectJsonSchema:
-  ReturnType<typeof buildCircuitProjectJsonSchema> | undefined;
-/**
- * The Project file's JSON Schema, built on first use. Converting it at import
- * cost every editor page and every Worker start, which has a CPU limit.
- */
-export function circuitProjectJsonSchema(): ReturnType<
-  typeof buildCircuitProjectJsonSchema
-> {
-  return (builtCircuitProjectJsonSchema ??= buildCircuitProjectJsonSchema());
-}

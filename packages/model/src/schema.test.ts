@@ -5,7 +5,6 @@ import { createEmptyDocument, createEmptyProject } from "./factories.js";
 import { createRoutePath } from "./route-path.js";
 import {
   AnnotationSchema,
-  circuitProjectJsonSchema,
   CircuitProjectSchema,
   DraftTextSchema,
   SchematicDocumentSchema,
@@ -80,7 +79,6 @@ describe("CircuitProject schema", () => {
   it("accepts a minimal Project with one Document", () => {
     const project = createEmptyProject("project-test", "Test Project");
     expect(CircuitProjectSchema.parse(project)).toEqual(project);
-    expect(circuitProjectJsonSchema()).toMatchObject({ type: "object" });
     expect(project.documents[0]).toMatchObject({
       name: "dut",
       netlist: { name: "dut" },
@@ -1045,9 +1043,6 @@ describe("legacy SimulationFolderInput reader (one-way migration input)", () => 
     expect(
       CircuitProjectSchema.parse(projectWithSetup(source)).simulationFolders[0],
     ).toEqual(source);
-    expect(circuitProjectJsonSchema()).toMatchObject({
-      properties: { simulationFolders: expect.anything() },
-    });
   });
 
   it("persists explicit Design Variable bindings and a reusable Run Plan", () => {
