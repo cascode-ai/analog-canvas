@@ -3,7 +3,7 @@ import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 
 import { planCellSelectionDeletion } from "./cell-selection-deletion.js";
-import { planRemoveCellTerminals } from "./hierarchy-planner.js";
+import { planRemoveCellTerminals } from "./cell-interface-change-planner.js";
 import { executeProjectTransaction } from "./project-transaction.js";
 import { gateRoutingOperationPlan } from "./routing-operation-plan.js";
 import { executeTransaction } from "./transaction.js";

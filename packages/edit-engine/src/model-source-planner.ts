@@ -11,7 +11,7 @@ import {
 import {
   instanceReferencesPin,
   planCallerInterfaceChanges,
-} from "./hierarchy-planner.js";
+} from "./cell-interface-change-planner.js";
 import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 import { executeTransaction } from "./transaction.js";
 import type { ProjectStructureEdit } from "./project-transaction.js";

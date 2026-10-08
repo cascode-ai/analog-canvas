@@ -6,7 +6,7 @@ import {
   executeProjectTransaction,
   type ProjectStructureEdit,
 } from "./project-transaction.js";
-import { planSetDeviceModelTarget } from "./hierarchy-planner.js";
+import { planSetDeviceModelTarget } from "./device-model-target-planner.js";
 import type { SchematicEdit } from "./edit-schema.js";
 
 function fixture() {
