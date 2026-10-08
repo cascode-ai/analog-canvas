@@ -24,10 +24,7 @@ import {
 import { InstanceCodePanel } from "../features/properties/instance-code-panel";
 import { NetlistCodePanel } from "../features/netlist-export/netlist-code-panel";
 import { NetlistProfileCode } from "../features/netlist-export/netlist-profile-code";
-import {
-  useNetlistExportPreferences,
-  type NetlistExportPreferences,
-} from "../features/netlist-export/netlist-export-preferences";
+import { useNetlistExportPreferences } from "../features/netlist-export/netlist-export-preferences";
 import {
   placementModelTarget,
   placementProcessFill,
@@ -35,7 +32,6 @@ import {
   processReviewedLibrary,
   planNetlistProcess,
   prepareNetlistExample,
-  processTargetForShortName,
 } from "../features/netlist-export/netlist-process";
 import {
   DEFAULT_ARROW_PRESET,
@@ -75,10 +71,6 @@ interface ComponentEditorSession {
 }
 import type { CSSProperties } from "react";
 import "../styles/editor-entry.css";
-import type {
-  AgentHostSemanticIntentRequest,
-  AgentHostSemanticIntentResult,
-} from "@icm/agent-adapter";
 import {
   instanceValueAnnotation,
   planProjectCellImport,
@@ -142,10 +134,6 @@ import {
   captureProjectCopy,
   planProjectCopyPlacement,
 } from "../features/clipboard/project-copy";
-import type {
-  AgentProjectResourceRequest,
-  AgentProjectResourceResponse,
-} from "@icm/agent-adapter";
 import { clipboardPlacementAnchor } from "../features/clipboard/copy-placement";
 import { standaloneCopiedNetLabel } from "../features/clipboard/copied-net-label";
 import { useCircuitClipboard } from "../features/clipboard/use-circuit-clipboard";
@@ -334,28 +322,25 @@ import {
 } from "../interaction/editor-shortcuts";
 import { createEditorCommandRouter } from "../commands/editor-command";
 import { createEditorTransactionCommands } from "./editor-transaction-commands";
+import { DEFAULT_VIEWBOX } from "./default-view-box";
+import {
+  useAgentProjectResources,
+  useAgentStartupRecovery,
+  useBrowserAgentHost,
+  useEditorAgentConnection,
+} from "./use-agent-hosts";
 import { recoveryStateLabel } from "../components/recovery-banners";
 import { BrowserAgentHost } from "../agent/browser-agent-host";
-import type { BrowserAgentPlanningContext } from "../agent/browser-agent-command";
 import { BrowserAgentFileHost } from "../agent/browser-agent-file-host";
 import { BrowserAgentSimulationHost } from "../agent/browser-agent-simulation-host";
 import { BrowserAgentProjectHost } from "../agent/browser-agent-project-host";
-import {
-  createAgentGalleryPublisher,
-  type AgentGalleryPublication,
-} from "../agent/agent-gallery-publish";
+import { createAgentGalleryPublisher } from "../agent/agent-gallery-publish";
 import { BrowserSimulationSession } from "../features/simulation/browser-simulation-session";
 import { ProjectRunHistory } from "../features/simulation/project-run-history";
 import { createAgentSemanticIntentHandler } from "../agent/agent-semantic-intent-handler";
 import { PUBLIC_AGENT_UI_ENABLED } from "../agent/public-agent-ui";
-import {
-  useEditorAgentSession,
-  WorkspaceAgentProvider,
-} from "../agent/workspace-agent";
-import type { UseAgentSessionOptions } from "../agent/use-agent-session";
-import { peekAgentSessionRecovery } from "../agent/session-recovery";
+import { WorkspaceAgentProvider } from "../agent/workspace-agent";
 export { WorkspaceAgentProvider } from "../agent/workspace-agent";
-import type { AgentFileCandidateSummary } from "@icm/agent-adapter";
 import { referencedDocumentId } from "../document/editor-session";
 import { useInteractionState } from "../interaction/interaction-state";
 import type {
@@ -480,7 +465,6 @@ import { buildSceneSnapTargetIndex } from "../snap/candidates";
 import { snapCoordinate } from "../snap/engine";
 import type { SnapGuideLine } from "../snap/engine";
 
-const DEFAULT_VIEWBOX: GridRect = { x: 0, y: 0, width: 960, height: 640 };
 const RECENT_COMPONENTS_STORAGE_KEY = "icm.recent-components.v1";
 const LIBRARY_PANEL_STORAGE_KEY = "icm.library-panel-open.v1";
 const LIBRARY_WIDTH_STORAGE_KEY = "icm.library-panel-width.v1";
@@ -827,24 +811,11 @@ function WorkspaceEditor({
     openWorkingCopyIds: () => openWorkingCopyIdsRef.current(),
   });
   const openWorkingCopyIdsRef = useRef<() => readonly string[]>(() => []);
-  const [agentStartupRecovery] = useState(() => {
-    if (
-      !capabilities.agent ||
-      typeof window === "undefined" ||
-      restoredWorkspace
-    )
-      return null;
-    const search = new URLSearchParams(window.location.search);
-    if (
-      initialGalleryEntryId !== null ||
-      search.has("example") ||
-      search.has("project") ||
-      search.has("history") ||
-      search.get("new") === "1"
-    )
-      return null;
-    const saved = peekAgentSessionRecovery(window.sessionStorage);
-    return saved?.projectSessionId === recoveryWorkingCopyId ? saved : null;
+  const agentStartupRecovery = useAgentStartupRecovery({
+    capabilities,
+    restoredWorkspace,
+    initialGalleryEntryId,
+    recoveryWorkingCopyId,
   });
   const {
     project,
@@ -880,64 +851,17 @@ function WorkspaceEditor({
     () => buildProjectConnectivityIndex(project, resolver),
     [project, resolver],
   );
-  const agentSemanticIntentRef = useRef<
-    (request: AgentHostSemanticIntentRequest) => AgentHostSemanticIntentResult
-  >(() => ({
-    ok: false,
-    code: "SEMANTIC_CONTROL_UNAVAILABLE",
-    message: "The editor is still initializing semantic controls",
-  }));
-  // An Agent places a transistor in the Process a person placing it would
-  // get; the preferences are read when it plans, not when the host is made.
-  const netlistPreferencesRef = useRef<NetlistExportPreferences | null>(null);
-  const agentPlanning = useMemo<BrowserAgentPlanningContext>(
-    () => ({
-      processModelTarget: (source, symbolId) =>
-        netlistPreferencesRef.current
-          ? placementModelTarget(
-              source,
-              netlistPreferencesRef.current,
-              symbolId,
-            )
-          : undefined,
-      processTargetForShortName: (source, symbolId, name) =>
-        netlistPreferencesRef.current
-          ? processTargetForShortName(
-              source,
-              netlistPreferencesRef.current,
-              symbolId,
-              name,
-            )
-          : undefined,
-      processFill: (source, documentId, edits) =>
-        netlistPreferencesRef.current
-          ? placementProcessFill(
-              source,
-              netlistPreferencesRef.current,
-              documentId,
-              edits,
-            )
-          : undefined,
-    }),
-    [],
-  );
-  const browserAgentHost = useMemo(
-    () =>
-      new BrowserAgentHost(
-        editorDocumentController,
-        () => {
-          synchronizeExternalCommit();
-          // Agent commits have already crossed a network boundary. Start the
-          // durable write immediately so a following render crash cannot lose
-          // the acknowledged transaction inside the debounce window.
-          void flushRecovery();
-        },
-        (request) => agentSemanticIntentRef.current(request),
-        undefined,
-        agentPlanning,
-      ),
-    [editorDocumentController, projectSessionId],
-  );
+  const {
+    agentSemanticIntentRef,
+    netlistPreferencesRef,
+    agentPlanning,
+    browserAgentHost,
+  } = useBrowserAgentHost({
+    editorDocumentController,
+    projectSessionId,
+    synchronizeExternalCommit,
+    flushRecovery,
+  });
   const [documentStack, setDocumentStack] = useState<HierarchyFrame[]>([]);
   const {
     selection: visualSelection,
@@ -1218,125 +1142,34 @@ function WorkspaceEditor({
     };
     // oxlint-disable-next-line react-hooks/exhaustive-deps -- evaluated once per dialog open
   }, [identity, publishGalleryOpen]);
-  const [agentFileCandidate, setAgentFileCandidate] =
-    useState<AgentFileCandidateSummary | null>(null);
-  // Execution and artifacts belong to their originating controller, not the
-  // currently selected tab. Re-selecting a tab restores the same service.
-  const agentProjectResources = useRef(
-    new Map<
-      EditorDocumentController,
-      Map<
-        string,
-        {
-          files: BrowserAgentFileHost;
-          history: ProjectRunHistory;
-          simulation: BrowserAgentSimulationHost;
-        }
-      >
-    >(),
-  );
-  let resources = agentProjectResources.current.get(editorDocumentController);
-  if (!resources) {
-    resources = new Map();
-    agentProjectResources.current.set(editorDocumentController, resources);
-  }
-  const resourceKey = `${projectSessionId}:${simulationTransport}`;
-  const browserAgentFileHost = useMemo(
-    () =>
-      resources.get(resourceKey)?.files ??
-      new BrowserAgentFileHost({
-        transport: simulationTransport,
-        getProjectSessionId: () => editorDocumentController.projectSessionId,
-        getProject: () => editorDocumentController.project,
-        getDocument: (documentId) =>
-          editorDocumentController.project.documents.find(
-            (candidate) => candidate.id === documentId,
-          ) ?? null,
-        getResolver: () => editorDocumentController.resolver,
-        onApprovalRequested: setAgentFileCandidate,
-        getActiveDocumentId: () => editorDocumentController.document.id,
-        commitProjectStructure: (next, active) =>
-          browserAgentHost.commitProjectStructure(next, active),
-        describeOpenBlocker: () => projectSwitchBlockerRef.current(),
-        openProjectInNewTab: (candidate, background) =>
-          openProjectInTabRef.current(
-            candidate,
-            DEFAULT_VIEWBOX,
-            {
-              source: "opened-file",
-              agentEdited: true,
-            },
-            background,
-          ),
-        dispatchProjectTransaction: (request) =>
-          browserAgentHost.dispatchProjectTransaction(request),
-      }),
-    [editorDocumentController, resourceKey, simulationTransport],
-  );
-  const projectRunHistory = useMemo(
-    () =>
-      resources.get(resourceKey)?.history ??
-      new ProjectRunHistory(editorDocumentController.project.id),
-    [editorDocumentController, resourceKey],
-  );
-  useEffect(() => {
-    projectRunHistory.activate();
-  }, [projectRunHistory]);
-  const browserAgentSimulationHost = useMemo(
-    () =>
-      resources.get(resourceKey)?.simulation ??
-      new BrowserAgentSimulationHost({
-        runHistory: projectRunHistory,
-        owner: "agent",
-        files: browserAgentFileHost.simulationFiles,
-        getProjectSessionId: () => editorDocumentController.projectSessionId,
-        getProject: () => editorDocumentController.project,
-        transport: simulationTransport,
-      }),
-    [
-      browserAgentFileHost.simulationFiles,
-      projectRunHistory,
-      editorDocumentController,
-      resourceKey,
-      simulationTransport,
-    ],
-  );
-  resources.set(resourceKey, {
-    files: browserAgentFileHost,
-    history: projectRunHistory,
-    simulation: browserAgentSimulationHost,
-  });
-  useEffect(
-    () => () => {
-      for (const group of agentProjectResources.current.values())
-        for (const resource of group.values()) resource.history.dispose();
-    },
-    [],
-  );
-  const agentWorkspaceRef = useRef<
+  /** The tab guard's blocker, for Agent hosts built before it (#1462). */
+  const projectSwitchBlockerRef = useRef<() => string | null>(() => null);
+  const openProjectInTabRef = useRef<
     (
-      request: Extract<AgentProjectResourceRequest, { operation: "workspace" }>,
-      targetWorkspaceId?: string,
-    ) => Promise<AgentProjectResourceResponse>
-  >(async () => {
-    throw new Error("Workspace is initializing");
+      project: CircuitProject,
+      view: GridRect,
+      options: ReplaceProjectOptions,
+      background?: boolean,
+    ) => Promise<boolean>
+  >(async () => false);
+  const {
+    agentFileCandidate,
+    setAgentFileCandidate,
+    agentProjectResources,
+    browserAgentFileHost,
+    projectRunHistory,
+    browserAgentSimulationHost,
+    agentWorkspaceRef,
+    agentGalleryPublicationRef,
+    recordGalleryPublicationRef,
+  } = useAgentProjectResources({
+    editorDocumentController,
+    projectSessionId,
+    browserAgentHost,
+    simulationTransport,
+    projectSwitchBlockerRef,
+    openProjectInTabRef,
   });
-  // The working copy an Agent publishes from, read when its request arrives.
-  const agentGalleryPublicationRef = useRef<
-    () => AgentGalleryPublication & {
-      controller: EditorDocumentController;
-      sessionId: string;
-    }
-  >(() => {
-    throw new Error("The Editor is initializing");
-  });
-  const recordGalleryPublicationRef = useRef<
-    (
-      outcome: GalleryPublicationRecord,
-      sessionId: string,
-      by: "person" | "agent",
-    ) => boolean
-  >(() => false);
   const browserAgentProjectHost = useMemo(
     () =>
       new BrowserAgentProjectHost({
@@ -1441,16 +1274,6 @@ function WorkspaceEditor({
   const noteCodeDraftDirty = useCallback((dirty: boolean) => {
     setCodeDraftDirty(dirty);
   }, []);
-  /** The tab guard's blocker, for Agent hosts built before it (#1462). */
-  const projectSwitchBlockerRef = useRef<() => string | null>(() => null);
-  const openProjectInTabRef = useRef<
-    (
-      project: CircuitProject,
-      view: GridRect,
-      options: ReplaceProjectOptions,
-      background?: boolean,
-    ) => Promise<boolean>
-  >(async () => false);
   const openGalleryProjectInTabRef = useRef<
     (
       project: CircuitProject,
@@ -1695,52 +1518,37 @@ function WorkspaceEditor({
     publishSession,
     startupCloudProjectId,
   ]);
-  const agentTargetRef = useRef<
-    NonNullable<UseAgentSessionOptions["resolveWorkspace"]>
-  >(() => null);
-  const backgroundAgentHosts = useRef(
-    new Map<
-      EditorDocumentController,
-      {
-        sessionId: string;
-        host: BrowserAgentHost;
-        fileHost: BrowserAgentFileHost;
-        simulationHost: BrowserAgentSimulationHost;
-        projectHost: BrowserAgentProjectHost;
-      }
-    >(),
-  );
-  const agentSession = useEditorAgentSession({
-    // A restored workspace is already the requested circuit. Resume its
-    // matching Agent only after the active Project and working copy are installed.
-    recover: true,
-    beforeConnect: async () => {
-      const snapshot = await captureAuthoredProject();
-      if (snapshot) {
-        stageRecovery(snapshot, {
-          unsavedAtSnapshot: isDirtyWork() || snapshot !== project,
-          cloudBinding,
-        });
-        await flushRecovery();
-      }
-    },
-    enabled:
-      publicAgentUiEnabled &&
-      !restoringWorkspace &&
-      (startupRestoreReady ||
-        recoveryWorkingCopyId !== agentStartupRecovery?.projectSessionId),
+  const {
+    agentTargetRef,
+    backgroundAgentHosts,
+    agentSession,
+    approveAgentFileCandidate,
+    rejectAgentFileCandidate,
+    openAgentConnection,
+  } = useEditorAgentConnection({
+    publicAgentUiEnabled,
+    restoringWorkspace,
+    setAgentStatusDismissed,
+    setAgentPanelOpen,
+    setStatus,
+    recoveryWorkingCopyId,
+    stageRecovery,
+    flushRecovery,
+    agentStartupRecovery,
     project,
-    projectSessionId: recoveryWorkingCopyId,
-    host: browserAgentHost,
-    fileHost: browserAgentFileHost,
-    simulationHost: browserAgentSimulationHost,
-    projectHost: browserAgentProjectHost,
-    resolveWorkspace: (workspaceId) => agentTargetRef.current(workspaceId),
+    browserAgentHost,
+    agentFileCandidate,
+    setAgentFileCandidate,
+    browserAgentFileHost,
+    browserAgentSimulationHost,
+    browserAgentProjectHost,
+    captureAuthoredProject,
+    cloudBinding,
+    startupRestoreReady,
+    isDirtyWork,
+    replaceActiveProject,
+    guardDirtyReplacement,
   });
-  useEffect(() => {
-    if (!publicAgentUiEnabled) return;
-    setAgentStatusDismissed(false);
-  }, [agentSession.status, publicAgentUiEnabled]);
   const [boxPreview, setBoxPreview] = useState<BoxPreview | null>(null);
   const [panPreview, setPanPreview] = useState<PanPreview | null>(null);
   const [wireOptionsOpen, setWireOptionsOpen] = useState(false);
@@ -4702,33 +4510,6 @@ function WorkspaceEditor({
     );
   }
 
-  function approveAgentFileCandidate(): void {
-    if (!agentFileCandidate) return;
-    const meta = agentFileCandidate;
-    void guardDirtyReplacement(`Accept Agent ${meta.kind} candidate`, () => {
-      const candidate = browserAgentFileHost.consumeApproved(meta.candidateId);
-      setAgentFileCandidate(null);
-      if (!candidate) {
-        setStatus(
-          "Agent file candidate expired; ask the Agent to stage it again",
-        );
-        return;
-      }
-      replaceActiveProject(candidate, DEFAULT_VIEWBOX, {
-        source: "opened-file",
-        agentEdited: true,
-      });
-      setStatus(`Accepted Agent ${meta.kind} candidate: ${candidate.name}`);
-    });
-  }
-
-  function rejectAgentFileCandidate(): void {
-    if (!agentFileCandidate) return;
-    browserAgentFileHost.discard(agentFileCandidate.candidateId);
-    setAgentFileCandidate(null);
-    setStatus("Rejected Agent file candidate");
-  }
-
   function nextRoutingSuffix(): number {
     routeCounter.current =
       Math.max(routeCounter.current, maxRoutingCounter(document)) + 1;
@@ -6959,20 +6740,6 @@ function WorkspaceEditor({
     return true;
   }
   recordGalleryPublicationRef.current = recordGalleryPublication;
-
-  const openAgentConnection = () => {
-    setAgentPanelOpen(true);
-    if (
-      agentSession.status === "idle" ||
-      agentSession.status === "revoked" ||
-      agentSession.status === "expired" ||
-      (agentSession.status === "waiting-for-agent" &&
-        agentSession.claimExpiresAt !== null &&
-        agentSession.claimExpiresAt <= Date.now())
-    ) {
-      void agentSession.newConnection();
-    }
-  };
 
   // The header's Gallery link and the daily-limit card leave the same way:
   // through the guard for unsaved work, with a recovery copy kept.
