@@ -1,0 +1,7 @@
+
+.subckt astra_087_cmos_current_programmed_resistor vdd VSS vin out gn gp
+M1 vin gn out VSS ANMOS l=1u w=10u
+M2 vin gp out vdd APMOS l=1u w=20u
+M3 gn gn out VSS ANMOS l=1u w=10u
+M4 gp gp out vdd APMOS l=1u w=20u
+.ends astra_087_cmos_current_programmed_resistor

@@ -1,0 +1,50 @@
+CMOS two-output analog crosspoint
+.include "circuit.spice"
+.include "models.spice"
+VDD vdd 0 3.3
+V0 v0 0 PWL(0 .7 400n .7 400.1n 1.1 800n 1.1)
+V1 v1 0 PWL(0 2.6 400n 2.6 400.1n 2.2 800n 2.2)
+VS0 s0 0 PWL(0 0 99.5n 0 100.5n 3.3 199.5n 3.3 200.5n 0 299.5n 0 300.5n 3.3 399.5n 3.3 400.5n 0 499.5n 0 500.5n 3.3 599.5n 3.3 600.5n 0 699.5n 0 700.5n 3.3 800n 3.3)
+VS1 s1 0 PWL(0 0 99.5n 0 100.5n 0 199.5n 0 200.5n 3.3 299.5n 3.3 300.5n 3.3 399.5n 3.3 400.5n 0 499.5n 0 500.5n 0 599.5n 0 600.5n 3.3 699.5n 3.3 700.5n 3.3 800n 3.3)
+XDUT vdd 0 v0 v1 y0 y1 s0 s1 astra_092_cmos_two_output_analog_crosspoint
+.temp 27
+.options method=gear reltol=1e-5
+* @spec r0o0 range 0.6799999999999999 0.72 unit=V
+* @spec r0o1 range 0.6799999999999999 0.72 unit=V
+* @spec r1o0 range 2.58 2.62 unit=V
+* @spec r1o1 range 0.6799999999999999 0.72 unit=V
+* @spec r2o0 range 0.6799999999999999 0.72 unit=V
+* @spec r2o1 range 2.58 2.62 unit=V
+* @spec r3o0 range 2.58 2.62 unit=V
+* @spec r3o1 range 2.58 2.62 unit=V
+* @spec r4o0 range 1.08 1.12 unit=V
+* @spec r4o1 range 1.08 1.12 unit=V
+* @spec r5o0 range 2.18 2.22 unit=V
+* @spec r5o1 range 1.08 1.12 unit=V
+* @spec r6o0 range 1.08 1.12 unit=V
+* @spec r6o1 range 2.18 2.22 unit=V
+* @spec r7o0 range 2.18 2.22 unit=V
+* @spec r7o1 range 2.18 2.22 unit=V
+.control
+set filetype=ascii
+tran 100p 800n
+meas tran r0o0 FIND v(y0) AT=70n
+meas tran r0o1 FIND v(y1) AT=70n
+meas tran r1o0 FIND v(y0) AT=170n
+meas tran r1o1 FIND v(y1) AT=170n
+meas tran r2o0 FIND v(y0) AT=270n
+meas tran r2o1 FIND v(y1) AT=270n
+meas tran r3o0 FIND v(y0) AT=370n
+meas tran r3o1 FIND v(y1) AT=370n
+meas tran r4o0 FIND v(y0) AT=470n
+meas tran r4o1 FIND v(y1) AT=470n
+meas tran r5o0 FIND v(y0) AT=570n
+meas tran r5o1 FIND v(y1) AT=570n
+meas tran r6o0 FIND v(y0) AT=670n
+meas tran r6o1 FIND v(y1) AT=670n
+meas tran r7o0 FIND v(y0) AT=770n
+meas tran r7o1 FIND v(y1) AT=770n
+write out.raw v(y0) v(y1) v(s0) v(s1)
+quit
+.endc
+.end

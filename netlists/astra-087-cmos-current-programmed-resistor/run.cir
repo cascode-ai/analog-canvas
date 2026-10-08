@@ -1,0 +1,52 @@
+CMOS current-programmed floating resistor
+.include "circuit.spice"
+.include "models.spice"
+VDD vdd 0 3.3
+VOUT out 0 1.65
+VIN vin 0 1.65
+I1 vdd gn 5u
+I2 gp 0 5u
+XDUT vdd 0 vin out gn gp astra_087_cmos_current_programmed_resistor
+.temp 27
+.options method=gear reltol=1e-5
+* @spec ip0 range 0.000011627906976744187 0.000016666666666666667 unit=A
+* @spec in0 range -0.000016666666666666667 -0.000011627906976744187 unit=A
+* @spec ip1 range 0.00002272727272727273 0.000033333333333333335 unit=A
+* @spec in1 range -0.000033333333333333335 -0.00002272727272727273 unit=A
+* @spec ip2 range 0.00004545454545454546 0.00006666666666666667 unit=A
+* @spec in2 range -0.00006666666666666667 -0.00004545454545454546 unit=A
+.control
+set filetype=ascii
+alter I1 5u
+alter I2 5u
+dc VIN 1.59 1.71 .002
+let conduct=-i(VIN)
+meas dc ip0 FIND conduct AT=1.7
+meas dc in0 FIND conduct AT=1.6
+let rp0=.05/ip0
+let rn0=-.05/in0
+print rp0 rn0
+alter I1 20u
+alter I2 20u
+dc VIN 1.59 1.71 .002
+let conduct=-i(VIN)
+meas dc ip1 FIND conduct AT=1.7
+meas dc in1 FIND conduct AT=1.6
+let rp1=.05/ip1
+let rn1=-.05/in1
+print rp1 rn1
+alter I1 80u
+alter I2 80u
+dc VIN 1.59 1.71 .002
+let conduct=-i(VIN)
+meas dc ip2 FIND conduct AT=1.7
+meas dc in2 FIND conduct AT=1.6
+let rp2=.05/ip2
+let rn2=-.05/in2
+print rp2 rn2
+
+
+write out.raw v(vin) i(vin) v(gn) v(gp)
+quit
+.endc
+.end

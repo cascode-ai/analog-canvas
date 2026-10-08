@@ -1,0 +1,9 @@
+
+.subckt astra_088_cmos_square_law_rf_power_detector vdd VSS vp vn out
+CL out VSS 10n
+M1 net0 vp VSS VSS ANMOS l=1u w=10u
+M2 net0 vn VSS VSS ANMOS l=1u w=10u
+M3 net0 net0 vdd vdd APMOS l=1u w=100u
+M4 out net0 vdd vdd APMOS l=1u w=100u
+RL out VSS 1k
+.ends astra_088_cmos_square_law_rf_power_detector

@@ -1,0 +1,21 @@
+
+Note: No compatibility mode selected!
+
+
+Circuit: mos source-follower supply ripple filter
+
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+No. of Data Rows : 2
+bias                =  2.19336e+00
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+No. of Data Rows : 241
+low                 =  1.36928e-01
+high                =  1.95247e-03
+ASCII raw file "out.raw"
+ngspice-46 done

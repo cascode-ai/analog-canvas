@@ -1,0 +1,35 @@
+
+.subckt astra_090_cmos_radix_four_booth_recoder vdd VSS one two zero neg b0 b1 b2
+C0 one VSS 100f
+C1 two VSS 100f
+C2 zero VSS 100f
+C3 neg VSS 100f
+M1 b0b b0 vdd vdd APMOS l=1u w=20u
+M10 b0b b1 one VSS ANMOS l=1u w=10u
+M11 b2 b1 diff vdd APMOS l=1u w=20u
+M12 b2 b1b diff VSS ANMOS l=1u w=10u
+M13 b2b b1b diff vdd APMOS l=1u w=20u
+M14 b2b b1 diff VSS ANMOS l=1u w=10u
+M15 oneb one vdd vdd APMOS l=1u w=20u
+M16 oneb one VSS VSS ANMOS l=1u w=10u
+M17 net2 oneb vdd vdd APMOS l=1u w=20u
+M18 net2 diff vdd vdd APMOS l=1u w=20u
+M19 net2 oneb net1 VSS ANMOS l=1u w=20u
+M2 b0b b0 VSS VSS ANMOS l=1u w=10u
+M20 net1 diff VSS VSS ANMOS l=1u w=20u
+M21 two net2 vdd vdd APMOS l=1u w=20u
+M22 two net2 VSS VSS ANMOS l=1u w=10u
+M23 net0 one vdd vdd APMOS l=1u w=40u
+M24 zero two net0 vdd APMOS l=1u w=40u
+M25 zero one VSS VSS ANMOS l=1u w=10u
+M26 zero two VSS VSS ANMOS l=1u w=10u
+M27 neg b2b vdd vdd APMOS l=1u w=20u
+M28 neg b2b VSS VSS ANMOS l=1u w=10u
+M3 b1b b1 vdd vdd APMOS l=1u w=20u
+M4 b1b b1 VSS VSS ANMOS l=1u w=10u
+M5 b2b b2 vdd vdd APMOS l=1u w=20u
+M6 b2b b2 VSS VSS ANMOS l=1u w=10u
+M7 b0 b1 one vdd APMOS l=1u w=20u
+M8 b0 b1b one VSS ANMOS l=1u w=10u
+M9 b0b b1b one vdd APMOS l=1u w=20u
+.ends astra_090_cmos_radix_four_booth_recoder

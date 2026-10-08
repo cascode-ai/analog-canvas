@@ -1,0 +1,9 @@
+
+.subckt astra_093_mos_source_follower_ripple_filter VSS vb vin out
+CG net0 VSS 10n
+CL out VSS 100p
+M1 vin net0 out VSS ANMOS l=1u w=100u
+M2 out vb VSS VSS ANMOS l=1u w=5u
+RG vin net0 100k
+RL out VSS 10k
+.ends astra_093_mos_source_follower_ripple_filter

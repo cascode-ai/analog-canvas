@@ -1,0 +1,9 @@
+
+.subckt astra_091_mos_capacitively_triggered_rail_clamp VSS vsup rail
+CG rail net0 5p
+CL rail VSS 100p
+M1 rail net0 VSS VSS ANMOS l=1u w=500u
+RG net0 VSS 1Meg
+RL rail VSS 10k
+RS vsup rail 100
+.ends astra_091_mos_capacitively_triggered_rail_clamp

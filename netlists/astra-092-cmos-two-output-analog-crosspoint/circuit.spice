@@ -1,0 +1,19 @@
+
+.subckt astra_092_cmos_two_output_analog_crosspoint vdd VSS v0 v1 y0 y1 s0 s1
+C0 y0 VSS 1p
+C1 y1 VSS 1p
+M1 s0b s0 vdd vdd APMOS l=1u w=20u
+M10 v0 s1b y1 VSS ANMOS l=1u w=10u
+M11 v1 s1b y1 vdd APMOS l=1u w=20u
+M12 v1 s1 y1 VSS ANMOS l=1u w=10u
+M2 s0b s0 VSS VSS ANMOS l=1u w=10u
+M3 s1b s1 vdd vdd APMOS l=1u w=20u
+M4 s1b s1 VSS VSS ANMOS l=1u w=10u
+M5 v0 s0 y0 vdd APMOS l=1u w=20u
+M6 v0 s0b y0 VSS ANMOS l=1u w=10u
+M7 v1 s0b y0 vdd APMOS l=1u w=20u
+M8 v1 s0 y0 VSS ANMOS l=1u w=10u
+M9 v0 s1 y1 vdd APMOS l=1u w=20u
+R0 y0 VSS 1G
+R1 y1 VSS 1G
+.ends astra_092_cmos_two_output_analog_crosspoint

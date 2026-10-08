@@ -1,0 +1,24 @@
+MOS capacitively triggered rail clamp
+.include "circuit.spice"
+.include "models.spice"
+VS vsup 0 PWL(0 0 50u 3.3 70u 3.3 70.001u 5 71.2u 5 71.201u 3.3 90u 3.3)
+XDUT 0 vsup rail astra_091_mos_capacitively_triggered_rail_clamp
+.temp 27
+.options method=gear reltol=1e-5
+* @spec normal range 3.2 3.35 unit=V
+* @spec offgate range -0.02 0.1 unit=V
+* @spec peak range 3.8 4.6 unit=V
+* @spec drive range 0.65 1.5 unit=V
+* @spec recovered range 3.2 3.35 unit=V
+.control
+set filetype=ascii
+tran 1n 90u
+meas tran normal FIND v(rail) AT=65u
+meas tran offgate FIND v(xdut.net0) AT=65u
+meas tran peak MAX v(rail) FROM=70u TO=71.2u
+meas tran drive MAX v(xdut.net0) FROM=70u TO=71.2u
+meas tran recovered FIND v(rail) AT=89u
+write out.raw v(rail) v(xdut.net0) v(vsup)
+quit
+.endc
+.end

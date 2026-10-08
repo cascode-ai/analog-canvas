@@ -1,0 +1,23 @@
+MOS source-follower supply ripple filter
+.include "circuit.spice"
+.include "models.spice"
+VIN vin 0 DC 3.3 AC 1
+VB vb 0 .9
+XDUT 0 vb vin out astra_093_mos_source_follower_ripple_filter
+.temp 27
+.options method=gear reltol=1e-5
+* @spec bias range 2 2.5 unit=V
+* @spec low range 0.1 0.2 unit=V/V
+* @spec high range 0.0005 0.006 unit=V/V
+.control
+set filetype=ascii
+dc VIN 3.3 3.301 .001
+meas dc bias FIND v(out) AT=3.3005
+ac dec 60 100 1Meg
+let gain=mag(v(out))
+meas ac low FIND gain AT=1k
+meas ac high FIND gain AT=100k
+write out.raw v(out) v(xdut.net0)
+quit
+.endc
+.end

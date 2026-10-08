@@ -1,0 +1,11 @@
+{
+  "name": "MOS source-follower supply ripple filter",
+  "description": "A 100 kohm/10 nF network filters the gate of an NMOS pass source follower; a second NMOS biases its output. Both MOS devices, the 10 kohm load and 100 pF output capacitor are explicit. At 3.3 V input, DC output bias and supply-ripple transfer at 1 and 100 kHz are checked. The gate capacitance filters control voltage while the pass device supplies load current, unlike the active feedback shunt regulator. Output is lower by a body-dependent gate-source drop; no reference regulation, dropout, load-step, stress or PVT guarantee is claimed.",
+  "tags": [
+    "MOS",
+    "Supply Ripple",
+    "Capacitance Multiplier",
+    "Pass Filter",
+    "Power Management"
+  ]
+}

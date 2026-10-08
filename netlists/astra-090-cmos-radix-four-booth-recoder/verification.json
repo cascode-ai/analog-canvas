@@ -1,0 +1,257 @@
+{
+  "simulator": "ngspice-46",
+  "models": "Generic educational Level-1 MOS",
+  "temperatureC": 27,
+  "localSpecs": [
+    {
+      "metric": "p0one",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 1.22593e-9,
+      "passed": true
+    },
+    {
+      "metric": "p0two",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 6.12963e-10,
+      "passed": true
+    },
+    {
+      "metric": "p0zero",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "p0neg",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 6.12963e-10,
+      "passed": true
+    },
+    {
+      "metric": "p1one",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "p1two",
+      "min": -0.02,
+      "max": 0.02,
+      "value": -6.71153e-9,
+      "passed": true
+    },
+    {
+      "metric": "p1zero",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 1.61287e-8,
+      "passed": true
+    },
+    {
+      "metric": "p1neg",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 6.12963e-10,
+      "passed": true
+    },
+    {
+      "metric": "p2one",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "p2two",
+      "min": -0.02,
+      "max": 0.02,
+      "value": -6.67129e-9,
+      "passed": true
+    },
+    {
+      "metric": "p2zero",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 1.60491e-8,
+      "passed": true
+    },
+    {
+      "metric": "p2neg",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 6.12963e-10,
+      "passed": true
+    },
+    {
+      "metric": "p3one",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 3.67778e-9,
+      "passed": true
+    },
+    {
+      "metric": "p3two",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "p3zero",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 6.12963e-10,
+      "passed": true
+    },
+    {
+      "metric": "p3neg",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 6.12963e-10,
+      "passed": true
+    },
+    {
+      "metric": "p4one",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 1.22593e-9,
+      "passed": true
+    },
+    {
+      "metric": "p4two",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "p4zero",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 6.12963e-10,
+      "passed": true
+    },
+    {
+      "metric": "p4neg",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "p5one",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "p5two",
+      "min": -0.02,
+      "max": 0.02,
+      "value": -6.71181e-9,
+      "passed": true
+    },
+    {
+      "metric": "p5zero",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 1.61293e-8,
+      "passed": true
+    },
+    {
+      "metric": "p5neg",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "p6one",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "p6two",
+      "min": -0.02,
+      "max": 0.02,
+      "value": -6.67024e-9,
+      "passed": true
+    },
+    {
+      "metric": "p6zero",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 1.6047e-8,
+      "passed": true
+    },
+    {
+      "metric": "p6neg",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "p7one",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 3.67757e-9,
+      "passed": true
+    },
+    {
+      "metric": "p7two",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 6.13169e-10,
+      "passed": true
+    },
+    {
+      "metric": "p7zero",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "p7neg",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    }
+  ],
+  "nativeDiagnostics": 0,
+  "canonicalExportMatches": true,
+  "prototypeConnectivityAndParametersMatch": true,
+  "limitations": "Nominal functional verification only; no PVT, noise, mismatch or foundry qualification.",
+  "hosted": {
+    "runId": "8ed24992-71e3-445d-b674-786cb9910acc",
+    "specs": {
+      "available": true,
+      "total": 32,
+      "passed": 32,
+      "failed": 0,
+      "notEvaluated": 0,
+      "unconstrained": 0
+    },
+    "execution": "completed"
+  },
+  "liveEditorVerification": {
+    "errors": 0,
+    "warnings": 0,
+    "structuralComparison": "equal"
+  },
+  "internalObservationsMappedToActualDutNodes": true,
+  "publicLayoutMatchesNativeProject": true,
+  "publicProjectMatchesExceptSchemaVersion": true,
+  "nativeSchemaVersion": 66,
+  "publicSchemaVersion": 67
+}

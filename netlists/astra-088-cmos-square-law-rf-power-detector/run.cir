@@ -1,0 +1,27 @@
+CMOS square-law RF power detector
+.include "circuit.spice"
+.include "models.spice"
+VDD vdd 0 3.3
+BP vp 0 V=1+(time<100u?0:(time<200u?.1:(time<300u?.2:.3)))*sin(2*pi*1Meg*time)
+BN vn 0 V=1-(time<100u?0:(time<200u?.1:(time<300u?.2:.3)))*sin(2*pi*1Meg*time)
+XDUT vdd 0 vp vn out astra_088_cmos_square_law_rf_power_detector
+.temp 27
+.options method=gear reltol=1e-5
+* @spec baseline range 0.32 0.38 unit=V
+* @spec power1 range 0.009 0.013 unit=V
+* @spec power2 range 0.038 0.05 unit=V
+* @spec power3 range 0.087 0.112 unit=V
+* @spec ripple range 0 0.005 unit=V
+.control
+set filetype=ascii
+tran 10n 400u
+meas tran baseline AVG v(out) FROM=60u TO=90u
+let excess=v(out)-baseline
+meas tran power1 AVG excess FROM=160u TO=190u
+meas tran power2 AVG excess FROM=260u TO=290u
+meas tran power3 AVG excess FROM=360u TO=390u
+meas tran ripple PP v(out) FROM=360u TO=390u
+write out.raw v(out) v(vp) v(vn)
+quit
+.endc
+.end

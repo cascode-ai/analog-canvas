@@ -1,0 +1,11 @@
+{
+  "name": "CMOS square-law RF power detector",
+  "description": "Two separately biased NMOS devices sum currents from opposite-phase RF inputs. A PMOS mirror copies their sum into a 1 kohm/10 nF output load. Four MOS devices and both passives are explicit. At 1 MHz, excess output above the disclosed DC baseline scales approximately with the square of 0.1, 0.2 and 0.3 V input amplitudes; carrier ripple is also checked. Unlike the mixers, it measures RF power without a separate LO. The behavioral voltage sources only supply external test signals. Offset cancellation, calibrated power accuracy, RF bandwidth, noise and PVT are not qualified.",
+  "tags": [
+    "CMOS",
+    "RF Power",
+    "Square Law",
+    "Envelope Detection",
+    "RF"
+  ]
+}

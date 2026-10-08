@@ -1,0 +1,81 @@
+CMOS radix-4 Booth recoder
+.include "circuit.spice"
+.include "models.spice"
+VDD vdd 0 3.3
+VB0 b0 0 PWL(0 0.0 59.5n 0.0 60.5n 3.3 119.5n 3.3 120.5n 0.0 179.5n 0.0 180.5n 3.3 239.5n 3.3 240.5n 0.0 299.5n 0.0 300.5n 3.3 359.5n 3.3 360.5n 0.0 419.5n 0.0 420.5n 3.3 480n 3.3)
+VB1 b1 0 PWL(0 0.0 59.5n 0.0 60.5n 0.0 119.5n 0.0 120.5n 3.3 179.5n 3.3 180.5n 3.3 239.5n 3.3 240.5n 0.0 299.5n 0.0 300.5n 0.0 359.5n 0.0 360.5n 3.3 419.5n 3.3 420.5n 3.3 480n 3.3)
+VB2 b2 0 PWL(0 0.0 59.5n 0.0 60.5n 0.0 119.5n 0.0 120.5n 0.0 179.5n 0.0 180.5n 0.0 239.5n 0.0 240.5n 3.3 299.5n 3.3 300.5n 3.3 359.5n 3.3 360.5n 3.3 419.5n 3.3 420.5n 3.3 480n 3.3)
+XDUT vdd 0 one two zero neg b0 b1 b2 astra_090_cmos_radix_four_booth_recoder
+.temp 27
+.options method=gear reltol=1e-5
+* @spec p0one range -0.02 0.02 unit=V
+* @spec p0two range -0.02 0.02 unit=V
+* @spec p0zero range 3.2 3.4 unit=V
+* @spec p0neg range -0.02 0.02 unit=V
+* @spec p1one range 3.2 3.4 unit=V
+* @spec p1two range -0.02 0.02 unit=V
+* @spec p1zero range -0.02 0.02 unit=V
+* @spec p1neg range -0.02 0.02 unit=V
+* @spec p2one range 3.2 3.4 unit=V
+* @spec p2two range -0.02 0.02 unit=V
+* @spec p2zero range -0.02 0.02 unit=V
+* @spec p2neg range -0.02 0.02 unit=V
+* @spec p3one range -0.02 0.02 unit=V
+* @spec p3two range 3.2 3.4 unit=V
+* @spec p3zero range -0.02 0.02 unit=V
+* @spec p3neg range -0.02 0.02 unit=V
+* @spec p4one range -0.02 0.02 unit=V
+* @spec p4two range 3.2 3.4 unit=V
+* @spec p4zero range -0.02 0.02 unit=V
+* @spec p4neg range 3.2 3.4 unit=V
+* @spec p5one range 3.2 3.4 unit=V
+* @spec p5two range -0.02 0.02 unit=V
+* @spec p5zero range -0.02 0.02 unit=V
+* @spec p5neg range 3.2 3.4 unit=V
+* @spec p6one range 3.2 3.4 unit=V
+* @spec p6two range -0.02 0.02 unit=V
+* @spec p6zero range -0.02 0.02 unit=V
+* @spec p6neg range 3.2 3.4 unit=V
+* @spec p7one range -0.02 0.02 unit=V
+* @spec p7two range -0.02 0.02 unit=V
+* @spec p7zero range 3.2 3.4 unit=V
+* @spec p7neg range 3.2 3.4 unit=V
+.control
+set filetype=ascii
+tran 100p 480n
+meas tran p0one FIND v(one) AT=40n
+meas tran p0two FIND v(two) AT=40n
+meas tran p0zero FIND v(zero) AT=40n
+meas tran p0neg FIND v(neg) AT=40n
+meas tran p1one FIND v(one) AT=100n
+meas tran p1two FIND v(two) AT=100n
+meas tran p1zero FIND v(zero) AT=100n
+meas tran p1neg FIND v(neg) AT=100n
+meas tran p2one FIND v(one) AT=160n
+meas tran p2two FIND v(two) AT=160n
+meas tran p2zero FIND v(zero) AT=160n
+meas tran p2neg FIND v(neg) AT=160n
+meas tran p3one FIND v(one) AT=220n
+meas tran p3two FIND v(two) AT=220n
+meas tran p3zero FIND v(zero) AT=220n
+meas tran p3neg FIND v(neg) AT=220n
+meas tran p4one FIND v(one) AT=280n
+meas tran p4two FIND v(two) AT=280n
+meas tran p4zero FIND v(zero) AT=280n
+meas tran p4neg FIND v(neg) AT=280n
+meas tran p5one FIND v(one) AT=340n
+meas tran p5two FIND v(two) AT=340n
+meas tran p5zero FIND v(zero) AT=340n
+meas tran p5neg FIND v(neg) AT=340n
+meas tran p6one FIND v(one) AT=400n
+meas tran p6two FIND v(two) AT=400n
+meas tran p6zero FIND v(zero) AT=400n
+meas tran p6neg FIND v(neg) AT=400n
+meas tran p7one FIND v(one) AT=460n
+meas tran p7two FIND v(two) AT=460n
+meas tran p7zero FIND v(zero) AT=460n
+meas tran p7neg FIND v(neg) AT=460n
+write out.raw v(one) v(two) v(zero) v(neg)
+quit
+.endc
+.end

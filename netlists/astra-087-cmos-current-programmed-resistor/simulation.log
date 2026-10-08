@@ -1,0 +1,35 @@
+
+Note: No compatibility mode selected!
+
+
+Circuit: cmos current-programmed floating resistor
+
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+No. of Data Rows : 61
+ip0                 =  1.33078e-05
+in0                 =  -1.44401e-05
+rp0 = 3.757198e+03
+rn0 = 3.462582e+03
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+No. of Data Rows : 61
+ip1                 =  2.65717e-05
+in1                 =  -2.77040e-05
+rp1 = 1.881704e+03
+rn1 = 1.804796e+03
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+No. of Data Rows : 61
+ip2                 =  5.30421e-05
+in2                 =  -5.41744e-05
+rp2 = 9.426471e+02
+rn2 = 9.229448e+02
+ASCII raw file "out.raw"
+ngspice-46 done

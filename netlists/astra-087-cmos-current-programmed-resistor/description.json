@@ -1,0 +1,11 @@
+{
+  "name": "CMOS current-programmed floating resistor",
+  "description": "Complementary signal MOS devices operate in triode between vin and out. Two diode-connected replicas referenced to out generate gate overdrives from matched external bias currents. Four MOS devices are explicit. At 1.65 V common mode, both signs of a 50 mV differential signal check resistance near 3.7, 1.9 and 0.94 kohm for 5, 20 and 80 uA bias. This is continuous impedance tuning rather than binary channel selection. Large-signal linearity, full common-mode range, noise and PVT are not qualified.",
+  "tags": [
+    "CMOS",
+    "Tunable Resistor",
+    "Triode",
+    "Analog Impedance",
+    "Current Bias"
+  ]
+}

@@ -1,0 +1,33 @@
+
+Note: No compatibility mode selected!
+
+
+Circuit: cmos square-law rf power detector
+
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+Initial Transient Solution
+--------------------------
+
+Node                                   Voltage
+----                                   -------
+vdd                                        3.3
+vp                                           1
+vn                                           1
+out                                   0.349048
+xdut.net0                              2.41295
+bn#branch                                    0
+bp#branch                                    0
+vdd#branch                        -0.000684491
+
+
+No. of Data Rows : 40008
+baseline            =  3.49048e-01 from=  6.00000e-05 to=  9.00028e-05
+power1              =  1.07639e-02 from=  1.60000e-04 to=  1.90003e-04
+power2              =  4.30136e-02 from=  2.60000e-04 to=  2.90003e-04
+power3              =  9.66120e-02 from=  3.60000e-04 to=  3.90003e-04
+ripple              =  1.65774e-03 from=  3.60000e-04 to=  3.90000e-04
+ASCII raw file "out.raw"
+ngspice-46 done

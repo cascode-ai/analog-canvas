@@ -1,0 +1,11 @@
+{
+  "name": "CMOS radix-4 Booth recoder",
+  "description": "Two TG XOR networks and explicit NAND/NOR restoration derive one, two, zero and neg from a three-bit multiplier window. Twenty-eight MOS devices and four 100 fF loads are shown. The signed digit is b0+b1-2*b2; one/two select its magnitude, zero suppresses a partial product, and neg=b2 (ignored on zero). All eight triplets and all four controls are checked, 32 criteria. This is signed partial-product recoding rather than carry generation or priority encoding; no multiplier array, glitch-free operation, arithmetic timing or PVT qualification is included.",
+  "tags": [
+    "CMOS",
+    "Booth Recoding",
+    "Signed Multiplication",
+    "Arithmetic",
+    "Digital Datapath"
+  ]
+}

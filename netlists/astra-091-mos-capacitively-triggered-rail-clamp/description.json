@@ -1,0 +1,11 @@
+{
+  "name": "MOS capacitively triggered rail clamp",
+  "description": "A 5 pF coupling capacitor raises a large NMOS gate during a fast positive rail step; a 1 Mohm gate resistor returns it toward ground. The NMOS shunts transient current while a 100 ohm feed resistor limits the source. One MOS, output/load capacitance and both load/bias resistors are explicit. A slow 0-to-3.3 V startup leaves the clamp off; a 5 V, 1.2 us surge is attenuated and recovery is checked. This is slew-triggered transient shunting, unlike static current limiting or POR logic. It is not an ESD-qualified protection device; oxide, surge energy, repeated stress and PVT are not modeled.",
+  "tags": [
+    "MOS",
+    "Rail Clamp",
+    "Transient Suppression",
+    "Capacitive Trigger",
+    "Power Management"
+  ]
+}

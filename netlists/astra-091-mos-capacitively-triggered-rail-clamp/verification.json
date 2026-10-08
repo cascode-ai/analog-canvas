@@ -1,0 +1,68 @@
+{
+  "simulator": "ngspice-46",
+  "models": "Generic educational Level-1 MOS",
+  "temperatureC": 27,
+  "localSpecs": [
+    {
+      "metric": "normal",
+      "min": 3.2,
+      "max": 3.35,
+      "value": 3.26732,
+      "passed": true
+    },
+    {
+      "metric": "offgate",
+      "min": -0.02,
+      "max": 0.1,
+      "value": 0.0186612,
+      "passed": true
+    },
+    {
+      "metric": "peak",
+      "min": 3.8,
+      "max": 4.6,
+      "value": 4.41348,
+      "passed": true
+    },
+    {
+      "metric": "drive",
+      "min": 0.65,
+      "max": 1.5,
+      "value": 0.962116,
+      "passed": true
+    },
+    {
+      "metric": "recovered",
+      "min": 3.2,
+      "max": 3.35,
+      "value": 3.26733,
+      "passed": true
+    }
+  ],
+  "nativeDiagnostics": 0,
+  "canonicalExportMatches": true,
+  "prototypeConnectivityAndParametersMatch": true,
+  "limitations": "Nominal functional verification only; no PVT, noise, mismatch or foundry qualification.",
+  "hosted": {
+    "runId": "6ed174d9-32d4-4aba-a751-0046f10cdc0e",
+    "specs": {
+      "available": true,
+      "total": 5,
+      "passed": 5,
+      "failed": 0,
+      "notEvaluated": 0,
+      "unconstrained": 0
+    },
+    "execution": "completed"
+  },
+  "liveEditorVerification": {
+    "errors": 0,
+    "warnings": 0,
+    "structuralComparison": "equal"
+  },
+  "internalObservationsMappedToActualDutNodes": true,
+  "publicLayoutMatchesNativeProject": true,
+  "publicProjectMatchesExceptSchemaVersion": true,
+  "nativeSchemaVersion": 66,
+  "publicSchemaVersion": 67
+}

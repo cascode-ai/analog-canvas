@@ -1,0 +1,201 @@
+{
+  "simulator": "ngspice-46",
+  "models": "Generic educational Level-1 MOS",
+  "temperatureC": 27,
+  "localSpecs": [
+    {
+      "metric": "c0b0",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "c0b1",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 1.22593e-9,
+      "passed": true
+    },
+    {
+      "metric": "c1b0",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 3.67778e-9,
+      "passed": true
+    },
+    {
+      "metric": "c1b1",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "c2b0",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "c2b1",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 1.22593e-9,
+      "passed": true
+    },
+    {
+      "metric": "c3b0",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "c3b1",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "c4b0",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 3.67778e-9,
+      "passed": true
+    },
+    {
+      "metric": "c4b1",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "c5b0",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 1.83889e-9,
+      "passed": true
+    },
+    {
+      "metric": "c5b1",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "c6b0",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "c6b1",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 1.22593e-9,
+      "passed": true
+    },
+    {
+      "metric": "c7b0",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "c7b1",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "c8b0",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "c8b1",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "c9b0",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 3.67778e-9,
+      "passed": true
+    },
+    {
+      "metric": "c9b1",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "c10b0",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 3.67778e-9,
+      "passed": true
+    },
+    {
+      "metric": "c10b1",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 1.22593e-9,
+      "passed": true
+    },
+    {
+      "metric": "c11b0",
+      "min": 3.2,
+      "max": 3.4,
+      "value": 3.3,
+      "passed": true
+    },
+    {
+      "metric": "c11b1",
+      "min": -0.02,
+      "max": 0.02,
+      "value": 1.22593e-9,
+      "passed": true
+    }
+  ],
+  "nativeDiagnostics": 0,
+  "canonicalExportMatches": true,
+  "prototypeConnectivityAndParametersMatch": true,
+  "limitations": "Nominal functional verification only; no PVT, noise, mismatch or foundry qualification.",
+  "hosted": {
+    "runId": "39c59606-05cd-4a2c-89d4-a064b1161f98",
+    "specs": {
+      "available": true,
+      "total": 24,
+      "passed": 24,
+      "failed": 0,
+      "notEvaluated": 0,
+      "unconstrained": 0
+    },
+    "execution": "completed"
+  },
+  "liveEditorVerification": {
+    "errors": 0,
+    "warnings": 0,
+    "structuralComparison": "equal"
+  },
+  "internalObservationsMappedToActualDutNodes": true,
+  "publicLayoutMatchesNativeProject": true,
+  "publicProjectMatchesExceptSchemaVersion": true,
+  "nativeSchemaVersion": 66,
+  "publicSchemaVersion": 67
+}

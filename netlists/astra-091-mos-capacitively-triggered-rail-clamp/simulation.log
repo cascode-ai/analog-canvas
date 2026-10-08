@@ -1,0 +1,29 @@
+
+Note: No compatibility mode selected!
+
+
+Circuit: mos capacitively triggered rail clamp
+
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+Initial Transient Solution
+--------------------------
+
+Node                                   Voltage
+----                                   -------
+vsup                                         0
+rail                              -1.10447e-29
+xdut.net0                                    0
+vs#branch                         -1.10447e-31
+
+
+No. of Data Rows : 90044
+normal              =  3.26732e+00
+offgate             =  1.86612e-02
+peak                =  4.41348e+00 at=  7.12000e-05
+drive               =  9.62116e-01 at=  7.00224e-05
+recovered           =  3.26733e+00
+ASCII raw file "out.raw"
+ngspice-46 done

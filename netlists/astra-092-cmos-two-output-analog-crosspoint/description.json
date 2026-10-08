@@ -1,0 +1,11 @@
+{
+  "name": "CMOS two-output analog crosspoint",
+  "description": "Four transmission gates and two select-complement inverters route either of two inputs independently to each output. Twelve MOS, two 1 pF loads and two leakage resistors are explicit. All four routing commands are exercised at two input pairs, giving 16 output checks, including both broadcast states and the two permutations. Unlike a single-output mux or fixed differential commutator, each output has an independent address. Break-before-make timing, loading, crosstalk, switching spikes and PVT are not qualified.",
+  "tags": [
+    "CMOS",
+    "Analog Crosspoint",
+    "Broadcast",
+    "Signal Routing",
+    "Switch Matrix"
+  ]
+}

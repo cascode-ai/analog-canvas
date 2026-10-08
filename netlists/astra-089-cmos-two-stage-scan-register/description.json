@@ -1,0 +1,11 @@
+{
+  "name": "CMOS two-stage scan register",
+  "description": "Two explicit master/slave stages receive data through transmission-gate test-access muxes. Clock and scan-enable complements bring the total to 44 MOS; two 100 fF loads are shown. In functional mode d0/d1 capture in parallel; scan mode shifts si into q0 and prior q0 into q1. Twelve edge tests verify serial transport, parallel loading and returning to scan, for 24 bit criteria. Unlike a plain DFF or counter, it provides a selectable test path. Data/select setup and hold, scan-chain length, reset and PVT are not qualified.",
+  "tags": [
+    "CMOS",
+    "Scan Register",
+    "Test Access",
+    "Serial Parallel",
+    "Digital State"
+  ]
+}
