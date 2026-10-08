@@ -1,5 +1,5 @@
 import { createEmptyProject, type CircuitProject } from "@icm/model";
-import { InMemorySymbolResolver } from "@icm/symbols";
+import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 
 import { evaluateSubmissionGates } from "./submission-gates.js";
@@ -185,6 +185,30 @@ describe("evaluateSubmissionGates", () => {
       owner: { kind: "net-label", annotationId: "test-net-label-1" },
     });
     expect(failureCodes(target)).toEqual(["floating-endpoints"]);
+  });
+
+  it("lists an undriven Net's endpoints as its floating example (#1473)", () => {
+    const target = project();
+    const document = target.documents[0]!;
+    document.instances = ["X1", "X2"].map((id) => ({
+      id,
+      symbolId: "inverter",
+      placement: null,
+    }));
+    document.nets = [
+      {
+        id: "net-in",
+        terminals: [
+          { instanceId: "X1", pinName: "A" },
+          { instanceId: "X2", pinName: "A" },
+        ],
+      },
+    ];
+    const floating = evaluateSubmissionGates(
+      target,
+      new InMemorySymbolResolver(builtInSymbols),
+    ).failures.find((failure) => failure.code === "floating-endpoints");
+    expect(floating?.examples).toContain("X1.A, X2.A");
   });
 
   it("reports ERC errors such as duplicate Instance References", () => {

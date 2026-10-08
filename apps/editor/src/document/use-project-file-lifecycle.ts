@@ -134,6 +134,8 @@ export interface UseProjectFileLifecycleOptions {
   /** Commit feature-owned text buffers before taking a durable Project snapshot. */
   beforeSnapshot?(): Promise<CircuitProject | null>;
   hasPendingEdits?(): boolean;
+  /** What keeps a Project from opening now, for a refusal to name (#1462). */
+  describeOpenBlocker?(): string | null;
   /** Feature-local drafts follow an explicit recovery fork, never an arbitrary import. */
   onRecoverBuffers?(
     from: string,
@@ -161,6 +163,7 @@ export function useProjectFileLifecycle({
   beforeSnapshot,
   hasPendingEdits,
   onRecoverBuffers,
+  describeOpenBlocker,
 }: UseProjectFileLifecycleOptions) {
   // Read-only initializer: consuming the one-shot flag here would be a render
   // side effect, and a discarded render (StrictMode's double pass, a Suspense
@@ -967,7 +970,9 @@ export function useProjectFileLifecycle({
         applied,
         ...(applied
           ? {}
-          : { message: "Finish the current edit before opening a Project" }),
+          : {
+              message: `Can't open a Project yet: ${describeOpenBlocker?.() ?? "another Project operation is running"}`,
+            }),
       };
     }
     await guardDirtyReplacement(`Open Cloud Project ${cloud.name}`, install);

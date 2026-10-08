@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { inlineSchema } from "./inline-schema.js";
+import { node, operationTags, properties, variants } from "./tool-contracts.js";
 
 /** Describe caller input, not the value after defaults/transforms have run. */
 export function inputContract(schema: z.ZodType): Record<string, unknown> {
@@ -64,81 +66,43 @@ function compatibleBranches(
 
 type ContractNode = Record<string, unknown>;
 
-function resolved(root: ContractNode, node: ContractNode): ContractNode | null {
-  if (typeof node.$ref !== "string") return node;
-  if (!node.$ref.startsWith("#/$defs/")) return null;
-  const target = (root.$defs as Record<string, ContractNode> | undefined)?.[
-    node.$ref.slice("#/$defs/".length)
-  ];
-  return target ? resolved(root, target) : null;
-}
-
-/** The one value a discriminator property takes, written as const or enum. */
-function constant(root: ContractNode, node: ContractNode | undefined): unknown {
-  const schema = node && resolved(root, node);
-  if (!schema) return undefined;
-  if ("const" in schema) return schema.const;
-  return Array.isArray(schema.enum) && schema.enum.length === 1
-    ? schema.enum[0]
-    : undefined;
-}
-
-/** The contract's schema nodes at `path`, references and unions expanded. */
-function contractNodes(
-  root: ContractNode,
-  node: ContractNode,
-  path: readonly PropertyKey[],
-): ContractNode[] {
-  if (typeof node.$ref === "string") {
-    const target = resolved(root, node);
-    return target ? contractNodes(root, target, path) : [];
-  }
-  for (const key of ["anyOf", "oneOf", "allOf"])
-    if (Array.isArray(node[key]))
-      return (node[key] as ContractNode[]).flatMap((branch) =>
-        contractNodes(root, branch, path),
-      );
-  if (!path.length) return [node];
-  const [head, ...rest] = path;
-  const child =
-    typeof head === "number"
-      ? (node.items as ContractNode | undefined)
-      : (node.properties as Record<string, ContractNode> | undefined)?.[
-          String(head)
-        ];
-  return child ? contractNodes(root, child, rest) : [];
-}
-
 /**
- * The keys the object at `path` takes: those of the branches its own kind,
- * action or operation selects, else of every branch there.
+ * The keys the object at `path` takes, from the tool's contract: those of
+ * the branches its own kind, action or operation selects, else of every
+ * branch there. A contract that cannot be inlined lists none.
  */
 function allowedKeys(
   contract: ContractNode,
   path: readonly PropertyKey[],
   input: unknown,
 ): string[] {
-  const objects = contractNodes(contract, contract, path).filter(
-    (node) => node.properties,
-  );
-  const value = atPath(input, [...path]) as Record<string, unknown> | undefined;
-  const selected = objects.filter((node) =>
-    ["kind", "action", "operation"].every((key) => {
-      const expected = constant(
-        contract,
-        (node.properties as Record<string, ContractNode | undefined>)[key],
-      );
-      return (
-        expected === undefined ||
-        value?.[key] === undefined ||
-        expected === value[key]
-      );
-    }),
-  );
+  let schemas: ContractNode[];
+  try {
+    schemas = [inlineSchema(contract)];
+  } catch {
+    return [];
+  }
+  for (const step of path)
+    schemas = schemas.flatMap(variants).flatMap((schema) => {
+      const child =
+        typeof step === "number"
+          ? schema.items
+          : properties(schema)[String(step)];
+      return child === undefined ? [] : [node(child)];
+    });
+  const objects = schemas
+    .flatMap(variants)
+    .filter((schema) => schema.properties);
+  const value = node(atPath(input, [...path]));
+  const selected = objects.filter((schema) => {
+    const tag = operationTags(schema);
+    const own = tag && value[tag.key];
+    return own === undefined || tag!.values.includes(own as string);
+  });
   return [
     ...new Set(
-      (selected.length ? selected : objects).flatMap((node) =>
-        Object.keys(node.properties as object),
+      (selected.length ? selected : objects).flatMap((schema) =>
+        Object.keys(properties(schema)),
       ),
     ),
   ].sort();

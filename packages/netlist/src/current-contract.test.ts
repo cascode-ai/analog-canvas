@@ -2251,6 +2251,45 @@ describe("drawn switches", () => {
     }
   });
 
+  it("drives a barred switch from a drawn complement Net of its own (#1475)", () => {
+    // A bar names EN_bar, a signal apart from EN: a figure that draws its own
+    // non-overlapping complement clock keeps it.
+    const project = switched("ideal-switch", {
+      runs: [
+        {
+          kind: "span" as const,
+          style: "overbar" as const,
+          children: [{ kind: "text" as const, value: "EN" }],
+        },
+      ],
+    } as never);
+    const document = project.documents[0]!;
+    document.instances.push({
+      id: "V1",
+      symbolId: "voltage-source",
+      placement: null,
+      reference: "V1",
+      netlist: { parameters: { dc: "1" } },
+    });
+    document.nets.push({
+      id: "net-clock",
+      terminals: [{ instanceId: "V1", pinName: "+" }],
+    });
+    claimNet(document, "net-clock", "EN_bar");
+    document.nets.push({
+      id: "net-ground",
+      terminals: [{ instanceId: "V1", pinName: "-" }],
+    });
+    claimNet(document, "net-ground", "0", "global", "ground");
+    const analysis = analyzeDesignNetlist(project);
+    expect(analysis.diagnostics.map((item) => item.code)).not.toContain(
+      "SWITCH_PHASE_NOT_DRIVEN",
+    );
+    const text = printSpiceNetlist(analysis.ir!);
+    expect(text).toContain("S1 in out EN_bar 0 ideal_switch\n");
+    expect(text).not.toContain("ideal_switch_bar");
+  });
+
   it("meets the clock drawn on a Net of the phase's name, in either case", () => {
     const project = switched("closed-switch", {
       runs: [{ kind: "text", value: "φ2" }],

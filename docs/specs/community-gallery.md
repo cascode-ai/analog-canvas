@@ -368,8 +368,10 @@ boundaries still apply. Diagnostic codes:
 - `floating-endpoints` — `ERC_UNCONNECTED_PIN`, `ERC_BULK_UNRESOLVED`,
   `ERC_FLOATING_GATE` and `ERC_UNDRIVEN_GATE_NET` (whose example lists the
   Net's endpoints). A name on a singleton local Net is not electrical
-  connectivity. The sanctioned cases are a real peer connection, a formal
-  boundary, a reviewed global supply, an implicit pin, or explicit NoConnect.
+  connectivity. The sanctioned cases are a real peer connection that
+  something drives (a Net of gates, bulks and inputs alone is
+  `ERC_UNDRIVEN_GATE_NET`), a formal boundary, a reviewed global supply, an
+  implicit pin, or explicit NoConnect.
 - `empty-project` — fewer than 2 instances AND no substantial drawing
   (3+ drafting objects including a text); pure block diagrams pass.
 

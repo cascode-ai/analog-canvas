@@ -219,6 +219,8 @@ targets to avoid full-Snapshot name resolution. Names remain supported when usef
   neither takes braces. A supply limit reads the op-amp's own supply once a
   VDD powers it (bound with `set-block-supply`, else the Cell's one drawn
   positive supply); with none, it reads +5 V or −5 V and no supply is added.
+  With several drawn, `IDEAL_OPAMP_SUPPLY_AMBIGUOUS` warns: bind its VDD, or
+  its VSS where several grounds or negative supplies compete.
   So an astable, Wien-bridge or phase-shift oscillator or a Schmitt trigger
   drawn with an op-amp saturates as drawn: set the limits to the swing the
   figure means (`vhigh:"12"`, `vlow:"-12"`) when it states one. The fully
@@ -295,7 +297,9 @@ the same clock. Drive it with a Net named `Φ1` (a Net Label, or the Net of a
 pulse source) or a Cell Pin `Φ1`; until then `SWITCH_PHASE_NOT_DRIVEN` warns.
 A bar over the phase names its complement: give the alias as rich text with an
 `overbar` span, or type it with combining overlines (`E̅N̅`). That switch closes
-while the phase is low (`ideal_switch_bar`), on the same clock node.
+while the phase is low (`ideal_switch_bar`), on the same clock node, unless
+the Cell draws the complement as a Net of its own (`EN_bar`), which then
+drives it.
 Free text beside a switch is drawing only and clocks nothing. A Ctrl SW
 (`externally-controlled-switch`) takes its control from its CTRL pin instead.
 
