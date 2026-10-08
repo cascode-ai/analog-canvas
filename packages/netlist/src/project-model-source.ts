@@ -548,8 +548,12 @@ export function renderProjectModelSource(
       offset = include.sourceRef.end.offset;
     }
     append(path, file.text.slice(offset, end), offset);
-    if (source.language === "spectre" && callerLanguage)
+    if (source.language === "spectre" && callerLanguage) {
+      // Owned files need not end with a newline. The separator is generated,
+      // not an authored byte, so leave it outside reverse source mappings.
+      if (!result.text.endsWith("\n")) result.text += "\n";
       result.text += `simulator lang=${callerLanguage}\n`;
+    }
   };
   emit(source.entry);
   if (options.format && options.format !== source.language) {

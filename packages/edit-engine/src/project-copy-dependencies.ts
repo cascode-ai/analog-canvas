@@ -27,6 +27,7 @@ function modelSourceShape(source: ProjectModelSource): string {
     ),
     draft: source.draft
       ? {
+          language: source.draft.language ?? source.language,
           entry: source.draft.entry,
           files: [...source.draft.files].sort((a, b) =>
             a.path.localeCompare(b.path),

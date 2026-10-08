@@ -3,6 +3,7 @@ import { convertNetlist } from "@icm/spice";
 import {
   inspectProjectModelSource,
   modelSourceLibraryDialectDiagnostic,
+  projectModelConversionDiagnostic,
 } from "./project-model-source.js";
 import type { SimulationSourceDiagnostic } from "./source-file-graph.js";
 import {
@@ -90,6 +91,13 @@ export function transformProjectModelSource(
     }
     file.text = converted.text;
   }
+  // Per-file validation preserves native refusal codes. Also validate the
+  // complete closure: a helper may own the parameters referenced by its caller.
+  const closureFailure = projectModelConversionDiagnostic(
+    source,
+    outputLanguage,
+  );
+  if (closureFailure) return { ok: false, diagnostic: closureFailure };
   next.language = outputLanguage;
   const failure = inspectProjectModelSource(next).diagnostics.find(
     (d) => d.severity === "error",

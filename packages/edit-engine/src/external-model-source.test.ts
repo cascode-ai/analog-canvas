@@ -26,6 +26,151 @@ import type { ProjectStructureEdit } from "./project-transaction.js";
 import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 
 describe("Project-owned external model source", () => {
+  it.each([
+    [
+      ".subckt Amp A B\nR1 A B 1k\n.ends Amp",
+      "X1 A B amp",
+      "main.spice",
+      3,
+      "IDENTIFIER_CASE_COLLISION",
+    ],
+    [
+      ".subckt Amp A B params: GAIN=2\nE1 A B A B {gain}\n.ends Amp",
+      "X1 A B Amp",
+      "helper.spice",
+      2,
+      "IDENTIFIER_CASE_COLLISION",
+    ],
+    [
+      ".subckt Amp A B params: GAIN=2\nR1 A B {GAIN}\n.ends Amp",
+      "X1 A B Amp gain=3",
+      "main.spice",
+      3,
+      "MODEL_SOURCE_DIALECT",
+    ],
+  ])(
+    "refuses case-changing model references atomically with their owned location (%s)",
+    (helper, call, path, line, code) => {
+      const project = createEmptyProject("case-refusal", "Case refusal");
+      const before = structuredClone(project);
+      const result = executeProjectTransaction(project, {
+        projectId: project.id,
+        expectedStructureRevision: 0,
+        transactionId: "convert",
+        actor: { kind: "agent", id: "test" },
+        edits: [
+          {
+            kind: "apply_model_source",
+            source: {
+              id: "owner",
+              revision: 0,
+              language: "spice",
+              entry: "main.spice",
+              dependencies: [],
+              files: [
+                {
+                  path: "main.spice",
+                  text: `.include "helper.spice"\n.subckt top A B\n${call}\n.ends top\n`,
+                },
+                { path: "helper.spice", text: helper + "\n" },
+              ],
+            },
+            definitions: [{ definitionId: "top", entry: "top" }],
+            transform: { language: "spectre" },
+          },
+        ],
+      });
+      expect(result).toMatchObject({
+        ok: false,
+        diagnostics: [
+          expect.objectContaining({
+            code,
+            message: expect.stringContaining("differ only in case"),
+            parameters: expect.objectContaining({ file: path, line }),
+          }),
+        ],
+      });
+      expect(project).toEqual(before);
+    },
+  );
+  it.each(["spectre", "spice", undefined] as const)(
+    "compares effective draft language before reusing a copied model (%s)",
+    (language) => {
+      const projects = ["source", "destination"].map((id) => {
+        const initial = createEmptyProject(id, id);
+        const result = executeProjectTransaction(initial, {
+          projectId: initial.id,
+          expectedStructureRevision: 0,
+          transactionId: "define",
+          actor: { kind: "human", id: "test" },
+          edits: [
+            {
+              kind: "apply_model_source",
+              source: {
+                id: "owner",
+                language: "spice",
+                revision: 0,
+                entry: "model.spice",
+                dependencies: [],
+                files: [
+                  { path: "model.spice", text: ".subckt amp\n.ends amp\n" },
+                ],
+              },
+              definitions: [{ definitionId: "amp", entry: "amp" }],
+            },
+          ],
+        });
+        if (!result.ok) throw new Error(JSON.stringify(result));
+        const project = result.project;
+        project.modelSources![0]!.draft = {
+          baseRevision: 1,
+          entry: "model.spice",
+          ...(id === "source" && language ? { language } : {}),
+          files: [{ path: "model.spice", text: "unfinished draft" }],
+        };
+        project.documents[0]!.instances.push(
+          createExternalSubcircuitInstance(
+            "X1",
+            project.externalSubcircuitDefinitions[0]!,
+            { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+          ),
+        );
+        return project;
+      });
+      const [source, destination] = projects as [
+        CircuitProject,
+        CircuitProject,
+      ];
+      const before = structuredClone(projects);
+      const plan = planProjectCellImport(
+        destination,
+        source,
+        source.documents[0]!.id,
+      );
+      if (language === "spectre") {
+        expect(plan).toMatchObject({
+          ok: false,
+          message: expect.stringContaining("incompatible"),
+        });
+      } else {
+        expect(plan.ok, JSON.stringify(plan)).toBe(true);
+        if (!plan.ok || plan.status === "already-imported") return;
+        const imported = executeProjectTransaction(destination, {
+          projectId: destination.id,
+          expectedStructureRevision: destination.structureRevision,
+          transactionId: "import",
+          actor: { kind: "human", id: "test" },
+          edits: [...plan.edits],
+        });
+        expect(imported.ok, JSON.stringify(imported)).toBe(true);
+        if (imported.ok)
+          expect(imported.project.modelSources).toEqual(
+            destination.modelSources,
+          );
+      }
+      expect(projects).toEqual(before);
+    },
+  );
   it("rejects colliding global SPICE models inside separate native Spectre owners", () => {
     let project = createEmptyProject("mixed-collision", "Mixed collision");
     for (const [index, name] of ["Local", "local"].entries()) {
