@@ -26,7 +26,6 @@ import { captureProjectCopy } from "./project-copy";
 import {
   clipboardPlacementAnchor,
   clipboardPreviewDocument,
-  copyPlacementOrientationEdits,
   orientClipboard,
   copySelection,
   captureDocumentComposition,
@@ -1224,37 +1223,6 @@ describe("schematic clipboard", () => {
     ]);
   });
 
-  it("replays copy secondary commands in their input order", () => {
-    const instance: Instance = {
-      id: "R1",
-      symbolId: "resistor",
-      placement: {
-        position: { x: 100, y: 100 },
-        rotation: 90,
-        mirror: "none",
-      },
-    };
-    expect(
-      copyPlacementOrientationEdits(
-        [instance],
-        ["R1_2"],
-        [
-          { kind: "rotate", deltaDegrees: 90 },
-          { kind: "reflect", direction: "left-right" },
-          { kind: "rotate", deltaDegrees: 90 },
-        ],
-      ),
-    ).toEqual([
-      { kind: "rotate_instance", instanceId: "R1_2", rotation: 180 },
-      {
-        kind: "mirror_instance",
-        instanceId: "R1_2",
-        mirror: "horizontal",
-      },
-      { kind: "rotate_instance", instanceId: "R1_2", rotation: 270 },
-    ]);
-  });
-
   it("sets a turned copy's untouched label where a turn on the canvas sets it", () => {
     // Reported: C then R on a transistor left the copy's M₂ on top of the
     // turned body, because the label's offset turned rigidly with it.
@@ -1367,13 +1335,10 @@ describe("schematic clipboard", () => {
         documentId: document.id,
         expectedRevision: document.revision,
         actor: { kind: "human", id: "test" },
+        // The same turn as an ordinary canvas rotation of the pasted part.
         edits: [
           ...proposal.edits,
-          ...copyPlacementOrientationEdits(
-            clipboard.instances,
-            proposal.instanceIds,
-            operations,
-          ),
+          { kind: "rotate_instance", instanceId: "R1_2", rotation: 180 },
         ],
       },
       { symbolResolver: resolver },

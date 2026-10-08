@@ -42,7 +42,7 @@ export const DEFAULT_SELECTION_FILTER = Object.freeze(
 export const ALL_SELECTION_FILTER = Object.freeze(uniformSelectionFilter(true));
 export const NO_SELECTION_FILTER = Object.freeze(uniformSelectionFilter(false));
 
-export function selectionFilterIsDefault(filter: SelectionFilter): boolean {
+function selectionFilterIsDefault(filter: SelectionFilter): boolean {
   return SELECTION_CLASSES.every(
     (kind) => filter[kind] === DEFAULT_SELECTION_FILTER[kind],
   );
@@ -143,7 +143,7 @@ export interface SelectionPolicy {
 }
 
 /** Classify one existing canvas hit without adding a second object model. */
-export function selectionClassForCanvasHit(
+function selectionClassForCanvasHit(
   document: SchematicDocument,
   hit: SelectableCanvasHit,
 ): SelectionClass | null {
@@ -240,14 +240,14 @@ export function createSelectionPolicy(
   };
 }
 
-export function selectionFilterAllowsAnnotation(
+function selectionFilterAllowsAnnotation(
   filter: SelectionFilter,
   annotation: Annotation,
 ): boolean {
   return filter[selectionClassForAnnotation(annotation)];
 }
 
-export function selectionFilterAllowsDrafting(
+function selectionFilterAllowsDrafting(
   filter: SelectionFilter,
   object: DraftingObject,
 ): boolean {

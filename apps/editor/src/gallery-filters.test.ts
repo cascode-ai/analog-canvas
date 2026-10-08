@@ -3,7 +3,6 @@ import {
   createDefaultGalleryFilters,
   galleryFilterSearch,
   galleryFiltersNarrowQuery,
-  galleryFiltersNarrowWall,
   parseGalleryFilterQuery,
   parseStoredGalleryFilters,
   resolveGalleryFilters,
@@ -265,7 +264,6 @@ describe("gallery filter preferences", () => {
 
   it("separates the wall's own slice from the text search", () => {
     const search = { ...createDefaultGalleryFilters(), search: "mirror" };
-    expect(galleryFiltersNarrowWall(search)).toBe(true);
     expect(galleryFiltersNarrowQuery(search)).toBe(false);
     const liked = { ...createDefaultGalleryFilters(), liked: true };
     expect(galleryFiltersNarrowQuery(liked)).toBe(true);

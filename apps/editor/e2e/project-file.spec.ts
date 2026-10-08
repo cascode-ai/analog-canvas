@@ -13,7 +13,7 @@ import {
   type SymbolDefinition,
 } from "@icm/model";
 
-import { AGENT_SESSION_RECOVERY_STORAGE_KEY } from "../src/agent/session-recovery";
+import { AGENT_SESSION_RECOVERY_STORAGE_KEY } from "../src/agent/session-recovery-presence";
 import { WORKING_COPY_STORAGE_KEY } from "../src/document/recovery-coordinator";
 import { CLOUD_PROJECT_LIMIT } from "../src/features/editor-shell/cloud-projects";
 import {

@@ -641,22 +641,6 @@ export function planNetlistProcess(
   return edits;
 }
 
-/**
- * How many Instances the process in hand would fill in, changing nothing.
- *
- * The same plan the button applies, counted rather than committed: a circuit
- * drawn before this process was chosen — or before the editor bound devices at
- * all — says here how many of its devices are still waiting for a model and
- * the dimensions that come with it.
- */
-export function netlistProcessPendingInstances(
-  project: CircuitProject,
-  profile: NetlistExportProfile,
-): number {
-  return prepareNetlistProcess(project, profile, { onlyMissing: true })
-    .instanceCount;
-}
-
 /** One prepared snapshot consumed by both the exact count and its action. */
 export function prepareNetlistProcess(
   project: CircuitProject,

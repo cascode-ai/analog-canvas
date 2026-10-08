@@ -13,7 +13,7 @@ import { extname, isAbsolute, relative, resolve } from "node:path";
  * no other process on the computer can reach the Project API.
  */
 export const APP_SCHEME = "app";
-export const APP_HOST = "analog-canvas";
+const APP_HOST = "analog-canvas";
 export const APP_ORIGIN = `${APP_SCHEME}://${APP_HOST}`;
 
 const TYPES: Readonly<Record<string, string>> = {

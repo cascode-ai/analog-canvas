@@ -129,22 +129,3 @@ export function materializeRazaviProjectBulkConnections(
   }
   return { project: nextProject, instanceCount };
 }
-
-export function razaviMosPresentationEdits(
-  document: SchematicDocument,
-): SchematicEdit[] {
-  return document.instances.flatMap((instance) => {
-    const symbolVariantId = defaultRazaviSymbolVariantId(instance.symbolId);
-    if (!symbolVariantId || instance.symbolVariantId === symbolVariantId) {
-      return [];
-    }
-    return [
-      {
-        kind: "set_instance_symbol",
-        instanceId: instance.id,
-        symbolId: instance.symbolId,
-        symbolVariantId,
-      },
-    ];
-  });
-}

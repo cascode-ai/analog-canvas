@@ -99,22 +99,6 @@ export function createDefaultGalleryFilters(): GalleryFilterState {
   };
 }
 
-/** Whether the wall is a slice rather than everything published. */
-export function galleryFiltersNarrowWall(filters: GalleryFilterState): boolean {
-  return (
-    filters.author !== null ||
-    filters.ownerUserId !== null ||
-    filters.tags.length > 0 ||
-    filters.search.trim().length > 0 ||
-    filters.netlistable ||
-    filters.withoutNetlist ||
-    filters.ai !== null ||
-    filters.liked ||
-    filters.attention ||
-    filters.parts.length > 0
-  );
-}
-
 /**
  * Whether the server does the narrowing. The text query is answered in the
  * browser over what has loaded, so it never speaks for the wall's total.

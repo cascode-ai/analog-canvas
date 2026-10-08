@@ -10,7 +10,7 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 /** One date format on every entry card: the day, and the time to the minute. */
-export function entryCardDate(iso: string | null | undefined): string | null {
+function entryCardDate(iso: string | null | undefined): string | null {
   if (!iso) return null;
   const date = new Date(iso);
   return Number.isNaN(date.getTime())

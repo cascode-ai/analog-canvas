@@ -36,7 +36,7 @@ import {
 
 export const BROWSER_RECOVERY_DATABASE_NAME = "analog-canvas-recovery";
 export const BROWSER_RECOVERY_STORE_NAME = "browser-recovery-v2";
-export const BROWSER_RECOVERY_DATABASE_VERSION = 1;
+const BROWSER_RECOVERY_DATABASE_VERSION = 1;
 
 export type BrowserRecoveryStorageFailure =
   "quota-exceeded" | "storage-unavailable" | "storage-failed";

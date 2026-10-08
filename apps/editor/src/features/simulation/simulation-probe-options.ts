@@ -13,7 +13,6 @@ import {
 } from "@icm/derived";
 import { deviceDescriptor } from "@icm/devices";
 import { resolveSimulationVoltageProbeNetId } from "@icm/netlist";
-export { resolveSimulationVoltageProbeNetId } from "@icm/netlist";
 
 import { logicalNetChoices } from "../logical-net-choices";
 
@@ -47,7 +46,7 @@ export interface SimulationDeviceOperatingPointOption {
   readonly target: Omit<SimulationDeviceOperatingPointSpec, "id">;
 }
 
-export function simulationDeviceOperatingPointTargetKey(
+function simulationDeviceOperatingPointTargetKey(
   target: Omit<SimulationDeviceOperatingPointSpec, "id">,
 ): string {
   return `${target.occurrence.join("/")}:${target.documentId}:${target.instanceId}`;
@@ -66,7 +65,7 @@ export interface PickedSimulationTerminal {
   readonly occurrence?: readonly string[];
 }
 
-export function simulationProbeTargetKey(target: ProbeTarget): string {
+function simulationProbeTargetKey(target: ProbeTarget): string {
   const occurrence = target.occurrence.join("/");
   if (target.kind === "current")
     return `current:${occurrence}:${target.documentId}:${target.instanceId}:${target.pinName}`;

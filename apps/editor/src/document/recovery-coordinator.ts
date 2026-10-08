@@ -51,7 +51,7 @@ import {
 } from "./recovery-scheduler";
 
 export const WORKING_COPY_STORAGE_KEY = "icm.working-copy.v1";
-export const RECOVERY_WRITE_DELAY_MS = 400;
+const RECOVERY_WRITE_DELAY_MS = 400;
 
 export type RecoveryState =
   "idle" | "pending" | "stored" | "unavailable" | "quota-exceeded" | "failed";

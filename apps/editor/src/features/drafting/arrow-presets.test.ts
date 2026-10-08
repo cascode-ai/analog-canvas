@@ -5,7 +5,6 @@ import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 import {
   ARROW_PRESETS,
   applyArrowPreset,
-  arrowPresetFor,
   outlinePlacement,
 } from "./arrow-presets";
 import {
@@ -14,7 +13,6 @@ import {
   insertArrowWaypoint,
   setDraftingTangentAngle,
 } from "./drafting-manipulation";
-import { scaleDraftingObject } from "./drafting-group-scale";
 
 const base = DraftArrowSchema.parse({
   id: "a",
@@ -48,7 +46,6 @@ describe("arrow family compatibility", () => {
       expect(DraftArrowSchema.parse(JSON.parse(JSON.stringify(arrow)))).toEqual(
         arrow,
       );
-      expect(arrowPresetFor(arrow)).toEqual(preset);
       expect(arrow.styleOverride).toMatchObject(base.styleOverride!);
       expect(arrow).not.toHaveProperty("presetId");
     }
@@ -118,8 +115,5 @@ describe("arrow family compatibility", () => {
     });
     expect(insertArrowWaypoint(arrow, geometry, { x: 50, y: 20 })).toBeNull();
     expect(setDraftingTangentAngle(arrow, geometry, 0, 60, 1)).toBeNull();
-    expect(scaleDraftingObject(arrow, { x: 0, y: 0 }, 2)).toMatchObject({
-      outline: { width: 60 },
-    });
   });
 });

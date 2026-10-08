@@ -33,7 +33,7 @@ const ENDED: readonly AgentConnectionStatus[] = ["idle", "revoked", "expired"];
  * connection that ended before it, a recovery that failed for instance,
  * is what the page is about to replace.
  */
-export function agentPairingOutcome(
+function agentPairingOutcome(
   view: AgentPairingView,
   started: boolean,
   now: number,

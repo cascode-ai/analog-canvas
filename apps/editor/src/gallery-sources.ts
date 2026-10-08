@@ -16,7 +16,7 @@ export interface GallerySource {
   paper?: string;
 }
 
-export const GALLERY_SOURCES: readonly GallerySource[] = registry.sources;
+const GALLERY_SOURCES: readonly GallerySource[] = registry.sources;
 
 export function gallerySourceByKey(
   key: string | null | undefined,

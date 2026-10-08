@@ -6,19 +6,6 @@ import type { VisualSelection } from "./visual-selection";
 import { canMoveDraftingIndependently } from "../drafting/drafting-move";
 
 /**
- * The finite direct-manipulation vocabulary. These are transient editor
- * intents, not persisted commands: all committed changes remain existing typed
- * edits. No intent requests path search or global rerouting.
- */
-export type SchematicMoveIntent =
-  | "move-selection"
-  | "stretch-segment"
-  | "move-loose-route"
-  | "move-power-rail"
-  | "resize-power-rail-start"
-  | "resize-power-rail-end";
-
-/**
  * A transient, editor-only description of what moves in one direct-manipulation
  * gesture. It intentionally contains no geometry or persisted state: Route
  * geometry remains planned by the Edit Engine and the Document remains the

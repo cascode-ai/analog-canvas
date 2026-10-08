@@ -60,9 +60,10 @@ import {
 } from "../../interaction/shortcut-orientation";
 
 import { createNewInstance } from "../netlist-export/netlist-authoring";
+import type { CopyContext } from "./project-copy";
 
 export interface SchematicClipboard {
-  context?: import("./project-copy").CopyContext;
+  context?: CopyContext;
   intent: "clone-selection" | "compose-document";
   sourceDocumentId: string;
   sourceGrid: number;
@@ -117,53 +118,6 @@ export interface ExplicitCopyRoutingSelection {
   routeIds: readonly string[];
   junctionIds: readonly string[];
   annotationIds: readonly string[];
-}
-
-/**
- * Compile the transient copy-placement commands into the same ordered
- * instance edits used by ordinary canvas rotation and reflection.  Keeping
- * every intermediate operation matters: each screen-space reflection changes
- * only the corresponding persisted mirror axis, and that intermediate state
- * is where the Edit Engine follows labels and connected Routes.
- */
-export function copyPlacementOrientationEdits(
-  instances: readonly Instance[],
-  pastedInstanceIds: readonly string[],
-  operations: readonly PlacementOrientationOperation[],
-): SchematicEdit[] {
-  return pastedInstanceIds.flatMap((instanceId, index): SchematicEdit[] => {
-    const placement = instances[index]?.placement;
-    if (!placement) return [];
-    let current = { rotation: placement.rotation, mirror: placement.mirror };
-    const edits: SchematicEdit[] = [];
-    for (const operation of operations) {
-      const next = applyOrientationOperations(current, [operation]);
-      if (operation.kind === "reflect") {
-        if (next.mirror !== current.mirror) {
-          edits.push({
-            kind: "mirror_instance",
-            instanceId,
-            mirror: next.mirror,
-          });
-        }
-        if (next.rotation !== current.rotation) {
-          edits.push({
-            kind: "rotate_instance",
-            instanceId,
-            rotation: next.rotation,
-          });
-        }
-      } else if (next.rotation !== current.rotation) {
-        edits.push({
-          kind: "rotate_instance",
-          instanceId,
-          rotation: next.rotation,
-        });
-      }
-      current = next;
-    }
-    return edits;
-  });
 }
 
 /** What a copy needs to set its parts' labels the way the canvas does. */

@@ -237,7 +237,7 @@ export type InteractionAction<TClipboard = never> =
   | { type: "clear-drawing" }
   | { type: "cancel" };
 
-export const IDLE_INTERACTION_STATE: InteractionState = { kind: "idle" };
+const IDLE_INTERACTION_STATE: InteractionState = { kind: "idle" };
 
 function drawingState<TClipboard>(
   tool: DrawingTool,
