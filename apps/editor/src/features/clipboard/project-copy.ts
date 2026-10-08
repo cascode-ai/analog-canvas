@@ -3,7 +3,6 @@ import {
   createRoutePath,
   ComponentDefinitionSchema,
   deriveStableId,
-  roleLabelFormat,
   routeEnd,
   type CircuitProject,
   type Point,
@@ -14,7 +13,6 @@ import {
 import {
   resolveVisualAnchor,
   resolveDocumentRoutingGeometry,
-  resolveDocumentLogicalNets,
   resolveEndpointConnection,
   sameDocumentStyle,
 } from "@icm/derived";
@@ -96,20 +94,30 @@ export function captureProjectCopy(
     instanceIds: readonly string[];
     draftingIds: readonly string[];
   },
-  preserveElectrical = false,
 ): SchematicClipboard | null {
   const resolver = createProjectSymbolResolver(project, builtInSymbols);
-  const clipboard = selection
-    ? copySelection(
+  const includes = (items: readonly { id: string }[], ids: readonly string[]) =>
+    items.every((item) => ids.includes(item.id));
+  const whole =
+    !selection ||
+    (includes(document.instances, selection.instanceIds) &&
+      includes(document.routes, selection.routeIds) &&
+      includes(document.junctions, selection.junctionIds) &&
+      includes(document.annotations, selection.annotationIds) &&
+      includes(document.drafting?.objects ?? [], selection.draftingIds));
+  const clipboard = whole
+    ? captureDocumentComposition(document)
+    : copySelection(
         document,
-        selection.instanceIds,
-        selection.draftingIds,
+        selection!.instanceIds,
+        selection!.draftingIds,
         selection,
-        preserveElectrical,
         resolver,
-      )
-    : captureDocumentComposition(document);
+      );
   if (!clipboard) return null;
+  // Selected content uses the same fresh placement for C, system Paste and Agent.
+  // A complete selection still carries all of its Cell's electrical facts.
+  if (selection) clipboard.intent = "clone-selection";
   // Preserve source Cell parameter context for partial copies as well as whole scenes.
   clipboard.formalParameters = structuredClone(
     document.netlist?.formalParameters ?? [],
@@ -475,86 +483,6 @@ export function captureProjectCopy(
       clipboard.cellTerminals.some((t) => t.id === binding.terminalId)
     );
   });
-  // System clipboard composition preserves electrical context; ordinary C
-  // still creates fresh insertions without source circuit dependencies.
-  if (!selection || preserveElectrical) {
-    // Bulk defaults and overrides are actual electrical dependencies, not copied boundary wires.
-    const whole = captureDocumentComposition(document);
-    for (const instance of clipboard.instances) {
-      const materialized = whole?.instances.find((i) => i.id === instance.id);
-      const binding = materialized?.mosBulkBinding;
-      if (!binding) continue;
-      instance.mosBulkBinding = { ...binding, origin: "instance-override" };
-      if (!netIds.has(binding.netId)) {
-        const net = whole?.nets.find((n) => n.id === binding.netId);
-        if (!net) throw new Error(`Missing bulk Net ${binding.netId}`);
-        clipboard.nets.push({
-          ...structuredClone(net),
-          terminals: net.terminals.filter((t) =>
-            selectedInstances.has(t.instanceId),
-          ),
-        });
-        netIds.add(net.id);
-      }
-      const copiedNet = clipboard.nets.find((net) => net.id === binding.netId)!;
-      if (
-        !copiedNet.terminals.some(
-          (terminal) =>
-            terminal.instanceId === instance.id && terminal.pinName === "B",
-        )
-      )
-        copiedNet.terminals.push({ instanceId: instance.id, pinName: "B" });
-    }
-    // A name is an electrical dependency even when its original visible owner lies
-    // outside the selection. Give the copied Net its own label, not a foreign owner.
-    const logicalNets = resolveDocumentLogicalNets(document);
-    for (const net of clipboard.nets) {
-      if (
-        clipboard.cellTerminals.some((t) => t.netId === net.id) ||
-        clipboard.connectivityEvidence.some(
-          (e) => e.kind === "name-claim" && e.netId === net.id,
-        )
-      )
-        continue;
-      const logical = logicalNets.byBaseNetId.get(net.id);
-      if (!logical?.name) continue;
-      if (logical.conflicts.length)
-        throw new Error(
-          `Copied Net ${logical.name} has conflicting source name semantics`,
-        );
-      const route = clipboard.routes.find((r) => r.netId === net.id);
-      const terminal = net.terminals[0];
-      const position = (route
-        ? geometry.routes.get(route.id)?.centerline[0]
-        : undefined) ??
-        clipboard.instances.find((i) => i.id === terminal?.instanceId)
-          ?.placement?.position ?? { x: 0, y: 0 };
-      const id = deriveStableId("copy-net-name", net.id);
-      const format = roleLabelFormat("voltage-node", logical.name);
-      clipboard.annotations.push({
-        id,
-        kind: "net-label",
-        netId: net.id,
-        binding: { kind: "net-name", netId: net.id },
-        ...(format ? { formatOverride: format } : {}),
-        anchor: { kind: "free", position: { ...position } },
-        alignment: "start",
-        rotation: 0,
-        locked: false,
-      });
-      clipboard.connectivityEvidence.push({
-        id: deriveStableId("copy-net-claim", net.id),
-        kind: "name-claim",
-        netId: net.id,
-        name: logical.name,
-        scope: logical.scope ?? "local",
-        owner: { kind: "net-label", annotationId: id },
-        ...(logical.powerDomain === "vdd" || logical.powerDomain === "ground"
-          ? { powerDomain: logical.powerDomain }
-          : {}),
-      });
-    }
-  }
   const documents = new Map<string, SchematicDocument>();
   const visit = (instances: SchematicDocument["instances"]): void => {
     for (const instance of instances) {
@@ -598,6 +526,8 @@ export function captureProjectCopy(
     ],
   });
   const copiedDocumentIds = new Set([document.id, ...documents.keys()]);
+  const presentation = structuredClone(document.presentation);
+  if (!whole) delete presentation.cellSymbol;
   clipboard.context = structuredClone({
     id: project.id,
     symbolLibrary: project.symbolLibrary,
@@ -617,10 +547,10 @@ export function captureProjectCopy(
         ),
       ) ?? [],
     documents: [...documents.values()],
-    presentation: document.presentation,
+    presentation,
     componentDefinitions: componentProject.componentDefinitions,
     // Simulation source belongs to the complete Cell, not a partial selection.
-    simulationFolders: !selection
+    simulationFolders: whole
       ? cellSimulationFolders(project, copiedDocumentIds)
       : [],
   });

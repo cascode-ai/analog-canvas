@@ -18,6 +18,7 @@ import {
 import {
   hasExplicitMosBulkRoute,
   resolveMosBulkConnection,
+  strandedMosBulkNet,
 } from "@icm/derived";
 import { translateDraftingObject } from "@icm/edit-engine";
 import type { SchematicEdit } from "@icm/edit-engine";
@@ -855,23 +856,33 @@ export function captureDocumentComposition(
     instances.map((instance) => [instance.id, instance]),
   );
   const copiedNetsById = new Map(nets.map((net) => [net.id, net]));
-  // A Cell default is context, not portable ownership. Close the composition
+  // A body default is context, not portable ownership. Close the composition
   // snapshot by materializing any still-derived source default; proposePaste
   // will then convert every policy binding to an instance-owned override.
   for (const sourceInstance of document.instances) {
     const resolution = resolveMosBulkConnection(document, sourceInstance);
+    const copiedInstance = copiedInstancesById.get(sourceInstance.id);
+    if (!copiedInstance) continue;
+    // A policy residue is not an authored connection, even when no current
+    // default can resolve it. Never promote it to an explicit copied body.
+    const residue = strandedMosBulkNet(document, sourceInstance);
+    const copiedResidue = residue && copiedNetsById.get(residue.id);
+    if (copiedResidue) {
+      copiedResidue.terminals = [];
+      delete copiedInstance.mosBulkBinding;
+    }
     if (
-      resolution?.status !== "cell-default" ||
+      (resolution?.status !== "cell-default" &&
+        resolution?.status !== "supply-default") ||
       resolution.materialized ||
       !resolution.net
     ) {
       continue;
     }
-    const copiedInstance = copiedInstancesById.get(sourceInstance.id);
     const copiedNet = copiedNetsById.get(resolution.net.id);
-    if (!copiedInstance || !copiedNet) continue;
+    if (!copiedNet) continue;
     copiedInstance.mosBulkBinding = {
-      origin: "cell-default",
+      origin: resolution.status,
       netId: copiedNet.id,
     };
     if (
@@ -910,7 +921,6 @@ export function copySelection(
   instanceIds: readonly string[],
   draftingIds: readonly string[] = [],
   routingSelection?: ExplicitCopyRoutingSelection,
-  preserveElectrical = false,
   resolver?: SymbolResolver,
 ): SchematicClipboard | null {
   document = withPowerMarkerOwnership(document);
@@ -952,13 +962,6 @@ export function copySelection(
     },
   );
   const netIds = new Set(capture.clonedNetIds);
-  if (preserveElectrical) {
-    for (const net of document.nets)
-      if (
-        net.terminals.some((terminal) => selectedIds.has(terminal.instanceId))
-      )
-        netIds.add(net.id);
-  }
   const routeIds = new Set(capture.affected.internalRoutes);
   const junctionIds = new Set(capture.affected.internalJunctions);
   const attachedIds = new Set<string>([
@@ -1034,7 +1037,7 @@ export function copySelection(
     ),
   );
   const clipboard: SchematicClipboard = structuredClone({
-    intent: preserveElectrical ? "compose-document" : "clone-selection",
+    intent: "clone-selection",
     sourceDocumentId: document.id,
     sourceGrid: document.presentation.grid,
     instances,
@@ -1069,8 +1072,7 @@ export function copySelection(
           ...net.terminals.filter(
             (terminal) =>
               selectedIds.has(terminal.instanceId) &&
-              (preserveElectrical ||
-                ownedMarkerIds.has(terminal.instanceId) ||
+              (ownedMarkerIds.has(terminal.instanceId) ||
                 copiedTerminalKeys.has(
                   `${terminal.instanceId}\0${terminal.pinName}`,
                 ) ||
@@ -1097,17 +1099,13 @@ export function copySelection(
       junctionIds.has(junction.id),
     ),
     annotations,
-    noConnects: preserveElectrical
-      ? document.noConnects.filter((item) =>
-          selectedIds.has(item.endpoint.instanceId),
-        )
-      : [],
+    noConnects: [],
     connectivityEvidence: document.connectivityEvidence.filter((evidence) => {
       if (!netIds.has(evidence.netId)) return false;
-      if (evidence.kind !== "name-claim") return preserveElectrical;
+      if (evidence.kind !== "name-claim") return false;
       switch (evidence.owner.kind) {
         case "global-declaration":
-          return preserveElectrical;
+          return false;
         case "net-label":
           return annotationIds.has(evidence.owner.annotationId);
         case "power-marker":
@@ -1121,7 +1119,6 @@ export function copySelection(
     layoutGroups,
     constraints,
   });
-  if (preserveElectrical) return clipboard;
   // Copied electrical names and rich-text labels remain authored content,
   // including customized power markers. Fresh object IDs do not imply fresh names.
   // Two selected Port markers must not retain a shared invisible source Net.

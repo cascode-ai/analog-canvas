@@ -106,6 +106,92 @@ function electricalEqual(a: CircuitProject, b: CircuitProject) {
 }
 
 describe("portable system circuit clipboard", () => {
+  it.each([
+    {
+      name: "Cell default",
+      mos: "nmos",
+      marker: "ground",
+      pin: "0",
+      configured: true,
+    },
+    {
+      name: "drawn supply",
+      mos: "pmos",
+      marker: "vdd-port",
+      pin: "P",
+      configured: false,
+    },
+  ])(
+    "copies a whole Cell's $name without carrying a stranded body membership",
+    ({ mos: symbolId, marker, pin, configured }) => {
+      const source = createEmptyProject("body-source", "Body source");
+      const document = source.documents[0]!;
+      document.instances.push(
+        {
+          id: "M1",
+          symbolId,
+          symbolVariantId: "textbook-3terminal",
+          mosBulkBinding: { origin: "cell-default", netId: "stranded" },
+          placement: {
+            position: { x: 100, y: 100 },
+            rotation: 0,
+            mirror: "none",
+          },
+        },
+        {
+          id: "GND1",
+          symbolId: marker,
+          placement: {
+            position: { x: 300, y: 100 },
+            rotation: 0,
+            mirror: "none",
+          },
+        },
+      );
+      document.nets.push(
+        { id: "tail", terminals: [{ instanceId: "M1", pinName: "S" }] },
+        { id: "stranded", terminals: [{ instanceId: "M1", pinName: "B" }] },
+        { id: "zero", terminals: [{ instanceId: "GND1", pinName: pin }] },
+      );
+      if (configured) document.mosBulkDefaults = { nmosNetId: "zero" };
+      const before = structuredClone(source);
+      const copied = paste(
+        createEmptyProject("target", "Target"),
+        text(source),
+      );
+      const result = copied.documents[0]!;
+      const mos = result.instances.find(
+        (instance) => instance.symbolId === symbolId,
+      )!;
+      const netOf = (pinName: string) =>
+        result.nets.find((net) =>
+          net.terminals.some(
+            (terminal) =>
+              terminal.instanceId === mos.id && terminal.pinName === pinName,
+          ),
+        );
+      const ground = result.instances.find(
+        (instance) => instance.symbolId === marker,
+      )!;
+      const groundNet = result.nets.find((net) =>
+        net.terminals.some(
+          (terminal) =>
+            terminal.instanceId === ground.id && terminal.pinName === pin,
+        ),
+      )!;
+      expect(netOf("B")?.id).toBe(groundNet.id);
+      expect(
+        result.nets.filter((net) =>
+          net.terminals.some(
+            (terminal) =>
+              terminal.instanceId === mos.id && terminal.pinName === "B",
+          ),
+        ),
+      ).toHaveLength(1);
+      expect(source).toEqual(before);
+    },
+  );
+
   it.each(["simulation-common-source", "five-transistor-ota-sky130"])(
     "preserves %s electrical structure, parameters and source text across Projects and save/reopen",
     (name) => {
@@ -239,6 +325,35 @@ describe("portable system circuit clipboard", () => {
         (item) => item.kind === "name-claim" && item.name === "BIAS",
       ),
     ).toBe(false);
+  });
+
+  it("does not turn an unresolved stranded body into an explicit connection when copying a whole Cell", () => {
+    const source = createEmptyProject("body-source", "Body source");
+    const document = source.documents[0]!;
+    document.instances.push({
+      id: "M1",
+      symbolId: "nmos",
+      symbolVariantId: "textbook-3terminal",
+      mosBulkBinding: { origin: "cell-default", netId: "stranded" },
+      placement: {
+        position: { x: 100, y: 100 },
+        rotation: 0,
+        mirror: "none",
+      },
+    });
+    document.nets.push({
+      id: "stranded",
+      terminals: [{ instanceId: "M1", pinName: "B" }],
+    });
+    const before = structuredClone(source);
+    const copied = paste(createEmptyProject("target", "Target"), text(source));
+    expect(
+      copied.documents[0]!.nets.flatMap((net) => net.terminals),
+    ).not.toContainEqual({
+      instanceId: copied.documents[0]!.instances[0]!.id,
+      pinName: "B",
+    });
+    expect(source).toEqual(before);
   });
 
   it("encodes a fresh insertion, never the selection's outside Net names", () => {

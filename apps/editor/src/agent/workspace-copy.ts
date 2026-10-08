@@ -119,7 +119,6 @@ export function copyWorkspaceCell(
     source.project,
     sourceDocument,
     request.selection,
-    true,
   );
   if (!clipboard) return fail("COPY_EMPTY", "The requested selection is empty");
   const before = destination.project;
