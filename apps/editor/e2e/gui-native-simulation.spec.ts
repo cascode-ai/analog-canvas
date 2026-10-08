@@ -133,6 +133,12 @@ for (const [profileId, engine] of [
       name: "New simulation folder name",
     });
     await name.fill("Native first experiment");
+    // A Profile listing no devices is never the default; name it, as an
+    // Agent passes profileId.
+    if (profileId)
+      await panel
+        .getByRole("combobox", { name: "Simulation environment" })
+        .selectOption(profileId);
     await name.press("Enter");
     await expect(
       panel.getByRole("treeitem", {

@@ -180,8 +180,9 @@
   color: var(--icm-text);
   font: inherit;
 }
-.workspace-inline-name input[aria-invalid="true"] {
-  border-color: #b42318;
+.workspace-inline-name input[aria-invalid="true"],
+.workspace-inline-name select[aria-invalid="true"] {
+  border: 1px solid #b42318;
 }
 .workspace-inline-name small {
   display: block;
@@ -193,18 +194,70 @@
   margin-top: 4px;
   font: inherit;
 }
-.workspace-cell-selection {
-  display: flex;
+/* New experiment: Name, Cell and Environment rows, as simulation_folder
+   create takes name, rootDocumentId and an optional profileId (#1489). */
+.workspace-name-row,
+.workspace-cell-selection,
+.workspace-environment {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr) auto;
   align-items: center;
   gap: 6px;
-  margin-top: 4px;
+  margin-top: 6px;
 }
-.workspace-cell-selection select {
-  flex: 1;
+.workspace-name-row:first-child {
+  margin-top: 0;
+}
+.workspace-name-row input,
+.workspace-cell-selection select,
+.workspace-environment select {
+  grid-column: 2 / -1;
   min-width: 0;
   margin-top: 0;
   background: var(--icm-surface);
   color: var(--icm-text);
+}
+.workspace-field-label,
+.workspace-cell-selection label,
+.workspace-environment label {
+  color: var(--icm-text-muted);
+}
+.workspace-environment output {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.workspace-environment-note {
+  color: var(--icm-text-muted);
+}
+.workspace-environment button {
+  border: 0;
+  background: none;
+  color: var(--icm-accent);
+  font: inherit;
+  cursor: pointer;
+}
+.workspace-setup-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 10px;
+}
+.workspace-setup-actions button {
+  flex: none;
+  padding: 4px 10px;
+  border: 0;
+  border-radius: 4px;
+  background: var(--icm-accent);
+  color: white;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.workspace-setup-caption {
+  min-width: 0;
+  color: var(--icm-text-muted);
+  font-size: 11px;
 }
 .workspace-editor-content {
   height: 100%;
