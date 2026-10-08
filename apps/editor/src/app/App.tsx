@@ -24,7 +24,6 @@ import {
   Suspense,
   useCallback,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -156,14 +155,10 @@ import { terminalCurrentDirectionPartners } from "../features/simulation/termina
 import { PUBLIC_SIMULATION_UI_ENABLED } from "../features/simulation/public-simulation-ui";
 import { useCellSymbolLayout } from "../features/hierarchy/use-cell-symbol-layout";
 import { selectedBlockSymbolTarget } from "../features/hierarchy/block-symbol-layout-target";
-import {
-  cellInsertLaunch,
-  fullInsertLaunch,
-} from "../features/component-insert/insert-launch";
+import { cellInsertLaunch } from "../features/component-insert/insert-launch";
 import { useComponentPlacement } from "../features/component-insert/use-component-placement";
 import { snapPendingComponentPlacement } from "../features/component-insert/placement-snap";
 import { findPaletteSymbol } from "../features/component-insert/symbol-catalog";
-import { CanvasContextMenu } from "../features/selection/canvas-context-menu";
 import { useVisualClipboard } from "../features/clipboard/visual-clipboard";
 import { deriveWireUnderSymbolWarnings } from "../canvas/wire-under-symbol";
 import { createPlacementTrayCommands } from "../features/component-insert/placement-tray-commands";
@@ -176,11 +171,8 @@ import {
 } from "./editor-document-helpers";
 import {
   compactLayoutMatches,
-  dismissOpenCommandMenus,
-  isTypingTarget,
   RenderCrashProbe,
 } from "./editor-runtime-helpers";
-import { EditorAppChrome } from "./editor-app-chrome";
 import { EditorRightDock } from "./editor-right-dock";
 import {
   EditorProjectDock,
@@ -197,10 +189,7 @@ import {
   useEditorDerivedModel,
 } from "./use-editor-derived-model";
 import type { RoutingGuidanceView } from "../interaction/interaction-state";
-import {
-  quickPlaceRequest,
-  ShapesPanel,
-} from "../features/editor-shell/shapes-panel";
+import { ShapesPanel } from "../features/editor-shell/shapes-panel";
 import {
   type GalleryEntryContext,
   createGalleryExampleCommands,
@@ -221,7 +210,6 @@ import {
   useDocumentController,
 } from "../document/document-controller";
 import { useProjectFileLifecycle } from "../document/use-project-file-lifecycle";
-import { ProjectTabs } from "../features/editor-shell/project-tabs";
 import type { ReplaceProjectOptions } from "../document/use-project-file-lifecycle";
 import { useUnsavedWorkGuard } from "../document/use-unsaved-work-guard";
 import { authoredObjectCount } from "../document/project-content";
@@ -235,12 +223,6 @@ import {
   createDraftingDragController,
   type DraftingHandlePreview,
 } from "../features/drafting/drafting-drag-controller";
-import {
-  resolveEditorShortcut,
-  shouldConsumeEditorEscape,
-  stepBoundedScale,
-} from "../interaction/editor-shortcuts";
-import { createEditorCommandRouter } from "../commands/editor-command";
 import { createEditorTransactionCommands } from "./editor-transaction-commands";
 import { DEFAULT_VIEWBOX } from "./default-view-box";
 import type { ComponentEditorSession } from "./component-editor-session";
@@ -248,10 +230,7 @@ import {
   browserWorkspaceStore,
   useProjectTabSessions,
 } from "./use-project-tab-sessions";
-import {
-  loadNativeProjectWorkspace,
-  useNativeProjectTabs,
-} from "./use-native-project-tabs";
+import { useNativeProjectTabs } from "./use-native-project-tabs";
 import {
   createAgentWorkspaceHandler,
   createAgentWorkspaceTargets,
@@ -277,6 +256,9 @@ import {
 import { EditorSimulationSurface } from "./editor-simulation-surface";
 import { EditorDialogs } from "./editor-dialogs";
 import { EditorComponentEditor } from "./editor-component-editor";
+import { useEditorCommandRouter } from "./use-editor-command-router";
+import { useEditorShortcuts } from "./use-editor-shortcuts";
+import { EditorCanvasContextMenu, EditorMenuBar } from "./editor-menus";
 import {
   useAgentProjectResources,
   useAgentStartupRecovery,
@@ -328,10 +310,6 @@ import { usePropertiesEditor } from "../features/properties/use-properties-edito
 import { deferFocus } from "../interaction/deferred-focus";
 import { createPropertyEditPlanner } from "../features/properties/property-edit-planner";
 import { instanceParameterVisibility } from "../features/instance-display/instance-parameter-display";
-import {
-  hasResettableLabels,
-  resetLabelLookEdits,
-} from "../features/instance-display/reset-label-look";
 import { createSelectionPropertyCommands } from "../features/properties/selection-property-commands";
 import {
   groupVisibilityTargets,
@@ -374,7 +352,6 @@ import {
 } from "../features/selection/visual-selection";
 import { createSelectionMoveController } from "../features/selection/selection-move-controller";
 import { createSelectionTransformController } from "../features/selection/selection-transform-controller";
-import { EDGE_ALIGNMENT_MODES } from "../features/selection/align-selection";
 import type { VisualSelectionKind } from "../features/selection/visual-selection";
 import { planSelectionMove } from "../features/selection/selection-move-plan";
 import {
@@ -4260,146 +4237,60 @@ function WorkspaceEditor({
     report: setStatus,
     onChunkLoadFailure: setChunkLoadFailure,
   });
-  // `canBeginKeyboardSelectionMove` runs `planSelectionMove`, a full move
-  // plan, and the command router asks for enablement on every render — from
-  // two call sites, editor-command.ts:188 and :307. The plan reads exactly
-  // these two inputs, so a re-render that changes neither does not need to
-  // re-plan the whole selection. `canBeginKeyboardSelectionMove` itself is a
-  // fresh closure every render and so cannot be the dependency.
-  const hasMoveSelection = useMemo(
-    () => canBeginKeyboardSelectionMove(),
-    [document, visualSelection],
-  );
-  const editorCommands = createEditorCommandRouter({
-    getContext: () => ({
-      interactionMode: getCurrentInteractionState().kind,
-      activeTool: tool,
-      canCopyVisualSelection:
-        hasVisualSelection(visualSelection) && !visualClipboard.busy,
-      hasDeletableSelection:
-        hasVisualSelection(visualSelection) || selectedEndpoint !== null,
-      hasMoveSelection,
-      hasAlignableSelection: alignmentParticipantCount >= 2,
-      hasRotatableSelection,
-      hasMirrorableSelection,
-      canTransformMove: canTransformCommandMove(),
-      hasInspectableSelection,
-      propertiesOpen: selectionOpen && !documentSettingsOpen,
-      canUndo,
-      canRedo,
-      canvasDragActive: canvasDragSessionRef.current !== null,
-      hasClearableDraftingSelection:
-        selectedDrafting?.kind === "arrow" ||
-        selectedDrafting?.kind === "construction-line" ||
-        selectedDrafting?.kind === "rectangle" ||
-        selectedDrafting?.kind === "circle",
-      hasActiveNetHighlight: highlightedNetOrigin !== null,
-      hasArmedVerb: armedVerb !== null,
-    }),
-    operations: {
-      cancelCanvasDrag: () => {
-        canvasDragSessionRef.current?.cancel();
-        setStatus("Cancelled canvas drag");
-      },
-      cancelInteraction: (interactionMode) => {
-        cancelAllTransientInteraction();
-        setStatus(
-          interactionMode === "copy-placement"
-            ? "Copy placement cancelled"
-            : interactionMode === "placing-vdd-rail"
-              ? "Power Rail cancelled"
-              : interactionMode === "placing-component"
-                ? "Component placement cancelled"
-                : interactionMode === "drawing"
-                  ? "Drawing cancelled"
-                  : "Cancelled active tool",
-        );
-      },
-      clearDraftingSelection: () => {
-        replaceSelectionKind("drafting", []);
-        setStatus("Cleared drawing selection");
-      },
-      clearNetHighlight: () => {
-        setHighlightedNetOrigin(null);
-        setStatus("Cleared Net highlight");
-      },
-      cancelPassive: () => {
-        setBoxPreview(null);
-        paintSnapGuides([]);
-        setStatus("Cancelled");
-      },
-      undo: () => {
-        transact([{ kind: "undo" }]);
-      },
-      redo: () => {
-        transact([{ kind: "redo" }]);
-      },
-      selectAll: selectAllObjects,
-      clearSelection: clearEditorSelection,
-      // Verb keys with nothing to act on arm the verb instead (Cadence
-      // style: command first, then click the target).
-      deleteSelection: () => {
-        if (hasVisualSelection(visualSelection) || selectedEndpoint !== null) {
-          deleteSelectionFromSelection();
-          return;
-        }
-        armVerb("delete");
-      },
-      beginCopy: () => {
-        if (getCurrentInteractionState().kind === "copy-placement") {
-          setStatus("Copy placement is already active · Esc cancels");
-          return;
-        }
-        if (!hasVisualSelection(visualSelection)) {
-          armVerb("copy");
-          return;
-        }
-        void circuitClipboard.copySelection(true);
-      },
-      copyVisualSelection: visualClipboard.copy,
-      openSelectionFilter: () => {
-        closeSearch();
-        setSelectionFilterOpen(true);
-      },
-      openSearch: () => {
-        setSelectionFilterOpen(false);
-        setSearchOpen(true);
-      },
-      beginMove: (detach) => {
-        if (canBeginKeyboardSelectionMove()) {
-          beginKeyboardSelectionMoveFromSelection(undefined, { detach });
-          return;
-        }
-        armVerb(detach ? "move-detached" : "move");
-      },
-      alignSelection,
-      rotatePlacement: rotatePendingComponentFromHook,
-      rotateCopy: rotatePendingCopy,
-      rotateMove: rotateCommandMoveFromSelection,
-      rotateSelection: rotateSelected,
-      armRotate: () => armVerb("rotate"),
-      disarmVerb,
-      mirrorPlacement: mirrorPendingComponentFromHook,
-      mirrorCopy: mirrorPendingCopy,
-      mirrorMove: mirrorCommandMoveFromSelection,
-      mirrorSelection: mirrorSelected,
-      startInsert: startInsertFromHook,
-      openInsert: () => startInsertFromHook(fullInsertLaunch()),
-      placeCellPin: () => {
-        const request = quickPlaceRequest(
-          document.presentation.styleProfileId,
-          "port",
-        );
-        if (request) startInsertFromHook({ kind: "quick", request });
-      },
-      activateTool,
-      addText: addPlainText,
-      openProperties,
-      closeProperties,
-      panView,
-      fitView,
-      report: setStatus,
-    },
+  const editorCommands = useEditorCommandRouter({
+    setStatus,
+    selectionOpen,
+    setSearchOpen,
+    closeSearch,
+    document,
+    canUndo,
+    canRedo,
+    visualSelection,
+    replaceSelectionKind,
+    setSelectionFilterOpen,
+    documentSettingsOpen,
+    setBoxPreview,
+    getCurrentInteractionState,
+    tool,
+    transact,
+    armedVerb,
+    selectedEndpoint,
+    highlightedNetOrigin,
+    setHighlightedNetOrigin,
+    canvasDragSessionRef,
+    selectedDrafting,
+    hasRotatableSelection,
+    hasMirrorableSelection,
+    hasInspectableSelection,
+    rotatePendingComponentFromHook,
+    mirrorPendingComponentFromHook,
+    startInsertFromHook,
+    rotateSelected,
+    mirrorSelected,
+    alignSelection,
+    alignmentParticipantCount,
+    armVerb,
+    disarmVerb,
+    beginKeyboardSelectionMoveFromSelection,
+    deleteSelectionFromSelection,
+    canBeginKeyboardSelectionMove,
+    canTransformCommandMove,
+    mirrorCommandMoveFromSelection,
+    rotateCommandMoveFromSelection,
+    addPlainText,
+    fitView,
+    panView,
+    openProperties,
+    closeProperties,
+    circuitClipboard,
+    selectAllObjects,
+    clearEditorSelection,
+    cancelAllTransientInteraction,
+    activateTool,
+    rotatePendingCopy,
+    mirrorPendingCopy,
+    paintSnapGuides,
+    visualClipboard,
   });
   const { exportSvg, exportDesignNetlist, exportRaster, importSpiceFiles } =
     createEditorFileCommands({
@@ -4447,362 +4338,91 @@ function WorkspaceEditor({
     setDraftingInspectorSegment(null);
   }
 
-  useEffect(() => {
-    function dismissOnOutsidePointerDown(event: PointerEvent): void {
-      const target = event.target;
-      if (!(target instanceof Node)) return;
-      const targetElement =
-        target instanceof Element ? target : target.parentElement;
-      if (
-        textEditing &&
-        !targetElement?.closest(
-          '[data-testid="canvas-text-editor"], [data-canvas-text-editor-part]',
-        )
-      ) {
-        // Leaving the canvas text editor commits the session; emptying the
-        // text still deletes the annotation, matching the Apply button.
-        commitTextEditing();
-      }
-      const openMenus = Array.from(
-        globalThis.document.querySelectorAll<HTMLDetailsElement>(
-          ".command-menu[open]",
-        ),
-      );
-      if (
-        openMenus.length > 0 &&
-        !openMenus.some((menu) => menu.contains(target))
-      ) {
-        dismissOpenCommandMenus();
-      }
-    }
-    globalThis.document.addEventListener(
-      "pointerdown",
-      dismissOnOutsidePointerDown,
-      true,
-    );
-    return () =>
-      globalThis.document.removeEventListener(
-        "pointerdown",
-        dismissOnOutsidePointerDown,
-        true,
-      );
-  }, [textEditing, document]);
-
-  const shortcutHandlerRef = useRef<(event: KeyboardEvent) => void>(() => {});
-  useLayoutEffect(() => {
-    function onKeyDown(event: KeyboardEvent): void {
-      if (versionHistoryOpen) return;
-      // Project Info is modal: the canvas never handles its keys.
-      // This router sees Escape first, so it closes the dialog here.
-      if (projectInfoOpen) {
-        if (event.key === "Escape") {
-          event.preventDefault();
-          setProjectInfoOpen(false);
-        }
-        return;
-      }
-      if (
-        event.target instanceof Element &&
-        (event.target.closest(".project-tab-name-input") ||
-          event.target.closest(".gallery-topology-comparison") ||
-          (event.target.closest(".project-menu") &&
-            ["Escape", "ArrowUp", "ArrowDown", "Home", "End"].includes(
-              event.key,
-            )) ||
-          (event.target.closest(".project-tabs") &&
-            ["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)))
-      )
-        return;
-      if (componentEditor) return;
-      if (userComponentsOpen) {
-        if (event.key === "Escape") setUserComponentsOpen(false);
-        return;
-      }
-      // The source workbench owns its keyboard scope, including portalled menus.
-      if (
-        event.target instanceof Element &&
-        event.target.closest(
-          ".simulation-code-workspace, [data-workspace-interaction], .inline-confirm",
-        )
-      )
-        return;
-      // The interface confirmation owns keys even though this router captures
-      // at window level before the modal's React handlers.
-      if (interfaceConfirmation) return;
-      // File flyout arrows navigate the focused menu, never pan the canvas.
-      if (
-        event.target instanceof Element &&
-        event.target.closest(".export-submenu") &&
-        ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)
-      )
-        return;
-      if (event.key === "Escape" && netLabelPlacement) {
-        event.preventDefault();
-        cancelNetLabelEditing();
-        paintSnapGuides([]);
-        return;
-      }
-      if (event.key === "Escape" && simulationPickActive) {
-        event.preventDefault();
-        setSimulationPickMode(null);
-        return;
-      }
-      if (event.key === "Escape" && controlPickState) {
-        event.preventDefault();
-        setControlPickState(null);
-        setSimulationHoverNetId(null);
-        setStatus("Cancelled control pick");
-        return;
-      }
-      if (event.key === "Escape" && searchOpen) {
-        event.preventDefault();
-        closeSearch();
-        return;
-      }
-      if (event.key === "Escape" && recoveryDialogOpen) {
-        // This router runs first, at window level: close the dialog here, as
-        // for Search, or Escape never reaches the dialog's own handler.
-        event.preventDefault();
-        setRecoveryDialogOpen(false);
-        return;
-      }
-      if (event.key === "Escape" && selectionFilterOpen) {
-        event.preventDefault();
-        setSelectionFilterOpen(false);
-        return;
-      }
-      if (event.key === "Escape" && insertDialogOpen) {
-        // The dialog focuses its search field a frame after it opens, so an
-        // Escape pressed in that gap never reaches its own handler. Cancel it
-        // from the window instead of leaving the dialog stuck open.
-        event.preventDefault();
-        cancelComponentInsertFromHook();
-        return;
-      }
-      if (event.key === "Escape" && dismissOpenCommandMenus()) {
-        event.preventDefault();
-        return;
-      }
-      if (event.key === "Escape" && textEditing) {
-        event.preventDefault();
-        // Valid drafts commit; invalid drafts must still let the user leave.
-        escapeTextEditing();
-        return;
-      }
-      if (
-        event.key === "Escape" &&
-        isTypingTarget(event.target) &&
-        event.target instanceof Element &&
-        event.target.closest(".selection-dock") !== null
-      ) {
-        // JSON properties already commit live. Do not replay the legacy form
-        // draft over them when leaving the editor (or discard incomplete JSON).
-        // Other property forms retain their explicit Escape commit behavior.
-        event.preventDefault();
-        if (!event.target.closest(".component-property-code-editor")) {
-          commitInstancePropertyDraft();
-          commitPendingNetLabelDraft();
-        }
-        if (event.target instanceof HTMLElement) event.target.blur();
-        return;
-      }
-      const currentInteraction = getCurrentInteractionState();
-      const shortcut = resolveEditorShortcut(event, {
-        isTyping: isTypingTarget(event.target),
-        hasUnsavedWork: hasUnsafeWork(),
-        interactionMode: currentInteraction.kind,
-        canRotate: editorCommands.state({ id: "transform.rotate" }).enabled,
-        canMirror: editorCommands.state({
-          id: "transform.mirror",
-          direction: "left-right",
-        }).enabled,
-        hasDraftingSelection: Boolean(selectedDrafting),
-        netLabelTurn:
-          netLabelPlacement?.phase === "placing"
-            ? "placing"
-            : document.annotations.some(
-                  (annotation) =>
-                    annotation.kind === "net-label" &&
-                    !annotation.locked &&
-                    visualSelection.annotationIds.includes(annotation.id),
-                )
-              ? "selection"
-              : undefined,
-        hasInspectableSelection,
-        hasHighlightableNet: selectedHighlightNetId !== null,
-        hasActiveNetHighlight: highlightedNetOrigin !== null,
-        wireReadyToFinish: Boolean(wireSource && wirePreviewPoint),
-        draftingReadyToFinish:
-          (tool === "arrow" ||
-            tool === "polyline" ||
-            tool === "construction-line" ||
-            tool === "rectangle" ||
-            tool === "circle") &&
-          draftingSource !== null,
-        hasRemovableWireWaypoint: Boolean(
-          wireSource && wireDraftSteps.length > 0,
-        ),
-        propertiesOpen: selectionOpen && !documentSettingsOpen,
-        hasHierarchyEnterSelection,
-        hasDefinitionSelection: Boolean(
-          selectedInstance &&
-          !resolver.resolve(selectedInstance.symbolId)?.definition
-            .hierarchicalBlock,
-        ),
-        canReturnToParent: documentStack.length > 0,
-      });
-      if (!shortcut) return;
-
-      const escapeIntent =
-        shortcut.kind === "run-command" &&
-        shortcut.command.id === "editor.cancel";
-      if (escapeIntent && shouldConsumeEditorEscape(currentInteraction.kind)) {
-        // Placement, copy and drawing modes own Escape. Safari otherwise lets
-        // the key continue to its browser/full-screen shortcut after the
-        // editor cancels the gesture, which can close the surrounding browser
-        // UI. Consume the event only while an editor interaction is active;
-        // an idle Escape remains available to the browser.
-        event.preventDefault();
-        event.stopPropagation();
-        if (
-          globalThis.document.fullscreenElement &&
-          typeof globalThis.document.exitFullscreen === "function"
-        ) {
-          void globalThis.document.exitFullscreen().catch(() => {
-            // Fullscreen may already have been closed by the browser.
-          });
-        }
-      } else if (!escapeIntent) event.preventDefault();
-
-      switch (shortcut.kind) {
-        case "run-command":
-          editorCommands.execute(shortcut.command);
-          return;
-        case "block-browser-refresh":
-          setStatus("Refresh blocked to protect the current circuit");
-          return;
-        case "block-browser-bookmark":
-          setStatus("Browser bookmark shortcut blocked while editing");
-          return;
-        case "paste-selection":
-          void circuitClipboard.pasteSelection();
-          return;
-        case "save":
-          void (nativeProjectStore
-            ? saveProjectToNative()
-            : projectStore
-              ? saveProjectToCloud()
-              : exportProjectFile());
-          return;
-        case "open":
-          if (nativeProjectStore) void openNativeProject();
-          else projectInputRef.current?.click();
-          return;
-        case "turn-net-labels":
-          turnNetLabels();
-          return;
-        case "edit-net-label":
-          activateTool("pointer");
-          {
-            const pointer = lastCanvasPointRef.current;
-            const position = pointer
-              ? {
-                  x: snapCoordinate(pointer.x, document.presentation.grid),
-                  y: snapCoordinate(pointer.y, document.presentation.grid),
-                }
-              : {
-                  x: viewBox.x + viewBox.width / 2,
-                  y: viewBox.y + viewBox.height / 2,
-                };
-            beginNetLabelEditing(
-              position,
-              selectedRoute
-                ? resolveNetLabelPlacementTarget(
-                    position,
-                    undefined,
-                    selectedRoute.id,
-                  )
-                : null,
-            );
-          }
-          return;
-        case "toggle-display-settings":
-          activateTool("pointer");
-          setDocumentSettingsOpen((open) => {
-            const next = !open;
-            setSelectionOpen(next || hasInspectableSelection);
-            return next;
-          });
-          return;
-        case "toggle-net-highlight":
-          toggleHighlightedNet();
-          return;
-        case "toggle-panel":
-          if (shortcut.panel === "gallery") {
-            toggleExamplesPanel();
-          } else if (shortcut.panel === "library") {
-            toggleLibraryPanel();
-          } else if (shortcut.panel === "netlist") {
-            toggleProjectPanel("netlist");
-          }
-          return;
-        case "enter-hierarchy":
-          enterSelectedHierarchy();
-          return;
-        case "edit-component-definition":
-          openSelectedComponentDefinition();
-          return;
-        case "return-to-parent":
-          returnToParentDocument();
-          return;
-        case "hierarchy-selection-required":
-          setStatus("Select one component to edit its definition");
-          return;
-        case "step-drafting-style": {
-          if (!selectedDrafting) return;
-          const scale = selectedDrafting.styleOverride?.strokeScale ?? 1;
-          setDraftingStyle({
-            strokeScale: stepBoundedScale(
-              scale,
-              [0.75, 1, 1.5, 2] as const,
-              shortcut.increase,
-            ),
-          });
-          return;
-        }
-        case "finish-wire":
-          if (wirePreviewPoint) finishWireAtPoint(wirePreviewPoint);
-          return;
-        case "toggle-wire-options":
-          setWireOptionsOpen((open) => !open);
-          return;
-        case "cycle-wire-corner":
-          cycleWireCornerShape();
-          return;
-        case "finish-drafting":
-          finishDraftingCreate();
-          return;
-        case "remove-wire-waypoint":
-          setWireDraftSteps(wireDraftSteps.slice(0, -1));
-          setStatus("Removed last authored wire step");
-          return;
-        case "blocked-interaction-command":
-          setStatus(
-            `${shortcut.command} is unavailable while an active tool owns the canvas · Esc cancels`,
-          );
-          return;
-      }
-    }
-    shortcutHandlerRef.current = onKeyDown;
+  useEditorShortcuts({
+    textEditing,
+    commitTextEditing,
+    document,
+    readShortcutDependencies: () => ({
+      projectStore,
+      nativeProjectStore,
+      setStatus,
+      componentEditor,
+      userComponentsOpen,
+      setUserComponentsOpen,
+      selectionOpen,
+      setSelectionOpen,
+      searchOpen,
+      closeSearch,
+      toggleLibraryPanel,
+      document,
+      resolver,
+      documentStack,
+      visualSelection,
+      selectionFilterOpen,
+      setSelectionFilterOpen,
+      viewBox,
+      documentSettingsOpen,
+      setDocumentSettingsOpen,
+      projectInfoOpen,
+      setProjectInfoOpen,
+      versionHistoryOpen,
+      recoveryDialogOpen,
+      setRecoveryDialogOpen,
+      hasUnsafeWork,
+      saveProjectToCloud,
+      saveProjectToNative,
+      exportProjectFile,
+      setWireOptionsOpen,
+      getCurrentInteractionState,
+      tool,
+      wireSource,
+      wirePreviewPoint,
+      wireDraftSteps,
+      draftingSource,
+      setWireDraftSteps,
+      interfaceConfirmation,
+      highlightedNetOrigin,
+      controlPickState,
+      setControlPickState,
+      simulationPickActive,
+      setSimulationHoverNetId,
+      lastCanvasPointRef,
+      projectInputRef,
+      selectedInstance,
+      selectedRoute,
+      selectedDrafting,
+      hasHierarchyEnterSelection,
+      hasInspectableSelection,
+      selectedHighlightNetId,
+      setSimulationPickMode,
+      beginNetLabelEditing,
+      cancelNetLabelEditing,
+      commitInstancePropertyDraft,
+      commitPendingNetLabelDraft,
+      escapeTextEditing,
+      netLabelPlacement,
+      textEditing,
+      finishWireAtPoint,
+      cancelComponentInsertFromHook,
+      insertDialogOpen,
+      setDraftingStyle,
+      finishDraftingCreate,
+      cycleWireCornerShape,
+      enterSelectedHierarchy,
+      returnToParentDocument,
+      toggleHighlightedNet,
+      toggleProjectPanel,
+      circuitClipboard,
+      toggleExamplesPanel,
+      openSelectedComponentDefinition,
+      activateTool,
+      paintSnapGuides,
+      resolveNetLabelPlacementTarget,
+      turnNetLabels,
+      editorCommands,
+      openNativeProject,
+    }),
   });
-  useEffect(() => {
-    // Keep the listener installed while a canvas preview flush publishes state
-    // earlier in the same key event. Replacing it would drop that Enter event.
-    const dispatch = (event: KeyboardEvent) =>
-      shortcutHandlerRef.current(event);
-    window.addEventListener("keydown", dispatch, true);
-    return () => window.removeEventListener("keydown", dispatch, true);
-  }, []);
 
   const canvasEventHandlers = createEditorCanvasEventHandlers({
     model: { tool, document, resolver, selectionPolicy },
@@ -5219,345 +4839,103 @@ function WorkspaceEditor({
         </Suspense>
       ) : null}
       {renderCrashRequested() ? <RenderCrashProbe /> : null}
-      <EditorAppChrome
-        communityEnabled={capabilities.community}
-        externalLinksEnabled={capabilities.externalLinks}
-        identityEnabled={identity !== null}
-        projectTabs={
-          <>
-            <ProjectTabs
-              cloudEnabled={projectStore !== null}
-              tabs={projectTabs.tabs}
-              activeId={projectTabs.activeId}
-              busy={
-                projectTabs.busy ||
-                (nativeProjectStore !== undefined && (nativeBusy || saveBusy))
-              }
-              onSelect={projectTabs.select}
-              onRename={(id, name) => {
-                if (id === projectTabs.activeId) renameProject(name);
-              }}
-              onEditingChange={(editing) => {
-                projectNameEditing.current = editing;
-              }}
-              onClose={(id) => {
-                if (nativeProjectStore) void closeNativeTab(id);
-                else void projectTabs.close(id, () => createTabSession());
-              }}
-              onCloseMany={(ids) => {
-                if (nativeProjectStore) void closeNativeTabs(ids);
-                else void projectTabs.closeMany(ids, () => createTabSession());
-              }}
-              {...(nativeProjectStore
-                ? {
-                    onSaveClose: async (id: string) => {
-                      const { saveAndCloseNativeTab } =
-                        await loadNativeProjectWorkspace();
-                      return saveAndCloseNativeTab(id, {
-                        busy: () =>
-                          nativeOperation.current ||
-                          nativeWorkspaceSaving.current ||
-                          isSaveInFlight(),
-                        setBusy: (busy) => {
-                          nativeWorkspaceSaving.current = busy;
-                          setNativeBusy(busy);
-                        },
-                        save: saveNativeTab,
-                        entries: projectTabs.entries,
-                        close: closeNativeTab,
-                        report: setStatus,
-                      });
-                    },
-                  }
-                : {})}
-              onNew={() => {
-                void projectTabs.open(() => createTabSession());
-              }}
-              onOpenFile={() =>
-                nativeProjectStore
-                  ? void openNativeProject()
-                  : tabProjectInputRef.current?.click()
-              }
-              cloudProjects={cloudProjects}
-              onRefreshShelf={() => {
-                void reloadCloudProjects();
-              }}
-              onOpenShelf={(id) => {
-                void openCloudProjectById(id, true);
-              }}
-            />
-            <input
-              ref={tabProjectInputRef}
-              hidden
-              type="file"
-              accept=".json,.icproj.json"
-              data-testid="tab-project-file"
-              onChange={(event) => {
-                const file = event.currentTarget.files?.[0];
-                event.currentTarget.value = "";
-                if (file) void openProjectFile(file, { inTab: true });
-              }}
-            />
-          </>
-        }
-        {...(publicSimulationUiEnabled
-          ? { simulationAction: openAnalogSimulation }
-          : {})}
-        simulationState={analogSimulationState}
-        projectName={project.name}
-        projectSchemaVersion={project.schemaVersion}
-        hasUnsavedWork={hasUnsavedChanges()}
-        onOpenGallery={leaveForGallery}
-        fileCommands={{
-          ...(NativeFileCommands ? { NativeFileCommands } : {}),
-          ...(nativeProjectStore
-            ? {
-                nativeFiles: {
-                  projectName: project.name,
-                  path: nativeBinding?.path ?? null,
-                  recent: recentNativeFiles,
-                  busy: nativeBusy || saveBusy,
-                  refresh: () => void refreshNativeFiles(),
-                  open: (id?: string) => void openNativeProject(id),
-                  saveAs: () => void saveProjectToNative(undefined, true),
-                  forget: (id: string) => {
-                    void nativeProjectStore
-                      .forget(id)
-                      .then(refreshNativeFiles)
-                      .catch((error: unknown) => setStatus(String(error)));
-                  },
-                },
-              }
-            : {}),
-          cloudEnabled: projectStore !== null,
-          canRevert: savedProjectBaseline !== null && isDirtyWork(),
-          hasRecoverySessions: recoverySessions.some(
-            (session) =>
-              session.latest?.unsavedAtSnapshot === true ||
-              (session.latest !== null && session.latest.review !== "valid"),
-          ),
-          checkAndSave: {
-            enabled: !saveBusy && !projectCheck.busy,
-            execute: () => void projectCheck.checkAndSave(),
-          },
-          projectInputRef,
-          onNewProject: createNewProject,
-          onSave: () =>
-            void (nativeProjectStore
-              ? saveProjectToNative()
-              : projectStore
-                ? saveProjectToCloud()
-                : exportProjectFile()),
-          onImportProject: (file) => void openProjectFile(file),
-          onImportSpice: (files, namingProfile) =>
-            void importSpiceFiles(files, namingProfile),
-          onExportProject: () => void exportProjectFile(),
-          onExportSvg: () => void exportSvg(),
-          onExportRaster: (format) => void exportRaster(format),
-          onRevert: revertToSavedProjectBaseline,
-          onOpenRecovery: openRecoveryDialog,
-          onOpenInfo: () => setProjectInfoOpen(true),
-        }}
+      <EditorMenuBar
+        identity={identity}
+        projectStore={projectStore}
+        nativeProjectStore={nativeProjectStore}
+        NativeFileCommands={NativeFileCommands}
+        capabilities={capabilities}
+        publicAgentUiEnabled={publicAgentUiEnabled}
+        publicSimulationUiEnabled={publicSimulationUiEnabled}
+        setStatus={setStatus}
+        userComponentsOpen={userComponentsOpen}
+        setUserComponentsOpen={setUserComponentsOpen}
+        leftPanelMode={leftPanelMode}
+        setSelectionOpen={setSelectionOpen}
         searchOpen={searchOpen}
+        toggleLibraryPanel={toggleLibraryPanel}
+        visibleLibraryPanelOpen={visibleLibraryPanelOpen}
+        recoverySessions={recoverySessions}
+        project={project}
+        document={document}
+        documentStack={documentStack}
+        visualSelection={visualSelection}
         selectionFilterOpen={selectionFilterOpen}
         cellManagerOpen={cellManagerOpen}
-        onManageCells={() => setCellManagerOpen(true)}
-        userComponentsOpen={userComponentsOpen}
-        onOpenUserComponents={() => {
-          cancelAllTransientInteraction();
-          setUserComponentsOpen(true);
-        }}
-        onInsertComponent={() =>
-          editorCommands.execute({
-            id: "insert.start",
-            launch: fullInsertLaunch(),
-          })
-        }
-        placeProjectCell={{
-          enabled: cellInsertCandidates.length > 0,
-          execute: placeCellInstance,
-        }}
-        onOpenSelectionFilter={() =>
-          editorCommands.execute({ id: "selection.filter.open" })
-        }
-        onOpenSearch={() => editorCommands.execute({ id: "search.open" })}
-        deleteSelection={{
-          enabled:
-            hasVisualSelection(visualSelection) || selectedEndpoint !== null,
-          execute: () => editorCommands.execute({ id: "selection.delete" }),
-        }}
-        copySelectionImages={(["png", "svg"] as const).map((format) => ({
-          label: `Copy selection as ${format.toUpperCase()}`,
-          enabled: editorCommands.state({
-            id: "selection.copy-image",
-            format,
-          }).enabled,
-          execute: () =>
-            editorCommands.execute({
-              id: "selection.copy-image",
-              format,
-            }),
-        }))}
-        rotate={{
-          enabled: editorCommands.state({ id: "transform.rotate" }).enabled,
-          execute: () => editorCommands.execute({ id: "transform.rotate" }),
-        }}
-        mirrorLeftRight={{
-          enabled: editorCommands.state({
-            id: "transform.mirror",
-            direction: "left-right",
-          }).enabled,
-          execute: () =>
-            editorCommands.execute({
-              id: "transform.mirror",
-              direction: "left-right",
-            }),
-        }}
-        mirrorTopBottom={{
-          enabled: editorCommands.state({
-            id: "transform.mirror",
-            direction: "top-bottom",
-          }).enabled,
-          execute: () =>
-            editorCommands.execute({
-              id: "transform.mirror",
-              direction: "top-bottom",
-            }),
-        }}
-        alignmentActions={
-          alignmentParticipantCount >= 2
-            ? EDGE_ALIGNMENT_MODES.map(({ mode, label }) => {
-                const state = editorCommands.state({
-                  id: "selection.align",
-                  mode,
-                });
-                return {
-                  mode,
-                  label,
-                  enabled: state.enabled,
-                  execute: () =>
-                    editorCommands.execute({ id: "selection.align", mode }),
-                };
-              })
-            : []
-        }
-        instanceCodeOpen={projectPanel === "instances"}
+        setCellManagerOpen={setCellManagerOpen}
         netlistPreflightOpen={netlistPreflightOpen}
-        onOpenInstanceCode={() => {
-          toggleProjectPanel("instances");
-        }}
-        netlistFormat={netlistPreferences.format}
-        onOpenNetlistConfiguration={() => {
-          toggleProjectPanel("netlist-configuration");
-        }}
-        onOpenNetlistPreflight={() => setNetlistPreflightOpen(true)}
-        onExportNetlist={(format) => void exportDesignNetlist(format)}
-        agentAction={
-          publicAgentUiEnabled
-            ? {
-                label:
-                  agentSession.status === "idle"
-                    ? "Connect Agent"
-                    : "Manage Agent",
-                execute: openAgentConnection,
-              }
-            : null
-        }
+        setNetlistPreflightOpen={setNetlistPreflightOpen}
+        projectPanel={projectPanel}
+        setProjectPanel={setProjectPanel}
+        netlistPreferences={netlistPreferences}
+        documentSettingsOpen={documentSettingsOpen}
+        setDocumentSettingsOpen={setDocumentSettingsOpen}
+        setProjectInfoOpen={setProjectInfoOpen}
+        projectNameEditing={projectNameEditing}
         publishGalleryOpen={publishGalleryOpen}
-        onPublishGallery={() => {
-          setOpenedFromCheckNotice(false);
-          setPublishGalleryOpen(true);
-        }}
-        drawingToolbar={{
-          communityEnabled: capabilities.community,
-          leftPanelMode,
-          libraryPanelOpen: visibleLibraryPanelOpen,
-          projectPanel:
-            projectPanel === "project-code"
-              ? "project-code"
-              : projectPanel
-                ? "netlist"
-                : null,
-          leftPanelsDisabled: false,
-          styleProfileId: document.presentation.styleProfileId,
-          onStartInsert: (launch) =>
-            editorCommands.execute({ id: "insert.start", launch }),
-          tool,
-          documentSettingsOpen,
-          undo: {
-            enabled: editorCommands.state({ id: "history.undo" }).enabled,
-            execute: () => editorCommands.execute({ id: "history.undo" }),
-          },
-          redo: {
-            enabled: editorCommands.state({ id: "history.redo" }).enabled,
-            execute: () => editorCommands.execute({ id: "history.redo" }),
-          },
-          onToggleExamples: toggleExamplesPanel,
-          onToggleLibrary: toggleLibraryPanel,
-          onToggleNetlist: () => toggleProjectPanel("netlist"),
-          onToggleProjectCode: () => toggleProjectPanel("project-code"),
-          onActivateTool: (nextTool) =>
-            editorCommands.execute({
-              id: "tool.activate",
-              tool: nextTool,
-            }),
-          onAddText: () => editorCommands.execute({ id: "drafting.add-text" }),
-          onOpenDocumentSettings: () => {
-            setDocumentSettingsOpen((open) => !open);
-            setProjectPanel(null);
-            setSelectionOpen(true);
-          },
-          resetLabels: {
-            enabled: hasResettableLabels(document),
-            execute: () => {
-              const edits = resetLabelLookEdits(document, project);
-              if (edits.length === 0) {
-                setStatus("Every label already has the default look");
-                return;
-              }
-              if (transact(edits).ok)
-                setStatus(
-                  `Reset ${edits.length} label${edits.length === 1 ? "" : "s"} to the default size and look`,
-                );
-            },
-          },
-        }}
-        hierarchyToolbar={{
-          documents: project.documents,
-          activeDocumentId: document.id,
-          topDocumentId: project.topDocumentId,
-          navigationDepth: documentStack.length,
-          canEnter: hasHierarchyEnterSelection,
-          onTop: returnToTopDocument,
-          onSelectDocument: selectDocumentFromHierarchy,
-          onEnter: enterSelectedHierarchy,
-          onManageCells: () => setCellManagerOpen(true),
-          onPlaceCell: placeCellInstance,
-        }}
-        telemetry={{
-          snapshot: {
-            selectedInternalRouteCount: internalSelection.internalRoutes.length,
-            revision: document.revision,
-            sourceStatus: document.sourceStatus,
-            documentCount: project.documents.length,
-            projectName: project.name,
-            activeDocumentId: document.id,
-            activeDocumentName: document.name,
-            activeInstanceCount: document.instances.length,
-            instanceCount: projectInstanceCount,
-            netCount: document.nets.length,
-            activeTool: tool,
-            flightlineCount: flightlines.length,
-            displayedFlightlineCount: displayedFlightlines.length,
-            crossingCount: crossings.length,
-            annotationCount: document.annotations.length,
-            structuralDiagnosticCount:
-              visualDiagnosticSummary.structural.length,
-            diagnosticCheckStatus: projectCheck.status,
-            visualDiagnosticCount: visualDiagnosticSummary.observations.length,
-            blockingDiagnosticCount: visualDiagnosticSummary.blockingCount,
-          },
-        }}
+        setPublishGalleryOpen={setPublishGalleryOpen}
+        setOpenedFromCheckNotice={setOpenedFromCheckNotice}
+        cloudProjects={cloudProjects}
+        reloadCloudProjects={reloadCloudProjects}
+        analogSimulationState={analogSimulationState}
+        openAnalogSimulation={openAnalogSimulation}
+        nativeBinding={nativeBinding}
+        savedProjectBaseline={savedProjectBaseline}
+        isDirtyWork={isDirtyWork}
+        hasUnsavedChanges={hasUnsavedChanges}
+        saveProjectToCloud={saveProjectToCloud}
+        saveProjectToNative={saveProjectToNative}
+        isSaveInFlight={isSaveInFlight}
+        saveBusy={saveBusy}
+        exportProjectFile={exportProjectFile}
+        createNewProject={createNewProject}
+        revertToSavedProjectBaseline={revertToSavedProjectBaseline}
+        openRecoveryDialog={openRecoveryDialog}
+        openProjectFile={openProjectFile}
+        openCloudProjectById={openCloudProjectById}
+        agentSession={agentSession}
+        openAgentConnection={openAgentConnection}
+        tool={tool}
+        transact={transact}
+        renameProject={renameProject}
+        selectedEndpoint={selectedEndpoint}
+        projectInputRef={projectInputRef}
+        tabProjectInputRef={tabProjectInputRef}
+        hasHierarchyEnterSelection={hasHierarchyEnterSelection}
+        flightlines={flightlines}
+        displayedFlightlines={displayedFlightlines}
+        crossings={crossings}
+        projectCheck={projectCheck}
+        visualDiagnosticSummary={visualDiagnosticSummary}
+        cellInsertCandidates={cellInsertCandidates}
+        alignmentParticipantCount={alignmentParticipantCount}
+        internalSelection={internalSelection}
+        projectInstanceCount={projectInstanceCount}
+        selectDocumentFromHierarchy={selectDocumentFromHierarchy}
+        enterSelectedHierarchy={enterSelectedHierarchy}
+        returnToTopDocument={returnToTopDocument}
+        toggleProjectPanel={toggleProjectPanel}
+        toggleExamplesPanel={toggleExamplesPanel}
+        cancelAllTransientInteraction={cancelAllTransientInteraction}
+        placeCellInstance={placeCellInstance}
+        editorCommands={editorCommands}
+        importSpiceFiles={importSpiceFiles}
+        exportSvg={exportSvg}
+        exportRaster={exportRaster}
+        exportDesignNetlist={exportDesignNetlist}
+        nativeWorkspaceSaving={nativeWorkspaceSaving}
+        createTabSession={createTabSession}
+        projectTabs={projectTabs}
+        recentNativeFiles={recentNativeFiles}
+        nativeBusy={nativeBusy}
+        setNativeBusy={setNativeBusy}
+        nativeOperation={nativeOperation}
+        refreshNativeFiles={refreshNativeFiles}
+        openNativeProject={openNativeProject}
+        closeNativeTab={closeNativeTab}
+        closeNativeTabs={closeNativeTabs}
+        saveNativeTab={saveNativeTab}
+        leaveForGallery={leaveForGallery}
       />
       <EditorDialogs
         projectStore={projectStore}
@@ -7606,84 +6984,17 @@ function WorkspaceEditor({
           }
         />
         {canvasContextMenu ? (
-          <CanvasContextMenu
-            position={canvasContextMenu}
-            alignmentEnabled={alignmentParticipantCount >= 2}
-            onAlign={(mode) =>
-              editorCommands.execute({ id: "selection.align", mode })
-            }
-            actions={[
-              {
-                label: "Edit Component Definition (E)",
-                enabled: Boolean(
-                  selectedInstance &&
-                  !resolver.resolve(selectedInstance.symbolId)?.definition
-                    .hierarchicalBlock,
-                ),
-                execute: openSelectedComponentDefinition,
-              },
-              ...(hasHierarchyEnterSelection
-                ? [
-                    {
-                      label: "Enter Cell (E)",
-                      enabled: true,
-                      execute: enterSelectedHierarchy,
-                    },
-                  ]
-                : []),
-              {
-                label: "Properties (Q)",
-                enabled: editorCommands.state({ id: "properties.open" })
-                  .enabled,
-                execute: () =>
-                  editorCommands.execute({ id: "properties.open" }),
-              },
-              {
-                label: "Copy (C)",
-                enabled:
-                  hasVisualSelection(visualSelection) &&
-                  editorCommands.state({ id: "selection.copy" }).enabled,
-                execute: () => editorCommands.execute({ id: "selection.copy" }),
-              },
-              {
-                label: "Rotate 90° (R)",
-                enabled: editorCommands.state({ id: "transform.rotate" })
-                  .enabled,
-                execute: () =>
-                  editorCommands.execute({ id: "transform.rotate" }),
-              },
-              {
-                label: "Mirror left/right (Shift+R)",
-                enabled: editorCommands.state({
-                  id: "transform.mirror",
-                  direction: "left-right",
-                }).enabled,
-                execute: () =>
-                  editorCommands.execute({
-                    id: "transform.mirror",
-                    direction: "left-right",
-                  }),
-              },
-              {
-                label: "Mirror top/bottom (Ctrl+R)",
-                enabled: editorCommands.state({
-                  id: "transform.mirror",
-                  direction: "top-bottom",
-                }).enabled,
-                execute: () =>
-                  editorCommands.execute({
-                    id: "transform.mirror",
-                    direction: "top-bottom",
-                  }),
-              },
-              {
-                label: "Delete",
-                enabled: hasVisualSelection(visualSelection),
-                execute: () =>
-                  editorCommands.execute({ id: "selection.delete" }),
-              },
-            ]}
-            onClose={() => setCanvasContextMenu(null)}
+          <EditorCanvasContextMenu
+            canvasContextMenu={canvasContextMenu}
+            setCanvasContextMenu={setCanvasContextMenu}
+            resolver={resolver}
+            visualSelection={visualSelection}
+            selectedInstance={selectedInstance}
+            hasHierarchyEnterSelection={hasHierarchyEnterSelection}
+            alignmentParticipantCount={alignmentParticipantCount}
+            enterSelectedHierarchy={enterSelectedHierarchy}
+            openSelectedComponentDefinition={openSelectedComponentDefinition}
+            editorCommands={editorCommands}
           />
         ) : null}
       </div>
