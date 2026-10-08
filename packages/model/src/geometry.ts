@@ -26,7 +26,10 @@ function rotateLocal(point: DerivedPoint, rotation: Rotation): DerivedPoint {
       return { x: -point.x, y: -point.y };
     case 270:
       return { x: point.y, y: -point.x };
-    default: {
+    case 45:
+    case 135:
+    case 225:
+    case 315: {
       const radians = (rotation * Math.PI) / 180;
       const cosine = Math.cos(radians);
       const sine = Math.sin(radians);

@@ -242,7 +242,12 @@ function issueFacts(
         message: `Expected ${issue.expected}`,
         facts: { expected: issue.expected },
       };
-    default:
+    case "custom":
+    case "invalid_element":
+    case "invalid_format":
+    case "invalid_key":
+    case "invalid_union":
+    case "not_multiple_of":
       return null;
   }
 }

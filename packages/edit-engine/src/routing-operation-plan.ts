@@ -353,6 +353,7 @@ function validateExpectedEffect(
 
 function endpointKeysFromEdits(edits: readonly SchematicEdit[]): string[] {
   return edits.flatMap((edit) => {
+    // oxlint-disable-next-line typescript/switch-exhaustiveness-check -- only these edits name the endpoints a plan tracks
     switch (edit.kind) {
       case "connect_endpoints":
         return [endpointKey(edit.from), endpointKey(edit.to)];

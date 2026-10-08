@@ -228,7 +228,7 @@ export function resolvePointerDownAction(
       return { kind: "begin-drafting-drag", draftingId: hit.id };
     case "junction":
       return { kind: "select-junction", junctionId: hit.id };
-    default:
+    case "instance-label":
       // An Instance label is drawn by its owner and has no press of its own.
       return { kind: "ignore", reason: `no owner for ${hit.kind}` };
   }

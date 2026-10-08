@@ -669,7 +669,10 @@ function rotateOffset(
       return { x: -offset.x, y: -offset.y };
     case 270:
       return { x: offset.y, y: -offset.x };
-    default: {
+    case 45:
+    case 135:
+    case 225:
+    case 315: {
       const radians = (rotation * Math.PI) / 180;
       const cosine = Math.cos(radians);
       const sine = Math.sin(radians);

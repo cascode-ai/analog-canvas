@@ -89,6 +89,7 @@ function draftingPoints(object: DraftingObject): LocatedPoint[] {
 
 /** Extract only persisted Document-page coordinates from an Edit. */
 export function gridPointsOfEdit(edit: SchematicEdit): LocatedPoint[] {
+  // oxlint-disable-next-line typescript/switch-exhaustiveness-check -- no other edit carries a Document-page point
   switch (edit.kind) {
     case "add_instance":
       return edit.instance.placement

@@ -73,7 +73,7 @@ function parameterIssue(
       return `Parameter "${issue.name}" duplicates "${issue.previousName}" under case folding`;
     case "select":
       return `Parameter "${issue.name}" must be one of: ${issue.allowed.join(", ")}; received "${issue.value}"`;
-    default:
+    case "decimal":
       return `Parameter "${issue.name}" must be a finite decimal number; received "${issue.value}"`;
   }
 }

@@ -310,6 +310,7 @@ export function physicalContactLicenseForTransaction(
     routeGeometryPoints: new Map(),
   };
   for (const edit of transaction.edits) {
+    // oxlint-disable-next-line typescript/switch-exhaustiveness-check -- every other edit licenses no contact (see PhysicalContactLicense)
     switch (edit.kind) {
       case "add_instance":
         result.objectIds.add(edit.instance.id);
@@ -338,9 +339,6 @@ export function physicalContactLicenseForTransaction(
         result.objectIds.add(edit.routeId);
         result.objectIds.add(edit.startJunctionId);
         result.objectIds.add(edit.endJunctionId);
-        break;
-      default:
-        // Every other edit licenses no contact (see PhysicalContactLicense).
         break;
     }
   }

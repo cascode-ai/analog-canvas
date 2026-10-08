@@ -16,10 +16,7 @@
   "rules": {
     "typescript/no-floating-promises": "error",
     "typescript/no-misused-promises": "error",
-    "typescript/switch-exhaustiveness-check": [
-      "error",
-      { "considerDefaultExhaustiveForUnions": true }
-    ],
+    "typescript/switch-exhaustiveness-check": "error",
     "react-hooks/rules-of-hooks": "error",
     "react-hooks/exhaustive-deps": "warn",
     "typescript/no-non-null-assertion": "warn"

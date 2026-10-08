@@ -83,7 +83,8 @@ function targetFor(project: CircuitProject, instance: Instance): string | null {
       );
     case "unresolved-subcircuit":
       return binding.name;
-    default:
+    case "primitive":
+    case undefined:
       return null;
   }
 }

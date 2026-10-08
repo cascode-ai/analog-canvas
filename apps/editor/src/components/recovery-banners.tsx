@@ -1,8 +1,14 @@
 import { useLayoutEffect, useRef } from "react";
 import type { RecoveryState } from "../document/recovery-coordinator";
 
+/** The recovery states the failure banner reports. */
+export type RecoveryFailureState = Extract<
+  RecoveryState,
+  "quota-exceeded" | "unavailable" | "failed"
+>;
+
 export interface RecoveryFailureBannerProps {
-  state: RecoveryState;
+  state: RecoveryFailureState;
   onDownload(): void;
   onDismiss(): void;
 }
@@ -37,13 +43,13 @@ function useRecoveryBannerPosition() {
   return ref;
 }
 
-function failureMessage(state: RecoveryState): string {
+function failureMessage(state: RecoveryFailureState): string {
   switch (state) {
     case "quota-exceeded":
       return "Browser storage for this site is full — new recovery copies cannot be saved.";
     case "unavailable":
       return "Browser storage is unavailable — recovery copies cannot be saved.";
-    default:
+    case "failed":
       return "The latest recovery copy could not be saved.";
   }
 }

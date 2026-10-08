@@ -508,6 +508,7 @@ export function nativeForm(
   action: AuthoringAction,
   allocateId: (prefix: string) => string,
 ): AuthoringAction {
+  // oxlint-disable-next-line typescript/switch-exhaustiveness-check -- every other action has only its native form
   switch (action.kind) {
     case "place-cell":
       return {
