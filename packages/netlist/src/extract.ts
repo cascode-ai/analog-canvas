@@ -14,6 +14,7 @@ import {
   directObjectLocator,
   drawnMagneticNetwork,
   drawnMagneticParameters,
+  drawnNegativeSupplyNet,
   drawnSupplyNet,
   drawsSupply,
   drawnSwitchControl,
@@ -72,6 +73,7 @@ import {
   projectLengthToSky130Micrometres,
   requiredParameterNames,
   resolveReviewedExternalBinding,
+  reviewedExternalBindingById,
   reviewedExternalBindingForMaster,
   reviewedSize,
   reviewedSizeModelled,
@@ -1340,6 +1342,59 @@ function reportSubstrateTerminals(
       "warning",
     );
   }
+}
+
+/**
+ * The hidden p-substrate terminals left on ground in a Cell that draws a
+ * negative supply (#1530): an NPN's S, a poly resistor's or varactor's B, an
+ * inductor's SUB. The PDK ties them all to the one p-substrate, which belongs
+ * on the lowest supply. An NPN whose collector swings below ground then
+ * forward-biases its collector-substrate junction, and a run counts a current
+ * no circuit draws. A part the Process binds after the rail is drawn takes
+ * the rail; one bound before it took ground, and is named here. A SKY130 PNP
+ * has no such terminal: its wrapper ties the substrate to its collector.
+ */
+function reportSubstratesAboveNegativeSupply(
+  document: SchematicDocument,
+  context: CellNetContext,
+  instances: readonly DesignNetlistInstance[],
+  diagnostics: NetlistDiagnostic[],
+): void {
+  const negative = drawnNegativeSupplyNet(document, context.logicalNets);
+  const supply = negative ? context.nameByNetId.get(negative.id) : undefined;
+  if (!supply) return;
+  const ground = context.nameByAuthoredName.get(foldNetName("0")) ?? "0";
+  const terminals = instances.flatMap((instance) =>
+    (
+      reviewedExternalBindingById(instance.reviewedExternalBindingId)
+        ?.terminals ?? []
+    ).flatMap((terminal) => {
+      const node = instance.nodes.find(
+        (item) => item.pinName === terminal.targetName,
+      );
+      return terminal.role === "substrate" &&
+        terminal.interaction === "property" &&
+        (node?.netName === ground || node?.netName === "0")
+        ? [{ instance, pinName: terminal.pinName }]
+        : [];
+    }),
+  );
+  if (!terminals.length) return;
+  const names = terminals
+    .map(
+      ({ instance, pinName }) =>
+        `${document.instances.find((item) => item.id === instance.id)?.reference ?? instance.reference}.${pinName}`,
+    )
+    .sort((left, right) => left.localeCompare(right, "en", { numeric: true }));
+  const one = names.length === 1;
+  diagnostic(
+    diagnostics,
+    document.id,
+    "PDK_SUBSTRATE_ABOVE_NEGATIVE_SUPPLY",
+    `${one ? `${names[0]} is a p-substrate terminal` : `${partList(names)} are p-substrate terminals`} on ground, while this Cell draws ${supply}, its negative supply. The substrate belongs on the lowest supply: an NPN collector below it forward-biases. Set ${one ? "its" : "their"} Substrate Net to ${supply}`,
+    [...new Set(terminals.map(({ instance }) => instance.id))],
+    "warning",
+  );
 }
 
 function extractBuiltInSubcircuitInstance(
@@ -3268,6 +3323,12 @@ function extractCell(
     models.push(structuredClone(model));
     return parts;
   };
+  reportSubstratesAboveNegativeSupply(
+    document,
+    context,
+    instances,
+    diagnostics,
+  );
   const genericDiodes = carryGenericCard(GENERIC_DIODE_MODEL, "diode");
   if (genericDiodes.length)
     reportGenericDiodes(document, genericDiodes, diagnostics);

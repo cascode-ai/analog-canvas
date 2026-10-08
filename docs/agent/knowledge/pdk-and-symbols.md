@@ -15,6 +15,14 @@ Use Snapshot external binding and `mosBulk` facts to check hidden body/substrate
 pins. Three-terminal artwork does not remove an electrical fourth terminal.
 Do not discard an external binding merely to obtain familiar artwork.
 
+A SKY130 NPN's hidden substrate `S` (and a poly resistor's or varactor's `B`,
+an inductor's `SUB`) is bound when the part is placed: to the Cell's one drawn
+negative supply (a supply marker named like `VEE`, `VSS` or `VNEG`), else to
+ground. A part placed before that rail keeps ground, and export warns
+`PDK_SUBSTRATE_ABOVE_NEGATIVE_SUPPLY`; rebind it with
+`set_property_terminal_net`. A SKY130 PNP has no substrate pin: its wrapper
+ties the substrate to its collector, so it netlists with three nodes.
+
 For `set_instance_symbol`, use an explicit source-to-target pin map when
 connected or routed pins change names. The Edit Engine updates the related
 terminal and route identities atomically. Duplicate/missing/unknown target pins
