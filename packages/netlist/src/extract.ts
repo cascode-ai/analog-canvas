@@ -1294,7 +1294,9 @@ function sizeOutOfRangeMessage(
     found.fingers === 1
       ? micrometres(found.metres)
       : `${micrometres(found.metres)} over ${found.fingers} fingers, ${micrometres(found.metres / found.fingers)} each`;
-  return `${reference} has ${label} ${size}, below the ${micrometres(found.limit)} minimum ${found.role === "width" ? "width per finger" : "length"} of ${master}. Its PDK has no model that ${found.role === "width" ? "narrow" : "short"}, so a simulation stops at this line or gives results outside what the PDK covers.`;
+  if (found.bound === "maximum")
+    return `${reference} has ${label} ${size}, above the ${micrometres(found.limit)} longest length ${master} runs at on Production's simulator, so a simulation stops at this line.`;
+  return `${reference} has ${label} ${size}, below the ${micrometres(found.limit)} minimum ${found.role === "width" ? "width per finger" : "length"} of ${master}. Its PDK has no model that ${found.role === "width" ? "narrow" : "short"}, so a simulation stops at this line.`;
 }
 
 /** A Net named as a Cell's ground or negative rail: VSS, AVSS, GND, VEE, SUB. */

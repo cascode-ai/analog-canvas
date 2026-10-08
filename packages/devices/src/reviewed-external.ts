@@ -131,14 +131,13 @@ export interface ReviewedExternalDeviceBinding {
    */
   readonly modelledSizes?: ReviewedModelledSizes;
   /**
-   * The shortest L and the narrowest W per finger its library has a model
-   * for, in metres, for a device it models over a range. Below them the PDK
-   * makes no such device: ngspice 46 with volare's binned models stops at an
-   * nfet_01v8 of L 0.08 µm or W 0.3 µm with "could not find a valid
-   * modelname" (#1474).
+   * The L range and the narrowest W per finger, in metres, a device modelled
+   * over a range runs at on Production's simulator. Outside them ngspice 46
+   * stops at the device's line, with "could not find a valid modelname" or a
+   * BSIM4 parameter fatal (#1474, #1492).
    */
-  readonly minimumSize?: {
-    readonly length: number;
+  readonly sizeLimits?: {
+    readonly length: readonly [shortest: number, longest: number];
     readonly widthPerFinger: number;
   };
   /**
@@ -404,19 +403,20 @@ export interface ReviewedSizeOutOfRange {
   /** The fingers W is shared among; 1 for L and for a device without them. */
   readonly fingers: number;
   /**
-   * `minimum`: below the device's {@link ReviewedExternalDeviceBinding.minimumSize}.
-   * `slip`: over {@link REVIEWED_SIZE_SLIP_LIMIT}, on a device whose library
-   * takes micrometres.
+   * `minimum` or `maximum`: outside the device's
+   * {@link ReviewedExternalDeviceBinding.sizeLimits}. `slip`: over
+   * {@link REVIEWED_SIZE_SLIP_LIMIT}, on a device whose library takes
+   * micrometres.
    */
-  readonly bound: "minimum" | "slip";
+  readonly bound: "minimum" | "maximum" | "slip";
   /** The bound in metres, for L or for W per finger. */
   readonly limit: number;
 }
 
 /**
  * The W and L of a part a reviewed device cannot have: an L, or a W per
- * finger, below the device's minimum, or either past 1 mm where the library
- * takes micrometres. W is compared per finger, as the PDK sizes a finger. A
+ * finger, below the device's limits, an L above them, or either past 1 mm
+ * where the library takes micrometres. W is compared per finger, as the PDK sizes a finger. A
  * size or finger count given by an expression is not checked, nor a device
  * modelled only at a few sizes, which REVIEWED_SIZE_UNMODELLED covers.
  */
@@ -448,16 +448,21 @@ export function reviewedSizeOutOfRange(
     const shared = role === "width" ? fingers : 1;
     if (!parameter || metres === undefined || shared === undefined) continue;
     const each = metres / shared;
+    const limits = binding.sizeLimits;
     const minimum =
-      binding.minimumSize?.[role === "width" ? "widthPerFinger" : "length"];
-    // A relative margin keeps 0.84u over 2 fingers at 0.42 µm.
+      role === "width" ? limits?.widthPerFinger : limits?.length[0];
+    const maximum = role === "length" ? limits?.length[1] : undefined;
+    // A relative margin keeps 0.84u over 2 fingers at 0.42 µm. A unit slip
+    // is named as one before it is a size too long.
     const bound =
       minimum !== undefined && each < minimum * (1 - 1e-9)
         ? ({ bound: "minimum", limit: minimum } as const)
         : parameter.targetUnit === "micrometre" &&
             each > REVIEWED_SIZE_SLIP_LIMIT
           ? ({ bound: "slip", limit: REVIEWED_SIZE_SLIP_LIMIT } as const)
-          : undefined;
+          : maximum !== undefined && each > maximum * (1 + 1e-9)
+            ? ({ bound: "maximum", limit: maximum } as const)
+            : undefined;
     if (bound)
       found.push({
         role,
@@ -486,7 +491,7 @@ const sky130MosBinding = (
   length: string,
   sizes: Pick<
     ReviewedExternalDeviceBinding,
-    "nativeElement" | "modelledSizes" | "minimumSize"
+    "nativeElement" | "modelledSizes" | "sizeLimits"
   >,
 ): ReviewedExternalDeviceBinding => ({
   id,
@@ -528,17 +533,22 @@ const SKY130_PFET_16V_SIZES: ReviewedModelledSizes = {
 };
 
 /**
- * The shortest L and narrowest W per finger of a SKY130 MOS device modelled
- * over a range: the smallest lmin and wmin among its bins (#1474). Read from
- * volare sky130A (open_pdks c6d73a35), libs.ref/sky130_fd_pr/spice/
- * sky130_fd_pr__<device>__tt.pm3.spice; the 3.3 V and 5 V NVT have only
- * sky130_fd_pr__<device>.pm3.spice, whose bin edges sit 5 nm outside the
- * nominal sizes (lmin 4.95e-7 for 0.5 µm), so the nominal size is recorded.
- * nfet_01v8 and pfet_01v8_hvt have bins down to W 0.36 µm, the rest 0.42 µm.
+ * The sizes a SKY130 MOS device modelled over a range runs at on Production,
+ * whose simulator loads the continuous SKY130 library: measured there by
+ * bisection, one device at a time (signed-in POST /api/simulate, 2026-10-08,
+ * #1492). The shortest L is the nominal one (each stops 1–2 nm below it).
+ * Every device stops below W 0.42 µm per finger. The longest L is the last one
+ * that ran: 20.2 µm (20.21 stops) for all but the NVT pair, nfet_03v3_nvt
+ * 0.909 µm (0.9095 stops) and nfet_05v0_nvt 24.99 µm (25 stops on a BSIM4
+ * parameter fatal). W showed no ceiling up to 500 µm. volare's binned models
+ * differ: they run L to 100 µm, nfet_01v8 and pfet_01v8_hvt down to W
+ * 0.36 µm, and the NVT pair at a few points only.
  */
-const sky130Minimum = (length: number, widthPerFinger: number) => ({
-  minimumSize: { length, widthPerFinger },
-});
+const sky130Limits = (
+  shortest: number,
+  longest: number,
+  widthPerFinger = 4.2e-7,
+) => ({ sizeLimits: { length: [shortest, longest] as const, widthPerFinger } });
 
 /**
  * The 20 V drain-extended wrappers have one channel each, so only the
@@ -874,7 +884,7 @@ export const reviewedExternalDeviceBindings: readonly ReviewedExternalDeviceBind
       "nmos",
       "1u",
       "150n",
-      sky130Minimum(1.5e-7, 3.6e-7),
+      sky130Limits(1.5e-7, 2.02e-5),
     ),
     sky130MosBinding(
       "sky130-pfet-01v8",
@@ -882,7 +892,7 @@ export const reviewedExternalDeviceBindings: readonly ReviewedExternalDeviceBind
       "pmos",
       "1u",
       "150n",
-      sky130Minimum(1.5e-7, 4.2e-7),
+      sky130Limits(1.5e-7, 2.02e-5),
     ),
     sky130MosBinding(
       "sky130-nfet-01v8-lvt",
@@ -890,7 +900,7 @@ export const reviewedExternalDeviceBindings: readonly ReviewedExternalDeviceBind
       "nmos",
       "1.65u",
       "150n",
-      sky130Minimum(1.5e-7, 4.2e-7),
+      sky130Limits(1.5e-7, 2.02e-5),
     ),
     sky130MosBinding(
       "sky130-pfet-01v8-lvt",
@@ -898,7 +908,7 @@ export const reviewedExternalDeviceBindings: readonly ReviewedExternalDeviceBind
       "pmos",
       "3u",
       "350n",
-      sky130Minimum(3.5e-7, 4.2e-7),
+      sky130Limits(3.5e-7, 2.02e-5),
     ),
     sky130MosBinding(
       "sky130-nfet-03v3-nvt",
@@ -906,7 +916,7 @@ export const reviewedExternalDeviceBindings: readonly ReviewedExternalDeviceBind
       "nmos",
       "1u",
       "500n",
-      sky130Minimum(5e-7, 4.2e-7),
+      sky130Limits(5e-7, 9.09e-7),
     ),
     sky130MosBinding(
       "sky130-nfet-05v0-nvt",
@@ -914,7 +924,7 @@ export const reviewedExternalDeviceBindings: readonly ReviewedExternalDeviceBind
       "nmos",
       "1u",
       "900n",
-      sky130Minimum(9e-7, 4.2e-7),
+      sky130Limits(9e-7, 2.499e-5),
     ),
     sky130MosBinding(
       "sky130-nfet-g5v0d10v5",
@@ -922,7 +932,7 @@ export const reviewedExternalDeviceBindings: readonly ReviewedExternalDeviceBind
       "nmos",
       "10u",
       "500n",
-      sky130Minimum(5e-7, 4.2e-7),
+      sky130Limits(5e-7, 2.02e-5),
     ),
     // Drain-extended devices are drawn with the DMOS symbols. The 16 V pair
     // is modelled only at a few sizes, its defaults among them.
@@ -980,7 +990,7 @@ export const reviewedExternalDeviceBindings: readonly ReviewedExternalDeviceBind
       "pmos",
       "1u",
       "150n",
-      sky130Minimum(1.5e-7, 3.6e-7),
+      sky130Limits(1.5e-7, 2.02e-5),
     ),
     sky130MosBinding(
       "sky130-pfet-g5v0d10v5",
@@ -988,7 +998,7 @@ export const reviewedExternalDeviceBindings: readonly ReviewedExternalDeviceBind
       "pmos",
       "20u",
       "500n",
-      sky130Minimum(5e-7, 4.2e-7),
+      sky130Limits(5e-7, 2.02e-5),
     ),
     sky130ResistorBinding("sky130-res-high-po", "sky130_fd_pr__res_high_po"),
     sky130ResistorBinding("sky130-res-xhigh-po", "sky130_fd_pr__res_xhigh_po"),
