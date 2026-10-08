@@ -15,6 +15,8 @@ import {
 } from "./model-source-syntax.js";
 import type { SimulationSourceDiagnostic } from "./source-file-graph.js";
 import { resolveReviewedLibraryInterface } from "@icm/devices";
+import { projectVacaskModel } from "./vacask-project-model.js";
+import { inspectVacaskSource } from "./vacask-source.js";
 
 /** Native inspection retains opaque bodies; acceptance is not simulator qualification. */
 export function inspectProjectModelSource(source: ProjectModelSource) {
@@ -269,7 +271,9 @@ export function collectProjectModelSources(
       !inspected.diagnostics.some((d) => d.severity === "error")
     ) {
       const failure =
-        options.format === "spice" || options.format === "spectre"
+        options.format === "spice" ||
+        options.format === "spectre" ||
+        options.format === "vacask"
           ? projectModelConversionDiagnostic(source, options.format)
           : {
               code: "MODEL_SOURCE_DIALECT",
@@ -373,8 +377,24 @@ export function modelSourceLibraryDialectDiagnostic(
 
 export function projectModelConversionDiagnostic(
   source: ProjectModelSource,
-  target: "spice" | "spectre",
+  target: "spice" | "spectre" | "vacask",
 ): SimulationSourceDiagnostic | undefined {
+  if (target === "vacask") {
+    if (source.language !== "spice") {
+      const failure = projectModelConversionDiagnostic(source, "spice");
+      if (failure) return failure;
+    }
+    const projected = projectVacaskModel(
+      source,
+      renderProjectModelSource(source, {
+        format: "spice",
+        conversionLocations: true,
+      }),
+      [],
+      inspectProjectModelSource(source).entries,
+    );
+    return projected.ok ? undefined : projected.diagnostics[0];
+  }
   const libraryFailure = modelSourceLibraryDialectDiagnostic(source, target);
   if (libraryFailure) return libraryFailure;
   const native = renderProjectModelSource(source);
@@ -414,20 +434,41 @@ function convertExpandedModelSource(
   source: ProjectModelSource,
   text: string,
   target: "spice" | "spectre",
+  withLineOrigins = false,
 ) {
   return convertNetlist({
     text,
     source: source.language,
     target,
     fragment: true,
+    withLineOrigins,
   });
 }
 
 /** Expand only owned include references; native body bytes and external loads survive. */
 export function renderProjectModelSource(
   source: ProjectModelSource,
-  options: { outputPath?: string; format?: "spice" | "spectre" } = {},
+  options: {
+    outputPath?: string;
+    format?: "spice" | "spectre" | "vacask";
+    reservedNames?: Iterable<string>;
+    conversionLocations?: boolean;
+  } = {},
 ): PrintedProjectModelSource {
+  if (options.format === "vacask") {
+    const projected = projectVacaskModel(
+      source,
+      renderProjectModelSource(source, {
+        ...options,
+        format: "spice",
+        conversionLocations: true,
+      }),
+      options.reservedNames,
+      inspectProjectModelSource(source).entries,
+    );
+    if (!projected.ok) throw Error(projected.diagnostics[0]!.message);
+    return projected.rendered;
+  }
   const inspected = inspectProjectModelSource(source);
   const result: PrintedProjectModelSource = { text: "", segments: [] };
   // Graph records are expanded visits. Rendering needs each lexical include
@@ -563,23 +604,54 @@ export function renderProjectModelSource(
       source,
       result.text,
       options.format,
+      options.conversionLocations,
     );
     if (converted.status === "blocked")
       throw Error(converted.issues[0]!.message);
+    if (converted.lineOrigins) {
+      const starts = [0];
+      for (let i = 0; i < result.text.length; i++)
+        if (result.text[i] === "\n") starts.push(i + 1);
+      let outputOffset = 0;
+      const segments: ProjectModelSourceLocation[] = [];
+      for (const [index, line] of converted.text.split("\n").entries()) {
+        const inputOffset = starts[(converted.lineOrigins[index] ?? 0) - 1];
+        const owner =
+          inputOffset === undefined
+            ? undefined
+            : result.segments.find(
+                (s) =>
+                  inputOffset >= s.startOffset && inputOffset < s.endOffset,
+              );
+        if (owner && inputOffset !== undefined)
+          segments.push({
+            ...owner,
+            startOffset: outputOffset,
+            endOffset: outputOffset + line.length + 1,
+            sourceOffset: owner.sourceOffset + inputOffset - owner.startOffset,
+            sourceLength:
+              (starts[converted.lineOrigins[index] ?? 0] ??
+                result.text.length) - inputOffset,
+            derived: true,
+          });
+        outputOffset += line.length + 1;
+      }
+      result.segments = segments;
+    } else
+      result.segments = [
+        {
+          sourceId: source.id,
+          revision: source.revision,
+          path: source.entry,
+          startOffset: 0,
+          endOffset: converted.text.length,
+          sourceOffset: 0,
+          derived: true,
+          sourceLength: source.files.find((f) => f.path === source.entry)!.text
+            .length,
+        },
+      ];
     result.text = converted.text;
-    result.segments = [
-      {
-        sourceId: source.id,
-        revision: source.revision,
-        path: source.entry,
-        startOffset: 0,
-        endOffset: result.text.length,
-        sourceOffset: 0,
-        derived: true,
-        sourceLength: source.files.find((f) => f.path === source.entry)!.text
-          .length,
-      },
-    ];
   }
   return result;
 }
@@ -592,11 +664,28 @@ export function projectModelText(source: ProjectModelSource): string {
 export function appendProjectModelSources(
   text: string,
   sources: readonly ProjectModelSource[],
-  format: "spice" | "spectre" = "spice",
+  format: "spice" | "spectre" | "vacask" = "spice",
+  reservedNames: Iterable<string> = [],
 ): PrintedProjectModelSource {
   const segments: ProjectModelSourceLocation[] = [];
+  const reserved = new Set(reservedNames);
+  if (format === "vacask") {
+    for (const source of sources)
+      for (const entry of inspectProjectModelSource(source).entries)
+        reserved.add(entry.name);
+  }
   for (const source of sources) {
-    const model = renderProjectModelSource(source, { format });
+    if (format === "vacask")
+      for (const s of inspectVacaskSource("generated", text, false).statements)
+        if (
+          ["model", "subckt"].includes(s.tokens[0]?.value ?? "") &&
+          s.tokens[1]
+        )
+          reserved.add(s.tokens[1].value);
+    const model = renderProjectModelSource(source, {
+      format,
+      reservedNames: reserved,
+    });
     text += `\n${format === "spice" ? "*" : "//"} Project model: applied version ${source.revision}${source.draft ? " (draft pending)" : ""}\n`;
     const offset = text.length;
     text += model.text;

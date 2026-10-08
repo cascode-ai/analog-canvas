@@ -28,6 +28,7 @@ import { compileSourceSimulation } from "./simulation-source-compile.js";
 import { compileNgspiceSourceSimulation } from "./simulation-source-ngspice.js";
 import {
   collectProjectModelSources,
+  appendProjectModelSources,
   projectModelDefinitionIds,
   renderProjectModelSource,
   planMappedProjectModelEdit,
@@ -40,6 +41,7 @@ import type {
 import type { NetlistDiagnostic } from "./ir.js";
 import { normalizeIndependentSource } from "./source-waveform.js";
 import { directObjectLocator } from "@icm/derived";
+import type { SimulationSourceDiagnostic } from "./source-file-graph.js";
 import { parseEditableSourceParameters } from "./simulation-source-parameters.js";
 
 interface EditableSourceBody {
@@ -78,7 +80,11 @@ export function generateCircuitSource(
   engine: "ngspice" | "vacask" = "vacask",
 ):
   | { ok: true; source: GeneratedCircuitSource; warnings: NetlistDiagnostic[] }
-  | { ok: false; diagnostics: NetlistDiagnostic[] } {
+  | {
+      ok: false;
+      diagnostics: NetlistDiagnostic[];
+      sourceDiagnostics?: SimulationSourceDiagnostic[];
+    } {
   const analysis = analyzeDesignNetlistForAuthoring(project, {
     format: "spice",
     rootDocumentId: binding.documentId,
@@ -163,6 +169,7 @@ export function generateCircuitSource(
   if (models.diagnostics.some((d) => d.severity === "error"))
     return {
       ok: false,
+      sourceDiagnostics: models.diagnostics,
       diagnostics: models.diagnostics.map((d) => ({
         code: d.code,
         severity: d.severity,
@@ -178,6 +185,19 @@ export function generateCircuitSource(
     };
   let modelLocations: ProjectModelSourceLocation[] = [];
   let modelSnapshots = models.sources;
+  if (
+    printed.ok &&
+    engine === "vacask" &&
+    (!input || input.circuitBindings[0]?.id === binding.id)
+  ) {
+    const rendered = appendProjectModelSources(
+      printed.text,
+      models.sources,
+      "vacask",
+    );
+    printed.text = rendered.text;
+    modelLocations = rendered.segments;
+  }
   if (
     printed.ok &&
     engine === "ngspice" &&
@@ -247,13 +267,22 @@ export function generateCircuitSource(
           (f) => f.bindingId === binding.id && f.path === binding.path,
         )
       : undefined;
-    if (file)
+    if (file) {
       printed = {
         ok: true,
         text: file.text,
         parameters: file.parameters,
         instances: file.instances,
       };
+      modelLocations = file.modelSources ?? [];
+      modelSnapshots = (project.modelSources ?? []).filter((source) =>
+        modelLocations.some(
+          (location) =>
+            location.sourceId === source.id &&
+            location.revision === source.revision,
+        ),
+      );
+    }
   }
   if (!printed.ok)
     return {

@@ -151,5 +151,8 @@ export async function prepareSourceExecutionInput(
     authoredFiles: compiled.authoredFiles,
     generated: compiled.generated,
     sourceMaps,
+    ...(compiled.modelSources?.length
+      ? { modelSources: compiled.modelSources }
+      : {}),
   };
 }

@@ -9,6 +9,7 @@ import {
 /** The reversible Canvas subset, not a general native-SPICE parser. */
 export function parseNgspiceSourceParameters(
   text: string,
+  options: { requireDc?: boolean } = {},
 ):
   | { ok: true; parameters: Record<string, string> }
   | { ok: false; message: string } {
@@ -86,7 +87,7 @@ export function parseNgspiceSourceParameters(
       }
     }
   }
-  if (parameters.dc === undefined)
+  if (parameters.dc === undefined && options.requireDc !== false)
     return fail(
       "Keep an explicit DC value for this Canvas source; native text-only sources may omit it.",
     );

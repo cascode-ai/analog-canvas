@@ -45,6 +45,9 @@ export interface NetlistConversionOptions {
    * retain their actual language rather than being relabelled. */
   ownedIncludes?: readonly string[];
   subcircuitNames?: readonly string[];
+  /** Execution projections can retain native owners without reverse-writing
+   * converted text. Entries are 1-based input lines; 0 is a generated header. */
+  withLineOrigins?: boolean;
 }
 export type NetlistConversionResult =
   | {
@@ -53,6 +56,7 @@ export type NetlistConversionResult =
       source: NetlistDialect;
       target: NetlistDialect;
       issues: NetlistConversionIssue[];
+      lineOrigins?: number[];
     }
   | { status: "blocked"; issues: NetlistConversionIssue[] };
 export const MAX_CONVERSION_BYTES = 512 * 1024;
@@ -878,6 +882,7 @@ export function convertNetlist(
         ? "simulator lang=spectre"
         : "* Converted by Analog Canvas / netlist-crawler",
     ];
+    const lineOrigins = [0];
     const names = new Set<string>();
     const nodeNames = new Map<string, string>();
     const caseRecords: {
@@ -944,6 +949,7 @@ export function convertNetlist(
           names.add(key);
         }
         out.push(line);
+        for (const _line of line.split("\n")) lineOrigins.push(s.line);
       }
       if (!depth) scope = "";
     }
@@ -954,8 +960,10 @@ export function convertNetlist(
       target !== "spectre" &&
       options.fragment === false &&
       !out.some((s) => s.toLowerCase() === ".end")
-    )
+    ) {
       out.push(".end");
+      lineOrigins.push(0);
+    }
     const converted = out.join("\n") + "\n";
     if (new TextEncoder().encode(converted).length > MAX_CONVERSION_BYTES * 2)
       refuse(
@@ -963,7 +971,14 @@ export function convertNetlist(
         "Converted output exceeds the size limit.",
         "RESOURCE_LIMIT",
       );
-    return { status: "converted", text: converted, source, target, issues: [] };
+    return {
+      status: "converted",
+      text: converted,
+      source,
+      target,
+      issues: [],
+      ...(options.withLineOrigins ? { lineOrigins } : {}),
+    };
   } catch (error) {
     if (error instanceof ConversionError)
       return { status: "blocked", issues: [error.issue] };

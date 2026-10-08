@@ -175,13 +175,18 @@ export async function handleProjectSourceFiles(
         before.folder.input,
         engine,
       );
-      if (!result.ok)
-        return problem(
+      if (!result.ok) {
+        const failure = problem(
           "SIMULATION_CIRCUIT_UNAVAILABLE",
-          result.diagnostics[0]?.message ??
+          result.diagnostics.find((d) => d.severity === "error")?.message ??
             "Resolve the Circuit diagnostics before generating its source",
           "input",
         );
+        return {
+          ...failure,
+          error: { ...failure.error, diagnostics: result.sourceDiagnostics },
+        };
+      }
       file = { path: binding.path, text: result.source.text };
       if (op.detail !== "text") {
         instances = result.source.instances;
@@ -285,12 +290,18 @@ export async function handleProjectSourceFiles(
       input,
       engine,
     );
-    if (!generated.ok)
-      return problem(
+    if (!generated.ok) {
+      const failure = problem(
         "SIMULATION_CIRCUIT_UNAVAILABLE",
-        generated.diagnostics[0]?.message ?? "Circuit source is unavailable",
+        generated.diagnostics.find((d) => d.severity === "error")?.message ??
+          "Circuit source is unavailable",
         "input",
       );
+      return {
+        ...failure,
+        error: { ...failure.error, diagnostics: generated.sourceDiagnostics },
+      };
+    }
     if ((await sha256(generated.source.text)) !== edit.textDigest)
       return conflict();
     const mapped = planCircuitSourceEdit(generated.source, edit.text);
