@@ -765,6 +765,50 @@ describe("the editor plans an Agent's action list", () => {
     expect(findings()).toEqual([]);
   });
 
+  it("draws a body wire to a bias Net exactly along the via points it is given (#1514)", async () => {
+    const { controller, client } = await editor();
+    const apply = async (actions: unknown[]) => {
+      const report = await client.applyActions(actions);
+      expect(report.ok, report.message).toBe(true);
+      return report;
+    };
+    await apply([place("nmos", "M1", 100)]);
+    await apply([
+      {
+        kind: "connect",
+        from: { kind: "point", x: 40, y: 180 },
+        to: { kind: "point", x: 240, y: 180 },
+      },
+    ]);
+    const bias = controller.document.routes[0]!.netId;
+    // A stub out of the channel, then down to the Net: the body leaves its
+    // landing (100,100) east and meets the Net where the stub's end is
+    // nearest it.
+    const tied = await apply([
+      {
+        kind: "connect",
+        from: pin("M1", "B"),
+        to: { kind: "net", net: bias },
+        via: [{ x: 120, y: 100 }],
+      },
+    ]);
+    const body = controller.document.routes.find(
+      (route) => route.presentation === "bulk-dashed",
+    )!;
+    expect(
+      tied.resolvedRoutes?.find((route) => route.routeId === body.id)?.polyline,
+    ).toEqual([
+      { x: 96, y: 100 },
+      { x: 120, y: 100 },
+      { x: 120, y: 180 },
+    ]);
+    expect(
+      controller.document.nets.find((net) =>
+        net.terminals.some((terminal) => terminal.pinName === "B"),
+      )?.id,
+    ).toBe(body.netId);
+  });
+
   /**
    * sram6t drawn as a textbook draws it, bl and wl left, blb right, VDD
    * above and VSS below, placed once in the top Cell as X1 and wired to the

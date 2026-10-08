@@ -847,6 +847,103 @@ describe("an Agent wire from a MOS body on its Cell's default", () => {
   });
 });
 
+describe("an Agent body wire along the via points it is given (#1514)", () => {
+  // A three-terminal NMOS at the origin: its hidden body pin lands at the
+  // origin, inside the channel, and leaves east; its source lands at
+  // (10,20). A bias Net VB runs along y = 80.
+  const drawn = (target: WireIntent["to"], via: { x: number; y: number }[]) => {
+    const document = createEmptyDocument("bias", "Body bias");
+    document.instances.push({
+      id: "M1",
+      symbolId: "nmos",
+      symbolVariantId: "textbook-3terminal",
+      placement: { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+    });
+    const h = history(document);
+    commit(h, [wire("vb", free(-60, 80), free(200, 80))]);
+    const vb = h.document.nets[0]!.id;
+    const body = {
+      kind: "endpoint" as const,
+      endpoint: { kind: "terminal" as const, instanceId: "M1", pinName: "B" },
+    };
+    const plan = planWireBatch(
+      h.document,
+      resolver,
+      wire(
+        "body",
+        body,
+        target.kind === "net" ? { ...target, net: vb } : target,
+        via,
+      ),
+      512,
+      { keepClear: true },
+    );
+    if (typeof plan === "string") throw new Error(plan);
+    const result = h.transact({
+      transactionId: "body",
+      documentId: h.document.id,
+      expectedRevision: h.document.revision,
+      actor: { kind: "agent", id: "test" },
+      edits: plan.edits,
+    });
+    if (!result.ok) throw new Error(JSON.stringify(result));
+    const route = h.document.routes.find(
+      (item) => item.start.kind === "terminal" && item.start.pinName === "B",
+    )!;
+    const netOf = (pinName: string) =>
+      h.document.nets.find((net) =>
+        net.terminals.some(
+          (t) => t.instanceId === "M1" && t.pinName === pinName,
+        ),
+      )?.id;
+    return {
+      presentation: route.presentation,
+      points: resolveRouteGeometry(h.document, resolver, route)!.centerline,
+      body: netOf("B"),
+      source: netOf("S"),
+      vb: h.document.routes.find((item) => item !== route)!.netId,
+    };
+  };
+
+  it("ties the body to its source by the stub and corner asked for", () => {
+    // Refused before as passing through M1: read from the contact inside
+    // the channel, every body wire did.
+    const tied = drawn(
+      {
+        kind: "endpoint",
+        endpoint: { kind: "terminal", instanceId: "M1", pinName: "S" },
+      },
+      [
+        { x: 20, y: 0 },
+        { x: 20, y: 20 },
+      ],
+    );
+    expect(tied.presentation).toBe("bulk-dashed");
+    expect(tied.points).toEqual([
+      { x: -4, y: 0 },
+      { x: 20, y: 0 },
+      { x: 20, y: 20 },
+      { x: 10, y: 20 },
+    ]);
+    expect(tied.body).toBe(tied.source);
+  });
+
+  it("reaches a Net at its nearest point from the last via point", () => {
+    // Looked for nearest the body, the Net was met at (0,80), behind the
+    // stub, and the wire was refused as doubling back.
+    for (const target of [{ kind: "net", net: "" } as const, at(20, 80)]) {
+      const biased = drawn(target, [{ x: 20, y: 0 }]);
+      expect(biased.presentation).toBe("bulk-dashed");
+      expect(biased.points).toEqual([
+        { x: -4, y: 0 },
+        { x: 20, y: 0 },
+        { x: 20, y: 80 },
+      ]);
+      expect(biased.body).toBe(biased.vb);
+    }
+  });
+});
+
 describe("an Agent connect to an open point on another part's pin", () => {
   it("names the pin to connect to instead", () => {
     const document = createEmptyDocument("doc", "Point on a pin");

@@ -73,7 +73,8 @@ For a new trunk created earlier in the same batch, use
 `{kind:"wire-at",point:{x,y},member:{instanceId,pinName}}` (or optional `net`)
 instead of fetching its generated Route IDs. Existing Junctions are reused.
 `{kind:"net",net:"name-or-id"}` resolves the nearest conductor on that same
-draft. Ordinary `point` remains a free endpoint. A tap at a different-Net
+draft, nearest the via point beside it when `via` is given, else nearest the
+other end. Ordinary `point` remains a free endpoint. A tap at a different-Net
 crossing is rejected even with a qualifier: a Junction there would short Nets.
 
 `copy` follows GUI copy for internal wires and references. `detach-move` leaves

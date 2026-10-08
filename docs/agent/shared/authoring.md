@@ -246,10 +246,19 @@ refused with their IDs; it never means the first of them.
   Cell that draws no such supply gains it as a Cell Pin, and the netlist says
   so as information, `MOS_BODY_DEFAULT_SUPPLY`, naming the parts. To give one
   device another body, `connect` its B pin to that Net, as the GUI's Draw
-  action does: the body leaves the Cell default for a dashed body wire. A
-  body tied to its own source is one call,
-  `{kind:"connect",from:{kind:"pin",instance:"MP",pin:"B"},to:{kind:"pin",instance:"MP",pin:"S"}}`,
-  or a `wire-at` tap on the source wire. The whole Cell's default is one
+  bulk connection does: the body leaves the Cell default for a dashed body
+  wire. Give its path with `via`, as a person clicks it there, rather than
+  leaving it to automatic routing, which may detour around the circuit. B
+  lands inside the channel and leaves along its `outward` (both in the
+  selected pins): a short stub two grid steps out that way, past the
+  drain and source leads, then the shortest path to the nearest point of the
+  target. For an upright part with B landing at (X,Y), `via:[{x:X+20,y:Y}]`
+  with `to:{kind:"net",net:"VB"}` turns at the stub's end and meets VB at
+  its point nearest there; add the corners of a path that keeps clear when
+  that one is refused, or name the spot with a `wire-at` point or a
+  `junction` on the Net. A body tied to its own source is one call,
+  `{kind:"connect",from:{kind:"pin",instance:"MP",pin:"B"},to:{kind:"pin",instance:"MP",pin:"S"},via:[{x:X+20,y:Y},{x:X+20,y:SY}]}`
+  (SY the source landing's y), or a `wire-at` tap on the source wire. The whole Cell's default is one
   action, `{kind:"set-mos-bulk-default",mos:"pmos",net:"VB"}` (`circuit_place`;
   `mos:"nmos"` for NMOS, `net` a Net name or ID, `null` clearing it), planned
   as the Cell settings in Properties set it: the bodies that followed the

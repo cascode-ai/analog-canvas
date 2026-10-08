@@ -42,6 +42,7 @@ the circuit to fit a row.
 | Trunk + taps | Reuse a clear aligned pin row for common control; a separate spine only when needed; same-node exits join nearby branches |
 | Local closure | Short reference/diode connection beside its owner |
 | Separate return | Feedback/compensation corridor distinct from forward signal |
+| Body tie | Dashed body wire drawn by `via`: a short stub out of the channel, then the shortest path to the nearest point of the target Net or a Junction on it; never left to automatic routing |
 
 Plan branched Nets as a whole: spine, taps, exits. Branches use Junctions;
 bends and unconnected crossings stay dot-free. Prefer orthogonal paths; other
