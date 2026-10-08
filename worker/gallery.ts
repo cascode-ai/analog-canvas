@@ -59,7 +59,7 @@ import {
   wrapTags,
   type GalleryEntrySummary,
   type GalleryEnv,
-} from "./gallery-do";
+} from "./gallery-store";
 
 export * from "./gallery-do";
 

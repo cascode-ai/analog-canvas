@@ -18,8 +18,8 @@ import {
   refreshNetlistMarks,
   routeGalleryRequest,
   type GalleryReadableDocument,
-  type GalleryNamespaceLike,
 } from "./gallery";
+import type { GalleryNamespaceLike } from "./gallery-store";
 import {
   routeSimulationRequest,
   refuseSignedOutSimulation,

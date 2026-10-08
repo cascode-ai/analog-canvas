@@ -6,7 +6,7 @@ import {
   AUTH_SESSION_TTL_SECONDS,
   AUTH_STATE_COOKIE,
 } from "../../../../worker/auth-do";
-import { GALLERY_DAILY_OPEN_LIMIT } from "../../../../worker/gallery-do";
+import { GALLERY_DAILY_OPEN_LIMIT } from "../../../../worker/gallery-store";
 import {
   ANALYTICS_OPT_OUT_COOKIE,
   ANALYTICS_PERSISTENCE_IDENTITY,

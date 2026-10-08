@@ -18,7 +18,7 @@ const NetlistPortCaseSchema = z.enum(["lower", "upper"]);
 const ProjectNameSchema = z.string().min(1).max(256);
 /**
  * A Gallery entry's fields an Agent may set, at the Gallery's own limits
- * (worker/gallery-do.ts), which checks them again; the MCP tool takes the
+ * (worker/gallery-store.ts), which checks them again; the MCP tool takes the
  * same. No AI mark: what an Agent publishes or updates is marked AI, and
  * only its author changes that, in the Editor (#1415).
  */

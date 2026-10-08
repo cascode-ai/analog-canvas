@@ -24,25 +24,25 @@ import {
 } from "@icm/symbols";
 
 import { CLOUD_PROJECT_LIMIT as EDITOR_CLOUD_PROJECT_LIMIT } from "../apps/editor/src/features/editor-shell/cloud-projects";
+import { CLOUD_PROJECT_LIMIT } from "./gallery-store-cloud-projects";
+import { GALLERY_NETLIST_PAGE_CHARACTERS } from "./gallery-store-maintenance";
 import {
-  CLOUD_PROJECT_LIMIT,
-  GALLERY_NETLIST_PAGE_CHARACTERS,
-} from "./gallery-do";
-import {
-  GALLERY_AI_SEAT_DAILY_LIMIT,
-  GALLERY_DAILY_SUBMISSION_LIMIT,
   forgetEarlierOpens,
   galleryReadableDocument,
   refreshNetlistMarks,
-  GALLERY_MAX_PROJECT_BYTES,
   GalleryDO,
   routeGalleryRequest,
+  type GalleryPreviewCache,
+} from "./gallery";
+import {
+  GALLERY_AI_SEAT_DAILY_LIMIT,
+  GALLERY_DAILY_SUBMISSION_LIMIT,
+  GALLERY_MAX_PROJECT_BYTES,
   SHORT_ID_LENGTH,
   shortId,
   svgPreviewDimensions,
   type GalleryEnv,
-  type GalleryPreviewCache,
-} from "./gallery";
+} from "./gallery-store";
 import { AI_SEATS, AuthDO, OWNER_ACCOUNT_IDS, type AuthEnv } from "./auth";
 import workerEntry, {
   AuthDO as DeployedAuthDO,
