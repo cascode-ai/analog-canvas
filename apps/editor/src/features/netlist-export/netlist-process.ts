@@ -7,6 +7,7 @@ import {
   resolveReviewedExternalBinding,
   type ReviewedExternalDeviceBinding,
 } from "@icm/devices";
+import { drawnNegativeSupplyNet } from "@icm/derived";
 import {
   createNetlistPlanningProjection,
   executeProjectTransaction,
@@ -546,14 +547,19 @@ export function planNetlistProcess(
         const logical = projection.logicalNets(documentId);
         const ground =
           rule.substrate === "0" || rule.substrate.toUpperCase() === "VSS";
+        // The p-substrate belongs on the lowest supply: a Cell that draws a
+        // negative rail puts it there, not on ground (#1530).
         let netId =
           terminal.role === "floating"
             ? undefined
-            : [...logical.byBaseNetId].find(([, net]) =>
+            : ((terminal.role === "substrate" && ground
+                ? drawnNegativeSupplyNet(document, logical)?.id
+                : undefined) ??
+              [...logical.byBaseNetId].find(([, net]) =>
                 ground
                   ? net.powerDomain === "ground"
                   : net.name?.toLowerCase() === rule.substrate.toLowerCase(),
-              )?.[0];
+              )?.[0]);
         const edits: SchematicEdit[] = [];
         if (!netId) {
           netId = deriveStableId(
@@ -639,22 +645,6 @@ export function planNetlistProcess(
     if (!validated.ok) throw new Error(validated.error.message);
   }
   return edits;
-}
-
-/**
- * How many Instances the process in hand would fill in, changing nothing.
- *
- * The same plan the button applies, counted rather than committed: a circuit
- * drawn before this process was chosen — or before the editor bound devices at
- * all — says here how many of its devices are still waiting for a model and
- * the dimensions that come with it.
- */
-export function netlistProcessPendingInstances(
-  project: CircuitProject,
-  profile: NetlistExportProfile,
-): number {
-  return prepareNetlistProcess(project, profile, { onlyMissing: true })
-    .instanceCount;
 }
 
 /** One prepared snapshot consumed by both the exact count and its action. */

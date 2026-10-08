@@ -2,7 +2,6 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { evaluateSimulatability } from "@icm/derived";
 import {
   createEmptyProject,
   type CircuitProject,
@@ -268,8 +267,6 @@ describe("drawn magnetic devices", () => {
   });
 
   it("projects coupled windings through the native mutual primitive", () => {
-    expect(evaluateSimulatability(tcoil()).blockers).toEqual([]);
-    expect(evaluateSimulatability(transformer()).blockers).toEqual([]);
     const analysis = analyzeDesignNetlist(transformer());
     const printed = printVacaskWithLocations(analysis.ir!);
     expect(printed.ok).toBe(true);

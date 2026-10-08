@@ -176,7 +176,7 @@ function adoptSplitIdentities(
   }
 }
 
-export function samePoint(left: Point, right: Point): boolean {
+function samePoint(left: Point, right: Point): boolean {
   return left.x === right.x && left.y === right.y;
 }
 
@@ -185,7 +185,7 @@ export function samePoint(left: Point, right: Point): boolean {
  * adjacent persisted segment. This changes geometry only; it never changes
  * Route topology or connectivity.
  */
-export function followRouteEndpoint(
+function followRouteEndpoint(
   routeId: string,
   points: Point[],
   modes: SegmentMode[],

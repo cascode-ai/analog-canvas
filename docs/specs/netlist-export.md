@@ -634,7 +634,21 @@ on ground or the lowest supply; it is on mir. Use it as a diode, or with its
 collector grounded". A PNP mirror load drawn with it exported ready and
 simulated its output at 0.93 V, where the textbook mirror sits near
 VDD − V_EB. Ground is the Cell's ground node, and the lowest supply a Net named
-like one (`VSS`, `AVSS`, `GND`, `VEE`, `SUB`, `VSUB`, any case).
+like one (`VSS`, `AVSS`, `GND`, `VEE`, `VNEG`, `SUB`, `VSUB`, any case),
+the negative-supply names below among them.
+
+A Cell may draw a negative supply: a supply marker or rail named like `VEE`,
+`VSS` or `VNEG` (#1530). The drawing holds no voltages, so that name is what
+says the supply sits below ground, and only one such supply is read; two are
+a question for the author. A substrate property terminal the Process binds
+while the Cell draws one takes that supply instead of ground, at placement or
+Apply process alike. One still on ground in such a Cell, placed before the
+rail, exports as drawn with the warning `PDK_SUBSTRATE_ABOVE_NEGATIVE_SUPPLY`,
+one per Cell: "Q1.S and Q2.S are p-substrate terminals on ground, while this
+Cell draws VEE, its negative supply. The substrate belongs on the lowest
+supply: an NPN collector below it forward-biases. Set their Substrate Net to
+VEE". The SKY130 PNP has no substrate terminal to bind: its wrapper ties the
+substrate to its collector, which the warning above covers.
 
 A DMOS symbol in SKY130 takes the drain-extended 16 V device
 (`sky130_fd_pr__nfet_g5v0d16v0`, `sky130_fd_pr__pfet_g5v0d16v0`), or a 20 V

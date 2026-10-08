@@ -332,7 +332,7 @@ export function refreshInstanceReferenceAnnotation(
  * an authored object-relative vector and must not be pulled back onto the
  * automatic side when its instance is rotated or mirrored.
  */
-export function isCanonicalInstanceLabel(
+function isCanonicalInstanceLabel(
   annotation: Annotation,
   instance: SchematicDocument["instances"][number],
   resolved: NonNullable<ReturnType<SymbolResolver["resolve"]>>,

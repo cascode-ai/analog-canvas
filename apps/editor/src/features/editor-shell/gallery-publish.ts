@@ -35,7 +35,7 @@ export interface GalleryPublishFields {
  */
 export const GALLERY_DESCRIPTION_LIMIT = 1000;
 
-export function galleryPublicationBinding(binding: CloudProjectBinding | null) {
+function galleryPublicationBinding(binding: CloudProjectBinding | null) {
   return binding
     ? {
         cloudProjectId: binding.id,

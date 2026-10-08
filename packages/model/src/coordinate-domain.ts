@@ -1,4 +1,4 @@
-import type { DerivedPoint, GridPoint, GridRect } from "./schema.js";
+import type { DerivedPoint, GridPoint } from "./schema.js";
 import { SYMBOL_CONNECTION_GRID } from "./schema/symbol-definition.js";
 
 /** The common lattice of a Document's placement pitch and fine Symbol pins. */
@@ -30,18 +30,6 @@ export function snapGridPoint(
   return {
     x: snapGridCoordinate(point.x, grid),
     y: snapGridCoordinate(point.y, grid),
-  };
-}
-
-export function snapGridRect(
-  rect: Pick<GridRect, "x" | "y" | "width" | "height">,
-  grid: number,
-): GridRect {
-  return {
-    x: snapGridCoordinate(rect.x, grid),
-    y: snapGridCoordinate(rect.y, grid),
-    width: Math.max(grid, snapGridCoordinate(rect.width, grid)),
-    height: Math.max(grid, snapGridCoordinate(rect.height, grid)),
   };
 }
 

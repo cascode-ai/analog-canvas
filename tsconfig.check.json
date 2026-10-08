@@ -3,8 +3,6 @@
   "compilerOptions": {
     "jsx": "react-jsx",
     "noEmit": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
     "paths": {
       "@icm/simulation-service": ["./packages/simulation-service/src/index.ts"],
       "@icm/simulation-service/*": ["./packages/simulation-service/src/*"],
@@ -21,7 +19,6 @@
       "@icm/devices": ["./packages/devices/src/index.ts"],
       "@icm/edit-engine": ["./packages/edit-engine/src/index.ts"],
       "@icm/exporters": ["./packages/exporters/src/index.ts"],
-      "@icm/exporters/browser": ["./packages/exporters/src/browser.ts"],
       "@icm/exporters/browser-fonts": [
         "./packages/exporters/src/browser-fonts.ts"
       ],

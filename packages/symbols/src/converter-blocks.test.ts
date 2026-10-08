@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { requireRazaviCatalogSymbol } from "./razavi-catalog.js";
-import { SYMBOL_STANDARD_GRID } from "./schema.js";
+import { SYMBOL_STANDARD_GRID } from "@icm/model";
 
 const CONVERTERS = ["adc", "dac"] as const;
 

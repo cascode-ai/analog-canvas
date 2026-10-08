@@ -8,7 +8,8 @@ import {
   EXECUTION_RECEIPT_HEADER,
   sha256,
 } from "@icm/simulation-service";
-import type { SimulationEnv, SimulationRunner } from "./simulation";
+import type { SimulationEnv } from "./simulation";
+import type { SimulationRunner } from "./simulation-vacask";
 
 /** Protocol-only fixture. These fake digests certify no model or deployment. */
 export const nativeEnvironment = await createSimulationEnvironmentMetadata({

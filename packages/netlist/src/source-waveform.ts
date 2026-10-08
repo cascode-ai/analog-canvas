@@ -21,7 +21,7 @@ export const SIN_OPTIONAL_PARAMETER_NAMES = [
   "damping",
   "phase",
 ] as const;
-export const AC_PARAMETER_NAMES = ["acMagnitude", "acPhase"] as const;
+const AC_PARAMETER_NAMES = ["acMagnitude", "acPhase"] as const;
 const SOURCE_PARAMETER_NAMES = [
   "waveform",
   "dc",
@@ -91,7 +91,7 @@ function parameterMap(parameters: readonly DesignNetlistParameter[]) {
   );
 }
 
-export function parsePwlPoints(
+function parsePwlPoints(
   raw: string | undefined,
 ): readonly { time: string; value: string }[] | null {
   if (!raw?.trim()) return null;

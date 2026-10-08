@@ -33,6 +33,7 @@ export function canProjectRoutingEditGeometry(
   document: SchematicDocument,
   edit: SchematicEdit,
 ): boolean {
+  // oxlint-disable-next-line typescript/switch-exhaustiveness-check -- any other edit may change more than geometry
   switch (edit.kind) {
     case "move_instance":
     case "move_junction":

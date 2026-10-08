@@ -156,6 +156,7 @@ export async function prepareFormula(
   return task;
 }
 
+/** @internal Tests start each case from an empty formula cache. */
 export function clearFormulaArtifactCacheForTests(): void {
   retentionOwners.clear();
   artifacts.clear();

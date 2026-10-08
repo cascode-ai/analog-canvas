@@ -7,7 +7,7 @@ import {
 import { problem, type Problem } from "./contract.js";
 import { sha256 } from "./content-digest.js";
 
-export const SimulationTextPatchSchema = z.strictObject({
+const SimulationTextPatchSchema = z.strictObject({
   path: SimulationInputPathSchema,
   textDigest: z.string().regex(/^[a-f0-9]{64}$/u),
   startOffset: z.number().int().nonnegative(),

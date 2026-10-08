@@ -296,7 +296,7 @@ export function createDesignNetlistExport(
  * already block export. This separate finding says the drawing itself is
  * unfinished because a wire reaches no peer.
  */
-export const NETLIST_DEAD_END_NET = "DEAD_END_NET";
+const NETLIST_DEAD_END_NET = "DEAD_END_NET";
 
 /**
  * The findings that say "this drawing is not finished" after strict extraction

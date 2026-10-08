@@ -58,6 +58,7 @@ export function diffDocumentObjectIds(
     .sort();
 }
 
+/** @internal Engine and editor tests apply edits with undo through it. */
 export class DocumentHistory {
   #document: SchematicDocument;
   readonly #undoStack: SchematicDocument[] = [];

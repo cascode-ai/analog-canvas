@@ -125,11 +125,7 @@ function isAntiAliasSensitive(definition) {
  * @param {number} padding  logical-unit padding added around the geometry bbox
  * @returns {{width:number,height:number}}
  */
-export function pixelWindowFromGeometry(
-  definition,
-  pixelsPerLogical,
-  padding = 2,
-) {
+function pixelWindowFromGeometry(definition, pixelsPerLogical, padding = 2) {
   const xs = [];
   const ys = [];
   for (const pin of definition.pins ?? []) {

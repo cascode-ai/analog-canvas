@@ -17,8 +17,8 @@ export const MIRROR_OPTIONS = [
   { value: "both", label: "Horizontal and vertical" },
 ] as const;
 
-export const RGB_CHANNEL_MAX = 255;
-export const HEX_COLOR_PATTERN = /^#[0-9A-Fa-f]{6}$/u;
+const RGB_CHANNEL_MAX = 255;
+const HEX_COLOR_PATTERN = /^#[0-9A-Fa-f]{6}$/u;
 
 export type CanvasPropertyOptionPreview =
   | {

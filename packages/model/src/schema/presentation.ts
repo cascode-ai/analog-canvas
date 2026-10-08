@@ -24,7 +24,7 @@ export const CellSymbolPinPlacementSchema = z.strictObject({
     }),
 });
 
-export const CellSymbolBodySizeSchema = z.strictObject({
+const CellSymbolBodySizeSchema = z.strictObject({
   width: z
     .number()
     .int()

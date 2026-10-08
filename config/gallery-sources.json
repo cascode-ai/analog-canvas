@@ -26,6 +26,15 @@
       "license": "GPL-3.0 website; data licence unconfirmed",
       "homepage": "https://ams-net.github.io",
       "paper": "https://arxiv.org/abs/2405.09045"
+    },
+    {
+      "key": "analogretriever",
+      "prefix": "ar",
+      "name": "AnalogRetriever",
+      "byline": "AnalogRetriever (redrawn)",
+      "license": "No licence stated by the dataset",
+      "homepage": "https://github.com/yihan-wa/AnalogRetriever",
+      "paper": "https://arxiv.org/abs/2604.23195"
     }
   ]
 }

@@ -27,12 +27,18 @@ import {
   prepareNetlistProcess,
   inferNetlistProcess,
   instanceModelTarget,
-  netlistProcessPendingInstances,
   placementModelTarget,
   placementProcessFill,
   processPlacementTarget,
   processReviewedLibrary,
 } from "./netlist-process";
+
+/** The devices still waiting for a model, as the Process count reads them. */
+const netlistProcessPendingInstances = (
+  project: CircuitProject,
+  profile: Parameters<typeof prepareNetlistProcess>[1],
+) =>
+  prepareNetlistProcess(project, profile, { onlyMissing: true }).instanceCount;
 
 function apply(
   project: CircuitProject,

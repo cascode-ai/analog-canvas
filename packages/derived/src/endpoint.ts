@@ -227,13 +227,6 @@ export function endpointKey(endpoint: RouteEndpoint): string {
   }
 }
 
-export function endpointsEqual(
-  left: RouteEndpoint,
-  right: RouteEndpoint,
-): boolean {
-  return endpointKey(left) === endpointKey(right);
-}
-
 /**
  * Returns whether an endpoint participates in the visible wiring graph.
  * Electrical Net membership is intentionally not consulted or mutated here.

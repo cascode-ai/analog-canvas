@@ -45,7 +45,7 @@ import { decodePng } from "./png-io.mjs";
  *   logical (0,0) within the window; defaults to the window center.
  * @returns {{svg: string, pixelWidth: number, pixelHeight: number}}
  */
-export function buildSymbolSvg(
+function buildSymbolSvg(
   definition,
   window,
   pixelsPerLogical,

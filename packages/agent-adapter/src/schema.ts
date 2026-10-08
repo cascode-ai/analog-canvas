@@ -47,7 +47,7 @@ export type { AgentAuthoringCommand } from "./authoring-command.js";
 
 export const AGENT_API_VERSION = "3.0" as const;
 export const AGENT_SNAPSHOT_VERSION = "3.0" as const;
-export const AgentApiVersionSchema = z.literal(AGENT_API_VERSION);
+const AgentApiVersionSchema = z.literal(AGENT_API_VERSION);
 const RequestBaseSchema = z.strictObject({
   apiVersion: AgentApiVersionSchema,
   requestId: StableIdSchema,
@@ -73,7 +73,7 @@ export const AgentLimitsSchema = z.strictObject({
   maxRequestBytes: z.number().int().positive().max(2_000_000),
   changeHistoryEntries: z.number().int().positive().max(256),
 });
-export const AgentCapabilitiesRequestSchema = RequestBaseSchema.extend({
+const AgentCapabilitiesRequestSchema = RequestBaseSchema.extend({
   operation: z.literal("capabilities"),
 });
 /** Named non-Circuit resource advertised by a live browser Agent session. */
@@ -170,7 +170,7 @@ export const AgentWireAtAnchorSchema = z
   .describe(
     "Resolve a tap on the current draft, including earlier wires. Optional net or member restricts the intended Net; a tap joining a different crossing Net is rejected.",
   );
-export const AgentWireIntentAnchorSchema = z.discriminatedUnion("kind", [
+const AgentWireIntentAnchorSchema = z.discriminatedUnion("kind", [
   AgentWireAtAnchorSchema,
   z
     .strictObject({ kind: z.literal("net"), net: z.string().min(1) })
@@ -201,7 +201,7 @@ export const AgentWireIntentSchema = z.strictObject({
 });
 
 /** Public subset of the canonical derived `ObjectLocator` runtime schema. */
-export const AgentObjectLocatorSchema = ObjectLocatorSchema.omit({
+const AgentObjectLocatorSchema = ObjectLocatorSchema.omit({
   sourceRef: true,
 }).extend({
   kind: z.enum([
@@ -380,7 +380,6 @@ export const AgentProductionCircuitRequestSchema = z.discriminatedUnion(
     AgentRenderRequestSchema,
   ],
 );
-export const AgentCircuitRequestSchema = AgentProductionCircuitRequestSchema;
 // Visual diagnostics are derived from rendered geometry. Text measurement and
 // rotated drafting AABBs legitimately produce fractional coordinates even
 // though persisted schematic coordinates remain integer-grid values.
@@ -430,7 +429,7 @@ const AgentSnapshotLogicalNetIdSchema = StableIdSchema.describe(
   "Resolved Logical-Net representative valid only for this Snapshot Document revision; refresh after any committed edit",
 );
 
-export const AgentSnapshotPinSchema = z.strictObject({
+const AgentSnapshotPinSchema = z.strictObject({
   name: z.string().min(1),
   role: z.string().min(1).nullable(),
   direction: z.enum(["north", "east", "south", "west"]).nullable(),
@@ -545,7 +544,7 @@ export const AgentSnapshotInstanceSchema = z.strictObject({
     ),
 });
 
-export const AgentSnapshotNetSchema = z.strictObject({
+const AgentSnapshotNetSchema = z.strictObject({
   id: AgentSnapshotLogicalNetIdSchema,
   name: z.string().min(1).nullable(),
   scope: z.enum(["local", "global"]),
@@ -560,7 +559,7 @@ export const AgentSnapshotNetSchema = z.strictObject({
   junctionIds: z.array(StableIdSchema),
 });
 
-export const AgentSnapshotRouteSchema = z.strictObject({
+const AgentSnapshotRouteSchema = z.strictObject({
   id: StableIdSchema,
   netId: AgentSnapshotLogicalNetIdSchema,
   start: RouteEndpointSchema,
@@ -570,14 +569,14 @@ export const AgentSnapshotRouteSchema = z.strictObject({
   polyline: z.array(DerivedPointSchema).min(2).nullable(),
 });
 
-export const AgentSnapshotJunctionSchema = z.strictObject({
+const AgentSnapshotJunctionSchema = z.strictObject({
   id: StableIdSchema,
   netId: AgentSnapshotLogicalNetIdSchema,
   position: PointSchema,
   role: JunctionRoleSchema.optional(),
 });
 
-export const AgentSnapshotNoConnectSchema = NoConnectSchema;
+const AgentSnapshotNoConnectSchema = NoConnectSchema;
 
 export const AgentSnapshotDocumentSchema = z.strictObject({
   netlist: CellNetlistInterfaceSchema.optional(),
@@ -642,7 +641,7 @@ export const AgentSnapshotDocumentSchema = z.strictObject({
   diagnostics: z.array(AgentDiagnosticSchema),
 });
 
-export const AgentProjectIndexDocumentSchema = z.strictObject({
+const AgentProjectIndexDocumentSchema = z.strictObject({
   id: StableIdSchema,
   name: z.string().min(1),
   instanceCount: z.number().int().nonnegative(),
@@ -754,7 +753,7 @@ const TraceInterfaceSchema = z.strictObject({
   childTerminalName: z.string(),
   childNetId: StableIdSchema,
 });
-export const AgentNetTraceSchema = z.strictObject({
+const AgentNetTraceSchema = z.strictObject({
   highlights: z.array(
     TraceNetRefSchema.extend({
       routes: z.array(StableIdSchema),
@@ -779,7 +778,7 @@ export const AgentNetTraceSchema = z.strictObject({
     ]),
   ),
 });
-export const AgentSnapshotResponseSchema = ResponseBaseSchema.extend({
+const AgentSnapshotResponseSchema = ResponseBaseSchema.extend({
   apiVersion: z.literal(AGENT_API_VERSION),
   operation: z.literal("snapshot"),
   ok: z.literal(true),
@@ -907,7 +906,7 @@ export const AgentPinsSnapshotResponseSchema = ResponseBaseSchema.extend({
   missingInstanceIds: z.array(StableIdSchema).max(64),
 });
 
-export const AgentSemanticIntentResultSchema = z.strictObject({
+const AgentSemanticIntentResultSchema = z.strictObject({
   kind: z.enum([
     "activate-document",
     "select",
@@ -974,7 +973,7 @@ export const AgentRenderResponseSchema = ResponseBaseSchema.extend({
   diagnostics: z.array(AgentDiagnosticSchema),
 });
 /** One call of an action list that needs several (ACTION_BATCH_NOT_ATOMIC). */
-export const AgentActionCallSchema = z.strictObject({
+const AgentActionCallSchema = z.strictObject({
   actionIndices: z.array(z.number().int().nonnegative()),
   actionKinds: z.array(z.string()),
   sends: z.enum([
@@ -987,7 +986,7 @@ export const AgentActionCallSchema = z.strictObject({
     "focus",
   ]),
 });
-export const AgentErrorResponseSchema = ResponseBaseSchema.extend({
+const AgentErrorResponseSchema = ResponseBaseSchema.extend({
   operation: z.enum(["error", "snapshot", "transact", "render"]),
   ok: z.literal(false),
   revision: z.number().int().nonnegative().optional(),
@@ -1006,7 +1005,7 @@ export const AgentErrorResponseSchema = ResponseBaseSchema.extend({
   diagnostics: z.array(AgentDiagnosticSchema),
 });
 
-export const AgentProductionCircuitResponseSchema = z.union([
+const AgentProductionCircuitResponseSchema = z.union([
   AgentCapabilitiesResponseSchema,
   AgentBootstrapSnapshotResponseSchema,
   AgentDocumentStateResponseSchema,
@@ -1031,21 +1030,11 @@ export type AgentLimits = z.infer<typeof AgentLimitsSchema>;
 export type AgentCircuitRequest = z.infer<
   typeof AgentProductionCircuitRequestSchema
 >;
-export type AgentProductionCircuitRequest = z.infer<
-  typeof AgentProductionCircuitRequestSchema
->;
-export type AgentCapabilitiesRequest = z.infer<
-  typeof AgentCapabilitiesRequestSchema
->;
 export type AgentSnapshotRequest = z.infer<typeof AgentSnapshotRequestSchema>;
 export type AgentTransactRequest = z.infer<typeof AgentTransactRequestSchema>;
 export type AgentSemanticIntent = z.infer<typeof AgentSemanticIntentSchema>;
-export type AgentObjectLocator = z.infer<typeof AgentObjectLocatorSchema>;
 export type AgentRenderRequest = z.infer<typeof AgentRenderRequestSchema>;
 export type AgentCircuitResponse = z.infer<typeof AgentCircuitResponseSchema>;
-export type AgentProductionCircuitResponse = z.infer<
-  typeof AgentProductionCircuitResponseSchema
->;
 export type AgentDiagnostic = z.infer<typeof AgentDiagnosticSchema>;
 export type AgentDiff = z.infer<typeof AgentDiffSchema>;
 export type AgentBootstrapSnapshot = z.infer<

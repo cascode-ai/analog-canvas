@@ -26,7 +26,7 @@ import {
 import type { GridPoint } from "./types.js";
 import { reportDuplicateIds } from "./validation.js";
 import { electricalConnectionGrid } from "../coordinate-domain.js";
-export const SourceBindingSchema = z.strictObject({
+const SourceBindingSchema = z.strictObject({
   cellName: z.string().min(1),
   sourceRef: SourceSpanSchema,
 });
@@ -52,7 +52,7 @@ export const CellNetlistTerminalSchema = z
       });
     }
   });
-export const CellNetlistFormalParameterSchema = z.strictObject({
+const CellNetlistFormalParameterSchema = z.strictObject({
   name: NetlistIdentifierSchema,
   defaultValue: NetlistParameterValueSchema.optional(),
 });

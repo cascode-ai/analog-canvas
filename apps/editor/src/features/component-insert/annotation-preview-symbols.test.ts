@@ -8,7 +8,6 @@ import {
   annotationPolarity,
   annotationTextPreset,
   isAnnotationPaletteSymbol,
-  isBarePolaritySign,
 } from "./annotation-preview-symbols";
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
@@ -51,8 +50,6 @@ describe("polarity annotations", () => {
     expect(annotationPolarity("annotation-polarity-both")).toBe("both");
     expect(annotationPolarity("annotation-text-plus")).toBe("positive");
     expect(annotationPolarity("annotation-text-minus")).toBe("negative");
-    expect(isBarePolaritySign("annotation-text-plus")).toBe(true);
-    expect(isBarePolaritySign("annotation-polarity-both")).toBe(false);
     expect(isAnnotationPaletteSymbol("annotation-text-minus")).toBe(true);
     expect(isAnnotationPaletteSymbol("annotation-ellipsis")).toBe(true);
     expect(annotationPolarity("annotation-ellipsis")).toBeUndefined();

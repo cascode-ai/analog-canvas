@@ -86,7 +86,6 @@ export const AgentWorkspaceActionSchema = z.discriminatedUnion("action", [
       .optional(),
   }),
 ]);
-export type AgentWorkspaceAction = z.infer<typeof AgentWorkspaceActionSchema>;
 
 /**
  * Cross-Project Cell reuse stays a sibling resource because its source is the
@@ -193,7 +192,7 @@ export const AgentProjectResourceRequestSchema = z.discriminatedUnion(
   ],
 );
 
-export const AgentCloudProjectSummarySchema = z.strictObject({
+const AgentCloudProjectSummarySchema = z.strictObject({
   id: StableIdSchema,
   name: z.string().min(1).max(256),
   revision: z.number().int().nonnegative(),
@@ -201,7 +200,7 @@ export const AgentCloudProjectSummarySchema = z.strictObject({
   schemaVersion: z.number().int().positive(),
 });
 
-export const AgentReusableCellSummarySchema = z.strictObject({
+const AgentReusableCellSummarySchema = z.strictObject({
   documentId: StableIdSchema,
   name: z.string().min(1).max(256),
   netlistName: z.string().min(1).max(256).nullable(),
@@ -227,7 +226,7 @@ export const AgentGalleryEntrySummarySchema = z.strictObject({
   aiGenerated: z.boolean().optional(),
 });
 
-export const AgentNetlistDiagnosticSchema = z.strictObject({
+const AgentNetlistDiagnosticSchema = z.strictObject({
   severity: z.enum(["error", "warning", "info"]),
   code: z.string().min(1),
   message: z.string().min(1),
@@ -446,12 +445,6 @@ export type AgentProjectResourceRequest = z.infer<
 >;
 export type AgentProjectResourceResponse = z.infer<
   typeof AgentProjectResourceResponseSchema
->;
-export type AgentCloudProjectSummary = z.infer<
-  typeof AgentCloudProjectSummarySchema
->;
-export type AgentReusableCellSummary = z.infer<
-  typeof AgentReusableCellSummarySchema
 >;
 export type AgentGalleryEntrySummary = z.infer<
   typeof AgentGalleryEntrySummarySchema

@@ -47,6 +47,7 @@ export function nextInstanceId(
   return `${prefix}${index}`;
 }
 
+/** @internal Tests read the Reference the allocator gives the next part. */
 export function nextInstanceReference(
   document: SchematicDocument,
   symbolId: string,

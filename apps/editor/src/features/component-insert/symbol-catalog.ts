@@ -360,9 +360,3 @@ export function findPaletteSymbol(
     (symbol) => symbol.id === symbolId,
   );
 }
-
-export function flattenComponentCatalog(
-  groups: readonly ComponentCatalogGroup[],
-): SymbolDefinition[] {
-  return groups.flatMap((group) => group.symbols);
-}

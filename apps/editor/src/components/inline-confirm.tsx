@@ -48,6 +48,29 @@ export function InlineConfirm({
       trigger.current?.focus({ preventScroll: true }),
     );
   };
+  const confirm = async () => {
+    if (running.current) return;
+    running.current = true;
+    setPending(true);
+    try {
+      await onConfirm();
+      const restoreFocus = root.current?.contains(document.activeElement);
+      change(false);
+      if (restoreFocus)
+        requestAnimationFrame(() =>
+          trigger.current?.focus({ preventScroll: true }),
+        );
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : "Could not complete this action. Try again.",
+      );
+    } finally {
+      running.current = false;
+      setPending(false);
+    }
+  };
   return (
     <span
       className="inline-confirm"
@@ -84,31 +107,7 @@ export function InlineConfirm({
               type="button"
               className="inline-confirm-danger"
               disabled={pending || triggerProps.disabled}
-              onClick={async () => {
-                if (running.current) return;
-                running.current = true;
-                setPending(true);
-                try {
-                  await onConfirm();
-                  const restoreFocus = root.current?.contains(
-                    document.activeElement,
-                  );
-                  change(false);
-                  if (restoreFocus)
-                    requestAnimationFrame(() =>
-                      trigger.current?.focus({ preventScroll: true }),
-                    );
-                } catch (cause) {
-                  setError(
-                    cause instanceof Error
-                      ? cause.message
-                      : "Could not complete this action. Try again.",
-                  );
-                } finally {
-                  running.current = false;
-                  setPending(false);
-                }
-              }}
+              onClick={() => void confirm()}
             >
               {pending ? "Working…" : confirmLabel}
             </button>

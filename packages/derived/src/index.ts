@@ -27,7 +27,6 @@ export * from "./mos-bulk.js";
 export * from "./supply-marker.js";
 export * from "./object-locator.js";
 export * from "./project-search.js";
-export * from "./project-instance-index.js";
 export * from "./resolved-route-geometry.js";
 export * from "./route-query.js";
 export * from "./route-angle.js";
@@ -49,7 +48,6 @@ export * from "./label-clearance.js";
 export * from "./net-label-turn.js";
 export * from "./drawn-switch.js";
 export * from "./drawn-magnetic.js";
-export * from "./simulatability.js";
 export * from "./arrow-artwork.js";
 export * from "./master-names.js";
 

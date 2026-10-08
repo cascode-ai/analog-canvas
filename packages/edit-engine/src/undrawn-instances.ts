@@ -1,7 +1,5 @@
 import type { Instance, SchematicDocument } from "@icm/model";
 
-import type { SchematicEdit } from "./edit-schema.js";
-
 type Placement = NonNullable<Instance["placement"]>;
 
 const SHELF_MARGIN = 80;
@@ -66,19 +64,6 @@ export function planUndrawnInstancePlacements(
       mirror: "none" as const,
     },
   }));
-}
-
-/** The same repair as a transaction, for callers that edit through the engine. */
-export function planUndrawnInstanceDrawing(
-  document: SchematicDocument,
-): SchematicEdit[] {
-  return planUndrawnInstancePlacements(document).map(
-    ({ instanceId, placement }): SchematicEdit => ({
-      kind: "place_instance",
-      instanceId,
-      placement,
-    }),
-  );
 }
 
 function snapUp(value: number, grid: number): number {

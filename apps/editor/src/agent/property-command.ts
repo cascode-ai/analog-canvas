@@ -1,7 +1,9 @@
 import type {
   AgentAuthoringCommand,
   AgentCommandPlan,
+  AgentCommandPlanNote,
 } from "@icm/agent-adapter";
+import { deriveDocumentContactEvidence, endpointKey } from "@icm/derived";
 import {
   instanceParameterContract,
   milliScaleReading,
@@ -13,9 +15,11 @@ import {
   createRoutingOperationPlan,
   gateRoutingOperationPlan,
   pinAnchoredPlacement,
+  type SchematicEdit,
 } from "@icm/edit-engine";
 import {
   reflectOrientation,
+  routeEndpoints,
   type CircuitProject,
   type Instance,
   type SchematicDocument,
@@ -73,7 +77,7 @@ function parameterIssue(
       return `Parameter "${issue.name}" duplicates "${issue.previousName}" under case folding`;
     case "select":
       return `Parameter "${issue.name}" must be one of: ${issue.allowed.join(", ")}; received "${issue.value}"`;
-    default:
+    case "decimal":
       return `Parameter "${issue.name}" must be a finite decimal number; received "${issue.value}"`;
   }
 }
@@ -108,10 +112,107 @@ function nextSignalFlow(
   return next as Record<string, string | number>;
 }
 
+/** The markers a moved part carries when they stand on its pins (#1531). */
+const PIN_MARKERS = {
+  ground: "ground",
+  "vdd-port": "supply marker",
+  port: "Cell Pin",
+  "port-filled": "Cell Pin",
+} as const;
+
+/**
+ * The ground, supply and Cell Pin markers that touch one of a part's pins
+ * and have no other connection: no wire of their own, and nothing else at
+ * that point but the pin. House style stands a ground on its pin, so moving
+ * the part alone left the ground behind on a jog wire (#1531). A marker that
+ * is wired, shares the point with another pin or is locked in place stays.
+ */
+function markersOnPinsOnly(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  instance: Instance,
+): { marker: Instance; pinName: string }[] {
+  if (instance.symbolId in PIN_MARKERS) return [];
+  const wired = new Set(
+    document.routes.flatMap((route) => routeEndpoints(route).map(endpointKey)),
+  );
+  // A marker held by a locked group or constraint stays, and so does one
+  // with a locked label: moving it would move that label, and the move would
+  // be refused as a whole.
+  const locked = new Set([
+    ...[...document.layoutGroups, ...document.constraints].flatMap((owner) =>
+      owner.locked ? owner.objectIds : [],
+    ),
+    ...document.annotations.flatMap((annotation) =>
+      annotation.locked && annotation.anchor.kind === "object"
+        ? [annotation.anchor.objectId]
+        : [],
+    ),
+  ]);
+  let evidence: ReturnType<typeof deriveDocumentContactEvidence> | undefined;
+  return document.instances.flatMap((marker) => {
+    if (
+      !(marker.symbolId in PIN_MARKERS) ||
+      !marker.placement ||
+      locked.has(marker.id)
+    )
+      return [];
+    const pins = (
+      resolver.resolve(marker.symbolId, marker.symbolVariantId)?.definition
+        .pins ?? []
+    ).map((pin) =>
+      endpointKey({
+        kind: "terminal",
+        instanceId: marker.id,
+        pinName: pin.name,
+      }),
+    );
+    if (!pins.length || pins.some((key) => wired.has(key))) return [];
+    evidence ??= deriveDocumentContactEvidence(document, resolver);
+    let touched: string | undefined;
+    for (const key of pins) {
+      const contact = evidence.byEndpointKey.get(key);
+      if (!contact) continue;
+      const other = contact.endpoints.find(
+        (endpoint) => endpointKey(endpoint) !== key,
+      );
+      if (
+        contact.endpoints.length !== 2 ||
+        other?.kind !== "terminal" ||
+        other.instanceId !== instance.id
+      )
+        return [];
+      touched = other.pinName;
+    }
+    return touched ? [{ marker, pinName: touched }] : [];
+  });
+}
+
+/** What the receipt says of the markers a move carried (#1531). */
+function markersMovedAlongNote(
+  instance: Instance,
+  carried: readonly { marker: Instance; pinName: string }[],
+): AgentCommandPlanNote {
+  const listed = carried.map(
+    ({ marker, pinName }) =>
+      `the ${PIN_MARKERS[marker.symbolId as keyof typeof PIN_MARKERS]} ${marker.reference ?? marker.id} on pin ${pinName}`,
+  );
+  const list =
+    listed.length === 1
+      ? listed[0]!
+      : `${listed.slice(0, -1).join(", ")} and ${listed.at(-1)!}`;
+  return {
+    code: "MARKERS_MOVED_ALONG",
+    message: `${instance.reference ?? instance.id} moved with ${list}, which touched it with no wire`,
+    objectIds: carried.map(({ marker }) => marker.id),
+  };
+}
+
 /**
  * Apply in Properties, for an Agent: the change is written into the value the
  * Properties panel would hold and planned by the same function, so a part
- * changed either way comes out the same.
+ * changed either way comes out the same, but for one thing: a move carries
+ * the markers standing on the part's pins with no wire (#1531).
  */
 export function planSetProperties(
   project: CircuitProject,
@@ -261,10 +362,38 @@ export function planSetProperties(
       mirror,
     };
   }
+  // A move by a step, turning and mirroring nothing, carries the markers.
+  const carried =
+    value.placement &&
+    instance.placement &&
+    value.placement.rotation === instance.placement.rotation &&
+    value.placement.mirror === instance.placement.mirror
+      ? markersOnPinsOnly(document, resolver, instance)
+      : [];
   const plan = planPropertyApply(
-    { project, document, resolver, instance },
+    {
+      project,
+      document,
+      resolver,
+      instance,
+      ...(carried.length
+        ? { carriedInstanceIds: carried.map(({ marker }) => marker.id) }
+        : {}),
+    },
     value,
   );
+  /** The receipt names the markers the planned edits did move. */
+  const withNotes = (edits: SchematicEdit[]): AgentCommandPlan => {
+    const moved = carried.filter(({ marker }) =>
+      edits.some(
+        (edit) =>
+          edit.kind === "move_instance" && edit.instanceId === marker.id,
+      ),
+    );
+    return moved.length
+      ? { edits, notes: [markersMovedAlongNote(instance, moved)] }
+      : { edits };
+  };
   const controlEdits = clearControl
     ? [
         {
@@ -310,9 +439,9 @@ export function planSetProperties(
         { symbolResolver: resolver },
       );
       if (!gate.ok) throw new Error(gate.message);
-      return { edits: [...gate.edits, ...controlEdits] };
+      return withNotes([...gate.edits, ...controlEdits]);
     }
     case "edits":
-      return { edits: [...plan.edits, ...controlEdits] };
+      return withNotes([...plan.edits, ...controlEdits]);
   }
 }

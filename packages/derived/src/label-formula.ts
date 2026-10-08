@@ -2046,7 +2046,15 @@ function flowable(node: Node, style: Style): boolean {
         ) &&
         (node.sup ?? []).every((child) => flowable(child, scriptStyleOf(style)))
       );
-    default:
+    case "frac":
+    case "radical":
+    case "accent":
+    case "overline":
+    case "underline":
+    case "stack":
+    case "xarrow":
+    case "array":
+    case "delimited":
       return false;
   }
 }
@@ -2063,7 +2071,16 @@ function classOf(node: Node): AtomClass {
       return node.base.length === 1 ? classOf(node.base[0]!) : "ord";
     case "xarrow":
       return "rel";
-    default:
+    case "space":
+    case "style":
+    case "phantom":
+    case "frac":
+    case "radical":
+    case "accent":
+    case "overline":
+    case "underline":
+    case "array":
+    case "delimited":
       return "ord";
   }
 }

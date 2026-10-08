@@ -335,7 +335,7 @@ describe("apply-label-preset textbook (#1350)", () => {
       },
     ]);
     expect(unknownReference).toMatchObject({ ok: false });
-    expect(unknownReference.message).toContain('Reference "M9"');
+    expect(unknownReference.message).toContain('Reference or id "M9"');
     expect(controller.document).toEqual(before);
   });
 

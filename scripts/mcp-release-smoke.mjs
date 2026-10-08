@@ -4,7 +4,9 @@
 // workspace build does, through MCP and through its one-shot command line.
 //
 // It talks to no editor: what the tools do is tested on source, and a
-// release candidate is paired with Production before it is published.
+// release candidate is paired with Production before it is published. One
+// placement in --local mode checks that the editor's drawing code the
+// package carries for it loads beside the executable (#1498).
 //
 //   node scripts/mcp-release-smoke.mjs [packaged-executable]
 //
@@ -15,7 +17,7 @@ import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { copyFile, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 
 const { version } = JSON.parse(await readFile(resolve("package.json"), "utf8"));
 const { version: mcpVersion } = JSON.parse(
@@ -35,6 +37,12 @@ const workspaceExecutable = resolve("apps/mcp-server/dist/main.js");
 const temporary = await mkdtemp(join(tmpdir(), "analog-mcp-smoke-"));
 const executable = join(temporary, "analog-canvas-mcp.mjs");
 await copyFile(packagedExecutable, executable);
+// --local loads the editor's drawing code from beside the executable (#1498).
+const headless = "analog-canvas-headless.mjs";
+await copyFile(
+  join(dirname(packagedExecutable), headless),
+  join(temporary, headless),
+);
 const env = {
   ...process.env,
   // Nothing here needs the network; an address nothing answers on keeps
@@ -45,6 +53,8 @@ const env = {
   XDG_DATA_HOME: join(temporary, "data"),
   ANALOG_CANVAS_TASK_DIR: join(temporary, "task"),
 };
+// The bundle beside the executable, as a release ships it, not another.
+delete env.ANALOG_CANVAS_HEADLESS;
 
 /** Start one MCP over stdio and read what it offers. */
 async function offered(file, cwd) {
@@ -107,25 +117,21 @@ async function offered(file, cwd) {
 }
 
 /** The one-shot command line an Agent without MCP support runs. */
-async function connectionStatus() {
-  const child = spawn(
-    process.execPath,
-    [executable, "--http", "connection_status"],
-    {
-      cwd: temporary,
-      env,
-      stdio: ["pipe", "pipe", "inherit"],
-      timeout: 60_000,
-    },
-  );
+async function command(args, input) {
+  const child = spawn(process.execPath, [executable, ...args], {
+    cwd: temporary,
+    env,
+    stdio: ["pipe", "pipe", "inherit"],
+    timeout: 60_000,
+  });
   let output = "";
   child.stdout.on("data", (chunk) => {
     output += chunk.toString("utf8");
   });
   const closed = once(child, "close");
-  child.stdin.end(JSON.stringify({ refresh: false }));
+  child.stdin.end(JSON.stringify(input));
   const [code] = await closed;
-  assert.equal(code, 0, `connection_status failed: ${output}`);
+  assert.equal(code, 0, `${args.join(" ")} failed: ${output}`);
   return JSON.parse(JSON.parse(output).content[0].text);
 }
 
@@ -152,15 +158,41 @@ try {
     workspace.contents,
     "The packaged MCP must carry the workspace build's resource contents",
   );
-  const status = await connectionStatus();
+  const status = await command(["--http", "connection_status"], {
+    refresh: false,
+  });
   assert.equal(status.state, "unpaired");
   assert.equal(
     status.runtime.version,
     mcpVersion,
     "The packaged command line must report the declared version",
   );
+  // Local mode (#1498): drawn into a Project file, with no editor at all.
+  const drawing = join(temporary, "drawing");
+  const placed = await command(
+    ["--local", drawing, "--new", "--http", "apply_actions"],
+    {
+      actions: [
+        {
+          kind: "place-component",
+          symbol: "resistor",
+          reference: "R1",
+          position: { x: 100, y: 100 },
+        },
+      ],
+    },
+  );
+  assert.equal(placed.applied, true, "Local mode must draw on its own");
+  const drawn = JSON.parse(
+    await readFile(join(drawing, "project.icproj.json"), "utf8"),
+  );
+  assert.deepEqual(
+    drawn.documents[0].instances.map((instance) => instance.name),
+    ["R1"],
+    "Local mode must save the drawing to the workspace's Project file",
+  );
   process.stdout.write(
-    `Packaged MCP ${mcpVersion} starts on its own and offers ${packaged.tools.length} tools and ${packaged.resources.length} resources, as the workspace build does.\n`,
+    `Packaged MCP ${mcpVersion} starts on its own and offers ${packaged.tools.length} tools and ${packaged.resources.length} resources, as the workspace build does, and draws in a local workspace.\n`,
   );
 } finally {
   await rm(temporary, { recursive: true, force: true });

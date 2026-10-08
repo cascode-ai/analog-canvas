@@ -985,6 +985,145 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
         setSaveRequested(false);
       }
     };
+    const runFileAction = async (
+      action: "rename" | "delete" | "entry" | "discard",
+      filePath: string,
+      targetFolderId = props.folder.id,
+    ) => {
+      const owner = {
+        kind: "project-folder" as const,
+        folderId: targetFolderId,
+      };
+      const bufferKey = `${targetFolderId}\u0000${filePath}`;
+      if (action === "discard") {
+        const listed = await props.files.handle({
+          action: "list",
+          owner,
+        });
+        if (!listed.ok || !("source" in listed)) return;
+        const result = await props.files.handle({
+          action: "update",
+          owner,
+          expectedRevision: listed.source.revision,
+          drafts: (listed.source.drafts ?? []).filter(
+            (draft) => draft.path !== filePath,
+          ),
+        });
+        if (!result.ok) {
+          props.onProblem(result.error);
+          return;
+        }
+        drafts.current.delete(bufferKey);
+        cache.write(drafts.current);
+        render((v) => v + 1);
+        props.onProblem(undefined);
+        return;
+      }
+      if (
+        action === "delete" &&
+        !(await ui.confirm({
+          title: `Delete ${filePath}?`,
+          message:
+            "This removes the file and its draft. Undo restores it. References to this file may need repair.",
+        }))
+      )
+        return;
+      const nextPath =
+        action === "rename"
+          ? (
+              await ui.name({
+                kind: "file",
+                folderId: targetFolderId,
+                path: filePath,
+                label: "Relative file path",
+                initial: filePath,
+                validate: (name) =>
+                  validateFileName(name, targetFolderId, filePath),
+              })
+            )?.name
+          : filePath;
+      if (!nextPath || (action === "rename" && nextPath === filePath)) return;
+      const listed = await props.files.handle({ action: "list", owner });
+      if (!listed.ok || !("source" in listed)) {
+        if (!listed.ok) props.onProblem(listed.error);
+        return;
+      }
+      const folder = current.current.project.simulationFolders.find(
+        (item) => item.id === targetFolderId,
+      );
+      const persistedFile = folder?.input.files.find(
+        (item) => item.path === filePath,
+      );
+      const draft = drafts.current.get(bufferKey);
+      const file =
+        persistedFile ?? (draft ? { path: filePath, text: "" } : undefined);
+      if (!folder || !file) return;
+      if (draft && draft.base !== file.text) {
+        props.onProblem(
+          inputProblem(
+            "SOURCE_CONFLICT",
+            "File changed elsewhere; draft retained.",
+          ),
+        );
+        return;
+      }
+      const content = draft?.text ?? file.text;
+      const result = await props.files.handle({
+        action: "update",
+        owner,
+        expectedRevision: listed.source.revision,
+        ...(action === "rename"
+          ? {
+              removes: [filePath],
+              writes: [{ path: nextPath, text: content }],
+              ...(filePath === folder.input.entry ? { entry: nextPath } : {}),
+              ...(filePath === folder.input.configPath
+                ? { configPath: nextPath }
+                : {}),
+            }
+          : action === "delete"
+            ? { removes: [filePath] }
+            : {
+                entry: filePath,
+                writes: [{ path: filePath, text: content }],
+              }),
+      });
+      if (!result.ok) props.onProblem(result.error);
+      else {
+        drafts.current.delete(bufferKey);
+        cache.write(drafts.current);
+        render((v) => v + 1);
+        // Operating on a background file never opens it as a side effect.
+        if (
+          paths[targetFolderId] === filePath ||
+          (targetFolderId === props.folder.id && path === filePath)
+        )
+          setPaths((current) => ({
+            ...current,
+            [targetFolderId]: action === "delete" ? "" : nextPath,
+          }));
+        props.onProblem(undefined);
+      }
+    };
+    const createFile = async (folderId = props.folder.id) => {
+      const path = (
+        await ui.name({
+          kind: "file",
+          folderId,
+          label: "Relative file path",
+          initial: "stimulus.cir",
+          validate: (name) => validateFileName(name, folderId),
+        })
+      )?.name;
+      if (!path) return;
+      drafts.current.set(`${folderId}\u0000${path}`, {
+        base: "",
+        text: "* New source\n",
+        committed: current.current.project.structureRevision,
+      });
+      setPath(path, folderId);
+      render((value) => value + 1);
+    };
     const downloadSelection = async (
       selection: readonly SimulationExplorerSelection[],
       archive = false,
@@ -1166,129 +1305,9 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
           />
         }
         onSelectFile={setPath}
-        onFileAction={async (
-          action,
-          filePath,
-          targetFolderId = props.folder.id,
-        ) => {
-          const owner = {
-            kind: "project-folder" as const,
-            folderId: targetFolderId,
-          };
-          const bufferKey = `${targetFolderId}\u0000${filePath}`;
-          if (action === "discard") {
-            const listed = await props.files.handle({
-              action: "list",
-              owner,
-            });
-            if (!listed.ok || !("source" in listed)) return;
-            const result = await props.files.handle({
-              action: "update",
-              owner,
-              expectedRevision: listed.source.revision,
-              drafts: (listed.source.drafts ?? []).filter(
-                (draft) => draft.path !== filePath,
-              ),
-            });
-            if (!result.ok) {
-              props.onProblem(result.error);
-              return;
-            }
-            drafts.current.delete(bufferKey);
-            cache.write(drafts.current);
-            render((v) => v + 1);
-            props.onProblem(undefined);
-            return;
-          }
-          if (
-            action === "delete" &&
-            !(await ui.confirm({
-              title: `Delete ${filePath}?`,
-              message:
-                "This removes the file and its draft. Undo restores it. References to this file may need repair.",
-            }))
-          )
-            return;
-          const nextPath =
-            action === "rename"
-              ? (
-                  await ui.name({
-                    kind: "file",
-                    folderId: targetFolderId,
-                    path: filePath,
-                    label: "Relative file path",
-                    initial: filePath,
-                    validate: (name) =>
-                      validateFileName(name, targetFolderId, filePath),
-                  })
-                )?.name
-              : filePath;
-          if (!nextPath || (action === "rename" && nextPath === filePath))
-            return;
-          const listed = await props.files.handle({ action: "list", owner });
-          if (!listed.ok || !("source" in listed)) {
-            if (!listed.ok) props.onProblem(listed.error);
-            return;
-          }
-          const folder = current.current.project.simulationFolders.find(
-            (item) => item.id === targetFolderId,
-          );
-          const persistedFile = folder?.input.files.find(
-            (item) => item.path === filePath,
-          );
-          const draft = drafts.current.get(bufferKey);
-          const file =
-            persistedFile ?? (draft ? { path: filePath, text: "" } : undefined);
-          if (!folder || !file) return;
-          if (draft && draft.base !== file.text) {
-            props.onProblem(
-              inputProblem(
-                "SOURCE_CONFLICT",
-                "File changed elsewhere; draft retained.",
-              ),
-            );
-            return;
-          }
-          const content = draft?.text ?? file.text;
-          const result = await props.files.handle({
-            action: "update",
-            owner,
-            expectedRevision: listed.source.revision,
-            ...(action === "rename"
-              ? {
-                  removes: [filePath],
-                  writes: [{ path: nextPath, text: content }],
-                  ...(filePath === folder.input.entry
-                    ? { entry: nextPath }
-                    : {}),
-                  ...(filePath === folder.input.configPath
-                    ? { configPath: nextPath }
-                    : {}),
-                }
-              : action === "delete"
-                ? { removes: [filePath] }
-                : {
-                    entry: filePath,
-                    writes: [{ path: filePath, text: content }],
-                  }),
-          });
-          if (!result.ok) props.onProblem(result.error);
-          else {
-            drafts.current.delete(bufferKey);
-            cache.write(drafts.current);
-            render((v) => v + 1);
-            // Operating on a background file never opens it as a side effect.
-            if (
-              paths[targetFolderId] === filePath ||
-              (targetFolderId === props.folder.id && path === filePath)
-            )
-              setPaths((current) => ({
-                ...current,
-                [targetFolderId]: action === "delete" ? "" : nextPath,
-              }));
-            props.onProblem(undefined);
-          }
-        }}
+        onFileAction={(action, filePath, folderId) =>
+          void runFileAction(action, filePath, folderId)
+        }
         entryPath={input.entry}
         configPath={input.configPath}
         onCopyFile={(filePath, folderId = props.folder.id) => {
@@ -1303,25 +1322,7 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
               ),
             );
         }}
-        onNewFile={async (folderId = props.folder.id) => {
-          const path = (
-            await ui.name({
-              kind: "file",
-              folderId,
-              label: "Relative file path",
-              initial: "stimulus.cir",
-              validate: (name) => validateFileName(name, folderId),
-            })
-          )?.name;
-          if (!path) return;
-          drafts.current.set(`${folderId}\u0000${path}`, {
-            base: "",
-            text: "* New source\n",
-            committed: current.current.project.structureRevision,
-          });
-          setPath(path, folderId);
-          render((value) => value + 1);
-        }}
+        onNewFile={(folderId) => void createFile(folderId)}
         actions={
           <>
             <button

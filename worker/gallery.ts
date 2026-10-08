@@ -1775,7 +1775,7 @@ async function gallerySourceCounts(env: GalleryEnv) {
 }
 
 /** Circuits one import request may carry. */
-export const GALLERY_SOURCE_IMPORT_BATCH = 10;
+const GALLERY_SOURCE_IMPORT_BATCH = 10;
 
 /**
  * The Owner imports circuits into a reference dataset (#1510): each under

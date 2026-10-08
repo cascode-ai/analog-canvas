@@ -1216,7 +1216,7 @@ function WorkspaceEditor({
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- evaluated once per dialog open
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- evaluated once per dialog open
   }, [identity, publishGalleryOpen]);
   const [agentFileCandidate, setAgentFileCandidate] =
     useState<AgentFileCandidateSummary | null>(null);
@@ -7171,8 +7171,8 @@ function WorkspaceEditor({
           onImportProject: (file) => void openProjectFile(file),
           onImportSpice: (files, namingProfile) =>
             void importSpiceFiles(files, namingProfile),
-          onExportProject: exportProjectFile,
-          onExportSvg: exportSvg,
+          onExportProject: () => void exportProjectFile(),
+          onExportSvg: () => void exportSvg(),
           onExportRaster: (format) => void exportRaster(format),
           onRevert: revertToSavedProjectBaseline,
           onOpenRecovery: openRecoveryDialog,
@@ -7271,7 +7271,7 @@ function WorkspaceEditor({
           toggleProjectPanel("netlist-configuration");
         }}
         onOpenNetlistPreflight={() => setNetlistPreflightOpen(true)}
-        onExportNetlist={exportDesignNetlist}
+        onExportNetlist={(format) => void exportDesignNetlist(format)}
         agentAction={
           publicAgentUiEnabled
             ? {
@@ -7396,7 +7396,7 @@ function WorkspaceEditor({
           !recoveryFailureDismissed
             ? {
                 state: recoveryState,
-                onDownload: downloadCurrentProjectBackup,
+                onDownload: () => void downloadCurrentProjectBackup(),
                 onDismiss: () => setRecoveryFailureDismissed(true),
               }
             : null
@@ -7708,7 +7708,10 @@ function WorkspaceEditor({
                 onNavigate: navigateToNetlistDiagnostic,
                 onNavigateElectrical: jumpToProjectDiagnostic,
                 onExport: (namingProfile) =>
-                  exportDesignNetlist(netlistPreferences.format, namingProfile),
+                  void exportDesignNetlist(
+                    netlistPreferences.format,
+                    namingProfile,
+                  ),
               }
             : null
         }
@@ -7829,11 +7832,11 @@ function WorkspaceEditor({
                 error: agentSession.error,
                 backgroundRequests: agentSession.backgroundRequests,
                 now: Date.now(),
-                onPause: agentSession.pause,
-                onResume: agentSession.resume,
+                onPause: () => void agentSession.pause(),
+                onResume: () => void agentSession.resume(),
                 onReconnect: agentSession.reconnect,
-                onNewConnection: agentSession.newConnection,
-                onRevoke: agentSession.revoke,
+                onNewConnection: () => void agentSession.newConnection(),
+                onRevoke: () => void agentSession.revoke(),
                 onClose: () => setAgentPanelOpen(false),
               }
             : null
@@ -8242,7 +8245,7 @@ function WorkspaceEditor({
                     onDeviceTargetChange={netlistPreferences.setDeviceTarget}
                     onReset={netlistPreferences.reset}
                     onCopy={() =>
-                      exportDesignNetlist(
+                      void exportDesignNetlist(
                         netlistPreferences.format,
                         netlistNamingProfile,
                       )
@@ -9301,12 +9304,12 @@ function WorkspaceEditor({
                       expiresAt: agentSession.expiresAt,
                       error: agentSession.error,
                       backgroundRequests: agentSession.backgroundRequests,
-                      onPause: agentSession.pause,
-                      onResume: agentSession.resume,
+                      onPause: () => void agentSession.pause(),
+                      onResume: () => void agentSession.resume(),
                       onReconnect: agentSession.reconnect,
-                      onNewConnection: agentSession.newConnection,
+                      onNewConnection: () => void agentSession.newConnection(),
                       pendingOperation: agentSession.pendingOperation,
-                      onRevoke: agentSession.revoke,
+                      onRevoke: () => void agentSession.revoke(),
                       expanded: agentDetailsOpen,
                       onToggleDetails: () =>
                         setAgentDetailsOpen((open) => !open),

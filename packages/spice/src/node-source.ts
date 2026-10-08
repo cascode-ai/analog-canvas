@@ -31,6 +31,7 @@ async function collectSourceInputs(
   return result;
 }
 
+/** @public The `./node` entry point reads a source tree from disk. */
 export async function loadSourceBundleFromFile(
   entryPath: string,
 ): Promise<SourceBundle> {

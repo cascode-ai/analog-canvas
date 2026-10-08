@@ -3,7 +3,9 @@ import {
   createRoutingOperationPlan,
   executeTransaction,
   gateRoutingOperationPlan,
+  planElectricalMarkerRename,
   planInstanceDeletion,
+  proposedStandalonePowerConnection,
 } from "@icm/edit-engine";
 import {
   resolveDocumentLogicalNets,
@@ -17,8 +19,6 @@ import {
   createInsertedInstanceConnectionContext,
   planInsertedInstanceConnections,
   proposePlacementContact,
-  proposedStandalonePowerConnection,
-  proposedSupplyPortRename,
 } from "./placement-connectivity";
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
@@ -950,11 +950,8 @@ describe("naming a supply marker", () => {
     document = withSupply(document, "VDD1", 100);
     document = withSupply(document, "VDD2", 300);
 
-    const instance = document.instances.find(
-      (candidate) => candidate.id === "VDD1",
-    )!;
-    const plan = proposedSupplyPortRename(document, instance, "VDDH");
-    expect(plan.rejected).toBeUndefined();
+    const planned = planElectricalMarkerRename(document, "VDD1", "VDDH");
+    if (planned.status !== "ready") throw new Error(planned.status);
     const result = executeTransaction(
       document,
       {
@@ -962,7 +959,7 @@ describe("naming a supply marker", () => {
         documentId: document.id,
         expectedRevision: document.revision,
         actor: { kind: "human", id: "test" },
-        edits: plan.edits,
+        edits: planned.plan.edits,
       },
       context,
     );
@@ -980,11 +977,8 @@ describe("naming a supply marker", () => {
     document = withSupply(document, "VDD2", 300);
 
     for (const name of ["VDDH", "VDD"]) {
-      const instance = document.instances.find(
-        (candidate) => candidate.id === "VDD1",
-      )!;
-      const plan = proposedSupplyPortRename(document, instance, name);
-      expect(plan.rejected).toBeUndefined();
+      const planned = planElectricalMarkerRename(document, "VDD1", name);
+      if (planned.status !== "ready") throw new Error(planned.status);
       const result = executeTransaction(
         document,
         {
@@ -992,7 +986,7 @@ describe("naming a supply marker", () => {
           documentId: document.id,
           expectedRevision: document.revision,
           actor: { kind: "human", id: "test" },
-          edits: plan.edits,
+          edits: planned.plan.edits,
         },
         context,
       );

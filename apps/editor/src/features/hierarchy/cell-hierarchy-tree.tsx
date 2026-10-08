@@ -97,23 +97,3 @@ export function CellHierarchyTree(props: TreeProps) {
     </details>
   ) : null;
 }
-
-export function documentsReachableFromTop(
-  topId: string,
-  calls: readonly HierarchyFrame[],
-): Set<string> {
-  const reached = new Set([topId]);
-  const pending = [topId];
-  while (pending.length) {
-    const parentId = pending.pop()!;
-    for (const call of calls)
-      if (
-        call.parentDocumentId === parentId &&
-        !reached.has(call.childDocumentId)
-      ) {
-        reached.add(call.childDocumentId);
-        pending.push(call.childDocumentId);
-      }
-  }
-  return reached;
-}

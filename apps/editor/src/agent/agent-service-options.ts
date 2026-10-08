@@ -11,7 +11,7 @@ const simulationOperations =
   AgentSimulationResourceCapabilitySchema.shape.operations.element.options;
 
 /** What a paired session may do, as its granted scopes say. */
-export function permissionsFromScopes(
+function permissionsFromScopes(
   scopes: readonly AgentSessionScope[],
 ): AgentPermissions {
   return {

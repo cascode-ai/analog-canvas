@@ -29,7 +29,7 @@ export function isOrthogonal(points: readonly Point[]): boolean {
 }
 
 /** Valid persisted interactive geometry.  Authoring policy stays in planner. */
-export function isOctilinear(points: readonly Point[]): boolean {
+function isOctilinear(points: readonly Point[]): boolean {
   return polylineSatisfiesConstraint(points, "octilinear");
 }
 

@@ -10,13 +10,6 @@ import { z } from "zod";
  */
 export const CURRENT_MODEL_SCHEMA_VERSION = 58;
 
-/**
- * @deprecated Use `CURRENT_MODEL_SCHEMA_VERSION` inside the runtime model.
- * Kept as a source-compatibility bridge for downstream integrations while
- * they move away from the old ambiguous name.
- */
-export const CURRENT_PROJECT_SCHEMA_VERSION = CURRENT_MODEL_SCHEMA_VERSION;
-
 export const StableIdSchema = z.string().min(1).max(256);
 /** Strict persisted/presentation hex color token. Format: `#RRGGBB`. */
 export const HexColorSchema = z

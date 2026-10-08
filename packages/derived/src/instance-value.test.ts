@@ -4,7 +4,6 @@ import {
   displayableInstanceParameter,
   displayableInstanceValue,
   instanceCarriesReference,
-  symbolCarriesReference,
 } from "./instance-value.js";
 
 function instance(
@@ -255,7 +254,6 @@ describe("which parts carry a Reference to show", () => {
         parameters: {},
       },
     };
-    expect(symbolCarriesReference(cell.symbolId)).toBe(false);
     expect(instanceCarriesReference(cell)).toBe(true);
     expect(instanceCarriesReference(instance("resistor"))).toBe(true);
     // A signal-flow block has no designator either way.

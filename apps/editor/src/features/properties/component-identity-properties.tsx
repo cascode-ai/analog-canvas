@@ -178,7 +178,10 @@ export function componentTargetDescription(
       return binding.name === IDEAL_COMPARATOR_TARGET
         ? "Built-in ideal comparator · ngspice"
         : `Unresolved subcircuit: ${binding.name}`;
-    default:
+    case "model":
+      // The model row names a model target.
+      return null;
+    case undefined:
       return "No target is bound yet.";
   }
 }

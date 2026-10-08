@@ -116,7 +116,8 @@ function targetName(instance: Instance): string | undefined {
       return target.cellName.toLowerCase();
     case "external-subcircuit":
       return target.masterName.toLowerCase();
-    default:
+    case "primitive":
+    case "opaque":
       return undefined;
   }
 }
@@ -447,7 +448,7 @@ export function compareCircuitIR(
           return [t.kind, lower(t.cellName)];
         case "external-subcircuit":
           return [t.kind, lower(t.masterName)];
-        default:
+        case "opaque":
           structural(`${en}/${instance.name}: opaque device`);
           return [t.kind, lower(t.sourceName)];
       }

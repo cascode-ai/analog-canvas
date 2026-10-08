@@ -3,7 +3,6 @@ import {
   inspectSimulationSource,
   lookupSimulationHelp,
   resolveSimulationInclude,
-  simulationAnalysisTemplate,
 } from "./simulation-language.js";
 
 function inspect(text: string, entry = false) {
@@ -91,13 +90,5 @@ describe("simulation source assistance", () => {
       "..\\secret",
     ])
       expect(resolveSimulationInclude("tb/run.cir", path)).toBeNull();
-  });
-
-  it("templates remain editable native source and explicitly collect each analysis", () => {
-    for (const kind of ["op", "ac", "dc", "tran", "noise"] as const) {
-      const text = simulationAnalysisTemplate(kind);
-      expect(text).toContain("write out.raw");
-      expect(inspect(`.control\n${text}.endc\n`).diagnostics).toEqual([]);
-    }
   });
 });

@@ -8,16 +8,6 @@ import { RichTextDocumentSchema, flattenRichText } from "@icm/model";
  * through `inspect` with `detail: "full"` on a document target.
  */
 
-export interface InspectTarget {
-  kind: "document" | "object" | "net" | "connectivity" | "diagnostics";
-  id?: string;
-  name?: string;
-}
-
-export const InspectTargetSchemaShape = {
-  kind: "document | object | net | connectivity | diagnostics",
-} as const;
-
 export type SearchKind =
   | "instance"
   | "net"
@@ -217,7 +207,7 @@ export function inspectDocument(
   };
 }
 
-export function inspectInstanceValue(
+function inspectInstanceValue(
   instance: AgentSessionSnapshot["document"]["instances"][number],
 ): Record<string, unknown> {
   return {
@@ -250,7 +240,7 @@ export function inspectInstanceValue(
   };
 }
 
-export function inspectNetValue(
+function inspectNetValue(
   net: AgentSessionSnapshot["document"]["nets"][number],
 ): Record<string, unknown> {
   return {

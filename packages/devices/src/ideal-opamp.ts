@@ -82,7 +82,7 @@ export function isSupplyLimitParameter(name: string, value: string): boolean {
 }
 
 /** A limit's value as the op-amp's parameters hold it, in any case. */
-export function opampLimitValue(
+function opampLimitValue(
   parameters: Readonly<Record<string, string>> | undefined,
   limit: OpampLimit,
 ): string | undefined {

@@ -74,7 +74,7 @@ function definitionShape(definition: ExternalSubcircuitDefinition): unknown {
 }
 
 /** Same-name reuse must preserve both the electrical interface and pin geometry. */
-export function compatibleExternalDefinition(
+function compatibleExternalDefinition(
   a: ExternalSubcircuitDefinition,
   b: ExternalSubcircuitDefinition,
 ): boolean {

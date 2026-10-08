@@ -116,9 +116,7 @@ const entriesById = new Map(
  * has to resolve everywhere the Project can name it while staying out of a
  * Library where it would read as a near-duplicate of its source.
  */
-export function isRazaviLibraryCatalogEntry(
-  entry: RazaviSymbolCatalogEntry,
-): boolean {
+function isRazaviLibraryCatalogEntry(entry: RazaviSymbolCatalogEntry): boolean {
   if (entry.reviewStatus !== "reviewed") return false;
   // A house primitive resolves and draws like any other reviewed entry; what
   // it does not do is claim the reference's authority for its geometry.
@@ -127,9 +125,7 @@ export function isRazaviLibraryCatalogEntry(
 }
 
 /** Browsable: the subset a person picks from. */
-export function isRazaviProductCatalogEntry(
-  entry: RazaviSymbolCatalogEntry,
-): boolean {
+function isRazaviProductCatalogEntry(entry: RazaviSymbolCatalogEntry): boolean {
   return entry.palette && isRazaviLibraryCatalogEntry(entry);
 }
 
@@ -144,12 +140,9 @@ const symbolsFor = (
 export const razaviLibrarySymbols = symbolsFor(isRazaviLibraryCatalogEntry);
 export const razaviProductSymbols = symbolsFor(isRazaviProductCatalogEntry);
 
-export {
-  razaviCatalogSymbols,
-  razaviSemanticPrimitives,
-  razaviSymbolCatalogEntries,
-  razaviSymbolCatalogIdentity,
-};
+export { razaviCatalogSymbols, razaviSymbolCatalogEntries };
+/** @internal Catalog tests pin the generated identity and primitives. */
+export { razaviSemanticPrimitives, razaviSymbolCatalogIdentity };
 
 export function getRazaviCatalogSymbol(
   symbolId: string,
@@ -157,6 +150,7 @@ export function getRazaviCatalogSymbol(
   return symbolsById.get(symbolId);
 }
 
+/** @internal Tests across packages fetch catalog Symbols by id with it. */
 export function requireRazaviCatalogSymbol(symbolId: string): SymbolDefinition {
   const symbol = getRazaviCatalogSymbol(symbolId);
   if (!symbol) throw new Error(`Unknown Razavi catalog symbol: ${symbolId}`);

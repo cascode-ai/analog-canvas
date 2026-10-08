@@ -9,7 +9,17 @@ import {
   runHttpCommand,
 } from "./http-cli.js";
 import { installMcp } from "./install.js";
-import { createOperationSession } from "./operation-session.js";
+import {
+  createOperationSession,
+  type OperationSession,
+} from "./operation-session.js";
+import {
+  openLocalMode,
+  parseLocalArguments,
+  releaseOnExit,
+  type LocalArguments,
+  type LocalMode,
+} from "./local-mode.js";
 import { z } from "zod";
 
 // zod declares itself free of side effects, so the release bundle dropped its
@@ -27,13 +37,26 @@ if (process.argv[2] === "--install") {
     );
     process.exitCode = 1;
   }
+} else if (process.argv[2] === "--local") {
+  await runLocal(process.argv.slice(3));
+} else if (process.argv[2] === "--http") {
+  await runHttp(
+    () => createOperationSession(undefined, { shortLived: true }),
+    process.argv[3] ?? "connection_status",
+  );
 } else {
-  if (process.argv[2] === "--http" && process.argv[3] === "batch") {
+  await serve(assembleServer());
+}
+
+/** `--http batch`, or one `--http <command>` with its arguments on stdin. */
+async function runHttp(
+  toolSession: () => OperationSession,
+  command: string,
+): Promise<void> {
+  if (command === "batch") {
     try {
       const failed = await runHttpBatch(
-        {
-          toolSession: createOperationSession(undefined, { shortLived: true }),
-        },
+        { toolSession: toolSession() },
         createInterface({ input: process.stdin, crlfDelay: Infinity }),
         (line) => process.stdout.write(`${line}\n`),
       );
@@ -42,45 +65,76 @@ if (process.argv[2] === "--install") {
       process.stderr.write(`${httpCommandFailureMessage(error)}\n`);
       process.exitCode = 1;
     }
-  } else if (process.argv[2] === "--http") {
-    try {
-      const command = process.argv[3] ?? "connection_status";
-      let input = "";
-      if (httpCommandReadsStdin(command)) {
-        process.stdin.setEncoding("utf8");
-        for await (const chunk of process.stdin) {
-          input += chunk;
-          if (Buffer.byteLength(input) > 32_000_000)
-            throw new Error("Input too large");
-        }
+    return;
+  }
+  try {
+    let input = "";
+    if (httpCommandReadsStdin(command)) {
+      process.stdin.setEncoding("utf8");
+      for await (const chunk of process.stdin) {
+        input += chunk;
+        if (Buffer.byteLength(input) > 32_000_000)
+          throw new Error("Input too large");
       }
-      const result = await runHttpCommand(
-        {
-          toolSession: createOperationSession(undefined, { shortLived: true }),
-        },
-        command,
-        input,
-      );
-      process.stdout.write(`${JSON.stringify(result)}\n`);
-      if (
-        typeof result === "object" &&
-        result !== null &&
-        (("isError" in result && result.isError) ||
-          ("ok" in result && result.ok === false))
-      )
-        process.exitCode = 1;
-    } catch (error) {
-      process.stderr.write(`${httpCommandFailureMessage(error)}\n`);
-      process.exitCode = 1;
     }
-  } else {
-    const { handler, serverInfo } = assembleServer();
-    const server = new McpStdioServer(handler, {
-      serverInfo,
-      log: (message) => {
-        process.stderr.write(`[analog-canvas-mcp] ${message}\n`);
-      },
-    });
-    await server.run();
+    const result = await runHttpCommand(
+      { toolSession: toolSession() },
+      command,
+      input,
+    );
+    process.stdout.write(`${JSON.stringify(result)}\n`);
+    if (
+      typeof result === "object" &&
+      result !== null &&
+      (("isError" in result && result.isError) ||
+        ("ok" in result && result.ok === false))
+    )
+      process.exitCode = 1;
+  } catch (error) {
+    process.stderr.write(`${httpCommandFailureMessage(error)}\n`);
+    process.exitCode = 1;
+  }
+}
+
+async function serve({
+  handler,
+  serverInfo,
+}: ReturnType<typeof assembleServer>): Promise<void> {
+  const server = new McpStdioServer(handler, {
+    serverInfo,
+    log: (message) => {
+      process.stderr.write(`[analog-canvas-mcp] ${message}\n`);
+    },
+  });
+  await server.run();
+}
+
+/**
+ * `--local <dir> …` (#1498): the stdio server, or one `--http` command, on
+ * a workspace's Project file, whose lock this process holds until it ends.
+ */
+async function runLocal(args: readonly string[]): Promise<void> {
+  const failed = (error: unknown) => {
+    process.stderr.write(
+      `Local workspace: ${error instanceof Error ? error.message : String(error)}\n`,
+    );
+    process.exitCode = 1;
+  };
+  let options: LocalArguments;
+  let mode: LocalMode;
+  try {
+    options = parseLocalArguments(args);
+    mode = await openLocalMode(options);
+  } catch (error) {
+    failed(error);
+    return;
+  }
+  const undo = releaseOnExit(mode);
+  try {
+    if (options.http) await runHttp(() => mode.session, options.http);
+    else await serve(assembleServer(undefined, mode.session));
+  } finally {
+    await mode.close().catch(failed);
+    undo();
   }
 }

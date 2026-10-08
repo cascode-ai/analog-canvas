@@ -91,11 +91,11 @@ export const DraftArrowSchema = DraftingObjectBaseSchema.extend({
     });
   }
 });
-export const DraftLeaderSchema = DraftingObjectBaseSchema.extend({
+const DraftLeaderSchema = DraftingObjectBaseSchema.extend({
   kind: z.literal("leader"),
   target: VisualAnchorSchema,
 });
-export const DraftCalloutSchema = DraftingObjectBaseSchema.extend({
+const DraftCalloutSchema = DraftingObjectBaseSchema.extend({
   kind: z.literal("callout"),
   content: RichTextDocumentSchema,
   alignment: z.enum(["start", "middle", "end"]),
@@ -103,13 +103,13 @@ export const DraftCalloutSchema = DraftingObjectBaseSchema.extend({
   typographyToken: z.enum(["caption", "body", "label"]).optional(),
   target: VisualAnchorSchema,
 });
-export const DraftConstructionLineSchema = DraftingObjectBaseSchema.extend({
+const DraftConstructionLineSchema = DraftingObjectBaseSchema.extend({
   kind: z.literal("construction-line"),
   points: z.array(PointSchema).min(2),
   curveControls: z.array(PointSchema.nullable()).optional(),
   lineStyle: z.enum(["solid", "dashed", "dotted"]),
 });
-export const DraftRectangleSchema = DraftingObjectBaseSchema.extend({
+const DraftRectangleSchema = DraftingObjectBaseSchema.extend({
   kind: z.literal("rectangle"),
   center: PointSchema,
   width: z.number().int().positive(),
@@ -123,7 +123,7 @@ export const DraftRectangleSchema = DraftingObjectBaseSchema.extend({
  * A circle is orientation-free: its center/radius are the complete persistent
  * geometry, which avoids a meaningless rotation property.
  */
-export const DraftCircleSchema = DraftingObjectBaseSchema.extend({
+const DraftCircleSchema = DraftingObjectBaseSchema.extend({
   kind: z.literal("circle"),
   center: PointSchema,
   radius: z.number().int().positive(),
@@ -131,7 +131,7 @@ export const DraftCircleSchema = DraftingObjectBaseSchema.extend({
   /** Missing preserves the historical foreground drafting plane. */
   layer: z.enum(["background", "foreground"]).optional(),
 });
-export const DraftFloatingSymbolSchema = DraftingObjectBaseSchema.extend({
+const DraftFloatingSymbolSchema = DraftingObjectBaseSchema.extend({
   kind: z.literal("floating-symbol"),
   symbolId: StableIdSchema,
   transform: OrientationSchema,

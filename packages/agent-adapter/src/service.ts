@@ -1650,7 +1650,9 @@ export function createAgentCircuitService(
               ),
               changedObjectIds,
             },
-            diagnostics,
+            // A planned command's notes, such as the markers a move carried
+            // (#1531), reach a Project transaction's receipt too.
+            diagnostics: [...commandNotes, ...diagnostics],
             projectStructure: {
               fromRevision: project.structureRevision,
               toRevision: result.proposedStructureRevision,

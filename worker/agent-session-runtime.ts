@@ -11,7 +11,6 @@ import {
   agentTransportErrorStatus,
   type AgentCircuitRequest,
   type AgentFileResourceRequest,
-  type AgentSessionLimits,
   type AgentSessionScope,
   type AgentSimulationResourceRequest,
   type AgentProjectResourceRequest,
@@ -36,14 +35,9 @@ export const FORWARD_TIMEOUT_MS = 30_000;
 /** Simulation start returns a receipt; it uses the ordinary RPC deadline. */
 export const SIMULATION_FORWARD_TIMEOUT_MS = FORWARD_TIMEOUT_MS;
 export const EXPIRY_WARNING_MS = 60_000;
-export const CREATE_BODY_LIMIT = 64_000;
-export const CLAIM_BODY_LIMIT = 8_000;
-export const CONNECTOR_BODY_LIMIT = 8_000;
-
-export interface AgentRelayConfig {
-  allowedOrigin: string | null;
-  limits: AgentSessionLimits;
-}
+const CREATE_BODY_LIMIT = 64_000;
+const CLAIM_BODY_LIMIT = 8_000;
+const CONNECTOR_BODY_LIMIT = 8_000;
 
 export type RelayError = AgentTransportErrorResponse;
 
@@ -101,7 +95,7 @@ export function relayHeaders(allowedOrigin: string | null): Headers {
   return headers;
 }
 
-export function requestOriginAllowed(
+function requestOriginAllowed(
   request: Request,
   allowedOrigin: string,
 ): boolean {
@@ -138,7 +132,7 @@ async function readBoundedText(
   return { ok: true, text: new TextDecoder().decode(bytes) };
 }
 
-export async function readBoundedJson(
+async function readBoundedJson(
   request: Request,
   maxBytes: number,
 ): Promise<{ ok: true; value: unknown } | { ok: false; tooLarge: boolean }> {

@@ -98,7 +98,7 @@ import type {
 import { printSpiceCellInstances, printSpiceNetlist } from "./printers.js";
 
 /** The rawfile every compiled deck writes; the harness returns the one `.raw`. */
-export const SIMULATION_RAWFILE_NAME = "out.raw";
+const SIMULATION_RAWFILE_NAME = "out.raw";
 
 /** One probe's binding to the vector its number will arrive under. */
 export interface CompiledSimulationVector {
@@ -777,6 +777,7 @@ function terminalCurrentVector(
  * Deterministic: the same Project and folder produce byte-identical texts, in
  * the extraction's own Cell and Instance order, with probes in the order the
  * author wrote them.
+ * @internal Tests compile a structured folder through it.
  */
 export async function compileStructuredSimulation(
   project: CircuitProject,

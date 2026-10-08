@@ -1027,8 +1027,7 @@ export function useProjectFileLifecycle({
       setStatus(`Restored recovery revision ${restoredDocument.revision}`);
       setStartupRestoreReady(true);
     })();
-    // The recovery coordinator methods are stable for one mounted editor.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- the recovery coordinator methods are stable for one mounted editor
   }, [restoreAfterRefresh, recovery.ready, recovery.workingCopyId]);
 
   const currentProjectChangeToken = projectChangeToken(project);

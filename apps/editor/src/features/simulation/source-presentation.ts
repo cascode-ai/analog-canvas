@@ -68,19 +68,3 @@ export function sourcePresentation(
     ...(root ? { rootDocumentId: root.documentId } : {}),
   };
 }
-export function presentationDependencies(
-  expression: SimulationPresentationExpression,
-): Array<
-  Extract<SimulationPresentationExpression, { kind: "voltage" | "current" }>
-> {
-  if (expression.kind === "voltage" || expression.kind === "current")
-    return [expression];
-  if ("operand" in expression)
-    return presentationDependencies(expression.operand);
-  if ("left" in expression)
-    return [
-      ...presentationDependencies(expression.left),
-      ...presentationDependencies(expression.right),
-    ];
-  return [];
-}

@@ -107,7 +107,7 @@ export const InstanceNetlistBindingSchema = z.discriminatedUnion("kind", [
  * connectivity; this preserves the order an imported structural source used
  * without smuggling it through editable `properties` keys.
  */
-export const InstanceTerminalMappingSchema = z.strictObject({
+const InstanceTerminalMappingSchema = z.strictObject({
   sourcePosition: z.number().int().nonnegative(),
   pinName: z.string().min(1).max(128),
 });
@@ -145,7 +145,7 @@ export const InstanceNetlistDataSchema = z.strictObject({
  * properties and no runtime consumer may derive connectivity or hierarchy from
  * `sourceTarget` or mapping metadata.
  */
-export const InstanceImportProvenanceSchema = z.strictObject({
+const InstanceImportProvenanceSchema = z.strictObject({
   kind: z.enum(["primitive", "model", "subcircuit", "opaque"]),
   /** Source spelling of the bound master; evidence, never Instance identity. */
   sourceMasterName: z.string().min(1),
@@ -157,7 +157,7 @@ export const InstanceImportProvenanceSchema = z.strictObject({
   symbolMappingRegistryId: z.string().min(1).max(128).optional(),
   terminalMapping: z.array(InstanceTerminalMappingSchema).max(128).optional(),
 });
-export const MosBulkBindingSchema = z.strictObject({
+const MosBulkBindingSchema = z.strictObject({
   origin: z.enum(["cell-default", "instance-override", "supply-default"]),
   netId: StableIdSchema,
 });

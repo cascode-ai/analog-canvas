@@ -58,7 +58,7 @@ import {
  * A copy draws exactly like its source. Each copied object keeps the Document
  * style it was drawn with, unless the target Document already draws that way.
  */
-export function keepSourceDocumentStyle(
+function keepSourceDocumentStyle(
   clipboard: SchematicClipboard,
   source: SchematicDocument["presentation"],
   target: SchematicDocument["presentation"],
@@ -558,7 +558,7 @@ export function captureProjectCopy(
 }
 
 /** The simulation folders bound only to the given Cells: their testbench. */
-export function cellSimulationFolders(
+function cellSimulationFolders(
   project: CircuitProject,
   documentIds: ReadonlySet<string>,
 ): CircuitProject["simulationFolders"] {

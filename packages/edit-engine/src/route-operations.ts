@@ -1302,6 +1302,7 @@ function proposeWireSegmentDragGeometry(
   }
 }
 
+/** @internal Tests drive the endpoint stretch a part move uses. */
 export function proposeLocalStretch(
   document: SchematicDocument,
   resolver: SymbolResolver,

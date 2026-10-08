@@ -305,6 +305,7 @@ function guidanceGraphForNet(
 /**
  * Compatibility adapter for callers that need visible-guidance candidates for
  * every Net. Product UI should use deriveImportedRoutingGuidance instead.
+ * @internal Routing tests check that no Net is left with guidance.
  */
 export function deriveFlightlines(
   document: SchematicDocument,

@@ -19,7 +19,7 @@ export const AUTH_SESSION_COOKIE = "icm_session";
 export const AUTH_STATE_COOKIE = "icm_oauth_state";
 export const AUTH_SESSION_TTL_SECONDS = 30 * 24 * 60 * 60;
 /** How long an emailed sign-in code works. */
-export const AUTH_LOGIN_CODE_TTL_MS = 10 * 60 * 1000;
+const AUTH_LOGIN_CODE_TTL_MS = 10 * 60 * 1000;
 /** Wrong guesses one code takes before it stops working. */
 export const AUTH_LOGIN_CODE_ATTEMPTS = 5;
 export const AUTH_EMAIL_DAILY_LIMIT = 5;
@@ -74,7 +74,7 @@ export const OWNER_ACCOUNT_IDS: readonly string[] = [
   "60334273-e419-4469-a756-7a557af16029", // GitHub
 ];
 /** The super-admin's own session, kept while the browser is an AI account. */
-export const AUTH_OWNER_COOKIE = "icm_owner_session";
+const AUTH_OWNER_COOKIE = "icm_owner_session";
 
 const TOKENZHANG_DISPLAY_NAME_MIGRATION =
   "2026-08-26-tokenzhang-to-zhishuai-zhang";

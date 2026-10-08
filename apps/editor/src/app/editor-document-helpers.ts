@@ -1,7 +1,4 @@
-import type { InstanceValueSource } from "@icm/derived";
 import type { RouteEndpoint, SchematicDocument } from "@icm/model";
-
-import { componentParameters } from "../features/component-insert/component-parameters";
 
 export { instanceLabelAnnotationFor } from "../features/instance-display/default-instance-display";
 
@@ -33,21 +30,4 @@ export function maxRoutingCounter(document: SchematicDocument): number {
     }
   }
   return maximum;
-}
-
-export function previewInstanceValueSource(
-  instance: SchematicDocument["instances"][number],
-  draft: { instanceId: string | null; parameters: Record<string, string> },
-): InstanceValueSource {
-  if (draft.instanceId !== instance.id) return instance;
-  const parameters = { ...(instance.netlist?.parameters ?? {}) };
-  for (const parameter of componentParameters(instance.symbolId)) {
-    const value = (draft.parameters[parameter.key] ?? "").trim();
-    if (value === "") delete parameters[parameter.key];
-    else parameters[parameter.key] = value;
-  }
-  return {
-    symbolId: instance.symbolId,
-    netlist: Object.keys(parameters).length > 0 ? { parameters } : undefined,
-  };
 }

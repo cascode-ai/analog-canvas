@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { parseProject } from "@icm/project-protocol";
 import { createEmptyProject } from "@icm/model";
+import { resolveSimulationVoltageProbeNetId } from "@icm/netlist";
 
 import fiveTransistorOtaSky130 from "../../../../../netlists/native-ota-library/legacy-source.icproj.json";
 import {
   deriveSimulationProbeOptions,
   matchSimulationTerminalCurrentProbeOptions,
   matchSimulationVoltageProbeOptions,
-  resolveSimulationVoltageProbeNetId,
   simulationProbeHierarchyPath,
   simulationProbeSelectionKey,
   simulationVoltageProbeTargetsNet,

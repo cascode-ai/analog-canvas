@@ -12,10 +12,7 @@ import ngspiceProfile from "../containers/ngspice/hosted-sky130-profile.json";
 import { sessionUserOf } from "./auth";
 import type { AuthEnv } from "./auth-do";
 import { bearerMatches } from "./bearer";
-export type {
-  SimulationRequestBody,
-  SimulationRunner,
-} from "./simulation-vacask";
+export type { SimulationRequestBody } from "./simulation-vacask";
 
 /** The answer to a signed-out request for computation. */
 export function signInToSimulate(): Response {

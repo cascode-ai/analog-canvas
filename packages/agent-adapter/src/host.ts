@@ -35,6 +35,7 @@ export type AgentCommandPlan =
   | {
       structureEdits: readonly ProjectStructureEdit[];
       sourceActions?: readonly number[];
+      notes?: readonly AgentCommandPlanNote[];
     };
 
 export class AgentCommandPlanningError extends Error {

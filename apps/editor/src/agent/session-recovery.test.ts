@@ -1,13 +1,15 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  AGENT_SESSION_RECOVERY_STORAGE_KEY,
   clearAgentSessionRecovery,
   readAgentSessionRecovery,
   writeAgentSessionRecovery,
-  type BrowserStorageLike,
 } from "./session-recovery";
-import { hasAgentSessionRecovery } from "./session-recovery-presence";
+import {
+  AGENT_SESSION_RECOVERY_STORAGE_KEY,
+  hasAgentSessionRecovery,
+  type BrowserStorageLike,
+} from "./session-recovery-presence";
 
 class MemoryStorage implements BrowserStorageLike {
   readonly values = new Map<string, string>();

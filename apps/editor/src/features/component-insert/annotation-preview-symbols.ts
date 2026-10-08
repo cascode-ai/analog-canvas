@@ -45,12 +45,6 @@ export function annotationTextPreset(symbolId: string): string | undefined {
   return textPresetBySymbolId[symbolId as keyof typeof textPresetBySymbolId];
 }
 
-/** True for a lone + or −: a polarity mark with no centre text to write. */
-export function isBarePolaritySign(symbolId: string): boolean {
-  const polarity = annotationPolarity(symbolId);
-  return polarity === "positive" || polarity === "negative";
-}
-
 export function isAnnotationPaletteSymbol(symbolId: string): boolean {
   return Boolean(
     annotationDrawingTool(symbolId) ??

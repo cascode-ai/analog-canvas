@@ -29,35 +29,11 @@ export const ARROW_PRESETS: readonly ArrowPreset[] = [
     at,
   })),
 ];
-/** Keep legacy styles resolvable without offering redundant menu choices. */
-export const ARROW_PICKER_PRESETS = ARROW_PRESETS.filter(
-  (preset) =>
-    preset.family !== "line" ||
-    (preset.at !== "start" && preset.head !== "none"),
-);
 export const DEFAULT_ARROW_PRESET = ARROW_PRESETS[0]!;
 export const DEFAULT_OUTLINE_WIDTH = 30;
-export const DEFAULT_OUTLINE_LENGTH = 44;
+const DEFAULT_OUTLINE_LENGTH = 44;
 
-export function arrowPresetFor(
-  object: Pick<Arrow, "outline" | "styleOverride">,
-): ArrowPreset {
-  const family = object.outline ? "outline" : "line";
-  const head = object.outline
-    ? "open"
-    : (object.styleOverride?.arrowHead ?? "filled");
-  const at =
-    head === "none" ? "end" : (object.styleOverride?.arrowHeadAt ?? "end");
-  return ARROW_PRESETS.find(
-    (preset) =>
-      preset.family === family && preset.head === head && preset.at === at,
-  )!;
-}
-
-export function canApplyArrowPreset(
-  object: Arrow,
-  preset: ArrowPreset,
-): boolean {
+function canApplyArrowPreset(object: Arrow, preset: ArrowPreset): boolean {
   return (
     !object.locked &&
     !(

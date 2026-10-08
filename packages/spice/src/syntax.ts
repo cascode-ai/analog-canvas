@@ -233,7 +233,7 @@ function stripInlineComment(text: string): string {
   return text.trimEnd();
 }
 
-export function buildLogicalLines(source: SpiceSourceFile): LogicalLine[] {
+function buildLogicalLines(source: SpiceSourceFile): LogicalLine[] {
   const physical = physicalLines(source.text);
   const logical: LogicalLine[] = [];
   let pending:

@@ -73,7 +73,7 @@ import {
 } from "../apps/editor/src/gallery-search";
 
 /** Longest search a reader may send; longer text is cut, not refused. */
-export const GALLERY_MAX_SEARCH_LENGTH = 200;
+const GALLERY_MAX_SEARCH_LENGTH = 200;
 
 const GALLERY_TAG_GROUPS = Object.entries(taxonomy.tagsByGroup);
 const GALLERY_TAG_ALIASES: Record<string, string> = {
@@ -238,16 +238,16 @@ export const GALLERY_DAILY_OPEN_LIMIT = 100;
  * it was the weaker half anyway. An author always held the stronger right
  * of deleting their own entry outright in one step.
  */
-export const GALLERY_RECYCLED_KEEP_PER_ACCOUNT = 25;
-export const GALLERY_MAX_TAGS = 12;
-export const GALLERY_MAX_TAG_LENGTH = 32;
+const GALLERY_RECYCLED_KEEP_PER_ACCOUNT = 25;
+const GALLERY_MAX_TAGS = 12;
+const GALLERY_MAX_TAG_LENGTH = 32;
 /** How many previous states each Gallery entry retains. */
-export const GALLERY_MAX_VERSIONS_PER_ENTRY = 3;
-export const GALLERY_DEFAULT_LIST_LIMIT = 30;
-export const GALLERY_MAX_LIST_LIMIT = 60;
+const GALLERY_MAX_VERSIONS_PER_ENTRY = 3;
+const GALLERY_DEFAULT_LIST_LIMIT = 30;
+const GALLERY_MAX_LIST_LIMIT = 60;
 /** Entries per netlist page, and the Project Code characters one may carry. */
-export const GALLERY_NETLIST_PAGE_LIMIT = 100;
-export const GALLERY_NETLIST_MAX_PAGE_LIMIT = 200;
+const GALLERY_NETLIST_PAGE_LIMIT = 100;
+const GALLERY_NETLIST_MAX_PAGE_LIMIT = 200;
 export const GALLERY_NETLIST_PAGE_CHARACTERS = 8_000_000;
 
 export interface SvgPreviewDimensions {

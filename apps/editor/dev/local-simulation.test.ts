@@ -74,6 +74,7 @@ it("uses only explicit loopback executors, never an implicit hosted fallback", (
 
 it("forwards configured native requests through the existing adapter without rewriting or retrying", async () => {
   const seen: string[] = [];
+  // oxlint-disable-next-line typescript/no-misused-promises -- a failed assertion in the stub executor surfaces as the test's unhandled error
   const executor = createServer(async (req, res) => {
     expect(req.url).toBe("/api/simulate");
     let body = "";

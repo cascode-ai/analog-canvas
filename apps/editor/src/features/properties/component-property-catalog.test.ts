@@ -1,11 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { createEmptyDocument, type Instance } from "@icm/model";
-import {
-  symbolCarriesReference,
-  symbolSupportsValueAnnotation,
-} from "@icm/derived";
+import { symbolSupportsValueAnnotation } from "@icm/derived";
 import { expandedDeviceSymbols, razaviProductSymbols } from "@icm/symbols";
-import { subcircuitDescriptor } from "@icm/devices";
+import { referencePolicyForSymbol, subcircuitDescriptor } from "@icm/devices";
 
 import {
   componentParameters,
@@ -62,7 +59,8 @@ describe("placeable catalog property code", () => {
                 ]
               : [],
           ) ?? [],
-        referenceVisible: symbolCarriesReference(symbol.id) ? true : null,
+        referenceVisible:
+          referencePolicyForSymbol(symbol.id).kind !== "none" ? true : null,
         valueVisible: symbolSupportsValueAnnotation(symbol.id) ? true : null,
         ...(symbol.id === "vdd-port"
           ? { connection: "cell-pin" as const, netName: "VDD" }

@@ -20,7 +20,7 @@ import { describe, expect, it } from "vitest";
 import { agentCircuitOpenApi } from "./openapi.js";
 import {
   agentCircuitRequestJsonSchema,
-  AgentCircuitRequestSchema,
+  AgentProductionCircuitRequestSchema,
   agentCircuitResponseJsonSchema,
   AgentCircuitResponseSchema,
   AgentSnapshotInstanceSchema,
@@ -491,7 +491,9 @@ describe("current Agent Circuit API service", () => {
           "utf8",
         ),
       );
-      expect(AgentCircuitRequestSchema.parse(request)).toEqual(request);
+      expect(AgentProductionCircuitRequestSchema.parse(request)).toEqual(
+        request,
+      );
     }
     expect(agentCircuitRequestJsonSchema()).toMatchObject({
       $schema: "https://json-schema.org/draft/2020-12/schema",

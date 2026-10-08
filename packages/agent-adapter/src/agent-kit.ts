@@ -3,6 +3,7 @@ import { agentKitFiles, agentKitVersion } from "./agent-docs.generated.js";
 
 // Node-side consumers (local MCP helper) read the same catalog object the Kit
 // serializes, so there is exactly one generated catalog source.
+/** @public The Agent Kit entry point offers it to Node-side consumers. */
 export { agentRazaviAuthoringCatalog };
 
 /**

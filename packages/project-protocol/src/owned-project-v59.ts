@@ -12,7 +12,7 @@ import type {
 } from "@icm/model";
 import { ProjectFormatError } from "./diagnostics.js";
 
-export const OWNED_PROJECT_FILE_VERSION = 59;
+const OWNED_PROJECT_FILE_VERSION = 59;
 // This codec reconstructs the schema it was designed against. Future runtime
 // upgrades run after decoding, rather than reinterpreting an old file in place.
 const OWNED_FILE_MODEL_VERSION = 58;

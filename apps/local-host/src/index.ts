@@ -1,5 +1,5 @@
 import { createServer } from "node:http";
-import type { Server } from "node:http";
+import type { IncomingMessage, Server, ServerResponse } from "node:http";
 import { readFile, stat } from "node:fs/promises";
 import { extname, isAbsolute, relative, resolve } from "node:path";
 
@@ -46,7 +46,10 @@ export async function startLocalHost(
   if (!(await stat(root)).isDirectory())
     throw new Error("Editor root is not a directory");
   const hostname = options.hostname ?? "127.0.0.1";
-  const server = createServer(async (request, response) => {
+  const serve = async (
+    request: IncomingMessage,
+    response: ServerResponse,
+  ): Promise<void> => {
     response.setHeader(
       "Content-Security-Policy",
       "default-src 'self'; img-src 'self' blob: data:; style-src 'self'; script-src 'self'; worker-src 'self' blob:; connect-src 'self'",
@@ -120,6 +123,14 @@ export async function startLocalHost(
     } catch {
       response.writeHead(404).end("Not Found");
     }
+  };
+  const server = createServer((request, response) => {
+    serve(request, response).catch(() => {
+      // A reply that failed after its headers went out cannot change its
+      // status: close it, so the client sees the failure and the host stays up.
+      if (response.headersSent) response.destroy();
+      else response.writeHead(500).end("Internal Server Error");
+    });
   });
   await new Promise<void>((resolveListen, reject) => {
     server.once("error", reject);

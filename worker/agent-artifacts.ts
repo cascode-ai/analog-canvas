@@ -7,7 +7,7 @@ import type { DurableStorageLike } from "./agent-session-runtime";
 
 // Byte transfer limits, independent of JSON/RPC preview budgets.
 export const MAX_AGENT_ARTIFACT_BYTES = MAX_ARTIFACT_BYTES;
-export const MAX_AGENT_ARTIFACT_TOTAL_BYTES = 1024 * 1024 * 1024;
+const MAX_AGENT_ARTIFACT_TOTAL_BYTES = 1024 * 1024 * 1024;
 const INDEX_KEY = "agent-artifact-index";
 type Entry = { key: string; bytes: number; digest: string; complete: boolean };
 export interface AgentArtifactBucket {

@@ -25,12 +25,17 @@ export type PropertyContactMove =
  * Returns null when the edits move nothing, or also turn or mirror the part —
  * then the contacts a move would plan no longer describe where its pins end
  * up, and the edits stand as they are.
+ *
+ * `carriedInstanceIds` move by the same step as one piece with the part, as
+ * a drag of them all would move them: an Agent's move carries the markers
+ * standing on its pins (#1531).
  */
 export function planPropertyContactMove(
   document: SchematicDocument,
   resolver: SymbolResolver,
   instance: Instance,
   edits: readonly SchematicEdit[],
+  carriedInstanceIds: readonly string[] = [],
 ): PropertyContactMove | null {
   const move = edits.find(
     (edit): edit is Extract<SchematicEdit, { kind: "move_instance" }> =>
@@ -45,10 +50,11 @@ export function planPropertyContactMove(
     )
   )
     return null;
+  const moving = [instance.id, ...carriedInstanceIds];
   const plan = planInstanceContactTransform(
     document,
     resolver,
-    { instanceIds: [instance.id], routeIds: [], junctionIds: [] },
+    { instanceIds: moving, routeIds: [], junctionIds: [] },
     {
       x: move.position.x - instance.placement.position.x,
       y: move.position.y - instance.placement.position.y,
@@ -64,7 +70,7 @@ export function planPropertyContactMove(
     // drawn clear of it, as the Agent's connect draws it (#1344).
     edits: [
       ...moved,
-      ...planMoveRouteClearance(document, resolver, [instance.id], moved),
+      ...planMoveRouteClearance(document, resolver, moving, moved),
     ],
     intent: plan.intent,
     expectedElectricalEffect: plan.expectedElectricalEffect,

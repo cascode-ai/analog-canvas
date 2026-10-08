@@ -41,6 +41,12 @@ export interface PropertyApplyContext {
    * changed `netlistTarget` reads it; left out, it is the model binding.
    */
   currentTarget?: string;
+  /**
+   * Parts a typed move carries by the same step, as one piece with this one.
+   * Properties carries none; an Agent's move carries the markers that stand
+   * on the part's pins with no wire (#1531).
+   */
+  carriedInstanceIds?: readonly string[];
 }
 
 /** How one Properties apply commits, decided before anything is written. */
@@ -281,6 +287,7 @@ export function planPropertyApply(
     resolver,
     instance,
     edits,
+    context.carriedInstanceIds,
   );
   if (contactMove && !contactMove.ok)
     return { kind: "rejected", message: contactMove.message };

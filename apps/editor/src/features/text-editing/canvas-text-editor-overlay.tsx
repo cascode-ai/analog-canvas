@@ -150,7 +150,7 @@ export function resolveCanvasTextEditorFrame(
   };
 }
 
-export function resolveInlineTextEditorFrame(
+function resolveInlineTextEditorFrame(
   bounds: DerivedRect,
   viewBox: GridRect,
   pixelsPerUnit?: number | null,

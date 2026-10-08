@@ -17,7 +17,7 @@ export const NetSchema = z.strictObject({
   terminals: z.array(TerminalRefSchema),
 });
 
-export const ConnectivityNameClaimOwnerSchema = z.discriminatedUnion("kind", [
+const ConnectivityNameClaimOwnerSchema = z.discriminatedUnion("kind", [
   z.strictObject({
     kind: z.literal("net-label"),
     annotationId: StableIdSchema,
@@ -67,7 +67,7 @@ export const ConnectivityEvidenceSchema = z.discriminatedUnion("kind", [
 ]);
 
 // NoConnect (Net connectivity rationale): explicit electrical declaration for an open Pin.
-export const NoConnectEndpointSchema = z.strictObject({
+const NoConnectEndpointSchema = z.strictObject({
   kind: z.literal("terminal"),
   instanceId: StableIdSchema,
   pinName: z.string().min(1),

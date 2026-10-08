@@ -5,10 +5,8 @@ import {
 import { createEmptyDocument } from "@icm/model";
 import { afterEach, describe, expect, it } from "vitest";
 
-import {
-  formulaRequestsForDocument,
-  prepareDocumentFormulaArtifacts,
-} from "./formula-artifacts";
+import { formulaRequestsForDocument } from "@icm/derived";
+import { prepareDocumentFormulaArtifacts } from "./formula-artifacts";
 
 afterEach(() => clearFormulaArtifactCacheForTests());
 

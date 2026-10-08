@@ -993,7 +993,7 @@ function sourceProjectName(bundle: SourceBundle): string {
   return filename.replace(/\.[^.]+$/u, "") || "Imported SPICE";
 }
 
-export function importCircuitIR(
+function importCircuitIR(
   ir: CircuitIR,
   bundle: SourceBundle,
   inputDiagnostics: readonly SpiceDiagnostic[] = [],

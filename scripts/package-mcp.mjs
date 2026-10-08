@@ -4,6 +4,7 @@ import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { build } from "vite";
 
+import { bundleHeadless } from "./lib/headless-bundle.mjs";
 import {
   assertDeclaredReleaseSha,
   VERIFY_DECLARED_RELEASE_SHA_FLAG,
@@ -40,6 +41,9 @@ await build({
   },
   ssr: { noExternal: true },
 });
+// The editor's own drawing code for --local (#1498), loaded only in that
+// mode, so the adapter itself stays as small as it was.
+await bundleHeadless(binDirectory, { emptyOutDir: false });
 
 const executable = resolve(binDirectory, "analog-canvas-mcp.mjs");
 const source = await readFile(executable, "utf8");

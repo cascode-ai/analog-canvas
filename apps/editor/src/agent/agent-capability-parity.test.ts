@@ -923,6 +923,81 @@ it("places a BJT in a SKY130 Project bound to its reviewed subcircuit, count kep
   expect(text).not.toContain("MISSING_MODEL_TARGET");
 });
 
+it("puts a placed NPN's substrate on the Cell's negative supply, ground without one (#1530)", async () => {
+  const preferences = createDefaultNetlistExportPreferences();
+  const { client, controller } = await folder(undefined, {
+    processModelTarget: (project, symbolId) =>
+      placementModelTarget(project, preferences, symbolId),
+    processFill: (project, documentId, edits) =>
+      placementProcessFill(project, preferences, documentId, edits),
+  });
+  const apply = async (actions: unknown[]) => {
+    const report = await client.applyActions(actions);
+    expect(report.ok, report.message).toBe(true);
+  };
+  const place = (symbol: string, reference: string, x: number) => ({
+    kind: "place-component",
+    symbol,
+    reference,
+    position: { x, y: 0 },
+  });
+  // Q1 comes before the rail and takes ground; Q2 comes after and takes VEE.
+  await apply([
+    place("npn", "Q1", 0),
+    {
+      kind: "place-component",
+      symbol: "ground",
+      id: "gnd",
+      position: { x: 0, y: 300 },
+    },
+  ]);
+  await apply([place("vdd-port", "VEE", 600)]);
+  await apply([place("npn", "Q2", 300)]);
+  const instance = (reference: string) =>
+    controller.document.instances.find((item) => item.reference === reference)!;
+  const netOf = (instanceId: string, pinName: string) =>
+    controller.document.nets.find((net) =>
+      net.terminals.some(
+        (terminal) =>
+          terminal.instanceId === instanceId && terminal.pinName === pinName,
+      ),
+    )?.id;
+  expect(netOf(instance("Q1").id, "S")).toBe(netOf("gnd", "0"));
+  const vee = controller.document.instances.find(
+    (item) => item.symbolId === "vdd-port",
+  )!;
+  expect(netOf(instance("Q2").id, "S")).toBe(netOf(vee.id, "P"));
+
+  const wired = structuredClone(controller.project);
+  for (const reference of ["Q1", "Q2"])
+    for (const pinName of ["C", "B", "E"])
+      wired.documents[0]!.nets.push({
+        id: `net-${reference}-${pinName}`,
+        terminals: [{ instanceId: instance(reference).id, pinName }],
+      });
+  const exported = createDesignNetlistExport(wired, { format: "spice" });
+  expect(exported.status, JSON.stringify(exported.diagnostics)).toBe("ready");
+  const text = exported.status === "ready" ? exported.file.text : "";
+  expect(text).toMatch(
+    /^XQ1 \S+ \S+ \S+ VSS sky130_fd_pr__npn_05v5_W1p00L1p00 m=1$/mu,
+  );
+  expect(text).toMatch(
+    /^XQ2 \S+ \S+ \S+ VEE sky130_fd_pr__npn_05v5_W1p00L1p00 m=1$/mu,
+  );
+  // The one placed before the rail is named, with how to move it.
+  expect(
+    exported.diagnostics.filter(
+      (item) => item.code === "PDK_SUBSTRATE_ABOVE_NEGATIVE_SUPPLY",
+    ),
+  ).toEqual([
+    expect.objectContaining({
+      severity: "warning",
+      objectIds: [instance("Q1").id],
+      message: expect.stringMatching(/^Q1\.S is .* Substrate Net to VEE$/u),
+    }),
+  ]);
+});
+
 it("places SKY130 transistors as their reviewed subcircuits, as a GUI placement and Apply process do (#1249)", async () => {
   const preferences = createDefaultNetlistExportPreferences();
   const { client, controller } = await folder(undefined, {

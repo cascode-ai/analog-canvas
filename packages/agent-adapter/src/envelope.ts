@@ -45,7 +45,7 @@ const IsoTimestampSchema = z
   .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/u);
 
 /** Kind of a relay message envelope. */
-export const AgentSessionMessageKindSchema = z.enum([
+const AgentSessionMessageKindSchema = z.enum([
   "circuit-request",
   "circuit-response",
   "file-request",
@@ -131,23 +131,6 @@ export const AgentSessionControlMessageSchema = z.strictObject({
   contextRevision: OpaqueIdSchema.optional(),
   documentIds: z.array(OpaqueIdSchema).max(1024).optional(),
 });
-
-/** Agent-facing event types. `document.replaced` terminates the session. */
-export const AgentSessionEventTypeSchema = z.enum([
-  "session.ready",
-  "session.paused",
-  "session.revoked",
-  "session.expiring",
-  "session.renewed",
-  "session.expired",
-  "editor.online",
-  "editor.offline",
-  "document.revision-changed",
-  "document.replaced",
-  "operation.started",
-  "operation.completed",
-  "operation.failed",
-]);
 
 const ActorKindSchema = z.enum(["human", "agent"]);
 
@@ -314,22 +297,10 @@ export function isAgentSessionScope(
   return AgentSessionScopeSchema.safeParse(value).success;
 }
 
-export type AgentSessionMessage = z.infer<typeof AgentSessionMessageSchema>;
 export type AgentSessionControlMessage = z.infer<
   typeof AgentSessionControlMessageSchema
 >;
-export type AgentClaimRequest = z.infer<typeof AgentClaimRequestSchema>;
-export type AgentConnectorResumeRequest = z.infer<
-  typeof AgentConnectorResumeRequestSchema
->;
-export type AgentConnectionCredentialResponse = z.infer<
-  typeof AgentConnectionCredentialResponseSchema
->;
-export type AgentSessionMessageKind = z.infer<
-  typeof AgentSessionMessageKindSchema
->;
 export type AgentSessionEvent = z.infer<typeof AgentSessionEventSchema>;
-export type AgentSessionEventType = z.infer<typeof AgentSessionEventTypeSchema>;
 export type AgentTransportErrorCode = z.infer<
   typeof AgentTransportErrorCodeSchema
 >;

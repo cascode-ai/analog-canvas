@@ -83,6 +83,24 @@ describe("optional local simulation", () => {
       },
     );
   });
+  it("closes an adapter reply that fails after its headers and keeps serving", async () => {
+    await withHost(
+      async (origin) => {
+        await expect(
+          post(origin, {}).then((response) => response.arrayBuffer()),
+        ).rejects.toThrow();
+        expect((await fetch(origin + "/healthz")).status).toBe(200);
+      },
+      async () =>
+        new Response(
+          new ReadableStream({
+            start(controller) {
+              controller.error(new Error("adapter stream broke"));
+            },
+          }),
+        ),
+    );
+  });
   it("only forwards JSON from the exact local origin or non-browser clients", async () => {
     let calls = 0;
     await withHost(

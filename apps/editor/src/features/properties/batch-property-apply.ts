@@ -55,7 +55,7 @@ const shared = (path: string) =>
   );
 
 /** The shareable settings an edit changed, as leaf paths and new values. */
-export function changedSharedSettings(
+function changedSharedSettings(
   before: AnnotationPropertyValue,
   after: AnnotationPropertyValue,
 ): ReadonlyMap<string, unknown> {
@@ -71,7 +71,7 @@ export function changedSharedSettings(
  * Another object's Properties value with the changed settings it also has.
  * Null when it has none of them, so nothing is written for it.
  */
-export function withSharedSettings(
+function withSharedSettings(
   target: AnnotationPropertyValue,
   settings: ReadonlyMap<string, unknown>,
 ): AnnotationPropertyValue | null {
