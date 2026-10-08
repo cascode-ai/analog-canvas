@@ -168,3 +168,16 @@ pnpm draw:batch tasks.jsonl --out /tmp/batch --jobs 4 \
   --agent "node {cwd}/scripts/lib/draw-batch-script-agent.mjs {bundle} {dir} {role}" \
   --second-agent "node {cwd}/scripts/lib/draw-batch-script-agent.mjs {bundle} {dir} {role}"
 ```
+
+## Import into the Gallery
+
+Accepted drawings go into the dataset's own reference store (#1510), never
+the community wall. `pnpm gallery:import-batches RUN_DIR --source KEY`
+(`KEY` from `config/gallery-sources.json`, e.g. `analogretriever`) writes
+`RUN_DIR/gallery-import/KEY-0001.json`, …: ten entries a file, each with the
+id `<prefix>-<task id>`, the manifest's `name` (`--manifest TASKS.jsonl`),
+and the accepted drawing. Drawings accepted only because two redraws agreed
+against the dataset's netlist need `--include-suspect`; what is left out,
+and why, is in `left-out.json`. The Owner posts each file from a signed-in
+Gallery page to `POST /api/gallery/sources/KEY/entries`; importing the same
+id again replaces it.

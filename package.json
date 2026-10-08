@@ -51,6 +51,7 @@
     "verify:pr": "node scripts/verify-pr.mjs",
     "gallery:census": "node scripts/gallery-census.mjs",
     "draw:batch": "node scripts/draw-batch.mjs",
+    "gallery:import-batches": "node scripts/gallery-import-batches.mjs",
     "gallery:author-parts": "node scripts/gallery-author-parts.mjs",
     "setup:e2e": "playwright install --with-deps chromium",
     "setup:skills": "node scripts/setup-agent-skills.mjs",
