@@ -1586,7 +1586,7 @@ div.gallery-contributor-status {
     -apple-system, BlinkMacSystemFont, sans-serif;
   position: relative;
   box-sizing: border-box;
-  width: var(--gallery-sidebar-width, 238px);
+  width: var(--gallery-sidebar-width, 262px);
   min-width: 0;
   border-right: 1px solid var(--icm-border);
   background: var(--icm-surface);
