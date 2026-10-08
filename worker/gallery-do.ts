@@ -97,7 +97,11 @@ const MAGIC_LI_BYLINE = "Magic Li";
 const VERSION_RETENTION_MIGRATION = "2026-08-27-gallery-version-retention-2";
 const PREVIEW_DIMENSIONS_MIGRATION = "2026-09-02-gallery-preview-dimensions";
 
-/** Storage-only Durable Object; policy lives in `routeGalleryRequest`. */
+/**
+ * Storage-only Durable Object: it owns the schema and dispatches each
+ * operation to the gallery-store*.ts modules. Policy lives in
+ * `routeGalleryRequest` (gallery.ts) and the route modules it calls.
+ */
 export class GalleryDO {
   private readonly sql: SqlStorage;
   /**

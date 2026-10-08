@@ -1,5 +1,9 @@
-// Public Gallery HTTP policy and rendering. Durable storage lives in
-// gallery-do.ts; this module only authenticates and maps API requests.
+// Public Gallery HTTP entry: `routeGalleryRequest` authenticates and maps API
+// requests. It serves the wall, entries, previews, likes and moderation here
+// and hands the rest to the route modules: gallery-publishing,
+// gallery-cloud-projects, gallery-maintenance, gallery-datasets and
+// gallery-documents, with shared helpers in gallery-requests. Durable storage
+// is `GalleryDO` (gallery-do.ts); its operations live in gallery-store*.ts.
 
 import { formulaPreviewNeedsRefresh } from "./gallery-preview";
 import { validGalleryAttention } from "./gallery-curation";
