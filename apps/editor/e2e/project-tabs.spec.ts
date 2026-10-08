@@ -288,8 +288,9 @@ test("project tabs append a partial selection and retain independent history, ca
   const code = page.getByRole("textbox", { name: "Project code", exact: true });
   await code.fill("invalid project");
   await page.getByRole("tab").first().click();
+  // The refusal names what holds the tab, so it can be finished (#1462).
   await expect(page.getByTestId("status")).toContainText(
-    "No work was discarded",
+    "Can't switch project tabs yet: a code panel holds a draft that is not applied. No work was discarded.",
   );
   await expect(code).toHaveText("invalid project");
   await expect(page.getByRole("tab").nth(1)).toHaveAttribute(

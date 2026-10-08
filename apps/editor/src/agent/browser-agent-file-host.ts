@@ -52,6 +52,8 @@ export interface BrowserAgentFileHostOptions {
     project: CircuitProject,
     background?: boolean,
   ) => Promise<boolean>;
+  /** What keeps the editor from opening another Project now, or null. */
+  describeOpenBlocker?: () => string | null;
   dispatchProjectTransaction?: (
     request: ProjectTransaction,
   ) => ProjectTransactionResult;
@@ -203,7 +205,7 @@ export class BrowserAgentFileHost {
           return this.error(
             request,
             "FILE_OPEN_BLOCKED",
-            "Finish the current edit before opening the imported Project",
+            `Can't open the imported Project yet: ${this.options.describeOpenBlocker?.() ?? "another Project operation is running"}`,
           );
         this.candidates.delete(request.candidateId);
         return {
