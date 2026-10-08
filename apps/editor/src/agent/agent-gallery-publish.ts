@@ -114,6 +114,9 @@ export function createAgentGalleryPublisher<
           description: request.description ?? target.description,
           tags: request.tags ?? target.tags,
           aiGenerated: true,
+          ...(request.operation === "update-gallery-entry" && request.takeOver
+            ? { takeOver: true }
+            : {}),
         }
       : {
           name: request.name ?? state.project.name,
@@ -168,7 +171,11 @@ export function createAgentGalleryPublisher<
         aiGenerated: true,
         updated: target !== null,
         ...(target
-          ? { ownerUserId: target.ownerUserId, author: target.author }
+          ? {
+              // A take-over moves the entry to the signed-in AI account.
+              ownerUserId: outcome.ownerUserId ?? target.ownerUserId,
+              author: outcome.author ?? target.author,
+            }
           : {}),
         ...(outcome.previewRevision === undefined
           ? {}

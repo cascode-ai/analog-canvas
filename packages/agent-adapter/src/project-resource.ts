@@ -159,6 +159,9 @@ export const AgentProjectResourceRequestSchema = z.discriminatedUnion(
       operation: z.literal("update-gallery-entry"),
       galleryEntryId: StableIdSchema.optional(),
       ...AgentGalleryEntryFields,
+      // An AI account takes over another AI account's entry as this update
+      // lands (#1499); a person's entry is never taken over.
+      takeOver: z.boolean().optional(),
     }),
     ProjectRequestBaseSchema.extend({
       operation: z.literal("read-project-code"),

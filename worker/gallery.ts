@@ -30,7 +30,12 @@ import {
   type RichTextDocument,
 } from "@icm/model";
 
-import { AI_ACCOUNT_PROVIDER, sessionUserOf, type SessionUser } from "./auth";
+import {
+  AI_ACCOUNT_PROVIDER,
+  AI_SEATS,
+  sessionUserOf,
+  type SessionUser,
+} from "./auth";
 import { bearerMatches } from "./bearer";
 import { sameOrigin } from "./same-origin";
 import {
@@ -1216,9 +1221,6 @@ async function handleEntryUpdate(
     user !== null &&
     existing.payload.ownerUserId != null &&
     existing.payload.ownerUserId === user.id;
-  if (!privileged && !owner) {
-    return Response.json({ error: "forbidden" }, { status: 403 });
-  }
   const body = (await request.json().catch(() => null)) as {
     name?: unknown;
     description?: unknown;
@@ -1227,11 +1229,33 @@ async function handleEntryUpdate(
     cloudProjectId?: unknown;
     expectedGalleryEntryId?: unknown;
     aiGenerated?: unknown;
+    takeOver?: unknown;
   } | null;
+  // An AI account takes over another AI account's circuit as its update
+  // lands (#1499; all are the Owner's): never a person's, never for one.
+  const seat = AI_SEATS.find((item) => item.userId === user.id);
+  const takingOver = body?.takeOver === true && !owner;
+  if (
+    takingOver &&
+    !(
+      seat &&
+      isAiSeatEntry(
+        existing.payload.ownerUserId,
+        existing.payload.entry?.author,
+      )
+    )
+  )
+    return Response.json({ error: "take-over-forbidden" }, { status: 403 });
+  if (!privileged && !owner && !takingOver) {
+    return Response.json({ error: "forbidden" }, { status: 403 });
+  }
   const name = fieldText(body?.name, GALLERY_MAX_NAME_LENGTH);
   // An update never re-attributes the entry, not even when a moderator
-  // makes it: the byline stays the one the submitter published under.
-  const author = existing.payload.entry?.author ?? "";
+  // makes it: the byline stays the one the submitter published under. Only
+  // a take-over moves it, to the AI account that made this version.
+  const author = takingOver
+    ? seat!.displayName
+    : (existing.payload.entry?.author ?? "");
   const description = fieldText(
     body?.description,
     GALLERY_MAX_DESCRIPTION_LENGTH,
@@ -1280,13 +1304,19 @@ async function handleEntryUpdate(
     tags: wrapTags(sanitizeGalleryTags(body.tags)),
     // Absent leaves the stored mark as it is; an AI account's entry always
     // keeps it, whoever updates it.
-    ...(isAiSeatEntry(existing.payload.ownerUserId, author)
+    ...(takingOver || isAiSeatEntry(existing.payload.ownerUserId, author)
       ? { aiGenerated: true }
       : aiGenerated === undefined
         ? {}
         : { aiGenerated }),
+    ...(takingOver ? { ownerUserId: user.id } : {}),
   });
-  return Response.json(payload, { status });
+  return Response.json(
+    takingOver && status === 200
+      ? { ...(payload as object), ownerUserId: user.id, author }
+      : payload,
+    { status },
+  );
 }
 
 /**

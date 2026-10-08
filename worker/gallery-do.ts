@@ -1892,6 +1892,21 @@ export class GalleryDO {
     this.state.storage.transactionSync(() => {
       this.bindPublication(body, row.id);
       this.snapshotEntry(row, String(body.at ?? row.created_at));
+      // A take-over (#1499): the entry becomes the new AI account's, and a
+      // Shelf draft of the former one no longer publishes as it.
+      if (typeof body.ownerUserId === "string") {
+        this.sql.exec(
+          "UPDATE gallery_entries SET owner_user_id = ? WHERE id = ?",
+          body.ownerUserId,
+          row.id,
+        );
+        this.sql.exec(
+          `UPDATE cloud_projects SET gallery_entry_id = NULL
+           WHERE gallery_entry_id = ? AND user_id <> ?`,
+          row.id,
+          body.ownerUserId,
+        );
+      }
       this.sql.exec(
         `UPDATE gallery_entries
          SET name = ?, author = ?, description = ?, project_text = ?,
@@ -1989,14 +2004,24 @@ export class GalleryDO {
     this.state.storage.transactionSync(() => {
       for (const { userId, displayName, formerName } of AI_SEATS) {
         const former = formerName ?? displayName;
+        // A version another AI account made before this one took the circuit
+        // over (#1499) keeps that account's name.
+        const others = AI_SEATS.filter(
+          (seat) => seat.userId !== userId,
+        ).flatMap((seat) => [
+          seat.displayName,
+          seat.formerName ?? seat.displayName,
+        ]);
         this.sql.exec(
           `UPDATE gallery_entry_versions SET author = ?
-           WHERE author <> ? AND entry_id IN (
+           WHERE author <> ? AND author NOT IN (${others.map(() => "?").join(", ")})
+             AND entry_id IN (
              SELECT id FROM gallery_entries
              WHERE owner_user_id = ? AND author IN (?, ?)
            )`,
           displayName,
           displayName,
+          ...others,
           userId,
           displayName,
           former,
