@@ -60,11 +60,13 @@ import {
   reviewedExternalBindingForMaster,
   reviewedSize,
   reviewedSizeModelled,
+  reviewedSizeOutOfRange,
   subcircuitDescriptor,
   type BuiltInSubcircuitDescriptor,
   type DeviceDescriptor,
   type ReviewedExternalDeviceBinding,
   type ReviewedSize,
+  type ReviewedSizeOutOfRange,
 } from "@icm/devices";
 import { parseSpiceNumber } from "@icm/spice";
 
@@ -1228,7 +1230,7 @@ function extractExternalSubcircuitInstance(
     const shown = (value: ReviewedSize | undefined) =>
       value?.metres === undefined
         ? (value?.text ?? "its default")
-        : `${Number((value.metres / 1e-6).toPrecision(6))} µm`;
+        : micrometres(value.metres);
     diagnostic(
       diagnostics,
       document.id,
@@ -1238,6 +1240,20 @@ function extractExternalSubcircuitInstance(
       "warning",
     );
   }
+  // A size the PDK does not make, or one a unit slip left in metres (#1474).
+  // The part exports as drawn: which size was meant is the author's to say.
+  for (const found of reviewed
+    ? reviewedSizeOutOfRange(reviewed, netlist.parameters)
+    : [])
+    diagnostic(
+      diagnostics,
+      document.id,
+      "REVIEWED_SIZE_OUT_OF_RANGE",
+      sizeOutOfRangeMessage(instance.reference!, definition.name, found),
+      [instance.id],
+      "warning",
+      found.parameter,
+    );
   return {
     id: instance.id,
     reference: instance.reference!,
@@ -1248,6 +1264,28 @@ function extractExternalSubcircuitInstance(
     nodes,
     parameters: projectedParameters,
   };
+}
+
+const micrometres = (metres: number) =>
+  `${Number((metres / 1e-6).toPrecision(6))} µm`;
+
+/** What REVIEWED_SIZE_OUT_OF_RANGE says of one size (#1474). */
+function sizeOutOfRangeMessage(
+  reference: string,
+  master: string,
+  found: ReviewedSizeOutOfRange,
+): string {
+  const label = found.role === "width" ? "W" : "L";
+  if (found.bound === "slip") {
+    const text = found.text.trim();
+    const bare = /^[+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?$/iu.test(text);
+    return `${reference} has ${label} ${text}, which is ${found.fingers > 1 ? `${micrometres(found.metres / found.fingers)} per finger` : micrometres(found.metres)}: over ${found.limit / 1e-3} mm, larger than ${master} is made, so its unit is likely missing or wrong.${bare ? ` A size without a unit is in metres; write ${text}u if you mean ${text} µm.` : ""}`;
+  }
+  const size =
+    found.fingers === 1
+      ? micrometres(found.metres)
+      : `${micrometres(found.metres)} over ${found.fingers} fingers, ${micrometres(found.metres / found.fingers)} each`;
+  return `${reference} has ${label} ${size}, below the ${micrometres(found.limit)} minimum ${found.role === "width" ? "width per finger" : "length"} of ${master}. Its PDK has no model that ${found.role === "width" ? "narrow" : "short"}, so a simulation stops at this line or gives results outside what the PDK covers.`;
 }
 
 /** A Net named as a Cell's ground or negative rail: VSS, AVSS, GND, VEE, SUB. */

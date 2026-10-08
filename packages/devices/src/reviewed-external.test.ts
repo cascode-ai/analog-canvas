@@ -9,9 +9,11 @@ import {
   reviewedExternalBindingById,
   reviewedExternalBindingForMaster,
   reviewedExternalBindingSupportsSymbol,
+  reviewedExternalDeviceBindings,
   reviewedExternalModelSuggestions,
   reviewedModelledSizeChanges,
   reviewedSizeModelled,
+  reviewedSizeOutOfRange,
   sky130MicrometresToProjectLength,
   standardCellBindingForMaster,
 } from "./reviewed-external.js";
@@ -208,6 +210,14 @@ describe("reviewed external device bindings", () => {
         { w: "1u", l: "150n" },
       ),
     ).toBeUndefined();
+  });
+
+  it("warns of no reviewed device's own size (#1474)", () => {
+    // A part placed with nothing typed is within its PDK's limits.
+    for (const binding of reviewedExternalDeviceBindings)
+      expect(reviewedSizeOutOfRange(binding, {}), binding.masterName).toEqual(
+        [],
+      );
   });
 
   it("gives a part the device's own W or L in place of one SKY130 does not model (#1483, #1485)", () => {
