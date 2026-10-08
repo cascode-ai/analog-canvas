@@ -56,6 +56,8 @@ Its canonical registry entry precedes the aliases so generated links resolve
 to `reference/razavi-style`. Shared workflow owns human collaboration; shared
 diagnostics owns finding/repair policy. The optional
 [RouteGraph library reference](routegraph.md) is repository-only, and so,
-while it is an internal tool, is [drawing in a local workspace](local-workspace.md).
+while they are internal tools, are [drawing in a local workspace](local-workspace.md)
+and [batch drawing](batch-drawing.md): headless workspaces, an Agent per task
+and a name-insensitive netlist grade.
 Runtime guides cannot link to an undistributed local document: generation fails
 instead of silently sending an installed Agent to the repository's latest branch.
