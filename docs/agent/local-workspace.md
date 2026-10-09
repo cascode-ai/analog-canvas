@@ -13,6 +13,11 @@ commit them, and the file is the `.icproj.json` the editor opens and saves,
 so a drawing can be finished by hand in the editor, or published, and a
 saved Project can be drawn on here.
 
+A `focus` alongside drawing actions in `apply_actions` is skipped because
+there is no view. The drawing commits normally and its receipt includes a
+`VIEW_STEP_SKIPPED` warning. A standalone view-control request still needs
+an editor.
+
 ## Create and open
 
 - `--new` creates the workspace when the directory holds none: one empty top

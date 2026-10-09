@@ -1094,18 +1094,18 @@ export function createAgentCircuitService(
             "Semantic editor-control permission is not granted",
             document.revision,
           );
-        if (
-          focus.length &&
-          (!host.applySemanticIntent || !host.semanticControlAvailable?.())
-        )
-          return fail(
-            "transact",
-            "SEMANTIC_CONTROL_UNAVAILABLE",
-            "This Agent host does not provide a live editor control surface",
-            document.revision,
-          );
         /** Each focus step in order: the last shown, or the first refused. */
         const showFocus = () => {
+          if (
+            focus.length &&
+            (!host.applySemanticIntent || !host.semanticControlAvailable?.())
+          )
+            return {
+              ok: false as const,
+              code: "VIEW_STEP_SKIPPED",
+              message:
+                "This Agent host does not provide a live editor control surface",
+            };
           let shown:
             Extract<AgentHostSemanticIntentResult, { ok: true }> | undefined;
           for (const intent of focus) {
