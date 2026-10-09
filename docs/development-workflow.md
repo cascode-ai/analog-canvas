@@ -14,6 +14,7 @@
 | Spec     | to-spec         | 已讨论结论                     | Issue、验收与已确认测试边界     |
 | 拆分     | to-tickets      | 需要交接的 Spec                | 经确认的纵向 tickets 与阻塞关系 |
 | 实现     | implement       | 可引用需求、负责人、分支与基线 | 验证、双轴审查和 commit         |
+| 整套实施 | implement-spec  | 已发布 Spec 与带阻塞的 tickets | 按 frontier 并行、逐票交付      |
 | 独立审查 | code-review     | 固定 diff 范围与 Spec          | 独立 Standards / Spec 报告      |
 | 交付     | pr              | 经审查的候选与证据             | PR，再由交付设施验证并发布      |
 | 回顾     | retro           | 指定会话来源                   | 待人工选择的改进候选            |
@@ -38,6 +39,23 @@ Claude Code 在每个新 checkout 或 worktree 中先运行 `pnpm setup:skills`�
 协调共享契约；并发任务使用独立 branch/worktree。普通目标分支使用
 `codex/issue-<n>-<topic>`，用户已有分支或指定命名优先。集成或批量分支按实际
 关系选择，局部进度笔记按需放在忽略的 plan/。
+
+implement-spec 原版与本仓库有两处冲突：其 draft PR 标记为关闭 Spec 与全部
+ticket，合并即关闭，早于 Production 验收；其实施子代理只运行 tdd，单个 ticket
+没有本仓库要求的验证、双轴审查与 Test-Impact commit。因此本仓库沿用它的
+frontier 调度和每票一个 worktree 的并行实施子代理，并作如下替换：
+
+- 用户显式调用 implement-spec，即授权实施子代理按
+  `.agents/skills/implement/SKILL.md` 原文处理各自的 ticket；子代理不经 Skill
+  工具调用 implement，其中的 tdd 与 code-review 照常调用。
+- 每个 ticket 按 pr 与 docs/deployment.md 单独交付，Production 验收后关闭。
+  这是 implement-spec 的例外：不建集成分支，也不做最终合并审查；整个 Spec
+  由父 Issue 的全部范围验收覆盖。
+- 阻塞 ticket 合入 main 后，其下游即可在新的 worktree 中从 main 开始。阻塞
+  ticket 的 Production 验收失败时，先按 docs/deployment.md 修复或回滚，再继续
+  其下游。
+- 跨 worktree 共享的探索笔记按原版放在仓库外的目录；单个 checkout 的进度
+  笔记仍放 plan/。
 
 ### 实现与审查
 
@@ -92,6 +110,11 @@ SHA 的部署结果；失败时修复、重新验证、重新入队。合并后�
 
 反复改动困难或缺少正确测试 seam 时，显式使用 improve-codebase-architecture，
 指定痛点或近期热点。选中的候选作为新的有边界目标进入需求流程。
+
+prototype 用一次性代码回答一个设计问题（状态逻辑或界面方向），只把验证过的
+决定带回正式实现，原型留在独立分支。wizard 为只有人能完成的步骤（第三方后台、
+密钥、一次性迁移）生成交互脚本；Agent 不经手密钥。handoff 把会话压缩为交接
+文档，供新上下文继续同一目标；交接文档按原版放在仓库外的系统临时目录。
 
 retro 读取实际会话，提出环境改进候选；用户选择后再执行改进。已有机械检查
 优先修复或接线，判断性标准由 reviewer 读取。show-me 用于需要解释的关系，
