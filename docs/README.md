@@ -22,6 +22,9 @@ archive of completed plans.
 
 ## Contributor reading order
 
+External EDA workflow: [Canvas EDA tools](eda-import.md) covers offline
+conversion, single/batch import, target adapters, and comparison reports.
+
 1. [Development workflow](development-workflow.md), [Agent entry](../AGENTS.md),
    and [product architecture](overall-product-plan.md).
 2. [Schematic model](specs/schematic-model.md), [Edit Engine](specs/edit-engine.md),

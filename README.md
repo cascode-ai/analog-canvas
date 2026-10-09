@@ -190,6 +190,8 @@ and [delivery cadence](docs/deployment.md#development-and-delivery-cadence).
   declarations.
 - `tools/` and `references/`: manual Razavi calibration and PDF extraction
   tools, and the pinned external research-source manifest.
+- [`eda/`](docs/eda-import.md): Canvas export and single/batch EDA imports,
+  with PyAether and Virtuoso Bridge adapters.
 - `docs/`: current architecture, user guides, normative contracts, ADRs, and
   delivery plans.
 
