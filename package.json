@@ -52,6 +52,7 @@
     "lint": "node scripts/lint.mjs",
     "gallery:census": "node scripts/gallery-census.mjs",
     "draw:batch": "node scripts/draw-batch.mjs",
+    "arena:season": "node tools/arena-season/cli.mjs",
     "gallery:import-batches": "node scripts/gallery-import-batches.mjs",
     "gallery:author-parts": "node scripts/gallery-author-parts.mjs",
     "setup:e2e": "playwright install --with-deps chromium",
