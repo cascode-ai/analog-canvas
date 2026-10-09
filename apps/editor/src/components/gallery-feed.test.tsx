@@ -3,12 +3,12 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import {
-  canReuseGalleryLandingFeed,
   galleryEntryMatchesQuery,
-  GalleryCountPanel,
   GalleryFeed,
   loadGalleryFeed,
 } from "./gallery-feed";
+import { canReuseGalleryLandingFeed } from "./gallery-feed-wall";
+import { GalleryCountPanel } from "./gallery-feed-count-panel";
 
 import {
   GALLERY_SIGN_IN_REQUIRED,

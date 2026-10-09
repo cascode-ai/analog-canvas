@@ -175,6 +175,7 @@
       "apps/editor/src/components/gallery-chrome.tsx",
       "apps/editor/src/components/gallery-feed.tsx",
       "apps/editor/src/components/gallery-feed.test.tsx",
+      "apps/editor/src/components/gallery-feed-*",
       "apps/editor/src/components/masonry.tsx",
       "apps/editor/src/components/masonry.test.ts",
       "apps/editor/src/components/moderation.tsx",
