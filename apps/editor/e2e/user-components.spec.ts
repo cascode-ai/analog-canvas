@@ -21,8 +21,15 @@ import { AgentHttpClient } from "../../../packages/agent-client/src/http-client"
 import { AgentSessionClient } from "../../../packages/agent-client/src/session-client";
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { DatabaseSync } from "node:sqlite";
-import { createEmptyProject, type CircuitProject } from "@icm/model";
+import {
+  createEmptyProject,
+  createSimulationFolder,
+  routeEnd,
+  type CircuitProject,
+} from "@icm/model";
 import { serializeProject } from "@icm/project-protocol";
+import { prepareNgspiceExecutionInput } from "../../../packages/simulation-service/src/prepare-ngspice";
+import { profile } from "./simulation-e2e-fixtures";
 import {
   ComponentLibraryDO,
   routeComponentLibraryRequest,
@@ -178,6 +185,57 @@ async function openNativeComponent(page: Page) {
   return editor;
 }
 
+async function expectNativePreparation(
+  project: CircuitProject,
+  copied: string,
+) {
+  const prepared = await prepareNgspiceExecutionInput(
+    project,
+    createSimulationFolder({
+      id: "native-interface-check",
+      name: "Native interface check",
+      engine: "ngspice",
+      profileId: profile.id,
+      documentId: project.topDocumentId,
+    }),
+    {
+      configured: true,
+      inputs: ["source"],
+      analyses: ["op"],
+      parsedAnalyses: ["op"],
+      profiles: [{ id: profile.id, corners: ["tt"] }],
+      maxTimeoutMs: 120000,
+      maxInputBytes: 1048576,
+      cancel: true,
+      rawfileCollection: "declared-single-ascii",
+    },
+  );
+  expect(prepared.ok, JSON.stringify(prepared)).toBe(true);
+  if (!prepared.ok) throw Error("Native preparation refused");
+  const circuit = prepared.input.files.find(
+    (file) => file.path === "circuit.spice",
+  )!.text;
+  const owner = project.modelSources![0]!;
+  expect(copied).toContain(owner.files[0]!.text);
+  expect(circuit).toContain(owner.files[0]!.text);
+  expect(circuit.split("\n").find((line) => /^X1\s/u.test(line))).toBe(
+    // Design output exposes its ground as VSS; the execution root binds it to 0.
+    copied
+      .split("\n")
+      .find((line) => /^X1\s/u.test(line))!
+      .replace(/\bVSS\b/gu, "0"),
+  );
+  expect(
+    prepared.sourceMaps.some((map) =>
+      map.segments.some(
+        (segment) =>
+          segment.origin.kind === "model-source" &&
+          segment.origin.sourceId === owner.id &&
+          segment.origin.revision === owner.revision,
+      ),
+    ),
+  ).toBe(true);
+}
 function electricalMeaning(project: CircuitProject) {
   const document = project.documents[0]!;
   return {
@@ -1301,31 +1359,6 @@ test("custom circuit mappings reject collapsed ports and use an explicit propert
       .click();
     expect(await readProject(page)).toEqual(applied);
 
-    const renamed = await client.advancedTransact({
-      structureEdits: [
-        {
-          kind: "apply_model_source",
-          source: {
-            ...source,
-            files: source.files.map((file) => ({
-              ...file,
-              text: file.text.replace(/\bIN\b/gu, "INPUT"),
-            })),
-          },
-          definitions: [
-            {
-              definitionId: captured.circuitBinding!.definitionId,
-              entry: "finite_gain",
-              portMap: { IN: "INPUT" },
-            },
-          ],
-        },
-      ],
-    });
-    expect(renamed.ok).toBe(false);
-    expect(renamed.message).toContain("Pin migration");
-    expect((await client.refreshSnapshot()).snapshot.project).toEqual(before);
-    expect(await readProject(page)).toEqual(applied);
     captured.symbol.id += "-bad";
     captured.circuitBinding!.terminals[1] = {
       terminalId: captured.circuitBinding!.terminals[1]!.terminalId,
@@ -1736,6 +1769,45 @@ test("native custom source changes diagnose missing mappings without crashing th
       .getByRole("button", { name: "Discard changes", exact: true })
       .click();
     expect(await readProject(page)).toEqual(before);
+    await page.getByTestId("hit-X1").click({ button: "right" });
+    await page
+      .getByRole("menuitem", {
+        name: "Edit Component Definition (E)",
+        exact: true,
+      })
+      .click();
+    await editor
+      .getByLabel("External model netlist")
+      .fill(
+        finiteGainSource.replace(
+          "IN OUT VSS params:",
+          "IN OUT VSS EXTRA params:",
+        ),
+      );
+    await editor.getByLabel("Symbol mode").selectOption("automatic");
+    await editor
+      .getByRole("button", { name: "Apply model", exact: true })
+      .click();
+    await expect(editor.getByRole("status")).toContainText("Applied");
+    await editor.getByLabel("Close component editor", { exact: true }).click();
+    const added = await readProject(page);
+    expect(
+      added.externalSubcircuitDefinitions[0]!.terminals.map(
+        (terminal) => terminal.name,
+      ),
+    ).toEqual(["IN", "OUT", "VSS", "EXTRA"]);
+    expect(added.documents[0]!.instances[0]!.symbolId).toBe(
+      externalSubcircuitSymbolId(added.externalSubcircuitDefinitions[0]!.id),
+    );
+    await expect(page.getByTestId("terminal-X1-EXTRA")).toBeVisible();
+    await page.getByRole("button", { name: "Undo", exact: true }).click();
+    expect(electricalMeaning(await readProject(page))).toEqual(
+      electricalMeaning(before),
+    );
+    await page.getByRole("button", { name: "Redo", exact: true }).click();
+    expect(electricalMeaning(await readProject(page))).toEqual(
+      electricalMeaning(added),
+    );
   } finally {
     service.close();
   }
@@ -1774,3 +1846,561 @@ test("discarding a JSON draft before switching to native authoring restores the 
     service.close();
   }
 });
+
+test("connected custom native port rename preserves graphical mapping, Nets and No Connects", async ({
+  page,
+  context,
+}) => {
+  const service = library();
+  try {
+    await service.connect(context, null);
+    await openEditor(page);
+    let editor = await openNativeComponent(page);
+    await editor.getByLabel("External model netlist").fill(finiteGainSource);
+    await editor
+      .getByLabel("External model entry", { exact: true })
+      .selectOption("finite_gain");
+    await editor.getByLabel("Symbol mode").selectOption("custom");
+    const jsonCode = editor.getByRole("textbox", {
+      name: "Circuit symbol JSON",
+      exact: true,
+    });
+    await jsonCode.focus();
+    await page.keyboard.press("ControlOrMeta+a");
+    await page.keyboard.press("ControlOrMeta+c");
+    const custom = JSON.parse(
+      await page.evaluate(() => navigator.clipboard.readText()),
+    );
+    custom.symbol.pins.find((pin: { name: string }) => pin.name === "IN").name =
+      "sense";
+    custom.circuitBinding.terminals.find(
+      (mapping: { pinName: string }) => mapping.pinName === "IN",
+    ).pinName = "sense";
+    await jsonCode.fill(JSON.stringify(custom, null, 2));
+    await editor
+      .getByRole("button", { name: "Apply & Place", exact: true })
+      .click();
+    await expect(editor).toHaveCount(0);
+    await place(page, 400, 220);
+    await placeComponent(page, "voltage-source", { x: 150, y: 350 });
+    await placeComponent(page, "ground", { x: 480, y: 460 });
+    for (const [from, to] of [
+      ["V1-+", "X1-IN"],
+      ["V1--", "GND1-0"],
+      ["X1-VSS", "GND1-0"],
+    ]) {
+      await clickDrawTool(page, "wire");
+      await page.getByTestId(`terminal-${from}`).click();
+      await page.getByTestId(`terminal-${to}`).click();
+      await page.keyboard.press("Escape");
+    }
+    await page.getByTestId("terminal-X1-OUT").click({ button: "right" });
+    await openSelectionShelf(page);
+    await page
+      .getByRole("button", { name: "Mark No Connect", exact: true })
+      .click();
+    await page.keyboard.press("Escape");
+    await page.getByTestId("hit-X1").click();
+    await setComponentParameter(page, "gain", "20");
+    const before = await readProject(page);
+    const beforeDeck = await copyNetlistText(page, "spice");
+    await expectNativePreparation(before, beforeDeck);
+    const beforeOwner = before.externalSubcircuitDefinitions[0]!;
+    const originalArtwork = before.componentDefinitions!.find(
+      (item) =>
+        item.symbol.id ===
+        before.documents[0]!.instances.find((item) => item.id === "X1")!
+          .symbolId,
+    )!;
+    await page.getByTestId("hit-X1").click({ button: "right" });
+    await page
+      .getByRole("menuitem", {
+        name: "Edit Component Definition (E)",
+        exact: true,
+      })
+      .click();
+    editor = page.getByRole("dialog", {
+      name: "Edit Component Definition",
+      exact: true,
+    });
+    await editor
+      .getByLabel("External model netlist")
+      .fill(finiteGainSource.replace(/\bIN\b/gu, "INPUT"));
+    await editor.getByLabel("Migrate finite_gain.IN").selectOption("INPUT");
+    await editor
+      .getByRole("button", { name: "Apply model", exact: true })
+      .click();
+    await expect(editor.getByRole("status")).toContainText("Applied");
+    await editor.getByLabel("Close component editor", { exact: true }).click();
+    const renamed = await readProject(page);
+    expect(
+      renamed.externalSubcircuitDefinitions[0]!.terminals.map(
+        (terminal) => terminal.name,
+      ),
+    ).toEqual(["INPUT", "OUT", "VSS"]);
+    expect(renamed.externalSubcircuitDefinitions[0]!.terminals[0]!.id).toBe(
+      beforeOwner.terminals[0]!.id,
+    );
+    expect(
+      renamed.componentDefinitions!.find(
+        (item) => item.symbol.id === originalArtwork.symbol.id,
+      ),
+    ).toEqual(originalArtwork);
+    const expectedDocument = structuredClone(before.documents[0]!);
+    for (const net of expectedDocument.nets)
+      for (const terminal of net.terminals)
+        if (terminal.instanceId === "X1" && terminal.pinName === "IN")
+          terminal.pinName = "INPUT";
+    expect(renamed.documents[0]!.nets).toEqual(expectedDocument.nets);
+    expect(renamed.documents[0]!.noConnects).toEqual(
+      before.documents[0]!.noConnects,
+    );
+    expect(
+      renamed.documents[0]!.routes.some((route) =>
+        [route.start, routeEnd(route)].some(
+          (endpoint) =>
+            endpoint?.kind === "terminal" &&
+            endpoint.instanceId === "X1" &&
+            endpoint.pinName === "INPUT",
+        ),
+      ),
+    ).toBe(true);
+    expect(
+      analyzeDesignNetlist(renamed).diagnostics.filter(
+        (item) => item.severity === "error",
+      ),
+    ).toEqual([]);
+    expect(await copyNetlistText(page, "spice")).toContain(
+      ".subckt finite_gain INPUT OUT VSS",
+    );
+    await page.getByRole("button", { name: "Undo", exact: true }).click();
+    expect(electricalMeaning(await readProject(page))).toEqual(
+      electricalMeaning(before),
+    );
+    await page.getByRole("button", { name: "Redo", exact: true }).click();
+    expect(electricalMeaning(await readProject(page))).toEqual(
+      electricalMeaning(renamed),
+    );
+    await page.reload();
+    await awaitEditorReady(page);
+    expect(electricalMeaning(await readProject(page))).toEqual(
+      electricalMeaning(renamed),
+    );
+    await openCellManager(page);
+    const manager = page.getByRole("dialog", {
+      name: "Cell Manager",
+      exact: true,
+    });
+    await manager
+      .getByRole("tab", { name: "External Circuits", exact: true })
+      .click();
+    await manager
+      .locator(".cell-manager-list-item")
+      .filter({ hasText: "finite_gain" })
+      .last()
+      .click();
+    await manager.getByLabel("External model netlist").fill(
+      finiteGainSource
+        .replace(/\bIN\b/gu, "INPUT")
+        .replace("INPUT OUT VSS params:", "OUT INPUT VSS params:")
+        .replace("gain=10", "gain=40"),
+    );
+    await manager
+      .getByRole("button", { name: "Apply model", exact: true })
+      .click();
+    await expect(manager.getByRole("status")).toContainText("Applied");
+    await manager
+      .getByRole("button", { name: "Close Cell Manager", exact: true })
+      .click();
+    const reordered = await readProject(page);
+    expect(
+      reordered.externalSubcircuitDefinitions[0]!.terminals.map(
+        (terminal) => terminal.id,
+      ),
+    ).toEqual([
+      beforeOwner.terminals[1]!.id,
+      beforeOwner.terminals[0]!.id,
+      beforeOwner.terminals[2]!.id,
+    ]);
+    expect(reordered.documents[0]!.nets).toEqual(renamed.documents[0]!.nets);
+    expect(reordered.documents[0]!.noConnects).toEqual(
+      renamed.documents[0]!.noConnects,
+    );
+    expect(
+      reordered.documents[0]!.instances.find(
+        (instance) => instance.id === "X1",
+      )!.netlist!.parameters!.gain,
+    ).toBe("20");
+    expect(
+      reordered.componentDefinitions!.find(
+        (item) => item.symbol.id === originalArtwork.symbol.id,
+      ),
+    ).toEqual(originalArtwork);
+    const reorderedDeck = await copyNetlistText(page, "spice");
+    const oldNodes = beforeDeck
+      .split("\n")
+      .find((line) => /^X1\s/u.test(line))!
+      .trim()
+      .split(/\s+/u);
+    const newNodes = reorderedDeck
+      .split("\n")
+      .find((line) => /^X1\s/u.test(line))!
+      .trim()
+      .split(/\s+/u);
+    expect(newNodes.slice(1, 4)).toEqual([
+      oldNodes[2],
+      oldNodes[1],
+      oldNodes[3],
+    ]);
+    expect(reorderedDeck).toContain("gain=40");
+    expect(newNodes).toContain("gain=20");
+    await expectNativePreparation(reordered, reorderedDeck);
+    const saved = await downloadBytes(page, "File", "Export Project File…");
+    await page.getByTestId("project-file").setInputFiles({
+      name: "reordered-native.icproj.json",
+      mimeType: "application/json",
+      buffer: saved,
+    });
+    await awaitEditorReady(page);
+    const reopened = await readProject(page);
+    expect(electricalMeaning(reopened)).toEqual(electricalMeaning(reordered));
+    expect(
+      reopened.componentDefinitions!.find(
+        (item) => item.symbol.id === originalArtwork.symbol.id,
+      ),
+    ).toEqual(originalArtwork);
+    expect(await copyNetlistText(page, "spice")).toBe(reorderedDeck);
+    await expectNativePreparation(reopened, reorderedDeck);
+  } finally {
+    service.close();
+  }
+});
+
+test("Agent native port removal captures repaired custom artwork and detaches removed No Connects atomically", async ({
+  page,
+  context,
+  baseURL,
+}) => {
+  const service = library();
+  try {
+    await service.connect(context, null);
+    await openEditor(page);
+    const editor = await openNativeComponent(page);
+    await editor.getByLabel("External model netlist").fill(finiteGainSource);
+    await editor
+      .getByLabel("External model entry", { exact: true })
+      .selectOption("finite_gain");
+    await editor.getByLabel("Symbol mode").selectOption("custom");
+    await editor
+      .getByRole("button", { name: "Apply & Place", exact: true })
+      .click();
+    await expect(editor).toHaveCount(0);
+    await place(page, 400, 220);
+    await placeComponent(page, "ground", { x: 480, y: 460 });
+    for (const pin of ["IN", "VSS"]) {
+      await clickDrawTool(page, "wire");
+      await page.getByTestId(`terminal-X1-${pin}`).click();
+      await page.getByTestId("terminal-GND1-0").click();
+      await page.keyboard.press("Escape");
+    }
+    await page.getByTestId("terminal-X1-OUT").click({ button: "right" });
+    await openSelectionShelf(page);
+    await page
+      .getByRole("button", { name: "Mark No Connect", exact: true })
+      .click();
+    await page.keyboard.press("Escape");
+    const before = await readProject(page);
+    const owner = before.externalSubcircuitDefinitions[0]!;
+    const original = before.componentDefinitions!.find(
+      (item) => item.circuitBinding,
+    )!;
+    const repaired = structuredClone(original);
+    repaired.symbol.id += "-removed-output";
+    repaired.symbol.pins = repaired.symbol.pins.filter(
+      (pin) => pin.name === "VSS",
+    );
+    repaired.circuitBinding!.terminals =
+      repaired.circuitBinding!.terminals.filter(
+        (mapping) =>
+          mapping.terminalId ===
+          owner.terminals.find((terminal) => terminal.name === "VSS")!.id,
+      );
+    const source = structuredClone(before.modelSources![0]!);
+    source.files[0]!.text =
+      ".subckt finite_gain VSS\nR1 VSS 0 1k\n.ends finite_gain\n.subckt owned_helper A B\nR1 A B 1k\n.ends owned_helper\n";
+    await page.getByTestId("open-agent").click();
+    const panel = page.getByTestId("connect-agent-panel");
+    const claim = panel.getByTestId("agent-copy-text");
+    await expect(claim).toHaveValue(/Claim: /, { timeout: 45000 });
+    const client = new AgentSessionClient({
+      http: new AgentHttpClient({ baseUrl: baseURL! }),
+    });
+    await client.connect(
+      JSON.parse(/^Claim: (.+)$/mu.exec(await claim.inputValue())![1]!)
+        .claimCode,
+    );
+    await panel.getByRole("button", { name: "Close Agent dialog" }).click();
+    const result = await client.advancedTransact({
+      structureEdits: [
+        {
+          kind: "apply_model_source",
+          source,
+          definitions: [
+            {
+              definitionId: owner.id,
+              entry: "finite_gain",
+              portMap: { IN: null, OUT: null },
+              symbol: repaired,
+              callers: [
+                {
+                  documentId: before.documents[0]!.id,
+                  instanceId: "X1",
+                  expectedSymbolId: original.symbol.id,
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    expect(result.ok, result.message).toBe(true);
+    const after = await readProject(page);
+    expect(
+      after.externalSubcircuitDefinitions[0]!.terminals.map(
+        (terminal) => terminal.name,
+      ),
+    ).toEqual(["VSS"]);
+    const expectedNets = structuredClone(before.documents[0]!.nets);
+    for (const net of expectedNets)
+      net.terminals = net.terminals.filter(
+        (terminal) => terminal.instanceId !== "X1" || terminal.pinName !== "IN",
+      );
+    expect(after.documents[0]!.nets).toEqual(expectedNets);
+    expect(after.documents[0]!.routes).toHaveLength(
+      before.documents[0]!.routes.length,
+    );
+    expect(after.documents[0]!.junctions.length).toBeGreaterThan(
+      before.documents[0]!.junctions.length,
+    );
+    expect(
+      after.documents[0]!.routes.some((route) =>
+        [route.start, routeEnd(route)].some(
+          (endpoint) =>
+            endpoint.kind === "terminal" &&
+            endpoint.instanceId === "X1" &&
+            endpoint.pinName === "IN",
+        ),
+      ),
+    ).toBe(false);
+    expect(after.documents[0]!.noConnects).toEqual([]);
+    expect(
+      after.documents[0]!.instances.find((instance) => instance.id === "X1")!
+        .symbolId,
+    ).toBe(repaired.symbol.id);
+    expect(
+      after.componentDefinitions!.find(
+        (item) => item.symbol.id === repaired.symbol.id,
+      )!.circuitBinding,
+    ).toEqual(repaired.circuitBinding);
+    expect(
+      analyzeDesignNetlist(after).diagnostics.filter(
+        (item) => item.severity === "error",
+      ),
+    ).toEqual([]);
+    expect(await copyNetlistText(page, "spice")).toContain(
+      ".subckt finite_gain VSS",
+    );
+    await page.getByRole("button", { name: "Undo", exact: true }).click();
+    expect(electricalMeaning(await readProject(page))).toEqual(
+      electricalMeaning(before),
+    );
+    await page.getByRole("button", { name: "Redo", exact: true }).click();
+    expect(electricalMeaning(await readProject(page))).toEqual(
+      electricalMeaning(after),
+    );
+    await page.getByRole("button", { name: "Undo", exact: true }).click();
+    await openCellManager(page);
+    const manager = page.getByRole("dialog", {
+      name: "Cell Manager",
+      exact: true,
+    });
+    await manager
+      .getByRole("tab", { name: "External Circuits", exact: true })
+      .click();
+    await manager
+      .locator(".cell-manager-list-item")
+      .filter({ hasText: "finite_gain" })
+      .last()
+      .click();
+    await manager
+      .getByLabel("External model netlist")
+      .fill(source.files[0]!.text);
+    await manager
+      .getByLabel("Migrate finite_gain.IN")
+      .selectOption("__disconnect");
+    await manager
+      .getByLabel("Migrate finite_gain.OUT")
+      .selectOption("__disconnect");
+    await manager
+      .getByRole("button", { name: "Apply model", exact: true })
+      .click();
+    await expect(manager.getByRole("status")).toContainText("Applied");
+    await manager
+      .getByRole("button", { name: "Close Cell Manager", exact: true })
+      .click();
+    const managerRemoval = await readProject(page);
+    expect(electricalMeaning(managerRemoval)).toEqual(electricalMeaning(after));
+    expect(
+      managerRemoval
+        .componentDefinitions!.find(
+          (item) =>
+            item.symbol.id ===
+            managerRemoval.documents[0]!.instances.find(
+              (item) => item.id === "X1",
+            )!.symbolId,
+        )!
+        .symbol.pins.map((pin) => pin.name),
+    ).toEqual(["VSS"]);
+  } finally {
+    service.close();
+  }
+});
+
+for (const placement of ["unplaced", "different placed capture"] as const) {
+  test(`native port removal migrates preferred artwork with ${placement}`, async ({
+    page,
+    context,
+  }) => {
+    const service = library();
+    try {
+      await service.connect(context, null);
+      await openEditor(page);
+      let editor = await openNativeComponent(page);
+      await editor.getByLabel("External model netlist").fill(finiteGainSource);
+      await editor
+        .getByLabel("External model entry", { exact: true })
+        .selectOption("finite_gain");
+      await editor.getByLabel("Symbol mode").selectOption("custom");
+      await editor
+        .getByRole("button", { name: "Apply model", exact: true })
+        .click();
+      await expect(editor.getByRole("status")).toContainText("Applied");
+      if (placement === "different placed capture") {
+        await editor
+          .getByRole("button", { name: "Place", exact: true })
+          .click();
+        await place(page, 400, 220);
+        const placed = await readProject(page);
+        const artwork = structuredClone(placed.componentDefinitions![0]!);
+        artwork.symbol.id += "-preferred";
+        artwork.symbol.primitives.push({
+          kind: "circle",
+          center: { x: 0, y: 0 },
+          radius: 6,
+        });
+        editor = await openNativeComponent(page);
+        await editor
+          .getByLabel("External model source owner", { exact: true })
+          .selectOption(placed.modelSources![0]!.id);
+        await editor
+          .getByLabel("External model entry", { exact: true })
+          .selectOption("finite_gain");
+        await editor.getByLabel("Symbol mode").selectOption("custom");
+        await editor
+          .getByRole("textbox", { name: "Circuit symbol JSON", exact: true })
+          .fill(JSON.stringify(artwork, null, 2));
+        await editor
+          .getByRole("button", { name: "Apply model", exact: true })
+          .click();
+        await expect(editor.getByRole("status")).toContainText("Applied");
+      }
+      await editor
+        .getByLabel("Close component editor", { exact: true })
+        .click();
+      const before = await readProject(page);
+      const oldPreference = before.externalSubcircuitDefinitions[0]!.symbolId!;
+      expect(
+        before.documents[0]!.instances.map((item) => item.symbolId),
+      ).not.toContain(oldPreference);
+      await openCellManager(page);
+      const manager = page.getByRole("dialog", {
+        name: "Cell Manager",
+        exact: true,
+      });
+      await manager
+        .getByRole("tab", { name: "External Circuits", exact: true })
+        .click();
+      await manager
+        .locator(".cell-manager-list-item")
+        .filter({ hasText: "finite_gain" })
+        .last()
+        .click();
+      await manager
+        .getByLabel("External model netlist")
+        .fill(
+          ".subckt finite_gain IN VSS params: gain=10\nR1 IN VSS {gain}\n.ends finite_gain\n",
+        );
+      await manager
+        .getByLabel("Migrate finite_gain.OUT")
+        .selectOption("__disconnect");
+      await manager
+        .getByRole("button", { name: "Apply model", exact: true })
+        .click();
+      await expect(manager.getByRole("status")).toContainText("Applied");
+      await manager.getByRole("button", { name: "Place", exact: true }).click();
+      await place(page, 650, 320);
+      for (const reference of placement === "unplaced" ? ["X1"] : ["X1", "X2"])
+        for (const pin of ["IN", "VSS"]) {
+          await page
+            .getByTestId(`terminal-${reference}-${pin}`)
+            .click({ button: "right" });
+          await openSelectionShelf(page);
+          await page
+            .getByRole("button", { name: "Mark No Connect", exact: true })
+            .click();
+          await page.keyboard.press("Escape");
+        }
+      const after = await readProject(page);
+      const definition = after.externalSubcircuitDefinitions[0]!;
+      expect(definition.terminals.map((terminal) => terminal.name)).toEqual([
+        "IN",
+        "VSS",
+      ]);
+      expect(definition.symbolId).not.toBe(oldPreference);
+      const preferred = after.componentDefinitions!.find(
+        (item) => item.symbol.id === definition.symbolId,
+      )!;
+      expect(preferred.symbol.pins.map((pin) => pin.name)).toEqual([
+        "IN",
+        "VSS",
+      ]);
+      expect(preferred.symbol.primitives).toEqual(
+        before.componentDefinitions!.find(
+          (item) => item.symbol.id === oldPreference,
+        )!.symbol.primitives,
+      );
+      expect(after.documents[0]!.instances.at(-1)!.symbolId).toBe(
+        definition.symbolId,
+      );
+      for (const instance of after.documents[0]!.instances) {
+        const capture = after.componentDefinitions!.find(
+          (item) => item.symbol.id === instance.symbolId,
+        )!;
+        expect(capture.symbol.pins.map((pin) => pin.name)).toEqual([
+          "IN",
+          "VSS",
+        ]);
+      }
+      expect(
+        analyzeDesignNetlist(after).diagnostics.filter(
+          (item) => item.severity === "error",
+        ),
+      ).toEqual([]);
+      expect(await copyNetlistText(page, "spice")).toContain(
+        after.modelSources![0]!.files[0]!.text,
+      );
+    } finally {
+      service.close();
+    }
+  });
+}

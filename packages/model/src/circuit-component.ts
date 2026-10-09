@@ -5,6 +5,53 @@ import type {
 } from "./schema.js";
 import type { ComponentInterfaceIssue } from "./component-interface.js";
 import { ComponentDefinitionSchema } from "./schema/component-definition.js";
+import { deriveStableId } from "./ids.js";
+
+/** Explicit native removal forks only the departing graphical contacts and mappings. */
+export function removeCircuitComponentTerminals(
+  component: ComponentDefinition,
+  terminalIds: readonly string[],
+): ComponentDefinition {
+  const removed =
+    component.circuitBinding?.terminals.filter((mapping) =>
+      terminalIds.includes(mapping.terminalId),
+    ) ?? [];
+  if (removed.length === 0) return component;
+  const pins = new Set(
+    removed.flatMap((mapping) =>
+      "pinName" in mapping ? [mapping.pinName] : [],
+    ),
+  );
+  const symbol = structuredClone(component.symbol);
+  symbol.id = deriveStableId(
+    "circuit-interface-symbol",
+    symbol.id,
+    JSON.stringify(removed.map((mapping) => mapping.terminalId).sort()),
+  );
+  symbol.pins = symbol.pins.filter((pin) => !pins.has(pin.name));
+  symbol.variants = symbol.variants.map((variant) => ({
+    ...variant,
+    hiddenPinNames: variant.hiddenPinNames.filter((name) => !pins.has(name)),
+    ...(variant.auxiliaryPins
+      ? {
+          auxiliaryPins: variant.auxiliaryPins.filter(
+            (pin) => !pins.has(pin.name),
+          ),
+        }
+      : {}),
+  }));
+  if (symbol.pins.length === 0) symbol.hierarchicalBlock = true;
+  return ComponentDefinitionSchema.parse({
+    ...component,
+    symbol,
+    circuitBinding: {
+      ...component.circuitBinding!,
+      terminals: component.circuitBinding!.terminals.filter(
+        (mapping) => !terminalIds.includes(mapping.terminalId),
+      ),
+    },
+  });
+}
 
 export class CircuitComponentMappingError extends Error {
   constructor(issue: ComponentInterfaceIssue) {

@@ -11,6 +11,7 @@ import {
   SimulationRawDependencySchema,
   flattenRichText,
   circuitComponentTerminals,
+  circuitComponentIssues,
   CircuitComponentMappingError,
   plainNameDocument,
   type CircuitProject,
@@ -25,6 +26,7 @@ import {
   createProjectSymbolResolver,
   externalSubcircuitSymbolId,
   hierarchicalSymbolId,
+  referencedProjectSymbolIds,
   resolvePdkSymbolMappingForTerminalOrder,
   type SymbolResolver,
 } from "@icm/symbols";
@@ -33,6 +35,7 @@ import { collectProjectModelSources } from "@icm/netlist";
 import {
   planModelSourceApply,
   ModelSourceApplyError,
+  modelSourceMigrationResolver,
 } from "./model-source-planner.js";
 import { reviewedExternalDefinitionEditIssue } from "./hierarchy-planner.js";
 
@@ -930,10 +933,9 @@ function applyProjectTransaction(
               edit.definition.terminals.map((terminal) => terminal.name),
             );
       const externalSymbolId = externalSubcircuitSymbolId(edit.definition.id);
-      const currentResolver = createProjectSymbolResolver(
-        candidate,
-        builtInSymbols,
-      );
+      const currentResolver = plannedModelWrites.size
+        ? modelSourceMigrationResolver(candidate, project)
+        : createProjectSymbolResolver(candidate, builtInSymbols);
       for (const document of candidate.documents) {
         let changed = false;
         for (const instance of document.instances) {
@@ -1096,7 +1098,9 @@ function applyProjectTransaction(
         `Document does not exist: ${edit.documentId}`,
       );
     }
-    const resolver = createProjectSymbolResolver(candidate, builtInSymbols);
+    const resolver = plannedModelWrites.size
+      ? modelSourceMigrationResolver(candidate, project)
+      : createProjectSymbolResolver(candidate, builtInSymbols);
     const result = executeTransaction(
       document,
       {
@@ -1128,6 +1132,21 @@ function applyProjectTransaction(
       replaceDocument(candidate, result.document);
       changedDocumentIds.add(edit.documentId);
     }
+  }
+
+  if (plannedModelWrites.size && candidate.componentDefinitions) {
+    const liveSymbols = new Set(referencedProjectSymbolIds(candidate));
+    candidate.componentDefinitions = candidate.componentDefinitions.filter(
+      (component) => {
+        if (!component.circuitBinding || liveSymbols.has(component.symbol.id))
+          return true;
+        const owner = candidate.externalSubcircuitDefinitions.find(
+          (definition) =>
+            definition.id === component.circuitBinding!.definitionId,
+        );
+        return owner && circuitComponentIssues(component, owner).length === 0;
+      },
+    );
   }
 
   if (

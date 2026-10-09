@@ -2,6 +2,7 @@ import {
   deriveStableId,
   circuitComponentIssues,
   initializeCircuitComponent,
+  removeCircuitComponentTerminals,
   type CircuitProject,
   type ExternalSubcircuitDefinition,
 } from "@icm/model";
@@ -29,6 +30,34 @@ export class ModelSourceApplyError extends Error {
       `${diagnostic.path ?? diagnostic.sourceRef?.fileId ?? "model"}:${diagnostic.sourceRef?.start.line ?? 1}: ${diagnostic.message}`,
     );
   }
+}
+
+/** During atomic Apply, departing captures resolve against the original interface. */
+export function modelSourceMigrationResolver(
+  project: CircuitProject,
+  previous: CircuitProject,
+) {
+  const original = createProjectSymbolResolver(previous, builtInSymbols);
+  const originals = (previous.componentDefinitions ?? []).flatMap(
+    (component) => {
+      const resolved = original.resolve(component.symbol.id);
+      return resolved ? [resolved.definition] : [];
+    },
+  );
+  const componentDefinitions = (project.componentDefinitions ?? []).filter(
+    (component) => {
+      if (!component.circuitBinding) return true;
+      const owner = project.externalSubcircuitDefinitions.find(
+        (definition) =>
+          definition.id === component.circuitBinding!.definitionId,
+      );
+      return owner && circuitComponentIssues(component, owner).length === 0;
+    },
+  );
+  return createProjectSymbolResolver({ ...project, componentDefinitions }, [
+    ...builtInSymbols,
+    ...originals,
+  ]);
 }
 
 /** Native source Apply plans ordinary edits; all callers share the atomic boundary. */
@@ -96,7 +125,7 @@ export function planModelSourceApply(
           actor: { kind: "human", id: "model-planner" },
         },
         {
-          symbolResolver: createProjectSymbolResolver(working, builtInSymbols),
+          symbolResolver: modelSourceMigrationResolver(working, project),
         },
       );
       if (!result.ok) throw Error(result.error.message);
@@ -164,24 +193,6 @@ export function planModelSourceApply(
         ? [{ source, target: destination }]
         : [],
     );
-    if (deleted.length || renames.length) {
-      const customCaller = project.documents
-        .flatMap((d) => d.instances)
-        .find(
-          (instance) =>
-            instance.netlist?.binding?.kind === "external-subcircuit" &&
-            instance.netlist.binding.definitionId === id &&
-            project.componentDefinitions?.some(
-              (component) =>
-                component.symbol.id === instance.symbolId &&
-                component.circuitBinding,
-            ),
-        );
-      if (customCaller)
-        throw Error(
-          `circuitBinding: Custom caller ${customCaller.reference ?? customCaller.id} needs a checked Pin migration before changing native ports`,
-        );
-    }
     const changes = planCallerInterfaceChanges(
       working,
       id,
@@ -190,6 +201,16 @@ export function planModelSourceApply(
       false,
       true,
       entry.ports,
+      new Map(
+        (target.callers ?? []).map((caller) => [
+          JSON.stringify([caller.documentId, caller.instanceId]),
+          target.symbol === null
+            ? externalSubcircuitSymbolId(id)
+            : (target.symbol?.symbol.id ??
+              old?.symbolId ??
+              externalSubcircuitSymbolId(id)),
+        ]),
+      ),
     );
     preview(changes.beforeChild);
     const definition: ExternalSubcircuitDefinition = {
@@ -224,6 +245,31 @@ export function planModelSourceApply(
         definition.presentation.pinPlacements.filter((s) =>
           definition.terminals.some((t) => t.id === s.terminalId),
         );
+    if (
+      definition.symbolId &&
+      changes.symbolMigrations.has(definition.symbolId)
+    )
+      definition.symbolId = changes.symbolMigrations.get(definition.symbolId)!;
+    else if (definition.symbolId && target.symbol === undefined) {
+      const preferred = working.componentDefinitions?.find(
+        (component) => component.symbol.id === definition.symbolId,
+      );
+      if (preferred?.circuitBinding) {
+        const migrated = removeCircuitComponentTerminals(
+          preferred,
+          deleted.map((terminal) => terminal.id),
+        );
+        if (migrated !== preferred) {
+          const captured = {
+            kind: "capture_component_definition" as const,
+            definition: migrated,
+          };
+          preview([captured]);
+          planned.push(captured);
+          definition.symbolId = migrated.symbol.id;
+        }
+      }
+    }
     if (target.symbol) {
       const symbol = initializeCircuitComponent(target.symbol, definition);
       const issue = circuitComponentIssues(symbol, definition)[0];

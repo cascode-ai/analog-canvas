@@ -9,6 +9,7 @@ import type {
 import {
   canonicalPortTextDocument,
   deriveStableId,
+  removeCircuitComponentTerminals,
   foldNetName,
   isAutomaticPinLabelLook,
   projectCellInterface,
@@ -228,9 +229,11 @@ export function planCallerInterfaceChanges(
   mergeAliases = false,
   external = false,
   expectedPinNames?: readonly string[],
+  callerSymbolIds?: ReadonlyMap<string, string>,
 ): {
   readonly beforeChild: readonly ProjectStructureEdit[];
   readonly afterChild: readonly ProjectStructureEdit[];
+  readonly symbolMigrations: ReadonlyMap<string, string>;
 } {
   const resolver = createProjectSymbolResolver(project, builtInSymbols);
   const uniqueDisappearingPinNames = [...new Set(disappearingPinNames)];
@@ -244,6 +247,7 @@ export function planCallerInterfaceChanges(
   const beforeChild: ProjectStructureEdit[] = [];
   const afterChild: ProjectStructureEdit[] = [];
   const capturedIds = new Set<string>();
+  const symbolMigrations = new Map<string, string>();
 
   for (const parent of project.documents) {
     const callers = parent.instances.filter((instance) => {
@@ -266,6 +270,12 @@ export function planCallerInterfaceChanges(
     const reconcileEdits: DocumentEdits = [];
     for (const instance of callers) {
       let symbolId = instance.symbolId;
+      const captured = project.componentDefinitions?.find(
+        (component) => component.symbol.id === instance.symbolId,
+      );
+      const chosenSymbolId = callerSymbolIds?.get(
+        JSON.stringify([parent.id, instance.id]),
+      );
       const derivedId = external
         ? externalSubcircuitSymbolId(childDocumentId)
         : hierarchicalSymbolId(
@@ -273,7 +283,12 @@ export function planCallerInterfaceChanges(
               .name,
           );
       const original = resolver.resolve(symbolId)?.definition;
-      if (symbolId !== derivedId && original && expectedPinNames) {
+      if (
+        symbolId !== derivedId &&
+        original &&
+        expectedPinNames &&
+        !chosenSymbolId
+      ) {
         const mappedNames = original.pins
           .filter((pin) => !uniqueDisappearingPinNames.includes(pin.name))
           .map(
@@ -292,6 +307,7 @@ export function planCallerInterfaceChanges(
       if (
         symbolId !== derivedId &&
         original &&
+        !captured?.circuitBinding &&
         (uniquePinRenames.length > 0 || uniqueDisappearingPinNames.length > 0)
       ) {
         const rename = (name: string) =>
@@ -339,6 +355,33 @@ export function planCallerInterfaceChanges(
         }
         symbolId = migratedId;
       }
+      if (
+        captured?.circuitBinding &&
+        !chosenSymbolId &&
+        uniqueDisappearingPinNames.length
+      ) {
+        const owner = project.externalSubcircuitDefinitions.find(
+          (definition) => definition.id === childDocumentId,
+        )!;
+        const migrated = removeCircuitComponentTerminals(
+          captured,
+          owner.terminals
+            .filter((terminal) =>
+              uniqueDisappearingPinNames.includes(terminal.name),
+            )
+            .map((terminal) => terminal.id),
+        );
+        if (!capturedIds.has(migrated.symbol.id)) {
+          afterChild.push({
+            kind: "capture_component_definition",
+            definition: migrated,
+          });
+          capturedIds.add(migrated.symbol.id);
+        }
+        symbolMigrations.set(instance.symbolId, migrated.symbol.id);
+        symbolId = migrated.symbol.id;
+      }
+      symbolId = chosenSymbolId ?? symbolId;
       const referencedDisappearingPins = uniqueDisappearingPinNames.filter(
         (pinName) => instanceReferencesPin(parent, instance.id, pinName),
       );
@@ -443,7 +486,7 @@ export function planCallerInterfaceChanges(
     });
   }
 
-  return { beforeChild, afterChild };
+  return { beforeChild, afterChild, symbolMigrations };
 }
 
 function externalDefinitionId(masterName: string): string {

@@ -103,3 +103,19 @@ Existing occurrences retain their captured IDs. Native Apply can select callers
 explicitly and capture a new ID atomically with the source and mapping. It cannot
 overwrite a captured ID with changed artwork. Geometry changes and mode switches
 use the existing route-follow authority, or refuse without changing the Project.
+
+Native interface edits retain stable terminal IDs for reordering and explicit
+renaming. A rename changes ordinary logical and routed endpoint names, while
+the captured graphical name and its mapping remain intact. An explicit removal
+uses the existing terminal lifecycle planner: incident wires remain at detached
+Junctions and No Connects on the removed terminal disappear. Custom captures fork
+only the removed mapped contacts and variant contacts; the preferred capture and
+affected occurrences migrate in the same Project transaction. Unaffected artwork
+remains unchanged, and Undo retains the preceding complete capture.
+
+Adding a formal port to custom artwork requires complete correspondence. Apply
+refuses until the JSON/mapping is repaired or the affected caller explicitly
+chooses compatible automatic artwork. Body/default edits preserve compatible
+occurrence parameter overrides. Source, interface, artwork and wiring changes
+are validated together before any new applied revision becomes visible to
+copy, export or simulation preparation.

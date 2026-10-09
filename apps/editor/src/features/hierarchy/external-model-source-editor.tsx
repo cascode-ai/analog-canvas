@@ -269,14 +269,21 @@ export function ExternalModelSourceEditor({
     ...shared.filter((d) => d.id !== selectedDefinitionId),
     ...(selectedDefinition ? [selectedDefinition] : []),
   ];
-  const previewTerminals = selected?.ports.map(
-    (name) =>
-      selectedDefinition?.terminals.find((t) => t.name === name) ?? {
-        id: deriveStableId("model-terminal", selectedDefinitionId, name),
-        name,
-        direction: "passive" as const,
-      },
-  );
+  const previewTerminals = selected?.ports.map((name) => {
+    const previousTerminal = selectedDefinition?.terminals.find(
+      (t) =>
+        (Object.hasOwn(portMaps[selectedDefinitionId] ?? {}, t.name)
+          ? portMaps[selectedDefinitionId]![t.name]
+          : t.name) === name,
+    );
+    return previousTerminal
+      ? { ...previousTerminal, name }
+      : {
+          id: deriveStableId("model-terminal", selectedDefinitionId, name),
+          name,
+          direction: "passive" as const,
+        };
+  });
   const previewDefinition: ExternalSubcircuitDefinition | undefined = selected
     ? {
         id: selectedDefinitionId,

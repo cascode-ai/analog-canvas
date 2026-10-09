@@ -483,6 +483,13 @@ Switching artwork must preserve a compatible property supply mapping or
 explicitly connect the corresponding native terminal. Otherwise Apply refuses
 at that terminal without changing the Project.
 
+Changing formal port order preserves connected Nets. For a renamed or removed
+port, use its **Migrate** selector to choose the replacement or **Disconnect and
+keep wires**. A removal retains dangling wires and removes that port's No Connect;
+the remaining custom contacts keep their drawing. A newly added port needs a
+complete custom JSON mapping, or a switch to **Automatic** before Apply.
+Compatible instance parameter overrides survive model default changes.
+
 The Library ends with **User Defined**, after **Extended Devices**. Choose
 **Create component**, edit the starter code, and **Save & place**. Signing in
 is required to save; every saved definition is public, with no private-library
