@@ -10,6 +10,12 @@ import {
 } from "./editor-fixtures";
 import { openSelectionShelf, placeComponent } from "./manual-editor-fixtures";
 import { analyzeDesignNetlist, createDesignNetlistExport } from "@icm/netlist";
+import {
+  builtInSymbols,
+  createProjectSymbolResolver,
+  externalSubcircuitSymbolId,
+} from "@icm/symbols";
+import { resolveEndpointPoint, resolveRouteGeometry } from "@icm/derived";
 import { writeFile } from "node:fs/promises";
 import { AgentHttpClient } from "../../../packages/agent-client/src/http-client";
 import { AgentSessionClient } from "../../../packages/agent-client/src/session-client";
@@ -558,10 +564,10 @@ test("native User Components and External Circuits retain equivalent ordinary in
   try {
     // Project Apply does not require or perform public-library publication.
     await service.connect(context, null);
-    for (const entrance of ["user", "manager"]) {
+    for (const entrance of ["user", "user-custom", "manager"]) {
       await openEditor(page);
       let editor;
-      if (entrance === "user") editor = await openNativeComponent(page);
+      if (entrance.startsWith("user")) editor = await openNativeComponent(page);
       else {
         await openCellManager(page);
         editor = page.getByRole("dialog", {
@@ -576,6 +582,10 @@ test("native User Components and External Circuits retain equivalent ordinary in
       await editor
         .getByLabel("External model entry", { exact: true })
         .selectOption("finite_gain");
+      if (entrance === "user-custom")
+        await editor
+          .getByLabel("Symbol mode", { exact: true })
+          .selectOption("custom");
       await editor
         .getByRole("button", { name: "Apply & Place", exact: true })
         .click();
@@ -652,9 +662,13 @@ test("native User Components and External Circuits retain equivalent ordinary in
       const reopened = await readProject(page);
       expect(electricalMeaning(reopened)).toEqual(electricalMeaning(exported));
       projects.push(reopened);
-      if (entrance === "user") {
+      if (entrance.startsWith("user")) {
         await writeFile(
-          testInfo.outputPath("native-user-component.icproj.json"),
+          testInfo.outputPath(
+            entrance === "user-custom"
+              ? "native-custom-user-component.icproj.json"
+              : "native-user-component.icproj.json",
+          ),
           serializeProject(reopened),
         );
         await page.getByTestId("hit-X1").click();
@@ -664,7 +678,14 @@ test("native User Components and External Circuits retain equivalent ordinary in
           .click();
         for (const x of [250, 500]) {
           await page.keyboard.press("ControlOrMeta+v");
-          await place(page, x, 260);
+          await page
+            .getByTestId("schematic-canvas")
+            .click({ position: { x, y: 260 } });
+          await expect(
+            page.getByTestId("active-instance-count"),
+            entrance,
+          ).toHaveText(x === 250 ? "1" : "2");
+          await page.keyboard.press("Escape");
         }
         const fragment = await readProject(page);
         expect(fragment.documents[0]!.instances).toHaveLength(2);
@@ -689,6 +710,9 @@ test("native User Components and External Circuits retain equivalent ordinary in
     }
     expect(electricalMeaning(projects[0]!)).toEqual(
       electricalMeaning(projects[1]!),
+    );
+    expect(electricalMeaning(projects[0]!)).toEqual(
+      electricalMeaning(projects[2]!),
     );
   } finally {
     service.close();
@@ -854,6 +878,864 @@ test("native User Components bind an existing owner, guard unsaved text and refu
       ".subckt unfinished A B",
     );
     await expect(manager).toContainText("Saved draft");
+  } finally {
+    service.close();
+  }
+});
+
+test("custom circuit artwork maps renamed pins in reversed geometry to the native X-node order", async ({
+  page,
+  context,
+}, testInfo) => {
+  const service = library();
+  try {
+    await service.connect(context, null);
+    await openEditor(page);
+    const editor = await openNativeComponent(page);
+    await editor.getByLabel("External model netlist").fill(finiteGainSource);
+    await editor
+      .getByLabel("External model entry", { exact: true })
+      .selectOption("finite_gain");
+    await editor
+      .getByLabel("Symbol mode", { exact: true })
+      .selectOption("custom");
+    const code = editor.getByRole("textbox", {
+      name: "Circuit symbol JSON",
+      exact: true,
+    });
+    await code.focus();
+    await page.keyboard.press("ControlOrMeta+a");
+    await page.keyboard.press("ControlOrMeta+c");
+    const artwork = JSON.parse(
+      await page.evaluate(() => navigator.clipboard.readText()),
+    );
+    artwork.symbol.pins = artwork.symbol.pins
+      .map(
+        (pin: {
+          name: string;
+          at: { x: number; y: number };
+          direction: string;
+        }) => ({
+          ...pin,
+          name:
+            pin.name === "IN"
+              ? "sense"
+              : pin.name === "OUT"
+                ? "drive"
+                : "return",
+          at: { x: -pin.at.x, y: pin.at.y },
+          direction:
+            pin.direction === "east"
+              ? "west"
+              : pin.direction === "west"
+                ? "east"
+                : pin.direction,
+        }),
+      )
+      .reverse();
+    artwork.symbol.primitives.push({
+      kind: "circle",
+      center: { x: 0, y: 0 },
+      radius: 8,
+    });
+    artwork.circuitBinding.terminals = artwork.circuitBinding.terminals.map(
+      (mapping: { pinName: string }) => ({
+        ...mapping,
+        pinName:
+          mapping.pinName === "IN"
+            ? "sense"
+            : mapping.pinName === "OUT"
+              ? "drive"
+              : "return",
+      }),
+    );
+    await code.fill(JSON.stringify(artwork, null, 2));
+    await editor
+      .getByRole("button", { name: "Apply & Place", exact: true })
+      .click();
+    await expect(editor).toHaveCount(0);
+    await place(page, 400, 220);
+    await placeComponent(page, "voltage-source", { x: 150, y: 350 });
+    await placeComponent(page, "ground", { x: 480, y: 460 });
+    for (const [from, to] of [
+      ["V1-+", "X1-IN"],
+      ["V1--", "GND1-0"],
+      ["X1-VSS", "GND1-0"],
+    ]) {
+      await clickDrawTool(page, "wire");
+      await page.getByTestId(`terminal-${from}`).click();
+      await page.getByTestId(`terminal-${to}`).click();
+      await page.keyboard.press("Escape");
+    }
+    await page.getByTestId("terminal-X1-OUT").click({ button: "right" });
+    await openSelectionShelf(page);
+    await page
+      .getByRole("button", { name: "Mark No Connect", exact: true })
+      .click();
+    await page.keyboard.press("Escape");
+    const exported = parseSavedProject(
+      (await downloadBytes(page, "File", "Export Project File…")).toString(),
+    ) as CircuitProject;
+    expect(
+      exported.externalSubcircuitDefinitions[0]!.terminals.map((t) => t.name),
+    ).toEqual(["IN", "OUT", "VSS"]);
+    const custom = exported.componentDefinitions!.find(
+      (d) => d.symbol.id === exported.documents[0]!.instances[0]!.symbolId,
+    )!;
+    expect(custom.symbol.pins.map((pin) => pin.name)).toEqual([
+      "return",
+      "drive",
+      "sense",
+    ]);
+    expect(
+      exported.documents[0]!.nets.some(
+        (net) =>
+          net.terminals.some(
+            (t) => t.instanceId === "V1" && t.pinName === "+",
+          ) &&
+          net.terminals.some(
+            (t) => t.instanceId === "X1" && t.pinName === "IN",
+          ),
+      ),
+    ).toBe(true);
+    expect(
+      analyzeDesignNetlist(exported).diagnostics.filter(
+        (d) => d.severity === "error",
+      ),
+    ).toEqual([]);
+    const copied = await copyNetlistText(page, "spice");
+    expect(copied.match(/\.subckt finite_gain\b/gu)).toHaveLength(1);
+    expect(copied).not.toContain("sense");
+    await writeFile(
+      testInfo.outputPath("custom-user-component.icproj.json"),
+      serializeProject(exported),
+    );
+  } finally {
+    service.close();
+  }
+});
+
+test("complete same-name custom artwork initializes checked mappings through GUI and Agent", async ({
+  page,
+  context,
+  baseURL,
+}) => {
+  const service = library();
+  try {
+    await service.connect(context, null);
+    await openEditor(page);
+    const editor = await openNativeComponent(page);
+    await editor.getByLabel("External model netlist").fill(finiteGainSource);
+    await editor
+      .getByLabel("External model entry", { exact: true })
+      .selectOption("finite_gain");
+    await editor.getByLabel("Symbol mode").selectOption("custom");
+    const code = editor.getByRole("textbox", {
+      name: "Circuit symbol JSON",
+      exact: true,
+    });
+    await code.focus();
+    await page.keyboard.press("ControlOrMeta+a");
+    await page.keyboard.press("ControlOrMeta+c");
+    const component = JSON.parse(
+      await page.evaluate(() => navigator.clipboard.readText()),
+    );
+    delete component.circuitBinding;
+    await code.fill(JSON.stringify(component, null, 2));
+    await expect(editor.getByRole("alert")).toHaveCount(0);
+    await editor
+      .getByRole("button", { name: "Apply & Place", exact: true })
+      .click();
+    await expect(editor).toHaveCount(0);
+    await place(page);
+    const applied = await readProject(page);
+    const captured = applied.componentDefinitions!.find(
+      (d) => d.symbol.id === component.symbol.id,
+    )!;
+    expect(
+      captured.circuitBinding!.terminals.map((m) =>
+        "pinName" in m ? m.pinName : m.supply,
+      ),
+    ).toEqual(["IN", "OUT", "VSS"]);
+    expect(applied.documents[0]!.nets).toEqual([]);
+    await page.getByTestId("open-agent").click();
+    const panel = page.getByTestId("connect-agent-panel");
+    const claim = panel.getByTestId("agent-copy-text");
+    await expect(claim).toHaveValue(/Claim: /, { timeout: 45_000 });
+    const client = new AgentSessionClient({
+      http: new AgentHttpClient({ baseUrl: baseURL! }),
+    });
+    await client.connect(
+      JSON.parse(/^Claim: (.+)$/mu.exec(await claim.inputValue())![1]!)
+        .claimCode,
+    );
+    await panel.getByRole("button", { name: "Close Agent dialog" }).click();
+    component.symbol.id += "-agent";
+    const accepted = await client.advancedTransact({
+      structureEdits: [
+        {
+          kind: "apply_model_source",
+          source: applied.modelSources![0]!,
+          definitions: [
+            {
+              definitionId: captured.circuitBinding!.definitionId,
+              entry: "finite_gain",
+              symbol: component,
+            },
+          ],
+        },
+      ],
+    });
+    expect(accepted.ok).toBe(true);
+    const after = await readProject(page);
+    expect(
+      after.componentDefinitions!.find(
+        (d) => d.symbol.id === component.symbol.id,
+      )!.circuitBinding,
+    ).toEqual(captured.circuitBinding);
+    expect(after.documents).toEqual(applied.documents);
+    expect(after.modelSources![0]!.files).toEqual(
+      applied.modelSources![0]!.files,
+    );
+    const invalid = structuredClone(captured);
+    invalid.symbol.id += "-invalid";
+    invalid.circuitBinding!.terminals[0]!.terminalId = "unknown-formal-port";
+    const refused = await client.advancedTransact({
+      structureEdits: [
+        { kind: "capture_component_definition", definition: invalid },
+        {
+          kind: "transact_document",
+          documentId: after.documents[0]!.id,
+          expectedRevision: after.documents[0]!.revision,
+          edits: [
+            {
+              kind: "set_instance_symbol",
+              instanceId: "X1",
+              symbolId: invalid.symbol.id,
+            },
+          ],
+        },
+      ],
+    });
+    expect(refused.ok).toBe(false);
+    expect(refused.message).toContain("circuitBinding");
+    expect(await readProject(page)).toEqual(after);
+  } finally {
+    service.close();
+  }
+});
+
+test("custom circuit mappings reject collapsed ports and use an explicit property supply through GUI and Agent", async ({
+  page,
+  context,
+  baseURL,
+}) => {
+  const service = library();
+  try {
+    await service.connect(context, null);
+    await openEditor(page);
+    const editor = await openNativeComponent(page);
+    await editor.getByLabel("External model netlist").fill(finiteGainSource);
+    await editor
+      .getByLabel("External model entry", { exact: true })
+      .selectOption("finite_gain");
+    await editor
+      .getByLabel("Symbol mode", { exact: true })
+      .selectOption("custom");
+    const code = editor.getByRole("textbox", {
+      name: "Circuit symbol JSON",
+      exact: true,
+    });
+    await code.focus();
+    await page.keyboard.press("ControlOrMeta+a");
+    await page.keyboard.press("ControlOrMeta+c");
+    const component = JSON.parse(
+      await page.evaluate(() => navigator.clipboard.readText()),
+    );
+    const duplicate = structuredClone(component);
+    duplicate.circuitBinding.terminals[1].pinName = "IN";
+    await code.fill(JSON.stringify(duplicate, null, 2));
+    await expect(editor.getByRole("alert")).toContainText(
+      "different native terminals",
+    );
+    await editor
+      .getByRole("button", { name: "Apply model", exact: true })
+      .click();
+    await expect(page.getByTestId("active-instance-count")).toHaveText("0");
+    component.symbol.pins = component.symbol.pins.filter(
+      (pin: { name: string }) => pin.name !== "VSS",
+    );
+    component.circuitBinding.terminals[2] = {
+      terminalId: component.circuitBinding.terminals[2].terminalId,
+      supply: "VSS",
+    };
+    await code.fill(JSON.stringify(component, null, 2));
+    await editor
+      .getByRole("button", { name: "Apply & Place", exact: true })
+      .click();
+    await expect(editor).toHaveCount(0);
+    await place(page, 400, 220);
+    await expect(page.getByTestId("terminal-X1-VSS")).toHaveCount(0);
+    await placeComponent(page, "voltage-source", { x: 160, y: 350 });
+    await placeComponent(page, "ground", { x: 440, y: 460 });
+    for (const [from, to] of [
+      ["V1-+", "X1-IN"],
+      ["V1--", "GND1-0"],
+    ]) {
+      await clickDrawTool(page, "wire");
+      await page.getByTestId(`terminal-${from}`).click();
+      await page.getByTestId(`terminal-${to}`).click();
+      await page.keyboard.press("Escape");
+    }
+    await page.getByTestId("terminal-X1-OUT").click({ button: "right" });
+    await openSelectionShelf(page);
+    await page
+      .getByRole("button", { name: "Mark No Connect", exact: true })
+      .click();
+    await page.keyboard.press("Escape");
+    const applied = await readProject(page);
+    const analysis = analyzeDesignNetlist(applied);
+    expect(analysis.diagnostics.filter((d) => d.severity === "error")).toEqual(
+      [],
+    );
+    expect(
+      analysis
+        .ir!.cells[0]!.instances.find((i) => i.id === "X1")!
+        .nodes.map((node) => node.pinName),
+    ).toEqual(["IN", "OUT", "VSS"]);
+    expect(
+      analysis.ir!.cells[0]!.instances.find((i) => i.id === "X1")!.nodes[2]!
+        .netName,
+    ).toBe("0");
+    await page.getByTestId("open-agent").click();
+    const panel = page.getByTestId("connect-agent-panel");
+    const claim = panel.getByTestId("agent-copy-text");
+    await expect(claim).toHaveValue(/Claim: /, { timeout: 45_000 });
+    const client = new AgentSessionClient({
+      http: new AgentHttpClient({ baseUrl: baseURL! }),
+    });
+    await client.connect(
+      JSON.parse(/^Claim: (.+)$/mu.exec(await claim.inputValue())![1]!)
+        .claimCode,
+    );
+    await panel.getByRole("button", { name: "Close Agent dialog" }).click();
+    const before = (await client.refreshSnapshot()).snapshot.project;
+    const source = before.modelSources![0]!;
+    const captured = structuredClone(
+      applied.componentDefinitions!.find((d) => d.circuitBinding)!,
+    );
+    const automatic = await client.advancedTransact({
+      structureEdits: [
+        {
+          kind: "apply_model_source",
+          source,
+          definitions: [
+            {
+              definitionId: captured.circuitBinding!.definitionId,
+              entry: "finite_gain",
+              symbol: null,
+              callers: [
+                {
+                  documentId: applied.documents[0]!.id,
+                  instanceId: "X1",
+                  expectedSymbolId: captured.symbol.id,
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    expect(automatic.ok).toBe(false);
+    expect(automatic.message).toContain("property supply");
+    expect((await client.refreshSnapshot()).snapshot.project).toEqual(before);
+    expect(await readProject(page)).toEqual(applied);
+    const directSwitch = await client.advancedTransact({
+      structureEdits: [
+        {
+          kind: "transact_document",
+          documentId: applied.documents[0]!.id,
+          expectedRevision: applied.documents[0]!.revision,
+          edits: [
+            {
+              kind: "set_instance_symbol",
+              instanceId: "X1",
+              symbolId: externalSubcircuitSymbolId(
+                captured.circuitBinding!.definitionId,
+              ),
+            },
+          ],
+        },
+      ],
+    });
+    expect(directSwitch.ok).toBe(false);
+    expect(directSwitch.message).toContain("property supply");
+    expect((await client.refreshSnapshot()).snapshot.project).toEqual(before);
+    expect(await readProject(page)).toEqual(applied);
+    const switchedRuntime = structuredClone(applied);
+    switchedRuntime.documents[0]!.instances.find(
+      (item) => item.id === "X1",
+    )!.symbolId = externalSubcircuitSymbolId(
+      captured.circuitBinding!.definitionId,
+    );
+    const switchedCode = JSON.parse(serializeProject(switchedRuntime));
+    switchedCode.documents[0].instances.find(
+      (item: { id: string }) => item.id === "X1",
+    ).type = externalSubcircuitSymbolId(captured.circuitBinding!.definitionId);
+    await page.getByTestId("project-code-toggle").click();
+    const switchCode = page.getByRole("textbox", {
+      name: "Project code",
+      exact: true,
+    });
+    await switchCode.fill(JSON.stringify(switchedCode, null, 2));
+    await switchCode.press("ControlOrMeta+Enter");
+    const switchPanel = page.getByRole("region", {
+      name: "Project Code",
+      exact: true,
+    });
+    await expect(switchPanel.getByRole("alert")).toContainText(
+      "property supply",
+    );
+    await switchPanel
+      .getByRole("button", { name: "Reload", exact: true })
+      .click();
+    expect(await readProject(page)).toEqual(applied);
+
+    const renamed = await client.advancedTransact({
+      structureEdits: [
+        {
+          kind: "apply_model_source",
+          source: {
+            ...source,
+            files: source.files.map((file) => ({
+              ...file,
+              text: file.text.replace(/\bIN\b/gu, "INPUT"),
+            })),
+          },
+          definitions: [
+            {
+              definitionId: captured.circuitBinding!.definitionId,
+              entry: "finite_gain",
+              portMap: { IN: "INPUT" },
+            },
+          ],
+        },
+      ],
+    });
+    expect(renamed.ok).toBe(false);
+    expect(renamed.message).toContain("Pin migration");
+    expect((await client.refreshSnapshot()).snapshot.project).toEqual(before);
+    expect(await readProject(page)).toEqual(applied);
+    captured.symbol.id += "-bad";
+    captured.circuitBinding!.terminals[1] = {
+      terminalId: captured.circuitBinding!.terminals[1]!.terminalId,
+      pinName: "IN",
+    };
+    const refused = await client.advancedTransact({
+      structureEdits: [
+        {
+          kind: "apply_model_source",
+          source,
+          definitions: [
+            {
+              definitionId: before.externalSubcircuitDefinitions![0]!.id,
+              entry: "finite_gain",
+              symbol: captured,
+            },
+          ],
+        },
+      ],
+    });
+    expect(refused.ok).toBe(false);
+    expect((await client.refreshSnapshot()).snapshot.project).toEqual(before);
+    expect(await readProject(page)).toEqual(applied);
+  } finally {
+    service.close();
+  }
+});
+
+test("editing connected custom artwork and switching modes preserves logical pins and captured peers", async ({
+  page,
+  context,
+}) => {
+  const service = library();
+  try {
+    await service.connect(context, null);
+    await openEditor(page);
+    let editor = await openNativeComponent(page);
+    await editor.getByLabel("External model netlist").fill(finiteGainSource);
+    await editor
+      .getByLabel("External model entry", { exact: true })
+      .selectOption("finite_gain");
+    await editor
+      .getByLabel("Symbol mode", { exact: true })
+      .selectOption("custom");
+    await editor
+      .getByRole("button", { name: "Apply & Place", exact: true })
+      .click();
+    await expect(editor).toHaveCount(0);
+    const canvas = page.getByTestId("schematic-canvas");
+    await canvas.click({ position: { x: 360, y: 240 } });
+    await canvas.click({ position: { x: 640, y: 320 } });
+    await page.keyboard.press("Escape");
+    await placeComponent(page, "voltage-source", { x: 140, y: 350 });
+    await clickDrawTool(page, "wire");
+    await page.getByTestId("terminal-V1-+").click();
+    await page.getByTestId("terminal-X1-IN").click();
+    await page.keyboard.press("Escape");
+    const before = await readProject(page);
+    const peer = before.documents[0]!.instances.find((i) => i.id === "X2")!;
+    await page.getByTestId("hit-X1").click({ button: "right" });
+    await page
+      .getByRole("menuitem", {
+        name: "Edit Component Definition (E)",
+        exact: true,
+      })
+      .click();
+    editor = page.getByRole("dialog", {
+      name: "Edit Component Definition",
+      exact: true,
+    });
+    await expect(editor.getByLabel("Symbol mode")).toHaveValue("custom");
+    const code = editor.getByRole("textbox", {
+      name: "Circuit symbol JSON",
+      exact: true,
+    });
+    await code.focus();
+    await page.keyboard.press("ControlOrMeta+a");
+    await page.keyboard.press("ControlOrMeta+c");
+    const artwork = JSON.parse(
+      await page.evaluate(() => navigator.clipboard.readText()),
+    );
+    artwork.symbol.pins.find(
+      (pin: { name: string }) => pin.name === "IN",
+    ).at.x -= 20;
+    await code.fill(JSON.stringify(artwork, null, 2));
+    await editor
+      .getByRole("button", { name: "Apply model", exact: true })
+      .click();
+    await expect(editor.getByRole("status")).toContainText("immutable");
+    artwork.symbol.id += "-moved";
+    await code.fill(JSON.stringify(artwork, null, 2));
+    await editor
+      .getByRole("button", { name: "Apply model", exact: true })
+      .click();
+    await expect(editor.getByRole("status")).toContainText("Applied");
+    await editor.getByLabel("Close component editor", { exact: true }).click();
+    const moved = await readProject(page);
+    expect(moved.documents[0]!.nets).toEqual(before.documents[0]!.nets);
+    expect(moved.modelSources![0]!.files).toEqual(
+      before.modelSources![0]!.files,
+    );
+    expect(moved.externalSubcircuitDefinitions[0]!.terminals).toEqual(
+      before.externalSubcircuitDefinitions[0]!.terminals,
+    );
+    expect(moved.documents[0]!.instances.find((i) => i.id === "X2")).toEqual(
+      peer,
+    );
+    const endpoint = {
+      kind: "terminal" as const,
+      instanceId: "X1",
+      pinName: "IN",
+    };
+    const oldPoint = resolveEndpointPoint(
+      before.documents[0]!,
+      createProjectSymbolResolver(before, builtInSymbols),
+      endpoint,
+    )!;
+    const movedResolver = createProjectSymbolResolver(moved, builtInSymbols);
+    const movedPoint = resolveEndpointPoint(
+      moved.documents[0]!,
+      movedResolver,
+      endpoint,
+    )!;
+    expect(movedPoint).toEqual({ x: oldPoint.x - 20, y: oldPoint.y });
+    expect(
+      resolveRouteGeometry(
+        moved.documents[0]!,
+        movedResolver,
+        moved.documents[0]!.routes[0]!,
+      )!.centerline.at(-1),
+    ).toEqual(movedPoint);
+    expect(
+      moved.documents[0]!.instances.find((i) => i.id === "X1")!.symbolId,
+    ).toBe(artwork.symbol.id);
+    await page.keyboard.press("ControlOrMeta+z");
+    expect(await readProject(page)).toEqual({
+      ...before,
+      structureRevision: expect.any(Number),
+      documents: before.documents.map((document) => ({
+        ...document,
+        revision: expect.any(Number),
+      })),
+    });
+    await page.keyboard.press("ControlOrMeta+Shift+z");
+    expect(await readProject(page)).toEqual({
+      ...moved,
+      structureRevision: expect.any(Number),
+      documents: moved.documents.map((document) => ({
+        ...document,
+        revision: expect.any(Number),
+      })),
+    });
+    await page.getByTestId("hit-X1").click({ button: "right" });
+    await page
+      .getByRole("menuitem", {
+        name: "Edit Component Definition (E)",
+        exact: true,
+      })
+      .click();
+    await expect(editor.getByLabel("Symbol mode")).toHaveValue("custom");
+    await editor.getByLabel("Symbol mode").selectOption("automatic");
+    await editor
+      .getByRole("button", { name: "Apply model", exact: true })
+      .click();
+    await expect(editor.getByRole("status")).toContainText("Applied");
+    await editor
+      .getByRole("button", { name: "Apply model", exact: true })
+      .click();
+    await expect(editor.getByRole("status")).toContainText("Applied");
+    await editor.getByLabel("Close component editor", { exact: true }).click();
+    const automatic = await readProject(page);
+    expect(automatic.documents[0]!.nets).toEqual(before.documents[0]!.nets);
+    expect(
+      automatic.documents[0]!.instances.find((i) => i.id === "X2"),
+    ).toEqual(peer);
+    expect(
+      automatic.documents[0]!.instances.find((i) => i.id === "X1")!.symbolId,
+    ).not.toBe(artwork.symbol.id);
+  } finally {
+    service.close();
+  }
+});
+
+test("saving a source draft does not mark pending custom artwork saved or discard it", async ({
+  page,
+  context,
+}) => {
+  const service = library();
+  try {
+    await service.connect(context, null);
+    await openEditor(page);
+    const editor = await openNativeComponent(page);
+    await editor.getByLabel("External model netlist").fill(finiteGainSource);
+    await editor
+      .getByLabel("External model entry", { exact: true })
+      .selectOption("finite_gain");
+    await editor.getByLabel("Symbol mode").selectOption("custom");
+    const code = editor.getByRole("textbox", {
+      name: "Circuit symbol JSON",
+      exact: true,
+    });
+    await code.focus();
+    await page.keyboard.press("ControlOrMeta+a");
+    await page.keyboard.press("ControlOrMeta+c");
+    const pending = JSON.parse(
+      await page.evaluate(() => navigator.clipboard.readText()),
+    );
+    pending.symbol.name = "Pending artwork";
+    await code.fill(JSON.stringify(pending, null, 2));
+    await editor.locator(".external-model-more > summary").click();
+    await editor
+      .getByRole("button", { name: "Save draft", exact: true })
+      .click();
+    await expect(editor.getByRole("status")).toContainText("artwork");
+    await editor.getByLabel("Close component editor", { exact: true }).click();
+    await editor
+      .getByRole("button", { name: "Keep editing", exact: true })
+      .click();
+    await code.focus();
+    await page.keyboard.press("ControlOrMeta+a");
+    await page.keyboard.press("ControlOrMeta+c");
+    expect(
+      JSON.parse(await page.evaluate(() => navigator.clipboard.readText()))
+        .symbol.name,
+    ).toBe("Pending artwork");
+    await editor
+      .getByRole("button", { name: "Apply & Place", exact: true })
+      .click();
+    await expect(editor).toHaveCount(0);
+    await place(page);
+    const applied = await readProject(page);
+    expect(
+      applied.componentDefinitions!.find((d) => d.circuitBinding)!.symbol.name,
+    ).toBe("Pending artwork");
+    expect(applied.modelSources![0]!.draft).toBeUndefined();
+    expect(applied.modelSources![0]!.files[0]!.text).toBe(finiteGainSource);
+  } finally {
+    service.close();
+  }
+});
+
+test("copying custom circuits keeps terminal identities scoped to each native owner", async ({
+  page,
+  context,
+}) => {
+  test.setTimeout(90_000);
+  const service = library();
+  try {
+    await service.connect(context, null);
+    await openEditor(page);
+    for (const [name, x] of [
+      ["finite_gain", 250],
+      ["second_gain", 500],
+    ] as const) {
+      const editor = await openNativeComponent(page);
+      await editor
+        .getByLabel("External model netlist")
+        .fill(
+          finiteGainSource
+            .split(".subckt owned_helper")[0]!
+            .replaceAll("finite_gain", name),
+        );
+      await editor
+        .getByLabel("Symbol mode", { exact: true })
+        .selectOption("custom");
+      await editor
+        .getByRole("button", { name: "Apply & Place", exact: true })
+        .click();
+      await place(page, x, 260);
+    }
+    const source = await readProject(page);
+    const [first, second] = source.externalSubcircuitDefinitions;
+    const oldIds = second!.terminals.map((terminal) => terminal.id);
+    second!.terminals.forEach((terminal, index) => {
+      terminal.id = first!.terminals[index]!.id;
+    });
+    for (const component of source.componentDefinitions ?? []) {
+      if (component.circuitBinding?.definitionId !== second!.id) continue;
+      for (const mapping of component.circuitBinding.terminals)
+        mapping.terminalId =
+          first!.terminals[oldIds.indexOf(mapping.terminalId)]!.id;
+    }
+    await page.getByTestId("project-file").setInputFiles({
+      name: "scoped-terminals.icproj.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(serializeProject(source)),
+    });
+    await page.getByTestId("hit-X1").click();
+    await page.getByTestId("hit-X2").click({ modifiers: ["ControlOrMeta"] });
+    await page.keyboard.press("ControlOrMeta+c");
+    await page
+      .getByRole("button", { name: "New project tab", exact: true })
+      .click();
+    for (const [index, y] of [200, 440].entries()) {
+      await page.keyboard.press("ControlOrMeta+v");
+      await page
+        .getByTestId("schematic-canvas")
+        .click({ position: { x: 250, y } });
+      await expect(page.getByTestId("active-instance-count")).toHaveText(
+        String((index + 1) * 2),
+      );
+      await page.keyboard.press("Escape");
+    }
+    const copied = await readProject(page);
+    expect(copied.modelSources).toHaveLength(2);
+    expect(copied.externalSubcircuitDefinitions).toHaveLength(2);
+    expect(copied.documents[0]!.nets).toEqual([]);
+    expect(copied.documents[0]!.connectivityEvidence).toEqual([]);
+    const resolver = createProjectSymbolResolver(copied, builtInSymbols);
+    for (const instance of copied.documents[0]!.instances) {
+      const binding = instance.netlist!.binding!;
+      if (binding.kind !== "external-subcircuit")
+        throw Error("Missing native target");
+      const owner = copied.externalSubcircuitDefinitions.find(
+        (item) => item.id === binding.definitionId,
+      )!;
+      const artwork = copied.componentDefinitions!.find(
+        (item) => item.symbol.id === instance.symbolId,
+      )!;
+      expect(artwork.circuitBinding!.definitionId).toBe(owner.id);
+      expect(
+        artwork.circuitBinding!.terminals.map((item) => item.terminalId),
+      ).toEqual(owner.terminals.map((item) => item.id));
+      expect(
+        resolver
+          .resolve(instance.symbolId)!
+          .definition.pins.map((pin) => pin.name),
+      ).toEqual(["IN", "OUT", "VSS"]);
+    }
+    const invalid = JSON.parse(serializeProject(copied));
+    const selectedInstance = copied.documents[0]!.instances[0]!;
+    const selectedBinding = selectedInstance.netlist!.binding!;
+    if (selectedBinding.kind !== "external-subcircuit")
+      throw Error("Missing native target");
+    invalid.documents[0].instances[0].target = {
+      kind: "external-subcircuit",
+      definitionId: copied.externalSubcircuitDefinitions.find(
+        (item) => item.id !== selectedBinding.definitionId,
+      )!.id,
+    };
+    await page.getByTestId("project-code-toggle").click();
+    const projectCode = page.getByRole("textbox", {
+      name: "Project code",
+      exact: true,
+    });
+    await projectCode.fill(JSON.stringify(invalid, null, 2));
+    await projectCode.press("ControlOrMeta+Enter");
+    const projectPanel = page.getByRole("region", {
+      name: "Project Code",
+      exact: true,
+    });
+    await expect(projectPanel.getByRole("alert")).toContainText(
+      "artwork owner",
+    );
+    await projectPanel.getByRole("button", { name: /Reload/ }).click();
+    expect(await readProject(page)).toEqual(copied);
+  } finally {
+    service.close();
+  }
+});
+
+test("native custom source changes diagnose missing mappings without crashing the Editor", async ({
+  page,
+  context,
+}) => {
+  const service = library();
+  try {
+    await service.connect(context, null);
+    await openEditor(page);
+    let editor = await openNativeComponent(page);
+    await editor.getByLabel("External model netlist").fill(finiteGainSource);
+    await editor
+      .getByLabel("External model entry", { exact: true })
+      .selectOption("finite_gain");
+    await editor.getByLabel("Symbol mode").selectOption("custom");
+    await editor
+      .getByRole("button", { name: "Apply & Place", exact: true })
+      .click();
+    await expect(editor).toHaveCount(0);
+    await place(page);
+    const before = await readProject(page);
+    await page.getByTestId("hit-X1").click({ button: "right" });
+    await page
+      .getByRole("menuitem", {
+        name: "Edit Component Definition (E)",
+        exact: true,
+      })
+      .click();
+    editor = page.getByRole("dialog", {
+      name: "Edit Component Definition",
+      exact: true,
+    });
+    await editor
+      .getByLabel("External model netlist")
+      .fill(
+        finiteGainSource.replace(
+          "IN OUT VSS params:",
+          "IN OUT VSS EXTRA params:",
+        ),
+      );
+    await expect(editor.getByRole("alert")).toContainText("EXTRA");
+    await editor
+      .getByRole("button", { name: "Apply model", exact: true })
+      .click();
+    await expect(editor.getByRole("status")).toContainText("EXTRA");
+    await editor.getByLabel("Close component editor", { exact: true }).click();
+    await editor
+      .getByRole("button", { name: "Discard changes", exact: true })
+      .click();
+    expect(await readProject(page)).toEqual(before);
   } finally {
     service.close();
   }

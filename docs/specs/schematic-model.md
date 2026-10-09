@@ -277,3 +277,17 @@ files, entry or dependencies change. An unchanged saved draft retains its old
 base; accepting it against a newer applied model requires an explicit rebase.
 Reviewed interfaces and implementations cannot be replaced in place through
 either entrance. Inconsistent projections and stale edits refuse.
+
+Source-backed custom artwork is stored in `componentDefinitions` with a checked
+`circuitBinding` to stable formal terminal IDs. Native source owns executable
+facts; JSON owns graphical identities, geometry and presentation. The shared
+symbol resolver projects correspondence into ordinary formal-name endpoints;
+the netlist extractor consumes the same checked mapping. An explicit property
+supply uses the existing supply resolution and cannot also have a drawn route
+or No Connect. See [Symbol DSL](symbol-dsl.md#source-backed-custom-artwork).
+
+Apply may capture artwork and select caller occurrences in the same transaction.
+A changed captured ID is refused; callers not selected keep their own captures.
+Only a successful Apply advances an editing window's own caller baseline.
+External changes still require reopening the caller. Invalid mappings, including
+ones submitted through lower-level Project edits, refuse without a partial commit.

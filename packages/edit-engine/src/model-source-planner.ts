@@ -1,5 +1,7 @@
 import {
   deriveStableId,
+  circuitComponentIssues,
+  initializeCircuitComponent,
   type CircuitProject,
   type ExternalSubcircuitDefinition,
 } from "@icm/model";
@@ -12,7 +14,11 @@ import {
   instanceReferencesPin,
   planCallerInterfaceChanges,
 } from "./hierarchy-planner.js";
-import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
+import {
+  builtInSymbols,
+  createProjectSymbolResolver,
+  externalSubcircuitSymbolId,
+} from "@icm/symbols";
 import { executeTransaction } from "./transaction.js";
 import type { ProjectStructureEdit } from "./project-transaction.js";
 import { resolveReviewedLibraryInterface } from "@icm/devices";
@@ -158,6 +164,24 @@ export function planModelSourceApply(
         ? [{ source, target: destination }]
         : [],
     );
+    if (deleted.length || renames.length) {
+      const customCaller = project.documents
+        .flatMap((d) => d.instances)
+        .find(
+          (instance) =>
+            instance.netlist?.binding?.kind === "external-subcircuit" &&
+            instance.netlist.binding.definitionId === id &&
+            project.componentDefinitions?.some(
+              (component) =>
+                component.symbol.id === instance.symbolId &&
+                component.circuitBinding,
+            ),
+        );
+      if (customCaller)
+        throw Error(
+          `circuitBinding: Custom caller ${customCaller.reference ?? customCaller.id} needs a checked Pin migration before changing native ports`,
+        );
+    }
     const changes = planCallerInterfaceChanges(
       working,
       id,
@@ -200,6 +224,18 @@ export function planModelSourceApply(
         definition.presentation.pinPlacements.filter((s) =>
           definition.terminals.some((t) => t.id === s.terminalId),
         );
+    if (target.symbol) {
+      const symbol = initializeCircuitComponent(target.symbol, definition);
+      const issue = circuitComponentIssues(symbol, definition)[0];
+      if (issue) throw Error(`${issue.path.join(".")}: ${issue.message}`);
+      const captured = {
+        kind: "capture_component_definition" as const,
+        definition: symbol,
+      };
+      preview([captured]);
+      planned.push(captured);
+      definition.symbolId = symbol.symbol.id;
+    } else if (target.symbol === null) delete definition.symbolId;
     const index = working.externalSubcircuitDefinitions.findIndex(
       (d) => d.id === id,
     );
@@ -211,6 +247,46 @@ export function planModelSourceApply(
       { kind: "upsert_external_subcircuit_definition", definition },
       ...changes.afterChild,
     );
+    const callerEdits = new Map<
+      string,
+      { instanceId: string; symbolId: string }[]
+    >();
+    for (const caller of target.callers ?? []) {
+      const original = project.documents
+        .find((d) => d.id === caller.documentId)
+        ?.instances.find((i) => i.id === caller.instanceId);
+      if (
+        !original ||
+        original.symbolId !== caller.expectedSymbolId ||
+        original.netlist?.binding?.kind !== "external-subcircuit" ||
+        original.netlist.binding.definitionId !== id
+      )
+        throw Error(
+          `Caller ${caller.instanceId} changed; reopen it before applying its artwork`,
+        );
+      const edits = callerEdits.get(caller.documentId) ?? [];
+      if (edits.some((edit) => edit.instanceId === caller.instanceId))
+        throw Error(`Caller ${caller.instanceId} is selected more than once`);
+      edits.push({
+        instanceId: caller.instanceId,
+        symbolId: definition.symbolId ?? externalSubcircuitSymbolId(id),
+      });
+      callerEdits.set(caller.documentId, edits);
+    }
+    for (const [documentId, callers] of callerEdits) {
+      const document = working.documents.find((d) => d.id === documentId)!;
+      const edit: ProjectStructureEdit = {
+        kind: "transact_document",
+        documentId,
+        expectedRevision: document.revision,
+        edits: callers.map((caller) => ({
+          kind: "set_instance_symbol",
+          ...caller,
+        })),
+      };
+      preview([edit]);
+      planned.push(edit);
+    }
   }
   source.revision = (previous?.revision ?? 0) + 1;
   delete source.draft;

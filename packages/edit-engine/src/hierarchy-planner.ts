@@ -820,7 +820,10 @@ export function createExternalSubcircuitInstance(
         );
   return {
     id,
-    symbolId: reviewed?.symbolId ?? externalSubcircuitSymbolId(definition.id),
+    symbolId:
+      definition.symbolId ??
+      reviewed?.symbolId ??
+      externalSubcircuitSymbolId(definition.id),
     reference: reference,
     placement,
     netlist: {

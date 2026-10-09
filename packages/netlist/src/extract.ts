@@ -1,6 +1,7 @@
 import {
   deriveStableId,
   componentInterfaceIssues,
+  circuitComponentTerminals,
   foldNetName,
   projectCellInterface,
   routeEndpoints,
@@ -29,6 +30,7 @@ import {
 } from "@icm/derived";
 import type {
   CircuitProject,
+  ComponentDefinition,
   ConnectivityEvidence,
   ExternalSubcircuitDefinition,
   Instance,
@@ -1006,6 +1008,7 @@ function extractExternalSubcircuitInstance(
   document: SchematicDocument,
   instance: Instance,
   definition: ExternalSubcircuitDefinition | undefined,
+  component: ComponentDefinition | undefined,
   context: CellNetContext,
   diagnostics: NetlistDiagnostic[],
 ): DesignNetlistInstance | null {
@@ -1044,13 +1047,15 @@ function extractExternalSubcircuitInstance(
         definition.terminals.map((terminal) => terminal.name),
         instance.symbolId,
       );
-  const terminalBindings = reviewed
-    ? reviewed.terminals
-    : definition.terminals.map((terminal) => ({
-        targetName: terminal.name,
-        pinName: terminal.name,
-        interaction: "canvas" as const,
-      }));
+  const terminalBindings = component?.circuitBinding
+    ? circuitComponentTerminals(component, definition)
+    : reviewed
+      ? reviewed.terminals
+      : definition.terminals.map((terminal) => ({
+          targetName: terminal.name,
+          pinName: terminal.name,
+          interaction: "canvas" as const,
+        }));
   const allowedPins = new Set(
     terminalBindings.map((terminal) => terminal.pinName.toLowerCase()),
   );
@@ -2961,6 +2966,9 @@ function extractCell(
               instance,
               project.externalSubcircuitDefinitions.find(
                 (definition) => definition.id === binding.definitionId,
+              ),
+              project.componentDefinitions?.find(
+                (component) => component.symbol.id === instance.symbolId,
               ),
               context,
               diagnostics,

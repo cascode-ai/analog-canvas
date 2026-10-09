@@ -457,6 +457,32 @@ a new shared component and changes only the selected instance; peers retain
 their existing definitions. It supports normal Project Undo. A hierarchical
 Cell still uses **E / Enter Cell** to navigate into its circuit.
 
+For a native circuit, open **Edit / User Components… / Create Component…** and
+choose **Native circuit** under Definition type. Enter its SPICE or Spectre
+source, select the subcircuit entry, then use **Apply model** or **Apply & Place**.
+This captures an applied Project model without requiring public library Save.
+It uses the same source as Cell Manager's External Circuits, copied/exported
+netlists and simulation preparation.
+
+**Symbol mode** offers Automatic or Custom. Custom retains the JSON editor and
+isolated preview. `circuitBinding.terminals` connects graphical pin names to
+the native interface's stable terminal IDs; a complete same-name interface can
+initialize the mapping. Graphical names and geometric order may differ from
+the formal source order. To hide a supply, explicitly map its terminal to
+`supply: "VDD"` or `"VSS"` and remove that graphical pin; this uses the existing
+property supply rules, rather than guessing a connection from its name.
+
+Select a placed native instance and use **E** to edit its owner and artwork.
+For changed custom artwork, give `symbol.id` a new ID; Apply retains peer
+instances' captured artwork and preserves compatible logical connections.
+Errors identify the source or mapping to repair inline. Pending text is not an
+executable model, and failed Apply leaves the drawing unchanged.
+**Save draft** saves native source text. Apply pending artwork or a changed
+symbol mode first; otherwise Save draft refuses and retains those edits.
+Switching artwork must preserve a compatible property supply mapping or
+explicitly connect the corresponding native terminal. Otherwise Apply refuses
+at that terminal without changing the Project.
+
 The Library ends with **User Defined**, after **Extended Devices**. Choose
 **Create component**, edit the starter code, and **Save & place**. Signing in
 is required to save; every saved definition is public, with no private-library

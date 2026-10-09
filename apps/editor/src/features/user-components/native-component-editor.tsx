@@ -9,6 +9,8 @@ import type { ExternalDefinitionResult } from "../hierarchy/project-structure-co
 
 export interface CircuitComponentAuthoring {
   project: CircuitProject;
+  definitionId?: string | undefined;
+  symbolId?: string | undefined;
   onApply(edit: ApplyModelSourceEdit): ExternalDefinitionResult;
   onSaveDraft(
     edits: ProjectStructureEdit[],
@@ -32,7 +34,7 @@ export function NativeComponentEditor({
   onDirtyChange(dirty: boolean): void;
   onRequestLeave(action: () => void): void;
 }) {
-  const [definitionId, setDefinitionId] = useState<string>();
+  const [definitionId, setDefinitionId] = useState(authoring.definitionId);
   const [pendingPlacement, setPendingPlacement] = useState<string | null>(null);
   const definition = authoring.project.externalSubcircuitDefinitions.find(
     (item) => item.id === definitionId,
@@ -55,6 +57,8 @@ export function NativeComponentEditor({
   return (
     <div className="component-definition-native">
       <ExternalModelSourceEditor
+        customSymbols
+        initialSymbolId={authoring.symbolId}
         project={authoring.project}
         definition={definition}
         onApply={(edit) => remember(authoring.onApply(edit))}

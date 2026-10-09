@@ -10,6 +10,8 @@ import {
   SimulationRawFileSchema,
   SimulationRawDependencySchema,
   flattenRichText,
+  circuitComponentTerminals,
+  CircuitComponentMappingError,
   plainNameDocument,
   type CircuitProject,
   type RouteEndpoint,
@@ -76,6 +78,17 @@ export const ProjectStructureEditSchema = z.discriminatedUnion("kind", [
           entry: z.string().min(1),
           portMap: z
             .record(z.string().min(1), z.string().min(1).nullable())
+            .optional(),
+          symbol: ComponentDefinitionSchema.nullable().optional(),
+          callers: z
+            .array(
+              z.strictObject({
+                documentId: z.string().min(1),
+                instanceId: z.string().min(1),
+                expectedSymbolId: z.string().min(1),
+              }),
+            )
+            .max(1024)
             .optional(),
         }),
       )
@@ -275,9 +288,15 @@ function externalCallerValidationFailures(
               definition.terminals.map((terminal) => terminal.name),
               instance.symbolId,
             );
+      const component = project.componentDefinitions?.find(
+        (item) => item.symbol.id === instance.symbolId && item.circuitBinding,
+      );
+      const terminalBindings = component
+        ? circuitComponentTerminals(component, definition)
+        : reviewed?.terminals;
       const allowed = new Set(
-        (reviewed
-          ? reviewed.terminals.map((terminal) => terminal.pinName)
+        (terminalBindings
+          ? terminalBindings.map((terminal) => terminal.pinName)
           : definition.terminals.map((terminal) => terminal.name)
         ).map((name) => name.toLowerCase()),
       );
@@ -349,7 +368,7 @@ function externalCallerValidationFailures(
           );
           continue;
         }
-        const terminal = reviewed?.terminals.find(
+        const terminal = terminalBindings?.find(
           (candidate) =>
             candidate.pinName.toLowerCase() === reference.pinName.toLowerCase(),
         );
@@ -381,12 +400,84 @@ export function introducedExternalCallerFailure(
   before: CircuitProject,
   after: CircuitProject,
 ): ExternalCallerFailure | null {
+  const supplyFailure = changedPropertySupplyFailure(before, after);
+  if (supplyFailure) return supplyFailure;
   const failures = externalCallerValidationFailures(after);
   if (failures.length === 0) return null;
   const existing = new Set(
     externalCallerValidationFailures(before).map((failure) => failure.key),
   );
   return failures.find((failure) => !existing.has(failure.key)) ?? null;
+}
+
+/** A symbol change must retain implicit supply semantics or make its connection explicit. */
+function changedPropertySupplyFailure(
+  before: CircuitProject,
+  after: CircuitProject,
+): ExternalCallerFailure | null {
+  for (const document of before.documents) {
+    const nextDocument = after.documents.find((d) => d.id === document.id);
+    if (!nextDocument) continue;
+    for (const instance of document.instances) {
+      const binding = instance.netlist?.binding;
+      if (binding?.kind !== "external-subcircuit") continue;
+      const previousArtwork = before.componentDefinitions?.find(
+        (component) => component.symbol.id === instance.symbolId,
+      );
+      const next = nextDocument.instances.find((i) => i.id === instance.id);
+      if (
+        !next ||
+        next.netlist?.binding?.kind !== "external-subcircuit" ||
+        next.netlist.binding.definitionId !== binding.definitionId
+      )
+        continue;
+      const nextArtwork = after.componentDefinitions?.find(
+        (component) => component.symbol.id === next.symbolId,
+      );
+      const definition = after.externalSubcircuitDefinitions.find(
+        (d) => d.id === binding.definitionId,
+      );
+      for (const previousMapping of previousArtwork?.circuitBinding
+        ?.terminals ?? []) {
+        if (!("supply" in previousMapping)) continue;
+        const terminal = definition?.terminals.find(
+          (t) => t.id === previousMapping.terminalId,
+        );
+        if (!terminal) continue;
+        const nextMapping = nextArtwork?.circuitBinding?.terminals.find(
+          (t) => t.terminalId === terminal.id,
+        );
+        if (
+          (nextMapping &&
+            "supply" in nextMapping &&
+            nextMapping.supply === previousMapping.supply) ||
+          nextDocument.nets.some((net) =>
+            net.terminals.some(
+              (endpoint) =>
+                endpoint.instanceId === instance.id &&
+                endpoint.pinName === terminal.name,
+            ),
+          )
+        )
+          continue;
+        const part = next.reference ?? next.id;
+        return {
+          key: [
+            "property-supply-lost",
+            document.id,
+            instance.id,
+            definition!.id,
+            terminal.id,
+          ].join("\u0000"),
+          message: `circuitBinding.${terminal.name}: ${part} in Cell ${nextDocument.name} has a property supply; keep a compatible mapping or explicitly connect ${part}.${terminal.name} before switching artwork`,
+          objectIds: [instance.id],
+          documentId: document.id,
+          instanceId: instance.id,
+        };
+      }
+    }
+  }
+  return null;
 }
 
 /**
@@ -452,6 +543,24 @@ export function executeProjectTransaction(
   sourceProject: CircuitProject,
   input: ProjectTransaction | unknown,
   options: ProjectTransactionOptions = {},
+): ProjectTransactionResult {
+  try {
+    return applyProjectTransaction(sourceProject, input, options);
+  } catch (error) {
+    if (error instanceof CircuitComponentMappingError)
+      return rejectProjectTransaction(
+        sourceProject,
+        "INVALID_RESULT",
+        error.message,
+      );
+    throw error;
+  }
+}
+
+function applyProjectTransaction(
+  sourceProject: CircuitProject,
+  input: ProjectTransaction | unknown,
+  options: ProjectTransactionOptions,
 ): ProjectTransactionResult {
   const project = CircuitProjectSchema.parse(sourceProject);
   const parsed = ProjectTransactionSchema.safeParse(input);

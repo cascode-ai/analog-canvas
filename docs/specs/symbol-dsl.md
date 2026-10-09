@@ -79,3 +79,27 @@ For signed amplifier families, positive and negative strokes must appear beside
 the corresponding named input/output pins. Family generation derives their
 positions from semantic pins, and registration verifies the strokes separately.
 This presentation rule does not grant artwork electrical authority.
+
+## Source-backed custom artwork
+
+A Project component may use `circuitBinding` instead of `electrical`,
+`subcircuit` or `generatedFrom`. Its `definitionId` selects an external model
+owner; `terminals` maps each stable native `terminalId` to one graphical
+`pinName`, or explicitly to the existing `VDD`/`VSS` property supply mechanism.
+Every formal terminal and graphical pin must be accounted for exactly once.
+A complete, exact same-name interface can initialize this checked mapping at
+Apply; renamed or incomplete interfaces need an explicit mapping.
+
+The native source owns the target, formal port order and parameter defaults.
+Graphical names, display labels and pin array order do not override them or name
+parent Nets. Runtime symbol resolution projects mapped graphical pins onto the
+formal names used by ordinary endpoints, routes, No Connects and X invocations.
+Variants and auxiliary contacts follow this projection without gaining a new
+logical terminal. An implicit supply remains an electrical member; its existing
+property-binding rules still apply.
+
+An external definition's optional `symbolId` selects artwork for new placement.
+Existing occurrences retain their captured IDs. Native Apply can select callers
+explicitly and capture a new ID atomically with the source and mapping. It cannot
+overwrite a captured ID with changed artwork. Geometry changes and mode switches
+use the existing route-follow authority, or refuse without changing the Project.

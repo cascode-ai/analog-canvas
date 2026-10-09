@@ -194,6 +194,20 @@ built-in library. Editing its geometry updates every instance of that class;
 copy the class to a new `symbol.id` (and matching electrical `symbolId`) and
 change selected instances' `type` to customize only those instances.
 
+Source-backed custom classes instead retain `circuitBinding` alongside the raw
+Symbol JSON. The mapping names an external definition and its stable terminal
+IDs; it does not duplicate the native target, formal order or defaults. The
+external definition's optional preferred `symbolId` is a live authoring use,
+so its capture survives save before first placement. Each occurrence otherwise
+keeps its chosen captured class. Runtime formal-name projections are derived
+and do not replace graphical names in the portable file.
+
+Native Apply creates changed artwork under a new captured ID and may migrate
+selected occurrences atomically. Cross-Project copy remaps external owner,
+terminal and symbol identities together with the existing owned source closure.
+Ordinary partial selection still cuts outside connections and does not turn
+graphical labels into parent Net names.
+
 Custom component internals are authored through Project Code or the
 code-and-preview definition workspace (E / Edit Component Definition), not
 through mouse-drawn shapes. The JSON definition workspace publishes its Save to

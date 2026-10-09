@@ -940,6 +940,9 @@
                       "presentation": {
                         "$ref": "#/$defs/__schema255"
                       },
+                      "symbolId": {
+                        "$ref": "#/$defs/__schema1"
+                      },
                       "implementation": {
                         "oneOf": [
                           {

@@ -611,7 +611,7 @@ export function prepareProjectCopy(
     for (const rawDefinition of context.componentDefinitions) {
       const definition = ComponentDefinitionSchema.parse(rawDefinition);
       // Cell/external symbols are regenerated from their imported interfaces.
-      if (definition.generatedFrom) continue;
+      if (definition.generatedFrom || definition.circuitBinding) continue;
       const originalId = definition.symbol.id;
       let id = originalId;
       let ordinal = 1;
@@ -686,9 +686,12 @@ export function prepareProjectCopy(
       Object.fromEntries(dependencies.fileIds),
     );
     clipboard = remapCopySourceFiles(clipboard, dependencies.fileIds);
-    clipboard.instances = clipboard.instances.map((i) =>
-      remapExternalCopyInstance(i, dependencies.externalIds),
-    );
+    clipboard.instances = clipboard.instances.map((i) => {
+      const remapped = remapExternalCopyInstance(i, dependencies.externalIds);
+      remapped.symbolId =
+        dependencies.symbolIds.get(i.symbolId) ?? remapped.symbolId;
+      return remapped;
+    });
     const childMap = new Map<string, string>();
     const mapChildClosure = (sourceId: string, targetId: string): void => {
       if (childMap.has(sourceId)) return;
@@ -745,7 +748,12 @@ export function prepareProjectCopy(
             sourceId,
           );
           source.documents = structuredClone(context.documents);
-          source.componentDefinitions = componentDefinitions;
+          source.componentDefinitions = [
+            ...(componentDefinitions ?? []).filter((d) => !d.circuitBinding),
+            ...(context.componentDefinitions ?? []).filter(
+              (d) => d.circuitBinding,
+            ),
+          ];
           source.source = structuredClone(context.source);
           source.symbolLibrary = structuredClone(context.symbolLibrary);
           source.externalSubcircuitDefinitions = structuredClone(

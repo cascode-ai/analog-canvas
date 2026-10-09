@@ -15,7 +15,8 @@ export type CopyDependencySource = Pick<
   | "source"
   | "externalSubcircuitDefinitions"
   | "modelSources"
->;
+> &
+  Partial<Pick<CircuitProject, "componentDefinitions">>;
 
 function modelSourceShape(source: ProjectModelSource): string {
   return JSON.stringify({
@@ -148,6 +149,8 @@ export function planExternalCopyDependencies(
   const externalIds = new Map<string, string>();
   const fileIds = new Map<string, string>();
   const modelIds = new Map<string, string>();
+  const terminalIds = new Map<string, Map<string, string>>();
+  const symbolIds = new Map<string, string>();
   const edits: ProjectStructureEdit[] = [];
   const occupied = new Set(
     [
@@ -225,27 +228,73 @@ export function planExternalCopyDependencies(
       );
     const id = existing?.id ?? fresh(definition.id);
     externalIds.set(definition.id, id);
+    const copiedTerminals = new Map(
+      definition.terminals.map((terminal) => [
+        terminal.id,
+        existing?.terminals.find((t) => t.name === terminal.name)!.id ??
+          deriveStableId("copy-terminal", id, terminal.id),
+      ]),
+    );
+    terminalIds.set(definition.id, copiedTerminals);
     if (!existing) {
       const clone = structuredClone(definition);
       clone.id = id;
       if (clone.implementation?.sourceId)
         clone.implementation.sourceId = copiedSourceId!;
-      const terminals = new Map(
-        clone.terminals.map((t) => [
-          t.id,
-          deriveStableId("copy-terminal", id, t.id),
-        ]),
-      );
       for (const terminal of clone.terminals)
-        terminal.id = terminals.get(terminal.id)!;
+        terminal.id = copiedTerminals.get(terminal.id)!;
       for (const pin of clone.presentation?.pinPlacements ?? [])
-        pin.terminalId = terminals.get(pin.terminalId)!;
+        pin.terminalId = copiedTerminals.get(pin.terminalId)!;
       edits.push({
         kind: "upsert_external_subcircuit_definition",
         definition: clone,
       });
     }
   }
+  // Capture artwork and its terminal correspondence together with its owner.
+  // GUI clipboard, Cell import and Agent copies all consume these same edits.
+  const captured = [...(destination.componentDefinitions ?? [])];
+  const usedSymbols = new Set(instances.map((instance) => instance.symbolId));
+  for (const definition of source.externalSubcircuitDefinitions)
+    if (externalIds.has(definition.id) && definition.symbolId)
+      usedSymbols.add(definition.symbolId);
+  for (const component of source.componentDefinitions ?? []) {
+    const binding = component.circuitBinding;
+    if (
+      !binding ||
+      !usedSymbols.has(component.symbol.id) ||
+      !externalIds.has(binding.definitionId)
+    )
+      continue;
+    const copy = structuredClone(component);
+    copy.circuitBinding!.definitionId = externalIds.get(binding.definitionId)!;
+    for (const terminal of copy.circuitBinding!.terminals)
+      terminal.terminalId = terminalIds
+        .get(binding.definitionId)!
+        .get(terminal.terminalId)!;
+    const baseId = copy.symbol.id;
+    let ordinal = 1;
+    while (
+      captured.some(
+        (previous) =>
+          previous.symbol.id === copy.symbol.id &&
+          JSON.stringify(previous) !== JSON.stringify(copy),
+      )
+    )
+      copy.symbol.id = `${baseId}-copy-${ordinal++}`;
+    symbolIds.set(component.symbol.id, copy.symbol.id);
+    if (!captured.some((previous) => previous.symbol.id === copy.symbol.id)) {
+      captured.push(copy);
+      edits.unshift({ kind: "capture_component_definition", definition: copy });
+    }
+  }
+  for (const edit of edits)
+    if (
+      edit.kind === "upsert_external_subcircuit_definition" &&
+      edit.definition.symbolId
+    )
+      edit.definition.symbolId =
+        symbolIds.get(edit.definition.symbolId) ?? edit.definition.symbolId;
   for (const id of referencedSourceFiles(referencedContent)) {
     const file = source.source.files.find((f) => f.id === id);
     if (!file) throw new Error(`Source metadata is missing file ${id}`);
@@ -265,5 +314,5 @@ export function planExternalCopyDependencies(
         sourceFile: { ...file, id: targetId },
       });
   }
-  return { externalIds, fileIds, edits };
+  return { externalIds, fileIds, symbolIds, terminalIds, edits };
 }

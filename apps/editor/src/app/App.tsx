@@ -72,6 +72,7 @@ interface ComponentEditorSession {
   definition: ComponentDefinition;
   mode: "new" | "instance" | "library";
   entry?: SharedComponent;
+  externalDefinitionId?: string;
   target?: { projectSessionId: string; documentId: string; instance: Instance };
 }
 import type { CSSProperties } from "react";
@@ -3316,7 +3317,9 @@ function WorkspaceEditor({
                 definition.terminals.map((terminal) => terminal.name),
               );
         const symbol = resolver.resolve(
-          mapping?.symbolId ?? externalSubcircuitSymbolId(definition.id),
+          definition.symbolId ??
+            mapping?.symbolId ??
+            externalSubcircuitSymbolId(definition.id),
         )?.definition;
         return symbol
           ? [
@@ -4623,6 +4626,16 @@ function WorkspaceEditor({
       )
     : undefined;
 
+  const selectedCircuitBinding = selectedInstance?.netlist?.binding;
+  const selectedAuthoredCircuit =
+    selectedCircuitBinding?.kind === "external-subcircuit"
+      ? project.externalSubcircuitDefinitions.find(
+          (definition) =>
+            definition.id === selectedCircuitBinding.definitionId &&
+            definition.implementation?.kind === "source",
+        )
+      : undefined;
+
   function openSelectedComponentDefinition(): void {
     if (!capabilities.community) {
       setStatus("Shared component editing is unavailable in this preview");
@@ -4632,13 +4645,18 @@ function WorkspaceEditor({
       setStatus("Select one component to edit its definition");
       return;
     }
-    if (hasHierarchyEnterSelection) {
+    const external = selectedAuthoredCircuit;
+    if (hasHierarchyEnterSelection && !external) {
       enterSelectedHierarchy();
       return;
     }
-    const definition = project.componentDefinitions?.find(
-      (item) => item.symbol.id === selectedInstance.symbolId,
-    );
+    const definition =
+      project.componentDefinitions?.find(
+        (item) => item.symbol.id === selectedInstance.symbolId,
+      ) ??
+      (external && resolver.resolve(selectedInstance.symbolId)
+        ? { symbol: resolver.resolve(selectedInstance.symbolId)!.definition }
+        : undefined);
     if (!definition) {
       setStatus("No component definition is available for this selection");
       return;
@@ -4650,6 +4668,7 @@ function WorkspaceEditor({
       projectSessionId,
       mode: "instance",
       definition: structuredClone(definition),
+      ...(external ? { externalDefinitionId: external.id } : {}),
       target: {
         projectSessionId,
         documentId: document.id,
@@ -4675,6 +4694,7 @@ function WorkspaceEditor({
     edits: ProjectStructureEdit[],
     definitionId: string,
     message: string,
+    onApplied?: (project: CircuitProject) => void,
   ) {
     const current = definitionProjectRef.current.project;
     const result = dispatchProjectTransaction({
@@ -4684,6 +4704,7 @@ function WorkspaceEditor({
       actor: { kind: "human", id: "human-local" },
       edits,
     });
+    if (result.ok) onApplied?.(result.project);
     return {
       ok: result.ok,
       definitionId,
@@ -9901,8 +9922,9 @@ function WorkspaceEditor({
                 label: "Edit Component Definition (E)",
                 enabled: Boolean(
                   selectedInstance &&
-                  !resolver.resolve(selectedInstance.symbolId)?.definition
-                    .hierarchicalBlock,
+                  (!resolver.resolve(selectedInstance.symbolId)?.definition
+                    .hierarchicalBlock ||
+                    selectedAuthoredCircuit),
                 ),
                 execute: openSelectedComponentDefinition,
               },
@@ -9979,14 +10001,68 @@ function WorkspaceEditor({
             mode={componentEditor.mode}
             circuit={{
               project,
+              definitionId: componentEditor.externalDefinitionId,
+              symbolId: componentEditor.target?.instance.symbolId,
               onApply: (edit) =>
-                withComponentSession(() =>
-                  commitModelEdits(
+                withComponentSession(() => {
+                  const target = componentEditor.target;
+                  const current = definitionProjectRef.current.project;
+                  if (target && componentEditor.externalDefinitionId) {
+                    const instance = current.documents
+                      .find((d) => d.id === target.documentId)
+                      ?.instances.find((i) => i.id === target.instance.id);
+                    if (
+                      JSON.stringify(instance) !==
+                      JSON.stringify(target.instance)
+                    )
+                      return {
+                        ok: false,
+                        message:
+                          "The instance changed. Reopen it before applying its artwork.",
+                      };
+                    edit = {
+                      ...edit,
+                      definitions: edit.definitions.map((definition) =>
+                        definition.definitionId ===
+                        componentEditor.externalDefinitionId
+                          ? {
+                              ...definition,
+                              callers: [
+                                {
+                                  documentId: target.documentId,
+                                  instanceId: target.instance.id,
+                                  expectedSymbolId: target.instance.symbolId,
+                                },
+                              ],
+                            }
+                          : definition,
+                      ),
+                    };
+                  }
+                  return commitModelEdits(
                     [edit],
                     edit.definitions[0]!.definitionId,
                     "Applied shared model definition",
-                  ),
-                ),
+                    target
+                      ? (applied) => {
+                          const instance = applied.documents
+                            .find((d) => d.id === target.documentId)
+                            ?.instances.find(
+                              (i) => i.id === target.instance.id,
+                            );
+                          if (instance)
+                            setComponentEditor((session) =>
+                              session === componentEditor
+                                ? {
+                                    ...session,
+                                    target: { ...target, instance },
+                                  }
+                                : session,
+                            );
+                        }
+                      : undefined,
+                  );
+                }),
               onSaveDraft: (edits, definitionId) =>
                 withComponentSession(() =>
                   commitModelEdits(

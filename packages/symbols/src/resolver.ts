@@ -1,6 +1,6 @@
 import { SymbolDefinitionSchema } from "./schema.js";
 import type { SymbolDefinition, SymbolVariant } from "./schema.js";
-import type { CircuitProject } from "@icm/model";
+import { projectCircuitSymbol, type CircuitProject } from "@icm/model";
 import {
   createProjectHierarchicalSymbols,
   projectSymbolSources,
@@ -55,8 +55,17 @@ export function createProjectSymbolResolver(
   const definitions = new Map(
     baseDefinitions.map((definition) => [definition.id, definition]),
   );
-  for (const definition of project.componentDefinitions ?? [])
-    definitions.set(definition.symbol.id, definition.symbol);
+  for (const definition of project.componentDefinitions ?? []) {
+    const owner = definition.circuitBinding
+      ? project.externalSubcircuitDefinitions?.find(
+          (d) => d.id === definition.circuitBinding!.definitionId,
+        )
+      : undefined;
+    definitions.set(
+      definition.symbol.id,
+      owner ? projectCircuitSymbol(definition, owner) : definition.symbol,
+    );
+  }
   const sources = projectSymbolSources(project);
   const captured = new Map(
     (project.componentDefinitions ?? []).map((definition) => [

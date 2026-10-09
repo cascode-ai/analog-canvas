@@ -1,4 +1,5 @@
 import { planComponentDefinitionEdit } from "./component-definition-plan";
+import { definitionError } from "./component-definition-error";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { InlineConfirm } from "../../components/inline-confirm";
 import {
@@ -42,16 +43,6 @@ export interface ComponentDefinitionEditorProps {
   onClose(): void;
 }
 
-function definitionError(error: unknown): string {
-  if (error && typeof error === "object" && "issues" in error) {
-    const first = (
-      error.issues as Array<{ path: unknown[]; message: string }>
-    )[0];
-    if (first) return `${first.path.join(".")}: ${first.message}`;
-  }
-  return error instanceof Error ? error.message : String(error);
-}
-
 export default function ComponentDefinitionEditor(
   props: ComponentDefinitionEditorProps,
 ) {
@@ -68,7 +59,9 @@ export default function ComponentDefinitionEditor(
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [pinNames, setPinNames] = useState(true);
-  const [definitionType, setDefinitionType] = useState("json");
+  const [definitionType, setDefinitionType] = useState(
+    props.circuit?.definitionId ? "circuit" : "json",
+  );
   const [nativeDirty, setNativeDirty] = useState(false);
   const [pendingLeave, setPendingLeave] = useState<(() => void) | null>(null);
   const native = definitionType === "circuit" && props.circuit;
@@ -192,7 +185,7 @@ export default function ComponentDefinitionEditor(
               }}
             >
               <option value="json">JSON artwork / primitive</option>
-              <option value="circuit">Circuit / automatic symbol</option>
+              <option value="circuit">Native circuit</option>
             </select>
           </label>
         ) : null}

@@ -2,6 +2,10 @@ import { useEffect, useMemo, useState, useRef } from "react";
 import {
   createId,
   deriveStableId,
+  ComponentDefinitionSchema,
+  circuitComponentIssues,
+  initializeCircuitComponent,
+  projectCircuitSymbol,
   type CircuitProject,
   type ExternalSubcircuitDefinition,
   type ProjectModelSource,
@@ -31,6 +35,7 @@ import { browserExportDelivery } from "../../hosts/browser-export-delivery";
 import type { ProjectStructureEdit } from "@icm/edit-engine";
 import ProjectTextEditor from "../project-code/project-text-editor";
 import { SymbolArtwork } from "../component-insert/symbol-artwork";
+import { definitionError } from "../user-components/component-definition-error";
 import type { ExternalDefinitionResult } from "./project-structure-commands";
 import { CellSymbolLayoutProperties } from "../properties/component-structure-properties";
 import type { SimulationSourceLocation } from "@icm/simulation-service/contract";
@@ -56,6 +61,8 @@ export function ExternalModelSourceEditor({
   project,
   definition: initialDefinition,
   initialLocation,
+  customSymbols = false,
+  initialSymbolId,
   onApply,
   onSaveDraft,
   onPlaceholder,
@@ -69,6 +76,8 @@ export function ExternalModelSourceEditor({
   project: CircuitProject;
   definition: ExternalSubcircuitDefinition | undefined;
   initialLocation?: SimulationSourceLocation | undefined;
+  customSymbols?: boolean;
+  initialSymbolId?: string | undefined;
   onApply(edit: ApplyModelSourceEdit): ExternalDefinitionResult;
   onSaveDraft(
     edits: ProjectStructureEdit[],
@@ -143,6 +152,28 @@ export function ExternalModelSourceEditor({
     Record<string, Record<string, string | null>>
   >({});
   const [result, setResult] = useState<ExternalDefinitionResult | null>(null);
+  const [symbolMode, setSymbolMode] = useState<"automatic" | "custom">(
+    (
+      initialSymbolId
+        ? project.componentDefinitions?.some(
+            (d) => d.symbol.id === initialSymbolId && d.circuitBinding,
+          )
+        : definition?.symbolId
+    )
+      ? "custom"
+      : "automatic",
+  );
+  const [artworkText, setArtworkText] = useState(() => {
+    const captured = project.componentDefinitions?.find(
+      (d) =>
+        d.symbol.id === (initialSymbolId ?? definition?.symbolId) &&
+        d.circuitBinding,
+    );
+    return captured ? JSON.stringify(captured, null, 2) : "";
+  });
+  const artworkSnapshot = JSON.stringify({ symbolMode, artworkText });
+  const [appliedArtworkSnapshot, setAppliedArtworkSnapshot] =
+    useState(artworkSnapshot);
   const [conversionDiagnostic, setConversionDiagnostic] =
     useState<SimulationSourceDiagnostic | null>(null);
   const workbench = useRef<HTMLElement>(null);
@@ -153,6 +184,8 @@ export function ExternalModelSourceEditor({
     dependencies,
     entry,
     portMaps,
+    symbolMode,
+    artworkText,
   };
   const serializeDraft = (overrides: Partial<typeof currentDraft> = {}) =>
     JSON.stringify({ ...currentDraft, ...overrides });
@@ -173,6 +206,8 @@ export function ExternalModelSourceEditor({
     setDependencies(draft.dependencies);
     setEntry(draft.entry);
     setPortMaps(draft.portMaps);
+    setSymbolMode(draft.symbolMode);
+    setArtworkText(draft.artworkText);
     if (!draft.files.some((f) => f.path === filePath))
       setFilePath(draft.entryPath);
     setConversionDiagnostic(null);
@@ -237,7 +272,7 @@ export function ExternalModelSourceEditor({
   const previewTerminals = selected?.ports.map(
     (name) =>
       selectedDefinition?.terminals.find((t) => t.name === name) ?? {
-        id: deriveStableId("model-preview-pin", selectedDefinitionId, name),
+        id: deriveStableId("model-terminal", selectedDefinitionId, name),
         name,
         direction: "passive" as const,
       },
@@ -265,17 +300,43 @@ export function ExternalModelSourceEditor({
     : undefined;
   const preview = previewDefinition
     ? createProjectSymbolResolver(
-        { ...project, externalSubcircuitDefinitions: [previewDefinition] },
+        {
+          ...project,
+          componentDefinitions: [],
+          externalSubcircuitDefinitions: [previewDefinition],
+        },
         [],
       ).resolve(externalSubcircuitSymbolId(selectedDefinitionId))?.definition
     : undefined;
+  const artwork = useMemo(() => {
+    if (symbolMode !== "custom" || !previewDefinition)
+      return { definition: null, error: null };
+    try {
+      const component = initializeCircuitComponent(
+        ComponentDefinitionSchema.parse(JSON.parse(artworkText)),
+        previewDefinition,
+      );
+      const issue = circuitComponentIssues(component, previewDefinition)[0];
+      return {
+        definition: component,
+        error: issue ? `${issue.path.join(".")}: ${issue.message}` : null,
+      };
+    } catch (error) {
+      return {
+        definition: null,
+        error: definitionError(error),
+      };
+    }
+  }, [symbolMode, artworkText, previewDefinition]);
   const apply = (place = false) => {
     if (viewingApplied) return;
-    if (failure || !selected) {
+    if (failure || !selected || (customSymbols && artwork.error)) {
       setResult({
         ok: false,
         message:
-          failure?.message ?? "Add a .subckt definition and select its entry.",
+          artwork.error ??
+          failure?.message ??
+          "Add a .subckt definition and select its entry.",
       });
       return;
     }
@@ -283,6 +344,9 @@ export function ExternalModelSourceEditor({
       {
         definitionId: selectedDefinitionId,
         entry: selected.name,
+        ...(customSymbols
+          ? { symbol: symbolMode === "custom" ? artwork.definition : null }
+          : {}),
         ...(portMaps[selectedDefinitionId]
           ? { portMap: portMaps[selectedDefinitionId] }
           : {}),
@@ -306,6 +370,7 @@ export function ExternalModelSourceEditor({
     setResult(outcome);
     if (outcome.ok) {
       setDefinitionId(selectedDefinitionId);
+      setAppliedArtworkSnapshot(artworkSnapshot);
       setSavedSnapshot(serializeDraft({ portMaps: {} }));
       setBaseRevision(baseRevision + 1);
       setPortMaps({});
@@ -377,6 +442,14 @@ export function ExternalModelSourceEditor({
   };
   const saveDraft = () => {
     if (viewingApplied) return;
+    if (customSymbols && artworkSnapshot !== appliedArtworkSnapshot) {
+      setResult({
+        ok: false,
+        message:
+          "artwork: Apply the symbol mode or artwork before saving a source draft. Your edits have not been saved.",
+      });
+      return;
+    }
     const edits: ProjectStructureEdit[] = [];
     if (!existing) {
       edits.push({
@@ -881,7 +954,92 @@ export function ExternalModelSourceEditor({
           </div>
         </details>
       ) : null}
-      {definition ? (
+      {customSymbols && previewDefinition && preview ? (
+        <section
+          className="circuit-symbol-authoring"
+          aria-label="Circuit symbol"
+        >
+          <label>
+            Symbol mode{" "}
+            <select
+              aria-label="Symbol mode"
+              value={symbolMode}
+              onChange={(event) => {
+                const next = event.currentTarget.value as typeof symbolMode;
+                const text =
+                  artworkText ||
+                  JSON.stringify(
+                    {
+                      symbol: {
+                        ...preview,
+                        id: createId("circuit-symbol"),
+                        pins: preview.pins.map((pin) => {
+                          const {
+                            nameContent: _nameContent,
+                            displayName: _displayName,
+                            ...presentation
+                          } = pin.presentation;
+                          return { ...pin, presentation };
+                        }),
+                      },
+                      circuitBinding: {
+                        definitionId: previewDefinition.id,
+                        terminals: previewDefinition.terminals.map((t) => ({
+                          terminalId: t.id,
+                          pinName: t.name,
+                        })),
+                      },
+                    },
+                    null,
+                    2,
+                  );
+                editDraft({ symbolMode: next, artworkText: text });
+              }}
+            >
+              <option value="automatic">Automatic</option>
+              <option value="custom">Custom JSON</option>
+            </select>
+          </label>
+          {symbolMode === "custom" ? (
+            <>
+              <div className="component-definition-workspace">
+                <section className="component-definition-code">
+                  <ProjectTextEditor
+                    ariaLabel="Circuit symbol JSON"
+                    language="json"
+                    value={artworkText}
+                    invalid={!!artwork.error}
+                    onChange={(text) => editDraft({ artworkText: text })}
+                    onModEnter={() => apply()}
+                  />
+                </section>
+                <section
+                  className="component-definition-preview"
+                  aria-label="Custom symbol preview"
+                >
+                  {artwork.definition ? (
+                    <SymbolArtwork
+                      symbol={
+                        artwork.error
+                          ? artwork.definition.symbol
+                          : projectCircuitSymbol(
+                              artwork.definition,
+                              previewDefinition,
+                            )
+                      }
+                      className="component-definition-artwork"
+                    />
+                  ) : (
+                    <p>Correct the JSON to preview.</p>
+                  )}
+                </section>
+              </div>
+              {artwork.error ? <p role="alert">{artwork.error}</p> : null}
+            </>
+          ) : null}
+        </section>
+      ) : null}
+      {definition && symbolMode === "automatic" ? (
         <section className="external-model-layout-section">
           <header>
             <h3>Symbol layout and directions</h3>
