@@ -5471,6 +5471,7 @@ function WorkspaceEditor({
                         )
                           edits.push(
                             ...planMosBulkDefaultUpdate(
+                              project,
                               document,
                               "nmos",
                               propertiesMosBulkDefaultNetId(
@@ -5485,6 +5486,7 @@ function WorkspaceEditor({
                         )
                           edits.push(
                             ...planMosBulkDefaultUpdate(
+                              project,
                               document,
                               "pmos",
                               propertiesMosBulkDefaultNetId(

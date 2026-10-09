@@ -667,7 +667,9 @@ export function planBrowserAgentCommand(
         netId = choice.netId;
       }
       return {
-        edits: [...planMosBulkDefaultUpdate(document, command.mos, netId)],
+        edits: [
+          ...planMosBulkDefaultUpdate(project, document, command.mos, netId),
+        ],
       };
     }
     case "add-power-rail": {

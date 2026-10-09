@@ -279,7 +279,12 @@ refused with their IDs; it never means the first of them.
   action, `{kind:"set-mos-bulk-default",mos:"pmos",net:"VB"}` (`circuit_place`;
   `mos:"nmos"` for NMOS, `net` a Net name or ID, `null` clearing it), planned
   as the Cell settings in Properties set it: the bodies that followed the
-  old default move to the new Net, bodies wired to a Net keep it. The raw
+  old default move to the new Net, bodies wired to a Net keep it. The NMOS
+  default is also the p-substrate (#1530): a SKY130 NPN's hidden `S` and a PDK
+  resistor's, varactor's or inductor's substrate are placed on it, and those
+  on the old default move with it; one set to another Net stays. Beside a VEE
+  rail, `{kind:"set-mos-bulk-default",mos:"nmos",net:"VEE"}` moves both. A
+  PNP has no substrate pin (the PDK ties it to the collector). The raw
   `set_mos_bulk_defaults` and `reconcile_mos_bulk` edits leave bodies already
   on the old default there. In a Cell with two supplies,
   check the PMOS on the one that is not the default: `MOS_BODY_OTHER_SUPPLY`

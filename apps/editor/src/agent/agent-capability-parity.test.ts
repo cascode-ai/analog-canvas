@@ -21,6 +21,7 @@ import {
 } from "./browser-agent-command";
 import type { CircuitProject } from "@icm/model";
 import { initialComponentParameterValues } from "../features/component-insert/component-parameters";
+import { planMosBulkDefaultUpdate } from "../features/component-insert/mos-bulk-defaults";
 import { placedInstanceNetlist } from "../features/component-insert/placed-instance-netlist";
 import { createDefaultNetlistExportPreferences } from "../features/netlist-export/netlist-export-preferences";
 import {
@@ -923,7 +924,7 @@ it("places a BJT in a SKY130 Project bound to its reviewed subcircuit, count kep
   expect(text).not.toContain("MISSING_MODEL_TARGET");
 });
 
-it("puts a placed NPN's substrate on the Cell's negative supply, ground without one (#1530)", async () => {
+it("binds a placed NPN's substrate to the Cell's NMOS body default and moves it with that default, as Properties does (#1530)", async () => {
   const preferences = createDefaultNetlistExportPreferences();
   const { client, controller } = await folder(undefined, {
     processModelTarget: (project, symbolId) =>
@@ -941,9 +942,11 @@ it("puts a placed NPN's substrate on the Cell's negative supply, ground without 
     reference,
     position: { x, y: 0 },
   });
-  // Q1 comes before the rail and takes ground; Q2 comes after and takes VEE.
+  // Ground comes first, so it is the Cell's NMOS body default: the node the
+  // NPN substrates are, Q2's too, though it comes after the VEE rail.
   await apply([
     place("npn", "Q1", 0),
+    place("nmos", "M1", 900),
     {
       kind: "place-component",
       symbol: "ground",
@@ -951,10 +954,11 @@ it("puts a placed NPN's substrate on the Cell's negative supply, ground without 
       position: { x: 0, y: 300 },
     },
   ]);
-  await apply([place("vdd-port", "VEE", 600)]);
-  await apply([place("npn", "Q2", 300)]);
+  await apply([place("vdd-port", "VEE", 600), place("port", "VSUB", 1200)]);
+  await apply([place("npn", "Q2", 300), place("npn", "Q3", 1500)]);
   const instance = (reference: string) =>
-    controller.document.instances.find((item) => item.reference === reference)!;
+    controller.document.instances.find((item) => item.reference === reference)!
+      .id;
   const netOf = (instanceId: string, pinName: string) =>
     controller.document.nets.find((net) =>
       net.terminals.some(
@@ -962,40 +966,97 @@ it("puts a placed NPN's substrate on the Cell's negative supply, ground without 
           terminal.instanceId === instanceId && terminal.pinName === pinName,
       ),
     )?.id;
-  expect(netOf(instance("Q1").id, "S")).toBe(netOf("gnd", "0"));
-  const vee = controller.document.instances.find(
-    (item) => item.symbolId === "vdd-port",
-  )!;
-  expect(netOf(instance("Q2").id, "S")).toBe(netOf(vee.id, "P"));
-
-  const wired = structuredClone(controller.project);
-  for (const reference of ["Q1", "Q2"])
-    for (const pinName of ["C", "B", "E"])
-      wired.documents[0]!.nets.push({
-        id: `net-${reference}-${pinName}`,
-        terminals: [{ instanceId: instance(reference).id, pinName }],
-      });
-  const exported = createDesignNetlistExport(wired, { format: "spice" });
-  expect(exported.status, JSON.stringify(exported.diagnostics)).toBe("ready");
-  const text = exported.status === "ready" ? exported.file.text : "";
-  expect(text).toMatch(
-    /^XQ1 \S+ \S+ \S+ VSS sky130_fd_pr__npn_05v5_W1p00L1p00 m=1$/mu,
-  );
-  expect(text).toMatch(
-    /^XQ2 \S+ \S+ \S+ VEE sky130_fd_pr__npn_05v5_W1p00L1p00 m=1$/mu,
-  );
-  // The one placed before the rail is named, with how to move it.
+  const marker = (symbolId: string) =>
+    controller.document.instances.find((item) => item.symbolId === symbolId)!
+      .id;
+  const gnd = netOf("gnd", "0")!;
+  const vee = netOf(marker("vdd-port"), "P")!;
+  const vsub = netOf(marker("port"), "P")!;
+  expect(controller.document.mosBulkDefaults?.nmosNetId).toBe(gnd);
+  for (const [reference, pinName] of [
+    ["Q1", "S"],
+    ["Q2", "S"],
+    ["Q3", "S"],
+    ["M1", "B"],
+  ] as const)
+    expect(netOf(instance(reference), pinName)).toBe(gnd);
+  // Q3's substrate set in its Properties, as its Substrate Net control does.
   expect(
-    exported.diagnostics.filter(
-      (item) => item.code === "PDK_SUBSTRATE_ABOVE_NEGATIVE_SUPPLY",
-    ),
-  ).toEqual([
+    controller.transact([
+      {
+        kind: "set_property_terminal_net",
+        instanceId: instance("Q3"),
+        pinName: "S",
+        netId: vsub,
+      },
+    ]).ok,
+  ).toBe(true);
+  const exported = () => {
+    const wired = structuredClone(controller.project);
+    const document = wired.documents[0]!;
+    for (const item of document.instances)
+      for (const pinName of item.symbolId === "npn"
+        ? ["C", "B", "E"]
+        : item.symbolId === "nmos"
+          ? ["D", "G", "S"]
+          : [])
+        document.nets.push({
+          id: `net-${item.id}-${pinName}`,
+          terminals: [{ instanceId: item.id, pinName }],
+        });
+    const result = createDesignNetlistExport(wired, { format: "spice" });
+    expect(result.status, JSON.stringify(result.diagnostics)).toBe("ready");
+    return {
+      text: result.status === "ready" ? result.file.text : "",
+      above: result.diagnostics.filter(
+        (item) => item.code === "PDK_SUBSTRATE_ABOVE_NEGATIVE_SUPPLY",
+      ),
+    };
+  };
+  // The substrates on ground beside VEE are named, with the one setting
+  // that moves them.
+  expect(exported().above).toEqual([
     expect.objectContaining({
       severity: "warning",
-      objectIds: [instance("Q1").id],
-      message: expect.stringMatching(/^Q1\.S is .* Substrate Net to VEE$/u),
+      objectIds: [instance("Q1"), instance("Q2")],
+      message: expect.stringMatching(
+        /^Q1\.S and Q2\.S are .* Set the NMOS body \/ substrate default in Cell Properties to VEE: /u,
+      ),
     }),
   ]);
+
+  // What the Cell settings in Properties commit for the same choice.
+  const gui = new EditorDocumentController(structuredClone(controller.project));
+  expect(
+    gui.transact(
+      planMosBulkDefaultUpdate(gui.project, gui.document, "nmos", vee),
+    ).ok,
+  ).toBe(true);
+  await apply([{ kind: "set-mos-bulk-default", mos: "nmos", net: "VEE" }]);
+  expect(controller.document.nets).toEqual(gui.document.nets);
+  expect(controller.document.instances).toEqual(gui.document.instances);
+  expect(controller.document.mosBulkDefaults?.nmosNetId).toBe(vee);
+  // The substrates and the body that followed ground move with it; the
+  // substrate set to VSUB stays.
+  expect(netOf(instance("Q1"), "S")).toBe(vee);
+  expect(netOf(instance("Q2"), "S")).toBe(vee);
+  expect(netOf(instance("M1"), "B")).toBe(vee);
+  expect(netOf(instance("Q3"), "S")).toBe(vsub);
+  // An NPN placed now takes the new default.
+  await apply([place("npn", "Q4", 1800)]);
+  expect(netOf(instance("Q4"), "S")).toBe(vee);
+  const after = exported();
+  expect(after.above).toEqual([]);
+  for (const reference of ["Q1", "Q2", "Q4"])
+    expect(after.text).toMatch(
+      new RegExp(
+        `^X${reference} \\S+ \\S+ \\S+ VEE sky130_fd_pr__npn_05v5_W1p00L1p00 m=1$`,
+        "mu",
+      ),
+    );
+  expect(after.text).toMatch(
+    /^XQ3 \S+ \S+ \S+ VSUB sky130_fd_pr__npn_05v5_W1p00L1p00 m=1$/mu,
+  );
 });
 
 it("places SKY130 transistors as their reviewed subcircuits, as a GUI placement and Apply process do (#1249)", async () => {

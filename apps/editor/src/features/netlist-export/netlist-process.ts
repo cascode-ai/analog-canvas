@@ -7,7 +7,7 @@ import {
   resolveReviewedExternalBinding,
   type ReviewedExternalDeviceBinding,
 } from "@icm/devices";
-import { drawnNegativeSupplyNet } from "@icm/derived";
+import { pdkSubstrateDefaultNet } from "@icm/derived";
 import {
   createNetlistPlanningProjection,
   executeProjectTransaction,
@@ -547,13 +547,13 @@ export function planNetlistProcess(
         const logical = projection.logicalNets(documentId);
         const ground =
           rule.substrate === "0" || rule.substrate.toUpperCase() === "VSS";
-        // The p-substrate belongs on the lowest supply: a Cell that draws a
-        // negative rail puts it there, not on ground (#1530).
+        // The p-substrate is the node the NMOS bodies sit on: the Cell's
+        // NMOS body default, else its negative rail, else ground (#1530).
         let netId =
           terminal.role === "floating"
             ? undefined
             : ((terminal.role === "substrate" && ground
-                ? drawnNegativeSupplyNet(document, logical)?.id
+                ? pdkSubstrateDefaultNet(document, logical)?.id
                 : undefined) ??
               [...logical.byBaseNetId].find(([, net]) =>
                 ground

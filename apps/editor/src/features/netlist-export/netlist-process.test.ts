@@ -531,6 +531,50 @@ describe("a part placed into a Process (#1251)", () => {
       ]),
     ).toBeUndefined();
   });
+
+  it("binds a placed NPN's substrate to the Cell's NMOS body default, else its negative rail (#1530)", () => {
+    // A Cell drawing ground and a VNEG supply marker.
+    const project = createEmptyProject("substrate", "Substrate");
+    const document = project.documents[0]!;
+    document.instances.push(
+      { id: "GND", symbolId: "ground", placement: null },
+      { id: "VNEG", symbolId: "vdd-port", placement: null },
+    );
+    document.nets.push(
+      { id: "net-0", terminals: [{ instanceId: "GND", pinName: "0" }] },
+      { id: "net-vneg", terminals: [{ instanceId: "VNEG", pinName: "P" }] },
+    );
+    document.connectivityEvidence.push({
+      id: "vneg-claim",
+      kind: "name-claim",
+      netId: "net-vneg",
+      name: "VNEG",
+      scope: "global",
+      powerDomain: "vdd",
+      owner: { kind: "power-marker", objectId: "VNEG" },
+    });
+    const substrate = (nmosNetId?: string) => {
+      const cell = structuredClone(project);
+      if (nmosNetId) cell.documents[0]!.mosBulkDefaults = { nmosNetId };
+      const placed = commit(
+        cell,
+        placementProcessFill(cell, preferences("sky130"), cell.topDocumentId, [
+          place("npn"),
+        ])!,
+      );
+      return placed.documents[0]!.nets.find((net) =>
+        net.terminals.some(
+          (terminal) =>
+            terminal.instanceId === "Q1" && terminal.pinName === "S",
+        ),
+      )?.id;
+    };
+    // The NMOS body default is the p-substrate node, rail or ground alike.
+    expect(substrate("net-vneg")).toBe("net-vneg");
+    expect(substrate("net-0")).toBe("net-0");
+    // With none set, the Cell's one negative rail.
+    expect(substrate()).toBe("net-vneg");
+  });
 });
 
 describe("persisted netlist process authoring", () => {
