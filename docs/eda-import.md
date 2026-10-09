@@ -5,6 +5,32 @@ contains PyAether operations; `virtuoso.py` reuses the existing Bridge manifest
 importer, not another SKILL or SSH implementation. Hosts, credentials, libraries,
 and PDK installation paths are external configuration.
 
+## Dependencies
+
+```text
+Canvas eda/ (export, select, import one, serial batch)
+  aether.py   -> vendor PyAether API -> installed Aether + target PDK
+  virtuoso.py -> virtuoso-bridge-lite -> installed Virtuoso + target PDK
+```
+
+Install only the backend being used. Aether does not depend on Bridge; PyAether
+comes with the supported Aether installation and runs in its Python Console.
+The Virtuoso backend requires the separate
+[Bridge repository](https://github.com/Arcadia-1/virtuoso-bridge-lite) in the
+same Python environment as the Canvas CLI, plus a configured Bridge connection
+to the licensed Virtuoso session. Use current Bridge source containing native
+database-grid alignment and display-only power-rail support; older packages
+may not contain those fixes. For a source installation:
+
+```sh
+python -m pip install -e /work/virtuoso-bridge-lite
+```
+
+Neither backend supplies EDA binaries, licenses or PDKs. The normal Canvas
+editor does not require either backend. Native libraries and process maps must
+be configured for the chosen server; for Virtuoso, create the target library
+with its intended technology before importing.
+
 ## Entry Points
 
 - `snapshot.mjs`: export an existing public-gallery JSON snapshot through real Canvas code.
@@ -131,5 +157,12 @@ export and electrical equivalence are distinct checks. On Linux, the refactored
 Aether CLI was exercised in the existing native session: one single-cell import
 and a two-cell batch passed saved-database readback, including MOS, RLC, sources
 and inverter expansion. All three used new libraries; the historical 200 cells
-were not modified. Virtuoso has offline adapter tests, not native acceptance.
+were not modified. The Virtuoso adapter was also exercised on a Linux Cadence
+session with a real PDK: a five-transistor OTA, six-transistor SRAM and CMFB
+cell passed native import and database readback (19 devices total), with zero
+check errors or warnings after the Bridge fixes. Native placements are aligned
+to the technology database grid. Eligible decorative supply-rail tails remain
+visible as annotations without creating dangling electrical wires; connectivity
+and device parameters were checked unchanged. This is three-cell native
+acceptance, not 200-cell coverage or simulation-equivalence certification.
 Full application merge/deployment gates remain separate.
