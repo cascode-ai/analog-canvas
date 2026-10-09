@@ -8,7 +8,7 @@ Primary owner: `worker/render-and-grade.ts`
 
 The contracts between Analog Canvas and AnalogArena. Arena runs as its own
 Worker and imports no Analog Canvas package, so what crosses between the two
-Workers is only what this file states: the render-and-grade service.
+Workers is only what this file states, one section per contract.
 
 ## Render-and-grade service
 
