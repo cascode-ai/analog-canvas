@@ -230,6 +230,135 @@ const finiteGainSource = [
   "",
 ].join("\n");
 
+test("library cards separate artwork, long titles and authors at narrow and zoomed sizes", async ({
+  page,
+  context,
+}, testInfo) => {
+  const service = library();
+  const author = "AnalogCircuitResearchAndDeviceModelingGroup";
+  const name =
+    "Precision amplifier with configurable gain and output filtering";
+  try {
+    await service.connect(context, author);
+    await openEditor(page);
+    const tall = { symbol: newComponentDefinition().symbol };
+    tall.symbol.id = "tall-library-artwork";
+    tall.symbol.name = name;
+    tall.symbol.viewBox = { x: -40, y: -150, width: 80, height: 300 };
+    tall.symbol.primitives[0] = {
+      kind: "polyline",
+      points: [
+        { x: -20, y: -120 },
+        { x: 20, y: -120 },
+        { x: 20, y: 120 },
+        { x: -20, y: 120 },
+        { x: -20, y: -120 },
+      ],
+    };
+    const wide = structuredClone(tall);
+    wide.symbol.id = "wide-library-artwork";
+    wide.symbol.name = "Wide artwork";
+    wide.symbol.viewBox = { x: -180, y: -30, width: 360, height: 60 };
+    wide.symbol.primitives[0] = {
+      kind: "polyline",
+      points: [
+        { x: -160, y: -20 },
+        { x: 160, y: -20 },
+        { x: 160, y: 20 },
+        { x: -160, y: 20 },
+        { x: -160, y: -20 },
+      ],
+    };
+    for (const definition of [tall, wide]) {
+      expect(
+        await page.evaluate(
+          async (definition) =>
+            (
+              await fetch(`/api/components/${definition.symbol.id}`, {
+                method: "PUT",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({ revision: 0, definition }),
+              })
+            ).status,
+          definition,
+        ),
+      ).toBe(200);
+    }
+    await openUserComponents(page);
+    const dialog = page.getByRole("dialog", {
+      name: "User Components",
+      exact: true,
+    });
+    await expect(
+      dialog.getByRole("button", { name: `Place ${name}`, exact: true }),
+    ).toBeVisible();
+    for (const [width, zoom] of [
+      [1280, 1],
+      [640, 1],
+      [900, 1.25],
+    ] as const) {
+      await page.setViewportSize({ width, height: 800 });
+      await page.evaluate((zoom) => {
+        document.documentElement.style.zoom = String(zoom);
+      }, zoom);
+      await page.screenshot({
+        path: testInfo.outputPath(`cards-${width}-${zoom}.png`),
+      });
+      const placeButton = dialog.getByRole("button", {
+        name: `Place ${name}`,
+        exact: true,
+      });
+      const title = placeButton.locator("strong");
+      const authorLabel = placeButton.getByText(author, { exact: true });
+      const artBounds = (await placeButton.locator("svg").boundingBox())!;
+      const titleBounds = (await title.boundingBox())!;
+      const authorBounds = (await authorLabel.boundingBox())!;
+      const editBounds = (await dialog
+        .getByRole("button", { name: `Edit ${name} definition`, exact: true })
+        .boundingBox())!;
+      expect(artBounds.y + artBounds.height).toBeLessThanOrEqual(titleBounds.y);
+      expect(titleBounds.y + titleBounds.height).toBeLessThanOrEqual(
+        authorBounds.y,
+      );
+      expect(authorBounds.y + authorBounds.height).toBeLessThanOrEqual(
+        editBounds.y,
+      );
+      // Read enough of a long title to distinguish entries; its full name stays accessible.
+      expect(titleBounds.height).toBeGreaterThan(
+        (await title.evaluate((node) =>
+          parseFloat(getComputedStyle(node).lineHeight),
+        )) * 1.5,
+      );
+      await expect(title).toHaveAttribute("title", name);
+      await expect(authorLabel).toHaveAttribute("title", author);
+      await expect(
+        dialog.getByRole("button", { name: "Create Component…", exact: true }),
+      ).toBeInViewport();
+      await expect(
+        dialog.getByRole("button", { name: "Close", exact: true }),
+      ).toBeInViewport();
+      expect(
+        await dialog.evaluate((node) => node.scrollWidth - node.clientWidth),
+      ).toBeLessThanOrEqual(1);
+    }
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.evaluate(() => {
+      document.documentElement.style.zoom = "1";
+    });
+    await dialog
+      .getByRole("button", { name: `Place ${name}`, exact: true })
+      .click();
+    await place(page);
+    const project = await readProject(page);
+    expect(
+      project.componentDefinitions!.some((d) => d.symbol.name === name),
+    ).toBe(true);
+    expect(project.documents[0]!.instances).toHaveLength(1);
+  } finally {
+    service.close();
+  }
+});
+
 test("GUI Apply synchronizes existing shared owners without consuming a sibling's invalid artwork draft", async ({
   page,
   context,
@@ -1121,6 +1250,194 @@ test("native authoring retains freely edited artwork before a valid circuit and 
         path: testInfo.outputPath(`authoring-${width}-${zoom}.png`),
       });
     }
+  } finally {
+    service.close();
+  }
+});
+
+test("Create keeps custom artwork, preview and commit actions usable in a bounded workspace", async ({
+  page,
+  context,
+}, testInfo) => {
+  const service = library();
+  try {
+    await service.connect(context, null);
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await openEditor(page);
+    const editor = await openNativeComponent(page);
+    await authoringView(editor, "Symbol");
+    await editor
+      .getByLabel("Symbol mode", { exact: true })
+      .selectOption("custom");
+    const code = editor.getByLabel("Circuit symbol JSON", { exact: true });
+    const preview = editor.getByLabel("Custom symbol preview", { exact: true });
+    await page.screenshot({ path: testInfo.outputPath("create-custom.png") });
+    const codeBounds = (await editor
+      .locator(".component-definition-code")
+      .boundingBox())!;
+    const previewBounds = (await preview.boundingBox())!;
+    const applyBounds = (await editor
+      .getByRole("button", { name: "Apply model", exact: true })
+      .boundingBox())!;
+    expect(codeBounds.height).toBeGreaterThan(250);
+    expect(codeBounds.y + codeBounds.height).toBeLessThanOrEqual(applyBounds.y);
+    expect(codeBounds.width).toBeGreaterThan(previewBounds.width);
+    expect(codeBounds.x + codeBounds.width).toBeLessThanOrEqual(
+      previewBounds.x,
+    );
+    await expect(
+      editor.getByRole("button", { name: "Apply model", exact: true }),
+    ).toBeInViewport();
+    await code.fill("{ unfinished artwork");
+    for (const [width, zoom] of [
+      [640, 1],
+      [900, 1.25],
+    ] as const) {
+      await page.setViewportSize({ width, height: 800 });
+      await page.evaluate((zoom) => {
+        document.documentElement.style.zoom = String(zoom);
+      }, zoom);
+      await expect(code).toBeInViewport();
+      await expect(
+        editor.getByRole("button", { name: "Apply model", exact: true }),
+      ).toBeInViewport();
+      await expect(
+        editor.getByLabel("Close component editor"),
+      ).toBeInViewport();
+      await expect
+        .poll(() =>
+          editor.evaluate((dialog) => dialog.scrollWidth - dialog.clientWidth),
+        )
+        .toBeLessThanOrEqual(1);
+      await authoringView(editor, "Pins");
+      await authoringView(editor, "Symbol");
+      await expect(code).toHaveText("{ unfinished artwork");
+      await page.screenshot({
+        path: testInfo.outputPath(`create-${width}-${zoom}.png`),
+      });
+    }
+  } finally {
+    service.close();
+  }
+});
+
+test("native Circuit, automatic Symbol, Pins and draft actions remain usable in narrow or zoomed Create", async ({
+  page,
+  context,
+}, testInfo) => {
+  const service = library();
+  try {
+    await service.connect(context, null);
+    await openEditor(page);
+    const editor = await openNativeComponent(page);
+    await editor
+      .getByLabel("External model netlist")
+      .fill(
+        [
+          ".subckt layout_amp INP INN REF OUT VDD VSS params: gain=20",
+          "E1 OUT REF INP INN {gain}",
+          ".ends layout_amp",
+        ].join("\n"),
+      );
+    for (const [width, zoom] of [
+      [640, 1],
+      [900, 1.25],
+    ] as const) {
+      await page.setViewportSize({ width, height: 800 });
+      await page.evaluate((zoom) => {
+        document.documentElement.style.zoom = String(zoom);
+      }, zoom);
+      await authoringView(editor, "Circuit");
+      await expect(
+        editor.getByLabel("External model netlist"),
+      ).toBeInViewport();
+      await expect(
+        editor.getByLabel("Model format", { exact: true }),
+      ).toBeInViewport();
+      await page.screenshot({
+        path: testInfo.outputPath(`circuit-${width}-${zoom}.png`),
+      });
+      await authoringView(editor, "Symbol");
+      await editor
+        .getByLabel("Symbol mode", { exact: true })
+        .selectOption("automatic");
+      const direction = editor.getByLabel("Model INP direction", {
+        exact: true,
+      });
+      await direction.selectOption("input");
+      await expect(direction).toHaveValue("input");
+      const bodyWidth = editor.getByLabel("Cell symbol width", { exact: true });
+      await bodyWidth.fill("140");
+      await bodyWidth.blur();
+      await expect(direction).toHaveValue("input");
+      await expect(
+        editor.getByLabel("Symbol preview", { exact: true }),
+      ).toBeInViewport();
+      await page.screenshot({
+        path: testInfo.outputPath(`automatic-${width}-${zoom}.png`),
+      });
+      await authoringView(editor, "Pins");
+      const pins = editor.getByLabel("Native pin mapping", { exact: true });
+      await expect(pins.getByRole("row")).toHaveCount(7);
+      await pins
+        .getByLabel("Map native INP", { exact: true })
+        .selectOption("pin:INP");
+      await pins
+        .getByLabel("Map native VSS", { exact: true })
+        .scrollIntoViewIfNeeded();
+      await expect(
+        pins.getByLabel("Map native VSS", { exact: true }),
+      ).toBeInViewport();
+      await page.screenshot({
+        path: testInfo.outputPath(`pins-${width}-${zoom}.png`),
+      });
+      await expect(
+        editor.getByRole("button", { name: "Apply model", exact: true }),
+      ).toBeInViewport();
+      await expect(
+        editor.getByRole("button", { name: "Apply & Place", exact: true }),
+      ).toBeInViewport();
+      await expect(
+        editor.getByRole("button", { name: "Publish", exact: true }),
+      ).toBeDisabled();
+      await editor.locator(".external-model-more > summary").click();
+      await expect(
+        editor.getByRole("button", { name: "Save draft", exact: true }),
+      ).toBeInViewport();
+      await page.screenshot({
+        path: testInfo.outputPath(`more-${width}-${zoom}.png`),
+      });
+      await editor.locator(".external-model-more > summary").click();
+      expect(
+        await editor.evaluate((node) => node.scrollWidth - node.clientWidth),
+      ).toBeLessThanOrEqual(1);
+    }
+    await authoringView(editor, "Symbol");
+    await editor
+      .getByLabel("Symbol mode", { exact: true })
+      .selectOption("custom");
+    await editor
+      .getByLabel("Circuit symbol JSON", { exact: true })
+      .fill("{ unfinished artwork");
+    await editor.locator(".external-model-more > summary").click();
+    await editor
+      .getByRole("button", { name: "Save draft", exact: true })
+      .click();
+    await editor.getByLabel("Close component editor").click();
+    await openUserComponents(page);
+    await page.getByText("Project drafts (1)", { exact: true }).click();
+    await page
+      .getByRole("dialog", { name: "User Components", exact: true })
+      .locator("footer details")
+      .getByRole("button")
+      .click();
+    await authoringView(editor, "Symbol");
+    await expect(
+      editor.getByLabel("Circuit symbol JSON", { exact: true }),
+    ).toHaveText("{ unfinished artwork");
+    await expect(
+      editor.getByRole("button", { name: "Apply model", exact: true }),
+    ).toBeInViewport();
   } finally {
     service.close();
   }

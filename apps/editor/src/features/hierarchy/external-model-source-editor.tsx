@@ -417,7 +417,9 @@ export function ExternalModelSourceEditor({
   const updateLayout = (next: ExternalSubcircuitDefinition) => {
     if (viewingApplied) return;
     if (customSymbols) {
-      const checked = CellSymbolPresentationSchema.safeParse(next.presentation);
+      const checked = CellSymbolPresentationSchema.optional().safeParse(
+        next.presentation,
+      );
       if (!checked.success) {
         setResult({
           ok: false,

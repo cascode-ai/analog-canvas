@@ -184,18 +184,22 @@ export default function UserComponentsLibrary({
                   onInsert(entry);
                 }}
               >
-                <SymbolArtwork
-                  symbol={entry.definition.symbol}
-                  className="user-component-art"
-                />
-                <strong>{entry.definition.symbol.name}</strong>
-                <small>
-                  {entry.status === "official" ? "Official · " : ""}
-                  {entry.author}
-                </small>
-                {entry.definition.subcircuit && !entry.circuit ? (
-                  <small>Implementation missing</small>
-                ) : null}
+                <span className="user-component-preview">
+                  <SymbolArtwork
+                    symbol={entry.definition.symbol}
+                    className="user-component-art"
+                  />
+                </span>
+                <span className="user-component-caption">
+                  <strong title={entry.definition.symbol.name}>
+                    {entry.definition.symbol.name}
+                  </strong>
+                  <small title={entry.author}>{entry.author}</small>
+                  {entry.status === "official" ? <small>Official</small> : null}
+                  {entry.definition.subcircuit && !entry.circuit ? (
+                    <small>Implementation missing</small>
+                  ) : null}
+                </span>
               </button>
               <button
                 type="button"
