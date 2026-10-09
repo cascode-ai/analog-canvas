@@ -1,4 +1,4 @@
-/** SVG attribute text every layer shares: escaped values and point lists. */
+// SVG attribute text every layer shares: escaped values and point lists.
 
 export function escapeXml(value: string): string {
   return value
