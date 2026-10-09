@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { createSimulationFolder } from "@icm/model";
 import { parseProject } from "@icm/project-protocol";
-import { externalSubcircuitSymbolId } from "@icm/symbols";
+import { createBlockSymbol, externalSubcircuitSymbolId } from "@icm/symbols";
 import { profile } from "./simulation-e2e-fixtures.js";
 import { collectNativeRunEvidence } from "../../../scripts/lib/native-example-runner.mjs";
 import { validatePinnedEnvironment } from "../../../scripts/lib/preview-simulation-validation-core.mjs";
@@ -344,6 +344,88 @@ test("packaged MCP applies native models and round-trips their mapped source thr
         true,
       );
     }
+    // Released adapters carry strict schemas. Exercise the custom Apply fields
+    // and a fresh full Snapshot through the selected immutable package too.
+    const beforeArtwork = parseProject(
+      (await child.tool("project_code", { action: "read" })).projectCode,
+    );
+    const definition = beforeArtwork.externalSubcircuitDefinitions.find(
+      (item) => item.id === "amp",
+    )!;
+    const artwork = {
+      symbol: createBlockSymbol({
+        id: "owned-amp-custom",
+        name: "Custom owned_amp",
+        terminals: definition.terminals
+          .map((terminal, index) => ({
+            ...terminal,
+            name: index === 0 ? "sense" : "return",
+          }))
+          .reverse(),
+      }),
+      circuitBinding: {
+        definitionId: definition.id,
+        terminals: definition.terminals.map((terminal, index) => ({
+          terminalId: terminal.id,
+          pinName: index === 0 ? "sense" : "return",
+        })),
+      },
+    };
+    const custom = await child.tool("advanced_transact", {
+      structureEdits: [
+        {
+          kind: "apply_model_source",
+          source: {
+            ...source,
+            revision: beforeArtwork.modelSources![0]!.revision,
+            files: beforeArtwork.modelSources![0]!.files,
+          },
+          definitions: [
+            {
+              definitionId: definition.id,
+              entry: "owned_amp",
+              symbol: artwork,
+              callers: [
+                {
+                  documentId: project.topDocumentId,
+                  instanceId: "X1",
+                  expectedSymbolId: externalSubcircuitSymbolId("amp"),
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    expect(custom.ok, JSON.stringify(custom)).toBe(true);
+    const fresh = await child.tool("inspect", {
+      target: { kind: "document" },
+      detail: "full",
+      refresh: true,
+    });
+    expect(fresh.project.externalSubcircuitDefinitions).toEqual([
+      expect.objectContaining({
+        id: "amp",
+        symbolId: artwork.symbol.id,
+      }),
+    ]);
+    const captured = parseProject(
+      (await child.tool("project_code", { action: "read" })).projectCode,
+    );
+    expect(captured.componentDefinitions).toEqual(
+      expect.arrayContaining([expect.objectContaining(artwork)]),
+    );
+    expect(fresh.instances[0]).toMatchObject({
+      id: "X1",
+      symbolId: artwork.symbol.id,
+    });
+    expect(fresh.noConnects.map((item: any) => item.endpoint.pinName)).toEqual([
+      "A",
+      "B",
+    ]);
+    const withArtwork = await read();
+    expect(withArtwork.ok, JSON.stringify(withArtwork)).toBe(true);
+    expect(withArtwork.text).toBe(withDraft.text);
     await test.info().attach("model-source-package", {
       body: Buffer.from(
         JSON.stringify({
