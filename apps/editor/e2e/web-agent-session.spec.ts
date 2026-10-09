@@ -6,10 +6,7 @@ import { createEmptyProject } from "@icm/model";
 import { serializeProject } from "@icm/project-protocol";
 import { externalSubcircuitSymbolId } from "@icm/symbols";
 
-import {
-  AgentHttpClient,
-  AgentSessionClient,
-} from "../../../packages/agent-client/dist/index.js";
+import { AgentHttpClient, AgentSessionClient } from "@icm/agent-client";
 import { openGalleryEntry } from "../../mcp-server/src/file-operations.js";
 import {
   revealPropertiesShelf,
