@@ -9,7 +9,8 @@ import type { Annotation } from "@icm/model";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 
-import { copySelection, proposePaste } from "../clipboard/clipboard";
+import { copySelection } from "../clipboard/clipboard";
+import { proposePaste } from "../clipboard/paste-proposal";
 import { vddPowerLabelAnnotation } from "./vdd-power-label";
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);

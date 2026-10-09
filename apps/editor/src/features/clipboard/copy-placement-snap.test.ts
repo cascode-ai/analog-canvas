@@ -4,7 +4,8 @@ import { describe, expect, it } from "vitest";
 
 import { buildSceneSnapTargetIndex } from "../../snap/candidates";
 import type { PlacementOrientationOperation } from "../../interaction/shortcut-orientation";
-import { clipboardPreviewDocument, copySelection } from "./clipboard";
+import { copySelection } from "./clipboard";
+import { clipboardPreviewDocument } from "./clipboard-preview";
 import {
   copyPlacementAnchors,
   snapPendingCopyPlacement,

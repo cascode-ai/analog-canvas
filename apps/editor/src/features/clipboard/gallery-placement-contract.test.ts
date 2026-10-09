@@ -12,7 +12,8 @@ import { parseProject } from "@icm/project-protocol";
 import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 import { expect, test } from "vitest";
 
-import { captureDocumentComposition, proposePaste } from "./clipboard";
+import { captureDocumentComposition } from "./clipboard";
+import { proposePaste } from "./paste-proposal";
 
 interface PlacedScene {
   instanceIds: string[];

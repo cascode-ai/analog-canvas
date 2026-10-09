@@ -135,7 +135,7 @@ import type { TextDraft } from "../features/text-editing/text-draft-overlay";
 import { renderCrashRequested, sceneCrashRequested } from "./crash-test-hooks";
 import { buildSceneSafely } from "./scene-safety";
 import { externalSubcircuitSymbolId, hierarchicalSymbolId } from "@icm/symbols";
-import { clipboardPreviewDocument } from "../features/clipboard/clipboard";
+import { clipboardPreviewDocument } from "../features/clipboard/clipboard-preview";
 import {
   prepareProjectCopy,
   applyProjectCopyPlacement,
@@ -146,7 +146,7 @@ import type {
   AgentProjectResourceRequest,
   AgentProjectResourceResponse,
 } from "@icm/agent-adapter";
-import { clipboardPlacementAnchor } from "../features/clipboard/clipboard";
+import { clipboardPlacementAnchor } from "../features/clipboard/copy-placement";
 import { standaloneCopiedNetLabel } from "../features/clipboard/copied-net-label";
 import { useCircuitClipboard } from "../features/clipboard/use-circuit-clipboard";
 import {

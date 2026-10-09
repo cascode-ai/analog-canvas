@@ -9,12 +9,9 @@ import { executeTransaction } from "@icm/edit-engine";
 import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 
-import {
-  copySelection,
-  orientClipboard,
-  proposePaste,
-  type SchematicClipboard,
-} from "./clipboard";
+import { copySelection, type SchematicClipboard } from "./clipboard";
+import { orientClipboard } from "./copy-placement";
+import { proposePaste } from "./paste-proposal";
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
 

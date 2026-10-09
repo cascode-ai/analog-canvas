@@ -39,10 +39,10 @@ import {
 import {
   captureDocumentComposition,
   copySelection,
-  proposePaste,
   type ExplicitCopyRoutingSelection,
   type SchematicClipboard,
 } from "./clipboard";
+import { proposePaste } from "./paste-proposal";
 
 import {
   createInsertedInstanceConnectionContext,
