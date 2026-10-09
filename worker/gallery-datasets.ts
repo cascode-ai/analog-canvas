@@ -27,6 +27,7 @@ import {
   type GalleryEnv,
 } from "./gallery-store";
 import { callGallery, fieldText, renderPreview } from "./gallery-requests";
+import { storedProject } from "./gallery-testbench";
 
 /** The same bindings, with the Gallery store of a reference dataset. */
 export function withGalleryStore(
@@ -124,6 +125,8 @@ export async function handleSourceImport(
       continue;
     }
     project.name = name;
+    // A testbench stays private as a submission's does (#1545).
+    const stored = storedProject(serializeProject(project));
     const { status, payload } = await callGallery<Record<string, unknown>>(
       store,
       "import-entry",
@@ -134,7 +137,8 @@ export async function handleSourceImport(
         name,
         author: source.byline,
         description,
-        projectText: serializeProject(project),
+        projectText: stored.projectText,
+        testbench: stored.testbench,
         svgText: await renderPreview(
           project,
           createProjectSymbolResolver(project, builtInSymbols),

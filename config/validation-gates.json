@@ -168,6 +168,8 @@
       "worker/gallery-maintenance.ts",
       "worker/gallery-publishing.ts",
       "worker/gallery-requests.ts",
+      "worker/gallery-testbench.ts",
+      "worker/gallery-testbench.test.ts",
       "worker/gallery.test.ts",
       "worker/gallery.test-support.ts",
       "worker/gallery-bylines.test.ts",

@@ -201,7 +201,12 @@ See [execution and resources](simulation-execution.md).
 sibling, advertised in `capabilities` as `resources.project`. `list-gallery`,
 `read-gallery-entry`, and the response-size-bounded `read-gallery-entries`
 provide cursor-paged access to every public Gallery entry, complete canonical
-Project Code, and an optional generated SPICE or Spectre netlist. Each entry
+Project Code, and an optional generated SPICE or Spectre netlist. The Project
+Code carries an entry's simulation folders (its testbench) only for the
+signed-in account's own entries, an AI account's for an AI account, and every
+entry for the Owner's own accounts
+([testbench privacy](community-gallery.md#testbench-privacy)); a read, open or
+insert of anyone else's gets none. Each entry
 states its saved AI mark as `aiGenerated`. Adapters parse these answers
 strictly; from the release that reads `aiGenerated` on, an adapter that meets
 a field it does not know reports the schema failure with where to update

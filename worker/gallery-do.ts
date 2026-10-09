@@ -30,6 +30,7 @@ import {
   galleryProjectFormat,
   labelLooksRead,
   labelLooksStore,
+  moveStoredTestbenches,
   netlistSources,
   refreshNetlistable,
   schemaConverge,
@@ -248,6 +249,11 @@ export class GalleryDO {
       "ALTER TABLE gallery_entries ADD COLUMN preview_width REAL",
       "ALTER TABLE gallery_entries ADD COLUMN preview_height REAL",
       "ALTER TABLE gallery_entries ADD COLUMN ai_generated INTEGER NOT NULL DEFAULT 0",
+      // The private testbench (#1545). A column of each row rather than a
+      // table: it goes wherever its entry or version goes (history,
+      // take-over, deletion) and rides in every backup page as it is.
+      "ALTER TABLE gallery_entries ADD COLUMN testbench_text TEXT",
+      "ALTER TABLE gallery_entry_versions ADD COLUMN testbench_text TEXT",
       "ALTER TABLE cloud_projects ADD COLUMN preview_svg TEXT NOT NULL DEFAULT ''",
       "ALTER TABLE cloud_projects ADD COLUMN gallery_entry_id TEXT",
       "ALTER TABLE cloud_projects ADD COLUMN favorite INTEGER NOT NULL DEFAULT 0",
@@ -495,6 +501,8 @@ export class GalleryDO {
         return allIds(this.sql);
       case "netlistable-refresh":
         return refreshNetlistable(this.sql, body);
+      case "testbench-privacy":
+        return moveStoredTestbenches(this.sql, body);
       case "curate":
         return curate(this.state, body);
       case "tags":

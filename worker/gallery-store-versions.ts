@@ -7,6 +7,7 @@ import { sha256Hex } from "@icm/derived";
 import { designExtractsNetlist, NETLIST_MARK_RULE_VERSION } from "@icm/netlist";
 import { parseProject, serializeProject } from "@icm/project-protocol";
 import { type CircuitProject } from "@icm/model";
+import { storedProject, withTestbench } from "./gallery-testbench";
 import {
   type DurableObjectStateLike,
   type EntryRow,
@@ -73,8 +74,9 @@ export function snapshotEntry(
   sql.exec(
     `INSERT INTO gallery_entry_versions(
       id, entry_id, version_no, name, author, description, tags,
-      schema_version, project_text, svg_text, created_at, curation_json
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      schema_version, project_text, svg_text, created_at, curation_json,
+      testbench_text
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     shortId(),
     row.id,
     lastVersion + 1,
@@ -87,6 +89,7 @@ export function snapshotEntry(
     row.svg_text,
     at,
     row.curation_json ?? "",
+    row.testbench_text ?? null,
   );
   pruneGalleryEntryVersions(sql, row.id);
 }
@@ -133,6 +136,7 @@ export function version(
       tags: string | null;
       schema_version: number;
       project_text: string;
+      testbench_text: string | null;
       svg_text: string;
     }>(
       `SELECT * FROM gallery_entry_versions
@@ -149,6 +153,8 @@ export function version(
     tags: unwrapTags(row.tags),
     schemaVersion: row.schema_version,
     projectText: row.project_text,
+    // Private: the route puts it back only for a reader readsTestbench names.
+    testbench: row.testbench_text,
     svgText: row.svg_text,
   });
 }
@@ -174,6 +180,7 @@ export function restoreVersion(
       curation_json: string;
       schema_version: number;
       project_text: string;
+      testbench_text: string | null;
       svg_text: string;
     }>(
       "SELECT * FROM gallery_entry_versions WHERE entry_id = ? AND id = ?",
@@ -186,7 +193,10 @@ export function restoreVersion(
   }
   let restoredProject: CircuitProject;
   try {
-    restoredProject = parseProject(version.project_text);
+    // With its testbench, which it then keeps privately as the entry does.
+    restoredProject = parseProject(
+      withTestbench(version.project_text, version.testbench_text),
+    );
   } catch (error) {
     return Response.json(
       {
@@ -196,7 +206,7 @@ export function restoreVersion(
       { status: 409 },
     );
   }
-  const restoredProjectText = serializeProject(restoredProject);
+  const restored = storedProject(serializeProject(restoredProject));
   const netlistable = designExtractsNetlist(restoredProject) ? 1 : 0;
   const previewRevision = sha256Hex(version.svg_text);
   const previewDimensions = svgPreviewDimensions(version.svg_text);
@@ -215,15 +225,16 @@ export function restoreVersion(
     sql.exec(
       `UPDATE gallery_entries
        SET name = ?, author = ?, description = ?, project_text = ?,
-           svg_text = ?, schema_version = ?, tags = ?, netlistable = ?,
-           netlistable_version = ?, component_count = ?,
+           testbench_text = ?, svg_text = ?, schema_version = ?, tags = ?,
+           netlistable = ?, netlistable_version = ?, component_count = ?,
            component_count_version = ?, preview_revision = ?,
            preview_width = ?, preview_height = ?, curation_json = ?
        WHERE id = ?`,
       version.name,
       entry.author,
       version.description,
-      restoredProjectText,
+      restored.projectText,
+      restored.testbench,
       version.svg_text,
       restoredProject.schemaVersion,
       version.tags ?? "",

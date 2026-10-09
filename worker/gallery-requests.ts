@@ -107,9 +107,26 @@ export function readsAsOwner(
 }
 
 /**
+ * Whether a session reads an entry's testbench, its simulation folders
+ * (#1545): one of the Owner's own accounts (OWNER_ACCOUNT_IDS), the entry's
+ * owner, or an AI account reading an AI account's entry. Nobody else, a
+ * curator included: anyone else gets the drawing without it.
+ */
+export function readsTestbench(
+  user: SessionUser | null,
+  entry: {
+    ownerUserId?: string | null | undefined;
+    author?: string | null | undefined;
+  },
+): boolean {
+  return user?.isOwner === true || readsAsOwner(user, entry);
+}
+
+/**
  * Who may manage one entry's lifecycle surfaces (withdrawal, version
  * history): a reviewer, or the signed-in owner of that entry. `reads` also
- * covers who reads its history as the owner does (readsAsOwner).
+ * covers who reads its history as the owner does (readsAsOwner), and
+ * `testbench` who reads its testbench (readsTestbench).
  */
 export async function entryManager(
   request: Request,
@@ -120,6 +137,7 @@ export async function entryManager(
   reviewer: boolean;
   owner: boolean;
   reads: boolean;
+  testbench: boolean;
   status: string | null;
   rejectReason: string | null;
   withdrawnByCurator: boolean;
@@ -137,6 +155,7 @@ export async function entryManager(
       reviewer: false,
       owner: false,
       reads: false,
+      testbench: false,
       status: null,
       rejectReason: null,
       withdrawnByCurator: false,
@@ -148,14 +167,16 @@ export async function entryManager(
     user !== null &&
     existing.payload.ownerUserId != null &&
     existing.payload.ownerUserId === user.id;
+  const held = {
+    ownerUserId: existing.payload.ownerUserId,
+    author: existing.payload.entry?.author,
+  };
   return {
     found: true,
     reviewer,
     owner,
-    reads: readsAsOwner(user, {
-      ownerUserId: existing.payload.ownerUserId,
-      author: existing.payload.entry?.author,
-    }),
+    reads: readsAsOwner(user, held),
+    testbench: readsTestbench(user, held),
     status: existing.payload.status ?? null,
     rejectReason: existing.payload.rejectReason ?? null,
     withdrawnByCurator: existing.payload.withdrawnByCurator === true,

@@ -17,7 +17,7 @@ import {
   galleryReadableDocument,
   type GalleryReadableDocument,
 } from "./gallery-documents";
-import { refreshNetlistMarks } from "./gallery-maintenance";
+import { moveTestbenches, refreshNetlistMarks } from "./gallery-maintenance";
 import type { GalleryNamespaceLike } from "./gallery-store";
 import {
   routeSimulationRequest,
@@ -99,6 +99,9 @@ export default {
   async scheduled(_event: ScheduledEventLike, env: Env): Promise<void> {
     try {
       await refreshNetlistMarks(env, SCHEDULED_NETLIST_MARK_BATCH);
+      // Once the Owner recorded a backup, testbenches leave the shared
+      // Project Code a batch a tick (#1545); then the pass reads one row.
+      await moveTestbenches(env, { apply: true, scheduled: true });
     } finally {
       // The privacy notice promises yesterday's opens are gone the next
       // day, whatever became of the marks.

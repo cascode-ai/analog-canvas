@@ -196,6 +196,49 @@ export function projectText(name = "Fixture"): string {
   return serializeProject(createEmptyProject("gallery-fixture", name));
 }
 
+/**
+ * A drawn circuit with its testbench: one simulation folder bound to its top
+ * Cell, with a source, an analysis and a spec of its own (#1545).
+ */
+export function testbenchProjectText(
+  name = "With testbench",
+  spec = "gain_db > 40",
+): string {
+  const project = parseProject(wiredProjectText(name));
+  project.simulationFolders = [
+    {
+      id: "folder-ac",
+      name: "AC sweep",
+      version: 4,
+      input: {
+        kind: "source",
+        entry: "main.sp",
+        configPath: "experiment.json",
+        files: [
+          {
+            path: "main.sp",
+            text: `* ${name}\n.include "dut.sp"\nVIN in 0 AC 1\n.ac dec 10 1 1e9\n.meas ac gain_db max vdb(out)\n.end\n`,
+          },
+          {
+            path: "experiment.json",
+            text: JSON.stringify({ version: 2, specs: [spec] }),
+          },
+        ],
+        circuitBindings: [
+          {
+            id: "binding-dut",
+            path: "dut.sp",
+            documentId: project.topDocumentId,
+            emission: "subcircuit",
+          },
+        ],
+        dependencies: [],
+      },
+    },
+  ];
+  return serializeProject(project);
+}
+
 export function formulaProjectText(
   latex = String.raw`\frac{1}{\sqrt{L_1C_1}}`,
 ): string {

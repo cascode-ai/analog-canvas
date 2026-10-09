@@ -28,9 +28,16 @@ import {
   callGallery,
   entryManager,
   fieldText,
+  readsTestbench,
   recoverFormulaPreview,
   renderPreview,
 } from "./gallery-requests";
+import {
+  storedProject,
+  testbenchOf,
+  withTestbench,
+  withoutTestbench,
+} from "./gallery-testbench";
 
 /**
  * The publisher's AI mark: true or false when the request gives one,
@@ -39,6 +46,25 @@ import {
 function aiMark(value: unknown): boolean | undefined | null {
   if (value === undefined) return undefined;
   return typeof value === "boolean" ? value : null;
+}
+
+/**
+ * The simulation folders an entry holds now, as the current model spells
+ * them: what an update keeps for a writer who never received them.
+ */
+function heldFolders(
+  projectText: string,
+  testbench: string | null | undefined,
+): CircuitProject["simulationFolders"] {
+  if (!testbenchOf({ project_text: projectText, testbench_text: testbench }))
+    return [];
+  try {
+    return parseProject(withTestbench(projectText, testbench))
+      .simulationFolders;
+  } catch {
+    // Unreadable now; the version the update leaves behind still holds it.
+    return [];
+  }
 }
 
 function publicationBindingFields(body: {
@@ -119,6 +145,8 @@ export async function handleSubmission(
   const projectResolver = createProjectSymbolResolver(project, builtInSymbols);
   project.name = name;
   const now = new Date();
+  // The testbench is kept apart from the Project Code readers get (#1545).
+  const stored = storedProject(serializeProject(project));
   const { status, payload } = await callGallery<{
     id?: string;
     previewRevision?: string;
@@ -152,7 +180,8 @@ export async function handleSubmission(
       submitter_email: user.email,
       submitter_provider: user.provider,
       tags: wrapTags(sanitizeGalleryTags(body.tags)),
-      project_text: serializeProject(project),
+      project_text: stored.projectText,
+      testbench_text: stored.testbench,
       svg_text: await renderPreview(project, projectResolver),
     },
   });
@@ -188,6 +217,8 @@ export async function handleEntryUpdate(
     status?: string;
     entry?: { author?: string };
     ownerUserId?: string | null;
+    projectText?: string;
+    testbench?: string | null;
   }>(env, "any-entry", { id });
   if (existing.status !== 200) {
     return Response.json({ error: "not-found" }, { status: 404 });
@@ -265,6 +296,20 @@ export async function handleEntryUpdate(
   }
   const projectResolver = createProjectSymbolResolver(project, builtInSymbols);
   project.name = name;
+  // A writer who may not read the testbench never received it: the entry
+  // keeps the one it holds. One who may replaces it with the Project's own,
+  // as the update replaces the rest of the content (#1545).
+  if (
+    !readsTestbench(user, {
+      ownerUserId: existing.payload.ownerUserId,
+      author: existing.payload.entry?.author,
+    })
+  )
+    project.simulationFolders = heldFolders(
+      existing.payload.projectText ?? "",
+      existing.payload.testbench,
+    );
+  const stored = storedProject(serializeProject(project));
   const nextStatus = existing.payload.status ?? "public";
   // Every republication re-answers this; the badge follows the drawing.
   const netlistable = designExtractsNetlist(project) ? 1 : 0;
@@ -276,7 +321,8 @@ export async function handleEntryUpdate(
     name,
     author,
     description,
-    projectText: serializeProject(project),
+    projectText: stored.projectText,
+    testbench: stored.testbench,
     svgText: await renderPreview(project, projectResolver),
     schemaVersion: CURRENT_PROJECT_FILE_VERSION,
     netlistable,
@@ -397,15 +443,22 @@ export async function routeGalleryPublishing(
     if (!access.found || (!access.reviewer && !access.reads)) {
       return Response.json({ error: "not-found" }, { status: 404, headers });
     }
-    const { status, payload } = await callGallery<{ projectText?: string }>(
-      env,
-      "version",
-      { entryId: segments[0], versionId: segments[2] },
-    );
+    const { status, payload } = await callGallery<{
+      projectText?: string;
+      testbench?: string | null;
+    }>(env, "version", { entryId: segments[0], versionId: segments[2] });
     if (status !== 200 || !payload.projectText) {
       return Response.json({ error: "not-found" }, { status: 404, headers });
     }
-    return Response.json({ projectText: payload.projectText }, { headers });
+    // The version's testbench by the entry's rule (#1545).
+    return Response.json(
+      {
+        projectText: access.testbench
+          ? withTestbench(payload.projectText, payload.testbench)
+          : withoutTestbench(payload.projectText),
+      },
+      { headers },
+    );
   }
   if (
     segments.length === 4 &&

@@ -259,6 +259,8 @@ export interface EntryRow {
   reviewed_at: string | null;
   reviewed_by: string | null;
   project_text: string;
+  /** The private testbench taken out of project_text (gallery-testbench.ts). */
+  testbench_text: string | null;
   svg_text: string;
   netlistable: number;
   ai_generated: number;
