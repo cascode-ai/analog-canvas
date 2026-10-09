@@ -7,6 +7,7 @@ import { useRef, useState } from "react";
 import { galleryCountLabel, type GalleryAuthorOption } from "../gallery-client";
 import {
   compareContributorNames,
+  CONTRIBUTOR_DATASETS_KEY,
   CONTRIBUTOR_ORDER_KEY,
   orderContributors,
   type ContributorOrder,
@@ -109,15 +110,17 @@ function GalleryContributorRow({
 }
 
 /**
- * A reference dataset among the contributors (#1574): no rank, since it is
- * no person, and a mark saying what it is. It opens the dataset's own wall.
+ * A reference dataset among the contributors (#1574): ranked like any
+ * author, with a mark saying what it is. It opens the dataset's own wall.
  */
 function GalleryDatasetContributorRow({
   dataset,
+  rank,
   current,
   onSelect,
 }: {
   dataset: GalleryDatasetRow;
+  rank: number;
   current: boolean;
   onSelect: (key: string) => void;
 }) {
@@ -127,7 +130,7 @@ function GalleryDatasetContributorRow({
       data-testid={`gallery-contributor-dataset-${dataset.key}`}
       aria-current={current ? "true" : undefined}
     >
-      <span className="gallery-contributor-rank" />
+      <span className="gallery-contributor-rank">{rank}</span>
       <button
         type="button"
         className="gallery-contributor-author"
@@ -230,20 +233,38 @@ export function GalleryCountPanel({
       // The list still sorts; only the memory of it is lost.
     }
   };
+  // Datasets shown or hidden in the list (#1574), remembered in this browser.
+  const [showDatasets, setShowDatasets] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(CONTRIBUTOR_DATASETS_KEY) !== "hidden";
+    } catch {
+      return true;
+    }
+  });
+  const toggleDatasets = () => {
+    const next = !showDatasets;
+    setShowDatasets(next);
+    try {
+      if (next) localStorage.removeItem(CONTRIBUTOR_DATASETS_KEY);
+      else localStorage.setItem(CONTRIBUTOR_DATASETS_KEY, "hidden");
+    } catch {
+      // The list still filters; only the memory of it is lost.
+    }
+  };
   if (label === null) return null;
-  const rows = contributorBoardRows(authors, datasets, order);
+  const listed = showDatasets ? datasets : [];
+  const rows = contributorBoardRows(authors, listed, order);
   const heading = [
-    ...(authors.length > 0 || datasets.length === 0
+    ...(authors.length > 0 || listed.length === 0
       ? [
           plural(authors.length, "author", "authors") +
             (partial ? " so far" : ""),
         ]
       : []),
-    ...(datasets.length > 0
-      ? [plural(datasets.length, "dataset", "datasets")]
+    ...(listed.length > 0
+      ? [plural(listed.length, "dataset", "datasets")]
       : []),
   ].join(" · ");
-  let rank = 0;
   return (
     <details
       ref={rootRef}
@@ -265,27 +286,43 @@ export function GalleryCountPanel({
           <strong>Contributors</strong>
           <span>{heading}</span>
         </div>
-        <div
-          className="gallery-contributor-order"
-          role="group"
-          aria-label="Sort contributors"
-        >
-          {(
-            [
-              ["count", "Circuits"],
-              ["name", "A to Z"],
-            ] as const
-          ).map(([value, text]) => (
-            <button
-              key={value}
-              type="button"
-              data-testid={`gallery-contributor-order-${value}`}
-              aria-pressed={order === value}
-              onClick={() => chooseOrder(value)}
+        <div className="gallery-contributor-order">
+          <span
+            className="gallery-contributor-sort"
+            role="group"
+            aria-label="Sort contributors"
+          >
+            {(
+              [
+                ["count", "Circuits"],
+                ["name", "A to Z"],
+              ] as const
+            ).map(([value, text]) => (
+              <button
+                key={value}
+                type="button"
+                data-testid={`gallery-contributor-order-${value}`}
+                aria-pressed={order === value}
+                onClick={() => chooseOrder(value)}
+              >
+                {text}
+              </button>
+            ))}
+          </span>
+          {datasets.length > 0 ? (
+            // An on/off choice, not a third sort: a checkbox says so.
+            <label
+              className="gallery-contributor-datasets"
+              data-testid="gallery-contributor-datasets"
             >
-              {text}
-            </button>
-          ))}
+              <input
+                type="checkbox"
+                checked={showDatasets}
+                onChange={toggleDatasets}
+              />
+              Datasets
+            </label>
+          ) : null}
         </div>
         {author ? (
           // Narrowed to one byline, the board lists only that author; the
@@ -312,11 +349,12 @@ export function GalleryCountPanel({
           </p>
         ) : (
           <ol className="gallery-contributor-list">
-            {rows.map((row) =>
+            {rows.map((row, index) =>
               row.kind === "dataset" ? (
                 <GalleryDatasetContributorRow
                   key={`dataset:${row.dataset.key}`}
                   dataset={row.dataset}
+                  rank={index + 1}
                   current={row.dataset.key === currentDataset}
                   onSelect={(key) => {
                     rootRef.current?.removeAttribute("open");
@@ -327,7 +365,7 @@ export function GalleryCountPanel({
                 <GalleryContributorRow
                   key={`${row.option.ownerUserId ?? "legacy"}:${row.option.author}`}
                   option={row.option}
-                  rank={++rank}
+                  rank={index + 1}
                   partial={partial}
                   onSelectAuthor={(option) => {
                     rootRef.current?.removeAttribute("open");

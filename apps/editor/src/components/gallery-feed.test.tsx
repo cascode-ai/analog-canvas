@@ -374,7 +374,7 @@ describe("GalleryCountPanel", () => {
     expect(render(0, false)).toContain("· 0 matches so far");
   });
 
-  it("lists reference datasets among the contributors, marked and unranked (#1574)", () => {
+  it("lists reference datasets among the contributors, ranked and marked, with a switch to hide them (#1574)", () => {
     const authors = [
       { author: "boboIC", ownerUserId: "u1", count: 86 },
       { author: "Rgeph", ownerUserId: "u2", count: 40 },
@@ -395,9 +395,16 @@ describe("GalleryCountPanel", () => {
       'data-testid="gallery-contributor-dataset-analoggenie"',
     );
     expect(community).toContain(">Dataset</span>");
-    // People keep their ranks; the dataset between them takes none.
-    expect(community).toContain('data-testid="gallery-contributor-row-2"');
-    expect(community).not.toContain('data-testid="gallery-contributor-row-3"');
+    // The dataset takes its place in the ranking: boboIC 1, AnalogGenie 2, Rgeph 3.
+    expect(community).toContain('data-testid="gallery-contributor-row-1"');
+    expect(community).toContain('data-testid="gallery-contributor-row-3"');
+    expect(community).toMatch(
+      /gallery-contributor-dataset-analoggenie"><span class="gallery-contributor-rank">2</,
+    );
+    // Shown by default; the checkbox beside "A to Z" hides them.
+    expect(community).toMatch(
+      /data-testid="gallery-contributor-datasets"><input type="checkbox" checked=""/,
+    );
 
     // On the dataset's own wall it is the contributor shown, with the way back.
     const datasetWall = renderToStaticMarkup(

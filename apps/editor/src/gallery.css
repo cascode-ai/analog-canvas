@@ -1339,6 +1339,40 @@
   padding: 0 6px 8px;
 }
 
+.gallery-contributor-sort {
+  display: flex;
+  gap: 4px;
+}
+
+/* Shows or hides the reference datasets in the list (#1574): a checkbox,
+   unlike the sort buttons beside it, so on and off read at a glance. */
+.gallery-contributor-datasets {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: 8px;
+  padding: 3px 10px 3px 8px;
+  border: 1px solid var(--icm-border);
+  border-radius: 999px;
+  color: var(--icm-text-muted);
+  background: var(--icm-surface);
+  font-size: 12px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.gallery-contributor-datasets:has(input:checked) {
+  color: var(--icm-text);
+}
+
+.gallery-contributor-datasets input {
+  width: 13px;
+  height: 13px;
+  margin: 0;
+  accent-color: var(--icm-accent);
+  cursor: pointer;
+}
+
 .gallery-contributor-order button {
   padding: 3px 10px;
   border: 1px solid var(--icm-border);
