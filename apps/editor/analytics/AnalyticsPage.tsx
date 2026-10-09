@@ -7,18 +7,26 @@ import {
 } from "./worldMap";
 import { BugReportLink } from "../src/components/bug-report-link";
 
-type BreakdownRow = { pv?: number; uv?: number; count?: number };
+/** `pv: null` for a row that has visitors but no page views of its own. */
+type BreakdownRow = { pv?: number | null; uv?: number; count?: number };
 type BreakdownTotal = { pv: number; uv: number };
 type Product = "canvas" | "arena";
-/** A day before the product split began has no `products`. */
+/**
+ * A day before the product split began has no `products`. `both` counts the
+ * day's visitors who used both products.
+ */
 type DayRow = {
   date: string;
   pv: number;
   uv: number;
-  products?: Record<Product, BreakdownTotal> | null;
+  products?: (Record<Product, BreakdownTotal> & { both?: number }) | null;
 };
-/** One bar of the daily chart; `unsplit` when a product view has no data. */
-type ChartDay = { date: string; pv: number; uv: number; unsplit?: boolean };
+/**
+ * One bar of the daily chart; `unsplit` when a product view has no data, and
+ * no `pv` for visitors of both products, who have no page views of their own.
+ */
+type ChartDay = { date: string; pv?: number; uv: number; unsplit?: boolean };
+type ChartView = Product | "all" | "both";
 type Summary = {
   generatedAt: string;
   totals: { pv: number; uv: number };
@@ -57,6 +65,10 @@ const PRODUCT_LABELS: Record<Product, string> = {
   arena: "Arena",
 };
 const PRODUCTS = Object.keys(PRODUCT_LABELS) as Product[];
+const CHART_LABELS: Record<Exclude<ChartView, "all">, string> = {
+  ...PRODUCT_LABELS,
+  both: "Both products",
+};
 
 const SOURCE_LABELS: Record<string, string> = {
   "direct-or-unknown": "Direct / unknown",
@@ -101,8 +113,11 @@ function dayCount(from: string, to: string): number {
   return Math.round((end - start) / 86_400_000) + 1;
 }
 
-function rowMetrics(row: BreakdownRow): BreakdownTotal {
-  return { pv: row.pv ?? row.count ?? 0, uv: row.uv ?? 0 };
+function rowMetrics(row: BreakdownRow): { pv: number | null; uv: number } {
+  return {
+    pv: row.pv === null ? null : (row.pv ?? row.count ?? 0),
+    uv: row.uv ?? 0,
+  };
 }
 
 export function AnalyticsPage() {
@@ -113,7 +128,7 @@ export function AnalyticsPage() {
   const [error, setError] = useState(false);
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
-  const [product, setProduct] = useState<Product | "all">("all");
+  const [product, setProduct] = useState<ChartView>("all");
   const [theme, setTheme] = useState<"dark" | "light">(() =>
     document.documentElement.classList.contains("light") ? "light" : "dark",
   );
@@ -207,16 +222,22 @@ export function AnalyticsPage() {
       product === "all"
         ? visibleDays
         : visibleDays.map((day) =>
-            day.products
-              ? { date: day.date, ...day.products[product] }
-              : { date: day.date, pv: 0, uv: 0, unsplit: true },
+            !day.products
+              ? { date: day.date, pv: 0, uv: 0, unsplit: true }
+              : product === "both"
+                ? { date: day.date, uv: day.products.both ?? 0 }
+                : { date: day.date, ...day.products[product] },
           ),
     [product, visibleDays],
   );
   const todayProducts = summary?.today.products;
-  const productRows = todayProducts
-    ? PRODUCTS.map((key) => ({ product: key, ...todayProducts[key] }))
-    : [];
+  const productRows: ({ product: Product | "both" } & BreakdownRow)[] =
+    todayProducts
+      ? [
+          ...PRODUCTS.map((key) => ({ product: key, ...todayProducts[key] })),
+          { product: "both", uv: todayProducts.both ?? 0, pv: null },
+        ]
+      : [];
 
   const rangeDays =
     from && to ? dayCount(from < to ? from : to, from < to ? to : from) : 90;
@@ -382,13 +403,15 @@ export function AnalyticsPage() {
                   name="product"
                   value={product}
                   onChange={(event) =>
-                    setProduct(event.target.value as Product | "all")
+                    setProduct(event.target.value as ChartView)
                   }
                 >
                   <option value="all">All products</option>
-                  {PRODUCTS.map((key) => (
+                  {(
+                    Object.keys(CHART_LABELS) as (keyof typeof CHART_LABELS)[]
+                  ).map((key) => (
                     <option key={key} value={key}>
-                      {PRODUCT_LABELS[key]}
+                      {CHART_LABELS[key]}
                     </option>
                   ))}
                 </select>
@@ -407,7 +430,9 @@ export function AnalyticsPage() {
               label={
                 product === "all"
                   ? "Daily page views and unique visitors"
-                  : `Daily page views and unique visitors, ${PRODUCT_LABELS[product]}`
+                  : product === "both"
+                    ? "Daily unique visitors of both products"
+                    : `Daily page views and unique visitors, ${PRODUCT_LABELS[product]}`
               }
             />
             {summary?.productsStartedAt &&
@@ -429,7 +454,7 @@ export function AnalyticsPage() {
               aside="Today"
               meta={
                 <p className="analytics-note">
-                  A visitor of both counts in each
+                  A visitor of both counts in each and in Both
                 </p>
               }
             />
@@ -437,7 +462,9 @@ export function AnalyticsPage() {
               heading="Product"
               rows={productRows}
               total={summary?.today ?? { pv: 0, uv: 0 }}
-              label={(row) => PRODUCT_LABELS[row.product]}
+              label={(row) =>
+                row.product === "both" ? "Both" : PRODUCT_LABELS[row.product]
+              }
               loading={!summary && !error}
               unavailable={error}
             />
@@ -578,7 +605,7 @@ function DailyChart({ days, label }: { days: ChartDay[]; label: string }) {
     );
   }
 
-  const max = Math.max(1, ...days.map((day) => day.pv));
+  const max = Math.max(1, ...days.map((day) => day.pv ?? day.uv));
   const slot = (width - padX * 2) / days.length;
   const ticks =
     days.length === 1
@@ -606,23 +633,27 @@ function DailyChart({ days, label }: { days: ChartDay[]; label: string }) {
       aria-label={label}
     >
       {days.map((day, index) => {
-        const pvHeight = (day.pv / max) * plotHeight;
+        const pvHeight = ((day.pv ?? 0) / max) * plotHeight;
         const uvHeight = (day.uv / max) * plotHeight;
         const x = padX + index * slot;
         const title = day.unsplit
           ? `${day.date}: not split by product`
-          : `${day.date}: ${fmt.format(day.pv)} views, ${fmt.format(day.uv)} visitors`;
+          : day.pv === undefined
+            ? `${day.date}: ${fmt.format(day.uv)} visitors`
+            : `${day.date}: ${fmt.format(day.pv)} views, ${fmt.format(day.uv)} visitors`;
         return (
           <g key={day.date}>
-            <rect
-              className="analytics-chart-bar-pv"
-              x={x + slot * 0.18}
-              y={height - padBottom - pvHeight}
-              width={slot * 0.64}
-              height={Math.max(pvHeight, day.pv > 0 ? 1.25 : 0)}
-            >
-              <title>{title}</title>
-            </rect>
+            {day.pv !== undefined && (
+              <rect
+                className="analytics-chart-bar-pv"
+                x={x + slot * 0.18}
+                y={height - padBottom - pvHeight}
+                width={slot * 0.64}
+                height={Math.max(pvHeight, day.pv > 0 ? 1.25 : 0)}
+              >
+                <title>{title}</title>
+              </rect>
+            )}
             {day.uv > 0 && (
               <rect
                 className="analytics-chart-bar-uv"
@@ -779,7 +810,11 @@ function BreakdownTable<T extends BreakdownRow>({
                   <tr key={`${label(row)}-${index}`}>
                     <td className={mono ? "mono" : undefined}>{label(row)}</td>
                     <MetricCell value={metric.uv} total={total.uv} />
-                    <MetricCell value={metric.pv} total={total.pv} />
+                    {metric.pv === null ? (
+                      <td className="num analytics-metric">—</td>
+                    ) : (
+                      <MetricCell value={metric.pv} total={total.pv} />
+                    )}
                   </tr>
                 );
               })

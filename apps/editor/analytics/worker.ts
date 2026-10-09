@@ -79,6 +79,15 @@ export type Product = "canvas" | "arena";
 
 const PRODUCTS: readonly Product[] = ["canvas", "arena"];
 
+/**
+ * Per day, the number of visitor hashes seen on every product. `{day}` is
+ * the day condition; bind it, then `PRODUCTS.length`.
+ */
+const BOTH_PRODUCTS_VISITORS = `SELECT day, COUNT(*) AS visitors FROM (
+    SELECT day FROM daily_product_visitors WHERE {day}
+    GROUP BY day, visitor_hash HAVING COUNT(*) = ?
+  ) GROUP BY day`;
+
 function productOf(path: string): Product {
   return path === "/arena" || path.startsWith("/arena/") ? "arena" : "canvas";
 }
@@ -93,15 +102,22 @@ export type PageViewEvent = {
 };
 
 /**
+ * A day's views and visitors per product, and `both`, the number of its
+ * visitors who used both products. Such a visitor counts once in each
+ * product's `uv` and once in `both`.
+ */
+export type ProductSplit = Record<Product, VisitStats> & { both: number };
+
+/**
  * One UTC day. `products` splits it into Analog Canvas and Arena; a visitor
- * of both counts once in `uv` and once in each product. A day before the
- * split began (`productsStartedAt`) has none.
+ * of both counts once in `uv`. A day before the split began
+ * (`productsStartedAt`) has none.
  */
 export type AnalyticsDay = {
   date: string;
   pv: number;
   uv: number;
-  products: Record<Product, VisitStats> | null;
+  products: ProductSplit | null;
 };
 
 export type AnalyticsSummary = {
@@ -242,6 +258,14 @@ export class AnalyticsDO {
         PRIMARY KEY (day, product)
       ) WITHOUT ROWID
     `);
+    // Per day, how many of its visitors used both products. Counted from
+    // the day's product hashes before the roll-up deletes them.
+    this.sql.exec(`
+      CREATE TABLE IF NOT EXISTS daily_both_products_visitor_counts (
+        day INTEGER PRIMARY KEY,
+        visitors INTEGER NOT NULL
+      )
+    `);
     // Days before this have no split; the day it begins is split from then.
     this.sql.exec(
       "INSERT OR IGNORE INTO analytics_meta(key, value) VALUES (?, ?)",
@@ -278,6 +302,13 @@ export class AnalyticsDO {
          ON CONFLICT(day, product) DO UPDATE SET
            visitors = visitors + excluded.visitors`,
         today,
+      );
+      this.sql.exec(
+        `INSERT INTO daily_both_products_visitor_counts(day, visitors)
+         ${BOTH_PRODUCTS_VISITORS.replace("{day}", "day < ?")}
+         ON CONFLICT(day) DO UPDATE SET visitors = visitors + excluded.visitors`,
+        today,
+        PRODUCTS.length,
       );
       this.sql.exec("DELETE FROM daily_product_visitors WHERE day < ?", today);
       this.sql.exec(
@@ -533,6 +564,22 @@ export class AnalyticsDO {
       firstDay,
       firstDay,
     );
+    const bothVisitors = new Map(
+      this.sql
+        .exec<DailyVisitorsRow>(
+          `SELECT day, SUM(visitors) AS visitors FROM (
+             SELECT day, visitors FROM daily_both_products_visitor_counts
+             WHERE day >= ?
+             UNION ALL
+             ${BOTH_PRODUCTS_VISITORS.replace("{day}", "day >= ?")}
+           ) GROUP BY day`,
+          firstDay,
+          firstDay,
+          PRODUCTS.length,
+        )
+        .toArray()
+        .map((row) => [Number(row.day), Number(row.visitors)]),
+    );
     const productsStartedAt = this.sql
       .exec<{ value: string }>(
         "SELECT value FROM analytics_meta WHERE key = ?",
@@ -549,15 +596,18 @@ export class AnalyticsDO {
         products:
           day < firstProductDay
             ? null
-            : (Object.fromEntries(
-                PRODUCTS.map((product) => [
-                  product,
-                  {
-                    pv: productViews.get(`${day}:${product}`) ?? 0,
-                    uv: productVisitors.get(`${day}:${product}`) ?? 0,
-                  },
-                ]),
-              ) as Record<Product, VisitStats>),
+            : ({
+                ...(Object.fromEntries(
+                  PRODUCTS.map((product) => [
+                    product,
+                    {
+                      pv: productViews.get(`${day}:${product}`) ?? 0,
+                      uv: productVisitors.get(`${day}:${product}`) ?? 0,
+                    },
+                  ]),
+                ) as Record<Product, VisitStats>),
+                both: bothVisitors.get(day) ?? 0,
+              } satisfies ProductSplit),
       };
     });
 

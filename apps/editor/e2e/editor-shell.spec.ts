@@ -685,9 +685,10 @@ test("splits the analytics into Analog Canvas and Arena", async ({ page }) => {
     products: {
       canvas: { pv: canvas[0], uv: canvas[1] },
       arena: { pv: arena[0], uv: arena[1] },
+      both: 1,
     },
   });
-  // One visitor of both products counts once in the day's total.
+  // One visitor of both products counts once in the day's total and in both.
   const days = [
     { date: "2026-08-10", pv: 4, uv: 3, products: null },
     { ...day("2026-08-11", [3, 2], [2, 2]), pv: 5, uv: 3 },
@@ -722,6 +723,11 @@ test("splits the analytics into Analog Canvas and Arena", async ({ page }) => {
   const canvas = products.getByRole("row", { name: /^Analog Canvas/ });
   await expect(canvas).toContainText("75.0%");
   await expect(canvas).toContainText("66.7%");
+  // One of today's 4 visitors used both; a visitor of both has no views of
+  // its own.
+  const both = products.getByRole("row", { name: /^Both/ });
+  await expect(both).toContainText("25.0%");
+  await expect(both.getByRole("cell").nth(2)).toHaveText("—");
 
   const note = page.getByText(
     "Split by product from 2026-08-11; earlier days have no split.",
@@ -740,6 +746,18 @@ test("splits the analytics into Analog Canvas and Arena", async ({ page }) => {
     chart.locator("title", { hasText: "2026-08-10: not split by product" }),
   ).not.toHaveCount(0);
   await expect(note).toBeVisible();
+
+  await page
+    .getByRole("combobox", { name: "Product" })
+    .selectOption({ label: "Both products" });
+  const bothChart = page.getByRole("img", {
+    name: "Daily unique visitors of both products",
+  });
+  await expect(
+    bothChart.locator("title", { hasText: "2026-08-11: 1 visitors" }),
+  ).not.toHaveCount(0);
+  // Visitors of both have no page views of their own.
+  await expect(bothChart.locator("title", { hasText: "views" })).toHaveCount(0);
 });
 
 test("dismisses a command menu on outside click or Escape", async ({

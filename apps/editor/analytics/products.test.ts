@@ -51,7 +51,7 @@ afterEach(() => {
 });
 
 describe("the product split", () => {
-  it("counts one browser on both products once in the day and once in each product", async () => {
+  it("counts one browser on both products once in the day, once in each product and once in both", async () => {
     vi.useFakeTimers({ now: DAY_ONE });
     const env = liveAnalyticsEnv();
     const browser = visitorCookie(await view(env, "/editor"));
@@ -65,6 +65,7 @@ describe("the product split", () => {
       products: {
         canvas: { pv: 1, uv: 1 },
         arena: { pv: 2, uv: 1 },
+        both: 1,
       },
     });
   });
@@ -80,12 +81,14 @@ describe("the product split", () => {
     const api = await view(env, "/api/arena/x");
     expect(api.status).toBe(204);
 
+    // Each of these browsers used one product only, so none is in both.
     expect((await summary(env)).today).toMatchObject({
       pv: 8,
       uv: 8,
       products: {
         arena: { pv: 4, uv: 4 },
         canvas: { pv: 4, uv: 4 },
+        both: 0,
       },
     });
   });
@@ -154,6 +157,7 @@ describe("history from before the product split", () => {
         products: {
           canvas: { pv: 0, uv: 0 },
           arena: { pv: 1, uv: 1 },
+          both: 0,
         },
       },
     ]);
@@ -161,7 +165,7 @@ describe("history from before the product split", () => {
 });
 
 describe("product retention", () => {
-  it("turns a finished day's visitors into counts per product, keeping only today's hashes", async () => {
+  it("turns a finished day's visitors into counts per product and in both, keeping only today's hashes", async () => {
     vi.useFakeTimers({ now: DAY_ONE });
     const db = new DatabaseSync(":memory:");
     const env = liveAnalyticsEnv(db);
@@ -179,6 +183,7 @@ describe("product retention", () => {
       products: {
         canvas: { pv: 2, uv: 2 },
         arena: { pv: 1, uv: 1 },
+        both: 1,
       },
     });
     expect(today).toEqual({
@@ -188,6 +193,7 @@ describe("product retention", () => {
       products: {
         canvas: { pv: 0, uv: 0 },
         arena: { pv: 1, uv: 1 },
+        both: 0,
       },
     });
     // As for the day's total, a product keeps visitor hashes only for today.

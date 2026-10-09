@@ -60,10 +60,14 @@ Canvas, and `/api/arena/…`, like every API path, is not a page.
   totals (`daily_product_views`, `daily_product_visitors`). A browser that
   uses both products counts once in the day's visitors and once in each
   product's; the all-time visitor total still counts it once.
+- Each day also counts its visitors who used both products: browsers whose
+  hash the day saw on Arena and on Analog Canvas. The dashboard shows it as
+  **Both**, today in the Products table and per day in the chart.
 - Per-product visitor hashes follow the day's: they stay only for today,
   and the day's first request after it turns them into counts
-  (`daily_product_visitor_counts`) and deletes them, in the same roll-up.
-  Only counts are kept; there is no IP address and no account.
+  (`daily_product_visitor_counts`, and `daily_both_products_visitor_counts`
+  for visitors of both) and deletes them, in the same roll-up. Only counts
+  are kept; there is no IP address and no account.
 - The split is additive. Days before it began (`products_started_at`) keep
   their totals and have no split; the day it began is split from that
   moment only. The dashboard says so when it shows such days.
