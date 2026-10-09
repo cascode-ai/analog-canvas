@@ -90,7 +90,12 @@ Production builds a deployment candidate from the selected `main` commit using
 and file inventory, then deploys those exact bytes. The inventory uses file
 counts and sizes; it does not calculate or compare SHA256 hashes. Runtime
 bindings, routes, secrets, queues, buckets, and Durable Object namespaces are
-applied by `wrangler.jsonc` rather than baked into the candidate.
+applied by `wrangler.jsonc` rather than baked into the candidate. One binding
+names a Worker this repository does not deploy: `ARENA`, the service
+`analog-arena` from Arcadia-1/analog-arena
+([AnalogArena](specs/analog-arena.md#routing)). That Worker must exist before
+a Production deploy carries the binding; rolling Analog Canvas back does not
+touch it.
 
 The release build enables the Simulation and Agent workflows and sets
 `VITE_ICM_SIMULATION_TRANSPORT=managed`. Digital Timing is retired from the

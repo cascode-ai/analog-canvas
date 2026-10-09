@@ -47,8 +47,16 @@
       "/robots.txt",
       "/sitemap.xml",
       "/llms.txt",
+      // AnalogArena's pages, forwarded to the Arena Worker below.
+      "/arena",
+      "/arena/*",
     ],
   },
+  // AnalogArena (Arcadia-1/analog-arena) has no route of its own: this
+  // Worker forwards /arena… and /api/arena/… to it with the signed-in
+  // account, which Arena trusts because only this binding reaches it
+  // (docs/specs/analog-arena.md). Only Production holds it.
+  "services": [{ "binding": "ARENA", "service": "analog-arena" }],
   "durable_objects": {
     "bindings": [
       { "name": "TOPOLOGY_TASK", "class_name": "TopologyTaskDO" },
