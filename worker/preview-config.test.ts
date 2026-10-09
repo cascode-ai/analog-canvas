@@ -23,6 +23,7 @@ function readConfig(file: string): {
     deleted_classes?: string[];
   }[];
   env?: Record<string, unknown>;
+  services?: unknown;
 } {
   const source = readFileSync(resolve(process.cwd(), file), "utf8");
   const stripped = source
@@ -44,6 +45,12 @@ describe("the retired Preview storage authority", () => {
     expect(preview.triggers).toBeUndefined();
     expect(preview.queues).toBeUndefined();
     expect(preview.env).toBeUndefined();
+  });
+
+  it("cannot vouch for an account to AnalogArena", () => {
+    // Arena trusts the account of any Worker bound to it, so only
+    // Production holds that binding; this one keeps no service at all.
+    expect(preview.services).toBeUndefined();
   });
 
   it("keeps the isolated Durable Object and R2 declarations recoverable", () => {

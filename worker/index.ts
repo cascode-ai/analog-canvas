@@ -48,6 +48,11 @@ import {
 } from "./component-library";
 import { AnalyticsDO as AnalyticsStore } from "../apps/editor/analytics/worker";
 import { GalleryDO as GalleryStore } from "./gallery";
+import {
+  routeArenaRequest,
+  withoutClientArenaAccount,
+  type ArenaEnv,
+} from "./arena";
 
 // The stores that keep durable data also answer point-in-time recovery. The
 // export names are the deployed class names, so they must not change.
@@ -81,11 +86,12 @@ type Env = TopologyTaskEnv &
     AUTH_EMAIL_FROM?: string;
     ADMIN_EMAILS?: string;
     ADMIN_EMAILS_EXTRA?: string;
-  } & AnalyticsRouteEnv;
+  } & AnalyticsRouteEnv &
+  ArenaEnv;
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
-    return route(request, env);
+    return route(withoutClientArenaAccount(request), env);
   },
   async queue(
     batch: SimulationQueueBatch<SimulationJobMessage>,
@@ -130,6 +136,9 @@ async function route(request: Request, env: Env): Promise<Response> {
 
   const authResponse = await routeAuthRequest(request, env);
   if (authResponse) return authResponse;
+
+  const arenaResponse = await routeArenaRequest(request, env);
+  if (arenaResponse) return arenaResponse;
 
   const recoveryResponse = await routePointInTimeRecovery(request, env);
   if (recoveryResponse) return recoveryResponse;

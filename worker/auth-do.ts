@@ -274,6 +274,23 @@ function redirect(location: string): Response {
   return new Response(null, { status: 302, headers: { location } });
 }
 
+/**
+ * Where a GitHub or Google sign-in comes back to: a page of AnalogArena
+ * (/arena or below it, on this origin) when it asked for one, and `/` for
+ * anything else, as before (docs/specs/analog-arena.md#sign-in-return).
+ */
+function signInReturnPath(requested: string | null, origin: string): string {
+  if (!requested?.startsWith("/")) return "/";
+  let url: URL;
+  try {
+    url = new URL(requested, origin);
+  } catch {
+    return "/";
+  }
+  const arena = url.pathname === "/arena" || url.pathname.startsWith("/arena/");
+  return url.origin === origin && arena ? url.pathname + url.search : "/";
+}
+
 function noStoreJson(payload: unknown, status = 200): Response {
   return Response.json(payload, {
     status,
@@ -603,10 +620,11 @@ export class AuthDO {
     url: URL,
     user: UserRow,
     clearState: boolean,
+    returnPath = "/",
   ): Promise<Response> {
     const secure = url.protocol === "https:";
     const token = await this.createSession(user.id);
-    const response = redirect(`${url.origin}/`);
+    const response = redirect(`${url.origin}${returnPath}`);
     response.headers.append(
       "Set-Cookie",
       sessionCookie(token, secure, AUTH_SESSION_TTL_SECONDS),
@@ -623,7 +641,16 @@ export class AuthDO {
     if (!enabledProviders(this.env)[provider]) {
       return Response.json({ error: "provider-disabled" }, { status: 404 });
     }
-    const state = randomToken();
+    // The state is the random token, and after a dot the return path, so
+    // the provider hands it back with the code; the state cookie holds the
+    // same value, which is what makes the path ours.
+    const returnPath = signInReturnPath(
+      url.searchParams.get("return"),
+      url.origin,
+    );
+    const state =
+      randomToken() +
+      (returnPath === "/" ? "" : `.${encodeURIComponent(returnPath)}`);
     const redirectUri = `${url.origin}/api/auth/${provider}/callback`;
     const authorizeUrl =
       provider === "github"
@@ -654,14 +681,21 @@ export class AuthDO {
   private oauthCallbackInputs(
     request: Request,
     url: URL,
-  ): { code: string } | null {
+  ): { code: string; returnPath: string } | null {
     const state = url.searchParams.get("state");
     const code = url.searchParams.get("code");
     const cookieState = parseCookies(request.headers.get("Cookie"))[
       AUTH_STATE_COOKIE
     ];
     if (!state || !code || !cookieState || state !== cookieState) return null;
-    return { code };
+    const dot = state.indexOf(".");
+    let requested: string | null = null;
+    try {
+      if (dot >= 0) requested = decodeURIComponent(state.slice(dot + 1));
+    } catch {
+      // A malformed path returns to `/`, as one never asked for.
+    }
+    return { code, returnPath: signInReturnPath(requested, url.origin) };
   }
 
   private async githubCallback(request: Request, url: URL): Promise<Response> {
@@ -735,7 +769,7 @@ export class AuthDO {
         email,
         profile.name?.trim() || profile.login,
       );
-      return this.signedInRedirect(url, user, true);
+      return this.signedInRedirect(url, user, true, inputs.returnPath);
     } catch {
       return failedRedirect(url.origin, secure);
     }
@@ -792,7 +826,7 @@ export class AuthDO {
         email,
         profile.name?.trim() || email?.split("@")[0] || "Google user",
       );
-      return this.signedInRedirect(url, user, true);
+      return this.signedInRedirect(url, user, true, inputs.returnPath);
     } catch {
       return failedRedirect(url.origin, secure);
     }
