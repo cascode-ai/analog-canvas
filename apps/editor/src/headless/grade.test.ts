@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createEmptyProject } from "@icm/model";
 import { workspaceNetlist } from "./artifacts";
-import { gradeNetlists, structuralSpice } from "./grade";
+import { explainGrade, gradeNetlists, structuralSpice } from "./grade";
 import { createLocalEditor } from "./local-editor";
 
 // A common-source stage with a diode-connected PMOS load and a bias source.
@@ -14,6 +14,27 @@ const AMPLIFIER = [
   ".model nch nmos",
   ".model pch pmos",
 ].join("\n");
+
+/** One resistor between each pair of nets. */
+const ring = (pairs: [string, string][]) =>
+  `* ring\n${pairs.map(([a, b], index) => `R${index} ${a} ${b} 1k`).join("\n")}\n`;
+// One ring of six and two of three: every net joins two resistors in both.
+const hexagon = ring([
+  ["a", "b"],
+  ["b", "c"],
+  ["c", "d"],
+  ["d", "e"],
+  ["e", "f"],
+  ["f", "a"],
+]);
+const triangles = ring([
+  ["a", "b"],
+  ["b", "c"],
+  ["c", "a"],
+  ["d", "e"],
+  ["e", "f"],
+  ["f", "d"],
+]);
 
 describe("netlist grade (#1524)", () => {
   it("finds a netlist exact against itself, every score full", async () => {
@@ -148,24 +169,6 @@ describe("netlist grade (#1524)", () => {
   });
 
   it("tells apart graphs colour refinement alone cannot: one ring of six from two of three", async () => {
-    const ring = (pairs: [string, string][]) =>
-      `* ring\n${pairs.map(([a, b], index) => `R${index} ${a} ${b} 1k`).join("\n")}\n`;
-    const hexagon = ring([
-      ["a", "b"],
-      ["b", "c"],
-      ["c", "d"],
-      ["d", "e"],
-      ["e", "f"],
-      ["f", "a"],
-    ]);
-    const triangles = ring([
-      ["a", "b"],
-      ["b", "c"],
-      ["c", "a"],
-      ["d", "e"],
-      ["e", "f"],
-      ["f", "d"],
-    ]);
     const shuffled = ring([
       ["q", "u"],
       ["p", "s"],
@@ -328,5 +331,87 @@ describe("netlist grade (#1524)", () => {
         problems: { actual: [expect.any(String), expect.any(String)] },
       },
     });
+  });
+});
+
+describe("grade explanation", () => {
+  it("does not blame the connections when the same connections form another circuit", async () => {
+    const explanation = explainGrade(await gradeNetlists(triangles, hexagon));
+
+    expect(explanation).toBe(
+      "The same devices make the same connections, but they form a different circuit: no renaming of nets turns one into the other.",
+    );
+  });
+
+  it("says a netlist with no devices was not compared, rather than counting its connections", async () => {
+    const explanation = explainGrade(
+      await gradeNetlists("* Nothing here\n.end\n", hexagon),
+    );
+
+    expect(explanation).toBe(
+      "The netlists were not compared. The netlist: no devices.",
+    );
+  });
+
+  it("names each device type whose count differs", async () => {
+    const swapped = AMPLIFIER.replace("M1 out in 0 0 nch", "M1 out in 0 0 pch");
+
+    expect(explainGrade(await gradeNetlists(swapped, AMPLIFIER))).toBe(
+      "The device counts differ: nmos, 0 in the netlist and 1 in the reference; pmos, 2 in the netlist and 1 in the reference.",
+    );
+  });
+
+  it("counts the connections when the same devices are connected differently", async () => {
+    // The gate joins the output: five new pairs on it, and the gate's own net
+    // is gone.
+    const merged = AMPLIFIER.replace("M1 out in 0 0", "M1 out out 0 0");
+
+    expect(explainGrade(await gradeNetlists(merged, AMPLIFIER))).toBe(
+      "The connections differ: the netlist makes 14 of the reference's 15 connections and 5 that the reference does not.",
+    );
+  });
+
+  it("says when the bodies are the only difference", async () => {
+    // Both tie M1's body off its rail, so bodies count, and they disagree.
+    const follower = "* f\nM1 vdd in out out nch\nR1 out 0 1k\n.model nch nmos";
+    const other = follower.replace("out out nch", "out in nch");
+
+    expect(explainGrade(await gradeNetlists(other, follower))).toBe(
+      "Only the transistor bodies are connected differently, and here the bodies count.",
+    );
+  });
+
+  it("calls a search that ran out of budget inconclusive, not a difference", async () => {
+    // No circuit this small exhausts the search; a grade that did reads so.
+    const grade = await gradeNetlists(triangles, hexagon);
+    const exhausted = {
+      ...grade,
+      details: { ...grade.details, budgetExceeded: true },
+    };
+
+    expect(explainGrade(exhausted)).toBe(
+      "The search for a match ran out of budget before it could decide, so whether the netlists are equivalent is inconclusive.",
+    );
+  });
+
+  it("names what the grader could not read, beside any difference it found", async () => {
+    // R9 has one node: the reader refuses it, so the rest still matches.
+    const unread = `${AMPLIFIER}\nR9 out`;
+    const merged = unread.replace("M1 out in 0 0", "M1 out out 0 0");
+
+    expect(explainGrade(await gradeNetlists(unread, AMPLIFIER))).toMatch(
+      /^The netlist has errors or unread statements: [^.]*R9 out[^]*\.$/u,
+    );
+    expect(explainGrade(await gradeNetlists(merged, AMPLIFIER))).toMatch(
+      /^The netlist has errors or unread statements: .+\. The connections differ: the netlist makes 14 of the reference's 15 connections and 5 that the reference does not\.$/u,
+    );
+  });
+
+  it("says an exact grade is equivalent", async () => {
+    const swapped = AMPLIFIER.replace("M1 out in 0 0", "M1 0 in out 0");
+
+    expect(explainGrade(await gradeNetlists(swapped, AMPLIFIER))).toBe(
+      "The netlists are equivalent.",
+    );
   });
 });

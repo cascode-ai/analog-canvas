@@ -196,7 +196,8 @@ export function fieldText(value: unknown, maxLength: number): string | null {
  * docs/specs/analog-arena.md) redraws it when this changes. Bump it with any
  * change that alters what a preview draws for an unchanged Project: here, in
  * `@icm/render-svg`, in the built-in symbols' artwork or in formula
- * typesetting.
+ * typesetting. gallery-requests.test.ts fails when a fixture's preview changes
+ * while this stays.
  */
 export const PREVIEW_RENDERER_VERSION = "1";
 

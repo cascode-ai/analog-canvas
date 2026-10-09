@@ -38,6 +38,9 @@ importers:
         specifier: workspace:*
         version: link:packages/symbols
     devDependencies:
+      "@icm/spice":
+        specifier: workspace:*
+        version: link:packages/spice
       "@playwright/test":
         specifier: 1.62.1
         version: 1.62.1

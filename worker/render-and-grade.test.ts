@@ -7,8 +7,9 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { type CircuitProject } from "@icm/model";
 import { serializeProject } from "@icm/project-protocol";
-import { importSpiceSources } from "../packages/spice/src/importer.js";
+import { importSpiceSources } from "@icm/spice";
 import { environment, ORIGIN, route, submitOne } from "./gallery.test-support";
 import type { RenderAndGradeAnswer } from "./render-and-grade";
 
@@ -35,24 +36,21 @@ M5 tail vb 0 0 nch w=1u l=1u
 `;
 
 /**
- * A Submission drawn from `spice` as the editor's SPICE import draws one,
- * every device placed on a grid.
+ * A Submission's Project drawn from `spice` as the editor's SPICE import
+ * draws one, every device placed on a grid.
  */
-async function drawingOf(spice: string): Promise<string> {
+async function projectOf(spice: string): Promise<CircuitProject> {
   const imported = await importSpiceSources(
     [{ path: "task.sp", bytes: new TextEncoder().encode(spice) }],
     "task.sp",
   );
   if (!imported.project) throw new Error("The fixture netlist did not import");
-  return serializeProject(imported.project);
+  return imported.project;
 }
 
-/** The deployed Worker's settings that the runtime reads. */
-function compatibilityDate(): string {
-  const source = readFileSync(new URL("../wrangler.jsonc", import.meta.url), {
-    encoding: "utf8",
-  });
-  return /"compatibility_date":\s*"([^"]+)"/u.exec(source)![1]!;
+/** The Project file of a Submission drawn from `spice`. */
+async function drawingOf(spice: string): Promise<string> {
+  return serializeProject(await projectOf(spice));
 }
 
 /** Arena's side of the binding: it forwards each request to the service. */
@@ -85,7 +83,7 @@ beforeAll(async () => {
         {
           name: "arena",
           modules: true,
-          compatibilityDate: compatibilityDate(),
+          compatibilityDate: "2026-08-11",
           routes: ["arena.test/*"],
           serviceBindings: {
             CANVAS: { name: "canvas", entrypoint: "RenderAndGradeService" },
@@ -95,7 +93,7 @@ beforeAll(async () => {
         {
           name: "canvas",
           modules: true,
-          compatibilityDate: compatibilityDate(),
+          compatibilityDate: "2026-08-11",
           routes: ["canvas.test/*"],
           // The static assets the public `fetch` falls back to.
           serviceBindings: {
@@ -205,11 +203,36 @@ ME ntail vbias gnd gnd nch w=1u l=1u
       status: "graded",
       verdict: {
         equivalent: false,
-        reason: expect.stringMatching(/connection/iu),
+        reason: expect.stringMatching(/^The connections differ/u),
       },
     });
     if (answer.status !== "graded") return;
     expect(answer.netlist).toContain("M4 out out vdd vdd pch");
+  });
+
+  it("finds a Submission with a source drawn the wrong way round not equivalent", async () => {
+    // The Task fixes the source's polarity, and a drawn source marks it.
+    const divider =
+      "* Divider\nV1 in 0 DC 1\nR1 in out 1k\nR2 out 0 1k\n.end\n";
+    const reversed = divider.replace("V1 in 0", "V1 0 in");
+
+    const answer = await renderAndGrade({
+      projectText: await drawingOf(reversed),
+      taskNetlist: divider,
+    });
+    const upright = await renderAndGrade({
+      projectText: await drawingOf(divider),
+      taskNetlist: divider,
+    });
+
+    expect(answer).toMatchObject({
+      status: "graded",
+      verdict: {
+        equivalent: false,
+        reason: expect.stringMatching(/^The connections differ/u),
+      },
+    });
+    expect(upright).toMatchObject({ verdict: { equivalent: true } });
   });
 
   it("names the devices a Submission draws too few or too many of", async () => {
@@ -225,13 +248,16 @@ ME ntail vbias gnd gnd nch w=1u l=1u
       status: "graded",
       verdict: {
         equivalent: false,
-        reason: expect.stringMatching(/2 nmos drawn, 3 in the Task/u),
+        reason: expect.stringMatching(
+          /nmos, 2 in the netlist and 3 in the reference/u,
+        ),
       },
     });
   });
 
-  it("draws a Submission whose netlist does not export, and says why it is not equivalent", async () => {
-    // A transistor drawn without its width and length.
+  it("grades a Submission's structure when only parameter values are missing, and lists them", async () => {
+    // A transistor drawn without its width and length. Parameters are a
+    // separate score (#1524), so only the export refuses it.
     const unsized = OTA.replace(
       "M5 tail vb 0 0 nch w=1u l=1u",
       "M5 tail vb 0 0 nch",
@@ -241,13 +267,56 @@ ME ntail vbias gnd gnd nch w=1u l=1u
       projectText: await drawingOf(unsized),
       taskNetlist: OTA,
     });
+    const miswired = await renderAndGrade({
+      projectText: await drawingOf(
+        unsized.replace("M4 out x vdd vdd pch", "M4 out out vdd vdd pch"),
+      ),
+      taskNetlist: OTA,
+    });
 
     expect(answer).toMatchObject({
       status: "graded",
       netlist: null,
+      exportErrors: [
+        "Instance M5 requires parameter w",
+        "Instance M5 requires parameter l",
+      ],
+      verdict: { equivalent: true },
+    });
+    if (answer.status !== "graded") return;
+    expect(answer.svg).toMatch(/^<svg[\s>]/u);
+    expect(miswired).toMatchObject({
+      status: "graded",
+      netlist: null,
       verdict: {
         equivalent: false,
-        reason: expect.stringMatching(/M5 requires parameter w/u),
+        reason: expect.stringMatching(/^The connections differ/u),
+      },
+    });
+  });
+
+  it("draws a Submission whose structure does not export, and says it was not graded", async () => {
+    // The tail drawn as a call to a block the drawing never defines.
+    const undefinedBlock = OTA.replace(
+      "M5 tail vb 0 0 nch w=1u l=1u",
+      "X5 tail vb 0 0 tailsource",
+    );
+
+    const answer = await renderAndGrade({
+      projectText: await drawingOf(undefinedBlock),
+      taskNetlist: OTA,
+    });
+
+    expect(answer).toMatchObject({
+      status: "graded",
+      netlist: null,
+      exportErrors: [expect.stringMatching(/^Legacy declaration tailsource/u)],
+      verdict: {
+        equivalent: false,
+        blocked: true,
+        reason: expect.stringMatching(
+          /^The drawing's netlist does not export: Legacy declaration tailsource/u,
+        ),
       },
     });
     if (answer.status !== "graded") return;
@@ -298,6 +367,42 @@ ME ntail vbias gnd gnd nch w=1u l=1u
       });
     },
   );
+
+  it("answers with an error, not an exception, when rendering fails", async () => {
+    // The Project boundary takes this formula; the typesetter cannot set it.
+    const project = await projectOf(OTA);
+    const top = project.documents.find(
+      (document) => document.id === project.topDocumentId,
+    )!;
+    top.drafting = {
+      objects: [
+        {
+          id: "formula",
+          kind: "text",
+          locked: false,
+          zIndex: 0,
+          anchor: { kind: "free", position: { x: 400, y: 40 } },
+          alignment: "start",
+          rotation: 0,
+          content: {
+            runs: [{ kind: "math", latex: "\\notacommand", display: "inline" }],
+          },
+        },
+      ],
+    };
+
+    const answer = await renderAndGrade({
+      projectText: serializeProject(project),
+      taskNetlist: OTA,
+    });
+
+    expect(answer).toEqual({
+      status: "error",
+      error: "internal",
+      message: expect.stringMatching(/notacommand/u),
+      rendererVersion: expect.stringMatching(/\S/u),
+    });
+  });
 
   it("carries one renderer version on every answer, graded or not", async () => {
     const graded = await renderAndGrade({

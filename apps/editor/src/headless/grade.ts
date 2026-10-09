@@ -687,6 +687,54 @@ export async function gradeNetlists(
   };
 }
 
+/**
+ * Why `grade` came out as it did, in a sentence or two for a person. It says
+ * only what the grade establishes: device or connection counts that differ
+ * prove a difference, an exhausted search proves nothing, and lines the
+ * reader could not take leave the rest of the comparison unsettled.
+ */
+export function explainGrade({ exact, details }: NetlistGrade): string {
+  if (exact) return "The netlists are equivalent.";
+  const unread = (["actual", "reference"] as const).flatMap((side) =>
+    details.problems[side].length
+      ? [
+          `The ${side === "actual" ? "netlist" : "reference"} has errors or unread statements: ${details.problems[side].join("; ")}.`,
+        ]
+      : [],
+  );
+  if (details.error)
+    return [
+      `The netlists were not compared. ${details.error}.`,
+      ...unread,
+    ].join(" ");
+  const difference = structuralDifference(details);
+  if (difference) return [...unread, difference].join(" ");
+  // Unread lines alone keep a grade from exact; with them, matching counts
+  // do not say whether the rest is the same circuit.
+  if (unread.length) return unread.join(" ");
+  return "The same devices make the same connections, but they form a different circuit: no renaming of nets turns one into the other.";
+}
+
+/** What the counts and the search settle, or null when they settle nothing. */
+function structuralDifference(details: GradeDetails): string | null {
+  const types = Object.entries(details.deviceTypes);
+  if (types.length)
+    return `The device counts differ: ${types
+      .map(
+        ([type, [actual, reference]]) =>
+          `${type}, ${actual} in the netlist and ${reference} in the reference`,
+      )
+      .join("; ")}.`;
+  if (details.bodiesOnly)
+    return "Only the transistor bodies are connected differently, and here the bodies count.";
+  const { actual, reference, shared } = details.connections;
+  if (shared < actual || shared < reference)
+    return `The connections differ: the netlist makes ${shared} of the reference's ${reference} connections and ${actual - shared} that the reference does not.`;
+  if (details.budgetExceeded)
+    return "The search for a match ran out of budget before it could decide, so whether the netlists are equivalent is inconclusive.";
+  return null;
+}
+
 /** Spectre statements that run or configure, not instances. */
 const SPECTRE_CONTROL = new Set([
   "ac",

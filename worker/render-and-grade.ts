@@ -7,10 +7,8 @@ import { type CircuitProject } from "@icm/model";
 import { createDesignNetlistExport } from "@icm/netlist";
 import { parseProject } from "@icm/project-protocol";
 import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
-import {
-  gradeNetlists,
-  type NetlistGrade,
-} from "../apps/editor/src/headless/grade";
+import { workspaceNetlist } from "../apps/editor/src/headless/artifacts";
+import { explainGrade, gradeNetlists } from "../apps/editor/src/headless/grade";
 import { PREVIEW_RENDERER_VERSION, renderPreview } from "./gallery-requests";
 
 export interface RenderAndGradeRequest {
@@ -21,9 +19,16 @@ export interface RenderAndGradeRequest {
 }
 
 type EquivalenceVerdict =
-  { equivalent: true } | { equivalent: false; reason: string };
+  | { equivalent: true }
+  | { equivalent: false; reason: string }
+  /** The drawing's structure does not export, so it was not graded. */
+  | { equivalent: false; blocked: true; reason: string };
 
-type RenderAndGradeError = "project-unreadable" | "task-netlist-unreadable";
+type RenderAndGradeError =
+  | "project-unreadable"
+  | "task-netlist-unreadable"
+  /** The renderer, the export or the grading failed unexpectedly. */
+  | "internal";
 
 export type RenderAndGradeAnswer =
   | {
@@ -33,6 +38,8 @@ export type RenderAndGradeAnswer =
       svg: string;
       /** The top Cell's structural SPICE netlist; null when it does not export. */
       netlist: string | null;
+      /** Why `netlist` is null: the export's errors. Empty when it is set. */
+      exportErrors: string[];
       verdict: EquivalenceVerdict;
     }
   | {
@@ -42,13 +49,29 @@ export type RenderAndGradeAnswer =
       message: string;
     };
 
+type Structure = ReturnType<typeof workspaceNetlist>;
+
+/**
+ * The batch grading's rules (#1524), with source polarity scored: a Task
+ * netlist fixes it, and a drawn source marks it.
+ */
+const GRADING = { sourcePolarity: true };
+
 /**
  * The service's entrypoint. Only a Worker whose service binding names it can
  * call it; no route of the Worker's public `fetch` reaches it.
  */
 export class RenderAndGradeService extends WorkerEntrypoint {
-  renderAndGrade(request: RenderAndGradeRequest) {
-    return renderAndGrade(request);
+  async renderAndGrade(
+    request: RenderAndGradeRequest,
+  ): Promise<RenderAndGradeAnswer> {
+    // Every call gets an answer; no exception crosses the binding.
+    try {
+      return await renderAndGrade(request);
+    } catch (error) {
+      console.error("Render-and-grade failed", error);
+      return refused("internal", messageOf(error));
+    }
   }
 }
 
@@ -69,10 +92,7 @@ async function renderAndGrade(
   try {
     project = parseProject(projectText);
   } catch (error) {
-    return refused(
-      "project-unreadable",
-      error instanceof Error ? error.message : String(error),
-    );
+    return refused("project-unreadable", messageOf(error));
   }
   if (typeof taskNetlist !== "string")
     return refused(
@@ -86,31 +106,21 @@ async function renderAndGrade(
     project,
     createProjectSymbolResolver(project, builtInSymbols),
   );
-  const exported = createDesignNetlistExport(project, { format: "spice" });
-  if (exported.status !== "ready")
-    return {
-      status: "graded",
-      rendererVersion: PREVIEW_RENDERER_VERSION,
-      svg,
-      netlist: null,
-      verdict: {
-        equivalent: false,
-        reason: `The drawing's netlist does not export: ${exported.diagnostics
-          .filter((diagnostic) => diagnostic.severity === "error")
-          .map((diagnostic) => diagnostic.message)
-          .join("; ")}`,
-      },
-    };
-  const grade = await gradeNetlists(exported.file.text, taskNetlist);
+  const exported = workspaceNetlist(project);
+  const structure =
+    exported.text === null ? (structureOf(project) ?? exported) : exported;
   return {
     status: "graded",
     rendererVersion: PREVIEW_RENDERER_VERSION,
     svg,
-    netlist: exported.file.text,
-    verdict: grade.exact
-      ? { equivalent: true }
-      : { equivalent: false, reason: differenceOf(grade) },
+    netlist: exported.text,
+    exportErrors: exported.text === null ? exported.messages : [],
+    verdict: await verdictOf(structure, taskNetlist),
   };
+}
+
+function messageOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function refused(
@@ -131,7 +141,7 @@ function refused(
  * grade as equivalent to itself.
  */
 async function taskProblems(taskNetlist: string): Promise<string | null> {
-  const self = await gradeNetlists(taskNetlist, taskNetlist);
+  const self = await gradeNetlists(taskNetlist, taskNetlist, GRADING);
   if (self.exact) return null;
   const problems = [
     ...(self.details.error ? [self.details.error] : []),
@@ -142,16 +152,51 @@ async function taskProblems(taskNetlist: string): Promise<string | null> {
     : "The Task's netlist does not grade as equivalent to itself.";
 }
 
-/** Why a drawing's netlist is not the Task's, in one sentence. */
-function differenceOf({ details }: NetlistGrade): string {
-  const devices = Object.entries(details.deviceTypes);
-  if (devices.length)
-    return `The devices differ: ${devices
-      .map(
-        ([type, [drawn, task]]) =>
-          `${drawn} ${type} drawn, ${task} in the Task`,
-      )
-      .join("; ")}.`;
-  const { connections } = details;
-  return `The connections differ: ${connections.shared} of the Task's ${connections.reference} connections are drawn, and ${connections.actual - connections.shared} drawn connections are not the Task's.`;
+/** A value for a parameter the drawing leaves out. No grade reads values. */
+const UNREAD_VALUE = "1";
+
+/**
+ * The drawing's export with every missing parameter value filled, or null
+ * when anything but a missing value blocks it. Parameters are a separate
+ * score (#1524) and no grade reads a value, so the filled export grades the
+ * structure; it is never handed out.
+ */
+function structureOf(project: CircuitProject): Structure | null {
+  const errors = createDesignNetlistExport(project, {
+    format: "spice",
+  }).diagnostics.filter((diagnostic) => diagnostic.severity === "error");
+  const filled = structuredClone(project);
+  for (const { code, documentId, objectIds, parameter } of errors) {
+    const instance =
+      code === "MISSING_REQUIRED_PARAMETER"
+        ? filled.documents
+            .find((document) => document.id === documentId)
+            ?.instances.find((candidate) => candidate.id === objectIds[0])
+        : undefined;
+    if (!instance || parameter === undefined) return null;
+    const kept = Object.entries(instance.netlist?.parameters ?? {}).filter(
+      ([name]) => name.toLowerCase() !== parameter.toLowerCase(),
+    );
+    instance.netlist = {
+      ...instance.netlist,
+      parameters: { ...Object.fromEntries(kept), [parameter]: UNREAD_VALUE },
+    };
+  }
+  return workspaceNetlist(filled);
+}
+
+async function verdictOf(
+  structure: Structure,
+  taskNetlist: string,
+): Promise<EquivalenceVerdict> {
+  if (structure.text === null)
+    return {
+      equivalent: false,
+      blocked: true,
+      reason: `The drawing's netlist does not export: ${structure.messages.join("; ")}`,
+    };
+  const grade = await gradeNetlists(structure.text, taskNetlist, GRADING);
+  return grade.exact
+    ? { equivalent: true }
+    : { equivalent: false, reason: explainGrade(grade) };
 }

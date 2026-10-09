@@ -117,6 +117,7 @@
     "agent-docs:check": "pnpm agent-docs:generated:check && pnpm test:local scripts/generate-agent-docs.test.mjs"
   },
   "devDependencies": {
+    "@icm/spice": "workspace:*",
     "@playwright/test": "1.62.1",
     "@types/node": "24.13.3",
     "fflate": "0.8.3",
