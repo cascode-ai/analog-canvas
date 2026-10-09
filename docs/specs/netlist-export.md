@@ -639,7 +639,8 @@ the negative-supply names below among them.
 
 The substrate property terminals and the NMOS bodies are one node, the
 p-substrate, so the Cell's NMOS body default is also its substrate default
-(#1530), set in Cell Properties as `bulkDefaults.nmos`. A substrate terminal the Process binds,
+(#1530); Cell Properties labels it NMOS body / substrate (`bulkDefaults.nmos`,
+"and substrate" beside its value). A substrate terminal the Process binds,
 at placement or Apply process alike, takes that default when the Cell sets
 one; else the Cell's one drawn negative supply; else ground. A Cell's first
 ground marker sets the NMOS default, so most Cells have one. Changing it, in

@@ -319,8 +319,10 @@ describe("document Style code", () => {
     expect(
       spans.find((span) => span.field.path === "bulkDefaults.nmos")?.field,
     ).toMatchObject({
-      label: "NMOS",
-      help: "NMOS bulk defaults to VSS",
+      // It is also the PDK substrate, and says so beside its value (#1530).
+      label: "NMOS body / substrate",
+      description: "and substrate",
+      help: expect.stringContaining("NPN S"),
     });
     expect(
       spans.find((span) => span.field.path === "bulkDefaults.nmos")?.field

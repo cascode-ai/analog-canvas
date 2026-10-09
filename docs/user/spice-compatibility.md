@@ -38,7 +38,8 @@ export warns `PDK_SUBSTRATE_TERMINAL`. The exact
 `sky130_fd_pr__npn_05v5_W1p00L1p00` interface instead exposes its real fourth S
 terminal as a `Substrate Net` property and is structural only in the hosted
 Profile. Its substrate, like the resistor's B, is the node the NMOS bodies sit
-on, so it takes the Cell's NMOS body default, set in Cell Properties; with none set, the Cell's drawn negative supply (a supply
+on, so it takes the Cell's NMOS body default, labelled NMOS body / substrate
+in Cell Properties; with none set, the Cell's drawn negative supply (a supply
 named like `VEE`, `VSS` or `VNEG`), else ground. Changing that default moves
 the substrates on the old one with the NMOS bodies; one whose `Substrate Net`
 was set to another Net stays. A substrate on ground in a Cell that draws a

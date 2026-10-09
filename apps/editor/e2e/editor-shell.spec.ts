@@ -751,7 +751,7 @@ test("docked Properties JSON is the only global configuration surface", async ({
   ).toBeVisible();
   await expect(
     settings.getByRole("button", {
-      name: "Show NMOS previews",
+      name: "Show NMOS body / substrate previews",
     }),
   ).toBeVisible();
   await expect(
@@ -789,13 +789,18 @@ test("docked Properties JSON is the only global configuration surface", async ({
   expect(suffixBox!.y).toBeGreaterThan(firstBox!.y + 6);
   await expect(subscriptOption).not.toContainText("ᵢₙ");
   await page.keyboard.press("Escape");
-  await settings.getByRole("button", { name: "Show NMOS previews" }).click();
+  await settings
+    .getByRole("button", { name: "Show NMOS body / substrate previews" })
+    .click();
   const bulkPreview = page.getByRole("listbox", {
-    name: "NMOS previews",
+    name: "NMOS body / substrate previews",
   });
   await expect(bulkPreview).toContainText("VSSNMOS→VSS");
   await page.keyboard.press("Escape");
-  await expect(settings.locator(".cm-property-unit")).toHaveCount(0);
+  // The one note: the NMOS body default is also the PDK substrate (#1530).
+  await expect(settings.locator(".cm-property-unit")).toHaveText([
+    "// and substrate",
+  ]);
   await settings
     .getByRole("button", { name: "Show Font size previews" })
     .click();
