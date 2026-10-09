@@ -161,6 +161,7 @@ export function EditorMenuBar({
   closeNativeTabs,
   saveNativeTab,
   leaveForGallery,
+  leaveForArena,
 }: {
   identity: EditorServices["identity"];
   projectStore: EditorServices["projectStore"];
@@ -258,6 +259,7 @@ export function EditorMenuBar({
   closeNativeTabs: NativeProjectTabs["closeNativeTabs"];
   saveNativeTab: NativeProjectTabs["saveNativeTab"];
   leaveForGallery: () => void;
+  leaveForArena: () => void;
 }) {
   return (
     <EditorAppChrome
@@ -349,6 +351,7 @@ export function EditorMenuBar({
       projectSchemaVersion={project.schemaVersion}
       hasUnsavedWork={hasUnsavedChanges()}
       onOpenGallery={leaveForGallery}
+      onOpenArena={leaveForArena}
       fileCommands={{
         ...(NativeFileCommands ? { NativeFileCommands } : {}),
         ...(nativeProjectStore

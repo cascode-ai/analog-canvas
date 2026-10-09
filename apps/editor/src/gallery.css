@@ -102,6 +102,40 @@
   height: 15px;
 }
 
+/* AnalogArena beside the Editor, in the soft blue the editor's own header
+   gives its Gallery and Arena links: the Editor stays the primary way on. */
+.gallery-arena-link {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  height: var(--icm-control-h);
+  padding: 0 11px 0 9px;
+  border-radius: 999px;
+  color: var(--icm-accent);
+  background: var(--icm-accent-soft);
+  font-size: var(--icm-font-sm);
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.gallery-arena-link:hover {
+  color: #fff;
+  background: var(--icm-accent);
+}
+
+.gallery-arena-link:focus-visible {
+  outline: 2px solid var(--icm-accent);
+  outline-offset: 2px;
+}
+
+.gallery-arena-link svg {
+  width: 15px;
+  height: 15px;
+  fill: currentColor;
+}
+
 .gallery-actions .account-signin summary {
   display: inline-flex;
   align-items: center;

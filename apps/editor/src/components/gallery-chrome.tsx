@@ -46,6 +46,20 @@ export function GalleryChrome({
           </svg>
           <span>Editor</span>
         </a>
+        {/* AnalogArena, where drawings are judged side by side; the site
+            forwards /arena to it. */}
+        <a
+          className="gallery-arena-link"
+          href="/arena"
+          data-testid="gallery-arena-link"
+          title="Judge schematics side by side in AnalogArena"
+        >
+          <svg viewBox="0 0 16 16" aria-hidden="true">
+            <rect x="1.5" y="2.5" width="5.5" height="11" rx="1.2" />
+            <rect x="9" y="2.5" width="5.5" height="11" rx="1.2" />
+          </svg>
+          <span>Arena</span>
+        </a>
         <div className="app-brand-copy">
           <p>{subtitle}</p>
         </div>

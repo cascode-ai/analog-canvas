@@ -29,6 +29,7 @@ against. They describe required behavior and invariants, not task history.
 | [`editor-interaction.md`](editor-interaction.md)             | accepted | Direct manipulation, manual authoring, gestures, and automation boundary                    |
 | [`web-agent-session.md`](web-agent-session.md)               | accepted | Browser-authoritative relay: scopes, transport, events, errors, threat                      |
 | [`community-gallery.md`](community-gallery.md)               | accepted | Public feed, advisory quality checks, accounts, moderation, re-serialization                |
+| [`analog-arena.md`](analog-arena.md)                         | accepted | Contracts with the AnalogArena Worker: forwarded identity, routing and sign-in return       |
 
 Create a specification when a stable cross-module contract is needed; do not
 create empty files only to mirror this table. Start from

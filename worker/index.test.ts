@@ -12,6 +12,7 @@ describe("assets binding wiring", () => {
       not_found_handling?: string;
     };
     triggers?: { crons?: string[] };
+    services?: { binding: string; service: string }[];
   } {
     const source = readFileSync(resolve(process.cwd(), file), "utf8");
     const stripped = source
@@ -59,6 +60,19 @@ describe("assets binding wiring", () => {
     // Cloudflare; the Worker also separates "a hashed file that is gone"
     // from "a route with no file".
     expect(assets.not_found_handling).toBe("single-page-application");
+  });
+
+  it("hands AnalogArena's pages to the Worker, which forwards them to analog-arena", () => {
+    // Without these the asset layer answers /arena with the editor's shell
+    // and the forwarding never runs; /api/* already reaches the Worker.
+    const config = wranglerConfig();
+    expect(config.assets.run_worker_first).toEqual(
+      expect.arrayContaining(["/arena", "/arena/*"]),
+    );
+    expect(config.services).toContainEqual({
+      binding: "ARENA",
+      service: "analog-arena",
+    });
   });
 });
 

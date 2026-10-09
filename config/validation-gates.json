@@ -232,6 +232,12 @@
       "packages/netlist/src/index.ts",
       "packages/netlist/src/topology-correspondence*"
     ],
+    "arenaEntry": [
+      "apps/editor/src/app/editor-app-chrome.tsx",
+      "apps/editor/src/app/use-gallery-entry.ts",
+      "apps/editor/src/components/gallery-chrome.tsx",
+      "apps/editor/e2e/arena-entry.spec.ts"
+    ],
     "agent": [
       "apps/editor/src/agent/**",
       "apps/editor/e2e/web-agent-session.spec.ts",
@@ -486,6 +492,20 @@
           "apps/editor/e2e/gallery-tags.spec.ts",
           "apps/editor/e2e/gallery-wall.spec.ts"
         ]
+      }
+    },
+    {
+      "id": "arena-entry-browser",
+      "stage": "affected",
+      "groups": ["arenaEntry"],
+      "description": "Validate the editor's and the Gallery's Arena buttons, through the guard for unsaved work.",
+      "command": [
+        "pnpm",
+        "test:e2e:local",
+        "apps/editor/e2e/arena-entry.spec.ts"
+      ],
+      "ci": {
+        "e2eArgs": ["apps/editor/e2e/arena-entry.spec.ts"]
       }
     },
     {
@@ -799,6 +819,7 @@
         "hierarchy-browser",
         "project-file-browser",
         "gallery-browser",
+        "arena-entry-browser",
         "agent-browser",
         "analog-simulation-browser",
         "editor-browser",
