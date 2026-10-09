@@ -512,7 +512,9 @@ export default function ComponentDefinitionEditor(
       }}
     >
       <header>
-        <strong>Edit Component Definition</strong>
+        <strong>
+          {props.mode === "new" ? "Create Component" : "Edit Component"}
+        </strong>
         {(props.mode === "new" || repair) && props.circuit ? (
           <label className="component-definition-type">
             Definition type{" "}
