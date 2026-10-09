@@ -19,7 +19,9 @@ function joinedRejectReason(reasons: readonly string[], note: string): string {
  * The one menu on a tile its viewer may manage, an administrator's or the
  * submitter's own; the tile itself looks as it does to everyone. Review
  * drawing opens the drawing's review. Withdraw takes the tile off the Gallery
- * at once, and the recycle bin or My submissions brings it back.
+ * at once, and the recycle bin or My submissions brings it back. Verify
+ * simulation, for the Owner's accounts alone, queues the server's check of
+ * its testbench (#1545).
  */
 export function GalleryTileMenu({
   entry,
@@ -27,6 +29,7 @@ export function GalleryTileMenu({
   administrator,
   onReview,
   onWithdraw,
+  onVerifySimulation,
 }: {
   entry: GalleryFeedEntry;
   busy: boolean;
@@ -34,6 +37,7 @@ export function GalleryTileMenu({
   administrator: boolean;
   onReview: () => void;
   onWithdraw: () => void;
+  onVerifySimulation?: () => void;
 }) {
   const scope = administrator ? "owner" : "author";
   const close = (element: HTMLElement) =>
@@ -67,6 +71,19 @@ export function GalleryTileMenu({
           >
             Edit and replace
           </a>
+        ) : null}
+        {onVerifySimulation ? (
+          <button
+            type="button"
+            disabled={busy}
+            data-testid={`gallery-verify-simulation-${entry.id}`}
+            onClick={(event) => {
+              close(event.currentTarget);
+              onVerifySimulation();
+            }}
+          >
+            Verify simulation
+          </button>
         ) : null}
         <button
           type="button"

@@ -199,6 +199,11 @@ export interface GalleryEntrySummary {
    * until the scheduled refresh has counted an older entry.
    */
   componentCount?: number;
+  /**
+   * The Sim mark (#1545): its testbench ran on the hosted simulator and met
+   * every Spec it states. Only for a viewer `seesSimulationMark` lets see it.
+   */
+  simVerified?: boolean;
   likes: number;
   /** Whether the requesting account has liked it; false when signed out. */
   likedByViewer: boolean;
@@ -261,6 +266,8 @@ export interface EntryRow {
   project_text: string;
   /** The private testbench taken out of project_text (gallery-testbench.ts). */
   testbench_text: string | null;
+  /** Its latest simulation check (gallery-store-simulation-checks.ts). */
+  simulation_check_json: string | null;
   svg_text: string;
   netlistable: number;
   ai_generated: number;

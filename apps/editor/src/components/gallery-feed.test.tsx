@@ -9,6 +9,8 @@ import {
 } from "./gallery-feed";
 import { canReuseGalleryLandingFeed } from "./gallery-feed-wall";
 import { GalleryCountPanel } from "./gallery-feed-count-panel";
+import { GalleryWallTile } from "./gallery-feed-tile";
+import { GalleryTileMenu } from "./gallery-owner-controls";
 
 import {
   GALLERY_SIGN_IN_REQUIRED,
@@ -395,5 +397,68 @@ describe("GalleryFeed", () => {
       markup.indexOf('data-testid="gallery-analytics"'),
     );
     expect(markup).toContain('data-testid="gallery-loading"');
+  });
+});
+
+describe("The Sim mark", () => {
+  const entry: GalleryFeedEntry = {
+    id: "divider01",
+    name: "Divider",
+    author: "Maker",
+    ownerUserId: "maker",
+    description: "",
+    createdAt: "2026-10-09T08:00:00.000Z",
+    previewRevision: "a".repeat(64),
+    schemaVersion: 1,
+    netlistable: true,
+    aiGenerated: true,
+  };
+  const tile = (shown: GalleryFeedEntry) =>
+    renderToStaticMarkup(
+      createElement(GalleryWallTile, {
+        entry: shown,
+        linkedId: null,
+        duplicates: new Map(),
+        datasetWall: null,
+        isOwner: false,
+        viewerId: null,
+        ownerBusy: null,
+        selectedTags: [],
+        selectAuthor: () => {},
+        toggleLike: async () => {},
+        toggleTag: () => {},
+        setRejecting: () => {},
+        setReviewing: () => {},
+        withdrawEntry: async () => {},
+      }),
+    );
+
+  it("follows Netlist and AI for a viewer the server sends it to, and is absent for anyone else", () => {
+    // The server sends `simVerified` only to a viewer who may see it.
+    const allowed = tile({ ...entry, simVerified: true });
+    expect(allowed).toContain('data-testid="gallery-sim-divider01"');
+    expect(allowed.indexOf("gallery-netlist-")).toBeLessThan(
+      allowed.indexOf("gallery-ai-"),
+    );
+    expect(allowed.indexOf("gallery-ai-")).toBeLessThan(
+      allowed.indexOf("gallery-sim-"),
+    );
+    expect(tile(entry)).not.toContain("gallery-sim-");
+  });
+
+  it("is verified from the tile's menu by the Owner's accounts alone", () => {
+    const menu = (onVerifySimulation?: () => void) =>
+      renderToStaticMarkup(
+        createElement(GalleryTileMenu, {
+          entry,
+          busy: false,
+          administrator: true,
+          onReview: () => {},
+          onWithdraw: () => {},
+          ...(onVerifySimulation ? { onVerifySimulation } : {}),
+        }),
+      );
+    expect(menu(() => {})).toContain("Verify simulation");
+    expect(menu()).not.toContain("Verify simulation");
   });
 });

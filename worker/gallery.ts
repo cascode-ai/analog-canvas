@@ -51,6 +51,13 @@ import {
 } from "./gallery-publishing";
 import { routeCloudProjects } from "./gallery-cloud-projects";
 import { routeGalleryMaintenance } from "./gallery-maintenance";
+import {
+  gateSimulationMarks,
+  routeSimulationChecks,
+  simulationMarkOf,
+  simulationMarkPublic,
+} from "./gallery-simulation-checks";
+import type { SimulationCheck } from "./gallery-store-simulation-checks";
 
 export * from "./gallery-do";
 
@@ -83,6 +90,8 @@ export interface GalleryPreviewCache {
 export interface GalleryRouteRuntime {
   /** Injectable in tests; production falls back to Cloudflare's default cache. */
   previewCache?: GalleryPreviewCache | null;
+  /** Injectable in tests; production reads config/gallery-sim.json. */
+  simulationMarkPublicFrom?: string | null;
 }
 
 function defaultPreviewCache(): GalleryPreviewCache | null {
@@ -437,7 +446,9 @@ export async function routeGalleryRequest(
     const filters = wallFilters(url);
     if (filters.attention && !viewer)
       return Response.json({ error: "unauthorized" }, { status: 401 });
-    const { payload } = await callGallery(env, "list", {
+    const { payload } = await callGallery<{
+      entries: GalleryEntrySummary[];
+    }>(env, "list", {
       ...filters,
       isAdmin: viewer?.isAdmin === true,
       viewerId: viewer?.id ?? "",
@@ -447,9 +458,17 @@ export async function routeGalleryRequest(
         .split(",")
         .filter((tag) => tag.length > 0),
     });
-    return Response.json(payload, {
-      headers: { "cache-control": "no-store" },
-    });
+    return Response.json(
+      {
+        ...payload,
+        entries: gateSimulationMarks(
+          payload.entries,
+          viewer,
+          simulationMarkPublic(runtime.simulationMarkPublicFrom),
+        ),
+      },
+      { headers: { "cache-control": "no-store" } },
+    );
   }
   if (
     segments.length === 1 &&
@@ -511,6 +530,8 @@ export async function routeGalleryRequest(
     segments,
   );
   if (maintenance) return maintenance;
+  const simulationChecks = await routeSimulationChecks(request, env, segments);
+  if (simulationChecks) return simulationChecks;
   if (
     segments.length === 1 &&
     segments[0] === "tags" &&
@@ -637,6 +658,7 @@ export async function routeGalleryRequest(
       submitterProvider?: string | null;
       projectText?: string;
       testbench?: string | null;
+      simulationCheck?: SimulationCheck | null;
     }>(env, "any-entry", { id: segments[0] });
     if (status !== 200) {
       return Response.json({ error: "not-found" }, { status: 404 });
@@ -687,7 +709,15 @@ export async function routeGalleryRequest(
     }
     return Response.json(
       {
-        entry: payload.entry,
+        entry: payload.entry && {
+          ...payload.entry,
+          ...simulationMarkOf(
+            payload.simulationCheck,
+            viewer,
+            held,
+            simulationMarkPublic(runtime.simulationMarkPublicFrom),
+          ),
+        },
         status: payload.status,
         ownerUserId: payload.ownerUserId ?? null,
         // Traceability data, not feed data: a curator sees who submitted an

@@ -14,6 +14,8 @@ export * from "./managed-run-registry.js";
 export * from "./executor.js";
 export * from "./execution-receipt.js";
 export * from "./prepare-source.js";
+export { prepareFolderExecutionInput } from "./prepare-input.js";
+export { executionSpecReport } from "./spec-results.js";
 export * from "./source-context.js";
 export * from "./profile-engine.js";
 export * from "./native-execution-output.js";

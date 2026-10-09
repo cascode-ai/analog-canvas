@@ -18,6 +18,7 @@ import {
   type GalleryReadableDocument,
 } from "./gallery-documents";
 import { moveTestbenches, refreshNetlistMarks } from "./gallery-maintenance";
+import { advanceSimulationChecks } from "./gallery-simulation-check-runs";
 import type { GalleryNamespaceLike } from "./gallery-store";
 import {
   routeSimulationRequest,
@@ -106,6 +107,9 @@ export default {
       // The privacy notice promises yesterday's opens are gone the next
       // day, whatever became of the marks.
       await forgetEarlierOpens(env);
+      // The simulation checks the Owner queued (#1545) take the rest of
+      // the tick, one folder at a time; with none queued, one read.
+      await advanceSimulationChecks(env);
     }
   },
 };

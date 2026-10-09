@@ -19,6 +19,7 @@ import {
   summaryOf,
   unwrapTags,
 } from "./gallery-store";
+import { SIMULATION_CHECK_PASSES } from "./gallery-store-simulation-checks";
 
 /** Longest search a reader may send; longer text is cut, not refused. */
 const GALLERY_MAX_SEARCH_LENGTH = 200;
@@ -322,12 +323,19 @@ export function list(sql: SqlStorage, body: Record<string, unknown>): Response {
     bindings.push(cursor);
   }
   const rows = sql
-    .exec<EntrySummaryRow & { likes: number; liked_by_viewer: number }>(
+    .exec<
+      EntrySummaryRow & {
+        likes: number;
+        liked_by_viewer: number;
+        simulation_passes: number;
+      }
+    >(
       `SELECT e.id, e.name, e.author, e.description, e.created_at,
          e.owner_user_id,
          e.schema_version, e.tags, e.curation_json, e.netlistable, e.preview_revision,
          e.preview_width, e.preview_height, e.component_count,
          e.component_count_version, e.ai_generated,
+         ${SIMULATION_CHECK_PASSES} AS simulation_passes,
          (SELECT COUNT(*) FROM gallery_likes WHERE entry_id = e.id) AS likes,
          (SELECT COUNT(*) FROM gallery_likes
            WHERE entry_id = e.id AND user_id = ?) AS liked_by_viewer
@@ -344,12 +352,15 @@ export function list(sql: SqlStorage, body: Record<string, unknown>): Response {
       ? `${page.at(-1)!.created_at}|${page.at(-1)!.id}`
       : null;
   return Response.json({
-    entries: page.map((row) =>
-      summaryOf(
+    // `simVerified` is every passing entry's here; the route keeps it only
+    // for the viewers who may see the Sim mark (#1545).
+    entries: page.map((row) => ({
+      ...summaryOf(
         row,
         body.isAdmin === true || (!!viewerId && viewerId === row.owner_user_id),
       ),
-    ),
+      ...(row.simulation_passes === 1 ? { simVerified: true } : {}),
+    })),
     nextCursor,
     total: Number(counts.total),
     // Which search this answers, so a reader knows the counts are its.

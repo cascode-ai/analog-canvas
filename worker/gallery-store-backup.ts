@@ -264,8 +264,8 @@ export function schemaRestore(
           recycled_at, owner_user_id, submitter_email, submitter_provider,
           project_text, svg_text, reject_reason, reviewed_at, reviewed_by,
           tags, netlistable, preview_revision, preview_width, preview_height, curation_json,
-          ai_generated, testbench_text)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          ai_generated, testbench_text, simulation_check_json)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         ...values,
         sha256Hex(svgText),
         previewDimensions?.width ?? null,
@@ -275,6 +275,10 @@ export function schemaRestore(
         row.ai_generated === 1 ? 1 : 0,
         // Backups taken before testbenches moved hold them in project_text.
         typeof row.testbench_text === "string" ? row.testbench_text : null,
+        // A verdict comes back with the content it checked (#1545).
+        typeof row.simulation_check_json === "string"
+          ? row.simulation_check_json
+          : null,
       );
     }
     for (const row of galleryEntryVersions) {

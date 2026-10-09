@@ -90,6 +90,13 @@ import {
   schemaBackup,
   schemaRestore,
 } from "./gallery-store-backup";
+import {
+  installSimulationChecks,
+  nextSimulationCheck,
+  queueSimulationChecks,
+  recordSimulationCheck,
+  simulationCheckProgress,
+} from "./gallery-store-simulation-checks";
 
 const TOKENZHANG_BYLINE_MIGRATION = "2026-08-26-tokenzhang-to-zhishuai-zhang";
 const TOKENZHANG_BYLINE = "Zhishuai Zhang";
@@ -281,6 +288,8 @@ export class GalleryDO {
       ON gallery_entries(status, owner_user_id, author, netlistable,
         ai_generated, tags, curation_json, component_count)
     `);
+    // Each entry's latest simulation check and the queue of checks (#1545).
+    installSimulationChecks(this.sql);
     syncAiSeatBylines(this.state);
     this.sql.exec(`
       CREATE TABLE IF NOT EXISTS data_migrations (
@@ -503,6 +512,14 @@ export class GalleryDO {
         return refreshNetlistable(this.sql, body);
       case "testbench-privacy":
         return moveStoredTestbenches(this.sql, body);
+      case "simulation-checks-queue":
+        return queueSimulationChecks(this.state, body);
+      case "simulation-check-next":
+        return nextSimulationCheck(this.state);
+      case "simulation-check-record":
+        return recordSimulationCheck(this.state, body);
+      case "simulation-checks-progress":
+        return simulationCheckProgress(this.sql);
       case "curate":
         return curate(this.state, body);
       case "tags":

@@ -85,7 +85,7 @@ describe("hosted simulation", () => {
 });
 
 describe("the scheduled pass", () => {
-  it("forgets earlier days' Gallery opens even when the netlist marks fail", async () => {
+  it("forgets earlier days' Gallery opens and moves the simulation checks on even when the netlist marks fail", async () => {
     const { default: worker } = await import("./index");
     const operations: string[] = [];
     const env = {
@@ -107,6 +107,11 @@ describe("the scheduled pass", () => {
         env as unknown as Parameters<typeof worker.scheduled>[1],
       ),
     ).rejects.toThrow("Gallery busy");
-    expect(operations).toEqual(["netlistable-refresh", "forget-opens"]);
+    // With no check queued, the checks cost one read.
+    expect(operations).toEqual([
+      "netlistable-refresh",
+      "forget-opens",
+      "simulation-check-next",
+    ]);
   });
 });
