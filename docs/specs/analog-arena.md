@@ -3,7 +3,8 @@
 Status: `accepted`
 
 Primary owner: `worker/arena.ts` (forwarding and identity), with
-`worker/auth-do.ts` (sign-in return) and `wrangler.jsonc` (the binding)
+`worker/arena-paths.ts` (the `/arena` path rule), `worker/auth-do.ts`
+(sign-in return) and `wrangler.jsonc` (the binding)
 
 ## Scope
 
@@ -30,7 +31,11 @@ What Arena does with a forwarded request is Arena's.
 - The forwarded request keeps the method, the URL (Analog Canvas's origin,
   the path and the query), the body and the client's headers, except the
   account header below.
-- Arena's answer is returned unchanged, unless it is a failure (below).
+- Analog Canvas's credentials never reach Arena: the forwarded `Cookie` loses
+  `icm_session` (other cookies are kept), `Authorization` is removed, and an
+  answer's `Set-Cookie` naming `icm_session` or `icm_owner_session` is dropped.
+- Arena's answer is otherwise returned unchanged, unless it is a failure
+  (below).
 
 ### Forwarded identity
 
@@ -90,8 +95,9 @@ that asked for it and takes no return path.
 
 - [`worker/arena.test.ts`](../../worker/arena.test.ts) drives the Worker's
   fetch handler with the real account store and a stand-in Arena at the
-  binding: the vouched account and its facts, a forged header dropped, other
-  paths left alone, the failure answers and the sign-in return.
+  binding: the vouched account and its facts, a forged header dropped, the
+  credentials kept from Arena, other paths left alone, the failure answers
+  and the sign-in return.
 - [`worker/index.test.ts`](../../worker/index.test.ts) pins the binding and the
   Worker-first paths;
   [`worker/preview-config.test.ts`](../../worker/preview-config.test.ts) pins

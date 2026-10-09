@@ -15,6 +15,8 @@
 // Provider HTTP calls go through an injectable fetch seam so
 // tests never touch the network.
 
+import { isArenaPagePath } from "./arena-paths";
+
 export const AUTH_SESSION_COOKIE = "icm_session";
 export const AUTH_STATE_COOKIE = "icm_oauth_state";
 export const AUTH_SESSION_TTL_SECONDS = 30 * 24 * 60 * 60;
@@ -74,7 +76,7 @@ export const OWNER_ACCOUNT_IDS: readonly string[] = [
   "60334273-e419-4469-a756-7a557af16029", // GitHub
 ];
 /** The super-admin's own session, kept while the browser is an AI account. */
-const AUTH_OWNER_COOKIE = "icm_owner_session";
+export const AUTH_OWNER_COOKIE = "icm_owner_session";
 
 const TOKENZHANG_DISPLAY_NAME_MIGRATION =
   "2026-08-26-tokenzhang-to-zhishuai-zhang";
@@ -287,8 +289,9 @@ function signInReturnPath(requested: string | null, origin: string): string {
   } catch {
     return "/";
   }
-  const arena = url.pathname === "/arena" || url.pathname.startsWith("/arena/");
-  return url.origin === origin && arena ? url.pathname + url.search : "/";
+  return url.origin === origin && isArenaPagePath(url.pathname)
+    ? url.pathname + url.search
+    : "/";
 }
 
 function noStoreJson(payload: unknown, status = 200): Response {

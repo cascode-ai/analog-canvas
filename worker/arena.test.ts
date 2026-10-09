@@ -226,6 +226,60 @@ describe("Arena forwarding", () => {
     expect(await request?.text()).toBe(vote);
   });
 
+  it("keeps the session cookie from Arena and forwards the other cookies", async () => {
+    const { accounts, forwarded, visit } = canvas();
+    const cookie = await makerOf(accounts);
+    expect(cookie).toMatch(/^icm_session=/u);
+
+    await visit("/arena", {
+      headers: { Cookie: `theme=dark; ${cookie}; arena_seen=1` },
+    });
+    await visit("/api/arena/session", { headers: { Cookie: cookie } });
+
+    expect(forwarded[0]?.headers.get("cookie")).toBe(
+      "theme=dark; arena_seen=1",
+    );
+    expect(forwardedAccount(forwarded[0])).toMatchObject({
+      id: await accountId(visit, cookie),
+    });
+    expect(forwarded[1]?.headers.has("cookie")).toBe(false);
+    expect(forwardedAccount(forwarded[1])).not.toBeNull();
+  });
+
+  it("drops the Authorization header", async () => {
+    const { forwarded, visit } = canvas();
+
+    await visit("/api/arena/session", {
+      headers: { Authorization: "Bearer icm-agent-token" },
+    });
+
+    expect(forwarded[0]?.headers.has("authorization")).toBe(false);
+  });
+
+  it.each([200, 404])(
+    "drops a %i answer's cookies that would sign this browser in or out",
+    async (status) => {
+      const { visit } = canvas(async () => {
+        const headers = new Headers({ "content-type": "text/html" });
+        headers.append("set-cookie", "icm_session=arena; Path=/; HttpOnly");
+        headers.append(
+          "set-cookie",
+          "icm_owner_session=arena; Path=/api/auth; HttpOnly",
+        );
+        headers.append("set-cookie", "arena_seen=1; Path=/arena");
+        return new Response("<h1>AnalogArena</h1>", { status, headers });
+      });
+
+      const response = await visit("/arena");
+
+      expect(response.status).toBe(status);
+      expect(response.headers.getSetCookie()).toEqual([
+        "arena_seen=1; Path=/arena",
+      ]);
+      expect(await response.text()).toBe("<h1>AnalogArena</h1>");
+    },
+  );
+
   it.each([
     "/",
     "/editor",

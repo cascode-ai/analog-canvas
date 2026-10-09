@@ -6,7 +6,14 @@
 // account in one header. Arena trusts that header because nothing else can
 // reach it, so this Worker never lets a client's copy through.
 
-import { sessionUserOf, type AuthEnv, type SessionUser } from "./auth";
+import {
+  AUTH_OWNER_COOKIE,
+  AUTH_SESSION_COOKIE,
+  sessionUserOf,
+  type AuthEnv,
+  type SessionUser,
+} from "./auth";
+import { isArenaForwardedPath } from "./arena-paths";
 
 /** The forwarded account, as one JSON object; absent when signed out. */
 const ARENA_ACCOUNT_HEADER = "x-arena-account";
@@ -16,12 +23,51 @@ export type ArenaEnv = Partial<AuthEnv> & {
   ARENA?: { fetch(request: Request): Promise<Response> };
 };
 
-function isArenaPath(pathname: string): boolean {
-  return (
-    pathname === "/arena" ||
-    pathname.startsWith("/arena/") ||
-    pathname.startsWith("/api/arena/")
+/** Cookies Arena may never set: Analog Canvas's own sign-in. */
+const CANVAS_SESSION_COOKIES = new Set([
+  AUTH_SESSION_COOKIE,
+  AUTH_OWNER_COOKIE,
+]);
+
+/** The name of a `Cookie` pair or a `Set-Cookie` value. */
+function cookieName(cookie: string): string {
+  return cookie.split("=", 1)[0]!.trim();
+}
+
+/**
+ * The headers Arena receives. The account travels only as the vouched
+ * header, so Analog Canvas's credentials stay here: the session cookie is
+ * removed from `Cookie` (other cookies are kept) and `Authorization` is
+ * dropped. Otherwise Arena could replay them against Analog Canvas.
+ */
+function forwardedHeaders(request: Request): Headers {
+  const headers = new Headers(request.headers);
+  headers.delete(ARENA_ACCOUNT_HEADER);
+  headers.delete("authorization");
+  const cookies = (headers.get("cookie") ?? "")
+    .split(";")
+    .map((pair) => pair.trim())
+    .filter((pair) => pair && cookieName(pair) !== AUTH_SESSION_COOKIE);
+  if (cookies.length > 0) headers.set("cookie", cookies.join("; "));
+  else headers.delete("cookie");
+  return headers;
+}
+
+/** Arena's answer without any cookie that would sign this browser in or out. */
+function withoutCanvasSessionCookies(response: Response): Response {
+  const setCookies = response.headers.getSetCookie();
+  const kept = setCookies.filter(
+    (cookie) => !CANVAS_SESSION_COOKIES.has(cookieName(cookie)),
   );
+  if (kept.length === setCookies.length) return response;
+  const headers = new Headers(response.headers);
+  headers.delete("set-cookie");
+  for (const cookie of kept) headers.append("set-cookie", cookie);
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
 }
 
 /**
@@ -66,9 +112,8 @@ export async function routeArenaRequest(
   request: Request,
   env: ArenaEnv,
 ): Promise<Response | null> {
-  if (!isArenaPath(new URL(request.url).pathname)) return null;
-  const headers = new Headers(request.headers);
-  headers.delete(ARENA_ACCOUNT_HEADER);
+  if (!isArenaForwardedPath(new URL(request.url).pathname)) return null;
+  const headers = forwardedHeaders(request);
   const user = await sessionUserOf(request, env);
   if (user) headers.set(ARENA_ACCOUNT_HEADER, arenaAccount(user));
   let response: Response;
@@ -81,7 +126,7 @@ export async function routeArenaRequest(
   }
   // Arena's own refusals are its answer; a failure is answered here, so a
   // visitor sees the same small notice however Arena broke.
-  if (response.status < 500) return response;
+  if (response.status < 500) return withoutCanvasSessionCookies(response);
   console.error("Arena failed", response.status);
   return arenaUnavailable(request);
 }
