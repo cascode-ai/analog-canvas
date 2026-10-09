@@ -29,7 +29,13 @@ The implementation has these boundaries:
   Its Executor is the execution port; GUI and MCP use the same service and File
   Resource. On Production, the managed control plane owns authoritative run
   admission, idempotency, queueing, retry, cancellation and retention. Local
-  direct transports keep the same semantic service contract.
+  direct transports keep the same semantic service contract. The Worker's
+  Gallery [simulation checks](community-gallery.md#simulation-checks) are
+  one more managed caller: they prepare a saved folder with
+  `prepareFolderExecutionInput`, start and read it through the managed
+  executor against the same routes under the account
+  `gallery-simulation-check`, and judge it with `executionSpecReport`, the
+  Simulation panel's Spec evaluation.
 - spice-run separates request/result types, deck assembly, metadata and terminal
   verdicts. Its public exports remain the same.
 - GUI source editing, diagnostic display and result materialization are separate

@@ -15,6 +15,9 @@ compilation, mapped edits, drafts, language assistance and Code interaction.
 retention and artifact access. [Results](simulation-results.md) owns numeric
 records, native measurements and Spec reports. [The user guide](../user/analog-simulation.md)
 owns step-by-step operation; [deployment](../deployment.md) owns candidate acceptance.
+Besides the Editor and its Agent, the Worker prepares saved folders with the
+same preparation for the Gallery's
+[simulation checks](community-gallery.md#simulation-checks).
 
 ## Authored authority
 

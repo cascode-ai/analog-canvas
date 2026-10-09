@@ -73,6 +73,7 @@ export function GalleryWallTile({
   setRejecting,
   setReviewing,
   withdrawEntry,
+  verifySimulation,
 }: {
   entry: GalleryFeedEntry;
   linkedId: string | null;
@@ -94,6 +95,8 @@ export function GalleryWallTile({
   setRejecting: (entry: GalleryFeedEntry) => void;
   setReviewing: (entry: GalleryFeedEntry) => void;
   withdrawEntry: (entry: GalleryFeedEntry) => Promise<void>;
+  /** The Owner's accounts' "Verify simulation" (#1545); absent for anyone else. */
+  verifySimulation?: ((entry: GalleryFeedEntry) => Promise<void>) | undefined;
 }) {
   return (
     <div
@@ -148,6 +151,15 @@ export function GalleryWallTile({
                 title="AI-generated, as its publisher says"
               >
                 AI
+              </span>
+            ) : null}
+            {entry.simVerified ? (
+              <span
+                className="gallery-tile-mark gallery-tile-sim"
+                data-testid={`gallery-sim-${entry.id}`}
+                title="Its testbench ran again on the hosted simulator and met every Spec it states"
+              >
+                Sim
               </span>
             ) : null}
           </span>
@@ -228,7 +240,9 @@ export function GalleryWallTile({
         </span>
       </a>
       {!datasetWall &&
-      (isOwner || (!!viewerId && viewerId === entry.ownerUserId)) ? (
+      (isOwner ||
+        verifySimulation ||
+        (!!viewerId && viewerId === entry.ownerUserId)) ? (
         <Suspense fallback={null}>
           {isOwner ? (
             <GalleryOwnerRejectButton
@@ -243,6 +257,9 @@ export function GalleryWallTile({
             administrator={isOwner}
             onReview={() => setReviewing(entry)}
             onWithdraw={() => void withdrawEntry(entry)}
+            {...(verifySimulation
+              ? { onVerifySimulation: () => void verifySimulation(entry) }
+              : {})}
           />
         </Suspense>
       ) : null}

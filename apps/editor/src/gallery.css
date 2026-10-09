@@ -1195,9 +1195,10 @@
   gap: 4px;
 }
 
-/* Word marks after the name: the circuit extracts to a netlist, and its
-   publisher says an AI made it. Each records something and gates nothing,
-   so they stay small beside the name and never compete with the like heart. */
+/* Word marks after the name: the circuit extracts to a netlist, its
+   publisher says an AI made it, and its testbench met its Specs when the
+   server ran it again. Each records something and gates nothing, so they
+   stay small beside the name and never compete with the like heart. */
 .gallery-tile-mark {
   margin-left: 6px;
   padding: 2px 5px;
@@ -1214,6 +1215,11 @@
 .gallery-tile-ai {
   color: var(--icm-ai);
   background: var(--icm-ai-soft);
+}
+
+.gallery-tile-sim {
+  color: #24589e;
+  background: #e3ecf8;
 }
 
 .gallery-tile-like {
@@ -1836,6 +1842,10 @@ div.gallery-contributor-status {
 
 .gallery-sidebar-admin .gallery-duplicates {
   display: block;
+}
+
+.gallery-sidebar-admin .gallery-duplicates + .gallery-simulation-checks {
+  margin-top: 10px;
 }
 
 .gallery-sidebar-admin .gallery-duplicates-actions {

@@ -30,7 +30,9 @@ Every capture includes all Gallery statuses, retained historical versions,
 likes, raw project text, previews, ownership and moderation metadata, and
 each entry's and version's private testbench (`testbench_text`, kept out of
 the project text since #1545; see
-[Testbench privacy](specs/community-gallery.md#testbench-privacy)). The
+[Testbench privacy](specs/community-gallery.md#testbench-privacy)) with each
+entry's latest simulation check (`simulation_check_json`; see
+[Simulation checks](specs/community-gallery.md#simulation-checks)). The
 inventory includes the selected tables' SQLite definitions and indexes.
 Each inventory carries its scope's revision, which SQLite triggers count up on
 every row change in exactly the tables that scope reads. A capture compares it

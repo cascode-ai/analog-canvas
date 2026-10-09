@@ -9,6 +9,37 @@ import { SimulationFiles } from "./files.js";
 import { prepareSourceExecutionInput } from "./prepare-source.js";
 import { resolveSimulationEngine } from "./profile-engine.js";
 
+/**
+ * One folder of a Project, prepared under the Profile its configuration
+ * names. The Simulation panel's Prepare and the Gallery's simulation check
+ * (#1545) both enter here.
+ */
+export async function prepareFolderExecutionInput(
+  project: CircuitProject,
+  folder: ProjectSimulationFolder,
+  caps: Capabilities | undefined,
+  selectCapabilities?: (profileId: string) => Promise<Capabilities>,
+  variant?: Parameters<typeof prepareSourceExecutionInput>[3],
+) {
+  const config = readSimulationExperimentConfig(folder);
+  if (!config.ok) {
+    const failure = resolveSimulationEngine(folder, { profiles: [] });
+    if (!failure.ok) return failure;
+  }
+  const selected =
+    config.ok && selectCapabilities
+      ? await selectCapabilities(config.config.environment.profileId)
+      : caps;
+  if (!selected?.configured)
+    return problem(
+      "simulation-not-configured",
+      "The selected execution Profile is unavailable; authored input remains available.",
+      "prepare",
+      "retry-after",
+    );
+  return prepareSourceExecutionInput(project, folder, selected, variant);
+}
+
 /** Project and session sources enter exactly the same compiler and preparation path. */
 export async function prepareExecutionInput(
   op: Extract<SimulationOperation, { operation: "prepare" }>,
@@ -20,28 +51,17 @@ export async function prepareExecutionInput(
   // Capture before any capability/network await. Human edits during discovery
   // must not change the meaning of an already submitted revision.
   const project = structuredClone(getProject());
-  async function prepare(
+  const prepare = (
     folder: ProjectSimulationFolder,
     variant?: Parameters<typeof prepareSourceExecutionInput>[3],
-  ) {
-    const config = readSimulationExperimentConfig(folder);
-    if (!config.ok) {
-      const failure = resolveSimulationEngine(folder, { profiles: [] });
-      if (!failure.ok) return failure;
-    }
-    const selected =
-      config.ok && selectCapabilities
-        ? await selectCapabilities(config.config.environment.profileId)
-        : caps;
-    if (!selected?.configured)
-      return problem(
-        "simulation-not-configured",
-        "The selected execution Profile is unavailable; authored input remains available.",
-        "prepare",
-        "retry-after",
-      );
-    return prepareSourceExecutionInput(project, folder, selected, variant);
-  }
+  ) =>
+    prepareFolderExecutionInput(
+      project,
+      folder,
+      caps,
+      selectCapabilities,
+      variant,
+    );
   const source = op.source;
   if (source.kind === "project-folder") {
     if (project.structureRevision !== source.expectedStructureRevision) {

@@ -197,6 +197,12 @@ export interface GalleryFeedEntry {
   aiGenerated?: boolean;
   /** Parts the top Cell draws; absent until the Worker has counted it. */
   componentCount?: number;
+  /**
+   * The Sim mark (#1545): its testbench ran again on the hosted simulator
+   * and met every Spec it states. The server sends it only to a viewer who
+   * may see it, so a tile shows whatever it is given.
+   */
+  simVerified?: boolean;
   likes?: number;
   likedByViewer?: boolean;
 }

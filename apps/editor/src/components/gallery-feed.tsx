@@ -77,6 +77,11 @@ const GalleryReviewDialog = lazy(() =>
     default: module.GalleryReviewDialog,
   })),
 );
+const GallerySimulationChecks = lazy(() =>
+  import("./gallery-simulation-checks-panel").then((module) => ({
+    default: module.GallerySimulationChecks,
+  })),
+);
 const GalleryDuplicateCheck = lazy(() =>
   import("./gallery-duplicate-check").then((module) => ({
     default: module.GalleryDuplicateCheck,
@@ -191,6 +196,9 @@ export function GalleryFeed({
   const [viewerId, setViewerId] = useState<string | null>(null);
   const [signedIn, setSignedIn] = useState(false);
   const [isOwner, setIsOwner] = useState(false);
+  // One of the Owner's own accounts, not every administrator: its tools
+  // gate on OWNER_ACCOUNT_IDS (#1545).
+  const [ownerAccount, setOwnerAccount] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -199,6 +207,7 @@ export function GalleryFeed({
       setSignedIn(user !== null);
       setViewerId(user?.id ?? null);
       setIsOwner(user?.isAdmin === true);
+      setOwnerAccount(user?.isOwner === true);
     });
     return () => {
       cancelled = true;
@@ -237,6 +246,7 @@ export function GalleryFeed({
     setReviewing,
     withdrawEntry,
     rejectEntry,
+    verifySimulation,
   } = useGalleryOwnerTools({ isOwner, removeManagedEntry });
 
   function selectAuthor(
@@ -567,17 +577,22 @@ export function GalleryFeed({
               />
             }
             adminTools={
-              isOwner ? (
+              isOwner || (ownerAccount && !datasetWall) ? (
                 <Suspense fallback={null}>
-                  <GalleryDuplicateCheck
-                    onReport={setDuplicateReport}
-                    onRecycled={(ids) => {
-                      // The scan covers the whole library, while this feed may
-                      // be filtered. Let the server recalculate its counts.
-                      setRefreshSignal((signal) => signal + 1);
-                      if (ids[0]) announceGalleryChange({ entryId: ids[0] });
-                    }}
-                  />
+                  {isOwner ? (
+                    <GalleryDuplicateCheck
+                      onReport={setDuplicateReport}
+                      onRecycled={(ids) => {
+                        // The scan covers the whole library, while this feed may
+                        // be filtered. Let the server recalculate its counts.
+                        setRefreshSignal((signal) => signal + 1);
+                        if (ids[0]) announceGalleryChange({ entryId: ids[0] });
+                      }}
+                    />
+                  ) : null}
+                  {ownerAccount && !datasetWall ? (
+                    <GallerySimulationChecks />
+                  ) : null}
                 </Suspense>
               ) : null
             }
@@ -666,6 +681,9 @@ export function GalleryFeed({
                           setRejecting={setRejecting}
                           setReviewing={setReviewing}
                           withdrawEntry={withdrawEntry}
+                          verifySimulation={
+                            ownerAccount ? verifySimulation : undefined
+                          }
                         />
                       ),
                     })),

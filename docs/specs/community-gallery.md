@@ -95,9 +95,12 @@ deleted.
   re-answers stored marks after the rule itself changes.
   An entry whose publisher marked it as made by an AI also carries
   `aiGenerated: true`; every other entry omits the field. That mark is the
-  publisher's word, never something the server infers from the drawing. A
-  card on the wall spells both out after the circuit name: a green "Netlist",
-  then a purple "AI".
+  publisher's word, never something the server infers from the drawing. An
+  entry whose testbench passed the server's [simulation
+  check](#simulation-checks) carries `simVerified: true` for a viewer who may
+  see that mark, and omits it for everyone else. A card on the wall spells
+  them out after the circuit name: a green "Netlist", then a purple "AI",
+  then a blue "Sim".
   Each entry may also carry `componentCount`: the parts its top Cell draws —
   devices, sources, switches, blocks and gates, a subcircuit block counting
   once — leaving out Ports, supply and ground markers, drafting objects and
@@ -158,7 +161,8 @@ deleted.
   `projectText`, spending one of the reader's daily opens (see
   [Reader access](#reader-access)); `?summary=1` answers the entry alone, free.
   The Project carries its simulation folders only for a reader of its
-  testbench ([Testbench privacy](#testbench-privacy)).
+  testbench ([Testbench privacy](#testbench-privacy)); the entry carries
+  `simVerified` as the wall's cards do.
 - `GET /api/gallery/<id>/preview.svg?v=<previewRevision>&render=formula-label-v5` — the
   server-rendered preview. A revision matching the stored SVG is immutable;
   unversioned, stale-revision, hidden, and missing responses are `no-store`.
@@ -609,6 +613,69 @@ with nothing left the schedule reads one row a tick. Rows from before schema
 converts them, and the pass then moves them. A schema conversion or a
 `schema-restore` makes the schedule look again.
 
+## Simulation checks
+
+The Sim mark (#1545; Owner decisions 2026-10-09) says a circuit's testbench,
+run again by the server on the hosted simulator, completes and meets every
+Spec it states.
+
+- **Criterion (rule 1).** Every simulation folder of the stored Project runs
+  to completion, the testbench states at least one Spec, and every Spec it
+  states (`* @spec` with a condition, or one written wrongly) passes. A
+  folder that cannot be prepared or whose run does not complete is `error`;
+  a stated Spec that misses, or cannot be judged (its measurement missing,
+  for one), is `fail`, as is a testbench that states no Spec (`no-specs`);
+  an entry without a testbench is `no-testbench`. Only `pass` earns the
+  mark, and only under the rule its verdict was judged by: a verdict of an
+  older rule shows nothing until checked again.
+- **Running it.** Checks run only when the Owner asks, never on publish.
+  `POST /api/gallery/simulation-checks` (one of the Owner's accounts,
+  same-origin, else 401/403 `owner-only`) queues `{"ids": [...]}` (up to
+  500, any status) or `{"all": true}` (every public entry with a testbench)
+  and answers 202 `{queued, noTestbench, missing, waiting}`; an entry
+  already waiting keeps its place, and one without a testbench is answered
+  `no-testbench` at once. `GET` on the same path reads `{waiting, current,
+counts, results}`. On the wall, an Owner account's `⋯` menu on a tile
+  offers Verify simulation, and the sidebar offers Verify simulations for
+  all of them with how the checks stand.
+- **How it runs.** The five-minute scheduled pass works the queue, first
+  entry first and one folder at a time, for up to four minutes. The Worker
+  prepares each folder from the stored Project and testbench with the code
+  the Simulation panel prepares a run with (`prepareFolderExecutionInput`),
+  submits it as a managed run through the same admission, queue, limits and
+  retries every run takes, under an account of its own
+  (`gallery-simulation-check`, one run waiting and one running at most), and
+  judges the result with the panel's Spec evaluation
+  (`executionSpecReport`). It asks ngspice for the log alone, where the
+  Specs are, and reads no result larger than 8 MiB. While the simulator
+  cannot take the run or has not answered, the folder waits at the head of
+  the queue, and the next pass asks for the same run again rather than
+  starting another; a run that ends without a result (expired in the queue,
+  for one) is that folder's `error`. A folder that errs or fails ends the
+  entry's check.
+- **Storage.** Each entry's latest verdict is its `simulation_check_json`
+  column: `{status, checkedAt, rule, simulator, reason?, folders}`, each
+  folder with its status, Problem or Spec reason, simulator, Profile, and
+  each stated Spec's expected condition, value, unit and judgment. A column
+  of the entry, it goes where the entry goes and rides in the backup pages;
+  a restore brings it back with the content it checked. Any change to the
+  stored Project Code or testbench clears it, whoever writes it (an update,
+  a take-over, a version restore, a maintenance pass), and a check whose
+  entry changes while it runs starts over. The queue is its own table, not
+  backed up.
+- **Who sees it.** The verdict, Specs included, is private like the
+  testbench: `GET /api/gallery/<id>/simulation-check` answers
+  `{check, waiting}` to a reader of the entry's testbench and 404 to
+  everyone else. The mark, `simVerified` on the wall's entries and an
+  entry's details, goes to the same readers — the Owner's accounts, the
+  entry's own author, and AI accounts for AI accounts' entries — until the
+  date `publicFrom` in [config/gallery-sim.json](../../config/gallery-sim.json)
+  names (null: not yet; proposed about six months on, with the dataset
+  release). From that date every reader sees the mark; the verdict's
+  details stay private. Until then the API sends nobody else any of it; the
+  wall has no Sim filter or count yet. The Agent API's Gallery reads do
+  not carry the mark.
+
 ## Reference datasets
 
 Published circuit datasets (AnalogGenie, CircuitThink, AMS-Net, #1510; AnalogRetriever, #1498) can be
@@ -648,7 +715,7 @@ its circuits carry, `license`, and its `homepage` and `paper` links.
   sets the byline from the configuration. An existing id is replaced in place
   (its earlier version kept), so a re-import repairs rather than duplicates.
   The answer lists `{id, ok, created, previewRevision}` or `{id, ok: false,
-  error}` per entry. Import runs from the Owner's signed-in browser
+error}` per entry. Import runs from the Owner's signed-in browser
   (`fetch` from the Gallery page's console or a page script), so no new key or
   secret exists for it.
 

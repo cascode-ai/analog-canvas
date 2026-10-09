@@ -20,6 +20,10 @@ import {
   withdrawnByCurator,
 } from "./gallery-store";
 import { snapshotEntry } from "./gallery-store-versions";
+import {
+  readSimulationCheck,
+  simulationCheckWaiting,
+} from "./gallery-store-simulation-checks";
 import { sweepRecycledRows } from "./gallery-store-moderation";
 
 interface PreviewAccessRow {
@@ -276,10 +280,11 @@ export function countOpen(
 }
 
 /**
- * One entry. `submitterEmail`/`submitterProvider` and the private
- * `testbench` ride along for the caller to gate: `routeGalleryRequest`
- * forwards the first two only to a curator, and puts the testbench back
- * only for a reader `readsTestbench` names.
+ * One entry. `submitterEmail`/`submitterProvider`, the private `testbench`
+ * and its `simulationCheck` ride along for the caller to gate:
+ * `routeGalleryRequest` forwards the first two only to a curator, and puts
+ * the testbench back and shows the check only to a reader `readsTestbench`
+ * names (the Sim mark, once public, to everyone).
  */
 export function entry(
   sql: SqlStorage,
@@ -302,6 +307,8 @@ export function entry(
     withdrawnByCurator: withdrawnByCurator(row),
     projectText: row.project_text,
     testbench: row.testbench_text,
+    simulationCheck: readSimulationCheck(row.simulation_check_json),
+    simulationCheckWaiting: simulationCheckWaiting(sql, row.id),
     svgText: row.svg_text,
   });
 }

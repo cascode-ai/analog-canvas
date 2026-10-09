@@ -1,6 +1,7 @@
 /**
  * The owner's and an author's tools on the wall: withdraw, reject and review
- * an entry, the duplicate report, and the passing message each one leaves.
+ * an entry, queue its simulation check, the duplicate report, and the
+ * passing message each one leaves.
  */
 import { useEffect, useState } from "react";
 import {
@@ -8,6 +9,7 @@ import {
   type GalleryFeedEntry,
 } from "../gallery-client";
 import type { GalleryDuplicateReport } from "../gallery-duplicates";
+import { queueGallerySimulationChecks } from "../gallery-simulation-checks";
 
 export function useGalleryOwnerTools({
   isOwner,
@@ -88,6 +90,29 @@ export function useGalleryOwnerTools({
       setOwnerBusy(null);
     }
   }
+  /** The Owner's accounts queue the server's check of its testbench (#1545). */
+  async function verifySimulation(entry: GalleryFeedEntry): Promise<void> {
+    setOwnerNotice(null);
+    const queued = await queueGallerySimulationChecks(fetch, {
+      ids: [entry.id],
+    });
+    setOwnerNotice(
+      !queued
+        ? {
+            ok: false,
+            text: `Could not queue a simulation check of “${entry.name}”. Try again.`,
+          }
+        : queued.noTestbench.includes(entry.id)
+          ? {
+              ok: true,
+              text: `“${entry.name}” has no testbench to check.`,
+            }
+          : {
+              ok: true,
+              text: `“${entry.name}” waits for its simulation check, ${queued.waiting} in the queue. The checks run one at a time within minutes.`,
+            },
+    );
+  }
   return {
     duplicateReport,
     setDuplicateReport,
@@ -100,5 +125,6 @@ export function useGalleryOwnerTools({
     setReviewing,
     withdrawEntry,
     rejectEntry,
+    verifySimulation,
   };
 }
