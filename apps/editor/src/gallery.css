@@ -1148,36 +1148,6 @@
   line-height: 1;
 }
 
-/* Which wall: the community's, or one reference dataset's (#1510). It sits
-   beside the count and appears only once a dataset holds circuits. */
-.gallery-source-switch {
-  display: inline-flex;
-  align-self: center;
-  align-items: center;
-  gap: 6px;
-  margin-left: auto;
-  margin-right: 8px;
-  padding-bottom: 6px;
-  color: var(--icm-text-muted);
-  font-size: 12px;
-}
-
-/* The count stays at the right edge, beside the switch. */
-.gallery-source-switch + .gallery-contributor-menu {
-  margin-left: 0;
-}
-
-.gallery-source-switch select {
-  padding: 4px 8px;
-  border: 1px solid var(--icm-border);
-  border-radius: 999px;
-  color: var(--icm-text);
-  background: var(--icm-surface);
-  font: inherit;
-  font-size: 12px;
-  cursor: pointer;
-}
-
 .gallery-source-note {
   margin: 0;
   padding: 14px 22px 0;
@@ -1480,6 +1450,22 @@ div.gallery-contributor-status {
   text-overflow: ellipsis;
   white-space: nowrap;
   cursor: pointer;
+}
+
+/* A reference dataset among the contributors (#1574). */
+.gallery-contributor-tag {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border: 1px solid var(--icm-border);
+  border-radius: 999px;
+  color: var(--icm-text-muted);
+  font-size: 11px;
+  font-weight: 500;
+  vertical-align: 1px;
+}
+
+.gallery-contributor-row[aria-current="true"] .gallery-contributor-author {
+  color: var(--icm-accent);
 }
 
 .gallery-contributor-author:hover {

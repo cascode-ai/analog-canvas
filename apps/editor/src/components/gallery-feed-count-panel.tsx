@@ -6,10 +6,57 @@ import { useRef, useState } from "react";
 
 import { galleryCountLabel, type GalleryAuthorOption } from "../gallery-client";
 import {
+  compareContributorNames,
   CONTRIBUTOR_ORDER_KEY,
   orderContributors,
   type ContributorOrder,
 } from "../gallery-contributor-order";
+
+/** A reference dataset as the contributor list names it (#1574). */
+export interface GalleryDatasetRow {
+  key: string;
+  name: string;
+  count: number;
+}
+
+type BoardRow =
+  | { kind: "author"; option: GalleryAuthorOption }
+  | { kind: "dataset"; dataset: GalleryDatasetRow };
+
+const rowCount = (row: BoardRow) =>
+  row.kind === "author" ? row.option.count : row.dataset.count;
+const rowName = (row: BoardRow) =>
+  row.kind === "author" ? row.option.author : row.dataset.name;
+
+/**
+ * The list's rows: the wall's authors and the reference datasets, in one
+ * order. By circuits, a stable sort keeps the server's order among authors.
+ */
+export function contributorBoardRows(
+  authors: readonly GalleryAuthorOption[],
+  datasets: readonly GalleryDatasetRow[],
+  order: ContributorOrder,
+): BoardRow[] {
+  const rows: BoardRow[] = [
+    ...orderContributors(authors, order).map((option): BoardRow => ({
+      kind: "author",
+      option,
+    })),
+    ...datasets.map((dataset): BoardRow => ({ kind: "dataset", dataset })),
+  ];
+  if (datasets.length === 0) return rows;
+  return order === "name"
+    ? rows.sort(
+        (left, right) =>
+          compareContributorNames(rowName(left), rowName(right)) ||
+          rowCount(right) - rowCount(left),
+      )
+    : rows.sort((left, right) => rowCount(right) - rowCount(left));
+}
+
+function plural(count: number, one: string, many: string): string {
+  return `${count.toLocaleString()} ${count === 1 ? one : many}`;
+}
 
 /**
  * One search string against one circuit. The query arrives normalized
@@ -62,6 +109,42 @@ function GalleryContributorRow({
 }
 
 /**
+ * A reference dataset among the contributors (#1574): no rank, since it is
+ * no person, and a mark saying what it is. It opens the dataset's own wall.
+ */
+function GalleryDatasetContributorRow({
+  dataset,
+  current,
+  onSelect,
+}: {
+  dataset: GalleryDatasetRow;
+  current: boolean;
+  onSelect: (key: string) => void;
+}) {
+  return (
+    <li
+      className="gallery-contributor-row"
+      data-testid={`gallery-contributor-dataset-${dataset.key}`}
+      aria-current={current ? "true" : undefined}
+    >
+      <span className="gallery-contributor-rank" />
+      <button
+        type="button"
+        className="gallery-contributor-author"
+        aria-label={`View the ${dataset.name} dataset`}
+        onClick={() => onSelect(dataset.key)}
+      >
+        {dataset.name}
+        <span className="gallery-contributor-tag">Dataset</span>
+      </button>
+      <span className="gallery-contributor-count">
+        {contributionLabel(dataset.count)}
+      </span>
+    </li>
+  );
+}
+
+/**
  * A search reads the wall page by page in this browser; this says how far it
  * has read, so a short list is never mistaken for the answer.
  */
@@ -107,6 +190,9 @@ export function GalleryCountPanel({
   author = null,
   onSelectAuthor = () => undefined,
   onShowAllAuthors = () => undefined,
+  datasets = [],
+  currentDataset = null,
+  onSelectDataset = () => undefined,
 }: {
   total: number | null;
   filtered?: boolean;
@@ -118,6 +204,11 @@ export function GalleryCountPanel({
   author?: string | null;
   onSelectAuthor?: (option: GalleryAuthorOption) => void;
   onShowAllAuthors?: () => void;
+  /** Reference datasets, listed among the contributors (#1574). */
+  datasets?: readonly GalleryDatasetRow[];
+  /** The dataset whose wall is open, if any. */
+  currentDataset?: string | null;
+  onSelectDataset?: (key: string) => void;
 }) {
   const label = galleryCountLabel(total, { filtered, search, searched });
   const rootRef = useRef<HTMLDetailsElement | null>(null);
@@ -140,6 +231,19 @@ export function GalleryCountPanel({
     }
   };
   if (label === null) return null;
+  const rows = contributorBoardRows(authors, datasets, order);
+  const heading = [
+    ...(authors.length > 0 || datasets.length === 0
+      ? [
+          plural(authors.length, "author", "authors") +
+            (partial ? " so far" : ""),
+        ]
+      : []),
+    ...(datasets.length > 0
+      ? [plural(datasets.length, "dataset", "datasets")]
+      : []),
+  ].join(" · ");
+  let rank = 0;
   return (
     <details
       ref={rootRef}
@@ -159,11 +263,7 @@ export function GalleryCountPanel({
       >
         <div className="gallery-contributor-heading">
           <strong>Contributors</strong>
-          <span>
-            {authors.length.toLocaleString()}{" "}
-            {authors.length === 1 ? "author" : "authors"}
-            {partial ? " so far" : ""}
-          </span>
+          <span>{heading}</span>
         </div>
         <div
           className="gallery-contributor-order"
@@ -204,7 +304,7 @@ export function GalleryCountPanel({
             </button>
           </div>
         ) : null}
-        {authors.length === 0 ? (
+        {rows.length === 0 ? (
           <p className="gallery-contributor-status">
             {partial
               ? "No matching contributors in circuits loaded so far."
@@ -212,18 +312,30 @@ export function GalleryCountPanel({
           </p>
         ) : (
           <ol className="gallery-contributor-list">
-            {orderContributors(authors, order).map((option, index) => (
-              <GalleryContributorRow
-                key={`${option.ownerUserId ?? "legacy"}:${option.author}`}
-                option={option}
-                rank={index + 1}
-                partial={partial}
-                onSelectAuthor={(option) => {
-                  rootRef.current?.removeAttribute("open");
-                  onSelectAuthor(option);
-                }}
-              />
-            ))}
+            {rows.map((row) =>
+              row.kind === "dataset" ? (
+                <GalleryDatasetContributorRow
+                  key={`dataset:${row.dataset.key}`}
+                  dataset={row.dataset}
+                  current={row.dataset.key === currentDataset}
+                  onSelect={(key) => {
+                    rootRef.current?.removeAttribute("open");
+                    onSelectDataset(key);
+                  }}
+                />
+              ) : (
+                <GalleryContributorRow
+                  key={`${row.option.ownerUserId ?? "legacy"}:${row.option.author}`}
+                  option={row.option}
+                  rank={++rank}
+                  partial={partial}
+                  onSelectAuthor={(option) => {
+                    rootRef.current?.removeAttribute("open");
+                    onSelectAuthor(option);
+                  }}
+                />
+              ),
+            )}
           </ol>
         )}
       </div>

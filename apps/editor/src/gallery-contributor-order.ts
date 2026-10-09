@@ -14,6 +14,11 @@ const byName = new Intl.Collator(undefined, {
   numeric: true,
 });
 
+/** Two contributor names in the list's A to Z order. */
+export function compareContributorNames(left: string, right: string): number {
+  return byName.compare(left.trim(), right.trim());
+}
+
 export function orderContributors(
   authors: readonly GalleryAuthorOption[],
   order: ContributorOrder,
@@ -21,7 +26,7 @@ export function orderContributors(
   return order === "name"
     ? [...authors].sort(
         (left, right) =>
-          byName.compare(left.author.trim(), right.author.trim()) ||
+          compareContributorNames(left.author, right.author) ||
           right.count - left.count,
       )
     : authors;
