@@ -384,10 +384,9 @@ export default function ComponentDefinitionEditor(
       ) : (
         <>
           <p className="component-definition-note">
-            Saved components are public in User Defined.
             {props.mode === "instance"
-              ? " Only the selected instance changes."
-              : " Everyone can insert a copy."}
+              ? "Saving publishes this change to User Defined for the selected instance only."
+              : "Saved components are published to User Defined for anyone to insert."}
             {authReady && !user ? " Sign in to save." : ""}
           </p>
           {props.definition.subcircuit &&
@@ -566,8 +565,7 @@ export default function ComponentDefinitionEditor(
       {native ? (
         <>
           <p className="component-definition-note">
-            Saved components are public in User Defined. Everyone can insert a
-            copy.
+            Saved components are published to User Defined for anyone to insert.
             {authReady && !user ? " Sign in to save." : ""}
           </p>
           {notice ? <p role="status">{notice}</p> : null}
