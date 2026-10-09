@@ -243,6 +243,17 @@ are refused atomically. The library stores one current public record with a
 numeric concurrency revision, not a retrievable history. Its updates and deletion
 never rewrite the independently saved Project captures.
 
+Explicit User Components repair replaces only the selected legacy captured
+class's occurrences with a new source-bound capture. Raw geometry and checked
+terminal correspondences remain in `componentDefinitions`; executable bytes
+remain in the applied `modelSources` owner selected by
+`externalSubcircuitDefinitions`. No decoder body or same-name model is inferred
+from the old `subcircuit.target`. Compatible contacts and instance parameters
+survive ordinary symbol/binding migration; incompatible connected changes use
+native Apply's explicit port migration. Preview and failed/stale repairs change
+neither Project nor public record. Project Undo and independent saved files keep
+pre-repair legacy evidence; public updates do not rewrite those captures.
+
 Serialization collects references across **all** Project Documents and removes
 only unused classes. It never deletes a Document, Instance, parameter, or
 setting to shorten the code. Editor undo retains deleted classes with its

@@ -10085,6 +10085,42 @@ function WorkspaceEditor({
               project,
               definitionId: componentEditor.externalDefinitionId,
               symbolId: componentEditor.target?.instance.symbolId,
+              onRepair: (edits, definitionId, expectedProject) =>
+                withComponentSession(() => {
+                  if (
+                    JSON.stringify(definitionProjectRef.current.project) !==
+                    JSON.stringify(expectedProject)
+                  )
+                    return {
+                      ok: false,
+                      message:
+                        "The Project changed. Reopen the component before repairing.",
+                    };
+                  return commitModelEdits(
+                    edits,
+                    definitionId,
+                    "Applied component repair",
+                    (applied) => {
+                      const target = componentEditor.target;
+                      const instance =
+                        target &&
+                        applied.documents
+                          .find((d) => d.id === target.documentId)
+                          ?.instances.find((i) => i.id === target.instance.id);
+                      setComponentEditor((session) =>
+                        session === componentEditor
+                          ? {
+                              ...session,
+                              externalDefinitionId: definitionId,
+                              ...(target && instance
+                                ? { target: { ...target, instance } }
+                                : {}),
+                            }
+                          : session,
+                      );
+                    },
+                  );
+                }),
               onApply: (edit) =>
                 withComponentSession(() => {
                   const target = componentEditor.target;

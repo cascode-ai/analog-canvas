@@ -9,6 +9,7 @@ import {
 import type { SharedComponent } from "./component-library-contract";
 import type { CircuitComponentAuthoring } from "./native-component-editor";
 import { definitionError } from "./component-definition-error";
+import { createEmptyProject } from "@icm/model";
 
 /** Opening a public record never edits the active drawing or an earlier capture. */
 export function useLibraryCircuitAuthoring(
@@ -22,11 +23,22 @@ export function useLibraryCircuitAuthoring(
           { definition: entry.definition, circuit: entry.circuit },
           `library-${entry.id}-r${entry.revision}`,
         )
-      : null,
+      : entry?.definition.subcircuit
+        ? {
+            ...createEmptyProject(
+              `library-${entry.id}-r${entry.revision}`,
+              "Component repair",
+            ),
+            componentDefinitions: [entry.definition],
+          }
+        : null,
   );
   const current = useRef(project);
+  const [definitionId, setDefinitionId] = useState(
+    entry?.circuit?.externalDefinition.id,
+  );
   current.current = project;
-  if (!project || !entry?.circuit) return undefined;
+  if (!project || !entry) return undefined;
   function commit(edits: ProjectStructureEdit[], definitionId: string) {
     const source = current.current!;
     try {
@@ -38,6 +50,7 @@ export function useLibraryCircuitAuthoring(
         edits,
       });
       if (result.ok) {
+        setDefinitionId(definitionId);
         current.current = result.project;
         setProject(result.project);
       }
@@ -54,7 +67,15 @@ export function useLibraryCircuitAuthoring(
   }
   return {
     project,
-    definitionId: entry.circuit.externalDefinition.id,
+    definitionId,
+    onRepair: (edits, definitionId, expectedProject) =>
+      JSON.stringify(current.current) === JSON.stringify(expectedProject)
+        ? commit(edits, definitionId)
+        : {
+            ok: false,
+            message:
+              "The Project changed. Reopen the component before repairing.",
+          },
     onApply: (edit) => commit([edit], edit.definitions[0]!.definitionId),
     onSaveDraft: commit,
     onSetDefinition: (definition) =>

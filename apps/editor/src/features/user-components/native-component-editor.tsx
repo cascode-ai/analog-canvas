@@ -11,6 +11,7 @@ export interface CircuitComponentAuthoring {
   project: CircuitProject;
   definitionId?: string | undefined;
   symbolId?: string | undefined;
+  pendingRepair?: boolean;
   onApply(edit: ApplyModelSourceEdit): ExternalDefinitionResult;
   onSaveDraft(
     edits: ProjectStructureEdit[],
@@ -22,6 +23,11 @@ export interface CircuitComponentAuthoring {
   onRemoveDefinition(definitionId: string): ExternalDefinitionResult;
   onPlace(definitionId: string): void;
   onCopyText(text: string): Promise<void>;
+  onRepair(
+    edits: ProjectStructureEdit[],
+    definitionId: string,
+    expectedProject: CircuitProject,
+  ): ExternalDefinitionResult;
 }
 
 /** Native authoring uses the same Project owner, Apply and symbol as Cell Manager. */
@@ -63,6 +69,7 @@ export function NativeComponentEditor({
     <div className="component-definition-native">
       <ExternalModelSourceEditor
         customSymbols
+        canPlace={!authoring.pendingRepair}
         initialSymbolId={authoring.symbolId}
         project={authoring.project}
         definition={definition}

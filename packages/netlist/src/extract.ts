@@ -53,6 +53,7 @@ import {
   idealComparatorBodyContract,
   isIdealComparatorBody,
   instanceBuiltInSubcircuit,
+  hasBuiltInSubcircuitInterface,
   isSupplyHighLevel,
   milliScaleReading,
   nextReference,
@@ -2933,6 +2934,21 @@ function extractCell(
     }
     if (cellPinInstanceIds.has(instance.id)) continue;
     const binding = instance.netlist?.binding;
+    const captured = project.componentDefinitions?.find(
+      (component) => component.symbol.id === instance.symbolId,
+    );
+    if (
+      (!binding || binding.kind === "unresolved-subcircuit") &&
+      captured?.subcircuit &&
+      !hasBuiltInSubcircuitInterface(captured)
+    )
+      diagnostic(
+        diagnostics,
+        document.id,
+        "MODEL_IMPLEMENTATION_MISSING",
+        `${instance.reference ?? instance.id} has an interface-only component definition. Repair its implementation and Pin mapping in User Components.`,
+        [instance.id],
+      );
     const builtInSubcircuit = instanceBuiltInSubcircuit(project, instance);
     const extracted = builtInSubcircuit
       ? extractBuiltInSubcircuitInstance(

@@ -295,8 +295,12 @@ export function planModelSourceApply(
     );
     const callerEdits = new Map<
       string,
-      { instanceId: string; symbolId: string }[]
+      { instanceId: string; symbolId: string; symbolVariantId?: string }[]
     >();
+    const symbolId = definition.symbolId ?? externalSubcircuitSymbolId(id);
+    const callerResolver = target.callers?.length
+      ? modelSourceMigrationResolver(working, project)
+      : undefined;
     for (const caller of target.callers ?? []) {
       const original = project.documents
         .find((d) => d.id === caller.documentId)
@@ -315,7 +319,11 @@ export function planModelSourceApply(
         throw Error(`Caller ${caller.instanceId} is selected more than once`);
       edits.push({
         instanceId: caller.instanceId,
-        symbolId: definition.symbolId ?? externalSubcircuitSymbolId(id),
+        symbolId,
+        ...(original.symbolVariantId &&
+        callerResolver?.resolve(symbolId, original.symbolVariantId)
+          ? { symbolVariantId: original.symbolVariantId }
+          : {}),
       });
       callerEdits.set(caller.documentId, edits);
     }

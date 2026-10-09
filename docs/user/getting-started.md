@@ -511,6 +511,36 @@ and unavailable network, and is retained by Project Save, portable files,
 Undo/Redo and copying. Its applied body and owned helpers appear in copied and
 exported netlists and in qualified simulation input.
 
+An older User Component may contain artwork and a `subcircuit` interface without
+an implementation. It remains visible and placeable with **Implementation
+missing**. Its target name alone does not bind a Project model; copied/exported
+netlists and execution remain blocked until you repair it.
+
+Select its placed instance and press **E**, or use **Edit** on its User
+Components library tile. Choose **Repair implementation** to provide real SPICE
+or Spectre source and select its entry. The existing graphical pins and explicit
+property supplies initialize a checked native mapping. Use each **Migrate**
+selector for renamed or removed ports, and complete the Custom JSON mapping for
+new terminals before **Apply model**. Repair updates occurrences of that captured
+class in this Project, preserves compatible connections and instance overrides,
+and creates a new source-bound class. It does not repair unrelated classes with
+the same target name. One Project Undo restores the old declaration and wiring.
+
+Alternatively, choose an applied Project model under **Implementation**, map
+every legacy port to a distinct native terminal, and use **Apply repair**. This
+requires a complete compatible correspondence. It uses the selected applied
+model and retains its saved draft, original callers and per-instance parameters.
+If the Project changes during repair, reopen the component and check the mapping
+again. Invalid or stale repairs leave the drawing unchanged.
+
+Repairing a public library entry edits an isolated snapshot. **Apply model**
+does not publish it or repair existing drawings. An author/admin deliberately
+uses **Save publicly** to upgrade the current record; other contributors use
+**Save as new component**. Earlier Project captures keep their original legacy
+evidence until explicitly repaired. Applied sources, raw artwork and checked
+mappings are embedded in Project saves and portable files; saved source drafts
+remain separate from the executable applied revision.
+
 The Library ends with **User Defined**, after **Extended Devices**. Choose
 **Create component**, edit the starter code, and **Save & place**. Signing in
 is required to save; every saved definition is public, with no private-library

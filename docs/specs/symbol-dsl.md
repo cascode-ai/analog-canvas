@@ -155,3 +155,41 @@ implementations. Copied/exported netlists and qualified simulation preparation
 resolve the applied Project source and its helper closure; declaring a model
 does not qualify arbitrary syntax, dependencies or electrical behavior for an
 execution environment.
+
+## Explicit legacy repair
+
+A noncanonical interface-only User Component is not an implementation. Its
+`subcircuit.target` cannot silently select a same-name Project source. Canonical
+built-in block contracts retain their existing reviewed generated bodies.
+An inherited built-in black-box contract retains its descriptor identity and
+complete graphical/property contact membership and directions. Formal aliases,
+order and retargeting remain authorable; calls to generated bodies still require
+their fixed positional interface. A local definition merely reusing a built-in
+Symbol ID does not inherit that contract or escape explicit repair.
+An older occurrence without an explicit binding still has only its legacy
+interface declaration and requires the same repair.
+Unresolved custom declarations remain loadable and placeable, but copying a
+usable design netlist or preparing execution requires an explicit repair.
+
+The User Components repair entrance initializes a virtual placeholder owner and
+maps the legacy graphical/property terminals to stable native terminal IDs. It
+never synthesizes a circuit body. User-supplied source follows ordinary native
+Apply, including explicit connected-port migration and shared mapping checks.
+Alternatively, selecting an applied Project owner by ID requires an explicit
+complete one-to-one correspondence and captures the selected applied resources
+through ordinary copy planning; destination drafts and existing callers remain
+unchanged. No ownership is inferred from a target name.
+
+Only occurrences of the explicitly selected captured class are migrated.
+Ordinary symbol/binding transactions preserve compatible contacts, routes, Nets,
+references, parameters and selected symbol variants. The new capture has
+`circuitBinding` without a competing legacy `subcircuit` declaration. Preview
+alone does not mutate the
+Project. Apply commits the source, owner, artwork and callers atomically; stale
+or invalid repairs refuse, and Project Undo restores the pre-repair evidence.
+
+Public legacy repair runs in an isolated Project snapshot and uses the same
+versioned package as native creation. Public Save is a separate deliberate
+author/admin update or another contributor's fork. The Durable Object retains
+one current row with a numeric revision; earlier embedded Project captures are
+independent, not floating references or an archived public revision history.

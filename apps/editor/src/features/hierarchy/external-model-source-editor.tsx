@@ -62,6 +62,7 @@ export function ExternalModelSourceEditor({
   definition: initialDefinition,
   initialLocation,
   customSymbols = false,
+  canPlace = true,
   initialSymbolId,
   onApply,
   onSaveDraft,
@@ -77,6 +78,7 @@ export function ExternalModelSourceEditor({
   definition: ExternalSubcircuitDefinition | undefined;
   initialLocation?: SimulationSourceLocation | undefined;
   customSymbols?: boolean;
+  canPlace?: boolean;
   initialSymbolId?: string | undefined;
   onApply(edit: ApplyModelSourceEdit): ExternalDefinitionResult;
   onSaveDraft(
@@ -1154,7 +1156,7 @@ export function ExternalModelSourceEditor({
         </section>
       ) : null}
       <footer className="external-model-actionbar">
-        {!definition ? (
+        {!definition && canPlace ? (
           <button
             type="button"
             className="primary"
@@ -1167,7 +1169,7 @@ export function ExternalModelSourceEditor({
         <button type="button" onClick={() => apply()} disabled={viewingApplied}>
           Apply model
         </button>
-        {definition ? (
+        {definition && canPlace ? (
           <button
             type="button"
             onClick={() => onRequestLeave(() => onPlace(definition.id))}

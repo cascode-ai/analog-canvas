@@ -452,7 +452,9 @@ export function planCallerInterfaceChanges(
         kind: "set_instance_symbol",
         instanceId: instance.id,
         symbolId,
-        ...(instance.symbolVariantId
+        ...(instance.symbolVariantId &&
+        (!chosenSymbolId ||
+          resolver.resolve(chosenSymbolId, instance.symbolVariantId))
           ? { symbolVariantId: instance.symbolVariantId }
           : {}),
         ...(Object.keys(pinMap).length > 0 ? { pinMap } : {}),

@@ -6,9 +6,13 @@ import {
   NativeComponentEditor,
   type CircuitComponentAuthoring,
 } from "./native-component-editor";
-import type { ComponentDefinition } from "@icm/model";
+import type { CircuitProject, ComponentDefinition } from "@icm/model";
+import { hasBuiltInSubcircuitInterface } from "@icm/devices";
 import {
   buildCircuitComponentPackage,
+  prepareLegacyCircuitRepair,
+  prepareLegacyCircuitAttachment,
+  type LegacyCircuitRepair,
   type CircuitComponentPackage,
 } from "@icm/edit-engine";
 import { useLibraryCircuitAuthoring } from "./library-circuit-authoring";
@@ -73,7 +77,59 @@ export default function ComponentDefinitionEditor(
     },
     (text) => props.circuit!.onCopyText(text),
   );
-  const authoring = libraryAuthoring ?? props.circuit;
+  const baseAuthoring = libraryAuthoring ?? props.circuit;
+  const [repair, setRepair] = useState<LegacyCircuitRepair | null>(null);
+  const [repairModelId, setRepairModelId] = useState("");
+  const [repairPorts, setRepairPorts] = useState<Record<string, string>>({});
+  const [repairChoice, setRepairChoice] = useState<{
+    destination: CircuitProject;
+    models: CircuitProject;
+  } | null>(null);
+  const repairModel = repairChoice?.models.externalSubcircuitDefinitions.find(
+    (d) => d.id === repairModelId,
+  );
+  const authoring: CircuitComponentAuthoring | undefined =
+    repair && baseAuthoring
+      ? {
+          ...baseAuthoring,
+          project: repair.project,
+          definitionId: repair.definitionId,
+          symbolId: repair.symbolId,
+          pendingRepair: true,
+          onApply: (edit) => {
+            if (
+              edit.definitions.length !== 1 ||
+              edit.definitions[0]!.definitionId !== repair.definitionId
+            )
+              return {
+                ok: false,
+                message: "Apply the repair to the selected circuit owner.",
+              };
+            const result = baseAuthoring.onRepair(
+              [...repair.edits, edit],
+              repair.definitionId,
+              repair.expectedProject,
+            );
+            if (result.ok) setRepair(null);
+            return result;
+          },
+          onSaveDraft: () => ({
+            ok: false,
+            message:
+              "Apply a complete implementation before saving a repair draft.",
+          }),
+          onSetDefinition: () => ({
+            ok: false,
+            message: "Apply the repair before editing metadata.",
+          }),
+          onRemoveDefinition: () => ({
+            ok: false,
+            message: "No applied repair to remove.",
+          }),
+          onPlace: () =>
+            setNotice("Apply the repair before placing another instance."),
+        }
+      : baseAuthoring;
   const [definitionType, setDefinitionType] = useState(
     authoring?.definitionId ? "circuit" : "json",
   );
@@ -334,6 +390,121 @@ export default function ComponentDefinitionEditor(
               : " Everyone can insert a copy."}
             {authReady && !user ? " Sign in to save." : ""}
           </p>
+          {props.definition.subcircuit &&
+          !hasBuiltInSubcircuitInterface(props.definition) &&
+          !props.entry?.circuit &&
+          baseAuthoring ? (
+            <section
+              className="component-definition-note"
+              aria-label="Legacy implementation repair"
+            >
+              <p role="status">
+                <span>Implementation missing</span> · Repair updates this
+                captured class.
+              </p>
+              <label>
+                Implementation{" "}
+                <select
+                  aria-label="Repair model"
+                  value={repairModelId}
+                  onChange={(event) => {
+                    setRepairModelId(event.currentTarget.value);
+                    setRepairPorts({});
+                    setRepairChoice(
+                      props.circuit
+                        ? {
+                            destination: baseAuthoring.project,
+                            models: props.circuit.project,
+                          }
+                        : null,
+                    );
+                  }}
+                >
+                  <option value="">Provided native source</option>
+                  {props.circuit?.project.externalSubcircuitDefinitions
+                    .filter((d) => d.implementation?.kind === "source")
+                    .map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.name}
+                      </option>
+                    ))}
+                </select>
+              </label>
+              {repairModel
+                ? props.definition.subcircuit.ports.map((port) => (
+                    <label key={port.name}>
+                      {port.name}{" "}
+                      <select
+                        aria-label={`Map legacy ${port.name}`}
+                        value={repairPorts[port.name] ?? ""}
+                        onChange={(event) =>
+                          setRepairPorts({
+                            ...repairPorts,
+                            [port.name]: event.currentTarget.value,
+                          })
+                        }
+                      >
+                        <option value="">Choose a native terminal…</option>
+                        {repairModel.terminals.map((t) => (
+                          <option key={t.id} value={t.name}>
+                            {t.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  ))
+                : null}
+              <button
+                type="button"
+                disabled={dirty}
+                onClick={() => {
+                  try {
+                    if (repairModelId) {
+                      if (
+                        !repairChoice ||
+                        JSON.stringify(props.circuit?.project) !==
+                          JSON.stringify(repairChoice.models)
+                      )
+                        throw Error(
+                          "The selected Project model changed. Select it again before repairing.",
+                        );
+                      const prepared = prepareLegacyCircuitAttachment(
+                        repairChoice.destination,
+                        props.definition,
+                        repairChoice.models,
+                        repairModelId,
+                        repairPorts,
+                        newId,
+                      );
+                      const outcome = baseAuthoring.onRepair(
+                        prepared.edits,
+                        prepared.definitionId,
+                        prepared.expectedProject,
+                      );
+                      if (!outcome.ok) throw Error(outcome.message);
+                      setNativeDefinitionId(prepared.definitionId);
+                      setDefinitionType("circuit");
+                      setNotice("Applied component repair.");
+                      return;
+                    }
+                    const prepared = prepareLegacyCircuitRepair(
+                      baseAuthoring.project,
+                      props.definition,
+                      newId,
+                    );
+                    setRepair(prepared);
+                    setNativeDefinitionId(prepared.definitionId);
+                    setDefinitionType("circuit");
+                    setNotice(null);
+                  } catch (error) {
+                    setNotice(definitionError(error));
+                  }
+                }}
+              >
+                {repairModelId ? "Apply repair" : "Repair implementation"}
+              </button>
+            </section>
+          ) : null}
           <div className="component-definition-workspace">
             <section
               className="component-definition-preview"
