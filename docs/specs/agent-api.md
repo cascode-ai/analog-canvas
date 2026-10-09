@@ -100,7 +100,9 @@ in the same step, so no edit lands between the two. A list that changes nothing 
 never adds a transaction: it is shown once the rest commits (not on a dry
 run), its result in `semantic`, and it needs `editor.semantic-control` like a
 focus alone; a view that cannot show it leaves the commit standing with a
-warning diagnostic.
+warning diagnostic. A host with no live view skips the accompanying focus
+with `VIEW_STEP_SKIPPED`; it still validates permissions and commits the
+drawing atomically. A standalone view-control request requires a live view.
 
 Undo/redo uses the shared browser Document/Project history and requires all
 edit permissions. Dry-run does not advance history; there is no private Agent

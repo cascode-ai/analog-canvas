@@ -131,9 +131,20 @@ describe("MCP local mode (#1498)", () => {
         wire(["R1", "2"], ["R2", "1"]),
         wire(["OUT", "P"], ["R1", "2"]),
         wire(["R2", "2"], ["gnd", "0"]),
+        { kind: "focus", intent: { kind: "fit-document" } },
       ],
     });
-    expect(wired, JSON.stringify(wired)).toMatchObject({ ok: true });
+    expect(wired, JSON.stringify(wired)).toMatchObject({
+      ok: true,
+      applied: true,
+      diagnostics: expect.arrayContaining([
+        {
+          code: "VIEW_STEP_SKIPPED",
+          severity: "warning",
+          message: expect.any(String),
+        },
+      ]),
+    });
 
     const rendered = await tool("render");
     const artifact = rendered.artifact as { mediaType: string; data: string };

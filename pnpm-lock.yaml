@@ -168,6 +168,9 @@ importers:
         specifier: 4.4.3
         version: 4.4.3
     devDependencies:
+      "@icm/agent-client":
+        specifier: workspace:*
+        version: link:../../packages/agent-client
       "@types/react":
         specifier: 19.2.18
         version: 19.2.18

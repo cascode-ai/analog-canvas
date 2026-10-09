@@ -128,13 +128,32 @@ export async function exportFile(
   };
 }
 
-async function workspaceIds(client: AgentSessionClient) {
-  const response = await client.projectResource({
-    apiVersion: AGENT_API_VERSION,
-    requestId: requestId(),
-    operation: "workspace",
-    request: { action: "list" },
+async function workspaceIds(
+  client: Pick<AgentSessionClient, "projectResource">,
+) {
+  const list = () =>
+    client.projectResource({
+      apiVersion: AGENT_API_VERSION,
+      requestId: requestId(),
+      operation: "workspace",
+      request: { action: "list" },
+    });
+  // Opening a foreground tab can publish its context after the file receipt.
+  // The client refreshes for both HTTP and editor refusals. Retry only this
+  // read once, under a new ID; leave all other failures unchanged.
+  let response = await list().catch((error: unknown) => {
+    if (
+      error instanceof AgentSessionError &&
+      error.code === "PROJECT_CONTEXT_STALE"
+    )
+      return null;
+    throw error;
   });
+  if (
+    response === null ||
+    (!response.ok && response.error.code === "PROJECT_CONTEXT_STALE")
+  )
+    response = await list();
   return response.ok &&
     response.operation === "workspace" &&
     response.result.action === "list"
@@ -147,7 +166,7 @@ async function workspaceIds(client: AgentSessionClient) {
  * staged and opened in memory, as `import_file` stages and opens a file.
  */
 export async function openGalleryEntry(
-  client: AgentSessionClient,
+  client: Pick<AgentSessionClient, "projectResource" | "fileResource">,
   galleryEntryId: string,
   background: boolean,
 ): Promise<Record<string, unknown>> {

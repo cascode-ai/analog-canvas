@@ -6,8 +6,8 @@ import { createEmptyProject } from "@icm/model";
 import { serializeProject } from "@icm/project-protocol";
 import { externalSubcircuitSymbolId } from "@icm/symbols";
 
-import { AgentHttpClient } from "../../../packages/agent-client/src/http-client.js";
-import { AgentSessionClient } from "../../../packages/agent-client/src/session-client.js";
+import { AgentHttpClient, AgentSessionClient } from "@icm/agent-client";
+import { openGalleryEntry } from "../../mcp-server/src/file-operations.js";
 import {
   revealPropertiesShelf,
   awaitEditorReady,
@@ -22,6 +22,119 @@ import {
 // server. Keep this file in one worker while unrelated browser specs stay
 // fully parallel.
 test.describe.configure({ mode: "default" });
+
+for (const staleRelayContext of [false, true]) {
+  test(`Agent Gallery open returns each new working copy after ${staleRelayContext ? "the relay" : "the browser"} context changes`, async ({
+    page,
+    baseURL,
+  }) => {
+    await page.goto("/editor");
+    await awaitEditorReady(page);
+    await page.getByTestId("open-agent").click();
+    const panel = page.getByTestId("connect-agent-panel");
+    const message = panel.getByTestId("agent-copy-text");
+    await expect(message).toHaveValue(/Claim: /, { timeout: 45_000 });
+    const { claimCode } = JSON.parse(
+      /^Claim: (.+)$/mu.exec(await message.inputValue())![1]!,
+    );
+    let openedFile = false;
+    const staleStatuses: number[] = [];
+    const client = new AgentSessionClient({
+      http: new AgentHttpClient({
+        baseUrl: baseURL!,
+        fetch: async (input, init) => {
+          const request = new Request(input, init);
+          const path = new URL(request.url).pathname;
+          const body =
+            request.method === "POST" ? await request.clone().json() : null;
+          // Deliver one out-of-date context to the real relay after each open.
+          // Its HTTP refusal exercises the transport, session refresh and helper.
+          const stale =
+            staleRelayContext &&
+            openedFile &&
+            path.endsWith("/projects") &&
+            body?.operation === "workspace" &&
+            body.request.action === "list";
+          if (stale) {
+            openedFile = false;
+            request.headers.set("x-agent-context", "previous-gallery-context");
+          }
+          const response = await fetch(request);
+          if (stale) staleStatuses.push(response.status);
+          if (
+            path.endsWith("/files") &&
+            body?.operation === "open" &&
+            response.ok
+          ) {
+            openedFile = true;
+            if (staleRelayContext)
+              await expect
+                .poll(async () => {
+                  const status = await fetch(
+                    request.url.replace(/\/files$/u, "/status"),
+                    { headers: request.headers },
+                  );
+                  return (await status.json()).contextRevision;
+                })
+                .not.toBe(request.headers.get("x-agent-context"));
+          }
+          return response;
+        },
+      }),
+    });
+    await client.connect(claimCode);
+    try {
+      await panel.getByRole("button", { name: "Close Agent dialog" }).click();
+      const project = createEmptyProject(
+        "gallery-background",
+        "Background Gallery",
+      );
+      await page.route("**/api/gallery/issue-1546", (route) =>
+        route.fulfill({ json: { projectText: serializeProject(project) } }),
+      );
+      // Hidden browser panels may stop rendering frames while servicing Agent calls.
+      await page.evaluate(() => {
+        Object.defineProperty(document, "visibilityState", {
+          configurable: true,
+          get: () => "hidden",
+        });
+        window.requestAnimationFrame = () => 0;
+      });
+      for (let index = 0; index < 3; index++) {
+        let timeout: ReturnType<typeof setTimeout> | undefined;
+        try {
+          const opened = await Promise.race([
+            openGalleryEntry(client, "issue-1546", false),
+            new Promise<never>((_, reject) => {
+              timeout = setTimeout(
+                () =>
+                  reject(
+                    new Error(
+                      `Gallery open ${index + 1} waited for a hidden view`,
+                    ),
+                  ),
+                5_000,
+              );
+            }),
+          ]);
+          expect(opened).toMatchObject({
+            ok: true,
+            workspaceId: expect.any(String),
+            activeWorkspaceId: opened.workspaceId,
+          });
+        } finally {
+          clearTimeout(timeout);
+        }
+      }
+      expect((await client.refreshSnapshot()).snapshot.project.name).toBe(
+        "Background Gallery",
+      );
+      expect(staleStatuses).toEqual(staleRelayContext ? [409, 409, 409] : []);
+    } finally {
+      await client.disconnect();
+    }
+  });
+}
 
 test("Agent and GUI apply the same owned model and preserve atomic refusal", async ({
   page,
