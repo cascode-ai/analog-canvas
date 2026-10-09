@@ -15,7 +15,7 @@ import {
   richTextMetrics,
   type SchematicStyleProfile,
 } from "@icm/derived";
-import { renderRichTextDocument } from "@icm/render-svg";
+import { renderFormulaDocument, renderRichTextDocument } from "@icm/render-svg";
 import type { SymbolDefinition } from "@icm/symbols";
 
 import {
@@ -120,6 +120,14 @@ export function EditorPlacementPreview({
     const baselineY = draftingPolarity
       ? textPosition.y + metrics.fontSize * 0.35
       : textPosition.y;
+    const formula = renderFormulaDocument(content, styleProfile, {
+      x: textPosition.x,
+      baselineY,
+      fontSize: metrics.fontSize,
+      alignment: draftingPolarity ? "middle" : draftingAlignment,
+      color: "currentColor",
+      bold: true,
+    });
     return (
       <g
         data-testid="text-placement-preview"
@@ -139,7 +147,12 @@ export function EditorPlacementPreview({
             strokeLinecap={styleProfile.lineCap}
           />
         ))}
-        {!barePolarity ? (
+        {formula ? (
+          <g
+            fontFamily={styleProfile.typography.fontFamily}
+            dangerouslySetInnerHTML={{ __html: formula }}
+          />
+        ) : !barePolarity ? (
           <text
             x={textPosition.x}
             y={baselineY}

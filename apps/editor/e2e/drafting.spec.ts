@@ -624,6 +624,54 @@ test("drafting text owns an independent color override with Auto inheritance", a
   await expect(text).toHaveAttribute("fill", "#000");
 });
 
+test("inserts chained Greek equalities without crashing the drawing editor (#1549)", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  const canvas = page.getByTestId("schematic-canvas");
+  await canvas.hover({ position: { x: 450, y: 340 } });
+  await clickDrawTool(page, "text");
+  await page.getByRole("button", { name: "Insert formula" }).click();
+  const latex = String.raw`\lambda=\gamma=0`;
+  await page.getByRole("textbox", { name: "Formula LaTeX source" }).fill(latex);
+  await page
+    .getByRole("dialog", { name: "Formula" })
+    .getByRole("button", { name: "Insert", exact: true })
+    .click();
+  await expect(
+    page.getByTestId("text-draft-editor").locator("[data-rich-text-math]"),
+  ).toHaveAttribute("data-latex", latex);
+  await page.getByRole("button", { name: "Apply text changes" }).click();
+  const preview = page
+    .getByTestId("text-placement-preview")
+    .locator('[data-role="formula"]');
+  await expect(preview).toBeVisible();
+  await expect(preview).toContainText("λ");
+  await expect(preview).toContainText("γ");
+  await canvas.click({ position: { x: 450, y: 340 } });
+  await expect(
+    page.locator('[data-kind="draft-text"] [data-role="formula"]'),
+  ).toBeVisible();
+  const saved = parseSavedProject(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(
+      "utf8",
+    ),
+  );
+  expect(saved.documents[0].drafting.objects).toContainEqual(
+    expect.objectContaining({
+      kind: "text",
+      content: { runs: [{ kind: "math", latex, display: "inline" }] },
+    }),
+  );
+  const svg = (await downloadBytes(page, "File", "Export SVG")).toString(
+    "utf8",
+  );
+  expect(svg).toContain('data-role="formula"');
+  expect(svg).toContain("λ");
+  expect(svg).toContain("γ");
+});
+
 test("authors one validated formula through the canonical text editor", async ({
   page,
 }) => {
