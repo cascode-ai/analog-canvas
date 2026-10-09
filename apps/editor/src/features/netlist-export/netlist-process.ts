@@ -547,8 +547,9 @@ export function planNetlistProcess(
         const logical = projection.logicalNets(documentId);
         const ground =
           rule.substrate === "0" || rule.substrate.toUpperCase() === "VSS";
-        // The p-substrate is the node the NMOS bodies sit on: the Cell's
-        // NMOS body default, else its negative rail, else ground (#1530).
+        // The p-substrate belongs on the lowest supply: the Cell's negative
+        // rail unless its NMOS body default names another Net than ground,
+        // then that Net; else ground (#1530).
         let netId =
           terminal.role === "floating"
             ? undefined

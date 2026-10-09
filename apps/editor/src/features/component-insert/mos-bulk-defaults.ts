@@ -48,8 +48,9 @@ export function planInitialMosBulkDefault(
 /**
  * Reconfigure only bodies that were materialized from the previous cell
  * default. Explicit B wiring and No Connect remain untouched. The NMOS
- * default is also the p-substrate (#1530): the hidden substrate terminals on
- * the old one move with it, and one set to another Net stays.
+ * default also settles the p-substrate (#1530): the hidden substrate
+ * terminals that followed the old one move with it, and one set to another
+ * Net stays.
  */
 export function planMosBulkDefaultUpdate(
   project: Definitions,
@@ -101,11 +102,13 @@ function hiddenSubstratePins(
 }
 
 /**
- * The hidden substrate terminals on the Cell's substrate default move to the
- * one the new NMOS default makes, where the Process would bind them now.
- * Reading that default before and after, rather than the stored field, holds
- * a Cell with no NMOS default, its substrate on the negative rail or ground,
- * to the same rule.
+ * The hidden substrate terminals that followed the Cell's substrate default
+ * move to the one the new NMOS default makes, where the Process would bind
+ * them now. Both are read by the Process's own rule, so a Cell with none set
+ * moves those on its negative rail or ground. A terminal on the old NMOS
+ * default followed it too: beside a negative rail, ground as the default
+ * puts new substrates on the rail, yet one bound before the rail was drawn
+ * is on ground, and this is how the warning about it is answered.
  */
 function planSubstrateMoves(
   project: Definitions,
@@ -114,9 +117,18 @@ function planSubstrateMoves(
 ): SchematicEdit[] {
   const logical = resolveDocumentLogicalNets(document);
   const logicalId = (id: string) => logical.byBaseNetId.get(id)?.id ?? id;
-  const from = pdkSubstrateDefaultNet(document, logical);
   const to = pdkSubstrateDefaultNet(document, logical, netId);
-  if (!from || !to || logicalId(from.id) === logicalId(to.id)) return [];
+  if (!to) return [];
+  const followed = new Set(
+    [
+      pdkSubstrateDefaultNet(document, logical)?.id,
+      document.mosBulkDefaults?.nmosNetId,
+    ].flatMap((id) =>
+      id && document.nets.some((net) => net.id === id) ? [logicalId(id)] : [],
+    ),
+  );
+  followed.delete(logicalId(to.id));
+  if (!followed.size) return [];
   return document.instances.flatMap((instance) =>
     hiddenSubstratePins(project, instance).flatMap(
       (pinName): SchematicEdit[] => {
@@ -127,7 +139,7 @@ function planSubstrateMoves(
               terminal.pinName === pinName,
           ),
         );
-        return net && logicalId(net.id) === logicalId(from.id)
+        return net && followed.has(logicalId(net.id))
           ? [
               {
                 kind: "set_property_terminal_net",

@@ -173,15 +173,16 @@ function fields(document: SchematicDocument): readonly CanvasPropertyField[] {
       description: "",
       help: `${knob.label} scale from 0.5× to 2×`,
     })),
-    // The NMOS body default is also the p-substrate the PDK ties an NPN's S
-    // and a resistor's, varactor's or inductor's substrate to (#1530).
+    // The NMOS body default also settles the p-substrate the PDK ties an
+    // NPN's S and a resistor's, varactor's or inductor's substrate to: a
+    // drawn negative supply while it is VSS, else this Net (#1530).
     {
       path: "bulkDefaults.nmos",
       label: "NMOS body / substrate",
       kind: "choice",
       options: netOptions("nmos", "NMOS", "VSS"),
       description: "and substrate",
-      help: "NMOS bulk and the PDK substrate (NPN S, resistor, varactor and inductor substrate) default to VSS; changing it moves those on the old default",
+      help: "NMOS bulk defaults to VSS. The PDK substrate (NPN S, resistor, varactor and inductor substrate) follows it, or a drawn negative supply while it is VSS; changing it moves those that followed",
     },
     {
       path: "bulkDefaults.pmos",

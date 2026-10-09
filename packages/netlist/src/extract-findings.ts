@@ -24,11 +24,12 @@ import type { CellNetContext } from "./extract-nets.js";
  * inductor's SUB. The PDK ties them all to the one p-substrate, which belongs
  * on the lowest supply. An NPN whose collector swings below ground then
  * forward-biases its collector-substrate junction, and a run counts a current
- * no circuit draws. The Process binds them to the Cell's NMOS body default,
- * the same node, else to that rail; one on ground beside the rail is named
- * here. When ground is the NMOS default, the fix is that one setting, which
- * moves them with the bodies; else each one's Substrate Net. A SKY130 PNP
- * has no such terminal: its wrapper ties the substrate to its collector.
+ * no circuit draws. The Process binds them to that rail while the Cell's
+ * NMOS body default is unset or ground; one bound before the rail was drawn
+ * is on ground, and is named here. Each one's Substrate Net moves it; when
+ * ground is the NMOS default, so does setting that default, which moves them
+ * all with the bodies. A SKY130 PNP has no such terminal: its wrapper ties
+ * the substrate to its collector.
  */
 export function reportSubstratesAboveNegativeSupply(
   document: SchematicDocument,
@@ -67,15 +68,15 @@ export function reportSubstratesAboveNegativeSupply(
   const defaultName = nmosDefault
     ? context.nameByNetId.get(nmosDefault)
     : undefined;
-  const fix =
+  const cellDefault =
     defaultName === ground || defaultName === "0"
-      ? `Set the NMOS body / substrate default in Cell Properties to ${supply}: the substrate terminals on ground move with it, as the NMOS bodies that follow it do`
-      : `Set ${one ? "its" : "their"} Substrate Net to ${supply}`;
+      ? `, or the NMOS body / substrate default in Cell Properties to ${supply}, which moves the substrate terminals on ground with the NMOS bodies that follow it`
+      : "";
   diagnostic(
     diagnostics,
     document.id,
     "PDK_SUBSTRATE_ABOVE_NEGATIVE_SUPPLY",
-    `${one ? `${names[0]} is a p-substrate terminal` : `${partList(names)} are p-substrate terminals`} on ground, while this Cell draws ${supply}, its negative supply. The substrate belongs on the lowest supply: an NPN collector below it forward-biases. ${fix}`,
+    `${one ? `${names[0]} is a p-substrate terminal` : `${partList(names)} are p-substrate terminals`} on ground, while this Cell draws ${supply}, its negative supply. The substrate belongs on the lowest supply: an NPN collector below it forward-biases. Set ${one ? "its" : "their"} Substrate Net to ${supply}${cellDefault}`,
     [...new Set(terminals.map(({ instance }) => instance.id))],
     "warning",
   );
