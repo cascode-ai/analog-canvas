@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { offeredGallerySources } from "./gallery-source-switch";
+import { offeredGallerySources } from "./gallery-datasets";
 
 describe("offeredGallerySources", () => {
   const sources = [
@@ -10,7 +10,7 @@ describe("offeredGallerySources", () => {
   ];
   const keys = (items: { key: string }[]) => items.map((item) => item.key);
 
-  it("offers a reader only the datasets that hold circuits, the Owner every one (#1510)", () => {
+  it("lists for a reader only the datasets that hold circuits, for the Owner every one (#1510, #1574)", () => {
     expect(keys(offeredGallerySources(sources, null, false))).toEqual([
       "analoggenie",
     ]);

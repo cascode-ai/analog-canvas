@@ -8,7 +8,10 @@ import {
   loadGalleryFeed,
 } from "./gallery-feed";
 import { canReuseGalleryLandingFeed } from "./gallery-feed-wall";
-import { GalleryCountPanel } from "./gallery-feed-count-panel";
+import {
+  contributorBoardRows,
+  GalleryCountPanel,
+} from "./gallery-feed-count-panel";
 import { GalleryWallTile } from "./gallery-feed-tile";
 import { GalleryTileMenu } from "./gallery-owner-controls";
 
@@ -369,6 +372,48 @@ describe("GalleryCountPanel", () => {
     expect(render(1, true)).toContain("· 1 match");
     expect(render(1, true)).not.toContain("1 matches");
     expect(render(0, false)).toContain("· 0 matches so far");
+  });
+
+  it("lists reference datasets among the contributors, marked and unranked (#1574)", () => {
+    const authors = [
+      { author: "boboIC", ownerUserId: "u1", count: 86 },
+      { author: "Rgeph", ownerUserId: "u2", count: 40 },
+    ];
+    const datasets = [{ key: "analoggenie", name: "AnalogGenie", count: 51 }];
+    const names = (order: "count" | "name") =>
+      contributorBoardRows(authors, datasets, order).map((row) =>
+        row.kind === "author" ? row.option.author : row.dataset.name,
+      );
+    expect(names("count")).toEqual(["boboIC", "AnalogGenie", "Rgeph"]);
+    expect(names("name")).toEqual(["AnalogGenie", "boboIC", "Rgeph"]);
+
+    const community = renderToStaticMarkup(
+      createElement(GalleryCountPanel, { total: 1161, authors, datasets }),
+    );
+    expect(community).toContain("2 authors · 1 dataset");
+    expect(community).toContain(
+      'data-testid="gallery-contributor-dataset-analoggenie"',
+    );
+    expect(community).toContain(">Dataset</span>");
+    // People keep their ranks; the dataset between them takes none.
+    expect(community).toContain('data-testid="gallery-contributor-row-2"');
+    expect(community).not.toContain('data-testid="gallery-contributor-row-3"');
+
+    // On the dataset's own wall it is the contributor shown, with the way back.
+    const datasetWall = renderToStaticMarkup(
+      createElement(GalleryCountPanel, {
+        total: 51,
+        authors: [],
+        datasets,
+        author: "AnalogGenie",
+        currentDataset: "analoggenie",
+      }),
+    );
+    expect(datasetWall).toContain("1 dataset");
+    expect(datasetWall).not.toContain("0 authors");
+    expect(datasetWall).toContain("Circuits by AnalogGenie");
+    expect(datasetWall).toContain('data-testid="gallery-contributor-all"');
+    expect(datasetWall).toContain('aria-current="true"');
   });
 });
 

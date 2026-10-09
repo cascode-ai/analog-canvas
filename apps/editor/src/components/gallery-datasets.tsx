@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import type { GallerySource } from "../gallery-sources";
 
-type SourceCount = GallerySource & { count: number };
+/** A reference dataset with the number of circuits its wall holds. */
+export type GalleryDatasetCount = GallerySource & { count: number };
 
-/** The datasets the switch lists: those with circuits, the open one, or all. */
+/** The datasets the contributor list names: those with circuits, the open one, or all. */
 export function offeredGallerySources<T extends { key: string; count: number }>(
   sources: readonly T[],
   source: string | null,
@@ -15,28 +16,22 @@ export function offeredGallerySources<T extends { key: string; count: number }>(
 }
 
 /**
- * Which wall the Gallery shows (#1510): the community's, or one reference
- * dataset's. A reader is offered only datasets that hold circuits, so it
- * stays out of sight until one is imported; the Owner, who imports them, is
- * offered every dataset, empty ones with their 0.
+ * The reference datasets the Gallery can open beside the community wall
+ * (#1510), listed among its contributors (#1574). A reader sees only
+ * datasets that hold circuits, so none shows until one is imported; the
+ * Owner, who imports them, sees every dataset, empty ones with their 0.
  */
-export function GallerySourceSwitch({
-  source,
-  onChange,
-  showEmpty = false,
-  fetchLike = fetch,
-}: {
-  source: string | null;
-  onChange: (source: string | null) => void;
-  showEmpty?: boolean;
-  fetchLike?: typeof fetch;
-}) {
-  const [sources, setSources] = useState<SourceCount[]>([]);
+export function useGalleryDatasets(
+  source: string | null,
+  showEmpty: boolean,
+  fetchLike: typeof fetch = fetch,
+): GalleryDatasetCount[] {
+  const [sources, setSources] = useState<GalleryDatasetCount[]>([]);
   useEffect(() => {
     let cancelled = false;
     void fetchLike("/api/gallery/sources", { credentials: "same-origin" })
       .then((response) => (response.ok ? response.json() : null))
-      .then((payload: { sources?: SourceCount[] } | null) => {
+      .then((payload: { sources?: GalleryDatasetCount[] } | null) => {
         if (!cancelled && Array.isArray(payload?.sources))
           setSources(payload.sources);
       })
@@ -45,25 +40,7 @@ export function GallerySourceSwitch({
       cancelled = true;
     };
   }, [fetchLike]);
-  const offered = offeredGallerySources(sources, source, showEmpty);
-  if (offered.length === 0) return null;
-  return (
-    <label className="gallery-source-switch">
-      <span className="gallery-source-switch-label">Source</span>
-      <select
-        data-testid="gallery-source-switch"
-        value={source ?? ""}
-        onChange={(event) => onChange(event.target.value || null)}
-      >
-        <option value="">Community</option>
-        {offered.map((item) => (
-          <option key={item.key} value={item.key}>
-            {item.name} · {item.count.toLocaleString()}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
+  return offeredGallerySources(sources, source, showEmpty);
 }
 
 /** What a reference dataset's wall says about where its circuits come from. */

@@ -45,10 +45,7 @@ import { requestSignIn } from "./sign-in-request";
 import { GalleryChrome } from "./gallery-chrome";
 import { GalleryTagSidebar } from "./gallery-tag-sidebar";
 import { Masonry } from "./masonry";
-import {
-  GallerySourceNote,
-  GallerySourceSwitch,
-} from "./gallery-source-switch";
+import { GallerySourceNote, useGalleryDatasets } from "./gallery-datasets";
 import { gallerySourceByKey } from "../gallery-sources";
 import { useGalleryFilters } from "./gallery-feed-filters";
 import { useBundledGalleryFallback, useGalleryWall } from "./gallery-feed-wall";
@@ -253,7 +250,28 @@ export function GalleryFeed({
     nextAuthor: string | null,
     nextOwnerUserId: string | null = null,
   ): void {
-    updateFilters({ author: nextAuthor, ownerUserId: nextOwnerUserId });
+    updateFilters({
+      author: nextAuthor,
+      ownerUserId: nextOwnerUserId,
+      // "All authors" is the community wall, whichever wall is open.
+      ...(nextAuthor === null && nextOwnerUserId === null
+        ? { source: null }
+        : {}),
+    });
+  }
+
+  // A reference dataset is listed among the contributors (#1574) and opens
+  // its own wall. An author, a like or a review is the community's; the
+  // other filters carry over.
+  function selectDataset(key: string): void {
+    updateFilters({
+      source: key,
+      author: null,
+      ownerUserId: null,
+      liked: false,
+      attention: false,
+      attentionKind: null,
+    });
   }
 
   function selectContributor(option: GalleryAuthorOption): void {
@@ -310,7 +328,11 @@ export function GalleryFeed({
     : state.authors!;
   const narrowedToAuthor = author !== null || ownerUserId !== null;
   const byline = galleryNarrowedByline({ author, ownerUserId }, authors);
-  const authorName = byline ?? "this contributor";
+  // Who the wall shows: one author, else a dataset as its contributor.
+  const narrowedName = narrowedToAuthor
+    ? (byline ?? "this contributor")
+    : (datasetWall?.name ?? null);
+  const datasets = useGalleryDatasets(source, isOwner);
   // A remembered filter or an older link may carry the account's former
   // byline; once its contributors name it, the wall remembers the current one.
   useEffect(() => {
@@ -449,32 +471,17 @@ export function GalleryFeed({
         {/* The shelf states its own count ("N of 20 saved"); this one
             describes the community wall and leaves with it. */}
         {view === "gallery" ? (
-          <GallerySourceSwitch
-            source={source}
-            showEmpty={isOwner}
-            onChange={(next) =>
-              // An author, a like or a review is the community's; the
-              // other filters carry over.
-              updateFilters({
-                source: next,
-                author: null,
-                ownerUserId: null,
-                liked: false,
-                attention: false,
-                attentionKind: null,
-              })
-            }
-          />
-        ) : null}
-        {view === "gallery" ? (
           <GalleryCountPanel
             total={state.total}
             filtered={galleryFiltersNarrowQuery(filters)}
-            authors={authors}
+            authors={datasetWall && !narrowedToAuthor ? [] : authors}
             partial={localAuthors && state.nextCursor !== null}
-            author={narrowedToAuthor ? authorName : null}
+            author={narrowedName}
             onSelectAuthor={selectContributor}
             onShowAllAuthors={() => selectAuthor(null)}
+            datasets={datasets}
+            currentDataset={source}
+            onSelectDataset={selectDataset}
             searched={searchAnswered}
             search={
               searchingLoaded
@@ -598,9 +605,9 @@ export function GalleryFeed({
             }
           />
           <div className="gallery-main">
-            {narrowedToAuthor ? (
+            {narrowedName !== null ? (
               <div className="gallery-filter" data-testid="gallery-filter">
-                <span>Circuits by {authorName}</span>
+                <span>Circuits by {narrowedName}</span>
                 <button
                   type="button"
                   data-testid="gallery-filter-clear"
@@ -719,7 +726,7 @@ export function GalleryFeed({
                         className="gallery-status"
                         data-testid="gallery-filter-empty"
                       >
-                        No public circuits by {authorName} yet.
+                        No public circuits by {narrowedName} yet.
                       </p>
                     ) : null}
                     {entries.length === 0 &&
