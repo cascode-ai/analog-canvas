@@ -282,6 +282,15 @@ reaches from its entries. `pnpm verify:pr` runs it after the typecheck; CI
 does not. An export only tests use is dead: delete it with its tests by the
 rules above, or tag it `@internal` with the reason when the test is the point.
 
+## File size
+
+`pnpm verify:pr` warns, without failing, about each changed product file past
+1,000 lines, naming it and its length (#1537). Product files are the code of
+`apps/`, `packages/`, `worker/` and `containers/`; tests, browser specs, test
+support and fixtures, the Gallery census and generated files are not. A
+reviewer decides whether to split the file along its seams, as a
+behavior-preserving move.
+
 ## Coverage
 
 Coverage is diagnostic evidence, not a merge threshold. Use it to find an

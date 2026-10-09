@@ -23,6 +23,8 @@
  * running the mapped specs here first only repeats them, slower. It stops
  * at the first failure, ends with each step's time, and names the Gallery
  * census, with the checks the change needs, when AGENTS.md calls for it.
+ * It warns, without failing, about each changed product file past 1,000
+ * lines (#1537), so a reviewer decides whether to split it.
  */
 import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
@@ -41,6 +43,8 @@ import {
   changedLines,
   formattedPaths,
   lintPaths,
+  oversizedProductFiles,
+  PRODUCT_FILE_LINE_LIMIT,
   strictUnitRun,
   unitSourcePaths,
 } from "./lib/verify-pr-selection.mjs";
@@ -56,6 +60,9 @@ const changed = collectChangedPaths(base, {
   ignoredPaths: catalog.ignoredPaths,
 });
 const present = changed.filter((path) => existsSync(path));
+const oversized = oversizedProductFiles(present, (path) =>
+  readFileSync(path, "utf8"),
+);
 const ciPlan = planCiValidation(planValidation(changed, catalog));
 
 const steps = [];
@@ -89,6 +96,14 @@ function finish(status) {
         .join("\n") +
       "\n",
   );
+  if (oversized.length)
+    process.stdout.write(
+      `\n⚠ Changed product files past the soft limit of ${PRODUCT_FILE_LINE_LIMIT} lines (#1537); a reviewer decides whether to split them:\n` +
+        oversized
+          .map((file) => `  ${file.path}: ${file.lines} lines`)
+          .join("\n") +
+        "\n",
+    );
   const census = censusPaths(changed);
   if (census.length)
     process.stdout.write(
