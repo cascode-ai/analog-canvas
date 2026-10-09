@@ -603,55 +603,84 @@ describe("Season tool (#1560)", () => {
 
   it("turns a Contestant's folder into its bundle: valid, not equivalent, unreadable, missing; unknown Task ids left out", async () => {
     const out = join(work, "out");
-    const folder = join(work, "model-a");
-    mkdirSync(folder);
-    writeFileSync(
-      join(folder, "T001.icproj.json"),
-      readFileSync(join(out, "human-reference/T001.icproj.json")),
-    );
-    writeFileSync(join(folder, "T002.icproj.json"), "{ not a Project");
-    // Six resistors where the Task has seven.
-    writeFileSync(
-      join(folder, "T004.icproj.json"),
-      readFileSync(join(exportDir, "circuits/ladder6/project.icproj.json")),
-    );
-    writeFileSync(
-      join(folder, "T009.icproj.json"),
-      readFileSync(join(out, "human-reference/T001.icproj.json")),
-    );
-    writeFileSync(join(folder, "notes.txt"), "drawn on a Tuesday");
-    const contestant = {
-      slug: "model-a",
+    const pack = expectTaskPack(join(out, "task-pack"));
+    const contestant = (slug) => ({
+      slug,
       role: "model",
-      name: "Model A",
+      name: `Model ${slug}`,
       provider: "Example",
-      modelId: "model-a-1",
+      modelId: `${slug}-1`,
       reasoning: "high",
       harness: "analog-canvas MCP --local",
       date: "2026-10-12",
       protocolDeclaration: "Netlist and circuit name only; one attempt.",
-    };
-    const result = await submitContestant({
-      taskPackDir: join(out, "task-pack"),
-      contestantDir: folder,
-      contestant,
-      outDir: out,
-      rendererVersion: RENDERER,
     });
-    const pack = expectTaskPack(join(out, "task-pack"));
-    const manifest = expectBundle(join(out, "model-a"), pack);
-    expect(manifest.contestant).toEqual(contestant);
-    expect(manifest.rendererVersion).toBe(RENDERER);
+    const submit = async (slug, files) => {
+      const folder = join(work, slug);
+      mkdirSync(folder);
+      for (const [name, content] of Object.entries(files))
+        writeFileSync(join(folder, name), content);
+      const result = await submitContestant({
+        taskPackDir: join(out, "task-pack"),
+        contestantDir: folder,
+        contestant: contestant(slug),
+        outDir: out,
+        rendererVersion: RENDERER,
+      });
+      const manifest = expectBundle(join(out, slug), pack);
+      expect(manifest.contestant).toEqual(contestant(slug));
+      expect(manifest.rendererVersion).toBe(RENDERER);
+      return { result, manifest };
+    };
+    // The ladder with R1's value left out: main's exporter blocks on it.
+    const valueless = JSON.parse(
+      readFileSync(join(out, "human-reference/T002.icproj.json"), "utf8"),
+    );
+    valueless.documents[0].instances.find(
+      (instance) => instance.name === "R1",
+    ).parameters = {};
+    const { result, manifest } = await submit("model-a", {
+      "T001.icproj.json": readFileSync(
+        join(out, "human-reference/T001.icproj.json"),
+      ),
+      "T002.icproj.json": JSON.stringify(valueless),
+      // Six resistors where the Task has seven.
+      "T004.icproj.json": readFileSync(
+        join(exportDir, "circuits/ladder6/project.icproj.json"),
+      ),
+      "T009.icproj.json": readFileSync(
+        join(out, "human-reference/T001.icproj.json"),
+      ),
+      "notes.txt": "drawn on a Tuesday",
+    });
     expect(manifest.items.map((item) => [item.taskId, item.status])).toEqual([
       ["T001", "valid"],
       ["T002", "unreadable"],
       ["T003", "missing"],
       ["T004", "not-equivalent"],
     ]);
+    expect(manifest.items[1]).toMatchObject({
+      reason: expect.stringMatching(
+        /^Its netlist cannot be exported: Instance R1 requires parameter value/u,
+      ),
+      svg: "T002.svg",
+      netlist: null,
+    });
     expect(manifest.items[3].reason).toMatch(/6 devices where the Task has 7/u);
     expect(result.unknownTasks).toEqual(["T009.icproj.json"]);
     expect(result.ignored).toEqual(["notes.txt"]);
     expect(existsSync(join(out, "model-a/T009.icproj.json"))).toBe(false);
+
+    const garbled = await submit("model-b", {
+      "T001.icproj.json": "{ not a Project",
+    });
+    expect(garbled.manifest.items[0]).toMatchObject({
+      status: "unreadable",
+      reason: expect.stringMatching(/^Not an Analog Canvas Project/u),
+      project: "T001.icproj.json",
+      svg: null,
+      netlist: null,
+    });
   });
 
   it("runs from the command line: build, submissions, and upload as a seam", () => {

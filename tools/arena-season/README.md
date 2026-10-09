@@ -102,9 +102,13 @@ SEASON_DIR/
 
 For each `T###.icproj.json` in the model's folder: the SVG rendered as the
 Gallery renders previews, the netlist from the editor's exporter, and the
-#1524 grade against the Task netlist with source polarity on. A file that
-is not a Project, cannot be rendered or exports no netlist is `unreadable`;
-a Task with no file is `missing`. Files named after no Task in the pack,
+#1524 grade against the Task netlist with source polarity on. A file whose
+netlist exports but differs from the Task's is `not-equivalent`. A file
+that is not a Project, cannot be rendered, or whose netlist export is
+blocked is `unreadable`, with the reason (agreed with #1559). The exporter
+on main blocks on a missing required value, such as a resistor drawn with
+no value, so such a file is `unreadable` with the exporter's message; its
+SVG is still written. A Task with no file is `missing`. Files named after no Task in the pack,
 and files not named after a Task, are reported and left out. The bundle
 goes to `SEASON_DIR/<slug>/`, replacing one this tool wrote there before.
 

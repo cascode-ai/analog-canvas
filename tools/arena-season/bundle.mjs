@@ -113,8 +113,11 @@ function mismatchReason(grade) {
 
 /**
  * Judge one Project file against its Task netlist: `valid`, or
- * `not-equivalent` with the grader's reason, or `unreadable` when it is not
- * a Project, cannot be rendered, or exports no netlist.
+ * `not-equivalent` with the grader's reason when its netlist exports but
+ * differs, or `unreadable` when it is not a Project, cannot be rendered, or
+ * its netlist export is blocked (agreed with #1559). The exporter on main
+ * blocks on a missing required value, such as a resistor with no value, so
+ * such a drawing is `unreadable` with the exporter's reason.
  *
  * @param {Uint8Array} bytes
  * @param {string} taskNetlist
@@ -146,7 +149,7 @@ export async function judgeProjectFile(bytes, taskNetlist) {
   if (exported.text === null)
     return {
       status: "unreadable",
-      reason: `It exports no netlist: ${exported.errors.slice(0, 2).join("; ") || "blocked"}`,
+      reason: `Its netlist cannot be exported: ${exported.errors.slice(0, 3).join("; ") || "the export is blocked"}`,
       svg,
       netlist: null,
     };
