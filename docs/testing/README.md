@@ -75,14 +75,17 @@ select itself. The gate-planner tests enumerate the directory so adding a spec
 without routing ownership fails deterministically instead of silently relying
 on the generic browser fallback.
 
-The editor's browser workflows have separate owners: `manual-editor.spec.ts`
-retains general integration, `wiring-semantics.spec.ts` owns wire interaction,
+The editor's browser workflows have separate owners: the general editing
+specs, one per feature (`editor-shell.spec.ts`, `wire-drawing.spec.ts`,
+`label-editing.spec.ts` and the rest of the `editor-browser` gate), retain
+general integration, `wiring-semantics.spec.ts` owns wire interaction,
 `component-property-workflows.spec.ts`
 owns live property/model/display edits, and `netlist-workflows.spec.ts` owns
 import, authoring and export. Shared app/canvas dependencies select all three;
 wire-tool changes select their dedicated contract without selecting unrelated
 general, property and netlist UI workflows. Their small shared fixture module
-still selects every consumer. The full component catalog is checked by
+still selects every consumer; `canvas-fixtures.ts`, which only the general
+editing specs share, selects only them. The full component catalog is checked by
 `component-property-catalog.test.ts`; browser catalog checks cover representative
 capabilities and the VDD exception rather than repeating the same UI for every
 symbol. Keep specialized history, rejection, hierarchy and terminal tests.

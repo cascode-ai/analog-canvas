@@ -11,6 +11,20 @@ import {
 import { loadGateCatalog, planValidation } from "./validation-gates.mjs";
 
 const catalog = await loadGateCatalog();
+// The general editing workflows, one spec per feature (#1537).
+const editingSpecs = [
+  "circuit-authoring",
+  "copy-paste",
+  "drawing-style",
+  "editor-shell",
+  "label-editing",
+  "label-typography",
+  "move-and-drag",
+  "rotate-and-mirror",
+  "selection-and-find",
+  "wire-drawing",
+  "wire-editing",
+].map((name) => `apps/editor/e2e/${name}.spec.ts`);
 
 function ciPlan(paths, options) {
   return planCiValidation(planValidation(paths, catalog), options);
@@ -92,27 +106,36 @@ describe("CI validation planning", () => {
   });
 
   it("maps label naming, circuit settings and recovery changes to their browser contracts", () => {
-    for (const [path, spec] of [
-      ["apps/editor/src/components/recovery-banners.tsx", "recovery-hardening"],
+    for (const [path, specs] of [
+      [
+        "apps/editor/src/components/recovery-banners.tsx",
+        ["apps/editor/e2e/recovery-hardening.spec.ts"],
+      ],
       [
         "apps/editor/src/features/editor-shell/document-settings-code-assists.ts",
-        "manual-editor",
+        editingSpecs,
       ],
       [
         "apps/editor/src/features/editor-shell/document-settings-code.ts",
-        "manual-editor",
+        editingSpecs,
       ],
       [
         "apps/editor/src/features/editor-shell/document-settings-section.tsx",
-        "manual-editor",
+        editingSpecs,
       ],
-      ["packages/derived/src/annotation-text.ts", "manual-editor"],
-      ["packages/derived/src/connectivity-index.ts", "wiring-semantics"],
-      ["packages/derived/src/connectivity.ts", "wiring-semantics"],
+      ["packages/derived/src/annotation-text.ts", editingSpecs],
+      [
+        "packages/derived/src/connectivity-index.ts",
+        ["apps/editor/e2e/wiring-semantics.spec.ts"],
+      ],
+      [
+        "packages/derived/src/connectivity.ts",
+        ["apps/editor/e2e/wiring-semantics.spec.ts"],
+      ],
     ]) {
       const plan = ciPlan([path]);
       expect(plan.mode, path).toBe("focused");
-      expect(plan.e2eArgs, path).toContain(`apps/editor/e2e/${spec}.spec.ts`);
+      expect(plan.e2eArgs, path).toEqual(expect.arrayContaining(specs));
     }
   });
 
@@ -200,9 +223,8 @@ describe("CI validation planning", () => {
       expect(plan.e2eArgs, path).toEqual(
         expect.arrayContaining([properties, netlist, conversion]),
       );
-      expect(plan.e2eArgs, path).not.toContain(
-        "apps/editor/e2e/manual-editor.spec.ts",
-      );
+      for (const spec of editingSpecs)
+        expect(plan.e2eArgs, path).not.toContain(spec);
     }
     for (const path of [
       "apps/editor/src/app/App.tsx",
@@ -218,7 +240,7 @@ describe("CI validation planning", () => {
           properties,
           netlist,
           conversion,
-          "apps/editor/e2e/manual-editor.spec.ts",
+          ...editingSpecs,
         ]),
       );
     }
@@ -263,9 +285,7 @@ describe("CI validation planning", () => {
   it("routes shared dialog styles and SPICE language sources to their owning browser contracts", () => {
     const dialogPlan = ciPlan(["apps/editor/src/styles/editor-dialogs.css"]);
     expect(dialogPlan.mode).toBe("focused");
-    expect(dialogPlan.e2eArgs).toContain(
-      "apps/editor/e2e/manual-editor.spec.ts",
-    );
+    expect(dialogPlan.e2eArgs).toEqual(expect.arrayContaining(editingSpecs));
 
     const languagePlan = ciPlan(["packages/spice/src/simulation-language.ts"]);
     expect(languagePlan.mode).toBe("focused");
