@@ -70,6 +70,19 @@ export type DurableObjectNamespaceLike = {
 
 export type VisitStats = { pv: number; uv: number };
 
+/**
+ * The site's two products. AnalogArena is served at `/arena` on this
+ * origin, so `/arena` and every path under `/arena/` count as Arena; every
+ * other tracked path counts as Analog Canvas.
+ */
+export type Product = "canvas" | "arena";
+
+const PRODUCTS: readonly Product[] = ["canvas", "arena"];
+
+function productOf(path: string): Product {
+  return path === "/arena" || path.startsWith("/arena/") ? "arena" : "canvas";
+}
+
 export type PageViewEvent = {
   visitorHash: string;
   path: string;
@@ -79,16 +92,30 @@ export type PageViewEvent = {
   source: string;
 };
 
+/**
+ * One UTC day. `products` splits it into Analog Canvas and Arena; a visitor
+ * of both counts once in `uv` and once in each product. A day before the
+ * split began (`productsStartedAt`) has none.
+ */
+export type AnalyticsDay = {
+  date: string;
+  pv: number;
+  uv: number;
+  products: Record<Product, VisitStats> | null;
+};
+
 export type AnalyticsSummary = {
   generatedAt: string;
   totals: VisitStats;
-  today: { date: string; pv: number; uv: number };
-  days: { date: string; pv: number; uv: number }[];
+  today: AnalyticsDay;
+  days: AnalyticsDay[];
   countries: { code: string; pv: number; uv: number }[];
   points: { lat: number; lng: number; count: number }[];
   paths: { path: string; pv: number; uv: number }[];
   sources: { source: string; pv: number; uv: number }[];
   breakdownStartedAt: string;
+  /** When views and visitors began to be split by product. */
+  productsStartedAt: string;
   breakdownTotals: {
     countries: VisitStats;
     sources: VisitStats;
@@ -104,6 +131,7 @@ type BreakdownRow = {
 
 type DailyViewsRow = { day: number; views: number };
 type DailyVisitorsRow = { day: number; visitors: number };
+type ProductDayRow = { day: number; product: string; count: number };
 type PointRow = { lat: number; lng: number; count: number };
 
 const META = {
@@ -111,6 +139,8 @@ const META = {
   visitorTotal: "visitor_total",
   /** The day finished days were last turned into counts. */
   rolledUpDay: "rolled_up_day",
+  /** When views and visitors began to be split by product. */
+  productsStartedAt: "products_started_at",
 } as const;
 
 export class AnalyticsDO {
@@ -185,6 +215,39 @@ export class AnalyticsDO {
     } catch {
       // Column already present.
     }
+    // Additive: the same daily views and visitors, split by product. Like
+    // `daily_visitors`, a product's hashes stay only for today and finished
+    // days keep only their count.
+    this.sql.exec(`
+      CREATE TABLE IF NOT EXISTS daily_product_views (
+        day INTEGER NOT NULL,
+        product TEXT NOT NULL,
+        views INTEGER NOT NULL,
+        PRIMARY KEY (day, product)
+      ) WITHOUT ROWID
+    `);
+    this.sql.exec(`
+      CREATE TABLE IF NOT EXISTS daily_product_visitors (
+        day INTEGER NOT NULL,
+        product TEXT NOT NULL,
+        visitor_hash TEXT NOT NULL,
+        PRIMARY KEY (day, product, visitor_hash)
+      ) WITHOUT ROWID
+    `);
+    this.sql.exec(`
+      CREATE TABLE IF NOT EXISTS daily_product_visitor_counts (
+        day INTEGER NOT NULL,
+        product TEXT NOT NULL,
+        visitors INTEGER NOT NULL,
+        PRIMARY KEY (day, product)
+      ) WITHOUT ROWID
+    `);
+    // Days before this have no split; the day it begins is split from then.
+    this.sql.exec(
+      "INSERT OR IGNORE INTO analytics_meta(key, value) VALUES (?, ?)",
+      META.productsStartedAt,
+      new Date().toISOString(),
+    );
     // The total was the size of `visitors`. Dead ids are now deleted from
     // it, so the total becomes a counter, starting from that size once.
     this.sql.exec(
@@ -208,6 +271,15 @@ export class AnalyticsDO {
         today,
       );
       this.sql.exec("DELETE FROM daily_visitors WHERE day < ?", today);
+      this.sql.exec(
+        `INSERT INTO daily_product_visitor_counts(day, product, visitors)
+         SELECT day, product, COUNT(*) FROM daily_product_visitors
+         WHERE day < ? GROUP BY day, product
+         ON CONFLICT(day, product) DO UPDATE SET
+           visitors = visitors + excluded.visitors`,
+        today,
+      );
+      this.sql.exec("DELETE FROM daily_product_visitors WHERE day < ?", today);
       this.sql.exec(
         "DELETE FROM visitors WHERE last_seen_day < ?",
         today - VISITOR_ID_RETENTION_DAYS,
@@ -294,6 +366,20 @@ export class AnalyticsDO {
           event.visitorHash,
           event.source,
         );
+      const product = productOf(event.path);
+      this.sql.exec(
+        `INSERT INTO daily_product_views(day, product, views) VALUES (?, ?, 1)
+         ON CONFLICT(day, product) DO UPDATE SET views = views + 1`,
+        today,
+        product,
+      );
+      this.sql.exec(
+        `INSERT OR IGNORE INTO daily_product_visitors(day, product, visitor_hash)
+         VALUES (?, ?, ?)`,
+        today,
+        product,
+        event.visitorHash,
+      );
       this.sql.exec(
         `INSERT INTO visitors(visitor_hash, last_seen_day) VALUES (?, ?)
          ON CONFLICT(visitor_hash) DO UPDATE SET last_seen_day = excluded.last_seen_day
@@ -431,12 +517,47 @@ export class AnalyticsDO {
     const visitorsByDay = new Map(
       visitors.map((row) => [Number(row.day), Number(row.visitors)]),
     );
+    const productViews = this.productCounts(
+      `SELECT day, product, views AS count FROM daily_product_views
+       WHERE day >= ?`,
+      firstDay,
+    );
+    const productVisitors = this.productCounts(
+      `SELECT day, product, SUM(visitors) AS count FROM (
+         SELECT day, product, visitors FROM daily_product_visitor_counts
+         WHERE day >= ?
+         UNION ALL
+         SELECT day, product, COUNT(*) AS visitors FROM daily_product_visitors
+         WHERE day >= ? GROUP BY day, product
+       ) GROUP BY day, product`,
+      firstDay,
+      firstDay,
+    );
+    const productsStartedAt = this.sql
+      .exec<{ value: string }>(
+        "SELECT value FROM analytics_meta WHERE key = ?",
+        META.productsStartedAt,
+      )
+      .one().value;
+    const firstProductDay = utcDay(Date.parse(productsStartedAt));
     const days = Array.from({ length: RETAINED_DAYS }, (_, index) => {
       const day = firstDay + index;
       return {
         date: utcDate(day),
         pv: viewsByDay.get(day) ?? 0,
         uv: visitorsByDay.get(day) ?? 0,
+        products:
+          day < firstProductDay
+            ? null
+            : (Object.fromEntries(
+                PRODUCTS.map((product) => [
+                  product,
+                  {
+                    pv: productViews.get(`${day}:${product}`) ?? 0,
+                    uv: productVisitors.get(`${day}:${product}`) ?? 0,
+                  },
+                ]),
+              ) as Record<Product, VisitStats>),
       };
     });
 
@@ -472,7 +593,12 @@ export class AnalyticsDO {
     return {
       generatedAt: new Date().toISOString(),
       totals: this.readStats(),
-      today: days.at(-1) ?? { date: utcDate(today), pv: 0, uv: 0 },
+      today: days.at(-1) ?? {
+        date: utcDate(today),
+        pv: 0,
+        uv: 0,
+        products: null,
+      },
       days,
       countries,
       points,
@@ -483,12 +609,26 @@ export class AnalyticsDO {
           "SELECT value FROM analytics_meta WHERE key = 'breakdown_started_at'",
         )
         .one().value,
+      productsStartedAt,
       breakdownTotals: {
         countries: this.breakdownTotal(BREAKDOWN_TABLES.countries),
         sources: this.breakdownTotal(BREAKDOWN_TABLES.sources),
         pages: this.breakdownTotal(BREAKDOWN_TABLES.pages),
       },
     };
+  }
+
+  /** Each `day:product` count a query answers. */
+  private productCounts(
+    query: string,
+    ...bindings: unknown[]
+  ): Map<string, number> {
+    return new Map(
+      this.sql
+        .exec<ProductDayRow>(query, ...bindings)
+        .toArray()
+        .map((row) => [`${Number(row.day)}:${row.product}`, Number(row.count)]),
+    );
   }
 
   private readBreakdown(table: string): BreakdownRow[] {

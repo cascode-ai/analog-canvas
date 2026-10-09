@@ -1,46 +1,13 @@
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { sqliteState } from "./store.test-support";
 import { AnalyticsDO, type AnalyticsSummary } from "./worker";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DAY_ONE = Date.UTC(2026, 9, 1, 12);
 const HASH_A = "a".repeat(64);
 const HASH_B = "b".repeat(64);
-
-function sqliteState(db = new DatabaseSync(":memory:")) {
-  return {
-    storage: {
-      sql: {
-        exec<T>(query: string, ...bindings: unknown[]) {
-          const statement = db.prepare(query);
-          if (/^\s*(select|with|pragma)/iu.test(query)) {
-            const rows = statement.all(
-              ...(bindings as (string | number | null)[]),
-            ) as T[];
-            return {
-              toArray: () => rows,
-              one: () => {
-                if (rows.length !== 1) throw new Error("expected one row");
-                return rows[0]!;
-              },
-            };
-          }
-          statement.run(...(bindings as (string | number | null)[]));
-          return {
-            toArray: () => [] as T[],
-            one: () => {
-              throw new Error("no rows");
-            },
-          };
-        },
-      },
-      transactionSync<T>(callback: () => T): T {
-        return callback();
-      },
-    },
-  };
-}
 
 async function hit(
   analytics: AnalyticsDO,

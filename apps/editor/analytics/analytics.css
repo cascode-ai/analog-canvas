@@ -314,6 +314,10 @@ html.light .analytics-shell {
   font-family: var(--font-mono);
 }
 
+.analytics-chart-note {
+  margin-top: 0.5rem;
+}
+
 .analytics-range {
   display: flex;
   flex-wrap: wrap;

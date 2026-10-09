@@ -679,6 +679,69 @@ test("shows first-party visitor analytics without tracking the dashboard itself"
   expect(dashboardTracked).toBe(false);
 });
 
+test("splits the analytics into Analog Canvas and Arena", async ({ page }) => {
+  const day = (date: string, canvas: number[], arena: number[]) => ({
+    date,
+    products: {
+      canvas: { pv: canvas[0], uv: canvas[1] },
+      arena: { pv: arena[0], uv: arena[1] },
+    },
+  });
+  // One visitor of both products counts once in the day's total.
+  const days = [
+    { date: "2026-08-10", pv: 4, uv: 3, products: null },
+    { ...day("2026-08-11", [3, 2], [2, 2]), pv: 5, uv: 3 },
+    { ...day("2026-08-12", [4, 3], [2, 2]), pv: 6, uv: 4 },
+  ];
+  const none = { pv: 0, uv: 0 };
+  await page.route("**/api/analytics", (route) =>
+    route.fulfill({
+      json: {
+        generatedAt: "2026-08-12T12:00:00.000Z",
+        totals: { pv: 15, uv: 6 },
+        today: days[2],
+        days,
+        countries: [],
+        points: [],
+        paths: [],
+        sources: [],
+        breakdownStartedAt: "2026-05-01T00:00:00.000Z",
+        productsStartedAt: "2026-08-11T08:30:00.000Z",
+        breakdownTotals: { countries: none, sources: none, pages: none },
+      },
+    }),
+  );
+
+  await page.goto("/analytics");
+
+  // Today: Arena has 2 of the 4 visitors and 2 of the 6 views.
+  const products = page.getByRole("region", { name: "Products" });
+  const arena = products.getByRole("row", { name: /^Arena/ });
+  await expect(arena).toContainText("50.0%");
+  await expect(arena).toContainText("33.3%");
+  const canvas = products.getByRole("row", { name: /^Analog Canvas/ });
+  await expect(canvas).toContainText("75.0%");
+  await expect(canvas).toContainText("66.7%");
+
+  const note = page.getByText(
+    "Split by product from 2026-08-11; earlier days have no split.",
+  );
+  await expect(note).toHaveCount(0);
+  await page
+    .getByRole("combobox", { name: "Product" })
+    .selectOption({ label: "Arena" });
+  const chart = page.getByRole("img", {
+    name: "Daily page views and unique visitors, Arena",
+  });
+  await expect(
+    chart.locator("title", { hasText: "2026-08-12: 2 views, 2 visitors" }),
+  ).not.toHaveCount(0);
+  await expect(
+    chart.locator("title", { hasText: "2026-08-10: not split by product" }),
+  ).not.toHaveCount(0);
+  await expect(note).toBeVisible();
+});
+
 test("dismisses a command menu on outside click or Escape", async ({
   page,
 }) => {

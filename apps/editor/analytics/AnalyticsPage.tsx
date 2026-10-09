@@ -7,9 +7,18 @@ import {
 } from "./worldMap";
 import { BugReportLink } from "../src/components/bug-report-link";
 
-type DayRow = { date: string; pv: number; uv: number };
 type BreakdownRow = { pv?: number; uv?: number; count?: number };
 type BreakdownTotal = { pv: number; uv: number };
+type Product = "canvas" | "arena";
+/** A day before the product split began has no `products`. */
+type DayRow = {
+  date: string;
+  pv: number;
+  uv: number;
+  products?: Record<Product, BreakdownTotal> | null;
+};
+/** One bar of the daily chart; `unsplit` when a product view has no data. */
+type ChartDay = { date: string; pv: number; uv: number; unsplit?: boolean };
 type Summary = {
   generatedAt: string;
   totals: { pv: number; uv: number };
@@ -20,6 +29,7 @@ type Summary = {
   paths: ({ path: string } & BreakdownRow)[];
   sources: ({ source: string } & BreakdownRow)[];
   breakdownStartedAt: string;
+  productsStartedAt?: string;
   breakdownTotals: {
     countries: BreakdownTotal;
     sources: BreakdownTotal;
@@ -41,6 +51,12 @@ const LAND_PATHS = landPathsForWorld(
   MAP_H,
 );
 const fmt = new Intl.NumberFormat("en");
+
+const PRODUCT_LABELS: Record<Product, string> = {
+  canvas: "Analog Canvas",
+  arena: "Arena",
+};
+const PRODUCTS = Object.keys(PRODUCT_LABELS) as Product[];
 
 const SOURCE_LABELS: Record<string, string> = {
   "direct-or-unknown": "Direct / unknown",
@@ -97,6 +113,7 @@ export function AnalyticsPage() {
   const [error, setError] = useState(false);
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
+  const [product, setProduct] = useState<Product | "all">("all");
   const [theme, setTheme] = useState<"dark" | "light">(() =>
     document.documentElement.classList.contains("light") ? "light" : "dark",
   );
@@ -184,6 +201,22 @@ export function AnalyticsPage() {
     const end = from < to ? to : from;
     return summary.days.filter((day) => day.date >= start && day.date <= end);
   }, [from, summary, to]);
+
+  const chartDays = useMemo<ChartDay[]>(
+    () =>
+      product === "all"
+        ? visibleDays
+        : visibleDays.map((day) =>
+            day.products
+              ? { date: day.date, ...day.products[product] }
+              : { date: day.date, pv: 0, uv: 0, unsplit: true },
+          ),
+    [product, visibleDays],
+  );
+  const todayProducts = summary?.today.products;
+  const productRows = todayProducts
+    ? PRODUCTS.map((key) => ({ product: key, ...todayProducts[key] }))
+    : [];
 
   const rangeDays =
     from && to ? dayCount(from < to ? from : to, from < to ? to : from) : 90;
@@ -342,6 +375,24 @@ export function AnalyticsPage() {
                   required
                 />
               </label>
+              <label className="analytics-range-field">
+                <span>Product</span>
+                <select
+                  className="analytics-range-input"
+                  name="product"
+                  value={product}
+                  onChange={(event) =>
+                    setProduct(event.target.value as Product | "all")
+                  }
+                >
+                  <option value="all">All products</option>
+                  {PRODUCTS.map((key) => (
+                    <option key={key} value={key}>
+                      {PRODUCT_LABELS[key]}
+                    </option>
+                  ))}
+                </select>
+              </label>
               <button
                 type="button"
                 className="analytics-range-reset"
@@ -351,7 +402,45 @@ export function AnalyticsPage() {
               </button>
               <span className="analytics-range-hint">UTC</span>
             </form>
-            <DailyChart days={visibleDays} />
+            <DailyChart
+              days={chartDays}
+              label={
+                product === "all"
+                  ? "Daily page views and unique visitors"
+                  : `Daily page views and unique visitors, ${PRODUCT_LABELS[product]}`
+              }
+            />
+            {summary?.productsStartedAt &&
+              chartDays.some((day) => day.unsplit) && (
+                <p className="analytics-note analytics-chart-note">
+                  Split by product from {summary.productsStartedAt.slice(0, 10)}
+                  ; earlier days have no split.
+                </p>
+              )}
+          </section>
+
+          <section
+            className="analytics-section"
+            aria-labelledby="analytics-products-h"
+          >
+            <SectionHead
+              title="Products"
+              id="analytics-products-h"
+              aside="Today"
+              meta={
+                <p className="analytics-note">
+                  A visitor of both counts in each
+                </p>
+              }
+            />
+            <BreakdownTable
+              heading="Product"
+              rows={productRows}
+              total={summary?.today ?? { pv: 0, uv: 0 }}
+              label={(row) => PRODUCT_LABELS[row.product]}
+              loading={!summary && !error}
+              unavailable={error}
+            />
           </section>
 
           <div className="analytics-cols">
@@ -461,7 +550,7 @@ function SectionHead({
   );
 }
 
-function DailyChart({ days }: { days: DayRow[] }) {
+function DailyChart({ days, label }: { days: ChartDay[]; label: string }) {
   const width = 900;
   const height = 220;
   const padTop = 16;
@@ -475,7 +564,7 @@ function DailyChart({ days }: { days: DayRow[] }) {
         className="analytics-chart"
         viewBox={`0 0 ${width} ${height}`}
         role="img"
-        aria-label="Daily page views and unique visitors"
+        aria-label={label}
       >
         <text
           className="analytics-chart-tick"
@@ -514,13 +603,15 @@ function DailyChart({ days }: { days: DayRow[] }) {
       className="analytics-chart"
       viewBox={`0 0 ${width} ${height}`}
       role="img"
-      aria-label="Daily page views and unique visitors"
+      aria-label={label}
     >
       {days.map((day, index) => {
         const pvHeight = (day.pv / max) * plotHeight;
         const uvHeight = (day.uv / max) * plotHeight;
         const x = padX + index * slot;
-        const title = `${day.date}: ${fmt.format(day.pv)} views, ${fmt.format(day.uv)} visitors`;
+        const title = day.unsplit
+          ? `${day.date}: not split by product`
+          : `${day.date}: ${fmt.format(day.pv)} views, ${fmt.format(day.uv)} visitors`;
         return (
           <g key={day.date}>
             <rect
