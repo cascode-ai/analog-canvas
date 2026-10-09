@@ -74,7 +74,7 @@ describe("formulas set in label type", () => {
     // run is placed after.
     for (const item of glyphs(result))
       expect(item.advance).toBeCloseTo(
-        schematicTextAdvanceEm(item.text, "bold") * item.size,
+        schematicTextAdvanceEm(item.text, "bold", item.italic) * item.size,
       );
     // Of stacked scripts, the one reaching further comes last, so the run
     // flows on from the end of both.
@@ -133,7 +133,8 @@ describe("formulas set in label type", () => {
   it("measures with the label advance tables and TeX operator spacing", () => {
     const result = layout("a=b");
     const advance = (text: string) =>
-      schematicTextAdvanceEm(text, "bold") * options.fontSize;
+      schematicTextAdvanceEm(text, "bold", /^[ab]$/u.test(text)) *
+      options.fontSize;
     const thick = (5 / 18) * options.fontSize;
     expect(result.width).toBeCloseTo(
       advance("a") + thick + advance("=") + thick + advance("b"),

@@ -67,8 +67,10 @@ class Layout {
     italic: boolean,
     bold: boolean,
   ): LabelFormulaLayout {
-    // Oblique faces keep the upright advances, as label text measures them.
-    const width = schematicTextAdvanceEm(text, bold ? "bold" : "plain") * size;
+    italic ||= this.options.italic === true;
+    // Italic letters use their face's own advances.
+    const width =
+      schematicTextAdvanceEm(text, bold ? "bold" : "plain", italic) * size;
     const chars = [...text];
     const ascent = chars.some((char) => TALL.test(char))
       ? 0.74 * size

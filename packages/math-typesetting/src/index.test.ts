@@ -26,6 +26,7 @@ const corpus = [
   String.raw`\lim_{s\to0}H(s)`,
   String.raw`\begin{bmatrix}1 & 0 \\ 0 & 1\end{bmatrix}`,
   String.raw`\begin{cases}V_{OH},&x>0\\V_{OL},&x\leq0\end{cases}`,
+  String.raw`\mathrm{ABC}+\mathit{ABC}+\mathbf{ABC}+\mathbb{R}+\mathcal{L}+\mathscr{L}+\mathfrak{g}+\mathtt{A}`,
 ];
 
 function countSvgTags(svg: string, closing = false): number {

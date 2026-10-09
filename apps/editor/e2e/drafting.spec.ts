@@ -25,6 +25,99 @@ import {
   downloadBytes,
 } from "./editor-fixtures.js";
 
+function pdfUnicodeMaps(bytes: Buffer): string[] {
+  const pdf = bytes.toString("latin1");
+  return [...pdf.matchAll(/\bstream\r?\n/gu)].flatMap((match) => {
+    const start = match.index + match[0].length;
+    const end = pdf.indexOf("endstream", start);
+    try {
+      const stream = inflateSync(bytes.subarray(start, end)).toString("latin1");
+      return stream.includes("begincmap") ? [stream] : [];
+    } catch {
+      return [];
+    }
+  });
+}
+
+test("schematic text uses the pinned textbook face with measured advances and PDF symbol fallback", async ({
+  page,
+}) => {
+  const project = createEmptyProject("textbook-font", "Textbook font");
+  project.documents[0]!.drafting = {
+    objects: [
+      {
+        id: "value",
+        kind: "text",
+        locked: false,
+        zIndex: 0,
+        content: { runs: [{ kind: "text", value: "1.33pF" }] },
+        anchor: { kind: "free", position: { x: 100, y: 100 } },
+        alignment: "start",
+        rotation: 0,
+      },
+      {
+        id: "initial",
+        kind: "text",
+        locked: false,
+        zIndex: 1,
+        content: { runs: [{ kind: "text", value: "R" }] },
+        anchor: { kind: "free", position: { x: 100, y: 150 } },
+        alignment: "start",
+        rotation: 0,
+        styleOverride: { italic: true },
+      },
+      {
+        id: "symbols",
+        kind: "text",
+        locked: false,
+        zIndex: 2,
+        content: { runs: [{ kind: "text", value: "Ω∮β" }] },
+        anchor: { kind: "free", position: { x: 100, y: 200 } },
+        alignment: "start",
+        rotation: 0,
+      },
+    ],
+  };
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  await page.getByTestId("project-file").setInputFiles({
+    name: "font.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(serializeProject(project)),
+  });
+  const value = page.locator('text[data-object-id="value"]');
+  await expect(value).toBeVisible();
+  await page.evaluate(async () => {
+    await document.fonts.ready;
+  });
+  await expect(value).toHaveCSS(
+    "font-family",
+    /ICM Round Period.*Metropolis.*DejaVu Sans/u,
+  );
+  // Upstream face advances, independent of our metric implementation.
+  const widthInEm = (selector: string) =>
+    page
+      .locator(selector)
+      .evaluate(
+        (element) =>
+          (element as SVGTextElement).getComputedTextLength() /
+          parseFloat(getComputedStyle(element).fontSize),
+      );
+  expect(await widthInEm('text[data-object-id="value"]')).toBeCloseTo(3.335, 2);
+  expect(await widthInEm('text[data-object-id="initial"]')).toBeCloseTo(0.7, 2);
+  const pdfBytes = await downloadBytes(page, "File", "Export PDF");
+  const pdf = pdfBytes.toString("latin1");
+  for (const family of [
+    "ICM#20Schematic",
+    "ICM#20Symbols",
+    "ICM#20Round#20Period",
+  ])
+    expect(pdf).toContain(`/FontName /${family}`);
+  const mappings = pdfUnicodeMaps(pdfBytes).join("\n").toLowerCase();
+  for (const codepoint of ["002e", "0052", "03a9", "222e", "03b2"])
+    expect(mappings).toContain(`<${codepoint}>`);
+});
+
 test("drawing tools keep a visible locator before the first point and clear queued hover on leave and Escape", async ({
   page,
 }) => {
@@ -347,7 +440,7 @@ test("adds formatted drafting text and undo/redo restores it", async ({
   ).toBeEnabled();
   await expect(draftInput).toHaveCSS(
     "font-family",
-    /ICM Round Period.*DejaVu Sans.*Arial/u,
+    /ICM Round Period.*Metropolis.*DejaVu Sans.*Arial/u,
   );
   await expect
     .poll(() =>
@@ -487,7 +580,7 @@ test("adds formatted drafting text and undo/redo restores it", async ({
   await expect(page.locator('[data-layer="drafting"]')).toContainText("Vin");
   await expect(page.locator('[data-kind="draft-text"]')).toHaveCSS(
     "font-family",
-    /ICM Round Period.*DejaVu Sans.*Arial/u,
+    /ICM Round Period.*Metropolis.*DejaVu Sans.*Arial/u,
   );
   await expect(page.getByTestId("revision")).toHaveText("2");
 
@@ -963,11 +1056,10 @@ test("edits an unrestricted device formula in the same visual annotation", async
     .getByTestId("schematic-canvas")
     .click({ position: { x: 360, y: 240 } });
   await page.keyboard.press("Escape");
-  // Labels are drawn in the face they are measured in, DejaVu Sans, which
-  // the page serves where the system has none (#1413).
+  // The page serves the pinned primary face on every system.
   expect(
     await page.evaluate(async () =>
-      (await document.fonts.load('italic bold 20px "DejaVu Sans"', "R")).map(
+      (await document.fonts.load('italic bold 20px "Metropolis"', "R")).map(
         (face) => face.status,
       ),
     ),
@@ -1002,26 +1094,17 @@ test("edits an unrestricted device formula in the same visual annotation", async
   await expect(
     labelFormula.locator("tspan", { hasText: /^1$/u }).first(),
   ).toHaveAttribute("font-style", "normal");
-  // All text, the minus and ω with it, is an embedded subset of DejaVu
-  // Sans, as the page draws it: none in a built-in face, whose Latin-1 would
-  // turn them into other characters. The export leaves no font in the page.
+  // Latin and Greek use the same primary and fallback faces as the page.
+  // Both are embedded; the export removes its temporary font registrations.
   const pdfBytes = await downloadBytes(page, "File", "Export PDF");
   const pdf = pdfBytes.toString("latin1");
   expect(pdf).toContain("/FontName /ICM#20Schematic");
+  expect(pdf).toContain("/FontName /ICM#20Symbols");
   expect(pdf).toContain("/FontFile2");
   // The embedded face maps the label's Latin R too, not only its ω.
-  const unicodeMaps = [...pdf.matchAll(/stream\r?\n/gu)].flatMap((match) => {
-    const start = match.index + match[0].length;
-    const end = pdf.indexOf("endstream", start);
-    try {
-      return [inflateSync(pdfBytes.subarray(start, end)).toString("latin1")];
-    } catch {
-      return [];
-    }
-  });
-  expect(
-    unicodeMaps.filter((stream) => stream.includes("begincmap")),
-  ).toContainEqual(expect.stringMatching(/<0052>/iu));
+  expect(pdfUnicodeMaps(pdfBytes)).toContainEqual(
+    expect.stringMatching(/<0052>/iu),
+  );
   expect(
     await page.evaluate(() =>
       [...document.fonts].some((face) => face.family === "ICM Schematic"),

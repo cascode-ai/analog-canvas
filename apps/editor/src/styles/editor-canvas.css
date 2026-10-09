@@ -75,8 +75,8 @@
    canvas labels and free text cannot fall back to the surrounding UI font. */
 .schematic-canvas text {
   font-family:
-    "ICM Round Period", "DejaVu Sans", Arial, "Helvetica Neue", Helvetica,
-    sans-serif;
+    "ICM Round Period", "Metropolis", "DejaVu Sans", Arial, "Helvetica Neue",
+    Helvetica, sans-serif;
 }
 
 /*
@@ -675,8 +675,8 @@
   background: rgb(255 255 255 / 99%);
   box-shadow: var(--icm-shadow-md);
   font-family:
-    "ICM Round Period", "DejaVu Sans", Arial, "Helvetica Neue", Helvetica,
-    sans-serif;
+    "ICM Round Period", "Metropolis", "DejaVu Sans", Arial, "Helvetica Neue",
+    Helvetica, sans-serif;
 }
 
 .canvas-grid-dot {
@@ -794,8 +794,8 @@
   background: #fff;
   box-shadow: var(--icm-shadow-md);
   font-family:
-    "ICM Round Period", "DejaVu Sans", Arial, "Helvetica Neue", Helvetica,
-    sans-serif;
+    "ICM Round Period", "Metropolis", "DejaVu Sans", Arial, "Helvetica Neue",
+    Helvetica, sans-serif;
 }
 
 .rich-text-symbol-grid {
@@ -1055,7 +1055,7 @@
   border: 1px solid var(--icm-border);
   border-radius: var(--icm-radius-sm);
   background: var(--icm-surface-muted);
-  font-family: "DejaVu Sans", Arial, sans-serif;
+  font-family: "Metropolis", "DejaVu Sans", Arial, sans-serif;
   font-size: var(--icm-font-sm);
 }
 
@@ -1114,7 +1114,7 @@
   border: 1px solid var(--icm-border);
   border-radius: var(--icm-radius-sm);
   background: #fff;
-  font-family: "DejaVu Sans", Arial, sans-serif;
+  font-family: "Metropolis", "DejaVu Sans", Arial, sans-serif;
   font-size: var(--icm-font-sm);
 }
 

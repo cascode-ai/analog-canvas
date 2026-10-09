@@ -3,28 +3,58 @@ import dejaVuSansBoldUrl from "dejavu-fonts-ttf/ttf/DejaVuSans-Bold.ttf?url";
 import dejaVuSansBoldObliqueUrl from "dejavu-fonts-ttf/ttf/DejaVuSans-BoldOblique.ttf?url";
 import dejaVuSansObliqueUrl from "dejavu-fonts-ttf/ttf/DejaVuSans-Oblique.ttf?url";
 import { jsPDF } from "jspdf";
+import { schematicRoundPeriodFontBase64 } from "@icm/derived";
+import metropolisUrl from "../fonts/metropolis/Metropolis-Regular.ttf?url";
+import metropolisBoldUrl from "../fonts/metropolis/Metropolis-Bold.ttf?url";
+import metropolisItalicUrl from "../fonts/metropolis/Metropolis-RegularItalic.ttf?url";
+import metropolisBoldItalicUrl from "../fonts/metropolis/Metropolis-BoldItalic.ttf?url";
+import { metropolisGlyphs } from "./metropolis-coverage.generated.js";
 
 import type { FormalExportSource, RasterExport } from "./index.js";
 import { EXPORT_VERSION } from "./index.js";
 import { rasterizeFormalSvgInBrowser } from "./browser-raster.js";
 import {
   normalizeFormalSvgForSvg2Pdf,
-  setTextInFamily,
+  setTextInFamilies,
   type PdfFontStyle,
 } from "./svg2pdf-compat.js";
 
 /**
- * All text is set in DejaVu Sans, the schematic font stack's first face, in
- * which labels are measured and the page draws them (#1413), embedded as a
- * subset of the glyphs used. The faces load only when a PDF is made.
+ * Embed the same stack the canvas draws: Metropolis, DejaVu for glyphs it
+ * lacks, and the round period. Load only the faces used by this export.
  */
 const SCHEMATIC_FAMILY = "ICM Schematic";
-const SCHEMATIC_FACES: Record<PdfFontStyle, string> = {
-  normal: dejaVuSansUrl,
-  bold: dejaVuSansBoldUrl,
-  italic: dejaVuSansObliqueUrl,
-  bolditalic: dejaVuSansBoldObliqueUrl,
+const SYMBOL_FAMILY = "ICM Symbols";
+const PERIOD_FAMILY = "ICM Round Period";
+const periodUrl = `data:font/ttf;base64,${schematicRoundPeriodFontBase64}`;
+const SCHEMATIC_FACES: Record<string, Record<PdfFontStyle, string>> = {
+  [SCHEMATIC_FAMILY]: {
+    normal: metropolisUrl,
+    bold: metropolisBoldUrl,
+    italic: metropolisItalicUrl,
+    bolditalic: metropolisBoldItalicUrl,
+  },
+  [SYMBOL_FAMILY]: {
+    normal: dejaVuSansUrl,
+    bold: dejaVuSansBoldUrl,
+    italic: dejaVuSansObliqueUrl,
+    bolditalic: dejaVuSansBoldObliqueUrl,
+  },
+  [PERIOD_FAMILY]: {
+    normal: periodUrl,
+    bold: periodUrl,
+    italic: periodUrl,
+    bolditalic: periodUrl,
+  },
 };
+const primaryGlyphs = new Set(metropolisGlyphs);
+function familyForGlyph(glyph: string): string {
+  return glyph === "."
+    ? PERIOD_FAMILY
+    : primaryGlyphs.has(glyph)
+      ? SCHEMATIC_FAMILY
+      : SYMBOL_FAMILY;
+}
 
 function base64(bytes: Uint8Array): string {
   let binary = "";
@@ -40,38 +70,44 @@ function base64(bytes: Uint8Array): string {
  */
 async function embedSchematicFaces(
   pdf: jsPDF,
-  styles: Iterable<PdfFontStyle>,
+  families: ReadonlyMap<string, ReadonlySet<PdfFontStyle>>,
 ): Promise<() => void> {
   const faces: FontFace[] = [];
   // svg2pdf measures in a text element of its own that names the family,
   // but the scene's stylesheet, once in the page, sets every text element's
   // family; give that element back the family it names.
   const measuring = document.createElement("style");
-  measuring.textContent = `text[font-family="${SCHEMATIC_FAMILY}"]{font-family:"${SCHEMATIC_FAMILY}"}`;
+  measuring.textContent = [...families.keys()]
+    .map((family) => `text[font-family="${family}"]{font-family:"${family}"}`)
+    .join("");
   const release = () => {
     for (const face of faces) document.fonts.delete(face);
     measuring.remove();
   };
   document.head.append(measuring);
   try {
-    for (const style of styles) {
-      const response = await fetch(SCHEMATIC_FACES[style]);
-      if (!response.ok) {
-        throw new Error(
-          `Vector PDF could not load the schematic font (HTTP ${response.status})`,
-        );
+    for (const [family, styles] of families) {
+      const sources = SCHEMATIC_FACES[family];
+      if (!sources) throw new Error(`Unknown schematic font ${family}`);
+      for (const style of styles) {
+        const response = await fetch(sources[style]);
+        if (!response.ok) {
+          throw new Error(
+            `Vector PDF could not load the schematic font (HTTP ${response.status})`,
+          );
+        }
+        const bytes = await response.arrayBuffer();
+        const file = `${family}-${style}.ttf`;
+        pdf.addFileToVFS(file, base64(new Uint8Array(bytes)));
+        pdf.addFont(file, family, style);
+        const face = new FontFace(family, bytes, {
+          weight: style.startsWith("bold") ? "700" : "400",
+          style: style.endsWith("italic") ? "italic" : "normal",
+        });
+        await face.load();
+        document.fonts.add(face);
+        faces.push(face);
       }
-      const bytes = await response.arrayBuffer();
-      const file = `icm-schematic-${style}.ttf`;
-      pdf.addFileToVFS(file, base64(new Uint8Array(bytes)));
-      pdf.addFont(file, SCHEMATIC_FAMILY, style);
-      const face = new FontFace(SCHEMATIC_FAMILY, bytes, {
-        weight: style.startsWith("bold") ? "700" : "400",
-        style: style.endsWith("italic") ? "italic" : "normal",
-      });
-      await face.load();
-      document.fonts.add(face);
-      faces.push(face);
     }
   } catch (error) {
     release();
@@ -131,7 +167,7 @@ export async function vectorizeFormalSvgInBrowser(
   try {
     releaseFaces = await embedSchematicFaces(
       pdf,
-      setTextInFamily(svg, SCHEMATIC_FAMILY),
+      setTextInFamilies(svg, familyForGlyph),
     );
     // svg2pdf's published UMD entry reads browser globals while it is loaded.
     // Loading it only for an actual browser PDF request keeps the exporter

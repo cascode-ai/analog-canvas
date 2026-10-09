@@ -7,7 +7,6 @@ import {
 
 import type { SchematicStyleProfile } from "./style-profile.js";
 import {
-  fractionTextAdvanceEm,
   schematicTextAdvanceEm,
   schematicTextInkEm,
 } from "./fraction-text-metrics.js";
@@ -25,6 +24,7 @@ export function labelFormulaLayout(
   return layoutLabelFormula(latex, {
     fontSize: metrics.fontSize,
     bold: metrics.bold ?? true,
+    italic: metrics.italic ?? false,
     display,
     subscriptScale: metrics.subscriptScale,
     subscriptBaselineShiftEm: metrics.subscriptBaselineShiftEm,
@@ -305,15 +305,14 @@ export function measureRichTextDocument(
 }
 
 /**
- * Label text as the renderer draws it in DejaVu Sans, the schematic font
- * stack's first face: each run advances by the label advance tables
+ * Label text in Metropolis with DejaVu symbol fallback: each run advances
+ * by the label advance tables
  * (schematicTextAdvanceEm) in its own weight, a script after its gap at the
  * script scale, and each line's ink runs from its first glyph's outline to
  * its last one's, side bearings included. A bar, a fraction or a formula
  * inks its whole box. Label clearance measures with it, and so can anything
- * that needs a label's extent before it is drawn. A viewer without DejaVu
- * Sans draws the stack's next face, Arial, which is narrower than these
- * tables.
+ * that needs a label's extent before it is drawn. Standalone SVG viewers
+ * without these fonts may use another face.
  */
 export function measureLabelText(
   document: RichTextDocument,
@@ -660,8 +659,7 @@ function measureRun(run: RichTextRun, metrics: RunMetrics): Line[] {
   if (run.kind === "text") {
     const { label } = metrics;
     if (label) {
-      // A fraction's companions advance as the fraction places them, bold.
-      const weight = label.bold || metrics.fractionText ? "bold" : "plain";
+      const weight = label.bold ? "bold" : "plain";
       const value = label.upper
         ? run.value.toUpperCase()
         : label.lower
@@ -670,7 +668,9 @@ function measureRun(run: RichTextRun, metrics: RunMetrics): Line[] {
       const ink = schematicTextInkEm(value, weight, label.italic);
       return [
         {
-          width: metrics.fontSize * schematicTextAdvanceEm(value, weight),
+          width:
+            metrics.fontSize *
+            schematicTextAdvanceEm(value, weight, label.italic),
           height: metrics.fontSize * metrics.lineHeight,
           ...(ink
             ? {
@@ -688,7 +688,11 @@ function measureRun(run: RichTextRun, metrics: RunMetrics): Line[] {
         width:
           metrics.fontSize *
           (metrics.fractionText
-            ? fractionTextAdvanceEm(run.value)
+            ? schematicTextAdvanceEm(
+                run.value,
+                metrics.bold === false ? "plain" : "bold",
+                metrics.italic,
+              )
             : [...run.value].length * 0.6),
         height: metrics.fontSize * metrics.lineHeight,
       },
@@ -711,6 +715,8 @@ function measureRun(run: RichTextRun, metrics: RunMetrics): Line[] {
     const child = measureRuns(run.children, {
       ...metrics,
       fontSize: metrics.fontSize * scale,
+      ...(run.style === "bold" ? { bold: true } : {}),
+      italic: !script && (metrics.italic === true || run.style === "italic"),
       ...(label
         ? {
             // Scripts stand upright in the weight around them, as the

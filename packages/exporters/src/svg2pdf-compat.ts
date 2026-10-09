@@ -116,18 +116,16 @@ function materializeTextDecorations(svg: SVGSVGElement): void {
 export type PdfFontStyle = "normal" | "bold" | "italic" | "bolditalic";
 
 /**
- * Set every run of text in `family`, a font the caller embeds: the schematic
- * face DejaVu Sans, in which labels are measured and the page draws them
- * (#1413). jsPDF's built-in faces would set Latin text in Helvetica, and
- * encode Latin-1 only, so Greek, the minus sign and math symbols would come
- * out as other characters. Returns the styles the runs are set in, which
- * the caller registers `family` for.
+ * Resolve each glyph to an embedded face, preserving contiguous runs of
+ * that face. PDF has no CSS font fallback: Greek/math and the round period
+ * must explicitly name the face the browser selects for them. Return only
+ * the family/style pairs actually used, for the caller to embed.
  */
-export function setTextInFamily(
+export function setTextInFamilies(
   svg: SVGSVGElement,
-  family: string,
-): Set<PdfFontStyle> {
-  const styles = new Set<PdfFontStyle>();
+  familyForGlyph: (glyph: string) => string,
+): Map<string, Set<PdfFontStyle>> {
+  const families = new Map<string, Set<PdfFontStyle>>();
   const walker = document.createTreeWalker(svg, NodeFilter.SHOW_TEXT);
   const nodes: Text[] = [];
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
@@ -141,15 +139,30 @@ export function setTextInFamily(
       computed.fontWeight === "bold" ||
       Number.parseInt(computed.fontWeight, 10) >= 600;
     const italic = /^(?:italic|oblique)/u.test(computed.fontStyle);
-    styles.add(
-      bold ? (italic ? "bolditalic" : "bold") : italic ? "italic" : "normal",
-    );
-    const span = document.createElementNS(SVG_NAMESPACE, "tspan");
-    span.setAttribute("font-family", family);
-    span.textContent = node.data;
-    node.replaceWith(span);
+    const style = bold
+      ? italic
+        ? "bolditalic"
+        : "bold"
+      : italic
+        ? "italic"
+        : "normal";
+    const fragment = document.createDocumentFragment();
+    let span: SVGTSpanElement | undefined;
+    for (const glyph of node.data) {
+      const family = familyForGlyph(glyph);
+      const styles = families.get(family) ?? new Set<PdfFontStyle>();
+      styles.add(style);
+      families.set(family, styles);
+      if (span?.getAttribute("font-family") !== family) {
+        span = document.createElementNS(SVG_NAMESPACE, "tspan");
+        span.setAttribute("font-family", family);
+        fragment.append(span);
+      }
+      span.textContent += glyph;
+    }
+    node.replaceWith(fragment);
   }
-  return styles;
+  return families;
 }
 
 /**

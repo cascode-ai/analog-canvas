@@ -105,7 +105,11 @@ function segmentWidth(
   scale: number,
 ): number {
   return (
-    schematicTextAdvanceEm(segment.text, segment.bold ? "bold" : "plain") *
+    schematicTextAdvanceEm(
+      segment.text,
+      segment.bold ? "bold" : "plain",
+      segment.italic,
+    ) *
     fontSize *
     scale
   );

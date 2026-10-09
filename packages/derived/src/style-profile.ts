@@ -56,7 +56,7 @@ export interface SchematicTypography {
 /** The one typography system shared by all presentation profiles. */
 export const globalSchematicTypography: SchematicTypography = {
   fontFamily: withSchematicRoundPeriodFont(
-    "'DejaVu Sans',Arial,'Helvetica Neue',Helvetica,sans-serif",
+    "'Metropolis','DejaVu Sans',Arial,'Helvetica Neue',Helvetica,sans-serif",
   ),
   mathWeight: 700,
   mathStyle: "italic",

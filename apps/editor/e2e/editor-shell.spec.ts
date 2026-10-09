@@ -94,11 +94,11 @@ test("formal SVG and PNG contain wide rotated edge labels without clipping", asy
       try {
         const doc = frame.contentDocument!;
         // The faces the PNG is drawn in and the canvas shows, so a system
-        // without DejaVu Sans installed checks the same text (#1436).
+        // without the schematic fonts installed checks the same text (#1436).
         const faces = doc.createElement("style");
         faces.textContent = [...document.querySelectorAll("style")]
           .map((style) => style.textContent ?? "")
-          .filter((css) => css.includes('font-family:"DejaVu Sans"'))
+          .filter((css) => css.includes('font-family:"Metropolis"'))
           .join("");
         doc.head.append(faces);
         doc.body.innerHTML = svg;

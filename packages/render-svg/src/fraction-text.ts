@@ -28,10 +28,16 @@ export function renderFractionText(
   options: FractionTextOptions,
 ): string | null {
   if (!containsFractionRun(content)) return null;
-  const measure = (runs: RichTextRun[], fontSize: number) =>
+  const measure = (runs: RichTextRun[], at: FractionTextOptions) =>
     measureRichTextDocument(
       { runs },
-      { ...richTextMetrics(profile), fontSize, fractionText: true },
+      {
+        ...richTextMetrics(profile),
+        fontSize: at.fontSize,
+        bold: at.bold ?? false,
+        italic: at.italic ?? false,
+        fractionText: true,
+      },
     );
   const hasFraction = (run: RichTextRun) =>
     containsFractionRun({ runs: [run] });
@@ -71,7 +77,7 @@ export function renderFractionText(
     let previousHeight = 0;
     return lines
       .map((lineRuns, index) => {
-        const layout = measure(lineRuns, at.fontSize);
+        const layout = measure(lineRuns, at);
         if (index) baseline += (previousHeight + layout.height) / 2;
         previousHeight = layout.height;
         let x =
@@ -85,7 +91,7 @@ export function renderFractionText(
         const flush = () => {
           if (!ordinary.length) return;
           const document = { runs: ordinary };
-          const width = measure(ordinary, at.fontSize).width;
+          const width = measure(ordinary, at).width;
           const positioned = renderPositionedOverbarScriptDocument(
             document,
             profile,
@@ -129,7 +135,7 @@ export function renderFractionText(
             continue;
           }
           flush();
-          const width = measure([run], at.fontSize).width;
+          const width = measure([run], at).width;
           if (run.kind === "fraction") {
             const partFont =
               at.fontSize *
@@ -160,13 +166,14 @@ export function renderFractionText(
               fontSize,
               alignment: "start",
               bold: at.bold || run.style === "bold",
-              italic: at.italic || run.style === "italic",
+              italic: !script && (at.italic || run.style === "italic"),
             });
             if (run.style === "overbar")
               output += line(
                 x,
                 x + width,
-                baseline - measure(run.children, fontSize).height / 2,
+                baseline -
+                  measure(run.children, { ...at, fontSize }).height / 2,
                 "overbar",
               );
           }

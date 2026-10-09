@@ -86,6 +86,8 @@ export interface LabelFormulaLayout {
 export interface LabelFormulaOptions {
   fontSize: number;
   bold: boolean;
+  /** A whole-text slant override, applied before glyph measurement. */
+  italic?: boolean;
   display: "inline" | "block";
   subscriptScale: number;
   subscriptBaselineShiftEm: number;

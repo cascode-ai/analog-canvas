@@ -8,6 +8,11 @@ import { mathjax } from "@mathjax/src/js/mathjax.js";
 // Bundle the existing font's sans glyphs with the lazy formula chunk. Worker
 // rendering cannot fetch MathJax font modules dynamically during conversion.
 import "@mathjax/mathjax-newcm-font/js/svg/dynamic/sans-serif.js";
+import "@mathjax/mathjax-newcm-font/js/svg/dynamic/double-struck.js";
+import "@mathjax/mathjax-newcm-font/js/svg/dynamic/calligraphic.js";
+import "@mathjax/mathjax-newcm-font/js/svg/dynamic/script.js";
+import "@mathjax/mathjax-newcm-font/js/svg/dynamic/fraktur.js";
+import "@mathjax/mathjax-newcm-font/js/svg/dynamic/monospace.js";
 import { MathJaxNewcmFont } from "@mathjax/mathjax-newcm-font/js/svg.js";
 import { SVG } from "@mathjax/src/js/output/svg.js";
 import {
@@ -124,7 +129,17 @@ export interface FormulaTypesetter {
 class SchematicFormulaFont extends MathJaxNewcmFont {
   constructor() {
     super();
-    SchematicFormulaFont.dynamicFiles["sans-serif"]!.setup(this);
+    // Explicit alphabet commands also appear in accepted formulas; the
+    // synchronous export path must not request their glyphs over the network.
+    for (const family of [
+      "sans-serif",
+      "double-struck",
+      "calligraphic",
+      "script",
+      "fraktur",
+      "monospace",
+    ])
+      SchematicFormulaFont.dynamicFiles[family]!.setup(this);
   }
 }
 

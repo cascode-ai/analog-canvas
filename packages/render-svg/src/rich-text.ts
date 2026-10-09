@@ -3,7 +3,8 @@ import {
   fractionGeometry,
   fractionPartBaselines,
   fractionPartScale,
-  schematicTextAdvanceEm,
+  measureLabelText,
+  richTextMetrics,
 } from "@icm/derived";
 import { flattenRichText } from "@icm/model";
 import type { RichTextDocument, RichTextRun } from "@icm/model";
@@ -202,12 +203,24 @@ function renderScriptStack(
 ): string {
   const typography = ctx.profile.typography;
   const scriptFontSize = ctx.fontSize * typography.subscriptScale;
-  const advance = (script: ScriptSpan): number =>
-    scriptFontSize *
-    schematicTextAdvanceEm(
-      flattenRichText({ runs: script.children }),
-      ctx.bold ? "bold" : "plain",
-    );
+  const advance = (script: ScriptSpan): number => {
+    const content: RichTextDocument = { runs: script.children };
+    if (ctx.uppercase || ctx.lowercase)
+      content.runs = [
+        {
+          kind: "span",
+          style: ctx.uppercase ? "uppercase" : "lowercase",
+          children: content.runs,
+        },
+      ];
+    return measureLabelText(content, {
+      ...richTextMetrics(ctx.profile, "label"),
+      fontSize: scriptFontSize,
+      bold: ctx.bold,
+      // Scripts start upright; a nested span can explicitly slant them.
+      italic: false,
+    }).width;
+  };
   const [narrow, wide] =
     advance(first) <= advance(second) ? [first, second] : [second, first];
   const gap = scriptFontSize * typography.subscriptHorizontalGapEm;

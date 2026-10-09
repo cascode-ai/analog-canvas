@@ -62,7 +62,8 @@
   color: var(--icm-text);
 }
 .cm-property-option-preview-label {
-  font-family: "DejaVu Sans", Arial, "Helvetica Neue", Helvetica, sans-serif;
+  font-family:
+    "Metropolis", "DejaVu Sans", Arial, "Helvetica Neue", Helvetica, sans-serif;
   font-size: 1.2rem;
   line-height: 1;
 }

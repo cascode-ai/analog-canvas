@@ -333,6 +333,9 @@ importers:
 
   packages/exporters:
     dependencies:
+      "@icm/derived":
+        specifier: workspace:*
+        version: link:../derived
       "@icm/model":
         specifier: workspace:*
         version: link:../model
@@ -348,6 +351,9 @@ importers:
       "@resvg/resvg-js":
         specifier: 2.6.2
         version: 2.6.2
+      "@xmldom/xmldom":
+        specifier: 0.9.12
+        version: 0.9.12
       dejavu-fonts-ttf:
         specifier: 2.37.3
         version: 2.37.3
