@@ -425,7 +425,16 @@ test("packaged MCP applies native models and round-trips their mapped source thr
     ]);
     const withArtwork = await read();
     expect(withArtwork.ok, JSON.stringify(withArtwork)).toBe(true);
-    expect(withArtwork.text).toBe(withDraft.text);
+    expect(withArtwork.modelSources[0]).toMatchObject({
+      sourceId: source.id,
+      revision: 3,
+    });
+    expect(withArtwork.text).toBe(
+      withDraft.text.replace(
+        "* Project model: applied version 2\n",
+        "* Project model: applied version 3\n",
+      ),
+    );
     await test.info().attach("model-source-package", {
       body: Buffer.from(
         JSON.stringify({
