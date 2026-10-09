@@ -190,6 +190,16 @@ export function fieldText(value: unknown, maxLength: number): string | null {
   return trimmed.length <= maxLength ? trimmed : null;
 }
 
+/**
+ * The look `renderPreview` draws. One version always draws an unchanged
+ * Project the same way, so whoever keeps a preview (AnalogArena's Submissions,
+ * docs/specs/analog-arena.md) redraws it when this changes. Bump it with any
+ * change that alters what a preview draws for an unchanged Project: here, in
+ * `@icm/render-svg`, in the built-in symbols' artwork or in formula
+ * typesetting.
+ */
+export const PREVIEW_RENDERER_VERSION = "1";
+
 export async function renderPreview(
   project: CircuitProject,
   resolver: SymbolResolver,

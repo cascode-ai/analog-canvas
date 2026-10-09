@@ -1,4 +1,5 @@
 import { globSync, readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { configDefaults, defineConfig } from "vitest/config";
 
 // These contracts launch plain Node CLIs or import their built entrypoints.
@@ -41,6 +42,16 @@ const isolatedTests = moduleTests
       (file.endsWith(".tsx") || ownsRegistry.test(readFileSync(file, "utf8"))),
   );
 
+// Node has no `cloudflare:workers`, the Workers runtime's own module; tests
+// that load the Worker's entry in Node get a stand-in for its base classes.
+const resolve = {
+  alias: {
+    "cloudflare:workers": fileURLToPath(
+      new URL("./worker/cloudflare-workers.test-support.ts", import.meta.url),
+    ),
+  },
+};
+
 export default defineConfig({
   test: {
     coverage: {
@@ -48,6 +59,7 @@ export default defineConfig({
     },
     projects: [
       {
+        resolve,
         test: {
           name: "modules",
           include: moduleTests,
@@ -60,6 +72,7 @@ export default defineConfig({
         },
       },
       {
+        resolve,
         test: {
           name: "isolated",
           include: isolatedTests,

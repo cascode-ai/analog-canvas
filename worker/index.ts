@@ -59,6 +59,8 @@ export const GalleryDO = withPointInTimeRecovery(GalleryStore);
 export const AuthDO = withPointInTimeRecovery(AuthStore);
 export { AgentSessionDO } from "./agent-session";
 export { SimulationControlDO } from "./simulation-control-do";
+// Named entrypoints, reachable only over a service binding that names them.
+export { RenderAndGradeService } from "./render-and-grade";
 
 type Env = TopologyTaskEnv &
   ComponentLibraryEnv &
