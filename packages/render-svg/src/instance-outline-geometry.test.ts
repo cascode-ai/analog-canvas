@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createEmptyDocument } from "@icm/model";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 
-import { renderInstanceOutlineGeometry } from "./render.js";
+import { renderInstanceOutlineGeometry } from "./symbol-render.js";
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
 
