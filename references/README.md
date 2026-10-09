@@ -37,8 +37,8 @@ selected original skills are checked in for repository use. Both clients use
 one source copy; Claude Code needs the checkout-local registration described
 below. The rollout decisions and earlier trial evidence are recorded in #1358.
 The checked-in [.agents/skills/](../.agents/skills/)
-contains the 9 workflow entries below and 6 required dependency/setup skills:
-15 skills with their original names, invocation policies, and complete supporting
+contains the 13 workflow entries below and 6 required dependency/setup skills:
+19 skills with their original names, invocation policies, and complete supporting
 files. Unrelated skills are not installed. The full upstream repositories remain
 available in the ignored reference checkouts.
 
@@ -60,7 +60,7 @@ deliberate final local full-suite trial. These replace the former format and
 validation-timing rules; required queue jobs remain. The earlier `ac-pr`
 mentioned there has been withdrawn. No diagnosis entry or CI job is added.
 
-The manifest pins Matt Pocock's skills at `4588b32` and HumanLayer's skills at
+The manifest pins Matt Pocock's skills at `49dd158` and HumanLayer's skills at
 `ca7c808`. Both are optional fetches. Follow the original relative references
 and skill dependencies. The installation retains every file in each selected
 skill folder. Matt Pocock's
@@ -131,21 +131,25 @@ has been applied using the user-approved configuration:
 or historical ADR copies are created. Triage is absent; only the publication
 label needed by to-spec/to-tickets is configured. Configuration can be edited
 directly; rerun setup when switching tracker or layout. The upstream
-[`ask-matt`](https://github.com/mattpocock/skills/blob/4588b32ecab9ecc9fc8cc6b6c5e7d675b6004b0d/skills/engineering/ask-matt/SKILL.md)
+[`ask-matt`](https://github.com/mattpocock/skills/blob/49dd158d1076134a641b33efb035946536778336/skills/engineering/ask-matt/SKILL.md)
 explains how the skills compose and remains a reference rather than an installed
 entry.
 
 | Skill                         | Original source                                                                                                                                             | Study purpose                                                |
 | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
-| grill-with-docs               | [Matt Pocock](https://github.com/mattpocock/skills/blob/4588b32ecab9ecc9fc8cc6b6c5e7d675b6004b0d/skills/engineering/grill-with-docs/SKILL.md)               | Requirement interview and active domain modeling.            |
-| to-spec                       | [Matt Pocock](https://github.com/mattpocock/skills/blob/4588b32ecab9ecc9fc8cc6b6c5e7d675b6004b0d/skills/engineering/to-spec/SKILL.md)                       | Synthesize agreed requirements into a specification.         |
-| to-tickets                    | [Matt Pocock](https://github.com/mattpocock/skills/blob/4588b32ecab9ecc9fc8cc6b6c5e7d675b6004b0d/skills/engineering/to-tickets/SKILL.md)                    | Plan vertical slices and blocking dependencies.              |
-| implement                     | [Matt Pocock](https://github.com/mattpocock/skills/blob/4588b32ecab9ecc9fc8cc6b6c5e7d675b6004b0d/skills/engineering/implement/SKILL.md)                     | Implementation, testing, review and commit procedure.        |
-| code-review                   | [Matt Pocock](https://github.com/mattpocock/skills/blob/4588b32ecab9ecc9fc8cc6b6c5e7d675b6004b0d/skills/engineering/code-review/SKILL.md)                   | Independent Standards and Spec review.                       |
-| pr                            | [Matt Pocock](https://github.com/mattpocock/skills/blob/4588b32ecab9ecc9fc8cc6b6c5e7d675b6004b0d/skills/engineering/pr/SKILL.md)                            | PR explanation, before/after evidence and merge impact.      |
+| grill-with-docs               | [Matt Pocock](https://github.com/mattpocock/skills/blob/49dd158d1076134a641b33efb035946536778336/skills/engineering/grill-with-docs/SKILL.md)               | Requirement interview and active domain modeling.            |
+| to-spec                       | [Matt Pocock](https://github.com/mattpocock/skills/blob/49dd158d1076134a641b33efb035946536778336/skills/engineering/to-spec/SKILL.md)                       | Synthesize agreed requirements into a specification.         |
+| to-tickets                    | [Matt Pocock](https://github.com/mattpocock/skills/blob/49dd158d1076134a641b33efb035946536778336/skills/engineering/to-tickets/SKILL.md)                    | Plan vertical slices and blocking dependencies.              |
+| implement                     | [Matt Pocock](https://github.com/mattpocock/skills/blob/49dd158d1076134a641b33efb035946536778336/skills/engineering/implement/SKILL.md)                     | Implementation, testing, review and commit procedure.        |
+| code-review                   | [Matt Pocock](https://github.com/mattpocock/skills/blob/49dd158d1076134a641b33efb035946536778336/skills/engineering/code-review/SKILL.md)                   | Independent Standards and Spec review.                       |
+| pr                            | [Matt Pocock](https://github.com/mattpocock/skills/blob/49dd158d1076134a641b33efb035946536778336/skills/engineering/pr/SKILL.md)                            | PR explanation, before/after evidence and merge impact.      |
 | show-me                       | [HumanLayer](https://github.com/humanlayer/skills/blob/ca7c8088db69e315a8b2deea43820270457f8f3c/plugins/show-me/skills/show-me/SKILL.md)                    | Visual explanation; also credited by Matt Pocock's pr skill. |
-| improve-codebase-architecture | [Matt Pocock](https://github.com/mattpocock/skills/blob/4588b32ecab9ecc9fc8cc6b6c5e7d675b6004b0d/skills/engineering/improve-codebase-architecture/SKILL.md) | Survey architecture improvement opportunities.               |
-| retro                         | [Matt Pocock](https://github.com/mattpocock/skills/blob/4588b32ecab9ecc9fc8cc6b6c5e7d675b6004b0d/skills/engineering/retro/SKILL.md)                         | Reflect on a session and its development environment.        |
+| improve-codebase-architecture | [Matt Pocock](https://github.com/mattpocock/skills/blob/49dd158d1076134a641b33efb035946536778336/skills/engineering/improve-codebase-architecture/SKILL.md) | Survey architecture improvement opportunities.               |
+| retro                         | [Matt Pocock](https://github.com/mattpocock/skills/blob/49dd158d1076134a641b33efb035946536778336/skills/engineering/retro/SKILL.md)                         | Reflect on a session and its development environment.        |
+| implement-spec                | [Matt Pocock](https://github.com/mattpocock/skills/blob/49dd158d1076134a641b33efb035946536778336/skills/engineering/implement-spec/SKILL.md)                | Dispatch a Spec's ticket frontier to parallel implementers.  |
+| prototype                     | [Matt Pocock](https://github.com/mattpocock/skills/blob/49dd158d1076134a641b33efb035946536778336/skills/engineering/prototype/SKILL.md)                     | Throwaway logic or UI prototype that answers one question.   |
+| wizard                        | [Matt Pocock](https://github.com/mattpocock/skills/blob/49dd158d1076134a641b33efb035946536778336/skills/engineering/wizard/SKILL.md)                        | Interactive script for steps only a person can perform.      |
+| handoff                       | [Matt Pocock](https://github.com/mattpocock/skills/blob/49dd158d1076134a641b33efb035946536778336/skills/productivity/handoff/SKILL.md)                      | Compact a session into a handoff for a fresh agent.          |
 
 Dependencies are installed because the selected originals call them directly:
 
@@ -153,7 +157,7 @@ Dependencies are installed because the selected originals call them directly:
 | ------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
 | [grilling](../.agents/skills/grilling/SKILL.md)                                 | `grill-with-docs`, `improve-codebase-architecture`                |
 | [domain-modeling](../.agents/skills/domain-modeling/SKILL.md)                   | `grill-with-docs`, `improve-codebase-architecture`                |
-| [tdd](../.agents/skills/tdd/SKILL.md)                                           | `implement`                                                       |
+| [tdd](../.agents/skills/tdd/SKILL.md)                                           | `implement`, `implement-spec`                                     |
 | [codebase-design](../.agents/skills/codebase-design/SKILL.md)                   | `tdd`, `improve-codebase-architecture`                            |
 | [writing-for-agents](../.agents/skills/writing-for-agents/SKILL.md)             | `retro`                                                           |
 | [setup-matt-pocock-skills](../.agents/skills/setup-matt-pocock-skills/SKILL.md) | Tracker and domain configuration expected by the engineering flow |
