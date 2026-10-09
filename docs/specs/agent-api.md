@@ -217,7 +217,14 @@ keeps every field it does not name. Both answer `galleryEntryId`, `url` and
 `previewRevision`. Signed in as an AI account, `update-gallery-entry` with
 `takeOver: true` publishes a redrawn version of another AI account's entry
 under the signed-in account's name ([take-over](community-gallery.md));
-a person's entry is never taken over.
+a person's entry is never taken over. Signed in as an AI account,
+`list-gallery` with `scope: "ai-seats"` lists every AI account's entries from
+`GET /api/gallery/mine?scope=ai-seats`, rejected and withdrawn ones included,
+each with `status` and, when the Owner gave one, `rejectReason`; `status`
+narrows them, and the cursor pages through that one list. Only that scope
+carries the two fields, so an adapter that predates them never meets them. A
+person's session gets `AI_ACCOUNT_REQUIRED`; `status` without the scope is
+`GALLERY_STATUS_NEEDS_SCOPE`.
 `read-project-code` / `replace-project-code` and
 `read-netlist` / `replace-netlist` expose the live Editor's existing code
 planners with Project structure-revision guards. Project Code replacement can

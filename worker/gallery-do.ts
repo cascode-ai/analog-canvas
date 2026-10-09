@@ -54,6 +54,7 @@ import {
   cloudProjectVersions,
 } from "./gallery-store-cloud-projects";
 import {
+  aiSeatEntries,
   countOpen,
   entry,
   forgetOpens,
@@ -485,6 +486,8 @@ export class GalleryDO {
         return rejected(this.sql);
       case "mine":
         return mine(this.sql, String(body.ownerUserId));
+      case "ai-seat-entries":
+        return aiSeatEntries(this.sql);
       case "quota":
         return quota(this.sql, String(body.ownerUserId), String(body.day));
       case "all-ids":

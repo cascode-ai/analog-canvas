@@ -64,6 +64,16 @@ export function isAiSeatEntry(
   );
 }
 
+/**
+ * The AI account a session is signed in as, or undefined: a person's account
+ * under a listed id is not one.
+ */
+export function aiSeatOf(user: { id: string; provider: string } | null) {
+  return user?.provider === AI_ACCOUNT_PROVIDER
+    ? AI_SEATS.find((seat) => seat.userId === user.id)
+    : undefined;
+}
+
 /** The day's allowance of the account a session belongs to. */
 export function dailySubmissionLimit(user: { provider: string }): number {
   return user.provider === AI_ACCOUNT_PROVIDER

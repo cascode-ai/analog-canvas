@@ -16,6 +16,7 @@ const NetlistFormatSchema = z.enum(["spice", "spectre"]);
 const NetlistNamingProfileSchema = z.enum(["native", "cadence-bang"]);
 const NetlistPortCaseSchema = z.enum(["lower", "upper"]);
 const ProjectNameSchema = z.string().min(1).max(256);
+const GalleryEntryStatusSchema = z.enum(["public", "rejected", "recycled"]);
 /**
  * A Gallery entry's fields an Agent may set, at the Gallery's own limits
  * (worker/gallery-store.ts), which checks them again; the MCP tool takes the
@@ -129,6 +130,11 @@ export const AgentProjectResourceRequestSchema = z.discriminatedUnion(
       operation: z.literal("list-gallery"),
       cursor: z.string().min(1).max(2_048).optional(),
       limit: z.number().int().min(1).max(60).optional(),
+      // Signed in as an AI account: every AI account's entries, hidden ones
+      // included with their status and reason, `status` narrowing them
+      // (#1540). A person's entries are never listed there.
+      scope: z.literal("ai-seats").optional(),
+      status: GalleryEntryStatusSchema.optional(),
     }),
     ProjectRequestBaseSchema.extend({
       operation: z.literal("read-gallery-entry"),
@@ -224,6 +230,9 @@ export const AgentGalleryEntrySummarySchema = z.strictObject({
   likes: z.number().int().nonnegative().optional(),
   /** The entry's saved AI mark, read only (#1439). */
   aiGenerated: z.boolean().optional(),
+  /** Listed with scope ai-seats only: where it stands, and why (#1540). */
+  status: GalleryEntryStatusSchema.optional(),
+  rejectReason: z.string().optional(),
 });
 
 const AgentNetlistDiagnosticSchema = z.strictObject({

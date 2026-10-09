@@ -34,6 +34,7 @@ import {
   hasStoreBackupToken,
   isAdmin,
   isAutomatedBackup,
+  readsAsOwner,
   recoverFormulaPreview,
 } from "./gallery-requests";
 import {
@@ -567,6 +568,7 @@ export async function routeGalleryRequest(
     const { status, payload } = await callGallery<{
       status?: string;
       ownerUserId?: string | null;
+      author?: string;
       previewRevision?: string;
       svgText?: string;
       projectText?: string;
@@ -605,8 +607,7 @@ export async function routeGalleryRequest(
     }
     const allowed =
       (await canReview(request, env)) ||
-      (payload.ownerUserId != null &&
-        (await sessionUserOf(request, env))?.id === payload.ownerUserId);
+      readsAsOwner(await sessionUserOf(request, env), payload);
     if (!allowed) {
       return Response.json(
         { error: "not-found" },
@@ -638,16 +639,17 @@ export async function routeGalleryRequest(
       return Response.json({ error: "not-found" }, { status: 404 });
     }
     const curator = await canReview(request, env);
-    if (payload.status !== "public") {
-      const allowed =
-        curator ||
-        (payload.ownerUserId != null &&
-          (await sessionUserOf(request, env))?.id === payload.ownerUserId);
-      if (!allowed) {
-        return Response.json({ error: "not-found" }, { status: 404 });
-      }
-    }
     const viewer = await sessionUserOf(request, env);
+    if (
+      payload.status !== "public" &&
+      !curator &&
+      !readsAsOwner(viewer, {
+        ownerUserId: payload.ownerUserId,
+        author: payload.entry?.author,
+      })
+    ) {
+      return Response.json({ error: "not-found" }, { status: 404 });
+    }
     if (
       payload.entry &&
       !viewer?.isAdmin &&

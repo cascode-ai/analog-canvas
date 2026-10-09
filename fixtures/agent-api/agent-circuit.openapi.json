@@ -586,7 +586,7 @@
     "/api/agent/sessions/{sessionId}/projects": {
       "post": {
         "operationId": "agentSessionProjectResource",
-        "description": "Read the signed-in Community Gallery and insert-gallery-entry: source Cell drawing and dependency closure into targetDocumentId at position, guarded by expectedRevision and expectedStructureRevision, in one undoable edit of the bound workspace. No new tab or project replacement; requires project.import plus existing edit scopes. Also read or replace Project Code/netlists and discover/import saved Cloud Cells. publish-gallery-entry/update-gallery-entry put the working copy its tab shows on the Gallery as the signed-in Editor account, marked AI (update keeps unnamed fields) and require gallery.publish.",
+        "description": "Read the signed-in Community Gallery and insert-gallery-entry: source Cell drawing and dependency closure into targetDocumentId at position, guarded by expectedRevision and expectedStructureRevision, in one undoable edit of the bound workspace. No new tab or project replacement; requires project.import plus existing edit scopes. Also read or replace Project Code/netlists and discover/import saved Cloud Cells. publish-gallery-entry/update-gallery-entry put the working copy its tab shows on the Gallery as the signed-in Editor account, marked AI (update keeps unnamed fields) and require gallery.publish. As an AI account, list-gallery with scope ai-seats (and status rejected) lists every AI account's entries with status and rejectReason, and update-gallery-entry with takeOver republishes one under your name.",
         "security": [
           {
             "bearerAuth": []
@@ -44038,6 +44038,18 @@
                 "type": "integer",
                 "minimum": 1,
                 "maximum": 60
+              },
+              "scope": {
+                "type": "string",
+                "const": "ai-seats"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "public",
+                  "rejected",
+                  "recycled"
+                ]
               }
             },
             "required": [
@@ -45518,6 +45530,17 @@
               },
               "aiGenerated": {
                 "type": "boolean"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "public",
+                  "rejected",
+                  "recycled"
+                ]
+              },
+              "rejectReason": {
+                "type": "string"
               }
             },
             "required": [
