@@ -639,16 +639,35 @@ the negative-supply names below among them.
 
 A Cell may draw a negative supply: a supply marker or rail named like `VEE`,
 `VSS` or `VNEG` (#1530). The drawing holds no voltages, so that name is what
-says the supply sits below ground, and only one such supply is read; two are
-a question for the author. A substrate property terminal the Process binds
-while the Cell draws one takes that supply instead of ground, at placement or
-Apply process alike. One still on ground in such a Cell, placed before the
-rail, exports as drawn with the warning `PDK_SUBSTRATE_ABOVE_NEGATIVE_SUPPLY`,
-one per Cell: "Q1.S and Q2.S are p-substrate terminals on ground, while this
-Cell draws VEE, its negative supply. The substrate belongs on the lowest
-supply: an NPN collector below it forward-biases. Set their Substrate Net to
-VEE". The SKY130 PNP has no substrate terminal to bind: its wrapper ties the
-substrate to its collector, which the warning above covers.
+says the supply sits below ground, and only one such supply is read; two are a
+question for the author.
+
+The substrate property terminals and the NMOS bodies are one node, the
+p-substrate, which belongs on the lowest supply. A substrate terminal the
+Process binds, at placement or Apply process alike, takes the Cell's negative
+supply while the Cell's NMOS body default is unset or ground; a Cell's first
+ground marker sets that default, so a Cell drawing ground and VEE puts new
+substrates on VEE whichever came first. An NMOS default on another Net (VSUB,
+VNEG) is the substrate default instead, so it can be set: Cell Properties
+labels it NMOS body / substrate (`bulkDefaults.nmos`, "and substrate" beside
+its value). With neither, ground. Changing that default, in Cell Properties or
+with the Agent's `set-mos-bulk-default` `{mos:"nmos"}` (both one plan), moves
+the substrate terminals that followed the old one, read by the same rule before
+and after, with the NMOS bodies that followed it: those on the old substrate
+default, and those on the old NMOS default, as a substrate bound to ground
+before the rail was drawn is. A terminal whose Substrate Net was set to another
+Net stays. The Project gains no field.
+
+A substrate terminal on ground in a Cell that draws a negative supply exports
+as drawn with the warning `PDK_SUBSTRATE_ABOVE_NEGATIVE_SUPPLY`, one per Cell:
+"Q1.S and Q2.S are p-substrate terminals on ground, while this Cell draws VEE,
+its negative supply. The substrate belongs on the lowest supply: an NPN
+collector below it forward-biases. Set their Substrate Net to VEE". When ground
+is the Cell's NMOS default it goes on ", or the NMOS body / substrate default
+in Cell Properties to VEE, which moves the substrate terminals on ground with
+the NMOS bodies that follow it". The SKY130 PNP stays three-terminal, as the
+PDK draws it: its wrapper ties the substrate to its collector, which the
+warning above covers, so it has no substrate terminal to bind.
 
 A DMOS symbol in SKY130 takes the drain-extended 16 V device
 (`sky130_fd_pr__nfet_g5v0d16v0`, `sky130_fd_pr__pfet_g5v0d16v0`), or a 20 V

@@ -562,7 +562,9 @@ describe("Agent property actions are planned as Apply in Properties", () => {
       structuredClone(controller.project),
     );
     expect(
-      gui.transact(planMosBulkDefaultUpdate(gui.document, "pmos", vb)).ok,
+      gui.transact(
+        planMosBulkDefaultUpdate(gui.project, gui.document, "pmos", vb),
+      ).ok,
     ).toBe(true);
 
     await apply([{ kind: "set-mos-bulk-default", mos: "pmos", net: "VB" }]);

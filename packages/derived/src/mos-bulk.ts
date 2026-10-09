@@ -231,6 +231,42 @@ export function drawnNegativeSupplyNet(
   return negative.length === 1 ? negative[0] : undefined;
 }
 
+/**
+ * The Net the Process binds a hidden PDK substrate terminal to (#1530): an
+ * NPN's S, a poly resistor's or varactor's B, an inductor's SUB. The PDK
+ * ties them to the p-substrate, the node the NMOS bodies sit on, which
+ * belongs on the lowest supply. A Cell that draws one negative supply puts
+ * it there while its NMOS body default is unset or ground, as a Cell's first
+ * ground marker sets it; an NMOS default on another Net (VSUB) names it; else
+ * it is ground. Undefined when the Cell has none of these. `nmosNetId` asks
+ * under another NMOS body default (`null` for none), as a change of that
+ * default does before it commits.
+ */
+export function pdkSubstrateDefaultNet(
+  document: SchematicDocument,
+  logicalNets?: ResolvedDocumentLogicalNets,
+  nmosNetId: string | null = document.mosBulkDefaults?.nmosNetId ?? null,
+): Net | undefined {
+  const resolved = logicalNets ?? resolveDocumentLogicalNets(document);
+  const configured = nmosNetId
+    ? document.nets.find((net) => net.id === nmosNetId)
+    : undefined;
+  const negative = drawnNegativeSupplyNet(document, resolved);
+  if (
+    negative &&
+    (!configured ||
+      drawnSupplyLogicalNetIds(document, "ground", resolved).has(
+        resolved.byBaseNetId.get(configured.id)?.id ?? configured.id,
+      ))
+  )
+    return negative;
+  if (configured) return configured;
+  const groundId = [...resolved.byBaseNetId].find(
+    ([, net]) => net.powerDomain === "ground",
+  )?.[0];
+  return document.nets.find((net) => net.id === groundId);
+}
+
 function drawnSupplyNets(
   document: SchematicDocument,
   domain: SupplyDomain,

@@ -531,6 +531,94 @@ describe("a part placed into a Process (#1251)", () => {
       ]),
     ).toBeUndefined();
   });
+
+  it("binds a placed NPN's substrate to the Cell's negative rail unless its NMOS body default names another Net than ground (#1530)", () => {
+    // A Cell drawing ground, a VNEG supply marker and a labelled VSUB.
+    const project = createEmptyProject("substrate", "Substrate");
+    const document = project.documents[0]!;
+    document.instances.push(
+      { id: "GND", symbolId: "ground", placement: null },
+      { id: "VNEG", symbolId: "vdd-port", placement: null },
+      { id: "R1", symbolId: "resistor", reference: "R1", placement: null },
+    );
+    document.nets.push(
+      { id: "net-0", terminals: [{ instanceId: "GND", pinName: "0" }] },
+      { id: "net-vneg", terminals: [{ instanceId: "VNEG", pinName: "P" }] },
+      { id: "net-vsub", terminals: [{ instanceId: "R1", pinName: "1" }] },
+    );
+    document.annotations.push({
+      id: "vsub-label",
+      kind: "net-label",
+      binding: { kind: "net-name", netId: "net-vsub" },
+      netId: "net-vsub",
+      anchor: { kind: "free", position: { x: 0, y: 0 } },
+      alignment: "start",
+      rotation: 0,
+      locked: false,
+    });
+    document.connectivityEvidence.push(
+      {
+        id: "gnd-claim",
+        kind: "name-claim",
+        netId: "net-0",
+        name: "0",
+        scope: "global",
+        powerDomain: "ground",
+        owner: { kind: "power-marker", objectId: "GND" },
+      },
+      {
+        id: "vneg-claim",
+        kind: "name-claim",
+        netId: "net-vneg",
+        name: "VNEG",
+        scope: "global",
+        powerDomain: "vdd",
+        owner: { kind: "power-marker", objectId: "VNEG" },
+      },
+      {
+        id: "vsub-claim",
+        kind: "name-claim",
+        netId: "net-vsub",
+        name: "VSUB",
+        scope: "local",
+        owner: { kind: "net-label", annotationId: "vsub-label" },
+      },
+    );
+    const substrate = (nmosNetId?: string, rail = true) => {
+      const cell = structuredClone(project);
+      if (nmosNetId) cell.documents[0]!.mosBulkDefaults = { nmosNetId };
+      if (!rail) {
+        const drawn = cell.documents[0]!;
+        drawn.instances = drawn.instances.filter((item) => item.id !== "VNEG");
+        drawn.nets = drawn.nets.filter((net) => net.id !== "net-vneg");
+        drawn.connectivityEvidence = drawn.connectivityEvidence.filter(
+          (item) => item.netId !== "net-vneg",
+        );
+      }
+      const placed = commit(
+        cell,
+        placementProcessFill(cell, preferences("sky130"), cell.topDocumentId, [
+          place("npn"),
+        ])!,
+      );
+      return placed.documents[0]!.nets.find((net) =>
+        net.terminals.some(
+          (terminal) =>
+            terminal.instanceId === "Q1" && terminal.pinName === "S",
+        ),
+      )?.id;
+    };
+    // The rail with no NMOS default, or ground as it (a first ground marker
+    // sets it), whichever came first.
+    expect(substrate()).toBe("net-vneg");
+    expect(substrate("net-0")).toBe("net-vneg");
+    // Another Net as the NMOS default is the substrate: the person said so.
+    expect(substrate("net-vsub")).toBe("net-vsub");
+    expect(substrate("net-vneg")).toBe("net-vneg");
+    // Without a rail, ground.
+    expect(substrate("net-0", false)).toBe("net-0");
+    expect(substrate(undefined, false)).toBe("net-0");
+  });
 });
 
 describe("persisted netlist process authoring", () => {

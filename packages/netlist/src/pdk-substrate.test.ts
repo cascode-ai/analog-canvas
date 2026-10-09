@@ -182,6 +182,21 @@ describe("an NPN's hidden substrate beside a negative supply (#1530)", () => {
     expect(bjtLines(single)).toEqual([`XQ1 VCC vi vo VSS ${NPN}`]);
   });
 
+  it("also points to the Cell's NMOS body / substrate default when ground is that default", () => {
+    // Ground was drawn first, so it is the NMOS default this substrate,
+    // bound before the rail, followed; setting that default moves it to VEE.
+    // With another Net the default, only its own Substrate Net is named.
+    const project = bjtProject({ Q1: ["n1", "vi", "VEE", "0"] });
+    project.documents[0]!.mosBulkDefaults = { nmosNetId: "net-0" };
+    expect(substrateFindings(project, ABOVE)).toEqual([
+      "warning Q1.S is a p-substrate terminal on ground, while this Cell draws VEE, its negative supply. The substrate belongs on the lowest supply: an NPN collector below it forward-biases. Set its Substrate Net to VEE, or the NMOS body / substrate default in Cell Properties to VEE, which moves the substrate terminals on ground with the NMOS bodies that follow it",
+    ]);
+    project.documents[0]!.mosBulkDefaults = { nmosNetId: "net-n1" };
+    expect(substrateFindings(project, ABOVE)).toEqual([
+      expect.stringMatching(/Set its Substrate Net to VEE$/u),
+    ]);
+  });
+
   it("takes a drawn VNEG as the lowest supply as well as the negative one", () => {
     // The Process binds a substrate placed after a VNEG rail to it; the
     // lowest-supply check reads the same name, so that binding is quiet.

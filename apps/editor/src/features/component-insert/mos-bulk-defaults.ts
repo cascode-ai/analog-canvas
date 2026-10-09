@@ -1,6 +1,14 @@
 import type { SchematicEdit } from "@icm/edit-engine";
-import { mosBulkKind } from "@icm/derived";
-import type { SchematicDocument } from "@icm/model";
+import {
+  mosBulkKind,
+  pdkSubstrateDefaultNet,
+  resolveDocumentLogicalNets,
+} from "@icm/derived";
+import { resolveReviewedExternalBinding } from "@icm/devices";
+import type { CircuitProject, Instance, SchematicDocument } from "@icm/model";
+
+/** The Project's external definitions, where a part's PDK wrapper is read. */
+type Definitions = Pick<CircuitProject, "externalSubcircuitDefinitions">;
 
 /**
  * An explicit supply placement chooses a cell default only once.  The caller
@@ -39,9 +47,13 @@ export function planInitialMosBulkDefault(
 
 /**
  * Reconfigure only bodies that were materialized from the previous cell
- * default. Explicit B wiring and No Connect remain untouched.
+ * default. Explicit B wiring and No Connect remain untouched. The NMOS
+ * default also settles the p-substrate (#1530): the hidden substrate
+ * terminals that followed the old one move with it, and one set to another
+ * Net stays.
  */
 export function planMosBulkDefaultUpdate(
+  project: Definitions,
   document: SchematicDocument,
   kind: "nmos" | "pmos",
   netId: string | null,
@@ -59,6 +71,85 @@ export function planMosBulkDefaultUpdate(
   return [
     ...clearEdits,
     setDefault,
+    ...(kind === "nmos" ? planSubstrateMoves(project, document, netId) : []),
     ...(netId ? [{ kind: "reconcile_mos_bulk" } as const] : []),
   ];
+}
+
+/** The pins a part's reviewed PDK wrapper ties to the p-substrate. */
+function hiddenSubstratePins(
+  project: Definitions,
+  instance: Instance,
+): string[] {
+  const binding = instance.netlist?.binding;
+  if (binding?.kind !== "external-subcircuit") return [];
+  const definition = project.externalSubcircuitDefinitions.find(
+    (item) => item.id === binding.definitionId,
+  );
+  const reviewed =
+    definition && !definition.presentation
+      ? resolveReviewedExternalBinding(
+          definition.name,
+          definition.terminals.map((terminal) => terminal.name),
+          instance.symbolId,
+        )
+      : undefined;
+  return (reviewed?.terminals ?? []).flatMap((terminal) =>
+    terminal.interaction === "property" && terminal.role === "substrate"
+      ? [terminal.pinName]
+      : [],
+  );
+}
+
+/**
+ * The hidden substrate terminals that followed the Cell's substrate default
+ * move to the one the new NMOS default makes, where the Process would bind
+ * them now. Both are read by the Process's own rule, so a Cell with none set
+ * moves those on its negative rail or ground. A terminal on the old NMOS
+ * default followed it too: beside a negative rail, ground as the default
+ * puts new substrates on the rail, yet one bound before the rail was drawn
+ * is on ground, and this is how the warning about it is answered.
+ */
+function planSubstrateMoves(
+  project: Definitions,
+  document: SchematicDocument,
+  netId: string | null,
+): SchematicEdit[] {
+  const logical = resolveDocumentLogicalNets(document);
+  const logicalId = (id: string) => logical.byBaseNetId.get(id)?.id ?? id;
+  const to = pdkSubstrateDefaultNet(document, logical, netId);
+  if (!to) return [];
+  const followed = new Set(
+    [
+      pdkSubstrateDefaultNet(document, logical)?.id,
+      document.mosBulkDefaults?.nmosNetId,
+    ].flatMap((id) =>
+      id && document.nets.some((net) => net.id === id) ? [logicalId(id)] : [],
+    ),
+  );
+  followed.delete(logicalId(to.id));
+  if (!followed.size) return [];
+  return document.instances.flatMap((instance) =>
+    hiddenSubstratePins(project, instance).flatMap(
+      (pinName): SchematicEdit[] => {
+        const net = document.nets.find((item) =>
+          item.terminals.some(
+            (terminal) =>
+              terminal.instanceId === instance.id &&
+              terminal.pinName === pinName,
+          ),
+        );
+        return net && followed.has(logicalId(net.id))
+          ? [
+              {
+                kind: "set_property_terminal_net",
+                instanceId: instance.id,
+                pinName,
+                netId: to.id,
+              },
+            ]
+          : [];
+      },
+    ),
+  );
 }

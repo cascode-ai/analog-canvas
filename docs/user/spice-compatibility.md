@@ -37,10 +37,15 @@ and belongs on ground, as in a bandgap; drawn elsewhere, as a mirror load, the
 export warns `PDK_SUBSTRATE_TERMINAL`. The exact
 `sky130_fd_pr__npn_05v5_W1p00L1p00` interface instead exposes its real fourth S
 terminal as a `Substrate Net` property and is structural only in the hosted
-Profile. Placed in a Cell that draws a negative supply (a supply named like
-`VEE`, `VSS` or `VNEG`), its substrate takes that supply; one placed before
-the rail stays on ground, and the export warns
-`PDK_SUBSTRATE_ABOVE_NEGATIVE_SUPPLY` until its `Substrate Net` is set. Clearing its `netlistTarget`, or choosing an ordinary model name,
+Profile. Its substrate, like the resistor's B, is the node the NMOS bodies sit
+on, the lowest supply: the Cell's drawn negative supply (a supply named like
+`VEE`, `VSS` or `VNEG`) while the Cell's NMOS body default is unset or ground,
+else that default when it is another Net (labelled NMOS body / substrate in
+Cell Properties), else ground. Changing that default moves the substrates that
+followed the old one with the NMOS bodies; one whose `Substrate Net` was set
+to another Net stays. A substrate on ground in a Cell that draws a negative
+supply, bound before the rail was drawn, exports with the warning
+`PDK_SUBSTRATE_ABOVE_NEGATIVE_SUPPLY`, which names how to move it. Clearing its `netlistTarget`, or choosing an ordinary model name,
 restores the ordinary three-node Q card and removes the model-only substrate
 membership. The generic Diode keeps its generic `DIODE` model, which a SPICE
 export defines with a default card until another model is bound; this
