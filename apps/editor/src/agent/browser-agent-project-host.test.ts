@@ -6,6 +6,14 @@ import { executeProjectTransaction } from "@icm/edit-engine";
 import { createEmptyProject, type CircuitProject } from "@icm/model";
 import { serializeProject } from "@icm/project-protocol";
 
+import {
+  editorFetchAs,
+  environment,
+  makerOf,
+  rejectOne,
+  seatOf,
+  submitOne,
+} from "../../../../worker/gallery.test-support";
 import { BrowserAgentProjectHost } from "./browser-agent-project-host";
 
 // Measuring a figure's crop needs a real browser layout; everything around
@@ -381,6 +389,93 @@ describe("BrowserAgentProjectHost", () => {
         ),
         recovery: "retry",
       },
+    });
+  });
+
+  it("lists every AI account's circuits, rejected ones with their reasons, to an AI account only (#1540)", async () => {
+    const env = environment();
+    const sol = await seatOf(env, 2);
+    const claude = await seatOf(env, 0);
+    const kept = await submitOne(env, "Kept", { cookie: sol });
+    const redo = await submitOne(env, "Redo", { cookie: sol });
+    env.gallerySql.exec(
+      "UPDATE gallery_entries SET created_at = ? WHERE id = ?",
+      "2026-10-01T00:00:00.000Z",
+      kept,
+    );
+    await rejectOne(env, redo, "Loose wires.");
+    const destination = createEmptyProject("destination", "Destination");
+    const list = (
+      cookie: string,
+      fields: Partial<{
+        scope: "ai-seats";
+        status: "rejected";
+        limit: number;
+        cursor: string;
+      }>,
+    ) =>
+      new BrowserAgentProjectHost({
+        getProjectSessionId: () => "session",
+        getProject: () => destination,
+        getActiveDocumentId: () => destination.topDocumentId,
+        commitProjectStructure: () => undefined,
+        dispatchProjectTransaction: () => {
+          throw new Error("must not dispatch");
+        },
+        fetch: editorFetchAs(env, cookie),
+      }).handle({
+        apiVersion: AGENT_API_VERSION,
+        requestId: "ai-list",
+        operation: "list-gallery",
+        ...fields,
+      });
+
+    await expect(
+      list(claude, { scope: "ai-seats", status: "rejected" }),
+    ).resolves.toMatchObject({
+      ok: true,
+      entries: [
+        {
+          id: redo,
+          author: "GPT-6.1 Sol",
+          aiGenerated: true,
+          status: "rejected",
+          rejectReason: "Loose wires.",
+        },
+      ],
+      nextCursor: null,
+      total: 1,
+    });
+    // One list, newest first, paged by the cursor.
+    await expect(
+      list(claude, { scope: "ai-seats", limit: 1 }),
+    ).resolves.toMatchObject({
+      entries: [{ id: redo }],
+      nextCursor: "1",
+      total: 2,
+    });
+    const rest = await list(claude, {
+      scope: "ai-seats",
+      limit: 1,
+      cursor: "1",
+    });
+    expect(rest).toMatchObject({
+      entries: [{ id: kept, status: "public" }],
+      nextCursor: null,
+    });
+    if (!rest.ok || rest.operation !== "list-gallery")
+      throw new Error(JSON.stringify(rest));
+    expect(rest.entries[0]).not.toHaveProperty("rejectReason");
+    // A person's Editor is refused, and status narrows the scope only.
+    await expect(
+      list(await makerOf(env), { scope: "ai-seats" }),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: { code: "AI_ACCOUNT_REQUIRED", recovery: "fix-input" },
+    });
+    await expect(list(claude, { status: "rejected" })).resolves.toMatchObject({
+      ok: false,
+      error: { code: "GALLERY_STATUS_NEEDS_SCOPE", recovery: "fix-input" },
     });
   });
 

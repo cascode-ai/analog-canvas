@@ -1,4 +1,5 @@
-// Bylines: AI accounts' names and take-overs, and contributor renames.
+// Bylines: AI accounts' names, what they see of each other's circuits and
+// take-overs, and contributor renames.
 
 import { CURRENT_PROJECT_FILE_VERSION } from "@icm/project-protocol";
 import { describe, expect, it } from "vitest";
@@ -6,9 +7,12 @@ import { GalleryDO } from "./gallery";
 import { AI_SEATS } from "./auth";
 import {
   ORIGIN,
+  adminOf,
   environment,
+  type Harness,
   makerOf,
   projectText,
+  rejectOne,
   route,
   seatOf,
   sqliteState,
@@ -84,6 +88,32 @@ describe("AI account bylines", () => {
   });
 });
 
+/** An update of the entry by the session, as the Publish dialog sends it. */
+function updateAs(
+  env: Harness,
+  entryId: string,
+  cookie: string,
+  takeOver?: boolean,
+) {
+  return route(
+    env,
+    new Request(`${ORIGIN}/api/gallery/${entryId}`, {
+      method: "PUT",
+      headers: {
+        Origin: ORIGIN,
+        Cookie: cookie,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        name: "Wien bridge",
+        description: "Redone",
+        projectText: projectText("Wien bridge"),
+        ...(takeOver === undefined ? {} : { takeOver }),
+      }),
+    }),
+  );
+}
+
 describe("AI accounts taking over each other's circuits (#1499)", () => {
   it("moves an AI account's circuit to the AI account whose update takes it over, never a person's", async () => {
     const env = environment();
@@ -92,23 +122,7 @@ describe("AI accounts taking over each other's circuits (#1499)", () => {
     const claudeCookie = await seatOf(env, 0);
     const id = await submitOne(env, "Wien bridge", { cookie: solCookie });
     const update = (entryId: string, cookie: string, takeOver?: boolean) =>
-      route(
-        env,
-        new Request(`${ORIGIN}/api/gallery/${entryId}`, {
-          method: "PUT",
-          headers: {
-            Origin: ORIGIN,
-            Cookie: cookie,
-            "content-type": "application/json",
-          },
-          body: JSON.stringify({
-            name: "Wien bridge",
-            description: "Redone",
-            projectText: projectText("Wien bridge"),
-            ...(takeOver === undefined ? {} : { takeOver }),
-          }),
-        }),
-      );
+      updateAs(env, entryId, cookie, takeOver);
     // Without a take-over, another account's circuit stays its own.
     expect((await update(id, claudeCookie)).status).toBe(403);
     const taken = await update(id, claudeCookie, true);
@@ -151,6 +165,180 @@ describe("AI accounts taking over each other's circuits (#1499)", () => {
     expect(await refused.json()).toEqual({ error: "take-over-forbidden" });
     expect((await update(id, person, true)).status).toBe(403);
     expect(entry()!.owner_user_id).toBe(claude!.userId);
+  });
+
+  it("shows an AI account every AI account's circuits, rejected ones with their reasons, to read and take over, never a person's (#1540)", async () => {
+    const env = environment();
+    const [claude, , sol] = AI_SEATS;
+    const solCookie = await seatOf(env, 2);
+    const claudeCookie = await seatOf(env, 0);
+    const person = await makerOf(env);
+    const solId = await submitOne(env, "Wien bridge", { cookie: solCookie });
+    const personId = await submitOne(env, "Mine", { cookie: person });
+    // Sol's own update leaves a saved version behind.
+    expect((await updateAs(env, solId, solCookie)).status).toBe(200);
+    for (const id of [solId, personId])
+      await rejectOne(env, id, "Loose wires.");
+    const read = (path: string, cookie: string, method = "GET") =>
+      route(
+        env,
+        new Request(`${ORIGIN}/api/gallery/${path}`, {
+          method,
+          headers: { Origin: ORIGIN, Cookie: cookie },
+        }),
+      );
+
+    const listed = await read("mine?scope=ai-seats", claudeCookie);
+    expect(listed.status).toBe(200);
+    expect(await listed.json()).toEqual({
+      entries: [
+        expect.objectContaining({
+          id: solId,
+          ownerUserId: sol!.userId,
+          author: sol!.displayName,
+          status: "rejected",
+          rejectReason: "Loose wires.",
+          recycledAt: null,
+        }),
+      ],
+    });
+    // Only an AI account may ask; plain /mine stays the session's own.
+    const refused = await read("mine?scope=ai-seats", person);
+    expect(refused.status).toBe(403);
+    expect(await refused.json()).toEqual({ error: "ai-accounts-only" });
+    expect(await (await read("mine", claudeCookie)).json()).toEqual({
+      entries: [],
+    });
+
+    // It reads the rejected circuit as its owner does, a person's never.
+    expect((await read(solId, claudeCookie)).status).toBe(200);
+    expect((await read(`${solId}/preview.svg`, claudeCookie)).status).toBe(200);
+    const versions = (await (
+      await read(`${solId}/versions`, claudeCookie)
+    ).json()) as { versions: { versionId: string }[] };
+    expect(versions.versions).toHaveLength(1);
+    expect(
+      (
+        await read(
+          `${solId}/versions/${versions.versions[0]!.versionId}/project`,
+          claudeCookie,
+        )
+      ).status,
+    ).toBe(200);
+    expect((await read(personId, claudeCookie)).status).toBe(404);
+    expect((await read(`${personId}/preview.svg`, claudeCookie)).status).toBe(
+      404,
+    );
+    expect((await read(`${personId}/versions`, claudeCookie)).status).toBe(401);
+    // Reading manages nothing: putting it back stays the Owner's.
+    expect((await read(`${solId}/restore`, claudeCookie, "POST")).status).toBe(
+      401,
+    );
+
+    // The take-over lands and the entry stays rejected, with its reason.
+    expect((await updateAs(env, solId, person, true)).status).toBe(403);
+    expect((await updateAs(env, solId, claudeCookie, true)).status).toBe(200);
+    expect(
+      env.gallerySql
+        .exec(
+          `SELECT owner_user_id, author, status, reject_reason
+           FROM gallery_entries WHERE id = ?`,
+          solId,
+        )
+        .toArray(),
+    ).toEqual([
+      {
+        owner_user_id: claude!.userId,
+        author: claude!.displayName,
+        status: "rejected",
+        reject_reason: "Loose wires.",
+      },
+    ]);
+    expect((await read(`${solId}/restore`, claudeCookie, "POST")).status).toBe(
+      409,
+    );
+  });
+
+  it("leaves a circuit the Owner withdrew for the Owner to put back, after a take-over too (#1540)", async () => {
+    const env = environment();
+    const [claude] = AI_SEATS;
+    const solCookie = await seatOf(env, 2);
+    const claudeCookie = await seatOf(env, 0);
+    const id = await submitOne(env, "Wien bridge", { cookie: solCookie });
+    const post = async (action: string, cookie: string) =>
+      route(
+        env,
+        new Request(`${ORIGIN}/api/gallery/${id}/${action}`, {
+          method: "POST",
+          headers: { Origin: ORIGIN, Cookie: cookie },
+        }),
+      );
+    expect((await post("recycle", await adminOf(env))).status).toBe(200);
+    const listed = await route(
+      env,
+      new Request(`${ORIGIN}/api/gallery/mine?scope=ai-seats`, {
+        headers: { Origin: ORIGIN, Cookie: claudeCookie },
+      }),
+    );
+    expect(await listed.json()).toEqual({
+      entries: [
+        expect.objectContaining({
+          id,
+          status: "recycled",
+          rejectReason: null,
+          withdrawnByCurator: true,
+        }),
+      ],
+    });
+
+    // Taking it over to fix it lands; putting it back does not.
+    expect((await updateAs(env, id, claudeCookie, true)).status).toBe(200);
+    const restore = await post("restore", claudeCookie);
+    expect(restore.status).toBe(409);
+    expect(await restore.json()).toEqual({ error: "invalid-status" });
+    const row = () =>
+      env.gallerySql
+        .exec<{ owner_user_id: string; status: string }>(
+          "SELECT owner_user_id, status FROM gallery_entries WHERE id = ?",
+          id,
+        )
+        .one();
+    expect(row()).toEqual({
+      owner_user_id: claude!.userId,
+      status: "recycled",
+    });
+    // The Owner still can.
+    expect((await post("restore", await adminOf(env))).status).toBe(200);
+    expect(row().status).toBe("public");
+  });
+
+  it("counts the likes AI accounts' circuits hold where AI accounts list them (#1540)", async () => {
+    const env = environment();
+    const solCookie = await seatOf(env, 2);
+    const claudeCookie = await seatOf(env, 0);
+    const id = await submitOne(env, "Wien bridge", { cookie: solCookie });
+    const liked = await route(
+      env,
+      new Request(`${ORIGIN}/api/gallery/${id}/like`, {
+        method: "POST",
+        headers: { Origin: ORIGIN, Cookie: await makerOf(env) },
+      }),
+    );
+    expect(await liked.json()).toMatchObject({ likes: 1 });
+    for (const [path, cookie] of [
+      ["mine?scope=ai-seats", claudeCookie],
+      ["mine", solCookie],
+    ] as const) {
+      const listed = await route(
+        env,
+        new Request(`${ORIGIN}/api/gallery/${path}`, {
+          headers: { Origin: ORIGIN, Cookie: cookie },
+        }),
+      );
+      expect(await listed.json()).toEqual({
+        entries: [expect.objectContaining({ id, likes: 1 })],
+      });
+    }
   });
 
   it("keeps the AI account that made each earlier version when the Gallery starts", () => {

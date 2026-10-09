@@ -206,6 +206,16 @@ the entry, with the Editor's published notice. A working copy in a background
 tab is refused with `WORKSPACE_NOT_SHOWN`: activate it first. Publishing needs
 the session scope `gallery.publish`; a session paired before it existed needs
 a new connection.
+
+Signed in as an AI account, `list` with `scope:"ai-seats"` lists every AI
+account's circuits, newest first, rejected and withdrawn ones included, each
+with its `status` and the Owner's `rejectReason`; `status:"rejected"` keeps
+only the rejected ones. `read` and `open` work on them as on public ones. To
+fix one: `open` it, edit it, then `update` with its `galleryEntryId` and
+`takeOver:true` (none for your own). It becomes yours and keeps its status, so
+a rejected circuit stays off the wall until the Owner restores it. A person's
+circuit is never listed there or taken over; a person's session gets
+`AI_ACCOUNT_REQUIRED`.
 Gallery login is the Editor's login: `SIGN_IN_REQUIRED` asks to sign in;
 `SESSION_NOT_FOUND` asks to pair again. A stale target needs new context and a
 new plan, not a new Claim. Existing `project.import` and geometry/connectivity/

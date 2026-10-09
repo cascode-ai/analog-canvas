@@ -183,11 +183,17 @@ export function recycleDuplicates(
   });
 }
 
+/**
+ * Put an entry on the wall or withdraw it. A curator withdrawing someone
+ * else's entry names itself as `reviewerId`, recorded at the withdrawal
+ * (withdrawnByCurator), so that its owner cannot put it back (#1540).
+ */
 export function setStatus(
   state: DurableObjectStateLike,
   id: string,
   status: string,
   at: string,
+  reviewerId: string | null,
 ): Response {
   const sql = state.storage.sql;
   const row = sql
@@ -210,6 +216,14 @@ export function setStatus(
         status === "recycled" ? at : null,
         id,
       );
+      if (reviewerId !== null) {
+        sql.exec(
+          "UPDATE gallery_entries SET reviewed_at = ?, reviewed_by = ? WHERE id = ?",
+          at,
+          reviewerId,
+          id,
+        );
+      }
       if (status === "recycled") {
         sweepRecycledRows(sql, row.owner_user_id ?? "");
       }

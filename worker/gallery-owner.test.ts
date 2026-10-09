@@ -469,6 +469,55 @@ describe("gallery owner lifecycle (withdrawal and history)", () => {
     expect(missing.status).toBe(404);
   });
 
+  it("leaves the Owner's withdrawal for the Owner to undo; an owner's own stays theirs (#1540)", async () => {
+    const { authDurable, env } = reviewHarness();
+    const ownerCookie = await signIn(authDurable, "maker@example.com");
+    const adminCookie = await signIn(authDurable, "owner@example.com");
+    const id = await submitPublished(env, ownerCookie, "Mine");
+    const flagged = async () => {
+      const mine = await route(
+        env,
+        new Request(`${ORIGIN}/api/gallery/mine`, {
+          headers: { Cookie: ownerCookie },
+        }),
+      );
+      const payload = (await mine.json()) as {
+        entries: { id: string; withdrawnByCurator?: boolean }[];
+      };
+      return payload.entries.find((entry) => entry.id === id)
+        ?.withdrawnByCurator;
+    };
+
+    expect(
+      (await route(env, lifecycle(id, "recycle", adminCookie))).status,
+    ).toBe(200);
+    expect(await flagged()).toBe(true);
+    const refused = await route(env, lifecycle(id, "restore", ownerCookie));
+    expect(refused.status).toBe(409);
+    expect(await refused.json()).toEqual({ error: "invalid-status" });
+    expect(await mineStatus(env, ownerCookie, id)).toBe("recycled");
+    expect(
+      (await route(env, lifecycle(id, "restore", adminCookie))).status,
+    ).toBe(200);
+
+    // A legacy approval's reviewer predates the owner's own withdrawal,
+    // which stays the owner's to undo.
+    env.gallerySql.exec(
+      `UPDATE gallery_entries
+       SET reviewed_at = '2026-08-01T00:00:00.000Z', reviewed_by = 'reviewer'
+       WHERE id = ?`,
+      id,
+    );
+    expect(
+      (await route(env, lifecycle(id, "recycle", ownerCookie))).status,
+    ).toBe(200);
+    expect(await flagged()).toBeUndefined();
+    expect(
+      (await route(env, lifecycle(id, "restore", ownerCookie))).status,
+    ).toBe(200);
+    expect(await mineStatus(env, ownerCookie, id)).toBe("public");
+  });
+
   it("owners browse their version history; a restore stays published", async () => {
     const { authDurable, env } = reviewHarness();
     const ownerCookie = await signIn(authDurable, "maker@example.com");

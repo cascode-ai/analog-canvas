@@ -23,6 +23,14 @@ import {
   type LiveAgentEditorOptions,
 } from "./live-agent-editor.test-support";
 import otaLibrary from "../../../../netlists/native-ota-library/legacy-source.icproj.json";
+import { AI_SEATS } from "../../../../worker/auth";
+import {
+  editorFetchAs,
+  environment,
+  rejectOne,
+  seatOf,
+  submitOne,
+} from "../../../../worker/gallery.test-support";
 import { createExternalSubcircuitInstance } from "@icm/edit-engine";
 
 // Measuring a figure's crop needs a real browser layout; everything around
@@ -315,6 +323,75 @@ describe("MCP tools on the live editor", () => {
         tags: ["amplifier"],
         aiGenerated: true,
       }),
+    ]);
+  });
+
+  it("finds another AI account's rejected circuit, reads it and takes it over through gallery_circuits, still rejected (#1540)", async () => {
+    const env = environment();
+    const [claude, , sol] = AI_SEATS;
+    const solCookie = await seatOf(env, 2);
+    const claudeCookie = await seatOf(env, 0);
+    const id = await submitOne(env, "Wien bridge", { cookie: solCookie });
+    await rejectOne(env, id, "Loose wires.");
+    const gallery = editorFetchAs(env, claudeCookie);
+    const editor: Awaited<ReturnType<typeof connected>> = await connected({
+      projectHost: {
+        fetch: gallery,
+        publishToGallery: createAgentGalleryPublisher({
+          current: () => ({
+            project: editor.controller.project,
+            linked: null,
+            cloudBinding: null,
+          }),
+          published: () => {},
+          fetch: gallery,
+        }),
+      },
+    });
+    expect(
+      await editor.tool("gallery_circuits", {
+        action: "list",
+        scope: "ai-seats",
+        status: "rejected",
+      }),
+    ).toMatchObject({
+      ok: true,
+      entries: [
+        {
+          id,
+          author: sol!.displayName,
+          status: "rejected",
+          rejectReason: "Loose wires.",
+        },
+      ],
+    });
+    expect(
+      await editor.tool("gallery_circuits", {
+        action: "read",
+        galleryEntryId: id,
+        netlistFormat: null,
+      }),
+    ).toMatchObject({ ok: true, entry: { id, name: "Wien bridge" } });
+    expect(
+      await editor.tool("gallery_circuits", {
+        action: "update",
+        galleryEntryId: id,
+        takeOver: true,
+      }),
+    ).toMatchObject({ ok: true, galleryEntryId: id });
+    expect(
+      env.gallerySql
+        .exec(
+          "SELECT owner_user_id, status, reject_reason FROM gallery_entries WHERE id = ?",
+          id,
+        )
+        .toArray(),
+    ).toEqual([
+      {
+        owner_user_id: claude!.userId,
+        status: "rejected",
+        reject_reason: "Loose wires.",
+      },
     ]);
   });
 

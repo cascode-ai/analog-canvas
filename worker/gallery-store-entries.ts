@@ -4,6 +4,7 @@
 import { formulaPreviewNeedsRefresh } from "./gallery-preview";
 import { sha256Hex } from "@icm/derived";
 import { NETLIST_MARK_RULE_VERSION } from "@icm/netlist";
+import { AI_SEATS } from "./auth";
 import {
   type DurableObjectStateLike,
   type EntryRow,
@@ -12,9 +13,11 @@ import {
   type SqlStorage,
   advanceCurationRevision,
   countedParts,
+  isAiSeatEntry,
   shortId,
   summaryOf,
   svgPreviewDimensions,
+  withdrawnByCurator,
 } from "./gallery-store";
 import { snapshotEntry } from "./gallery-store-versions";
 import { sweepRecycledRows } from "./gallery-store-moderation";
@@ -26,6 +29,7 @@ interface PreviewAccessRow {
 }
 
 interface PreviewRow extends PreviewAccessRow {
+  author: string;
   svg_text: string;
 }
 
@@ -195,7 +199,7 @@ export function previewAccess(sql: SqlStorage, id: string): Response {
 export function preview(sql: SqlStorage, id: string): Response {
   const row = sql
     .exec<PreviewRow>(
-      `SELECT status, owner_user_id, preview_revision, svg_text
+      `SELECT status, owner_user_id, author, preview_revision, svg_text
        FROM gallery_entries WHERE id = ?`,
       id,
     )
@@ -204,6 +208,7 @@ export function preview(sql: SqlStorage, id: string): Response {
   return Response.json({
     status: row.status,
     ownerUserId: row.owner_user_id,
+    author: row.author,
     previewRevision: row.preview_revision || "legacy",
     svgText: row.svg_text,
     ...(formulaPreviewNeedsRefresh(row.svg_text)
@@ -290,6 +295,7 @@ export function entry(
     submitterEmail: row.submitter_email,
     submitterProvider: row.submitter_provider,
     rejectReason: row.reject_reason,
+    withdrawnByCurator: withdrawnByCurator(row),
     projectText: row.project_text,
     svgText: row.svg_text,
   });
@@ -460,14 +466,10 @@ function submissionsOn(
   );
 }
 
-export function mine(sql: SqlStorage, ownerUserId: string): Response {
-  const rows = sql
-    .exec<EntryRow>(
-      `SELECT * FROM gallery_entries WHERE owner_user_id = ?
-       ORDER BY created_at DESC, id DESC`,
-      ownerUserId,
-    )
-    .toArray();
+/** Entries as their owner sees them: hidden ones too, and why. */
+function ownedEntries(
+  rows: readonly (EntryRow & { likes: number })[],
+): Response {
   return Response.json({
     entries: rows.map((row) => ({
       ...summaryOf(row),
@@ -475,8 +477,46 @@ export function mine(sql: SqlStorage, ownerUserId: string): Response {
       rejectReason: row.reject_reason,
       // When it was withdrawn. Not a deadline: nothing expires by time.
       recycledAt: row.recycled_at,
+      // Only a curator puts it back, as after a rejection (#1540).
+      ...(withdrawnByCurator(row) ? { withdrawnByCurator: true } : {}),
     })),
   });
+}
+
+/** Owned rows with the likes they hold, as the wall counts them. */
+const OWNED_ROWS = `SELECT e.*,
+    (SELECT COUNT(*) FROM gallery_likes WHERE entry_id = e.id) AS likes
+  FROM gallery_entries e`;
+
+export function mine(sql: SqlStorage, ownerUserId: string): Response {
+  return ownedEntries(
+    sql
+      .exec<EntryRow & { likes: number }>(
+        `${OWNED_ROWS} WHERE e.owner_user_id = ?
+         ORDER BY e.created_at DESC, e.id DESC`,
+        ownerUserId,
+      )
+      .toArray(),
+  );
+}
+
+/**
+ * Every AI account's entries (isAiSeatEntry), as `mine` lists one account's:
+ * where an AI account finds another's rejected work to redo (#1540).
+ */
+export function aiSeatEntries(sql: SqlStorage): Response {
+  const ids = AI_SEATS.map((seat) => seat.userId);
+  return ownedEntries(
+    sql
+      .exec<EntryRow & { likes: number }>(
+        `${OWNED_ROWS}
+         WHERE e.owner_user_id IN (${ids.map(() => "?").join(", ")})
+         ORDER BY e.created_at DESC, e.id DESC`,
+        ...ids,
+      )
+      .toArray()
+      .filter((row) => isAiSeatEntry(row.owner_user_id, row.author)),
+  );
 }
 
 export function updateEntry(

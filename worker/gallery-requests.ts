@@ -11,9 +11,9 @@ import {
   type SymbolResolver,
 } from "@icm/symbols";
 import { type CircuitProject } from "@icm/model";
-import { sessionUserOf } from "./auth";
+import { sessionUserOf, type SessionUser } from "./auth";
 import { bearerMatches } from "./bearer";
-import { type GalleryEnv } from "./gallery-store";
+import { aiSeatOf, isAiSeatEntry, type GalleryEnv } from "./gallery-store";
 
 function galleryStub(env: GalleryEnv) {
   return env.GALLERY.getByName("gallery");
@@ -87,8 +87,29 @@ export async function canReview(
 }
 
 /**
+ * Whether a session reads a hidden (rejected or withdrawn) entry as its owner
+ * does: it owns the entry, or both are AI accounts' (#1540; all are the
+ * Owner's). Reading only: managing the entry stays its owner's.
+ */
+export function readsAsOwner(
+  user: SessionUser | null,
+  entry: {
+    ownerUserId?: string | null | undefined;
+    author?: string | null | undefined;
+  },
+): boolean {
+  if (!user) return false;
+  if (entry.ownerUserId != null && entry.ownerUserId === user.id) return true;
+  return (
+    aiSeatOf(user) !== undefined &&
+    isAiSeatEntry(entry.ownerUserId, entry.author)
+  );
+}
+
+/**
  * Who may manage one entry's lifecycle surfaces (withdrawal, version
- * history): a reviewer, or the signed-in owner of that entry.
+ * history): a reviewer, or the signed-in owner of that entry. `reads` also
+ * covers who reads its history as the owner does (readsAsOwner).
  */
 export async function entryManager(
   request: Request,
@@ -98,21 +119,27 @@ export async function entryManager(
   found: boolean;
   reviewer: boolean;
   owner: boolean;
+  reads: boolean;
   status: string | null;
   rejectReason: string | null;
+  withdrawnByCurator: boolean;
 }> {
   const existing = await callGallery<{
+    entry?: { author?: string };
     ownerUserId?: string | null;
     status?: string;
     rejectReason?: string | null;
+    withdrawnByCurator?: boolean;
   }>(env, "any-entry", { id });
   if (existing.status !== 200) {
     return {
       found: false,
       reviewer: false,
       owner: false,
+      reads: false,
       status: null,
       rejectReason: null,
+      withdrawnByCurator: false,
     };
   }
   const reviewer = await canReview(request, env);
@@ -125,8 +152,13 @@ export async function entryManager(
     found: true,
     reviewer,
     owner,
+    reads: readsAsOwner(user, {
+      ownerUserId: existing.payload.ownerUserId,
+      author: existing.payload.entry?.author,
+    }),
     status: existing.payload.status ?? null,
     rejectReason: existing.payload.rejectReason ?? null,
+    withdrawnByCurator: existing.payload.withdrawnByCurator === true,
   };
 }
 

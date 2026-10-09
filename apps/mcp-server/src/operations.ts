@@ -168,6 +168,16 @@ const GalleryCircuitsArgs = z.discriminatedUnion("action", [
     action: z.literal("list"),
     cursor: z.string().min(1).optional(),
     limit: z.number().int().min(1).max(60).optional(),
+    scope: z
+      .literal("ai-seats")
+      .optional()
+      .describe(
+        "Signed in as an AI account: every AI account's circuits, rejected and withdrawn ones too, each with status and rejectReason.",
+      ),
+    status: z
+      .enum(["public", "rejected", "recycled"])
+      .optional()
+      .describe('Narrows scope:"ai-seats".'),
   }),
   z.strictObject({
     action: z.literal("read"),
@@ -872,6 +882,8 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
           operation: "list-gallery",
           ...(parsed.cursor ? { cursor: parsed.cursor } : {}),
           ...(parsed.limit === undefined ? {} : { limit: parsed.limit }),
+          ...(parsed.scope ? { scope: parsed.scope } : {}),
+          ...(parsed.status ? { status: parsed.status } : {}),
         });
       }
       if (parsed.action === "open")

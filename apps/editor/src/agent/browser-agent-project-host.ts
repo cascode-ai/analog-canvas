@@ -33,6 +33,7 @@ import {
   dailyOpenLimitMessage,
   GALLERY_SIGN_IN_REQUIRED,
   loadGalleryFeed,
+  type GalleryFeedEntry,
 } from "../gallery-client";
 import { planNetlistCodeEdit } from "../features/netlist-export/netlist-code-edit";
 import { importChunk } from "../components/chunk-import";
@@ -135,6 +136,14 @@ export class BrowserAgentProjectHost {
       );
     }
     if (request.operation === "list-gallery") {
+      if (request.scope === "ai-seats") return this.listAiSeatEntries(request);
+      if (request.status)
+        return this.error(
+          request,
+          "GALLERY_STATUS_NEEDS_SCOPE",
+          'status narrows scope:"ai-seats" only; the public Gallery lists public entries',
+          "fix-input",
+        );
       const page = await loadGalleryFeed(this.options.fetch ?? fetch, {
         ...(request.cursor ? { cursor: request.cursor } : {}),
         ...(request.limit === undefined ? {} : { limit: request.limit }),
@@ -372,6 +381,78 @@ export class BrowserAgentProjectHost {
       rootDocumentId: plan.rootDocumentId,
       importedDocumentIds: [...plan.importedDocumentIds],
       structureRevision: result.structureRevision,
+    };
+  }
+
+  /**
+   * Every AI account's entries, rejected and withdrawn ones with their status
+   * and reason, for an AI account to redo and take over (#1540). The Gallery
+   * answers them in one list, newest first; the cursor is an offset into it.
+   */
+  private async listAiSeatEntries(
+    request: Extract<
+      AgentProjectResourceRequest,
+      { operation: "list-gallery" }
+    >,
+  ): Promise<AgentProjectResourceResponse> {
+    const start = request.cursor === undefined ? 0 : Number(request.cursor);
+    if (!Number.isSafeInteger(start) || start < 0)
+      return this.error(
+        request,
+        "INVALID_CURSOR",
+        "Continue with the nextCursor this listing returned",
+        "fix-input",
+      );
+    let entries: (GalleryFeedEntry & {
+      status: "public" | "rejected" | "recycled";
+      rejectReason: string | null;
+    })[];
+    try {
+      const response = await (this.options.fetch ?? fetch)(
+        "/api/gallery/mine?scope=ai-seats",
+        { credentials: "same-origin", cache: "no-store" },
+      );
+      if (response.status === 401)
+        return this.error(
+          request,
+          "SIGN_IN_REQUIRED",
+          GALLERY_SIGN_IN_MESSAGE,
+          "sign-in",
+        );
+      if (response.status === 403)
+        return this.error(
+          request,
+          "AI_ACCOUNT_REQUIRED",
+          "Only an AI account lists the AI accounts' entries; the Editor is signed in as a person",
+          "fix-input",
+        );
+      if (!response.ok) throw new Error(String(response.status));
+      entries =
+        ((await response.json()) as { entries?: typeof entries }).entries ?? [];
+    } catch {
+      return this.error(
+        request,
+        "GALLERY_UNAVAILABLE",
+        "The AI accounts' Gallery entries could not be read",
+        "retry",
+      );
+    }
+    const listed = request.status
+      ? entries.filter((entry) => entry.status === request.status)
+      : entries;
+    const end = start + (request.limit ?? 30);
+    return {
+      apiVersion: AGENT_API_VERSION,
+      requestId: request.requestId,
+      operation: request.operation,
+      ok: true,
+      entries: listed.slice(start, end).map((entry) => ({
+        ...this.gallerySummary(entry),
+        status: entry.status,
+        ...(entry.rejectReason ? { rejectReason: entry.rejectReason } : {}),
+      })),
+      nextCursor: end < listed.length ? String(end) : null,
+      total: listed.length,
     };
   }
 

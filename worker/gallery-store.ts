@@ -64,6 +64,16 @@ export function isAiSeatEntry(
   );
 }
 
+/**
+ * The AI account a session is signed in as, or undefined: a person's account
+ * under a listed id is not one.
+ */
+export function aiSeatOf(user: { id: string; provider: string } | null) {
+  return user?.provider === AI_ACCOUNT_PROVIDER
+    ? AI_SEATS.find((seat) => seat.userId === user.id)
+    : undefined;
+}
+
 /** The day's allowance of the account a session belongs to. */
 export function dailySubmissionLimit(user: { provider: string }): number {
   return user.provider === AI_ACCOUNT_PROVIDER
@@ -257,6 +267,27 @@ export interface EntryRow {
   preview_revision: string;
   preview_width: number | null;
   preview_height: number | null;
+}
+
+/**
+ * Whether a curator withdrew the entry, a rejection apart (which says so with
+ * its reason): the withdrawal recorded its reviewer at that moment, as the
+ * Owner's Withdraw and duplicate cleanup do. Only a curator puts it back, not
+ * its owner (#1540). A legacy approval's reviewer predates the withdrawal
+ * and does not count.
+ */
+export function withdrawnByCurator(
+  row: Pick<
+    EntryRow,
+    "status" | "reject_reason" | "reviewed_by" | "reviewed_at" | "recycled_at"
+  >,
+): boolean {
+  return (
+    row.status === "recycled" &&
+    row.reject_reason === null &&
+    row.reviewed_by !== null &&
+    row.reviewed_at === row.recycled_at
+  );
 }
 
 export type EntrySummaryRow = Pick<

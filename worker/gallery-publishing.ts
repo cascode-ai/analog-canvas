@@ -10,9 +10,10 @@ import {
 } from "@icm/project-protocol";
 import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 import { type CircuitProject } from "@icm/model";
-import { AI_ACCOUNT_PROVIDER, AI_SEATS, sessionUserOf } from "./auth";
+import { AI_ACCOUNT_PROVIDER, sessionUserOf } from "./auth";
 import { sameOrigin } from "./same-origin";
 import {
+  aiSeatOf,
   dailySubmissionLimit,
   isAiSeatEntry,
   GALLERY_MAX_AUTHOR_LENGTH,
@@ -211,8 +212,9 @@ export async function handleEntryUpdate(
     takeOver?: unknown;
   } | null;
   // An AI account takes over another AI account's circuit as its update
-  // lands (#1499; all are the Owner's): never a person's, never for one.
-  const seat = AI_SEATS.find((item) => item.userId === user.id);
+  // lands (#1499; all are the Owner's), a rejected one too, which stays
+  // rejected (#1540): never a person's, never for one.
+  const seat = aiSeatOf(user);
   const takingOver = body?.takeOver === true && !owner;
   if (
     takingOver &&
@@ -349,9 +351,19 @@ export async function routeGalleryPublishing(
     if (!user) {
       return Response.json({ error: "unauthorized" }, { status: 401 });
     }
-    const { payload } = await callGallery(env, "mine", {
-      ownerUserId: user.id,
-    });
+    // `scope=ai-seats`: every AI account's entries, rejected ones with their
+    // reasons, for an AI account to redo and take over (#1540). A person's
+    // entries never appear there, and only an AI account may ask.
+    const scope = new URL(request.url).searchParams.get("scope");
+    if (scope !== null && scope !== "ai-seats")
+      return Response.json({ error: "invalid-scope" }, { status: 400 });
+    if (scope && !aiSeatOf(user))
+      return Response.json({ error: "ai-accounts-only" }, { status: 403 });
+    const { payload } = await callGallery(
+      env,
+      scope ? "ai-seat-entries" : "mine",
+      { ownerUserId: user.id },
+    );
     return Response.json(payload, { headers: { "cache-control": "no-store" } });
   }
   if (
@@ -363,7 +375,7 @@ export async function routeGalleryPublishing(
     if (!access.found) {
       return Response.json({ error: "not-found" }, { status: 404 });
     }
-    if (!access.reviewer && !access.owner) {
+    if (!access.reviewer && !access.reads) {
       return Response.json({ error: "unauthorized" }, { status: 401 });
     }
     const { status, payload } = await callGallery(env, "versions", {
@@ -382,7 +394,7 @@ export async function routeGalleryPublishing(
   ) {
     const headers = { "cache-control": "no-store" };
     const access = await entryManager(request, env, segments[0]!);
-    if (!access.found || (!access.reviewer && !access.owner)) {
+    if (!access.found || (!access.reviewer && !access.reads)) {
       return Response.json({ error: "not-found" }, { status: 404, headers });
     }
     const { status, payload } = await callGallery<{ projectText?: string }>(
@@ -402,7 +414,7 @@ export async function routeGalleryPublishing(
     request.method === "GET"
   ) {
     const access = await entryManager(request, env, segments[0]!);
-    if (!access.found || (!access.reviewer && !access.owner)) {
+    if (!access.found || (!access.reviewer && !access.reads)) {
       return Response.json({ error: "not-found" }, { status: 404 });
     }
     const { status, payload } = await callGallery<{

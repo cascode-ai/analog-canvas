@@ -34,6 +34,7 @@ import {
   hasStoreBackupToken,
   isAdmin,
   isAutomatedBackup,
+  readsAsOwner,
   recoverFormulaPreview,
 } from "./gallery-requests";
 import {
@@ -567,6 +568,7 @@ export async function routeGalleryRequest(
     const { status, payload } = await callGallery<{
       status?: string;
       ownerUserId?: string | null;
+      author?: string;
       previewRevision?: string;
       svgText?: string;
       projectText?: string;
@@ -605,8 +607,7 @@ export async function routeGalleryRequest(
     }
     const allowed =
       (await canReview(request, env)) ||
-      (payload.ownerUserId != null &&
-        (await sessionUserOf(request, env))?.id === payload.ownerUserId);
+      readsAsOwner(await sessionUserOf(request, env), payload);
     if (!allowed) {
       return Response.json(
         { error: "not-found" },
@@ -638,16 +639,17 @@ export async function routeGalleryRequest(
       return Response.json({ error: "not-found" }, { status: 404 });
     }
     const curator = await canReview(request, env);
-    if (payload.status !== "public") {
-      const allowed =
-        curator ||
-        (payload.ownerUserId != null &&
-          (await sessionUserOf(request, env))?.id === payload.ownerUserId);
-      if (!allowed) {
-        return Response.json({ error: "not-found" }, { status: 404 });
-      }
-    }
     const viewer = await sessionUserOf(request, env);
+    if (
+      payload.status !== "public" &&
+      !curator &&
+      !readsAsOwner(viewer, {
+        ownerUserId: payload.ownerUserId,
+        author: payload.entry?.author,
+      })
+    ) {
+      return Response.json({ error: "not-found" }, { status: 404 });
+    }
     if (
       payload.entry &&
       !viewer?.isAdmin &&
@@ -805,7 +807,7 @@ export async function routeGalleryRequest(
     return Response.json(payload, { status });
   }
   if (segments.length === 2 && request.method === "POST") {
-    const [id, action] = segments;
+    const [id = "", action] = segments;
     if (action !== "recycle" && action !== "restore") {
       return Response.json({ error: "not-found" }, { status: 404 });
     }
@@ -813,20 +815,24 @@ export async function routeGalleryRequest(
       return Response.json({ error: "forbidden" }, { status: 403 });
     }
     // Admins curate anything. An ordinary owner may withdraw a public entry
-    // or restore a voluntary withdrawal, but cannot undo an Owner rejection.
-    const admin = await isAdmin(request, env);
+    // or restore a voluntary withdrawal, but cannot undo an Owner rejection
+    // or an Owner's withdrawal of it (#1540), whoever owns it since.
+    const viewer = await sessionUserOf(request, env);
+    const admin = viewer?.isAdmin === true;
+    const access = await entryManager(request, env, id);
+    if (!access.found) {
+      return Response.json({ error: "not-found" }, { status: 404 });
+    }
     if (!admin) {
-      const access = await entryManager(request, env, id!);
-      if (!access.found) {
-        return Response.json({ error: "not-found" }, { status: 404 });
-      }
       if (!access.owner) {
         return Response.json({ error: "unauthorized" }, { status: 401 });
       }
       const validOwnerTransition =
         action === "recycle"
           ? access.status === "public"
-          : access.status === "recycled" && access.rejectReason === null;
+          : access.status === "recycled" &&
+            access.rejectReason === null &&
+            !access.withdrawnByCurator;
       if (!validOwnerTransition) {
         return Response.json({ error: "invalid-status" }, { status: 409 });
       }
@@ -835,6 +841,11 @@ export async function routeGalleryRequest(
       id,
       status: action === "recycle" ? "recycled" : "public",
       at: new Date().toISOString(),
+      // The Owner withdrawing someone else's entry records it as theirs; an
+      // owner's own withdrawal, the Owner's included, stays voluntary.
+      ...(action === "recycle" && admin && !access.owner
+        ? { reviewerId: viewer.id }
+        : {}),
     });
     return Response.json(payload, { status });
   }

@@ -383,6 +383,40 @@ export async function submitOne(
   return payload.id;
 }
 
+/** The Owner rejects an entry with a reason, as the wall's Reject does. */
+export async function rejectOne(
+  env: Harness,
+  id: string,
+  reason: string,
+): Promise<void> {
+  const response = await route(
+    env,
+    new Request(`${ORIGIN}/api/gallery/${id}/reject`, {
+      method: "POST",
+      headers: {
+        Origin: ORIGIN,
+        Cookie: await adminOf(env),
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ reason }),
+    }),
+  );
+  expect(response.status).toBe(200);
+}
+
+/** The Editor's same-origin fetch, answered by these routes as one session. */
+export function editorFetchAs(env: Harness, cookie: string): typeof fetch {
+  return (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const headers = new Headers(init?.headers);
+    headers.set("Origin", ORIGIN);
+    headers.set("Cookie", cookie);
+    return route(
+      env,
+      new Request(new URL(String(input), ORIGIN), { ...init, headers }),
+    );
+  }) as typeof fetch;
+}
+
 export async function signIn(
   authDurable: AuthDO,
   email: string,
