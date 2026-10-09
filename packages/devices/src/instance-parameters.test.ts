@@ -56,8 +56,15 @@ describe("instanceParameterContract", () => {
   it("shares model defaults across amplifier variants without closing custom arguments", () => {
     for (const symbolId of ["opamp", "opamp-wide", "opamp-differential"]) {
       const contract = instanceParameterContract({}, { symbolId });
+      // Only the single-ended op-amp has output limits (#1463).
       expect(contract?.definitions).toMatchObject([
         { name: "gain", defaultValue: "1e6" },
+        ...(symbolId === "opamp-differential"
+          ? []
+          : [
+              { name: "vhigh", defaultValue: "VDD" },
+              { name: "vlow", defaultValue: "VSS" },
+            ]),
       ]);
       expect(contract?.open).toBe(true);
     }

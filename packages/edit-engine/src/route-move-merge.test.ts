@@ -29,11 +29,11 @@ import { parseProject } from "@icm/project-protocol";
 import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 
+import { proposeEndpointRouteAttachment } from "./wire-commit-planner.js";
 import {
-  proposeEndpointRouteAttachment,
   proposeLooseRouteTranslation,
   proposeRouteEndpointMove,
-} from "./routing-planner.js";
+} from "./route-endpoint-move.js";
 import {
   createRoutingOperationPlan,
   gateRoutingOperationPlan,

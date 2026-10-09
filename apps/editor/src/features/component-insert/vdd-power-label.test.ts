@@ -1,16 +1,16 @@
-import { executeTransaction } from "@icm/edit-engine";
+import {
+  executeTransaction,
+  proposedStandalonePowerConnection,
+} from "@icm/edit-engine";
+import type { SchematicEdit } from "@icm/edit-engine";
 import { defaultVddPowerLabelPlacement } from "@icm/derived";
 import { AnnotationSchema, createEmptyDocument } from "@icm/model";
 import type { Annotation } from "@icm/model";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 
-import {
-  copyPlacementOrientationEdits,
-  copySelection,
-  proposePaste,
-} from "../clipboard/clipboard";
-import { proposedStandalonePowerConnection } from "./placement-connectivity";
+import { copySelection } from "../clipboard/clipboard";
+import { proposePaste } from "../clipboard/paste-proposal";
 import { vddPowerLabelAnnotation } from "./vdd-power-label";
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
@@ -399,17 +399,19 @@ describe("vdd power label annotation", () => {
     const clipboard = copySelection(document, ["VDD1"]);
     expect(clipboard).not.toBeNull();
     const paste = proposePaste(document, clipboard!, { x: 80, y: 0 }, 1);
-    // Pressing R twice while the copy is still on the pointer commits the
-    // turns in the SAME transaction as the paste, which is the shape the
-    // editor actually submits (use-selection-interaction).
-    const orientation = copyPlacementOrientationEdits(
-      clipboard!.instances,
-      paste.instanceIds,
-      [
-        { kind: "rotate", deltaDegrees: 90 },
-        { kind: "rotate", deltaDegrees: 90 },
-      ],
-    );
+    // Two quarter turns committed in the same transaction as the paste.
+    const orientation: SchematicEdit[] = [
+      {
+        kind: "rotate_instance",
+        instanceId: paste.instanceIds[0]!,
+        rotation: 90,
+      },
+      {
+        kind: "rotate_instance",
+        instanceId: paste.instanceIds[0]!,
+        rotation: 180,
+      },
+    ];
     const result = executeTransaction(
       document,
       {

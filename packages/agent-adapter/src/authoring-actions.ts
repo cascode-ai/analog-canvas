@@ -3,6 +3,7 @@ import {
   RichTextDocumentSchema,
   InstanceNetlistDataSchema,
   SignalFlowParametersSchema,
+  StableIdSchema,
 } from "@icm/model";
 import {
   AgentAuthoringCommandSchema,
@@ -33,7 +34,7 @@ const RotationInputSchema = z.union([
 const MirrorInputSchema = z.enum(["none", "horizontal", "vertical", "both"]);
 
 /** Reference an Instance by stable object ID or authored Reference. */
-export const InstanceRefSchema = z
+const InstanceRefSchema = z
   .strictObject({
     kind: z.literal("instance"),
     id: z.string().min(1).optional(),
@@ -218,13 +219,16 @@ export const AuthoringActionSchema = z.discriminatedUnion("kind", [
       kind: z.literal("place-component"),
       /** Reviewed built-in Razavi symbol ID from the authoring catalog. */
       symbol: z.string().min(1),
+      id: StableIdSchema.optional().describe(
+        "Your own stable ID for the part, refused if taken. Later actions of the same list name it by this ID, a ground or one of several VDD markers included.",
+      ),
       reference: z
         .string()
         .min(1)
         .max(128)
         .optional()
         .describe(
-          "A device's Reference, or a Port's name. Left out, a device takes the next free name, as a GUI insert does (the receipt's created objects name it); VDD defaults to VDD. Omit for ground.",
+          "A device's Reference, or a Port's name. Left out, a device takes the next free name, as a GUI insert does (the receipt's placed list names it); VDD defaults to VDD. Omit for ground.",
         ),
       position: PointInputSchema.optional().describe(
         "Instance origin; supply exactly one of position, pinAnchor or mirrorOf.",

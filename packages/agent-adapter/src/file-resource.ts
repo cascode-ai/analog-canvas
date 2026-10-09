@@ -20,10 +20,10 @@ const Sha256Schema = z.string().regex(/^[a-f0-9]{64}$/u);
  * be downloaded.
  */
 export const AGENT_FILE_RESOURCE_MAX_BYTES = 10_000_000;
-export const AGENT_FILE_RESOURCE_MAX_FILES = 24;
+const AGENT_FILE_RESOURCE_MAX_FILES = 24;
 export const AGENT_FILE_CANDIDATE_TTL_MS = 5 * 60_000;
 
-export const AgentFileBlobSchema = z.strictObject({
+const AgentFileBlobSchema = z.strictObject({
   name: z.string().min(1).max(512),
   mediaType: z.string().min(1).max(128),
   encoding: z.literal("base64"),

@@ -7,7 +7,7 @@ import {
   evaluateRoutingOperationPlan,
   gateRoutingOperationPlan,
 } from "./routing-operation-plan.js";
-import { proposeWireIntent } from "./routing-planner.js";
+import { proposeWireIntent } from "./wire-intent-planner.js";
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
 

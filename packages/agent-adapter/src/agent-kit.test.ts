@@ -1,3 +1,7 @@
+import {
+  resolveEndpointConnection,
+  visibleSymbolInkBounds,
+} from "@icm/derived";
 import { createEmptyDocument } from "@icm/model";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
@@ -27,13 +31,28 @@ function kitFile(path: string): string {
   return file.content;
 }
 
+type Point = { x: number; y: number };
+type Bounds = Point & { width: number; height: number };
+type CatalogPin = {
+  name: string;
+  direction: "north" | "east" | "south" | "west";
+  at: Point;
+  landing?: Point;
+};
+
 function authoringCatalog() {
   return JSON.parse(kitFile("references/razavi-authoring-catalog.json")) as {
     symbols: Array<{
       symbolId: string;
-      pins: Array<{ name: string; role: string }>;
+      bounds: Bounds | null;
+      pins: Array<CatalogPin & { role: string }>;
       defaultVariantId: string | null;
-      variants: Array<{ id: string; hiddenPinNames: string[] }>;
+      variants: Array<{
+        id: string;
+        hiddenPinNames: string[];
+        auxiliaryPins?: CatalogPin[];
+        bounds: Bounds;
+      }>;
     }>;
     primitives: Array<{
       id: string;
@@ -97,10 +116,12 @@ describe("Agent operating Kit", () => {
 
     expect(nmos.pins.map((pin) => pin.name)).toEqual(["D", "G", "S", "B"]);
     expect(pmos.pins.map((pin) => pin.name)).toEqual(["D", "G", "S", "B"]);
-    expect(nmos.variants).toContainEqual({
-      id: "textbook-3terminal",
-      hiddenPinNames: ["B"],
-    });
+    expect(nmos.variants).toContainEqual(
+      expect.objectContaining({
+        id: "textbook-3terminal",
+        hiddenPinNames: ["B"],
+      }),
+    );
     expect(catalog.primitives).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -111,12 +132,130 @@ describe("Agent operating Kit", () => {
         }),
       ]),
     );
-    expect(kitFile("references/razavi-authoring-catalog.json")).not.toContain(
-      '"viewBox"',
-    );
-    expect(kitFile("references/razavi-authoring-catalog.json")).not.toContain(
-      '"at"',
-    );
+    // Pin offsets and the body's extent, but no artwork.
+    for (const key of ['"viewBox"', '"polyline"', '"polygon"', '"part"'])
+      expect(kitFile("references/razavi-authoring-catalog.json")).not.toContain(
+        key,
+      );
+  });
+
+  it("gives each pin's offset and the body a wire must keep clear of, as a placed part has them (#1526)", () => {
+    const catalog = authoringCatalog();
+    const document = createEmptyDocument("document-main", "Main");
+    const placed = (symbolId: string, variantId?: string) => ({
+      ...document,
+      instances: [
+        {
+          id: "part",
+          symbolId,
+          ...(variantId ? { symbolVariantId: variantId } : {}),
+          placement: {
+            position: { x: 0, y: 0 },
+            rotation: 0 as const,
+            mirror: "none" as const,
+          },
+        },
+      ],
+    });
+    // The catalog rounds the ink outward to hundredths.
+    const covers = (outer: Bounds, inner: Bounds, label: string) => {
+      for (const [low, high] of [
+        [outer.x - inner.x, outer.x + outer.width - inner.x - inner.width],
+        [outer.y - inner.y, outer.y + outer.height - inner.y - inner.height],
+      ] as const) {
+        expect(low, label).toBeLessThanOrEqual(1e-9);
+        expect(low, label).toBeGreaterThan(-0.01);
+        expect(high, label).toBeGreaterThanOrEqual(-1e-9);
+        expect(high, label).toBeLessThan(0.01);
+      }
+    };
+    const lands = (
+      pins: readonly CatalogPin[],
+      symbolId: string,
+      variantId?: string,
+    ) => {
+      for (const pin of pins) {
+        const connection = resolveEndpointConnection(
+          placed(symbolId, variantId),
+          resolver,
+          { kind: "terminal", instanceId: "part", pinName: pin.name },
+        );
+        expect(connection, `${symbolId}.${pin.name}`).toMatchObject({
+          contactPoint: pin.at,
+          gridLanding: pin.landing ?? pin.at,
+        });
+      }
+    };
+    for (const symbol of catalog.symbols) {
+      const resolved = resolver.resolve(symbol.symbolId)!;
+      // A frame that grows with its formula has no fixed extent; its pins
+      // are where the default formula puts them.
+      if (resolved.definition.formulaPresentation?.adaptiveFrame)
+        expect(symbol.bounds, symbol.symbolId).toBeNull();
+      else
+        covers(
+          symbol.bounds!,
+          visibleSymbolInkBounds(resolved),
+          symbol.symbolId,
+        );
+      for (const variant of symbol.variants) {
+        const label = `${symbol.symbolId}/${variant.id}`;
+        covers(
+          variant.bounds,
+          visibleSymbolInkBounds(
+            resolver.resolve(symbol.symbolId, variant.id)!,
+          ),
+          label,
+        );
+        lands(
+          symbol.pins.filter(
+            (pin) => !variant.hiddenPinNames.includes(pin.name),
+          ),
+          symbol.symbolId,
+          variant.id,
+        );
+        lands(variant.auxiliaryPins ?? [], symbol.symbolId, variant.id);
+      }
+      if (!symbol.defaultVariantId) lands(symbol.pins, symbol.symbolId);
+    }
+
+    // The convention authoring.md states: rotation turns pins clockwise on
+    // the page, and mirror then reflects the turned part.
+    const nmos = symbol(catalog, "nmos");
+    const drain = nmos.pins.find((pin) => pin.name === "D")!;
+    expect([drain.direction, drain.at]).toEqual(["north", { x: 10, y: -20 }]);
+    const turned = (
+      pinName: string,
+      rotation: 0 | 90 | 180 | 270,
+      mirror: "none" | "horizontal" | "vertical",
+    ) =>
+      resolveEndpointConnection(
+        {
+          ...document,
+          instances: [
+            {
+              id: "part",
+              symbolId: "nmos",
+              symbolVariantId: "textbook-3terminal",
+              placement: { position: { x: 100, y: 100 }, rotation, mirror },
+            },
+          ],
+        },
+        resolver,
+        { kind: "terminal", instanceId: "part", pinName },
+      );
+    expect(turned("D", 90, "none")).toMatchObject({
+      contactPoint: { x: 100 + 20, y: 100 + 10 },
+      outward: { x: 1, y: 0 },
+    });
+    expect(turned("G", 0, "horizontal")).toMatchObject({
+      contactPoint: { x: 120, y: 100 },
+      outward: { x: 1, y: 0 },
+    });
+    expect(turned("D", 90, "horizontal")).toMatchObject({
+      contactPoint: { x: 80, y: 110 },
+      outward: { x: -1, y: 0 },
+    });
   });
 
   it("gives a black-box Agent enough facts to create, refresh, and wire a CMOS inverter", () => {

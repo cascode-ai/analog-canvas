@@ -2,8 +2,9 @@
 
 Status: `accepted`
 
-Primary owners: `worker/gallery.ts`, `worker/gallery-do.ts`, `worker/auth.ts`,
-`worker/auth-do.ts`, `apps/editor` landing feed
+Primary owners: `worker/gallery.ts` with its route modules,
+`worker/gallery-do.ts` with the `worker/gallery-store*.ts` modules,
+`worker/auth.ts`, `worker/auth-do.ts`, `apps/editor` landing feed
 
 ## Trust boundary
 
@@ -43,7 +44,9 @@ Compare and Agent Gallery reads do — spends one of the account's 100 daily
 opens (`GALLERY_DAILY_OPEN_LIMIT`, per UTC day). Each circuit counts once a
 day. Past the allowance the read answers
 `429 {"error":"daily-open-limit","limit":100,"resetAt":…}` with `Retry-After`,
-the editor says when more open, and an Agent read fails with
+opening or inserting in the editor shows a card in the middle of the canvas
+saying when more open (with Back to Gallery and Close; the next attempt or a
+tab change clears it), and an Agent read fails with
 `GALLERY_DAILY_LIMIT`. The wall, search, tags, previews and
 `GET /api/gallery/<id>?summary=1` (the entry's details without its Project
 Code, used by links and publishing) are not counted, nor are an author's own
@@ -92,9 +95,12 @@ deleted.
   re-answers stored marks after the rule itself changes.
   An entry whose publisher marked it as made by an AI also carries
   `aiGenerated: true`; every other entry omits the field. That mark is the
-  publisher's word, never something the server infers from the drawing. A
-  card on the wall spells both out after the circuit name: a green "Netlist",
-  then a purple "AI".
+  publisher's word, never something the server infers from the drawing. An
+  entry whose testbench passed the server's [simulation
+  check](#simulation-checks) carries `simVerified: true` for a viewer who may
+  see that mark, and omits it for everyone else. A card on the wall spells
+  them out after the circuit name: a green "Netlist", then a purple "AI",
+  then a blue "Sim".
   Each entry may also carry `componentCount`: the parts its top Cell draws —
   devices, sources, switches, blocks and gates, a subcircuit block counting
   once — leaving out Ports, supply and ground markers, drafting objects and
@@ -154,6 +160,9 @@ deleted.
 - `GET /api/gallery/<id>` — one public entry with its canonical
   `projectText`, spending one of the reader's daily opens (see
   [Reader access](#reader-access)); `?summary=1` answers the entry alone, free.
+  The Project carries its simulation folders only for a reader of its
+  testbench ([Testbench privacy](#testbench-privacy)); the entry carries
+  `simVerified` as the wall's cards do.
 - `GET /api/gallery/<id>/preview.svg?v=<previewRevision>&render=formula-label-v5` — the
   server-rendered preview. A revision matching the stored SVG is immutable;
   unversioned, stale-revision, hidden, and missing responses are `no-store`.
@@ -317,7 +326,8 @@ no-store metadata without waiting for a cache TTL.
 
 The byline is not a request field: the Worker takes `author` from the
 session's display name, so one account cannot publish under another's
-name, and an update never re-attributes an entry.
+name, and an update never re-attributes an entry, save an AI account's
+take-over (Owner editing).
 
 After a successful first publication, the editor associates the live Project
 with the returned entry id. Further edits followed by Publish default to
@@ -369,6 +379,8 @@ boundaries still apply. Diagnostic codes:
   and `ERC_FLOATING_GATE`. A name on a singleton local Net is not electrical
   connectivity. The sanctioned cases are a real peer connection, a formal
   boundary, a reviewed global supply, an implicit pin, or explicit NoConnect.
+  `ERC_UNDRIVEN_GATE_NET`, a Net of several gates, bulks or block inputs that
+  nothing drives, is an editor warning only and is not part of this advice.
 - `empty-project` — fewer than 2 instances AND no substantial drawing
   (3+ drafting objects including a text); pure block diagrams pass.
 
@@ -380,7 +392,8 @@ Statuses: `public | rejected | recycled`. Publishing is direct, so
 nothing new ever enters a queue; curation is post-publication. A
 `rejected` or `recycled` entry never appears on a public surface (list,
 detail, preview); its detail and preview answer only to a moderator or
-the owning session.
+the owning session, and an AI account's also to every AI account (see Owner
+editing).
 
 `pending` is retired. Opening the storage promotes any leftover `pending` row
 to `public` rather than stranding it. `rejected` is now the Owner's explicit
@@ -388,7 +401,11 @@ post-publication decision: its required reason remains visible to the
 submitter until the Owner restores the entry.
 
 - `GET /api/gallery/mine` — the calling session's entries with `status`,
-  `rejectReason`, and the withdrawal time `recycledAt`.
+  `rejectReason`, the withdrawal time `recycledAt`, their `likes`, and
+  `withdrawnByCurator: true` on an entry the Owner withdrew. With
+  `scope=ai-seats`, an AI account's session gets every AI account's entries
+  in the same shape, newest first; any other session gets 403
+  `ai-accounts-only`, and another scope 400 `invalid-scope`.
 - Moderators: `users.role` (`user`/`moderator`); the super-admin
   appoints by email via `POST /api/auth/users/role` `{email, role}`,
   which applies to every account carrying that verified email. A
@@ -438,20 +455,49 @@ or false sets the AI mark and leaving it out keeps the stored one, so an
 author can clear the mark an Agent's publish set (an AI account's entries keep
 it); the update dialog starts from the entry's current mark and notes when an
 Agent has worked on the Project. The mark belongs to the entry, not to
-a version: restoring an earlier version keeps it. The detail response carries
-`ownerUserId` so the editor offers "update the opened entry" exactly to owners
-and moderators.
+a version: restoring an earlier version keeps it. What an update does to the
+entry's private testbench is under [Testbench privacy](#testbench-privacy).
+
+An AI account may take over another AI account's entry (#1499; owner
+decision 2026-10-08, the AI accounts all being the Owner's): when one model's
+circuit is poor, another redraws it and its update carries `takeOver: true`.
+The entry then moves to that account, owner and byline, as the new version
+lands, and 200 also answers `{ownerUserId, author}`. It keeps its id, link,
+likes, tags and AI mark; the version it replaced keeps the account that made
+it, and the former account's Shelf draft no longer publishes as it. A
+person's entry is never taken over, and a person takes over none: `takeOver`
+then answers 403 `take-over-forbidden`. Without `takeOver`, another account's
+entry stays forbidden to an AI account.
+
+AI accounts see each other's hidden work (#1540; owner decision 2026-10-09):
+an AI account's session lists every AI account's entries, rejected and
+withdrawn ones with their reasons (`/mine?scope=ai-seats`), and reads such an
+entry's detail, preview and version history as its owner does. It can then
+take a rejected entry over as above; the entry keeps its status and reason, so
+putting it back on the wall stays the Owner's decision, as for an entry the
+Owner withdrew (see Owner withdrawal). Reading grants nothing
+else: recycle, restore, delete and version restore keep their owner and admin
+rules, an AI account never reviews, and a person's hidden entries stay their
+own and the reviewers'. Which session is an AI account is the server's
+answer (provider `ai` and a listed seat), never the request's.
+
+The detail response carries `ownerUserId` so the editor offers "update the
+opened entry" exactly to owners and moderators.
 
 Owner withdrawal: `POST /api/gallery/<id>/recycle` (same-origin) also
 accepts the owning session — the entry moves to `recycled` and leaves
 every public surface, exactly like an admin recycle. The owner brings a
 voluntary withdrawal back with `POST /api/gallery/<id>/restore`, which
 republishes it. An ordinary owner cannot restore or recycle an Owner-rejected
-entry; it remains editable but hidden until the Owner restores it. The recycle
+entry; it remains editable but hidden until the Owner restores it. Nor can an
+owner restore an entry the Owner withdrew (#1540), whoever owns it since: the
+Owner's Withdraw of someone else's entry, like duplicate cleanup, records the
+reviewer at the withdrawal, and `/mine` marks it `withdrawnByCurator` without
+a Restore; 409 `invalid-status` otherwise. The recycle
 bin keeps each account's 25 most recently recycled entries: an older one is
 removed permanently when that account next publishes or has an entry recycled,
 and nothing expires by age. Legacy entries without an owning account are
-exempt.
+exempt, and so is what the Owner rejected or withdrew.
 
 Owner deletion: `DELETE /api/gallery/<id>` (same-origin) also accepts the
 owning session, which removes the entry with its saved versions and likes
@@ -463,7 +509,8 @@ on a withdrawn entry. Delete removes it in one click, without a confirmation.
 
 Every content-replacing update (`PUT`, and Restore itself) first
 snapshots the entry's previous state — name, author, description, tags,
-canonical project text, preview — into `gallery_entry_versions`,
+canonical project text and its private testbench, preview — into
+`gallery_entry_versions`,
 numbered per entry and capped at the newest 3 (older versions are pruned).
 The live current state is separate and does not count toward those 3 snapshots.
 Maintenance re-serialization does not snapshot (content-equivalent).
@@ -473,7 +520,8 @@ owning session:
 - `GET /api/gallery/<id>/versions` — versions, newest first.
 - `GET /api/gallery/<id>/versions/<versionId>/preview.svg`.
 - `GET /api/gallery/<id>/versions/<versionId>/project` — canonical Project text;
-  same owner/reviewer access, `no-store`, no submitter metadata.
+  same owner/reviewer access, `no-store`, no submitter metadata. The
+  version's simulation folders come only to a reader of the entry's testbench.
 - `POST /api/gallery/<id>/versions/<versionId>/restore` — snapshots the
   current state, then adopts the version's content and metadata, so
   restores are themselves reversible. A restore keeps the entry's status
@@ -496,6 +544,180 @@ opens an editor tab using the protected historical Project endpoint. Save create
 an independent private draft; publishing it is a separate action. There is no
 merge graph or automatic publication. Private Cloud Project history follows
 the separate [save-history contract](persistence-and-recovery.md#private-save-history).
+
+## Testbench privacy
+
+A circuit's testbench — its simulation folders (`simulationFolders`: sources,
+analyses, measurements and specs) — is its author's (#1545; Owner decision
+2026-10-09). The drawing stays on the wall; the testbench does not.
+
+- **Who reads it.** One of the Owner's own accounts (`OWNER_ACCOUNT_IDS`), the
+  entry's owner, and an AI account reading an AI account's entry
+  (`readsTestbench`). Nobody else, curators and the read-only credential
+  included.
+- **What they get.** `GET /api/gallery/<id>` and a version's `…/project`
+  answer such a reader the Project with its folders, and everyone else the
+  same Project with `"simulationFolders": []`. The editor's Open, Insert and
+  Compare and the Agent's Gallery read, open and insert read these routes, so
+  opening one's own circuit brings its testbench back and copying someone
+  else's carries none. Previews, netlist marks, part counts, the netlist read
+  and the public documents read only the drawing.
+- **Storage.** Every write — publish, update, take-over, version restore,
+  dataset import — serializes the Project, stores `project_text` with the
+  folders emptied to `[]`, and keeps the folders' own text in the row's
+  `testbench_text` column; a version snapshot copies both. A column of each
+  entry and version row rather than a table: the testbench goes wherever its
+  row goes (history, take-over, retention, deletion), and every backup page
+  carries it without a new table, so the off-site collector's check of the
+  tables it captures holds. Every other byte of the Project Code stays, and
+  putting the testbench back gives the serialized Project byte for byte.
+- **Updates.** An update replaces the content, so a writer who reads the
+  testbench replaces it with the folders its Project holds; none clears it. A
+  writer who does not (a curator's Edit and replace) never received it: the
+  entry keeps the one it holds, and folders in that writer's Project are
+  ignored. A take-over is an AI account writing an AI account's entry, so the
+  redraw's folders become the entry's. A restore brings back that version's.
+
+**Moving the existing ones.** Entries and versions stored before this keep
+their folders inside `project_text`; reads strip them for everyone else from
+the deploy on. `POST /api/gallery/maintenance/testbench-privacy`
+(administrator session, same-origin) moves them into `testbench_text`. It
+moves nothing until a backup is recorded: backups run in the private backup
+repository, which the Worker cannot start. So the Owner first
+
+1. runs `node scripts/gallery-private-snapshot.mjs --store` from the main
+   checkout (the Gallery backup, without `--store`, holds these tables too);
+   the folder it downloads is named after the Release,
+   `store-<time>Z-<run>-<attempt>`;
+2. sends that name from a signed-in administrator's browser on the site. A
+   Release more than 24 hours old answers 400 `invalid-backup`.
+
+```js
+await fetch("/api/gallery/maintenance/testbench-privacy", {
+  method: "POST",
+  body: JSON.stringify({ backup: "store-<time>Z-<run>-<attempt>" }),
+}).then((response) => response.json());
+```
+
+Every call answers `{backup, applied, moved, remaining, legacy, failures}`,
+counting entries and versions. Once a backup is recorded, the five-minute
+scheduled pass moves 25 rows a tick, and `{"apply": true, "limit": n}`
+(n ≤ 200) moves a batch at once; before, `apply` answers 409
+`backup-required`. A moved row keeps every other byte of its Project Code and
+the rest of the row (status, byline, preview, curation revision); no version
+is snapshotted. Each row is checked first — the text round-trips byte for
+byte and, read as JSON, only the testbench changed — and a row that fails
+stays, listed in `failures`. A second run finds nothing and changes nothing;
+with nothing left the schedule reads one row a tick. Rows from before schema
+42 keep one `simulation` instead and are counted as `legacy`: `schema-current`
+converts them, and the pass then moves them. A schema conversion or a
+`schema-restore` makes the schedule look again.
+
+## Simulation checks
+
+The Sim mark (#1545; Owner decisions 2026-10-09) says a circuit's testbench,
+run again by the server on the hosted simulator, completes and meets every
+Spec it states.
+
+- **Criterion (rule 1).** Every simulation folder of the stored Project runs
+  to completion, the testbench states at least one Spec, and every Spec it
+  states (`* @spec` with a condition, or one written wrongly) passes. A
+  folder that cannot be prepared or whose run does not complete is `error`;
+  a stated Spec that misses, or cannot be judged (its measurement missing,
+  for one), is `fail`, as is a testbench that states no Spec (`no-specs`);
+  an entry without a testbench is `no-testbench`. Only `pass` earns the
+  mark, and only under the rule its verdict was judged by: a verdict of an
+  older rule shows nothing until checked again.
+- **Running it.** Checks run only when the Owner asks, never on publish.
+  `POST /api/gallery/simulation-checks` (one of the Owner's accounts,
+  same-origin, else 401/403 `owner-only`) queues `{"ids": [...]}` (up to
+  500, any status) or `{"all": true}` (every public entry with a testbench)
+  and answers 202 `{queued, noTestbench, missing, waiting}`; an entry
+  already waiting keeps its place, and one without a testbench is answered
+  `no-testbench` at once. `GET` on the same path reads `{waiting, current,
+counts, results}`. On the wall, an Owner account's `⋯` menu on a tile
+  offers Verify simulation, and the sidebar offers Verify simulations for
+  all of them with how the checks stand.
+- **How it runs.** The five-minute scheduled pass works the queue, first
+  entry first and one folder at a time, for up to four minutes. The Worker
+  prepares each folder from the stored Project and testbench with the code
+  the Simulation panel prepares a run with (`prepareFolderExecutionInput`),
+  submits it as a managed run through the same admission, queue, limits and
+  retries every run takes, under an account of its own
+  (`gallery-simulation-check`, one run waiting and one running at most), and
+  judges the result with the panel's Spec evaluation
+  (`executionSpecReport`). It asks ngspice for the log alone, where the
+  Specs are, and reads no result larger than 8 MiB. While the simulator
+  cannot take the run or has not answered, the folder waits at the head of
+  the queue, and the next pass asks for the same run again rather than
+  starting another; a run that ends without a result (expired in the queue,
+  for one) is that folder's `error`. A folder that errs or fails ends the
+  entry's check.
+- **Storage.** Each entry's latest verdict is its `simulation_check_json`
+  column: `{status, checkedAt, rule, simulator, reason?, folders}`, each
+  folder with its status, Problem or Spec reason, simulator, Profile, and
+  each stated Spec's expected condition, value, unit and judgment. A column
+  of the entry, it goes where the entry goes and rides in the backup pages;
+  a restore brings it back with the content it checked. Any change to the
+  stored Project Code or testbench clears it, whoever writes it (an update,
+  a take-over, a version restore, a maintenance pass), and a check whose
+  entry changes while it runs starts over. The queue is its own table, not
+  backed up.
+- **Who sees it.** The verdict, Specs included, is private like the
+  testbench: `GET /api/gallery/<id>/simulation-check` answers
+  `{check, waiting}` to a reader of the entry's testbench and 404 to
+  everyone else. The mark, `simVerified` on the wall's entries and an
+  entry's details, goes to the same readers — the Owner's accounts, the
+  entry's own author, and AI accounts for AI accounts' entries — until the
+  date `publicFrom` in [config/gallery-sim.json](../../config/gallery-sim.json)
+  names (null: not yet; proposed about six months on, with the dataset
+  release). From that date every reader sees the mark; the verdict's
+  details stay private. Until then the API sends nobody else any of it; the
+  wall has no Sim filter or count yet. The Agent API's Gallery reads do
+  not carry the mark.
+
+## Reference datasets
+
+Published circuit datasets (AnalogGenie, CircuitThink, AMS-Net, #1510; AnalogRetriever, #1498) can be
+read beside the community wall without crowding it. `config/gallery-sources.json`
+lists each dataset once: `key`, entry-id `prefix`, display `name`, the `byline`
+its circuits carry, `license`, and its `homepage` and `paper` links.
+
+- **Separate stores.** Each dataset lives in its own Gallery Durable Object,
+  `source:<key>`; the community store stays `gallery`. No community list,
+  count, tag, search or maintenance pass sees a dataset entry.
+- **Ids say the store.** A dataset entry's id is `<prefix>-<id>` (`ag-308`,
+  `ct-12`, `amsnet-5`); a community id never holds a hyphen. Every
+  `/api/gallery/<id>…` request is answered from the store its id names, so
+  `/g/ag-308` and `/?entry=ag-308` open the dataset circuit directly. The feed
+  and tag list take `source=<key>` to read a dataset's wall.
+- **Read-only.** A request that would change a dataset entry — like, update,
+  withdraw, restore, delete, publish — answers 403 `dataset-read-only`, for
+  every account. Entries carry no owner and no AI mark. Opening one in the
+  editor makes an ordinary working copy that publishes as a new community
+  entry, never as an update.
+- **Switch.** `GET /api/gallery/sources` answers `{sources: [... , count]}`.
+  The wall shows a Source switch beside the circuit count: Community (the
+  default) or one dataset at a time, each with its count. A reader is offered
+  only the datasets that hold circuits, so the switch stays hidden until one
+  is imported; an Owner account is always offered every dataset, empty ones
+  with their 0. A dataset wall drops the like control and the author
+  tools and opens with one line naming the dataset, its licence and links. The
+  choice rides in the URL as `source=<key>`; switching clears the author and
+  attention narrowings.
+- **Import (Owner only).** `POST /api/gallery/sources/<key>/entries`
+  (same-origin; an Owner account's session, else 403 `owner-only`) takes
+  `{entries: [{id, name, description?, tags?, projectText, createdAt?}]}`, at
+  most 10 per request. Each entry is checked like a submission — name and
+  description lengths, Project size, Project parse — and its id must carry the
+  dataset's prefix (`invalid-id` otherwise). The server stores the canonical
+  Project, renders its preview, answers its netlist mark and part count, and
+  sets the byline from the configuration. An existing id is replaced in place
+  (its earlier version kept), so a re-import repairs rather than duplicates.
+  The answer lists `{id, ok, created, previewRevision}` or `{id, ok: false,
+error}` per entry. Import runs from the Owner's signed-in browser
+  (`fetch` from the Gallery page's console or a page script), so no new key or
+  secret exists for it.
 
 ## Accounts and sessions
 
@@ -685,6 +907,9 @@ unreadable, ruleVersion, remaining}`). Every entry stores the rule version
   public is skipped (`not-public`). Each result carries the content's
   `savedAt` (and a version's `entryId`), and `legacyWithheld` when that date
   kept `legacyLooks` from applying. Same-origin only.
+- `POST /api/gallery/maintenance/testbench-privacy` — record the backup the
+  testbench move follows, report it, and move a batch: see
+  [Testbench privacy](#testbench-privacy).
 - `POST /api/gallery/maintenance/schema-restore` — atomically restore the three
   Project-bearing tables from a `schema-backup` payload supplied as
   `{ "backup": ... }`, assembled from the backup pages. Current retention is

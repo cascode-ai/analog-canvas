@@ -32,24 +32,6 @@ export interface ExpansionInput {
   instanceBoxes: ReadonlyArray<InstanceBox>;
 }
 
-export interface SerializedExpansionInput {
-  endpoints: ReadonlyArray<ResolvedEndpoint>;
-  existingRoutePaths: ReadonlyArray<{ routeId: string; points: Point[] }>;
-  instanceBoxes: ReadonlyArray<InstanceBox>;
-}
-
-export function hydrateExpansionInput(
-  input: SerializedExpansionInput,
-): ExpansionInput {
-  return {
-    endpoints: new Map(
-      input.endpoints.map((endpoint) => [endpoint.id, endpoint]),
-    ),
-    existingRoutePaths: input.existingRoutePaths,
-    instanceBoxes: input.instanceBoxes,
-  };
-}
-
 function snap(value: number): number {
   return Math.round(value / GRID) * GRID;
 }
@@ -91,7 +73,10 @@ function segmentModeFor(edge: RouteGraphEdge): SegmentMode {
   );
 }
 
-/** Expand one Agent-owned Route graph atomically. */
+/**
+ * Expand one Agent-owned Route graph atomically.
+ * @public The repository-only RouteGraph helper (docs/agent/routegraph.md).
+ */
 export function expandRouteGraph(
   graph: RouteGraph,
   input: ExpansionInput,

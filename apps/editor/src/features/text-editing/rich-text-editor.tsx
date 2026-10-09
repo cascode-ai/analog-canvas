@@ -121,7 +121,7 @@ function withoutItalic(runs: RichTextRun[]): RichTextRun[] {
  * Every character italic, a script's own included. A script is upright only
  * by default, so the slant is set inside it, where it counts as the author's.
  */
-export function withItalic(runs: RichTextRun[]): RichTextRun[] {
+function withItalic(runs: RichTextRun[]): RichTextRun[] {
   const italicize = (run: RichTextRun): RichTextRun => {
     if (run.kind === "text")
       return { kind: "span", style: "italic", children: [run] };

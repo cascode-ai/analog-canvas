@@ -8,7 +8,7 @@ import {
 } from "./simulation.js";
 
 /** Applied native model source; draft text never replaces executable bytes. */
-export const ModelSourceLanguageSchema = z.enum(["spice", "spectre"]);
+const ModelSourceLanguageSchema = z.enum(["spice", "spectre"]);
 export const ProjectModelSourceSchema = z
   .strictObject({
     id: StableIdSchema,

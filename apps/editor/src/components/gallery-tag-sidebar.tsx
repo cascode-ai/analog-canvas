@@ -75,9 +75,10 @@ export function GalleryTagSidebar({
     MIN_WIDTH,
     Math.min(MAX_WIDTH, Math.floor(containerWidth * 0.45)),
   );
+  // 262 px fits every tag name of the taxonomy on one line.
   const width = Math.max(
     MIN_WIDTH,
-    Math.min(maxWidth, preferredWidth ?? (containerWidth <= 900 ? 204 : 238)),
+    Math.min(maxWidth, preferredWidth ?? (containerWidth <= 900 ? 204 : 262)),
   );
   const resize = (next: number) => {
     const bounded = Math.max(MIN_WIDTH, Math.min(maxWidth, Math.round(next)));

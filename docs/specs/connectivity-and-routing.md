@@ -415,7 +415,15 @@ placed with the Net Label tool, names it. `ERC_LABEL_REFERENCE_MISMATCH` names a
 whose name label reads another part's name while that part shows something
 else, as with swapped labels: the drawing then misnames devices the netlist
 calls by Reference. A display alias naming no part, or naming a part that shows
-the same name, is deliberate and stays silent. `ERC_SHORTED_DEVICE` warns
+the same name, is deliberate and stays silent. `ERC_UNDRIVEN_GATE_NET` warns
+about a Logical Net of two or more pins that only sense a voltage — MOS gates,
+MOS bulks and the inputs of behavioural or logic blocks — with nothing to set
+it: no Cell Pin, no global or supply name, and no other part's pin. A bias line
+drawn to several gates that the bias generator never reaches exports cleanly
+but has no operating point. A local name is not a driver; any other pin is,
+a capacitor's included, so a Net reached only through capacitors is not
+reported. The finding names every pin and the Net; a lone gate stays
+`ERC_FLOATING_GATE`'s. `ERC_SHORTED_DEVICE` warns
 about a part with two visible pins that are both on one Logical Net: the part
 does nothing, whatever the drawing shows. A part with more pins may tie them
 together on purpose, as a dummy transistor does, and is not judged.

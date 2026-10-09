@@ -9,6 +9,8 @@ import {
 } from "./mos-bulk-defaults";
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
+/** MOS bodies alone: no part is bound to a PDK wrapper. */
+const NO_DEFINITIONS = { externalSubcircuitDefinitions: [] };
 
 describe("initial MOS bulk defaults", () => {
   it("honors preceding batch defaults and explicit clearing without mutating the document", () => {
@@ -71,7 +73,9 @@ describe("initial MOS bulk defaults", () => {
         placement: null,
       },
     );
-    expect(planMosBulkDefaultUpdate(document, "pmos", "net-dvdd")).toEqual([
+    expect(
+      planMosBulkDefaultUpdate(NO_DEFINITIONS, document, "pmos", "net-dvdd"),
+    ).toEqual([
       { kind: "clear_mos_bulk_default", instanceId: "M1" },
       { kind: "clear_mos_bulk_default", instanceId: "M4" },
       { kind: "set_mos_bulk_defaults", pmosNetId: "net-dvdd" },
@@ -103,7 +107,14 @@ describe("initial MOS bulk defaults", () => {
         documentId: document.id,
         expectedRevision: document.revision,
         actor: { kind: "human", id: "test" },
-        edits: [...planMosBulkDefaultUpdate(document, "nmos", "net-zero")],
+        edits: [
+          ...planMosBulkDefaultUpdate(
+            NO_DEFINITIONS,
+            document,
+            "nmos",
+            "net-zero",
+          ),
+        ],
       },
       { symbolResolver: resolver },
     );
@@ -188,7 +199,14 @@ describe("initial MOS bulk defaults", () => {
         documentId: document.id,
         expectedRevision: document.revision,
         actor: { kind: "human", id: "test" },
-        edits: [...planMosBulkDefaultUpdate(document, "nmos", "net-zero")],
+        edits: [
+          ...planMosBulkDefaultUpdate(
+            NO_DEFINITIONS,
+            document,
+            "nmos",
+            "net-zero",
+          ),
+        ],
       },
       { symbolResolver: resolver },
     );
@@ -235,7 +253,14 @@ describe("initial MOS bulk defaults", () => {
         documentId: document.id,
         expectedRevision: document.revision,
         actor: { kind: "human", id: "test" },
-        edits: [...planMosBulkDefaultUpdate(document, "pmos", "net-dvdd")],
+        edits: [
+          ...planMosBulkDefaultUpdate(
+            NO_DEFINITIONS,
+            document,
+            "pmos",
+            "net-dvdd",
+          ),
+        ],
       },
       { symbolResolver: resolver },
     );

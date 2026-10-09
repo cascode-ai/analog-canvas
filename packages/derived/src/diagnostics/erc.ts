@@ -1,5 +1,5 @@
 import { flattenRichText, projectCellInterface, routeEnd } from "@icm/model";
-import type { CircuitProject } from "@icm/model";
+import type { CircuitProject, RouteEndpoint } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
 import type { ProjectConnectivityIndex } from "../connectivity-index.js";
@@ -13,7 +13,7 @@ import { resolveEndpointPoint } from "../endpoint.js";
 import { resolveDocumentRoutingGeometry } from "../resolved-route-geometry.js";
 import { findRouteSegmentsAtPoint } from "../route-query.js";
 import { directObjectLocator, type ObjectLocator } from "../object-locator.js";
-import type { Diagnostic, DiagnosticSeverity } from "./diagnostic.js";
+import type { Diagnostic } from "./diagnostic.js";
 import { findExternalMasterCollisions } from "../master-names.js";
 import {
   deviceDescriptor,
@@ -32,8 +32,7 @@ import { supplyMarkerForSymbol } from "../supply-marker.js";
  * counts are not evidence of electrical correctness (Net connectivity rationale).
  */
 
-/** Compatibility aliases for ERC consumers; their protocol is Diagnostic. */
-export type ErcSeverity = DiagnosticSeverity;
+/** Compatibility alias for ERC consumers; its protocol is Diagnostic. */
 export type ErcDiagnostic = Diagnostic & { domain: "erc" };
 
 /**
@@ -644,6 +643,13 @@ export function runErcChecks(
       resolver,
       diagnostics,
     );
+    reportUndrivenGateNets(
+      document,
+      docIndex,
+      logicalNets,
+      resolver,
+      diagnostics,
+    );
     reportDanglingWires(document, diagnostics);
     reportNetLabelsNamingNothing(document, diagnostics);
     reportLabelsNamingAnotherPart(document, diagnostics);
@@ -843,6 +849,93 @@ function reportLabelsNamingAnotherPart(
         labelText: label.text,
         namedInstanceId: namedId,
       },
+    });
+  }
+}
+
+/**
+ * Pin roles that sense a voltage without setting it: a MOS gate or body, and
+ * the inputs of a behavioural or logic block.
+ */
+const CONTROL_INPUT_ROLES = new Set([
+  "gate",
+  "bulk",
+  "input",
+  "non-inverting-input",
+  "inverting-input",
+  "clock",
+  "reset",
+]);
+
+/**
+ * A Net of two or more pins that only sense a voltage, MOS gates, bulks or
+ * block inputs, with nothing to set it: no Cell Pin, no global or supply
+ * name, and no other part's pin, so its operating point is undefined. A bias
+ * line drawn to several gates that its bias generator never reaches is the
+ * usual case (#1473). Any other pin, a capacitor's included, counts as a
+ * driver; a lone gate is ERC_FLOATING_GATE's.
+ */
+function reportUndrivenGateNets(
+  document: CircuitProject["documents"][number],
+  docIndex: ReturnType<ProjectConnectivityIndex["documents"]["get"]>,
+  logicalNets: ReturnType<typeof resolveDocumentLogicalNets>,
+  resolver: SymbolResolver,
+  diagnostics: ErcDiagnostic[],
+): void {
+  if (!docIndex) return;
+  type Terminal = Extract<RouteEndpoint, { kind: "terminal" }>;
+  const instances = new Map(
+    document.instances.map((instance) => [instance.id, instance]),
+  );
+  const sensesOnly = (endpoint: RouteEndpoint): endpoint is Terminal => {
+    if (endpoint.kind !== "terminal") return false;
+    const instance = instances.get(endpoint.instanceId);
+    const role = instance
+      ? resolver
+          .resolve(instance.symbolId, instance.symbolVariantId)
+          ?.definition.pins.find((pin) => pin.name === endpoint.pinName)
+          ?.role.toLowerCase()
+      : undefined;
+    return role !== undefined && CONTROL_INPUT_ROLES.has(role);
+  };
+  for (const record of docIndex.logicalNets.values()) {
+    const endpoints = record.logicalEndpoints;
+    if (endpoints.length < 2 || !endpoints.every(sensesOnly)) continue;
+    const net = logicalNets.byId.get(record.netId);
+    if (
+      !net ||
+      net.scope !== "local" ||
+      net.powerDomain !== "none" ||
+      net.formalTerminalIds.length > 0
+    )
+      continue;
+    const pins = endpoints
+      .map((endpoint) => ({
+        endpoint,
+        text: `${instances.get(endpoint.instanceId)?.reference ?? endpoint.instanceId}.${endpoint.pinName}`,
+      }))
+      .sort((left, right) =>
+        left.text.localeCompare(right.text, "en", { numeric: true }),
+      );
+    const listed =
+      pins
+        .slice(0, 5)
+        .map((pin) => pin.text)
+        .join(", ") + (pins.length > 5 ? ", …" : "");
+    const [first, ...rest] = pins.map(({ endpoint }) =>
+      terminalLocator(document.id, endpoint.instanceId, endpoint.pinName),
+    );
+    diagnostics.push({
+      id: `erc:undriven-gate-net:${document.id}:${record.netId}`,
+      domain: "erc",
+      code: "ERC_UNDRIVEN_GATE_NET",
+      severity: "warning",
+      confidence: "high",
+      gateEligible: false,
+      message: `Nothing drives Net ${net.name ?? record.netId}: it reaches only MOS gates, bulks or block inputs (${listed}), and no source, Cell Pin, global name or other part sets its voltage`,
+      primary: first!,
+      related: [...rest, directObjectLocator(document.id, "net", record.netId)],
+      parameters: { netId: record.netId, count: pins.length },
     });
   }
 }

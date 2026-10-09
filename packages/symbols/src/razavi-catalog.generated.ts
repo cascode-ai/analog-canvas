@@ -1014,6 +1014,23 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     },
   },
   {
+    symbolId: "center-tap-inductor",
+    name: "Center-Tap Inductor",
+    category: "passive",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "The reference draws a centre-tapped winding only inside its bridged T-coil. Drawn here as that figure's two windings and tap, without the bridge capacitor or polarity dots.",
+    pinOrder: ["1", "2", "3"],
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "A centre-tapped inductor is two series windings meeting at the tap, which SPICE import does not recognize as one part, so it is placed by hand; netlist export writes it as the built-in ct_inductor subcircuit.",
+    assetPath: "center-tap-inductor.json",
+    assetHash:
+      "bfe05023cb2805abc3862a2832b4515c9a7ff8dc932d976c543b65cfa0348007",
+  },
+  {
     symbolId: "inverter",
     name: "Inverter",
     category: "logic",
@@ -7705,6 +7722,160 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         fill: "foreground",
         stroke: "none",
         part: "secondary-polarity",
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
+    id: "center-tap-inductor",
+    name: "Center-Tap Inductor",
+    viewBox: {
+      x: -64,
+      y: -16,
+      width: 128,
+      height: 40,
+    },
+    pins: [
+      {
+        name: "1",
+        role: "passive",
+        at: {
+          x: -60,
+          y: 0,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "2",
+        role: "passive",
+        at: {
+          x: 60,
+          y: 0,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "3",
+        role: "passive",
+        at: {
+          x: 0,
+          y: 20,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        from: {
+          x: -60,
+          y: 0,
+        },
+        to: {
+          x: -44.5,
+          y: 0,
+        },
+        part: "terminal-1-lead",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "path",
+        data: "M -45 0 L -44.4953 0 C -44.4953 0 -44.4953 0 -43.2174 0 C -41.9409 0 -39.3851 0 -38.1087 0 C -36.8308 0 -36.8308 0 -36.8308 0 C -36.8308 0 -36.8308 0 -36.5749 -1.2452 C -36.319 -2.4889 -35.8087 -4.9763 -34.7867 -6.1873 C -33.7647 -7.3983 -32.2323 -7.3313 -31.2088 -4.8439 C -30.1868 -2.355 -29.6765 2.5543 -30.4427 5.009 C -31.2088 7.4637 -33.2544 7.4637 -33.7201 4.9763 C -34.1872 2.4874 -33.0759 -2.4889 -31.3874 -5.0209 C -29.6988 -7.5545 -27.4331 -7.6422 -25.9439 -5.1548 C -24.4563 -2.6659 -23.7451 2.3996 -24.4116 4.9317 C -25.0781 7.4637 -27.1222 7.4637 -27.6325 4.9317 C -28.1442 2.3996 -27.1222 -2.6659 -25.456 -5.1325 C -23.7898 -7.5991 -21.4794 -7.4652 -19.9456 -4.9317 C -18.4133 -2.3996 -17.6575 2.532 -18.3017 4.9986 C -18.9459 7.4637 -20.99 7.4637 -21.6237 4.9986 C -22.256 2.532 -21.4794 -2.3996 -20.2015 -4.8885 C -18.9236 -7.3759 -17.1458 -7.4205 -16.0017 -6.1992 C -14.8577 -4.9763 -14.3475 -2.4889 -14.0916 -1.2452 C -13.8357 0 -13.8357 0 -13.8357 0 C -13.8357 0 -13.8357 0 -12.4477 0 C -11.0597 0 -8.2822 0 -6.8927 0 C -5.5047 0 -5.5047 0 -5.5047 0 L -5 0",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "round",
+        },
+        part: "winding-1",
+      },
+      {
+        kind: "line",
+        from: {
+          x: -5.5,
+          y: 0,
+        },
+        to: {
+          x: 5.5,
+          y: 0,
+        },
+        part: "winding-center-link",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "path",
+        data: "M 5 0 L 5.5047 0 C 5.5047 0 5.5047 0 6.7826 0 C 8.0591 0 10.6149 0 11.8913 0 C 13.1692 0 13.1692 0 13.1692 0 C 13.1692 0 13.1692 0 13.4251 -1.2452 C 13.681 -2.4889 14.1913 -4.9763 15.2133 -6.1873 C 16.2353 -7.3983 17.7677 -7.3313 18.7912 -4.8439 C 19.8132 -2.355 20.3235 2.5543 19.5573 5.009 C 18.7912 7.4637 16.7456 7.4637 16.2799 4.9763 C 15.8128 2.4874 16.9241 -2.4889 18.6126 -5.0209 C 20.3012 -7.5545 22.5669 -7.6422 24.0561 -5.1548 C 25.5437 -2.6659 26.2549 2.3996 25.5884 4.9317 C 24.9219 7.4637 22.8778 7.4637 22.3675 4.9317 C 21.8558 2.3996 22.8778 -2.6659 24.544 -5.1325 C 26.2102 -7.5991 28.5206 -7.4652 30.0544 -4.9317 C 31.5867 -2.3996 32.3425 2.532 31.6983 4.9986 C 31.0541 7.4637 29.01 7.4637 28.3763 4.9986 C 27.744 2.532 28.5206 -2.3996 29.7985 -4.8885 C 31.0764 -7.3759 32.8542 -7.4205 33.9983 -6.1992 C 35.1423 -4.9763 35.6525 -2.4889 35.9084 -1.2452 C 36.1643 0 36.1643 0 36.1643 0 C 36.1643 0 36.1643 0 37.5523 0 C 38.9403 0 41.7178 0 43.1073 0 C 44.4953 0 44.4953 0 44.4953 0 L 45 0",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "round",
+        },
+        part: "winding-2",
+      },
+      {
+        kind: "line",
+        from: {
+          x: 44.5,
+          y: 0,
+        },
+        to: {
+          x: 60,
+          y: 0,
+        },
+        part: "terminal-2-lead",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: -0.5,
+        },
+        to: {
+          x: 0,
+          y: 20,
+        },
+        part: "terminal-3-lead",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "circle",
+        center: {
+          x: 0,
+          y: 0,
+        },
+        radius: 3.77907,
+        fill: "foreground",
+        stroke: "none",
+        part: "center-tap-junction",
       },
     ],
     variants: [],

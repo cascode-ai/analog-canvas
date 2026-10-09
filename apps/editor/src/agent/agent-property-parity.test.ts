@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { createAgentCircuitService } from "@icm/agent-adapter";
-import { instanceCarriesReference, resolveAnnotationText } from "@icm/derived";
+import {
+  instanceCarriesReference,
+  resolveAnnotationText,
+  resolveEndpointPoint,
+} from "@icm/derived";
 import {
   createEmptyProject,
   flattenRichText,
@@ -11,6 +15,7 @@ import { AgentSessionClient } from "../../../../packages/agent-client/src/sessio
 import { FakeAgentHttp } from "../../../../packages/agent-client/src/test-support/fake-relay";
 import { EditorDocumentController } from "../document/document-controller";
 import { planPropertyApply } from "../features/properties/property-apply-plan";
+import { planMosBulkDefaultUpdate } from "../features/component-insert/mos-bulk-defaults";
 import { BrowserAgentHost } from "./browser-agent-host";
 
 /** An Agent session over the live editor controller, as MCP reaches it. */
@@ -519,6 +524,66 @@ describe("Agent property actions are planned as Apply in Properties", () => {
     ).toContain("has no VDD supply to choose");
   });
 
+  it("changes a Cell's body default as Properties does, moving the bodies that followed the old one (#1520)", async () => {
+    const { controller, apply, refuse, instance } = await session();
+    // The supply placed after them gives their bodies the Cell default.
+    await apply([
+      place("pmos", "M1", 100),
+      place("pmos", "M2", 300),
+      place("vdd-port", "VDD", 100, 0),
+      place("port", "VB", 400, 0),
+    ]);
+    // M2's body is wired to its source, a body the default does not own.
+    await apply([
+      {
+        kind: "connect",
+        from: { kind: "pin", instance: "M2", pin: "B" },
+        to: { kind: "pin", instance: "M2", pin: "S" },
+      },
+    ]);
+    const netOf = (instanceId: string, pinName: string) =>
+      controller.document.nets.find((net) =>
+        net.terminals.some(
+          (pin) => pin.instanceId === instanceId && pin.pinName === pinName,
+        ),
+      )?.id;
+    const m1 = instance("M1").id;
+    const m2 = instance("M2").id;
+    const vdd = netOf(m1, "B");
+    const vb = netOf(
+      controller.document.instances.find((item) => item.symbolId === "port")!
+        .id,
+      "P",
+    )!;
+    expect(vdd).toBeDefined();
+    expect(controller.document.mosBulkDefaults?.pmosNetId).toBe(vdd);
+    // What the Cell settings in Properties commit for the same choice.
+    const gui = new EditorDocumentController(
+      structuredClone(controller.project),
+    );
+    expect(
+      gui.transact(
+        planMosBulkDefaultUpdate(gui.project, gui.document, "pmos", vb),
+      ).ok,
+    ).toBe(true);
+
+    await apply([{ kind: "set-mos-bulk-default", mos: "pmos", net: "VB" }]);
+    expect(controller.document.nets).toEqual(gui.document.nets);
+    expect(controller.document.instances).toEqual(gui.document.instances);
+    expect(controller.document.mosBulkDefaults?.pmosNetId).toBe(vb);
+    expect(netOf(m1, "B")).toBe(vb);
+    expect(netOf(m2, "B")).toBe(netOf(m2, "S"));
+
+    // One undo step; null clears the default.
+    await apply([{ kind: "undo" }]);
+    expect(netOf(m1, "B")).toBe(vdd);
+    await apply([{ kind: "set-mos-bulk-default", mos: "pmos", net: null }]);
+    expect(controller.document.mosBulkDefaults?.pmosNetId).toBeUndefined();
+    expect(
+      await refuse([{ kind: "set-mos-bulk-default", mos: "nmos", net: "VX" }]),
+    ).toContain("Net not found: VX");
+  });
+
   it("sets a formula block's drawing and drops an old formula's look", async () => {
     const { apply, refuse, instance, controller } = await session();
     await apply([
@@ -594,6 +659,188 @@ describe("Agent property actions are planned as Apply in Properties", () => {
         },
       ]),
     ).toContain("nearest reachable landing is");
+  });
+
+  it("moves a ground that only touches the part's pin along with it, and names it (#1531)", async () => {
+    const { controller, apply, instance } = await session();
+    const pinAt = (instanceId: string, pinName: string) =>
+      resolveEndpointPoint(controller.document, controller.resolver, {
+        kind: "terminal",
+        instanceId,
+        pinName,
+      })!;
+    // A VDD marker wired to R2 has another connection when R1's pin 1
+    // lands on it; the ground stands on R1's pin 2 with no wire (house style).
+    await apply([
+      { ...place("resistor", "R2", 400, 200), parameters: { value: "1k" } },
+      {
+        kind: "place-component",
+        symbol: "vdd-port",
+        id: "vdd-r1",
+        pinAnchor: { pinName: "P", position: { x: 200, y: 180 } },
+      },
+    ]);
+    await apply([
+      {
+        kind: "connect",
+        from: {
+          kind: "pin",
+          instance: { kind: "instance", id: "vdd-r1" },
+          pin: "P",
+        },
+        to: { kind: "pin", instance: "R2", pin: "1" },
+      },
+    ]);
+    await apply([
+      {
+        kind: "place-component",
+        symbol: "resistor",
+        reference: "R1",
+        parameters: { value: "1k" },
+        pinAnchor: { pinName: "1", position: { x: 200, y: 180 } },
+      },
+    ]);
+    const r1 = instance("R1").id;
+    await apply([
+      {
+        kind: "place-component",
+        symbol: "ground",
+        id: "gnd-r1",
+        pinAnchor: { pinName: "0", position: pinAt(r1, "2") },
+      },
+    ]);
+    const netOf = (instanceId: string, pinName: string) =>
+      controller.document.nets.find((net) =>
+        net.terminals.some(
+          (terminal) =>
+            terminal.instanceId === instanceId && terminal.pinName === pinName,
+        ),
+      )?.id;
+    const at = (id: string) =>
+      controller.document.instances.find((item) => item.id === id)!.placement!
+        .position;
+    expect(netOf("gnd-r1", "0")).toBe(netOf(r1, "2"));
+    const routes = controller.document.routes.map((route) => route.id);
+    const ground = at("gnd-r1");
+    const vdd = at("vdd-r1");
+    const pin1 = pinAt(r1, "1");
+
+    const moved = await apply([
+      {
+        kind: "move",
+        target: { kind: "instance", reference: "R1" },
+        pinAnchor: { pinName: "1", position: { x: pin1.x + 20, y: pin1.y } },
+      },
+    ]);
+    // The ground rides along as one piece with R1: same step, no jog wire.
+    expect(at("gnd-r1")).toEqual({ x: ground.x + 20, y: ground.y });
+    expect(pinAt("gnd-r1", "0")).toEqual(pinAt(r1, "2"));
+    expect(netOf("gnd-r1", "0")).toBe(netOf(r1, "2"));
+    expect(
+      controller.document.routes.filter(
+        (route) => route.netId === netOf(r1, "2"),
+      ),
+    ).toEqual([]);
+    // The wired VDD marker keeps its place; its contact becomes a wire.
+    expect(at("vdd-r1")).toEqual(vdd);
+    expect(netOf("vdd-r1", "P")).toBe(netOf(r1, "1"));
+    expect(controller.document.routes.length).toBe(routes.length + 1);
+    expect(moved.diagnosticDelta?.added).toContainEqual(
+      expect.objectContaining({
+        code: "MARKERS_MOVED_ALONG",
+        severity: "info",
+        objectIds: ["gnd-r1"],
+        message:
+          "R1 moved with the ground gnd-r1 on pin 2, which touched it with no wire",
+      }),
+    );
+
+    // Among other moves in one call, too.
+    const both = await apply([
+      {
+        kind: "move",
+        target: { kind: "instance", reference: "R2" },
+        position: { x: 400, y: 260 },
+      },
+      {
+        kind: "move",
+        target: { kind: "instance", reference: "R1" },
+        position: { x: 240, y: 200 },
+      },
+    ]);
+    expect(at("gnd-r1")).toEqual({ x: ground.x + 40, y: ground.y });
+    expect(both.diagnosticDelta?.added).toContainEqual(
+      expect.objectContaining({
+        code: "MARKERS_MOVED_ALONG",
+        objectIds: ["gnd-r1"],
+      }),
+    );
+
+    // Beside a command that plans a Project transaction, as a model change
+    // does, the receipt still names the marker.
+    await apply([
+      { ...place("nmos", "M1", 500), parameters: { w: "1u", l: "150n" } },
+    ]);
+    const withModel = await apply([
+      {
+        kind: "move",
+        target: { kind: "instance", reference: "R1" },
+        position: { x: 260, y: 200 },
+      },
+      {
+        kind: "set-model",
+        instanceId: instance("M1").id,
+        model: "sky130_fd_pr__nfet_01v8",
+      },
+    ]);
+    expect(withModel.ok, withModel.message).toBe(true);
+    expect(at("gnd-r1")).toEqual({ x: ground.x + 60, y: ground.y });
+    expect(JSON.stringify(withModel)).toContain("MARKERS_MOVED_ALONG");
+
+    // A marker whose label is locked stays, joined by a wire, rather than
+    // failing the move: here a VDD marker standing on R3's pin.
+    await apply([
+      {
+        kind: "place-component",
+        symbol: "resistor",
+        reference: "R3",
+        parameters: { value: "1k" },
+        pinAnchor: { pinName: "1", position: { x: 600, y: 180 } },
+      },
+    ]);
+    const r3 = instance("R3").id;
+    await apply([
+      {
+        kind: "place-component",
+        symbol: "vdd-port",
+        id: "vdd-r3",
+        pinAnchor: { pinName: "P", position: pinAt(r3, "1") },
+      },
+    ]);
+    const label = controller.document.annotations.find(
+      (annotation) =>
+        annotation.anchor.kind === "object" &&
+        annotation.anchor.objectId === "vdd-r3",
+    )!;
+    expect(
+      controller.transact([
+        {
+          kind: "upsert_schematic_annotation",
+          annotation: { ...label, locked: true },
+        },
+      ]).ok,
+    ).toBe(true);
+    const held = at("vdd-r3");
+    const stayed = await apply([
+      {
+        kind: "move",
+        target: { kind: "instance", reference: "R3" },
+        position: { x: 640, y: 200 },
+      },
+    ]);
+    expect(stayed.ok, stayed.message).toBe(true);
+    expect(at("vdd-r3")).toEqual(held);
+    expect(netOf("vdd-r3", "P")).toBe(netOf(r3, "1"));
   });
 
   it("disconnects a wired pin as its Delete connection does", async () => {

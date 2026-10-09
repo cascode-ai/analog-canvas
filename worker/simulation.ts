@@ -9,10 +9,82 @@ import {
   type SimulationEnv as NgspiceEnv,
 } from "./simulation-ngspice";
 import ngspiceProfile from "../containers/ngspice/hosted-sky130-profile.json";
-export type {
-  SimulationRequestBody,
-  SimulationRunner,
-} from "./simulation-vacask";
+import { sessionUserOf } from "./auth";
+import type { AuthEnv } from "./auth-do";
+import { bearerMatches } from "./bearer";
+export type { SimulationRequestBody } from "./simulation-vacask";
+
+/** The answer to a signed-out request for computation. */
+export function signInToSimulate(): Response {
+  return Response.json(
+    {
+      error: "simulation-authentication-required",
+      message: "Sign in to run simulations.",
+    },
+    { status: 401, headers: { "cache-control": "no-store" } },
+  );
+}
+
+/**
+ * Simulation runs on the operator's host, so only a signed-in account
+ * computes through `/api/simulate`. Discovering the Profiles stays open, so
+ * the editor can describe them before anyone signs in. The deploy check
+ * proves the route with a credential that deploy made and the next replaces.
+ */
+export async function refuseSignedOutSimulation(
+  request: Request,
+  env: Partial<AuthEnv> & { SIMULATION_SMOKE_TOKEN?: string },
+): Promise<Response | null> {
+  if (
+    new URL(request.url).pathname !== "/api/simulate" ||
+    request.method !== "POST"
+  )
+    return null;
+  if (bearerMatches(request, env.SIMULATION_SMOKE_TOKEN)) return null;
+  if (await sessionUserOf(request, env)) return null;
+  if (await asksForCapabilities(request)) return null;
+  return signInToSimulate();
+}
+
+/** Discovery is a few bytes of JSON; a larger body is never one. */
+async function asksForCapabilities(request: Request): Promise<boolean> {
+  const text = await boundedText(request, 4096);
+  if (text === null) return false;
+  try {
+    return (
+      (JSON.parse(text) as { operation?: unknown }).operation === "capabilities"
+    );
+  } catch {
+    return false;
+  }
+}
+
+/** The body of a copy of `request` as text, or null once it passes `limit` bytes. */
+async function boundedText(
+  request: Request,
+  limit: number,
+): Promise<string | null> {
+  const reader = request.clone().body?.getReader();
+  const decoder = new TextDecoder();
+  let text = "";
+  let bytes = 0;
+  try {
+    while (reader) {
+      const item = await reader.read();
+      if (item.done) break;
+      bytes += item.value.byteLength;
+      if (bytes > limit) {
+        void reader.cancel();
+        return null;
+      }
+      text += decoder.decode(item.value, { stream: true });
+    }
+    text += decoder.decode();
+  } finally {
+    reader?.releaseLock();
+  }
+  return text;
+}
 
 export interface SimulationEnv extends VacaskEnv, NgspiceEnv {
   /** Opt-in independent native endpoint; never overwrites the ngspice origin. */
@@ -33,25 +105,9 @@ export async function routeSimulationRequest(
   if (request.method !== "POST")
     return Response.json({ error: "method-not-allowed" }, { status: 405 });
   // Bound the dispatcher too; the selected engine independently validates input.
-  const reader = request.clone().body?.getReader();
-  let text = "";
-  const decoder = new TextDecoder();
-  let bytes = 0;
-  try {
-    while (reader) {
-      const item = await reader.read();
-      if (item.done) break;
-      bytes += item.value.byteLength;
-      if (bytes > 8 * 1024 * 1024) {
-        void reader.cancel();
-        return Response.json({ error: "request-too-large" }, { status: 413 });
-      }
-      text += decoder.decode(item.value, { stream: true });
-    }
-    text += decoder.decode();
-  } finally {
-    reader?.releaseLock();
-  }
+  const text = await boundedText(request, 8 * 1024 * 1024);
+  if (text === null)
+    return Response.json({ error: "request-too-large" }, { status: 413 });
   let body: {
     operation?: unknown;
     language?: unknown;

@@ -1100,15 +1100,105 @@
   color: var(--icm-text-muted);
 }
 
+/* The wall the reader had, held while the next filters load: it dims only
+   after a moment, so a quick answer replaces it without a flicker. */
+.gallery-wall.is-refreshing {
+  opacity: 0.55;
+  transition: opacity 150ms ease 150ms;
+}
+
+/* A withdraw or reject's outcome, passing over the wall like the editor's
+   Publish notice, so no tile moves. It sits at the bottom, clear of the top
+   row's reject and menu buttons, for a reviewer rejecting one after another. */
+.gallery-owner-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: calc(100vw - 32px);
+  padding: 10px 14px;
+  border: 1px solid var(--icm-border);
+  border-radius: 8px;
+  background: var(--icm-surface);
+  color: var(--icm-text);
+  box-shadow: 0 4px 20px rgb(0 0 0 / 12%);
+  font-size: 13px;
+  transform: translateX(-50%);
+}
+
+.gallery-owner-toast-mark {
+  color: #16a34a;
+  font-weight: 700;
+}
+
+.gallery-owner-toast[data-ok="false"] .gallery-owner-toast-mark {
+  color: #dc2626;
+}
+
+.gallery-owner-toast button {
+  border: 0;
+  background: none;
+  color: var(--icm-text-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 16px;
+  line-height: 1;
+}
+
+/* Which wall: the community's, or one reference dataset's (#1510). It sits
+   beside the count and appears only once a dataset holds circuits. */
+.gallery-source-switch {
+  display: inline-flex;
+  align-self: center;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  margin-right: 8px;
+  padding-bottom: 6px;
+  color: var(--icm-text-muted);
+  font-size: 12px;
+}
+
+/* The count stays at the right edge, beside the switch. */
+.gallery-source-switch + .gallery-contributor-menu {
+  margin-left: 0;
+}
+
+.gallery-source-switch select {
+  padding: 4px 8px;
+  border: 1px solid var(--icm-border);
+  border-radius: 999px;
+  color: var(--icm-text);
+  background: var(--icm-surface);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.gallery-source-note {
+  margin: 0;
+  padding: 14px 22px 0;
+  color: var(--icm-text-muted);
+  font-size: 12px;
+}
+
+.gallery-source-note a {
+  color: var(--icm-accent);
+}
+
 .gallery-tag-mark {
   display: inline-flex;
   align-items: center;
   gap: 4px;
 }
 
-/* Word marks after the name: the circuit extracts to a netlist, and its
-   publisher says an AI made it. Each records something and gates nothing,
-   so they stay small beside the name and never compete with the like heart. */
+/* Word marks after the name: the circuit extracts to a netlist, its
+   publisher says an AI made it, and its testbench met its Specs when the
+   server ran it again. Each records something and gates nothing, so they
+   stay small beside the name and never compete with the like heart. */
 .gallery-tile-mark {
   margin-left: 6px;
   padding: 2px 5px;
@@ -1125,6 +1215,11 @@
 .gallery-tile-ai {
   color: var(--icm-ai);
   background: var(--icm-ai-soft);
+}
+
+.gallery-tile-sim {
+  color: #24589e;
+  background: #e3ecf8;
 }
 
 .gallery-tile-like {
@@ -1265,6 +1360,31 @@
   justify-content: space-between;
   gap: 12px;
   padding: 4px 6px 10px;
+}
+
+/* By circuits or by name: two choices, one of them pressed. */
+.gallery-contributor-order {
+  display: flex;
+  gap: 4px;
+  padding: 0 6px 8px;
+}
+
+.gallery-contributor-order button {
+  padding: 3px 10px;
+  border: 1px solid var(--icm-border);
+  border-radius: 999px;
+  color: var(--icm-text-muted);
+  background: var(--icm-surface);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.gallery-contributor-order button[aria-pressed="true"] {
+  border-color: var(--icm-accent);
+  color: var(--icm-accent);
+  background: var(--icm-accent-soft);
+  font-weight: 600;
 }
 
 .gallery-contributor-heading strong {
@@ -1586,7 +1706,7 @@ div.gallery-contributor-status {
     -apple-system, BlinkMacSystemFont, sans-serif;
   position: relative;
   box-sizing: border-box;
-  width: var(--gallery-sidebar-width, 238px);
+  width: var(--gallery-sidebar-width, 262px);
   min-width: 0;
   border-right: 1px solid var(--icm-border);
   background: var(--icm-surface);
@@ -1647,6 +1767,25 @@ div.gallery-contributor-status {
   border-bottom: 1px solid var(--icm-border);
 }
 
+/* Every quick filter leads with a mark of one width, so the names line up:
+   the AI word mark takes the icons' size here, not a tile badge's. */
+.gallery-sidebar-quick .gallery-tag-mark > svg,
+.gallery-sidebar-quick .gallery-tag-mark > .gallery-tile-ai {
+  flex: 0 0 14px;
+}
+
+.gallery-sidebar-quick .gallery-tile-ai {
+  box-sizing: border-box;
+  width: 14px;
+  height: 12px;
+  margin-left: 0;
+  padding: 0;
+  border-radius: 3px;
+  font-size: 8.5px;
+  line-height: 12px;
+  text-align: center;
+}
+
 .gallery-sidebar-heading {
   display: flex;
   align-items: center;
@@ -1703,6 +1842,10 @@ div.gallery-contributor-status {
 
 .gallery-sidebar-admin .gallery-duplicates {
   display: block;
+}
+
+.gallery-sidebar-admin .gallery-duplicates + .gallery-simulation-checks {
+  margin-top: 10px;
 }
 
 .gallery-sidebar-admin .gallery-duplicates-actions {

@@ -7,11 +7,6 @@ import {
   type BrowserStorageLike,
 } from "./session-recovery-presence";
 
-export {
-  AGENT_SESSION_RECOVERY_STORAGE_KEY,
-  type BrowserStorageLike,
-} from "./session-recovery-presence";
-
 export interface AgentSessionRecoveryRecord {
   readonly version: 1;
   readonly sessionId: string;

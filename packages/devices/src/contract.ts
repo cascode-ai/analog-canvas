@@ -137,16 +137,6 @@ export function requiredParameterNames(
     .map((parameter) => parameter.name);
 }
 
-/** Look up a device-owned semantic role without copying it into Project state. */
-export function devicePinSemanticRole(
-  descriptor: DeviceDescriptor,
-  pinName: string,
-): DevicePinSemanticRole | undefined {
-  return descriptor.pinSemantics?.find(
-    (semantic) => semantic.pinName === pinName,
-  )?.role;
-}
-
 export interface DeviceDescriptorIssue {
   readonly deviceId: string;
   readonly message: string;

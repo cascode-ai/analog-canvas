@@ -21,6 +21,7 @@ import {
 } from "./browser-agent-command";
 import type { CircuitProject } from "@icm/model";
 import { initialComponentParameterValues } from "../features/component-insert/component-parameters";
+import { planMosBulkDefaultUpdate } from "../features/component-insert/mos-bulk-defaults";
 import { placedInstanceNetlist } from "../features/component-insert/placed-instance-netlist";
 import { createDefaultNetlistExportPreferences } from "../features/netlist-export/netlist-export-preferences";
 import {
@@ -172,7 +173,8 @@ it("gives Agent-placed comparators the same isolated model as GUI placement", as
   });
   expect(controller.document.instances[1]?.netlist).toEqual({
     binding: { kind: "unresolved-subcircuit", name: "opamp" },
-    parameters: { gain: "1e6" },
+    // Its limits follow its supplies until a number is typed (#1463).
+    parameters: { gain: "1e6", vhigh: "VDD", vlow: "VSS" },
   });
 });
 
@@ -922,6 +924,149 @@ it("places a BJT in a SKY130 Project bound to its reviewed subcircuit, count kep
   expect(text).not.toContain("MISSING_MODEL_TARGET");
 });
 
+it("binds a placed NPN's substrate to the Cell's negative rail or its NMOS body default, and moves it with that default as Properties does (#1530)", async () => {
+  const preferences = createDefaultNetlistExportPreferences();
+  const { client, controller } = await folder(undefined, {
+    processModelTarget: (project, symbolId) =>
+      placementModelTarget(project, preferences, symbolId),
+    processFill: (project, documentId, edits) =>
+      placementProcessFill(project, preferences, documentId, edits),
+  });
+  const apply = async (actions: unknown[]) => {
+    const report = await client.applyActions(actions);
+    expect(report.ok, report.message).toBe(true);
+  };
+  const place = (symbol: string, reference: string, x: number) => ({
+    kind: "place-component",
+    symbol,
+    reference,
+    position: { x, y: 0 },
+  });
+  // Ground comes first, so it is the Cell's NMOS body default. Q1, placed
+  // before the VEE rail, takes ground; Q2 and Q3, after it, take VEE.
+  await apply([
+    place("npn", "Q1", 0),
+    place("nmos", "M1", 900),
+    {
+      kind: "place-component",
+      symbol: "ground",
+      id: "gnd",
+      position: { x: 0, y: 300 },
+    },
+  ]);
+  await apply([place("vdd-port", "VEE", 600), place("port", "VSUB", 1200)]);
+  await apply([place("npn", "Q2", 300), place("npn", "Q3", 1500)]);
+  const instance = (reference: string) =>
+    controller.document.instances.find((item) => item.reference === reference)!
+      .id;
+  const netOf = (instanceId: string, pinName: string) =>
+    controller.document.nets.find((net) =>
+      net.terminals.some(
+        (terminal) =>
+          terminal.instanceId === instanceId && terminal.pinName === pinName,
+      ),
+    )?.id;
+  const marker = (symbolId: string) =>
+    controller.document.instances.find((item) => item.symbolId === symbolId)!
+      .id;
+  const gnd = netOf("gnd", "0")!;
+  const vee = netOf(marker("vdd-port"), "P")!;
+  const vsub = netOf(marker("port"), "P")!;
+  expect(controller.document.mosBulkDefaults?.nmosNetId).toBe(gnd);
+  expect(netOf(instance("Q1"), "S")).toBe(gnd);
+  expect(netOf(instance("M1"), "B")).toBe(gnd);
+  expect(netOf(instance("Q2"), "S")).toBe(vee);
+  expect(netOf(instance("Q3"), "S")).toBe(vee);
+  // Q3's substrate set in its Properties, as its Substrate Net control does.
+  expect(
+    controller.transact([
+      {
+        kind: "set_property_terminal_net",
+        instanceId: instance("Q3"),
+        pinName: "S",
+        netId: vsub,
+      },
+    ]).ok,
+  ).toBe(true);
+  const exported = () => {
+    const wired = structuredClone(controller.project);
+    const document = wired.documents[0]!;
+    for (const item of document.instances)
+      for (const pinName of item.symbolId === "npn"
+        ? ["C", "B", "E"]
+        : item.symbolId === "nmos"
+          ? ["D", "G", "S"]
+          : [])
+        document.nets.push({
+          id: `net-${item.id}-${pinName}`,
+          terminals: [{ instanceId: item.id, pinName }],
+        });
+    const result = createDesignNetlistExport(wired, { format: "spice" });
+    expect(result.status, JSON.stringify(result.diagnostics)).toBe("ready");
+    return {
+      text: result.status === "ready" ? result.file.text : "",
+      above: result.diagnostics.filter(
+        (item) => item.code === "PDK_SUBSTRATE_ABOVE_NEGATIVE_SUPPLY",
+      ),
+    };
+  };
+  // Only Q1, bound before the rail, is on ground beside it. It is named,
+  // with its Substrate Net and the Cell's default as the ways to move it.
+  const before = exported();
+  expect(before.above).toEqual([
+    expect.objectContaining({
+      severity: "warning",
+      objectIds: [instance("Q1")],
+      message: expect.stringMatching(
+        /^Q1\.S is .* Set its Substrate Net to VEE, or the NMOS body \/ substrate default in Cell Properties to VEE, /u,
+      ),
+    }),
+  ]);
+  expect(before.text).toMatch(
+    /^XQ2 \S+ \S+ \S+ VEE sky130_fd_pr__npn_05v5_W1p00L1p00 m=1$/mu,
+  );
+
+  // The Agent's action commits what the Cell settings in Properties do.
+  const setNmosDefault = async (name: string, netId: string) => {
+    const gui = new EditorDocumentController(
+      structuredClone(controller.project),
+    );
+    expect(
+      gui.transact(
+        planMosBulkDefaultUpdate(gui.project, gui.document, "nmos", netId),
+      ).ok,
+    ).toBe(true);
+    await apply([{ kind: "set-mos-bulk-default", mos: "nmos", net: name }]);
+    expect(controller.document.nets).toEqual(gui.document.nets);
+    expect(controller.document.instances).toEqual(gui.document.instances);
+    expect(controller.document.mosBulkDefaults?.nmosNetId).toBe(netId);
+  };
+  // VEE as the default takes Q1's substrate and M1's body off ground, as
+  // they followed ground; the substrate set to VSUB stays.
+  await setNmosDefault("VEE", vee);
+  expect(netOf(instance("Q1"), "S")).toBe(vee);
+  expect(netOf(instance("Q2"), "S")).toBe(vee);
+  expect(netOf(instance("M1"), "B")).toBe(vee);
+  expect(netOf(instance("Q3"), "S")).toBe(vsub);
+  expect(exported().above).toEqual([]);
+  // VSUB as the default is the substrate: those on VEE follow it, and an
+  // NPN placed now takes it.
+  await setNmosDefault("VSUB", vsub);
+  await apply([place("npn", "Q4", 1800)]);
+  expect(netOf(instance("M1"), "B")).toBe(vsub);
+  const after = exported();
+  expect(after.above).toEqual([]);
+  for (const reference of ["Q1", "Q2", "Q3", "Q4"]) {
+    expect(netOf(instance(reference), "S")).toBe(vsub);
+    expect(after.text).toMatch(
+      new RegExp(
+        `^X${reference} \\S+ \\S+ \\S+ VSUB sky130_fd_pr__npn_05v5_W1p00L1p00 m=1$`,
+        "mu",
+      ),
+    );
+  }
+});
+
 it("places SKY130 transistors as their reviewed subcircuits, as a GUI placement and Apply process do (#1249)", async () => {
   const preferences = createDefaultNetlistExportPreferences();
   const { client, controller } = await folder(undefined, {
@@ -1243,7 +1388,7 @@ it("reads a SKY130 short device name as its reviewed target in a SKY130 Project"
   ).toBeUndefined();
 });
 
-it("says how far a placement batch over the edit limit expands and how much of it fits", async () => {
+it("places a batch over the edit limit in as many transactions as it takes, as one undo step and one receipt (#1516)", async () => {
   const { client, controller } = await folder();
   const actions = [
     ...Array.from({ length: 20 }, (_, index) => ({
@@ -1267,9 +1412,11 @@ it("says how far a placement batch over the edit limit expands and how much of i
     },
   ];
   const before = controller.document.revision;
-  const rejected = await client.applyActions(actions);
+  // A dry run checks one transaction: it says how far the batch expands and
+  // how many leading placements fit, exactly, as the split uses it.
+  const dry = { dryRunOnly: true };
+  const rejected = await client.applyActions(actions, dry);
   expect(rejected).toMatchObject({ ok: false, code: "LIMIT_EXCEEDED" });
-  expect(controller.document.revision).toBe(before);
   const limit = rejected.diagnostics?.[0]?.parameters as
     | {
         expandedEdits: number;
@@ -1282,19 +1429,81 @@ it("says how far a placement batch over the edit limit expands and how much of i
   expect(rejected.message).toContain(
     `22 placements expand to ${limit?.expandedEdits} edits, and one transaction takes at most 64. The first ${limit?.fittingPlacements} fit`,
   );
-  // Split there, both calls succeed: the count is exact, not a guess.
   const fitting = limit!.fittingPlacements;
   expect(fitting).toBeGreaterThan(10);
-  const first = await client.applyActions(actions.slice(0, fitting));
-  expect(first.ok, first.message).toBe(true);
-  const rest = await client.applyActions(actions.slice(fitting));
-  expect(rest.ok, rest.message).toBe(true);
-  expect(controller.document.instances).toHaveLength(22);
-  // One more placement in the first call would not have fitted.
-  const { client: again } = await folder();
-  expect(await again.applyActions(actions.slice(0, fitting + 1))).toMatchObject(
-    { ok: false, code: "LIMIT_EXCEEDED" },
+  expect((await client.applyActions(actions.slice(0, fitting), dry)).ok).toBe(
+    true,
   );
+  expect(
+    await client.applyActions(actions.slice(0, fitting + 1), dry),
+  ).toMatchObject({ ok: false, code: "LIMIT_EXCEEDED" });
+  expect(controller.document.revision).toBe(before);
+
+  const placed = await client.applyActions(actions);
+  expect(placed.ok, placed.message).toBe(true);
+  const ids = controller.document.instances.map((instance) => instance.id);
+  expect(ids).toHaveLength(22);
+  expect(placed.changedObjectIds).toEqual(expect.arrayContaining(ids));
+  expect(placed.revision).toBe(controller.document.revision);
+  // More than one transaction, each within the limit.
+  expect(controller.document.revision).toBeGreaterThan(before + 1);
+  // The ground of the last transaction gave the NMOS of the first their
+  // body, as one transaction would have.
+  const ground = controller.document.nets.find((net) =>
+    net.terminals.some((terminal) =>
+      controller.document.instances.some(
+        (instance) =>
+          instance.id === terminal.instanceId && instance.symbolId === "ground",
+      ),
+    ),
+  );
+  for (const instance of controller.document.instances)
+    if (instance.symbolId === "nmos")
+      expect(ground?.terminals).toContainEqual({
+        instanceId: instance.id,
+        pinName: "B",
+      });
+  // One undo step takes all of it back, one redo brings it again.
+  expect((await client.applyActions([{ kind: "undo" }])).ok).toBe(true);
+  expect(controller.document.instances).toHaveLength(0);
+  expect(controller.canUndo).toBe(false);
+  expect((await client.applyActions([{ kind: "redo" }])).ok).toBe(true);
+  expect(controller.document.instances.map((instance) => instance.id)).toEqual(
+    ids,
+  );
+});
+
+it("leaves nothing of a split placement batch when a later transaction is refused (#1516)", async () => {
+  const { client, controller } = await folder();
+  const instances = Array.from({ length: 22 }, (_, index) => ({
+    // The last reuses the first's ID: only its own transaction finds out.
+    id: index === 21 ? "M1" : `M${index + 1}`,
+    symbolId: "nmos",
+    reference: `M${index + 1}`,
+    placement: {
+      position: { x: (index % 5) * 100, y: Math.floor(index / 5) * 100 },
+      rotation: 0 as const,
+      mirror: "none" as const,
+    },
+  }));
+  const before = structuredClone(controller.document);
+  const refused = await client.applyActions([
+    {
+      kind: "place-components",
+      instances,
+      displays: Object.fromEntries(
+        instances.map((instance) => [instance.id, { showValue: true }]),
+      ),
+    },
+  ]);
+  expect(refused.ok).toBe(false);
+  expect(refused.message).toContain("instances[21]");
+  expect(refused.message).toContain("Object ID already exists: M1");
+  // Its first transaction was committed, then taken back.
+  expect(controller.document.revision).toBeGreaterThan(before.revision);
+  expect(controller.document.instances).toEqual(before.instances);
+  expect(controller.document.annotations).toEqual(before.annotations);
+  expect(controller.canUndo).toBe(false);
 });
 
 it("names the part of an over-limit delete that fits, and both calls succeed", async () => {

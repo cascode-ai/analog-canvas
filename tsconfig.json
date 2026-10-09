@@ -1,0 +1,27 @@
+// The project for files no app or package tsconfig.json includes: their
+// tests, worker/, scripts/, the editor's e2e, dev and census code and the
+// desktop shell. `pnpm lint` reads them through it (a file its own package
+// includes keeps that one), so each one gets the same Node and Vitest types
+// whether it is linted alone or with the whole repository. No `paths`: an
+// @icm/* import resolves to the package's built types, and bundlers that read
+// the nearest tsconfig.json resolve it as before. `pnpm typecheck` uses
+// tsconfig.check.json.
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "allowJs": true,
+    "jsx": "react-jsx",
+    "noEmit": true,
+    "types": ["node", "vitest/globals"]
+  },
+  "include": [
+    "apps/**/*.ts",
+    "apps/**/*.tsx",
+    "apps/**/*.mjs",
+    "packages/**/*.ts",
+    "packages/**/*.tsx",
+    "worker/**/*.ts",
+    "scripts/**/*.mjs"
+  ],
+  "exclude": ["**/node_modules", "**/dist"]
+}

@@ -14,7 +14,7 @@ import {
   type SchematicDocument,
 } from "@icm/model";
 import { resolveInstanceSymbol, type SymbolResolver } from "@icm/symbols";
-import { compileWireDraft } from "./routing-planner.js";
+import { compileWireDraft } from "./wire-draft.js";
 
 type Rect = { x: number; y: number; width: number; height: number };
 type CornerOrder = "horizontal-first" | "vertical-first";
@@ -350,6 +350,10 @@ export function createRouteClearance(
     const segments = points
       .slice(1)
       .map((to, index) => [points[index]!, to] as const);
+    // Which stretch of the path meets it, so a caller moves the right via
+    // point (#1527).
+    const between = ([a, b]: readonly [Point, Point]) =>
+      ` between ${format(a)} and ${format(b)}`;
     for (const pin of pins) {
       if (
         endKeys.has(pin.key) ||
@@ -357,14 +361,16 @@ export function createRouteClearance(
         ownNet(pin.logicalId)
       )
         continue;
-      if (
-        segments.some(([a, b]) =>
-          pin.points.some((point) => pointOnSegment(point, a, b)),
-        )
-      )
+      for (const segment of segments) {
+        const point = pin.points.find((candidate) =>
+          pointOnSegment(candidate, segment[0], segment[1]),
+        );
+        if (!point) continue;
+        const where = ` at ${format(point)}${between(segment)}`;
         return pin.logicalId
-          ? `passes over pin ${pin.label} of ${netText(pin.logicalId)}`
-          : `passes over pin ${pin.label}, which is on no Net`;
+          ? `passes over pin ${pin.label} of ${netText(pin.logicalId)}${where}`
+          : `passes over pin ${pin.label}, which is on no Net,${where}`;
+      }
     }
     const outwardFrom = (
       connection: EndpointConnection | undefined,
@@ -403,11 +409,11 @@ export function createRouteClearance(
           inside &&
           (inside[1] - inside[0]) * Math.hypot(b.x - a.x, b.y - a.y) > TOLERANCE
         )
-          return `passes through ${body.label}`;
+          return `passes through ${body.label}${between([a, b])}`;
         // Along the outline is clear unless something is drawn there, such
         // as a lead.
         if (body.strokes.some(([c, d]) => runsAlong(a, b, c, d)))
-          return `runs along ${body.label}'s drawing`;
+          return `runs along ${body.label}'s drawing${between([a, b])}`;
         // Nor may it touch the drawing on the way, as along an op-amp's
         // edge through the corner of its triangle; only where it meets the
         // part's own pin does it reach a lead.
@@ -424,7 +430,7 @@ export function createRouteClearance(
             ),
           )
         )
-          return `touches ${body.label}'s drawing`;
+          return `touches ${body.label}'s drawing${between([a, b])}`;
       }
     }
     for (const route of routes) {
@@ -445,13 +451,17 @@ export function createRouteClearance(
           ? `${endpointText(end)} sits on ${text}`
           : `touches ${text} at ${format(point)}`;
       }
-      for (const point of route.points)
-        if (segments.some(([a, b]) => pointOnSegment(point, a, b)))
-          return `touches ${text} at ${format(point)}`;
+      for (const point of route.points) {
+        const segment = segments.find(([a, b]) => pointOnSegment(point, a, b));
+        if (segment)
+          return `touches ${text} at ${format(point)}${between(segment)}`;
+      }
     }
-    for (const point of own.blockedPoints ?? [])
-      if (segments.some(([a, b]) => pointOnSegment(point, a, b)))
-        return `touches another Net's wire end at ${format(point)}`;
+    for (const point of own.blockedPoints ?? []) {
+      const segment = segments.find(([a, b]) => pointOnSegment(point, a, b));
+      if (segment)
+        return `touches another Net's wire end at ${format(point)}${between(segment)}`;
+    }
     return null;
   };
 

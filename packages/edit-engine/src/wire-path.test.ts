@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildManualWirePath, compileWireDraft } from "./routing-planner.js";
+import { buildManualWirePath, compileWireDraft } from "./wire-draft.js";
 
 const at = (x: number, y: number) => ({
   connection: {

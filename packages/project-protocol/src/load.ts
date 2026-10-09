@@ -37,6 +37,7 @@ import {
 } from "./previous-to-current.js";
 import { repairBoundFormatOverrides } from "./transforms/bound-format-override.js";
 import { repairMisdrawnReviewedBindings } from "./transforms/misdrawn-reviewed-binding.js";
+import { repairUnmodelledReviewedSizes } from "./transforms/reviewed-size.js";
 import { repairAmplifierPolaritySnapshots } from "./transforms/amplifier-polarity.js";
 import { OLDEST_SUPPORTED_PROJECT_SCHEMA_VERSION } from "./version.js";
 import { upgradeSchema49To50 } from "./transforms/simulation-folders.js";
@@ -277,6 +278,13 @@ export function tryParseProjectWithMetadata(
   const repaired = repairMisdrawnReviewedBindings(project);
   if (repaired !== project) {
     const checked = CircuitProjectSchema.safeParse(repaired);
+    if (checked.success) project = checked.data;
+  }
+  // A 16 V part at a size SKY130 has no model for opens at a size it has,
+  // changed as little as it can be (#1485).
+  const resized = repairUnmodelledReviewedSizes(project);
+  if (resized !== project) {
+    const checked = CircuitProjectSchema.safeParse(resized);
     if (checked.success) project = checked.data;
   }
   if (project.componentDefinitions) {

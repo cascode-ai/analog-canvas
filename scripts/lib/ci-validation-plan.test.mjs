@@ -11,6 +11,34 @@ import {
 import { loadGateCatalog, planValidation } from "./validation-gates.mjs";
 
 const catalog = await loadGateCatalog();
+// The general editing workflows, one spec per feature (#1537).
+const editingSpecs = [
+  "circuit-authoring",
+  "copy-paste",
+  "drawing-style",
+  "editor-shell",
+  "label-editing",
+  "label-typography",
+  "move-and-drag",
+  "rotate-and-mirror",
+  "selection-and-find",
+  "wire-drawing",
+  "wire-editing",
+].map((name) => `apps/editor/e2e/${name}.spec.ts`);
+// The Gallery workflows, one spec per feature (#1537).
+const gallerySpecs = [
+  "account",
+  "duplicates",
+  "editor-panel",
+  "filters",
+  "history",
+  "moderation",
+  "publish",
+  "search",
+  "shelf",
+  "tags",
+  "wall",
+].map((name) => `apps/editor/e2e/gallery-${name}.spec.ts`);
 
 function ciPlan(paths, options) {
   return planCiValidation(planValidation(paths, catalog), options);
@@ -39,9 +67,9 @@ describe("CI validation planning", () => {
     const gallery = browserShardMatrix(ciPlan(["worker/gallery.ts"]));
     expect(gallery.length).toBeGreaterThanOrEqual(2);
     expect(gallery.length).toBeLessThanOrEqual(8);
-    expect(countSpecTests("apps/editor/e2e/gallery.spec.ts")).toBeGreaterThan(
-      25,
-    );
+    expect(
+      gallerySpecs.reduce((sum, spec) => sum + countSpecTests(spec), 0),
+    ).toBeGreaterThan(25);
   });
 
   it("skips implementation jobs for documentation-only work", () => {
@@ -73,7 +101,7 @@ describe("CI validation planning", () => {
     ]) {
       const plan = ciPlan([path]);
       expect(plan.mode, path).toBe("focused");
-      expect(plan.e2eArgs, path).toContain("apps/editor/e2e/gallery.spec.ts");
+      expect(plan.e2eArgs, path).toEqual(expect.arrayContaining(gallerySpecs));
     }
     for (const path of [
       "apps/editor/src/features/editor-shell/project-tabs.tsx",
@@ -92,27 +120,36 @@ describe("CI validation planning", () => {
   });
 
   it("maps label naming, circuit settings and recovery changes to their browser contracts", () => {
-    for (const [path, spec] of [
-      ["apps/editor/src/components/recovery-banners.tsx", "recovery-hardening"],
+    for (const [path, specs] of [
+      [
+        "apps/editor/src/components/recovery-banners.tsx",
+        ["apps/editor/e2e/recovery-hardening.spec.ts"],
+      ],
       [
         "apps/editor/src/features/editor-shell/document-settings-code-assists.ts",
-        "manual-editor",
+        editingSpecs,
       ],
       [
         "apps/editor/src/features/editor-shell/document-settings-code.ts",
-        "manual-editor",
+        editingSpecs,
       ],
       [
         "apps/editor/src/features/editor-shell/document-settings-section.tsx",
-        "manual-editor",
+        editingSpecs,
       ],
-      ["packages/derived/src/annotation-text.ts", "manual-editor"],
-      ["packages/derived/src/connectivity-index.ts", "wiring-semantics"],
-      ["packages/derived/src/connectivity.ts", "wiring-semantics"],
+      ["packages/derived/src/annotation-text.ts", editingSpecs],
+      [
+        "packages/derived/src/connectivity-index.ts",
+        ["apps/editor/e2e/wiring-semantics.spec.ts"],
+      ],
+      [
+        "packages/derived/src/connectivity.ts",
+        ["apps/editor/e2e/wiring-semantics.spec.ts"],
+      ],
     ]) {
       const plan = ciPlan([path]);
       expect(plan.mode, path).toBe("focused");
-      expect(plan.e2eArgs, path).toContain(`apps/editor/e2e/${spec}.spec.ts`);
+      expect(plan.e2eArgs, path).toEqual(expect.arrayContaining(specs));
     }
   });
 
@@ -162,7 +199,7 @@ describe("CI validation planning", () => {
         "apps/editor/e2e/component-insert.spec.ts",
         "apps/editor/e2e/component-properties-catalog.spec.ts",
         "apps/editor/e2e/component-property-workflows.spec.ts",
-        "apps/editor/e2e/gallery.spec.ts",
+        ...gallerySpecs,
       ],
     });
   });
@@ -200,9 +237,8 @@ describe("CI validation planning", () => {
       expect(plan.e2eArgs, path).toEqual(
         expect.arrayContaining([properties, netlist, conversion]),
       );
-      expect(plan.e2eArgs, path).not.toContain(
-        "apps/editor/e2e/manual-editor.spec.ts",
-      );
+      for (const spec of editingSpecs)
+        expect(plan.e2eArgs, path).not.toContain(spec);
     }
     for (const path of [
       "apps/editor/src/app/App.tsx",
@@ -218,7 +254,7 @@ describe("CI validation planning", () => {
           properties,
           netlist,
           conversion,
-          "apps/editor/e2e/manual-editor.spec.ts",
+          ...editingSpecs,
         ]),
       );
     }
@@ -263,9 +299,7 @@ describe("CI validation planning", () => {
   it("routes shared dialog styles and SPICE language sources to their owning browser contracts", () => {
     const dialogPlan = ciPlan(["apps/editor/src/styles/editor-dialogs.css"]);
     expect(dialogPlan.mode).toBe("focused");
-    expect(dialogPlan.e2eArgs).toContain(
-      "apps/editor/e2e/manual-editor.spec.ts",
-    );
+    expect(dialogPlan.e2eArgs).toEqual(expect.arrayContaining(editingSpecs));
 
     const languagePlan = ciPlan(["packages/spice/src/simulation-language.ts"]);
     expect(languagePlan.mode).toBe("focused");
@@ -307,7 +341,7 @@ describe("CI validation planning", () => {
     expect(plan.mode).toBe("fallback");
     expect(plan.e2eArgs).toEqual([
       "apps/editor/e2e/component-insert.spec.ts",
-      "apps/editor/e2e/gallery.spec.ts",
+      ...gallerySpecs,
       "apps/editor/e2e/runtime-crash-safety.spec.ts",
     ]);
     expect(plan.reasons).toContain(
@@ -320,7 +354,7 @@ describe("CI validation planning", () => {
       "apps/editor/e2e/component-property-workflows.spec.ts",
       ["apps/editor/e2e/component-property-workflows.spec.ts"],
     ],
-    ["worker/gallery.ts", ["apps/editor/e2e/gallery.spec.ts"]],
+    ["worker/gallery.ts", gallerySpecs],
     [
       "apps/editor/src/lib/new-helper.ts",
       [
@@ -356,10 +390,10 @@ describe("CI validation planning", () => {
   it("deduplicates fallback specs already selected by a mixed batch", () => {
     const plan = ciPlan([
       "apps/editor/e2e/component-insert.spec.ts",
-      "apps/editor/e2e/gallery.spec.ts",
+      "apps/editor/e2e/gallery-wall.spec.ts",
       "apps/editor/src/lib/new-helper.ts",
     ]);
-    expect(plan.e2eArgs).toContain("apps/editor/e2e/gallery.spec.ts");
+    expect(plan.e2eArgs).toContain("apps/editor/e2e/gallery-wall.spec.ts");
     expect(
       plan.e2eArgs.filter(
         (arg) => arg === "apps/editor/e2e/component-insert.spec.ts",
@@ -412,7 +446,7 @@ describe("CI validation planning", () => {
 
   it("renders the browser choice for job logs", () => {
     expect(formatCiValidationPlan(ciPlan(["worker/auth.ts"]))).toContain(
-      "Browser selection: apps/editor/e2e/gallery.spec.ts",
+      `Browser selection: ${gallerySpecs.join(" ")}`,
     );
   });
 });

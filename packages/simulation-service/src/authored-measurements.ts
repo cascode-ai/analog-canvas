@@ -15,7 +15,10 @@ function metricOf(spec: SimulationMeasurementSpec): Metric {
       return "time-mean";
     case "rms":
       return "time-rms";
-    default:
+    case "maximum":
+    case "minimum":
+    case "peak-to-peak":
+    case "sample-at":
       return spec.method.kind;
   }
 }

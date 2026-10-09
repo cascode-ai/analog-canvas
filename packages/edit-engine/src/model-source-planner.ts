@@ -14,7 +14,7 @@ import {
 import {
   instanceReferencesPin,
   planCallerInterfaceChanges,
-} from "./hierarchy-planner.js";
+} from "./cell-interface-change-planner.js";
 import {
   builtInSymbols,
   createProjectSymbolResolver,

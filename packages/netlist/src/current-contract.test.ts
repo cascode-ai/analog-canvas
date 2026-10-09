@@ -4,6 +4,7 @@ import {
   createEmptyProject,
   deriveStableId,
   type CircuitProject,
+  type RichTextDocument,
 } from "@icm/model";
 
 import {
@@ -1933,20 +1934,16 @@ describe("voltage-controlled switch", () => {
     });
     claimNet(document, "net-b", "0");
 
+    // Printed as a subcircuit, the Cell takes the phase S1 as a pin (#1475).
     const analysis = analyzeDesignNetlist(project);
-    expect(
-      analysis.diagnostics.map((diagnostic) => [
-        diagnostic.code,
-        diagnostic.severity,
-      ]),
-    ).toEqual([["SWITCH_PHASE_NOT_DRIVEN", "warning"]]);
-    // The warning says how to share a clock, not only how to drive S1.
-    expect(analysis.diagnostics[0]!.message).toContain(
-      "write its phase on its label (a display alias such as Φ1)",
-    );
-    expect(printSpiceNetlist(analysis.ir!)).toContain(
-      "S1 vout 0 S1 0 ideal_switch",
-    );
+    expect(analysis.diagnostics).toEqual([]);
+    const text = printSpiceNetlist(analysis.ir!);
+    expect(text).toMatch(/^\.subckt \S+ S1$/mu);
+    expect(text).toContain("S1 vout 0 S1 0 ideal_switch");
+    // At a deck's top, the testbench, it is a node its own text drives.
+    const top = analyzeDesignNetlist(project, { rootAsTopLevel: true });
+    expect(top.diagnostics).toEqual([]);
+    expect(printSpiceNetlist(top.ir!)).toContain("S1 vout 0 S1 0 ideal_switch");
   });
 
   it("projects the reviewed SKY130 MOS and physical passives in production", () => {
@@ -2137,15 +2134,9 @@ describe("drawn switches", () => {
     expect(
       analysis.diagnostics.filter((item) => item.severity === "error"),
     ).toEqual([]);
-    // No Net named Φ1 is drawn yet, so the phase is a node of its own.
-    expect(
-      analysis.diagnostics.find(
-        (item) => item.code === "SWITCH_PHASE_NOT_DRIVEN",
-      )?.message,
-    ).toBe(
-      "No Net named Φ1 in this Cell drives switch S1: name the clock's Net Φ1, or add a Cell Pin Φ1",
-    );
+    // No Net named Φ1 is drawn, so the Cell takes the phase as a pin.
     const text = printSpiceNetlist(analysis.ir!);
+    expect(text).toMatch(/^\.subckt \S+ PHI1$/mu);
     expect(text).toContain("S1 in out PHI1 0 ideal_switch");
     expect(text).toContain(
       ".model ideal_switch SW(RON=1 ROFF=1e12 VT=0.5 VH=0)",
@@ -2178,9 +2169,6 @@ describe("drawn switches", () => {
     });
     claimNet(document, "net-ground", "0", "global", "ground");
     const analysis = analyzeDesignNetlist(project);
-    expect(analysis.diagnostics.map((item) => item.code)).not.toContain(
-      "SWITCH_PHASE_NOT_DRIVEN",
-    );
     const text = printSpiceNetlist(analysis.ir!);
     expect(text).toContain("S1 in out PHI2 0 ideal_switch");
     expect(text).toContain("V1 PHI2 0");
@@ -2209,6 +2197,8 @@ describe("drawn switches", () => {
     expect(text.indexOf(".model ideal_switch")).toBeLessThan(
       text.indexOf("S1 in out PHI1 0 ideal_switch"),
     );
+    // The testbench's text drives PHI1; the export reports nothing.
+    expect(analysis.diagnostics).toEqual([]);
   });
 
   it("keeps the ideal switch's name out of the editable fields", () => {
@@ -2257,6 +2247,293 @@ describe("drawn switches", () => {
       expect(project).toEqual(before);
     },
   );
+
+  describe("an overbarred phase", () => {
+    // EN, and E̅N̅ the way the Gallery's Chopper draws it: a bar over the
+    // italic, bold name.
+    const en = (overbar: boolean) => {
+      const name = {
+        kind: "span" as const,
+        style: "italic" as const,
+        children: [
+          {
+            kind: "span" as const,
+            style: "bold" as const,
+            children: [{ kind: "text" as const, value: "EN" }],
+          },
+        ],
+      };
+      return {
+        runs: [
+          overbar
+            ? {
+                kind: "span" as const,
+                style: "overbar" as const,
+                children: [name],
+              }
+            : name,
+        ],
+      };
+    };
+    /** S1 from in to a and S2 from in to b, labelled with these phases. */
+    function pair(
+      labels: readonly RichTextDocument[],
+      clock = false,
+    ): CircuitProject {
+      const project = createEmptyProject("project", "Project");
+      const document = project.documents[0]!;
+      labels.forEach((label, index) => {
+        const id = `S${index + 1}`;
+        document.instances.push({
+          id,
+          symbolId: "ideal-switch",
+          placement: null,
+          reference: id,
+          netlist: { parameters: {} },
+        });
+        document.annotations.push({
+          id: `label-${id}`,
+          kind: "instance-label",
+          anchor: {
+            kind: "object",
+            objectId: id,
+            localOffset: { x: 20, y: 0 },
+            fallbackPosition: { x: 20, y: 0 },
+          },
+          content: label,
+          alignment: "start",
+          rotation: 0,
+          locked: false,
+        });
+      });
+      document.nets.push({
+        id: "net-in",
+        terminals: labels.map((_, index) => ({
+          instanceId: `S${index + 1}`,
+          pinName: "1",
+        })),
+      });
+      claimNet(document, "net-in", "in");
+      labels.forEach((_, index) => {
+        document.nets.push({
+          id: `net-out-${index}`,
+          terminals: [{ instanceId: `S${index + 1}`, pinName: "2" }],
+        });
+        claimNet(document, `net-out-${index}`, "ab"[index]!);
+      });
+      if (clock) {
+        document.instances.push({
+          id: "V1",
+          symbolId: "voltage-source",
+          placement: null,
+          reference: "V1",
+          netlist: { parameters: { dc: "1" } },
+        });
+        document.nets.push({
+          id: "net-clock",
+          terminals: [{ instanceId: "V1", pinName: "+" }],
+        });
+        claimNet(document, "net-clock", "EN");
+        document.nets.push({
+          id: "net-ground",
+          terminals: [{ instanceId: "V1", pinName: "-" }],
+        });
+        claimNet(document, "net-ground", "0", "global", "ground");
+      }
+      return project;
+    }
+
+    it("names the signal EN_bar and clocks both on the one plain switch", () => {
+      const analysis = analyzeDesignNetlist(pair([en(false), en(true)]));
+      expect(
+        analysis.diagnostics.filter((item) => item.severity === "error"),
+      ).toEqual([]);
+      // Nothing here drives EN or EN_bar: both are the Cell's pins, for the
+      // testbench to drive, complementary or with dead time (#1475).
+      const text = printSpiceNetlist(analysis.ir!);
+      expect(text).toMatch(/^\.subckt \S+ EN EN_bar$/mu);
+      expect(text).toContain("S1 in a EN 0 ideal_switch\n");
+      expect(text).toContain("S2 in b EN_bar 0 ideal_switch\n");
+      expect(text.match(/^\.model .*$/gmu)).toEqual([
+        ".model ideal_switch SW(RON=1 ROFF=1e12 VT=0.5 VH=0)",
+      ]);
+    });
+
+    it("follows the drawn inverter's output, not an inverted switch", () => {
+      // EN comes in; the author drew EN_bar as a Net of its own.
+      const project = pair([en(false), en(true)], true);
+      const document = project.documents[0]!;
+      document.instances.push({
+        id: "V2",
+        symbolId: "voltage-source",
+        placement: null,
+        reference: "V2",
+        netlist: { parameters: { dc: "0" } },
+      });
+      document.nets.push({
+        id: "net-en-bar",
+        terminals: [{ instanceId: "V2", pinName: "+" }],
+      });
+      claimNet(document, "net-en-bar", "EN_bar");
+      document.nets
+        .find((net) => net.id === "net-ground")!
+        .terminals.push({ instanceId: "V2", pinName: "-" });
+      const text = printSpiceNetlist(analyzeDesignNetlist(project).ir!);
+      expect(text).not.toMatch(/^\.subckt \S+ .*\bEN/mu);
+      expect(text).toContain("S1 in a EN 0 ideal_switch\n");
+      expect(text).toContain("S2 in b EN_bar 0 ideal_switch\n");
+    });
+
+    it("reads a label typed EN_bar and one drawn E̅N̅ as one signal", () => {
+      const typed = { runs: [{ kind: "text" as const, value: "EN_bar" }] };
+      const text = printSpiceNetlist(
+        analyzeDesignNetlist(pair([typed, en(true)])).ir!,
+      );
+      expect(text).toMatch(/^\.subckt \S+ EN_bar$/mu);
+      expect(text).toContain("S1 in a EN_bar 0 ideal_switch\n");
+      expect(text).toContain("S2 in b EN_bar 0 ideal_switch\n");
+    });
+
+    // Φ̄₁: the bar over Φ, the 1 a subscript, as a Net Label drawn so reads.
+    const phiBar = {
+      runs: [
+        {
+          kind: "span" as const,
+          style: "overbar" as const,
+          children: [{ kind: "text" as const, value: "Φ" }],
+        },
+        {
+          kind: "span" as const,
+          style: "subscript" as const,
+          children: [{ kind: "text" as const, value: "1" }],
+        },
+      ],
+    } satisfies RichTextDocument;
+    it.each([
+      ["E̅N̅", en(true), "EN_bar", "EN_bar"],
+      ["Φ̄₁", phiBar, "Φ_1_bar", "PHI_1_bar"],
+    ])("meets a Net drawn the same way as %s", (_, label, netName, node) => {
+      const project = pair([label]);
+      const document = project.documents[0]!;
+      document.instances.push({
+        id: "V2",
+        symbolId: "voltage-source",
+        placement: null,
+        reference: "V2",
+        netlist: { parameters: { dc: "1" } },
+      });
+      document.nets.push(
+        {
+          id: "net-barred",
+          terminals: [{ instanceId: "V2", pinName: "+" }],
+        },
+        {
+          id: "net-ground",
+          terminals: [{ instanceId: "V2", pinName: "-" }],
+        },
+      );
+      claimNet(document, "net-barred", netName);
+      claimNet(document, "net-ground", "0", "global", "ground");
+      const text = printSpiceNetlist(analyzeDesignNetlist(project).ir!);
+      expect(text).toContain(`S1 in a ${node} 0 ideal_switch\n`);
+      expect(text).not.toMatch(/^\.subckt \S+ \S/mu);
+    });
+  });
+
+  describe("a phase nothing in its Cell drives", () => {
+    /** Top calls Chop, whose switch S1 is clocked by EN. */
+    function chopper() {
+      const project = createEmptyProject("project", "Project");
+      const child = createEmptyDocument("chop", "Chop");
+      child.netlist!.name = "Chop";
+      project.documents.push(child);
+      child.instances.push({
+        id: "S1",
+        symbolId: "ideal-switch",
+        placement: null,
+        reference: "S1",
+        netlist: { parameters: {} },
+      });
+      child.annotations.push({
+        id: "label-S1",
+        kind: "instance-label",
+        anchor: {
+          kind: "object",
+          objectId: "S1",
+          localOffset: { x: 20, y: 0 },
+          fallbackPosition: { x: 20, y: 0 },
+        },
+        content: { runs: [{ kind: "text", value: "EN" }] },
+        alignment: "start",
+        rotation: 0,
+        locked: false,
+      });
+      for (const [pinName, name] of [
+        ["1", "in"],
+        ["2", "out"],
+      ] as const) {
+        child.nets.push({
+          id: `net-${name}`,
+          terminals: [{ instanceId: "S1", pinName }],
+        });
+        claimNet(child, `net-${name}`, name);
+      }
+      const top = project.documents[0]!;
+      top.instances.push({
+        id: "X1",
+        reference: "X1",
+        symbolId: "block",
+        placement: null,
+        netlist: {
+          parameters: {},
+          binding: { kind: "subcircuit", childDocumentId: child.id },
+        },
+      });
+      return { project, top };
+    }
+
+    it("is a pin of every caller up to a Net of its name", () => {
+      const { project } = chopper();
+      const text = printSpiceNetlist(analyzeDesignNetlist(project).ir!);
+      expect(text).toMatch(/^\.subckt Chop EN$/mu);
+      expect(text).toMatch(/^X1 EN Chop$/mu);
+      // Top draws no EN either, so it takes the phase as its own pin.
+      expect(text).toMatch(/^\.subckt dut EN$/mu);
+    });
+
+    it("is driven by the caller's Net of that name", () => {
+      const { project, top } = chopper();
+      top.instances.push({
+        id: "V1",
+        symbolId: "voltage-source",
+        placement: null,
+        reference: "V1",
+        netlist: { parameters: { dc: "1" } },
+      });
+      top.nets.push(
+        { id: "net-en", terminals: [{ instanceId: "V1", pinName: "+" }] },
+        { id: "net-ground", terminals: [{ instanceId: "V1", pinName: "-" }] },
+      );
+      claimNet(top, "net-en", "EN");
+      claimNet(top, "net-ground", "0", "global", "ground");
+      const analysis = analyzeDesignNetlist(project);
+      const text = printSpiceNetlist(analysis.ir!);
+      expect(text).toMatch(/^X1 EN Chop$/mu);
+      expect(text).toMatch(/^\.subckt dut$/mu);
+    });
+
+    it("is a node of its name at a deck's top, for the testbench to drive", () => {
+      const { project, top } = chopper();
+      const analysis = analyzeDesignNetlist(project, {
+        rootAsTopLevel: true,
+        rootDocumentId: top.id,
+      });
+      expect(analysis.diagnostics).toEqual([]);
+      const text = printSpiceWithLocations(analysis.ir!, true).text;
+      expect(text).toMatch(/^X1 EN Chop$/mu);
+      expect(text).not.toMatch(/^\.subckt dut/mu);
+    });
+  });
 
   it("refuses a label that cannot name a node", () => {
     const analysis = analyzeDesignNetlist(

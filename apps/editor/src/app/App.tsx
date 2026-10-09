@@ -1,33 +1,13 @@
-import { parseProject, serializeProject } from "@icm/project-protocol";
-import { flushSync } from "react-dom";
-import type {
-  RecentProjectFile,
-  NativeSaveOutcome,
-} from "../hosts/native-project-store";
 import {
-  createProjectWorkspaceStore,
   holdWorkspaceWindow,
-  journalProjectWorkspace,
-  openWorkspaceWindows,
   workspaceWindowId,
   type ProjectWorkspace,
 } from "../document/project-workspace";
-import {
-  findWorkspaceReopenOffer,
-  type WorkspaceReopenSummary,
-} from "../document/workspace-reopen";
 import { resolveAnnotationName } from "@icm/derived";
-import {
-  branchGalleryVersion,
-  loadGalleryVersionProject,
-} from "../components/gallery-version-project";
 import { InstanceCodePanel } from "../features/properties/instance-code-panel";
 import { NetlistCodePanel } from "../features/netlist-export/netlist-code-panel";
 import { NetlistProfileCode } from "../features/netlist-export/netlist-profile-code";
-import {
-  useNetlistExportPreferences,
-  type NetlistExportPreferences,
-} from "../features/netlist-export/netlist-export-preferences";
+import { useNetlistExportPreferences } from "../features/netlist-export/netlist-export-preferences";
 import {
   placementModelTarget,
   placementProcessFill,
@@ -35,56 +15,24 @@ import {
   processReviewedLibrary,
   planNetlistProcess,
   prepareNetlistExample,
-  processTargetForShortName,
 } from "../features/netlist-export/netlist-process";
 import {
   DEFAULT_ARROW_PRESET,
   type ArrowPreset,
 } from "../features/drafting/arrow-presets";
 import {
-  lazy,
   Suspense,
   useCallback,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
-import type { ComponentDefinition, Instance } from "@icm/model";
-import type { SharedComponent } from "../features/user-components/component-library-contract";
-import { publishedDefinition } from "../features/user-components/component-library-contract";
-import {
-  newComponentDefinition,
-  sharedComponentInsertRequest,
-} from "../features/user-components/component-definition-edit";
 
-const loadNativeProjectWorkspace = () =>
-  import("../hosts/native-project-workspace");
-
-const UserComponentsLibrary = lazy(
-  () => import("../features/user-components/user-components-library"),
-);
-
-interface ComponentEditorSession {
-  key: string;
-  projectSessionId: string;
-  definition: ComponentDefinition;
-  mode: "new" | "instance" | "library";
-  entry?: SharedComponent;
-  externalDefinitionId?: string;
-  target?: { projectSessionId: string; documentId: string; instance: Instance };
-}
 import type { CSSProperties } from "react";
 import "../styles/editor-entry.css";
-import type {
-  AgentHostSemanticIntentRequest,
-  AgentHostSemanticIntentResult,
-} from "@icm/agent-adapter";
 import {
   instanceValueAnnotation,
-  planProjectCellImport,
-  planCircuitComponentCapture,
   planSetVddConnectionMode,
   planRenameCellTerminal,
   planAngledWireRepairs,
@@ -138,18 +86,12 @@ import type { TextDraft } from "../features/text-editing/text-draft-overlay";
 import { renderCrashRequested, sceneCrashRequested } from "./crash-test-hooks";
 import { buildSceneSafely } from "./scene-safety";
 import { externalSubcircuitSymbolId, hierarchicalSymbolId } from "@icm/symbols";
-import { clipboardPreviewDocument } from "../features/clipboard/clipboard";
+import { clipboardPreviewDocument } from "../features/clipboard/clipboard-preview";
 import {
   prepareProjectCopy,
   applyProjectCopyPlacement,
-  captureProjectCopy,
-  planProjectCopyPlacement,
 } from "../features/clipboard/project-copy";
-import type {
-  AgentProjectResourceRequest,
-  AgentProjectResourceResponse,
-} from "@icm/agent-adapter";
-import { clipboardPlacementAnchor } from "../features/clipboard/clipboard";
+import { clipboardPlacementAnchor } from "../features/clipboard/copy-placement";
 import { standaloneCopiedNetLabel } from "../features/clipboard/copied-net-label";
 import { useCircuitClipboard } from "../features/clipboard/use-circuit-clipboard";
 import {
@@ -209,25 +151,14 @@ import {
   keptDocumentStyleOfSelection,
   releaseKeptDocumentStyleEdit,
 } from "../features/editor-shell/kept-document-style";
-import {
-  deriveSimulationProbeOptions,
-  simulationProbeHierarchyPath,
-} from "../features/simulation/simulation-probe-options";
-import {
-  sameSimulationOccurrence,
-  terminalCurrentDirectionPartners,
-} from "../features/simulation/terminal-current-pick";
+import { terminalCurrentDirectionPartners } from "../features/simulation/terminal-current-pick";
 import { PUBLIC_SIMULATION_UI_ENABLED } from "../features/simulation/public-simulation-ui";
 import { useCellSymbolLayout } from "../features/hierarchy/use-cell-symbol-layout";
 import { selectedBlockSymbolTarget } from "../features/hierarchy/block-symbol-layout-target";
-import {
-  cellInsertLaunch,
-  fullInsertLaunch,
-} from "../features/component-insert/insert-launch";
+import { cellInsertLaunch } from "../features/component-insert/insert-launch";
 import { useComponentPlacement } from "../features/component-insert/use-component-placement";
 import { snapPendingComponentPlacement } from "../features/component-insert/placement-snap";
 import { findPaletteSymbol } from "../features/component-insert/symbol-catalog";
-import { CanvasContextMenu } from "../features/selection/canvas-context-menu";
 import { useVisualClipboard } from "../features/clipboard/visual-clipboard";
 import { deriveWireUnderSymbolWarnings } from "../canvas/wire-under-symbol";
 import { createPlacementTrayCommands } from "../features/component-insert/placement-tray-commands";
@@ -240,12 +171,8 @@ import {
 } from "./editor-document-helpers";
 import {
   compactLayoutMatches,
-  dismissOpenCommandMenus,
-  isTypingTarget,
   RenderCrashProbe,
 } from "./editor-runtime-helpers";
-import { EditorDialogLayer } from "./editor-dialog-layer";
-import { EditorAppChrome } from "./editor-app-chrome";
 import { EditorRightDock } from "./editor-right-dock";
 import {
   EditorProjectDock,
@@ -253,9 +180,7 @@ import {
 } from "./editor-project-dock";
 import { EditorPropertiesDock } from "./editor-properties-dock";
 import { LazyProjectCodePanel as ProjectCodePanel } from "./lazy-editor-dialogs";
-import { LazySpiceSimulationSurface } from "./lazy-editor-dialogs";
 import { LazyExamplesPanel as ExamplesPanel } from "./lazy-editor-dialogs";
-import { LazyComponentDefinitionEditor as ComponentDefinitionEditor } from "./lazy-editor-dialogs";
 import { recoverSourceDrafts } from "../features/simulation/source-draft-cache";
 import { useProjectCheck } from "./use-project-check";
 import { summarizeVisualDiagnostics } from "../features/selection/selection-inspector-details";
@@ -264,10 +189,7 @@ import {
   useEditorDerivedModel,
 } from "./use-editor-derived-model";
 import type { RoutingGuidanceView } from "../interaction/interaction-state";
-import {
-  quickPlaceRequest,
-  ShapesPanel,
-} from "../features/editor-shell/shapes-panel";
+import { ShapesPanel } from "../features/editor-shell/shapes-panel";
 import {
   type GalleryEntryContext,
   createGalleryExampleCommands,
@@ -277,40 +199,17 @@ import {
   createProjectStructureCommands,
   cellPlacementIssue,
 } from "../features/hierarchy/project-structure-commands";
-import { loadCloudProjectForCellImport } from "../features/hierarchy/cloud-cell-import";
 import type { PublishGalleryDraft } from "../features/editor-shell/publish-gallery-dialog";
-import {
-  publishProjectToGallery,
-  updateGalleryEntry,
-  canUpdateGalleryPublication,
-  loadGalleryPublicationContext,
-  loadGalleryQuota,
-  type GalleryPublicationRecord,
-  type GalleryQuota,
-} from "../features/editor-shell/gallery-publish";
-import {
-  announceGalleryChange,
-  localhostExamplesEnabled,
-  primeGalleryPreview,
-  subscribeGalleryRefresh,
-} from "../gallery-client";
+import { canUpdateGalleryPublication } from "../features/editor-shell/gallery-publish";
+import { GalleryDailyLimitCard } from "../features/editor-shell/gallery-daily-limit-card";
 import { projectWithTopologyRoot } from "../features/editor-shell/gallery-topology-project";
 import { LazyGalleryTopologyTaskNotice as GalleryTopologyTaskNotice } from "./lazy-editor-dialogs";
 import { LazyGalleryPublishedNotice as GalleryPublishedNotice } from "./lazy-editor-dialogs";
-import type { GalleryPublishedNoticeState } from "../features/editor-shell/gallery-published-notice";
-import type { SessionUser } from "../components/account";
-import {
-  evaluateSubmissionGates,
-  type SubmissionGateReport,
-} from "@icm/derived";
 import {
   EDITOR_PROJECT_TRANSACTION_OPTIONS,
-  EditorDocumentController,
   useDocumentController,
 } from "../document/document-controller";
 import { useProjectFileLifecycle } from "../document/use-project-file-lifecycle";
-import { useProjectTabs } from "../document/use-project-tabs";
-import { ProjectTabs } from "../features/editor-shell/project-tabs";
 import type { ReplaceProjectOptions } from "../document/use-project-file-lifecycle";
 import { useUnsavedWorkGuard } from "../document/use-unsaved-work-guard";
 import { authoredObjectCount } from "../document/project-content";
@@ -324,35 +223,55 @@ import {
   createDraftingDragController,
   type DraftingHandlePreview,
 } from "../features/drafting/drafting-drag-controller";
-import {
-  resolveEditorShortcut,
-  shouldConsumeEditorEscape,
-  stepBoundedScale,
-} from "../interaction/editor-shortcuts";
-import { createEditorCommandRouter } from "../commands/editor-command";
 import { createEditorTransactionCommands } from "./editor-transaction-commands";
-import { recoveryStateLabel } from "../components/recovery-banners";
-import { BrowserAgentHost } from "../agent/browser-agent-host";
-import type { BrowserAgentPlanningContext } from "../agent/browser-agent-command";
-import { BrowserAgentFileHost } from "../agent/browser-agent-file-host";
-import { BrowserAgentSimulationHost } from "../agent/browser-agent-simulation-host";
-import { BrowserAgentProjectHost } from "../agent/browser-agent-project-host";
+import { DEFAULT_VIEWBOX } from "./default-view-box";
+import type { ComponentEditorSession } from "./component-editor-session";
 import {
-  createAgentGalleryPublisher,
-  type AgentGalleryPublication,
-} from "../agent/agent-gallery-publish";
-import { BrowserSimulationSession } from "../features/simulation/browser-simulation-session";
-import { ProjectRunHistory } from "../features/simulation/project-run-history";
+  browserWorkspaceStore,
+  useProjectTabSessions,
+} from "./use-project-tab-sessions";
+import { useNativeProjectTabs } from "./use-native-project-tabs";
+import {
+  createAgentWorkspaceHandler,
+  createAgentWorkspaceTargets,
+} from "./agent-workspace-requests";
+import {
+  useGalleryPublicationLink,
+  useGalleryPublicationRecord,
+  useGalleryPublishing,
+  useGalleryRefresh,
+} from "./use-gallery-publishing";
+import {
+  createLeaveForGallery,
+  useBootLink,
+  useGalleryTabEntry,
+  useRestoredTabLinks,
+} from "./use-gallery-entry";
+import {
+  useActiveSimulationFolder,
+  useSimulationPickCommands,
+  useSimulationPicking,
+  useSimulationSurface,
+} from "./use-simulation-surface";
+import { EditorSimulationSurface } from "./editor-simulation-surface";
+import { EditorDialogs } from "./editor-dialogs";
+import { EditorComponentEditor } from "./editor-component-editor";
+import { useEditorCommandRouter } from "./use-editor-command-router";
+import { useEditorShortcuts } from "./use-editor-shortcuts";
+import { EditorCanvasContextMenu, EditorMenuBar } from "./editor-menus";
+import {
+  useAgentProjectResources,
+  useAgentStartupRecovery,
+  useBrowserAgentHost,
+  useEditorAgentConnection,
+} from "./use-agent-hosts";
+import { recoveryStateLabel } from "../components/recovery-banners";
+import { BrowserAgentProjectHost } from "../agent/browser-agent-project-host";
+import { createAgentGalleryPublisher } from "../agent/agent-gallery-publish";
 import { createAgentSemanticIntentHandler } from "../agent/agent-semantic-intent-handler";
 import { PUBLIC_AGENT_UI_ENABLED } from "../agent/public-agent-ui";
-import {
-  useEditorAgentSession,
-  WorkspaceAgentProvider,
-} from "../agent/workspace-agent";
-import type { UseAgentSessionOptions } from "../agent/use-agent-session";
-import { peekAgentSessionRecovery } from "../agent/session-recovery";
+import { WorkspaceAgentProvider } from "../agent/workspace-agent";
 export { WorkspaceAgentProvider } from "../agent/workspace-agent";
-import type { AgentFileCandidateSummary } from "@icm/agent-adapter";
 import { referencedDocumentId } from "../document/editor-session";
 import { useInteractionState } from "../interaction/interaction-state";
 import type {
@@ -371,9 +290,6 @@ import {
   type ControlPickState,
 } from "../features/properties/controlled-source-canvas-pick";
 import { currentControlOptions } from "../features/properties/current-control-options";
-import type { CloudProjectSummary } from "../features/editor-shell/cloud-projects";
-import { projectChangeToken } from "../document/project-session-lifecycle";
-import { captureProjectSaveSnapshot } from "../document/project-save-coordinator";
 import {
   defaultRazaviSymbolVariantId,
   materializeRazaviProjectBulkConnections,
@@ -394,10 +310,6 @@ import { usePropertiesEditor } from "../features/properties/use-properties-edito
 import { deferFocus } from "../interaction/deferred-focus";
 import { createPropertyEditPlanner } from "../features/properties/property-edit-planner";
 import { instanceParameterVisibility } from "../features/instance-display/instance-parameter-display";
-import {
-  hasResettableLabels,
-  resetLabelLookEdits,
-} from "../features/instance-display/reset-label-look";
 import { createSelectionPropertyCommands } from "../features/properties/selection-property-commands";
 import {
   groupVisibilityTargets,
@@ -440,7 +352,6 @@ import {
 } from "../features/selection/visual-selection";
 import { createSelectionMoveController } from "../features/selection/selection-move-controller";
 import { createSelectionTransformController } from "../features/selection/selection-transform-controller";
-import { EDGE_ALIGNMENT_MODES } from "../features/selection/align-selection";
 import type { VisualSelectionKind } from "../features/selection/visual-selection";
 import { planSelectionMove } from "../features/selection/selection-move-plan";
 import {
@@ -477,7 +388,6 @@ import { buildSceneSnapTargetIndex } from "../snap/candidates";
 import { snapCoordinate } from "../snap/engine";
 import type { SnapGuideLine } from "../snap/engine";
 
-const DEFAULT_VIEWBOX: GridRect = { x: 0, y: 0, width: 960, height: 640 };
 const RECENT_COMPONENTS_STORAGE_KEY = "icm.recent-components.v1";
 const LIBRARY_PANEL_STORAGE_KEY = "icm.library-panel-open.v1";
 const LIBRARY_WIDTH_STORAGE_KEY = "icm.library-panel-width.v1";
@@ -544,11 +454,6 @@ export interface AppProps {
   initialGalleryEntryId?: string | null;
 }
 
-let workspaceStore: ReturnType<typeof createProjectWorkspaceStore> | undefined;
-function browserWorkspaceStore() {
-  return (workspaceStore ??= createProjectWorkspaceStore());
-}
-
 export function App(props: AppProps) {
   const [boot, setBoot] = useState<{
     workspace: ProjectWorkspace | null;
@@ -612,22 +517,6 @@ export function App(props: AppProps) {
   );
 }
 
-/**
- * Takes `new=1` out of the address once the new circuit is open. The address
- * is what the window's tabs are saved under, so a refresh then brings back
- * what was drawn, and only a fresh New Circuit starts another.
- */
-function forgetNewProjectRequest(): void {
-  const url = new URL(window.location.href);
-  if (url.searchParams.get("new") !== "1") return;
-  url.searchParams.delete("new");
-  window.history.replaceState(
-    window.history.state,
-    "",
-    url.pathname + url.search + url.hash,
-  );
-}
-
 function propertiesMosBulkDefaultNetId(
   document: SchematicDocument,
   kind: "nmos" | "pmos",
@@ -687,11 +576,6 @@ function WorkspaceEditor({
   const [status, setStatus] = useState(workspaceError ?? "Ready");
   const [componentEditor, setComponentEditor] =
     useState<ComponentEditorSession | null>(null);
-  const [pendingPublicComponent, setPendingPublicComponent] = useState<{
-    projectSessionId: string;
-    definitionId: string;
-    symbolId: string;
-  } | null>(null);
   const [componentLibraryRefresh, setComponentLibraryRefresh] = useState(0);
   const [userComponentsOpen, setUserComponentsOpen] = useState(false);
   const libraryResizeOriginRef = useRef<{
@@ -789,15 +673,11 @@ function WorkspaceEditor({
   const visibleLibraryPanelOpen = compactLayout
     ? compactLibraryPanelOpen
     : libraryPanelOpen;
-  const [, setGalleryRefreshSignal] = useState(0);
-  const galleryLoadGenerationRef = useRef(0);
-  useEffect(() => {
-    if (!capabilities.community || !visibleLibraryPanelOpen) return;
-    return subscribeGalleryRefresh(() => {
-      galleryLoadGenerationRef.current += 1;
-      setGalleryRefreshSignal((previous) => previous + 1);
+  const { setGalleryRefreshSignal, galleryLoadGenerationRef } =
+    useGalleryRefresh({
+      capabilities,
+      visibleLibraryPanelOpen,
     });
-  }, [capabilities.community, visibleLibraryPanelOpen]);
 
   const [recoveryFailureDismissed, setRecoveryFailureDismissed] =
     useState(false);
@@ -829,24 +709,11 @@ function WorkspaceEditor({
     openWorkingCopyIds: () => openWorkingCopyIdsRef.current(),
   });
   const openWorkingCopyIdsRef = useRef<() => readonly string[]>(() => []);
-  const [agentStartupRecovery] = useState(() => {
-    if (
-      !capabilities.agent ||
-      typeof window === "undefined" ||
-      restoredWorkspace
-    )
-      return null;
-    const search = new URLSearchParams(window.location.search);
-    if (
-      initialGalleryEntryId !== null ||
-      search.has("example") ||
-      search.has("project") ||
-      search.has("history") ||
-      search.get("new") === "1"
-    )
-      return null;
-    const saved = peekAgentSessionRecovery(window.sessionStorage);
-    return saved?.projectSessionId === recoveryWorkingCopyId ? saved : null;
+  const agentStartupRecovery = useAgentStartupRecovery({
+    capabilities,
+    restoredWorkspace,
+    initialGalleryEntryId,
+    recoveryWorkingCopyId,
   });
   const {
     project,
@@ -882,64 +749,17 @@ function WorkspaceEditor({
     () => buildProjectConnectivityIndex(project, resolver),
     [project, resolver],
   );
-  const agentSemanticIntentRef = useRef<
-    (request: AgentHostSemanticIntentRequest) => AgentHostSemanticIntentResult
-  >(() => ({
-    ok: false,
-    code: "SEMANTIC_CONTROL_UNAVAILABLE",
-    message: "The editor is still initializing semantic controls",
-  }));
-  // An Agent places a transistor in the Process a person placing it would
-  // get; the preferences are read when it plans, not when the host is made.
-  const netlistPreferencesRef = useRef<NetlistExportPreferences | null>(null);
-  const agentPlanning = useMemo<BrowserAgentPlanningContext>(
-    () => ({
-      processModelTarget: (source, symbolId) =>
-        netlistPreferencesRef.current
-          ? placementModelTarget(
-              source,
-              netlistPreferencesRef.current,
-              symbolId,
-            )
-          : undefined,
-      processTargetForShortName: (source, symbolId, name) =>
-        netlistPreferencesRef.current
-          ? processTargetForShortName(
-              source,
-              netlistPreferencesRef.current,
-              symbolId,
-              name,
-            )
-          : undefined,
-      processFill: (source, documentId, edits) =>
-        netlistPreferencesRef.current
-          ? placementProcessFill(
-              source,
-              netlistPreferencesRef.current,
-              documentId,
-              edits,
-            )
-          : undefined,
-    }),
-    [],
-  );
-  const browserAgentHost = useMemo(
-    () =>
-      new BrowserAgentHost(
-        editorDocumentController,
-        () => {
-          synchronizeExternalCommit();
-          // Agent commits have already crossed a network boundary. Start the
-          // durable write immediately so a following render crash cannot lose
-          // the acknowledged transaction inside the debounce window.
-          void flushRecovery();
-        },
-        (request) => agentSemanticIntentRef.current(request),
-        undefined,
-        agentPlanning,
-      ),
-    [editorDocumentController, projectSessionId],
-  );
+  const {
+    agentSemanticIntentRef,
+    netlistPreferencesRef,
+    agentPlanning,
+    browserAgentHost,
+  } = useBrowserAgentHost({
+    editorDocumentController,
+    projectSessionId,
+    synchronizeExternalCommit,
+    flushRecovery,
+  });
   const [documentStack, setDocumentStack] = useState<HierarchyFrame[]>([]);
   const {
     selection: visualSelection,
@@ -1054,16 +874,14 @@ function WorkspaceEditor({
     setModelEditorLocation(location);
     setCellManagerOpen(true);
   };
-  const [activeSimulationFolderId, setActiveSimulationFolderId] = useState<
-    string | null
-  >(null);
-  const activeSimulationFolder =
-    project.simulationFolders.find(
-      (folder) => folder.id === activeSimulationFolderId,
-    ) ?? project.simulationFolders[0];
-  useEffect(() => {
-    setActiveSimulationFolderId(null);
-  }, [projectSessionId]);
+  const {
+    activeSimulationFolderId,
+    setActiveSimulationFolderId,
+    activeSimulationFolder,
+  } = useActiveSimulationFolder({
+    project,
+    projectSessionId,
+  });
   const [canvasContextMenu, setCanvasContextMenu] = useState<{
     x: number;
     y: number;
@@ -1106,236 +924,69 @@ function WorkspaceEditor({
   const [documentSettingsOpen, setDocumentSettingsOpen] = useState(false);
   const [projectInfoOpen, setProjectInfoOpen] = useState(false);
   const projectNameEditing = useRef(false);
-  const [publishGalleryOpen, setPublishGalleryOpen] = useState(false);
-  // Opened from the duplicate check's notice, which asks for that check's
-  // results whatever circuit it checked (#1417).
-  const [openedFromCheckNotice, setOpenedFromCheckNotice] = useState(false);
-  const [publishedNotice, setPublishedNotice] =
-    useState<GalleryPublishedNoticeState | null>(null);
-  const [versionHistoryOpen, setVersionHistoryOpen] = useState(false);
-  const [publishSession, setPublishSession] = useState<SessionUser | null>(
-    null,
-  );
-  /** The signed-in account's private formal Projects, newest first. */
-  const [cloudProjects, setCloudProjects] = useState<
-    readonly CloudProjectSummary[]
-  >([]);
-  const [cloudProjectsReady, setCloudProjectsReady] = useState(false);
-  const cloudListRequestRef = useRef(0);
-  const cloudListMutationRef = useRef(0);
-  const reloadCloudProjects = useCallback(async (): Promise<void> => {
-    if (!projectStore) {
-      setCloudProjectsReady(true);
-      return;
-    }
-    const request = ++cloudListRequestRef.current;
-    const mutationAtStart = cloudListMutationRef.current;
-    const outcome = await projectStore.list();
-    if (request !== cloudListRequestRef.current) return;
-    setCloudProjectsReady(true);
-    if (outcome.status !== "listed") return;
-    // A Save or Delete acknowledged after this request began is newer than
-    // the response, so the stale list must not erase that mutation.
-    if (mutationAtStart !== cloudListMutationRef.current) return;
-    setCloudProjects(outcome.projects);
-  }, [projectStore]);
-  const [galleryEntryContext, setGalleryEntryContext] =
-    useState<GalleryEntryContext | null>(null);
-  const [publicationLinkLoading, setPublicationLinkLoading] = useState(false);
-  const [publicationLinkError, setPublicationLinkError] = useState<
-    string | null
-  >(null);
-  const [publicationLinkNotice, setPublicationLinkNotice] = useState<
-    string | null
-  >(null);
-  const [publicationLinkRetry, setPublicationLinkRetry] = useState(0);
-  // The moment any OTHER Project replaces the opened gallery entry (new
-  // circuit, bundled example, import, …), the update offer must vanish —
-  // otherwise a later publish silently overwrites the stale entry.
-  const activeProjectId = project.id;
-  useEffect(() => {
-    setGalleryEntryContext((previous) =>
-      previous && previous.projectId !== activeProjectId ? null : previous,
-    );
-  }, [activeProjectId]);
-  // The Examples panel reads the same community gallery as the landing
-  // feed; null means unreachable, so the bundled list stands in.
-  const [publishGates, setPublishGates] = useState<SubmissionGateReport | null>(
-    null,
-  );
-  // Account state owns publishing authority and the private Cloud Project
-  // list shown by the File menu.
-  useEffect(() => {
-    let cancelled = false;
-    if (!identity) return;
-    void identity.getSessionUser().then(async (user) => {
-      if (cancelled) return;
-      setPublishSession(user);
-      if (!user) {
-        setCloudProjectsReady(true);
-        return;
-      }
-      await reloadCloudProjects();
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [identity, reloadCloudProjects]);
-
-  useEffect(() => {
-    if (!publishSession) return;
-    const refreshAfterReturning = () => void reloadCloudProjects();
-    window.addEventListener("focus", refreshAfterReturning);
-    return () => window.removeEventListener("focus", refreshAfterReturning);
-  }, [publishSession, reloadCloudProjects]);
-
-  const [publishQuota, setPublishQuota] = useState<GalleryQuota | null>(null);
-  // What the account may still publish today, read each time the dialog opens.
-  const publishAccountId = publishSession?.id ?? null;
-  useEffect(() => {
-    // An earlier count is no promise for this opening: say nothing until read.
-    setPublishQuota(null);
-    if (!publishGalleryOpen || !publishAccountId) return;
-    let cancelled = false;
-    void loadGalleryQuota().then((quota) => {
-      if (!cancelled) setPublishQuota(quota);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [publishGalleryOpen, publishAccountId]);
-  useEffect(() => {
-    if (!publishGalleryOpen) return;
-    let cancelled = false;
-    if (!identity) return;
-    void identity.getSessionUser().then((user) => {
-      if (!cancelled) setPublishSession(user);
-    });
-    // The same evaluator the worker enforces, run live on the open Project.
-    setPublishGates(evaluateSubmissionGates(project, resolver));
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- evaluated once per dialog open
-  }, [identity, publishGalleryOpen]);
-  const [agentFileCandidate, setAgentFileCandidate] =
-    useState<AgentFileCandidateSummary | null>(null);
-  // Execution and artifacts belong to their originating controller, not the
-  // currently selected tab. Re-selecting a tab restores the same service.
-  const agentProjectResources = useRef(
-    new Map<
-      EditorDocumentController,
-      Map<
-        string,
-        {
-          files: BrowserAgentFileHost;
-          history: ProjectRunHistory;
-          simulation: BrowserAgentSimulationHost;
-        }
-      >
-    >(),
-  );
-  let resources = agentProjectResources.current.get(editorDocumentController);
-  if (!resources) {
-    resources = new Map();
-    agentProjectResources.current.set(editorDocumentController, resources);
-  }
-  const resourceKey = `${projectSessionId}:${simulationTransport}`;
-  const browserAgentFileHost = useMemo(
-    () =>
-      resources.get(resourceKey)?.files ??
-      new BrowserAgentFileHost({
-        transport: simulationTransport,
-        getProjectSessionId: () => editorDocumentController.projectSessionId,
-        getProject: () => editorDocumentController.project,
-        getDocument: (documentId) =>
-          editorDocumentController.project.documents.find(
-            (candidate) => candidate.id === documentId,
-          ) ?? null,
-        getResolver: () => editorDocumentController.resolver,
-        onApprovalRequested: setAgentFileCandidate,
-        getActiveDocumentId: () => editorDocumentController.document.id,
-        commitProjectStructure: (next, active) =>
-          browserAgentHost.commitProjectStructure(next, active),
-        openProjectInNewTab: (candidate, background) =>
-          openProjectInTabRef.current(
-            candidate,
-            DEFAULT_VIEWBOX,
-            {
-              source: "opened-file",
-              agentEdited: true,
-            },
-            background,
-          ),
-        dispatchProjectTransaction: (request) =>
-          browserAgentHost.dispatchProjectTransaction(request),
-      }),
-    [editorDocumentController, resourceKey, simulationTransport],
-  );
-  const projectRunHistory = useMemo(
-    () =>
-      resources.get(resourceKey)?.history ??
-      new ProjectRunHistory(editorDocumentController.project.id),
-    [editorDocumentController, resourceKey],
-  );
-  useEffect(() => {
-    projectRunHistory.activate();
-  }, [projectRunHistory]);
-  const browserAgentSimulationHost = useMemo(
-    () =>
-      resources.get(resourceKey)?.simulation ??
-      new BrowserAgentSimulationHost({
-        runHistory: projectRunHistory,
-        owner: "agent",
-        files: browserAgentFileHost.simulationFiles,
-        getProjectSessionId: () => editorDocumentController.projectSessionId,
-        getProject: () => editorDocumentController.project,
-        transport: simulationTransport,
-      }),
-    [
-      browserAgentFileHost.simulationFiles,
-      projectRunHistory,
-      editorDocumentController,
-      resourceKey,
-      simulationTransport,
-    ],
-  );
-  resources.set(resourceKey, {
-    files: browserAgentFileHost,
-    history: projectRunHistory,
-    simulation: browserAgentSimulationHost,
+  const {
+    publishGalleryOpen,
+    setPublishGalleryOpen,
+    openedFromCheckNotice,
+    setOpenedFromCheckNotice,
+    publishedNotice,
+    setPublishedNotice,
+    versionHistoryOpen,
+    setVersionHistoryOpen,
+    galleryDailyLimit,
+    setGalleryDailyLimit,
+    publishSession,
+    cloudProjects,
+    setCloudProjects,
+    cloudProjectsReady,
+    cloudListMutationRef,
+    reloadCloudProjects,
+    galleryEntryContext,
+    setGalleryEntryContext,
+    publicationLinkLoading,
+    setPublicationLinkLoading,
+    publicationLinkError,
+    setPublicationLinkError,
+    publicationLinkNotice,
+    setPublicationLinkNotice,
+    publicationLinkRetry,
+    setPublicationLinkRetry,
+    publishGates,
+    publishQuota,
+  } = useGalleryPublishing({
+    identity,
+    projectStore,
+    project,
+    resolver,
   });
-  useEffect(
-    () => () => {
-      for (const group of agentProjectResources.current.values())
-        for (const resource of group.values()) resource.history.dispose();
-    },
-    [],
-  );
-  const agentWorkspaceRef = useRef<
+  /** The tab guard's blocker, for Agent hosts built before it (#1462). */
+  const projectSwitchBlockerRef = useRef<() => string | null>(() => null);
+  const openProjectInTabRef = useRef<
     (
-      request: Extract<AgentProjectResourceRequest, { operation: "workspace" }>,
-      targetWorkspaceId?: string,
-    ) => Promise<AgentProjectResourceResponse>
-  >(async () => {
-    throw new Error("Workspace is initializing");
+      project: CircuitProject,
+      view: GridRect,
+      options: ReplaceProjectOptions,
+      background?: boolean,
+    ) => Promise<boolean>
+  >(async () => false);
+  const {
+    agentFileCandidate,
+    setAgentFileCandidate,
+    agentProjectResources,
+    browserAgentFileHost,
+    projectRunHistory,
+    browserAgentSimulationHost,
+    agentWorkspaceRef,
+    agentGalleryPublicationRef,
+    recordGalleryPublicationRef,
+  } = useAgentProjectResources({
+    editorDocumentController,
+    projectSessionId,
+    browserAgentHost,
+    simulationTransport,
+    projectSwitchBlockerRef,
+    openProjectInTabRef,
   });
-  // The working copy an Agent publishes from, read when its request arrives.
-  const agentGalleryPublicationRef = useRef<
-    () => AgentGalleryPublication & {
-      controller: EditorDocumentController;
-      sessionId: string;
-    }
-  >(() => {
-    throw new Error("The Editor is initializing");
-  });
-  const recordGalleryPublicationRef = useRef<
-    (
-      outcome: GalleryPublicationRecord,
-      sessionId: string,
-      by: "person" | "agent",
-    ) => boolean
-  >(() => false);
   const browserAgentProjectHost = useMemo(
     () =>
       new BrowserAgentProjectHost({
@@ -1373,81 +1024,33 @@ function WorkspaceEditor({
       }),
     [browserAgentHost, editorDocumentController, projectSessionId],
   );
-  const [analogSimulationState, setAnalogSimulationState] = useState<
-    "closed" | "open" | "maximized" | "minimized"
-  >("closed");
-  const simulationSourceBuffer = useRef<{
-    dirty: boolean;
-    flush(): Promise<boolean>;
-  } | null>(null);
-  const analogSimulationOpened = analogSimulationState !== "closed";
-  const analogSimulationOpen =
-    analogSimulationState === "open" || analogSimulationState === "maximized";
-  const analogSimulationMaximized = analogSimulationState === "maximized";
-  const humanSimulationSession = useMemo(
-    () =>
-      analogSimulationOpened
-        ? new BrowserSimulationSession({
-            runHistory: projectRunHistory,
-            owner: "human",
-            getProjectSessionId: () =>
-              editorDocumentController.projectSessionId,
-            getProject: () => editorDocumentController.project,
-            projectFiles: createSimulationProjectFileHost({
-              getProject: () => editorDocumentController.project,
-              getProjectSessionId: () =>
-                editorDocumentController.projectSessionId,
-              dispatch: (request) => dispatchProjectTransaction(request),
-              actor: { kind: "human", id: "human-local" },
-            }),
-            transport: simulationTransport,
-          })
-        : null,
-    [
-      analogSimulationOpened,
-      projectRunHistory,
-      editorDocumentController,
-      projectSessionId,
-      simulationTransport,
-    ],
-  );
-  useEffect(
-    () => () => {
-      void humanSimulationSession?.clear();
-    },
-    [humanSimulationSession],
-  );
-  const openAnalogSimulation = (): void => {
-    if (!publicSimulationUiEnabled) return;
-    setProjectPanel(null);
-    setAnalogSimulationState("open");
-  };
-  const minimizeAnalogSimulation = (): void => {
-    setSimulationPickModeState(null);
-    setAnalogSimulationState("minimized");
-  };
-  const toggleAnalogSimulationMaximized = (): void => {
-    setAnalogSimulationState((current) =>
-      current === "maximized" ? "open" : "maximized",
-    );
-  };
-  const exitAnalogSimulation = (): void => {
-    setSimulationPickModeState(null);
-    void humanSimulationSession?.clear();
-    setAnalogSimulationState("closed");
-  };
+  const {
+    simulationPickMode,
+    setSimulationPickModeState,
+    analogSimulationState,
+    setAnalogSimulationState,
+    simulationSourceBuffer,
+    analogSimulationOpened,
+    analogSimulationOpen,
+    analogSimulationMaximized,
+    humanSimulationSession,
+    openAnalogSimulation,
+    minimizeAnalogSimulation,
+    toggleAnalogSimulationMaximized,
+    exitAnalogSimulation,
+  } = useSimulationSurface({
+    publicSimulationUiEnabled,
+    dispatchProjectTransaction,
+    editorDocumentController,
+    projectSessionId,
+    simulationTransport,
+    setProjectPanel,
+    projectRunHistory,
+  });
   const [codeDraftDirty, setCodeDraftDirty] = useState(false);
   const noteCodeDraftDirty = useCallback((dirty: boolean) => {
     setCodeDraftDirty(dirty);
   }, []);
-  const openProjectInTabRef = useRef<
-    (
-      project: CircuitProject,
-      view: GridRect,
-      options: ReplaceProjectOptions,
-      background?: boolean,
-    ) => Promise<boolean>
-  >(async () => false);
   const openGalleryProjectInTabRef = useRef<
     (
       project: CircuitProject,
@@ -1525,6 +1128,7 @@ function WorkspaceEditor({
     hasPendingEdits: () => simulationSourceBuffer.current?.dirty === true,
     beforeSnapshot: captureAuthoredProject,
     onRecoverBuffers: recoverSourceDrafts,
+    describeOpenBlocker: () => projectSwitchBlockerRef.current(),
     project,
     projectSessionId,
     viewBox,
@@ -1578,82 +1182,22 @@ function WorkspaceEditor({
       return nextDocument;
     },
   });
-  useEffect(() => {
-    let cancelled = false;
-    setPublicationLinkError(null);
-    setPublicationLinkNotice(null);
-    if (
-      !capabilities.community ||
-      !projectStore ||
-      !cloudBinding ||
-      galleryEntryContext
-    ) {
-      setPublicationLinkLoading(false);
-      return;
-    }
-    setPublicationLinkLoading(true);
-    void (async () => {
-      try {
-        // Read current metadata even for recovery: another tab may have changed the source.
-        const listed = await projectStore.list();
-        const saved =
-          listed.status === "listed"
-            ? listed.projects.find((item) => item.id === cloudBinding.id)
-            : null;
-        if (!saved)
-          throw new Error(
-            "Could not load the saved Project’s publication link. Retry before publishing.",
-          );
-        const entryId = saved.galleryEntryId ?? null;
-        const context = entryId
-          ? await loadGalleryPublicationContext(entryId, project.id)
-          : null;
-        if (cancelled) return;
-        noteGalleryPublication(entryId);
-        if (context) {
-          setGalleryEntryContext(context);
-        } else if (entryId) {
-          setPublicationLinkNotice(
-            "The original Gallery entry is unavailable. Publishing creates a new entry; the Shelf draft is preserved.",
-          );
-        }
-      } catch (error) {
-        if (!cancelled)
-          setPublicationLinkError(
-            error instanceof Error
-              ? error.message
-              : "Could not load the publication link.",
-          );
-      } finally {
-        if (!cancelled) setPublicationLinkLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    cloudBinding?.id,
-    projectSessionId,
-    galleryEntryContext,
-    publicationLinkRetry,
+  const linkExistingPublication = useGalleryPublicationLink({
     projectStore,
-  ]);
-
-  const linkExistingPublication = async (input: string): Promise<void> => {
-    const match = input
-      .trim()
-      .match(/^(?:https?:\/\/[^/]+)?\/g\/([^/?#]+)(?:[?#].*)?$/u);
-    const id = match?.[1] ?? input.trim();
-    if (!/^[a-zA-Z0-9-]+$/u.test(id))
-      throw new Error("Paste a Gallery link or entry id.");
-    const sessionId = editorDocumentController.projectSessionId;
-    const context = await loadGalleryPublicationContext(id, project.id);
-    if (!context || !canUpdateGalleryPublication(context, publishSession))
-      throw new Error("Choose a Gallery entry you own or may edit.");
-    if (sessionId !== editorDocumentController.projectSessionId)
-      throw new Error("The active Project changed. Reopen Publish.");
-    setGalleryEntryContext(context);
-  };
+    capabilities,
+    project,
+    editorDocumentController,
+    projectSessionId,
+    publishSession,
+    galleryEntryContext,
+    setGalleryEntryContext,
+    setPublicationLinkLoading,
+    setPublicationLinkError,
+    setPublicationLinkNotice,
+    publicationLinkRetry,
+    cloudBinding,
+    noteGalleryPublication,
+  });
 
   const startupCloudRestoreAttemptedRef = useRef(false);
   const hasExplicitBootTarget =
@@ -1691,52 +1235,37 @@ function WorkspaceEditor({
     publishSession,
     startupCloudProjectId,
   ]);
-  const agentTargetRef = useRef<
-    NonNullable<UseAgentSessionOptions["resolveWorkspace"]>
-  >(() => null);
-  const backgroundAgentHosts = useRef(
-    new Map<
-      EditorDocumentController,
-      {
-        sessionId: string;
-        host: BrowserAgentHost;
-        fileHost: BrowserAgentFileHost;
-        simulationHost: BrowserAgentSimulationHost;
-        projectHost: BrowserAgentProjectHost;
-      }
-    >(),
-  );
-  const agentSession = useEditorAgentSession({
-    // A restored workspace is already the requested circuit. Resume its
-    // matching Agent only after the active Project and working copy are installed.
-    recover: true,
-    beforeConnect: async () => {
-      const snapshot = await captureAuthoredProject();
-      if (snapshot) {
-        stageRecovery(snapshot, {
-          unsavedAtSnapshot: isDirtyWork() || snapshot !== project,
-          cloudBinding,
-        });
-        await flushRecovery();
-      }
-    },
-    enabled:
-      publicAgentUiEnabled &&
-      !restoringWorkspace &&
-      (startupRestoreReady ||
-        recoveryWorkingCopyId !== agentStartupRecovery?.projectSessionId),
+  const {
+    agentTargetRef,
+    backgroundAgentHosts,
+    agentSession,
+    approveAgentFileCandidate,
+    rejectAgentFileCandidate,
+    openAgentConnection,
+  } = useEditorAgentConnection({
+    publicAgentUiEnabled,
+    restoringWorkspace,
+    setAgentStatusDismissed,
+    setAgentPanelOpen,
+    setStatus,
+    recoveryWorkingCopyId,
+    stageRecovery,
+    flushRecovery,
+    agentStartupRecovery,
     project,
-    projectSessionId: recoveryWorkingCopyId,
-    host: browserAgentHost,
-    fileHost: browserAgentFileHost,
-    simulationHost: browserAgentSimulationHost,
-    projectHost: browserAgentProjectHost,
-    resolveWorkspace: (workspaceId) => agentTargetRef.current(workspaceId),
+    browserAgentHost,
+    agentFileCandidate,
+    setAgentFileCandidate,
+    browserAgentFileHost,
+    browserAgentSimulationHost,
+    browserAgentProjectHost,
+    captureAuthoredProject,
+    cloudBinding,
+    startupRestoreReady,
+    isDirtyWork,
+    replaceActiveProject,
+    guardDirtyReplacement,
   });
-  useEffect(() => {
-    if (!publicAgentUiEnabled) return;
-    setAgentStatusDismissed(false);
-  }, [agentSession.status, publicAgentUiEnabled]);
   const [boxPreview, setBoxPreview] = useState<BoxPreview | null>(null);
   const [panPreview, setPanPreview] = useState<PanPreview | null>(null);
   const [wireOptionsOpen, setWireOptionsOpen] = useState(false);
@@ -1890,6 +1419,7 @@ function WorkspaceEditor({
     cancelAllTransientInteraction,
     setGalleryEntryContext,
     setStatus,
+    setDailyOpenLimit: setGalleryDailyLimit,
   });
   const [draftingInspectorSegment, setDraftingInspectorSegment] = useState<{
     objectId: string;
@@ -1921,16 +1451,11 @@ function WorkspaceEditor({
   );
   const [highlightedNetOrigin, setHighlightedNetOrigin] =
     useState<HighlightedNetOrigin | null>(null);
-  const [codeNetPreview, setCodeNetPreview] =
-    useState<HighlightedNetOrigin | null>(null);
   const [controlOptionPreview, setControlOptionPreview] = useState<{
     documentId: string;
     instanceId: string;
     netId: string;
   } | null>(null);
-  const [simulationPickMode, setSimulationPickModeState] = useState<
-    "net" | "terminal" | null
-  >(null);
   const [controlPickState, setControlPickState] =
     useState<ControlPickState | null>(null);
   const controlPickMode =
@@ -1939,53 +1464,29 @@ function WorkspaceEditor({
       : controlPickState?.kind === "current"
         ? "sensor"
         : null;
-  const simulationPickNetsActive = simulationPickMode === "net";
-  const simulationPickTerminalsActive = simulationPickMode === "terminal";
-  const simulationPickActive = simulationPickMode !== null;
-  const [simulationHoverNetId, setSimulationHoverNetId] = useState<
-    string | null
-  >(null);
-  const [analogPickedNet, setAnalogPickedNet] = useState<{
-    sequence: number;
-    documentId: string;
-    netId: string;
-    occurrence?: readonly string[];
-  } | null>(null);
-  const [analogPickedTerminal, setAnalogPickedTerminal] = useState<{
-    sequence: number;
-    documentId: string;
-    instanceId: string;
-    pinName: string;
-    directionPinName?: string;
-    occurrence?: readonly string[];
-  } | null>(null);
-  const [simulationTerminalPickStart, setSimulationTerminalPickStart] =
-    useState<{
-      documentId: string;
-      instanceId: string;
-      pinName: string;
-      partnerPinNames: readonly string[];
-      occurrence?: readonly string[];
-    } | null>(null);
-  useEffect(() => {
-    // Net-pick is a hierarchy traversal mode: keep it armed while the author
-    // enters a DUT Cell, so an internal Net can be picked with its occurrence
-    // path intact. Closing/minimising Simulation still cancels it explicitly.
-    if (!analogSimulationOpen) setSimulationPickModeState(null);
-    setSimulationTerminalPickStart(null);
-    setSimulationHoverNetId(null);
-    setControlPickState(null);
-  }, [document.id]);
-  useEffect(() => {
-    setSimulationPickModeState(null);
-    setAnalogPickedNet(null);
-    setAnalogPickedTerminal(null);
-    setSimulationTerminalPickStart(null);
-    setControlPickState(null);
-  }, [projectSessionId]);
-  useEffect(() => {
-    setSimulationTerminalPickStart(null);
-  }, [activeSimulationFolderId]);
+  const {
+    codeNetPreview,
+    setCodeNetPreview,
+    simulationPickNetsActive,
+    simulationPickTerminalsActive,
+    simulationPickActive,
+    simulationHoverNetId,
+    setSimulationHoverNetId,
+    analogPickedNet,
+    setAnalogPickedNet,
+    analogPickedTerminal,
+    setAnalogPickedTerminal,
+    simulationTerminalPickStart,
+    setSimulationTerminalPickStart,
+  } = useSimulationPicking({
+    document,
+    projectSessionId,
+    activeSimulationFolderId,
+    analogSimulationOpen,
+    simulationPickMode,
+    setSimulationPickModeState,
+    setControlPickState,
+  });
   const routeCounter = useRef(0);
   const canvasDragSessionRef = useRef<CanvasDragSession | null>(null);
   /**
@@ -2440,27 +1941,39 @@ function WorkspaceEditor({
     setSelectionOpen(true);
     setIssuesFocusToken((token) => token + 1);
   }
-  const simulationPickHighlight = useMemo(
-    () =>
-      (simulationPickNetsActive || controlPickMode === "net") &&
-      simulationHoverNetId
-        ? computeNetHighlight(
-            projectConnectivityIndex,
-            document.id,
-            simulationHoverNetId,
-            undefined,
-            documentStack,
-          )
-        : undefined,
-    [
-      document.id,
-      documentStack,
-      projectConnectivityIndex,
-      simulationHoverNetId,
-      simulationPickMode,
-      controlPickMode,
-    ],
-  );
+  const {
+    simulationPickHighlight,
+    codeNetHighlight,
+    simulationCurrentEndpointKeys,
+    pickAnalogSimulationNet,
+    pickSimulationTerminal,
+    setSimulationPickMode,
+    setSimulationNetPickMode,
+    setSimulationTerminalPickMode,
+  } = useSimulationPickCommands({
+    setStatus,
+    project,
+    document,
+    projectConnectivityIndex,
+    documentStack,
+    activeSimulationFolder,
+    analogSimulationOpen,
+    simulationPickMode,
+    setSimulationPickModeState,
+    setControlPickState,
+    controlPickMode,
+    codeNetPreview,
+    simulationPickNetsActive,
+    simulationPickTerminalsActive,
+    simulationHoverNetId,
+    setSimulationHoverNetId,
+    setAnalogPickedNet,
+    setAnalogPickedTerminal,
+    simulationTerminalPickStart,
+    setSimulationTerminalPickStart,
+    logicalNets,
+    activateTool,
+  });
   const controlOptionHighlight = useMemo(
     () =>
       selectionOpen &&
@@ -2488,102 +2001,6 @@ function WorkspaceEditor({
   useEffect(() => {
     setControlOptionPreview(null);
   }, [selectionOpen, documentSettingsOpen, document.id, selectedInstance?.id]);
-  const codeNetHighlight = useMemo(
-    () =>
-      analogSimulationOpen &&
-      codeNetPreview &&
-      codeNetPreview.documentId === document.id &&
-      JSON.stringify(codeNetPreview.hierarchyPath) ===
-        JSON.stringify(documentStack)
-        ? computeNetHighlight(
-            projectConnectivityIndex,
-            document.id,
-            codeNetPreview.netId,
-            undefined,
-            documentStack,
-          )
-        : undefined,
-    [
-      analogSimulationOpen,
-      codeNetPreview,
-      document.id,
-      documentStack,
-      projectConnectivityIndex,
-    ],
-  );
-  const canonicalSimulationNetId = (netId: string): string | null => {
-    const group =
-      logicalNets.byBaseNetId.get(netId) ??
-      logicalNets.groups.find((candidate) => candidate.id === netId);
-    return group?.baseNetIds[0] ?? null;
-  };
-  const simulationPickRootDocumentId =
-    activeSimulationFolder?.input.circuitBindings.find(
-      (binding) => binding.emission === "top-level",
-    )?.documentId;
-  const simulationPickOccurrence: readonly string[] | undefined =
-    documentStack.length > 0
-      ? documentStack.map((frame) => frame.instanceId)
-      : simulationPickRootDocumentId === document.id
-        ? []
-        : undefined;
-  const activeSimulationPickOccurrence = (): readonly string[] | undefined =>
-    simulationPickOccurrence;
-  const simulationCurrentProbeOptions = useMemo(
-    () =>
-      simulationPickTerminalsActive && simulationPickRootDocumentId
-        ? deriveSimulationProbeOptions(project, simulationPickRootDocumentId)
-            .terminalCurrent
-        : [],
-    [project, simulationPickRootDocumentId, simulationPickTerminalsActive],
-  );
-  const simulationCurrentTargetsInView = useMemo(
-    () =>
-      simulationCurrentProbeOptions.filter(
-        ({ target }) =>
-          target.documentId === document.id &&
-          (simulationPickOccurrence === undefined ||
-            sameSimulationOccurrence(
-              target.occurrence,
-              simulationPickOccurrence,
-            )),
-      ),
-    [document.id, simulationCurrentProbeOptions, simulationPickOccurrence],
-  );
-  const simulationCurrentPinNamesByInstance = useMemo(() => {
-    const result = new Map<string, string[]>();
-    for (const { target } of simulationCurrentTargetsInView) {
-      const pins = result.get(target.instanceId) ?? [];
-      if (!pins.includes(target.pinName)) pins.push(target.pinName);
-      result.set(target.instanceId, pins);
-    }
-    return result;
-  }, [simulationCurrentTargetsInView]);
-  const simulationCurrentEndpointKeys = useMemo(
-    () =>
-      new Set(
-        simulationCurrentTargetsInView.map(
-          ({ target }) => `${target.instanceId}\u0000${target.pinName}`,
-        ),
-      ),
-    [simulationCurrentTargetsInView],
-  );
-  const pickAnalogSimulationNet = (netId: string): void => {
-    const baseNetId = canonicalSimulationNetId(netId);
-    if (!baseNetId) {
-      setStatus(`Could not resolve Net ${netId}`);
-      return;
-    }
-    const group = logicalNets.byBaseNetId.get(baseNetId);
-    const occurrence = activeSimulationPickOccurrence();
-    setAnalogPickedNet((current) => ({
-      sequence: (current?.sequence ?? 0) + 1,
-      documentId: document.id,
-      netId: baseNetId,
-      ...(occurrence === undefined ? {} : { occurrence }),
-    }));
-    setStatus(`Added voltage Output ${group?.name ?? baseNetId}`);
-  };
   const startControlPick = (): void => {
     if (
       !selectedInstance ||
@@ -2732,109 +2149,6 @@ function WorkspaceEditor({
     }
     setStatus(result.message);
   };
-  const pickSimulationTerminal = (endpoint: WireSource): void => {
-    if (endpoint.endpoint.kind !== "terminal" || !analogSimulationOpen) return;
-    const terminal = endpoint.endpoint;
-    const occurrence = activeSimulationPickOccurrence();
-    const referenceFor = (instanceId: string): string =>
-      document.instances.find((instance) => instance.id === instanceId)
-        ?.reference ?? instanceId;
-    const clickedKey = `${terminal.instanceId}\u0000${terminal.pinName}`;
-    if (!simulationCurrentEndpointKeys.has(clickedKey)) {
-      setStatus(
-        `${referenceFor(terminal.instanceId)}.${terminal.pinName} is not a measurable current terminal in this Testbench occurrence`,
-      );
-      return;
-    }
-    const commitPick = (
-      picked: {
-        documentId: string;
-        instanceId: string;
-        pinName: string;
-        occurrence?: readonly string[];
-      },
-      directionPinName?: string,
-    ): void => {
-      setAnalogPickedTerminal((current) => ({
-        sequence: (current?.sequence ?? 0) + 1,
-        ...picked,
-        ...(directionPinName ? { directionPinName } : {}),
-      }));
-      setSimulationTerminalPickStart(null);
-      const reference = referenceFor(picked.instanceId);
-      setStatus(
-        directionPinName
-          ? `Added current ${reference}.${picked.pinName} → ${reference}.${directionPinName} · positive current enters ${picked.pinName}`
-          : `Added terminal current ${reference}.${picked.pinName} · positive current enters the terminal`,
-      );
-    };
-    if (
-      simulationTerminalPickStart &&
-      simulationTerminalPickStart.documentId === document.id &&
-      simulationTerminalPickStart.instanceId === terminal.instanceId &&
-      sameSimulationOccurrence(
-        simulationTerminalPickStart.occurrence,
-        occurrence,
-      )
-    ) {
-      if (simulationTerminalPickStart.pinName === terminal.pinName) {
-        setSimulationTerminalPickStart(null);
-        setStatus("Current direction cancelled · choose the first terminal");
-        return;
-      }
-      if (
-        simulationTerminalPickStart.partnerPinNames.includes(terminal.pinName)
-      ) {
-        commitPick(simulationTerminalPickStart, terminal.pinName);
-        return;
-      }
-    }
-
-    const instance = document.instances.find(
-      (candidate) => candidate.id === terminal.instanceId,
-    );
-    const measurablePins =
-      simulationCurrentPinNamesByInstance.get(terminal.instanceId) ?? [];
-    const partnerPinNames = instance
-      ? terminalCurrentDirectionPartners(
-          instance,
-          terminal.pinName,
-          measurablePins,
-        )
-      : [];
-    const picked = {
-      documentId: document.id,
-      instanceId: terminal.instanceId,
-      pinName: terminal.pinName,
-      ...(occurrence === undefined ? {} : { occurrence }),
-    };
-    if (partnerPinNames.length === 0) {
-      commitPick(picked);
-      return;
-    }
-    setSimulationTerminalPickStart({ ...picked, partnerPinNames });
-    setStatus(
-      `Current starts at ${referenceFor(terminal.instanceId)}.${terminal.pinName} · choose ${partnerPinNames.join(" or ")} to confirm direction`,
-    );
-  };
-  const setSimulationPickMode = (mode: "net" | "terminal" | null): void => {
-    if (mode) activateTool("pointer");
-    if (mode) setControlPickState(null);
-    setSimulationPickModeState(mode);
-    if (mode !== "terminal") setSimulationTerminalPickStart(null);
-    if (mode !== "net") setSimulationHoverNetId(null);
-    setStatus(
-      mode === "net"
-        ? "Pick Nets: click a wire, label, junction, or connected pin · Esc exits"
-        : mode === "terminal"
-          ? "Pick current: choose a device terminal, then its direction · Esc exits"
-          : "Finished picking simulation Outputs",
-    );
-  };
-  const setSimulationNetPickMode = (active: boolean): void =>
-    setSimulationPickMode(active ? "net" : null);
-  const setSimulationTerminalPickMode = (active: boolean): void =>
-    setSimulationPickMode(active ? "terminal" : null);
   const selectedBlockLayout = useMemo(
     () => selectedBlockSymbolTarget(project, selectedInstance),
     [project, selectedInstance],
@@ -4413,109 +3727,21 @@ function WorkspaceEditor({
     toggleExamplesPanelFromShell();
   }
 
-  // A Gallery URL is an explicit open intent, even when another project tab
-  // was active when this browser window last saved its workspace.
-  const restoredGalleryLink = useRef(
-    capabilities.community && restoredWorkspace && !restoreAfterRefresh
-      ? initialGalleryEntryId
-      : null,
-  );
-  const restoredCloudLink = useRef(
-    restoredWorkspace && !restoreAfterRefresh && !initialGalleryEntryId
-      ? new URLSearchParams(window.location.search).get("project")
-      : null,
-  );
-  // So is New Circuit: it opens a new tab beside the ones brought back,
-  // rather than showing the circuit this window drew last.
-  const restoredNewLink = useRef(
-    restoredWorkspace !== null &&
-      !restoreAfterRefresh &&
+  const { restoredGalleryLink, restoredCloudLink, restoredNewLink } =
+    useBootLink({
+      initialGalleryEntryId,
+      restoredWorkspace,
+      capabilities,
       bootRequestsNewProject,
-  );
-
-  // boot Project only; ordinary sessions never re-run these.
-  const bootTargetHandled = useRef(false);
-  useEffect(() => {
-    if (!capabilities.community || bootTargetHandled.current) return;
-    bootTargetHandled.current = true;
-    // A safe recovery refresh reloads the same URL: the pending restore owns
-    // this boot. Re-running the URL's boot target here would fork the
-    // working-copy identity and orphan the snapshot the restore is about to
-    // read.
-    if (restoreAfterRefresh || restoredWorkspace) return;
-    const exampleId = new URLSearchParams(window.location.search).get(
-      "example",
-    );
-    // A tile on the shelf opens straight into its Project.
-    const shelfProjectId = new URLSearchParams(window.location.search).get(
-      "project",
-    );
-    const requestsNewProject = bootRequestsNewProject;
-    if (initialGalleryEntryId) {
-      void openGalleryEntryById(initialGalleryEntryId, false, true);
-      return;
-    }
-    const historySearch = new URLSearchParams(window.location.search);
-    const historyEntryId = historySearch.get("history");
-    if (historyEntryId) {
-      const versionId = historySearch.get("version");
-      const versionNo = Number(historySearch.get("versionNo"));
-      if (!versionId || !Number.isInteger(versionNo) || versionNo < 1) {
-        setStatus("Invalid historical branch link");
-        return;
-      }
-      setStatus("Opening historical version as a new branch…");
-      void loadGalleryVersionProject(historyEntryId, versionId)
-        .then(async (snapshot) => {
-          await openProjectInTabRef.current(
-            branchGalleryVersion(snapshot, versionNo),
-            DEFAULT_VIEWBOX,
-            { source: "opened-file", persistenceState: "dirty" },
-          );
-        })
-        .catch((error: unknown) =>
-          setStatus(error instanceof Error ? error.message : String(error)),
-        );
-      return;
-    }
-    if (requestsNewProject) {
-      replaceActiveProject(preparedInitialProject, DEFAULT_VIEWBOX);
-      setStatus("Created a new Project");
-      return;
-    }
-    if (shelfProjectId) {
-      setStatus("Opening your Cloud Project…");
-      void openCloudProjectById(shelfProjectId, true);
-      return;
-    }
-    if (exampleId) {
-      if (!localhostExamplesEnabled()) {
-        setStatus("Built-in examples are available only on localhost");
-        return;
-      }
-      void import("../examples/library-examples")
-        .then(({ createLibraryExampleProject, libraryProjectExamples }) => {
-          const exampleProject = createLibraryExampleProject(exampleId);
-          const example = libraryProjectExamples.find(
-            (candidate) => candidate.id === exampleId,
-          );
-          if (!exampleProject || !example) return;
-          replaceActiveProject(
-            prepareNetlistExample(
-              exampleProject,
-              netlistPreferences.preferences.profiles[
-                netlistPreferences.selected
-              ],
-            ),
-            DEFAULT_VIEWBOX,
-          );
-          setStatus(`Opened example: ${example.name}`);
-        })
-        .catch(() => {
-          setStatus("Built-in example could not load");
-        });
-    }
-  }, [initialGalleryEntryId, restoreAfterRefresh]);
+      preparedInitialProject,
+      setStatus,
+      netlistPreferences,
+      openProjectInTabRef,
+      restoreAfterRefresh,
+      replaceActiveProject,
+      openCloudProjectById,
+      openGalleryEntryById,
+    });
 
   function resetInteractionState(): void {
     exitCellSymbolLayout();
@@ -4642,6 +3868,13 @@ function WorkspaceEditor({
         )
       : undefined;
 
+  const hasDefinitionSelection = Boolean(
+    selectedInstance &&
+    (!resolver.resolve(selectedInstance.symbolId)?.definition
+      .hierarchicalBlock ||
+      selectedAuthoredCircuit),
+  );
+
   function openSelectedComponentDefinition(): void {
     if (!capabilities.community) {
       setStatus("Shared component editing is unavailable in this preview");
@@ -4681,174 +3914,6 @@ function WorkspaceEditor({
         instance: structuredClone(selectedInstance),
       },
     });
-  }
-
-  function insertSharedComponent(entry: SharedComponent): void {
-    try {
-      if (entry.circuit) {
-        insertCircuitComponent(
-          { definition: entry.definition, circuit: entry.circuit },
-          `component-${entry.id}-r${entry.revision}`,
-        );
-        return;
-      }
-      editorDocumentController.offerComponentDefinition(entry.definition);
-      synchronizeExternalCommit();
-      editorCommands.execute({
-        id: "insert.start",
-        launch: { kind: "quick", request: sharedComponentInsertRequest(entry) },
-      });
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : String(error));
-    }
-  }
-
-  function insertCircuitComponent(
-    packaged: Parameters<typeof planCircuitComponentCapture>[1],
-    identity: string,
-  ) {
-    try {
-      const captured = planCircuitComponentCapture(
-        definitionProjectRef.current.project,
-        packaged,
-        identity,
-      );
-      if (captured.edits.length) {
-        const result = commitModelEdits(
-          captured.edits,
-          captured.definitionId,
-          "Captured component model",
-        );
-        if (!result.ok) throw Error(result.message);
-      }
-      setPendingPublicComponent({
-        projectSessionId,
-        definitionId: captured.definitionId,
-        symbolId: captured.symbolId,
-      });
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : String(error));
-    }
-  }
-
-  function commitModelEdits(
-    edits: ProjectStructureEdit[],
-    definitionId: string,
-    message: string,
-    onApplied?: (project: CircuitProject) => void,
-  ) {
-    const current = definitionProjectRef.current.project;
-    const result = dispatchProjectTransaction({
-      transactionId: `model-${crypto.randomUUID()}`,
-      projectId: current.id,
-      expectedStructureRevision: current.structureRevision,
-      actor: { kind: "human", id: "human-local" },
-      edits,
-    });
-    if (result.ok) onApplied?.(result.project);
-    return {
-      ok: result.ok,
-      definitionId,
-      message: result.ok
-        ? message
-        : (result.diagnostics[0]?.message ?? result.error.message),
-    };
-  }
-
-  function componentSessionIsCurrent() {
-    return (
-      componentEditor?.projectSessionId ===
-      definitionProjectRef.current.projectSessionId
-    );
-  }
-
-  function withComponentSession<T extends { ok: boolean; message: string }>(
-    action: () => T,
-  ) {
-    return componentSessionIsCurrent()
-      ? action()
-      : {
-          ok: false,
-          message: "The Project changed. Reopen the component before applying.",
-        };
-  }
-
-  function placeExternalComponent(definitionId: string): boolean {
-    const candidate = externalSubcircuitInsertCandidates.find(
-      (item) => item.definitionId === definitionId,
-    );
-    if (!candidate) {
-      setStatus("The selected external master has no resolved symbol");
-      return false;
-    }
-    setCellManagerOpen(false);
-    setModelEditorDefinitionId(null);
-    editorCommands.execute({
-      id: "insert.start",
-      launch: {
-        kind: "quick",
-        request: {
-          kind: "external-subcircuit",
-          definitionId,
-          symbolId: candidate.symbol.id,
-          symbolName: candidate.masterName,
-          masterName: candidate.masterName,
-          parameters: {},
-          initialRotation: 0,
-          showReference: !candidate.symbol.hierarchicalBlock,
-          referenceText: null,
-          showValue: true,
-        },
-      },
-    });
-    return true;
-  }
-
-  function componentEditPlan(
-    definition: ComponentDefinition,
-    planComponentDefinitionEdit: typeof import("../features/user-components/component-definition-plan").planComponentDefinitionEdit,
-  ) {
-    const target = componentEditor?.target;
-    const live = definitionProjectRef.current;
-    if (!target || live.projectSessionId !== target.projectSessionId)
-      return {
-        ok: false as const,
-        message: "The Project changed. Reopen the component before applying.",
-      };
-    return planComponentDefinitionEdit(
-      live.project,
-      target.documentId,
-      target.instance.id,
-      target.instance,
-      definition,
-    );
-  }
-
-  function approveAgentFileCandidate(): void {
-    if (!agentFileCandidate) return;
-    const meta = agentFileCandidate;
-    void guardDirtyReplacement(`Accept Agent ${meta.kind} candidate`, () => {
-      const candidate = browserAgentFileHost.consumeApproved(meta.candidateId);
-      setAgentFileCandidate(null);
-      if (!candidate) {
-        setStatus(
-          "Agent file candidate expired; ask the Agent to stage it again",
-        );
-        return;
-      }
-      replaceActiveProject(candidate, DEFAULT_VIEWBOX, {
-        source: "opened-file",
-        agentEdited: true,
-      });
-      setStatus(`Accepted Agent ${meta.kind} candidate: ${candidate.name}`);
-    });
-  }
-
-  function rejectAgentFileCandidate(): void {
-    if (!agentFileCandidate) return;
-    browserAgentFileHost.discard(agentFileCandidate.candidateId);
-    setAgentFileCandidate(null);
-    setStatus("Rejected Agent file candidate");
   }
 
   function nextRoutingSuffix(): number {
@@ -5198,146 +4263,60 @@ function WorkspaceEditor({
     report: setStatus,
     onChunkLoadFailure: setChunkLoadFailure,
   });
-  // `canBeginKeyboardSelectionMove` runs `planSelectionMove`, a full move
-  // plan, and the command router asks for enablement on every render — from
-  // two call sites, editor-command.ts:188 and :307. The plan reads exactly
-  // these two inputs, so a re-render that changes neither does not need to
-  // re-plan the whole selection. `canBeginKeyboardSelectionMove` itself is a
-  // fresh closure every render and so cannot be the dependency.
-  const hasMoveSelection = useMemo(
-    () => canBeginKeyboardSelectionMove(),
-    [document, visualSelection],
-  );
-  const editorCommands = createEditorCommandRouter({
-    getContext: () => ({
-      interactionMode: getCurrentInteractionState().kind,
-      activeTool: tool,
-      canCopyVisualSelection:
-        hasVisualSelection(visualSelection) && !visualClipboard.busy,
-      hasDeletableSelection:
-        hasVisualSelection(visualSelection) || selectedEndpoint !== null,
-      hasMoveSelection,
-      hasAlignableSelection: alignmentParticipantCount >= 2,
-      hasRotatableSelection,
-      hasMirrorableSelection,
-      canTransformMove: canTransformCommandMove(),
-      hasInspectableSelection,
-      propertiesOpen: selectionOpen && !documentSettingsOpen,
-      canUndo,
-      canRedo,
-      canvasDragActive: canvasDragSessionRef.current !== null,
-      hasClearableDraftingSelection:
-        selectedDrafting?.kind === "arrow" ||
-        selectedDrafting?.kind === "construction-line" ||
-        selectedDrafting?.kind === "rectangle" ||
-        selectedDrafting?.kind === "circle",
-      hasActiveNetHighlight: highlightedNetOrigin !== null,
-      hasArmedVerb: armedVerb !== null,
-    }),
-    operations: {
-      cancelCanvasDrag: () => {
-        canvasDragSessionRef.current?.cancel();
-        setStatus("Cancelled canvas drag");
-      },
-      cancelInteraction: (interactionMode) => {
-        cancelAllTransientInteraction();
-        setStatus(
-          interactionMode === "copy-placement"
-            ? "Copy placement cancelled"
-            : interactionMode === "placing-vdd-rail"
-              ? "Power Rail cancelled"
-              : interactionMode === "placing-component"
-                ? "Component placement cancelled"
-                : interactionMode === "drawing"
-                  ? "Drawing cancelled"
-                  : "Cancelled active tool",
-        );
-      },
-      clearDraftingSelection: () => {
-        replaceSelectionKind("drafting", []);
-        setStatus("Cleared drawing selection");
-      },
-      clearNetHighlight: () => {
-        setHighlightedNetOrigin(null);
-        setStatus("Cleared Net highlight");
-      },
-      cancelPassive: () => {
-        setBoxPreview(null);
-        paintSnapGuides([]);
-        setStatus("Cancelled");
-      },
-      undo: () => {
-        transact([{ kind: "undo" }]);
-      },
-      redo: () => {
-        transact([{ kind: "redo" }]);
-      },
-      selectAll: selectAllObjects,
-      clearSelection: clearEditorSelection,
-      // Verb keys with nothing to act on arm the verb instead (Cadence
-      // style: command first, then click the target).
-      deleteSelection: () => {
-        if (hasVisualSelection(visualSelection) || selectedEndpoint !== null) {
-          deleteSelectionFromSelection();
-          return;
-        }
-        armVerb("delete");
-      },
-      beginCopy: () => {
-        if (getCurrentInteractionState().kind === "copy-placement") {
-          setStatus("Copy placement is already active · Esc cancels");
-          return;
-        }
-        if (!hasVisualSelection(visualSelection)) {
-          armVerb("copy");
-          return;
-        }
-        void circuitClipboard.copySelection(true);
-      },
-      copyVisualSelection: visualClipboard.copy,
-      openSelectionFilter: () => {
-        closeSearch();
-        setSelectionFilterOpen(true);
-      },
-      openSearch: () => {
-        setSelectionFilterOpen(false);
-        setSearchOpen(true);
-      },
-      beginMove: (detach) => {
-        if (canBeginKeyboardSelectionMove()) {
-          beginKeyboardSelectionMoveFromSelection(undefined, { detach });
-          return;
-        }
-        armVerb(detach ? "move-detached" : "move");
-      },
-      alignSelection,
-      rotatePlacement: rotatePendingComponentFromHook,
-      rotateCopy: rotatePendingCopy,
-      rotateMove: rotateCommandMoveFromSelection,
-      rotateSelection: rotateSelected,
-      armRotate: () => armVerb("rotate"),
-      disarmVerb,
-      mirrorPlacement: mirrorPendingComponentFromHook,
-      mirrorCopy: mirrorPendingCopy,
-      mirrorMove: mirrorCommandMoveFromSelection,
-      mirrorSelection: mirrorSelected,
-      startInsert: startInsertFromHook,
-      openInsert: () => startInsertFromHook(fullInsertLaunch()),
-      placeCellPin: () => {
-        const request = quickPlaceRequest(
-          document.presentation.styleProfileId,
-          "port",
-        );
-        if (request) startInsertFromHook({ kind: "quick", request });
-      },
-      activateTool,
-      addText: addPlainText,
-      openProperties,
-      closeProperties,
-      panView,
-      fitView,
-      report: setStatus,
-    },
+  const editorCommands = useEditorCommandRouter({
+    setStatus,
+    selectionOpen,
+    setSearchOpen,
+    closeSearch,
+    document,
+    canUndo,
+    canRedo,
+    visualSelection,
+    replaceSelectionKind,
+    setSelectionFilterOpen,
+    documentSettingsOpen,
+    setBoxPreview,
+    getCurrentInteractionState,
+    tool,
+    transact,
+    armedVerb,
+    selectedEndpoint,
+    highlightedNetOrigin,
+    setHighlightedNetOrigin,
+    canvasDragSessionRef,
+    selectedDrafting,
+    hasRotatableSelection,
+    hasMirrorableSelection,
+    hasInspectableSelection,
+    rotatePendingComponentFromHook,
+    mirrorPendingComponentFromHook,
+    startInsertFromHook,
+    rotateSelected,
+    mirrorSelected,
+    alignSelection,
+    alignmentParticipantCount,
+    armVerb,
+    disarmVerb,
+    beginKeyboardSelectionMoveFromSelection,
+    deleteSelectionFromSelection,
+    canBeginKeyboardSelectionMove,
+    canTransformCommandMove,
+    mirrorCommandMoveFromSelection,
+    rotateCommandMoveFromSelection,
+    addPlainText,
+    fitView,
+    panView,
+    openProperties,
+    closeProperties,
+    circuitClipboard,
+    selectAllObjects,
+    clearEditorSelection,
+    cancelAllTransientInteraction,
+    activateTool,
+    rotatePendingCopy,
+    mirrorPendingCopy,
+    paintSnapGuides,
+    visualClipboard,
   });
   const { exportSvg, exportDesignNetlist, exportRaster, importSpiceFiles } =
     createEditorFileCommands({
@@ -5385,363 +4364,90 @@ function WorkspaceEditor({
     setDraftingInspectorSegment(null);
   }
 
-  useEffect(() => {
-    function dismissOnOutsidePointerDown(event: PointerEvent): void {
-      const target = event.target;
-      if (!(target instanceof Node)) return;
-      const targetElement =
-        target instanceof Element ? target : target.parentElement;
-      if (
-        textEditing &&
-        !targetElement?.closest(
-          '[data-testid="canvas-text-editor"], [data-canvas-text-editor-part]',
-        )
-      ) {
-        // Leaving the canvas text editor commits the session; emptying the
-        // text still deletes the annotation, matching the Apply button.
-        commitTextEditing();
-      }
-      const openMenus = Array.from(
-        globalThis.document.querySelectorAll<HTMLDetailsElement>(
-          ".command-menu[open]",
-        ),
-      );
-      if (
-        openMenus.length > 0 &&
-        !openMenus.some((menu) => menu.contains(target))
-      ) {
-        dismissOpenCommandMenus();
-      }
-    }
-    globalThis.document.addEventListener(
-      "pointerdown",
-      dismissOnOutsidePointerDown,
-      true,
-    );
-    return () =>
-      globalThis.document.removeEventListener(
-        "pointerdown",
-        dismissOnOutsidePointerDown,
-        true,
-      );
-  }, [textEditing, document]);
-
-  const shortcutHandlerRef = useRef<(event: KeyboardEvent) => void>(() => {});
-  useLayoutEffect(() => {
-    function onKeyDown(event: KeyboardEvent): void {
-      if (versionHistoryOpen) return;
-      // Project Info is modal: the canvas never handles its keys.
-      // This router sees Escape first, so it closes the dialog here.
-      if (projectInfoOpen) {
-        if (event.key === "Escape") {
-          event.preventDefault();
-          setProjectInfoOpen(false);
-        }
-        return;
-      }
-      if (
-        event.target instanceof Element &&
-        (event.target.closest(".project-tab-name-input") ||
-          event.target.closest(".gallery-topology-comparison") ||
-          (event.target.closest(".project-menu") &&
-            ["Escape", "ArrowUp", "ArrowDown", "Home", "End"].includes(
-              event.key,
-            )) ||
-          (event.target.closest(".project-tabs") &&
-            ["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)))
-      )
-        return;
-      if (componentEditor) return;
-      if (userComponentsOpen) {
-        if (event.key === "Escape") setUserComponentsOpen(false);
-        return;
-      }
-      // The source workbench owns its keyboard scope, including portalled menus.
-      if (
-        event.target instanceof Element &&
-        event.target.closest(
-          ".simulation-code-workspace, [data-workspace-interaction], .inline-confirm",
-        )
-      )
-        return;
-      // The interface confirmation owns keys even though this router captures
-      // at window level before the modal's React handlers.
-      if (interfaceConfirmation) return;
-      // File flyout arrows navigate the focused menu, never pan the canvas.
-      if (
-        event.target instanceof Element &&
-        event.target.closest(".export-submenu") &&
-        ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)
-      )
-        return;
-      if (event.key === "Escape" && netLabelPlacement) {
-        event.preventDefault();
-        cancelNetLabelEditing();
-        paintSnapGuides([]);
-        return;
-      }
-      if (event.key === "Escape" && simulationPickActive) {
-        event.preventDefault();
-        setSimulationPickMode(null);
-        return;
-      }
-      if (event.key === "Escape" && controlPickState) {
-        event.preventDefault();
-        setControlPickState(null);
-        setSimulationHoverNetId(null);
-        setStatus("Cancelled control pick");
-        return;
-      }
-      if (event.key === "Escape" && searchOpen) {
-        event.preventDefault();
-        closeSearch();
-        return;
-      }
-      if (event.key === "Escape" && recoveryDialogOpen) {
-        // This router runs first, at window level: close the dialog here, as
-        // for Search, or Escape never reaches the dialog's own handler.
-        event.preventDefault();
-        setRecoveryDialogOpen(false);
-        return;
-      }
-      if (event.key === "Escape" && selectionFilterOpen) {
-        event.preventDefault();
-        setSelectionFilterOpen(false);
-        return;
-      }
-      if (event.key === "Escape" && insertDialogOpen) {
-        // The dialog focuses its search field a frame after it opens, so an
-        // Escape pressed in that gap never reaches its own handler. Cancel it
-        // from the window instead of leaving the dialog stuck open.
-        event.preventDefault();
-        cancelComponentInsertFromHook();
-        return;
-      }
-      if (event.key === "Escape" && dismissOpenCommandMenus()) {
-        event.preventDefault();
-        return;
-      }
-      if (event.key === "Escape" && textEditing) {
-        event.preventDefault();
-        // Valid drafts commit; invalid drafts must still let the user leave.
-        escapeTextEditing();
-        return;
-      }
-      if (
-        event.key === "Escape" &&
-        isTypingTarget(event.target) &&
-        event.target instanceof Element &&
-        event.target.closest(".selection-dock") !== null
-      ) {
-        // JSON properties already commit live. Do not replay the legacy form
-        // draft over them when leaving the editor (or discard incomplete JSON).
-        // Other property forms retain their explicit Escape commit behavior.
-        event.preventDefault();
-        if (!event.target.closest(".component-property-code-editor")) {
-          commitInstancePropertyDraft();
-          commitPendingNetLabelDraft();
-        }
-        if (event.target instanceof HTMLElement) event.target.blur();
-        return;
-      }
-      const currentInteraction = getCurrentInteractionState();
-      const shortcut = resolveEditorShortcut(event, {
-        isTyping: isTypingTarget(event.target),
-        hasUnsavedWork: hasUnsafeWork(),
-        interactionMode: currentInteraction.kind,
-        canRotate: editorCommands.state({ id: "transform.rotate" }).enabled,
-        canMirror: editorCommands.state({
-          id: "transform.mirror",
-          direction: "left-right",
-        }).enabled,
-        hasDraftingSelection: Boolean(selectedDrafting),
-        netLabelTurn:
-          netLabelPlacement?.phase === "placing"
-            ? "placing"
-            : document.annotations.some(
-                  (annotation) =>
-                    annotation.kind === "net-label" &&
-                    !annotation.locked &&
-                    visualSelection.annotationIds.includes(annotation.id),
-                )
-              ? "selection"
-              : undefined,
-        hasInspectableSelection,
-        hasHighlightableNet: selectedHighlightNetId !== null,
-        hasActiveNetHighlight: highlightedNetOrigin !== null,
-        wireReadyToFinish: Boolean(wireSource && wirePreviewPoint),
-        draftingReadyToFinish:
-          (tool === "arrow" ||
-            tool === "polyline" ||
-            tool === "construction-line" ||
-            tool === "rectangle" ||
-            tool === "circle") &&
-          draftingSource !== null,
-        hasRemovableWireWaypoint: Boolean(
-          wireSource && wireDraftSteps.length > 0,
-        ),
-        propertiesOpen: selectionOpen && !documentSettingsOpen,
-        hasHierarchyEnterSelection,
-        hasDefinitionSelection: Boolean(
-          selectedInstance &&
-          (!resolver.resolve(selectedInstance.symbolId)?.definition
-            .hierarchicalBlock ||
-            selectedAuthoredCircuit),
-        ),
-        canReturnToParent: documentStack.length > 0,
-      });
-      if (!shortcut) return;
-
-      const escapeIntent =
-        shortcut.kind === "run-command" &&
-        shortcut.command.id === "editor.cancel";
-      if (escapeIntent && shouldConsumeEditorEscape(currentInteraction.kind)) {
-        // Placement, copy and drawing modes own Escape. Safari otherwise lets
-        // the key continue to its browser/full-screen shortcut after the
-        // editor cancels the gesture, which can close the surrounding browser
-        // UI. Consume the event only while an editor interaction is active;
-        // an idle Escape remains available to the browser.
-        event.preventDefault();
-        event.stopPropagation();
-        if (
-          globalThis.document.fullscreenElement &&
-          typeof globalThis.document.exitFullscreen === "function"
-        ) {
-          void globalThis.document.exitFullscreen().catch(() => {
-            // Fullscreen may already have been closed by the browser.
-          });
-        }
-      } else if (!escapeIntent) event.preventDefault();
-
-      switch (shortcut.kind) {
-        case "run-command":
-          editorCommands.execute(shortcut.command);
-          return;
-        case "block-browser-refresh":
-          setStatus("Refresh blocked to protect the current circuit");
-          return;
-        case "block-browser-bookmark":
-          setStatus("Browser bookmark shortcut blocked while editing");
-          return;
-        case "paste-selection":
-          void circuitClipboard.pasteSelection();
-          return;
-        case "save":
-          void (nativeProjectStore
-            ? saveProjectToNative()
-            : projectStore
-              ? saveProjectToCloud()
-              : exportProjectFile());
-          return;
-        case "open":
-          if (nativeProjectStore) void openNativeProject();
-          else projectInputRef.current?.click();
-          return;
-        case "turn-net-labels":
-          turnNetLabels();
-          return;
-        case "edit-net-label":
-          activateTool("pointer");
-          {
-            const pointer = lastCanvasPointRef.current;
-            const position = pointer
-              ? {
-                  x: snapCoordinate(pointer.x, document.presentation.grid),
-                  y: snapCoordinate(pointer.y, document.presentation.grid),
-                }
-              : {
-                  x: viewBox.x + viewBox.width / 2,
-                  y: viewBox.y + viewBox.height / 2,
-                };
-            beginNetLabelEditing(
-              position,
-              selectedRoute
-                ? resolveNetLabelPlacementTarget(
-                    position,
-                    undefined,
-                    selectedRoute.id,
-                  )
-                : null,
-            );
-          }
-          return;
-        case "toggle-display-settings":
-          activateTool("pointer");
-          setDocumentSettingsOpen((open) => {
-            const next = !open;
-            setSelectionOpen(next || hasInspectableSelection);
-            return next;
-          });
-          return;
-        case "toggle-net-highlight":
-          toggleHighlightedNet();
-          return;
-        case "toggle-panel":
-          if (shortcut.panel === "gallery") {
-            toggleExamplesPanel();
-          } else if (shortcut.panel === "library") {
-            toggleLibraryPanel();
-          } else if (shortcut.panel === "netlist") {
-            toggleProjectPanel("netlist");
-          }
-          return;
-        case "enter-hierarchy":
-          enterSelectedHierarchy();
-          return;
-        case "edit-component-definition":
-          openSelectedComponentDefinition();
-          return;
-        case "return-to-parent":
-          returnToParentDocument();
-          return;
-        case "hierarchy-selection-required":
-          setStatus("Select one component to edit its definition");
-          return;
-        case "step-drafting-style": {
-          if (!selectedDrafting) return;
-          const scale = selectedDrafting.styleOverride?.strokeScale ?? 1;
-          setDraftingStyle({
-            strokeScale: stepBoundedScale(
-              scale,
-              [0.75, 1, 1.5, 2] as const,
-              shortcut.increase,
-            ),
-          });
-          return;
-        }
-        case "finish-wire":
-          if (wirePreviewPoint) finishWireAtPoint(wirePreviewPoint);
-          return;
-        case "toggle-wire-options":
-          setWireOptionsOpen((open) => !open);
-          return;
-        case "cycle-wire-corner":
-          cycleWireCornerShape();
-          return;
-        case "finish-drafting":
-          finishDraftingCreate();
-          return;
-        case "remove-wire-waypoint":
-          setWireDraftSteps(wireDraftSteps.slice(0, -1));
-          setStatus("Removed last authored wire step");
-          return;
-        case "blocked-interaction-command":
-          setStatus(
-            `${shortcut.command} is unavailable while an active tool owns the canvas · Esc cancels`,
-          );
-          return;
-      }
-    }
-    shortcutHandlerRef.current = onKeyDown;
+  useEditorShortcuts({
+    textEditing,
+    commitTextEditing,
+    document,
+    readShortcutDependencies: () => ({
+      projectStore,
+      nativeProjectStore,
+      setStatus,
+      componentEditor,
+      userComponentsOpen,
+      setUserComponentsOpen,
+      selectionOpen,
+      setSelectionOpen,
+      searchOpen,
+      closeSearch,
+      toggleLibraryPanel,
+      document,
+      documentStack,
+      visualSelection,
+      selectionFilterOpen,
+      setSelectionFilterOpen,
+      viewBox,
+      documentSettingsOpen,
+      setDocumentSettingsOpen,
+      projectInfoOpen,
+      setProjectInfoOpen,
+      versionHistoryOpen,
+      recoveryDialogOpen,
+      setRecoveryDialogOpen,
+      hasUnsafeWork,
+      saveProjectToCloud,
+      saveProjectToNative,
+      exportProjectFile,
+      setWireOptionsOpen,
+      getCurrentInteractionState,
+      tool,
+      wireSource,
+      wirePreviewPoint,
+      wireDraftSteps,
+      draftingSource,
+      setWireDraftSteps,
+      interfaceConfirmation,
+      highlightedNetOrigin,
+      controlPickState,
+      setControlPickState,
+      simulationPickActive,
+      setSimulationHoverNetId,
+      lastCanvasPointRef,
+      projectInputRef,
+      selectedRoute,
+      selectedDrafting,
+      hasHierarchyEnterSelection,
+      hasInspectableSelection,
+      selectedHighlightNetId,
+      setSimulationPickMode,
+      beginNetLabelEditing,
+      cancelNetLabelEditing,
+      commitInstancePropertyDraft,
+      commitPendingNetLabelDraft,
+      escapeTextEditing,
+      netLabelPlacement,
+      textEditing,
+      finishWireAtPoint,
+      cancelComponentInsertFromHook,
+      insertDialogOpen,
+      setDraftingStyle,
+      finishDraftingCreate,
+      cycleWireCornerShape,
+      enterSelectedHierarchy,
+      returnToParentDocument,
+      toggleHighlightedNet,
+      toggleProjectPanel,
+      circuitClipboard,
+      toggleExamplesPanel,
+      openSelectedComponentDefinition,
+      hasDefinitionSelection,
+      activateTool,
+      paintSnapGuides,
+      resolveNetLabelPlacementTarget,
+      turnNetLabels,
+      editorCommands,
+      openNativeProject,
+    }),
   });
-  useEffect(() => {
-    // Keep the listener installed while a canvas preview flush publishes state
-    // earlier in the same key event. Replacing it would drop that Enter event.
-    const dispatch = (event: KeyboardEvent) =>
-      shortcutHandlerRef.current(event);
-    window.addEventListener("keydown", dispatch, true);
-    return () => window.removeEventListener("keydown", dispatch, true);
-  }, []);
 
   const canvasEventHandlers = createEditorCanvasEventHandlers({
     model: { tool, document, resolver, selectionPolicy },
@@ -5908,1232 +4614,209 @@ function WorkspaceEditor({
     },
   });
 
-  function captureTabSession() {
-    return {
-      controller: editorDocumentController,
-      file: captureFileSession(),
-      recovery: captureRecoverySession(),
-      view: cameraRuntime.current(),
-      cellViews: new Map(documentViewBoxes.current),
-      stack: documentStack,
-      selection: visualSelection,
-      panel: projectPanel,
-      properties: selectionOpen,
-      publication: galleryEntryContext,
-      publishDraft,
-      netlistEntry,
-      dirty: isDirtyWork(),
-      unsafe: hasUnsafeWork() || codeDraftDirty,
-      fit: false,
-    };
-  }
-  type TabSession = ReturnType<typeof captureTabSession>;
-  function restoreTabSession(session: TabSession) {
-    resetInteractionState();
-    // The outgoing tab still owns its artifacts and expiring workspaces.
-    // Selection changes hide its UI, not its file service.
-    setAgentFileCandidate(null);
-    setImportReport(null);
-    setImportReviewOpen(false);
-    setProjectInfoOpen(false);
-    setCanvasContextMenu(null);
-    setNetlistFocusedInstance(null);
-    setHighlightedNetOrigin(null);
-    setCodeNetPreview(null);
-    setAnalogSimulationState("closed");
-    setNetlistPreflightOpen(false);
-    activateDocumentSession(session.controller);
-    restoreFileSession(session.file);
-    resumeRecoverySession(session.recovery);
-    documentViewBoxes.current = new Map(session.cellViews);
-    setDocumentStack(session.stack);
-    setViewBox(session.view, session.controller.document.presentation.grid);
-    autoFitProjectRef.current = session.controller.projectSessionId;
-    pendingAutoFitRef.current = session.fit;
-    replaceSelection(session.selection);
-    setSelectionOpen(session.properties);
-    setProjectPanel(session.panel);
-    setGalleryEntryContext(session.publication);
-    setPublishDraft(session.publishDraft);
-    setNetlistEntry(session.netlistEntry);
-    setStatus(`Switched to ${session.controller.project.name}`);
-    setRestoringWorkspace(false);
-    stageRecovery(session.controller.project, {
-      cloudBinding: session.file.cloudBinding,
-      unsavedAtSnapshot: session.dirty,
-    });
-  }
-  function createTabSession(
-    nextProject = createEmptyProject(
-      createId("project"),
-      "New Circuit",
-      createId("document"),
-    ),
-    nextView = DEFAULT_VIEWBOX,
-    options: ReplaceProjectOptions = {},
-  ): TabSession {
-    const prepared =
-      materializeRazaviProjectBulkConnections(nextProject).project;
-    const controller = new EditorDocumentController(prepared);
-    if (options.agentEdited) controller.noteAgentEdit();
-    // Identity is allocated without changing the outgoing recovery coordinator.
-    return {
-      ...captureTabSession(),
-      controller,
-      file: {
-        nativeBinding: options.nativeBinding ?? null,
-        persistenceState: options.persistenceState ?? "unbound",
-        cloudBinding: options.cloudBinding ?? null,
-        savedBaseline: options.savedBaseline ?? null,
-        safeSnapshotToken: null,
-      },
-      recovery: {
-        workingCopyId: createId("working-copy"),
-        source: options.source ?? "new",
-        ...(options.formalFileHint
-          ? { formalFileHint: options.formalFileHint }
-          : {}),
-      },
-      view: nextView,
-      cellViews: new Map(),
-      stack: [],
-      selection: {
-        instanceIds: [],
-        routeIds: [],
-        annotationIds: [],
-        draftingIds: [],
-        junctionIds: [],
-      },
-      panel: "netlist",
-      properties: false,
-      publication: null,
-      publishDraft: null,
-      netlistEntry: null,
-      dirty: options.persistenceState === "dirty",
-      unsafe: options.persistenceState === "dirty",
-      fit: true,
-    };
-  }
-  type PortableTab = Omit<TabSession, "controller" | "cellViews"> & {
-    projectText: string;
-    activeDocumentId: string;
-    cellViews: [string, GridRect][];
-    /** Whether an Agent edited it; publishing notes it beside the AI mark. */
-    agentEdited?: boolean;
-  };
-  /** A tab as a window saved it, ready to show again: after a refresh, or
-   * when a fresh window reopens the tabs a closed one left (#1250). */
-  function tabSessionFromPortable(saved: PortableTab): TabSession {
-    const controller = new EditorDocumentController(
-      parseProject(saved.projectText),
-    );
-    if (saved.agentEdited === true) controller.noteAgentEdit();
-    if (!controller.openDocument(saved.activeDocumentId))
-      throw new Error("Missing active Cell");
-    if (
-      !saved.file ||
-      !saved.recovery ||
-      !saved.view ||
-      !Array.isArray(saved.stack) ||
-      !saved.selection
-    )
-      throw new Error("Incomplete tab session");
-    if (saved.file.savedBaseline)
-      saved.file.savedBaseline.project = parseProject(
-        serializeProject(saved.file.savedBaseline.project),
-      );
-    const session: TabSession = {
-      ...saved,
-      // Cloud publication metadata may change while the page is closed.
-      // Keep the local draft, but resolve its current link before publishing.
-      publication: saved.file.cloudBinding ? null : saved.publication,
-      controller,
-      cellViews: new Map(saved.cellViews),
-      fit: false,
-      netlistEntry: saved.netlistEntry
-        ? { ...saved.netlistEntry, sessionId: controller.projectSessionId }
-        : null,
-      file: {
-        ...saved.file,
-        persistenceState:
-          saved.file.persistenceState === "saving"
-            ? "dirty"
-            : saved.file.persistenceState,
-      },
-    };
-    return session;
-  }
-  const [restoredTabs] = useState(() => {
-    if (!restoredWorkspace) return { value: null, error: null };
-    try {
-      const tabs = restoredWorkspace.tabs.map((tab) => ({
-        id: tab.id,
-        session: tabSessionFromPortable(tab.session as PortableTab),
-      }));
-      return {
-        value: { activeId: restoredWorkspace.activeId, tabs },
-        error: null,
-      };
-    } catch {
-      return {
-        value: null,
-        error:
-          "Saved tabs could not be restored. Their original snapshots are retained; export new work before leaving.",
-      };
-    }
+  const nativeWorkspaceSaving = useRef(false);
+  const {
+    createTabSession,
+    restoredTabs,
+    currentEditBlocker,
+    projectSwitchBlocker,
+    projectTabs,
+    dropDiscardedWork,
+    workspaceReopen,
+    setWorkspaceReopen,
+    reopenClosedWindowTabs,
+  } = useProjectTabSessions({
+    initialProject,
+    restoredWorkspace,
+    workspaceError,
+    setRestoringWorkspace,
+    preparedInitialProject,
+    setStatus,
+    componentEditor,
+    selectionOpen,
+    setSelectionOpen,
+    snapshotSerializer,
+    captureRecoverySession,
+    resumeRecoverySession,
+    stageRecovery,
+    flushRecovery,
+    openWorkingCopyIdsRef,
+    project,
+    activateDocumentSession,
+    editorDocumentController,
+    documentStack,
+    setDocumentStack,
+    visualSelection,
+    replaceSelection,
+    cameraRuntime,
+    setViewBox,
+    setImportReport,
+    setImportReviewOpen,
+    setCanvasContextMenu,
+    setNetlistPreflightOpen,
+    projectPanel,
+    setProjectPanel,
+    setNetlistFocusedInstance,
+    netlistEntry,
+    setNetlistEntry,
+    documentSettingsOpen,
+    projectInfoOpen,
+    setProjectInfoOpen,
+    projectNameEditing,
+    publishGalleryOpen,
+    versionHistoryOpen,
+    galleryEntryContext,
+    setGalleryEntryContext,
+    projectSwitchBlockerRef,
+    openProjectInTabRef,
+    setAgentFileCandidate,
+    setAnalogSimulationState,
+    codeDraftDirty,
+    captureAuthoredProject,
+    captureFileSession,
+    restoreFileSession,
+    cloudBinding,
+    replaceGuard,
+    recoveryDialogOpen,
+    isDirtyWork,
+    hasUnsafeWork,
+    isSaveInFlight,
+    restoreSavedProjectBaseline,
+    hasExplicitBootTarget,
+    getCurrentInteractionState,
+    publishDraft,
+    setPublishDraft,
+    setHighlightedNetOrigin,
+    setCodeNetPreview,
+    carriedCopyRef,
+    documentViewBoxes,
+    textEditing,
+    textEditingTarget,
+    pendingAutoFitRef,
+    autoFitProjectRef,
+    beginClipboardPlacement,
+    restoredNewLink,
+    resetInteractionState,
+    cancelAllTransientInteraction,
+    nativeWorkspaceSaving,
   });
-  const workspaceLastText = useRef("");
-  const workspaceLastRecord = useRef<ProjectWorkspace | null>(null);
-  const workspaceSaveQueue = useRef(Promise.resolve());
-  const workspaceFailure = useRef(false);
-  // The closed window whose tabs this one reopened (#1250). Its record goes
-  // once this window's own saved record holds every one of those tabs, so
-  // no other window offers them again and nothing is lost on the way.
-  const reopenedWorkspace = useRef<{
-    windowId: string;
-    workingCopyIds: string[];
-  } | null>(null);
-  function releaseReopenedWorkspace(record: ProjectWorkspace): Promise<void> {
-    const reopened = reopenedWorkspace.current;
-    if (!reopened) return Promise.resolve();
-    const held = new Set(
-      record.tabs.map(
-        ({ session }) => (session as PortableTab).recovery.workingCopyId,
-      ),
-    );
-    if (!reopened.workingCopyIds.every((id) => held.has(id)))
-      return Promise.resolve();
-    reopenedWorkspace.current = null;
-    return browserWorkspaceStore()
-      .remove(reopened.windowId)
-      .catch(() => {});
-  }
-  function persistTabs(
-    workspace: {
-      activeId: string;
-      tabs: { id: string; session: TabSession }[];
-    },
-    final: boolean,
-  ) {
-    if (
-      workspaceError ||
-      restoredTabs.error ||
-      typeof window === "undefined" ||
-      initialProject
-    )
-      return;
-    try {
-      snapshotSerializer.retain(
-        workspace.tabs.map(({ session }) => session.controller.project),
-      );
-      const tabs = workspace.tabs.map(({ id, session }) => {
-        const { controller, cellViews, ...rest } = session;
-        const portable: PortableTab = {
-          ...rest,
-          cellViews: [...cellViews],
-          projectText: snapshotSerializer.serialize(controller.project),
-          activeDocumentId: controller.document.id,
-          agentEdited: controller.agentEdited,
-        };
-        return { id, session: portable };
-      });
-      const text = JSON.stringify({ activeId: workspace.activeId, tabs });
-      if (text !== workspaceLastText.current) {
-        const record: ProjectWorkspace = {
-          version: 1,
-          windowId: workspaceWindowId(),
-          url: window.location.pathname + window.location.search,
-          savedAt: Date.now(),
-          activeId: workspace.activeId,
-          tabs,
-        };
-        workspaceLastText.current = text;
-        workspaceLastRecord.current = record;
-        workspaceSaveQueue.current = workspaceSaveQueue.current
-          .then(() => browserWorkspaceStore().write(record))
-          .then(
-            () => releaseReopenedWorkspace(record),
-            () => {
-              workspaceLastText.current = "";
-              if (!workspaceFailure.current) {
-                workspaceFailure.current = true;
-                setStatus(
-                  "Project tabs could not be saved in this browser. Export your work before leaving; earlier copies are retained.",
-                );
-              }
-            },
-          );
-      }
-      if (final && workspaceLastRecord.current)
-        journalProjectWorkspace(workspaceLastRecord.current);
-    } catch {
-      if (!workspaceFailure.current) {
-        workspaceFailure.current = true;
-        setStatus(
-          "The latest tab snapshot could not be saved. Export your work before leaving.",
-        );
-      }
-    }
-  }
-  useEffect(() => {
-    if (restoredTabs.error) {
-      setStatus(restoredTabs.error);
-      setRestoringWorkspace(false);
-    }
-  }, [restoredTabs.error]);
-  // New Circuit's blank tab joins the ones brought back and is the open one
-  // from the first paint: the circuit drawn last is never shown in its place,
-  // and a file opened at once lands in the blank tab, not over that circuit.
-  const [initialTabs] = useState(() => {
-    if (!restoredTabs.value || !restoredNewLink.current)
-      return restoredTabs.value;
-    const id = createId("tab");
-    return {
-      activeId: id,
-      tabs: [...restoredTabs.value.tabs, { id, session: createTabSession() }],
-    };
-  });
-  const projectTabs = useProjectTabs<TabSession>({
-    initial: initialTabs,
-    persist: persistTabs,
-    capture: captureTabSession,
-    restore: restoreTabSession,
-    describe: (session) => ({
-      name: session.controller.project.name,
-      // A tab whose exact bytes the Gallery holds loses nothing on close.
-      dirty:
-        (session.dirty &&
-          session.file.publishedSnapshotToken !==
-            projectChangeToken(session.controller.project)) ||
-        session.unsafe,
-      unsafe: session.unsafe,
-      cloudId: session.file.cloudBinding?.id ?? null,
-      galleryId: session.publication?.id ?? null,
-    }),
-    prepare: async () => {
-      if (
-        isSaveInFlight() ||
-        nativeWorkspaceSaving.current ||
-        replaceGuard ||
-        recoveryDialogOpen ||
-        publishGalleryOpen ||
-        componentEditor ||
-        documentSettingsOpen ||
-        versionHistoryOpen ||
-        projectInfoOpen ||
-        projectNameEditing.current ||
-        textEditing ||
-        codeDraftDirty
-      ) {
-        setStatus(
-          "Finish or cancel the current edit or dialog before switching project tabs. No work was discarded.",
-        );
-        return false;
-      }
-      const snapshot = await captureAuthoredProject();
-      if (!snapshot) return false;
-      // A copy in hand (C, or a paste not yet placed) follows the pointer
-      // into the tab that opens next, as if the tabs were one canvas.
-      const interaction = getCurrentInteractionState();
-      carriedCopyRef.current =
-        interaction.kind === "copy-placement"
-          ? {
-              clipboard: interaction.copy.clipboard,
-              orientation: interaction.copy.orientationOperations,
-            }
-          : null;
-      cancelAllTransientInteraction();
-      stageRecovery(snapshot, {
-        cloudBinding,
-        unsavedAtSnapshot: isDirtyWork(),
-      });
-      await flushRecovery();
-      return true;
-    },
-    onError: (message) => setStatus(message),
-  });
-  openWorkingCopyIdsRef.current = () =>
-    projectTabs.entries().map(({ session }) => session.recovery.workingCopyId);
-  useEffect(() => {
-    if (!pendingPublicComponent) return;
-    if (pendingPublicComponent.projectSessionId !== projectSessionId) {
-      setPendingPublicComponent(null);
-      return;
-    }
-    const owner = project.externalSubcircuitDefinitions.find(
-      (definition) => definition.id === pendingPublicComponent.definitionId,
-    );
-    const symbol = resolver.resolve(
-      pendingPublicComponent.symbolId,
-    )?.definition;
-    if (!owner || !symbol) return;
-    setPendingPublicComponent(null);
-    editorCommands.execute({
-      id: "insert.start",
-      launch: {
-        kind: "quick",
-        request: {
-          kind: "external-subcircuit",
-          definitionId: owner.id,
-          symbolId: symbol.id,
-          symbolName: symbol.name,
-          masterName: owner.name,
-          parameters: {},
-          initialRotation: 0,
-          showReference: !symbol.hierarchicalBlock,
-          referenceText: null,
-          showValue: true,
-        },
-      },
-    });
-  }, [
-    pendingPublicComponent,
+  useGalleryTabEntry({
+    initialGalleryEntryId,
+    restoredWorkspace,
+    preparedInitialProject,
     project,
     projectSessionId,
-    resolver,
-    editorCommands,
-  ]);
-
-  /**
-   * Continue without saving on the way out of the editor (#1288): the
-   * window's saved tabs must not bring the dropped edits back. A Project
-   * with a saved version returns to it; any other tab closes, the last one
-   * giving way to a blank circuit. The page shows what is kept, and the
-   * saved tabs hold it, before the page leaves.
-   */
-  async function dropDiscardedWork(): Promise<void> {
-    // Rendered at once, so the tabs saved next capture what is kept.
-    flushSync(() => {
-      if (!restoreSavedProjectBaseline())
-        projectTabs.discard(projectTabs.activeId, () => createTabSession());
-    });
-    projectTabs.changed();
-    await workspaceSaveQueue.current;
-  }
-  const [workspaceReopen, setWorkspaceReopen] = useState<{
-    record: ProjectWorkspace;
-    summary: WorkspaceReopenSummary;
-  } | null>(null);
-  // A fresh window with no tabs of its own offers the newest tabs a closed
-  // window left (#1250). An explicit open request (a link, New Circuit)
-  // already says what to show.
-  useEffect(() => {
-    if (
-      restoredWorkspace ||
-      initialProject ||
-      workspaceError ||
-      hasExplicitBootTarget
-    )
-      return;
-    let live = true;
-    void openWorkspaceWindows()
-      .then((open) =>
-        findWorkspaceReopenOffer(
-          browserWorkspaceStore(),
-          workspaceWindowId(),
-          open,
-        ),
-      )
-      .then((offer) => {
-        if (live) setWorkspaceReopen(offer);
-      })
-      .catch(() => {});
-    return () => {
-      live = false;
-    };
-  }, []);
-  async function reopenClosedWindowTabs(): Promise<void> {
-    const offer = workspaceReopen;
-    if (!offer) return;
-    const openCloudIds = new Set(
-      projectTabs
-        .entries()
-        .flatMap(({ session }) =>
-          session.file.cloudBinding ? [session.file.cloudBinding.id] : [],
-        ),
-    );
-    let incoming: {
-      session: TabSession;
-      cloudId: string | null;
-      active: boolean;
-    }[];
-    try {
-      incoming = offer.record.tabs
-        .map((tab) => {
-          const saved = tab.session as PortableTab;
-          return {
-            session: tabSessionFromPortable(saved),
-            cloudId: saved.file.cloudBinding?.id ?? null,
-            active: tab.id === offer.record.activeId,
-          };
-        })
-        .filter(({ cloudId }) => !cloudId || !openCloudIds.has(cloudId));
-    } catch {
-      setWorkspaceReopen(null);
-      setStatus(
-        "Those tabs could not be reopened. Their recovery copies are kept: File → Recover Unsaved Work…",
-      );
-      return;
-    }
-    if (!incoming.length) {
-      // Every one of them is open here already.
-      setWorkspaceReopen(null);
-      void browserWorkspaceStore()
-        .remove(offer.record.windowId)
-        .catch(() => {});
-      return;
-    }
-    // An untouched blank circuit is only a placeholder: the tabs take its
-    // place. Anything drawn in it stays as a tab of its own.
-    const placeholder =
-      projectTabs.tabs.length === 1 &&
-      project.id === preparedInitialProject.id &&
-      !isDirtyWork() &&
-      !hasUnsafeWork() &&
-      !codeDraftDirty;
-    if (!(await projectTabs.adopt(incoming, placeholder))) return;
-    reopenedWorkspace.current = {
-      windowId: offer.record.windowId,
-      workingCopyIds: incoming.map(
-        ({ session }) => session.recovery.workingCopyId,
-      ),
-    };
-    setWorkspaceReopen(null);
-    setStatus(
-      incoming.length === 1
-        ? "Reopened 1 tab from your last window"
-        : `Reopened ${incoming.length} tabs from your last window`,
-    );
-  }
-  useEffect(() => {
-    // Runs once the next tab's Project is the one rendered, so the copy is
-    // prepared against, and placed into, that Project.
-    const carried = carriedCopyRef.current;
-    carriedCopyRef.current = null;
-    if (!carried) return;
-    try {
-      beginClipboardPlacement(carried.clipboard, carried.orientation);
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : String(error));
-    }
-  }, [projectTabs.activeId]);
-  openProjectInTabRef.current = (next, view, options, background) =>
-    background
-      ? Promise.resolve(
-          projectTabs.openBackground(
-            () => createTabSession(next, view, options),
-            options.cloudBinding?.id,
-          ),
-        )
-      : projectTabs.open(
-          () => createTabSession(next, view, options),
-          options.cloudBinding?.id,
-        );
-  openGalleryProjectInTabRef.current = (next, view, context) => {
-    // A fresh deep link has only a boot placeholder, not a user Project to
-    // preserve. Fill it so opening a Gallery circuit does not leave an empty
-    // extra tab; restored workspaces always take the additive path below.
-    if (
-      !restoredWorkspace &&
-      initialGalleryEntryId === context.id &&
-      projectTabs.tabs.length === 1 &&
-      project.id === preparedInitialProject.id &&
-      !isDirtyWork() &&
-      !hasUnsafeWork() &&
-      !codeDraftDirty
-    ) {
-      replaceActiveProject(next, view);
-      setGalleryEntryContext(context);
-      return Promise.resolve(true);
-    }
-    return projectTabs.open(
-      () => ({
-        ...createTabSession(next, view, {
-          source: "opened-file",
-          persistenceState: "unbound",
-        }),
-        publication: context,
-      }),
-      null,
-      context.id,
-    );
-  };
-  useEffect(() => {
-    const entryId = restoredGalleryLink.current;
-    if (restoringWorkspace || !entryId) return;
-    const matching = projectTabs
-      .entries()
-      .find(({ session }) => session.publication?.id === entryId);
-    if (matching && matching.id !== projectTabs.activeId) {
-      void projectTabs.select(matching.id).then((selected) => {
-        if (!selected) restoredGalleryLink.current = null;
-      });
-      return;
-    }
-    restoredGalleryLink.current = null;
-    if (!matching) {
-      void openGalleryEntryById(entryId, false, true);
-    } else if (
-      !matching.session.dirty &&
-      !matching.session.unsafe &&
-      !codeDraftDirty
-    ) {
-      void refreshGalleryEntry(matching.session.publication!);
-    }
-  }, [restoringWorkspace, projectTabs.activeId]);
-  useEffect(() => {
-    const cloudId = restoredCloudLink.current;
-    if (restoringWorkspace || !cloudId) return;
-    restoredCloudLink.current = null;
-    void openCloudProjectById(cloudId, true);
-  }, [restoringWorkspace]);
-  useEffect(() => {
-    if (restoringWorkspace || !restoredNewLink.current) return;
-    restoredNewLink.current = false;
-    forgetNewProjectRequest();
-    // Tabs that could not be restored leave their message standing.
-    if (restoredTabs.value) setStatus("Created a new Project");
-  }, [restoringWorkspace]);
-  useEffect(() => {
-    // A new circuit this window opened fresh is simply the working one now.
-    if (bootRequestsNewProject && !restoredNewLink.current)
-      forgetNewProjectRequest();
-  }, []);
-  const [recentNativeFiles, setRecentNativeFiles] = useState<
-    RecentProjectFile[]
-  >([]);
-  const [nativeBusy, setNativeBusy] = useState(false);
-  const nativeOperation = useRef(false);
-  const nativeWorkspaceSaving = useRef(false);
-  const refreshNativeFiles = async () => {
-    if (!nativeProjectStore) return;
-    try {
-      setRecentNativeFiles(await nativeProjectStore.recent());
-    } catch (error) {
-      setStatus(`Recent Projects unavailable: ${String(error)}`);
-    }
-  };
-  async function openNativeProject(recentId?: string) {
-    if (!nativeProjectStore || nativeOperation.current || isSaveInFlight())
-      return;
-    nativeOperation.current = true;
-    setNativeBusy(true);
-    try {
-      const { openNativeFile } = await loadNativeProjectWorkspace();
-      await openNativeFile(
-        nativeProjectStore,
-        {
-          entries: projectTabs.entries,
-          select: projectTabs.select,
-          open: openProjectFile,
-          report: setStatus,
-        },
-        recentId,
-      );
-      await refreshNativeFiles();
-    } finally {
-      nativeOperation.current = false;
-      setNativeBusy(false);
-    }
-  }
-  function closeNativeTab(id: string) {
-    return closeNativeTabs([id]);
-  }
-  /** Closes native tabs, releasing each closed tab's file. */
-  async function closeNativeTabs(ids: readonly string[]) {
-    const bindings = projectTabs
-      .entries()
-      .filter((entry) => ids.includes(entry.id))
-      .flatMap(({ id, session }) =>
-        session.file.nativeBinding
-          ? [{ id, binding: session.file.nativeBinding }]
-          : [],
-      );
-    await projectTabs.closeMany(ids, () => createTabSession());
-    await new Promise<void>((resolve) =>
-      requestAnimationFrame(() => resolve()),
-    );
-    for (const { id, binding } of bindings)
-      if (!projectTabs.entries().some((entry) => entry.id === id))
-        await nativeProjectStore?.release(binding.id);
-  }
-  async function saveNativeTab(id: string): Promise<NativeSaveOutcome> {
-    if (!nativeProjectStore)
-      return { status: "failed", message: "Local storage is unavailable" };
-    if (id === projectTabs.activeId) {
-      if (
-        projectInfoOpen ||
-        projectNameEditing.current ||
-        textEditing ||
-        componentEditor ||
-        documentSettingsOpen ||
-        codeDraftDirty
-      )
-        return {
-          status: "failed",
-          message:
-            "Finish or cancel the current edit before saving and closing.",
-        };
-      return saveProjectToNative();
-    }
-    const { saveBackgroundNativeTab } = await loadNativeProjectWorkspace();
-    return saveBackgroundNativeTab(
-      nativeProjectStore,
-      projectTabs,
-      id,
-      captureProjectSaveSnapshot,
-    );
-  }
-
-  const nativeWorkspaceState = () => ({
-    dirty: projectTabs
-      .entries()
-      .filter(({ session }) => session.dirty || session.unsafe)
-      .map(({ id, session }) => ({
-        id,
-        name: session.controller.project.name,
-      })),
-    busy:
-      isSaveInFlight() ||
-      projectTabs.busy ||
-      nativeOperation.current ||
-      nativeWorkspaceSaving.current,
-    pendingEdits:
-      projectInfoOpen ||
-      projectNameEditing.current ||
-      !!textEditing ||
-      !!componentEditor ||
-      documentSettingsOpen ||
-      codeDraftDirty ||
-      !!replaceGuard ||
-      recoveryDialogOpen,
+    setGalleryDailyLimit,
+    setGalleryEntryContext,
+    codeDraftDirty,
+    openGalleryProjectInTabRef,
+    isDirtyWork,
+    hasUnsafeWork,
+    replaceActiveProject,
+    createTabSession,
+    projectTabs,
   });
-  const nativeBridgeRef = useRef({
-    state: nativeWorkspaceState,
-    save: async (): Promise<{ status: string; message?: string }> => ({
-      status: "cancelled",
-    }),
+  useRestoredTabLinks({
+    restoringWorkspace,
+    bootRequestsNewProject,
+    setStatus,
+    codeDraftDirty,
+    openCloudProjectById,
+    openGalleryEntryById,
+    refreshGalleryEntry,
+    restoredGalleryLink,
+    restoredCloudLink,
+    restoredNewLink,
+    restoredTabs,
+    projectTabs,
   });
-  nativeBridgeRef.current = {
-    state: nativeWorkspaceState,
-    save: async () => {
-      const { saveNativeWorkspace } = await loadNativeProjectWorkspace();
-      return saveNativeWorkspace(
-        nativeWorkspaceState,
-        saveNativeTab,
-        (busy) => {
-          nativeWorkspaceSaving.current = busy;
-          setNativeBusy(busy);
-        },
-      );
-    },
-  };
-  useEffect(() => {
-    if (!nativeProjectStore) return;
-    const target = window as unknown as Record<string, unknown>;
-    const bridge = {
-      state: () => nativeBridgeRef.current.state(),
-      save: () => nativeBridgeRef.current.save(),
-    };
-    target.__analogCanvasDesktop = bridge;
-    return () => {
-      if (target.__analogCanvasDesktop === bridge)
-        delete target.__analogCanvasDesktop;
-    };
-  }, [nativeProjectStore]);
-  agentWorkspaceRef.current = async (envelope, targetWorkspaceId) => {
-    const request = envelope.request;
-    const { copyWorkspaceCell, listWorkspaceProjects, workspaceResponses } =
-      await import("../agent/workspace-copy");
-    const { fail, success } = workspaceResponses(envelope.requestId);
-    try {
-      const entries = projectTabs.entries();
-      if (request.action === "list")
-        return success({
-          action: "list",
-          activeWorkspaceId: projectTabs.activeId,
-          projects: listWorkspaceProjects(entries),
-        });
-      if (request.action === "activate") {
-        if (!entries.some((e) => e.id === request.workspaceId))
-          return fail("WORKSPACE_NOT_FOUND", "Workspace is no longer open");
-        const applied = await projectTabs.select(request.workspaceId);
-        return applied
-          ? success({ action: "activate", applied })
-          : fail(
-              "WORKSPACE_BUSY",
-              "Finish the current edit before switching Projects",
-            );
-      }
-      if (request.action === "open") {
-        const result = await openCloudProjectById(
-          request.cloudProjectId,
-          true,
-          request.background === true,
-        );
-        return result.applied
-          ? success({
-              action: "open",
-              applied: true,
-              workspaceId: projectTabs
-                .entries()
-                .find(
-                  (item) =>
-                    item.session.file.cloudBinding?.id ===
-                    request.cloudProjectId,
-                )?.id,
-            })
-          : fail(
-              "CLOUD_OPEN_FAILED",
-              result.message ?? "Cloud Project was not opened",
-            );
-      }
-      if (request.action === "save") {
-        if (!projectStore)
-          return fail("INVALID_REQUEST", "Cloud storage is unavailable");
-        if (targetWorkspaceId && targetWorkspaceId !== projectTabs.activeId) {
-          const target = entries.find((item) => item.id === targetWorkspaceId);
-          if (!target)
-            return fail(
-              "WORKSPACE_NOT_FOUND",
-              "Working copy is no longer open",
-            );
-          const controller = target.session.controller;
-          const snapshot = captureProjectSaveSnapshot(
-            controller.project,
-            controller.projectSessionId,
-            () => {
-              const live = projectTabs
-                .entries()
-                .find(
-                  (item) =>
-                    item.id === targetWorkspaceId &&
-                    item.session.controller === controller,
-                );
-              return live
-                ? {
-                    id: controller.projectSessionId,
-                    project: controller.project,
-                  }
-                : null;
-            },
-          );
-          const candidate = snapshot.project;
-          target.session.file.persistenceState = "saving";
-          projectTabs.changed();
-          const outcome = await projectStore.save(
-            candidate,
-            request.asNew ? null : target.session.file.cloudBinding,
-          );
-          const liveTarget = projectTabs
-            .entries()
-            .find(
-              (item) =>
-                item.id === targetWorkspaceId &&
-                item.session.controller === controller,
-            );
-          if (!liveTarget)
-            return fail(
-              "WORKSPACE_NOT_FOUND",
-              "Working copy closed while Cloud save was in flight; check the Cloud Project shelf",
-            );
-          if (outcome.status === "saved") {
-            const stillCurrent =
-              snapshot.matchesCurrentProject() &&
-              (targetWorkspaceId !== projectTabs.activeId ||
-                (!codeDraftDirty &&
-                  simulationSourceBuffer.current?.dirty !== true));
-            liveTarget.session.file.cloudBinding = {
-              id: outcome.project.id,
-              revision: outcome.project.revision,
-              galleryEntryId: outcome.project.galleryEntryId ?? null,
-            };
-            liveTarget.session.file.savedBaseline = {
-              project: candidate,
-              viewBox: { ...liveTarget.session.view },
-            };
-            liveTarget.session.file.persistenceState = stillCurrent
-              ? "clean"
-              : "dirty";
-            liveTarget.session.dirty = !stillCurrent;
-            liveTarget.session.unsafe = !stillCurrent;
-            if (targetWorkspaceId === projectTabs.activeId) {
-              restoreFileSession(liveTarget.session.file);
-              stageRecovery(controller.project, {
-                cloudBinding: liveTarget.session.file.cloudBinding,
-                unsavedAtSnapshot: !stillCurrent,
-              });
-              void flushRecovery();
-            }
-            cloudListMutationRef.current += 1;
-            setCloudProjects((current) => [
-              outcome.project,
-              ...current.filter((item) => item.id !== outcome.project.id),
-            ]);
-            projectTabs.changed();
-            const { id, name, revision, updatedAt, schemaVersion } =
-              outcome.project;
-            return success({
-              action: "save",
-              project: { id, name, revision, updatedAt, schemaVersion },
-            });
-          }
-          liveTarget.session.file.persistenceState =
-            outcome.status === "conflict"
-              ? "conflict"
-              : outcome.status === "unreachable"
-                ? "offline"
-                : "failed";
-          if (targetWorkspaceId === projectTabs.activeId)
-            restoreFileSession(liveTarget.session.file);
-          projectTabs.changed();
-          return fail(
-            `CLOUD_SAVE_${outcome.status.toUpperCase().replaceAll("-", "_")}`,
-            outcome.status === "conflict"
-              ? `Cloud revision ${outcome.project.revision} conflicts with this working copy; nothing overwritten`
-              : "message" in outcome
-                ? outcome.message
-                : `Cloud save ${outcome.status}; local work retained`,
-          );
-        }
-        const outcome = await saveProjectToCloud(
-          undefined,
-          request.asNew === true,
-        );
-        if (outcome.status !== "saved")
-          return fail(
-            `CLOUD_SAVE_${outcome.status.toUpperCase().replaceAll("-", "_")}`,
-            outcome.status === "conflict"
-              ? `Cloud revision ${outcome.project.revision} conflicts with this working copy; nothing overwritten`
-              : "message" in outcome
-                ? outcome.message
-                : `Cloud save ${outcome.status}; local work retained`,
-          );
-        const { id, name, revision, updatedAt, schemaVersion } =
-          outcome.project;
-        return success({
-          action: "save",
-          project: { id, name, revision, updatedAt, schemaVersion },
-        });
-      }
-      if (request.action === "new") {
-        // A blank working copy, as the tab strip's + opens one.
-        const open = new Set(entries.map((item) => item.id));
-        const blank = createEmptyProject(
-          createId("project"),
-          request.name?.trim() || "New Circuit",
-          createId("document"),
-        );
-        const applied = request.background
-          ? projectTabs.openBackground(() => createTabSession(blank))
-          : await projectTabs.open(() => createTabSession(blank));
-        const workspaceId = projectTabs
-          .entries()
-          .find((item) => !open.has(item.id))?.id;
-        return applied && workspaceId
-          ? success({ action: "new", applied: true, workspaceId })
-          : fail(
-              "WORKSPACE_BUSY",
-              "Finish the current edit before opening a Project",
-            );
-      }
-      if (request.action === "rename") {
-        const name = request.name.trim();
-        const workspaceId =
-          request.workspaceId ?? targetWorkspaceId ?? projectTabs.activeId;
-        const target = entries.find((item) => item.id === workspaceId);
-        if (!target)
-          return fail("WORKSPACE_NOT_FOUND", "Working copy is no longer open");
-        if (!name)
-          return fail("INVALID_REQUEST", "A Project name cannot be blank");
-        const controller = target.session.controller;
-        if (controller.project.name === name)
-          return success({ action: "rename", applied: false, workspaceId });
-        if (workspaceId === projectTabs.activeId) {
-          // The Project menu's own rename: one undoable Project edit.
-          renameProject(name);
-          if (editorDocumentController.project.name !== name)
-            return fail("RENAME_REJECTED", "The Project name was not changed");
-        } else {
-          const result = controller.dispatchProjectTransaction({
-            transactionId: `agent-rename-project-${envelope.requestId}`,
-            projectId: controller.project.id,
-            expectedStructureRevision: controller.project.structureRevision,
-            actor: { kind: "agent", id: "workspace" },
-            edits: [{ kind: "rename_project", name }],
-          });
-          if (!result.ok || !result.applied)
-            return fail("RENAME_REJECTED", "The Project name was not changed");
-          target.session.dirty = true;
-          if (target.session.file.persistenceState === "clean")
-            target.session.file.persistenceState = "dirty";
-          projectTabs.changed();
-        }
-        controller.noteAgentEdit();
-        return success({ action: "rename", applied: true, workspaceId });
-      }
-      const source = entries.find((e) => e.id === request.sourceWorkspaceId)
-        ?.session.controller;
-      const target = entries.find((e) => e.id === request.targetWorkspaceId);
-      if (!target)
-        return fail("WORKSPACE_NOT_FOUND", "Target Project is no longer open");
-      const copied = copyWorkspaceCell(
-        request,
-        source,
-        target.session.controller,
-        {
-          captureProjectCopy,
-          planProjectCopyPlacement,
-          applyProjectCopyPlacement: (plan, actor) =>
-            applyProjectCopyPlacement(
-              plan,
-              actor,
-              EDITOR_PROJECT_TRANSACTION_OPTIONS,
-            ),
-        },
-      );
-      if ("error" in copied)
-        return fail(copied.error.code, copied.error.message);
-      if (target.id === projectTabs.activeId) {
-        synchronizeExternalCommit();
-        void flushRecovery();
-      } else {
-        target.session.dirty = true;
-        target.session.unsafe = true;
-        target.session.file.persistenceState = "dirty";
-      }
-      projectTabs.changed();
-      return success(copied.result);
-    } catch (error) {
-      return fail(
-        "WORKSPACE_OPERATION_FAILED",
-        error instanceof Error ? error.message : String(error),
-      );
-    }
-  };
-  agentTargetRef.current = (workspaceId) => {
-    const entry = projectTabs.entries().find((item) => item.id === workspaceId);
-    if (!entry) return null;
-    if (workspaceId === projectTabs.activeId)
-      return {
-        host: browserAgentHost,
-        fileHost: browserAgentFileHost,
-        simulationHost: browserAgentSimulationHost,
-        projectHost: browserAgentProjectHost,
-      };
-    const controller = entry.session.controller;
-    const available = () =>
-      projectTabs
-        .entries()
-        .some(
-          (item) =>
-            item.id === workspaceId && item.session.controller === controller,
-        );
-    const cached = backgroundAgentHosts.current.get(controller);
-    if (cached?.sessionId === controller.projectSessionId) return cached;
-    const committed = () => {
-      const current = projectTabs
-        .entries()
-        .find(
-          (item) =>
-            item.id === workspaceId && item.session.controller === controller,
-        );
-      if (!current) return;
-      if (workspaceId === projectTabs.activeId) {
-        synchronizeExternalCommit();
-        void flushRecovery();
-      } else {
-        current.session.dirty = true;
-        current.session.unsafe = true;
-        current.session.file.persistenceState = "dirty";
-      }
-      projectTabs.changed();
-    };
-    const host = new BrowserAgentHost(
-      controller,
-      committed,
-      undefined,
-      available,
-      agentPlanning,
-    );
-    const existing = agentProjectResources.current
-      .get(controller)
-      ?.get(`${controller.projectSessionId}:${simulationTransport}`);
-    const fileHost =
-      existing?.files ??
-      new BrowserAgentFileHost({
-        transport: simulationTransport,
-        getProjectSessionId: () =>
-          available() ? controller.projectSessionId : "closed",
-        getProject: () => controller.project,
-        getDocument: (id) =>
-          controller.project.documents.find((item) => item.id === id) ?? null,
-        getResolver: () => controller.resolver,
-        onApprovalRequested: setAgentFileCandidate,
-        getActiveDocumentId: () => controller.document.id,
-        commitProjectStructure: (next, active) =>
-          host.commitProjectStructure(next, active),
-        openProjectInNewTab: (candidate, background) =>
-          openProjectInTabRef.current(
-            candidate,
-            DEFAULT_VIEWBOX,
-            {
-              source: "opened-file",
-              agentEdited: true,
-            },
-            background,
-          ),
-        dispatchProjectTransaction: (request) =>
-          host.dispatchProjectTransaction(request),
-      });
-    const history =
-      existing?.history ?? new ProjectRunHistory(controller.project.id);
-    history.activate();
-    const simulationHost =
-      existing?.simulation ??
-      new BrowserAgentSimulationHost({
-        runHistory: history,
-        owner: "agent",
-        files: fileHost.simulationFiles,
-        getProjectSessionId: () =>
-          available() ? controller.projectSessionId : "closed",
-        getProject: () => controller.project,
-        transport: simulationTransport,
-      });
-    const projectHost = new BrowserAgentProjectHost({
-      projectTransactionOptions: EDITOR_PROJECT_TRANSACTION_OPTIONS,
-      workspace: (request) => agentWorkspaceRef.current(request, workspaceId),
-      // A tab in the background has nothing on show to publish.
-      publishToGallery: createAgentGalleryPublisher({
-        current: () => null,
-        published: () => {},
-      }),
-      getProjectSessionId: () =>
-        available() ? controller.projectSessionId : "closed",
-      getProject: () => controller.project,
-      getActiveDocumentId: () => controller.document.id,
-      commitProjectStructure: (next, activeDocumentId) =>
-        host.commitProjectStructure(next, activeDocumentId),
-      dispatchProjectTransaction: (request) =>
-        host.dispatchProjectTransaction(request),
-    });
-    const target = {
-      sessionId: controller.projectSessionId,
-      host,
-      fileHost,
-      simulationHost,
-      projectHost,
-    };
-    backgroundAgentHosts.current.set(controller, target);
-    if (!existing) {
-      let group = agentProjectResources.current.get(controller);
-      if (!group) {
-        group = new Map();
-        agentProjectResources.current.set(controller, group);
-      }
-      group.set(`${controller.projectSessionId}:${simulationTransport}`, {
-        files: fileHost,
-        history,
-        simulation: simulationHost,
-      });
-    }
-    return target;
-  };
+  const {
+    recentNativeFiles,
+    nativeBusy,
+    setNativeBusy,
+    nativeOperation,
+    refreshNativeFiles,
+    openNativeProject,
+    closeNativeTab,
+    closeNativeTabs,
+    saveNativeTab,
+  } = useNativeProjectTabs({
+    nativeProjectStore,
+    setStatus,
+    replaceGuard,
+    recoveryDialogOpen,
+    saveProjectToNative,
+    isSaveInFlight,
+    openProjectFile,
+    createTabSession,
+    currentEditBlocker,
+    projectTabs,
+    nativeWorkspaceSaving,
+  });
+  agentWorkspaceRef.current = createAgentWorkspaceHandler({
+    projectStore,
+    stageRecovery,
+    flushRecovery,
+    editorDocumentController,
+    synchronizeExternalCommit,
+    setCloudProjects,
+    cloudListMutationRef,
+    simulationSourceBuffer,
+    codeDraftDirty,
+    restoreFileSession,
+    saveProjectToCloud,
+    openCloudProjectById,
+    renameProject,
+    createTabSession,
+    projectSwitchBlocker,
+    projectTabs,
+  });
+  agentTargetRef.current = createAgentWorkspaceTargets({
+    flushRecovery,
+    synchronizeExternalCommit,
+    agentPlanning,
+    browserAgentHost,
+    simulationTransport,
+    projectSwitchBlockerRef,
+    openProjectInTabRef,
+    setAgentFileCandidate,
+    agentProjectResources,
+    browserAgentFileHost,
+    browserAgentSimulationHost,
+    agentWorkspaceRef,
+    browserAgentProjectHost,
+    backgroundAgentHosts,
+    projectTabs,
+  });
   const allowNextBrowserUnload = useUnsavedWorkGuard(projectTabs.hasUnsafeTabs);
 
-  agentGalleryPublicationRef.current = () => ({
-    controller: editorDocumentController,
-    sessionId: editorDocumentController.projectSessionId,
-    project: editorDocumentController.project,
-    linked: galleryEntryContext,
+  const recordGalleryPublication = useGalleryPublicationRecord({
+    setStatus,
+    setGalleryRefreshSignal,
+    galleryLoadGenerationRef,
+    editorDocumentController,
+    setPublishedNotice,
+    publishSession,
+    galleryEntryContext,
+    setGalleryEntryContext,
+    agentGalleryPublicationRef,
+    recordGalleryPublicationRef,
     cloudBinding,
+    noteGalleryPublication,
+    noteProjectPublished,
   });
-  /**
-   * What a publication to the Gallery leaves behind, whether a person used
-   * the Publish dialog or an Agent published: the working copy is bound to the
-   * entry, the wall refreshes, and a notice says where it went. A working copy
-   * that changed meanwhile only announces the change.
-   */
-  function recordGalleryPublication(
-    {
-      id,
-      name,
-      description,
-      tags,
-      aiGenerated,
-      updated,
-      previewRevision,
-      ownerUserId,
-      author,
-    }: GalleryPublicationRecord,
-    sessionId: string,
-    by: "person" | "agent",
-  ): boolean {
-    if (editorDocumentController.projectSessionId !== sessionId) {
-      announceGalleryChange({ entryId: id });
-      return false;
-    }
-    // The gallery now holds these exact bytes: leaving, refreshing or closing
-    // the tab loses nothing until the next edit.
-    noteProjectPublished();
-    noteGalleryPublication(id);
-    // Publishing establishes the same update-in-place binding as opening an
-    // existing Gallery entry. Keep it attached to this Project only;
-    // replacing the Project clears it above.
-    setGalleryEntryContext({
-      id,
-      name,
-      projectId: editorDocumentController.project.id,
-      ownerUserId: updated
-        ? (ownerUserId ??
-          galleryEntryContext?.ownerUserId ??
-          publishSession?.id ??
-          null)
-        : (publishSession?.id ?? null),
-      author: updated
-        ? (author ??
-          galleryEntryContext?.author ??
-          publishSession?.displayName ??
-          "")
-        : (publishSession?.displayName ?? ""),
-      description,
-      tags,
-      aiGenerated,
-    });
-    void primeGalleryPreview(id, previewRevision);
-    announceGalleryChange({
-      entryId: id,
-      ...(previewRevision === undefined ? {} : { previewRevision }),
-    });
-    galleryLoadGenerationRef.current += 1;
-    setGalleryRefreshSignal((previous) => previous + 1);
-    setStatus(
-      by === "agent"
-        ? updated
-          ? `The Agent updated "${name}" in the gallery`
-          : `The Agent published "${name}" to the gallery`
-        : updated
-          ? `Updated "${name}" in the gallery`
-          : `Published "${name}" to the gallery`,
-    );
-    setPublishedNotice({ id, name, updated });
-    return true;
-  }
-  recordGalleryPublicationRef.current = recordGalleryPublication;
 
-  const openAgentConnection = () => {
-    setAgentPanelOpen(true);
-    if (
-      agentSession.status === "idle" ||
-      agentSession.status === "revoked" ||
-      agentSession.status === "expired" ||
-      (agentSession.status === "waiting-for-agent" &&
-        agentSession.claimExpiresAt !== null &&
-        agentSession.claimExpiresAt <= Date.now())
-    ) {
-      void agentSession.newConnection();
-    }
-  };
+  const leaveForGallery = createLeaveForGallery({
+    project,
+    stageRecovery,
+    flushRecovery,
+    captureAuthoredProject,
+    cloudBinding,
+    isDirtyWork,
+    guardDirtyReplacement,
+    dropDiscardedWork,
+    allowNextBrowserUnload,
+  });
 
   return (
     <main className="app-shell">
@@ -7181,777 +4864,216 @@ function WorkspaceEditor({
         </Suspense>
       ) : null}
       {renderCrashRequested() ? <RenderCrashProbe /> : null}
-      <EditorAppChrome
-        communityEnabled={capabilities.community}
-        externalLinksEnabled={capabilities.externalLinks}
-        identityEnabled={identity !== null}
-        projectTabs={
-          <>
-            <ProjectTabs
-              cloudEnabled={projectStore !== null}
-              tabs={projectTabs.tabs}
-              activeId={projectTabs.activeId}
-              busy={
-                projectTabs.busy ||
-                (nativeProjectStore !== undefined && (nativeBusy || saveBusy))
-              }
-              onSelect={projectTabs.select}
-              onRename={(id, name) => {
-                if (id === projectTabs.activeId) renameProject(name);
-              }}
-              onEditingChange={(editing) => {
-                projectNameEditing.current = editing;
-              }}
-              onClose={(id) => {
-                if (nativeProjectStore) void closeNativeTab(id);
-                else void projectTabs.close(id, () => createTabSession());
-              }}
-              onCloseMany={(ids) => {
-                if (nativeProjectStore) void closeNativeTabs(ids);
-                else void projectTabs.closeMany(ids, () => createTabSession());
-              }}
-              {...(nativeProjectStore
-                ? {
-                    onSaveClose: async (id: string) => {
-                      const { saveAndCloseNativeTab } =
-                        await loadNativeProjectWorkspace();
-                      return saveAndCloseNativeTab(id, {
-                        busy: () =>
-                          nativeOperation.current ||
-                          nativeWorkspaceSaving.current ||
-                          isSaveInFlight(),
-                        setBusy: (busy) => {
-                          nativeWorkspaceSaving.current = busy;
-                          setNativeBusy(busy);
-                        },
-                        save: saveNativeTab,
-                        entries: projectTabs.entries,
-                        close: closeNativeTab,
-                        report: setStatus,
-                      });
-                    },
-                  }
-                : {})}
-              onNew={() => {
-                void projectTabs.open(() => createTabSession());
-              }}
-              onOpenFile={() =>
-                nativeProjectStore
-                  ? void openNativeProject()
-                  : tabProjectInputRef.current?.click()
-              }
-              cloudProjects={cloudProjects}
-              onRefreshShelf={() => {
-                void reloadCloudProjects();
-              }}
-              onOpenShelf={(id) => {
-                void openCloudProjectById(id, true);
-              }}
-            />
-            <input
-              ref={tabProjectInputRef}
-              hidden
-              type="file"
-              accept=".json,.icproj.json"
-              data-testid="tab-project-file"
-              onChange={(event) => {
-                const file = event.currentTarget.files?.[0];
-                event.currentTarget.value = "";
-                if (file) void openProjectFile(file, { inTab: true });
-              }}
-            />
-          </>
-        }
-        {...(publicSimulationUiEnabled
-          ? { simulationAction: openAnalogSimulation }
-          : {})}
-        simulationState={analogSimulationState}
-        projectName={project.name}
-        projectSchemaVersion={project.schemaVersion}
-        hasUnsavedWork={hasUnsavedChanges()}
-        onOpenGallery={() => {
-          void guardDirtyReplacement("Go to Gallery", async (discarded) => {
-            if (discarded) await dropDiscardedWork();
-            else {
-              const snapshot = await captureAuthoredProject();
-              if (!snapshot) return;
-              stageRecovery(snapshot, {
-                unsavedAtSnapshot: isDirtyWork() || snapshot !== project,
-                cloudBinding,
-              });
-              await flushRecovery();
-            }
-            allowNextBrowserUnload();
-            window.location.assign("/");
-          });
-        }}
-        fileCommands={{
-          ...(NativeFileCommands ? { NativeFileCommands } : {}),
-          ...(nativeProjectStore
-            ? {
-                nativeFiles: {
-                  projectName: project.name,
-                  path: nativeBinding?.path ?? null,
-                  recent: recentNativeFiles,
-                  busy: nativeBusy || saveBusy,
-                  refresh: () => void refreshNativeFiles(),
-                  open: (id?: string) => void openNativeProject(id),
-                  saveAs: () => void saveProjectToNative(undefined, true),
-                  forget: (id: string) => {
-                    void nativeProjectStore
-                      .forget(id)
-                      .then(refreshNativeFiles)
-                      .catch((error: unknown) => setStatus(String(error)));
-                  },
-                },
-              }
-            : {}),
-          cloudEnabled: projectStore !== null,
-          canRevert: savedProjectBaseline !== null && isDirtyWork(),
-          hasRecoverySessions: recoverySessions.some(
-            (session) =>
-              session.latest?.unsavedAtSnapshot === true ||
-              (session.latest !== null && session.latest.review !== "valid"),
-          ),
-          checkAndSave: {
-            enabled: !saveBusy && !projectCheck.busy,
-            execute: () => void projectCheck.checkAndSave(),
-          },
-          projectInputRef,
-          onNewProject: createNewProject,
-          onSave: () =>
-            void (nativeProjectStore
-              ? saveProjectToNative()
-              : projectStore
-                ? saveProjectToCloud()
-                : exportProjectFile()),
-          onImportProject: (file) => void openProjectFile(file),
-          onImportSpice: (files, namingProfile) =>
-            void importSpiceFiles(files, namingProfile),
-          onExportProject: exportProjectFile,
-          onExportSvg: exportSvg,
-          onExportRaster: (format) => void exportRaster(format),
-          onRevert: revertToSavedProjectBaseline,
-          onOpenRecovery: openRecoveryDialog,
-          onOpenInfo: () => setProjectInfoOpen(true),
-        }}
+      <EditorMenuBar
+        identity={identity}
+        projectStore={projectStore}
+        nativeProjectStore={nativeProjectStore}
+        NativeFileCommands={NativeFileCommands}
+        capabilities={capabilities}
+        publicAgentUiEnabled={publicAgentUiEnabled}
+        publicSimulationUiEnabled={publicSimulationUiEnabled}
+        setStatus={setStatus}
+        userComponentsOpen={userComponentsOpen}
+        setUserComponentsOpen={setUserComponentsOpen}
+        leftPanelMode={leftPanelMode}
+        setSelectionOpen={setSelectionOpen}
         searchOpen={searchOpen}
+        toggleLibraryPanel={toggleLibraryPanel}
+        visibleLibraryPanelOpen={visibleLibraryPanelOpen}
+        recoverySessions={recoverySessions}
+        project={project}
+        document={document}
+        documentStack={documentStack}
+        visualSelection={visualSelection}
         selectionFilterOpen={selectionFilterOpen}
         cellManagerOpen={cellManagerOpen}
-        onManageCells={() => setCellManagerOpen(true)}
-        userComponentsOpen={userComponentsOpen}
-        onOpenUserComponents={() => {
-          cancelAllTransientInteraction();
-          setUserComponentsOpen(true);
-        }}
-        onInsertComponent={() =>
-          editorCommands.execute({
-            id: "insert.start",
-            launch: fullInsertLaunch(),
-          })
-        }
-        placeProjectCell={{
-          enabled: cellInsertCandidates.length > 0,
-          execute: placeCellInstance,
-        }}
-        onOpenSelectionFilter={() =>
-          editorCommands.execute({ id: "selection.filter.open" })
-        }
-        onOpenSearch={() => editorCommands.execute({ id: "search.open" })}
-        deleteSelection={{
-          enabled:
-            hasVisualSelection(visualSelection) || selectedEndpoint !== null,
-          execute: () => editorCommands.execute({ id: "selection.delete" }),
-        }}
-        copySelectionImages={(["png", "svg"] as const).map((format) => ({
-          label: `Copy selection as ${format.toUpperCase()}`,
-          enabled: editorCommands.state({
-            id: "selection.copy-image",
-            format,
-          }).enabled,
-          execute: () =>
-            editorCommands.execute({
-              id: "selection.copy-image",
-              format,
-            }),
-        }))}
-        rotate={{
-          enabled: editorCommands.state({ id: "transform.rotate" }).enabled,
-          execute: () => editorCommands.execute({ id: "transform.rotate" }),
-        }}
-        mirrorLeftRight={{
-          enabled: editorCommands.state({
-            id: "transform.mirror",
-            direction: "left-right",
-          }).enabled,
-          execute: () =>
-            editorCommands.execute({
-              id: "transform.mirror",
-              direction: "left-right",
-            }),
-        }}
-        mirrorTopBottom={{
-          enabled: editorCommands.state({
-            id: "transform.mirror",
-            direction: "top-bottom",
-          }).enabled,
-          execute: () =>
-            editorCommands.execute({
-              id: "transform.mirror",
-              direction: "top-bottom",
-            }),
-        }}
-        alignmentActions={
-          alignmentParticipantCount >= 2
-            ? EDGE_ALIGNMENT_MODES.map(({ mode, label }) => {
-                const state = editorCommands.state({
-                  id: "selection.align",
-                  mode,
-                });
-                return {
-                  mode,
-                  label,
-                  enabled: state.enabled,
-                  execute: () =>
-                    editorCommands.execute({ id: "selection.align", mode }),
-                };
-              })
-            : []
-        }
-        instanceCodeOpen={projectPanel === "instances"}
+        setCellManagerOpen={setCellManagerOpen}
         netlistPreflightOpen={netlistPreflightOpen}
-        onOpenInstanceCode={() => {
-          toggleProjectPanel("instances");
-        }}
-        netlistFormat={netlistPreferences.format}
-        onOpenNetlistConfiguration={() => {
-          toggleProjectPanel("netlist-configuration");
-        }}
-        onOpenNetlistPreflight={() => setNetlistPreflightOpen(true)}
-        onExportNetlist={exportDesignNetlist}
-        agentAction={
-          publicAgentUiEnabled
-            ? {
-                label:
-                  agentSession.status === "idle"
-                    ? "Connect Agent"
-                    : "Manage Agent",
-                execute: openAgentConnection,
-              }
-            : null
-        }
+        setNetlistPreflightOpen={setNetlistPreflightOpen}
+        projectPanel={projectPanel}
+        setProjectPanel={setProjectPanel}
+        netlistPreferences={netlistPreferences}
+        documentSettingsOpen={documentSettingsOpen}
+        setDocumentSettingsOpen={setDocumentSettingsOpen}
+        setProjectInfoOpen={setProjectInfoOpen}
+        projectNameEditing={projectNameEditing}
         publishGalleryOpen={publishGalleryOpen}
-        onPublishGallery={() => {
-          setOpenedFromCheckNotice(false);
-          setPublishGalleryOpen(true);
-        }}
-        drawingToolbar={{
-          communityEnabled: capabilities.community,
-          leftPanelMode,
-          libraryPanelOpen: visibleLibraryPanelOpen,
-          projectPanel:
-            projectPanel === "project-code"
-              ? "project-code"
-              : projectPanel
-                ? "netlist"
-                : null,
-          leftPanelsDisabled: false,
-          styleProfileId: document.presentation.styleProfileId,
-          onStartInsert: (launch) =>
-            editorCommands.execute({ id: "insert.start", launch }),
-          tool,
-          documentSettingsOpen,
-          undo: {
-            enabled: editorCommands.state({ id: "history.undo" }).enabled,
-            execute: () => editorCommands.execute({ id: "history.undo" }),
-          },
-          redo: {
-            enabled: editorCommands.state({ id: "history.redo" }).enabled,
-            execute: () => editorCommands.execute({ id: "history.redo" }),
-          },
-          onToggleExamples: toggleExamplesPanel,
-          onToggleLibrary: toggleLibraryPanel,
-          onToggleNetlist: () => toggleProjectPanel("netlist"),
-          onToggleProjectCode: () => toggleProjectPanel("project-code"),
-          onActivateTool: (nextTool) =>
-            editorCommands.execute({
-              id: "tool.activate",
-              tool: nextTool,
-            }),
-          onAddText: () => editorCommands.execute({ id: "drafting.add-text" }),
-          onOpenDocumentSettings: () => {
-            setDocumentSettingsOpen((open) => !open);
-            setProjectPanel(null);
-            setSelectionOpen(true);
-          },
-          resetLabels: {
-            enabled: hasResettableLabels(document),
-            execute: () => {
-              const edits = resetLabelLookEdits(document, project);
-              if (edits.length === 0) {
-                setStatus("Every label already has the default look");
-                return;
-              }
-              if (transact(edits).ok)
-                setStatus(
-                  `Reset ${edits.length} label${edits.length === 1 ? "" : "s"} to the default size and look`,
-                );
-            },
-          },
-        }}
-        hierarchyToolbar={{
-          documents: project.documents,
-          activeDocumentId: document.id,
-          topDocumentId: project.topDocumentId,
-          navigationDepth: documentStack.length,
-          canEnter: hasHierarchyEnterSelection,
-          onTop: returnToTopDocument,
-          onSelectDocument: selectDocumentFromHierarchy,
-          onEnter: enterSelectedHierarchy,
-          onManageCells: () => setCellManagerOpen(true),
-          onPlaceCell: placeCellInstance,
-        }}
-        telemetry={{
-          snapshot: {
-            selectedInternalRouteCount: internalSelection.internalRoutes.length,
-            revision: document.revision,
-            sourceStatus: document.sourceStatus,
-            documentCount: project.documents.length,
-            projectName: project.name,
-            activeDocumentId: document.id,
-            activeDocumentName: document.name,
-            activeInstanceCount: document.instances.length,
-            instanceCount: projectInstanceCount,
-            netCount: document.nets.length,
-            activeTool: tool,
-            flightlineCount: flightlines.length,
-            displayedFlightlineCount: displayedFlightlines.length,
-            crossingCount: crossings.length,
-            annotationCount: document.annotations.length,
-            structuralDiagnosticCount:
-              visualDiagnosticSummary.structural.length,
-            diagnosticCheckStatus: projectCheck.status,
-            visualDiagnosticCount: visualDiagnosticSummary.observations.length,
-            blockingDiagnosticCount: visualDiagnosticSummary.blockingCount,
-          },
-        }}
+        setPublishGalleryOpen={setPublishGalleryOpen}
+        setOpenedFromCheckNotice={setOpenedFromCheckNotice}
+        cloudProjects={cloudProjects}
+        reloadCloudProjects={reloadCloudProjects}
+        analogSimulationState={analogSimulationState}
+        openAnalogSimulation={openAnalogSimulation}
+        nativeBinding={nativeBinding}
+        savedProjectBaseline={savedProjectBaseline}
+        isDirtyWork={isDirtyWork}
+        hasUnsavedChanges={hasUnsavedChanges}
+        saveProjectToCloud={saveProjectToCloud}
+        saveProjectToNative={saveProjectToNative}
+        isSaveInFlight={isSaveInFlight}
+        saveBusy={saveBusy}
+        exportProjectFile={exportProjectFile}
+        createNewProject={createNewProject}
+        revertToSavedProjectBaseline={revertToSavedProjectBaseline}
+        openRecoveryDialog={openRecoveryDialog}
+        openProjectFile={openProjectFile}
+        openCloudProjectById={openCloudProjectById}
+        agentSession={agentSession}
+        openAgentConnection={openAgentConnection}
+        tool={tool}
+        transact={transact}
+        renameProject={renameProject}
+        selectedEndpoint={selectedEndpoint}
+        projectInputRef={projectInputRef}
+        tabProjectInputRef={tabProjectInputRef}
+        hasHierarchyEnterSelection={hasHierarchyEnterSelection}
+        flightlines={flightlines}
+        displayedFlightlines={displayedFlightlines}
+        crossings={crossings}
+        projectCheck={projectCheck}
+        visualDiagnosticSummary={visualDiagnosticSummary}
+        cellInsertCandidates={cellInsertCandidates}
+        alignmentParticipantCount={alignmentParticipantCount}
+        internalSelection={internalSelection}
+        projectInstanceCount={projectInstanceCount}
+        selectDocumentFromHierarchy={selectDocumentFromHierarchy}
+        enterSelectedHierarchy={enterSelectedHierarchy}
+        returnToTopDocument={returnToTopDocument}
+        toggleProjectPanel={toggleProjectPanel}
+        toggleExamplesPanel={toggleExamplesPanel}
+        cancelAllTransientInteraction={cancelAllTransientInteraction}
+        placeCellInstance={placeCellInstance}
+        editorCommands={editorCommands}
+        importSpiceFiles={importSpiceFiles}
+        exportSvg={exportSvg}
+        exportRaster={exportRaster}
+        exportDesignNetlist={exportDesignNetlist}
+        nativeWorkspaceSaving={nativeWorkspaceSaving}
+        createTabSession={createTabSession}
+        projectTabs={projectTabs}
+        recentNativeFiles={recentNativeFiles}
+        nativeBusy={nativeBusy}
+        setNativeBusy={setNativeBusy}
+        nativeOperation={nativeOperation}
+        refreshNativeFiles={refreshNativeFiles}
+        openNativeProject={openNativeProject}
+        closeNativeTab={closeNativeTab}
+        closeNativeTabs={closeNativeTabs}
+        saveNativeTab={saveNativeTab}
+        leaveForGallery={leaveForGallery}
       />
-      <EditorDialogLayer
-        chunkLoadFailure={
-          chunkLoadFailure === null
-            ? null
-            : {
-                feature: chunkLoadFailure,
-                onDismiss: () => setChunkLoadFailure(null),
-              }
-        }
-        recoveryFailure={
-          (recoveryState === "quota-exceeded" ||
-            recoveryState === "unavailable" ||
-            recoveryState === "failed") &&
-          isDirtyWork() &&
-          !recoveryFailureDismissed
-            ? {
-                state: recoveryState,
-                onDownload: downloadCurrentProjectBackup,
-                onDismiss: () => setRecoveryFailureDismissed(true),
-              }
-            : null
-        }
-        recoveryAvailable={
-          startupRecovery?.latest
-            ? {
-                projectName: startupRecovery.projectName,
-                updatedAt: startupRecovery.latest.updatedAt,
-                onRestore: () => {
-                  startupCloudRestoreAttemptedRef.current = true;
-                  dismissStartupRecovery();
-                  restoreRecoverySession(
-                    startupRecovery.workingCopyId,
-                    "latest",
-                  );
-                },
-                onDownload: () =>
-                  downloadRecoveryBackup(
-                    startupRecovery.workingCopyId,
-                    "latest",
-                  ),
-                onDismiss: dismissStartupRecovery,
-              }
-            : null
-        }
-        workspaceReopen={
-          workspaceReopen
-            ? {
-                names: workspaceReopen.summary.names,
-                savedAt: workspaceReopen.summary.savedAt,
-                onReopen: () => void reopenClosedWindowTabs(),
-                onDismiss: () => setWorkspaceReopen(null),
-              }
-            : null
-        }
-        recentRecovery={
-          recoveryDialogOpen && recoverySessions.length > 0
-            ? {
-                sessions: recoverySessions,
-                onRestore: restoreRecoverySession,
-                onDownloadBackup: downloadRecoveryBackup,
-                onDeleteSession: deleteRecoverySessionFromDialog,
-                onClose: () => setRecoveryDialogOpen(false),
-              }
-            : null
-        }
-        replaceGuard={
-          replaceGuard !== null
-            ? {
-                intent: replaceGuard.intent,
-                cloudProjectLimit: projectStore?.limit ?? 0,
-                exportOnly: projectStore === null,
-                nativeSave: nativeProjectStore !== undefined,
-                saving: replaceGuardSaving,
-                onCancel: cancelReplaceGuard,
-                onSaveAndContinue: saveAndContinueReplaceGuard,
-                onDiscard: confirmReplaceGuard,
-              }
-            : null
-        }
-        projectInfo={
-          projectInfoOpen
-            ? {
-                name: project.name,
-                documentName: document.name,
-                publication: galleryEntryContext,
-                onSave: editProjectInfo,
-                onClose: () => setProjectInfoOpen(false),
-              }
-            : null
-        }
-        search={
-          searchOpen
-            ? {
-                open: searchOpen,
-                query: searchQuery,
-                results: searchResults,
-                onQueryChange: setSearchQuery,
-                onSelect: selectSearchResult,
-                onClose: closeSearch,
-              }
-            : null
-        }
-        insertComponent={
-          insertDialogOpen
-            ? {
-                open: insertDialogOpen,
-                styleProfileId: document.presentation.styleProfileId,
-                recentSymbolIds,
-                cells: cellInsertCandidates,
-                externalDefinitions: insertDialogExternalCandidates,
-                scope: insertScope,
-                initialSelectionId: insertInitialSelectionId,
-                onApply: (request) =>
-                  editorCommands.execute({
-                    id: "insert.start",
-                    launch: { kind: "quick", request },
-                  }),
-                onCancel: cancelComponentInsertFromHook,
-              }
-            : null
-        }
-        cellManager={
-          cellManagerOpen
-            ? {
-                open: cellManagerOpen,
-                initialExternalId: modelEditorDefinitionId,
-                initialModelLocation: modelEditorLocation,
-                cells: cellManagerEntries,
-                project,
-                hierarchyCalls: projectConnectivityIndex.hierarchy.calls,
-                onOpenOccurrence: (documentId, hierarchyPath) => {
-                  navigateToLocator(
-                    {
-                      documentId,
-                      hierarchyPath: [...hierarchyPath],
-                      kind: "document",
-                      objectId: documentId,
-                    },
-                    "Opened Cell occurrence",
-                  );
-                  setCellManagerOpen(false);
-                },
-                activeDocumentId: document.id,
-                onClose: () => {
-                  setCellManagerOpen(false);
-                  setModelEditorDefinitionId(null);
-                  setModelEditorLocation(undefined);
-                },
-                onCreate: (name) => {
-                  createCell(name);
-                  setCellManagerOpen(false);
-                },
-                onOpen: (documentId) => {
-                  setCellManagerOpen(false);
-                  setDocumentStack([]);
-                  switchDocument(documentId);
-                },
-                onRename: renameCell,
-                onReorder: (documentIds, topDocumentId) => {
-                  commitStructure("reorder-cells", [
-                    { kind: "reorder_documents", documentIds },
-                    { kind: "set_top_document", documentId: topDocumentId },
-                  ]);
-                },
-                onDelete: (documentId) => {
-                  if (deleteCell(documentId)) {
-                    setCellManagerOpen(false);
-                  }
-                },
-                onJumpToCaller: jumpToCaller,
-                onSetPortDirection: (documentId, portId, direction) =>
-                  updateCellPortDirection(portId, direction, documentId),
-                onMovePort: (documentId, portId, delta) =>
-                  moveCellPort(portId, delta, documentId),
-                onEditParameter: (documentId, name, change) =>
-                  editCellParameter(name, change, documentId),
-                externalDefinitions: project.externalSubcircuitDefinitions,
-                onSetExternalDefinition: setExternalSubcircuitDefinition,
-                onCopyModelText: (text) => exportDelivery.copyText(text),
-                onApplyModelSource: (edit) =>
-                  commitModelEdits(
-                    [edit],
-                    edit.definitions[0]!.definitionId,
-                    "Applied shared model definition",
-                  ),
-                onSaveModelDraft: (edits, definitionId) =>
-                  commitModelEdits(
-                    edits,
-                    definitionId,
-                    "Saved draft. Applied model bytes are unchanged.",
-                  ),
-                onRemoveExternalDefinition: removeExternalSubcircuitDefinition,
-                onPlaceExternal: placeExternalComponent,
-                onPlaceCell: (childDocumentId) => {
-                  const candidate = cellInsertCandidates.find(
-                    (c) => c.childDocumentId === childDocumentId,
-                  );
-                  if (!candidate) return;
-                  setCellManagerOpen(false);
-                  setModelEditorDefinitionId(null);
-                  editorCommands.execute({
-                    id: "insert.start",
-                    launch: {
-                      kind: "quick",
-                      request: {
-                        kind: "cell",
-                        symbolId: candidate.symbol.id,
-                        symbolName: candidate.cellName,
-                        childDocumentId,
-                        cellName: candidate.cellName,
-                        parameters: {},
-                        initialRotation: 0,
-                        showReference: false,
-                        referenceText: null,
-                        showValue: true,
-                      },
-                    },
-                  });
-                },
-                cloudProjects,
-                activeCloudProjectId: cloudBinding?.id ?? null,
-                onLoadCloudProject: loadCloudProjectForCellImport,
-                onImportCloudCell: async (source, sourceDocumentId) => {
-                  const plan = planProjectCellImport(
-                    project,
-                    source,
-                    sourceDocumentId,
-                  );
-                  if (!plan.ok) {
-                    return { ok: false, message: plan.message };
-                  }
-                  if (plan.status === "already-imported") {
-                    setStatus(
-                      "Cell is already imported; opened the existing copy",
-                    );
-                    return {
-                      ok: true,
-                      message: "Cell already imported",
-                      documentId: plan.rootDocumentId,
-                    };
-                  }
-                  const committed = commitStructure("import-cloud-cell", [
-                    ...plan.edits,
-                  ]);
-                  if (!committed) {
-                    return {
-                      ok: false,
-                      message:
-                        "Cell import was rejected; refresh and try again",
-                    };
-                  }
-                  setStatus(
-                    `Imported ${plan.importedDocumentIds.length} Cell${plan.importedDocumentIds.length === 1 ? "" : "s"} from ${source.name}`,
-                  );
-                  return {
-                    ok: true,
-                    message: "Cell imported",
-                    documentId: plan.rootDocumentId,
-                  };
-                },
-              }
-            : null
-        }
-        netlistPreflight={
-          netlistPreflightOpen
-            ? {
-                open: netlistPreflightOpen,
-                project,
-                format: netlistPreferences.format,
-                rootDocumentId: netlistRootDocumentId,
-                // The dialog only renders while open, so this IS the
-                // explicit check the author asked for.
-                electricalDiagnostics: requestElectricalDiagnostics(),
-                onClose: () => setNetlistPreflightOpen(false),
-                onNavigate: navigateToNetlistDiagnostic,
-                onNavigateElectrical: jumpToProjectDiagnostic,
-                onExport: (namingProfile) =>
-                  exportDesignNetlist(netlistPreferences.format, namingProfile),
-              }
-            : null
-        }
-        publishGallery={
-          publishGalleryOpen
-            ? {
-                draft: publishDraft,
-                onDraftChange: setPublishDraft,
-                defaultName: galleryEntryContext?.name ?? project.name,
-                session: publishSession,
-                gateReport: publishGates,
-                topologyProject: galleryTopologyProject,
-                openedFromCheckNotice,
-                publicationLinkLoading,
-                publicationLinkError,
-                publicationLinkNotice,
-                onRetryPublicationLink: () =>
-                  setPublicationLinkRetry((value) => value + 1),
-                ...(cloudBinding
-                  ? { onLinkExisting: linkExistingPublication }
-                  : {}),
-                updateTarget: canUpdateGalleryPublication(
-                  galleryEntryContext,
-                  publishSession,
-                )
-                  ? {
-                      id: galleryEntryContext!.id,
-                      name: galleryEntryContext!.name,
-                    }
-                  : null,
-                updateDefaults: galleryEntryContext
-                  ? {
-                      description: galleryEntryContext.description,
-                      tags: galleryEntryContext.tags,
-                      aiGenerated: galleryEntryContext.aiGenerated === true,
-                    }
-                  : null,
-                agentEdited: editorDocumentController.agentEdited,
-                quota: publishQuota,
-                publish: (fields) =>
-                  publishProjectToGallery(project, fields, fetch, cloudBinding),
-                ...(galleryEntryContext
-                  ? {
-                      publishUpdate: (fields) =>
-                        updateGalleryEntry(
-                          galleryEntryContext.id,
-                          project,
-                          fields,
-                          fetch,
-                          cloudBinding,
-                        ),
-                    }
-                  : {}),
-                onPublished: (outcome) => {
-                  if (
-                    recordGalleryPublication(
-                      outcome,
-                      projectSessionId,
-                      "person",
-                    )
-                  ) {
-                    setPublishGalleryOpen(false);
-                    setPublishDraft(null);
-                  }
-                },
-                ...(galleryEntryContext
-                  ? {
-                      onShowHistory: () => {
-                        setPublishGalleryOpen(false);
-                        setVersionHistoryOpen(true);
-                      },
-                    }
-                  : {}),
-                onClose: () => setPublishGalleryOpen(false),
-              }
-            : null
-        }
-        versionHistory={
-          versionHistoryOpen && galleryEntryContext
-            ? {
-                entryId: galleryEntryContext.id,
-                entryName: galleryEntryContext.name,
-                onBranch: async (snapshot) => {
-                  // The tab guard reads the committed dialog state. Waiting a
-                  // frame can still race a concurrent React render here.
-                  flushSync(() => setVersionHistoryOpen(false));
-                  return openProjectInTabRef.current(
-                    snapshot,
-                    DEFAULT_VIEWBOX,
-                    { source: "opened-file", persistenceState: "dirty" },
-                  );
-                },
-                onRestored: ({ previewRevision }) => {
-                  void primeGalleryPreview(
-                    galleryEntryContext.id,
-                    previewRevision,
-                  );
-                  galleryLoadGenerationRef.current += 1;
-                  setGalleryRefreshSignal((previous) => previous + 1);
-                  setVersionHistoryOpen(false);
-                  setStatus("Version restored — reloading the entry");
-                  void openGalleryEntryById(galleryEntryContext.id);
-                },
-                onClose: () => setVersionHistoryOpen(false),
-              }
-            : null
-        }
-        agentConnection={
-          publicAgentUiEnabled && agentPanelOpen
-            ? {
-                open: agentPanelOpen,
-                status: agentSession.status,
-                pendingOperation: agentSession.pendingOperation,
-                claimCode: agentSession.claimCode,
-                claimExpiresAt: agentSession.claimExpiresAt,
-                scopes: agentSession.scopes,
-                expiresAt: agentSession.expiresAt,
-                error: agentSession.error,
-                backgroundRequests: agentSession.backgroundRequests,
-                now: Date.now(),
-                onPause: agentSession.pause,
-                onResume: agentSession.resume,
-                onReconnect: agentSession.reconnect,
-                onNewConnection: agentSession.newConnection,
-                onRevoke: agentSession.revoke,
-                onClose: () => setAgentPanelOpen(false),
-              }
-            : null
-        }
-        agentFileApproval={
-          publicAgentUiEnabled && agentFileCandidate
-            ? {
-                candidate: agentFileCandidate,
-                onReject: rejectAgentFileCandidate,
-                onApprove: approveAgentFileCandidate,
-              }
-            : null
-        }
+      <EditorDialogs
+        projectStore={projectStore}
+        nativeProjectStore={nativeProjectStore}
+        exportDelivery={exportDelivery}
+        publicAgentUiEnabled={publicAgentUiEnabled}
+        setStatus={setStatus}
+        searchOpen={searchOpen}
+        searchQuery={searchQuery}
+        setSearchQuery={setSearchQuery}
+        agentPanelOpen={agentPanelOpen}
+        setAgentPanelOpen={setAgentPanelOpen}
+        closeSearch={closeSearch}
+        galleryLoadGenerationRef={galleryLoadGenerationRef}
+        setGalleryRefreshSignal={setGalleryRefreshSignal}
+        recoveryFailureDismissed={recoveryFailureDismissed}
+        setRecoveryFailureDismissed={setRecoveryFailureDismissed}
+        chunkLoadFailure={chunkLoadFailure}
+        setChunkLoadFailure={setChunkLoadFailure}
+        recoveryState={recoveryState}
+        recoverySessions={recoverySessions}
+        project={project}
+        document={document}
+        dispatchProjectTransaction={dispatchProjectTransaction}
+        editorDocumentController={editorDocumentController}
+        projectSessionId={projectSessionId}
+        galleryTopologyProject={galleryTopologyProject}
+        projectConnectivityIndex={projectConnectivityIndex}
+        setDocumentStack={setDocumentStack}
+        cellManagerOpen={cellManagerOpen}
+        setCellManagerOpen={setCellManagerOpen}
+        modelEditorDefinitionId={modelEditorDefinitionId}
+        setModelEditorDefinitionId={setModelEditorDefinitionId}
+        modelEditorLocation={modelEditorLocation}
+        setModelEditorLocation={setModelEditorLocation}
+        netlistPreflightOpen={netlistPreflightOpen}
+        setNetlistPreflightOpen={setNetlistPreflightOpen}
+        netlistPreferences={netlistPreferences}
+        netlistRootDocumentId={netlistRootDocumentId}
+        projectInfoOpen={projectInfoOpen}
+        setProjectInfoOpen={setProjectInfoOpen}
+        publishGalleryOpen={publishGalleryOpen}
+        setPublishGalleryOpen={setPublishGalleryOpen}
+        openedFromCheckNotice={openedFromCheckNotice}
+        versionHistoryOpen={versionHistoryOpen}
+        setVersionHistoryOpen={setVersionHistoryOpen}
+        publishSession={publishSession}
+        cloudProjects={cloudProjects}
+        galleryEntryContext={galleryEntryContext}
+        publicationLinkLoading={publicationLinkLoading}
+        publicationLinkError={publicationLinkError}
+        publicationLinkNotice={publicationLinkNotice}
+        setPublicationLinkRetry={setPublicationLinkRetry}
+        publishGates={publishGates}
+        publishQuota={publishQuota}
+        openProjectInTabRef={openProjectInTabRef}
+        agentFileCandidate={agentFileCandidate}
+        cloudBinding={cloudBinding}
+        replaceGuard={replaceGuard}
+        replaceGuardSaving={replaceGuardSaving}
+        recoveryDialogOpen={recoveryDialogOpen}
+        startupRecovery={startupRecovery}
+        setRecoveryDialogOpen={setRecoveryDialogOpen}
+        isDirtyWork={isDirtyWork}
+        downloadCurrentProjectBackup={downloadCurrentProjectBackup}
+        cancelReplaceGuard={cancelReplaceGuard}
+        confirmReplaceGuard={confirmReplaceGuard}
+        saveAndContinueReplaceGuard={saveAndContinueReplaceGuard}
+        dismissStartupRecovery={dismissStartupRecovery}
+        restoreRecoverySession={restoreRecoverySession}
+        downloadRecoveryBackup={downloadRecoveryBackup}
+        deleteRecoverySessionFromDialog={deleteRecoverySessionFromDialog}
+        linkExistingPublication={linkExistingPublication}
+        startupCloudRestoreAttemptedRef={startupCloudRestoreAttemptedRef}
+        agentSession={agentSession}
+        approveAgentFileCandidate={approveAgentFileCandidate}
+        rejectAgentFileCandidate={rejectAgentFileCandidate}
+        commitStructure={commitStructure}
+        createCell={createCell}
+        renameCell={renameCell}
+        editProjectInfo={editProjectInfo}
+        deleteCell={deleteCell}
+        updateCellPortDirection={updateCellPortDirection}
+        moveCellPort={moveCellPort}
+        editCellParameter={editCellParameter}
+        setExternalSubcircuitDefinition={setExternalSubcircuitDefinition}
+        removeExternalSubcircuitDefinition={removeExternalSubcircuitDefinition}
+        openGalleryEntryById={openGalleryEntryById}
+        publishDraft={publishDraft}
+        setPublishDraft={setPublishDraft}
+        searchResults={searchResults}
+        requestElectricalDiagnostics={requestElectricalDiagnostics}
+        cellInsertCandidates={cellInsertCandidates}
+        externalSubcircuitInsertCandidates={externalSubcircuitInsertCandidates}
+        insertDialogExternalCandidates={insertDialogExternalCandidates}
+        cancelComponentInsertFromHook={cancelComponentInsertFromHook}
+        insertDialogOpen={insertDialogOpen}
+        insertInitialSelectionId={insertInitialSelectionId}
+        insertScope={insertScope}
+        recentSymbolIds={recentSymbolIds}
+        switchDocument={switchDocument}
+        jumpToCaller={jumpToCaller}
+        navigateToLocator={navigateToLocator}
+        navigateToNetlistDiagnostic={navigateToNetlistDiagnostic}
+        selectSearchResult={selectSearchResult}
+        jumpToProjectDiagnostic={jumpToProjectDiagnostic}
+        cellManagerEntries={cellManagerEntries}
+        editorCommands={editorCommands}
+        exportDesignNetlist={exportDesignNetlist}
+        workspaceReopen={workspaceReopen}
+        setWorkspaceReopen={setWorkspaceReopen}
+        reopenClosedWindowTabs={reopenClosedWindowTabs}
+        recordGalleryPublication={recordGalleryPublication}
       />
       <div
         className={
@@ -8125,158 +5247,43 @@ function WorkspaceEditor({
           onRestoreSimulation={openAnalogSimulation}
           code={
             analogSimulationOpened && humanSimulationSession ? (
-              <Suspense fallback={null}>
-                <LazySpiceSimulationSurface
-                  key={projectSessionId}
-                  session={humanSimulationSession}
-                  runHistory={projectRunHistory}
-                  project={project}
-                  activeDocumentId={document.id}
-                  selectedCircuitObject={
-                    selectedInstance
-                      ? {
-                          documentId: document.id,
-                          instanceId: selectedInstance.id,
-                        }
-                      : undefined
-                  }
-                  selectedFolderId={activeSimulationFolder?.id ?? null}
-                  onSelectFolderId={setActiveSimulationFolderId}
-                  agentGuidance={
-                    publicAgentUiEnabled
-                      ? {
-                          status: agentSession.status,
-                          onOpen: openAgentConnection,
-                        }
-                      : undefined
-                  }
-                  onOpenExample={async (exampleProject) => {
-                    await guardDirtyReplacement(
-                      `Open ${exampleProject.name} example`,
-                      () => {
-                        replaceActiveProject(exampleProject, DEFAULT_VIEWBOX);
-                        setActiveSimulationFolderId(
-                          exampleProject.simulationFolders[0]?.id ?? null,
-                        );
-                        setAnalogSimulationState("open");
-                        setStatus(
-                          `Opened simulation example: ${exampleProject.name}`,
-                        );
-                      },
-                    );
-                  }}
-                  open={analogSimulationOpen}
-                  maximized={analogSimulationMaximized}
-                  onToggleMaximized={toggleAnalogSimulationMaximized}
-                  onMinimize={minimizeAnalogSimulation}
-                  onExit={exitAnalogSimulation}
-                  onHistoryBoundary={(direction) => {
-                    transact([{ kind: direction }]);
-                  }}
-                  onOpenModelSource={openProjectModelSource}
-                  onSourceBuffer={(buffer) => {
-                    simulationSourceBuffer.current = buffer;
-                  }}
-                  onSaveFolder={(
-                    folder,
-                    expectedRevision = project.structureRevision,
-                  ) => {
-                    const result = dispatchProjectTransaction({
-                      transactionId: `upsert-simulation-${crypto.randomUUID()}`,
-                      projectId: project.id,
-                      expectedStructureRevision: expectedRevision,
-                      actor: { kind: "human", id: "human-local" },
-                      edits: [{ kind: "upsert_simulation_folder", folder }],
-                    });
-                    if (result.ok) {
-                      setActiveSimulationFolderId(folder.id);
-                      setStatus(
-                        result.applied
-                          ? `Updated simulation folder ${folder.name}`
-                          : `Simulation folder ${folder.name} is already up to date`,
-                      );
-                      return {
-                        status: result.applied ? "applied" : "unchanged",
-                      };
-                    }
-                    const firstDiagnostic = result.diagnostics[0];
-                    const message =
-                      firstDiagnostic?.message ?? result.error.message;
-                    setStatus(`${result.error.code}: ${message}`);
-                    return {
-                      status: "rejected",
-                      problem: {
-                        code: result.error.code,
-                        message,
-                        stage: "input",
-                        recovery: "fix-input",
-                        ...(result.diagnostics.length
-                          ? {
-                              diagnostics: result.diagnostics.map(
-                                (diagnostic) => ({
-                                  code: diagnostic.code,
-                                  message: diagnostic.message,
-                                  severity: diagnostic.severity,
-                                  ...(diagnostic.path?.length
-                                    ? { field: diagnostic.path.join(".") }
-                                    : {}),
-                                }),
-                              ),
-                            }
-                          : {}),
-                      },
-                    };
-                  }}
-                  onDeleteFolder={(
-                    folderId,
-                    expectedRevision = project.structureRevision,
-                  ) => {
-                    const result = dispatchProjectTransaction({
-                      transactionId: `remove-simulation-folder-${crypto.randomUUID()}`,
-                      projectId: project.id,
-                      expectedStructureRevision: expectedRevision,
-                      actor: { kind: "human", id: "human-local" },
-                      edits: [{ kind: "remove_simulation_folder", folderId }],
-                    });
-                    const committed = result.ok;
-                    if (!result.ok)
-                      setStatus(
-                        `${result.error.code}: ${result.error.message}`,
-                      );
-                    if (committed && activeSimulationFolderId === folderId) {
-                      setActiveSimulationFolderId(null);
-                    }
-                    return committed;
-                  }}
-                  pickNetsActive={simulationPickNetsActive}
-                  pickedNet={analogPickedNet}
-                  onPickNetsChange={setSimulationNetPickMode}
-                  pickTerminalsActive={simulationPickTerminalsActive}
-                  pickedTerminal={analogPickedTerminal}
-                  onPickTerminalsChange={setSimulationTerminalPickMode}
-                  onFocusDiagnostic={(locator) =>
-                    navigateToLocator(locator, `Located ${locator.kind}`)
-                  }
-                  onPreviewSignal={(target) => {
-                    const hierarchyPath =
-                      target &&
-                      simulationProbeHierarchyPath(
-                        project,
-                        target.rootDocumentId,
-                        target.occurrence,
-                      );
-                    setCodeNetPreview(
-                      target && hierarchyPath
-                        ? {
-                            documentId: target.documentId,
-                            netId: target.netId,
-                            hierarchyPath,
-                          }
-                        : null,
-                    );
-                  }}
-                />
-              </Suspense>
+              <EditorSimulationSurface
+                projectSessionId={projectSessionId}
+                humanSimulationSession={humanSimulationSession}
+                projectRunHistory={projectRunHistory}
+                project={project}
+                document={document}
+                selectedInstance={selectedInstance}
+                activeSimulationFolder={activeSimulationFolder}
+                activeSimulationFolderId={activeSimulationFolderId}
+                setActiveSimulationFolderId={setActiveSimulationFolderId}
+                publicAgentUiEnabled={publicAgentUiEnabled}
+                agentSession={agentSession}
+                openAgentConnection={openAgentConnection}
+                guardDirtyReplacement={guardDirtyReplacement}
+                replaceActiveProject={replaceActiveProject}
+                setAnalogSimulationState={setAnalogSimulationState}
+                setStatus={setStatus}
+                analogSimulationOpen={analogSimulationOpen}
+                analogSimulationMaximized={analogSimulationMaximized}
+                toggleAnalogSimulationMaximized={
+                  toggleAnalogSimulationMaximized
+                }
+                minimizeAnalogSimulation={minimizeAnalogSimulation}
+                exitAnalogSimulation={exitAnalogSimulation}
+                transact={transact}
+                openProjectModelSource={openProjectModelSource}
+                simulationSourceBuffer={simulationSourceBuffer}
+                dispatchProjectTransaction={dispatchProjectTransaction}
+                simulationPickNetsActive={simulationPickNetsActive}
+                analogPickedNet={analogPickedNet}
+                setSimulationNetPickMode={setSimulationNetPickMode}
+                simulationPickTerminalsActive={simulationPickTerminalsActive}
+                analogPickedTerminal={analogPickedTerminal}
+                setSimulationTerminalPickMode={setSimulationTerminalPickMode}
+                navigateToLocator={navigateToLocator}
+                setCodeNetPreview={setCodeNetPreview}
+              />
             ) : null
           }
           project={
@@ -8347,7 +5354,7 @@ function WorkspaceEditor({
                     onDeviceTargetChange={netlistPreferences.setDeviceTarget}
                     onReset={netlistPreferences.reset}
                     onCopy={() =>
-                      exportDesignNetlist(
+                      void exportDesignNetlist(
                         netlistPreferences.format,
                         netlistNamingProfile,
                       )
@@ -8489,6 +5496,7 @@ function WorkspaceEditor({
                         )
                           edits.push(
                             ...planMosBulkDefaultUpdate(
+                              project,
                               document,
                               "nmos",
                               propertiesMosBulkDefaultNetId(
@@ -8503,6 +5511,7 @@ function WorkspaceEditor({
                         )
                           edits.push(
                             ...planMosBulkDefaultUpdate(
+                              project,
                               document,
                               "pmos",
                               propertiesMosBulkDefaultNetId(
@@ -9406,12 +6415,12 @@ function WorkspaceEditor({
                       expiresAt: agentSession.expiresAt,
                       error: agentSession.error,
                       backgroundRequests: agentSession.backgroundRequests,
-                      onPause: agentSession.pause,
-                      onResume: agentSession.resume,
+                      onPause: () => void agentSession.pause(),
+                      onResume: () => void agentSession.resume(),
                       onReconnect: agentSession.reconnect,
-                      onNewConnection: agentSession.newConnection,
+                      onNewConnection: () => void agentSession.newConnection(),
                       pendingOperation: agentSession.pendingOperation,
-                      onRevoke: agentSession.revoke,
+                      onRevoke: () => void agentSession.revoke(),
                       expanded: agentDetailsOpen,
                       onToggleDetails: () =>
                         setAgentDetailsOpen((open) => !open),
@@ -9991,291 +7000,59 @@ function WorkspaceEditor({
               setStatus("Text cancelled");
             },
           }}
+          notice={
+            galleryDailyLimit ? (
+              <GalleryDailyLimitCard
+                limit={galleryDailyLimit}
+                onBackToGallery={leaveForGallery}
+                onClose={() => setGalleryDailyLimit(null)}
+              />
+            ) : null
+          }
         />
         {canvasContextMenu ? (
-          <CanvasContextMenu
-            position={canvasContextMenu}
-            alignmentEnabled={alignmentParticipantCount >= 2}
-            onAlign={(mode) =>
-              editorCommands.execute({ id: "selection.align", mode })
-            }
-            actions={[
-              {
-                label: "Edit Component Definition (E)",
-                enabled: Boolean(
-                  selectedInstance &&
-                  (!resolver.resolve(selectedInstance.symbolId)?.definition
-                    .hierarchicalBlock ||
-                    selectedAuthoredCircuit),
-                ),
-                execute: openSelectedComponentDefinition,
-              },
-              ...(hasHierarchyEnterSelection
-                ? [
-                    {
-                      label: "Enter Cell (E)",
-                      enabled: true,
-                      execute: enterSelectedHierarchy,
-                    },
-                  ]
-                : []),
-              {
-                label: "Properties (Q)",
-                enabled: editorCommands.state({ id: "properties.open" })
-                  .enabled,
-                execute: () =>
-                  editorCommands.execute({ id: "properties.open" }),
-              },
-              {
-                label: "Copy (C)",
-                enabled:
-                  hasVisualSelection(visualSelection) &&
-                  editorCommands.state({ id: "selection.copy" }).enabled,
-                execute: () => editorCommands.execute({ id: "selection.copy" }),
-              },
-              {
-                label: "Rotate 90° (R)",
-                enabled: editorCommands.state({ id: "transform.rotate" })
-                  .enabled,
-                execute: () =>
-                  editorCommands.execute({ id: "transform.rotate" }),
-              },
-              {
-                label: "Mirror left/right (Shift+R)",
-                enabled: editorCommands.state({
-                  id: "transform.mirror",
-                  direction: "left-right",
-                }).enabled,
-                execute: () =>
-                  editorCommands.execute({
-                    id: "transform.mirror",
-                    direction: "left-right",
-                  }),
-              },
-              {
-                label: "Mirror top/bottom (Ctrl+R)",
-                enabled: editorCommands.state({
-                  id: "transform.mirror",
-                  direction: "top-bottom",
-                }).enabled,
-                execute: () =>
-                  editorCommands.execute({
-                    id: "transform.mirror",
-                    direction: "top-bottom",
-                  }),
-              },
-              {
-                label: "Delete",
-                enabled: hasVisualSelection(visualSelection),
-                execute: () =>
-                  editorCommands.execute({ id: "selection.delete" }),
-              },
-            ]}
-            onClose={() => setCanvasContextMenu(null)}
+          <EditorCanvasContextMenu
+            canvasContextMenu={canvasContextMenu}
+            setCanvasContextMenu={setCanvasContextMenu}
+            visualSelection={visualSelection}
+            hasHierarchyEnterSelection={hasHierarchyEnterSelection}
+            alignmentParticipantCount={alignmentParticipantCount}
+            enterSelectedHierarchy={enterSelectedHierarchy}
+            openSelectedComponentDefinition={openSelectedComponentDefinition}
+            hasDefinitionSelection={hasDefinitionSelection}
+            editorCommands={editorCommands}
           />
         ) : null}
       </div>
-      {capabilities.community && componentEditor ? (
-        <Suspense fallback={null}>
-          <ComponentDefinitionEditor
-            key={componentEditor.key}
-            definition={componentEditor.definition}
-            mode={componentEditor.mode}
-            circuit={{
-              project,
-              definitionId: componentEditor.externalDefinitionId,
-              symbolId: componentEditor.target?.instance.symbolId,
-              onRepair: (edits, definitionId, expectedProject) =>
-                withComponentSession(() => {
-                  if (
-                    JSON.stringify(definitionProjectRef.current.project) !==
-                    JSON.stringify(expectedProject)
-                  )
-                    return {
-                      ok: false,
-                      message:
-                        "The Project changed. Reopen the component before repairing.",
-                    };
-                  return commitModelEdits(
-                    edits,
-                    definitionId,
-                    "Applied component repair",
-                    (applied) => {
-                      const target = componentEditor.target;
-                      const instance =
-                        target &&
-                        applied.documents
-                          .find((d) => d.id === target.documentId)
-                          ?.instances.find((i) => i.id === target.instance.id);
-                      setComponentEditor((session) =>
-                        session === componentEditor
-                          ? {
-                              ...session,
-                              externalDefinitionId: definitionId,
-                              ...(target && instance
-                                ? { target: { ...target, instance } }
-                                : {}),
-                            }
-                          : session,
-                      );
-                    },
-                  );
-                }),
-              onApply: (edit) =>
-                withComponentSession(() => {
-                  const target = componentEditor.target;
-                  const current = definitionProjectRef.current.project;
-                  if (target && componentEditor.externalDefinitionId) {
-                    const instance = current.documents
-                      .find((d) => d.id === target.documentId)
-                      ?.instances.find((i) => i.id === target.instance.id);
-                    if (
-                      JSON.stringify(instance) !==
-                      JSON.stringify(target.instance)
-                    )
-                      return {
-                        ok: false,
-                        message:
-                          "The instance changed. Reopen it before applying its artwork.",
-                      };
-                    edit = {
-                      ...edit,
-                      definitions: edit.definitions.map((definition) =>
-                        definition.definitionId ===
-                        componentEditor.externalDefinitionId
-                          ? {
-                              ...definition,
-                              callers: [
-                                {
-                                  documentId: target.documentId,
-                                  instanceId: target.instance.id,
-                                  expectedSymbolId: target.instance.symbolId,
-                                },
-                              ],
-                            }
-                          : definition,
-                      ),
-                    };
-                  }
-                  return commitModelEdits(
-                    [edit],
-                    edit.definitions[0]!.definitionId,
-                    "Applied shared model definition",
-                    target
-                      ? (applied) => {
-                          const instance = applied.documents
-                            .find((d) => d.id === target.documentId)
-                            ?.instances.find(
-                              (i) => i.id === target.instance.id,
-                            );
-                          if (instance)
-                            setComponentEditor((session) =>
-                              session === componentEditor
-                                ? {
-                                    ...session,
-                                    target: { ...target, instance },
-                                  }
-                                : session,
-                            );
-                        }
-                      : undefined,
-                  );
-                }),
-              onSaveDraft: (edits, definitionId) =>
-                withComponentSession(() =>
-                  commitModelEdits(
-                    edits,
-                    definitionId,
-                    "Saved draft. Applied model bytes are unchanged.",
-                  ),
-                ),
-              onSetDefinition: (definition) =>
-                withComponentSession(() =>
-                  setExternalSubcircuitDefinition(definition),
-                ),
-              onRemoveDefinition: (id) =>
-                withComponentSession(() =>
-                  removeExternalSubcircuitDefinition(id),
-                ),
-              onPlace: (id) => {
-                if (!componentSessionIsCurrent()) {
-                  setStatus(
-                    "The Project changed. Reopen the component before placing.",
-                  );
-                  return;
-                }
-                if (placeExternalComponent(id)) setComponentEditor(null);
-              },
-              onCopyText: (text) => exportDelivery.copyText(text),
-            }}
-            {...(componentEditor.entry ? { entry: componentEditor.entry } : {})}
-            validateApply={(definition, planner) => {
-              if (!componentEditor.target) return null;
-              const plan = componentEditPlan(
-                publishedDefinition(definition, componentEditor.key, 1),
-                planner,
-              );
-              return plan.ok ? null : plan.message;
-            }}
-            onSaved={(entry, planner) => {
-              setComponentLibraryRefresh((value) => value + 1);
-              if (componentEditor.target) {
-                const plan = componentEditPlan(entry.definition, planner);
-                if (!plan.ok) return plan.message;
-                try {
-                  commitProjectStructure(plan.project, plan.activeDocumentId);
-                  selectOnly("instance", [componentEditor.target.instance.id]);
-                  setStatus(
-                    "Saved publicly and applied to the selected component",
-                  );
-                } catch (error) {
-                  return error instanceof Error ? error.message : String(error);
-                }
-              } else if (componentEditor.mode === "new")
-                insertSharedComponent(entry);
-              if (componentEditor.mode !== "library") setComponentEditor(null);
-              return null;
-            }}
-            onManaged={() => setComponentLibraryRefresh((value) => value + 1)}
-            onPlaceCircuit={(packaged) =>
-              insertCircuitComponent(
-                packaged,
-                `component-${componentEditor.key}`,
-              )
-            }
-            onClose={() => setComponentEditor(null)}
-          />
-        </Suspense>
-      ) : null}
-      {capabilities.community ? (
-        <Suspense fallback={null}>
-          <UserComponentsLibrary
-            open={userComponentsOpen}
-            refresh={componentLibraryRefresh}
-            onClose={() => setUserComponentsOpen(false)}
-            onCreate={() => {
-              cancelAllTransientInteraction();
-              setComponentEditor({
-                key: crypto.randomUUID(),
-                projectSessionId,
-                mode: "new",
-                definition: newComponentDefinition(),
-              });
-            }}
-            onEdit={(entry) => {
-              cancelAllTransientInteraction();
-              setComponentEditor({
-                key: crypto.randomUUID(),
-                projectSessionId,
-                mode: "library",
-                definition: entry.definition,
-                entry,
-              });
-            }}
-            onInsert={insertSharedComponent}
-          />
-        </Suspense>
-      ) : null}
+      <EditorComponentEditor
+        project={project}
+        projectSessionId={projectSessionId}
+        resolver={resolver}
+        dispatchProjectTransaction={dispatchProjectTransaction}
+        externalSubcircuitInsertCandidates={externalSubcircuitInsertCandidates}
+        setExternalSubcircuitDefinition={setExternalSubcircuitDefinition}
+        removeExternalSubcircuitDefinition={removeExternalSubcircuitDefinition}
+        copyText={(text) => exportDelivery.copyText(text)}
+        onBeforePlace={() => {
+          setCellManagerOpen(false);
+          setModelEditorDefinitionId(null);
+        }}
+        capabilities={capabilities}
+        setStatus={setStatus}
+        componentEditor={componentEditor}
+        setComponentEditor={setComponentEditor}
+        componentLibraryRefresh={componentLibraryRefresh}
+        setComponentLibraryRefresh={setComponentLibraryRefresh}
+        userComponentsOpen={userComponentsOpen}
+        setUserComponentsOpen={setUserComponentsOpen}
+        commitProjectStructure={commitProjectStructure}
+        editorDocumentController={editorDocumentController}
+        synchronizeExternalCommit={synchronizeExternalCommit}
+        definitionProjectRef={definitionProjectRef}
+        selectOnly={selectOnly}
+        cancelAllTransientInteraction={cancelAllTransientInteraction}
+        editorCommands={editorCommands}
+      />
       <SelectionFilterPopover
         open={selectionFilterOpen}
         filter={selectionFilter}
@@ -10340,4 +7117,3 @@ function WorkspaceEditor({
     </main>
   );
 }
-import { createSimulationProjectFileHost } from "../features/simulation/project-file-host";

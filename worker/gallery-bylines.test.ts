@@ -1,0 +1,529 @@
+// Bylines: AI accounts' names, what they see of each other's circuits and
+// take-overs, and contributor renames.
+
+import { CURRENT_PROJECT_FILE_VERSION } from "@icm/project-protocol";
+import { describe, expect, it } from "vitest";
+import { GalleryDO } from "./gallery";
+import { AI_SEATS } from "./auth";
+import {
+  ORIGIN,
+  adminOf,
+  environment,
+  type Harness,
+  makerOf,
+  projectText,
+  rejectOne,
+  route,
+  seatOf,
+  sqliteState,
+  submitOne,
+} from "./gallery.test-support";
+
+describe("AI account bylines", () => {
+  it("gives an AI account's circuits and versions its listed name and the AI mark when the Gallery starts", () => {
+    const state = sqliteState();
+    new GalleryDO(state);
+    const sql = state.storage.sql;
+    const seat = AI_SEATS[0]!;
+    const at = "2026-10-01T00:00:00.000Z";
+    const second = AI_SEATS[1]!;
+    for (const [id, owner, author] of [
+      ["seat-entry", seat.userId, seat.formerName!],
+      ["person-entry", "person", seat.formerName!],
+      // A person's account under a listed id, which AuthDO leaves alone.
+      ["unconverted-entry", second.userId, "Someone"],
+    ])
+      sql.exec(
+        `INSERT INTO gallery_entries
+         (id, name, author, description, created_at, schema_version, status,
+          owner_user_id, project_text, svg_text)
+         VALUES (?, ?, ?, '', ?, ?, 'public', ?, ?, '<svg/>')`,
+        id,
+        id,
+        author,
+        at,
+        CURRENT_PROJECT_FILE_VERSION,
+        owner,
+        projectText(id),
+      );
+    sql.exec(
+      `INSERT INTO gallery_entry_versions
+       (id, entry_id, version_no, name, author, description,
+        schema_version, project_text, svg_text, created_at)
+       VALUES ('seat-v1', 'seat-entry', 1, 'seat-entry', ?, '', ?, ?,
+         '<svg/>', ?)`,
+      seat.formerName,
+      CURRENT_PROJECT_FILE_VERSION,
+      projectText("seat-entry"),
+      at,
+    );
+    new GalleryDO(state);
+    const authors = (table: string) =>
+      sql
+        .exec<{ id: string; author: string }>(
+          `SELECT id, author FROM ${table} ORDER BY id`,
+        )
+        .toArray();
+    expect(authors("gallery_entries")).toEqual([
+      // A person who happens to use the same byline keeps it.
+      { id: "person-entry", author: seat.formerName },
+      { id: "seat-entry", author: seat.displayName },
+      { id: "unconverted-entry", author: "Someone" },
+    ]);
+    // An AI account's circuits carry the AI mark too.
+    expect(
+      sql
+        .exec<{ id: string; ai_generated: number }>(
+          "SELECT id, ai_generated FROM gallery_entries ORDER BY id",
+        )
+        .toArray(),
+    ).toEqual([
+      { id: "person-entry", ai_generated: 0 },
+      { id: "seat-entry", ai_generated: 1 },
+      { id: "unconverted-entry", ai_generated: 0 },
+    ]);
+    expect(authors("gallery_entry_versions")).toEqual([
+      { id: "seat-v1", author: seat.displayName },
+    ]);
+  });
+});
+
+/** An update of the entry by the session, as the Publish dialog sends it. */
+function updateAs(
+  env: Harness,
+  entryId: string,
+  cookie: string,
+  takeOver?: boolean,
+) {
+  return route(
+    env,
+    new Request(`${ORIGIN}/api/gallery/${entryId}`, {
+      method: "PUT",
+      headers: {
+        Origin: ORIGIN,
+        Cookie: cookie,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        name: "Wien bridge",
+        description: "Redone",
+        projectText: projectText("Wien bridge"),
+        ...(takeOver === undefined ? {} : { takeOver }),
+      }),
+    }),
+  );
+}
+
+describe("AI accounts taking over each other's circuits (#1499)", () => {
+  it("moves an AI account's circuit to the AI account whose update takes it over, never a person's", async () => {
+    const env = environment();
+    const [claude, , sol] = AI_SEATS;
+    const solCookie = await seatOf(env, 2);
+    const claudeCookie = await seatOf(env, 0);
+    const id = await submitOne(env, "Wien bridge", { cookie: solCookie });
+    const update = (entryId: string, cookie: string, takeOver?: boolean) =>
+      updateAs(env, entryId, cookie, takeOver);
+    // Without a take-over, another account's circuit stays its own.
+    expect((await update(id, claudeCookie)).status).toBe(403);
+    const taken = await update(id, claudeCookie, true);
+    expect(taken.status).toBe(200);
+    expect(await taken.json()).toMatchObject({
+      id,
+      ownerUserId: claude!.userId,
+      author: claude!.displayName,
+    });
+    const entry = () =>
+      env.gallerySql
+        .exec<{ owner_user_id: string; author: string; ai_generated: number }>(
+          "SELECT owner_user_id, author, ai_generated FROM gallery_entries WHERE id = ?",
+          id,
+        )
+        .toArray()[0];
+    expect(entry()).toEqual({
+      owner_user_id: claude!.userId,
+      author: claude!.displayName,
+      ai_generated: 1,
+    });
+    // The version it replaced keeps the account that made it.
+    expect(
+      env.gallerySql
+        .exec<{ author: string }>(
+          "SELECT author FROM gallery_entry_versions WHERE entry_id = ?",
+          id,
+        )
+        .toArray(),
+    ).toEqual([{ author: sol!.displayName }]);
+    // The new owner updates it as its own; the former one no longer can.
+    expect((await update(id, claudeCookie)).status).toBe(200);
+    expect((await update(id, solCookie)).status).toBe(403);
+
+    // A person's circuit is never taken over, and a person takes over none.
+    const person = await makerOf(env);
+    const mine = await submitOne(env, "Mine", { cookie: person });
+    const refused = await update(mine, claudeCookie, true);
+    expect(refused.status).toBe(403);
+    expect(await refused.json()).toEqual({ error: "take-over-forbidden" });
+    expect((await update(id, person, true)).status).toBe(403);
+    expect(entry()!.owner_user_id).toBe(claude!.userId);
+  });
+
+  it("shows an AI account every AI account's circuits, rejected ones with their reasons, to read and take over, never a person's (#1540)", async () => {
+    const env = environment();
+    const [claude, , sol] = AI_SEATS;
+    const solCookie = await seatOf(env, 2);
+    const claudeCookie = await seatOf(env, 0);
+    const person = await makerOf(env);
+    const solId = await submitOne(env, "Wien bridge", { cookie: solCookie });
+    const personId = await submitOne(env, "Mine", { cookie: person });
+    // Sol's own update leaves a saved version behind.
+    expect((await updateAs(env, solId, solCookie)).status).toBe(200);
+    for (const id of [solId, personId])
+      await rejectOne(env, id, "Loose wires.");
+    const read = (path: string, cookie: string, method = "GET") =>
+      route(
+        env,
+        new Request(`${ORIGIN}/api/gallery/${path}`, {
+          method,
+          headers: { Origin: ORIGIN, Cookie: cookie },
+        }),
+      );
+
+    const listed = await read("mine?scope=ai-seats", claudeCookie);
+    expect(listed.status).toBe(200);
+    expect(await listed.json()).toEqual({
+      entries: [
+        expect.objectContaining({
+          id: solId,
+          ownerUserId: sol!.userId,
+          author: sol!.displayName,
+          status: "rejected",
+          rejectReason: "Loose wires.",
+          recycledAt: null,
+        }),
+      ],
+    });
+    // Only an AI account may ask; plain /mine stays the session's own.
+    const refused = await read("mine?scope=ai-seats", person);
+    expect(refused.status).toBe(403);
+    expect(await refused.json()).toEqual({ error: "ai-accounts-only" });
+    expect(await (await read("mine", claudeCookie)).json()).toEqual({
+      entries: [],
+    });
+
+    // It reads the rejected circuit as its owner does, a person's never.
+    expect((await read(solId, claudeCookie)).status).toBe(200);
+    expect((await read(`${solId}/preview.svg`, claudeCookie)).status).toBe(200);
+    const versions = (await (
+      await read(`${solId}/versions`, claudeCookie)
+    ).json()) as { versions: { versionId: string }[] };
+    expect(versions.versions).toHaveLength(1);
+    expect(
+      (
+        await read(
+          `${solId}/versions/${versions.versions[0]!.versionId}/project`,
+          claudeCookie,
+        )
+      ).status,
+    ).toBe(200);
+    expect((await read(personId, claudeCookie)).status).toBe(404);
+    expect((await read(`${personId}/preview.svg`, claudeCookie)).status).toBe(
+      404,
+    );
+    expect((await read(`${personId}/versions`, claudeCookie)).status).toBe(401);
+    // Reading manages nothing: putting it back stays the Owner's.
+    expect((await read(`${solId}/restore`, claudeCookie, "POST")).status).toBe(
+      401,
+    );
+
+    // The take-over lands and the entry stays rejected, with its reason.
+    expect((await updateAs(env, solId, person, true)).status).toBe(403);
+    expect((await updateAs(env, solId, claudeCookie, true)).status).toBe(200);
+    expect(
+      env.gallerySql
+        .exec(
+          `SELECT owner_user_id, author, status, reject_reason
+           FROM gallery_entries WHERE id = ?`,
+          solId,
+        )
+        .toArray(),
+    ).toEqual([
+      {
+        owner_user_id: claude!.userId,
+        author: claude!.displayName,
+        status: "rejected",
+        reject_reason: "Loose wires.",
+      },
+    ]);
+    expect((await read(`${solId}/restore`, claudeCookie, "POST")).status).toBe(
+      409,
+    );
+  });
+
+  it("leaves a circuit the Owner withdrew for the Owner to put back, after a take-over too (#1540)", async () => {
+    const env = environment();
+    const [claude] = AI_SEATS;
+    const solCookie = await seatOf(env, 2);
+    const claudeCookie = await seatOf(env, 0);
+    const id = await submitOne(env, "Wien bridge", { cookie: solCookie });
+    const post = async (action: string, cookie: string) =>
+      route(
+        env,
+        new Request(`${ORIGIN}/api/gallery/${id}/${action}`, {
+          method: "POST",
+          headers: { Origin: ORIGIN, Cookie: cookie },
+        }),
+      );
+    expect((await post("recycle", await adminOf(env))).status).toBe(200);
+    const listed = await route(
+      env,
+      new Request(`${ORIGIN}/api/gallery/mine?scope=ai-seats`, {
+        headers: { Origin: ORIGIN, Cookie: claudeCookie },
+      }),
+    );
+    expect(await listed.json()).toEqual({
+      entries: [
+        expect.objectContaining({
+          id,
+          status: "recycled",
+          rejectReason: null,
+          withdrawnByCurator: true,
+        }),
+      ],
+    });
+
+    // Taking it over to fix it lands; putting it back does not.
+    expect((await updateAs(env, id, claudeCookie, true)).status).toBe(200);
+    const restore = await post("restore", claudeCookie);
+    expect(restore.status).toBe(409);
+    expect(await restore.json()).toEqual({ error: "invalid-status" });
+    const row = () =>
+      env.gallerySql
+        .exec<{ owner_user_id: string; status: string }>(
+          "SELECT owner_user_id, status FROM gallery_entries WHERE id = ?",
+          id,
+        )
+        .one();
+    expect(row()).toEqual({
+      owner_user_id: claude!.userId,
+      status: "recycled",
+    });
+    // The Owner still can.
+    expect((await post("restore", await adminOf(env))).status).toBe(200);
+    expect(row().status).toBe("public");
+  });
+
+  it("counts the likes AI accounts' circuits hold where AI accounts list them (#1540)", async () => {
+    const env = environment();
+    const solCookie = await seatOf(env, 2);
+    const claudeCookie = await seatOf(env, 0);
+    const id = await submitOne(env, "Wien bridge", { cookie: solCookie });
+    const liked = await route(
+      env,
+      new Request(`${ORIGIN}/api/gallery/${id}/like`, {
+        method: "POST",
+        headers: { Origin: ORIGIN, Cookie: await makerOf(env) },
+      }),
+    );
+    expect(await liked.json()).toMatchObject({ likes: 1 });
+    for (const [path, cookie] of [
+      ["mine?scope=ai-seats", claudeCookie],
+      ["mine", solCookie],
+    ] as const) {
+      const listed = await route(
+        env,
+        new Request(`${ORIGIN}/api/gallery/${path}`, {
+          headers: { Origin: ORIGIN, Cookie: cookie },
+        }),
+      );
+      expect(await listed.json()).toEqual({
+        entries: [expect.objectContaining({ id, likes: 1 })],
+      });
+    }
+  });
+
+  it("keeps the AI account that made each earlier version when the Gallery starts", () => {
+    const state = sqliteState();
+    new GalleryDO(state);
+    const sql = state.storage.sql;
+    const [claude, , sol] = AI_SEATS;
+    const at = "2026-10-08T00:00:00.000Z";
+    sql.exec(
+      `INSERT INTO gallery_entries
+       (id, name, author, description, created_at, schema_version, status,
+        owner_user_id, project_text, svg_text)
+       VALUES ('taken', 'taken', ?, '', ?, ?, 'public', ?, ?, '<svg/>')`,
+      claude!.displayName,
+      at,
+      CURRENT_PROJECT_FILE_VERSION,
+      claude!.userId,
+      projectText("taken"),
+    );
+    for (const [id, author] of [
+      ["v1", sol!.displayName],
+      ["v2", claude!.formerName!],
+    ])
+      sql.exec(
+        `INSERT INTO gallery_entry_versions
+         (id, entry_id, version_no, name, author, description,
+          schema_version, project_text, svg_text, created_at)
+         VALUES (?, 'taken', ?, 'taken', ?, '', ?, ?, '<svg/>', ?)`,
+        id,
+        id === "v1" ? 1 : 2,
+        author,
+        CURRENT_PROJECT_FILE_VERSION,
+        projectText("taken"),
+        at,
+      );
+    new GalleryDO(state);
+    expect(
+      sql
+        .exec<{ id: string; author: string }>(
+          "SELECT id, author FROM gallery_entry_versions ORDER BY id",
+        )
+        .toArray(),
+    ).toEqual([
+      // Another AI account's version keeps its name; this account's former
+      // byline still becomes its listed name.
+      { id: "v1", author: sol!.displayName },
+      { id: "v2", author: claude!.displayName },
+    ]);
+  });
+});
+
+describe("gallery contributor renames", () => {
+  it("moves every current and historical byline by owner id", async () => {
+    const env = environment();
+    for (const [id, status, ownerUserId] of [
+      ["owned-public", "public", "owner-1"],
+      ["owned-recycled", "recycled", "owner-1"],
+      ["same-name-other-owner", "public", "owner-2"],
+    ] as const) {
+      env.gallerySql.exec(
+        `INSERT INTO gallery_entries
+         (id, name, author, description, created_at, schema_version, status,
+          owner_user_id, project_text, svg_text)
+         VALUES (?, ?, ?, '', ?, ?, ?, ?, ?, '<svg/>')`,
+        id,
+        id,
+        "Old Public Name",
+        "2026-09-19T00:00:00.000Z",
+        CURRENT_PROJECT_FILE_VERSION,
+        status,
+        ownerUserId,
+        projectText(id),
+      );
+      env.gallerySql.exec(
+        `INSERT INTO gallery_entry_versions
+         (id, entry_id, version_no, name, author, description, schema_version,
+          project_text, svg_text, created_at)
+         VALUES (?, ?, 1, ?, ?, '', ?, ?, '<svg/>', ?)`,
+        `${id}-version`,
+        id,
+        id,
+        "Old Public Name",
+        CURRENT_PROJECT_FILE_VERSION,
+        projectText(id),
+        "2026-09-19T00:00:00.000Z",
+      );
+    }
+
+    const response = await env.GALLERY.getByName("gallery").fetch(
+      "https://gallery/rename-owner",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          ownerUserId: "owner-1",
+          displayName: "Current Public Name",
+        }),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      ownerUserId: "owner-1",
+      displayName: "Current Public Name",
+      entries: 2,
+      versions: 2,
+    });
+    expect(
+      env.gallerySql
+        .exec<{ id: string; author: string }>(
+          "SELECT id, author FROM gallery_entries ORDER BY id",
+        )
+        .toArray(),
+    ).toEqual([
+      { id: "owned-public", author: "Current Public Name" },
+      { id: "owned-recycled", author: "Current Public Name" },
+      { id: "same-name-other-owner", author: "Old Public Name" },
+    ]);
+    expect(
+      env.gallerySql
+        .exec<{ entry_id: string; author: string }>(
+          `SELECT entry_id, author FROM gallery_entry_versions
+           ORDER BY entry_id`,
+        )
+        .toArray(),
+    ).toEqual([
+      { entry_id: "owned-public", author: "Current Public Name" },
+      { entry_id: "owned-recycled", author: "Current Public Name" },
+      { entry_id: "same-name-other-owner", author: "Old Public Name" },
+    ]);
+  });
+
+  it("restores historical content without restoring its stale byline", async () => {
+    const env = environment();
+    env.gallerySql.exec(
+      `INSERT INTO gallery_entries
+       (id, name, author, description, created_at, schema_version, status,
+        owner_user_id, project_text, svg_text)
+       VALUES (?, ?, ?, '', ?, ?, 'public', ?, ?, '<svg/>')`,
+      "restore-current-byline",
+      "Current",
+      "Current Public Name",
+      "2026-09-19T00:00:00.000Z",
+      CURRENT_PROJECT_FILE_VERSION,
+      "owner-1",
+      projectText("Current"),
+    );
+    env.gallerySql.exec(
+      `INSERT INTO gallery_entry_versions
+       (id, entry_id, version_no, name, author, description, schema_version,
+        project_text, svg_text, created_at)
+       VALUES (?, ?, 1, ?, ?, '', ?, ?, '<svg/>', ?)`,
+      "stale-byline-version",
+      "restore-current-byline",
+      "Historical Content",
+      "Old Public Name",
+      CURRENT_PROJECT_FILE_VERSION,
+      projectText("Historical Content"),
+      "2026-09-18T00:00:00.000Z",
+    );
+
+    const response = await env.GALLERY.getByName("gallery").fetch(
+      "https://gallery/restore-version",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          entryId: "restore-current-byline",
+          versionId: "stale-byline-version",
+          at: "2026-09-19T01:00:00.000Z",
+        }),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(
+      env.gallerySql
+        .exec<{ name: string; author: string }>(
+          `SELECT name, author FROM gallery_entries
+           WHERE id = 'restore-current-byline'`,
+        )
+        .one(),
+    ).toEqual({
+      name: "Historical Content",
+      author: "Current Public Name",
+    });
+  });
+});

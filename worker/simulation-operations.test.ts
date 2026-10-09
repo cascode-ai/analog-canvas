@@ -649,30 +649,15 @@ describe("managed simulation operations", () => {
     },
   );
 
-  it("keeps anonymous preview runs usable with an opaque session cookie", async () => {
+  it("asks a signed-out visitor to sign in and hands out no session of its own", async () => {
     const { env } = harness();
     const started = await routeManagedSimulationRequest(startRequest(), env);
-    expect(started?.status).toBe(202);
-    const cookie = started?.headers.get("set-cookie");
-    expect(cookie).toContain("icm_simulation_session=");
-    const runId = ((await started!.json()) as { run: { id: string } }).run.id;
-    const read = await routeManagedSimulationRequest(
-      new Request(`https://canvas.test/api/simulation/runs/${runId}`, {
-        headers: { cookie: cookie!.split(";")[0]! },
-      }),
-      env,
-    );
-    expect(read?.status).toBe(200);
-  });
-
-  it("requires a principal before accepting computation", async () => {
-    const { env } = harness();
-    const response = await routeManagedSimulationRequest(startRequest(), env, {
-      principalOf: async () => null,
-      now: () => 100,
-      uuid: () => "unused",
+    expect(started?.status).toBe(401);
+    expect(started?.headers.get("set-cookie")).toBeNull();
+    expect(await started!.json()).toEqual({
+      error: "simulation-authentication-required",
+      message: "Sign in to run simulations.",
     });
-    expect(response?.status).toBe(401);
   });
 
   it("exposes drain and state counts only to administrators", async () => {

@@ -17,6 +17,7 @@ import {
   validateResistorNoiseResult,
 } from "./preview-simulation-validation.mjs";
 import { object } from "./preview-simulation-validation-core.mjs";
+import { simulationSmokeHeaders } from "./simulation-smoke-headers.mjs";
 import {
   validateHostedSky130CornerResult,
   validateHostedSky130ExtendedDeviceResult,
@@ -32,7 +33,7 @@ export async function runHostedSky130Acceptance({
   const compiled = await compileHostedSky130Project();
   const response = await fetchImpl(new URL("/api/simulate", baseUrl), {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: simulationSmokeHeaders(),
     body: JSON.stringify({
       ...compiled.request,
       executorTarget: target,
@@ -71,7 +72,7 @@ export async function runHostedSky130CornerAcceptance({
 }) {
   const response = await fetchImpl(new URL("/api/simulate", baseUrl), {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: simulationSmokeHeaders(),
     body: JSON.stringify({
       ...hostedSky130CornerRequest(corner),
       executorTarget: target,
@@ -94,7 +95,7 @@ export async function runHostedSky130ExtendedDeviceAcceptance({
 }) {
   const response = await fetchImpl(new URL("/api/simulate", baseUrl), {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: simulationSmokeHeaders(),
     body: JSON.stringify({
       ...hostedSky130ExtendedDeviceRequest(corner),
       executorTarget: target,
@@ -117,7 +118,7 @@ export async function runHostedSky130TransientAcceptance({
   const compiled = await compileHostedSky130TransientProject();
   const response = await fetchImpl(new URL("/api/simulate", baseUrl), {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: simulationSmokeHeaders(),
     body: JSON.stringify({ ...compiled.request, executorTarget: target }),
     signal: AbortSignal.timeout(120_000),
   });
@@ -144,7 +145,7 @@ export async function runHostedSky130NoiseAcceptance({
   const compiled = await compileHostedSky130NoiseProject();
   const response = await fetchImpl(new URL("/api/simulate", baseUrl), {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: simulationSmokeHeaders(),
     body: JSON.stringify({ ...compiled.request, executorTarget: target }),
     signal: AbortSignal.timeout(120_000),
   });
@@ -169,7 +170,7 @@ export async function runPreviewResistorNoiseSmoke({
 }) {
   const response = await fetchImpl(new URL("/api/simulate", baseUrl), {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: simulationSmokeHeaders(),
     body: JSON.stringify({
       ...RESISTOR_NOISE_REQUEST,
       inputRevision: `preview-resistor-noise-${target}`,
@@ -192,7 +193,7 @@ export async function runPreviewTransientSmoke({
 }) {
   const response = await fetchImpl(new URL("/api/simulate", baseUrl), {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: simulationSmokeHeaders(),
     body: JSON.stringify({
       ...RC_TRAN_REQUEST,
       inputRevision: `preview-rc-tran-${target}`,
@@ -216,7 +217,7 @@ export async function runPreviewDcSmoke({
 }) {
   const response = await fetchImpl(new URL("/api/simulate", baseUrl), {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: simulationSmokeHeaders(),
     body: JSON.stringify({
       ...DIVIDER_DC_REQUEST,
       inputRevision: `preview-divider-dc-${target}`,
@@ -240,7 +241,7 @@ export async function runPreviewSimulationSmoke({
 }) {
   const response = await fetchImpl(new URL("/api/simulate", baseUrl), {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: simulationSmokeHeaders(),
     body: JSON.stringify({
       ...DIVIDER_REQUEST,
       inputRevision: `preview-smoke-${target}`,

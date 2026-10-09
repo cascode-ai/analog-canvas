@@ -92,7 +92,7 @@ it("says which actions go in which call when a list needs several (#1269)", () =
     ]),
   );
   expect(calls).toEqual([
-    { actionIndices: [0], actionKinds: ["add-power-rail"], sends: "command" },
+    { actionIndices: [0], actionKinds: ["add-power-rail"], sends: "commands" },
     {
       actionIndices: [1, 2, 3],
       actionKinds: ["place-component"],
@@ -105,7 +105,7 @@ it("says which actions go in which call when a list needs several (#1269)", () =
   expect(describeCallSplit(calls)).toBe(
     "These actions need 5 calls; one call sends one transaction. Send them " +
       "in this order, each group in its own call: actions[0] (add-power-rail) " +
-      "as a command of its own; actions[1..3] (place-component) as one " +
+      "as commands that share one call; actions[1..3] (place-component) as one " +
       "placement batch; actions[4..5] (set-model) as commands that share one " +
       "call; actions[6] (connect) as wires that share one call; actions[7] " +
       "(move) as commands that share one call. Nothing was changed.",
@@ -1236,7 +1236,7 @@ describe("authoring helper compilation", () => {
           targets: [{ kind: "instance", reference: "M9" }],
         },
       ],
-      'no instance matches Reference "M9"',
+      'no instance matches Reference or id "M9"',
     );
     for (const action of [
       {
@@ -1437,6 +1437,164 @@ describe("placing by pins and by symmetry (#1112)", () => {
         },
       ],
       "exactly one axis",
+    );
+  });
+});
+
+describe("parts named in the list that places them (#1515)", () => {
+  const place = (
+    symbol: string,
+    id: string | undefined,
+    x: number,
+    extra: Record<string, unknown> = {},
+  ) => ({
+    kind: "place-component",
+    symbol,
+    ...(id ? { id } : {}),
+    position: { x, y: 600 },
+    ...extra,
+  });
+  const pin = (instance: unknown, name: string) => ({
+    kind: "pin",
+    instance,
+    pin: name,
+  });
+  const byId = (id: string) => ({ kind: "instance", id });
+
+  it("wires a ground and each of two VDD markers by the IDs the list gave them", () => {
+    const transactions = compile([
+      place("nmos", "m-tail", 0, { reference: "M9" }),
+      place("ground", "gnd-tail", 0, { position: { x: 0, y: 800 } }),
+      place("vdd-port", "vdd-left", 200),
+      place("vdd-port", "vdd-right", 400),
+      { kind: "connect", from: pin("M9", "S"), to: pin(byId("gnd-tail"), "0") },
+      { kind: "connect", from: pin(byId("vdd-left"), "P"), to: pin("M9", "D") },
+      {
+        kind: "connect",
+        from: pin(byId("vdd-right"), "P"),
+        to: { kind: "point", x: 400, y: 700 },
+      },
+    ]);
+    expect(
+      (transactions[0]?.command as { instances: { id: string }[] }).instances,
+    ).toMatchObject([
+      { id: "m-tail", reference: "M9" },
+      { id: "gnd-tail", symbolId: "ground" },
+      { id: "vdd-left", reference: "VDD" },
+      { id: "vdd-right", reference: "VDD" },
+    ]);
+    const terminal = (instanceId: string, pinName: string) => ({
+      kind: "endpoint",
+      endpoint: { kind: "terminal", instanceId, pinName },
+    });
+    expect(transactions.slice(1).map((item) => item.wireIntent)).toMatchObject([
+      { from: terminal("m-tail", "S"), to: terminal("gnd-tail", "0") },
+      { from: terminal("vdd-left", "P"), to: terminal("m-tail", "D") },
+      { from: terminal("vdd-right", "P") },
+    ]);
+    // Placing and wiring are two calls; neither needs the Document read
+    // again to learn an ID.
+    expect(splitIntoCalls(transactions)).toEqual([
+      {
+        actionIndices: [0, 1, 2, 3],
+        actionKinds: ["place-component"],
+        sends: "placement batch",
+      },
+      { actionIndices: [4, 5, 6], actionKinds: ["connect"], sends: "wires" },
+    ]);
+  });
+
+  it("refuses a name several parts share, naming their IDs, never taking the first", () => {
+    expectCompileError(
+      [
+        place("vdd-port", "vdd-left", 200),
+        place("vdd-port", undefined, 400),
+        { kind: "connect", from: pin("VDD", "P"), to: pin("M1", "D") },
+      ],
+      '"VDD" names 2 parts (vdd-left, instance-alloc-',
+    );
+    // One VDD marker is its name's only part.
+    expect(
+      compile([
+        place("vdd-port", "vdd-only", 200),
+        { kind: "connect", from: pin("VDD", "P"), to: pin("M1", "D") },
+      ])[1]?.wireIntent?.from,
+    ).toMatchObject({ endpoint: { instanceId: "vdd-only" } });
+  });
+
+  it("names a Cell Pin of the Document by its Pin name, and refuses one a new marker shares", () => {
+    const snapshot = testSnapshot();
+    const resistor = snapshot.document.instances.find(
+      (instance) => instance.reference === "R1",
+    )!;
+    // As the Snapshot reports a VDD marker: no Reference, its Pin's name.
+    snapshot.document.instances.push({
+      ...structuredClone(resistor),
+      id: "vdd-drawn",
+      reference: null,
+      symbolId: "vdd-port",
+      cellTerminal: { id: "terminal-vdd", name: "VDD", direction: "inout" },
+      pins: [{ ...resistor.pins[0]!, name: "P" }],
+    });
+    expect(
+      compile([{ kind: "disconnect", target: pin("VDD", "P") }], snapshot)[0]
+        ?.command,
+    ).toMatchObject({ instanceId: "vdd-drawn" });
+    expectCompileError(
+      [
+        place("vdd-port", "vdd-new", 200),
+        { kind: "connect", from: pin("VDD", "P"), to: pin("M1", "D") },
+      ],
+      '"VDD" names 2 parts (vdd-drawn, vdd-new)',
+      snapshot,
+    );
+  });
+
+  it("refuses an ID an object already holds, in the Document or the list", () => {
+    expectCompileError(
+      [place("resistor", "instance-1", 0)],
+      'ID "instance-1" is already taken',
+    );
+    expectCompileError(
+      [place("resistor", "r-a", 0), place("resistor", "r-a", 200)],
+      'actions[1] (place-component): ID "r-a" is already taken',
+    );
+  });
+
+  it("mirrors a part placed earlier in the list, unless a pin anchor places it", () => {
+    const [placed] = compile([
+      place("nmos", "m-left", 300, { reference: "M5" }),
+      {
+        kind: "place-component",
+        symbol: "nmos",
+        reference: "M6",
+        mirrorOf: { instance: "m-left", x: 400 },
+      },
+    ]);
+    expect(
+      (placed?.command as { instances: { placement: unknown }[] }).instances[1]
+        ?.placement,
+    ).toEqual({
+      position: { x: 500, y: 600 },
+      rotation: 0,
+      mirror: "horizontal",
+    });
+    expectCompileError(
+      [
+        {
+          kind: "place-component",
+          symbol: "nmos",
+          reference: "M5",
+          pinAnchor: { pinName: "G", position: { x: 300, y: 600 } },
+        },
+        {
+          kind: "place-component",
+          symbol: "nmos",
+          reference: "M6",
+          mirrorOf: { instance: "M5", x: 400 },
+        },
+      ],
+      "M5 lands by its pin anchor in this list; mirror it in a later call",
     );
   });
 });

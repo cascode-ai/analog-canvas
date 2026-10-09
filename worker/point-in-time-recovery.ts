@@ -11,7 +11,7 @@ import { sameOrigin } from "./same-origin";
  */
 
 /** The path a store object answers recovery on; the public cannot reach it. */
-export const RECOVERY_PATH = "/internal/point-in-time-recovery";
+const RECOVERY_PATH = "/internal/point-in-time-recovery";
 
 /** The calls recovery needs. Production objects have them; tests may not. */
 export type RecoverableState = {
@@ -30,7 +30,7 @@ export type RecoverableState = {
  * restore and returns its undo bookmark, `POST {restart: true}` restarts the
  * object so the armed restore applies.
  */
-export async function answerPointInTimeRecovery(
+async function answerPointInTimeRecovery(
   request: Request,
   state: RecoverableState,
 ): Promise<Response | null> {

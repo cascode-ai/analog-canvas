@@ -431,7 +431,115 @@ test("Code edits native AC fields and routes parameter declarations to authored 
   ).toEqual({ version: 2, environment: { profileId: profile.id } });
 });
 
-test("new experiments explicitly bind the selected Cell without requiring a Testbench", async ({
+test("a new experiment takes the environment the Agent would, and asks only when none fits (#1489)", async ({
+  page,
+}) => {
+  const project = parseProject(JSON.stringify(ota));
+  project.simulationFolders = [];
+  // The SIN testbench also holds the SKY130 varactor, which no environment
+  // qualifies; the plain testbench uses only qualified 1.8 V devices.
+  project.documents
+    .find((cell) => cell.id === "document-ota-5t-testbench-sin")!
+    .instances.push({
+      id: "varactor",
+      reference: "C9",
+      symbolId: "capacitor",
+      placement: null,
+      netlist: {
+        binding: {
+          kind: "model",
+          deviceClass: "capacitor",
+          name: "sky130_fd_pr__cap_var_lvt",
+        },
+        parameters: {},
+      },
+    });
+  await page.route("**/api/simulate", (route) =>
+    route.fulfill({
+      json: {
+        configured: true,
+        rawfileCollection: "declared-single-ascii",
+        inputs: ["source", "raw"],
+        analyses: ["op"],
+        parsedAnalyses: ["op"],
+        profiles: [
+          {
+            id: profile.id,
+            label: "SKY130 · ngspice 46",
+            engine: "ngspice",
+            corners: ["tt"],
+            devices: profile.qualifiedScope.devices,
+          },
+          { id: "vacask-sky130-candidate", engine: "vacask", corners: [] },
+        ],
+        maxTimeoutMs: 120000,
+        maxInputBytes: 1048576,
+        cancel: true,
+      },
+    }),
+  );
+  await page.goto("/editor");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "environments.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(serializeProject(project)),
+  });
+  await page.getByTestId("open-analog-simulation").click();
+  await page
+    .getByRole("button", { name: "Set up manually", exact: true })
+    .click();
+  const name = page.getByLabel("New simulation folder name");
+  const cell = page.getByRole("combobox", {
+    name: "Simulation Cell",
+    exact: true,
+  });
+  const environment = page.getByLabel("Simulation environment", {
+    exact: true,
+  });
+  // One environment fits the testbench: shown, not asked for.
+  await expect(cell).toHaveValue(project.topDocumentId);
+  await expect(environment).toHaveText("SKY130 · ngspice 46 (automatic)");
+  await expect(
+    page.getByText("Same as the Agent's simulation_folder create"),
+  ).toBeVisible();
+  // Change offers the list, the automatic one selected.
+  await page
+    .getByRole("button", { name: "Change environment", exact: true })
+    .click();
+  await expect(environment).toHaveValue(profile.id);
+  await name.press("Escape");
+  // None fits the SIN testbench: the form asks, as the Agent's create refuses.
+  await page
+    .getByRole("button", { name: "Set up manually", exact: true })
+    .click();
+  await name.fill("SIN check");
+  await cell.selectOption("document-ota-5t-testbench-sin");
+  await expect(environment).toHaveValue("");
+  await page.getByRole("button", { name: "Create", exact: true }).click();
+  // With the reason the Agent's create gives.
+  await expect(
+    page.getByRole("status").filter({
+      hasText:
+        "Choose an environment. No Profile qualifies sky130_fd_pr__cap_var_lvt.",
+    }),
+  ).toBeVisible();
+  await environment.selectOption("vacask-sky130-candidate");
+  await page.getByRole("button", { name: "Create", exact: true }).click();
+  await expect(
+    page.getByRole("treeitem", { name: "Folder SIN check", exact: true }),
+  ).toBeVisible();
+  const saved = parseProject(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(),
+  );
+  expect(
+    readSimulationExperimentConfig(saved.simulationFolders[0]!),
+  ).toMatchObject({
+    ok: true,
+    config: { environment: { profileId: "vacask-sky130-candidate" } },
+  });
+});
+
+test("a new experiment wraps a Cell with pins in a testbench shell and runs a drawn testbench as it is (#1489)", async ({
   page,
 }) => {
   const project = parseProject(JSON.stringify(ota));
@@ -459,6 +567,9 @@ test("new experiments explicitly bind the selected Cell without requiring a Test
     exact: true,
   });
   await expect(cell).toHaveValue(project.topDocumentId);
+  // The Testbench Cell draws its sources and no pins: it is the testbench.
+  const testbench = page.getByLabel("Simulation testbench", { exact: true });
+  await expect(testbench).toHaveText("this Cell, which draws no pins");
   const setupCard = page.locator(
     ".simulation-start-workspace > .workspace-inline-name",
   );
@@ -496,6 +607,8 @@ test("new experiments explicitly bind the selected Cell without requiring a Test
     .click();
   await name.fill("OTA direct");
   await cell.selectOption(dut.id);
+  // ota_5t draws pins: a testbench.spice shell calls it, as the Agent's create.
+  await expect(testbench).toHaveText("testbench.spice calls this Cell");
   // Moving between fields must not prematurely create the folder.
   await expect(name).toBeVisible();
   await page.getByRole("button", { name: "Create", exact: true }).click();
@@ -513,6 +626,7 @@ test("new experiments explicitly bind the selected Cell without requiring a Test
     name: "Simulation source editor",
   });
   await expect(editor).toContainText('include "circuit.spice"');
+  await expect(editor).toContainText('include "testbench.spice"');
   await expect(editor).toContainText("op");
   await expect(
     page.getByRole("treeitem", { name: "experiment.json", exact: true }),
@@ -534,13 +648,17 @@ test("new experiments explicitly bind the selected Cell without requiring a Test
       id: "circuit",
       path: "circuit.spice",
       documentId: dut.id,
-      emission: "top-level",
+      emission: "subcircuit",
     },
   ]);
   expect(folder.input.files.map((file) => file.path)).toEqual([
+    "testbench.spice",
     "run.cir",
     "experiment.json",
   ]);
+  expect(
+    folder.input.files.find((file) => file.path === "testbench.spice")!.text,
+  ).toMatch(/^XDUT .*\bota_5t\b/mu);
   expect(saved.topDocumentId).toBe(project.topDocumentId);
   expect(saved.documents).toEqual(
     parseProject(serializeProject(project)).documents,
@@ -1134,6 +1252,7 @@ test("human simulation uses saved folder, survives minimizing, recovers a bad in
             {
               id: profile.id,
               corners: ["tt"],
+              devices: profile.qualifiedScope.devices,
               dependencies: [
                 { id: profile.models.id, sha256: profile.models.contentSha256 },
               ],
@@ -1906,6 +2025,7 @@ test("folder activation exposes the run target independently of expansion and se
             {
               id: profile.id,
               corners: ["tt"],
+              devices: profile.qualifiedScope.devices,
               dependencies: [
                 { id: profile.models.id, sha256: profile.models.contentSha256 },
               ],

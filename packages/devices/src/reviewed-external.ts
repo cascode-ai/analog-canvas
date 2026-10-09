@@ -122,6 +122,42 @@ export interface ReviewedExternalDeviceBinding {
    * high-voltage ones nest it or name it otherwise.
    */
   readonly nativeElement?: string;
+  /**
+   * The only sizes the process library models, for a device it models at a
+   * few sizes rather than over a range (SKY130's 16 V pair). ngspice picks a
+   * model by the W and L the X line gives (by total W, as the hosted profile
+   * runs it; a PDK spinit with `ngbehavior=hsa` takes W per finger) and stops
+   * with "could not find a valid modelname" at any other size (#1483).
+   */
+  readonly modelledSizes?: ReviewedModelledSizes;
+  /**
+   * The L range and the narrowest W per finger, in metres, a device modelled
+   * over a range runs at on Production's simulator. Outside them ngspice 46
+   * stops at the device's line, with "could not find a valid modelname" or a
+   * BSIM4 parameter fatal (#1474, #1492).
+   */
+  readonly sizeLimits?: {
+    readonly length: readonly [shortest: number, longest: number];
+    readonly widthPerFinger: number;
+  };
+  /**
+   * Parameters the X line always gives this device, ahead of the part's own
+   * and in this order: a channel the device has only one of (#1486).
+   */
+  readonly fixedParameters?: readonly {
+    readonly name: string;
+    readonly value: string;
+  }[];
+}
+
+/** A device's model bins, in metres as its library gives them. */
+export interface ReviewedModelledSizes {
+  readonly bins: readonly {
+    readonly length: readonly [min: number, max: number];
+    readonly width: readonly [min: number, max: number];
+  }[];
+  /** The bins for people, as a finding names them. */
+  readonly description: string;
 }
 
 const geometry = (
@@ -206,6 +242,240 @@ export function projectLengthToSky130Micrometres(value: string): string {
   return `${Number((parseSpiceNumber(value) / 1e-6).toPrecision(12))}`;
 }
 
+/** Which of a device's sizes: its W or its L. */
+export type ReviewedSizeRole = "width" | "length";
+
+const sizeParameter = (
+  binding: ReviewedExternalDeviceBinding,
+  role: ReviewedSizeRole,
+) => binding.parameters.find((parameter) => parameter.displayRole === role);
+
+/** A part's parameter of this name in any case, as the part spells it. */
+const partEntry = (
+  parameters: Readonly<Record<string, string>>,
+  name: string,
+): [name: string, value: string] | undefined =>
+  Object.entries(parameters).find(
+    ([key]) => key.toLowerCase() === name.toLowerCase(),
+  );
+
+/**
+ * The reviewed device an external definition calls, unless the Project gives
+ * the definition its own artwork or body.
+ */
+export function reviewedBindingOfDefinition(definition: {
+  readonly name: string;
+  readonly terminals: readonly { readonly name: string }[];
+  readonly presentation?: unknown;
+  readonly implementation?: unknown;
+}): ReviewedExternalDeviceBinding | undefined {
+  if (definition.presentation || definition.implementation) return undefined;
+  return resolveReviewedExternalBinding(
+    definition.name,
+    definition.terminals.map((terminal) => terminal.name),
+  );
+}
+
+/** One of a part's sizes, as a reviewed device takes it. */
+export interface ReviewedSize {
+  /** The part's value, or the device's default when the part has none. */
+  readonly text: string;
+  /** In metres; undefined when an expression or unreadable text gives it. */
+  readonly metres?: number;
+}
+
+/**
+ * The W and L a part's parameters give a reviewed device. A missing one is
+ * the device's default, as its wrapper takes it; undefined when the device
+ * has no such size.
+ */
+export function reviewedSize(
+  binding: ReviewedExternalDeviceBinding,
+  parameters: Readonly<Record<string, string>>,
+): {
+  readonly width: ReviewedSize | undefined;
+  readonly length: ReviewedSize | undefined;
+} {
+  const read = (role: ReviewedSizeRole): ReviewedSize | undefined => {
+    const parameter = sizeParameter(binding, role);
+    const text =
+      parameter &&
+      (partEntry(parameters, parameter.name)?.[1] ?? parameter.defaultValue);
+    if (text === undefined) return undefined;
+    if (parameterExpressionBody(text) !== undefined) return { text };
+    try {
+      return { text, metres: parseSpiceNumber(text) };
+    } catch {
+      return { text };
+    }
+  };
+  return { width: read("width"), length: read("length") };
+}
+
+/**
+ * Whether a device's library has a model at the W and L a part's parameters
+ * give it. Undefined when that cannot be said: the device declares no
+ * modelled sizes, or an expression leaves it open.
+ */
+export function reviewedSizeModelled(
+  binding: ReviewedExternalDeviceBinding,
+  parameters: Readonly<Record<string, string>>,
+): boolean | undefined {
+  const sizes = binding.modelledSizes;
+  if (!sizes) return undefined;
+  const size = reviewedSize(binding, parameters);
+  const width = size.width?.metres;
+  const length = size.length?.metres;
+  // ngspice 46 (inpgmod.c) takes a value inside a bin or within 1e-9 m of
+  // either edge. An unknown value fits any bin.
+  const inside = (
+    value: number | undefined,
+    [low, high]: readonly [number, number],
+  ) =>
+    value === undefined ||
+    Math.abs(value - low) < 1e-9 ||
+    Math.abs(value - high) < 1e-9 ||
+    (low < value && value < high);
+  if (
+    !sizes.bins.some(
+      (bin) => inside(length, bin.length) && inside(width, bin.width),
+    )
+  )
+    return false;
+  return width === undefined || length === undefined ? undefined : true;
+}
+
+/**
+ * What gives a part a size its device has a model for, when its own is none.
+ * One of its W and L, the first that is enough, becomes the device's own
+ * value; both do when neither alone is enough. W goes before L, and a size in
+ * `kept` (one an edit just set) after the other. An expression never changes.
+ * Written under the part's own parameter names. Empty when the part's size is
+ * modelled or open.
+ */
+export function reviewedModelledSizeChanges(
+  binding: ReviewedExternalDeviceBinding,
+  parameters: Readonly<Record<string, string>>,
+  kept: readonly ReviewedSizeRole[] = [],
+): Record<string, string> {
+  if (reviewedSizeModelled(binding, parameters) !== false) return {};
+  const size = reviewedSize(binding, parameters);
+  const change = (role: ReviewedSizeRole): [string, string] | [] => {
+    const parameter = sizeParameter(binding, role);
+    if (
+      parameter?.defaultValue === undefined ||
+      size[role]?.metres === undefined
+    )
+      return [];
+    const name = partEntry(parameters, parameter.name)?.[0] ?? parameter.name;
+    return [name, parameter.defaultValue];
+  };
+  const roles = (["width", "length"] as const).toSorted(
+    (left, right) => Number(kept.includes(left)) - Number(kept.includes(right)),
+  );
+  const candidates = [
+    ...roles.map((role) => [change(role)]),
+    roles.map(change),
+  ].map((entries) =>
+    Object.fromEntries(entries.filter((entry) => entry.length === 2)),
+  );
+  const fits = (changes: Record<string, string>) =>
+    Object.keys(changes).length > 0 &&
+    reviewedSizeModelled(binding, { ...parameters, ...changes }) !== false;
+  return candidates.find(fits) ?? candidates.at(-1)!;
+}
+
+/**
+ * A micrometre-geometry size past this (1 mm) is almost always a unit slip,
+ * such as SKY130's 0.15 kept without its unit and read as 0.15 m (#1474).
+ */
+const REVIEWED_SIZE_SLIP_LIMIT = 1e-3;
+
+/** One of a part's sizes that its device cannot have (#1474). */
+export interface ReviewedSizeOutOfRange {
+  readonly role: ReviewedSizeRole;
+  /** The part's parameter, as it spells the name, or the device's. */
+  readonly parameter: string;
+  /** The part's value, or the device's default when the part has none. */
+  readonly text: string;
+  /** The whole size in metres: L, or W over all fingers. */
+  readonly metres: number;
+  /** The fingers W is shared among; 1 for L and for a device without them. */
+  readonly fingers: number;
+  /**
+   * `minimum` or `maximum`: outside the device's
+   * {@link ReviewedExternalDeviceBinding.sizeLimits}. `slip`: over
+   * {@link REVIEWED_SIZE_SLIP_LIMIT}, on a device whose library takes
+   * micrometres.
+   */
+  readonly bound: "minimum" | "maximum" | "slip";
+  /** The bound in metres, for L or for W per finger. */
+  readonly limit: number;
+}
+
+/**
+ * The W and L of a part a reviewed device cannot have: an L, or a W per
+ * finger, below the device's limits, an L above them, or either past 1 mm
+ * where the library takes micrometres. W is compared per finger, as the PDK sizes a finger. A
+ * size or finger count given by an expression is not checked, nor a device
+ * modelled only at a few sizes, which REVIEWED_SIZE_UNMODELLED covers.
+ */
+export function reviewedSizeOutOfRange(
+  binding: ReviewedExternalDeviceBinding,
+  parameters: Readonly<Record<string, string>>,
+): readonly ReviewedSizeOutOfRange[] {
+  if (binding.modelledSizes) return [];
+  const size = reviewedSize(binding, parameters);
+  const fingerParameter = binding.parameters.find(
+    (parameter) => parameter.displayRole === "finger-count",
+  );
+  const fingers = (() => {
+    if (!fingerParameter) return 1;
+    const text =
+      partEntry(parameters, fingerParameter.name)?.[1] ??
+      fingerParameter.defaultValue;
+    try {
+      const count = text === undefined ? 1 : parseSpiceNumber(text);
+      return count > 0 ? count : undefined;
+    } catch {
+      return undefined;
+    }
+  })();
+  const found: ReviewedSizeOutOfRange[] = [];
+  for (const role of ["width", "length"] as const) {
+    const parameter = sizeParameter(binding, role);
+    const metres = size[role]?.metres;
+    const shared = role === "width" ? fingers : 1;
+    if (!parameter || metres === undefined || shared === undefined) continue;
+    const each = metres / shared;
+    const limits = binding.sizeLimits;
+    const minimum =
+      role === "width" ? limits?.widthPerFinger : limits?.length[0];
+    const maximum = role === "length" ? limits?.length[1] : undefined;
+    // A relative margin keeps 0.84u over 2 fingers at 0.42 µm. A unit slip
+    // is named as one before it is a size too long.
+    const bound =
+      minimum !== undefined && each < minimum * (1 - 1e-9)
+        ? ({ bound: "minimum", limit: minimum } as const)
+        : parameter.targetUnit === "micrometre" &&
+            each > REVIEWED_SIZE_SLIP_LIMIT
+          ? ({ bound: "slip", limit: REVIEWED_SIZE_SLIP_LIMIT } as const)
+          : maximum !== undefined && each > maximum * (1 + 1e-9)
+            ? ({ bound: "maximum", limit: maximum } as const)
+            : undefined;
+    if (bound)
+      found.push({
+        role,
+        parameter: partEntry(parameters, parameter.name)?.[0] ?? parameter.name,
+        text: size[role]!.text,
+        metres,
+        fingers: shared,
+        ...bound,
+      });
+  }
+  return found;
+}
+
 const mosTerminals = (): readonly ReviewedExternalTerminalBinding[] =>
   ["D", "G", "S", "B"].map((name) => ({
     targetName: name,
@@ -219,7 +489,10 @@ const sky130MosBinding = (
   symbolId: "nmos" | "pmos" | "ndmos" | "pdmos",
   width: string,
   length: string,
-  nativeElement?: string,
+  sizes: Pick<
+    ReviewedExternalDeviceBinding,
+    "nativeElement" | "modelledSizes" | "sizeLimits"
+  >,
 ): ReviewedExternalDeviceBinding => ({
   id,
   libraryId: "sky130_fd_pr",
@@ -234,18 +507,61 @@ const sky130MosBinding = (
     count("nf", "NF", "Finger count", 2),
     count("m", "M", "ngspice X-line parallel multiplier", 3),
   ],
-  ...(nativeElement ? { nativeElement } : {}),
+  ...sizes,
 });
 
 /**
- * The 20 V drain-extended wrappers fix their channel inside (the N devices
- * about 29.4 um by 2.95 um, the P device 30 um by 0.5 um) and ignore the W and
- * L they are called with, so only the parallel count is offered.
+ * The bins of SKY130's 16 V models (sky130_fd_pr__nfet_g5v0d16v0.pm3.spice
+ * and sky130_fd_pr__pfet_g5v0d16v0.pm3.spice, open_pdks c6d73a35).
+ */
+const SKY130_NFET_16V_SIZES: ReviewedModelledSizes = {
+  bins: [
+    { length: [6.95e-7, 7.05e-7], width: [1.9995e-5, 2.00005e-5] },
+    { length: [6.95e-7, 7.05e-7], width: [4.995e-6, 5.0005e-6] },
+    { length: [6.95e-7, 7.05e-7], width: [4.995e-5, 6.0005e-5] },
+    { length: [2.195e-6, 2.25e-6], width: [1.9995e-5, 2.0005e-5] },
+    { length: [2.195e-6, 2.25e-6], width: [4.995e-6, 5.005e-6] },
+  ],
+  description: "W 5, 20 or 50–60 µm at L 0.7 µm, or W 5 or 20 µm at L 2.2 µm",
+};
+const SKY130_PFET_16V_SIZES: ReviewedModelledSizes = {
+  bins: [
+    { length: [6.55e-7, 6.65e-7], width: [4.99e-6, 5.01e-5] },
+    { length: [2.15e-6, 2.17e-6], width: [4.99e-6, 5.01e-5] },
+  ],
+  description: "W 5–50 µm at L 0.66 or 2.16 µm",
+};
+
+/**
+ * The sizes a SKY130 MOS device modelled over a range runs at on Production,
+ * whose simulator loads the continuous SKY130 library: measured there by
+ * bisection, one device at a time (signed-in POST /api/simulate, 2026-10-08,
+ * #1492). The shortest L is the nominal one (each stops 1–2 nm below it).
+ * Every device stops below W 0.42 µm per finger. The longest L is the last one
+ * that ran: 20.2 µm (20.21 stops) for all but the NVT pair, nfet_03v3_nvt
+ * 0.909 µm (0.9095 stops) and nfet_05v0_nvt 24.99 µm (25 stops on a BSIM4
+ * parameter fatal). W showed no ceiling up to 500 µm. volare's binned models
+ * differ: they run L to 100 µm, nfet_01v8 and pfet_01v8_hvt down to W
+ * 0.36 µm, and the NVT pair at a few points only.
+ */
+const sky130Limits = (
+  shortest: number,
+  longest: number,
+  widthPerFinger = 4.2e-7,
+) => ({ sizeLimits: { length: [shortest, longest] as const, widthPerFinger } });
+
+/**
+ * The 20 V drain-extended wrappers have one channel each, so only the
+ * parallel count is offered. volare's wrappers fix it inside and ignore the W
+ * and L they are called with; the hosted continuous library's take them, and
+ * stop at their own defaults (#1486). So the X line always gives the channel
+ * the volare wrapper fixes, in plain micrometres.
  */
 const sky130FixedMosBinding = (
   id: ReviewedExternalBindingId,
   masterName: string,
   symbolId: "ndmos" | "pdmos",
+  channel: { readonly length: string; readonly width: string },
 ): ReviewedExternalDeviceBinding => ({
   id,
   libraryId: "sky130_fd_pr",
@@ -255,6 +571,10 @@ const sky130FixedMosBinding = (
   deviceClass: "mos",
   terminals: mosTerminals(),
   parameters: [count("m", "M", "ngspice X-line parallel multiplier", 0)],
+  fixedParameters: [
+    { name: "l", value: channel.length },
+    { name: "w", value: channel.width },
+  ],
   nativeElement: "m1",
 });
 
@@ -564,6 +884,7 @@ export const reviewedExternalDeviceBindings: readonly ReviewedExternalDeviceBind
       "nmos",
       "1u",
       "150n",
+      sky130Limits(1.5e-7, 2.02e-5),
     ),
     sky130MosBinding(
       "sky130-pfet-01v8",
@@ -571,6 +892,7 @@ export const reviewedExternalDeviceBindings: readonly ReviewedExternalDeviceBind
       "pmos",
       "1u",
       "150n",
+      sky130Limits(1.5e-7, 2.02e-5),
     ),
     sky130MosBinding(
       "sky130-nfet-01v8-lvt",
@@ -578,6 +900,7 @@ export const reviewedExternalDeviceBindings: readonly ReviewedExternalDeviceBind
       "nmos",
       "1.65u",
       "150n",
+      sky130Limits(1.5e-7, 2.02e-5),
     ),
     sky130MosBinding(
       "sky130-pfet-01v8-lvt",
@@ -585,6 +908,7 @@ export const reviewedExternalDeviceBindings: readonly ReviewedExternalDeviceBind
       "pmos",
       "3u",
       "350n",
+      sky130Limits(3.5e-7, 2.02e-5),
     ),
     sky130MosBinding(
       "sky130-nfet-03v3-nvt",
@@ -592,6 +916,7 @@ export const reviewedExternalDeviceBindings: readonly ReviewedExternalDeviceBind
       "nmos",
       "1u",
       "500n",
+      sky130Limits(5e-7, 9.09e-7),
     ),
     sky130MosBinding(
       "sky130-nfet-05v0-nvt",
@@ -599,6 +924,7 @@ export const reviewedExternalDeviceBindings: readonly ReviewedExternalDeviceBind
       "nmos",
       "1u",
       "900n",
+      sky130Limits(9e-7, 2.499e-5),
     ),
     sky130MosBinding(
       "sky130-nfet-g5v0d10v5",
@@ -606,16 +932,20 @@ export const reviewedExternalDeviceBindings: readonly ReviewedExternalDeviceBind
       "nmos",
       "10u",
       "500n",
+      sky130Limits(5e-7, 2.02e-5),
     ),
     // Drain-extended devices are drawn with the DMOS symbols. The 16 V pair
-    // keeps binned geometry: N at L 0.7 or 2.2 um, P at L 0.66 or 2.16 um.
+    // is modelled only at a few sizes, its defaults among them.
     sky130MosBinding(
       "sky130-nfet-g5v0d16v0",
       "sky130_fd_pr__nfet_g5v0d16v0",
       "ndmos",
       "5u",
       "700n",
-      "xmain1.msky130_fd_pr__nfet_g5v0d16v0__base",
+      {
+        nativeElement: "xmain1.msky130_fd_pr__nfet_g5v0d16v0__base",
+        modelledSizes: SKY130_NFET_16V_SIZES,
+      },
     ),
     sky130MosBinding(
       "sky130-pfet-g5v0d16v0",
@@ -623,27 +953,36 @@ export const reviewedExternalDeviceBindings: readonly ReviewedExternalDeviceBind
       "pdmos",
       "5u",
       "660n",
-      "xmain1.msky130_fd_pr__pfet_g5v0d16v0__base",
+      {
+        nativeElement: "xmain1.msky130_fd_pr__pfet_g5v0d16v0__base",
+        modelledSizes: SKY130_PFET_16V_SIZES,
+      },
     ),
+    // Each 20 V wrapper's own channel (w_*/hvnel_*/l_* in its volare
+    // subcircuit file), in micrometres.
     sky130FixedMosBinding(
       "sky130-nfet-20v0",
       "sky130_fd_pr__nfet_20v0",
       "ndmos",
+      { length: "2.95", width: "29.41" },
     ),
     sky130FixedMosBinding(
       "sky130-nfet-20v0-nvt",
       "sky130_fd_pr__nfet_20v0_nvt",
       "ndmos",
+      { length: "1.5", width: "30" },
     ),
     sky130FixedMosBinding(
       "sky130-nfet-20v0-zvt",
       "sky130_fd_pr__nfet_20v0_zvt",
       "ndmos",
+      { length: "5", width: "30" },
     ),
     sky130FixedMosBinding(
       "sky130-pfet-20v0",
       "sky130_fd_pr__pfet_20v0",
       "pdmos",
+      { length: "0.5", width: "30" },
     ),
     sky130MosBinding(
       "sky130-pfet-01v8-hvt",
@@ -651,6 +990,7 @@ export const reviewedExternalDeviceBindings: readonly ReviewedExternalDeviceBind
       "pmos",
       "1u",
       "150n",
+      sky130Limits(1.5e-7, 2.02e-5),
     ),
     sky130MosBinding(
       "sky130-pfet-g5v0d10v5",
@@ -658,6 +998,7 @@ export const reviewedExternalDeviceBindings: readonly ReviewedExternalDeviceBind
       "pmos",
       "20u",
       "500n",
+      sky130Limits(5e-7, 2.02e-5),
     ),
     sky130ResistorBinding("sky130-res-high-po", "sky130_fd_pr__res_high_po"),
     sky130ResistorBinding("sky130-res-xhigh-po", "sky130_fd_pr__res_xhigh_po"),

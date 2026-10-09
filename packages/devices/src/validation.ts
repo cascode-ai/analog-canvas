@@ -257,6 +257,7 @@ export function validateDeviceDescriptors(
   return issues;
 }
 
+/** @internal The parity test holds the registry to the Symbols. */
 export function validateDeviceRegistry(
   registry: DeviceRegistry,
   symbols: readonly DeviceSymbolContract[],

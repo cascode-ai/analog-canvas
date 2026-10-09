@@ -21,6 +21,7 @@ import {
   outwardDefaultInstanceLabelPlacement,
   placeUprightInstanceLabel,
   previousPortLabelPlacement,
+  shallowPortLabelPlacement,
 } from "./instance-label-placement.js";
 import type { InstanceLabelSlot } from "./instance-label-placement.js";
 import { resolveSchematicStyleProfile } from "./style-profile.js";
@@ -242,12 +243,30 @@ describe("instance label placement", () => {
         position: { x: 100, y: 81 },
         alignment: "middle",
       });
+      // Below, 0.9 em under the gap leaves room for capitals and an
+      // overbar; at 0.7 em they touched the circle (#1529).
       expect(placedDefaultLabel(symbolId, 270)).toEqual({
-        position: { x: 100, y: 125 },
+        position: { x: 100, y: 128 },
         alignment: "middle",
       });
-      // The rule before stays recognisable, a whole step away.
       const resolved = resolver.resolve(symbolId)!;
+      expect(
+        shallowPortLabelPlacement(
+          {
+            id: "P1",
+            symbolId,
+            placement: {
+              position: { x: 100, y: 100 },
+              rotation: 270,
+              mirror: "none",
+            },
+          },
+          resolved,
+          profile,
+          10,
+        ),
+      ).toEqual({ position: { x: 100, y: 125 }, alignment: "middle" });
+      // The rule before stays recognisable, a whole step away.
       for (const [rotation, y] of [
         [90, 76],
         [270, 130],

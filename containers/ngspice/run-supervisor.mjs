@@ -35,7 +35,7 @@ export function resolveRunTimeout(
 }
 
 /** Kill the detached simulator session, falling back to its direct PID. */
-export function terminateProcessGroup(child, signal = "SIGKILL") {
+function terminateProcessGroup(child, signal = "SIGKILL") {
   if (!child || typeof child.pid !== "number") return;
   try {
     process.kill(-child.pid, signal);

@@ -1,6 +1,10 @@
 import { agentToolHelp } from "./guidance.generated.js";
 import { z } from "zod";
-import { createSimulationStarter, newFolderProfile } from "@icm/netlist";
+import {
+  createSimulationStarter,
+  newFolderCellRole,
+  newFolderProfile,
+} from "@icm/netlist";
 import { parseProject } from "@icm/project-protocol";
 import { AGENT_API_VERSION } from "@icm/agent-adapter";
 import { lazyContract } from "./input-contract.js";
@@ -399,7 +403,13 @@ export const simulationAuthoringTools: readonly Entry[] = [
           return failure("SIMULATION_PROFILE_UNAVAILABLE", ENGINE_REQUIRED);
         chosen = { profileId: profile.id, engine: profile.engine };
         const profileId = profile.id;
-        if (cell) {
+        // A Cell with pins is the DUT of a testbench.spice shell; one without
+        // is the testbench, run as the deck's top (#1489). dut wraps either.
+        if (
+          cell &&
+          (parsed.dut ||
+            newFolderCellRole(cell.project, cell.documentId) === "dut")
+        ) {
           const starter = createSimulationStarter(cell.project, {
             id: parsed.folderId ?? crypto.randomUUID(),
             name: parsed.name,

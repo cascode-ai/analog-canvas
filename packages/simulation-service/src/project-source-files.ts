@@ -52,7 +52,7 @@ type OwnedOperation = Extract<
   { action: "list" | "read" | "update" }
 >;
 
-export function listProjectSource(
+function listProjectSource(
   snapshot: ProjectSourceSnapshot,
 ): SimulationFileResult {
   const { folder, structureRevision } = snapshot;

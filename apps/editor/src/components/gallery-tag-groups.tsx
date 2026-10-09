@@ -109,7 +109,9 @@ export function GalleryTagGroups({
                 <span className="gallery-tag-check" aria-hidden="true">
                   {allSelected ? "✓" : selectedCount ? "−" : ""}
                 </span>
-                <span className="gallery-tag-group-name">{name}</span>
+                <span className="gallery-tag-group-name" title={name}>
+                  {name}
+                </span>
                 <span className="gallery-sidebar-count" aria-hidden="true">
                   {countsLoading ? "…" : circuitCount}
                 </span>
@@ -149,7 +151,10 @@ export function GalleryTagGroups({
                   <span className="gallery-tag-check" aria-hidden="true">
                     {selected.includes(tag) ? "✓" : ""}
                   </span>
-                  <span className="gallery-tag-name">
+                  <span
+                    className="gallery-tag-name"
+                    title={galleryTagLabel(tag)}
+                  >
                     {galleryTagLabel(tag)}
                   </span>
                   <span className="gallery-sidebar-count">

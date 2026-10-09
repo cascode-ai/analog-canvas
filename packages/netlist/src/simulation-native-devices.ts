@@ -158,7 +158,7 @@ export function nativeSimulationDevices(
   return result;
 }
 
-export const NATIVE_MOS_OP_PARAMETERS = [
+const NATIVE_MOS_OP_PARAMETERS = [
   "id",
   "vgs",
   "vds",
@@ -185,16 +185,6 @@ export function nativeDeviceOpAcquisitions(device: NativeSimulationDevice) {
           semantics: "model-native" as const,
         }))
       : [],
-  );
-}
-
-/** Native save selectors for source generators; raw result keys are available
- * separately from nativeDeviceOpAcquisitions, never reconstructed from text. */
-export function nativeDeviceOpVectors(
-  device: NativeSimulationDevice,
-): string[] {
-  return nativeDeviceOpAcquisitions(device).map(
-    (acquisition) => acquisition.save,
   );
 }
 

@@ -69,7 +69,7 @@ export function annotationDragPosition(
 }
 
 /** How far from its own wire a dropped Net Label still stands on it. */
-export const NET_LABEL_KEEP_ON_WIRE = 20;
+const NET_LABEL_KEEP_ON_WIRE = 20;
 
 /**
  * Where on its own Route a Net Label dropped at `position` stands: the

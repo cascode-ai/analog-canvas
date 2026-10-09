@@ -11,6 +11,15 @@ import {
   SUPPLY_HIGH_LEVEL,
   type IdealComparatorBody,
 } from "./ideal-comparator.js";
+import {
+  OPAMP_HIGH_LIMIT,
+  OPAMP_LIMIT_SUPPLIES,
+  OPAMP_LOW_LIMIT,
+  OPAMP_TARGET,
+  UNPOWERED_OPAMP_LIMITS,
+  idealOpampBodyReads,
+  type IdealOpampBody,
+} from "./ideal-opamp.js";
 import { builtInSubcircuitDescriptors } from "./registry.js";
 
 export type ModelBackend = "spice" | "spectre" | "vacask";
@@ -19,7 +28,6 @@ export type BuiltInModelRecipe =
   | {
       readonly family: "linear";
       readonly implementation:
-        | "opamp"
         | "opamp_differential"
         | "voltage_amplifier"
         | "transconductance"
@@ -43,7 +51,8 @@ export type BuiltInModelRecipe =
       readonly family: "signal";
       readonly implementation: "multiplier" | "quantizer";
     }
-  | { readonly family: "comparator"; readonly implementation: "comparator" };
+  | { readonly family: "comparator"; readonly implementation: "comparator" }
+  | { readonly family: "opamp"; readonly implementation: "opamp" };
 
 export type BuiltInModelContract = BuiltInModelRecipe & {
   readonly target: string;
@@ -78,13 +87,6 @@ function parameter(
 }
 
 const analog = {
-  opamp: parameter(
-    "gain",
-    "Open-loop gain",
-    "1e6",
-    "V/V",
-    "Ideal, frequency-independent open-loop voltage gain; output is not rail-limited.",
-  ),
   opamp_differential: parameter(
     "gain",
     "Differential gain",
@@ -174,9 +176,42 @@ const comparator: readonly DeviceParameterDefinition[] = [
     "Positive smooth comparator transition width.",
   ),
 ].map((definition) => ({ ...definition, expressions: false }));
+// The op-amp's limits are each a number or its supply (ideal-opamp.ts), which
+// export checks, so neither takes an expression in braces.
+const opamp: readonly DeviceParameterDefinition[] = [
+  parameter(
+    "gain",
+    "Open-loop gain",
+    "1e6",
+    "V/V",
+    "Ideal, frequency-independent open-loop voltage gain, exact between the output limits.",
+  ),
+  {
+    ...parameter(
+      OPAMP_HIGH_LIMIT,
+      "Output high limit",
+      OPAMP_LIMIT_SUPPLIES[OPAMP_HIGH_LIMIT],
+      "V",
+      `VDD, the op-amp's own supply, or a level in volts from ground. An op-amp with no supply drawn reads ${UNPOWERED_OPAMP_LIMITS[OPAMP_HIGH_LIMIT]} V.`,
+    ),
+    keywords: [OPAMP_LIMIT_SUPPLIES[OPAMP_HIGH_LIMIT]],
+    expressions: false,
+  },
+  {
+    ...parameter(
+      OPAMP_LOW_LIMIT,
+      "Output low limit",
+      OPAMP_LIMIT_SUPPLIES[OPAMP_LOW_LIMIT],
+      "V",
+      `VSS, the op-amp's own negative supply or ground, or a level in volts from ground. An op-amp with no supply drawn reads ${UNPOWERED_OPAMP_LIMITS[OPAMP_LOW_LIMIT]} V.`,
+    ),
+    keywords: [OPAMP_LIMIT_SUPPLIES[OPAMP_LOW_LIMIT]],
+    expressions: false,
+  },
+];
 
 const recipes: Readonly<Record<string, BuiltInModelRecipe>> = {
-  opamp: { family: "linear", implementation: "opamp" },
+  [OPAMP_TARGET]: { family: "opamp", implementation: "opamp" },
   opamp_differential: {
     family: "linear",
     implementation: "opamp_differential",
@@ -236,15 +271,18 @@ function contract(target: string): BuiltInModelContract | undefined {
         ? logic
         : family === "comparator"
           ? comparator
-          : target === ADDER_TARGET
-            ? ADDER_SIGN_PARAMETERS
-            : Object.hasOwn(analog, target)
-              ? [analog[target as keyof typeof analog]]
-              : [],
+          : family === "opamp"
+            ? opamp
+            : target === ADDER_TARGET
+              ? ADDER_SIGN_PARAMETERS
+              : Object.hasOwn(analog, target)
+                ? [analog[target as keyof typeof analog]]
+                : [],
     backends: {
       spice: "included",
       spectre:
         family === "linear" ||
+        family === "opamp" ||
         family === "comparator" ||
         (family === "logic" && implementation !== "flip-flop")
           ? "included"
@@ -321,6 +359,46 @@ export function idealComparatorBodyContract(
         : readsSupply
           ? []
           : [{ name: p.name, defaultValue: NUMERIC_BODY_HIGH_LEVEL }],
+    ),
+  };
+}
+
+/** One generated ideal op-amp body: what its equation reads and declares. */
+export interface IdealOpampBodyContract {
+  readonly name: IdealOpampBody;
+  /** Its high limit is V(VDD), in place of a `vhigh` parameter. */
+  readonly readsVdd: boolean;
+  /** Its low limit is V(VSS), in place of a `vlow` parameter. */
+  readonly readsVss: boolean;
+  /** Every body takes the op-amp's whole interface, in order. */
+  readonly ports: readonly BuiltInSubcircuitPort[];
+  /** The parameters the body declares, with the defaults it prints. */
+  readonly parameters: readonly {
+    readonly name: string;
+    readonly defaultValue: string;
+  }[];
+}
+
+/**
+ * The ideal op-amp's model facts as one of its bodies takes them. A numeric
+ * limit's default is the level an op-amp with no supply of its own reads.
+ */
+export function idealOpampBodyContract(
+  body: IdealOpampBody,
+): IdealOpampBodyContract {
+  const model = builtInModelContract(OPAMP_TARGET)!;
+  const reads = idealOpampBodyReads(body);
+  return {
+    name: body,
+    readsVdd: reads.vdd,
+    readsVss: reads.vss,
+    ports: model.ports,
+    parameters: model.parameters.flatMap((p) =>
+      p.name === OPAMP_HIGH_LIMIT || p.name === OPAMP_LOW_LIMIT
+        ? reads[p.name === OPAMP_HIGH_LIMIT ? "vdd" : "vss"]
+          ? []
+          : [{ name: p.name, defaultValue: UNPOWERED_OPAMP_LIMITS[p.name] }]
+        : [{ name: p.name, defaultValue: p.defaultValue! }],
     ),
   };
 }

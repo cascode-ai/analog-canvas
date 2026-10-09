@@ -104,7 +104,7 @@ export const SimulationSourceInputSchema = z
     }
   });
 
-export const SimulationFolderInputSchema = z.strictObject({
+const SimulationFolderInputSchema = z.strictObject({
   version: z.literal(4),
   input: SimulationSourceInputSchema,
 });
@@ -219,15 +219,16 @@ function expressionSchema(
   ]);
 }
 export const SimulationSourceExpressionSchema = expressionSchema(32);
-export const SimulationSourceOutputSchema = z.strictObject({
+const SimulationSourceOutputSchema = z.strictObject({
   id: StableIdSchema,
   label: z.string().trim().min(1).max(128),
   expression: SimulationSourceExpressionSchema,
 });
-export const SimulationSourceVariableSchema =
-  SimulationDesignVariableSchema.omit({ value: true }).extend({
-    sourcePath: SimulationInputPathSchema,
-  });
+const SimulationSourceVariableSchema = SimulationDesignVariableSchema.omit({
+  value: true,
+}).extend({
+  sourcePath: SimulationInputPathSchema,
+});
 export const SimulationSourceDeviceOperatingPointSchema =
   SimulationDeviceOperatingPointSpecSchema.extend({
     circuit: SimulationCircuitScopeSchema,
@@ -238,9 +239,6 @@ export const NativeSimulationExperimentConfigSchema = z.strictObject({
   version: z.literal(2),
   environment: z.strictObject({ profileId: z.string().min(1).max(256) }),
 });
-export type NativeSimulationExperimentConfig = z.infer<
-  typeof NativeSimulationExperimentConfigSchema
->;
 
 /** Version-1 compatibility reader. New experiments use the native version-2 contract. */
 export const SimulationExperimentConfigSchema = z
@@ -310,7 +308,4 @@ export type SimulationCircuitScope = z.infer<
 >;
 export type SimulationExperimentConfig = z.infer<
   typeof SimulationExperimentConfigSchema
->;
-export type SimulationSourceOutput = z.infer<
-  typeof SimulationSourceOutputSchema
 >;

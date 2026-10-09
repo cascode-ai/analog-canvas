@@ -21,14 +21,21 @@ interface NameRequest {
   label: string;
   initial: string;
   profiles?: readonly { id: string; name: string }[];
-  /** The Profile preselected for a Cell; the first listed when none. */
-  profileFor?(documentId: string): string | undefined;
+  /**
+   * The Profile the Agent's simulation_folder create takes for a Cell when it
+   * names none, or why it asks for one.
+   */
+  profileFor?(
+    documentId: string,
+  ): { ok: true; profileId: string } | { ok: false; message: string };
   validate?(name: string): string | undefined;
   cellSelection?: {
     initial: string;
     options: readonly { id: string; name: string }[];
     validate(documentId: string): string | undefined;
   };
+  /** Whether the Cell is a DUT a testbench shell calls, or the testbench. */
+  roleFor?(documentId: string): "dut" | "testbench";
 }
 interface NameResult {
   name: string;
@@ -282,17 +289,25 @@ function NameInput() {
   const interaction = useWorkspaceInteractions();
   const request = interaction.edit!;
   const [value, setValue] = useState(request.initial);
-  const profileFor = (cell: string) =>
-    request.profileFor?.(cell) ?? request.profiles?.[0]?.id ?? "";
-  const [profileId, setProfileId] = useState(() =>
-    profileFor(request.cellSelection?.initial ?? ""),
-  );
-  // An environment the author picked stays when the Cell changes.
-  const profilePicked = useRef(false);
+  const profiles = request.profiles ?? [];
   const [documentId, setDocumentId] = useState(
     request.cellSelection?.initial ?? "",
   );
+  // What the Agent's simulation_folder create without profileId takes, or
+  // refuses with (#1489).
+  const choice = request.profileFor?.(documentId);
+  const automatic = choice?.ok ? choice.profileId : undefined;
+  // An environment the author picked stays when the Cell changes.
+  const [picked, setPicked] = useState<string>();
+  const [changing, setChanging] = useState(false);
+  const profileId = picked ?? automatic ?? "";
+  const environmentSelect = useRef<HTMLSelectElement>(null);
+  useEffect(() => {
+    if (changing) environmentSelect.current?.focus();
+  }, [changing]);
   const [error, setError] = useState<string>();
+  // The environment list is what is missing, not the name.
+  const [environmentMissing, setEnvironmentMissing] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   const finished = useRef(false);
   useEffect(() => {
@@ -311,6 +326,16 @@ function NameInput() {
       setError(problem);
       return;
     }
+    if (!cancel && name && request.profiles && !profileId) {
+      setEnvironmentMissing(true);
+      setError(
+        choice && !choice.ok
+          ? `Choose an environment. ${choice.message}`
+          : "Choose an environment.",
+      );
+      environmentSelect.current?.focus();
+      return;
+    }
     finished.current = true;
     interaction.finishName(
       cancel || !name
@@ -323,6 +348,31 @@ function NameInput() {
       restoreFocus,
     );
   };
+  const nameInput = (
+    <input
+      ref={input}
+      aria-label={request.label}
+      autoComplete="off"
+      value={value}
+      aria-invalid={Boolean(error) && !environmentMissing}
+      onChange={(e) => {
+        setValue(e.currentTarget.value);
+        setError(undefined);
+        setEnvironmentMissing(false);
+      }}
+      onKeyDown={(e) => {
+        e.stopPropagation();
+        if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+          e.preventDefault();
+          finish(false, true);
+        }
+        if (e.key === "Escape") {
+          e.preventDefault();
+          finish(true, true);
+        }
+      }}
+    />
+  );
   return (
     <div
       className="workspace-inline-name"
@@ -334,47 +384,16 @@ function NameInput() {
           finish(Boolean(request.cellSelection));
       }}
     >
-      <input
-        ref={input}
-        aria-label={request.label}
-        autoComplete="off"
-        value={value}
-        aria-invalid={Boolean(error)}
-        onChange={(e) => {
-          setValue(e.currentTarget.value);
-          setError(undefined);
-        }}
-        onKeyDown={(e) => {
-          e.stopPropagation();
-          if (e.key === "Enter" && !e.nativeEvent.isComposing) {
-            e.preventDefault();
-            finish(false, true);
-          }
-          if (e.key === "Escape") {
-            e.preventDefault();
-            finish(true, true);
-          }
-        }}
-      />
-      {request.profiles && request.profiles.length > 1 ? (
-        <label>
-          Environment{" "}
-          <select
-            aria-label="Simulation environment"
-            value={profileId}
-            onChange={(event) => {
-              profilePicked.current = true;
-              setProfileId(event.currentTarget.value);
-            }}
-          >
-            {request.profiles.map((profile) => (
-              <option key={profile.id} value={profile.id}>
-                {profile.name}
-              </option>
-            ))}
-          </select>
-        </label>
-      ) : null}
+      {request.cellSelection ? (
+        <div className="workspace-name-row">
+          <span className="workspace-field-label" aria-hidden="true">
+            Name
+          </span>
+          {nameInput}
+        </div>
+      ) : (
+        nameInput
+      )}
       {request.cellSelection ? (
         <div className="workspace-cell-selection">
           <label htmlFor={`simulation-cell-${request.requestId}`}>Cell</label>
@@ -384,9 +403,8 @@ function NameInput() {
             value={documentId}
             onChange={(event) => {
               setDocumentId(event.currentTarget.value);
-              if (!profilePicked.current)
-                setProfileId(profileFor(event.currentTarget.value));
               setError(undefined);
+              setEnvironmentMissing(false);
             }}
             onKeyDown={(event) => {
               event.stopPropagation();
@@ -405,6 +423,82 @@ function NameInput() {
               </option>
             ))}
           </select>
+        </div>
+      ) : null}
+      {request.roleFor && documentId ? (
+        <div className="workspace-testbench">
+          <span className="workspace-field-label" aria-hidden="true">
+            Testbench
+          </span>
+          <output aria-label="Simulation testbench">
+            {request.roleFor(documentId) === "dut"
+              ? "testbench.spice calls this Cell"
+              : "this Cell, which draws no pins"}
+          </output>
+        </div>
+      ) : null}
+      {profiles.length ? (
+        <div className="workspace-environment">
+          <label htmlFor={`simulation-environment-${request.requestId}`}>
+            Environment
+          </label>
+          {automatic && picked === undefined && !changing ? (
+            <>
+              <output
+                id={`simulation-environment-${request.requestId}`}
+                aria-label="Simulation environment"
+              >
+                {profiles.find((profile) => profile.id === automatic)?.name ??
+                  automatic}{" "}
+                <span className="workspace-environment-note">(automatic)</span>
+              </output>
+              <button
+                type="button"
+                aria-label="Change environment"
+                onClick={() => setChanging(true)}
+              >
+                Change
+              </button>
+            </>
+          ) : (
+            <select
+              ref={environmentSelect}
+              id={`simulation-environment-${request.requestId}`}
+              aria-label="Simulation environment"
+              value={profileId}
+              aria-invalid={environmentMissing}
+              onChange={(event) => {
+                setPicked(event.currentTarget.value);
+                setError(undefined);
+                setEnvironmentMissing(false);
+              }}
+              onKeyDown={(event) => {
+                event.stopPropagation();
+                if (event.key === "Escape") {
+                  event.preventDefault();
+                  finish(true, true);
+                }
+              }}
+            >
+              {profileId ? null : (
+                <option value="" disabled>
+                  Choose an environment
+                </option>
+              )}
+              {profiles.map((profile) => (
+                <option key={profile.id} value={profile.id}>
+                  {profile.name}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+      ) : null}
+      {request.cellSelection ? (
+        <div className="workspace-setup-actions">
+          <span className="workspace-setup-caption">
+            Same as the Agent&apos;s simulation_folder create
+          </span>
           <button type="button" onClick={() => finish(false, true)}>
             Create
           </button>

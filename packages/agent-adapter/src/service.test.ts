@@ -20,7 +20,7 @@ import { describe, expect, it } from "vitest";
 import { agentCircuitOpenApi } from "./openapi.js";
 import {
   agentCircuitRequestJsonSchema,
-  AgentCircuitRequestSchema,
+  AgentProductionCircuitRequestSchema,
   agentCircuitResponseJsonSchema,
   AgentCircuitResponseSchema,
   AgentSnapshotInstanceSchema,
@@ -365,6 +365,63 @@ describe("current Agent Circuit API service", () => {
     expect(m1).not.toHaveProperty("cellTerminal");
     expect(AgentSnapshotInstanceSchema.parse(vinp)).toEqual(vinp);
   });
+
+  it("lists a part's labels on full and pins reads only when asked (#1518)", () => {
+    const fixture = serviceFixture();
+    const document = fixture.getDocument();
+    const base = {
+      apiVersion: "3.0",
+      operation: "snapshot",
+      documentId: document.id,
+    };
+    const labelsOfVinp = (reply: ReturnType<typeof fixture.service.handle>) => {
+      if (!reply.ok || reply.operation !== "snapshot")
+        throw new Error("snapshot failed");
+      const instances =
+        "instances" in reply
+          ? reply.instances
+          : "snapshot" in reply
+            ? reply.snapshot.document.instances
+            : [];
+      return instances.find((instance) => instance.id === "VINP")!.annotations;
+    };
+    const pins = { ...base, projection: "pins", instanceIds: ["VINP"] };
+    expect(
+      labelsOfVinp(fixture.service.handle({ ...pins, requestId: "pins" })),
+    ).toBeUndefined();
+    const listed = labelsOfVinp(
+      fixture.service.handle({
+        ...pins,
+        requestId: "pins-labels",
+        instanceLabels: true,
+      }),
+    );
+    expect(listed).toEqual([
+      expect.objectContaining({ id: "label-vinp", kind: "instance-label" }),
+    ]);
+    expect(
+      labelsOfVinp(
+        fixture.service.handle({
+          ...base,
+          requestId: "full-labels",
+          instanceLabels: true,
+        }),
+      ),
+    ).toEqual(listed);
+    // The labelled read is not served to a reader that did not ask.
+    expect(
+      labelsOfVinp(fixture.service.handle({ ...base, requestId: "full" })),
+    ).toBeUndefined();
+    expect(
+      fixture.service.handle({
+        ...base,
+        requestId: "geometry-labels",
+        projection: "geometry",
+        geometryIds: ["VINP"],
+        instanceLabels: true,
+      }),
+    ).toMatchObject({ ok: false, error: { code: "INVALID_REQUEST" } });
+  });
   it("rejects a schema-invalid request without changing the revision", () => {
     const fixture = serviceFixture();
     const before = fixture.getDocument().revision;
@@ -434,7 +491,9 @@ describe("current Agent Circuit API service", () => {
           "utf8",
         ),
       );
-      expect(AgentCircuitRequestSchema.parse(request)).toEqual(request);
+      expect(AgentProductionCircuitRequestSchema.parse(request)).toEqual(
+        request,
+      );
     }
     expect(agentCircuitRequestJsonSchema()).toMatchObject({
       $schema: "https://json-schema.org/draft/2020-12/schema",

@@ -729,7 +729,7 @@ class PropertyChoiceSelect extends WidgetType {
       );
       trigger.setAttribute("aria-haspopup", "listbox");
       trigger.setAttribute("aria-expanded", "false");
-      trigger.addEventListener("click", async () => {
+      const togglePreviewMenu = async () => {
         if (this.closePreviewMenu) {
           this.closePreviewMenu();
           return;
@@ -762,7 +762,8 @@ class PropertyChoiceSelect extends WidgetType {
             this.closePreviewMenu = null;
           },
         });
-      });
+      };
+      trigger.addEventListener("click", () => void togglePreviewMenu());
       picker.append(arrow, trigger);
       return picker;
     }

@@ -2,7 +2,6 @@ import type { CircuitProject, Instance, RichTextDocument } from "@icm/model";
 import {
   deviceDescriptor,
   referencePolicyForInstance,
-  referencePolicyForSymbol,
   type DeviceParameterDefinition,
 } from "@icm/devices";
 
@@ -95,7 +94,7 @@ export function symbolSupportsValueAnnotation(symbolId: string): boolean {
 export function magneticDisplayParameters(
   symbolId: string,
 ): readonly DeviceParameterDefinition[] {
-  if (symbolId !== "xfmr" && symbolId !== "tcoil") return [];
+  if (!["xfmr", "tcoil", "center-tap-inductor"].includes(symbolId)) return [];
   const parameters = deviceDescriptor(symbolId)?.parameters ?? [];
   return [
     ...parameters.filter((parameter) => parameter.name === "k"),
@@ -154,19 +153,6 @@ export function displayableInstanceParameter(
     kind: "displayable",
     content: counted(value),
   };
-}
-
-/**
- * Whether an instance of this Symbol gets a reference designator.
- *
- * A Symbol with no device descriptor — a voltage amplifier, an op amp, the
- * signal-flow blocks — has no reference prefix, so its instances have no
- * designator to show or hide. Asked through the reference policy rather than
- * a list of Symbol names, so a Symbol added later answers correctly without
- * anyone remembering to update a list.
- */
-export function symbolCarriesReference(symbolId: string): boolean {
-  return referencePolicyForSymbol(symbolId).kind !== "none";
 }
 
 /**

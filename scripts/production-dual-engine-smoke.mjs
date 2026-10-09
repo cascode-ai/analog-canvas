@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { pathToFileURL } from "node:url";
 
+import { simulationSmokeHeaders } from "./lib/simulation-smoke-headers.mjs";
+import { waitingWhileBusy } from "./lib/simulator-busy-wait.mjs";
+
 export const VACASK_PROFILE_ID = "vacask-sky130-candidate";
 export const NGSPICE_PROFILE_ID = "sky130-core-continuous-ngspice46-v1";
 
@@ -39,7 +42,7 @@ export function nativeDividerRequest() {
 async function post(baseUrl, body, fetchImpl) {
   const response = await fetchImpl(new URL("/api/simulate", baseUrl), {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: simulationSmokeHeaders(),
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(120_000),
   });
@@ -91,7 +94,11 @@ async function main() {
     throw new Error(
       "usage: node scripts/production-dual-engine-smoke.mjs https://analog-canvas.example",
     );
-  const result = await runProductionDualEngineSmoke({ baseUrl });
+  // A simulator busy with someone's circuit is waited for, not a failure.
+  const result = await runProductionDualEngineSmoke({
+    baseUrl,
+    fetchImpl: waitingWhileBusy(),
+  });
   console.log(
     `Production dual-engine smoke passed: ${result.profiles.join(", ")}; ` +
       `VACASK v(mid)=${result.midpoint}, environment=${result.environmentFingerprint}`,

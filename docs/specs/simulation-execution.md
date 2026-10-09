@@ -29,7 +29,13 @@ The implementation has these boundaries:
   Its Executor is the execution port; GUI and MCP use the same service and File
   Resource. On Production, the managed control plane owns authoritative run
   admission, idempotency, queueing, retry, cancellation and retention. Local
-  direct transports keep the same semantic service contract.
+  direct transports keep the same semantic service contract. The Worker's
+  Gallery [simulation checks](community-gallery.md#simulation-checks) are
+  one more managed caller: they prepare a saved folder with
+  `prepareFolderExecutionInput`, start and read it through the managed
+  executor against the same routes under the account
+  `gallery-simulation-check`, and judge it with `executionSpecReport`, the
+  Simulation panel's Spec evaluation.
 - spice-run separates request/result types, deck assembly, metadata and terminal
   verdicts. Its public exports remain the same.
 - GUI source editing, diagnostic display and result materialization are separate
@@ -525,6 +531,12 @@ MCP transport failures return the effective request ID, including when the tool
 generated it, so an Agent can retry the identical start rather than duplicate it.
 File Resource `list` recovers session draft IDs after a lost create response;
 it returns revision/entry/expiry metadata, not file bodies.
+
+The hosted site runs simulations for signed-in accounts only (since
+2026-10-08): `start` and the direct `/api/simulate` computation answer a
+signed-out request `401 simulation-authentication-required`, which the editor
+shows with a Sign in button, and no anonymous owner is issued. Discovering the
+Profiles stays open.
 
 The browser owns its presentation receipts, not execution authority. On the
 managed hosted transport, tab loss does not stop an admitted run: the owner can

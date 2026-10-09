@@ -501,3 +501,69 @@
 .selection-filter-popover input {
   margin: 0;
 }
+
+/* The day's Gallery opens are spent: a card in the middle of the canvas, so
+   an empty canvas is not mistaken for a broken link. */
+.gallery-daily-limit-card {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 3;
+  transform: translate(-50%, -50%);
+  box-sizing: border-box;
+  width: min(340px, calc(100% - 32px));
+  padding: var(--icm-space-4);
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-lg);
+  background: var(--icm-surface);
+  box-shadow: var(--icm-shadow-lg);
+  text-align: center;
+}
+
+.gallery-daily-limit-card h2 {
+  margin: 0 0 var(--icm-space-2);
+  font-size: var(--icm-font-md);
+  font-weight: 650;
+}
+
+.gallery-daily-limit-card p {
+  margin: 0 0 var(--icm-space-3);
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-sm);
+  line-height: 1.45;
+}
+
+.gallery-daily-limit-actions {
+  display: flex;
+  justify-content: center;
+  gap: var(--icm-space-2);
+}
+
+.gallery-daily-limit-actions a,
+.gallery-daily-limit-actions button {
+  display: inline-flex;
+  align-items: center;
+  height: var(--icm-control-h);
+  padding: 0 var(--icm-space-4);
+  border: 1px solid var(--icm-border);
+  border-radius: 999px;
+  background: var(--icm-surface);
+  color: inherit;
+  font: inherit;
+  font-size: var(--icm-font-sm);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.gallery-daily-limit-actions .gallery-daily-limit-primary {
+  border-color: var(--icm-accent);
+  background: var(--icm-accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+.gallery-daily-limit-actions a:focus-visible,
+.gallery-daily-limit-actions button:focus-visible {
+  outline: 2px solid var(--icm-accent-soft);
+  outline-offset: 2px;
+}

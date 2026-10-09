@@ -36,7 +36,10 @@ const quantizer = [
   ),
 ];
 
-/** Every subcircuit target this module gives a body. */
+/**
+ * Every subcircuit target this module gives a body.
+ * @internal Tests hold every signal model contract to a body.
+ */
 export const IDEAL_SIGNAL_TARGETS: readonly string[] = builtInModelContracts
   .filter((model) => model.family === "signal")
   .map((model) => model.target);
@@ -63,6 +66,7 @@ export function idealSignalModel(target: string): BehavioralModel {
   };
 }
 
+/** @internal Tests read each printed body. */
 export function spiceIdealSignalSubcircuit(target: string): string[] {
   return printSpiceBehavioralModel(idealSignalModel(target));
 }

@@ -10,7 +10,7 @@ import {
 } from "./netlist-process-presets";
 import type { NetlistFormat } from "@icm/netlist";
 
-export const NETLIST_EXPORT_PREFERENCES_KEY = "icm.netlist-export.v1";
+const NETLIST_EXPORT_PREFERENCES_KEY = "icm.netlist-export.v1";
 
 /**
  * Which default process a stored preference has already been told about.

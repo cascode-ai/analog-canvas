@@ -35,7 +35,7 @@ export interface ComponentPropertyDetailsValue {
 }
 
 /** Only the existing pin-compatible drawing variants are interchangeable. */
-export function componentSymbolOptions(symbolId: string): string[] {
+function componentSymbolOptions(symbolId: string): string[] {
   const options = new Set([symbolId]);
   for (const candidate of options) {
     for (const sibling of [

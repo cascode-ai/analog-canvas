@@ -17,7 +17,8 @@ import {
   instanceParameterVisibility,
   instanceParameterVisibilityEdits,
 } from "./instance-parameter-display";
-import { copySelection, proposePaste } from "../clipboard/clipboard";
+import { copySelection } from "../clipboard/clipboard";
+import { proposePaste } from "../clipboard/paste-proposal";
 import {
   createTextEditingSession,
   proposeTextEditingCommit,

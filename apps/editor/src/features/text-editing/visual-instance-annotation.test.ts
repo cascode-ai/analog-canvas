@@ -14,7 +14,8 @@ import {
   type SchematicDocument,
 } from "@icm/model";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
-import { copySelection, proposePaste } from "../clipboard/clipboard";
+import { copySelection } from "../clipboard/clipboard";
+import { proposePaste } from "../clipboard/paste-proposal";
 import { defaultInstanceLabel } from "../wiring/route-interaction-geometry";
 import {
   instanceLabelAnnotationFor,

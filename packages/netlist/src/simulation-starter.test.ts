@@ -4,6 +4,7 @@ import ota from "../../../netlists/native-ota-library/legacy-source.icproj.json"
 import hostedSky130 from "../../../containers/ngspice/hosted-sky130-profile.json";
 import {
   createSimulationStarter,
+  newFolderCellRole,
   newFolderProfile,
 } from "./simulation-starter.js";
 import { compileSourceSimulation } from "./simulation-source-compile.js";
@@ -153,6 +154,17 @@ describe("simulation starting points", () => {
     expect(scopes).toEqual([{ bindingId: "circuit", callPath: ["XDUT"] }]);
     expect(JSON.stringify(project)).toBe(before);
   });
+
+  it("wraps a Cell with pins as a DUT and runs one without as the testbench (#1489)", () => {
+    // ota_5t draws six pins; both testbenches draw sources and none.
+    expect(newFolderCellRole(project, "document-ota-5t")).toBe("dut");
+    expect(newFolderCellRole(project, "document-ota-5t-testbench")).toBe(
+      "testbench",
+    );
+    expect(newFolderCellRole(project, "document-ota-5t-testbench-sin")).toBe(
+      "testbench",
+    );
+  });
 });
 
 describe("the Profile a new folder starts from (#1349)", () => {
@@ -200,7 +212,23 @@ describe("the Profile a new folder starts from (#1349)", () => {
     });
   });
 
+  it("takes the SKY130 Profile for SKY130's high-voltage DMOS devices (#1485)", () => {
+    // The hosted SKY130 Profile runs its 16 and 20 V devices, though it lists
+    // only its core devices (checked on Production 2026-10-08).
+    for (const name of [
+      "sky130_fd_pr__nfet_g5v0d16v0",
+      "sky130_fd_pr__pfet_g5v0d16v0",
+      "sky130_fd_pr__nfet_20v0",
+      "sky130_fd_pr__pfet_20v0",
+    ])
+      expect(newFolderProfile([vacask, ngspice], withPart(name))).toEqual({
+        ok: true,
+        profileId: ngspice.id,
+      });
+  });
+
   it("asks for a Profile when none or several qualify", () => {
+    // Its library has no varactor: the hosted run says "unknown subckt".
     expect(
       newFolderProfile(
         [ngspice, vacask],

@@ -12,7 +12,8 @@ it("imports SKY130's drain-extended devices as the Extended Devices DMOS", async
     "* high-voltage devices",
     ".subckt top d g s b d2 g2 s2 b2",
     "XM1 d g s b sky130_fd_pr__nfet_g5v0d16v0 w=5 l=0.7 nf=1 m=1",
-    "XM2 d2 g2 s2 b2 sky130_fd_pr__pfet_20v0 m=2",
+    // As export writes a 20 V device: its own channel, then the count (#1486).
+    "XM2 d2 g2 s2 b2 sky130_fd_pr__pfet_20v0 l=0.5 w=30 m=2",
     ".ends top",
     ".end",
     "",
@@ -25,7 +26,8 @@ it("imports SKY130's drain-extended devices as the Extended Devices DMOS", async
   const pmos = top.instances.find((instance) => instance.id === "XM2")!;
   expect(nmos.symbolId).toBe("ndmos");
   expect(pmos.symbolId).toBe("pdmos");
-  // Reviewed geometry arrives in canonical metres; 20 V takes only its count.
+  // Reviewed geometry arrives in canonical metres; 20 V takes only its count,
+  // its channel being the device's own.
   expect(nmos.netlist?.parameters).toEqual({
     w: "5u",
     l: "700n",

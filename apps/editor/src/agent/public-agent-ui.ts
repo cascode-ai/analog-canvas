@@ -7,7 +7,7 @@ import { resolvePublicUiFeatureEnabled } from "../deployment/public-ui-feature";
  * flag. Hosted release workflows opt in with VITE_ICM_AGENT_UI=enabled;
  * an unconfigured production build keeps the connection UI dormant.
  */
-export function resolvePublicAgentUiEnabled(input: {
+function resolvePublicAgentUiEnabled(input: {
   production: boolean;
   configured?: string;
 }): boolean {

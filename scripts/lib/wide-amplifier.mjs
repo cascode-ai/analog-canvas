@@ -2,7 +2,7 @@ import { ANALOG_TRIANGLE } from "./analog-triangle.mjs";
 
 // Wide is a drawing choice. Derive the complete definition so its electrical
 // interface and options cannot drift from the compact amplifier it names.
-export function wideAmplifierId(sourceId) {
+function wideAmplifierId(sourceId) {
   return sourceId.replace(/^opamp(?:-differential)?/u, "$&-wide");
 }
 

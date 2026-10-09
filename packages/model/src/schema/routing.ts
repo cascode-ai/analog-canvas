@@ -23,7 +23,7 @@ export const RoutePresentationSchema = z.enum([
   "bulk-dashed",
   "power-rail",
 ]);
-export const RouteDirectionArrowSchema = z.enum(["middle", "end"]);
+const RouteDirectionArrowSchema = z.enum(["middle", "end"]);
 /** Optional visual overrides for one electrical Route. */
 export const RouteStyleOverrideSchema = z.strictObject({
   color: HexColorSchema.optional(),
@@ -33,7 +33,7 @@ export const RouteStyleOverrideSchema = z.strictObject({
   // Omission keeps the conductor unadorned.
   arrow: RouteDirectionArrowSchema.optional(),
 });
-export const RouteLegTargetSchema = z.discriminatedUnion("kind", [
+const RouteLegTargetSchema = z.discriminatedUnion("kind", [
   z.strictObject({
     kind: z.literal("bend"),
     bendId: StableIdSchema,

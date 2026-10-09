@@ -1,10 +1,6 @@
 import { resolveDocumentLogicalNets } from "@icm/derived";
 import { deriveStableId, foldNetName, renamedLabelFormat } from "@icm/model";
-import type {
-  ConnectivityEvidence,
-  RouteEndpoint,
-  SchematicDocument,
-} from "@icm/model";
+import type { RouteEndpoint, SchematicDocument } from "@icm/model";
 
 import { planEnsurePowerNet } from "./power-net-planner.js";
 import {
@@ -21,8 +17,6 @@ export type NetNameOperationResult =
       readonly message: string;
       readonly plan: RoutingOperationPlan;
     };
-
-type NameClaim = Extract<ConnectivityEvidence, { kind: "name-claim" }>;
 
 function markerContract(symbolId: string) {
   return symbolId === "vdd-port"
@@ -165,87 +159,6 @@ export function planElectricalMarkerRename(
         fromBaseNetId: oldNet.id,
         requestedName,
         scope: marker.scope,
-      },
-      edits,
-      diagnostics: [],
-    }),
-  };
-}
-
-/** Rename every editable owner claim in one derived Logical Net. */
-export function planLogicalNetRename(
-  document: SchematicDocument,
-  logicalNetId: string,
-  rawName: string,
-  requestedScope?: "local" | "global",
-): NetNameOperationResult {
-  const resolved = resolveDocumentLogicalNets(document);
-  const group =
-    resolved.byId.get(logicalNetId) ?? resolved.byBaseNetId.get(logicalNetId);
-  if (!group)
-    return { status: "rejected", message: "Logical Net is unavailable" };
-  const requestedName = rawName.trim();
-  if (!requestedName)
-    return { status: "rejected", message: "A Net needs a name" };
-  const scope = requestedScope ?? group.scope ?? "local";
-  if (
-    group.name &&
-    foldNetName(group.name) === foldNetName(requestedName) &&
-    group.scope === scope
-  ) {
-    return { status: "noop" };
-  }
-  const target = resolved.groups.find(
-    (candidate) =>
-      candidate.id !== group.id &&
-      candidate.name !== undefined &&
-      foldNetName(candidate.name) === foldNetName(requestedName),
-  );
-  if (target?.scope && target.scope !== scope) {
-    return {
-      status: "rejected",
-      message: "Cannot merge Net names across scopes",
-    };
-  }
-  if (
-    target &&
-    target.powerDomain !== "none" &&
-    group.powerDomain !== "none" &&
-    target.powerDomain !== group.powerDomain
-  ) {
-    return {
-      status: "rejected",
-      message: "Cannot merge Net names with incompatible power roles",
-    };
-  }
-  const groupNetIds = new Set(group.baseNetIds);
-  const claims = document.connectivityEvidence.filter(
-    (evidence): evidence is NameClaim =>
-      evidence.kind === "name-claim" &&
-      evidence.owner.kind !== "global-declaration" &&
-      groupNetIds.has(evidence.netId),
-  );
-  const edits: SchematicEdit[] = claims.map((evidence): SchematicEdit => ({
-    kind: "upsert_connectivity_evidence",
-    evidence: { ...evidence, name: requestedName, scope },
-  }));
-  if (claims.length === 0) {
-    return {
-      status: "rejected",
-      message:
-        "This Net has no editable visible name owner; rename its Cell Pin or add a Net Label",
-    };
-  }
-  return {
-    status: "ready",
-    message: `Net named ${requestedName}`,
-    plan: createRoutingOperationPlan(document, {
-      intent: "rename-net",
-      expectedElectricalEffect: {
-        kind: "rename-logical-net",
-        logicalNetId: group.baseNetIds[0]!,
-        requestedName,
-        scope,
       },
       edits,
       diagnostics: [],

@@ -84,7 +84,7 @@ export async function fetchSessionUser(
 }
 
 /** Providers plus session; a dark or unreachable worker reads as no-auth. */
-export async function loadAccountState(
+async function loadAccountState(
   fetchLike: typeof fetch = fetch,
 ): Promise<AccountState> {
   try {
@@ -239,7 +239,7 @@ export async function deleteAccount(
 }
 
 /** Switches this browser back from an AI account to the Owner's own. */
-export async function returnToOwner(
+async function returnToOwner(
   fetchLike: typeof fetch = fetch,
 ): Promise<boolean> {
   try {

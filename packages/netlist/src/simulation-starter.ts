@@ -1,5 +1,9 @@
 import { reviewedExternalBindingForMaster } from "@icm/devices";
-import { createSimulationFolder, type CircuitProject } from "@icm/model";
+import {
+  createSimulationFolder,
+  projectCellInterface,
+  type CircuitProject,
+} from "@icm/model";
 import { analyzeDesignNetlist } from "./extract.js";
 
 export interface SimulationStarterDut {
@@ -71,6 +75,26 @@ export function createSimulationStarter(
   };
 }
 
+/**
+ * How a new experiment runs its Cell, for the Agent's `simulation_folder`
+ * create and the GUI's new-experiment form alike (#1489). A simulation's top
+ * is always a testbench: a Cell with drawn pins is a DUT, which a
+ * testbench.spice shell calls (`XDUT … dut`, its ports in order) for the
+ * Agent or author to drive; a Cell with none draws its own sources and is the
+ * testbench, run as the deck's top.
+ */
+export function newFolderCellRole(
+  project: CircuitProject,
+  documentId: string,
+): "dut" | "testbench" {
+  const netlist = project.documents.find(
+    (document) => document.id === documentId,
+  )?.netlist;
+  return netlist && projectCellInterface(netlist).ports.length
+    ? "dut"
+    : "testbench";
+}
+
 /** An advertised simulation Profile, as far as a new folder's default reads it. */
 export interface AdvertisedSimulationProfile {
   readonly id: string;
@@ -86,10 +110,11 @@ export type NewFolderProfile =
  * The Profile a new simulation folder starts from when the author names none
  * (#1349), for the Agent's `simulation_folder` and the GUI's new-experiment
  * dialog alike: the one Profile whose qualified devices include every
- * reviewed PDK device the folder's Cell and its sub-Cells use. A folder
- * without a Cell uses no PDK device. A Profile that lists no qualified
- * devices, as VACASK's, is never the default. With several such Profiles,
- * or none, the author names one of the candidates.
+ * reviewed PDK device the folder's Cell and its sub-Cells use, or failing
+ * that the one that does once its library's high-voltage DMOS devices count
+ * (#1485). A folder without a Cell uses no PDK device. A Profile
+ * that lists no qualified devices, as VACASK's, is never the default. With
+ * several such Profiles, or none, the author names one of the candidates.
  */
 export function newFolderProfile(
   profiles: readonly AdvertisedSimulationProfile[],
@@ -106,6 +131,28 @@ export function newFolderProfile(
       used.every((name) => qualifies(profile, name)),
   );
   if (qualified.length === 1) return { ok: true, profileId: qualified[0]!.id };
+  // When none qualifies them all, the one Profile that does once its library's
+  // high-voltage DMOS devices count: the hosted SKY130 Profile runs SKY130's
+  // 16 and 20 V devices though it lists only its core ones (checked on
+  // Production 2026-10-08, #1485). Its library lacks others, the varactor
+  // among them, so no other unlisted device counts.
+  if (!qualified.length && used.length) {
+    const library = (name: string) =>
+      reviewedExternalBindingForMaster(name)?.libraryId;
+    const drainExtended = (name: string) => {
+      const symbol = reviewedExternalBindingForMaster(name)?.symbolId;
+      return symbol === "ndmos" || symbol === "pdmos";
+    };
+    const covering = profiles.filter((profile) => {
+      const libraries = new Set((profile.devices ?? []).map(library));
+      return used.every(
+        (name) =>
+          qualifies(profile, name) ||
+          (drainExtended(name) && libraries.has(library(name))),
+      );
+    });
+    if (covering.length === 1) return { ok: true, profileId: covering[0]!.id };
+  }
   const unqualified = used.filter(
     (name) => !profiles.some((profile) => qualifies(profile, name)),
   );

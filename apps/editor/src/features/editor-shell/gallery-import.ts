@@ -1,7 +1,7 @@
 import type { CircuitProject } from "@icm/model";
 import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 import { normalizeImportedProject } from "../../document/project-import-normalization";
-import { clipboardPlacementAnchor } from "../clipboard/clipboard";
+import { clipboardPlacementAnchor } from "../clipboard/copy-placement";
 import { captureProjectCopy } from "../clipboard/project-copy";
 
 /** GUI and Agent insert the same normalized drawing with the same grab point. */

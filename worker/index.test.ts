@@ -62,8 +62,30 @@ describe("assets binding wiring", () => {
   });
 });
 
+describe("hosted simulation", () => {
+  it("asks a signed-out visitor to sign in before the Worker runs anything", async () => {
+    const { default: worker } = await import("./index");
+    const simulate = (body: unknown) =>
+      worker.fetch(
+        new Request("https://canvas.test/api/simulate", {
+          method: "POST",
+          body: JSON.stringify(body),
+        }),
+        {} as Parameters<typeof worker.fetch>[1],
+      );
+    const refused = await simulate({ operation: "run", netlist: "* R" });
+    expect(refused.status).toBe(401);
+    expect(await refused.json()).toMatchObject({
+      error: "simulation-authentication-required",
+    });
+    expect((await simulate({ operation: "capabilities" })).status).not.toBe(
+      401,
+    );
+  });
+});
+
 describe("the scheduled pass", () => {
-  it("forgets earlier days' Gallery opens even when the netlist marks fail", async () => {
+  it("forgets earlier days' Gallery opens and moves the simulation checks on even when the netlist marks fail", async () => {
     const { default: worker } = await import("./index");
     const operations: string[] = [];
     const env = {
@@ -85,6 +107,11 @@ describe("the scheduled pass", () => {
         env as unknown as Parameters<typeof worker.scheduled>[1],
       ),
     ).rejects.toThrow("Gallery busy");
-    expect(operations).toEqual(["netlistable-refresh", "forget-opens"]);
+    // With no check queued, the checks cost one read.
+    expect(operations).toEqual([
+      "netlistable-refresh",
+      "forget-opens",
+      "simulation-check-next",
+    ]);
   });
 });

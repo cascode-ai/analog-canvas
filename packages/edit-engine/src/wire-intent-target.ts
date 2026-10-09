@@ -14,7 +14,7 @@ import {
   type SchematicDocument,
 } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
-import type { WireIntentAnchor } from "./routing-planner.js";
+import type { WireIntentAnchor } from "./wire-intent-planner.js";
 
 /**
  * Where a tap at `point` on a conductor's segment lands. A fine-grid tap is
@@ -42,6 +42,21 @@ export function routeTapLanding(
     x: Math.round(point.x / pitch) * pitch,
     y: Math.round(point.y / pitch) * pitch,
   };
+}
+
+/**
+ * What a wire's `side` end looks for the nearest point of a Net from: the
+ * via point next to it when the caller gave the path, else the other end. A
+ * body wire given a stub out of the channel reaches the Net nearest the
+ * stub's end; nearest the body, it doubled back over the stub (#1514).
+ */
+export function wireTargetReference(
+  waypoints: readonly Point[] | undefined,
+  side: "from" | "to",
+  other: WireIntentAnchor,
+): WireIntentAnchor {
+  const via = side === "from" ? waypoints?.[0] : waypoints?.at(-1);
+  return via ? { kind: "free", point: via } : other;
 }
 
 /** Resolve geometry selectors on the current planning draft, never a client Snapshot. */

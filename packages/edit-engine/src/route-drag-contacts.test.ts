@@ -18,8 +18,8 @@ import {
 import {
   proposeLooseRouteTranslation,
   proposeRouteEndpointMove,
-  proposeWireSegmentMove,
-} from "./routing-planner.js";
+} from "./route-endpoint-move.js";
+import { proposeWireSegmentMove } from "./routing-planner.js";
 import {
   createRoutingOperationPlan,
   gateRoutingOperationPlan,

@@ -44,7 +44,7 @@ export function labelTypography(
 }
 export type LabelTypography = ReturnType<typeof labelTypography>;
 
-export function labelIdentifierOptions(
+function labelIdentifierOptions(
   presentation: SchematicDocument["presentation"],
 ) {
   const options = labelTypography(presentation);
@@ -345,14 +345,6 @@ export function isRoleLabelFormat(
 /** The standard look of a supply marker's label (VDD Power, drawn rails). */
 export function supplyLabelFormat(name: string): RichTextDocument | undefined {
   return roleLabelFormat("supply", name);
-}
-
-/** Whether a stored format is still exactly the supply default for `name`. */
-export function isSupplyLabelFormat(
-  format: RichTextDocument,
-  name: string,
-): boolean {
-  return isRoleLabelFormat(format, "supply", name);
 }
 
 /**

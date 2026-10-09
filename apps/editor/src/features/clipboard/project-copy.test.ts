@@ -26,11 +26,9 @@ import {
   planProjectCopyPlacement,
   prepareProjectCopy,
 } from "./project-copy";
-import {
-  clipboardPreviewDocument,
-  orientClipboard,
-  type SchematicClipboard,
-} from "./clipboard";
+import type { SchematicClipboard } from "./clipboard";
+import { clipboardPreviewDocument } from "./clipboard-preview";
+import { orientClipboard } from "./copy-placement";
 
 const selection = (instanceIds: string[] = [], routeIds: string[] = []) => ({
   instanceIds,

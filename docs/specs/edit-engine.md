@@ -190,11 +190,17 @@ Reset Cell Body previews and removes non-interface evidence while retaining
 assertions whose complete Net and owner closure survives. The public Agent
 surface accepts both evidence edits under the connectivity edit permission.
 
-`hierarchy-planner.ts` is the shared pure orchestration boundary above these
-edits. It constructs canonical subcircuit Instances and plans Cell
-creation/placement, rename/delete, formal-Port lifecycle, and terminal visual
-intent as ordinary Project structure edits. It does not execute transactions,
-own UI state, or define another hierarchy representation. Canvas-dependent
+The hierarchy planners are the shared pure orchestration boundary above these
+edits. `hierarchy-planner.ts` constructs canonical and external subcircuit
+Instances and plans Cell creation/placement, rename/delete, external
+subcircuit definitions, and the Cell block symbol.
+`cell-pin-planner.ts` plans formal-Port creation, direction, order, supply
+edges, and VDD connection mode. `cell-interface-change-planner.ts` plans
+formal-Port rename/removal, terminal visual intent, and the caller Instance
+changes they imply. `device-model-target-planner.ts` switches a device between
+its ordinary binding and a reviewed external model target. All emit ordinary
+Project structure edits. They do not execute transactions, own UI state, or
+define another hierarchy representation. Canvas-dependent
 contact detection and placement previews remain consumer concerns; read-only
 Cell/caller summaries are derived data owned by `@icm/derived`.
 

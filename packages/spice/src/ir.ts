@@ -1,8 +1,8 @@
 import { SourceSpanSchema, StableIdSchema } from "@icm/model";
 import { z } from "zod";
 
-export const SpiceDialectIdSchema = z.string().min(1);
-export const CircuitPortIRSchema = z.strictObject({
+const SpiceDialectIdSchema = z.string().min(1);
+const CircuitPortIRSchema = z.strictObject({
   name: z.string().min(1),
   position: z.number().int().nonnegative(),
   netId: StableIdSchema,
@@ -13,7 +13,7 @@ export const CircuitNetIRSchema = z.strictObject({
   name: z.string().min(1),
   scope: z.enum(["local", "global"]),
 });
-export const CircuitTerminalIRSchema = z.strictObject({
+const CircuitTerminalIRSchema = z.strictObject({
   position: z.number().int().nonnegative(),
   name: z.string().min(1).optional(),
   netId: StableIdSchema,
@@ -31,7 +31,7 @@ export const CircuitInstanceTargetIRSchema = z.discriminatedUnion("kind", [
   }),
   z.strictObject({ kind: z.literal("opaque"), sourceName: z.string().min(1) }),
 ]);
-export const CircuitParameterIRSchema = z.strictObject({
+const CircuitParameterIRSchema = z.strictObject({
   rawText: z.string(),
   normalizedName: z.string().min(1),
 });
@@ -171,10 +171,7 @@ export const CircuitIRSchema = z
     }
   });
 
-export type SpiceDialectId = z.infer<typeof SpiceDialectIdSchema>;
-export type CircuitPortIR = z.infer<typeof CircuitPortIRSchema>;
 export type CircuitNetIR = z.infer<typeof CircuitNetIRSchema>;
-export type CircuitTerminalIR = z.infer<typeof CircuitTerminalIRSchema>;
 export type CircuitInstanceIR = z.infer<typeof CircuitInstanceIRSchema>;
 export type CircuitCellIR = z.infer<typeof CircuitCellIRSchema>;
 export type CircuitParameterDeclarationIR = z.infer<

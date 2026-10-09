@@ -5,7 +5,8 @@ import { builtInSymbols } from "./builtins.js";
 import { expandedDeviceSymbols } from "./expanded-device-catalog.js";
 import { razaviProductSymbols } from "./razavi-catalog.js";
 import { InMemorySymbolResolver } from "./resolver.js";
-import { SYMBOL_CONNECTION_GRID, SymbolDefinitionSchema } from "./schema.js";
+import { SYMBOL_CONNECTION_GRID } from "@icm/model";
+import { SymbolDefinitionSchema } from "./schema.js";
 
 const PRODUCT_IDS = [
   "and-gate",
@@ -37,6 +38,7 @@ const PRODUCT_IDS = [
   "inductor-compact",
   "tcoil",
   "xfmr",
+  "center-tap-inductor",
   "inverter",
   "nand-gate",
   "nmos",

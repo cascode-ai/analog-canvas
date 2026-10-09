@@ -310,6 +310,7 @@ export function physicalContactLicenseForTransaction(
     routeGeometryPoints: new Map(),
   };
   for (const edit of transaction.edits) {
+    // oxlint-disable-next-line typescript/switch-exhaustiveness-check -- every other edit licenses no contact (see PhysicalContactLicense)
     switch (edit.kind) {
       case "add_instance":
         result.objectIds.add(edit.instance.id);
@@ -709,7 +710,12 @@ export function revokeInvalidatedSupplyBulkDefaults(
     const remainsSupply =
       afterLogical.byBaseNetId.get(afterDefaultId)?.powerDomain ===
       expectedDomain;
-    if (!wasSupply || remainsSupply) continue;
+    // The old supply keeps its claim: the transaction moved the default to
+    // another Net, such as a body-bias Net, and that choice stands (#1520).
+    const keptClaim =
+      afterLogical.byBaseNetId.get(beforeDefaultId)?.powerDomain ===
+      expectedDomain;
+    if (!wasSupply || remainsSupply || keptClaim) continue;
 
     const replacementGroups = afterLogical.groups.filter(
       (group) =>

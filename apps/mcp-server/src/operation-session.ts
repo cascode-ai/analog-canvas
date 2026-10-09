@@ -20,6 +20,12 @@ export interface OperationSession {
 export interface RuntimeConfig {
   apiBaseUrl: string;
   connectorPath: string;
+  /**
+   * The default per-origin connector file, which a long-lived MCP process
+   * holds by a lease (#1522). An explicit ANALOG_CANVAS_MCP_CONNECTOR path
+   * is the caller's choice, shared or not, and takes none.
+   */
+  connectorLease?: boolean;
   workspaceRoot?: string;
   taskDirectory?: string;
 }
@@ -32,6 +38,7 @@ export function resolveConfig(
   return {
     apiBaseUrl,
     connectorPath: defaultConnectorFilePath(homedir(), env, apiBaseUrl),
+    connectorLease: !env.ANALOG_CANVAS_MCP_CONNECTOR?.trim(),
     workspaceRoot: userWorkspaceRoot(env),
     ...(env.ANALOG_CANVAS_TASK_DIR
       ? { taskDirectory: env.ANALOG_CANVAS_TASK_DIR }
@@ -48,12 +55,17 @@ export function createOperationSession(
     throw new Error(
       "ANALOG_CANVAS_TASK_DIR must be an absolute writable task directory",
     );
+  // One CLI command is one short process: it resumes the file as before
+  // and holds no lease that the next command would wait to see go stale.
+  const lease = (config.connectorLease ?? false) && !options.shortLived;
+  const connectorStore = new ConnectorStore(config.connectorPath, { lease });
+  if (lease) releaseLeaseOnExit(connectorStore);
   return {
     ...(config.workspaceRoot ? { workspaceRoot: config.workspaceRoot } : {}),
     ...(config.taskDirectory ? { taskDirectory: config.taskDirectory } : {}),
     client: new AgentSessionClient({
       http: new AgentHttpClient({ baseUrl: config.apiBaseUrl }),
-      connectorStore: new ConnectorStore(config.connectorPath),
+      connectorStore,
       ...(config.taskDirectory
         ? {
             workspaceBindingStore: new WorkspaceBindingStore(
@@ -69,4 +81,15 @@ export function createOperationSession(
       requireDurableWorkspaceBinding: options.shortLived ?? false,
     }),
   };
+}
+
+/** Give the connector lease back however the process ends, short of a crash. */
+function releaseLeaseOnExit(store: ConnectorStore): void {
+  process.once("exit", () => store.releaseSync());
+  for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"] as const)
+    process.once(signal, () => {
+      store.releaseSync();
+      // Ended as the signal would have ended it.
+      process.kill(process.pid, signal);
+    });
 }

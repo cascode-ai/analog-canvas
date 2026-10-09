@@ -286,7 +286,7 @@ function annotationFontSize(
       return profile.typography.netFontSize;
     case "power-label":
       return profile.typography.powerFontSize;
-    default:
+    case "route-marker":
       return profile.typography.annotationFontSize;
   }
 }

@@ -1,9 +1,5 @@
 import type { CircuitProject, Instance } from "@icm/model";
-import {
-  deviceDescriptor,
-  instanceParameterContract,
-  type ReviewedExternalDeviceBinding,
-} from "@icm/devices";
+import { deviceDescriptor, instanceParameterContract } from "@icm/devices";
 
 export interface ComponentParameter {
   key: string;
@@ -109,24 +105,6 @@ export function componentParameters(
     ...(parameter.authoringVisibility === "compatibility"
       ? { compatibilityOnly: true }
       : {}),
-  }));
-}
-
-export function reviewedExternalComponentParameters(
-  binding: ReviewedExternalDeviceBinding,
-): readonly ComponentParameter[] {
-  return binding.parameters.map((parameter) => ({
-    key: parameter.name,
-    label: parameter.label,
-    ...(parameter.unitHint ? { unit: parameter.unitHint } : {}),
-    placeholder: parameter.placeholder,
-    ...(parameter.defaultValue ? { defaultValue: parameter.defaultValue } : {}),
-    help: parameter.help,
-    ...(parameter.editor === "select" && parameter.options
-      ? { options: parameter.options }
-      : parameter.editor === "select"
-        ? {}
-        : { inputMode: parameter.editor }),
   }));
 }
 

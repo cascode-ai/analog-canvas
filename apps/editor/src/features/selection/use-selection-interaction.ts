@@ -8,7 +8,7 @@ import {
 import {
   clipboardPlacementAnchor,
   orientClipboard,
-} from "../clipboard/clipboard";
+} from "../clipboard/copy-placement";
 import type { SchematicClipboard } from "../clipboard/clipboard";
 import type { NetLabelPlacementTarget } from "../wiring/route-interaction-geometry";
 import {

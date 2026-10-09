@@ -264,8 +264,11 @@ describe("portable component interfaces meet real netlist export", () => {
       parseProject(serializeProject(project)),
     );
     expect(valid.status).toBe("ready");
+    // VDD is drawn, so the op-amp's limits read its supplies (#1463).
     if (valid.status === "ready")
-      expect(valid.file.text).toContain("X1 VDD VSS N0 N1 N2 opamp");
+      expect(valid.file.text).toContain(
+        "X1 VDD VSS N0 N1 N2 icm_opamp_vdd_vss",
+      );
     const definition = project.componentDefinitions!.find(
       (item) => item.symbol.id === "opamp",
     )!;

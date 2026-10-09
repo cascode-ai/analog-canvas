@@ -6,7 +6,7 @@ import {
   type ComponentDefinition,
   type ExternalSubcircuitDefinition,
 } from "@icm/model";
-import { instanceReferencesPin } from "./hierarchy-planner.js";
+import { instanceReferencesPin } from "./cell-interface-change-planner.js";
 import {
   executeProjectTransaction,
   type ProjectStructureEdit,

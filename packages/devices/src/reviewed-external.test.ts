@@ -9,7 +9,11 @@ import {
   reviewedExternalBindingById,
   reviewedExternalBindingForMaster,
   reviewedExternalBindingSupportsSymbol,
+  reviewedExternalDeviceBindings,
   reviewedExternalModelSuggestions,
+  reviewedModelledSizeChanges,
+  reviewedSizeModelled,
+  reviewedSizeOutOfRange,
   sky130MicrometresToProjectLength,
   standardCellBindingForMaster,
 } from "./reviewed-external.js";
@@ -171,6 +175,83 @@ describe("reviewed external device bindings", () => {
     expect(reviewedExternalModelSuggestions("nmos")).not.toContain(
       "sky130_fd_pr__nfet_g5v0d16v0",
     );
+  });
+
+  it("knows the only sizes SKY130 models its 16 V devices at (#1483)", () => {
+    const nfet = reviewedExternalBindingForMaster(
+      "sky130_fd_pr__nfet_g5v0d16v0",
+    )!;
+    const pfet = reviewedExternalBindingForMaster(
+      "sky130_fd_pr__pfet_g5v0d16v0",
+    )!;
+    // Sizes among the bins of sky130_fd_pr__{n,p}fet_g5v0d16v0.pm3.spice,
+    // including the wrapper's own when none is given.
+    expect(reviewedSizeModelled(nfet, { w: "5u", l: "700n" })).toBe(true);
+    expect(reviewedSizeModelled(nfet, { w: "60u", l: "0.7u" })).toBe(true);
+    expect(reviewedSizeModelled(nfet, {})).toBe(true);
+    expect(reviewedSizeModelled(pfet, { w: "30u", l: "2.16u" })).toBe(true);
+    // ngspice 46 takes either bin edge: W 5u / L 2.25u and W 50.1u / L 660n run.
+    expect(reviewedSizeModelled(nfet, { w: "5u", l: "2.25u" })).toBe(true);
+    expect(reviewedSizeModelled(pfet, { w: "50.1u", l: "660n" })).toBe(true);
+    // Sizes with no model, where ngspice stops; a missing W is the 5 µm default.
+    expect(reviewedSizeModelled(nfet, { w: "1u", l: "150n" })).toBe(false);
+    expect(reviewedSizeModelled(nfet, { w: "10u", l: "700n" })).toBe(false);
+    expect(reviewedSizeModelled(nfet, { l: "150n" })).toBe(false);
+    expect(reviewedSizeModelled(pfet, { w: "60u", l: "660n" })).toBe(false);
+    // An expression leaves it open, unless the other size has no bin at all.
+    expect(
+      reviewedSizeModelled(nfet, { w: "{wd}", l: "700n" }),
+    ).toBeUndefined();
+    expect(reviewedSizeModelled(nfet, { w: "{wd}", l: "150n" })).toBe(false);
+    // A device modelled over a range declares no sizes.
+    expect(
+      reviewedSizeModelled(
+        reviewedExternalBindingForMaster("sky130_fd_pr__nfet_01v8")!,
+        { w: "1u", l: "150n" },
+      ),
+    ).toBeUndefined();
+  });
+
+  it("warns of no reviewed device's own size (#1474)", () => {
+    // A part placed with nothing typed is within its PDK's limits.
+    for (const binding of reviewedExternalDeviceBindings)
+      expect(reviewedSizeOutOfRange(binding, {}), binding.masterName).toEqual(
+        [],
+      );
+  });
+
+  it("gives a part the device's own W or L in place of one SKY130 does not model (#1483, #1485)", () => {
+    const nfet = reviewedExternalBindingForMaster(
+      "sky130_fd_pr__nfet_g5v0d16v0",
+    )!;
+    const pfet = reviewedExternalBindingForMaster(
+      "sky130_fd_pr__pfet_g5v0d16v0",
+    )!;
+    const fit = (
+      binding: typeof nfet,
+      parameters: Record<string, string>,
+      kept: readonly ("width" | "length")[] = [],
+    ) => reviewedModelledSizeChanges(binding, parameters, kept);
+    // A modelled size, or one an expression leaves open, stays.
+    expect(fit(nfet, { w: "5u", l: "700n" })).toEqual({});
+    expect(fit(nfet, { w: "{wd}", l: "700n" })).toEqual({});
+    // Only the size that has no model with the other changes, to the
+    // device's own: W 10 µm is no 16 V width, L 1 µm no length.
+    expect(fit(nfet, { w: "10u", l: "2.2u" })).toEqual({ w: "5u" });
+    expect(fit(nfet, { w: "20u", l: "1u" })).toEqual({ l: "700n" });
+    // Both when neither alone will do; an expression never changes.
+    expect(fit(pfet, { w: "1u", l: "150n" })).toEqual({ w: "5u", l: "660n" });
+    expect(fit(nfet, { w: "{wd}", l: "150n" })).toEqual({ l: "700n" });
+    // What an edit just set stays where the device has a model with it.
+    expect(fit(nfet, { w: "55u", l: "2.2u" }, ["width"])).toEqual({
+      l: "700n",
+    });
+    expect(fit(nfet, { w: "55u", l: "2.2u" }, ["length"])).toEqual({
+      w: "5u",
+    });
+    expect(fit(nfet, { w: "10u", l: "700n" }, ["width"])).toEqual({ w: "5u" });
+    // The part's own parameter names are kept.
+    expect(fit(nfet, { W: "1u", L: "150n" })).toEqual({ W: "5u", L: "700n" });
   });
 
   it("converts reviewed geometry in both directions without aliasing counts", () => {

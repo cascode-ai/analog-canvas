@@ -24,14 +24,16 @@ import {
 
 import {
   planRenameCell,
+  planSetCellSymbolPresentation,
+  createExternalSubcircuitInstance,
+} from "./hierarchy-planner.js";
+import {
   planRemoveCellTerminal,
   planRemoveCellTerminals,
   planEditCellTerminalAnnotation,
   planRenameCellTerminal,
-  planSetCellSymbolPresentation,
-  planSetDeviceModelTarget,
-  createExternalSubcircuitInstance,
-} from "./hierarchy-planner.js";
+} from "./cell-interface-change-planner.js";
+import { planSetDeviceModelTarget } from "./device-model-target-planner.js";
 import {
   executeProjectTransaction,
   type ProjectStructureEdit,

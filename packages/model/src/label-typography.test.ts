@@ -17,7 +17,6 @@ import {
   formatLabelIdentifier,
   formatPresentingName,
   isRoleLabelFormat,
-  isSupplyLabelFormat,
   labelRole,
   labelTypography,
   labelTextDocument,
@@ -186,10 +185,12 @@ it("stores the supply look as italic V over an upright subscript", () => {
 });
 
 it("recognises only an untouched supply default", () => {
-  expect(isSupplyLabelFormat(supplyLabelFormat("VDD")!, "VDD")).toBe(true);
-  expect(isSupplyLabelFormat(supplyLabelFormat("VDD")!, "VCC")).toBe(false);
+  const isSupply = (format: RichTextDocument, name: string) =>
+    isRoleLabelFormat(format, "supply", name);
+  expect(isSupply(supplyLabelFormat("VDD")!, "VDD")).toBe(true);
+  expect(isSupply(supplyLabelFormat("VDD")!, "VCC")).toBe(false);
   const flat = { runs: [{ kind: "text" as const, value: "VDD" }] };
-  expect(isSupplyLabelFormat(flat, "VDD")).toBe(false);
+  expect(isSupply(flat, "VDD")).toBe(false);
 });
 
 it("lets an untouched supply default follow a rename", () => {

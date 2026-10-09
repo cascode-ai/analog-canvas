@@ -7,5 +7,4 @@ export * from "./ngspice-output.js";
 export * from "./rawfile.js";
 export * from "./result-schema.js";
 export * from "./result-data.js";
-export * from "./environment-profile.js";
 export * from "./vacask-result-data.js";

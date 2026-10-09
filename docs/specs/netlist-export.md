@@ -126,9 +126,10 @@ not a simulator model lookup. Its `definitionId` selects one project-level
 external definition, whose ordered terminals select the emitted `X` nodes and
 whose `name` is the emitted master token. The instance owns raw overrides. An
 `unresolved-subcircuit` binding retains only a master name. For the default
-opamp, differential opamp, voltage amplifier, transconductance amplifier, and
+differential opamp, voltage amplifier, transconductance amplifier, and
 differential transconductance amplifier targets, export supplies one idealized
-E- or G-source subcircuit definition per used target. An explicitly authored
+E- or G-source subcircuit definition per used target; the default opamp calls
+one of its limited bodies (see Device definition). An explicitly authored
 Cell or project external definition of the same name takes precedence, and
 retargeting an instance to another master keeps it external. Other built-in
 Analog Blocks remain black-box calls. Artwork cannot change external
@@ -174,12 +175,42 @@ library model or PDK.
 
 Each exportable electrical device Symbol has one reviewed `DeviceDescriptor`
 in `packages/devices`. Built-in Analog Blocks have a subcircuit descriptor: a
-master name and ordered ports, including fixed supply ports. Five amplifier
-targets now have built-in, frequency-independent ideal E/G-source masters;
-their VDD/VSS ports remain in the interface but do not power or clamp the
-model. The default opamp gain is 1e6, voltage-amplifier gain is 1, and
+master name and ordered ports, including fixed supply ports. Four amplifier
+targets have built-in, frequency-independent ideal E/G-source masters: the
+voltage amplifier, both transconductors and the fully differential op-amp.
+Their VDD/VSS ports remain in the interface but do not power or clamp the
+model, and their outputs may exceed supply rails. The default
+differential op-amp gain is 1e6, voltage-amplifier gain is 1, and
 transconductance is 1m siemens; these are raw instance overrides named `gain`
-or `gm`, not a foundry model. Outputs may exceed supply rails. The logic
+or `gm`, not a foundry model.
+
+The op-amp is limited (#1463). Its output is `gain`·V(IN+, IN−) (default
+1e6) from ground, exact between a low and a high limit, and bends onto each
+limit within a ten-thousandth of their span; a linear stage of its own keeps
+ngspice solving oscillators and Schmitt triggers that drive it into a limit.
+`vhigh` and `vlow` set the limits: each is a level in volts, or the op-amp's
+own supply, `VDD` and `VSS`, the defaults. An op-amp is powered when its VDD
+is a Net, selected in Properties or the Cell's one drawn positive supply; a
+powered op-amp's supply limits read that VDD and its VSS, usually ground. An
+op-amp with no supply drawn reads +5 V and −5 V for them (owner decision,
+2026-10-08), so a textbook figure drawn without supplies still saturates.
+The default VDD Pin export adds for other parts of such a Cell powers no
+op-amp. Where the Cell drew several positive supplies, or a powered
+op-amp's VSS has several candidates, a limit following that supply reads
++5 V and −5 V, or ground for the low limit, and the warning
+`IDEAL_OPAMP_SUPPLY_AMBIGUOUS` asks for a selection in Properties; it does
+not block export, because the limit matters only once the output reaches
+it. As
+with the comparator, each kind of limit chooses a body of its own:
+`opamp` for two levels, `icm_opamp_vdd`, `icm_opamp_vss` or
+`icm_opamp_vdd_vss` for limits read from the supplies. No call carries
+`vhigh=VDD`, so a Project's own `opamp` definition, which replaces every
+body, never receives one; a Cell or external definition named after one of
+the `icm_opamp_*` bodies is `IDEAL_OPAMP_NAME_COLLISION`. A limit that is
+neither a number nor its supply, or two levels with no room between them,
+is `INVALID_IDEAL_OPAMP_LIMIT`. The
+fully differential op-amp stays unlimited: its outputs sit about ground,
+with no common mode a limit could keep. The logic
 Symbols — gates, buffer, inverter, adder, multiplier and the
 D flip-flops — are Blocks on that same contract: the drawing says what the
 block is and which nodes it meets. Their ports follow the Symbol's own pins, a
@@ -336,13 +367,29 @@ names: a label drawn Φ₁ means phase `Φ1`, written `PHI1` like any Greek name
 A single-ended switch is controlled by its CTRL pin. Both read the control
 against the Cell's ground (`VSS` in a structural netlist, `0` at a deck's top),
 so a Cell holding one states a ground. The phase node is the Net of that name
-in the same Cell, from a Net Label or a Cell Pin. A phase no Net supplies is a
-node of its own, reported as `SWITCH_PHASE_NOT_DRIVEN`. Every such switch
-closes through `ideal_switch`, an `SW` model card (RON 1 Ω, ROFF 1e12 Ω, VT
-0.5 V, VH 0) printed once inside each Cell that uses it. A two-terminal switch
-whose label still shows its own name is clocked by a phase of that name, so a
-freshly placed `S1` prints as `S1 a b S1 VSS ideal_switch` and warns that
-nothing drives `S1`; writing Φ₁ on its label moves it onto that shared clock.
+in the same Cell, from a Net Label or a Cell Pin, named as typed or as a Net
+Label drawn the same way is named (`Φ_1` for Φ₁). Every such switch closes
+through `ideal_switch`, an `SW` model card (RON 1 Ω, ROFF 1e12 Ω, VT 0.5 V,
+VH 0) printed once inside each Cell that uses it. A two-terminal switch whose
+label still shows its own name is clocked by a phase of that name, so a freshly
+placed `S1` prints as `S1 a b S1 VSS ideal_switch`; writing Φ₁ on its label
+moves it onto that shared clock.
+
+A label drawn with an overbar over any of its characters names a signal of its
+own, `_bar` appended, as a Net drawn so is named: E̅N̅ is `EN_bar`, Φ̄₁ is
+`Φ1_bar` (or a Net `Φ_1_bar` drawn so). A bar is a name, never an inverted
+switch: every switch closes through the one `ideal_switch`, and the export adds
+no inverter. Whether `EN_bar` is the complement of `EN` is the author's to
+draw (an inverter from `EN` to `EN_bar`, or the other way) or the
+testbench's to drive, complementary or with dead time (#1475).
+
+A phase that no Net in its Cell supplies is the Cell's input pin when the Cell
+is printed as a subcircuit, after its authored pins and ground:
+`.subckt chopper VSS Vinp Vinn Voutp Voutn EN EN_bar`. The drawing gains no
+Pin. A Cell that calls one passes its own Net of that name, or, with none,
+takes the phase as a pin of its own, up the hierarchy like a clock tree. A
+deck's top is the testbench (#1489): there the phase is a node of its name,
+for the testbench's own sources or text to drive, and nothing is reported.
 Spectre writes the same Cell-local four-terminal master as a hard conductance
 `bsource`, with those unchanged defaults and phase/CTRL semantics. It neither
 invents a clock nor smooths a transition. The SPDT selector has no primitive.
@@ -350,6 +397,8 @@ Native VACASK uses the same defaults and four-terminal interface through the
 qualified `icm_switch` runtime primitive, which registers hard-edge breakpoints.
 This requires the patched native runtime, not stock upstream 0.3.4; see the
 [runtime patch and qualification](../../containers/vacask/patches/README.md).
+ngspice, Spectre and native VACASK all take RON while the control is above VT
+and ROFF below it, so the swapped card is the complementary switch in each.
 A diode placed in a Process with no diode of its own (Abstract, SKY130, IHP
 SG13G2, Custom) is bound to the generic model `DIODE`, which no library
 defines. A placed Zener is not, and Apply process leaves it alone too: the
@@ -401,7 +450,10 @@ library's values as its defaults. `tcoil` (ports `n1 n2 n3`, for pins 1, 2
 and the centre tap 3) is `L1 n1 n3 {l1}`, `L2 n3 n2 {l2}`, `K12 L1 L2 {k}`
 and the bridge `CB n1 n2 {cb}`; `xfmr` (ports `p_minus p_plus s_minus
 s_plus`) is `LP p_plus p_minus {lp}`, `LS s_plus s_minus {ls}` and
-`K1 LP LS {k}`. Each winding is written from the end the Symbol's polarity
+`K1 LP LS {k}`; `ct_inductor` (ports `n1 n2 n3`), for a Center-Tap
+Inductor, is the T-coil without its bridge: `L1 n1 n3 {l1}`, `L2 n3 n2 {l2}`
+and `K12 L1 L2 {k}`, with `k` defaulting to 0, so its halves are plain series
+inductors unless a coupling is given. Each winding is written from the end the Symbol's polarity
 dot marks, which is the node SPICE and Spectre read as the dot, so a
 T-coil's windings aid from end to end (L1 + L2 + 2M) and a transformer's
 dotted pins are in phase. Spectre writes the same network with `inductor`
@@ -582,7 +634,131 @@ on ground or the lowest supply; it is on mir. Use it as a diode, or with its
 collector grounded". A PNP mirror load drawn with it exported ready and
 simulated its output at 0.93 V, where the textbook mirror sits near
 VDD − V_EB. Ground is the Cell's ground node, and the lowest supply a Net named
-like one (`VSS`, `AVSS`, `GND`, `VEE`, `SUB`, `VSUB`, any case).
+like one (`VSS`, `AVSS`, `GND`, `VEE`, `VNEG`, `SUB`, `VSUB`, any case),
+the negative-supply names below among them.
+
+A Cell may draw a negative supply: a supply marker or rail named like `VEE`,
+`VSS` or `VNEG` (#1530). The drawing holds no voltages, so that name is what
+says the supply sits below ground, and only one such supply is read; two are a
+question for the author.
+
+The substrate property terminals and the NMOS bodies are one node, the
+p-substrate, which belongs on the lowest supply. A substrate terminal the
+Process binds, at placement or Apply process alike, takes the Cell's negative
+supply while the Cell's NMOS body default is unset or ground; a Cell's first
+ground marker sets that default, so a Cell drawing ground and VEE puts new
+substrates on VEE whichever came first. An NMOS default on another Net (VSUB,
+VNEG) is the substrate default instead, so it can be set: Cell Properties
+labels it NMOS body / substrate (`bulkDefaults.nmos`, "and substrate" beside
+its value). With neither, ground. Changing that default, in Cell Properties or
+with the Agent's `set-mos-bulk-default` `{mos:"nmos"}` (both one plan), moves
+the substrate terminals that followed the old one, read by the same rule before
+and after, with the NMOS bodies that followed it: those on the old substrate
+default, and those on the old NMOS default, as a substrate bound to ground
+before the rail was drawn is. A terminal whose Substrate Net was set to another
+Net stays. The Project gains no field.
+
+A substrate terminal on ground in a Cell that draws a negative supply exports
+as drawn with the warning `PDK_SUBSTRATE_ABOVE_NEGATIVE_SUPPLY`, one per Cell:
+"Q1.S and Q2.S are p-substrate terminals on ground, while this Cell draws VEE,
+its negative supply. The substrate belongs on the lowest supply: an NPN
+collector below it forward-biases. Set their Substrate Net to VEE". When ground
+is the Cell's NMOS default it goes on ", or the NMOS body / substrate default
+in Cell Properties to VEE, which moves the substrate terminals on ground with
+the NMOS bodies that follow it". The SKY130 PNP stays three-terminal, as the
+PDK draws it: its wrapper ties the substrate to its collector, which the
+warning above covers, so it has no substrate terminal to bind.
+
+A DMOS symbol in SKY130 takes the drain-extended 16 V device
+(`sky130_fd_pr__nfet_g5v0d16v0`, `sky130_fd_pr__pfet_g5v0d16v0`), or a 20 V
+one chosen in Properties (`nfet_20v0`, `nfet_20v0_nvt`, `nfet_20v0_zvt`,
+`pfet_20v0`). A 20 V device has one channel and takes only `m` from the part.
+Its X line always gives that channel, because the hosted continuous library
+needs it spelled out (#1486):
+
+- `nfet_20v0`: L 2.95 µm, W 29.41 µm;
+- `nfet_20v0_nvt`: L 1.5 µm, W 30 µm;
+- `nfet_20v0_zvt`: L 5 µm, W 30 µm;
+- `pfet_20v0`: L 0.5 µm, W 30 µm.
+
+volare's wrappers fix these sizes inside and ignore what the line gives them.
+SKY130 models the 16 V pair only at a few sizes:
+
+- N: W 5, 20 or 50–60 µm at L 0.7 µm, or W 5 or 20 µm at L 2.2 µm;
+- P: W 5–50 µm at L 0.66 or 2.16 µm.
+
+ngspice 46 picks one by the X line's W and L, accepting either bin edge within
+1e-9 m. As the hosted profile runs it, W is the total width whatever the finger
+count; a PDK spinit with `ngbehavior=hsa` takes W per finger instead. At any
+other size ngspice stops with "could not find a valid modelname".
+
+A 16 V part always has one of those sizes, or one an expression leaves open
+(#1483, #1485). Whenever an edit would leave it at another numeric size, the
+same transaction gives it a modelled one. Such edits include:
+
+- placing it;
+- giving it the device in Properties, by an Agent or by a process;
+- typing its W or L.
+
+The size changes as little as it can:
+
+- one of W and L, the first that is enough, takes the device's own value: W 5 µm,
+  with L 0.7 µm (N) or 0.66 µm (P);
+- W is tried before L, and a W or L the edit set is tried last;
+- both take the device's own values when neither alone will do;
+- a W or L given as an expression stays as written.
+
+The result is not always the closest modelled size: W 18 µm at L 2.2 µm becomes
+W 5 µm, not 20 µm.
+
+Opening a Project does the same for parts saved at another size, such as those
+placed before #1484. A part's previous size does not come back when it leaves
+the device.
+
+A 16 V device whose size is still none of those exports with the warning
+`REVIEWED_SIZE_UNMODELLED`, which names the sizes. This can happen to a Project
+built outside the editor. A missing W or L counts as the device's default,
+which its wrapper uses.
+
+The other SKY130 MOS devices are modelled over a range of sizes. These are the
+sizes each runs at on Production, whose simulator loads the continuous SKY130
+library, measured there by bisection (signed-in `POST /api/simulate`,
+2026-10-08, #1474, #1492):
+
+| Device                                    | L from  | L up to  | W per finger from |
+| ----------------------------------------- | ------- | -------- | ----------------- |
+| `nfet_01v8`, `pfet_01v8`, `nfet_01v8_lvt` | 0.15 µm | 20.2 µm  | 0.42 µm           |
+| `pfet_01v8_hvt`                           | 0.15 µm | 20.2 µm  | 0.42 µm           |
+| `pfet_01v8_lvt`                           | 0.35 µm | 20.2 µm  | 0.42 µm           |
+| `nfet_03v3_nvt`                           | 0.5 µm  | 0.909 µm | 0.42 µm           |
+| `nfet_05v0_nvt`                           | 0.9 µm  | 24.99 µm | 0.42 µm           |
+| `nfet_g5v0d10v5`, `pfet_g5v0d10v5`        | 0.5 µm  | 20.2 µm  | 0.42 µm           |
+
+Each device stops 1–2 nm below its shortest L. The longest L is the last one
+that ran: 20.21 µm stops, as do 0.9095 µm for `nfet_03v3_nvt` and 25 µm for
+`nfet_05v0_nvt`, the last on a BSIM4 parameter fatal. W showed no ceiling up
+to 500 µm. volare's binned models differ: they run L up to 100 µm, run
+`nfet_01v8` and `pfet_01v8_hvt` down to W 0.36 µm, and model the NVT pair
+only at a few points.
+
+W per finger is W divided by `nf`. A part outside a limit exports with the
+warning `REVIEWED_SIZE_OUT_OF_RANGE`, which names its size and the limit in
+µm: "XM1 has L 0.08 µm, below the 0.15 µm minimum length of
+sky130_fd_pr__nfet_01v8. …", or "XM1 has L 25 µm, above the 20.2 µm longest
+length sky130_fd_pr__nfet_01v8 runs at on Production's simulator, so a
+simulation stops at this line." ngspice 46 stops at such a line with "could
+not find a valid modelname" or a parameter fatal. The 16 V pair is left to
+`REVIEWED_SIZE_UNMODELLED`, so a slip on it gets one finding.
+
+The same warning names an L, or a W per finger, over 1 mm on any reviewed
+device whose library takes micrometres (the SKY130 MOS devices, resistors, MIM
+capacitors and varactor). Such a size is almost always a unit slip: a bare
+`0.15` is 0.15 m, which the X line writes as `l=150000`. A bare number gets the
+hint "write 0.15u if you mean 0.15 µm".
+
+Both checks only warn. The part exports as drawn and nothing changes its size:
+which size was meant is the author's to say. A size or `nf` given by an
+expression is not checked, and a missing one counts as the device's default.
 
 IHP SG13G2 binds reviewed devices the way IHP-Open-PDK's own xschem symbols
 call them: `sg13_lv_nmos`/`sg13_lv_pmos` and the 3.3 V `sg13_hv_*` (`d g s b`;
@@ -719,12 +895,17 @@ choice with `circuit_properties` `set-block-supply {target, supply, net}`;
 Some built-in bodies never read their supplies: the ideal amplifiers and the
 adder in either format, and the multiplier and the ideal comparator with a
 numeric high level in SPICE. When such a Block has neither a selected nor a
-drawn supply, the unused port is tied to node `0` and nothing blocks. A
-textbook switched-capacitor integrator therefore exports without a supply
-drawn. The ideal comparator whose high level is `VDD` reads VDD alone: it
-takes the default VDD described above, but no default ground. An authored
-Cell or a declared external definition of
-the same name replaces the body and may use its supplies, so the rule above
+drawn supply, the unused port is tied to node `0` and nothing blocks; where
+the Cell has a default VDD Pin for other parts, the port takes that Pin, still
+unused. A textbook switched-capacitor integrator therefore exports without a
+supply drawn. The op-amp reads its supplies only once a VDD the author drew
+or selected powers it, so it, too, takes no default supply, and several
+competing candidates never block its export: they fall back as Device
+definition describes, with `IDEAL_OPAMP_SUPPLY_AMBIGUOUS`. The ideal
+comparator whose high level is `VDD` reads VDD alone: it takes the default
+VDD described above, but no default ground. An authored Cell or a declared
+external definition of the same name replaces the body and may use its
+supplies, so the rule above
 applies to it again, as it does to every Block whose body uses VDD and VSS.
 Export never silently declares `.global VDD VSS`; a default supply is a Cell
 Pin, as for MOS bodies.
@@ -780,12 +961,14 @@ chooses the format independently of the adjacent Process selector. The compact
 NMOS/PMOS/R/C/L selectors apply their target to that device family. Ideal R/C/L
 remain the default; selecting a reviewed physical passive uses its geometry,
 not a numerical conversion of an ideal resistance/capacitance/inductance.
-Authored W/L and values survive process changes, and reviewed SKY130 calls use
+Authored W/L and values survive process changes, except a 16 V DMOS size SKY130
+has no model for (see above), and reviewed SKY130 calls use
 the existing canonical unit/interface conversion. TSMC 28 maps `m` to `multi`;
 switching back restores `m`. Process selection preserves names and stable
 instance IDs; dialect naming happens only during extraction. Custom external
 blocks keep their own interfaces. Default restores the mapping the editor starts
-in and output preferences, without overwriting authored parameter values. A
+in and output preferences, without overwriting authored parameter values,
+apart from that same DMOS exception. A
 circuit drawn before a process was chosen says so: the panel counts the devices
 that still have no model — the same plan, counted rather than committed — and
 offers them in one undoable click, filling only what is missing. These choices are remembered locally.

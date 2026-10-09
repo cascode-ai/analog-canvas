@@ -251,7 +251,10 @@ export function diagnoseProject(
     .diagnostics;
 }
 
-/** Build one revision-stamped, non-persisted snapshot of current evidence. */
+/**
+ * Build one revision-stamped, non-persisted snapshot of current evidence.
+ * @internal Tests read a Project's diagnostics through it.
+ */
 export function diagnoseProjectSnapshot(
   project: CircuitProject,
   resolver: SymbolResolver,

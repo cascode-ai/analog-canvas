@@ -7,6 +7,7 @@ import {
   resolveReviewedExternalBinding,
   type ReviewedExternalDeviceBinding,
 } from "@icm/devices";
+import { pdkSubstrateDefaultNet } from "@icm/derived";
 import {
   createNetlistPlanningProjection,
   executeProjectTransaction,
@@ -546,14 +547,20 @@ export function planNetlistProcess(
         const logical = projection.logicalNets(documentId);
         const ground =
           rule.substrate === "0" || rule.substrate.toUpperCase() === "VSS";
+        // The p-substrate belongs on the lowest supply: the Cell's negative
+        // rail unless its NMOS body default names another Net than ground,
+        // then that Net; else ground (#1530).
         let netId =
           terminal.role === "floating"
             ? undefined
-            : [...logical.byBaseNetId].find(([, net]) =>
+            : ((terminal.role === "substrate" && ground
+                ? pdkSubstrateDefaultNet(document, logical)?.id
+                : undefined) ??
+              [...logical.byBaseNetId].find(([, net]) =>
                 ground
                   ? net.powerDomain === "ground"
                   : net.name?.toLowerCase() === rule.substrate.toLowerCase(),
-              )?.[0];
+              )?.[0]);
         const edits: SchematicEdit[] = [];
         if (!netId) {
           netId = deriveStableId(
@@ -639,22 +646,6 @@ export function planNetlistProcess(
     if (!validated.ok) throw new Error(validated.error.message);
   }
   return edits;
-}
-
-/**
- * How many Instances the process in hand would fill in, changing nothing.
- *
- * The same plan the button applies, counted rather than committed: a circuit
- * drawn before this process was chosen — or before the editor bound devices at
- * all — says here how many of its devices are still waiting for a model and
- * the dimensions that come with it.
- */
-export function netlistProcessPendingInstances(
-  project: CircuitProject,
-  profile: NetlistExportProfile,
-): number {
-  return prepareNetlistProcess(project, profile, { onlyMissing: true })
-    .instanceCount;
 }
 
 /** One prepared snapshot consumed by both the exact count and its action. */

@@ -4,14 +4,10 @@ import type { Instance } from "@icm/model";
 import {
   componentParameters,
   effectiveComponentParameterValue,
-  reviewedExternalComponentParameters,
   initialComponentParameterValues,
   updateComponentParameterValues,
 } from "./component-parameters";
-import {
-  deviceDescriptor,
-  reviewedExternalBindingForMaster,
-} from "@icm/devices";
+import { deviceDescriptor } from "@icm/devices";
 
 describe("component parameter catalogue", () => {
   it("does not offer the default gain for an explicitly retargeted instance", () => {
@@ -147,25 +143,6 @@ describe("component parameter catalogue", () => {
       nf: "1",
       m: "1",
     });
-  });
-
-  it("keeps distinct reviewed external multipliers and passive geometry", () => {
-    const nmos = reviewedExternalBindingForMaster("sky130_fd_pr__nfet_01v8")!;
-    const resistor = reviewedExternalBindingForMaster(
-      "sky130_fd_pr__res_high_po",
-    )!;
-    const capacitor = reviewedExternalBindingForMaster(
-      "sky130_fd_pr__cap_mim_m3_1",
-    )!;
-    expect(
-      reviewedExternalComponentParameters(nmos).map(({ key }) => key),
-    ).toEqual(["w", "l", "nf", "m"]);
-    expect(
-      reviewedExternalComponentParameters(resistor).map(({ key }) => key),
-    ).toEqual(["w", "l", "mult"]);
-    expect(
-      reviewedExternalComponentParameters(capacitor).map(({ key }) => key),
-    ).toEqual(["w", "l", "mf"]);
   });
 
   it("projects the descriptor's ordered field metadata without local defaults", () => {

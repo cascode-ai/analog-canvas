@@ -267,6 +267,39 @@ export function CellManagerDialog({
     dismissActionDialog();
   }
 
+  async function loadImportProject(projectId: string): Promise<void> {
+    setImportProjectId(projectId);
+    setImportSource(null);
+    setImportCellId("");
+    setImportMessage("");
+    if (!projectId) return;
+    setImportBusy(true);
+    const loaded = await onLoadCloudProject(projectId);
+    setImportBusy(false);
+    if (!loaded.ok) {
+      setImportMessage(loaded.message);
+      return;
+    }
+    setImportSource(loaded.project);
+    setImportCellId(loaded.project.topDocumentId);
+  }
+
+  async function importSelectedCell(): Promise<void> {
+    if (!importSource || !importCellId) return;
+    setImportBusy(true);
+    const outcome = await onImportCloudCell(importSource, importCellId);
+    setImportBusy(false);
+    if (!outcome.ok) {
+      setImportMessage(outcome.message);
+      return;
+    }
+    dismissActionDialog();
+    if (outcome.documentId) {
+      setSelectedId(outcome.documentId);
+      setDetailVisible(true);
+    }
+  }
+
   if (!open) return null;
 
   return (
@@ -788,23 +821,9 @@ export function CellManagerDialog({
                     <select
                       value={importProjectId}
                       disabled={importBusy}
-                      onChange={async (event) => {
-                        const projectId = event.target.value;
-                        setImportProjectId(projectId);
-                        setImportSource(null);
-                        setImportCellId("");
-                        setImportMessage("");
-                        if (!projectId) return;
-                        setImportBusy(true);
-                        const loaded = await onLoadCloudProject(projectId);
-                        setImportBusy(false);
-                        if (!loaded.ok) {
-                          setImportMessage(loaded.message);
-                          return;
-                        }
-                        setImportSource(loaded.project);
-                        setImportCellId(loaded.project.topDocumentId);
-                      }}
+                      onChange={(event) =>
+                        void loadImportProject(event.target.value)
+                      }
                     >
                       <option value="">Choose a saved Project…</option>
                       {cloudProjects
@@ -840,24 +859,7 @@ export function CellManagerDialog({
                   <button
                     type="button"
                     disabled={!importSource || !importCellId || importBusy}
-                    onClick={async () => {
-                      if (!importSource || !importCellId) return;
-                      setImportBusy(true);
-                      const outcome = await onImportCloudCell(
-                        importSource,
-                        importCellId,
-                      );
-                      setImportBusy(false);
-                      if (!outcome.ok) {
-                        setImportMessage(outcome.message);
-                        return;
-                      }
-                      dismissActionDialog();
-                      if (outcome.documentId) {
-                        setSelectedId(outcome.documentId);
-                        setDetailVisible(true);
-                      }
-                    }}
+                    onClick={() => void importSelectedCell()}
                   >
                     {importBusy ? "Importing…" : "Import"}
                   </button>

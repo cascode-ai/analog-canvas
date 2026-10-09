@@ -33,11 +33,6 @@ export interface CrossCellTraceFrame {
   childNetId: string;
 }
 
-export interface NetTrace {
-  primary: NetHighlight;
-  crossCell: readonly CrossCellTraceFrame[];
-}
-
 export interface HierarchyNetRef {
   documentId: string;
   netId: string;
@@ -125,50 +120,6 @@ export function computeNetHighlight(
       : record.virtualEdges,
     routingGuidance: record.routingGuidance,
   };
-}
-
-export function traceNet(
-  index: ProjectConnectivityIndex,
-  documentId: string,
-  netId: string,
-): NetTrace | undefined {
-  const primary = computeNetHighlight(index, documentId, netId);
-  if (!primary) return undefined;
-
-  const parentEndpointToNet =
-    index.documents.get(documentId)?.endpointToBaseNetId;
-  const logicalRecord = index.documents
-    .get(documentId)
-    ?.logicalNetByBaseNetId.get(netId);
-  const crossCell: CrossCellTraceFrame[] = [];
-  for (const edge of index.hierarchy.edges) {
-    if (edge.parentDocumentId !== documentId) continue;
-    const parentPinKey = endpointKey({
-      kind: "terminal",
-      instanceId: edge.instanceId,
-      pinName: edge.parentPinName,
-    });
-    const parentNetId = parentEndpointToNet?.get(parentPinKey);
-    if (!parentNetId || !logicalRecord?.baseNetIds.includes(parentNetId)) {
-      continue;
-    }
-    crossCell.push({
-      parentDocumentId: edge.parentDocumentId,
-      instanceId: edge.instanceId,
-      parentPinName: edge.parentPinName,
-      childDocumentId: edge.childDocumentId,
-      childTerminalName: edge.childTerminalName,
-      childNetId: edge.childNetId,
-    });
-  }
-
-  crossCell.sort(
-    (left, right) =>
-      left.instanceId.localeCompare(right.instanceId, "en") ||
-      left.parentPinName.localeCompare(right.parentPinName, "en"),
-  );
-
-  return { primary, crossCell };
 }
 
 /**

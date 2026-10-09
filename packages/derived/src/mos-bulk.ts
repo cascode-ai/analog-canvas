@@ -196,6 +196,77 @@ export function drawnSupplyLogicalNetIds(
   return new Set(drawnSupplyNets(document, domain, logicalNets).logicalNetIds);
 }
 
+/** A supply named as a negative rail: VEE, VSS or VNEG, any case and suffix. */
+const NEGATIVE_SUPPLY_NAME = /^[ad]?(?:vee|vss|vneg)[a-z0-9_]*$/iu;
+
+/**
+ * Whether a Net name reads as a negative rail (VEE, VSS, VNEG; an a/d
+ * prefix, any suffix). The one rule {@link drawnNegativeSupplyNet} and the
+ * export's lowest-supply check share, so a substrate the Process puts on that
+ * rail is never also reported off the lowest supply (#1530).
+ */
+export function namesNegativeSupply(name: string): boolean {
+  return NEGATIVE_SUPPLY_NAME.test(name);
+}
+
+/**
+ * The Cell's one drawn negative supply, or nothing (#1530). A negative rail
+ * is drawn with the same supply marker as VDD, so its domain says only that
+ * it is a supply; which one sits below ground is a voltage the drawing does
+ * not hold. The name the author gave that drawn supply does: VEE, or VSS
+ * and VNEG on a supply marker rather than ground. An internal Net's name
+ * still decides nothing, and two such supplies are a question, not a vote.
+ */
+export function drawnNegativeSupplyNet(
+  document: SchematicDocument,
+  logicalNets?: ResolvedDocumentLogicalNets,
+): Net | undefined {
+  const resolved = logicalNets ?? resolveDocumentLogicalNets(document);
+  const drawn = drawnSupplyNets(document, "vdd", resolved);
+  const negative = drawn.nets.filter((_net, index) =>
+    namesNegativeSupply(
+      resolved.byId.get(drawn.logicalNetIds[index]!)?.name ?? "",
+    ),
+  );
+  return negative.length === 1 ? negative[0] : undefined;
+}
+
+/**
+ * The Net the Process binds a hidden PDK substrate terminal to (#1530): an
+ * NPN's S, a poly resistor's or varactor's B, an inductor's SUB. The PDK
+ * ties them to the p-substrate, the node the NMOS bodies sit on, which
+ * belongs on the lowest supply. A Cell that draws one negative supply puts
+ * it there while its NMOS body default is unset or ground, as a Cell's first
+ * ground marker sets it; an NMOS default on another Net (VSUB) names it; else
+ * it is ground. Undefined when the Cell has none of these. `nmosNetId` asks
+ * under another NMOS body default (`null` for none), as a change of that
+ * default does before it commits.
+ */
+export function pdkSubstrateDefaultNet(
+  document: SchematicDocument,
+  logicalNets?: ResolvedDocumentLogicalNets,
+  nmosNetId: string | null = document.mosBulkDefaults?.nmosNetId ?? null,
+): Net | undefined {
+  const resolved = logicalNets ?? resolveDocumentLogicalNets(document);
+  const configured = nmosNetId
+    ? document.nets.find((net) => net.id === nmosNetId)
+    : undefined;
+  const negative = drawnNegativeSupplyNet(document, resolved);
+  if (
+    negative &&
+    (!configured ||
+      drawnSupplyLogicalNetIds(document, "ground", resolved).has(
+        resolved.byBaseNetId.get(configured.id)?.id ?? configured.id,
+      ))
+  )
+    return negative;
+  if (configured) return configured;
+  const groundId = [...resolved.byBaseNetId].find(
+    ([, net]) => net.powerDomain === "ground",
+  )?.[0];
+  return document.nets.find((net) => net.id === groundId);
+}
+
 function drawnSupplyNets(
   document: SchematicDocument,
   domain: SupplyDomain,

@@ -186,6 +186,7 @@ describe("Razavi symbol catalog", () => {
       ["inductor-compact", "reviewed", "razavi-reference-v1"],
       ["tcoil", "reviewed", "razavi-reference-v1"],
       ["xfmr", "reviewed", "razavi-reference-v1"],
+      ["center-tap-inductor", "reviewed", "house"],
       ["inverter", "reviewed", "razavi-reference-v1"],
       ["nand-gate", "reviewed", "razavi-reference-v1"],
       ["nand-gate-3", "reviewed", "house"],

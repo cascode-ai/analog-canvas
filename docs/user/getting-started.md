@@ -23,11 +23,13 @@ authoring; no Project file needs to be opened first.
 New Resistor, Capacitor, and Inductor instances—including their adjustable
 variants—start with `1k`, `1p`, and `1n` respectively. T-coil starts with
 `L1=1n`, `L2=1n`, `K=1`, and `CB=1p`; XFMR starts with `Lp=1n`, `Ls=1n`, and
-`K=1`. These are authored parameter values rather than placeholders. In the
-netlist, a T-coil or XFMR calls a built-in `tcoil` or `xfmr` subcircuit of
-coupled inductors (plus the T-coil's bridge capacitor), written once in the
-file; each winding starts at its polarity dot. SPICE import still does not
-recognize such a network, so both are placed by hand.
+`K=1`; a Center-Tap Inductor starts with `L1=1n`, `L2=1n` and `K=0`, two
+plain series halves. These are authored parameter values rather than
+placeholders. In the netlist, a T-coil, XFMR or Center-Tap Inductor calls a
+built-in `tcoil`, `xfmr` or `ct_inductor` subcircuit of coupled inductors
+(plus the T-coil's bridge capacitor), written once in the file; each winding
+starts at its polarity dot. SPICE import still does not recognize such a
+network, so all three are placed by hand.
 
 ## Edit and connect
 
@@ -180,6 +182,15 @@ recognize such a network, so both are placed by hand.
   never in the drawing; an exported module states ground as its `VSS` Pin. A
   comparator's output swings up to its own VDD (`vhigh` `VDD`, the default),
   so it gets the `VDD` Pin alone; a number in `vhigh` sets a fixed level.
+  An op-amp's output stops at its own supplies once a VDD is drawn or
+  selected for it (`vhigh` `VDD` and `vlow` `VSS`, the defaults), and at
+  +5 V and −5 V when none is; numbers in `vhigh` and `vlow` set fixed
+  limits. So op-amp oscillators and Schmitt triggers saturate as drawn.
+  With several positive supplies drawn, select the op-amp's VDD in
+  Properties; until then a warning says which limit falls back to +5 V or
+  −5 V. Likewise, when an op-amp with a VDD has several grounds or negative
+  supplies to choose from, select its VSS; until then its low limit is
+  ground. The fully differential op-amp is not limited.
   Explicitly Global supplies stay global, and separate supplies such as `AVDD`
   and `DVDD` retain their connections: when several compete, choose one in
   Properties.
@@ -639,8 +650,12 @@ on its label, such as `Φ₁`, to share one clock among several switches; the
 label becomes a display alias by itself. The SPICE netlist then writes the switch
 as `S1 a b PHI1 VSS ideal_switch`, with one `.model ideal_switch SW(…)` card in
 the same Cell. Draw the clock on a Net named `Φ1`, or give the Cell a Pin named
-`Φ1`, and the switch follows it; until then the netlist warns that nothing
-drives that phase. **Ctrl SW** takes its control from its CTRL pin instead.
+`Φ1`, and the switch follows it. A phase nothing in the Cell drives becomes an
+input of the Cell in its netlist (`.subckt … PHI1`), for the testbench or the
+Cell that uses it to drive. A phase written with an overbar, such as `E̅N̅`, is
+its own signal `EN_bar` on the same plain switch: draw an inverter if `EN_bar`
+comes from `EN` in your circuit, or let the testbench drive both. **Ctrl SW** takes
+its control from its CTRL pin instead.
 Switches are written in SPICE only.
 
 A diode you place in Abstract, SKY130, IHP SG13G2 or Custom takes the generic

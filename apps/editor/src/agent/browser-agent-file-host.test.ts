@@ -528,6 +528,59 @@ describe("BrowserAgentFileHost", () => {
     expect(host.consumeApproved(stage.candidate.candidateId)).toBeNull();
   });
 
+  it("names what blocks opening a staged import, and keeps the candidate (#1462)", async () => {
+    const live = createEmptyProject("live", "Live Project");
+    const staged = createEmptyProject("staged", "Staged Project");
+    let blocker: string | null = "the Publish to Gallery dialog is open";
+    const host = new BrowserAgentFileHost({
+      getProjectSessionId: () => "live-session",
+      getProject: () => live,
+      getDocument: (id) =>
+        live.documents.find((document) => document.id === id) ?? null,
+      getResolver: () => ({}) as SymbolResolver,
+      onApprovalRequested: () => undefined,
+      openProjectInNewTab: async () => blocker === null,
+      describeOpenBlocker: () => blocker,
+    });
+    const bytes = new TextEncoder().encode(serializeProject(staged));
+    const stage = await host.handle({
+      apiVersion: AGENT_API_VERSION,
+      requestId: "stage-blocked",
+      operation: "stage",
+      kind: "project",
+      files: [
+        {
+          name: "staged.icproj.json",
+          mediaType: "application/json",
+          encoding: "base64",
+          data: base64EncodeBytes(bytes),
+          byteLength: bytes.byteLength,
+          sha256: await sha256(bytes),
+        },
+      ],
+    });
+    if (!stage.ok || stage.operation !== "stage")
+      throw new Error(JSON.stringify(stage));
+    const open = () =>
+      host.handle({
+        apiVersion: AGENT_API_VERSION,
+        requestId: "open-blocked",
+        operation: "open",
+        candidateId: stage.candidate.candidateId,
+      });
+    expect(await open()).toMatchObject({
+      ok: false,
+      error: {
+        code: "FILE_OPEN_BLOCKED",
+        message:
+          "Can't open the imported Project yet: the Publish to Gallery dialog is open",
+      },
+    });
+    // Once that is finished, the same candidate opens.
+    blocker = null;
+    expect(await open()).toMatchObject({ ok: true, operation: "open" });
+  });
+
   it("rejects traversal names and hash mismatches before parsing", async () => {
     const { host } = setup();
     const bytes = new TextEncoder().encode("{}");

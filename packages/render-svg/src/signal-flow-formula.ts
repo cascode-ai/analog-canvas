@@ -6,8 +6,6 @@ import { renderPositionedOverbarScriptDocument } from "./positioned-rich-text.js
 import { renderRichTextDocument } from "./rich-text.js";
 import type { RichTextDocument, SchematicDocument } from "@icm/model";
 import {
-  normalizeSignalFlowFormula,
-  parseSignalFlowFraction,
   parseSignalFlowInline,
   resolveSignalFlowFormulaLayout,
   signalFlowBodyWordDocument,
@@ -160,5 +158,3 @@ export function renderUprightSignalFlowFormula(
   const translateY = worldCenter.y - presentation.center.y;
   return `<g data-role="upright-signal-flow-formula" transform="translate(${translateX} ${translateY})">${formula}</g>`;
 }
-
-export { normalizeSignalFlowFormula, parseSignalFlowFraction };

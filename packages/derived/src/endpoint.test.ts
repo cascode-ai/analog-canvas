@@ -9,7 +9,6 @@ import { describe, expect, it } from "vitest";
 import {
   endpointBelongsToNet,
   endpointKey,
-  endpointsEqual,
   isVisibleEndpoint,
   netEndpoints,
   resolveEndpointConnection,
@@ -98,21 +97,6 @@ describe("endpoint primitives", () => {
       expect(endpointKey({ kind: "junction", junctionId: "j-1" })).toBe(
         "junction:j-1",
       );
-    });
-  });
-
-  describe("endpointsEqual", () => {
-    it("compares the current endpoint union", () => {
-      expect(endpointsEqual(terminal("A", "P"), terminal("A", "P"))).toBe(true);
-      expect(endpointsEqual(terminal("A", "P"), terminal("A", "Q"))).toBe(
-        false,
-      );
-      expect(
-        endpointsEqual(terminal("j-1", "P"), {
-          kind: "junction",
-          junctionId: "j-1",
-        }),
-      ).toBe(false);
     });
   });
 

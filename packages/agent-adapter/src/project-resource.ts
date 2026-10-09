@@ -16,9 +16,10 @@ const NetlistFormatSchema = z.enum(["spice", "spectre"]);
 const NetlistNamingProfileSchema = z.enum(["native", "cadence-bang"]);
 const NetlistPortCaseSchema = z.enum(["lower", "upper"]);
 const ProjectNameSchema = z.string().min(1).max(256);
+const GalleryEntryStatusSchema = z.enum(["public", "rejected", "recycled"]);
 /**
  * A Gallery entry's fields an Agent may set, at the Gallery's own limits
- * (worker/gallery-do.ts), which checks them again; the MCP tool takes the
+ * (worker/gallery-store.ts), which checks them again; the MCP tool takes the
  * same. No AI mark: what an Agent publishes or updates is marked AI, and
  * only its author changes that, in the Editor (#1415).
  */
@@ -86,7 +87,6 @@ export const AgentWorkspaceActionSchema = z.discriminatedUnion("action", [
       .optional(),
   }),
 ]);
-export type AgentWorkspaceAction = z.infer<typeof AgentWorkspaceActionSchema>;
 
 /**
  * Cross-Project Cell reuse stays a sibling resource because its source is the
@@ -130,6 +130,11 @@ export const AgentProjectResourceRequestSchema = z.discriminatedUnion(
       operation: z.literal("list-gallery"),
       cursor: z.string().min(1).max(2_048).optional(),
       limit: z.number().int().min(1).max(60).optional(),
+      // Signed in as an AI account: every AI account's entries, hidden ones
+      // included with their status and reason, `status` narrowing them
+      // (#1540). A person's entries are never listed there.
+      scope: z.literal("ai-seats").optional(),
+      status: GalleryEntryStatusSchema.optional(),
     }),
     ProjectRequestBaseSchema.extend({
       operation: z.literal("read-gallery-entry"),
@@ -159,6 +164,9 @@ export const AgentProjectResourceRequestSchema = z.discriminatedUnion(
       operation: z.literal("update-gallery-entry"),
       galleryEntryId: StableIdSchema.optional(),
       ...AgentGalleryEntryFields,
+      // An AI account takes over another AI account's entry as this update
+      // lands (#1499); a person's entry is never taken over.
+      takeOver: z.boolean().optional(),
     }),
     ProjectRequestBaseSchema.extend({
       operation: z.literal("read-project-code"),
@@ -190,7 +198,7 @@ export const AgentProjectResourceRequestSchema = z.discriminatedUnion(
   ],
 );
 
-export const AgentCloudProjectSummarySchema = z.strictObject({
+const AgentCloudProjectSummarySchema = z.strictObject({
   id: StableIdSchema,
   name: z.string().min(1).max(256),
   revision: z.number().int().nonnegative(),
@@ -198,7 +206,7 @@ export const AgentCloudProjectSummarySchema = z.strictObject({
   schemaVersion: z.number().int().positive(),
 });
 
-export const AgentReusableCellSummarySchema = z.strictObject({
+const AgentReusableCellSummarySchema = z.strictObject({
   documentId: StableIdSchema,
   name: z.string().min(1).max(256),
   netlistName: z.string().min(1).max(256).nullable(),
@@ -222,9 +230,12 @@ export const AgentGalleryEntrySummarySchema = z.strictObject({
   likes: z.number().int().nonnegative().optional(),
   /** The entry's saved AI mark, read only (#1439). */
   aiGenerated: z.boolean().optional(),
+  /** Listed with scope ai-seats only: where it stands, and why (#1540). */
+  status: GalleryEntryStatusSchema.optional(),
+  rejectReason: z.string().optional(),
 });
 
-export const AgentNetlistDiagnosticSchema = z.strictObject({
+const AgentNetlistDiagnosticSchema = z.strictObject({
   severity: z.enum(["error", "warning", "info"]),
   code: z.string().min(1),
   message: z.string().min(1),
@@ -443,12 +454,6 @@ export type AgentProjectResourceRequest = z.infer<
 >;
 export type AgentProjectResourceResponse = z.infer<
   typeof AgentProjectResourceResponseSchema
->;
-export type AgentCloudProjectSummary = z.infer<
-  typeof AgentCloudProjectSummarySchema
->;
-export type AgentReusableCellSummary = z.infer<
-  typeof AgentReusableCellSummarySchema
 >;
 export type AgentGalleryEntrySummary = z.infer<
   typeof AgentGalleryEntrySummarySchema

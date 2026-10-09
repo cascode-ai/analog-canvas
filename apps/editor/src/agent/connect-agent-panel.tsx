@@ -225,6 +225,18 @@ function ClaimHandOff({
           claimCode,
         )
       : null;
+  async function copyInstructions(text: string): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setCopyFailed(false);
+    } catch {
+      setCopied(false);
+      setCopyFailed(true);
+      textRef.current?.focus();
+      textRef.current?.select();
+    }
+  }
 
   return (
     <div className="agent-connection-content">
@@ -237,18 +249,7 @@ function ClaimHandOff({
             aria-label={
               copied ? "Connection setup copied" : "Copy connection setup"
             }
-            onClick={async () => {
-              try {
-                await navigator.clipboard.writeText(instructions);
-                setCopied(true);
-                setCopyFailed(false);
-              } catch {
-                setCopied(false);
-                setCopyFailed(true);
-                textRef.current?.focus();
-                textRef.current?.select();
-              }
-            }}
+            onClick={() => void copyInstructions(instructions)}
           >
             <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true">
               {copied ? (

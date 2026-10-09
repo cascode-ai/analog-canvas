@@ -4,11 +4,13 @@ import { razaviTextbookProfile } from "@icm/derived";
 import {
   componentCatalog,
   findPaletteSymbol,
-  flattenComponentCatalog,
   libraryDescription,
   libraryDisplayName,
   symbolCategory,
 } from "./symbol-catalog";
+
+const flattenComponentCatalog = (groups: ReturnType<typeof componentCatalog>) =>
+  groups.flatMap((group) => group.symbols);
 
 describe("component insertion catalog", () => {
   it("uses the canvas wire and junction visual contract inside the T-coil", () => {
@@ -227,6 +229,7 @@ describe("component insertion catalog", () => {
       "diode",
       "zener-diode",
       "tcoil",
+      "center-tap-inductor",
       "xfmr",
       "depletion-nmos",
       "depletion-pmos",
@@ -302,6 +305,7 @@ describe("reach order inside a category", () => {
       "diode",
       "zener-diode",
       "tcoil",
+      "center-tap-inductor",
       "xfmr",
       "depletion-nmos",
       "depletion-pmos",

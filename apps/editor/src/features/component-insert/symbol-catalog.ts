@@ -53,6 +53,7 @@ export function symbolCategory(symbolId: string): string {
       "diode",
       "zener-diode",
       "tcoil",
+      "center-tap-inductor",
       "xfmr",
     ].includes(symbolId)
   ) {
@@ -169,10 +170,15 @@ const LIBRARY_DISPLAY_NAMES: Readonly<Record<string, string>> = {
   ccvs: "CCVS",
   port: "Cell Pin",
   "zener-diode": "Zener",
+  "center-tap-inductor": "CT Coil",
 };
 
 /** One line saying what an entry does, where the name alone leaves a doubt. */
 const LIBRARY_DESCRIPTIONS: Readonly<Record<string, string>> = {
+  tcoil:
+    "Bridged T-coil: two coupled windings with a bridge capacitor across the ends",
+  "center-tap-inductor":
+    "Center-tapped inductor: two series halves meeting at the tap, no bridge capacitor",
   opamp: "Compact Op Amp — input pin spacing: 20",
   "opamp-wide": "Op Amp — input pin spacing: 40",
   "opamp-differential": "Compact FD Amp — input/output pin spacing: 20",
@@ -257,6 +263,7 @@ const SYMBOL_ORDER: readonly string[] = [
   "diode",
   "zener-diode",
   "tcoil",
+  "center-tap-inductor",
   "xfmr",
   "depletion-nmos",
   "depletion-pmos",
@@ -352,10 +359,4 @@ export function findPaletteSymbol(
   return paletteSymbols(styleProfileId).find(
     (symbol) => symbol.id === symbolId,
   );
-}
-
-export function flattenComponentCatalog(
-  groups: readonly ComponentCatalogGroup[],
-): SymbolDefinition[] {
-  return groups.flatMap((group) => group.symbols);
 }

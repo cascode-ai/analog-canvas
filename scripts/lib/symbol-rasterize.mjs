@@ -45,7 +45,7 @@ import { decodePng } from "./png-io.mjs";
  *   logical (0,0) within the window; defaults to the window center.
  * @returns {{svg: string, pixelWidth: number, pixelHeight: number}}
  */
-export function buildSymbolSvg(
+function buildSymbolSvg(
   definition,
   window,
   pixelsPerLogical,
@@ -99,8 +99,9 @@ export function buildSymbolSvg(
     profile,
   );
 
-  // Wrap exactly like render.ts:470: <g fill none stroke fg stroke-width=symbol
-  // linecap linejoin miterlimit>...primitives...</g>
+  // Wrap like the instance wrapper in buildSvgScene (render.ts):
+  // <g fill none stroke fg stroke-width=symbol linecap linejoin miterlimit>
+  // ...primitives...</g>
   const miterAttr = ` stroke-miterlimit="${profile.miterLimit}"`;
   const artwork = `${body}${formula}`;
   const transformedArtwork =

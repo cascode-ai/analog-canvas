@@ -15,24 +15,42 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      bounds: {
+        x: -30,
+        y: -15.08,
+        width: 50,
+        height: 30.01,
+      },
       pins: [
         {
           name: "A",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -30,
+            y: -10,
+          },
         },
         {
           name: "B",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -30,
+            y: 10,
+          },
         },
         {
           name: "Y",
           role: "output",
           direction: "east",
           visibility: "visible",
+          at: {
+            x: 20,
+            y: 0,
+          },
         },
       ],
       variants: [],
@@ -45,18 +63,32 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      bounds: {
+        x: -15.35,
+        y: -20,
+        width: 31.34,
+        height: 40,
+      },
       pins: [
         {
           name: "+",
           role: "positive",
           direction: "north",
           visibility: "visible",
+          at: {
+            x: 0,
+            y: -20,
+          },
         },
         {
           name: "-",
           role: "negative",
           direction: "south",
           visibility: "visible",
+          at: {
+            x: 0,
+            y: 20,
+          },
         },
       ],
       variants: [],
@@ -69,18 +101,32 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      bounds: {
+        x: -30,
+        y: -13.75,
+        width: 40,
+        height: 28.75,
+      },
       pins: [
         {
           name: "A",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -30,
+            y: 0,
+          },
         },
         {
           name: "Y",
           role: "output",
           direction: "east",
           visibility: "visible",
+          at: {
+            x: 10,
+            y: 0,
+          },
         },
       ],
       variants: [],
@@ -93,18 +139,32 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      bounds: {
+        x: -8.06,
+        y: -20,
+        width: 16.12,
+        height: 40,
+      },
       pins: [
         {
           name: "1",
           role: "passive",
           direction: "north",
           visibility: "visible",
+          at: {
+            x: 0,
+            y: -20,
+          },
         },
         {
           name: "2",
           role: "passive",
           direction: "south",
           visibility: "visible",
+          at: {
+            x: 0,
+            y: 20,
+          },
         },
       ],
       variants: [],
@@ -117,18 +177,32 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      bounds: {
+        x: -20,
+        y: -4.7,
+        width: 40,
+        height: 7.9,
+      },
       pins: [
         {
           name: "1",
           role: "passive",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -20,
+            y: 0,
+          },
         },
         {
           name: "2",
           role: "passive",
           direction: "east",
           visibility: "visible",
+          at: {
+            x: 20,
+            y: 0,
+          },
         },
       ],
       variants: [],
@@ -141,24 +215,42 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      bounds: {
+        x: -40,
+        y: -30,
+        width: 70,
+        height: 60,
+      },
       pins: [
         {
           name: "IN+",
           role: "non-inverting-input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -40,
+            y: 10,
+          },
         },
         {
           name: "IN-",
           role: "inverting-input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -40,
+            y: -10,
+          },
         },
         {
           name: "OUT",
           role: "output",
           direction: "east",
           visibility: "visible",
+          at: {
+            x: 30,
+            y: 0,
+          },
         },
       ],
       variants: [],
@@ -171,18 +263,32 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      bounds: {
+        x: -10.76,
+        y: -20,
+        width: 21.52,
+        height: 40,
+      },
       pins: [
         {
           name: "+",
           role: "positive",
           direction: "north",
           visibility: "visible",
+          at: {
+            x: 0,
+            y: -20,
+          },
         },
         {
           name: "-",
           role: "negative",
           direction: "south",
           visibility: "visible",
+          at: {
+            x: 0,
+            y: 20,
+          },
         },
       ],
       variants: [],
@@ -195,18 +301,32 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      bounds: {
+        x: -10.76,
+        y: -20,
+        width: 21.52,
+        height: 40,
+      },
       pins: [
         {
           name: "+",
           role: "positive",
           direction: "north",
           visibility: "visible",
+          at: {
+            x: 0,
+            y: -20,
+          },
         },
         {
           name: "-",
           role: "negative",
           direction: "south",
           visibility: "visible",
+          at: {
+            x: 0,
+            y: 20,
+          },
         },
       ],
       variants: [],
@@ -219,18 +339,32 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      bounds: {
+        x: -10.76,
+        y: -20,
+        width: 21.52,
+        height: 40,
+      },
       pins: [
         {
           name: "+",
           role: "positive",
           direction: "north",
           visibility: "visible",
+          at: {
+            x: 0,
+            y: -20,
+          },
         },
         {
           name: "-",
           role: "negative",
           direction: "south",
           visibility: "visible",
+          at: {
+            x: 0,
+            y: 20,
+          },
         },
       ],
       variants: [],
@@ -243,30 +377,52 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      bounds: {
+        x: -42,
+        y: -27,
+        width: 84,
+        height: 54,
+      },
       pins: [
         {
           name: "D",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -40,
+            y: -10,
+          },
         },
         {
           name: "CK",
           role: "clock",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -40,
+            y: 10,
+          },
         },
         {
           name: "Q",
           role: "output",
           direction: "east",
           visibility: "visible",
+          at: {
+            x: 40,
+            y: -10,
+          },
         },
         {
           name: "QBAR",
           role: "output-complement",
           direction: "east",
           visibility: "visible",
+          at: {
+            x: 40,
+            y: 10,
+          },
         },
       ],
       variants: [],
@@ -279,36 +435,62 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      bounds: {
+        x: -42,
+        y: -27,
+        width: 84,
+        height: 79,
+      },
       pins: [
         {
           name: "D",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -40,
+            y: -10,
+          },
         },
         {
           name: "CK",
           role: "clock",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -40,
+            y: 10,
+          },
         },
         {
           name: "RST",
           role: "reset",
           direction: "south",
           visibility: "visible",
+          at: {
+            x: 0,
+            y: 50,
+          },
         },
         {
           name: "Q",
           role: "output",
           direction: "east",
           visibility: "visible",
+          at: {
+            x: 40,
+            y: -10,
+          },
         },
         {
           name: "QBAR",
           role: "output-complement",
           direction: "east",
           visibility: "visible",
+          at: {
+            x: 40,
+            y: 10,
+          },
         },
       ],
       variants: [],
@@ -321,24 +503,42 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      bounds: {
+        x: -42,
+        y: -27,
+        width: 84,
+        height: 54,
+      },
       pins: [
         {
           name: "D",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -40,
+            y: -10,
+          },
         },
         {
           name: "CK",
           role: "clock",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -40,
+            y: 10,
+          },
         },
         {
           name: "Q",
           role: "output",
           direction: "east",
           visibility: "visible",
+          at: {
+            x: 40,
+            y: 0,
+          },
         },
       ],
       variants: [],
@@ -351,18 +551,32 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      bounds: {
+        x: -44,
+        y: -24,
+        width: 88,
+        height: 48,
+      },
       pins: [
         {
           name: "A",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -40,
+            y: 0,
+          },
         },
         {
           name: "Y",
           role: "output",
           direction: "east",
           visibility: "visible",
+          at: {
+            x: 40,
+            y: 0,
+          },
         },
       ],
       variants: [],
@@ -375,24 +589,42 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "hidden",
       formula: false,
       coefficient: false,
+      bounds: {
+        x: -20,
+        y: -12,
+        width: 40,
+        height: 32,
+      },
       pins: [
         {
           name: "A",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -20,
+            y: 0,
+          },
         },
         {
           name: "B",
           role: "input",
           direction: "south",
           visibility: "visible",
+          at: {
+            x: 0,
+            y: 20,
+          },
         },
         {
           name: "Y",
           role: "output",
           direction: "east",
           visibility: "visible",
+          at: {
+            x: 20,
+            y: 0,
+          },
         },
       ],
       variants: [],
@@ -405,24 +637,42 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "hidden",
       formula: false,
       coefficient: false,
+      bounds: {
+        x: -20,
+        y: -12,
+        width: 40,
+        height: 32,
+      },
       pins: [
         {
           name: "A",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -20,
+            y: 0,
+          },
         },
         {
           name: "B",
           role: "input",
           direction: "south",
           visibility: "visible",
+          at: {
+            x: 0,
+            y: 20,
+          },
         },
         {
           name: "Y",
           role: "output",
           direction: "east",
           visibility: "visible",
+          at: {
+            x: 20,
+            y: 0,
+          },
         },
       ],
       variants: [],
@@ -435,18 +685,27 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "hidden",
       formula: true,
       coefficient: true,
+      bounds: null,
       pins: [
         {
           name: "A",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -30,
+            y: 0,
+          },
         },
         {
           name: "Y",
           role: "output",
           direction: "east",
           visibility: "visible",
+          at: {
+            x: 30,
+            y: 0,
+          },
         },
       ],
       variants: [],
@@ -459,24 +718,42 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "hidden",
       formula: true,
       coefficient: true,
+      bounds: {
+        x: -30,
+        y: -35,
+        width: 60,
+        height: 70,
+      },
       pins: [
         {
           name: "IN+",
           role: "non-inverting-input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -30,
+            y: 10,
+          },
         },
         {
           name: "IN-",
           role: "inverting-input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -30,
+            y: -10,
+          },
         },
         {
           name: "OUT",
           role: "output",
           direction: "east",
           visibility: "visible",
+          at: {
+            x: 30,
+            y: 0,
+          },
         },
       ],
       variants: [],
@@ -489,18 +766,27 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "hidden",
       formula: true,
       coefficient: true,
+      bounds: null,
       pins: [
         {
           name: "A",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -30,
+            y: 0,
+          },
         },
         {
           name: "Y",
           role: "output",
           direction: "east",
           visibility: "visible",
+          at: {
+            x: 30,
+            y: 0,
+          },
         },
       ],
       variants: [],
@@ -513,18 +799,27 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "hidden",
       formula: true,
       coefficient: true,
+      bounds: null,
       pins: [
         {
           name: "A",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -30,
+            y: 0,
+          },
         },
         {
           name: "Y",
           role: "output",
           direction: "east",
           visibility: "visible",
+          at: {
+            x: 30,
+            y: 0,
+          },
         },
       ],
       variants: [],
@@ -537,18 +832,27 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "hidden",
       formula: true,
       coefficient: true,
+      bounds: null,
       pins: [
         {
           name: "A",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -40,
+            y: 0,
+          },
         },
         {
           name: "Y",
           role: "output",
           direction: "east",
           visibility: "visible",
+          at: {
+            x: 40,
+            y: 0,
+          },
         },
       ],
       variants: [],
@@ -561,18 +865,32 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "hidden",
       formula: false,
       coefficient: false,
+      bounds: {
+        x: -34,
+        y: -24,
+        width: 68,
+        height: 48,
+      },
       pins: [
         {
           name: "A",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -30,
+            y: 0,
+          },
         },
         {
           name: "Y",
           role: "output",
           direction: "east",
           visibility: "visible",
+          at: {
+            x: 30,
+            y: 0,
+          },
         },
       ],
       variants: [],
@@ -585,18 +903,32 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      bounds: {
+        x: -20,
+        y: -7.34,
+        width: 40,
+        height: 14.68,
+      },
       pins: [
         {
           name: "A",
           role: "anode",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -20,
+            y: 0,
+          },
         },
         {
           name: "K",
           role: "cathode",
           direction: "east",
           visibility: "visible",
+          at: {
+            x: 20,
+            y: 0,
+          },
         },
       ],
       variants: [],
@@ -609,24 +941,42 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      bounds: {
+        x: -20,
+        y: -20,
+        width: 23.2,
+        height: 40,
+      },
       pins: [
         {
           name: "P",
           role: "passive",
           direction: "north",
           visibility: "visible",
+          at: {
+            x: 0,
+            y: -20,
+          },
         },
         {
           name: "N",
           role: "passive",
           direction: "south",
           visibility: "visible",
+          at: {
+            x: 0,
+            y: 20,
+          },
         },
         {
           name: "CTRL",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -20,
+            y: 0,
+          },
         },
       ],
       variants: [],
@@ -639,12 +989,22 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "hidden",
       formula: false,
       coefficient: false,
+      bounds: {
+        x: -6.4,
+        y: -10,
+        width: 12.8,
+        height: 21.05,
+      },
       pins: [
         {
           name: "0",
           role: "ground",
           direction: "north",
           visibility: "visible",
+          at: {
+            x: 0,
+            y: -10,
+          },
         },
       ],
       variants: [],
@@ -657,18 +1017,32 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      bounds: {
+        x: -20,
+        y: -12.81,
+        width: 40,
+        height: 16,
+      },
       pins: [
         {
           name: "1",
           role: "passive",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -20,
+            y: 0,
+          },
         },
         {
           name: "2",
           role: "passive",
           direction: "east",
           visibility: "visible",
+          at: {
+            x: 20,
+            y: 0,
+          },
         },
       ],
       variants: [],
@@ -681,18 +1055,32 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      bounds: {
+        x: -15,
+        y: -32,
+        width: 30,
+        height: 64,
+      },
       pins: [
         {
           name: "1",
           role: "passive",
           direction: "north",
           visibility: "visible",
+          at: {
+            x: 0,
+            y: -30,
+          },
         },
         {
           name: "2",
           role: "passive",
           direction: "south",
           visibility: "visible",
+          at: {
+            x: 0,
+            y: 30,
+          },
         },
       ],
       variants: [],
@@ -705,18 +1093,32 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      bounds: {
+        x: -10,
+        y: -24,
+        width: 20,
+        height: 48,
+      },
       pins: [
         {
           name: "1",
           role: "passive",
           direction: "north",
           visibility: "visible",
+          at: {
+            x: 0,
+            y: -20,
+          },
         },
         {
           name: "2",
           role: "passive",
           direction: "south",
           visibility: "visible",
+          at: {
+            x: 0,
+            y: 20,
+          },
         },
       ],
       variants: [],
@@ -729,24 +1131,42 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      bounds: {
+        x: -104,
+        y: -56,
+        width: 208,
+        height: 90,
+      },
       pins: [
         {
           name: "1",
           role: "passive",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -100,
+            y: 0,
+          },
         },
         {
           name: "2",
           role: "passive",
           direction: "east",
           visibility: "visible",
+          at: {
+            x: 100,
+            y: 0,
+          },
         },
         {
           name: "3",
           role: "passive",
           direction: "south",
           visibility: "visible",
+          at: {
+            x: 0,
+            y: 20,
+          },
         },
       ],
       variants: [],
@@ -759,30 +1179,100 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      bounds: {
+        x: -34,
+        y: -24,
+        width: 68,
+        height: 48,
+      },
       pins: [
         {
           name: "P-",
           role: "passive",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -30,
+            y: -10,
+          },
         },
         {
           name: "P+",
           role: "passive",
           direction: "east",
           visibility: "visible",
+          at: {
+            x: 30,
+            y: -10,
+          },
         },
         {
           name: "S-",
           role: "passive",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -30,
+            y: 10,
+          },
         },
         {
           name: "S+",
           role: "passive",
           direction: "east",
           visibility: "visible",
+          at: {
+            x: 30,
+            y: 10,
+          },
+        },
+      ],
+      variants: [],
+    },
+    {
+      symbolId: "center-tap-inductor",
+      name: "Center-Tap Inductor",
+      category: "passive",
+      defaultVariantId: null,
+      labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
+      bounds: {
+        x: -64,
+        y: -16,
+        width: 128,
+        height: 40,
+      },
+      pins: [
+        {
+          name: "1",
+          role: "passive",
+          direction: "west",
+          visibility: "visible",
+          at: {
+            x: -60,
+            y: 0,
+          },
+        },
+        {
+          name: "2",
+          role: "passive",
+          direction: "east",
+          visibility: "visible",
+          at: {
+            x: 60,
+            y: 0,
+          },
+        },
+        {
+          name: "3",
+          role: "passive",
+          direction: "south",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: 20,
+          },
         },
       ],
       variants: [],
@@ -795,18 +1285,32 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      bounds: {
+        x: -30,
+        y: -15.01,
+        width: 50,
+        height: 28.76,
+      },
       pins: [
         {
           name: "A",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -30,
+            y: 0,
+          },
         },
         {
           name: "Y",
           role: "output",
           direction: "east",
           visibility: "visible",
+          at: {
+            x: 20,
+            y: 0,
+          },
         },
       ],
       variants: [],
@@ -819,24 +1323,42 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      bounds: {
+        x: -30,
+        y: -14.93,
+        width: 60,
+        height: 30.01,
+      },
       pins: [
         {
           name: "A",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -30,
+            y: -10,
+          },
         },
         {
           name: "B",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -30,
+            y: 10,
+          },
         },
         {
           name: "Y",
           role: "output",
           direction: "east",
           visibility: "visible",
+          at: {
+            x: 30,
+            y: 0,
+          },
         },
       ],
       variants: [],
@@ -849,36 +1371,78 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      bounds: {
+        x: -20,
+        y: -20,
+        width: 30.59,
+        height: 40,
+      },
       pins: [
         {
           name: "D",
           role: "drain",
           direction: "north",
           visibility: "visible",
+          at: {
+            x: 10,
+            y: -20,
+          },
         },
         {
           name: "G",
           role: "gate",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -20,
+            y: 0,
+          },
         },
         {
           name: "S",
           role: "source",
           direction: "south",
           visibility: "visible",
+          at: {
+            x: 10,
+            y: 20,
+          },
         },
         {
           name: "B",
           role: "bulk",
           direction: "east",
           visibility: "visible",
+          at: {
+            x: 20,
+            y: 0,
+          },
         },
       ],
       variants: [
         {
           id: "textbook-3terminal",
           hiddenPinNames: ["B"],
+          auxiliaryPins: [
+            {
+              name: "B",
+              direction: "east",
+              at: {
+                x: -4,
+                y: 0,
+              },
+              landing: {
+                x: 0,
+                y: 0,
+              },
+            },
+          ],
+          bounds: {
+            x: -20,
+            y: -20,
+            width: 30.59,
+            height: 40,
+          },
         },
       ],
     },
@@ -890,24 +1454,42 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      bounds: {
+        x: -30,
+        y: -17.74,
+        width: 60,
+        height: 35.63,
+      },
       pins: [
         {
           name: "A",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -30,
+            y: -10,
+          },
         },
         {
           name: "B",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -30,
+            y: 10,
+          },
         },
         {
           name: "Y",
           role: "output",
           direction: "east",
           visibility: "visible",
+          at: {
+            x: 30,
+            y: 0,
+          },
         },
       ],
       variants: [],
@@ -920,24 +1502,42 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      bounds: {
+        x: -30,
+        y: -20,
+        width: 30,
+        height: 40,
+      },
       pins: [
         {
           name: "C",
           role: "collector",
           direction: "north",
           visibility: "visible",
+          at: {
+            x: 0,
+            y: -20,
+          },
         },
         {
           name: "B",
           role: "base",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -30,
+            y: 0,
+          },
         },
         {
           name: "E",
           role: "emitter",
           direction: "south",
           visibility: "visible",
+          at: {
+            x: 0,
+            y: 20,
+          },
         },
       ],
       variants: [],
@@ -950,24 +1550,42 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      bounds: {
+        x: -40,
+        y: -30,
+        width: 70,
+        height: 60,
+      },
       pins: [
         {
           name: "IN+",
           role: "non-inverting-input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -40,
+            y: 10,
+          },
         },
         {
           name: "IN-",
           role: "inverting-input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -40,
+            y: -10,
+          },
         },
         {
           name: "OUT",
           role: "output",
           direction: "east",
           visibility: "visible",
+          at: {
+            x: 30,
+            y: 0,
+          },
         },
       ],
       variants: [],
@@ -980,24 +1598,42 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      bounds: {
+        x: -40,
+        y: -30,
+        width: 70,
+        height: 60,
+      },
       pins: [
         {
           name: "IN+",
           role: "non-inverting-input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -40,
+            y: 20,
+          },
         },
         {
           name: "IN-",
           role: "inverting-input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -40,
+            y: -20,
+          },
         },
         {
           name: "OUT",
           role: "output",
           direction: "east",
           visibility: "visible",
+          at: {
+            x: 30,
+            y: 0,
+          },
         },
       ],
       variants: [],
@@ -1010,30 +1646,52 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      bounds: {
+        x: -40,
+        y: -30,
+        width: 70,
+        height: 60,
+      },
       pins: [
         {
           name: "IN+",
           role: "non-inverting-input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -40,
+            y: 10,
+          },
         },
         {
           name: "IN-",
           role: "inverting-input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -40,
+            y: -10,
+          },
         },
         {
           name: "OUT+",
           role: "output",
           direction: "east",
           visibility: "visible",
+          at: {
+            x: 30,
+            y: 10,
+          },
         },
         {
           name: "OUT-",
           role: "output",
           direction: "east",
           visibility: "visible",
+          at: {
+            x: 30,
+            y: -10,
+          },
         },
       ],
       variants: [],
@@ -1046,30 +1704,52 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      bounds: {
+        x: -40,
+        y: -30,
+        width: 70,
+        height: 60,
+      },
       pins: [
         {
           name: "IN+",
           role: "non-inverting-input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -40,
+            y: 20,
+          },
         },
         {
           name: "IN-",
           role: "inverting-input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -40,
+            y: -20,
+          },
         },
         {
           name: "OUT+",
           role: "output",
           direction: "east",
           visibility: "visible",
+          at: {
+            x: 30,
+            y: 20,
+          },
         },
         {
           name: "OUT-",
           role: "output",
           direction: "east",
           visibility: "visible",
+          at: {
+            x: 30,
+            y: -20,
+          },
         },
       ],
       variants: [],
@@ -1082,24 +1762,42 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      bounds: {
+        x: -30,
+        y: -17.74,
+        width: 50,
+        height: 35.63,
+      },
       pins: [
         {
           name: "A",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -30,
+            y: -10,
+          },
         },
         {
           name: "B",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -30,
+            y: 10,
+          },
         },
         {
           name: "Y",
           role: "output",
           direction: "east",
           visibility: "visible",
+          at: {
+            x: 20,
+            y: 0,
+          },
         },
       ],
       variants: [],
@@ -1112,36 +1810,78 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      bounds: {
+        x: -20,
+        y: -20,
+        width: 30,
+        height: 40,
+      },
       pins: [
         {
           name: "D",
           role: "drain",
           direction: "south",
           visibility: "visible",
+          at: {
+            x: 10,
+            y: 20,
+          },
         },
         {
           name: "G",
           role: "gate",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -20,
+            y: 0,
+          },
         },
         {
           name: "S",
           role: "source",
           direction: "north",
           visibility: "visible",
+          at: {
+            x: 10,
+            y: -20,
+          },
         },
         {
           name: "B",
           role: "bulk",
           direction: "east",
           visibility: "visible",
+          at: {
+            x: 20,
+            y: 0,
+          },
         },
       ],
       variants: [
         {
           id: "textbook-3terminal",
           hiddenPinNames: ["B"],
+          auxiliaryPins: [
+            {
+              name: "B",
+              direction: "east",
+              at: {
+                x: -4,
+                y: 0,
+              },
+              landing: {
+                x: 0,
+                y: 0,
+              },
+            },
+          ],
+          bounds: {
+            x: -20,
+            y: -20,
+            width: 30,
+            height: 40,
+          },
         },
       ],
     },
@@ -1153,24 +1893,42 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      bounds: {
+        x: -30,
+        y: -20,
+        width: 30,
+        height: 40,
+      },
       pins: [
         {
           name: "C",
           role: "collector",
           direction: "south",
           visibility: "visible",
+          at: {
+            x: 0,
+            y: 20,
+          },
         },
         {
           name: "B",
           role: "base",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -30,
+            y: 0,
+          },
         },
         {
           name: "E",
           role: "emitter",
           direction: "north",
           visibility: "visible",
+          at: {
+            x: 0,
+            y: -20,
+          },
         },
       ],
       variants: [],
@@ -1183,12 +1941,22 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      bounds: {
+        x: -9.57,
+        y: -2.48,
+        width: 9.57,
+        height: 4.96,
+      },
       pins: [
         {
           name: "P",
           role: "port",
           direction: "east",
           visibility: "visible",
+          at: {
+            x: 0,
+            y: 0,
+          },
         },
       ],
       variants: [],
@@ -1201,12 +1969,22 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      bounds: {
+        x: -9.57,
+        y: -2.48,
+        width: 9.57,
+        height: 4.96,
+      },
       pins: [
         {
           name: "P",
           role: "port",
           direction: "east",
           visibility: "visible",
+          at: {
+            x: 0,
+            y: 0,
+          },
         },
       ],
       variants: [],
@@ -1219,18 +1997,32 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      bounds: {
+        x: -4.99,
+        y: -20,
+        width: 10.37,
+        height: 40,
+      },
       pins: [
         {
           name: "1",
           role: "passive",
           direction: "north",
           visibility: "visible",
+          at: {
+            x: 0,
+            y: -20,
+          },
         },
         {
           name: "2",
           role: "passive",
           direction: "south",
           visibility: "visible",
+          at: {
+            x: 0,
+            y: 20,
+          },
         },
       ],
       variants: [],
@@ -1243,18 +2035,32 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      bounds: {
+        x: -20,
+        y: -11,
+        width: 40,
+        height: 11,
+      },
       pins: [
         {
           name: "1",
           role: "passive",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -20,
+            y: 0,
+          },
         },
         {
           name: "2",
           role: "passive",
           direction: "east",
           visibility: "visible",
+          at: {
+            x: 20,
+            y: 0,
+          },
         },
       ],
       variants: [],
@@ -1267,24 +2073,42 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      bounds: {
+        x: -20,
+        y: -13,
+        width: 40,
+        height: 26,
+      },
       pins: [
         {
           name: "COM",
           role: "passive",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -20,
+            y: 0,
+          },
         },
         {
           name: "A",
           role: "passive",
           direction: "east",
           visibility: "visible",
+          at: {
+            x: 20,
+            y: -10,
+          },
         },
         {
           name: "B",
           role: "passive",
           direction: "east",
           visibility: "visible",
+          at: {
+            x: 20,
+            y: 10,
+          },
         },
       ],
       variants: [],
@@ -1297,18 +2121,32 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      bounds: {
+        x: -12,
+        y: -20,
+        width: 24,
+        height: 40,
+      },
       pins: [
         {
           name: "P1",
           role: "passive",
           direction: "north",
           visibility: "visible",
+          at: {
+            x: 0,
+            y: -20,
+          },
         },
         {
           name: "P2",
           role: "passive",
           direction: "south",
           visibility: "visible",
+          at: {
+            x: 0,
+            y: 20,
+          },
         },
       ],
       variants: [],
@@ -1321,18 +2159,32 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      bounds: {
+        x: -16,
+        y: -24,
+        width: 32,
+        height: 48,
+      },
       pins: [
         {
           name: "P1",
           role: "passive",
           direction: "north",
           visibility: "visible",
+          at: {
+            x: 0,
+            y: -20,
+          },
         },
         {
           name: "P2",
           role: "passive",
           direction: "south",
           visibility: "visible",
+          at: {
+            x: 0,
+            y: 20,
+          },
         },
       ],
       variants: [],
@@ -1345,18 +2197,32 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      bounds: {
+        x: -16,
+        y: -24,
+        width: 32,
+        height: 48,
+      },
       pins: [
         {
           name: "P1",
           role: "passive",
           direction: "north",
           visibility: "visible",
+          at: {
+            x: 0,
+            y: -20,
+          },
         },
         {
           name: "P2",
           role: "passive",
           direction: "south",
           visibility: "visible",
+          at: {
+            x: 0,
+            y: 20,
+          },
         },
       ],
       variants: [],
@@ -1369,12 +2235,22 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "hidden",
       formula: false,
       coefficient: false,
+      bounds: {
+        x: -10,
+        y: -0.88,
+        width: 20,
+        height: 20.88,
+      },
       pins: [
         {
           name: "P",
           role: "power",
           direction: "south",
           visibility: "visible",
+          at: {
+            x: 0,
+            y: 20,
+          },
         },
       ],
       variants: [],
@@ -1387,18 +2263,32 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      bounds: {
+        x: -40,
+        y: -30,
+        width: 70,
+        height: 60,
+      },
       pins: [
         {
           name: "IN",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -40,
+            y: 0,
+          },
         },
         {
           name: "OUT",
           role: "output",
           direction: "east",
           visibility: "visible",
+          at: {
+            x: 30,
+            y: 0,
+          },
         },
       ],
       variants: [],
@@ -1411,18 +2301,32 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      bounds: {
+        x: -10.76,
+        y: -20,
+        width: 21.52,
+        height: 40,
+      },
       pins: [
         {
           name: "+",
           role: "positive",
           direction: "north",
           visibility: "visible",
+          at: {
+            x: 0,
+            y: -20,
+          },
         },
         {
           name: "-",
           role: "negative",
           direction: "south",
           visibility: "visible",
+          at: {
+            x: 0,
+            y: 20,
+          },
         },
       ],
       variants: [],
@@ -1435,30 +2339,52 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      bounds: {
+        x: -34,
+        y: -27,
+        width: 68,
+        height: 55,
+      },
       pins: [
         {
           name: "P",
           role: "passive",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -20,
+            y: -10,
+          },
         },
         {
           name: "N",
           role: "passive",
           direction: "east",
           visibility: "visible",
+          at: {
+            x: 20,
+            y: -10,
+          },
         },
         {
           name: "CP",
           role: "passive",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -20,
+            y: 20,
+          },
         },
         {
           name: "CN",
           role: "passive",
           direction: "east",
           visibility: "visible",
+          at: {
+            x: 20,
+            y: 20,
+          },
         },
       ],
       variants: [],
@@ -1471,18 +2397,32 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      bounds: {
+        x: -20.06,
+        y: -20,
+        width: 30.82,
+        height: 40,
+      },
       pins: [
         {
           name: "+",
           role: "positive",
           direction: "north",
           visibility: "visible",
+          at: {
+            x: 0,
+            y: -20,
+          },
         },
         {
           name: "-",
           role: "negative",
           direction: "south",
           visibility: "visible",
+          at: {
+            x: 0,
+            y: 20,
+          },
         },
       ],
       variants: [],
@@ -1495,18 +2435,32 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      bounds: {
+        x: -20.06,
+        y: -20,
+        width: 30.82,
+        height: 40,
+      },
       pins: [
         {
           name: "+",
           role: "positive",
           direction: "north",
           visibility: "visible",
+          at: {
+            x: 0,
+            y: -20,
+          },
         },
         {
           name: "-",
           role: "negative",
           direction: "south",
           visibility: "visible",
+          at: {
+            x: 0,
+            y: 20,
+          },
         },
       ],
       variants: [],
@@ -1519,18 +2473,32 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      bounds: {
+        x: -20.06,
+        y: -20,
+        width: 30.82,
+        height: 40,
+      },
       pins: [
         {
           name: "+",
           role: "positive",
           direction: "north",
           visibility: "visible",
+          at: {
+            x: 0,
+            y: -20,
+          },
         },
         {
           name: "-",
           role: "negative",
           direction: "south",
           visibility: "visible",
+          at: {
+            x: 0,
+            y: 20,
+          },
         },
       ],
       variants: [],
@@ -1543,24 +2511,42 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      bounds: {
+        x: -30,
+        y: -17.74,
+        width: 70,
+        height: 35.71,
+      },
       pins: [
         {
           name: "A",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -30,
+            y: -10,
+          },
         },
         {
           name: "B",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -30,
+            y: 10,
+          },
         },
         {
           name: "Y",
           role: "output",
           direction: "east",
           visibility: "visible",
+          at: {
+            x: 40,
+            y: 0,
+          },
         },
       ],
       variants: [],
@@ -1573,24 +2559,42 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      bounds: {
+        x: -30,
+        y: -17.74,
+        width: 60,
+        height: 35.71,
+      },
       pins: [
         {
           name: "A",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -30,
+            y: -10,
+          },
         },
         {
           name: "B",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -30,
+            y: 10,
+          },
         },
         {
           name: "Y",
           role: "output",
           direction: "east",
           visibility: "visible",
+          at: {
+            x: 30,
+            y: 0,
+          },
         },
       ],
       variants: [],
@@ -1603,18 +2607,32 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      bounds: {
+        x: -20,
+        y: -8.51,
+        width: 40,
+        height: 16.72,
+      },
       pins: [
         {
           name: "A",
           role: "anode",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -20,
+            y: 0,
+          },
         },
         {
           name: "K",
           role: "cathode",
           direction: "east",
           visibility: "visible",
+          at: {
+            x: 20,
+            y: 0,
+          },
         },
       ],
       variants: [],
@@ -1627,18 +2645,32 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: true,
       coefficient: false,
+      bounds: {
+        x: -50,
+        y: -20,
+        width: 90,
+        height: 40,
+      },
       pins: [
         {
           name: "IN",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -50,
+            y: 0,
+          },
         },
         {
           name: "OUT",
           role: "output",
           direction: "east",
           visibility: "visible",
+          at: {
+            x: 40,
+            y: 0,
+          },
         },
       ],
       variants: [],
@@ -1651,18 +2683,32 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: true,
       coefficient: false,
+      bounds: {
+        x: -40,
+        y: -20,
+        width: 90,
+        height: 40,
+      },
       pins: [
         {
           name: "IN",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -40,
+            y: 0,
+          },
         },
         {
           name: "OUT",
           role: "output",
           direction: "east",
           visibility: "visible",
+          at: {
+            x: 50,
+            y: 0,
+          },
         },
       ],
       variants: [],
@@ -1675,30 +2721,52 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      bounds: {
+        x: -30,
+        y: -15.08,
+        width: 50,
+        height: 30.01,
+      },
       pins: [
         {
           name: "A",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -30,
+            y: -10,
+          },
         },
         {
           name: "B",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -30,
+            y: 0,
+          },
         },
         {
           name: "C",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -30,
+            y: 10,
+          },
         },
         {
           name: "Y",
           role: "output",
           direction: "east",
           visibility: "visible",
+          at: {
+            x: 20,
+            y: 0,
+          },
         },
       ],
       variants: [],
@@ -1711,36 +2779,62 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      bounds: {
+        x: -30,
+        y: -15.08,
+        width: 50,
+        height: 30.01,
+      },
       pins: [
         {
           name: "A",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -30,
+            y: -12,
+          },
         },
         {
           name: "B",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -30,
+            y: -4,
+          },
         },
         {
           name: "C",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -30,
+            y: 4,
+          },
         },
         {
           name: "D",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -30,
+            y: 12,
+          },
         },
         {
           name: "Y",
           role: "output",
           direction: "east",
           visibility: "visible",
+          at: {
+            x: 20,
+            y: 0,
+          },
         },
       ],
       variants: [],
@@ -1753,30 +2847,52 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      bounds: {
+        x: -30,
+        y: -14.93,
+        width: 60,
+        height: 30.01,
+      },
       pins: [
         {
           name: "A",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -30,
+            y: -10,
+          },
         },
         {
           name: "B",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -30,
+            y: 0,
+          },
         },
         {
           name: "C",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -30,
+            y: 10,
+          },
         },
         {
           name: "Y",
           role: "output",
           direction: "east",
           visibility: "visible",
+          at: {
+            x: 30,
+            y: 0,
+          },
         },
       ],
       variants: [],
@@ -1789,36 +2905,62 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      bounds: {
+        x: -30,
+        y: -14.93,
+        width: 60,
+        height: 30.01,
+      },
       pins: [
         {
           name: "A",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -30,
+            y: -12,
+          },
         },
         {
           name: "B",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -30,
+            y: -4,
+          },
         },
         {
           name: "C",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -30,
+            y: 4,
+          },
         },
         {
           name: "D",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -30,
+            y: 12,
+          },
         },
         {
           name: "Y",
           role: "output",
           direction: "east",
           visibility: "visible",
+          at: {
+            x: 30,
+            y: 0,
+          },
         },
       ],
       variants: [],
@@ -1831,30 +2973,52 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      bounds: {
+        x: -30,
+        y: -17.74,
+        width: 60,
+        height: 35.63,
+      },
       pins: [
         {
           name: "A",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -30,
+            y: -10,
+          },
         },
         {
           name: "B",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -30,
+            y: 0,
+          },
         },
         {
           name: "C",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -30,
+            y: 10,
+          },
         },
         {
           name: "Y",
           role: "output",
           direction: "east",
           visibility: "visible",
+          at: {
+            x: 30,
+            y: 0,
+          },
         },
       ],
       variants: [],
@@ -1867,36 +3031,62 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      bounds: {
+        x: -30,
+        y: -17.74,
+        width: 60,
+        height: 35.63,
+      },
       pins: [
         {
           name: "A",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -30,
+            y: -12,
+          },
         },
         {
           name: "B",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -30,
+            y: -4,
+          },
         },
         {
           name: "C",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -30,
+            y: 4,
+          },
         },
         {
           name: "D",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -30,
+            y: 12,
+          },
         },
         {
           name: "Y",
           role: "output",
           direction: "east",
           visibility: "visible",
+          at: {
+            x: 30,
+            y: 0,
+          },
         },
       ],
       variants: [],
@@ -1909,30 +3099,52 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      bounds: {
+        x: -30,
+        y: -17.74,
+        width: 50,
+        height: 35.63,
+      },
       pins: [
         {
           name: "A",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -30,
+            y: -10,
+          },
         },
         {
           name: "B",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -30,
+            y: 0,
+          },
         },
         {
           name: "C",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -30,
+            y: 10,
+          },
         },
         {
           name: "Y",
           role: "output",
           direction: "east",
           visibility: "visible",
+          at: {
+            x: 20,
+            y: 0,
+          },
         },
       ],
       variants: [],
@@ -1945,36 +3157,62 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      bounds: {
+        x: -30,
+        y: -17.74,
+        width: 50,
+        height: 35.63,
+      },
       pins: [
         {
           name: "A",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -30,
+            y: -12,
+          },
         },
         {
           name: "B",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -30,
+            y: -4,
+          },
         },
         {
           name: "C",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -30,
+            y: 4,
+          },
         },
         {
           name: "D",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -30,
+            y: 12,
+          },
         },
         {
           name: "Y",
           role: "output",
           direction: "east",
           visibility: "visible",
+          at: {
+            x: 20,
+            y: 0,
+          },
         },
       ],
       variants: [],
@@ -1987,30 +3225,52 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      bounds: {
+        x: -30,
+        y: -17.74,
+        width: 70,
+        height: 35.71,
+      },
       pins: [
         {
           name: "A",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -30,
+            y: -10,
+          },
         },
         {
           name: "B",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -30,
+            y: 0,
+          },
         },
         {
           name: "C",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -30,
+            y: 10,
+          },
         },
         {
           name: "Y",
           role: "output",
           direction: "east",
           visibility: "visible",
+          at: {
+            x: 40,
+            y: 0,
+          },
         },
       ],
       variants: [],
@@ -2023,36 +3283,62 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      bounds: {
+        x: -30,
+        y: -17.74,
+        width: 70,
+        height: 35.71,
+      },
       pins: [
         {
           name: "A",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -30,
+            y: -12,
+          },
         },
         {
           name: "B",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -30,
+            y: -4,
+          },
         },
         {
           name: "C",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -30,
+            y: 4,
+          },
         },
         {
           name: "D",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -30,
+            y: 12,
+          },
         },
         {
           name: "Y",
           role: "output",
           direction: "east",
           visibility: "visible",
+          at: {
+            x: 40,
+            y: 0,
+          },
         },
       ],
       variants: [],
@@ -2065,30 +3351,52 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      bounds: {
+        x: -30,
+        y: -17.74,
+        width: 60,
+        height: 35.71,
+      },
       pins: [
         {
           name: "A",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -30,
+            y: -10,
+          },
         },
         {
           name: "B",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -30,
+            y: 0,
+          },
         },
         {
           name: "C",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -30,
+            y: 10,
+          },
         },
         {
           name: "Y",
           role: "output",
           direction: "east",
           visibility: "visible",
+          at: {
+            x: 30,
+            y: 0,
+          },
         },
       ],
       variants: [],
@@ -2101,36 +3409,62 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      bounds: {
+        x: -30,
+        y: -17.74,
+        width: 60,
+        height: 35.71,
+      },
       pins: [
         {
           name: "A",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -30,
+            y: -12,
+          },
         },
         {
           name: "B",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -30,
+            y: -4,
+          },
         },
         {
           name: "C",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -30,
+            y: 4,
+          },
         },
         {
           name: "D",
           role: "input",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -30,
+            y: 12,
+          },
         },
         {
           name: "Y",
           role: "output",
           direction: "east",
           visibility: "visible",
+          at: {
+            x: 30,
+            y: 0,
+          },
         },
       ],
       variants: [],
@@ -2143,36 +3477,78 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      bounds: {
+        x: -20,
+        y: -20,
+        width: 30.59,
+        height: 40,
+      },
       pins: [
         {
           name: "D",
           role: "drain",
           direction: "north",
           visibility: "visible",
+          at: {
+            x: 10,
+            y: -20,
+          },
         },
         {
           name: "G",
           role: "gate",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -20,
+            y: 0,
+          },
         },
         {
           name: "S",
           role: "source",
           direction: "south",
           visibility: "visible",
+          at: {
+            x: 10,
+            y: 20,
+          },
         },
         {
           name: "B",
           role: "bulk",
           direction: "east",
           visibility: "visible",
+          at: {
+            x: 20,
+            y: 0,
+          },
         },
       ],
       variants: [
         {
           id: "textbook-3terminal",
           hiddenPinNames: ["B"],
+          auxiliaryPins: [
+            {
+              name: "B",
+              direction: "east",
+              at: {
+                x: -4,
+                y: 0,
+              },
+              landing: {
+                x: 0,
+                y: 0,
+              },
+            },
+          ],
+          bounds: {
+            x: -20,
+            y: -20,
+            width: 30.59,
+            height: 40,
+          },
         },
       ],
     },
@@ -2184,36 +3560,78 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      bounds: {
+        x: -20,
+        y: -20,
+        width: 30,
+        height: 40,
+      },
       pins: [
         {
           name: "D",
           role: "drain",
           direction: "south",
           visibility: "visible",
+          at: {
+            x: 10,
+            y: 20,
+          },
         },
         {
           name: "G",
           role: "gate",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -20,
+            y: 0,
+          },
         },
         {
           name: "S",
           role: "source",
           direction: "north",
           visibility: "visible",
+          at: {
+            x: 10,
+            y: -20,
+          },
         },
         {
           name: "B",
           role: "bulk",
           direction: "east",
           visibility: "visible",
+          at: {
+            x: 20,
+            y: 0,
+          },
         },
       ],
       variants: [
         {
           id: "textbook-3terminal",
           hiddenPinNames: ["B"],
+          auxiliaryPins: [
+            {
+              name: "B",
+              direction: "east",
+              at: {
+                x: -4,
+                y: 0,
+              },
+              landing: {
+                x: 0,
+                y: 0,
+              },
+            },
+          ],
+          bounds: {
+            x: -20,
+            y: -20,
+            width: 30,
+            height: 40,
+          },
         },
       ],
     },
@@ -2225,36 +3643,78 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      bounds: {
+        x: -20,
+        y: -20,
+        width: 30.59,
+        height: 40,
+      },
       pins: [
         {
           name: "D",
           role: "drain",
           direction: "north",
           visibility: "visible",
+          at: {
+            x: 10,
+            y: -20,
+          },
         },
         {
           name: "G",
           role: "gate",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -20,
+            y: 0,
+          },
         },
         {
           name: "S",
           role: "source",
           direction: "south",
           visibility: "visible",
+          at: {
+            x: 10,
+            y: 20,
+          },
         },
         {
           name: "B",
           role: "bulk",
           direction: "east",
           visibility: "visible",
+          at: {
+            x: 20,
+            y: 0,
+          },
         },
       ],
       variants: [
         {
           id: "standard-3terminal",
           hiddenPinNames: ["B"],
+          auxiliaryPins: [
+            {
+              name: "B",
+              direction: "east",
+              at: {
+                x: -4,
+                y: 0,
+              },
+              landing: {
+                x: 0,
+                y: 0,
+              },
+            },
+          ],
+          bounds: {
+            x: -20,
+            y: -20,
+            width: 30.59,
+            height: 40,
+          },
         },
       ],
     },
@@ -2266,36 +3726,78 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
+      bounds: {
+        x: -20,
+        y: -20,
+        width: 30,
+        height: 40,
+      },
       pins: [
         {
           name: "D",
           role: "drain",
           direction: "south",
           visibility: "visible",
+          at: {
+            x: 10,
+            y: 20,
+          },
         },
         {
           name: "G",
           role: "gate",
           direction: "west",
           visibility: "visible",
+          at: {
+            x: -20,
+            y: 0,
+          },
         },
         {
           name: "S",
           role: "source",
           direction: "north",
           visibility: "visible",
+          at: {
+            x: 10,
+            y: -20,
+          },
         },
         {
           name: "B",
           role: "bulk",
           direction: "east",
           visibility: "visible",
+          at: {
+            x: 20,
+            y: 0,
+          },
         },
       ],
       variants: [
         {
           id: "standard-3terminal",
           hiddenPinNames: ["B"],
+          auxiliaryPins: [
+            {
+              name: "B",
+              direction: "east",
+              at: {
+                x: -4,
+                y: 0,
+              },
+              landing: {
+                x: 0,
+                y: 0,
+              },
+            },
+          ],
+          bounds: {
+            x: -20,
+            y: -20,
+            width: 30,
+            height: 40,
+          },
         },
       ],
     },

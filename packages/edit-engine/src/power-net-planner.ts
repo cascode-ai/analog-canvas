@@ -30,7 +30,7 @@ export type EnsurePowerNetPlan =
   | { ok: true; netId: string; edits: readonly SchematicEdit[] }
   | { ok: false; message: string; relatedNetIds: readonly string[] };
 
-export function canonicalPowerName(domain: PowerDomain): "0" | "VDD" {
+function canonicalPowerName(domain: PowerDomain): "0" | "VDD" {
   return domain === "ground" ? "0" : "VDD";
 }
 

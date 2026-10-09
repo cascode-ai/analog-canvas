@@ -1585,3 +1585,124 @@ describe("wires of different Nets on one line (#1309)", () => {
     ).toEqual([]);
   });
 });
+
+describe("Nets that reach only gates, bulks and block inputs (#1473)", () => {
+  type Document = CircuitProject["documents"][number];
+  const placed = (id: string, symbolId: string) => ({
+    id,
+    reference: id,
+    symbolId,
+    placement: {
+      position: { x: 0, y: 0 },
+      rotation: 0 as const,
+      mirror: "none" as const,
+    },
+  });
+  /** One Net joining `pins` ("M1.G"), each part drawn with `symbolId`. */
+  function lineTo(symbolId: string, pins: readonly string[]): CircuitProject {
+    const project = emptyProject();
+    const document = project.documents[0]!;
+    const terminals = pins.map((pin) => {
+      const [instanceId, pinName] = pin.split(".") as [string, string];
+      return { instanceId, pinName };
+    });
+    document.instances = [
+      ...new Set(terminals.map((terminal) => terminal.instanceId)),
+    ].map((id) => placed(id, symbolId));
+    document.nets = [{ id: "net-line", terminals }];
+    return project;
+  }
+  /** Put another part's pin on the line. */
+  function join(document: Document, id: string, symbolId: string, pin: string) {
+    document.instances.push(placed(id, symbolId));
+    document.nets[0]!.terminals.push({ instanceId: id, pinName: pin });
+  }
+  const undriven = (project: CircuitProject) =>
+    run(project).filter((item) => item.code === "ERC_UNDRIVEN_GATE_NET");
+
+  it("warns about a bias line that reaches two gates and nothing else", () => {
+    // A local name is not a driver: VB1 is only what the line is called.
+    const project = lineTo("nmos", ["M1.G", "M2.G"]);
+    project.documents[0]!.connectivityEvidence.push({
+      id: "claim-vb1",
+      kind: "name-claim",
+      netId: "net-line",
+      name: "VB1",
+      scope: "local",
+      owner: { kind: "net-label", annotationId: "label-vb1" },
+    });
+
+    expect(undriven(project)).toEqual([
+      expect.objectContaining({
+        severity: "warning",
+        confidence: "high",
+        gateEligible: false,
+        message: expect.stringMatching(/VB1.*M1\.G, M2\.G/u),
+        primary: expect.objectContaining({
+          kind: "terminal",
+          objectId: "M1:G",
+          endpoint: { kind: "terminal", instanceId: "M1", pinName: "G" },
+        }),
+        related: [
+          expect.objectContaining({ kind: "terminal", objectId: "M2:G" }),
+          expect.objectContaining({ kind: "net", objectId: "net-line" }),
+        ],
+        parameters: { netId: "net-line", count: 2 },
+      }),
+    ]);
+    expect(codes(project)).not.toContain("ERC_FLOATING_GATE");
+  });
+
+  it.each<[string, (document: Document) => void]>([
+    [
+      "a Cell Pin",
+      (document) =>
+        document.netlist!.terminals.push({
+          id: "pin-vb",
+          name: "VB",
+          netId: "net-line",
+          direction: "input",
+          interfaceInstanceIds: [],
+          interfaceAnnotationId: "pin-label-vb",
+        }),
+    ],
+    [
+      "a global name",
+      (document) =>
+        document.connectivityEvidence.push({
+          id: "claim-vb",
+          kind: "name-claim",
+          netId: "net-line",
+          name: "VBIAS",
+          scope: "global",
+          owner: { kind: "net-label", annotationId: "label-vb" },
+        }),
+    ],
+    ["a resistor", (document) => join(document, "R1", "resistor", "1")],
+    ["a capacitor", (document) => join(document, "C1", "capacitor", "1")],
+    ["a transistor's drain", (document) => join(document, "M3", "nmos", "D")],
+  ])("stays quiet once %s reaches the line", (_, connect) => {
+    const project = lineTo("nmos", ["M1.G", "M2.G"]);
+    connect(project.documents[0]!);
+    expect(undriven(project)).toEqual([]);
+  });
+
+  it("warns about bodies that only reach each other", () => {
+    // A bulk-driven OTA whose input reaches the bulks alone.
+    const found = undriven(lineTo("pmos", ["M1.B", "M2.B"]));
+    expect(found).toHaveLength(1);
+    expect(found[0]!.message).toContain("M1.B, M2.B");
+  });
+
+  it("warns about logic inputs that nothing drives", () => {
+    const found = undriven(lineTo("inverter", ["U1.A", "U2.A"]));
+    expect(found).toHaveLength(1);
+    expect(found[0]!.message).toContain("U1.A, U2.A");
+  });
+
+  it("leaves a lone gate to ERC_FLOATING_GATE", () => {
+    const diagnostics = run(lineTo("nmos", ["M1.G"])).map((item) => item.code);
+    expect(diagnostics).toContain("ERC_FLOATING_GATE");
+    expect(diagnostics).not.toContain("ERC_UNDRIVEN_GATE_NET");
+  });
+});

@@ -49,7 +49,7 @@ export function browserSummary(userAgent: string): string {
   return "Other / unknown";
 }
 
-export function currentBugReportEnvironment(): BugReportEnvironment {
+function currentBugReportEnvironment(): BugReportEnvironment {
   if (typeof window === "undefined") {
     return {
       pathname: "/",

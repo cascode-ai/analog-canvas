@@ -26,7 +26,10 @@ import {
   agentProjectDiagnostics,
   agentVisualDiagnostics,
 } from "./diagnostics.js";
-import type { AgentOperationHost } from "./host.js";
+import type {
+  AgentHostSemanticIntentResult,
+  AgentOperationHost,
+} from "./host.js";
 import { AgentCommandPlanningError } from "./host.js";
 import { parseAgentCircuitRequest } from "./request-contract.js";
 import {
@@ -46,8 +49,12 @@ import type {
   AgentSessionSnapshot,
   AgentSimulationResourceCapability,
   AgentProjectResourceCapability,
+  AgentTransactRequest,
 } from "./schema.js";
-import { AgentAuthoringCommandSchema } from "./authoring-command.js";
+import {
+  AgentAuthoringCommandSchema,
+  type AgentAuthoringCommand,
+} from "./authoring-command.js";
 import { buildProjectConnectivityIndex, traceHierarchyNet } from "@icm/derived";
 import {
   agentAnnotationTextMeasure,
@@ -142,6 +149,77 @@ function errorResponse(
     error: { code, message },
     diagnostics,
   });
+}
+
+type PlaceComponents = Extract<
+  AgentAuthoringCommand,
+  { kind: "place-components" }
+>;
+
+/** `count` placements from `start`, with what is keyed to their IDs. */
+function placementPart(
+  command: PlaceComponents,
+  start: number,
+  count: number,
+): PlaceComponents {
+  const instances = command.instances.slice(start, start + count);
+  const ids = new Set(instances.map((instance) => instance.id));
+  const theirs = <T>(record: Record<string, T>) =>
+    Object.fromEntries(Object.entries(record).filter(([id]) => ids.has(id)));
+  return {
+    ...command,
+    instances,
+    ...(command.pinAnchors ? { pinAnchors: theirs(command.pinAnchors) } : {}),
+    ...(command.terminalDirections
+      ? { terminalDirections: theirs(command.terminalDirections) }
+      : {}),
+    ...(command.displays ? { displays: theirs(command.displays) } : {}),
+  };
+}
+
+/** A part's refusal, its placements counted from the first of the whole. */
+function shiftedPlacementRefusal(
+  refusal: AgentCircuitResponse,
+  offset: number,
+): AgentCircuitResponse {
+  if (refusal.ok || offset === 0) return refusal;
+  const shift = (text: string) =>
+    text.replace(
+      /^(actions|instances)\[(\d+)\]/u,
+      (_match, list: string, index: string) =>
+        `${list}[${Number(index) + offset}]`,
+    );
+  return {
+    ...refusal,
+    error: { ...refusal.error, message: shift(refusal.error.message) },
+    diagnostics: refusal.diagnostics.map((diagnostic) => ({
+      ...diagnostic,
+      message: shift(diagnostic.message),
+      ...(diagnostic.path?.[0] === "actions" &&
+      typeof diagnostic.path[1] === "number"
+        ? {
+            path: [
+              "actions",
+              diagnostic.path[1] + offset,
+              ...diagnostic.path.slice(2),
+            ],
+          }
+        : {}),
+      ...(diagnostic.parameters
+        ? {
+            parameters: Object.fromEntries(
+              Object.entries(diagnostic.parameters).map(([key, value]) => [
+                key,
+                (key === "instanceIndex" || key === "actionIndex") &&
+                typeof value === "number"
+                  ? value + offset
+                  : value,
+              ]),
+            ),
+          }
+        : {}),
+    })),
+  };
 }
 
 function collectResolvedRoutes(
@@ -279,6 +357,7 @@ export function createAgentCircuitService(
         document: SchematicDocument;
         resolver: SymbolResolver;
         includeSourceSpans: boolean;
+        instanceLabels: boolean;
         snapshot: AgentSessionSnapshot;
       }
     | undefined;
@@ -343,6 +422,144 @@ export function createAgentCircuitService(
   const allocateId =
     options.allocateId ??
     ((prefix: string) => `${prefix}-${crypto.randomUUID()}`);
+  /**
+   * A placement batch over the edit limit, placed in as many transactions as
+   * it takes, each planned on the Document the one before it left (#1516):
+   * one undo step and one receipt, or, when one is refused, none of them.
+   * The limit still bounds each transaction. Undefined when the refusal is
+   * not that, for a dry run, or when the host cannot keep the steps as one.
+   */
+  const placeInSteps = (
+    base: Omit<AgentTransactRequest, "actions">,
+    command: unknown,
+    refusal: AgentCircuitResponse,
+  ): AgentCircuitResponse | undefined => {
+    const placements = command as AgentAuthoringCommand | undefined;
+    const fitting = refusal.ok
+      ? undefined
+      : refusal.diagnostics[0]?.parameters?.fittingPlacements;
+    const document = host?.getDocument(base.documentId);
+    if (
+      refusal.ok ||
+      refusal.error.code !== "LIMIT_EXCEEDED" ||
+      placements?.kind !== "place-components" ||
+      typeof fitting !== "number" ||
+      fitting < 1 ||
+      base.dryRun ||
+      !host?.commitAsOneStep ||
+      !document
+    )
+      return undefined;
+    const before = diagnosticsFor(
+      host.getProject?.(),
+      document,
+      host.getResolver(),
+    );
+    const steps: Extract<
+      AgentCircuitResponse,
+      { operation: "transact"; ok: true }
+    >[] = [];
+    let failed: AgentCircuitResponse | undefined;
+    host.commitAsOneStep(() => {
+      const total = placements.instances.length;
+      for (let done = 0, take = fitting; done < total;) {
+        const answer = service.handle({
+          ...base,
+          expectedRevision:
+            host.getDocument(base.documentId)?.revision ??
+            base.expectedRevision,
+          ...(base.expectedStructureRevision === undefined
+            ? {}
+            : {
+                expectedStructureRevision:
+                  host.getProject?.()?.structureRevision ??
+                  base.expectedStructureRevision,
+              }),
+          command: placementPart(placements, done, take),
+        });
+        if (answer.ok && answer.operation === "transact") {
+          steps.push(answer);
+          done += take;
+          take = total - done;
+          continue;
+        }
+        // What is left may still be over the limit: place what fits.
+        const fits =
+          !answer.ok && answer.error.code === "LIMIT_EXCEEDED"
+            ? answer.diagnostics[0]?.parameters?.fittingPlacements
+            : undefined;
+        if (typeof fits === "number" && fits > 0 && fits < take) {
+          take = fits;
+          continue;
+        }
+        failed = shiftedPlacementRefusal(answer, done);
+        return false;
+      }
+      return true;
+    });
+    if (failed)
+      return failed.ok
+        ? failed
+        : response({
+            ...failed,
+            revision:
+              host.getDocument(base.documentId)?.revision ?? document.revision,
+          });
+    const first = steps[0]!;
+    const last = steps.at(-1)!;
+    const beforeIds = new Set(before.map(agentDiagnosticIdentity));
+    const afterIds = new Set(last.diagnostics.map(agentDiagnosticIdentity));
+    const removed = before.filter(
+      (diagnostic) => !afterIds.has(agentDiagnosticIdentity(diagnostic)),
+    );
+    const structures = steps.flatMap((step) =>
+      step.projectStructure ? [step.projectStructure] : [],
+    );
+    const routes = new Map(
+      steps.flatMap((step) =>
+        (step.resolvedRoutes ?? []).map(
+          (route) => [route.routeId, route] as const,
+        ),
+      ),
+    );
+    return response({
+      ...last,
+      diff: {
+        ...last.diff,
+        fromRevision: first.diff.fromRevision,
+        editKinds: [...new Set(steps.flatMap((step) => step.diff.editKinds))],
+        changedObjectIds: [
+          ...new Set(steps.flatMap((step) => step.diff.changedObjectIds)),
+        ],
+      },
+      terminalConnectivityChanged: steps.some(
+        (step) => step.terminalConnectivityChanged,
+      ),
+      diagnosticDelta: {
+        added: last.diagnostics.filter(
+          (diagnostic) => !beforeIds.has(agentDiagnosticIdentity(diagnostic)),
+        ),
+        removed: base.diagnosticDeltaDetail === "compact" ? [] : removed,
+        ...(base.diagnosticDeltaDetail === "compact"
+          ? { removedIds: removed.map(agentDiagnosticIdentity) }
+          : {}),
+      },
+      ...(structures.length
+        ? {
+            projectStructure: {
+              ...structures.at(-1)!,
+              fromRevision: structures[0]!.fromRevision,
+              changedDocumentIds: [
+                ...new Set(
+                  structures.flatMap((item) => item.changedDocumentIds),
+                ),
+              ],
+            },
+          }
+        : {}),
+      ...(routes.size ? { resolvedRoutes: [...routes.values()] } : {}),
+    });
+  };
   const service: AgentCircuitService = {
     limits,
     handle(input: unknown): AgentCircuitResponse {
@@ -505,6 +722,19 @@ export function createAgentCircuitService(
           );
         }
         if (
+          request.instanceLabels !== undefined &&
+          request.projection !== undefined &&
+          request.projection !== "full" &&
+          request.projection !== "pins"
+        ) {
+          return fail(
+            "snapshot",
+            "INVALID_REQUEST",
+            "instanceLabels applies only to the full and pins projections",
+            document.revision,
+          );
+        }
+        if (
           (request.projection === "pins") !==
             (request.instanceIds !== undefined) ||
           (request.projection === "pins" &&
@@ -518,7 +748,12 @@ export function createAgentCircuitService(
           );
         if (request.projection === "pins") {
           const instances = selectAgentInstances(
-            { document, resolver, ...(project ? { project } : {}) },
+            {
+              document,
+              resolver,
+              ...(project ? { project } : {}),
+              instanceLabels: request.instanceLabels === true,
+            },
             request.instanceIds!,
           );
           const found = new Set(instances.map((instance) => instance.id));
@@ -677,25 +912,29 @@ export function createAgentCircuitService(
             context,
           });
         }
+        const instanceLabels = request.instanceLabels === true;
         const cachedSnapshot = snapshotCache;
         const snapshot =
           cachedSnapshot !== undefined &&
           cachedSnapshot.project === project &&
           cachedSnapshot.document === document &&
           cachedSnapshot.resolver === resolver &&
-          cachedSnapshot.includeSourceSpans === includeSourceSpans
+          cachedSnapshot.includeSourceSpans === includeSourceSpans &&
+          cachedSnapshot.instanceLabels === instanceLabels
             ? cachedSnapshot.snapshot
             : buildAgentSessionSnapshot({
                 ...(project ? { project } : {}),
                 document,
                 resolver,
                 includeSourceSpans,
+                instanceLabels,
               });
         snapshotCache = {
           project,
           document,
           resolver,
           includeSourceSpans,
+          instanceLabels,
           snapshot,
         };
         diagnosticsCache = {
@@ -797,6 +1036,8 @@ export function createAgentCircuitService(
                 document,
                 resolver,
                 includeSourceSpans: false,
+                instanceLabels:
+                  cached?.snapshot === snapshot && cached.instanceLabels,
                 snapshot,
               };
               return snapshot;
@@ -843,7 +1084,57 @@ export function createAgentCircuitService(
             },
             diagnostics: [],
           });
-        if (plan.kind === "nothing")
+        // A list's focus steps change only the view, once it has committed
+        // (#1517). Without the right to steer the view, nothing is sent.
+        const focus = plan.focus ?? [];
+        if (focus.length && !options.permissions.semanticControl)
+          return fail(
+            "transact",
+            "PERMISSION_DENIED",
+            "Semantic editor-control permission is not granted",
+            document.revision,
+          );
+        if (
+          focus.length &&
+          (!host.applySemanticIntent || !host.semanticControlAvailable?.())
+        )
+          return fail(
+            "transact",
+            "SEMANTIC_CONTROL_UNAVAILABLE",
+            "This Agent host does not provide a live editor control surface",
+            document.revision,
+          );
+        /** Each focus step in order: the last shown, or the first refused. */
+        const showFocus = () => {
+          let shown:
+            Extract<AgentHostSemanticIntentResult, { ok: true }> | undefined;
+          for (const intent of focus) {
+            const result = host.applySemanticIntent!({
+              documentId,
+              intent,
+            });
+            if (!result.ok) return result;
+            shown = result;
+          }
+          return shown;
+        };
+        const semanticOf = (
+          shown: Extract<AgentHostSemanticIntentResult, { ok: true }>,
+        ) => ({
+          kind: shown.kind,
+          documentId: shown.documentId,
+          objectIds: [...shown.objectIds],
+          ...(shown.netId ? { netId: shown.netId } : {}),
+        });
+        if (plan.kind === "nothing") {
+          const shown = showFocus();
+          if (shown && !shown.ok)
+            return fail(
+              "transact",
+              shown.code,
+              shown.message,
+              document.revision,
+            );
           return response({
             apiVersion: request.apiVersion,
             requestId: request.requestId,
@@ -868,12 +1159,14 @@ export function createAgentCircuitService(
                 ? { removedIds: [] }
                 : {}),
             },
+            ...(shown ? { semantic: semanticOf(shown) } : {}),
           });
+        }
         const { actions: _actions, ...rest } = request;
         // A list that needs the Document is planned on the one held now and
         // committed in the same step. A list that goes through as it is
         // keeps its form's revision checks.
-        const answer = service.handle({
+        const sent = service.handle({
           ...rest,
           ...(plan.readSnapshot
             ? {
@@ -885,7 +1178,40 @@ export function createAgentCircuitService(
             : {}),
           ...plan.payload,
         });
-        if (answer.ok) return answer;
+        const answer =
+          (!sent.ok && placeInSteps(rest, plan.payload.command, sent)) || sent;
+        if (answer.ok) {
+          if (
+            answer.operation !== "transact" ||
+            !focus.length ||
+            request.dryRun
+          )
+            return answer;
+          const shown = showFocus();
+          if (!shown || shown.ok)
+            return response({
+              ...answer,
+              ...(shown ? { semantic: semanticOf(shown) } : {}),
+            });
+          // The edit stands; only the view did not follow it.
+          const unshown: AgentDiagnostic = {
+            code: shown.code,
+            severity: "warning",
+            message: `The edit committed; its focus was not shown: ${shown.message}`,
+          };
+          return response({
+            ...answer,
+            diagnostics: [...answer.diagnostics, unshown],
+            ...(answer.diagnosticDelta
+              ? {
+                  diagnosticDelta: {
+                    ...answer.diagnosticDelta,
+                    added: [...answer.diagnosticDelta.added, unshown],
+                  },
+                }
+              : {}),
+          });
+        }
         const firstNamed = answer.diagnostics.find(
           (diagnostic) =>
             typeof diagnostic.parameters?.actionIndex === "number",
@@ -989,8 +1315,28 @@ export function createAgentCircuitService(
                 : { ...base, edits: [{ kind: "noop" }] };
             } else {
               // A completed convenience plan may have nothing left to do.
-              // Do not synthesize a persisted noop/Undo entry for a repeat.
+              // Do not synthesize a persisted noop/Undo entry for a repeat,
+              // and never answer a bare ok: a caller learns that nothing
+              // changed and that the drawing already is as asked (#1525).
               if (planned.edits.length === 0) {
+                if (!commandNotes.length) {
+                  const kinds =
+                    request.command.kind === "batch"
+                      ? [
+                          ...new Set(
+                            request.command.commands.map((item) => item.kind),
+                          ),
+                        ]
+                      : [request.command.kind];
+                  commandNotes = [
+                    {
+                      code: "NOTHING_CHANGED",
+                      severity: "info",
+                      message: `Nothing changed: the drawing is already as ${kinds.join(", ")} asks, so no edit or Undo step was made.`,
+                      objectIds: [],
+                    },
+                  ];
+                }
                 return response({
                   apiVersion: request.apiVersion,
                   requestId: request.requestId,
@@ -1304,7 +1650,9 @@ export function createAgentCircuitService(
               ),
               changedObjectIds,
             },
-            diagnostics,
+            // A planned command's notes, such as the markers a move carried
+            // (#1531), reach a Project transaction's receipt too.
+            diagnostics: [...commandNotes, ...diagnostics],
             projectStructure: {
               fromRevision: project.structureRevision,
               toRevision: result.proposedStructureRevision,
@@ -1438,7 +1786,15 @@ export function createAgentCircuitService(
                   : { dryRun: request.dryRun }),
                 edits,
               },
-              { symbolResolver: resolver },
+              {
+                symbolResolver: resolver,
+                ...(project
+                  ? {
+                      externalSubcircuitDefinitions:
+                        project.externalSubcircuitDefinitions,
+                    }
+                  : {}),
+              },
             );
         if (!result.ok) {
           const instanceIndexForPath = (

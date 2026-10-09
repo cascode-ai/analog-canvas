@@ -19,10 +19,43 @@ import {
   defaultBoundMosBody,
   proposeWireIntent,
   type WireIntent,
-} from "./routing-planner.js";
+} from "./wire-intent-planner.js";
 import { createContactPlanningDraft } from "./contact-planning-draft.js";
 import { createRouteClearance } from "./route-clearance.js";
-import { resolveWireIntentTarget } from "./wire-intent-target.js";
+import {
+  resolveWireIntentTarget,
+  wireTargetReference,
+} from "./wire-intent-target.js";
+
+/**
+ * A drawn path from landing to landing, as the clearance check reads one: the
+ * lead from a pin's contact to its landing is the pin's own, as a hidden MOS
+ * body's is out of the channel. Read from the contact, a body wire passed
+ * through its own part, so one given via points was refused (#1514).
+ */
+function fromLandings(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  points: readonly Point[],
+  ends: readonly (RouteEndpoint | undefined)[],
+): Point[] {
+  const trim = (path: Point[], end: RouteEndpoint | undefined) => {
+    const connection =
+      end && resolveEndpointConnection(document, resolver, end);
+    if (
+      !connection ||
+      path.length < 2 ||
+      samePoint(connection.contactPoint, connection.gridLanding) ||
+      !samePoint(path[0]!, connection.contactPoint) ||
+      !pointOnSegment(connection.gridLanding, path[0]!, path[1]!)
+    )
+      return path;
+    return samePoint(connection.gridLanding, path[1]!)
+      ? path.slice(1)
+      : [connection.gridLanding, ...path.slice(1)];
+  };
+  return trim(trim([...points], ends[0]).reverse(), ends[1]).reverse();
+}
 
 /**
  * A wire that keeps clear of what it must not touch (#1257): another Net's
@@ -34,7 +67,7 @@ import { resolveWireIntentTarget } from "./wire-intent-target.js";
  * OTA to reach its bias Net. The planner's own path is kept when it is
  * clear. Otherwise a wire with no via points takes the cheapest clear path,
  * and one with via points, which the caller chose, is refused with what it
- * would meet.
+ * would meet, where, and what to send instead.
  */
 function keepClear(
   document: SchematicDocument,
@@ -45,10 +78,15 @@ function keepClear(
     document,
     resolver,
     intent.from,
-    intent.to,
+    wireTargetReference(intent.waypoints, "from", intent.to),
   );
   if (typeof from === "string") return intent;
-  const to = resolveWireIntentTarget(document, resolver, intent.to, from);
+  const to = resolveWireIntentTarget(
+    document,
+    resolver,
+    intent.to,
+    wireTargetReference(intent.waypoints, "to", from),
+  );
   if (typeof to === "string") return intent;
   // A wire drawn between points alone is drawn where it is asked: it may
   // end on another wire to join it.
@@ -78,6 +116,7 @@ function keepClear(
   const ends = [from, to].map((anchor) =>
     anchor.kind === "endpoint" ? anchor.endpoint : undefined,
   );
+  points = fromLandings(document, resolver, points, ends);
   const netsOf = (anchor: typeof from): string[] => {
     if (anchor.kind === "route-segment") {
       const netId = document.routes.find(
@@ -130,9 +169,22 @@ function keepClear(
   const problem = clearance.conflict(points, ends);
   if (!problem)
     return tapOwnWire(document, resolver, resolved, points, nets) ?? intent;
-  if (intent.waypoints?.length)
-    return `the requested path ${problem}, so it would read as connected there; give via points that keep clear of it`;
   const clear = clearance.path(endOf(from), endOf(to));
+  if (intent.waypoints?.length) {
+    // What the caller can send instead, so it need not guess new via
+    // points: a hand-routed body wire was refused where leaving the route
+    // to the editor worked, and nothing said so (#1527).
+    const { waypoints: _refused, ...unforced } = intent;
+    const editor = keepClear(document, resolver, unforced);
+    const bends = typeof clear === "string" ? [] : corners(clear.points!);
+    const instead =
+      typeof editor === "string"
+        ? `Leaving the route to the editor fails too: ${editor}`
+        : bends.length
+          ? `The editor finds a clear path: send via ${JSON.stringify(bends)} (a wireIntent's waypoints) in the next call, or omit via to let it route`
+          : "Omit via to let the editor route it clear";
+    return `the requested path ${problem}, so it would read as connected there. ${instead}`;
+  }
   if (typeof clear === "string") return clear;
   // The detour is orthogonal and its corners the planner's, never a
   // caller's diagonal to refuse (#1437).
@@ -246,6 +298,26 @@ function tapOwnWire(
     waypoints: bends,
     routingMode: intent.routingMode ?? "orthogonal",
   };
+}
+
+/** The corners of an orthogonal path between its ends: as via points, they
+ * draw it again whatever the corner order. */
+function corners(points: readonly Point[]): Point[] {
+  const kept: Point[] = [];
+  for (const point of points) {
+    if (kept.length && samePoint(kept.at(-1)!, point)) continue;
+    const [before, last] = [kept.at(-2), kept.at(-1)];
+    // A point on the line through the two before it bends nothing.
+    if (
+      before &&
+      last &&
+      (before.x - last.x) * (last.y - point.y) ===
+        (before.y - last.y) * (last.x - point.x)
+    )
+      kept.pop();
+    kept.push(point);
+  }
+  return kept.slice(1, -1);
 }
 
 /** Where a resolved wire end is: its endpoint, or the point of a tap or an
@@ -419,10 +491,16 @@ export function planWireBatch(
     if (typeof from === "string") return `Wire ${index + 1}: ${from}`;
     const to = rebaseAnchor(intent.to);
     if (typeof to === "string") return `Wire ${index + 1}: ${to}`;
-    const selectedFrom = resolveAnchor(from, to);
+    const selectedFrom = resolveAnchor(
+      from,
+      wireTargetReference(intent.waypoints, "from", to),
+    );
     if (typeof selectedFrom === "string")
       return `Wire ${index + 1}: ${selectedFrom}`;
-    const selectedTo = resolveAnchor(to, selectedFrom);
+    const selectedTo = resolveAnchor(
+      to,
+      wireTargetReference(intent.waypoints, "to", selectedFrom),
+    );
     if (typeof selectedTo === "string")
       return `Wire ${index + 1}: ${selectedTo}`;
     const selected = { ...intent, from: selectedFrom, to: selectedTo };

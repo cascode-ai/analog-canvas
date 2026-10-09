@@ -84,7 +84,7 @@ export interface GroupPropertyCodeContext {
 }
 
 /** Dictionary keys: a Reference, unless it is missing or repeated. */
-export function groupPropertyItemKeys(
+function groupPropertyItemKeys(
   instances: readonly Pick<Instance, "id" | "reference">[],
 ): Map<string, string> {
   const counts = new Map<string, number>();

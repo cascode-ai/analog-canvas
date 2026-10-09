@@ -12,15 +12,19 @@ import {
   routeAgentSessionRequest,
   type AgentSessionNamespaceLike,
 } from "./agent-session";
+import { forgetEarlierOpens, routeGalleryRequest } from "./gallery";
 import {
-  forgetEarlierOpens,
   galleryReadableDocument,
-  refreshNetlistMarks,
-  routeGalleryRequest,
   type GalleryReadableDocument,
-  type GalleryNamespaceLike,
-} from "./gallery";
-import { routeSimulationRequest, type SimulationEnv } from "./simulation";
+} from "./gallery-documents";
+import { moveTestbenches, refreshNetlistMarks } from "./gallery-maintenance";
+import { advanceSimulationChecks } from "./gallery-simulation-check-runs";
+import type { GalleryNamespaceLike } from "./gallery-store";
+import {
+  routeSimulationRequest,
+  refuseSignedOutSimulation,
+  type SimulationEnv,
+} from "./simulation";
 import {
   consumeSimulationJobs,
   routeManagedSimulationRequest,
@@ -66,6 +70,8 @@ type Env = TopologyTaskEnv &
     GALLERY: GalleryNamespaceLike;
     GALLERY_BACKUP_TOKEN?: string;
     STORE_BACKUP_TOKEN?: string;
+    /** Made by each deploy for its own simulation check; see simulation.ts. */
+    SIMULATION_SMOKE_TOKEN?: string;
     AUTH: AuthNamespaceLike;
     GH_OAUTH_CLIENT_ID?: string;
     GH_OAUTH_CLIENT_SECRET?: string;
@@ -94,10 +100,16 @@ export default {
   async scheduled(_event: ScheduledEventLike, env: Env): Promise<void> {
     try {
       await refreshNetlistMarks(env, SCHEDULED_NETLIST_MARK_BATCH);
+      // Once the Owner recorded a backup, testbenches leave the shared
+      // Project Code a batch a tick (#1545); then the pass reads one row.
+      await moveTestbenches(env, { apply: true, scheduled: true });
     } finally {
       // The privacy notice promises yesterday's opens are gone the next
       // day, whatever became of the marks.
       await forgetEarlierOpens(env);
+      // The simulation checks the Owner queued (#1545) take the rest of
+      // the tick, one folder at a time; with none queued, one read.
+      await advanceSimulationChecks(env);
     }
   },
 };
@@ -136,6 +148,9 @@ async function route(request: Request, env: Env): Promise<Response> {
     env,
   );
   if (managedSimulationResponse) return managedSimulationResponse;
+
+  const signInResponse = await refuseSignedOutSimulation(request, env);
+  if (signInResponse) return signInResponse;
 
   const simulationResponse = await routeSimulationRequest(request, env);
   if (simulationResponse) return simulationResponse;

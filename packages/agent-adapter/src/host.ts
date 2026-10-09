@@ -35,6 +35,7 @@ export type AgentCommandPlan =
   | {
       structureEdits: readonly ProjectStructureEdit[];
       sourceActions?: readonly number[];
+      notes?: readonly AgentCommandPlanNote[];
     };
 
 export class AgentCommandPlanningError extends Error {
@@ -103,6 +104,12 @@ export interface AgentOperationHost {
     /** History target; must not change the foreground Cell. */
     documentId?: string,
   ): ProjectTransactionResult;
+  /**
+   * Runs `commit`, whose dispatched transactions become one undo step. When
+   * it answers false, none of them remains. Optional: without it a change
+   * over the edit limit is refused, not split.
+   */
+  commitAsOneStep?(commit: () => boolean): boolean;
   /** Optional because loopback/in-process hosts deliberately have no GUI. */
   applySemanticIntent?(
     request: AgentHostSemanticIntentRequest,

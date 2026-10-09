@@ -8,7 +8,7 @@ import {
 } from "@icm/simulation-service/contract";
 import { AGENT_API_VERSION } from "./schema.js";
 export const AGENT_SIMULATION_MAX_TIMEOUT_MS = 120_000;
-export const AGENT_SIMULATION_READ_WAIT_MAX_MS = 20_000;
+const AGENT_SIMULATION_READ_WAIT_MAX_MS = 20_000;
 const envelope = {
   apiVersion: z.literal(AGENT_API_VERSION),
   requestId: z.string().min(1).max(256),

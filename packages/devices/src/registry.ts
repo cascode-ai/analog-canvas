@@ -10,7 +10,7 @@ import {
 } from "./components.generated.js";
 import { validateDeviceDescriptors } from "./validation.js";
 
-export function defineDeviceRegistry(
+function defineDeviceRegistry(
   descriptors: readonly DeviceDescriptor[],
 ): DeviceRegistry {
   const issues = validateDeviceDescriptors(descriptors);
@@ -34,6 +34,7 @@ export function defineDeviceRegistry(
 
 export const deviceRegistry = defineDeviceRegistry(componentDeviceDescriptors);
 
+/** @internal Registry tests validate every built-in descriptor. */
 export const builtInDeviceDescriptors: readonly DeviceDescriptor[] =
   deviceRegistry.descriptors;
 
@@ -47,10 +48,6 @@ export function deviceDescriptor(
   return local
     ? (local.electrical as DeviceDescriptor | undefined)
     : deviceRegistry.bySymbolId(symbolId);
-}
-
-export function deviceDescriptorById(id: string): DeviceDescriptor | undefined {
-  return deviceRegistry.byId(id);
 }
 
 function defineSubcircuitRegistry(

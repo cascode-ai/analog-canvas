@@ -22,6 +22,7 @@ import {
 import { defaultInstanceDisplayAnnotations } from "./default-instance-display";
 import { arrangeInstanceLabels } from "./arrange-instance-labels";
 import { instanceParameterVisibilityEdits } from "./instance-parameter-display";
+import { vddPowerLabelAnnotation } from "../component-insert/vdd-power-label";
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
 function fixture() {
@@ -531,6 +532,112 @@ describe("opt-in label arrangement", () => {
       expect(overlapping, device.reference).toBe(false);
     }
   });
+  it("counts a label boxed in by a loop of wire as crowded, and an open one as clear (#1519)", () => {
+    const { doc } = fixture();
+    const box = { x: 290, y: 95, width: 20, height: 10 };
+    wire(doc, "top", { x: 270, y: 80 }, { x: 330, y: 80 });
+    wire(doc, "bottom", { x: 270, y: 120 }, { x: 330, y: 120 });
+    wire(doc, "left", { x: 270, y: 80 }, { x: 270, y: 120 });
+    expect(createLabelClearanceContext(doc, resolver).enclosedAt(box)).toBe(
+      false,
+    );
+    wire(doc, "right", { x: 330, y: 80 }, { x: 330, y: 120 });
+    expect(createLabelClearanceContext(doc, resolver).enclosedAt(box)).toBe(
+      true,
+    );
+  });
+
+  it("puts each part's labels on the side away from the centre line when asked (#1519)", () => {
+    const doc = createEmptyDocument("d", "Pair");
+    const left = transistor(doc, "m1", "nmos", { x: 100, y: 100 });
+    const right = transistor(doc, "m2", "nmos", { x: 400, y: 100 });
+    apply(
+      doc,
+      arrangeInstanceLabels(doc, resolver, [left.id, right.id], {
+        side: "outside",
+      }),
+    );
+    const context = createLabelClearanceContext(doc, resolver);
+    const part = (id: string) =>
+      context.symbols.find((symbol) => symbol.id === id)!.bounds;
+    for (const annotation of doc.annotations) {
+      const ink = context.measure(annotation).inkBounds;
+      const owner =
+        annotation.binding && "instanceId" in annotation.binding
+          ? annotation.binding.instanceId
+          : undefined;
+      if (owner === left.id)
+        expect(ink.x + ink.width).toBeLessThanOrEqual(part(left.id).x);
+      else
+        expect(ink.x).toBeGreaterThanOrEqual(
+          part(right.id).x + part(right.id).width,
+        );
+    }
+  });
+
+  it("arranges a new part's labels at placement when their default rows cross a wire (#1519)", () => {
+    const { doc, instance } = fixture();
+    const style = resolveDocumentStyleProfile(doc.presentation);
+    const value = doc.annotations.find(
+      (a) => a.binding?.kind === "instance-value",
+    )!;
+    const ink = createLabelClearanceContext(doc, resolver).measure(
+      value,
+    ).inkBounds;
+    const y = ink.y + ink.height / 2;
+    doc.annotations = [];
+    wire(doc, "across", { x: ink.x - 20, y }, { x: ink.x + ink.width + 20, y });
+    doc.annotations.push(
+      ...defaultInstanceDisplayAnnotations(doc, instance, resolver, style, {
+        showValue: true,
+        clearOfWiring: true,
+      }),
+    );
+    const context = createLabelClearanceContext(doc, resolver);
+    for (const annotation of doc.annotations)
+      expect(context.conflicts(annotation)).toEqual([]);
+  });
+
+  it("centres a VDD marker's supply name over its bar on request, and puts it back beside it (#1528)", () => {
+    const doc = createEmptyDocument("d", "Supply");
+    const instance = {
+      id: "vdd1",
+      symbolId: "vdd-port",
+      placement: {
+        position: { x: 100, y: 100 },
+        rotation: 0 as const,
+        mirror: "none" as const,
+      },
+    };
+    doc.instances.push(instance);
+    doc.nets.push({ id: "vdd", terminals: [] });
+    const beside = vddPowerLabelAnnotation({
+      instance,
+      resolved: resolver.resolve("vdd-port")!,
+      netId: "vdd",
+      grid: doc.presentation.grid,
+      name: "VDD",
+    });
+    doc.annotations.push(beside);
+    apply(
+      doc,
+      arrangeInstanceLabels(doc, resolver, [instance.id], { side: "top" }),
+    );
+    const context = createLabelClearanceContext(doc, resolver);
+    const bar = context.symbols.find((symbol) => symbol.id === "vdd1")!.bounds;
+    const ink = context.measure(doc.annotations[0]!).inkBounds;
+    expect(
+      Math.abs(ink.x + ink.width / 2 - (bar.x + bar.width / 2)),
+    ).toBeLessThan(1);
+    expect(ink.y + ink.height).toBeLessThanOrEqual(bar.y - 4);
+    expect(ink.y + ink.height).toBeGreaterThan(bar.y - 10);
+    apply(
+      doc,
+      arrangeInstanceLabels(doc, resolver, [instance.id], { side: "right" }),
+    );
+    expect(doc.annotations[0]).toEqual(beside);
+  });
+
   it("moves a crowded label group to a free side of its part (#1307)", () => {
     // A feedback resistor drawn across the top of an op amp: its default
     // value row lands on the amplifier, while the space above is empty.

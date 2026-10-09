@@ -16,6 +16,7 @@ const unknown = (): Meaning => ({ valueKind: "unknown", unit: "" });
 
 /** Only reached source is evidence. Conflicting assignments are deliberately ambiguous:
  * we do not pretend to execute loops, branches, setplot or the ngspice interpreter. */
+/** @internal Tests feed .control declarations to output evaluation; no caller passes them yet. */
 export function nativeOutputDeclarations(
   files: readonly { path: string; text: string }[],
   entry: string,
@@ -85,7 +86,7 @@ export function nativeOutputDeclarations(
 
 /** A bounded semantic reader, never a second numeric evaluator. Unsupported syntax
  * stays unknown, and vector spellings (_db, _deg, etc.) carry no authority. */
-export function inferNativeExpression(
+function inferNativeExpression(
   text: string,
   resolve: (name: string) => Meaning,
   depth = 0,

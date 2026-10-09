@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { StableIdSchema } from "./common.js";
 import { reportDuplicateIds } from "./validation.js";
-export const SourcePositionSchema = z.strictObject({
+const SourcePositionSchema = z.strictObject({
   offset: z.number().int().nonnegative(),
   line: z.number().int().positive(),
   column: z.number().int().positive(),
@@ -23,7 +23,7 @@ export const SourceSpanSchema = z
     }
   });
 
-export const SourceContentSchema = z.strictObject({
+const SourceContentSchema = z.strictObject({
   text: z.string().max(16 * 1024 * 1024),
   encoding: z.enum(["utf-8", "utf-8-bom", "utf-16-le", "utf-16-be"]),
 });

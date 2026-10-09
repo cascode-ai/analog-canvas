@@ -119,6 +119,110 @@ describe("planning an action list", () => {
     });
   });
 
+  it("sends two power rails and a final focus as one batch, the focus after it (#1517)", () => {
+    const rail = (name: string, y: number) => ({
+      kind: "add-power-rail",
+      name,
+      start: { x: 0, y },
+      end: { x: 400, y },
+    });
+    const fit = { kind: "focus", intent: { kind: "fit-document" } };
+    expect(planBlind([rail("VDD", -200), rail("VSS", 400), fit])).toEqual({
+      kind: "send",
+      payload: {
+        command: {
+          kind: "batch",
+          commands: [rail("VDD", -200), rail("VSS", 400)],
+        },
+      },
+      actions: [rail("VDD", -200), rail("VSS", 400), fit],
+      readSnapshot: false,
+      actionIndexOf: expect.any(Function),
+      naming: "if-unnamed",
+      focus: [{ kind: "fit-document" }],
+    });
+    const extend = {
+      kind: "extend-power-rail",
+      routeId: "rail-1",
+      start: { x: -100, y: -200 },
+      end: { x: 500, y: -200 },
+    };
+    expect(planBlind([extend, rail("VSS", 400)])).toMatchObject({
+      kind: "send",
+      payload: { command: { kind: "batch", commands: [extend, {}] } },
+    });
+    // A focus before the rails still follows them; a refused batch item
+    // names its action in the list.
+    const plan = planBlind([fit, rail("VDD", -200), rail("VSS", 400)]);
+    if (plan.kind !== "send") throw new Error(plan.kind);
+    expect(plan.focus).toEqual([{ kind: "fit-document" }]);
+    expect(plan.naming).toBe("override");
+    expect(plan.actionIndexOf([{ parameters: { actionIndex: 1 } }])).toBe(2);
+    // Focus alone changes nothing but the view.
+    expect(planBlind([fit, fit])).toEqual({
+      kind: "nothing",
+      focus: [{ kind: "fit-document" }, { kind: "fit-document" }],
+    });
+  });
+
+  it("keeps a focus with the list it follows when the list reads the Document or needs several calls (#1517)", () => {
+    const snapshot = testSnapshot();
+    const fit = { kind: "focus", intent: { kind: "fit-document" } };
+    const plan = (actions: unknown[]) =>
+      planActions(actions, {
+        allocateId: (prefix) => `${prefix}-new`,
+        snapshot: () => snapshot,
+        maxEditsPerTransaction: () => 64,
+      });
+    expect(
+      plan([
+        {
+          kind: "move",
+          target: { kind: "instance", reference: "M1" },
+          position: { x: 0, y: 0 },
+        },
+        fit,
+      ]),
+    ).toMatchObject({
+      kind: "send",
+      readSnapshot: true,
+      payload: { command: { kind: "set-properties" } },
+      focus: [{ kind: "fit-document" }],
+    });
+    // Placing and wiring are two calls; the focus goes with the last.
+    expect(
+      plan([
+        {
+          kind: "place-component",
+          symbol: "resistor",
+          id: "r-new",
+          position: { x: 600, y: 300 },
+        },
+        fit,
+        {
+          kind: "connect",
+          from: {
+            kind: "pin",
+            instance: { kind: "instance", id: "r-new" },
+            pin: "1",
+          },
+          to: { kind: "pin", instance: "M1", pin: "G" },
+        },
+      ]),
+    ).toMatchObject({
+      kind: "split",
+      transactions: 2,
+      calls: [
+        { actionIndices: [0], sends: "placement batch" },
+        {
+          actionIndices: [1, 2],
+          actionKinds: ["connect", "focus"],
+          sends: "wires",
+        },
+      ],
+    });
+  });
+
   it("reads the Document for a list that names parts by Reference", () => {
     const snapshot = testSnapshot();
     let reads = 0;

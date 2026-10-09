@@ -12,7 +12,11 @@ import {
   readSimulationExperimentConfig,
   type SimulationRunPlanAxis,
 } from "@icm/model";
-import { createSimulationStarter, newFolderProfile } from "@icm/netlist";
+import {
+  createSimulationStarter,
+  newFolderCellRole,
+  newFolderProfile,
+} from "@icm/netlist";
 import { profileEngine } from "@icm/simulation-service";
 import type { SimulationCodeWorkspaceProps } from "./code-workspace";
 import type {
@@ -63,8 +67,9 @@ import {
 
 type ResultTab = SimulationCodeWorkspaceProps["outputPane"];
 
-function preferredResultTab(run: Run): ResultTab {
-  return run.state === "finished" ? "specs" : "console";
+/** A run that ended with a problem opens Console, where the problem is shown. */
+export function preferredResultTab(run: Run): ResultTab {
+  return run.state === "finished" && !run.error ? "specs" : "console";
 }
 
 interface PreparedPresentation {
@@ -302,7 +307,7 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
         "run" in reply &&
         ["running", "cancelling"].includes(reply.run.state)
       )
-        timer = setTimeout(poll, 500);
+        timer = setTimeout(() => void poll(), 500);
     };
     void poll();
     return () => {
@@ -347,7 +352,7 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
         }
       }
       if (["running", "cancelling"].includes(reply.batch.state))
-        timer = setTimeout(poll, 500);
+        timer = setTimeout(() => void poll(), 500);
     };
     void poll();
     return () => {
@@ -987,14 +992,14 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
               id: profile.id,
               name: profile.label ?? profile.id,
             })),
-            // The Profile an Agent's new folder for the Cell takes (#1349).
+            // The Profile an Agent's new folder for the Cell takes, or why it
+            // asks for one (#1349, #1489).
             profileFor: (documentId: string) => {
               const project = session.currentProject() ?? latestProject;
-              const choice = newFolderProfile(
+              return newFolderProfile(
                 environments.profiles,
                 documentId ? { project, documentId } : undefined,
               );
-              return choice.ok ? choice.profileId : undefined;
             },
           }
         : {}),
@@ -1013,6 +1018,13 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
                   ? undefined
                   : "Select an existing Cell for this experiment.",
             },
+            // A Cell with pins is the DUT of a testbench.spice shell; one
+            // without is the testbench, as the Agent's create runs it.
+            roleFor: (documentId: string) =>
+              newFolderCellRole(
+                session.currentProject() ?? latestProject,
+                documentId,
+              ),
           }
         : {}),
       validate: (value) =>
@@ -1084,7 +1096,10 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
       }
       const result = createSimulationStarter(namingProject, {
         ...identity,
-        mode: "circuit",
+        mode:
+          newFolderCellRole(namingProject, selection.documentId) === "dut"
+            ? "dut"
+            : "circuit",
         documentId: selection.documentId,
         // Offline authoring uses the same candidate as the native starters.
         // Prepare still requires that the connected service advertises it.
@@ -1104,7 +1119,7 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
   };
   const createFolder = () => void folderAction("new", []);
   const revealSpec = async (source: {
-    kind?: "log";
+    kind?: "log" | undefined;
     path: string;
     line: number;
     text: string;
@@ -1140,6 +1155,19 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
       line: source.line,
       column: 1,
     });
+  };
+  const confirmExit = async () => {
+    if (
+      await interaction.confirm({
+        title: "Exit Simulation?",
+        message:
+          "Unsaved source drafts and temporary run files will be discarded. An active run will be cancelled.",
+        acceptLabel: "Exit Simulation",
+      })
+    ) {
+      codeRef.current?.discard();
+      props.onExit();
+    }
   };
   const historyContent = (
     <details className="simulation-run-history">
@@ -1252,7 +1280,7 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
             report={run?.outputData?.specs}
             hasRun={!!run?.result}
             stale={activeDirty || run?.inputStatus === "changed"}
-            onSource={revealSpec}
+            onSource={(source) => void revealSpec(source)}
           />
         ) : null}
         {resultTab === "console" ? (
@@ -1448,19 +1476,7 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
         </button>
         <button
           className="simulation-close-button"
-          onClick={async () => {
-            if (
-              await interaction.confirm({
-                title: "Exit Simulation?",
-                message:
-                  "Unsaved source drafts and temporary run files will be discarded. An active run will be cancelled.",
-                acceptLabel: "Exit Simulation",
-              })
-            ) {
-              codeRef.current?.discard();
-              props.onExit();
-            }
-          }}
+          onClick={() => void confirmExit()}
           aria-label="Exit simulation"
         >
           ×

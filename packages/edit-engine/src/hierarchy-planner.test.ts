@@ -13,19 +13,23 @@ import {
 import {
   createExternalSubcircuitInstance,
   createHierarchyInstance,
-  planCreateCellPin,
   planDeleteCell,
-  planFormatCellTerminalAnnotations,
   planPlaceCellInstance,
-  planRemoveCellTerminal,
+  planSetCellSymbolPins,
+} from "./hierarchy-planner.js";
+import {
+  planCreateCellPin,
   planReorderCellPort,
   planReorderCellTerminal,
-  planRenameCellTerminal,
-  planSetCellSymbolPins,
-  planSetDeviceModelTarget,
   planSetVddConnectionMode,
   planUpdateCellPortDirection,
-} from "./hierarchy-planner.js";
+} from "./cell-pin-planner.js";
+import {
+  planFormatCellTerminalAnnotations,
+  planRemoveCellTerminal,
+  planRenameCellTerminal,
+} from "./cell-interface-change-planner.js";
+import { planSetDeviceModelTarget } from "./device-model-target-planner.js";
 import {
   executeProjectTransaction,
   type ProjectStructureEdit,
@@ -1644,6 +1648,83 @@ describe("reviewed external MOS model targets", () => {
         "sky130_fd_pr__pfet_01v8",
       ),
     ).toThrow(/not compatible/u);
+  });
+
+  it("gives a DMOS the 16 V device's size only when SKY130 has no model at its own (#1483)", () => {
+    for (const fixture of [
+      // W 1 µm / L 0.15 µm is no 16 V size: the device's own W 5 µm and
+      // L 0.7 µm (N) or 0.66 µm (P) replace it; the count stays.
+      {
+        symbolId: "ndmos",
+        target: "sky130_fd_pr__nfet_g5v0d16v0",
+        parameters: { w: "1u", l: "150n", nf: "1", m: "2" },
+        expected: { w: "5u", l: "700n", nf: "1", m: "2" },
+      },
+      {
+        symbolId: "pdmos",
+        target: "sky130_fd_pr__pfet_g5v0d16v0",
+        parameters: { w: "1u", l: "150n", nf: "1", m: "1" },
+        expected: { w: "5u", l: "660n", nf: "1", m: "1" },
+      },
+      // Sizes SKY130 does model stay: N W 20 µm at L 2.2 µm, P W 30 µm at L 2.16 µm.
+      {
+        symbolId: "ndmos",
+        target: "sky130_fd_pr__nfet_g5v0d16v0",
+        parameters: { w: "20u", l: "2.2u", nf: "1", m: "1" },
+        expected: { w: "20u", l: "2.2u", nf: "1", m: "1" },
+      },
+      {
+        symbolId: "pdmos",
+        target: "sky130_fd_pr__pfet_g5v0d16v0",
+        parameters: { w: "30u", l: "2.16u", nf: "1", m: "1" },
+        expected: { w: "30u", l: "2.16u", nf: "1", m: "1" },
+      },
+      // A W expression with L 0.7 µm may be one of them, so both stay; with
+      // L 0.15 µm no W is, so L becomes the device's own and the W
+      // expression stays.
+      {
+        symbolId: "ndmos",
+        target: "sky130_fd_pr__nfet_g5v0d16v0",
+        parameters: { w: "{wd}", l: "700n", nf: "1", m: "1" },
+        expected: { w: "{wd}", l: "700n", nf: "1", m: "1" },
+      },
+      {
+        symbolId: "ndmos",
+        target: "sky130_fd_pr__nfet_g5v0d16v0",
+        parameters: { w: "{wd}", l: "150n", nf: "1", m: "1" },
+        expected: { w: "{wd}", l: "700n", nf: "1", m: "1" },
+      },
+    ] as const) {
+      const project = createEmptyProject("project", "Project");
+      project.documents[0]!.instances.push({
+        id: "M1",
+        symbolId: fixture.symbolId,
+        placement: null,
+        reference: "M1",
+        netlist: { parameters: { ...fixture.parameters } },
+      });
+      const result = executeProjectTransaction(project, {
+        transactionId: "set-16v-model",
+        projectId: project.id,
+        expectedStructureRevision: project.structureRevision,
+        actor: { kind: "human", id: "test" },
+        edits: planSetDeviceModelTarget(
+          project,
+          project.topDocumentId,
+          "M1",
+          fixture.target,
+        ),
+      });
+      expect(result.ok).toBe(true);
+      if (!result.ok) continue;
+      expect(result.project.documents[0]!.instances[0]!.netlist).toEqual({
+        binding: {
+          kind: "external-subcircuit",
+          definitionId: result.project.externalSubcircuitDefinitions[0]!.id,
+        },
+        parameters: fixture.expected,
+      });
+    }
   });
 
   it("reuses frozen passive symbols and replaces scalar values with reviewed geometry", () => {

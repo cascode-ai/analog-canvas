@@ -267,8 +267,49 @@ const tcoil = {
   variants: [],
 };
 
+// A plain centre-tapped inductor (#1513): the T-coil figure's windings and
+// tap, closer together, without its bridge capacitor or polarity dots. The
+// reference draws a centre tap only inside that bridged T-coil.
+const centerTapCenters = [
+  { x: -25, y: 0 },
+  { x: 25, y: 0 },
+];
+const centerTap = {
+  schemaVersion: 1,
+  id: "center-tap-inductor",
+  name: "Center-Tap Inductor",
+  viewBox: { x: -64, y: -16, width: 128, height: 40 },
+  pins: [
+    pin("1", { x: -60, y: 0 }, "west"),
+    pin("2", { x: 60, y: 0 }, "east"),
+    pin("3", { x: 0, y: 20 }, "south"),
+  ],
+  primitives: [
+    line(
+      { x: -60, y: 0 },
+      { x: centerTapCenters[0].x - 19.5, y: 0 },
+      "terminal-1-lead",
+    ),
+    transformPrimitive(inductorPath, centerTapCenters[0], 90, "winding-1"),
+    line(
+      { x: centerTapCenters[0].x + 19.5, y: 0 },
+      { x: centerTapCenters[1].x - 19.5, y: 0 },
+      "winding-center-link",
+    ),
+    transformPrimitive(inductorPath, centerTapCenters[1], 90, "winding-2"),
+    line(
+      { x: centerTapCenters[1].x + 19.5, y: 0 },
+      { x: 60, y: 0 },
+      "terminal-2-lead",
+    ),
+    line({ x: 0, y: -0.5 }, { x: 0, y: 20 }, "terminal-3-lead"),
+    dot(tcoilLayout.productJunctionDotsLogical[1], "center-tap-junction"),
+  ],
+  variants: [],
+};
+
 const outputSources = new Map();
-for (const symbol of [tcoil, xfmr]) {
+for (const symbol of [tcoil, xfmr, centerTap]) {
   outputSources.set(
     symbol.id,
     normalize(
@@ -319,6 +360,22 @@ const expectedEntries = [
     xfmrEvidence,
     "A transformer is two inductors plus mutual coupling that SPICE import does not recognize, so it is placed by hand; netlist export writes it as the built-in xfmr subcircuit.",
   ),
+  {
+    symbolId: centerTap.id,
+    name: centerTap.name,
+    category: "passive",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "The reference draws a centre-tapped winding only inside its bridged T-coil. Drawn here as that figure's two windings and tap, without the bridge capacitor or polarity dots.",
+    pinOrder: centerTap.pins.map((candidate) => candidate.name),
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "A centre-tapped inductor is two series windings meeting at the tap, which SPICE import does not recognize as one part, so it is placed by hand; netlist export writes it as the built-in ct_inductor subcircuit.",
+    assetPath: `${centerTap.id}.json`,
+    assetHash: hash(outputSources.get(centerTap.id)),
+  },
 ];
 for (const expected of expectedEntries) {
   const existingIndex = catalog.entries.findIndex(
@@ -338,7 +395,7 @@ const catalogSource = normalize(
 );
 
 const filesToWrite = [
-  ...[tcoil, xfmr].map((symbol) => [
+  ...[tcoil, xfmr, centerTap].map((symbol) => [
     resolve(assetRoot, `${symbol.id}.json`),
     outputSources.get(symbol.id),
   ]),
@@ -357,5 +414,5 @@ if (check) {
 }
 
 console.log(
-  `${check ? "Validated" : "Generated"} Razavi XFMR and bridged T-coil assets`,
+  `${check ? "Validated" : "Generated"} Razavi XFMR, bridged T-coil and centre-tap inductor assets`,
 );

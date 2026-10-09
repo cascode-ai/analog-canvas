@@ -52,7 +52,7 @@ import {
 // A stiff middle button drifts under the hand; keep a larger slop than an
 // ordinary drag so a click can still cycle the active wire corner.
 const PAN_START_DISTANCE_PX = 10;
-export const KEYBOARD_PAN_STEP_PX = 48;
+const KEYBOARD_PAN_STEP_PX = 48;
 const DRAFTING_SNAP_CAPTURE_RADIUS_PX = 4;
 
 type SetViewBox = (

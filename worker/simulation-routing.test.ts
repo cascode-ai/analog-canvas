@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { routeSimulationRequest, type SimulationEnv } from "./simulation";
+import {
+  routeSimulationRequest,
+  refuseSignedOutSimulation,
+  type SimulationEnv,
+} from "./simulation";
 import ngspiceProfile from "../containers/ngspice/hosted-sky130-profile.json";
 import {
   nativeEnvironment,
@@ -150,5 +154,75 @@ describe("dual-engine Profile routing", () => {
       (await routeSimulationRequest(post(nativeInput()), env))!.status,
     ).toBe(503);
     expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("signing in to simulate", () => {
+  const signedIn = {
+    AUTH: {
+      getByName: () => ({
+        fetch: async () => Response.json({ user: { id: "member" } }),
+      }),
+    },
+  };
+  const request = (
+    body: unknown,
+    headers: Record<string, string> = {},
+    path = "/api/simulate",
+  ) =>
+    new Request(`https://canvas.test${path}`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+    });
+
+  it("lets anyone discover the Profiles but asks a signed-out visitor to sign in before running", async () => {
+    expect(
+      await refuseSignedOutSimulation(
+        request({ operation: "capabilities" }),
+        {},
+      ),
+    ).toBeNull();
+    const refused = await refuseSignedOutSimulation(request(nativeInput()), {});
+    expect(refused?.status).toBe(401);
+    expect(await refused!.json()).toEqual({
+      error: "simulation-authentication-required",
+      message: "Sign in to run simulations.",
+    });
+    expect(
+      await refuseSignedOutSimulation(
+        request(nativeInput(), {}, "/api/elsewhere"),
+        {},
+      ),
+    ).toBeNull();
+  });
+
+  it("runs for a signed-in account or the deploy check's one-off credential, and nothing else", async () => {
+    expect(
+      await refuseSignedOutSimulation(
+        request(nativeInput(), { cookie: "icm_session=abc" }),
+        signedIn,
+      ),
+    ).toBeNull();
+    const smoke = { SIMULATION_SMOKE_TOKEN: "this-deploy-only" };
+    expect(
+      await refuseSignedOutSimulation(
+        request(nativeInput(), { authorization: "Bearer this-deploy-only" }),
+        smoke,
+      ),
+    ).toBeNull();
+    for (const [headers, deployment] of [
+      [{ authorization: "Bearer an-earlier-deploy" }, smoke],
+      [{ authorization: "Bearer " }, {}],
+      [{ cookie: "icm_session=abc" }, {}],
+    ] as const)
+      expect(
+        (
+          await refuseSignedOutSimulation(
+            request(nativeInput(), headers),
+            deployment,
+          )
+        )?.status,
+      ).toBe(401);
   });
 });

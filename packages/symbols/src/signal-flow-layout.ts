@@ -346,7 +346,7 @@ function visualCharacterCount(value: string): number {
 }
 
 /** Stable conservative text metric used consistently by every renderer. */
-export function approximateSignalFlowInlineWidth(
+function approximateSignalFlowInlineWidth(
   value: string,
   fontSize: number,
 ): number {

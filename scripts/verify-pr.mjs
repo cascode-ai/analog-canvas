@@ -4,14 +4,17 @@
  *
  *   pnpm verify:pr [-- --base origin/main] [--no-browser | --mapped]
  *
- * 1. typecheck;
+ * 1. typecheck, then unused files and exports (`pnpm deadcode`, Knip, a few
+ *    seconds; knip.config.js says what counts);
  * 2. Prettier on the changed files it formats;
- * 3. every unit test that imports a changed file (`vitest related`): a leaf
+ * 3. the type-aware lint (`pnpm lint`) on the changed code: its errors fail,
+ *    and it prints the warnings on the lines the change touched;
+ * 4. every unit test that imports a changed file (`vitest related`): a leaf
  *    change runs a few, a core package most of the suite, so neither a guess
  *    at the "touched areas" nor the whole suite. A change to a test file runs
  *    strictly, so a describe its deletions emptied fails here, not in the
  *    merge queue;
- * 4. the browser cases the change adds or edits, by `file:line`, on the built
+ * 5. the browser cases the change adds or edits, by `file:line`, on the built
  *    editor with 4 workers (a change a spec file's tests share runs that
  *    file). `--mapped` runs every spec the merge queue maps instead.
  *
@@ -20,6 +23,8 @@
  * running the mapped specs here first only repeats them, slower. It stops
  * at the first failure, ends with each step's time, and names the Gallery
  * census, with the checks the change needs, when AGENTS.md calls for it.
+ * It warns, without failing, about each changed product file past 1,000
+ * lines (#1537), so a reviewer decides whether to split it.
  */
 import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
@@ -37,6 +42,9 @@ import {
   changedBrowserCases,
   changedLines,
   formattedPaths,
+  lintPaths,
+  oversizedProductFiles,
+  PRODUCT_FILE_LINE_LIMIT,
   strictUnitRun,
   unitSourcePaths,
 } from "./lib/verify-pr-selection.mjs";
@@ -52,6 +60,9 @@ const changed = collectChangedPaths(base, {
   ignoredPaths: catalog.ignoredPaths,
 });
 const present = changed.filter((path) => existsSync(path));
+const oversized = oversizedProductFiles(present, (path) =>
+  readFileSync(path, "utf8"),
+);
 const ciPlan = planCiValidation(planValidation(changed, catalog));
 
 const steps = [];
@@ -85,6 +96,14 @@ function finish(status) {
         .join("\n") +
       "\n",
   );
+  if (oversized.length)
+    process.stdout.write(
+      `\n⚠ Changed product files past the soft limit of ${PRODUCT_FILE_LINE_LIMIT} lines (#1537); a reviewer decides whether to split them:\n` +
+        oversized
+          .map((file) => `  ${file.path}: ${file.lines} lines`)
+          .join("\n") +
+        "\n",
+    );
   const census = censusPaths(changed);
   if (census.length)
     process.stdout.write(
@@ -103,11 +122,17 @@ if (changed.length === 0) {
 }
 
 step("typecheck", "pnpm", ["typecheck"]);
+step("deadcode", "pnpm", ["deadcode"]);
 
 const formatted = formattedPaths(present);
 if (formatted.length)
   step("format", "pnpm", ["exec", "prettier", "--check", ...formatted]);
 else skip("format", "no changed file Prettier formats");
+
+const linted = lintPaths(present);
+if (linted.length)
+  step("lint", "node", ["scripts/lint.mjs", "--base", base, ...linted]);
+else skip("lint", "no changed file the lint checks");
 
 const sources = unitSourcePaths(present);
 if (sources.length)

@@ -6,7 +6,7 @@ import type { SymbolResolver } from "@icm/symbols";
 export const EXPORT_VERSION = "0.1";
 export const DEFAULT_EXPORT_SCALE = 3;
 /** Roughly one canonical 1.6-unit wire width around formal file exports. */
-export const DEFAULT_FORMAL_EXPORT_MARGIN = 2;
+const DEFAULT_FORMAL_EXPORT_MARGIN = 2;
 
 export interface FormalExportSource {
   svg: string;

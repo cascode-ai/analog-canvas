@@ -3,54 +3,21 @@
  * These modules import Node built-ins and are not part of any browser bundle.
  */
 export {
-  connectionTransition,
-  ConnectionTracker,
-  type AgentConnectionState,
-  type ConnectionEvent,
-  type ConnectionSnapshot,
-} from "./connection-state.js";
-export {
-  CONNECTOR_FILE_VERSION,
   ConnectorStore,
   defaultConnectorFilePath,
   type StoredConnectorCredential,
 } from "./connector-store.js";
-export {
-  AgentSessionError,
-  networkFailure,
-  transportFailure,
-} from "./errors.js";
-export type { AgentFailureCategory } from "./errors.js";
+export { AgentSessionError } from "./errors.js";
 export {
   AgentHttpClient,
-  type AgentHttpClientOptions,
   type AgentRelayOperation,
   type AgentRequestTiming,
   type ClaimSuccess,
 } from "./http-client.js";
-export {
-  SnapshotCache,
-  changedObjectIds,
-  countDiagnostics,
-  snapshotSummary,
-  type CachedSnapshot,
-  type SnapshotSummary,
-} from "./snapshot-cache.js";
-export {
-  AgentSessionClient,
-  type AgentSessionClientOptions,
-  type ApplyActionsReport,
-  type ConnectReport,
-  type StatusReport,
-} from "./session-client.js";
-export type { ActionCall } from "@icm/agent-adapter/authoring";
-export {
-  AuthoringActionSchema,
-  ObjectRefSchema,
-  type AuthoringAction,
-  type ObjectRef,
-} from "@icm/agent-adapter/authoring";
-export {
-  WorkspaceBindingStore,
-  type WorkspaceBinding,
-} from "./workspace-binding-store.js";
+export { changedObjectIds, type CachedSnapshot } from "./snapshot-cache.js";
+export { AgentSessionClient } from "./session-client.js";
+export { type ApplyActionsReport } from "./session-receipts.js";
+/** @public An applied report's `placed` entries, named in declarations. */
+export type { PlacedPart } from "./session-receipts.js";
+export { AuthoringActionSchema } from "@icm/agent-adapter/authoring";
+export { WorkspaceBindingStore } from "./workspace-binding-store.js";

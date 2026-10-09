@@ -91,7 +91,10 @@ function authoredIdentifierTokens(
       return statement.rawExpression ? [statement.rawExpression] : [];
     case "opaque":
       return identifierTokens(statement.rawText);
-    default:
+    case "subckt_end":
+    case "include":
+    case "library":
+    case "control_boundary":
       return [];
   }
 }

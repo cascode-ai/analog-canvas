@@ -3,7 +3,7 @@
  * user is sketching throwaways: no leave prompt, no blocked refresh, no
  * startup recovery banner.
  */
-export const MEANINGFUL_CONTENT_MIN_OBJECTS = 3;
+const MEANINGFUL_CONTENT_MIN_OBJECTS = 3;
 
 interface CountableDocument {
   readonly instances?: readonly unknown[];

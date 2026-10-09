@@ -30,7 +30,7 @@ export interface DocumentSettingsCodeValue {
   canvas: CanvasPreferenceCodeValue;
 }
 
-export const DEFAULT_MOS_BULK_RAIL = {
+const DEFAULT_MOS_BULK_RAIL = {
   nmos: "VSS",
   pmos: "VDD",
 } as const;

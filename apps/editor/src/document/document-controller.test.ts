@@ -63,6 +63,49 @@ describe("EditorDocumentController", () => {
     expect(controller.canUndo).toBe(true);
   });
 
+  it("fits a 16 V part the GUI resizes to a size SKY130 models (#1485)", () => {
+    const project = createEmptyProject("controller", "Controller");
+    project.externalSubcircuitDefinitions.push({
+      id: "definition-16v",
+      name: "sky130_fd_pr__nfet_g5v0d16v0",
+      interfaceStatus: "declared",
+      terminals: ["D", "G", "S", "B"].map((name) => ({
+        id: `terminal-${name}`,
+        name,
+        direction: "passive" as const,
+      })),
+      formalParameters: [],
+    });
+    project.documents[0]!.instances.push({
+      id: "M1",
+      reference: "M1",
+      symbolId: "ndmos",
+      placement: null,
+      netlist: {
+        binding: {
+          kind: "external-subcircuit",
+          definitionId: "definition-16v",
+        },
+        parameters: { w: "5u", l: "2.2u", nf: "1", m: "1" },
+      },
+    });
+    const controller = new EditorDocumentController(project);
+    // W 55 µm is modelled only at L 0.7 µm: the typed W stays, L follows.
+    const result = controller.transact([
+      {
+        kind: "bulk_patch_instance_netlist",
+        assignments: [{ instanceId: "M1", set: { w: "55u" } }],
+      },
+    ]);
+    expect(result.ok && result.applied).toBe(true);
+    expect(controller.document.instances[0]!.netlist?.parameters).toEqual({
+      w: "55u",
+      l: "700n",
+      nf: "1",
+      m: "1",
+    });
+  });
+
   it("undoes chronologically across Cells without changing the viewed Cell", () => {
     const controller = new EditorDocumentController(hierarchicalProject());
     controller.transact([{ kind: "add_instance", instance: instance("Rtop") }]);
@@ -293,6 +336,42 @@ describe("EditorDocumentController", () => {
       instance("Ragent"),
     );
     expect(controller.resolver).toBe(resolverBefore);
+  });
+
+  it("keeps the transactions of one step as one undo item, or none of them (#1516)", () => {
+    const controller = new EditorDocumentController(hierarchicalProject());
+    controller.transact([{ kind: "add_instance", instance: instance("R0") }]);
+    controller.transact([{ kind: "undo" }]);
+    const before = structuredClone(controller.document);
+    const add = (id: string) =>
+      controller.dispatchTransaction({
+        transactionId: id,
+        documentId: controller.activeDocumentId,
+        expectedRevision: controller.document.revision,
+        actor: { kind: "agent", id: "codex" },
+        edits: [{ kind: "add_instance", instance: instance(id) }],
+      }).ok;
+
+    // Refused after its first commit: that one is taken back, the redo stays.
+    expect(controller.commitAsOneStep(() => add("R1") && false)).toBe(false);
+    expect(controller.document.instances).toEqual(before.instances);
+    expect(controller.document.revision).toBeGreaterThan(before.revision);
+    expect(controller.canUndo).toBe(false);
+    expect(controller.canRedo).toBe(true);
+
+    expect(controller.commitAsOneStep(() => add("R1") && add("R2"))).toBe(true);
+    expect(controller.document.instances.map((item) => item.id)).toEqual([
+      "R1",
+      "R2",
+    ]);
+    controller.transact([{ kind: "undo" }]);
+    expect(controller.document.instances).toEqual(before.instances);
+    expect(controller.canUndo).toBe(false);
+    controller.transact([{ kind: "redo" }]);
+    expect(controller.document.instances.map((item) => item.id)).toEqual([
+      "R1",
+      "R2",
+    ]);
   });
 
   it("rebuilds symbols for a definition-level Document edit", () => {

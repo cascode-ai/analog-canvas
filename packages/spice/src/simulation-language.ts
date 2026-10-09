@@ -412,7 +412,10 @@ export function inspectSimulationSource(file: SpiceSourceFile, entry = false) {
   return { ...syntax, diagnostics, commands };
 }
 
-/** Virtual-root normalization; source resolution performs no filesystem/network IO. */
+/**
+ * Virtual-root normalization; source resolution performs no filesystem/network IO.
+ * @internal Tests pin include path resolution through it.
+ */
 export function resolveSimulationInclude(
   sourcePath: string,
   requested: string,
@@ -425,20 +428,6 @@ export function resolveSimulationInclude(
 
 export function unquoteSimulationToken(value: string): string {
   return /^(["'])[\s\S]*\1$/u.test(value) ? value.slice(1, -1) : value;
-}
-
-/** Small helper templates remain ordinary source, not a new simulation DSL. */
-export function simulationAnalysisTemplate(
-  kind: "op" | "dc" | "ac" | "tran" | "noise",
-): string {
-  const defaults = {
-    op: "op",
-    dc: "dc V1 0 1.8 0.01",
-    ac: "ac dec 100 1 1e9",
-    tran: "tran 1n 10u",
-    noise: "noise v(out) V1 dec 100 1 1e9",
-  };
-  return `${defaults[kind]}\n${kind === "noise" ? "write out.raw noise1.all noise2.all" : "write out.raw"}\n`;
 }
 
 export { splitSpiceFields };

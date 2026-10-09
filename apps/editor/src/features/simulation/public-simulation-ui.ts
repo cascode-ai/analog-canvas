@@ -5,7 +5,7 @@ import { resolvePublicUiFeatureEnabled } from "../../deployment/public-ui-featur
  * points. Persisted simulation data and HTTP APIs are separate contracts and
  * deliberately do not depend on this build flag.
  */
-export function resolvePublicSimulationUiEnabled(input: {
+function resolvePublicSimulationUiEnabled(input: {
   production: boolean;
   configured?: string;
 }): boolean {

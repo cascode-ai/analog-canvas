@@ -1,12 +1,14 @@
 import { razaviTextbookProfile } from "@icm/derived";
 import { createEmptyDocument } from "@icm/model";
-import { InMemorySymbolResolver } from "@icm/symbols";
+import {
+  InMemorySymbolResolver,
+  normalizeSignalFlowFormula,
+  parseSignalFlowFraction,
+} from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 
 import { buildSvgScene } from "./render.js";
 import {
-  normalizeSignalFlowFormula,
-  parseSignalFlowFraction,
   renderSignalFlowFormula,
   renderUprightSignalFlowFormula,
   signalFlowFormulaLocalBounds,

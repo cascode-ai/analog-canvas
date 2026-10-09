@@ -8,12 +8,21 @@ an unfamiliar field only; no full-contract or authoring-help prerequisite.
 1. Discover `simulation_run` capabilities once when you need another Profile
    than the default (VACASK, say) or its engine's facts. Read
    `netlist_code`/the relevant Cell interface for a drawn DUT,
-   not the entire drawing. Profile-managed model loads need no duplicate `.lib`.
+   not the entire drawing. Switch clock phases the DUT does not drive are its
+   last pins (`EN EN_bar`, `PHI1 PHI2`); give each a clock source, a pair such
+   as `EN`/`EN_bar` opposite pulses, with dead time when the phases must
+   not overlap. Profile-managed model loads need no duplicate `.lib`.
    Full capabilities (optionally `profileId`) are for detailed model facts.
 2. Create a saved `simulation_folder`, or reuse the current folder.
+   With `rootDocumentId`, a Cell with drawn pins becomes the DUT of a
+   `testbench.spice` shell (`XDUT`, ports in order) where you write the
+   sources. A Cell without pins is a drawn testbench and runs as the deck's
+   top. `dut` wraps either.
    Without `profileId`, create takes the one Profile whose listed qualified
-   devices include every reviewed PDK device the root Cell uses (SKY130 ngspice
-   on Production; a folder without a Cell uses no PDK device). A Profile that
+   devices include every reviewed PDK device the root Cell uses. SKY130's
+   high-voltage DMOS devices (16 V, 20 V) count for SKY130 ngspice, which runs
+   them though it does not list them. A folder without a Cell uses no PDK
+   device. A Profile that
    lists none, as VACASK, is never the default. The receipt names the Profile
    and its engine; without exactly one, create refuses with
    `SIMULATION_PROFILE_REQUIRED` and `error.candidates`.

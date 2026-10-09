@@ -15,6 +15,7 @@ become blockers merely because their severity says warning.
 | Wire through symbol | Check actual strokes and endpoints; bounding-box overlap alone is not proof of a bad wire. A wire running back across the part it starts from is reported as information; route it out of the pin first |
 | Route overlap | Same-Net collinear spans may be an intentional shared trunk; remove only redundant/confusing geometry |
 | Overlapping Nets (`ERC_OVERLAPPING_NETS`) | Two Nets drawn along one line read as shorted; reroute one wire off the named span, never add a Junction or merge the Nets |
+| Undriven gate Net (`ERC_UNDRIVEN_GATE_NET`) | Every pin on the Net only senses a voltage (MOS gates, bulks, block inputs), so nothing sets it. Wire it to the bias, source or Cell Pin the figure means to drive it; a local label alone is not a driver. Never add a part only to silence the warning |
 | Terminal departure | Reported where a wire leaves a pin backward, against the pin's direction, or leaves a port, supply or ground from the side with no other wire there; turn the symbol or approach the pin along its direction. A bend at the end of a part's lead, or a trunk running past a pin it taps, is ordinary drafting and is not reported |
 | Short segment / outside page | Review readability and intended bounds, not just a threshold |
 | Flightline | Route/label the intended relation or disclose a deliberately incomplete view |
@@ -23,3 +24,21 @@ Repair the smallest area responsible for a real defect. Preserve clear
 crossings; adding a Junction solely to silence a warning changes topology.
 Zero findings does not prove readability. Review relevant visual changes in
 formal render and report unresolved issues that affect the requested result.
+
+## Response contract
+
+Every Agent operation answers so that the next call needs no guessing, no
+blind retry and no source reading (#1525). New actions keep the same three
+rules:
+
+- **A refusal** names the cause, the object in the way, and a concrete next
+  step: the field or action to change, or the part that fits. For example,
+  `LIMIT_EXCEEDED` says how many placements fit in one call, and an
+  ambiguous name lists the ids it could mean.
+- **A success** returns what the next call needs: created ids, resolved
+  references, label annotation ids and pin landings, where the action makes
+  them.
+- **A success that changed nothing** says so and why. A command whose plan
+  leaves the drawing as it was answers `applied:false` with an information
+  finding, `NOTHING_CHANGED` unless the command gave its own reason (such as
+  `LABELS_LEFT_IN_PLACE`); it never answers a bare `ok`.

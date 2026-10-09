@@ -88,6 +88,14 @@ export function AnnotationPropertyCodeEditor<T>({
         ? canonical
         : source;
   };
+  const copyDraft = async () => {
+    try {
+      await navigator.clipboard.writeText(draft);
+      setMessage("JSON copied");
+    } catch {
+      setMessage("Clipboard unavailable; select the code and copy it");
+    }
+  };
   return (
     <section
       className="component-property-code-editor"
@@ -113,16 +121,7 @@ export function AnnotationPropertyCodeEditor<T>({
             type="button"
             className="component-property-copy"
             aria-label="Copy JSON"
-            onClick={async () => {
-              try {
-                await navigator.clipboard.writeText(draft);
-                setMessage("JSON copied");
-              } catch {
-                setMessage(
-                  "Clipboard unavailable; select the code and copy it",
-                );
-              }
-            }}
+            onClick={() => void copyDraft()}
           >
             <svg
               viewBox="0 0 20 20"

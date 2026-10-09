@@ -7,8 +7,8 @@ import {
   nativeSimulationDevices,
   nativeTerminalCurrent,
   inspectVacaskSourceGraph,
+  resolveSimulationVoltageProbeNetId,
 } from "@icm/netlist";
-import { resolveSimulationVoltageProbeNetId } from "./simulation-probe-options";
 import ota from "../../../../../netlists/native-ota-library/legacy-source.icproj.json";
 import {
   sourceProbeChoices,

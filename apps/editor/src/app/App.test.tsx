@@ -13,7 +13,6 @@ import { createWebEditorServices } from "../services/web-editor-services";
 import {
   defaultRazaviSymbolVariantId,
   razaviHiddenBulkRisk,
-  razaviMosPresentationEdits,
 } from "../presentation/razavi-presentation";
 import { createDemoProject } from "../demos/demo-project";
 import { createRoutingDemoProject } from "../demos/routing-demo";
@@ -35,7 +34,7 @@ describe("editor shell", () => {
     expect(defaultRazaviSymbolVariantId("resistor")).toBeUndefined();
   });
 
-  it("fixes every canonical MOS to Razavi three-terminal display", () => {
+  it("names the explicit body Net a three-terminal MOS would hide", () => {
     const document = createEmptyProject("razavi-migration", "Razavi")
       .documents[0]!;
     document.instances.push(
@@ -68,26 +67,6 @@ describe("editor shell", () => {
       },
     );
 
-    expect(razaviMosPresentationEdits(document)).toEqual([
-      {
-        kind: "set_instance_symbol",
-        instanceId: "Mimplicit",
-        symbolId: "nmos",
-        symbolVariantId: "textbook-3terminal",
-      },
-      {
-        kind: "set_instance_symbol",
-        instanceId: "Msupply",
-        symbolId: "pmos",
-        symbolVariantId: "textbook-3terminal",
-      },
-      {
-        kind: "set_instance_symbol",
-        instanceId: "MbodyBias",
-        symbolId: "nmos",
-        symbolVariantId: "textbook-3terminal",
-      },
-    ]);
     expect(razaviHiddenBulkRisk(document, "Mimplicit")).toBeUndefined();
     expect(razaviHiddenBulkRisk(document, "Msupply")?.id).toBe("net-vdd");
     expect(razaviHiddenBulkRisk(document, "MbodyBias")?.id).toBe(

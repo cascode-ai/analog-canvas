@@ -10,7 +10,6 @@ import {
   endpointTestId,
   instanceLabelAnnotationFor,
   maxRoutingCounter,
-  previewInstanceValueSource,
 } from "./editor-document-helpers";
 
 describe("editor document helpers", () => {
@@ -158,29 +157,5 @@ describe("editor document helpers", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(maxRoutingCounter(result.document)).toBeGreaterThanOrEqual(4);
-  });
-
-  it("projects only the selected instance's nonblank parameter draft", () => {
-    const instance = {
-      id: "R1",
-      symbolId: "resistor",
-      placement: null,
-      reference: "R1",
-      netlist: {
-        parameters: { value: "1k", keep: "yes" },
-      },
-    };
-    expect(
-      previewInstanceValueSource(instance, {
-        instanceId: "R1",
-        parameters: { value: "2k" },
-      }),
-    ).toMatchObject({ netlist: { parameters: { value: "2k", keep: "yes" } } });
-    expect(
-      previewInstanceValueSource(instance, {
-        instanceId: "other",
-        parameters: { value: "2k" },
-      }),
-    ).toBe(instance);
   });
 });

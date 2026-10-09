@@ -1,12 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { createAgentCircuitService } from "@icm/agent-adapter";
 import {
+  buildProjectConnectivityIndex,
   diagnoseVisualQuality,
   resolveEndpointConnection,
   resolveMosBulkConnection,
 } from "@icm/derived";
 import { proposePlacementContact } from "@icm/edit-engine";
-import { createEmptyProject, routeEndpoints } from "@icm/model";
+import {
+  createEmptyProject,
+  roleLabelFormat,
+  routeEndpoints,
+} from "@icm/model";
 import { createDesignNetlistExport } from "@icm/netlist";
 import { renderDocumentSvg } from "@icm/render-svg";
 import {
@@ -19,22 +24,48 @@ import { AgentSessionClient } from "../../../../packages/agent-client/src/sessio
 import { FakeAgentHttp } from "../../../../packages/agent-client/src/test-support/fake-relay";
 import { EditorDocumentController } from "../document/document-controller";
 import { planPlacedCellPin } from "../features/component-insert/cell-pin-placement";
+import { createAgentSemanticIntentHandler } from "./agent-semantic-intent-handler";
 import { BrowserAgentHost } from "./browser-agent-host";
 
-/** One editor, reached by an Agent client that sends it action lists. */
-async function editor() {
+/**
+ * One editor, reached by an Agent client that sends it action lists. Given
+ * `fitDocument`, the session may steer the view: the editor's own semantic
+ * handler takes its requests, and the view's fit is that callback.
+ */
+async function editor(
+  view: { fitDocument?: (documentId: string) => void } = {},
+) {
   const project = createEmptyProject("project-1", "Action plan");
   project.documents[0]!.id = "main";
   project.topDocumentId = "main";
   const controller = new EditorDocumentController(project);
+  const fitDocument = view.fitDocument;
   const service = createAgentCircuitService({
     agentId: "test",
-    host: new BrowserAgentHost(controller),
+    host: new BrowserAgentHost(
+      controller,
+      undefined,
+      fitDocument
+        ? (request) =>
+            createAgentSemanticIntentHandler({
+              project: controller.project,
+              resolver: controller.resolver,
+              connectivityIndex: buildProjectConnectivityIndex(
+                controller.project,
+                controller.resolver,
+              ),
+              navigateToLocator: () => {},
+              fitDocument,
+              clearFocus: () => {},
+              highlightNet: () => {},
+            })(request)
+        : undefined,
+    ),
     permissions: {
       snapshot: true,
       render: true,
       sourceSpans: false,
-      semanticControl: false,
+      semanticControl: fitDocument !== undefined,
       edit: { geometry: true, connectivity: true, presentation: true },
     },
   });
@@ -280,6 +311,207 @@ describe("the editor plans an Agent's action list", () => {
         );
       expect(controller.document).toEqual(before);
     }
+  });
+
+  it("wires a ground and each of two VDD markers by the IDs the Agent gave them (#1515)", async () => {
+    const { controller, client } = await editor();
+    const byId = (id: string, name: string) => ({
+      kind: "pin",
+      instance: { kind: "instance", id },
+      pin: name,
+    });
+    const marker = (symbol: string, id: string, x: number, y: number) => ({
+      kind: "place-component",
+      symbol,
+      id,
+      position: { x, y },
+    });
+    const actions = [
+      { ...place("nmos", "M1", 300), id: "m-tail" },
+      marker("ground", "gnd-tail", 300, 400),
+      marker("vdd-port", "vdd-left", 100, -200),
+      marker("vdd-port", "vdd-right", 600, -200),
+      { kind: "connect", from: pin("M1", "S"), to: byId("gnd-tail", "0") },
+      { kind: "connect", from: byId("vdd-left", "P"), to: pin("M1", "D") },
+      {
+        kind: "connect",
+        from: byId("vdd-right", "P"),
+        to: { kind: "point", x: 600, y: -100 },
+      },
+    ];
+    // The wires name parts the list places: it plans whole, as two calls.
+    const report = await client.applyActions(actions);
+    expect(report).toMatchObject({
+      ok: false,
+      code: "ACTION_BATCH_NOT_ATOMIC",
+      calls: [{ actionIndices: [0, 1, 2, 3] }, { actionIndices: [4, 5, 6] }],
+    });
+    for (const call of (report as { calls: { actionIndices: number[] }[] })
+      .calls) {
+      const sent = await client.applyActions(
+        call.actionIndices.map((index) => actions[index]),
+      );
+      expect(sent.ok, sent.message).toBe(true);
+    }
+    const netOf = (instanceId: string, pinName: string) =>
+      controller.document.nets.find((net) =>
+        net.terminals.some(
+          (terminal) =>
+            terminal.instanceId === instanceId && terminal.pinName === pinName,
+        ),
+      )?.id;
+    expect(netOf("m-tail", "S")).toBe(netOf("gnd-tail", "0"));
+    expect(netOf("m-tail", "D")).toBe(netOf("vdd-left", "P"));
+    expect(netOf("vdd-right", "P")).toBeDefined();
+    // Both markers are named VDD: the name alone picks neither.
+    const before = structuredClone(controller.document);
+    expect(
+      await client.applyActions([
+        {
+          kind: "connect",
+          from: pin("VDD", "P"),
+          to: { kind: "point", x: 100, y: -100 },
+        },
+      ]),
+    ).toMatchObject({
+      ok: false,
+      code: "ACTION_COMPILE_FAILED",
+      message:
+        'actions[0] (connect): "VDD" names 2 parts (vdd-left, vdd-right); name one by {kind:"instance", id}',
+    });
+    expect(controller.document).toEqual(before);
+  });
+
+  it("draws two power rails and fits the view in one call and one undo, and a third rail in a later call (#1517)", async () => {
+    const fits: string[] = [];
+    const { controller, client, http } = await editor({
+      fitDocument: (documentId) => fits.push(documentId),
+    });
+    const rail = (name: string, y: number) => ({
+      kind: "add-power-rail",
+      name,
+      start: { x: 0, y },
+      end: { x: 400, y },
+    });
+    const fit = { kind: "focus", intent: { kind: "fit-document" } };
+    const calls = http.circuitCalls.length;
+    const both = await client.applyActions([
+      rail("VDD", -200),
+      rail("VDDA", -400),
+      fit,
+    ]);
+    expect(both.ok, both.message).toBe(true);
+    // One transaction: the editor ran both rails as one batch, then fit the
+    // view to them.
+    expect(
+      http.circuitCalls
+        .slice(calls)
+        .filter(({ request }) => request.operation === "transact"),
+    ).toHaveLength(1);
+    expect(fits).toEqual(["main"]);
+    expect(both.semantic).toMatchObject({
+      kind: "fit-document",
+      documentId: "main",
+    });
+    const rails = () =>
+      controller.document.routes.filter(
+        (route) => route.presentation === "power-rail",
+      );
+    expect(rails()).toHaveLength(2);
+    // Each rail of the batch has IDs of its own, which a rail drawn later
+    // does not take again.
+    const third = await client.applyActions([rail("VDDB", -600)]);
+    expect(third.ok, third.message).toBe(true);
+    expect(rails()).toHaveLength(3);
+    expect(new Set(controller.document.nets.map((net) => net.id)).size).toBe(
+      controller.document.nets.length,
+    );
+    // A view that cannot show the focus leaves the commit standing.
+    const unseen = await client.applyActions([
+      rail("VDDC", -800),
+      { kind: "focus", intent: { kind: "highlight-net", netId: "net-gone" } },
+    ]);
+    expect(unseen.ok, unseen.message).toBe(true);
+    expect(rails()).toHaveLength(4);
+    expect(unseen.diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: "OBJECT_NOT_FOUND",
+        severity: "warning",
+        message: expect.stringMatching(
+          /^The edit committed; its focus was not shown: Net net-gone/u,
+        ),
+      }),
+    );
+    for (let undo = 0; undo < 3; undo++)
+      await client.applyActions([{ kind: "undo" }]);
+    expect(rails()).toEqual([]);
+
+    // A session that may not steer the view sends none of such a list.
+    const blind = await editor();
+    expect(
+      await blind.client.applyActions([rail("VDD", -200), fit]),
+    ).toMatchObject({ ok: false, code: "PERMISSION_DENIED" });
+    expect(blind.controller.document.routes).toEqual([]);
+  });
+
+  it("relabels a Net label from plain text in the look a new label gets, natively from a string too (#1521)", async () => {
+    const { controller, client } = await editor();
+    const apply = async (actions: unknown[]) => {
+      const report = await client.applyActions(actions);
+      expect(report.ok, report.message).toBe(true);
+    };
+    await apply([place("resistor", "R1", 100)]);
+    await apply([
+      {
+        kind: "connect",
+        from: pin("R1", "2"),
+        to: { kind: "point", x: 300, y: 100 },
+      },
+    ]);
+    // OUT has no standard look: the label shows its name as it is.
+    await apply([{ kind: "add-label", target: pin("R1", "2"), text: "OUT" }]);
+    const label = () =>
+      controller.document.annotations.find(
+        (annotation) => annotation.kind === "net-label",
+      )!;
+    const { id, netId } = label();
+    expect(label().formatOverride).toBeUndefined();
+    // Renamed VB1, it reads V over a B1 subscript, as a new VB1 label does.
+    await apply([
+      {
+        kind: "edit-text",
+        target: { kind: "annotation", id },
+        text: "VB1",
+      },
+    ]);
+    expect(label().formatOverride).toEqual(
+      roleLabelFormat("voltage-node", "VB1"),
+    );
+    // Native set-net-label takes the name as a plain string.
+    await apply([
+      { kind: "set-net-label", annotationId: id, netId, text: "OUT" },
+    ]);
+    expect(label().formatOverride).toBeUndefined();
+    await apply([
+      { kind: "set-net-label", annotationId: id, netId, text: "VBN" },
+    ]);
+    expect(label().formatOverride).toEqual(
+      roleLabelFormat("voltage-node", "VBN"),
+    );
+    // RichText still sets a look of its own.
+    const own = {
+      runs: [
+        {
+          kind: "span",
+          style: "bold",
+          children: [{ kind: "text", value: "VBN" }],
+        },
+      ],
+    };
+    await apply([
+      { kind: "set-net-label", annotationId: id, netId, text: own },
+    ]);
+    expect(label().formatOverride).toEqual(own);
   });
 
   it("plans on the Document as a person left it, yet refuses a stale undo", async () => {
@@ -531,6 +763,50 @@ describe("the editor plans an Agent's action list", () => {
       ),
     ).toHaveLength(1);
     expect(findings()).toEqual([]);
+  });
+
+  it("draws a body wire to a bias Net exactly along the via points it is given (#1514)", async () => {
+    const { controller, client } = await editor();
+    const apply = async (actions: unknown[]) => {
+      const report = await client.applyActions(actions);
+      expect(report.ok, report.message).toBe(true);
+      return report;
+    };
+    await apply([place("nmos", "M1", 100)]);
+    await apply([
+      {
+        kind: "connect",
+        from: { kind: "point", x: 40, y: 180 },
+        to: { kind: "point", x: 240, y: 180 },
+      },
+    ]);
+    const bias = controller.document.routes[0]!.netId;
+    // A stub out of the channel, then down to the Net: the body leaves its
+    // landing (100,100) east and meets the Net where the stub's end is
+    // nearest it.
+    const tied = await apply([
+      {
+        kind: "connect",
+        from: pin("M1", "B"),
+        to: { kind: "net", net: bias },
+        via: [{ x: 120, y: 100 }],
+      },
+    ]);
+    const body = controller.document.routes.find(
+      (route) => route.presentation === "bulk-dashed",
+    )!;
+    expect(
+      tied.resolvedRoutes?.find((route) => route.routeId === body.id)?.polyline,
+    ).toEqual([
+      { x: 96, y: 100 },
+      { x: 120, y: 100 },
+      { x: 120, y: 180 },
+    ]);
+    expect(
+      controller.document.nets.find((net) =>
+        net.terminals.some((terminal) => terminal.pinName === "B"),
+      )?.id,
+    ).toBe(body.netId);
   });
 
   /**

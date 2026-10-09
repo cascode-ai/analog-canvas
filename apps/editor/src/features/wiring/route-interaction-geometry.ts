@@ -145,12 +145,12 @@ export function closestRoutePoint(
   );
 }
 
-export const ROUTED_MARKER_MIN_NORMAL_OFFSET = 12;
-export const ROUTED_MARKER_MAX_NORMAL_OFFSET = 40;
+const ROUTED_MARKER_MIN_NORMAL_OFFSET = 12;
+const ROUTED_MARKER_MAX_NORMAL_OFFSET = 40;
 // Net labels keep their electrical binding to the route but may be placed in
 // a much wider band around it than the tight current-marker label band.
-export const NET_LABEL_MIN_NORMAL_OFFSET = 8;
-export const NET_LABEL_MAX_NORMAL_OFFSET = 200;
+const NET_LABEL_MIN_NORMAL_OFFSET = 8;
+const NET_LABEL_MAX_NORMAL_OFFSET = 200;
 
 /**
  * Per-revision object index for endpoint resolution.
@@ -228,7 +228,7 @@ export function endpointNetId(
   );
 }
 
-export function junctionRouteDegree(
+function junctionRouteDegree(
   document: SchematicDocument,
   junctionId: string,
 ): number {
@@ -240,7 +240,7 @@ export function junctionRouteDegree(
   ).length;
 }
 
-export function isLooseRouteEndpoint(
+function isLooseRouteEndpoint(
   document: SchematicDocument,
   endpoint: RouteEndpoint,
 ): boolean {

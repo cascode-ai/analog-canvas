@@ -17,9 +17,7 @@ import {
   type SimulationOperation,
 } from "./contract.js";
 import { SimulationFiles } from "./files.js";
-import { simulationSpecReport, simulationSpecsToCsv } from "./spec-results.js";
-import { vacaskMeasurementResults } from "./vacask-measurements.js";
-import { ngspiceMeasurementResults } from "./ngspice-measurements.js";
+import { executionSpecReport, simulationSpecsToCsv } from "./spec-results.js";
 import { executionArtifactEntries } from "./execution-artifacts.js";
 import { resultCatalog } from "./result-catalog.js";
 
@@ -1394,45 +1392,17 @@ export class SimulationService {
         delete run.inputArtifacts;
       }
       collectionStatus = output.collectionStatus ?? "complete";
-      const nativeReports =
-        output.result.metadata.environment.simulator.name === "vacask"
-          ? vacaskMeasurementResults(
-              output.result.log,
-              output.result.outcome.status !== "completed-with-dropped-input",
-            )
-          : {
-              measurements: ngspiceMeasurementResults(
-                input.files,
-                input.entryPath ?? "run.cir",
-                output.result.log,
-              ),
-              diagnostics: [],
-            };
-      const nativeMeasurements = nativeReports.measurements;
-      const specs = simulationSpecReport(
-        input.files,
-        input.entryPath ?? "run.cir",
-        nativeMeasurements,
-        {
-          runId: run.view.id,
-          preparedId: run.prepared.id,
-          inputDigest: run.prepared.digest,
-        },
-        output.result.outcome.status === "completed" && !output.cancelled,
-        {
-          engine:
-            output.result.metadata.environment.simulator.name === "vacask"
-              ? "vacask"
-              : "ngspice",
-          log: output.result.log,
-        },
-      );
+      const { specs, diagnostics } = executionSpecReport(input, output, {
+        runId: run.view.id,
+        preparedId: run.prepared.id,
+        inputDigest: run.prepared.digest,
+      });
       // Raw numeric data lives in result.data. Keep legacy output fields readable
       // for archives, but never produce a second waveform or automatic metrics.
       run.view.outputData = {
         schemaVersion: 1,
         analyses: [],
-        diagnostics: nativeReports.diagnostics,
+        diagnostics,
         specs,
       };
       const pendingArtifacts: Array<{
@@ -1460,7 +1430,7 @@ export class SimulationService {
           metadata: { role: "specs" },
         },
       ];
-      if (nativeReports.diagnostics.length)
+      if (diagnostics.length)
         pendingArtifacts.push({
           name: "outputs.json",
           mediaType: "application/json",

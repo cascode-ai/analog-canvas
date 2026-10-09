@@ -7,6 +7,9 @@ import {
   changedBrowserCases,
   changedLines,
   formattedPaths,
+  lintPaths,
+  oversizedProductFiles,
+  PRODUCT_FILE_LINE_LIMIT,
   strictUnitRun,
   testStartLines,
   unitSourcePaths,
@@ -62,6 +65,31 @@ describe("verify:pr selection", () => {
     expect(strictUnitRun(["scripts/verify-pr.mjs"])).toBe(false);
   });
 
+  it("lints workspace code, tests and specs, and everything when the rules or types change", () => {
+    // .oxlintrc.json skips the generated file, as a whole-repo run does.
+    expect(lintPaths([...changed, "worker/agent-session-do.ts"])).toEqual([
+      "packages/netlist/src/extract.ts",
+      "packages/netlist/src/extract.test.ts",
+      "apps/editor/src/features/component-insert/use-component-placement.ts",
+      "apps/editor/e2e/gallery.spec.ts",
+      "apps/mcp-server/src/resources.generated.ts",
+      "scripts/verify-pr.mjs",
+      "worker/agent-session-do.ts",
+    ]);
+    for (const config of [
+      ".oxlintrc.json",
+      "tsconfig.json",
+      "tsconfig.base.json",
+      "packages/model/tsconfig.json",
+    ])
+      expect(lintPaths(["docs/README.md", config])).toEqual([
+        "apps",
+        "packages",
+        "worker",
+        "scripts",
+      ]);
+  });
+
   it("names the census for placement and netlist code, not their tests", () => {
     expect(censusPaths(changed)).toEqual([
       "packages/netlist/src/extract.ts",
@@ -97,6 +125,42 @@ describe("verify:pr selection", () => {
         "apps/editor/src/agent/browser-agent-project-host.ts",
       ]),
     ).toEqual(["copy", "netlist"]);
+  });
+
+  it("warns about changed product files past the soft size limit, not tests or generated files", () => {
+    const lines = (count) => "x\n".repeat(count);
+    const files = new Map([
+      ["packages/netlist/src/extract.ts", lines(3890)],
+      ["packages/netlist/src/extract.test.ts", lines(5000)],
+      ["apps/editor/e2e/gallery.spec.ts", lines(6437)],
+      ["apps/mcp-server/src/resources.generated.ts", lines(9000)],
+      ["apps/editor/src/agent/live-agent-editor.test-support.ts", lines(1200)],
+      ["packages/agent-client/src/test-support/fake-relay.ts", lines(1200)],
+      ["worker/simulation.test-fixture.ts", lines(1200)],
+      ["apps/editor/census/gallery.census.ts", lines(1200)],
+      ["scripts/verify-pr.mjs", lines(1200)],
+      ["worker/gallery-do.ts", lines(4090)],
+      // A file exactly at the limit gets no warning; one line more, the
+      // last without a newline, does.
+      ["apps/editor/src/app/App.tsx", lines(PRODUCT_FILE_LINE_LIMIT)],
+      [
+        "containers/simulation/gateway.mjs",
+        `${lines(PRODUCT_FILE_LINE_LIMIT)}x`,
+      ],
+    ]);
+    expect(
+      oversizedProductFiles([...files.keys()], (path) => files.get(path)),
+    ).toEqual([
+      { path: "worker/gallery-do.ts", lines: 4090 },
+      { path: "packages/netlist/src/extract.ts", lines: 3890 },
+      {
+        path: "containers/simulation/gateway.mjs",
+        lines: PRODUCT_FILE_LINE_LIMIT + 1,
+      },
+    ]);
+    expect(
+      oversizedProductFiles(["docs/README.md"], () => lines(2000)),
+    ).toEqual([]);
   });
 
   it("runs only the browser cases a change adds or edits", () => {

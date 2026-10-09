@@ -15,6 +15,9 @@ compilation, mapped edits, drafts, language assistance and Code interaction.
 retention and artifact access. [Results](simulation-results.md) owns numeric
 records, native measurements and Spec reports. [The user guide](../user/analog-simulation.md)
 owns step-by-step operation; [deployment](../deployment.md) owns candidate acceptance.
+Besides the Editor and its Agent, the Worker prepares saved folders with the
+same preparation for the Gallery's
+[simulation checks](community-gallery.md#simulation-checks).
 
 ## Authored authority
 
@@ -136,16 +139,44 @@ New experiments use this strict minimal configuration:
 
 Use the Profile advertised by the executor. A new experiment that names no
 Profile takes the one whose qualified `devices` include every reviewed PDK
-device its Cell and that Cell's sub-Cells are bound to. An experiment without
+device its Cell and that Cell's sub-Cells are bound to. If no Profile does, the
+high-voltage DMOS devices of a Profile's library count as qualified, and the
+one Profile that then qualifies them all is taken. The SKY130 ngspice Profile
+runs SKY130's 16 V and 20 V devices but does not list them (#1485). Its library
+has no varactor, so other unlisted devices still need a named Profile. An
+experiment without
 a Cell uses no PDK device. No Profile qualifies ideal blocks, the generic diode
 or authored models, so they do not count. A Profile that lists no qualified
 devices is never the default. With several such Profiles, or none, the author
-names one: the Agent's `simulation_folder` create refuses with
-`SIMULATION_PROFILE_REQUIRED` and the candidates, and the GUI's new-experiment
-dialog keeps its first environment. The GUI waits for the advertised
-environments before it asks; only offline does it fall back to the VACASK
-candidate. On Production the default is the SKY130 ngspice Profile; VACASK is
-chosen explicitly.
+names one. The Agent's `simulation_folder` create refuses with
+`SIMULATION_PROFILE_REQUIRED` and the candidates.
+
+A simulation's top is always a testbench (#1489). The create decides how it
+runs the Cell, by whether the Cell draws pins:
+
+- **A Cell with pins** is a DUT. The folder gains a `testbench.spice` shell
+  that calls it (`XDUT`, its ports in exported order, clock phase pins
+  included), and the Agent or author writes the sources there. The circuit
+  binding is a subcircuit.
+- **A Cell without pins** draws its own sources and is the testbench. It runs
+  as the deck's top, with its node names unprefixed.
+- Passing `dut` wraps either kind.
+
+The GUI's new-experiment form mirrors that call field for field. It asks for
+Name (`name`), then Cell (`rootDocumentId`), then shows which testbench the
+Cell gets ("testbench.spice calls this Cell", or "this Cell, which draws no
+pins"), then Environment (`profileId`):
+
+- When the create would take one, the form shows it read-only as
+  "(automatic)", even when it is the only environment. Change offers the list,
+  like passing `profileId`, and the choice then stays when the Cell changes.
+- When the create would refuse, the list asks for a choice, and Create waits
+  for it with the create's reason, such as
+  "No Profile qualifies sky130_fd_pr__cap_var_lvt."
+
+The GUI waits for the advertised environments before it asks; only offline does
+it fall back to the VACASK candidate. On Production the default is the SKY130
+ngspice Profile; VACASK is chosen explicitly.
 
 SPICE owns `.param`, `.temp`, `.lib`, analyses, `save`/`.probe`, `let`, `meas`
 and control loops.

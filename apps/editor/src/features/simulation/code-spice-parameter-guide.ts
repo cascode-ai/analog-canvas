@@ -3,7 +3,7 @@ import { StateEffect, StateField, type EditorState } from "@codemirror/state";
 import { Decoration, EditorView, WidgetType, keymap } from "@codemirror/view";
 import { closeCompletion } from "@codemirror/autocomplete";
 
-export const dismissParameterGuide = StateEffect.define<boolean>();
+const dismissParameterGuide = StateEffect.define<boolean>();
 export function controlContext(text: string): boolean {
   return (
     [...text.matchAll(/^\s*\.(control|endc)\b/gimu)]

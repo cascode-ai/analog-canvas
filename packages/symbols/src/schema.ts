@@ -1,13 +1,5 @@
 // Persisted Symbol definitions are owned by the Project model.
 export {
-  SYMBOL_CONNECTION_GRID,
-  SYMBOL_STANDARD_GRID,
-  SymbolPinRoutingSchema,
-  SymbolPinSchema,
-  SymbolStrokeRoleSchema,
-  SymbolPrimitiveSchema,
-  SymbolFormulaPresentationSchema,
-  SymbolVariantSchema,
   SymbolDefinitionSchema,
   type SymbolPin,
   type SymbolFormulaPresentation,

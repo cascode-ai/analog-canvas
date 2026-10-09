@@ -1,6 +1,7 @@
 import {
   createContext,
   useContext,
+  useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -10,6 +11,11 @@ import {
 import { createEmptyProject } from "@icm/model";
 import { EditorDocumentController } from "../document/document-controller";
 import { BrowserAgentHost } from "./browser-agent-host";
+import {
+  AgentPairing,
+  agentPairingRequested,
+  exposeAgentPairing,
+} from "./headless-pairing";
 import { PUBLIC_AGENT_UI_ENABLED } from "./public-agent-ui";
 import {
   useAgentSession,
@@ -20,6 +26,8 @@ import {
 const WorkspaceAgent = createContext<{
   session: UseAgentSessionResult;
   bind: (context: UseAgentSessionOptions | null) => void;
+  /** Whether this page offers Agent connections at all. */
+  enabled: boolean;
 } | null>(null);
 
 /** Connection owner above route-specific Editor hosts. No circuit is exposed in Gallery. */
@@ -65,7 +73,7 @@ function WorkspaceAgentOwner({
     enabled: enabled && (context?.enabled ?? empty.enabled),
   });
   return (
-    <WorkspaceAgent.Provider value={{ session, bind }}>
+    <WorkspaceAgent.Provider value={{ session, bind, enabled }}>
       {children}
     </WorkspaceAgent.Provider>
   );
@@ -80,15 +88,30 @@ export function useEditorAgentSession(
   const latest = useRef(options);
   latest.current = options;
   const { bind } = shared;
+  // Automation that opened the editor with ?agent=pair (#1523), on a page
+  // that offers Agent connections; elsewhere it finds no handle.
+  const [pairing] = useState(() =>
+    shared.enabled &&
+    typeof window !== "undefined" &&
+    agentPairingRequested(window.location.search)
+      ? new AgentPairing()
+      : null,
+  );
+  useEffect(
+    () => (pairing ? exposeAgentPairing(window, pairing) : undefined),
+    [pairing],
+  );
   useLayoutEffect(() => {
     bind({
       ...options,
+      ...(pairing ? { pairOnLoad: pairing } : {}),
       beforeConnect: async () => latest.current.beforeConnect?.(),
       contextRevision: revision,
       projectSessionId: revision,
     });
   }, [
     bind,
+    pairing,
     revision,
     options.enabled,
     options.project,

@@ -14,7 +14,7 @@ import { describe, expect, it } from "vitest";
 import { DocumentHistory } from "./history.js";
 import { planWireBatch } from "./wire-batch-planner.js";
 import { createRouteClearance } from "./route-clearance.js";
-import type { WireIntent } from "./routing-planner.js";
+import type { WireIntent } from "./wire-intent-planner.js";
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
 const free = (x: number, y: number) => ({
@@ -435,6 +435,59 @@ describe("an Agent connect keeps clear of parts and other Nets (#1257)", () => {
     );
     expect(refused).toMatch(/passes through R3/);
     expect(chosen.document.routes).toEqual([]);
+
+    // The refusal names the leg that meets it and the clear path to send
+    // instead (#1527); sent back as via points, that path is committed.
+    const leg = before
+      .slice(1)
+      .map((to, index) => [before[index]!, to] as const)
+      .find(([p, q]) => conflict(crossing, [p, q]))!;
+    expect(refused).toContain(
+      `passes through R3 between (${leg[0].x}, ${leg[0].y}) and (${leg[1].x}, ${leg[1].y}), so it would read as connected there. The editor finds a clear path: send via [`,
+    );
+    expect(refused).toContain("or omit via to let it route");
+    const via = JSON.parse(
+      String(refused).match(/send via (\[.*?\]) /)![1]!,
+    ) as { x: number; y: number }[];
+    expect(via).toEqual(cleared.slice(1, -1));
+    const resent = parts(obstacle);
+    expect(committedPath(resent, { keepClear: true }, via)).toEqual(cleared);
+  });
+
+  it("says to leave via out when the editor's straight path is clear (#1527)", () => {
+    // R1.2 at (0,20) looks straight down at R2.1 at (0,80); the via points
+    // take the wire out along x=100, over R3's pins.
+    const document = createEmptyDocument("doc", "Straight");
+    document.instances.push(
+      resistor("R1", 0, 0),
+      resistor("R2", 0, 100),
+      resistor("R3", 100, 50),
+    );
+    const h = history(document);
+    const refused = committedPath(h, { keepClear: true }, [
+      { x: 100, y: 20 },
+      { x: 100, y: 80 },
+    ]);
+    expect(refused).toBe(
+      "the requested path passes over pin R3.1, which is on no Net, at (100, 30) between (100, 20) and (100, 80), so it would read as connected there. Omit via to let the editor route it clear",
+    );
+    expect(committedPath(h, { keepClear: true })).toEqual([
+      { x: 0, y: 20 },
+      { x: 0, y: 80 },
+    ]);
+  });
+
+  it("says when leaving the route to the editor fails too (#1527)", () => {
+    // Another Net's wire already runs over R2.1: no path helps.
+    const h = parts();
+    commit(h, [wire("foreign", free(180, 80), free(220, 80))]);
+    const refused = committedPath(h, { keepClear: true }, [{ x: 0, y: 80 }]);
+    expect(refused).toMatch(
+      /^the requested path R2\.1 sits on Route \S+ of a different Net \(.+\), so it would read as connected there\. Leaving the route to the editor fails too: R2\.1 sits on Route \S+ of a different Net \(.+\); move that wire off the pin first$/,
+    );
+    expect(committedPath(h, { keepClear: true })).toMatch(
+      /^R2\.1 sits on Route .+; move that wire off the pin first$/,
+    );
   });
 
   it("keeps clear of an adder's sign marks, as visual diagnostics see them (#1324)", () => {
@@ -483,7 +536,9 @@ describe("an Agent connect keeps clear of parts and other Nets (#1257)", () => {
 
     // Once B subtracts, the same L runs through the plus: refused, and the
     // wire goes round by the other corner.
-    expect(conflict(drawn("-"), direct)).toBe("passes through S1");
+    expect(conflict(drawn("-"), direct)).toBe(
+      "passes through S1 between (40, 90) and (80, 90)",
+    );
     const h = drawn("-");
     const cleared = committedPath(h, { keepClear: true });
     expect(cleared).toEqual([
@@ -844,6 +899,103 @@ describe("an Agent wire from a MOS body on its Cell's default", () => {
         ),
       )?.id;
     expect(netOf("B")).toBe(netOf("S"));
+  });
+});
+
+describe("an Agent body wire along the via points it is given (#1514)", () => {
+  // A three-terminal NMOS at the origin: its hidden body pin lands at the
+  // origin, inside the channel, and leaves east; its source lands at
+  // (10,20). A bias Net VB runs along y = 80.
+  const drawn = (target: WireIntent["to"], via: { x: number; y: number }[]) => {
+    const document = createEmptyDocument("bias", "Body bias");
+    document.instances.push({
+      id: "M1",
+      symbolId: "nmos",
+      symbolVariantId: "textbook-3terminal",
+      placement: { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+    });
+    const h = history(document);
+    commit(h, [wire("vb", free(-60, 80), free(200, 80))]);
+    const vb = h.document.nets[0]!.id;
+    const body = {
+      kind: "endpoint" as const,
+      endpoint: { kind: "terminal" as const, instanceId: "M1", pinName: "B" },
+    };
+    const plan = planWireBatch(
+      h.document,
+      resolver,
+      wire(
+        "body",
+        body,
+        target.kind === "net" ? { ...target, net: vb } : target,
+        via,
+      ),
+      512,
+      { keepClear: true },
+    );
+    if (typeof plan === "string") throw new Error(plan);
+    const result = h.transact({
+      transactionId: "body",
+      documentId: h.document.id,
+      expectedRevision: h.document.revision,
+      actor: { kind: "agent", id: "test" },
+      edits: plan.edits,
+    });
+    if (!result.ok) throw new Error(JSON.stringify(result));
+    const route = h.document.routes.find(
+      (item) => item.start.kind === "terminal" && item.start.pinName === "B",
+    )!;
+    const netOf = (pinName: string) =>
+      h.document.nets.find((net) =>
+        net.terminals.some(
+          (t) => t.instanceId === "M1" && t.pinName === pinName,
+        ),
+      )?.id;
+    return {
+      presentation: route.presentation,
+      points: resolveRouteGeometry(h.document, resolver, route)!.centerline,
+      body: netOf("B"),
+      source: netOf("S"),
+      vb: h.document.routes.find((item) => item !== route)!.netId,
+    };
+  };
+
+  it("ties the body to its source by the stub and corner asked for", () => {
+    // Refused before as passing through M1: read from the contact inside
+    // the channel, every body wire did.
+    const tied = drawn(
+      {
+        kind: "endpoint",
+        endpoint: { kind: "terminal", instanceId: "M1", pinName: "S" },
+      },
+      [
+        { x: 20, y: 0 },
+        { x: 20, y: 20 },
+      ],
+    );
+    expect(tied.presentation).toBe("bulk-dashed");
+    expect(tied.points).toEqual([
+      { x: -4, y: 0 },
+      { x: 20, y: 0 },
+      { x: 20, y: 20 },
+      { x: 10, y: 20 },
+    ]);
+    expect(tied.body).toBe(tied.source);
+  });
+
+  it("reaches a Net at its nearest point from the last via point", () => {
+    // Looked for nearest the body, the Net was met at (0,80), behind the
+    // stub, and the wire was refused as doubling back.
+    for (const target of [{ kind: "net", net: "" } as const, at(20, 80)]) {
+      const biased = drawn(target, [{ x: 20, y: 0 }]);
+      expect(biased.presentation).toBe("bulk-dashed");
+      expect(biased.points).toEqual([
+        { x: -4, y: 0 },
+        { x: 20, y: 0 },
+        { x: 20, y: 80 },
+      ]);
+      expect(biased.body).toBe(biased.vb);
+    }
   });
 });
 

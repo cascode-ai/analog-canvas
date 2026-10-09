@@ -32,6 +32,7 @@ import type { ArtifactRef } from "@icm/simulation-service/contract";
 import { ArtifactDownloadError } from "@icm/simulation-service/files";
 
 import type { AgentConnectionStatus } from "./connect-agent-panel";
+import type { AgentPairing } from "./headless-pairing";
 import { transitionAgentSession } from "./agent-session-state-machine";
 import { agentCircuitServiceOptions } from "./agent-service-options";
 import {
@@ -174,6 +175,12 @@ export interface UseAgentSessionOptions {
    */
   enabled: boolean;
   recover?: boolean;
+  /**
+   * Automation's pairing, asked for with `?agent=pair` (#1523): once the
+   * editor is bound and no connection was recovered, the page connects as
+   * Connect Agent does, once, and the pairing hands over the claim code.
+   */
+  pairOnLoad?: AgentPairing;
   beforeConnect?: () => Promise<void>;
   project: CircuitProject;
   projectSessionId: string;
@@ -1455,6 +1462,51 @@ export function useAgentSession(
     retire,
     update,
   ]);
+
+  const pairOnLoad = options.enabled ? options.pairOnLoad : undefined;
+  const pairOnLoadDecidedRef = useRef(false);
+  useEffect(() => {
+    pairOnLoad?.observe({
+      status: view.status,
+      claimCode: view.claimCode,
+      claimExpiresAt: view.claimExpiresAt,
+      error: view.error,
+    });
+  }, [
+    pairOnLoad,
+    view.status,
+    view.claimCode,
+    view.claimExpiresAt,
+    view.error,
+  ]);
+  useEffect(() => {
+    if (!pairOnLoad || pairOnLoadDecidedRef.current || view.pendingOperation)
+      return;
+    if (!["idle", "revoked", "expired"].includes(view.status)) {
+      // A recovered or hand-made connection is in place: nothing to pair.
+      if (view.status !== "reconnecting" && view.status !== "creating")
+        pairOnLoadDecidedRef.current = true;
+      return;
+    }
+    let cancelled = false;
+    // Queued after the recovery effect's own check, so a recovered
+    // connection wins; once decided, a later failure never connects again.
+    queueMicrotask(() => {
+      if (
+        cancelled ||
+        pairOnLoadDecidedRef.current ||
+        liveRef.current ||
+        operationRef.current?.pending
+      )
+        return;
+      pairOnLoadDecidedRef.current = true;
+      pairOnLoad.start();
+      void newConnection();
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [newConnection, pairOnLoad, view.pendingOperation, view.status]);
 
   useEffect(() => {
     if (!options.enabled) return;

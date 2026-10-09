@@ -2,7 +2,6 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { evaluateSimulatability } from "@icm/derived";
 import {
   createEmptyProject,
   type CircuitProject,
@@ -18,7 +17,7 @@ import { printVacaskWithLocations } from "./vacask-printer.js";
  * the node it reaches.
  */
 function magneticProject(
-  symbolId: "tcoil" | "xfmr",
+  symbolId: "tcoil" | "xfmr" | "center-tap-inductor",
   pins: readonly (readonly [pin: string, node: string])[],
   parameters: Record<string, string>,
   reference = "X1",
@@ -111,6 +110,34 @@ describe("drawn magnetic devices", () => {
     const spectre = exported(tcoil(), "spectre");
     expect(spectre).toContain("X1 (a b tap) tcoil l1=1n l2=2n k=0.5 cb=10f");
     expect(spectre).toContain("K12 mutual_inductor coupling=k ind1=L1 ind2=L2");
+  });
+
+  it("writes a centre-tap inductor as two series halves, uncoupled by default (#1513)", () => {
+    const project = magneticProject(
+      "center-tap-inductor",
+      [
+        ["1", "von"],
+        ["2", "vop"],
+        ["3", "vdd"],
+      ],
+      { l1: "2n", l2: "2n", k: "0" },
+    );
+    const text = exported(project, "spice");
+    expect(text).toContain("X1 von vop vdd ct_inductor l1=2n l2=2n k=0");
+    // No bridge capacitor: only the two halves and their coupling, 0 unless
+    // the part gives one.
+    expect(text).toContain(
+      [
+        ".subckt ct_inductor n1 n2 n3 params: l1=1n l2=1n k=0",
+        "L1 n1 n3 {l1}",
+        "L2 n3 n2 {l2}",
+        "K12 L1 L2 {k}",
+        ".ends ct_inductor",
+      ].join("\n"),
+    );
+    expect(exported(project, "spectre")).toContain(
+      "X1 (von vop vdd) ct_inductor l1=2n l2=2n k=0",
+    );
   });
 
   it("writes a transformer from the dotted + pins, in SPICE and Spectre", () => {
@@ -240,8 +267,6 @@ describe("drawn magnetic devices", () => {
   });
 
   it("projects coupled windings through the native mutual primitive", () => {
-    expect(evaluateSimulatability(tcoil()).blockers).toEqual([]);
-    expect(evaluateSimulatability(transformer()).blockers).toEqual([]);
     const analysis = analyzeDesignNetlist(transformer());
     const printed = printVacaskWithLocations(analysis.ir!);
     expect(printed.ok).toBe(true);

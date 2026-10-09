@@ -253,6 +253,50 @@ export function createLabelClearanceContext(
     }
     return [...ids].sort();
   };
+  /**
+   * Whether `box` sits inside a closed loop of wire: looking out from its
+   * centre, every way meets a wire, or at most one way a part's body, within
+   * a few grid squares past its edge. A sideways varactor's name had stood
+   * inside its source–drain tie, clear of every wire and still boxed in by
+   * them (#1519).
+   */
+  const enclosedAt = (box: Rect) => {
+    const centre = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    const reach = grid * 3;
+    let bodies = 0;
+    for (const [dx, dy] of [
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+      [0, -1],
+    ] as const) {
+      const length = (dx ? box.width : box.height) / 2 + reach;
+      const end = { x: centre.x + dx * length, y: centre.y + dy * length };
+      const span = {
+        x: Math.min(centre.x, end.x),
+        y: Math.min(centre.y, end.y),
+        width: Math.abs(end.x - centre.x),
+        height: Math.abs(end.y - centre.y),
+      };
+      if (
+        segments
+          .queryBounds(span)
+          .some((segment) =>
+            intersectSegments(centre, end, segment.from, segment.to),
+          )
+      )
+        continue;
+      if (
+        symbolIndex
+          .queryBounds(span)
+          .some((symbol) => segmentCrossesBox(centre, end, symbol.bounds)) &&
+        (bodies += 1) === 1
+      )
+        continue;
+      return false;
+    }
+    return true;
+  };
   return {
     visible,
     /** The Document's wire geometry this context measured against. */
@@ -277,6 +321,7 @@ export function createLabelClearanceContext(
       moved.get(id) ?? labels.get(id),
     wiresAt,
     dotsAt,
+    enclosedAt,
     crossings,
     accept: (a: Annotation) => moved.set(a.id, measure(a).inkBounds),
   };

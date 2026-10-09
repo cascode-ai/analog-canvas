@@ -18,6 +18,8 @@ export const profile = JSON.parse(
     contentSha256: string;
     library: { runtimePath: string };
   };
+  /** The devices the worker advertises, which a new folder's default reads. */
+  qualifiedScope: { devices: string[] };
 };
 
 export const ota = JSON.parse(

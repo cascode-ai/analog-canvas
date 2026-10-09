@@ -6,7 +6,7 @@ import { SymbolDefinitionSchema } from "./symbol-definition.js";
 import { CellSymbolPresentationSchema } from "./presentation.js";
 import { RichTextDocumentSchema } from "./rich-text.js";
 
-export const ComponentDefinitionSourceSchema = z.strictObject({
+const ComponentDefinitionSourceSchema = z.strictObject({
   name: z.string(),
   terminals: z.array(
     z.strictObject({
@@ -48,7 +48,7 @@ const parameter = z.strictObject({
   ]),
 });
 
-export const ComponentElectricalSchema = z.strictObject({
+const ComponentElectricalSchema = z.strictObject({
   id: StableIdSchema,
   symbolId: StableIdSchema,
   deviceClass: NetlistDeviceClassSchema,
@@ -82,7 +82,7 @@ const portBase = {
   name: z.string().min(1),
   direction: z.enum(["input", "output", "inout", "passive"]),
 };
-export const ComponentSubcircuitSchema = z.strictObject({
+const ComponentSubcircuitSchema = z.strictObject({
   id: StableIdSchema,
   symbolId: StableIdSchema,
   target: z.string().min(1),
@@ -95,7 +95,7 @@ export const ComponentSubcircuitSchema = z.strictObject({
 });
 
 /** Artwork refers to native terminal identity; it does not redeclare port order. */
-export const CircuitSymbolBindingSchema = z.strictObject({
+const CircuitSymbolBindingSchema = z.strictObject({
   definitionId: StableIdSchema,
   terminals: z
     .array(

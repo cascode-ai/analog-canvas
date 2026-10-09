@@ -91,7 +91,9 @@ describe("supported Project compatibility corpus", () => {
         ),
       );
     }
-  });
+    // Every retained witness is loaded and saved: well under a second here,
+    // five on a loaded CI runner.
+  }, 30_000);
 
   it("retains invalid fixture cases as explicit rejected inputs", () => {
     for (const entry of corpus.rejected) {

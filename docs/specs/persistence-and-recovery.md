@@ -220,8 +220,8 @@ The owned routes are `GET /api/projects/:id/versions`, version-specific
 Responses are private and not cached. Full-store backup/restore includes these
 snapshots; [Gallery-only backups](../gallery-backup.md) intentionally do not.
 The executable storage/retention boundary is
-[Cloud Project storage](../../worker/gallery-do.ts); authorization and restore
-reuse live in [the HTTP handler](../../worker/gallery.ts).
+[Cloud Project storage](../../worker/gallery-store-cloud-projects.ts); authorization and restore
+reuse live in [the HTTP handler](../../worker/gallery-cloud-projects.ts).
 
 ### Working-copy transitions
 

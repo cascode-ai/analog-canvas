@@ -8,7 +8,7 @@ import { deriveStableId, routeEndpoints } from "@icm/model";
 import type { Point, RouteEndpoint, SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 import type { SchematicEdit } from "./edit-schema.js";
-import { proposeWireCommit } from "./routing-planner.js";
+import { proposeWireCommit } from "./wire-commit-planner.js";
 
 export interface PowerRailContactSpan {
   routeId: string;

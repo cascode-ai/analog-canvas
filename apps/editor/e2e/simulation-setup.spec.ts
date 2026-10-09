@@ -414,6 +414,7 @@ test("one Testbench persists several independently named folders", async ({
           {
             id: profile.id,
             corners: ["tt"],
+            devices: profile.qualifiedScope.devices,
             dependencies: [
               { id: profile.models.id, sha256: profile.models.contentSha256 },
             ],

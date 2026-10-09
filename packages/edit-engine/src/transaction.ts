@@ -54,6 +54,7 @@ import { applyRouteStyleOverrideEdit } from "./transaction-route-style.js";
 import { applyObjectDocumentStyleEdit } from "./transaction-object-document-style.js";
 import { applyRouteTopologyEdit } from "./transaction-route-topology.js";
 import { applyPresentationLayoutEdit } from "./transaction-presentation-layout.js";
+import { fitReviewedSizes } from "./transaction-reviewed-size.js";
 import {
   mergeBaseNets,
   physicalContactPointKey,
@@ -1119,6 +1120,12 @@ export function executeTransaction(
   draft.revision = proposedRevision;
 
   inheritCellPortFormatting(document, draft, changedObjectIds);
+  fitReviewedSizes(
+    document,
+    draft,
+    context.externalSubcircuitDefinitions,
+    changedObjectIds,
+  );
   const candidate = SchematicDocumentSchema.safeParse(draft);
   if (!candidate.success) {
     return rejectTransaction(

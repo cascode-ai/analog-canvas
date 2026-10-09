@@ -5,6 +5,9 @@ import {
 import { parseSpiceSource } from "@icm/spice";
 import { flattenRichText } from "@icm/model";
 import type { SimulationOutputData } from "./contract.js";
+import type { ExecutionOutput } from "./executor.js";
+import { ngspiceMeasurementResults } from "./ngspice-measurements.js";
+import { vacaskMeasurementResults } from "./vacask-measurements.js";
 import {
   formatSimulationSpec,
   type SimulationSpecCondition,
@@ -255,6 +258,56 @@ export function simulationSpecReport(
     });
   });
   return { schemaVersion: 1, ...identity, results };
+}
+
+/**
+ * One execution's Spec report: the measurements its simulator printed,
+ * judged against the Specs its captured input states. The Simulation
+ * panel's run and the Gallery's simulation check (#1545) both read a run's
+ * Specs through this function.
+ */
+export function executionSpecReport(
+  input: {
+    files: readonly { path: string; text: string }[];
+    entryPath?: string | undefined;
+  },
+  output: Pick<ExecutionOutput, "result" | "cancelled">,
+  identity: Pick<SimulationSpecReport, "runId" | "preparedId" | "inputDigest">,
+): {
+  specs: SimulationSpecReport;
+  diagnostics: SimulationOutputData["diagnostics"];
+} {
+  const { result } = output;
+  const engine =
+    result.metadata.environment.simulator.name === "vacask"
+      ? "vacask"
+      : "ngspice";
+  const entry = input.entryPath ?? "run.cir";
+  const native =
+    engine === "vacask"
+      ? vacaskMeasurementResults(
+          result.log,
+          result.outcome.status !== "completed-with-dropped-input",
+        )
+      : {
+          measurements: ngspiceMeasurementResults(
+            input.files,
+            entry,
+            result.log,
+          ),
+          diagnostics: [],
+        };
+  return {
+    specs: simulationSpecReport(
+      input.files,
+      entry,
+      native.measurements,
+      identity,
+      result.outcome.status === "completed" && !output.cancelled,
+      { engine, log: result.log },
+    ),
+    diagnostics: native.diagnostics,
+  };
 }
 
 export function simulationSpecsToCsv(report: SimulationSpecReport): string {

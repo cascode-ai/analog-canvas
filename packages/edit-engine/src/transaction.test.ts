@@ -1809,6 +1809,68 @@ describe("Edit Transaction envelope", () => {
     });
   });
 
+  it("keeps a PMOS default moved from VDD to a body-bias Net (#1520)", () => {
+    const document = createEmptyDocument("document-main", "Main");
+    document.instances.push(
+      {
+        id: "M1",
+        symbolId: "pmos",
+        placement: null,
+        mosBulkBinding: { origin: "cell-default", netId: "net-power-vdd1" },
+      },
+      { id: "VDD1", symbolId: "vdd-port", placement: null },
+    );
+    document.nets.push(
+      {
+        id: "net-power-vdd1",
+        terminals: [
+          { instanceId: "M1", pinName: "B" },
+          { instanceId: "VDD1", pinName: "P" },
+        ],
+      },
+      { id: "net-vb", terminals: [] },
+    );
+    document.connectivityEvidence.push({
+      id: "claim-vdd-1",
+      kind: "name-claim",
+      netId: "net-power-vdd1",
+      name: "VDD",
+      owner: { kind: "power-marker", objectId: "VDD1" },
+      scope: "global",
+      powerDomain: "vdd",
+    });
+    document.mosBulkDefaults = { pmosNetId: "net-power-vdd1" };
+
+    // The edits the Cell settings send; VDD keeps its claim throughout.
+    const moved = executeTransaction(
+      document,
+      {
+        ...transaction(),
+        edits: [
+          { kind: "clear_mos_bulk_default", instanceId: "M1" },
+          { kind: "set_mos_bulk_defaults", pmosNetId: "net-vb" },
+          { kind: "reconcile_mos_bulk" },
+        ],
+      },
+      { symbolResolver: resolver },
+    );
+
+    expect(moved.ok).toBe(true);
+    if (!moved.ok) return;
+    expect(moved.document.mosBulkDefaults).toEqual({ pmosNetId: "net-vb" });
+    expect(moved.document.instances[0]?.mosBulkBinding).toEqual({
+      origin: "cell-default",
+      netId: "net-vb",
+    });
+    expect(moved.document.nets).toEqual([
+      {
+        id: "net-power-vdd1",
+        terminals: [{ instanceId: "VDD1", pinName: "P" }],
+      },
+      { id: "net-vb", terminals: [{ instanceId: "M1", pinName: "B" }] },
+    ]);
+  });
+
   it("keeps an explicit custom PMOS body default without a power marker", () => {
     const document = createEmptyDocument("document-main", "Main");
     document.instances.push({

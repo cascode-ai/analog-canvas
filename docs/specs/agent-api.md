@@ -96,7 +96,11 @@ commands, focus, undo or redo) is checked against `expectedRevision` as its
 form is. A list resolved against the Document, by Reference or target, needs
 Snapshot permission; it is planned on the Document as it stands and committed
 in the same step, so no edit lands between the two. A list that changes nothing answers
-`applied: false` and adds no history entry.
+`applied: false` and adds no history entry. A `focus` beside other actions
+never adds a transaction: it is shown once the rest commits (not on a dry
+run), its result in `semantic`, and it needs `editor.semantic-control` like a
+focus alone; a view that cannot show it leaves the commit standing with a
+warning diagnostic.
 
 Undo/redo uses the shared browser Document/Project history and requires all
 edit permissions. Dry-run does not advance history; there is no private Agent
@@ -151,6 +155,12 @@ A geometry Snapshot asked with `textBounds` also measures each annotation the
 canvas draws, as label placement measures it: `text.position`, where its
 alignment end stands, and `text.bounds`, the box its glyphs fill. Without the
 option the answer keeps the fields released clients parse strictly.
+A full or `pins` Snapshot asked with `instanceLabels` gives each instance
+record `annotations`: the labels that name or value that part (Reference,
+Value and parameter labels, a Cell Pin marker's name label, an older drawing's
+literal part label), each with `id`, `kind`, `parameter`, `visible`,
+`resolvedText` and `position`, the resolved anchor a `move-annotation` sets.
+It is opt-in for the same reason.
 Persisted Base-Net IDs
 remain valid only while their objects survive the edit lifecycle and are not
 exposed as an alternate Agent naming protocol.
@@ -191,7 +201,12 @@ See [execution and resources](simulation-execution.md).
 sibling, advertised in `capabilities` as `resources.project`. `list-gallery`,
 `read-gallery-entry`, and the response-size-bounded `read-gallery-entries`
 provide cursor-paged access to every public Gallery entry, complete canonical
-Project Code, and an optional generated SPICE or Spectre netlist. Each entry
+Project Code, and an optional generated SPICE or Spectre netlist. The Project
+Code carries an entry's simulation folders (its testbench) only for the
+signed-in account's own entries, an AI account's for an AI account, and every
+entry for the Owner's own accounts
+([testbench privacy](community-gallery.md#testbench-privacy)); a read, open or
+insert of anyone else's gets none. Each entry
 states its saved AI mark as `aiGenerated`. Adapters parse these answers
 strictly; from the release that reads `aiGenerated` on, an adapter that meets
 a field it does not know reports the schema failure with where to update
@@ -204,7 +219,17 @@ signed-in Editor session, with the Publish dialog's fields (`name`,
 mark; only its author changes that, in the Editor. An update defaults to the
 entry the working copy was published as or opened from in the Editor and
 keeps every field it does not name. Both answer `galleryEntryId`, `url` and
-`previewRevision`.
+`previewRevision`. Signed in as an AI account, `update-gallery-entry` with
+`takeOver: true` publishes a redrawn version of another AI account's entry
+under the signed-in account's name ([take-over](community-gallery.md));
+a person's entry is never taken over. Signed in as an AI account,
+`list-gallery` with `scope: "ai-seats"` lists every AI account's entries from
+`GET /api/gallery/mine?scope=ai-seats`, rejected and withdrawn ones included,
+each with `status` and, when the Owner gave one, `rejectReason`; `status`
+narrows them, and the cursor pages through that one list. Only that scope
+carries the two fields, so an adapter that predates them never meets them. A
+person's session gets `AI_ACCOUNT_REQUIRED`; `status` without the scope is
+`GALLERY_STATUS_NEEDS_SCOPE`.
 `read-project-code` / `replace-project-code` and
 `read-netlist` / `replace-netlist` expose the live Editor's existing code
 planners with Project structure-revision guards. Project Code replacement can

@@ -33,6 +33,27 @@ export function unitSourcePaths(paths) {
 }
 
 /**
+ * Files `pnpm lint` checks: workspace code, its tests and the browser specs
+ * (.oxlintrc.json leaves out generated code). A change to the lint
+ * configuration or to a tsconfig, which decides the types each file is
+ * linted with, checks them all.
+ */
+export function lintPaths(paths) {
+  if (
+    paths.some(
+      (path) =>
+        path === ".oxlintrc.json" || /(?:^|\/)tsconfig[^/]*\.json$/u.test(path),
+    )
+  )
+    return ["apps", "packages", "worker", "scripts"];
+  return paths.filter(
+    (path) =>
+      /^(?:apps|packages|worker|scripts)\//u.test(path) &&
+      /\.(?:[cm]?[jt]sx?)$/u.test(path),
+  );
+}
+
+/**
  * Whether the unit step runs strictly. `vitest related` passes when it finds
  * no test, as a change no test imports needs, but that also passes a
  * describe left empty by deleting its last case, which the full run in the
@@ -91,6 +112,48 @@ export function censusChecks(paths) {
     if (group) checks.add(group);
   }
   return [...checks].sort();
+}
+
+/**
+ * The soft size limit for product files (#1537): a changed one longer than
+ * this gets a warning, never a failure, and a reviewer decides whether to
+ * split it.
+ */
+export const PRODUCT_FILE_LINE_LIMIT = 1000;
+
+/**
+ * Product code: what the apps, packages, Worker and simulation containers
+ * ship. Tests, browser specs, test support and fixtures, the Gallery census,
+ * generated files and declarations are not.
+ */
+function isProductSource(path) {
+  return (
+    /^(?:apps|packages|worker|containers)\//u.test(path) &&
+    /\.[cm]?[jt]sx?$/u.test(path) &&
+    !/\.d\.[cm]?ts$/u.test(path) &&
+    !/\.(?:test|spec|test-support|test-fixture)\.[cm]?[jt]sx?$/u.test(path) &&
+    !/(?:^|\/)(?:e2e|census|test-support|test-fixtures)\//u.test(path) &&
+    !/\.generated\.[cm]?[jt]s$/u.test(path)
+  );
+}
+
+/**
+ * The changed product files past the soft size limit, longest first, each
+ * with its length in lines. `readText(path)` reads a file.
+ */
+export function oversizedProductFiles(paths, readText) {
+  return paths
+    .filter(isProductSource)
+    .map((path) => {
+      const text = readText(path);
+      const lines = text.split("\n").length - (text.endsWith("\n") ? 1 : 0);
+      return { path, lines };
+    })
+    .filter((file) => file.lines > PRODUCT_FILE_LINE_LIMIT)
+    .sort(
+      (left, right) =>
+        right.lines - left.lines || left.path.localeCompare(right.path),
+    );
 }
 
 /** Spec files under the editor's Playwright directory. */

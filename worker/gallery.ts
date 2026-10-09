@@ -1,58 +1,65 @@
+// Public Gallery HTTP entry: `routeGalleryRequest` authenticates and maps API
+// requests. It serves the wall, entries, previews, likes and moderation here
+// and hands the rest to the route modules: gallery-publishing,
+// gallery-cloud-projects, gallery-maintenance, gallery-datasets and
+// gallery-documents, with shared helpers in gallery-requests. Durable storage
+// is `GalleryDO` (gallery-do.ts); its operations live in gallery-store*.ts.
+
 import { formulaPreviewNeedsRefresh } from "./gallery-preview";
 import { validGalleryAttention } from "./gallery-curation";
-// Public Gallery HTTP policy and rendering. Durable storage lives in
-// gallery-do.ts; this module only authenticates and maps API requests.
-
-import {
-  diagnoseLabelClearance,
-  diagnoseVisualQuality,
-  prepareDocumentFormulaArtifacts,
-  sha256Hex,
-} from "@icm/derived";
-import { referenceDeviceLetter } from "@icm/devices";
-import { createDesignNetlistExport, designExtractsNetlist } from "@icm/netlist";
-import { galleryComponentCount } from "./gallery-components";
-import {
-  CURRENT_PROJECT_FILE_VERSION,
-  parseProject,
-  serializeProject,
-} from "@icm/project-protocol";
-import { renderDocumentSvg } from "@icm/render-svg";
-import {
-  builtInSymbols,
-  createProjectSymbolResolver,
-  type SymbolResolver,
-} from "@icm/symbols";
-import {
-  CircuitProjectSchema,
-  labelLookChanges,
-  type CircuitProject,
-  type RichTextDocument,
-} from "@icm/model";
-
+import { createDesignNetlistExport } from "@icm/netlist";
+import { parseProject } from "@icm/project-protocol";
+import { type CircuitProject } from "@icm/model";
 import { AI_ACCOUNT_PROVIDER, sessionUserOf, type SessionUser } from "./auth";
+import { gallerySourceByKey, gallerySourceOfEntryId } from "./gallery-sources";
 import { sameOrigin } from "./same-origin";
 import {
-  dailySubmissionLimit,
-  isAiSeatEntry,
   GALLERY_DAILY_OPEN_LIMIT,
-  GALLERY_MAX_AUTHOR_LENGTH,
-  GALLERY_MAX_DESCRIPTION_LENGTH,
-  GALLERY_MAX_NAME_LENGTH,
-  GALLERY_MAX_PROJECT_BYTES,
   GALLERY_MAX_REJECT_REASON_LENGTH,
-  sanitizeGalleryTags,
-  shortId,
-  wrapTags,
   type GalleryEntrySummary,
   type GalleryEnv,
-} from "./gallery-do";
+} from "./gallery-store";
+import {
+  PUBLIC_GALLERY_DOCUMENTS_ENABLED,
+  escapeHtml,
+  publicGalleryCatalog,
+  publicGalleryEntry,
+} from "./gallery-documents";
+import {
+  callGallery,
+  canReview,
+  entryManager,
+  fieldText,
+  hasGalleryReadToken,
+  hasStoreBackupToken,
+  isAdmin,
+  isAutomatedBackup,
+  readsAsOwner,
+  readsTestbench,
+  recoverFormulaPreview,
+} from "./gallery-requests";
+import { withTestbench, withoutTestbench } from "./gallery-testbench";
+import {
+  gallerySourceCounts,
+  handleSourceImport,
+  withGalleryStore,
+} from "./gallery-datasets";
+import {
+  handleEntryUpdate,
+  handleSubmission,
+  routeGalleryPublishing,
+} from "./gallery-publishing";
+import { routeCloudProjects } from "./gallery-cloud-projects";
+import { routeGalleryMaintenance } from "./gallery-maintenance";
+import {
+  gateSimulationMarks,
+  routeSimulationChecks,
+  simulationMarkOf,
+  simulationMarkPublic,
+} from "./gallery-simulation-checks";
+import type { SimulationCheck } from "./gallery-store-simulation-checks";
 
 export * from "./gallery-do";
-
-function galleryStub(env: GalleryEnv) {
-  return env.GALLERY.getByName("gallery");
-}
 
 /** The day's opens are spent; they come back at the next UTC midnight. */
 function dailyOpenLimitResponse(day: string): Response {
@@ -75,95 +82,6 @@ function dailyOpenLimitResponse(day: string): Response {
   );
 }
 
-async function callGallery<T>(
-  env: GalleryEnv,
-  operation: string,
-  body: Record<string, unknown>,
-): Promise<{ status: number; payload: T }> {
-  const response = await galleryStub(env).fetch(
-    `https://gallery/${operation}`,
-    {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
-    },
-  );
-  return { status: response.status, payload: (await response.json()) as T };
-}
-
-interface PublicGalleryCatalog {
-  entries: GalleryEntrySummary[];
-  total: number;
-  netlistable: number;
-  tags: { tag: string; count: number; group: string }[];
-  groups: { group: string; count: number }[];
-  authors: { author: string; ownerUserId: string | null; count: number }[];
-}
-
-interface PublicGalleryStoredEntry {
-  entry: GalleryEntrySummary;
-  status: string;
-  projectText: string;
-}
-
-export interface GalleryReadableDocument {
-  title: string;
-  description: string;
-  headHtml: string;
-  bodyHtml: string;
-}
-
-// Temporarily suspend the server-readable Gallery documents. The interactive
-// Gallery still uses its existing paginated API.
-const PUBLIC_GALLERY_DOCUMENTS_ENABLED = false;
-
-async function publicGalleryCatalog(
-  env: GalleryEnv,
-): Promise<PublicGalleryCatalog | null> {
-  const { status, payload } = await callGallery<PublicGalleryCatalog>(
-    env,
-    "catalog",
-    {},
-  );
-  return status === 200 ? payload : null;
-}
-
-async function publicGalleryEntry(
-  env: GalleryEnv,
-  id: string,
-): Promise<PublicGalleryStoredEntry | null> {
-  const { status, payload } = await callGallery<PublicGalleryStoredEntry>(
-    env,
-    "entry",
-    { id },
-  );
-  return status === 200 ? payload : null;
-}
-
-function escapeHtml(value: unknown): string {
-  return String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
-}
-
-function publicHref(path: string, value?: string): string {
-  return value === undefined ? path : `${path}${encodeURIComponent(value)}`;
-}
-
-function normalizedSearchText(value: string): string {
-  return value
-    .normalize("NFKD")
-    .replace(/\p{M}+/gu, "")
-    .toLocaleLowerCase("en-US");
-}
-
-function readableJson(value: unknown): string {
-  return JSON.stringify(value).replaceAll("<", "\\u003c");
-}
-
 export interface GalleryPreviewCache {
   match(request: Request): Promise<Response | undefined>;
   put(request: Request, response: Response): Promise<void>;
@@ -172,6 +90,8 @@ export interface GalleryPreviewCache {
 export interface GalleryRouteRuntime {
   /** Injectable in tests; production falls back to Cloudflare's default cache. */
   previewCache?: GalleryPreviewCache | null;
+  /** Injectable in tests; production reads config/gallery-sim.json. */
+  simulationMarkPublicFrom?: string | null;
 }
 
 function defaultPreviewCache(): GalleryPreviewCache | null {
@@ -205,11 +125,6 @@ async function storePreviewCache(
   } catch {
     // The response is still valid when an edge refuses or evicts the entry.
   }
-}
-
-async function isAdmin(request: Request, env: GalleryEnv): Promise<boolean> {
-  const user = await sessionUserOf(request, env);
-  return user?.isAdmin === true;
 }
 
 /**
@@ -247,1073 +162,11 @@ function readerCopy(response: Response): Response {
   return new Response(response.body, { status: response.status, headers });
 }
 
-/** Whether the request's bearer equals `expected`, compared in constant time. */
-function bearerMatches(
-  request: Request,
-  expected: string | undefined,
-): boolean {
-  const supplied = request.headers
-    .get("Authorization")
-    ?.replace(/^Bearer /, "");
-  let difference = 0;
-  if (expected && supplied?.length === expected.length) {
-    for (let i = 0; i < expected.length; i++)
-      difference |= expected.charCodeAt(i) ^ supplied.charCodeAt(i);
-  } else difference = 1;
-  return difference === 0;
-}
-
-/**
- * The dedicated read-only Gallery credential. It authorizes only the bounded
- * Gallery reads that name it (the automated backup and the netlist pages):
- * never admin writes, unbounded dumps, or private Cloud Projects. Do not add
- * it to isAdmin.
- */
-function hasGalleryReadToken(request: Request, env: GalleryEnv): boolean {
-  return bearerMatches(request, env.GALLERY_BACKUP_TOKEN);
-}
-
-/**
- * The dedicated read-only store credential: the same paginated backup pages,
- * with private Cloud Projects, and nothing else — no wall, no writes. Do not
- * add it to isAdmin.
- */
-function hasStoreBackupToken(request: Request, env: GalleryEnv): boolean {
-  return bearerMatches(request, env.STORE_BACKUP_TOKEN);
-}
-
-/** `…/maintenance/automated-backup`, the only path the store credential opens. */
-function isAutomatedBackup(segments: readonly string[]): boolean {
-  return (
-    segments.length === 2 &&
-    segments[0] === "maintenance" &&
-    segments[1] === "automated-backup"
-  );
-}
-
-/**
- * One entry of the netlist read: the netlist its drawing prints, or null when
- * the export is blocked, with every finding either way, so a reader sees a
- * wire that reaches no peer beside the netlist it did not stop.
- */
-function galleryNetlist(
-  projectText: string,
-  format: "spice" | "spectre",
-): {
-  netlist: string | null;
-  diagnostics: { severity: string; code: string; message: string }[];
-} {
-  let project: CircuitProject;
-  try {
-    project = parseProject(projectText);
-  } catch (error) {
-    return {
-      netlist: null,
-      diagnostics: [
-        {
-          severity: "error",
-          code: "PROJECT_UNREADABLE",
-          message: error instanceof Error ? error.message : String(error),
-        },
-      ],
-    };
-  }
-  const result = createDesignNetlistExport(project, { format });
-  return {
-    netlist: result.status === "ready" ? result.file.text : null,
-    diagnostics: result.diagnostics.map(({ severity, code, message }) => ({
-      severity,
-      code,
-      message,
-    })),
-  };
-}
-
-/** Curation authority: an admin or an appointed moderator. */
-async function canReview(request: Request, env: GalleryEnv): Promise<boolean> {
-  const user = await sessionUserOf(request, env);
-  return user?.isAdmin === true || user?.role === "moderator";
-}
-
-/**
- * Who may manage one entry's lifecycle surfaces (withdrawal, version
- * history): a reviewer, or the signed-in owner of that entry.
- */
-async function entryManager(
-  request: Request,
-  env: GalleryEnv,
-  id: string,
-): Promise<{
-  found: boolean;
-  reviewer: boolean;
-  owner: boolean;
-  status: string | null;
-  rejectReason: string | null;
-}> {
-  const existing = await callGallery<{
-    ownerUserId?: string | null;
-    status?: string;
-    rejectReason?: string | null;
-  }>(env, "any-entry", { id });
-  if (existing.status !== 200) {
-    return {
-      found: false,
-      reviewer: false,
-      owner: false,
-      status: null,
-      rejectReason: null,
-    };
-  }
-  const reviewer = await canReview(request, env);
-  const user = await sessionUserOf(request, env);
-  const owner =
-    user !== null &&
-    existing.payload.ownerUserId != null &&
-    existing.payload.ownerUserId === user.id;
-  return {
-    found: true,
-    reviewer,
-    owner,
-    status: existing.payload.status ?? null,
-    rejectReason: existing.payload.rejectReason ?? null,
-  };
-}
-
-function fieldText(value: unknown, maxLength: number): string | null {
-  if (value === undefined || value === null) return "";
-  if (typeof value !== "string") return null;
-  const trimmed = value.trim();
-  return trimmed.length <= maxLength ? trimmed : null;
-}
-
-/**
- * The publisher's AI mark: true or false when the request gives one,
- * undefined when it leaves the mark alone, null when it is not a boolean.
- */
-function aiMark(value: unknown): boolean | undefined | null {
-  if (value === undefined) return undefined;
-  return typeof value === "boolean" ? value : null;
-}
-
-async function renderPreview(
-  project: CircuitProject,
-  resolver: SymbolResolver,
-): Promise<string> {
-  const topDocument = project.documents.find(
-    (document) => document.id === project.topDocumentId,
-  )!;
-  const prepared = await prepareDocumentFormulaArtifacts(topDocument);
-  try {
-    return renderDocumentSvg(topDocument, resolver);
-  } finally {
-    prepared.release();
-  }
-}
-
-async function recoverFormulaPreview(
-  svg: string,
-  projectText?: string,
-): Promise<string> {
-  if (!projectText || !formulaPreviewNeedsRefresh(svg)) return svg;
-  const project = parseProject(projectText);
-  return renderPreview(
-    project,
-    createProjectSymbolResolver(project, builtInSymbols),
-  );
-}
-
-/** Largest batch one label-look maintenance request may check. */
-const LABEL_LOOK_BATCH = 20;
-/** A planner may move a restyled label this far to keep its clearance. */
-const LABEL_LOOK_NUDGE = { x: 16, y: 12 };
-/**
- * When the label standards took effect (#1052). `legacyLooks` restyles only
- * content saved before; in a later drawing a slanted script is the author's
- * choice (names-and-labels.md).
- */
-const LABEL_STANDARDS_SINCE = Date.parse("2026-09-24T09:55:19Z");
-
-/**
- * What each label is drawn over, as `label → other ids`: wires and parts
- * (label clearance) and other labels (label overlap). The visual pass is
- * read uncached, since the document is edited in place between readings.
- */
-function labelConflicts(
-  document: CircuitProject["documents"][number],
-  resolver: SymbolResolver,
-): Map<string, Set<string>> {
-  const conflicts = new Map<string, Set<string>>();
-  const add = (label: string, others: readonly string[]) =>
-    conflicts.set(
-      label,
-      new Set([
-        ...(conflicts.get(label) ?? []),
-        ...others.filter((other) => other !== label),
-      ]),
-    );
-  for (const diagnostic of diagnoseLabelClearance(document, resolver))
-    if (diagnostic.code === "VISUAL_LABEL_CLEARANCE")
-      add(diagnostic.objectIds[0]!, diagnostic.objectIds.slice(1));
-  for (const diagnostic of diagnoseVisualQuality(document, resolver, {
-    minimumSegmentLength: document.presentation.grid,
-  }))
-    if (diagnostic.code === "VISUAL_LABEL_OVERLAP")
-      for (const label of diagnostic.objectIds)
-        add(label, diagnostic.objectIds);
-  return conflicts;
-}
-
-type LabelLookNudge = { label: string; dx: number; dy: number };
-const LABEL_LOOK_TABLES = ["galleryEntries", "galleryEntryVersions"] as const;
-type LabelLookTable = (typeof LABEL_LOOK_TABLES)[number];
-
-/** Names a drawing exposes electrically; a look change must keep all of them. */
-function electricalNames(project: CircuitProject): string {
-  return JSON.stringify(
-    project.documents.map((document) => ({
-      references: document.instances.map((instance) => instance.reference),
-      terminals: document.netlist?.terminals.map((terminal) => terminal.name),
-      claims: document.connectivityEvidence.map((evidence) =>
-        evidence.kind === "name-claim" ? evidence.name : null,
-      ),
-    })),
-  );
-}
-
-function designNetlists(project: CircuitProject): string {
-  return (["spice", "spectre"] as const)
-    .map((format) => {
-      const result = createDesignNetlistExport(project, { format });
-      return result.status === "ready"
-        ? result.file.text
-        : `blocked:${result.diagnostics.map((item) => item.code).join(",")}`;
-    })
-    .join("\n");
-}
-
-/**
- * Bring one existing entry's labels to the standard (V_DD, M₁, V_in, upright
- * subscripts), with the planner's bounded nudges. The server recomputes the
- * change itself and refuses anything that would alter a name, a netlist or
- * the Project beyond those labels and the drawing's subscript slant.
- */
-async function labelLookEntry(
-  env: GalleryEnv,
-  id: string,
-  options: {
-    apply: boolean;
-    expected?: string;
-    nudges: LabelLookNudge[];
-    keep: string[];
-    legacyLooks: boolean;
-    /** Current entries, or the retained versions they keep as history. */
-    table: LabelLookTable;
-  },
-): Promise<Record<string, unknown>> {
-  const read = await callGallery<{
-    status?: string;
-    projectText?: string;
-    savedAt?: string;
-    entryId?: string;
-  }>(env, "label-looks-read", { id, table: options.table });
-  const originalProjectText = read.payload.projectText;
-  if (read.status !== 200 || typeof originalProjectText !== "string")
-    return { id, skipped: "not-found" };
-  // The public Gallery only: a withdrawn or rejected entry, and the history
-  // it keeps, are left as they are.
-  const where = {
-    id,
-    status: read.payload.status,
-    ...(read.payload.entryId ? { entryId: read.payload.entryId } : {}),
-    savedAt: read.payload.savedAt,
-  };
-  if (read.payload.status !== "public")
-    return { ...where, skipped: "not-public" };
-  // A missing date reads as later: legacy looks stay unless known older.
-  const legacyLooks =
-    options.legacyLooks &&
-    Date.parse(read.payload.savedAt ?? "") < LABEL_STANDARDS_SINCE;
-  const sha = sha256Hex(originalProjectText);
-  let before: CircuitProject;
-  let project: CircuitProject;
-  try {
-    before = parseProject(originalProjectText);
-    project = parseProject(originalProjectText);
-  } catch {
-    return { ...where, sha, skipped: "unreadable" };
-  }
-  const labels: {
-    id: string;
-    documentId: string;
-    name: string;
-    kind: "standard" | "upright";
-    role?: string;
-  }[] = [];
-  const changed = new Map<
-    string,
-    CircuitProject["documents"][number]["annotations"][number]
-  >();
-  const keep = new Set(options.keep);
-  const kept: string[] = [];
-  const uprightDocuments: string[] = [];
-  const resolver = createProjectSymbolResolver(project, builtInSymbols);
-  // Annotation ids are unique within a Document only.
-  const key = (documentId: string, annotationId: string) =>
-    `${documentId}\u0000${annotationId}`;
-  /** What each restyled label was drawn over before, by document. */
-  const clearBefore = new Map<string, Map<string, Set<string>>>();
-  const originalLooks = new Map<string, RichTextDocument | undefined>();
-  for (const document of project.documents) {
-    const changes = labelLookChanges(document, {
-      legacyLooks,
-      deviceLetterOf: (annotation) => {
-        const binding = annotation.binding;
-        if (binding?.kind !== "instance-reference") return undefined;
-        const instance = document.instances.find(
-          (candidate) => candidate.id === binding.instanceId,
-        );
-        return instance
-          ? referenceDeviceLetter(instance.symbolId, project)
-          : undefined;
-      },
-    });
-    for (const change of changes.labels) {
-      // A label the planner could not keep clear keeps its current look.
-      if (change.kind === "standard" && keep.has(change.annotationId)) {
-        kept.push(change.annotationId);
-        continue;
-      }
-      const annotation = document.annotations.find(
-        (candidate) => candidate.id === change.annotationId,
-      )!;
-      // Only a new standard look changes a label's extent, so only it moves.
-      if (change.kind === "standard") {
-        if (!clearBefore.has(document.id))
-          clearBefore.set(document.id, labelConflicts(document, resolver));
-        originalLooks.set(
-          key(document.id, annotation.id),
-          annotation.formatOverride,
-        );
-        changed.set(annotation.id, annotation);
-      }
-      annotation.formatOverride = change.format;
-      labels.push({
-        id: annotation.id,
-        documentId: document.id,
-        name: change.name,
-        kind: change.kind,
-        ...(change.role ? { role: change.role } : {}),
-      });
-    }
-    if (changes.uprightSubscripts) {
-      document.presentation.labelSubscriptItalic = false;
-      uprightDocuments.push(document.id);
-    }
-  }
-  const unknownKeep = options.keep.find((label) => !kept.includes(label));
-  if (unknownKeep)
-    return { ...where, sha, skipped: `invalid-keep:${unknownKeep}` };
-  for (const nudge of options.nudges) {
-    const annotation = changed.get(nudge.label);
-    if (
-      !annotation ||
-      !Number.isFinite(nudge.dx) ||
-      !Number.isFinite(nudge.dy) ||
-      Math.abs(nudge.dx) > LABEL_LOOK_NUDGE.x ||
-      Math.abs(nudge.dy) > LABEL_LOOK_NUDGE.y ||
-      (annotation.anchor.kind !== "object" && annotation.anchor.kind !== "free")
-    )
-      return { ...where, sha, skipped: `invalid-nudge:${nudge.label}` };
-    if (annotation.anchor.kind === "object") {
-      annotation.anchor.localOffset = {
-        x: annotation.anchor.localOffset.x + nudge.dx,
-        y: annotation.anchor.localOffset.y + nudge.dy,
-      };
-      annotation.anchor.fallbackPosition = {
-        x: annotation.anchor.fallbackPosition.x + nudge.dx,
-        y: annotation.anchor.fallbackPosition.y + nudge.dy,
-      };
-    } else {
-      annotation.anchor.position = {
-        x: annotation.anchor.position.x + nudge.dx,
-        y: annotation.anchor.position.y + nudge.dy,
-      };
-    }
-  }
-  // A restyle may not draw a label over anything it cleared before. Such a
-  // label keeps its look, for manual repair; a nudge that leaves it over
-  // something refuses the row. Putting one back can crowd a neighbour that
-  // kept its new look, so this repeats until nothing more goes back.
-  const nudged = new Set(options.nudges.map((nudge) => nudge.label));
-  const restored = new Set<string>();
-  const clearanceKept: string[] = [];
-  for (let again = true; again;) {
-    again = false;
-    for (const document of project.documents) {
-      const had = clearBefore.get(document.id);
-      if (!had) continue;
-      const now = labelConflicts(document, resolver);
-      for (const annotation of document.annotations) {
-        const at = key(document.id, annotation.id);
-        if (!originalLooks.has(at) || restored.has(at)) continue;
-        const clear = had.get(annotation.id) ?? new Set<string>();
-        if (![...(now.get(annotation.id) ?? [])].some((o) => !clear.has(o)))
-          continue;
-        if (nudged.has(annotation.id))
-          return { ...where, sha, skipped: `unclear-nudge:${annotation.id}` };
-        const look = originalLooks.get(at);
-        if (look === undefined) delete annotation.formatOverride;
-        else annotation.formatOverride = look;
-        restored.add(at);
-        clearanceKept.push(annotation.id);
-        again = true;
-      }
-    }
-  }
-  const restyled = labels.filter(
-    (label) => !restored.has(key(label.documentId, label.id)),
-  );
-  const summary = {
-    ...where,
-    sha,
-    labels: restyled,
-    clearanceKept,
-    ...(options.legacyLooks && !legacyLooks ? { legacyWithheld: true } : {}),
-    kept: kept.length,
-  };
-  if (!restyled.length && !uprightDocuments.length)
-    return { ...summary, changed: false };
-  let projectText: string;
-  let stored: CircuitProject;
-  try {
-    projectText = serializeProject(CircuitProjectSchema.parse(project));
-    stored = parseProject(projectText);
-  } catch {
-    return { ...where, sha, skipped: "invalid-result" };
-  }
-  if (new TextEncoder().encode(projectText).length > GALLERY_MAX_PROJECT_BYTES)
-    return { ...where, sha, skipped: "too-large" };
-  const namesUnchanged = electricalNames(before) === electricalNames(stored);
-  const netlistUnchanged = designNetlists(before) === designNetlists(stored);
-  const report = {
-    ...summary,
-    uprightDocuments,
-    nudged: options.nudges.length,
-    namesUnchanged,
-    netlistUnchanged,
-  };
-  if (!namesUnchanged || !netlistUnchanged)
-    return { ...report, skipped: "electrical-change" };
-  if (!options.apply) return { ...report, changed: true };
-  if (options.expected !== sha) return { ...report, skipped: "stale" };
-  const svgText = await renderPreview(
-    stored,
-    createProjectSymbolResolver(stored, builtInSymbols),
-  );
-  const write = await callGallery<{ previewRevision?: string }>(
-    env,
-    "label-looks-store",
-    {
-      id,
-      table: options.table,
-      originalProjectText,
-      projectText,
-      svgText,
-      schemaVersion: CURRENT_PROJECT_FILE_VERSION,
-      at: new Date().toISOString(),
-    },
-  );
-  return write.status === 200
-    ? {
-        ...report,
-        applied: true,
-        previewRevision: write.payload.previewRevision,
-      }
-    : {
-        ...report,
-        skipped: write.status === 409 ? "concurrent-change" : "store-failed",
-      };
-}
-
-async function handleLabelLooks(
-  request: Request,
-  env: GalleryEnv,
-): Promise<Response> {
-  if (!sameOrigin(request))
-    return Response.json({ error: "forbidden" }, { status: 403 });
-  if (!(await isAdmin(request, env)))
-    return Response.json({ error: "unauthorized" }, { status: 401 });
-  const body = (await request.json().catch(() => null)) as {
-    ids?: unknown;
-    apply?: unknown;
-    expected?: unknown;
-    nudges?: unknown;
-    keep?: unknown;
-    legacyLooks?: unknown;
-    table?: unknown;
-  } | null;
-  const ids = body?.ids;
-  const table = body?.table ?? "galleryEntries";
-  if (
-    !LABEL_LOOK_TABLES.includes(table as LabelLookTable) ||
-    !Array.isArray(ids) ||
-    ids.length === 0 ||
-    ids.length > LABEL_LOOK_BATCH ||
-    ids.some((id) => typeof id !== "string" || !id)
-  )
-    return Response.json({ error: "invalid-request" }, { status: 400 });
-  const expected =
-    body?.expected && typeof body.expected === "object"
-      ? (body.expected as Record<string, unknown>)
-      : {};
-  const nudges =
-    body?.nudges && typeof body.nudges === "object"
-      ? (body.nudges as Record<string, unknown>)
-      : {};
-  const keep =
-    body?.keep && typeof body.keep === "object"
-      ? (body.keep as Record<string, unknown>)
-      : {};
-  const results = [];
-  for (const id of ids as string[]) {
-    const entryNudges = Array.isArray(nudges[id])
-      ? (nudges[id] as unknown[]).map((item) => {
-          const nudge = (item ?? {}) as Record<string, unknown>;
-          return {
-            label: String(nudge.label),
-            dx: Number(nudge.dx),
-            dy: Number(nudge.dy),
-          };
-        })
-      : [];
-    results.push(
-      await labelLookEntry(env, id, {
-        apply: body?.apply === true,
-        ...(typeof expected[id] === "string"
-          ? { expected: expected[id] as string }
-          : {}),
-        nudges: entryNudges,
-        keep: Array.isArray(keep[id])
-          ? (keep[id] as unknown[]).map((label) => String(label))
-          : [],
-        legacyLooks: body?.legacyLooks === true,
-        table: table as LabelLookTable,
-      }),
-    );
-  }
-  return Response.json(
-    { results },
-    { headers: { "cache-control": "no-store" } },
-  );
-}
-
-function publicationBindingFields(body: {
-  cloudProjectId?: unknown;
-  expectedGalleryEntryId?: unknown;
-}): { cloudProjectId?: string; expectedGalleryEntryId?: string | null } | null {
-  if (body.cloudProjectId === undefined) return {};
-  if (
-    typeof body.cloudProjectId !== "string" ||
-    !body.cloudProjectId ||
-    !(
-      body.expectedGalleryEntryId === null ||
-      (typeof body.expectedGalleryEntryId === "string" &&
-        body.expectedGalleryEntryId.length > 0)
-    )
-  )
-    return null;
-  return {
-    cloudProjectId: body.cloudProjectId,
-    expectedGalleryEntryId: body.expectedGalleryEntryId,
-  };
-}
-
-/** Private, stable Cloud Projects. Save updates a bound Project in place. */
-async function handleCloudProjects(
-  request: Request,
-  env: GalleryEnv,
-  projectId: string | null,
-): Promise<Response> {
-  if (request.method !== "GET" && !sameOrigin(request)) {
-    return Response.json({ error: "forbidden" }, { status: 403 });
-  }
-  const user = await sessionUserOf(request, env);
-  if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
-
-  if (request.method === "GET") {
-    const { status, payload } = projectId
-      ? await callGallery(env, "cloud-project-open", {
-          userId: user.id,
-          id: projectId,
-        })
-      : await callGallery(env, "cloud-project-list", { userId: user.id });
-    return Response.json(payload, {
-      status,
-      headers: { "cache-control": "no-store" },
-    });
-  }
-
-  if (request.method === "DELETE" && projectId) {
-    const { status, payload } = await callGallery(env, "cloud-project-delete", {
-      userId: user.id,
-      id: projectId,
-    });
-    return Response.json(payload, { status });
-  }
-
-  if (request.method === "PATCH" && projectId) {
-    const fields = (await request.json().catch(() => null)) as {
-      favorite?: unknown;
-    } | null;
-    if (!fields || typeof fields.favorite !== "boolean")
-      return Response.json({ error: "invalid-fields" }, { status: 400 });
-    const { status, payload } = await callGallery(
-      env,
-      "cloud-project-favorite",
-      {
-        userId: user.id,
-        id: projectId,
-        favorite: fields.favorite,
-      },
-    );
-    return Response.json(payload, { status });
-  }
-
-  const body = (await request.json().catch(() => null)) as {
-    name?: unknown;
-    projectText?: unknown;
-    galleryEntryId?: unknown;
-  } | null;
-  const name = fieldText(body?.name, GALLERY_MAX_NAME_LENGTH);
-  if (!body || !name || typeof body.projectText !== "string") {
-    return Response.json({ error: "invalid-fields" }, { status: 400 });
-  }
-  if (
-    body.galleryEntryId !== undefined &&
-    (typeof body.galleryEntryId !== "string" || !body.galleryEntryId)
-  ) {
-    return Response.json({ error: "invalid-fields" }, { status: 400 });
-  }
-  if (
-    new TextEncoder().encode(body.projectText).length >
-    GALLERY_MAX_PROJECT_BYTES
-  ) {
-    return Response.json({ error: "too-large" }, { status: 413 });
-  }
-  let project: CircuitProject;
-  try {
-    project = parseProject(body.projectText);
-  } catch {
-    return Response.json({ error: "invalid-project" }, { status: 400 });
-  }
-  // The shelf shows the circuit, not its name, so the thumbnail is rendered
-  // once here on save rather than on every read. A drawing the renderer
-  // cannot handle still saves; the shelf draws a placeholder tile instead.
-  let previewSvg = "";
-  try {
-    previewSvg = await renderPreview(
-      project,
-      createProjectSymbolResolver(project, builtInSymbols),
-    );
-  } catch {
-    previewSvg = "";
-  }
-  const operation =
-    request.method === "POST" ? "cloud-project-create" : "cloud-project-update";
-  const expectedRevisionMatch = request.headers
-    .get("if-match")
-    ?.match(/^revision-(\d+)$/u);
-  if (request.method === "PUT" && !expectedRevisionMatch) {
-    return Response.json(
-      { error: "expected-revision-required" },
-      { status: 428 },
-    );
-  }
-  const { status, payload } = await callGallery(env, operation, {
-    userId: user.id,
-    mayEditGallery: user.isAdmin === true || user.role === "moderator",
-    ...(body.galleryEntryId === undefined
-      ? {}
-      : {
-          galleryEntryId: body.galleryEntryId,
-        }),
-    id: projectId ?? shortId(),
-    name,
-    updatedAt: new Date().toISOString(),
-    ...(expectedRevisionMatch
-      ? { expectedRevision: Number(expectedRevisionMatch[1]) }
-      : {}),
-    schemaVersion: CURRENT_PROJECT_FILE_VERSION,
-    projectText: serializeProject(project),
-    previewSvg,
-  });
-  return Response.json(payload, { status });
-}
-
-/** Private save history uses the same account boundary and revision gate as Save. */
-async function handleCloudProjectHistory(
-  request: Request,
-  env: GalleryEnv,
-  projectId: string,
-  versionId?: string,
-  action?: string,
-): Promise<Response> {
-  if (request.method !== "GET" && !sameOrigin(request))
-    return Response.json({ error: "forbidden" }, { status: 403 });
-  const user = await sessionUserOf(request, env);
-  if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
-  const headers = { "cache-control": "private, no-store" };
-  const result = await callGallery(env, "cloud-project-versions", {
-    userId: user.id,
-    id: projectId,
-    ...(versionId ? { versionId } : {}),
-  });
-  if (result.status !== 200 || !versionId)
-    return Response.json(result.payload, { status: result.status, headers });
-  const payload = result.payload as {
-    version: { project_text: string; preview_svg: string; name: string };
-  };
-  if (request.method === "GET" && action === "preview.svg")
-    return new Response(
-      await recoverFormulaPreview(
-        payload.version.preview_svg,
-        payload.version.project_text,
-      ),
-      {
-        headers: { ...headers, "content-type": "image/svg+xml" },
-      },
-    );
-  if (request.method === "GET" && action === "project")
-    return Response.json(
-      { projectText: payload.version.project_text },
-      { headers },
-    );
-  if (request.method === "POST" && action === "restore") {
-    // Route through Save, including parsing, rendering, compare-and-swap and
-    // snapshotting the displaced draft. Publication/favorite bindings stay put.
-    return handleCloudProjects(
-      new Request(request.url, {
-        method: "PUT",
-        headers: request.headers,
-        body: JSON.stringify({
-          name: payload.version.name,
-          projectText: payload.version.project_text,
-        }),
-      }),
-      env,
-      projectId,
-    );
-  }
-  return Response.json({ error: "not-found" }, { status: 404, headers });
-}
-
-/**
- * One shelf thumbnail. Private by construction: the Durable Object scopes the
- * read to the signed-in account, and the response is marked private so no
- * shared cache ever holds another member's drawing.
- */
-async function handleCloudProjectPreview(
-  request: Request,
-  env: GalleryEnv,
-  projectId: string,
-): Promise<Response> {
-  const user = await sessionUserOf(request, env);
-  if (!user) {
-    return Response.json(
-      { error: "unauthorized" },
-      { status: 401, headers: { "cache-control": "no-store" } },
-    );
-  }
-  const { status, payload } = await callGallery<{
-    previewSvg?: string;
-    revision?: number;
-  }>(env, "cloud-project-preview", { userId: user.id, id: projectId });
-  if (status !== 200) {
-    return Response.json(
-      { error: "not-found" },
-      { status: 404, headers: { "cache-control": "no-store" } },
-    );
-  }
-  const needsBackfill = !payload.previewSvg;
-  if (needsBackfill || formulaPreviewNeedsRefresh(payload.previewSvg!)) {
-    // Backfill empty legacy thumbnails. Existing formula previews are repaired
-    // only in the response; saved Projects, previews and history stay intact.
-    const opened = await callGallery<{
-      project?: { projectText?: string; revision?: number };
-    }>(env, "cloud-project-open", { userId: user.id, id: projectId });
-    const projectText = opened.payload.project?.projectText;
-    if (opened.status === 200 && typeof projectText === "string") {
-      try {
-        const project = parseProject(projectText);
-        const rendered = await renderPreview(
-          project,
-          createProjectSymbolResolver(project, builtInSymbols),
-        );
-        if (rendered) {
-          payload.previewSvg = rendered;
-          const openedRevision = opened.payload.project?.revision;
-          if (typeof openedRevision === "number") {
-            payload.revision = openedRevision;
-          }
-          if (needsBackfill) {
-            await callGallery(env, "cloud-project-preview-store", {
-              userId: user.id,
-              id: projectId,
-              revision: opened.payload.project?.revision,
-              previewSvg: rendered,
-            });
-          }
-        }
-      } catch {
-        // The renderer cannot draw this Project; the shelf shows its
-        // placeholder tile instead.
-      }
-    }
-  }
-  if (!payload.previewSvg) {
-    return Response.json(
-      { error: "not-found" },
-      { status: 404, headers: { "cache-control": "no-store" } },
-    );
-  }
-  // A matching revision names immutable bytes, so a shelf that has not been
-  // saved since costs nothing to redraw.
-  const requestedRevision = new URL(request.url).searchParams.get("v");
-  const immutable =
-    typeof payload.revision === "number" &&
-    requestedRevision === String(payload.revision);
-  return new Response(payload.previewSvg, {
-    headers: {
-      "content-type": "image/svg+xml; charset=utf-8",
-      "cache-control": immutable
-        ? "private, max-age=31536000, immutable"
-        : "private, no-cache",
-    },
-  });
-}
-
-async function handleSubmission(
-  request: Request,
-  env: GalleryEnv,
-): Promise<Response> {
-  if (!sameOrigin(request)) {
-    return Response.json({ error: "forbidden" }, { status: 403 });
-  }
-  // Signing in is the whole gate: every signed-in user publishes straight to
-  // the wall. Anonymous upload stays impossible, because an entry has to be
-  // attributable to the account that submitted it.
-  const user = await sessionUserOf(request, env);
-  if (!user) {
-    return Response.json({ error: "unauthorized" }, { status: 401 });
-  }
-  const privileged = user.isAdmin === true || user.role === "moderator";
-  const body = (await request.json().catch(() => null)) as {
-    name?: unknown;
-    description?: unknown;
-    tags?: unknown;
-    projectText?: unknown;
-    cloudProjectId?: unknown;
-    expectedGalleryEntryId?: unknown;
-    aiGenerated?: unknown;
-  } | null;
-  const name = fieldText(body?.name, GALLERY_MAX_NAME_LENGTH);
-  // The byline is the signed-in account's display name. Reading it from the
-  // request would let one account publish under another's name.
-  const author = user.displayName.slice(0, GALLERY_MAX_AUTHOR_LENGTH);
-  const description = fieldText(
-    body?.description,
-    GALLERY_MAX_DESCRIPTION_LENGTH,
-  );
-  const aiGenerated = aiMark(body?.aiGenerated);
-  if (!body || !name || description === null || aiGenerated === null) {
-    return Response.json({ error: "invalid-fields" }, { status: 400 });
-  }
-  const binding = publicationBindingFields(body);
-  if (!binding)
-    return Response.json({ error: "invalid-fields" }, { status: 400 });
-  if (typeof body.projectText !== "string") {
-    return Response.json({ error: "invalid-project" }, { status: 400 });
-  }
-  if (
-    new TextEncoder().encode(body.projectText).length >
-    GALLERY_MAX_PROJECT_BYTES
-  ) {
-    return Response.json({ error: "too-large" }, { status: 413 });
-  }
-  let project: CircuitProject;
-  try {
-    project = parseProject(body.projectText);
-  } catch {
-    return Response.json({ error: "invalid-project" }, { status: 400 });
-  }
-  const projectResolver = createProjectSymbolResolver(project, builtInSymbols);
-  project.name = name;
-  const now = new Date();
-  const { status, payload } = await callGallery<{
-    id?: string;
-    previewRevision?: string;
-  }>(env, "submit", {
-    ...binding,
-    userId: user.id,
-    day: now.toISOString().slice(0, 10),
-    enforceLimit: !privileged,
-    limit: dailySubmissionLimit(user),
-    entry: {
-      // The id is drawn inside the Durable Object, which is the only place
-      // that can tell whether one is already taken.
-      id: "",
-      // Recorded, never enforced: a circuit that does not extract is
-      // published exactly the same way, it simply does not wear the badge.
-      netlistable: designExtractsNetlist(project) ? 1 : 0,
-      component_count: galleryComponentCount(project),
-      // The publisher's word, never inferred here, except that what an AI
-      // account publishes is always AI-generated. An Agent's publish asks
-      // for it; a person publishing by hand ticks it themselves.
-      ai_generated:
-        aiGenerated || user.provider === AI_ACCOUNT_PROVIDER ? 1 : 0,
-      name,
-      author,
-      description,
-      created_at: now.toISOString(),
-      schema_version: CURRENT_PROJECT_FILE_VERSION,
-      owner_user_id: user.id,
-      // Recorded per submission, so an entry stays traceable to the
-      // identity that published it even if the account later changes.
-      submitter_email: user.email,
-      submitter_provider: user.provider,
-      tags: wrapTags(sanitizeGalleryTags(body.tags)),
-      project_text: serializeProject(project),
-      svg_text: await renderPreview(project, projectResolver),
-    },
-  });
-  if (status === 429) {
-    return Response.json({ error: "rate-limited" }, { status: 429 });
-  }
-  if (status !== 200) return Response.json(payload, { status });
-  return Response.json(
-    {
-      id: payload.id,
-      status: "public",
-      previewRevision: payload.previewRevision ?? "legacy",
-    },
-    { status: 201 },
-  );
-}
-
-/**
- * Owner or curator entry update. A moderator may update any entry; an
- * ordinary session must own the entry and passes the quality gates. Either
- * way the entry keeps its byline and its current status, so editing a
- * published circuit neither takes it off the wall nor re-attributes it.
- */
-async function handleEntryUpdate(
-  request: Request,
-  env: GalleryEnv,
-  id: string,
-): Promise<Response> {
-  if (!sameOrigin(request)) {
-    return Response.json({ error: "forbidden" }, { status: 403 });
-  }
-  const existing = await callGallery<{
-    status?: string;
-    entry?: { author?: string };
-    ownerUserId?: string | null;
-  }>(env, "any-entry", { id });
-  if (existing.status !== 200) {
-    return Response.json({ error: "not-found" }, { status: 404 });
-  }
-  const user = await sessionUserOf(request, env);
-  if (!user) {
-    return Response.json({ error: "unauthorized" }, { status: 401 });
-  }
-  const privileged = user.isAdmin === true || user.role === "moderator";
-  const owner =
-    user !== null &&
-    existing.payload.ownerUserId != null &&
-    existing.payload.ownerUserId === user.id;
-  if (!privileged && !owner) {
-    return Response.json({ error: "forbidden" }, { status: 403 });
-  }
-  const body = (await request.json().catch(() => null)) as {
-    name?: unknown;
-    description?: unknown;
-    tags?: unknown;
-    projectText?: unknown;
-    cloudProjectId?: unknown;
-    expectedGalleryEntryId?: unknown;
-    aiGenerated?: unknown;
-  } | null;
-  const name = fieldText(body?.name, GALLERY_MAX_NAME_LENGTH);
-  // An update never re-attributes the entry, not even when a moderator
-  // makes it: the byline stays the one the submitter published under.
-  const author = existing.payload.entry?.author ?? "";
-  const description = fieldText(
-    body?.description,
-    GALLERY_MAX_DESCRIPTION_LENGTH,
-  );
-  const aiGenerated = aiMark(body?.aiGenerated);
-  if (!body || !name || description === null || aiGenerated === null) {
-    return Response.json({ error: "invalid-fields" }, { status: 400 });
-  }
-  const binding = publicationBindingFields(body);
-  if (!binding)
-    return Response.json({ error: "invalid-fields" }, { status: 400 });
-  if (typeof body.projectText !== "string") {
-    return Response.json({ error: "invalid-project" }, { status: 400 });
-  }
-  if (
-    new TextEncoder().encode(body.projectText).length >
-    GALLERY_MAX_PROJECT_BYTES
-  ) {
-    return Response.json({ error: "too-large" }, { status: 413 });
-  }
-  let project: CircuitProject;
-  try {
-    project = parseProject(body.projectText);
-  } catch {
-    return Response.json({ error: "invalid-project" }, { status: 400 });
-  }
-  const projectResolver = createProjectSymbolResolver(project, builtInSymbols);
-  project.name = name;
-  const nextStatus = existing.payload.status ?? "public";
-  // Every republication re-answers this; the badge follows the drawing.
-  const netlistable = designExtractsNetlist(project) ? 1 : 0;
-  const { status, payload } = await callGallery(env, "replace-entry", {
-    ...binding,
-    userId: user.id,
-    id,
-    at: new Date().toISOString(),
-    name,
-    author,
-    description,
-    projectText: serializeProject(project),
-    svgText: await renderPreview(project, projectResolver),
-    schemaVersion: CURRENT_PROJECT_FILE_VERSION,
-    netlistable,
-    componentCount: galleryComponentCount(project),
-    status: nextStatus,
-    tags: wrapTags(sanitizeGalleryTags(body.tags)),
-    // Absent leaves the stored mark as it is; an AI account's entry always
-    // keeps it, whoever updates it.
-    ...(isAiSeatEntry(existing.payload.ownerUserId, author)
-      ? { aiGenerated: true }
-      : aiGenerated === undefined
-        ? {}
-        : { aiGenerated }),
-  });
-  return Response.json(payload, { status });
-}
-
 /**
  * All `/api/gallery*` routing. Returns null for unrelated paths so the
  * worker entry keeps its ordinary dispatch.
  */
-/**
- * Re-answer one batch of stored netlist marks whose rule version is behind
- * this build's. Both callers want the same thing and neither has to know how
- * staleness is found: the moderation button when somebody wants it now, and
- * the schedule so that nobody has to.
- */
+
 /** The part-count sizes a wall request names (`parts=0-5,6-10`). */
 function requestedParts(url: URL): string[] {
   return (url.searchParams.get("parts") ?? "")
@@ -1357,269 +210,6 @@ export async function forgetEarlierOpens(env: GalleryEnv): Promise<void> {
   await callGallery(env, "forget-opens", {
     day: new Date().toISOString().slice(0, 10),
   });
-}
-
-export async function refreshNetlistMarks(
-  env: GalleryEnv,
-  limit?: number,
-): Promise<{ status: number; payload: unknown }> {
-  return callGallery(env, "netlistable-refresh", {
-    ...(limit === undefined ? {} : { limit }),
-  });
-}
-
-function catalogEntryHtml(entry: GalleryEntrySummary): string {
-  const tags = entry.tags.length
-    ? ` Tags: ${entry.tags
-        .map(
-          (tag) =>
-            `<a href="${publicHref("/?tags=", tag)}">${escapeHtml(tag)}</a>`,
-        )
-        .join(", ")}.`
-    : "";
-  return `<li data-gallery-entry-id="${escapeHtml(entry.id)}">
-    <a href="/g/${encodeURIComponent(entry.id)}">${escapeHtml(entry.name)}</a>
-    <span> by ${escapeHtml(entry.author || "Unknown contributor")}.</span>
-    ${entry.description ? `<span> ${escapeHtml(entry.description)}</span>` : ""}
-    <span>${tags} ${entry.netlistable ? "Netlist available." : "Netlist currently blocked."} ${entry.likes} likes.</span>
-  </li>`;
-}
-
-function catalogDocument(
-  request: Request,
-  catalog: PublicGalleryCatalog,
-): GalleryReadableDocument {
-  const url = new URL(request.url);
-  const query = (url.searchParams.get("q") ?? "").trim();
-  const author = (url.searchParams.get("author") ?? "").trim();
-  const requestedTags = [
-    ...url.searchParams.getAll("tag"),
-    ...(url.searchParams.get("tags") ?? "").split(","),
-  ]
-    .map((tag) => tag.trim().toLocaleLowerCase("en-US"))
-    .filter((tag, index, values) => tag && values.indexOf(tag) === index);
-  const netlistableOnly =
-    url.searchParams.get("netlist") === "1" ||
-    url.searchParams.get("netlistable") === "1";
-  const normalizedQuery = normalizedSearchText(query);
-  const entries = catalog.entries.filter((entry) => {
-    if (
-      author &&
-      entry.author.toLocaleLowerCase("en-US") !==
-        author.toLocaleLowerCase("en-US")
-    ) {
-      return false;
-    }
-    if (
-      requestedTags.length &&
-      !requestedTags.every((tag) => entry.tags.includes(tag))
-    ) {
-      return false;
-    }
-    if (netlistableOnly && !entry.netlistable) return false;
-    if (!normalizedQuery) return true;
-    return normalizedSearchText(
-      [entry.name, entry.author, entry.description, ...entry.tags].join(" "),
-    ).includes(normalizedQuery);
-  });
-  const filters = [
-    query ? `text “${query}”` : "",
-    author ? `author “${author}”` : "",
-    requestedTags.length ? `tags ${requestedTags.join(", ")}` : "",
-    netlistableOnly ? "netlistable only" : "",
-  ].filter(Boolean);
-  const description = `${catalog.total} public analog circuits with searchable authors, descriptions, tags, Project Code and generated netlists.`;
-  const tagsByGroup = new Map<string, { tag: string; count: number }[]>();
-  for (const tag of catalog.tags) {
-    tagsByGroup.set(tag.group, [...(tagsByGroup.get(tag.group) ?? []), tag]);
-  }
-  const groupHtml = catalog.groups
-    .map(({ group, count }) => {
-      const tags = (tagsByGroup.get(group) ?? [])
-        .map(
-          ({ tag, count: tagCount }) =>
-            `<li><a href="${publicHref("/?tags=", tag)}">${escapeHtml(tag)}</a> (${tagCount})</li>`,
-        )
-        .join("");
-      return `<li><strong>${escapeHtml(group)}</strong> (${count} circuits)<ul>${tags}</ul></li>`;
-    })
-    .join("");
-  const authors = catalog.authors
-    .map(
-      ({ author, count }) =>
-        `<li><a href="${publicHref("/?author=", author)}">${escapeHtml(author)}</a> (${count})</li>`,
-    )
-    .join("");
-  const structured = {
-    "@context": "https://schema.org",
-    "@type": "CollectionPage",
-    name: "Analog Canvas Community Gallery",
-    description,
-    numberOfItems: catalog.total,
-    mainEntity: entries.map((entry) => ({
-      "@type": "CreativeWork",
-      "@id": `${url.origin}/g/${entry.id}`,
-      name: entry.name,
-      author: entry.author,
-      description: entry.description,
-      keywords: entry.tags,
-    })),
-  };
-  return {
-    title: "Analog Canvas Community Gallery",
-    description,
-    headHtml: `<link rel="canonical" href="${escapeHtml(url.origin)}/"><script type="application/ld+json">${readableJson(structured)}</script>`,
-    bodyHtml: `<main data-public-gallery-document="catalog">
-      <header>
-        <h1>Analog Canvas Community Gallery</h1>
-        <p>${escapeHtml(description)}</p>
-      </header>
-      <section aria-labelledby="gallery-overview">
-        <h2 id="gallery-overview">Gallery overview</h2>
-        <dl>
-          <dt>Public circuits</dt><dd>${catalog.total}</dd>
-          <dt>Netlistable circuits</dt><dd>${catalog.netlistable}</dd>
-          <dt>Tags</dt><dd>${catalog.tags.length}</dd>
-          <dt>Contributors</dt><dd>${catalog.authors.length}</dd>
-        </dl>
-        <p>Search the same URL with <code>?q=ota</code>, <code>?tags=bandgap</code>, <code>?author=Magic%20Li</code>, or <code>?netlist=1</code>.</p>
-      </section>
-      <section aria-labelledby="gallery-taxonomy">
-        <h2 id="gallery-taxonomy">Tags</h2>
-        <p>Tags are the sole public classification system. Tag groups organize those tags without creating a second category system.</p>
-        <ul>${groupHtml}</ul>
-      </section>
-      <section aria-labelledby="gallery-contributors">
-        <h2 id="gallery-contributors">Contributors</h2>
-        <ul>${authors}</ul>
-      </section>
-      <section aria-labelledby="gallery-circuits">
-        <h2 id="gallery-circuits">${entries.length}${filters.length ? ` matching` : " public"} circuits</h2>
-        ${filters.length ? `<p>Active filters: ${escapeHtml(filters.join("; "))}. <a href="/">Clear filters</a>.</p>` : ""}
-        <ol>${entries.map(catalogEntryHtml).join("")}</ol>
-      </section>
-    </main>`,
-  };
-}
-
-function entryDocument(
-  request: Request,
-  stored: PublicGalleryStoredEntry,
-): GalleryReadableDocument {
-  const url = new URL(request.url);
-  const entry = stored.entry;
-  const project = parseProject(stored.projectText);
-  const documents = project.documents;
-  const instances = documents.flatMap((document) => document.instances);
-  const symbolCounts = new Map<string, number>();
-  for (const instance of instances) {
-    symbolCounts.set(
-      instance.symbolId,
-      (symbolCounts.get(instance.symbolId) ?? 0) + 1,
-    );
-  }
-  const resourceBase = `/g/${encodeURIComponent(entry.id)}`;
-  const cells = documents
-    .map((document) => {
-      const ports = (document.netlist?.terminals ?? [])
-        .map(
-          (terminal) =>
-            `${escapeHtml(terminal.name)} (${escapeHtml(terminal.direction)})`,
-        )
-        .join(", ");
-      return `<li><strong>${escapeHtml(document.name)}</strong>${document.netlist?.name ? ` · netlist name ${escapeHtml(document.netlist.name)}` : ""}; ${document.instances.length} components; ports: ${ports || "none"}.</li>`;
-    })
-    .join("");
-  const components = [...symbolCounts.entries()]
-    .sort((left, right) => left[0].localeCompare(right[0], "en"))
-    .map(([symbolId, count]) => `<li>${escapeHtml(symbolId)}: ${count}</li>`)
-    .join("");
-  const tags = entry.tags
-    .map(
-      (tag) => `<a href="${publicHref("/?tags=", tag)}">${escapeHtml(tag)}</a>`,
-    )
-    .join(", ");
-  const description =
-    entry.description || `${entry.name}, a public Analog Canvas circuit.`;
-  const structured = {
-    "@context": "https://schema.org",
-    "@type": "CreativeWork",
-    "@id": url.href,
-    name: entry.name,
-    author: entry.author,
-    description,
-    datePublished: entry.createdAt,
-    keywords: entry.tags,
-    encoding: [
-      `${url.origin}${resourceBase}/project.icproj.json`,
-      `${url.origin}${resourceBase}/netlist.sp`,
-      `${url.origin}${resourceBase}/netlist.scs`,
-    ],
-  };
-  return {
-    title: `${entry.name} · Analog Canvas`,
-    description,
-    headHtml: `<link rel="canonical" href="${escapeHtml(url.origin + resourceBase)}"><link rel="alternate" type="application/json" href="${resourceBase}/project.icproj.json" title="Analog Canvas Project Code"><link rel="alternate" type="text/plain" href="${resourceBase}/netlist.sp" title="SPICE netlist"><link rel="alternate" type="text/plain" href="${resourceBase}/netlist.scs" title="Spectre netlist"><script type="application/ld+json">${readableJson(structured)}</script>`,
-    bodyHtml: `<main data-public-gallery-document="entry" data-gallery-entry-id="${escapeHtml(entry.id)}">
-      <header>
-        <p><a href="/">Analog Canvas Community Gallery</a></p>
-        <h1>${escapeHtml(entry.name)}</h1>
-        <p>By <a href="${publicHref("/?author=", entry.author)}">${escapeHtml(entry.author || "Unknown contributor")}</a>.</p>
-        <p>${escapeHtml(description)}</p>
-        <p>Tags: ${tags || "none"}.</p>
-      </header>
-      <section aria-labelledby="circuit-overview">
-        <h2 id="circuit-overview">Circuit overview</h2>
-        <dl>
-          <dt>Gallery ID</dt><dd>${escapeHtml(entry.id)}</dd>
-          <dt>Published</dt><dd>${escapeHtml(entry.createdAt)}</dd>
-          <dt>Project schema</dt><dd>${entry.schemaVersion}</dd>
-          <dt>Cells</dt><dd>${documents.length}</dd>
-          <dt>Components</dt><dd>${instances.length}</dd>
-          <dt>Nets</dt><dd>${documents.reduce((sum, document) => sum + document.nets.length, 0)}</dd>
-          <dt>Routes</dt><dd>${documents.reduce((sum, document) => sum + document.routes.length, 0)}</dd>
-          <dt>Junctions</dt><dd>${documents.reduce((sum, document) => sum + document.junctions.length, 0)}</dd>
-          <dt>Netlist</dt><dd>${entry.netlistable ? "Available" : "Currently blocked; read a netlist URL for diagnostics"}</dd>
-          <dt>Likes</dt><dd>${entry.likes}</dd>
-        </dl>
-      </section>
-      <section aria-labelledby="circuit-cells"><h2 id="circuit-cells">Cells and ports</h2><ul>${cells}</ul></section>
-      <section aria-labelledby="circuit-components"><h2 id="circuit-components">Component types</h2><ul>${components || "<li>None</li>"}</ul></section>
-      <section aria-labelledby="circuit-resources">
-        <h2 id="circuit-resources">Direct public resources</h2>
-        <ul>
-          <li><a href="${resourceBase}/project.icproj.json">Complete Project Code</a></li>
-          <li><a href="${resourceBase}/netlist.sp">SPICE netlist</a></li>
-          <li><a href="${resourceBase}/netlist.scs">Spectre netlist</a></li>
-          <li><a href="${resourceBase}/preview.svg">SVG preview</a></li>
-        </ul>
-        <p>This page becomes the interactive Editor when browser JavaScript runs. Reading the page or resources above requires no account or private Canvas connection; modifying a circuit still requires explicit authorization.</p>
-      </section>
-    </main>`,
-  };
-}
-
-/** Server-readable content for the same public URLs the browser application owns. */
-export async function galleryReadableDocument(
-  request: Request,
-  env: GalleryEnv,
-): Promise<GalleryReadableDocument | null> {
-  if (!PUBLIC_GALLERY_DOCUMENTS_ENABLED) return null;
-  if (request.method !== "GET") return null;
-  const url = new URL(request.url);
-  if (/^\/?$/u.test(url.pathname)) {
-    const catalog = await publicGalleryCatalog(env);
-    return catalog ? catalogDocument(request, catalog) : null;
-  }
-  const match = /^\/g\/([A-Za-z0-9-]{1,64})\/?$/u.exec(url.pathname);
-  if (!match) return null;
-  const stored = await publicGalleryEntry(env, match[1]!);
-  if (!stored) return null;
-  try {
-    return entryDocument(request, stored);
-  } catch {
-    return null;
-  }
 }
 
 function rawGalleryHeaders(contentType: string, fileName: string): Headers {
@@ -1783,45 +373,8 @@ export async function routeGalleryRequest(
       },
     );
   }
-  if (url.pathname === "/api/projects") {
-    if (request.method === "GET" || request.method === "POST") {
-      return handleCloudProjects(request, env, null);
-    }
-    return Response.json({ error: "Not found" }, { status: 404 });
-  }
-  if (url.pathname.startsWith("/api/projects/")) {
-    const projectId = url.pathname.slice("/api/projects/".length);
-    const historyMatch =
-      /^([^/]+)\/versions(?:\/([^/]+)\/(project|preview\.svg|restore))?$/u.exec(
-        projectId,
-      );
-    if (
-      historyMatch &&
-      (request.method === "GET" ||
-        (request.method === "POST" && historyMatch[3] === "restore"))
-    )
-      return handleCloudProjectHistory(
-        request,
-        env,
-        historyMatch[1]!,
-        historyMatch[2] ? decodeURIComponent(historyMatch[2]) : undefined,
-        historyMatch[3],
-      );
-    const previewMatch = /^([^/]+)\/preview\.svg$/u.exec(projectId);
-    if (previewMatch && request.method === "GET") {
-      return handleCloudProjectPreview(request, env, previewMatch[1]!);
-    }
-    if (
-      (request.method === "GET" ||
-        request.method === "PUT" ||
-        request.method === "PATCH" ||
-        request.method === "DELETE") &&
-      projectId.length > 0
-    ) {
-      return handleCloudProjects(request, env, projectId);
-    }
-    return Response.json({ error: "Not found" }, { status: 404 });
-  }
+  const cloudProjects = await routeCloudProjects(request, env, url);
+  if (cloudProjects) return cloudProjects;
   if (!url.pathname.startsWith("/api/gallery")) return null;
   const segments = url.pathname.split("/").filter(Boolean).slice(2);
   // The Community Gallery is for signed-in readers. Without a session or the
@@ -1838,6 +391,34 @@ export async function routeGalleryRequest(
       { error: "sign-in-required" },
       { status: 401, headers: { "cache-control": "no-store" } },
     );
+  }
+
+  // Reference datasets (#1510). Each lives in a store of its own: a request
+  // reaches it by the import route, its entry's id, or the wall's `source`.
+  // Nothing writes there but the Owner's import.
+  if (segments[0] === "sources") {
+    if (segments.length === 1 && request.method === "GET")
+      return Response.json(
+        { sources: await gallerySourceCounts(env) },
+        { headers: { "cache-control": "no-store" } },
+      );
+    const named = gallerySourceByKey(segments[1]);
+    if (
+      named &&
+      segments.length === 3 &&
+      segments[2] === "entries" &&
+      request.method === "POST"
+    )
+      return handleSourceImport(request, env, named);
+    return Response.json({ error: "not-found" }, { status: 404 });
+  }
+  const source =
+    (segments[0] ? gallerySourceOfEntryId(segments[0]) : null) ??
+    gallerySourceByKey(url.searchParams.get("source"));
+  if (source) {
+    if (request.method !== "GET" && request.method !== "HEAD")
+      return Response.json({ error: "dataset-read-only" }, { status: 403 });
+    env = withGalleryStore(env, source);
   }
 
   if (
@@ -1865,7 +446,9 @@ export async function routeGalleryRequest(
     const filters = wallFilters(url);
     if (filters.attention && !viewer)
       return Response.json({ error: "unauthorized" }, { status: 401 });
-    const { payload } = await callGallery(env, "list", {
+    const { payload } = await callGallery<{
+      entries: GalleryEntrySummary[];
+    }>(env, "list", {
       ...filters,
       isAdmin: viewer?.isAdmin === true,
       viewerId: viewer?.id ?? "",
@@ -1875,9 +458,17 @@ export async function routeGalleryRequest(
         .split(",")
         .filter((tag) => tag.length > 0),
     });
-    return Response.json(payload, {
-      headers: { "cache-control": "no-store" },
-    });
+    return Response.json(
+      {
+        ...payload,
+        entries: gateSimulationMarks(
+          payload.entries,
+          viewer,
+          simulationMarkPublic(runtime.simulationMarkPublicFrom),
+        ),
+      },
+      { headers: { "cache-control": "no-store" } },
+    );
   }
   if (
     segments.length === 1 &&
@@ -1932,208 +523,15 @@ export async function routeGalleryRequest(
       headers: { "cache-control": "no-store" },
     });
   }
-  if (isAutomatedBackup(segments)) {
-    // Each credential reads its own scope: Gallery-only, or the whole store
-    // with private Cloud Projects.
-    const scope =
-      url.searchParams.get("scope") === "store" ? "store" : "gallery";
-    if (
-      scope === "store"
-        ? !hasStoreBackupToken(request, env)
-        : !hasGalleryReadToken(request, env)
-    )
-      return Response.json(
-        { error: "unauthorized" },
-        { status: 401, headers: { "cache-control": "no-store" } },
-      );
-    if (request.method !== "GET")
-      return Response.json(
-        { error: "method-not-allowed" },
-        { status: 405, headers: { Allow: "GET", "cache-control": "no-store" } },
-      );
-    // The object allows only its scope's tables, so a Gallery page never
-    // names a private Project.
-    const { status, payload } = await callGallery(env, "schema-backup", {
-      scope,
-      table: url.searchParams.get("table"),
-      after: url.searchParams.get("after"),
-    });
-    return Response.json(payload, {
-      status,
-      headers: { "cache-control": "no-store" },
-    });
-  }
-  if (
-    segments.length === 2 &&
-    segments[0] === "maintenance" &&
-    segments[1] === "netlists"
-  ) {
-    // The public Gallery's netlists for a reader elsewhere: a script with the
-    // read-only Gallery credential, or an admin's browser session. Pages run
-    // in entry-id order; pass `nextCursor` back as `after` until it is null.
-    const noStore = { "cache-control": "no-store" };
-    if (!hasGalleryReadToken(request, env) && !(await isAdmin(request, env)))
-      return Response.json(
-        { error: "unauthorized" },
-        { status: 401, headers: noStore },
-      );
-    if (request.method !== "GET")
-      return Response.json(
-        { error: "method-not-allowed" },
-        { status: 405, headers: { Allow: "GET", ...noStore } },
-      );
-    const format = url.searchParams.get("format") ?? "spice";
-    if (format !== "spice" && format !== "spectre")
-      return Response.json(
-        { error: "invalid-format" },
-        { status: 400, headers: noStore },
-      );
-    const id = url.searchParams.get("id");
-    const { status, payload } = await callGallery<{
-      entries?: (Record<string, unknown> & { projectText: string })[];
-      nextCursor?: string | null;
-    }>(env, "netlist-sources", {
-      id,
-      after: url.searchParams.get("after"),
-      limit: url.searchParams.get("limit"),
-    });
-    if (status !== 200 || !payload.entries)
-      return Response.json(payload, { status, headers: noStore });
-    if (id && payload.entries.length === 0)
-      return Response.json(
-        { error: "not-found" },
-        { status: 404, headers: noStore },
-      );
-    return Response.json(
-      {
-        format: "analog-canvas-gallery-netlists-v1",
-        netlistFormat: format,
-        entries: payload.entries.map(({ projectText, ...entry }) => ({
-          ...entry,
-          ...galleryNetlist(projectText, format),
-        })),
-        nextCursor: payload.nextCursor ?? null,
-      },
-      { headers: noStore },
-    );
-  }
-  if (
-    segments.length === 2 &&
-    segments[0] === "maintenance" &&
-    segments[1] === "schema-backup" &&
-    request.method === "GET"
-  ) {
-    if (!(await isAdmin(request, env))) {
-      return Response.json({ error: "unauthorized" }, { status: 401 });
-    }
-    // The same one-row pages as the store credential reads; the whole store
-    // no longer fits one response.
-    const { status, payload } = await callGallery(env, "schema-backup", {
-      scope: "store",
-      table: url.searchParams.get("table"),
-      after: url.searchParams.get("after"),
-    });
-    return Response.json(payload, {
-      status,
-      headers: { "cache-control": "no-store" },
-    });
-  }
-  if (
-    segments.length === 2 &&
-    segments[0] === "maintenance" &&
-    segments[1] === "project-format" &&
-    request.method === "POST"
-  ) {
-    if (!sameOrigin(request))
-      return Response.json({ error: "forbidden" }, { status: 403 });
-    if (!(await isAdmin(request, env)))
-      return Response.json({ error: "unauthorized" }, { status: 401 });
-    const body = await request.json().catch(() => null);
-    if (!body || typeof body !== "object" || Array.isArray(body))
-      return Response.json({ error: "invalid-request" }, { status: 400 });
-    const { status, payload } = await callGallery(
-      env,
-      "gallery-project-format",
-      body,
-    );
-    return Response.json(payload, {
-      status,
-      headers: { "cache-control": "no-store" },
-    });
-  }
-  if (
-    segments.length === 2 &&
-    segments[0] === "maintenance" &&
-    segments[1] === "label-looks" &&
-    request.method === "POST"
-  ) {
-    return handleLabelLooks(request, env);
-  }
-  if (
-    segments.length === 2 &&
-    segments[0] === "maintenance" &&
-    segments[1] === "schema-current" &&
-    request.method === "POST"
-  ) {
-    if (!(await isAdmin(request, env))) {
-      return Response.json({ error: "unauthorized" }, { status: 401 });
-    }
-    const body = (await request.json().catch(() => null)) as {
-      apply?: unknown;
-    } | null;
-    const { status, payload } = await callGallery(env, "schema-converge", {
-      apply: body?.apply === true,
-    });
-    return Response.json(payload, {
-      status,
-      headers: { "cache-control": "no-store" },
-    });
-  }
-  if (
-    segments.length === 2 &&
-    segments[0] === "maintenance" &&
-    segments[1] === "netlist-badges" &&
-    request.method === "POST"
-  ) {
-    if (!(await isAdmin(request, env))) {
-      return Response.json({ error: "unauthorized" }, { status: 401 });
-    }
-    const body = (await request.json().catch(() => null)) as {
-      after?: unknown;
-      limit?: unknown;
-    } | null;
-    const { status, payload } = await refreshNetlistMarks(
-      env,
-      Number.isFinite(Number(body?.limit)) ? Number(body!.limit) : undefined,
-    );
-    return Response.json(payload, {
-      status,
-      headers: { "cache-control": "no-store" },
-    });
-  }
-  if (
-    segments.length === 2 &&
-    segments[0] === "maintenance" &&
-    segments[1] === "schema-restore" &&
-    request.method === "POST"
-  ) {
-    if (!sameOrigin(request)) {
-      return Response.json({ error: "forbidden" }, { status: 403 });
-    }
-    if (!(await isAdmin(request, env))) {
-      return Response.json({ error: "unauthorized" }, { status: 401 });
-    }
-    const body = (await request.json().catch(() => null)) as {
-      backup?: unknown;
-    } | null;
-    const { status, payload } = await callGallery(env, "schema-restore", {
-      backup: body?.backup,
-    });
-    return Response.json(payload, {
-      status,
-      headers: { "cache-control": "no-store" },
-    });
-  }
+  const maintenance = await routeGalleryMaintenance(
+    request,
+    env,
+    url,
+    segments,
+  );
+  if (maintenance) return maintenance;
+  const simulationChecks = await routeSimulationChecks(request, env, segments);
+  if (simulationChecks) return simulationChecks;
   if (
     segments.length === 1 &&
     segments[0] === "tags" &&
@@ -2163,149 +561,8 @@ export async function routeGalleryRequest(
     const { payload } = await callGallery(env, "authors", {});
     return Response.json(payload, { headers: { "cache-control": "no-store" } });
   }
-  // What a signed-in publisher may still publish today, before they fill in
-  // a form the quota would refuse (#1417).
-  if (
-    segments.length === 1 &&
-    segments[0] === "quota" &&
-    request.method === "GET"
-  ) {
-    const user = await sessionUserOf(request, env);
-    if (!user) {
-      return Response.json({ error: "unauthorized" }, { status: 401 });
-    }
-    const now = new Date();
-    const { payload } = await callGallery<{ used: number }>(env, "quota", {
-      ownerUserId: user.id,
-      day: now.toISOString().slice(0, 10),
-    });
-    const used = payload.used ?? 0;
-    const limit = dailySubmissionLimit(user);
-    return Response.json(
-      {
-        limit,
-        used,
-        remaining: Math.max(0, limit - used),
-        // The day is the UTC calendar day a submission is counted in.
-        resetsAt: new Date(
-          Date.UTC(
-            now.getUTCFullYear(),
-            now.getUTCMonth(),
-            now.getUTCDate() + 1,
-          ),
-        ).toISOString(),
-        exempt: user.isAdmin === true || user.role === "moderator",
-      },
-      { headers: { "cache-control": "no-store" } },
-    );
-  }
-  if (
-    segments.length === 1 &&
-    segments[0] === "mine" &&
-    request.method === "GET"
-  ) {
-    const user = await sessionUserOf(request, env);
-    if (!user) {
-      return Response.json({ error: "unauthorized" }, { status: 401 });
-    }
-    const { payload } = await callGallery(env, "mine", {
-      ownerUserId: user.id,
-    });
-    return Response.json(payload, { headers: { "cache-control": "no-store" } });
-  }
-  if (
-    segments.length === 2 &&
-    segments[1] === "versions" &&
-    request.method === "GET"
-  ) {
-    const access = await entryManager(request, env, segments[0]!);
-    if (!access.found) {
-      return Response.json({ error: "not-found" }, { status: 404 });
-    }
-    if (!access.reviewer && !access.owner) {
-      return Response.json({ error: "unauthorized" }, { status: 401 });
-    }
-    const { status, payload } = await callGallery(env, "versions", {
-      entryId: segments[0],
-    });
-    return Response.json(payload, {
-      status,
-      headers: { "cache-control": "no-store" },
-    });
-  }
-  if (
-    segments.length === 4 &&
-    segments[1] === "versions" &&
-    segments[3] === "project" &&
-    request.method === "GET"
-  ) {
-    const headers = { "cache-control": "no-store" };
-    const access = await entryManager(request, env, segments[0]!);
-    if (!access.found || (!access.reviewer && !access.owner)) {
-      return Response.json({ error: "not-found" }, { status: 404, headers });
-    }
-    const { status, payload } = await callGallery<{ projectText?: string }>(
-      env,
-      "version",
-      { entryId: segments[0], versionId: segments[2] },
-    );
-    if (status !== 200 || !payload.projectText) {
-      return Response.json({ error: "not-found" }, { status: 404, headers });
-    }
-    return Response.json({ projectText: payload.projectText }, { headers });
-  }
-  if (
-    segments.length === 4 &&
-    segments[1] === "versions" &&
-    segments[3] === "preview.svg" &&
-    request.method === "GET"
-  ) {
-    const access = await entryManager(request, env, segments[0]!);
-    if (!access.found || (!access.reviewer && !access.owner)) {
-      return Response.json({ error: "not-found" }, { status: 404 });
-    }
-    const { status, payload } = await callGallery<{
-      svgText?: string;
-      projectText?: string;
-    }>(env, "version", { entryId: segments[0], versionId: segments[2] });
-    if (status !== 200 || !payload.svgText) {
-      return Response.json({ error: "not-found" }, { status: 404 });
-    }
-    return new Response(
-      await recoverFormulaPreview(payload.svgText, payload.projectText),
-      {
-        headers: {
-          "content-type": "image/svg+xml",
-          "cache-control": "no-store",
-          "content-security-policy":
-            "default-src 'none'; style-src 'unsafe-inline'",
-        },
-      },
-    );
-  }
-  if (
-    segments.length === 4 &&
-    segments[1] === "versions" &&
-    segments[3] === "restore" &&
-    request.method === "POST"
-  ) {
-    if (!sameOrigin(request)) {
-      return Response.json({ error: "forbidden" }, { status: 403 });
-    }
-    const access = await entryManager(request, env, segments[0]!);
-    if (!access.found) {
-      return Response.json({ error: "not-found" }, { status: 404 });
-    }
-    if (!access.reviewer && !access.owner) {
-      return Response.json({ error: "unauthorized" }, { status: 401 });
-    }
-    const { status, payload } = await callGallery(env, "restore-version", {
-      entryId: segments[0],
-      versionId: segments[2],
-      at: new Date().toISOString(),
-    });
-    return Response.json(payload, { status });
-  }
+  const publishing = await routeGalleryPublishing(request, env, segments);
+  if (publishing) return publishing;
   if (segments.length === 2 && segments[1] === "preview.svg") {
     const requestedRevision = url.searchParams.get("v");
     const previewCache =
@@ -2334,6 +591,7 @@ export async function routeGalleryRequest(
     const { status, payload } = await callGallery<{
       status?: string;
       ownerUserId?: string | null;
+      author?: string;
       previewRevision?: string;
       svgText?: string;
       projectText?: string;
@@ -2372,8 +630,7 @@ export async function routeGalleryRequest(
     }
     const allowed =
       (await canReview(request, env)) ||
-      (payload.ownerUserId != null &&
-        (await sessionUserOf(request, env))?.id === payload.ownerUserId);
+      readsAsOwner(await sessionUserOf(request, env), payload);
     if (!allowed) {
       return Response.json(
         { error: "not-found" },
@@ -2400,21 +657,25 @@ export async function routeGalleryRequest(
       submitterEmail?: string | null;
       submitterProvider?: string | null;
       projectText?: string;
+      testbench?: string | null;
+      simulationCheck?: SimulationCheck | null;
     }>(env, "any-entry", { id: segments[0] });
     if (status !== 200) {
       return Response.json({ error: "not-found" }, { status: 404 });
     }
     const curator = await canReview(request, env);
-    if (payload.status !== "public") {
-      const allowed =
-        curator ||
-        (payload.ownerUserId != null &&
-          (await sessionUserOf(request, env))?.id === payload.ownerUserId);
-      if (!allowed) {
-        return Response.json({ error: "not-found" }, { status: 404 });
-      }
-    }
     const viewer = await sessionUserOf(request, env);
+    const held = {
+      ownerUserId: payload.ownerUserId,
+      author: payload.entry?.author,
+    };
+    if (
+      payload.status !== "public" &&
+      !curator &&
+      !readsAsOwner(viewer, held)
+    ) {
+      return Response.json({ error: "not-found" }, { status: 404 });
+    }
     if (
       payload.entry &&
       !viewer?.isAdmin &&
@@ -2448,7 +709,15 @@ export async function routeGalleryRequest(
     }
     return Response.json(
       {
-        entry: payload.entry,
+        entry: payload.entry && {
+          ...payload.entry,
+          ...simulationMarkOf(
+            payload.simulationCheck,
+            viewer,
+            held,
+            simulationMarkPublic(runtime.simulationMarkPublicFrom),
+          ),
+        },
         status: payload.status,
         ownerUserId: payload.ownerUserId ?? null,
         // Traceability data, not feed data: a curator sees who submitted an
@@ -2459,7 +728,15 @@ export async function routeGalleryRequest(
               submitterProvider: payload.submitterProvider ?? null,
             }
           : {}),
-        ...(summary ? {} : { projectText: payload.projectText }),
+        ...(summary
+          ? {}
+          : {
+              // Its testbench only for those who read it (#1545); anyone
+              // else opens, inserts or copies the drawing without one.
+              projectText: readsTestbench(viewer, held)
+                ? withTestbench(payload.projectText ?? "", payload.testbench)
+                : withoutTestbench(payload.projectText ?? ""),
+            }),
       },
       { headers: { "cache-control": "no-store" } },
     );
@@ -2572,7 +849,7 @@ export async function routeGalleryRequest(
     return Response.json(payload, { status });
   }
   if (segments.length === 2 && request.method === "POST") {
-    const [id, action] = segments;
+    const [id = "", action] = segments;
     if (action !== "recycle" && action !== "restore") {
       return Response.json({ error: "not-found" }, { status: 404 });
     }
@@ -2580,20 +857,24 @@ export async function routeGalleryRequest(
       return Response.json({ error: "forbidden" }, { status: 403 });
     }
     // Admins curate anything. An ordinary owner may withdraw a public entry
-    // or restore a voluntary withdrawal, but cannot undo an Owner rejection.
-    const admin = await isAdmin(request, env);
+    // or restore a voluntary withdrawal, but cannot undo an Owner rejection
+    // or an Owner's withdrawal of it (#1540), whoever owns it since.
+    const viewer = await sessionUserOf(request, env);
+    const admin = viewer?.isAdmin === true;
+    const access = await entryManager(request, env, id);
+    if (!access.found) {
+      return Response.json({ error: "not-found" }, { status: 404 });
+    }
     if (!admin) {
-      const access = await entryManager(request, env, id!);
-      if (!access.found) {
-        return Response.json({ error: "not-found" }, { status: 404 });
-      }
       if (!access.owner) {
         return Response.json({ error: "unauthorized" }, { status: 401 });
       }
       const validOwnerTransition =
         action === "recycle"
           ? access.status === "public"
-          : access.status === "recycled" && access.rejectReason === null;
+          : access.status === "recycled" &&
+            access.rejectReason === null &&
+            !access.withdrawnByCurator;
       if (!validOwnerTransition) {
         return Response.json({ error: "invalid-status" }, { status: 409 });
       }
@@ -2602,6 +883,11 @@ export async function routeGalleryRequest(
       id,
       status: action === "recycle" ? "recycled" : "public",
       at: new Date().toISOString(),
+      // The Owner withdrawing someone else's entry records it as theirs; an
+      // owner's own withdrawal, the Owner's included, stays voluntary.
+      ...(action === "recycle" && admin && !access.owner
+        ? { reviewerId: viewer.id }
+        : {}),
     });
     return Response.json(payload, { status });
   }

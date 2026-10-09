@@ -48,7 +48,9 @@ import {
   compactActionReport,
   inspectConnectivity,
   inspectDocument,
+  inspectNet,
   inspectObject,
+  resolvePartNames,
   searchSnapshot,
   verifyInformation,
   type SearchKind,
@@ -84,7 +86,13 @@ const ConnectArgs = z.strictObject({
     .min(1)
     .optional()
     .describe(
-      "Claim code from the editor connect panel. Omit to resume the browser-approved connector saved for this MCP host.",
+      "Claim code from the editor connect panel. Omit to resume the browser-approved connector saved for this MCP host, unless another running MCP process holds it.",
+    ),
+  detail: z
+    .enum(["summary", "full"])
+    .optional()
+    .describe(
+      "Pairing lists every capability; a resume summarizes them, counting edit kinds (editKindCount). full lists them on a resume too.",
     ),
 });
 const SimulationArgs = z
@@ -160,6 +168,16 @@ const GalleryCircuitsArgs = z.discriminatedUnion("action", [
     action: z.literal("list"),
     cursor: z.string().min(1).optional(),
     limit: z.number().int().min(1).max(60).optional(),
+    scope: z
+      .literal("ai-seats")
+      .optional()
+      .describe(
+        "Signed in as an AI account: every AI account's circuits, rejected and withdrawn ones too, each with status and rejectReason.",
+      ),
+    status: z
+      .enum(["public", "rejected", "recycled"])
+      .optional()
+      .describe('Narrows scope:"ai-seats".'),
   }),
   z.strictObject({
     action: z.literal("read"),
@@ -198,6 +216,12 @@ const GalleryCircuitsArgs = z.discriminatedUnion("action", [
         "Defaults to the entry the working copy was published as or opened from.",
       ),
     ...AgentGalleryEntryFields,
+    takeOver: z
+      .boolean()
+      .optional()
+      .describe(
+        "Signed in as an AI account, publish this redrawn version of another AI account's circuit under your own name: the entry, its link and likes stay, and its earlier versions keep their maker. A person's circuit is never taken over.",
+      ),
   }),
 ]);
 const ProjectCodeArgs = z.discriminatedUnion("action", [
@@ -504,10 +528,10 @@ const InspectArgs = z.strictObject({
     }),
   ]),
   detail: z
-    .enum(["compact", "full"])
+    .enum(["compact", "parts", "full"])
     .optional()
     .describe(
-      "Document targets only: compact summary (default) or full Snapshot.",
+      "Document targets only: compact summary (default); parts adds each part's id, name, symbol and position and each Net's id and name; full is the whole Snapshot.",
     ),
 });
 
@@ -583,12 +607,51 @@ const RenderArgs = z.strictObject({
   documentId: z.string().min(1).optional(),
 });
 
+/**
+ * A pins read by part ID, Reference or Cell Pin name (#1525). The editor's
+ * projection takes IDs; what it does not know is resolved against the
+ * Cell's Snapshot and read again, and whatever names no single part is
+ * listed with its reason and the IDs it could mean, never dropped.
+ */
+async function inspectPins(
+  session: ToolSessionState,
+  requested: readonly string[],
+  documentId?: string,
+) {
+  const first = await session.client.pinsSnapshot(requested, documentId);
+  if (!first.missingInstanceIds.length) return first;
+  const entry = await session.client.snapshot(first.documentId);
+  const { ids, unresolved } = resolvePartNames(
+    entry.snapshot.document,
+    first.missingInstanceIds,
+  );
+  const wanted = [...new Set(Object.values(ids))];
+  const second = wanted.length
+    ? await session.client.pinsSnapshot(wanted, first.documentId)
+    : null;
+  const seen = new Set(first.instances.map((instance) => instance.id));
+  return {
+    ...(second ?? first),
+    instances: [
+      ...first.instances,
+      ...(second?.instances ?? []).filter((instance) => !seen.has(instance.id)),
+    ],
+    missingInstanceIds: unresolved.map((item) => item.name),
+    ...(wanted.length ? { resolvedNames: ids } : {}),
+    ...(unresolved.length ? { unresolved } : {}),
+  };
+}
+
 interface ToolEntry {
   definition: ContractTool;
   handle: (args: unknown, session: ToolSessionState) => Promise<unknown>;
 }
 
-export function operationError(error: unknown, input?: unknown): unknown {
+function operationError(
+  error: unknown,
+  input?: unknown,
+  contract?: Record<string, unknown>,
+): unknown {
   if (error instanceof ContractQueryError)
     return {
       ok: false,
@@ -605,7 +668,7 @@ export function operationError(error: unknown, input?: unknown): unknown {
         code: "INVALID_TOOL_INPUT",
         message: "Tool arguments do not match the input contract.",
         recovery: "fix-input",
-        issues: inputIssues(error.issues, input),
+        issues: inputIssues(error.issues, input, [], contract),
         details: inputIssueDetails(error.issues, input),
       },
     };
@@ -678,13 +741,25 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
           }
         },
       );
+      // The edit kinds are most of the reply; a resume counts them and
+      // names the call that lists them, which pairing already did (#1525).
+      const { editKinds, ...summary } = report.capabilities;
+      const detail =
+        parsed.detail ?? (report.mode === "claimed" ? "full" : "summary");
       return {
         ok: true,
         mode: report.mode,
         projectId: report.projectId,
         documentIds: report.documentIds,
         tokenExpiresAt: report.tokenExpiresAt,
-        capabilities: report.capabilities,
+        capabilities:
+          detail === "full"
+            ? report.capabilities
+            : {
+                ...summary,
+                editKindCount: editKinds.length,
+                details: { tool: "connect", detail: "full" },
+              },
         compatibility: {
           adapterVersion: AGENT_MCP_VERSION,
           status: unsupportedEditKinds.length ? "partial" : "compatible",
@@ -807,6 +882,8 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
           operation: "list-gallery",
           ...(parsed.cursor ? { cursor: parsed.cursor } : {}),
           ...(parsed.limit === undefined ? {} : { limit: parsed.limit }),
+          ...(parsed.scope ? { scope: parsed.scope } : {}),
+          ...(parsed.status ? { status: parsed.status } : {}),
         });
       }
       if (parsed.action === "open")
@@ -1373,7 +1450,8 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
           parsed.documentId,
         );
       if (parsed.target.kind === "pins")
-        return session.client.pinsSnapshot(
+        return inspectPins(
+          session,
           parsed.target.instanceIds,
           parsed.documentId,
         );
@@ -1400,10 +1478,31 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
       switch (parsed.target.kind) {
         case "document":
           return inspectDocument(entry, parsed.detail ?? "compact");
-        case "object":
-          return inspectObject(entry, parsed.target);
+        case "object": {
+          const found = inspectObject(entry, parsed.target);
+          const instance = entry.snapshot.document.instances.find(
+            (candidate) => candidate.id === found.id,
+          );
+          if (!instance) return found;
+          // A part's labels, for a move without a full read (#1518). The
+          // editor lists them only when asked: released clients parse its
+          // instance records strictly.
+          return session.client
+            .pinsSnapshot([instance.id], entry.documentId, {
+              instanceLabels: true,
+            })
+            .then((pins) => ({
+              ...found,
+              annotations: pins.instances[0]?.annotations ?? [],
+            }))
+            .catch((error: unknown) => ({
+              ...found,
+              annotationsUnavailable:
+                error instanceof Error ? error.message : "unknown",
+            }));
+        }
         case "net":
-          return inspectObject(entry, parsed.target);
+          return inspectNet(entry, parsed.target);
         case "connectivity":
           return inspectConnectivity(entry, parsed.target);
       }
@@ -1622,7 +1721,11 @@ export async function executeOperation(
       );
     result = await tool.handle(input, session);
   } catch (error) {
-    result = operationError(error, input);
+    result = operationError(
+      error,
+      input,
+      error instanceof z.ZodError ? tool.definition.inputSchema : undefined,
+    );
   }
   return withTiming(
     result,

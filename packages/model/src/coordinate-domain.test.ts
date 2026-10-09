@@ -5,7 +5,6 @@ import {
   isGridAlignedCoordinate,
   snapGridCoordinate,
   snapGridPoint,
-  snapGridRect,
 } from "./coordinate-domain.js";
 
 describe("persisted coordinate domain", () => {
@@ -25,15 +24,6 @@ describe("persisted coordinate domain", () => {
     expect(snapGridPoint({ x: 16.5, y: -24.5 }, 10)).toEqual({
       x: 20,
       y: -20,
-    });
-  });
-
-  it("keeps persisted rectangles grid-aligned and never below one grid cell", () => {
-    expect(snapGridRect({ x: 16, y: -16, width: 4, height: 26 }, 10)).toEqual({
-      x: 20,
-      y: -20,
-      width: 10,
-      height: 30,
     });
   });
 
