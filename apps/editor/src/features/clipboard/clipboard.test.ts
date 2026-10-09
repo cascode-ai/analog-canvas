@@ -23,14 +23,10 @@ import { describe, expect, it } from "vitest";
 import { createLibraryExampleProject } from "../../examples/library-examples";
 import { captureProjectCopy } from "./project-copy";
 
-import {
-  clipboardPlacementAnchor,
-  clipboardPreviewDocument,
-  orientClipboard,
-  copySelection,
-  captureDocumentComposition,
-  proposePaste,
-} from "./clipboard";
+import { copySelection, captureDocumentComposition } from "./clipboard";
+import { clipboardPreviewDocument } from "./clipboard-preview";
+import { clipboardPlacementAnchor, orientClipboard } from "./copy-placement";
+import { proposePaste } from "./paste-proposal";
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
 

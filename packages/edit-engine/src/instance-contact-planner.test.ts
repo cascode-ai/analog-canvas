@@ -19,7 +19,7 @@ import {
   createRoutingOperationPlan,
   gateRoutingOperationPlan,
 } from "./routing-operation-plan.js";
-import type { WireSource } from "./routing-planner.js";
+import type { WireSource } from "./wire-commit-planner.js";
 import { executeTransaction } from "./transaction.js";
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);

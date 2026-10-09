@@ -16,7 +16,7 @@ import type { SymbolResolver } from "@icm/symbols";
 import { planDirectEndpointConnection } from "./direct-contact-planner.js";
 import type { SchematicEdit } from "./edit-schema.js";
 import { resolveRouteEditPath } from "./route-operations.js";
-import { proposeEndpointRouteAttachment } from "./routing-planner.js";
+import { proposeEndpointRouteAttachment } from "./wire-commit-planner.js";
 import type { ExpectedElectricalEffect } from "./routing-operation-plan.js";
 import { executeTransaction } from "./transaction.js";
 

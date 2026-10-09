@@ -131,7 +131,7 @@ function renderRun(
  * block through deterministic dx compensation (0.6 em per code point, the
  * same model as the shared layout). The fraction bar itself needs a line
  * element, which a <text> cannot host; annotation-level fractions render
- * through the structured bar path in render.ts instead.
+ * through the structured bar path in annotation-render.ts instead.
  */
 function renderInlineFraction(
   node: Extract<RichTextRun, { kind: "fraction" }>,

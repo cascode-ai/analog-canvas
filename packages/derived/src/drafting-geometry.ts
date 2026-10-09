@@ -793,8 +793,8 @@ function resolveFloatingSymbol(
   };
 }
 
-// Mirrors the SVG transform order in render.ts: rotate around the local
-// origin, apply independent screen-space mirror axes, then translate.
+// Mirrors the SVG transform order in drafting-render.ts: rotate around the
+// local origin, apply independent screen-space mirror axes, then translate.
 function transformSymbolCorner(
   corner: DerivedPoint,
   position: DerivedPoint,

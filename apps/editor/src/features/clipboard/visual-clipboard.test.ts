@@ -9,7 +9,7 @@ import {
 } from "./visual-clipboard";
 
 // These Node tests own selection scope, snapshot capture and clipboard policy.
-// Real font/ink measurement is exercised by manual-editor and context-menu E2E;
+// Real font/ink measurement is exercised by editor-shell and context-menu E2E;
 // retain the real formal renderer here and replace only the browser DOM step.
 vi.mock("../../../../../packages/exporters/src/browser-bounds.js", () => ({
   measureFormalExportSource: async (source: unknown) => source,

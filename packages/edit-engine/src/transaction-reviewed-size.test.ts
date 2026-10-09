@@ -1,7 +1,7 @@
 import { createEmptyProject, type CircuitProject } from "@icm/model";
 import { expect, it } from "vitest";
 
-import { planSetDeviceModelTarget } from "./hierarchy-planner.js";
+import { planSetDeviceModelTarget } from "./device-model-target-planner.js";
 import {
   executeProjectTransaction,
   type ProjectStructureEdit,

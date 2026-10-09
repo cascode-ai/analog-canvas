@@ -8,6 +8,8 @@ import {
   changedLines,
   formattedPaths,
   lintPaths,
+  oversizedProductFiles,
+  PRODUCT_FILE_LINE_LIMIT,
   strictUnitRun,
   testStartLines,
   unitSourcePaths,
@@ -123,6 +125,42 @@ describe("verify:pr selection", () => {
         "apps/editor/src/agent/browser-agent-project-host.ts",
       ]),
     ).toEqual(["copy", "netlist"]);
+  });
+
+  it("warns about changed product files past the soft size limit, not tests or generated files", () => {
+    const lines = (count) => "x\n".repeat(count);
+    const files = new Map([
+      ["packages/netlist/src/extract.ts", lines(3890)],
+      ["packages/netlist/src/extract.test.ts", lines(5000)],
+      ["apps/editor/e2e/gallery.spec.ts", lines(6437)],
+      ["apps/mcp-server/src/resources.generated.ts", lines(9000)],
+      ["apps/editor/src/agent/live-agent-editor.test-support.ts", lines(1200)],
+      ["packages/agent-client/src/test-support/fake-relay.ts", lines(1200)],
+      ["worker/simulation.test-fixture.ts", lines(1200)],
+      ["apps/editor/census/gallery.census.ts", lines(1200)],
+      ["scripts/verify-pr.mjs", lines(1200)],
+      ["worker/gallery-do.ts", lines(4090)],
+      // A file exactly at the limit gets no warning; one line more, the
+      // last without a newline, does.
+      ["apps/editor/src/app/App.tsx", lines(PRODUCT_FILE_LINE_LIMIT)],
+      [
+        "containers/simulation/gateway.mjs",
+        `${lines(PRODUCT_FILE_LINE_LIMIT)}x`,
+      ],
+    ]);
+    expect(
+      oversizedProductFiles([...files.keys()], (path) => files.get(path)),
+    ).toEqual([
+      { path: "worker/gallery-do.ts", lines: 4090 },
+      { path: "packages/netlist/src/extract.ts", lines: 3890 },
+      {
+        path: "containers/simulation/gateway.mjs",
+        lines: PRODUCT_FILE_LINE_LIMIT + 1,
+      },
+    ]);
+    expect(
+      oversizedProductFiles(["docs/README.md"], () => lines(2000)),
+    ).toEqual([]);
   });
 
   it("runs only the browser cases a change adds or edits", () => {

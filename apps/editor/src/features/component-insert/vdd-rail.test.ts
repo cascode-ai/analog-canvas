@@ -30,10 +30,8 @@ import {
 import type { SchematicDocument } from "@icm/model";
 import { parseProject, serializeProject } from "@icm/project-protocol";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
-import {
-  captureDocumentComposition,
-  proposePaste,
-} from "../clipboard/clipboard";
+import { captureDocumentComposition } from "../clipboard/clipboard";
+import { proposePaste } from "../clipboard/paste-proposal";
 
 import {
   constrainedPowerRailEndpoint,

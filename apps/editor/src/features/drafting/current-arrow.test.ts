@@ -5,7 +5,8 @@ import { createRoutePath } from "@icm/model";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 
-import { copySelection, proposePaste } from "../clipboard/clipboard";
+import { copySelection } from "../clipboard/clipboard";
+import { proposePaste } from "../clipboard/paste-proposal";
 
 describe("route-attached current arrows", () => {
   const resolver = new InMemorySymbolResolver(builtInSymbols);

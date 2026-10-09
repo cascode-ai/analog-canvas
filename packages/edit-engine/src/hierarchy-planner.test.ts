@@ -13,19 +13,23 @@ import {
 import {
   createExternalSubcircuitInstance,
   createHierarchyInstance,
-  planCreateCellPin,
   planDeleteCell,
-  planFormatCellTerminalAnnotations,
   planPlaceCellInstance,
-  planRemoveCellTerminal,
+  planSetCellSymbolPins,
+} from "./hierarchy-planner.js";
+import {
+  planCreateCellPin,
   planReorderCellPort,
   planReorderCellTerminal,
-  planRenameCellTerminal,
-  planSetCellSymbolPins,
-  planSetDeviceModelTarget,
   planSetVddConnectionMode,
   planUpdateCellPortDirection,
-} from "./hierarchy-planner.js";
+} from "./cell-pin-planner.js";
+import {
+  planFormatCellTerminalAnnotations,
+  planRemoveCellTerminal,
+  planRenameCellTerminal,
+} from "./cell-interface-change-planner.js";
+import { planSetDeviceModelTarget } from "./device-model-target-planner.js";
 import {
   executeProjectTransaction,
   type ProjectStructureEdit,

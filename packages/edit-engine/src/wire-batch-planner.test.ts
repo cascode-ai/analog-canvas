@@ -14,7 +14,7 @@ import { describe, expect, it } from "vitest";
 import { DocumentHistory } from "./history.js";
 import { planWireBatch } from "./wire-batch-planner.js";
 import { createRouteClearance } from "./route-clearance.js";
-import type { WireIntent } from "./routing-planner.js";
+import type { WireIntent } from "./wire-intent-planner.js";
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
 const free = (x: number, y: number) => ({

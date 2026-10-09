@@ -99,8 +99,9 @@ function buildSymbolSvg(
     profile,
   );
 
-  // Wrap exactly like render.ts:470: <g fill none stroke fg stroke-width=symbol
-  // linecap linejoin miterlimit>...primitives...</g>
+  // Wrap like the instance wrapper in buildSvgScene (render.ts):
+  // <g fill none stroke fg stroke-width=symbol linecap linejoin miterlimit>
+  // ...primitives...</g>
   const miterAttr = ` stroke-miterlimit="${profile.miterLimit}"`;
   const artwork = `${body}${formula}`;
   const transformedArtwork =

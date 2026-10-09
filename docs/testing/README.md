@@ -75,14 +75,17 @@ select itself. The gate-planner tests enumerate the directory so adding a spec
 without routing ownership fails deterministically instead of silently relying
 on the generic browser fallback.
 
-The editor's browser workflows have separate owners: `manual-editor.spec.ts`
-retains general integration, `wiring-semantics.spec.ts` owns wire interaction,
+The editor's browser workflows have separate owners: the general editing
+specs, one per feature (`editor-shell.spec.ts`, `wire-drawing.spec.ts`,
+`label-editing.spec.ts` and the rest of the `editor-browser` gate), retain
+general integration, `wiring-semantics.spec.ts` owns wire interaction,
 `component-property-workflows.spec.ts`
 owns live property/model/display edits, and `netlist-workflows.spec.ts` owns
 import, authoring and export. Shared app/canvas dependencies select all three;
 wire-tool changes select their dedicated contract without selecting unrelated
 general, property and netlist UI workflows. Their small shared fixture module
-still selects every consumer. The full component catalog is checked by
+still selects every consumer; `canvas-fixtures.ts`, which only the general
+editing specs share, selects only them. The full component catalog is checked by
 `component-property-catalog.test.ts`; browser catalog checks cover representative
 capabilities and the VDD exception rather than repeating the same UI for every
 symbol. Keep specialized history, rejection, hierarchy and terminal tests.
@@ -281,6 +284,15 @@ twice: over every file with the tests, then over only what the product
 reaches from its entries. `pnpm verify:pr` runs it after the typecheck; CI
 does not. An export only tests use is dead: delete it with its tests by the
 rules above, or tag it `@internal` with the reason when the test is the point.
+
+## File size
+
+`pnpm verify:pr` warns, without failing, about each changed product file past
+1,000 lines, naming it and its length (#1537). Product files are the code of
+`apps/`, `packages/`, `worker/` and `containers/`; tests, browser specs, test
+support and fixtures, the Gallery census and generated files are not. A
+reviewer decides whether to split the file along its seams, as a
+behavior-preserving move.
 
 ## Coverage
 

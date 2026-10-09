@@ -315,13 +315,13 @@ No historical Gallery rewrite is authorized by this refactor.
   Pin and Net labels take the voltage-node look for V-led names and the
   current look for I-led names only.
 - `packages/model/src/label-typography.test.ts` and
-  `apps/editor/e2e/manual-editor.spec.ts`: a new subscript is upright, an
+  `apps/editor/e2e/label-typography.spec.ts`: a new subscript is upright, an
   author's slanted subscript is kept, and legacy looks change only on request.
-- `worker/gallery.test.ts` (label-look maintenance): a dry run writes
-  nothing; an apply needs the checked content, keeps names, netlists and
-  history, and leaves nothing for a second pass.
+- `worker/gallery-label-looks.test.ts` (label-look maintenance): a dry run
+  writes nothing; an apply needs the checked content, keeps names, netlists
+  and history, and leaves nothing for a second pass.
 - `apps/editor/e2e/component-insert.spec.ts` and
-  `apps/editor/e2e/manual-editor.spec.ts`: placed supplies in their standard
+  `apps/editor/e2e/label-typography.spec.ts`: placed supplies in their standard
   look, a V-led Net label whose subscript the author turns off without
   renaming the Net, and verbatim canvas renames.
 

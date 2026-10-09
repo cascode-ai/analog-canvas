@@ -9,7 +9,7 @@ import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 
 import type { SchematicEdit } from "./edit-schema.js";
-import { planRenameCellTerminal } from "./hierarchy-planner.js";
+import { planRenameCellTerminal } from "./cell-interface-change-planner.js";
 import { executeProjectTransaction } from "./project-transaction.js";
 import { executeTransaction } from "./transaction.js";
 

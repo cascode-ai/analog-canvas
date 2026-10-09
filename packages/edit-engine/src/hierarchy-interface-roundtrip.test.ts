@@ -18,11 +18,13 @@ import {
 } from "./project-transaction.js";
 import {
   planReorderCellTerminal,
-  planSetCellSymbolPins,
-  planRenameCellTerminal,
   planCreateCellPin,
+} from "./cell-pin-planner.js";
+import { planSetCellSymbolPins } from "./hierarchy-planner.js";
+import {
+  planRenameCellTerminal,
   planRemoveCellTerminal,
-} from "./hierarchy-planner.js";
+} from "./cell-interface-change-planner.js";
 
 function addPorts(document: SchematicDocument) {
   for (const name of ["A", "B"]) {

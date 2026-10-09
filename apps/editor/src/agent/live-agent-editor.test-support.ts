@@ -7,10 +7,8 @@ import {
   type AgentSessionScope,
 } from "@icm/agent-adapter";
 import { createEmptyProject, type CircuitProject } from "@icm/model";
-import {
-  AgentSessionClient,
-  type AgentSessionClientOptions,
-} from "../../../../packages/agent-client/src/session-client";
+import { AgentSessionClient } from "../../../../packages/agent-client/src/session-client";
+import type { AgentSessionClientOptions } from "../../../../packages/agent-client/src/session-transport";
 import {
   FakeAgentHttp,
   type FakeRelayOptions,

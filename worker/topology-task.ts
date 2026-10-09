@@ -7,7 +7,7 @@ import type { GalleryFeedEntry } from "../apps/editor/src/gallery-client";
 import type { GalleryTopologyMatchReport } from "../apps/editor/src/gallery-topology-match";
 import { closeTopologyMatches } from "../apps/editor/src/gallery-topology-selection";
 import { sessionUserOf } from "./auth";
-import type { GalleryEnv, GalleryNamespaceLike } from "./gallery-do";
+import type { GalleryEnv, GalleryNamespaceLike } from "./gallery-store";
 
 export type TopologyTaskEnv = GalleryEnv & {
   TOPOLOGY_TASK?: GalleryNamespaceLike;

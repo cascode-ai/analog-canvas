@@ -15,11 +15,9 @@ export {
   type ClaimSuccess,
 } from "./http-client.js";
 export { changedObjectIds, type CachedSnapshot } from "./snapshot-cache.js";
-export {
-  AgentSessionClient,
-  type ApplyActionsReport,
-} from "./session-client.js";
+export { AgentSessionClient } from "./session-client.js";
+export { type ApplyActionsReport } from "./session-receipts.js";
 /** @public An applied report's `placed` entries, named in declarations. */
-export type { PlacedPart } from "./session-client.js";
+export type { PlacedPart } from "./session-receipts.js";
 export { AuthoringActionSchema } from "@icm/agent-adapter/authoring";
 export { WorkspaceBindingStore } from "./workspace-binding-store.js";

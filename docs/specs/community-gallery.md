@@ -2,8 +2,9 @@
 
 Status: `accepted`
 
-Primary owners: `worker/gallery.ts`, `worker/gallery-do.ts`, `worker/auth.ts`,
-`worker/auth-do.ts`, `apps/editor` landing feed
+Primary owners: `worker/gallery.ts` with its route modules,
+`worker/gallery-do.ts` with the `worker/gallery-store*.ts` modules,
+`worker/auth.ts`, `worker/auth-do.ts`, `apps/editor` landing feed
 
 ## Trust boundary
 

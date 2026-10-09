@@ -18,10 +18,8 @@ import {
   createRoutingOperationPlan,
   gateRoutingOperationPlan,
 } from "./routing-operation-plan.js";
-import {
-  proposeWireIntent,
-  proposeWireSegmentMove,
-} from "./routing-planner.js";
+import { proposeWireIntent } from "./wire-intent-planner.js";
+import { proposeWireSegmentMove } from "./routing-planner.js";
 import { executeTransaction } from "./transaction.js";
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);

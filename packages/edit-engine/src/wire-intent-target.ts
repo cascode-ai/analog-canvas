@@ -14,7 +14,7 @@ import {
   type SchematicDocument,
 } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
-import type { WireIntentAnchor } from "./routing-planner.js";
+import type { WireIntentAnchor } from "./wire-intent-planner.js";
 
 /**
  * Where a tap at `point` on a conductor's segment lands. A fine-grid tap is

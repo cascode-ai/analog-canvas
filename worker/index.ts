@@ -12,14 +12,13 @@ import {
   routeAgentSessionRequest,
   type AgentSessionNamespaceLike,
 } from "./agent-session";
+import { forgetEarlierOpens, routeGalleryRequest } from "./gallery";
 import {
-  forgetEarlierOpens,
   galleryReadableDocument,
-  refreshNetlistMarks,
-  routeGalleryRequest,
   type GalleryReadableDocument,
-  type GalleryNamespaceLike,
-} from "./gallery";
+} from "./gallery-documents";
+import { refreshNetlistMarks } from "./gallery-maintenance";
+import type { GalleryNamespaceLike } from "./gallery-store";
 import {
   routeSimulationRequest,
   refuseSignedOutSimulation,
