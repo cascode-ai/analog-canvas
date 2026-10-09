@@ -166,3 +166,79 @@ describe("visitor counting", () => {
     expect(await hit(again, HASH_B)).toMatchObject({ pv: 9, uv: 4 });
   });
 });
+
+describe("page-load times (#1581)", () => {
+  async function load(
+    analytics: AnalyticsDO,
+    country: string,
+    ttfb: number,
+    shown: number,
+  ) {
+    return analytics.fetch(
+      new Request("https://analytics.internal/load", {
+        method: "POST",
+        body: JSON.stringify({ country, ttfb, shown }),
+      }),
+    );
+  }
+
+  it("keeps counts per country and summarizes medians and 75th percentiles", async () => {
+    vi.useFakeTimers({ now: DAY_ONE });
+    const db = new DatabaseSync(":memory:");
+    const analytics = new AnalyticsDO(sqliteState(db));
+    for (const [ttfb, shown] of [
+      [150, 1100],
+      [180, 1200],
+      [420, 2600],
+    ])
+      expect((await load(analytics, "CH", ttfb!, shown!)).status).toBe(204);
+    await load(analytics, "CN", 900, 4200);
+    // Nothing a visitor could be told apart by is accepted or kept.
+    expect((await load(analytics, "cn", 900, 4200)).status).toBe(400);
+    expect((await load(analytics, "CN", -1, 4200)).status).toBe(400);
+    expect((await load(analytics, "CN", 900, 1.5)).status).toBe(400);
+    expect(
+      Object.keys(
+        rows(db, "SELECT * FROM load_times LIMIT 1")[0] as object,
+      ).sort(),
+    ).toEqual(["bucket", "count", "country", "day", "metric"]);
+
+    const { loadTimes } = await summary(analytics);
+    expect(loadTimes.days).toBe(30);
+    expect(loadTimes.all).toMatchObject({ code: "ALL", n: 4 });
+    expect(loadTimes.countries).toEqual([
+      {
+        code: "CH",
+        n: 3,
+        ttfbP50: 200,
+        ttfbP75: 500,
+        shownP50: 1250,
+        shownP75: 3000,
+      },
+      {
+        code: "CN",
+        n: 1,
+        ttfbP50: 900,
+        ttfbP75: 900,
+        shownP50: 5000,
+        shownP75: 5000,
+      },
+    ]);
+  });
+
+  it("summarizes only the last 30 days, and drops days past retention", async () => {
+    vi.useFakeTimers({ now: DAY_ONE });
+    const db = new DatabaseSync(":memory:");
+    const analytics = new AnalyticsDO(sqliteState(db));
+    await load(analytics, "CH", 150, 1100);
+    vi.setSystemTime(DAY_ONE + 30 * DAY_MS);
+    expect((await summary(analytics)).loadTimes).toEqual({
+      days: 30,
+      all: null,
+      countries: [],
+    });
+    vi.setSystemTime(DAY_ONE + 401 * DAY_MS);
+    await summary(analytics);
+    expect(rows(db, "SELECT day FROM load_times")).toEqual([]);
+  });
+});

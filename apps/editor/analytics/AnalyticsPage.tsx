@@ -25,6 +25,20 @@ type Summary = {
     sources: BreakdownTotal;
     pages: BreakdownTotal;
   };
+  /** Absent from a Worker older than the page-load table (#1581). */
+  loadTimes?: {
+    days: number;
+    all: LoadTimeRow | null;
+    countries: LoadTimeRow[];
+  };
+};
+type LoadTimeRow = {
+  code: string;
+  n: number;
+  ttfbP50: number;
+  ttfbP75: number;
+  shownP50: number;
+  shownP75: number;
 };
 
 const DEFAULT_RANGE_DAYS = 90;
@@ -413,9 +427,116 @@ export function AnalyticsPage() {
                 unavailable={error}
               />
             </section>
+            <section
+              className="analytics-section analytics-section--wide"
+              aria-labelledby="analytics-load-h"
+            >
+              <SectionHead
+                title="Page load"
+                id="analytics-load-h"
+                aside={`Last ${summary?.loadTimes?.days ?? 30} days`}
+              />
+              <LoadTimeTable
+                loadTimes={summary?.loadTimes}
+                loading={!summary && !error}
+                unavailable={error}
+              />
+            </section>
           </div>
         </div>
       </main>
+    </div>
+  );
+}
+
+/** A histogram bound in ms, as a reader takes it in: "≤ 0.3 s". */
+function formatLoadTime(ms: number): string {
+  if (ms <= 0) return "—";
+  const seconds = ms / 1000;
+  return `≤ ${seconds.toLocaleString("en-US", { maximumFractionDigits: 2 })} s`;
+}
+
+/**
+ * How long counted page loads took, by region (#1581): the document's first
+ * byte, and when the page was shown, as median and 75th percentile.
+ */
+function LoadTimeTable({
+  loadTimes,
+  loading,
+  unavailable,
+}: {
+  loadTimes: Summary["loadTimes"];
+  loading: boolean;
+  unavailable: boolean;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const rows = loadTimes?.countries ?? [];
+  const visibleRows = expanded ? rows : rows.slice(0, DEFAULT_BREAKDOWN_ROWS);
+  const cells = (row: LoadTimeRow, label: string, strong = false) => (
+    <tr key={label} className={strong ? "analytics-load-all" : undefined}>
+      <td>{label}</td>
+      <td className="num">{fmt.format(row.n)}</td>
+      <td className="num">
+        {formatLoadTime(row.ttfbP50)} · {formatLoadTime(row.ttfbP75)}
+      </td>
+      <td className="num">
+        {formatLoadTime(row.shownP50)} · {formatLoadTime(row.shownP75)}
+      </td>
+    </tr>
+  );
+  return (
+    <div className="analytics-breakdown">
+      <div className="analytics-table-scroll">
+        <table className="analytics-table" data-testid="analytics-load-table">
+          <thead>
+            <tr>
+              <th scope="col">Region</th>
+              <th scope="col" className="num">
+                Page loads
+              </th>
+              <th scope="col" className="num">
+                First byte (median · 75%)
+              </th>
+              <th scope="col" className="num">
+                Page shown (median · 75%)
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading || unavailable || !loadTimes?.all ? (
+              <tr>
+                <td colSpan={4} className="analytics-empty">
+                  {loading
+                    ? "Loading…"
+                    : unavailable
+                      ? "Unavailable."
+                      : "No data yet."}
+                </td>
+              </tr>
+            ) : (
+              <>
+                {cells(loadTimes.all, "All regions", true)}
+                {visibleRows.map((row) => cells(row, countryName(row.code)))}
+              </>
+            )}
+          </tbody>
+        </table>
+      </div>
+      {rows.length > DEFAULT_BREAKDOWN_ROWS ? (
+        <button
+          type="button"
+          className="analytics-table-toggle"
+          aria-expanded={expanded}
+          onClick={() => setExpanded((value) => !value)}
+        >
+          <span>
+            {expanded
+              ? `Show top ${DEFAULT_BREAKDOWN_ROWS}`
+              : `Show all ${rows.length}`}
+          </span>
+          <ChevronIcon expanded={expanded} />
+        </button>
+      ) : null}
     </div>
   );
 }

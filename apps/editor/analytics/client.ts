@@ -2,6 +2,57 @@ import { useEffect, useState } from "react";
 
 /** Where the privacy notice reads and sets "Stop counting me". */
 export const ANALYTICS_OPT_OUT_PATH = "/api/track/opt-out";
+/** Where a counted page load reports how long it took (#1581). */
+export const ANALYTICS_PAGE_LOAD_PATH = "/api/track/load";
+
+let pageLoadReported = false;
+
+/**
+ * Once per page load, report how long it took (#1581): the document's first
+ * byte, and when the page was shown (its largest paint, or the load event
+ * where a browser has none). A tab that opened in the background is left
+ * out, since its timings say nothing about the network.
+ */
+function reportPageLoad(): void {
+  if (pageLoadReported) return;
+  pageLoadReported = true;
+  if (document.visibilityState === "hidden") return;
+  let largestPaint = 0;
+  let observer: PerformanceObserver | null = null;
+  try {
+    observer = new PerformanceObserver((list) => {
+      for (const entry of list.getEntries()) largestPaint = entry.startTime;
+    });
+    observer.observe({ type: "largest-contentful-paint", buffered: true });
+  } catch {
+    observer = null;
+  }
+  const send = () => {
+    observer?.disconnect();
+    const navigation = performance.getEntriesByType("navigation")[0] as
+      PerformanceNavigationTiming | undefined;
+    if (!navigation) return;
+    const shown = largestPaint || navigation.loadEventEnd;
+    if (!(navigation.responseStart > 0) || !(shown > 0)) return;
+    void fetch(ANALYTICS_PAGE_LOAD_PATH, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      credentials: "same-origin",
+      keepalive: true,
+      cache: "no-store",
+      body: JSON.stringify({
+        t: Math.round(navigation.responseStart),
+        l: Math.round(shown),
+      }),
+    }).catch(() => {
+      // The report is fire-and-forget.
+    });
+  };
+  // The largest paint settles shortly after load.
+  const afterLoad = () => window.setTimeout(send, 3000);
+  if (document.readyState === "complete") afterLoad();
+  else window.addEventListener("load", afterLoad, { once: true });
+}
 
 export type VisitStats = {
   pv: number;
@@ -63,6 +114,7 @@ export function useVisitStats(path: string): VisitStats | null {
     }).catch(() => {
       // The beacon is fire-and-forget.
     });
+    reportPageLoad();
   }, [path]);
 
   return stats;

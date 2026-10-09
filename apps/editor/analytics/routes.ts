@@ -3,8 +3,10 @@ import {
   hasOptedOut,
   optOutCookie,
   queryAnalyticsSummary,
+  MAX_LOAD_TIME_MS,
   queryVisitStats,
   readVisitorId,
+  recordPageLoad,
   recordPageView,
   retiredCookieExpiries,
   visitorCookie,
@@ -16,6 +18,8 @@ const [TRACK_ROUTE, STATS_ROUTE, ANALYTICS_ROUTE] =
   ANALYTICS_PERSISTENCE_IDENTITY.routes;
 /** GET reads, POST `{optOut}` sets, whether this browser is counted. */
 export const OPT_OUT_ROUTE = `${TRACK_ROUTE}/opt-out`;
+/** POST `{t, l}`: how long this page load took (#1581). */
+export const PAGE_LOAD_ROUTE = `${TRACK_ROUTE}/load`;
 
 export type AnalyticsRouteEnv = {
   ANALYTICS: DurableObjectNamespaceLike;
@@ -84,6 +88,9 @@ export async function routeAnalyticsRequest(
   if (url.pathname === TRACK_ROUTE && request.method === "POST") {
     return trackPageView(request, env);
   }
+  if (url.pathname === PAGE_LOAD_ROUTE && request.method === "POST") {
+    return trackPageLoad(request, env);
+  }
   if (url.pathname === OPT_OUT_ROUTE) {
     return optOut(request);
   }
@@ -96,22 +103,77 @@ export async function routeAnalyticsRequest(
   return null;
 }
 
-async function trackPageView(
-  request: Request,
-  env: AnalyticsRouteEnv,
-): Promise<Response> {
-  const noContent = () => new Response(null, { status: 204 });
-  if (!isSameOriginTrackRequest(request)) return noContent();
-  // A browser asking not to be tracked, by Do Not Track, Global Privacy
-  // Control or this site's own opt-out, is not counted and gets no cookie.
+/**
+ * Whether a request may be counted: same-origin, from a browser that has not
+ * asked not to be (Do Not Track, Global Privacy Control or this site's own
+ * opt-out), and not from a bot.
+ */
+function countable(request: Request): boolean {
+  if (!isSameOriginTrackRequest(request)) return false;
   if (
     request.headers.get("DNT") === "1" ||
     request.headers.get("Sec-GPC") === "1" ||
     hasOptedOut(request.headers.get("Cookie"))
   )
-    return noContent();
+    return false;
   const userAgent = request.headers.get("User-Agent") ?? "";
-  if (!userAgent || BOT_UA.test(userAgent)) return noContent();
+  return Boolean(userAgent) && !BOT_UA.test(userAgent);
+}
+
+/** The visitor's country as Cloudflare reports it; "XX" when unknown. */
+function requestCountry(request: Request): string {
+  const cf = (request as Request & { cf?: RequestCf }).cf ?? {};
+  const rawCountry =
+    typeof cf.country === "string" ? cf.country.toUpperCase() : "";
+  return /^[A-Z0-9]{2}$/.test(rawCountry) ? rawCountry : "XX";
+}
+
+/**
+ * How long a page load took (#1581), kept as counts per day and country:
+ * no visitor id, no cookie, no address. Always answers 204.
+ */
+async function trackPageLoad(
+  request: Request,
+  env: AnalyticsRouteEnv,
+): Promise<Response> {
+  const noContent = new Response(null, {
+    status: 204,
+    headers: { "cache-control": "no-store" },
+  });
+  if (!countable(request)) return noContent;
+  const payload = (await request.json().catch(() => null)) as {
+    t?: unknown;
+    l?: unknown;
+  } | null;
+  const ttfb = loadTimeMs(payload?.t);
+  const shown = loadTimeMs(payload?.l);
+  if (ttfb === null || shown === null) return noContent;
+  try {
+    await recordPageLoad(env.ANALYTICS, {
+      country: requestCountry(request),
+      ttfb,
+      shown,
+    });
+  } catch {
+    // A lost report only thins the sample.
+  }
+  return noContent;
+}
+
+function loadTimeMs(raw: unknown): number | null {
+  if (typeof raw !== "number" || !Number.isFinite(raw)) return null;
+  const ms = Math.round(raw);
+  return ms >= 0 && ms <= MAX_LOAD_TIME_MS ? ms : null;
+}
+
+async function trackPageView(
+  request: Request,
+  env: AnalyticsRouteEnv,
+): Promise<Response> {
+  const noContent = () => new Response(null, { status: 204 });
+  // A browser asking not to be tracked, by Do Not Track, Global Privacy
+  // Control or this site's own opt-out, is not counted and gets no cookie.
+  if (!countable(request)) return noContent();
 
   const payload = (await request.json().catch(() => null)) as {
     p?: unknown;
@@ -131,9 +193,7 @@ async function trackPageView(
     new URL(request.url),
   );
   const cf = (request as Request & { cf?: RequestCf }).cf ?? {};
-  const rawCountry =
-    typeof cf.country === "string" ? cf.country.toUpperCase() : "";
-  const country = /^[A-Z0-9]{2}$/.test(rawCountry) ? rawCountry : "XX";
+  const country = requestCountry(request);
   const secure = request.url.startsWith("https://");
   const headers = new Headers({ "cache-control": "no-store" });
   // Set once, never renewed: the id lasts a year from the first visit.

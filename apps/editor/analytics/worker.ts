@@ -40,6 +40,20 @@ const OTHER_KEY = "__other__";
 const MAX_BREAKDOWN_ROWS = 256;
 const MAX_POINT_ROWS = 2000;
 
+/**
+ * Upper bounds, in milliseconds, of the page-load histogram (#1581): fine
+ * where pages usually load, coarse in the tail; the last bucket is open.
+ * Only counts per day, country and bucket are kept, never a visitor.
+ */
+export const LOAD_TIME_BUCKETS_MS = [
+  100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1250, 1500, 1750, 2000,
+  2500, 3000, 3500, 4000, 5000, 6000, 8000, 10000, 15000, 20000, 30000, 60000,
+] as const;
+/** The window the page-load table summarizes. */
+export const LOAD_TIME_DAYS = 30;
+/** The longest time a page-load report may carry. */
+export const MAX_LOAD_TIME_MS = 600_000;
+
 const BREAKDOWN_TABLES = {
   countries: "analytics_countries",
   sources: "analytics_sources",
@@ -79,6 +93,25 @@ export type PageViewEvent = {
   source: string;
 };
 
+/** One page load: when its first byte arrived, and when it was shown. */
+export type PageLoadEvent = {
+  country: string;
+  /** Navigation start to the document's first byte, in ms. */
+  ttfb: number;
+  /** Navigation start to the largest paint (or the load event), in ms. */
+  shown: number;
+};
+
+/** Medians and 75th percentiles, as histogram bucket upper bounds in ms. */
+export type LoadTimeRow = {
+  code: string;
+  n: number;
+  ttfbP50: number;
+  ttfbP75: number;
+  shownP50: number;
+  shownP75: number;
+};
+
 export type AnalyticsSummary = {
   generatedAt: string;
   totals: VisitStats;
@@ -93,6 +126,12 @@ export type AnalyticsSummary = {
     countries: VisitStats;
     sources: VisitStats;
     pages: VisitStats;
+  };
+  /** Page loads over the last LOAD_TIME_DAYS days (#1581). */
+  loadTimes: {
+    days: number;
+    all: LoadTimeRow | null;
+    countries: LoadTimeRow[];
   };
 };
 
@@ -185,6 +224,17 @@ export class AnalyticsDO {
     } catch {
       // Column already present.
     }
+    // Page-load histogram (#1581): counts per day, country, metric, bucket.
+    this.sql.exec(`
+      CREATE TABLE IF NOT EXISTS load_times (
+        day INTEGER NOT NULL,
+        country TEXT NOT NULL,
+        metric TEXT NOT NULL,
+        bucket INTEGER NOT NULL,
+        count INTEGER NOT NULL,
+        PRIMARY KEY (day, country, metric, bucket)
+      ) WITHOUT ROWID
+    `);
     // The total was the size of `visitors`. Dead ids are now deleted from
     // it, so the total becomes a counter, starting from that size once.
     this.sql.exec(
@@ -211,6 +261,10 @@ export class AnalyticsDO {
       this.sql.exec(
         "DELETE FROM visitors WHERE last_seen_day < ?",
         today - VISITOR_ID_RETENTION_DAYS,
+      );
+      this.sql.exec(
+        "DELETE FROM load_times WHERE day < ?",
+        today - RETAINED_DAYS,
       );
       this.setMeta(META.rolledUpDay, String(today));
     });
@@ -251,6 +305,19 @@ export class AnalyticsDO {
       }
       this.recordHit(event, Date.now());
       return Response.json({ ...this.readStats(), scope: "all" });
+    }
+    if (request.method === "POST" && url.pathname === "/load") {
+      const event = (await request
+        .json()
+        .catch(() => null)) as PageLoadEvent | null;
+      if (!isValidLoadEvent(event)) {
+        return Response.json(
+          { error: "Invalid page-load event" },
+          { status: 400 },
+        );
+      }
+      this.recordLoad(event, Date.now());
+      return new Response(null, { status: 204 });
     }
     if (request.method === "GET" && url.pathname === "/stats") {
       return Response.json({ ...this.readStats(), scope: "all" });
@@ -394,6 +461,80 @@ export class AnalyticsDO {
     }
   }
 
+  private recordLoad(event: PageLoadEvent, now: number): void {
+    const day = utcDay(now);
+    this.state.storage.transactionSync(() => {
+      for (const [metric, ms] of [
+        ["ttfb", event.ttfb],
+        ["shown", event.shown],
+      ] as const) {
+        this.sql.exec(
+          `INSERT INTO load_times(day, country, metric, bucket, count)
+           VALUES (?, ?, ?, ?, 1)
+           ON CONFLICT(day, country, metric, bucket)
+           DO UPDATE SET count = count + 1`,
+          day,
+          event.country,
+          metric,
+          loadTimeBucket(ms),
+        );
+      }
+    });
+  }
+
+  private readLoadTimes(today: number): AnalyticsSummary["loadTimes"] {
+    const rows = this.sql
+      .exec<{ country: string; metric: string; bucket: number; count: number }>(
+        `SELECT country, metric, bucket, SUM(count) AS count FROM load_times
+         WHERE day > ? GROUP BY country, metric, bucket`,
+        today - LOAD_TIME_DAYS,
+      )
+      .toArray();
+    const histograms = new Map<string, { ttfb: number[]; shown: number[] }>();
+    const histogram = (code: string) => {
+      let entry = histograms.get(code);
+      if (!entry) {
+        const empty = () => new Array(LOAD_TIME_BUCKETS_MS.length + 1).fill(0);
+        entry = { ttfb: empty(), shown: empty() };
+        histograms.set(code, entry);
+      }
+      return entry;
+    };
+    for (const row of rows) {
+      if (row.metric !== "ttfb" && row.metric !== "shown") continue;
+      const bucket = Number(row.bucket);
+      if (!(bucket >= 0 && bucket <= LOAD_TIME_BUCKETS_MS.length)) continue;
+      const count = Number(row.count);
+      for (const code of [row.country, "ALL"]) {
+        const counts = histogram(code)[row.metric];
+        counts[bucket] = (counts[bucket] ?? 0) + count;
+      }
+    }
+    const summarize = (code: string): LoadTimeRow => {
+      const { ttfb, shown } = histogram(code);
+      return {
+        code,
+        n: ttfb.reduce((sum, count) => sum + count, 0),
+        ttfbP50: loadTimePercentile(ttfb, 0.5),
+        ttfbP75: loadTimePercentile(ttfb, 0.75),
+        shownP50: loadTimePercentile(shown, 0.5),
+        shownP75: loadTimePercentile(shown, 0.75),
+      };
+    };
+    const countries = [...histograms.keys()]
+      .filter((code) => code !== "ALL")
+      .map(summarize)
+      .sort(
+        (left, right) =>
+          right.n - left.n || left.code.localeCompare(right.code),
+      );
+    return {
+      days: LOAD_TIME_DAYS,
+      all: histograms.has("ALL") ? summarize("ALL") : null,
+      countries,
+    };
+  }
+
   private readStats(): VisitStats {
     const pv = this.sql
       .exec<{ pv: number }>(
@@ -488,6 +629,7 @@ export class AnalyticsDO {
         sources: this.breakdownTotal(BREAKDOWN_TABLES.sources),
         pages: this.breakdownTotal(BREAKDOWN_TABLES.pages),
       },
+      loadTimes: this.readLoadTimes(today),
     };
   }
 
@@ -510,6 +652,50 @@ export class AnalyticsDO {
       .one();
     return { pv: Number(row.pv), uv: Number(row.uv) };
   }
+}
+
+/** The histogram bucket a time falls in; past the last bound, the open one. */
+export function loadTimeBucket(ms: number): number {
+  const index = LOAD_TIME_BUCKETS_MS.findIndex((bound) => ms <= bound);
+  return index === -1 ? LOAD_TIME_BUCKETS_MS.length : index;
+}
+
+/**
+ * A percentile of a histogram, as the upper bound of the bucket it falls in
+ * (the open bucket answers its lower bound). 0 when there is nothing.
+ */
+export function loadTimePercentile(
+  counts: readonly number[],
+  quantile: number,
+): number {
+  const total = counts.reduce((sum, count) => sum + count, 0);
+  if (total === 0) return 0;
+  const target = Math.ceil(total * quantile);
+  let seen = 0;
+  for (const [bucket, count] of counts.entries()) {
+    seen += count;
+    if (seen >= target)
+      return LOAD_TIME_BUCKETS_MS[bucket] ?? LOAD_TIME_BUCKETS_MS.at(-1)!;
+  }
+  return LOAD_TIME_BUCKETS_MS.at(-1)!;
+}
+
+function isValidLoadTime(ms: unknown): ms is number {
+  return (
+    typeof ms === "number" &&
+    Number.isInteger(ms) &&
+    ms >= 0 &&
+    ms <= MAX_LOAD_TIME_MS
+  );
+}
+
+function isValidLoadEvent(event: PageLoadEvent | null): event is PageLoadEvent {
+  return Boolean(
+    event &&
+    /^[A-Z0-9]{2}$/.test(event.country) &&
+    isValidLoadTime(event.ttfb) &&
+    isValidLoadTime(event.shown),
+  );
 }
 
 function isValidEvent(event: PageViewEvent | null): event is PageViewEvent {
@@ -613,6 +799,21 @@ export async function recordPageView(
   if (!response.ok)
     throw new Error(`Visit tracking failed (${response.status})`);
   return response.json();
+}
+
+export async function recordPageLoad(
+  namespace: DurableObjectNamespaceLike,
+  event: PageLoadEvent,
+): Promise<void> {
+  const response = await namespace
+    .getByName(DURABLE_OBJECT_NAME)
+    .fetch("https://analytics.internal/load", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(event),
+    });
+  if (!response.ok)
+    throw new Error(`Page-load tracking failed (${response.status})`);
 }
 
 export async function queryVisitStats(
