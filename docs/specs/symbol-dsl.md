@@ -119,3 +119,39 @@ chooses compatible automatic artwork. Body/default edits preserve compatible
 occurrence parameter overrides. Source, interface, artwork and wiring changes
 are validated together before any new applied revision becomes visible to
 copy, export or simulation preparation.
+
+## Public circuit snapshots
+
+User Components publishes the same native facts as a Project. A complete public
+payload contains `definition` (raw artwork and checked `circuitBinding`) and
+`circuit: { version: 1, externalDefinition, source }`. The external definition
+selects an applied `ProjectModelSource` entry. Native text remains the authority
+for the target, formal port order and defaults; the package adds no library-only
+electrical declaration. Source drafts and pending artwork must be applied before
+public Save. Only reachable owned files are packaged; declared third-party
+dependencies retain their explicit IDs, relative mount paths and SHA-256 digests.
+
+The public Component Library Durable Object stores one current record per entry
+in its `components` table. Its numeric revision is a concurrency guard, not a
+retrievable archive. Primitive/artwork-only and legacy definitions keep their
+existing readable form. New source-backed records carry the versioned native
+resources alongside that definition. Author/admin, official/deleted and stale
+revision rules apply to both forms.
+
+Opening a public native record edits an isolated Project snapshot through the
+ordinary model Apply transaction. It cannot modify the active drawing. Public
+Save is distinct from Apply and explicitly states that everyone can insert a
+copy. Insertion captures the selected applied source, external owner and checked
+artwork into the destination Project through ordinary dependency-copy planning;
+the placed instance has an external-subcircuit binding, not a cloud lookup.
+Equivalent applied resources can be reused while each occurrence retains its
+own reference and parameter overrides. Incompatible bodies, dependencies or
+same-revision artwork/mappings refuse before changing the Project.
+
+Portable and formal Project saves, Undo/Redo and cross-project copy retain these
+captures. Partial copying cuts unselected external Nets under the shared copy
+rules. Later public updates, deletion or network failure do not change captured
+implementations. Copied/exported netlists and qualified simulation preparation
+resolve the applied Project source and its helper closure; declaring a model
+does not qualify arbitrary syntax, dependencies or electrical behavior for an
+execution environment.

@@ -8,6 +8,11 @@ import {
 } from "./native-component-editor";
 import type { ComponentDefinition } from "@icm/model";
 import {
+  buildCircuitComponentPackage,
+  type CircuitComponentPackage,
+} from "@icm/edit-engine";
+import { useLibraryCircuitAuthoring } from "./library-circuit-authoring";
+import {
   AccountMenu,
   fetchSessionUser,
   type SessionUser,
@@ -40,6 +45,7 @@ export interface ComponentDefinitionEditorProps {
     planner: typeof planComponentDefinitionEdit,
   ): string | null;
   onManaged(): void;
+  onPlaceCircuit(packaged: CircuitComponentPackage): void;
   onClose(): void;
 }
 
@@ -59,12 +65,39 @@ export default function ComponentDefinitionEditor(
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [pinNames, setPinNames] = useState(true);
+  const libraryAuthoring = useLibraryCircuitAuthoring(
+    props.entry,
+    (packaged) => {
+      props.onPlaceCircuit(packaged);
+      props.onClose();
+    },
+    (text) => props.circuit!.onCopyText(text),
+  );
+  const authoring = libraryAuthoring ?? props.circuit;
   const [definitionType, setDefinitionType] = useState(
-    props.circuit?.definitionId ? "circuit" : "json",
+    authoring?.definitionId ? "circuit" : "json",
   );
   const [nativeDirty, setNativeDirty] = useState(false);
+  const [nativeDefinitionId, setNativeDefinitionId] = useState(
+    authoring?.definitionId,
+  );
   const [pendingLeave, setPendingLeave] = useState<(() => void) | null>(null);
-  const native = definitionType === "circuit" && props.circuit;
+  const native = definitionType === "circuit" && authoring;
+  const nativeOwner = native
+    ? native.project.externalSubcircuitDefinitions.find(
+        (definition) => definition.id === nativeDefinitionId,
+      )
+    : undefined;
+  const nativeSource = native
+    ? native.project.modelSources?.find(
+        (model) => model.id === nativeOwner?.implementation?.sourceId,
+      )
+    : undefined;
+  const nativeReady =
+    nativeOwner?.implementation?.kind === "source" &&
+    !!nativeSource &&
+    nativeSource.revision > 0 &&
+    !nativeSource.draft;
   const dirty = native ? nativeDirty : source !== baseline;
   const dialog = useRef<HTMLDialogElement>(null);
   useEffect(() => {
@@ -106,6 +139,41 @@ export default function ComponentDefinitionEditor(
     requestLeave(props.onClose);
   }
   async function save() {
+    if (native) {
+      if (
+        !nativeDefinitionId ||
+        !nativeReady ||
+        nativeDirty ||
+        busy ||
+        !user ||
+        record?.status === "deleted"
+      )
+        return;
+      setBusy(true);
+      setNotice(null);
+      try {
+        const packaged = buildCircuitComponentPackage(
+          native.project,
+          nativeDefinitionId,
+          native.symbolId,
+        );
+        setRecord(
+          await saveSharedComponent(
+            id,
+            revision,
+            packaged.definition,
+            packaged.circuit,
+          ),
+        );
+        latest.current.onManaged();
+        setNotice("Saved to the public library.");
+      } catch (error) {
+        setNotice(definitionError(error));
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
     if (!parsed.definition || busy || !user || record?.status === "deleted")
       return;
     const conflict = latest.current.validateApply?.(
@@ -190,15 +258,15 @@ export default function ComponentDefinitionEditor(
           </label>
         ) : null}
         <div className="component-definition-actions">
-          {!native && !user && authReady ? <AccountMenu inEditor /> : null}
-          {!native ? (
+          {!user && authReady ? <AccountMenu inEditor /> : null}
+          {
             <button
               type="button"
               className="primary"
               disabled={
                 !authReady ||
                 !user ||
-                !parsed.definition ||
+                (native ? !nativeReady || nativeDirty : !parsed.definition) ||
                 busy ||
                 record?.status === "deleted"
               }
@@ -206,15 +274,19 @@ export default function ComponentDefinitionEditor(
             >
               {busy
                 ? "Saving…"
-                : props.mode === "instance"
-                  ? "Save & apply"
-                  : props.mode === "new"
-                    ? "Save & place"
-                    : canUpdate
-                      ? "Save"
-                      : "Save as new component"}
+                : native
+                  ? record && !canUpdate
+                    ? "Save as new component"
+                    : "Save publicly"
+                  : props.mode === "instance"
+                    ? "Save & apply"
+                    : props.mode === "new"
+                      ? "Save & place"
+                      : canUpdate
+                        ? "Save"
+                        : "Save as new component"}
             </button>
-          ) : null}
+          }
           {dirty || pendingLeave ? (
             <InlineConfirm
               aria-label="Close component editor"
@@ -251,6 +323,7 @@ export default function ComponentDefinitionEditor(
           authoring={native}
           onDirtyChange={setNativeDirty}
           onRequestLeave={requestLeave}
+          onApplied={setNativeDefinitionId}
         />
       ) : (
         <>
@@ -317,43 +390,50 @@ export default function ComponentDefinitionEditor(
           </div>
           {parsed.error ? <p role="alert">{parsed.error}</p> : null}
           {notice ? <p role="status">{notice}</p> : null}
-          {user?.isAdmin && record ? (
-            <footer className="component-definition-actions">
-              <span>
-                {record.author} · Revision {record.revision} · {record.status}
-              </span>
-              {record.status !== "official" && record.status !== "deleted" ? (
-                <button
-                  type="button"
-                  disabled={busy || source !== baseline}
-                  onClick={() => void manage("official")}
-                >
-                  Promote to official
-                </button>
-              ) : null}
-              {record.status !== "shared" ? (
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => void manage("shared")}
-                >
-                  {record.status === "deleted"
-                    ? "Restore"
-                    : "Return to User Defined"}
-                </button>
-              ) : null}
-              {record.status !== "deleted" ? (
-                <InlineConfirm
-                  disabled={busy}
-                  onConfirm={() => manage("deleted")}
-                >
-                  Delete component
-                </InlineConfirm>
-              ) : null}
-            </footer>
-          ) : null}
         </>
       )}
+      {native ? (
+        <>
+          <p className="component-definition-note">
+            Saved components are public in User Defined. Everyone can insert a
+            copy.
+            {authReady && !user ? " Sign in to save." : ""}
+          </p>
+          {notice ? <p role="status">{notice}</p> : null}
+        </>
+      ) : null}
+      {user?.isAdmin && record ? (
+        <footer className="component-definition-actions">
+          <span>
+            {record.author} · Revision {record.revision} · {record.status}
+          </span>
+          {record.status !== "official" && record.status !== "deleted" ? (
+            <button
+              type="button"
+              disabled={busy || dirty}
+              onClick={() => void manage("official")}
+            >
+              Promote to official
+            </button>
+          ) : null}
+          {record.status !== "shared" ? (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void manage("shared")}
+            >
+              {record.status === "deleted"
+                ? "Restore"
+                : "Return to User Defined"}
+            </button>
+          ) : null}
+          {record.status !== "deleted" ? (
+            <InlineConfirm disabled={busy} onConfirm={() => manage("deleted")}>
+              Delete component
+            </InlineConfirm>
+          ) : null}
+        </footer>
+      ) : null}
     </dialog>
   );
 }

@@ -113,6 +113,40 @@ async function openEditor(page: Page) {
   await awaitEditorReady(page);
   await expect(page.getByTestId("shapes-category-user-defined")).toHaveCount(0);
 }
+
+/** Cloud storage is external to the Editor; retain the exact formal-save request. */
+function privateProjectService() {
+  let stored: {
+    id: string;
+    name: string;
+    projectText: string;
+    revision: number;
+    schemaVersion: number;
+    updatedAt: string;
+  } | null = null;
+  return {
+    stored: () => stored,
+    async connect(context: BrowserContext) {
+      await context.route("**/api/projects", (route) => {
+        if (route.request().method() === "GET")
+          return route.fulfill({ json: { projects: stored ? [stored] : [] } });
+        const body = route.request().postDataJSON();
+        stored = {
+          id: "cloud-native-capture",
+          name: body.name,
+          projectText: body.projectText,
+          revision: 1,
+          schemaVersion: JSON.parse(body.projectText).schemaVersion,
+          updatedAt: "2026-10-09T01:00:00.000Z",
+        };
+        return route.fulfill({ status: 201, json: { project: stored } });
+      });
+      await context.route("**/api/projects/cloud-native-capture", (route) =>
+        route.fulfill({ json: { project: stored } }),
+      );
+    },
+  };
+}
 async function openUserComponents(page: Page) {
   await clickCommand(page, "Edit", "User Components…");
   await expect(
@@ -172,6 +206,317 @@ const finiteGainSource = [
   "",
 ].join("\n");
 
+test("publishes an applied native component and captures another user's complete revision on insertion", async ({
+  page,
+  context,
+  browser,
+  baseURL,
+}, testInfo) => {
+  test.setTimeout(120_000);
+  const service = library();
+  const visitor = await browser.newContext({ baseURL: baseURL! });
+  const administrator = await browser.newContext({ baseURL: baseURL! });
+  const savedContext = await browser.newContext({ baseURL: baseURL! });
+  const cloud = privateProjectService();
+  try {
+    await service.connect(context, "alice");
+    await openEditor(page);
+    const editor = await openNativeComponent(page);
+    await editor.getByLabel("External model netlist").fill(finiteGainSource);
+    await editor
+      .getByLabel("External model entry", { exact: true })
+      .selectOption("finite_gain");
+    await editor.getByLabel("Symbol mode").selectOption("custom");
+    await editor
+      .getByRole("button", { name: "Apply model", exact: true })
+      .click();
+    await expect(editor.getByRole("status")).toContainText("Applied");
+    await expect(
+      editor.getByRole("button", { name: "Save publicly", exact: true }),
+    ).toBeEnabled();
+    await editor
+      .getByRole("button", { name: "Save publicly", exact: true })
+      .click();
+    await expect(
+      editor.getByText("Saved to the public library.", { exact: true }),
+    ).toBeVisible();
+    const published = await page.evaluate(
+      async () => (await (await fetch("/api/components")).json()).entries[0],
+    );
+    expect(published).toMatchObject({
+      revision: 1,
+      authorId: "alice",
+      status: "shared",
+      circuit: { version: 1, source: { language: "spice", revision: 1 } },
+    });
+    expect(published.circuit.source.files[0].text).toBe(finiteGainSource);
+    expect(published.definition.circuitBinding.definitionId).toBe(
+      published.circuit.externalDefinition.id,
+    );
+    await service.connect(visitor, "bob");
+    await cloud.connect(visitor);
+    const insertedPage = await visitor.newPage();
+    await openEditor(insertedPage);
+    await openUserComponents(insertedPage);
+    await insertedPage
+      .getByRole("button", { name: "Place finite_gain", exact: true })
+      .click();
+    await place(insertedPage, 400, 220);
+    const inserted = await readProject(insertedPage);
+    expect(inserted.modelSources).toHaveLength(1);
+    expect(inserted.modelSources![0]!.files[0]!.text).toBe(finiteGainSource);
+    const owner = inserted.externalSubcircuitDefinitions[0]!;
+    const instance = inserted.documents[0]!.instances[0]!;
+    expect(instance.netlist?.binding).toEqual({
+      kind: "external-subcircuit",
+      definitionId: owner.id,
+    });
+    expect(
+      inserted.componentDefinitions!.find(
+        (item) => item.symbol.id === instance.symbolId,
+      )!.circuitBinding!.definitionId,
+    ).toBe(owner.id);
+    await openUserComponents(insertedPage);
+    await insertedPage
+      .getByRole("button", { name: "Place finite_gain", exact: true })
+      .click();
+    await place(insertedPage, 650, 320);
+    await expect(insertedPage.getByTestId("active-instance-count")).toHaveText(
+      "2",
+    );
+    const repeated = await readProject(insertedPage);
+    expect(repeated.modelSources).toEqual(inserted.modelSources);
+    expect(repeated.externalSubcircuitDefinitions).toEqual(
+      inserted.externalSubcircuitDefinitions,
+    );
+    expect(repeated.componentDefinitions).toEqual(
+      inserted.componentDefinitions,
+    );
+    expect(
+      repeated.documents[0]!.instances.map((item) => item.reference),
+    ).toEqual(["X1", "X2"]);
+    for (const [reference, gain] of [
+      ["X1", "20"],
+      ["X2", "30"],
+    ]) {
+      await insertedPage.getByTestId(`hit-${reference}`).click();
+      if (
+        !(await insertedPage
+          .getByLabel("Editable Canvas property code")
+          .isVisible())
+      )
+        await insertedPage.keyboard.press("q");
+      await setComponentParameter(insertedPage, "gain", gain!);
+      await insertedPage.keyboard.press("Escape");
+    }
+    await placeComponent(insertedPage, "voltage-source", { x: 140, y: 380 });
+    await insertedPage.getByTestId("hit-V1").click();
+    if (
+      !(await insertedPage
+        .getByLabel("Editable Canvas property code")
+        .isVisible())
+    )
+      await insertedPage.keyboard.press("q");
+    await setComponentParameter(insertedPage, "dc", "0.1");
+    await setComponentParameter(insertedPage, "acMagnitude", "1");
+    await insertedPage.keyboard.press("Escape");
+    await placeComponent(insertedPage, "ground", { x: 440, y: 460 });
+    for (const [from, to] of [
+      ["V1-+", "X1-IN"],
+      ["X1-OUT", "X2-IN"],
+      ["X1-VSS", "X2-VSS"],
+      ["X2-VSS", "GND1-0"],
+      ["V1--", "GND1-0"],
+    ]) {
+      await clickDrawTool(insertedPage, "wire");
+      await insertedPage.getByTestId(`terminal-${from}`).click();
+      await insertedPage.getByTestId(`terminal-${to}`).click();
+      await insertedPage.keyboard.press("Escape");
+    }
+    await insertedPage
+      .getByTestId("terminal-X2-OUT")
+      .click({ button: "right" });
+    await openSelectionShelf(insertedPage);
+    await insertedPage
+      .getByRole("button", { name: "Mark No Connect", exact: true })
+      .click();
+    await insertedPage.keyboard.press("Escape");
+    await insertedPage.keyboard.press("ControlOrMeta+z");
+    await insertedPage.keyboard.press("ControlOrMeta+Shift+z");
+    const copied = await copyNetlistText(insertedPage, "spice");
+    expect(copied).toContain(finiteGainSource);
+    expect(copied.match(/\.subckt finite_gain\b/gu)).toHaveLength(1);
+    expect(copied.match(/\.subckt owned_helper\b/gu)).toHaveLength(1);
+    expect(copied).toContain("gain=20");
+    expect(copied).toContain("gain=30");
+    const portable = await downloadBytes(
+      insertedPage,
+      "File",
+      "Export Project File…",
+    );
+    const exported = parseSavedProject(portable.toString()) as CircuitProject;
+    const design = createDesignNetlistExport(exported, { format: "spice" });
+    expect(design.status).toBe("ready");
+    if (design.status !== "ready")
+      throw Error(JSON.stringify(design.diagnostics));
+    expect(design.file.text).toBe(copied);
+    await insertedPage.getByTestId("project-file").setInputFiles({
+      name: "public-native.icproj.json",
+      mimeType: "application/json",
+      buffer: portable,
+    });
+    expect(await copyNetlistText(insertedPage, "spice")).toBe(copied);
+    const reopened = await readProject(insertedPage);
+    expect(electricalMeaning(reopened)).toEqual(electricalMeaning(exported));
+    await expectNativePreparation(reopened, copied);
+    await writeFile(
+      testInfo.outputPath("public-native-capture.icproj.json"),
+      serializeProject(reopened),
+    );
+    await clickCommand(insertedPage, "File", "Save");
+    await expect(insertedPage.getByTestId("status")).toContainText(
+      "Saved New Circuit to Cloud",
+    );
+    expect(parseSavedProject(cloud.stored()!.projectText).modelSources).toEqual(
+      reopened.modelSources,
+    );
+    await service.connect(savedContext, "bob");
+    await cloud.connect(savedContext);
+    const savedPage = await savedContext.newPage();
+    await savedPage.goto("/editor?project=cloud-native-capture");
+    await awaitEditorReady(savedPage);
+    expect(await copyNetlistText(savedPage, "spice")).toBe(copied);
+    expect((await readProject(savedPage)).componentDefinitions).toEqual(
+      reopened.componentDefinitions,
+    );
+    await editor
+      .getByRole("button", { name: "Close component editor" })
+      .click();
+    const beforeLibraryEdit = await readProject(page);
+    await openUserComponents(page);
+    await page
+      .getByRole("button", { name: "Edit finite_gain definition", exact: true })
+      .click();
+    const libraryEditor = page.getByRole("dialog", {
+      name: "Edit Component Definition",
+      exact: true,
+    });
+    await expect(
+      libraryEditor.getByLabel("External model netlist"),
+    ).toBeVisible();
+    await libraryEditor
+      .getByLabel("External model netlist")
+      .fill(finiteGainSource.replace("gain=10", "gain=40"));
+    await expect(
+      libraryEditor.getByRole("button", { name: "Save publicly", exact: true }),
+    ).toBeDisabled();
+    await libraryEditor
+      .getByRole("button", { name: "Apply model", exact: true })
+      .click();
+    await libraryEditor
+      .getByRole("button", { name: "Save publicly", exact: true })
+      .click();
+    await expect(
+      libraryEditor.getByText("Saved to the public library.", { exact: true }),
+    ).toBeVisible();
+    const updated = await page.evaluate(
+      async () => (await (await fetch("/api/components")).json()).entries[0],
+    );
+    expect(updated.revision).toBe(2);
+    expect(updated.circuit.source.files[0].text).toBe(
+      finiteGainSource.replace("gain=10", "gain=40"),
+    );
+    await libraryEditor
+      .getByRole("button", { name: "Close component editor" })
+      .click();
+    expect(await readProject(page)).toEqual(beforeLibraryEdit);
+    expect(await copyNetlistText(insertedPage, "spice")).toBe(copied);
+    expect((await readProject(insertedPage)).modelSources).toEqual(
+      inserted.modelSources,
+    );
+    const beforeConflictingInsert = await readProject(insertedPage);
+    await openUserComponents(insertedPage);
+    await insertedPage
+      .getByRole("button", { name: "Place finite_gain", exact: true })
+      .click();
+    await expect(insertedPage.getByTestId("status")).toContainText(
+      "incompatible implementation or model dependencies",
+    );
+    expect(await readProject(insertedPage)).toEqual(beforeConflictingInsert);
+    await insertedPage.getByTestId("hit-X1").click();
+    await insertedPage.keyboard.press("ControlOrMeta+c");
+    await insertedPage
+      .getByRole("button", { name: "New project tab", exact: true })
+      .click();
+    for (const x of [250, 500]) {
+      await insertedPage.keyboard.press("ControlOrMeta+v");
+      await place(insertedPage, x, 260);
+    }
+    const fragment = await readProject(insertedPage);
+    expect(fragment.documents[0]!.instances).toHaveLength(2);
+    expect(fragment.documents[0]!.nets).toEqual([]);
+    expect(fragment.documents[0]!.connectivityEvidence).toEqual([]);
+    expect(
+      fragment.documents[0]!.annotations.filter(
+        (item) =>
+          item.kind !== "instance-value" && item.kind !== "instance-label",
+      ),
+    ).toEqual([]);
+    expect(fragment.modelSources).toHaveLength(1);
+    expect(fragment.modelSources![0]!.files[0]!.text).toBe(finiteGainSource);
+    expect(fragment.externalSubcircuitDefinitions).toHaveLength(1);
+    await service.connect(administrator, "admin");
+    const adminPage = await administrator.newPage();
+    await openEditor(adminPage);
+    await openUserComponents(adminPage);
+    await adminPage
+      .getByRole("button", { name: "Edit finite_gain definition", exact: true })
+      .click();
+    await expect(
+      adminPage.getByRole("button", {
+        name: "Promote to official",
+        exact: true,
+      }),
+    ).toBeVisible();
+    await adminPage
+      .getByRole("button", { name: "Promote to official", exact: true })
+      .click();
+    await expect(
+      adminPage.getByText("Promoted to an official component.", {
+        exact: true,
+      }),
+    ).toBeVisible();
+    await adminPage
+      .getByRole("button", { name: "Delete component", exact: true })
+      .click();
+    await adminPage
+      .getByRole("button", { name: "Really delete", exact: true })
+      .click();
+    await expect(
+      adminPage.getByText("Removed from the library.", { exact: true }),
+    ).toBeVisible();
+    await visitor.route("**/api/components**", (route) =>
+      route.abort("internetdisconnected"),
+    );
+    expect((await readProject(insertedPage)).modelSources).toEqual(
+      fragment.modelSources,
+    );
+    await insertedPage.reload();
+    await awaitEditorReady(insertedPage);
+    const offline = await readProject(insertedPage);
+    expect(offline.modelSources).toEqual(fragment.modelSources);
+    expect(offline.externalSubcircuitDefinitions).toEqual(
+      fragment.externalSubcircuitDefinitions,
+    );
+    expect(offline.componentDefinitions).toEqual(fragment.componentDefinitions);
+  } finally {
+    await savedContext.close();
+    await administrator.close();
+    await visitor.close();
+    service.close();
+  }
+});
+
 async function openNativeComponent(page: Page) {
   await openUserComponents(page);
   await page
@@ -184,6 +529,339 @@ async function openNativeComponent(page: Page) {
   await editor.getByLabel("Definition type").selectOption("circuit");
   return editor;
 }
+
+test("forking a native public record captures its selected artwork while reusing compatible applied resources", async ({
+  page,
+  context,
+  browser,
+  baseURL,
+}) => {
+  test.setTimeout(60_000);
+  const service = library();
+  const visitor = await browser.newContext({ baseURL: baseURL! });
+  try {
+    await service.connect(context, "alice");
+    await openEditor(page);
+    const editor = await openNativeComponent(page);
+    await editor.getByLabel("External model netlist").fill(finiteGainSource);
+    await editor
+      .getByLabel("External model entry", { exact: true })
+      .selectOption("finite_gain");
+    await editor.getByText("More", { exact: true }).click();
+    await editor
+      .getByRole("button", { name: "Files and dependencies", exact: true })
+      .click();
+    const entryPath = await editor.getByLabel("Model entry file").inputValue();
+    await editor.getByLabel("New model file path").fill("private.spice");
+    await editor.getByRole("button", { name: "Add file", exact: true }).click();
+    await editor
+      .getByLabel("External model netlist")
+      .fill("* Unrelated private Project file\n");
+    await editor
+      .getByLabel("Model files")
+      .getByRole("button", { name: `${entryPath} (entry)`, exact: true })
+      .click();
+    await editor
+      .getByRole("button", { name: "Apply model", exact: true })
+      .click();
+    await editor
+      .getByRole("button", { name: "Save publicly", exact: true })
+      .click();
+    await expect(
+      editor.getByText("Saved to the public library.", { exact: true }),
+    ).toBeVisible();
+    const original = await page.evaluate(
+      async () => (await (await fetch("/api/components")).json()).entries[0],
+    );
+    expect(original.circuit.source.files).toEqual([
+      { path: entryPath, text: finiteGainSource },
+    ]);
+    await editor
+      .getByRole("button", { name: "Close component editor" })
+      .click();
+    expect((await readProject(page)).modelSources![0]!.files).toHaveLength(2);
+    await service.connect(visitor, "bob");
+    const receiver = await visitor.newPage();
+    await openEditor(receiver);
+    await openUserComponents(receiver);
+    await receiver
+      .getByRole("button", { name: "Place finite_gain", exact: true })
+      .click();
+    await place(receiver, 250, 240);
+    const captured = await readProject(receiver);
+    await openUserComponents(receiver);
+    await receiver
+      .getByRole("button", { name: "Edit finite_gain definition", exact: true })
+      .click();
+    const forkEditor = receiver.getByRole("dialog", {
+      name: "Edit Component Definition",
+      exact: true,
+    });
+    await expect(
+      forkEditor.getByRole("button", {
+        name: "Save as new component",
+        exact: true,
+      }),
+    ).toBeEnabled();
+    await expect(
+      forkEditor.getByRole("button", { name: "Delete component", exact: true }),
+    ).toHaveCount(0);
+    await forkEditor
+      .getByRole("button", { name: "Save as new component", exact: true })
+      .click();
+    await expect(
+      forkEditor.getByText("Saved to the public library.", { exact: true }),
+    ).toBeVisible();
+    const forked = await receiver.evaluate(async () =>
+      (await (await fetch("/api/components")).json()).entries.find(
+        (entry: { authorId: string }) => entry.authorId === "bob",
+      ),
+    );
+    expect(forked.id).not.toBe(original.id);
+    expect(forked.revision).toBe(1);
+    expect(forked.circuit.source.files).toEqual(original.circuit.source.files);
+    await forkEditor
+      .getByRole("button", { name: "Close component editor" })
+      .click();
+    expect(await readProject(receiver)).toEqual(captured);
+    await openUserComponents(receiver);
+    await receiver
+      .locator(".user-component-tile")
+      .filter({ hasText: "bob" })
+      .getByRole("button", { name: "Place finite_gain", exact: true })
+      .click();
+    await place(receiver, 500, 240);
+    await expect(receiver.getByTestId("active-instance-count")).toHaveText("2");
+    const inserted = await readProject(receiver);
+    expect(inserted.modelSources).toEqual(captured.modelSources);
+    expect(inserted.externalSubcircuitDefinitions).toHaveLength(1);
+    expect(inserted.documents[0]!.instances[0]!.symbolId).toBe(
+      original.definition.symbol.id,
+    );
+    expect(inserted.documents[0]!.instances[1]!.symbolId).toBe(
+      forked.definition.symbol.id,
+    );
+    expect(inserted.componentDefinitions).toHaveLength(2);
+    await receiver.getByTestId("hit-X1").click();
+    await receiver.keyboard.press("e");
+    const localEditor = receiver.getByRole("dialog", {
+      name: "Edit Component Definition",
+      exact: true,
+    });
+    await expect(
+      localEditor.getByLabel("External model netlist"),
+    ).toBeVisible();
+    await localEditor
+      .getByLabel("External model netlist")
+      .fill(finiteGainSource.replace("gain=10", "gain=25"));
+    await localEditor.getByText("More", { exact: true }).click();
+    await localEditor
+      .getByRole("button", { name: "Save draft", exact: true })
+      .click();
+    await expect(
+      localEditor.getByRole("button", { name: "Save publicly", exact: true }),
+    ).toBeDisabled();
+    await localEditor
+      .getByRole("button", { name: "Close component editor" })
+      .click();
+    const withDraft = await readProject(receiver);
+    expect(withDraft.modelSources![0]!.draft!.files[0]!.text).toContain(
+      "gain=25",
+    );
+    expect(withDraft.modelSources![0]!.files[0]!.text).toBe(finiteGainSource);
+    await openUserComponents(receiver);
+    await receiver
+      .locator(".user-component-tile")
+      .filter({ hasText: "bob" })
+      .getByRole("button", { name: "Place finite_gain", exact: true })
+      .click();
+    await place(receiver, 650, 350);
+    await expect(receiver.getByTestId("active-instance-count")).toHaveText("3");
+    expect((await readProject(receiver)).modelSources).toEqual(
+      withDraft.modelSources,
+    );
+    await openUserComponents(receiver);
+    await receiver
+      .locator(".user-component-tile")
+      .filter({ hasText: "bob" })
+      .getByRole("button", { name: "Edit finite_gain definition", exact: true })
+      .click();
+    const draftEditor = receiver.getByRole("dialog", {
+      name: "Edit Component Definition",
+      exact: true,
+    });
+    await draftEditor
+      .getByLabel("External model netlist")
+      .fill(finiteGainSource.replace("gain=10", "gain=50"));
+    await draftEditor.getByText("More", { exact: true }).click();
+    await draftEditor
+      .getByRole("button", { name: "Save draft", exact: true })
+      .click();
+    await expect(
+      draftEditor.getByRole("button", { name: "Save publicly", exact: true }),
+    ).toBeDisabled();
+    await draftEditor
+      .getByRole("button", { name: "Place", exact: true })
+      .click();
+    await place(receiver, 700, 450);
+    await expect(receiver.getByTestId("active-instance-count")).toHaveText(
+      "4",
+      { timeout: 5000 },
+    );
+    expect((await readProject(receiver)).modelSources).toEqual(
+      withDraft.modelSources,
+    );
+    const modifiedCapture = await readProject(receiver);
+    modifiedCapture
+      .componentDefinitions!.find(
+        (definition) => definition.symbol.id === forked.definition.symbol.id,
+      )!
+      .symbol.primitives.push({
+        kind: "circle",
+        center: { x: 0, y: 0 },
+        radius: 6,
+      });
+    await receiver.getByTestId("project-file").setInputFiles({
+      name: "modified-capture.icproj.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(serializeProject(modifiedCapture)),
+    });
+    await receiver
+      .getByRole("button", { name: "Continue without saving", exact: true })
+      .click();
+    await expect(receiver.getByTestId("active-instance-count")).toHaveText("4");
+    await awaitEditorReady(receiver);
+    const beforeArtworkConflict = await readProject(receiver);
+    await openUserComponents(receiver);
+    await receiver
+      .locator(".user-component-tile")
+      .filter({ hasText: "bob" })
+      .getByRole("button", { name: "Place finite_gain", exact: true })
+      .click();
+    await expect(receiver.getByTestId("status")).toContainText(
+      "conflicting artwork or Pin mapping",
+    );
+    expect(await readProject(receiver)).toEqual(beforeArtworkConflict);
+  } finally {
+    await visitor.close();
+    service.close();
+  }
+});
+
+test("refuses conflicting native dependency identities before capturing another model owner", async ({
+  page,
+  context,
+}) => {
+  const service = library();
+  try {
+    await service.connect(context, "alice");
+    await openEditor(page);
+    for (const [name, dependencyId, digest, mountPath] of [
+      ["alpha", "vendor", "a", "vendor.lib"],
+      ["beta", "vendor", "b", "vendor.lib"],
+      ["delta", "other-vendor", "a", "vendor.lib"],
+      ["epsilon", "vendor", "a", "other-vendor.lib"],
+      ["gamma", "vendor", "a", "vendor.lib"],
+    ] as const) {
+      const symbolId = `dependency-${name}-artwork`;
+      const definitionId = `dependency-${name}-owner`;
+      const sourceId = `dependency-${name}-source`;
+      const entry = {
+        definition: {
+          symbol: {
+            ...structuredClone(
+              builtInSymbols.find((symbol) => symbol.id === "resistor")!,
+            ),
+            id: symbolId,
+            name,
+          },
+          circuitBinding: {
+            definitionId,
+            terminals: [
+              { terminalId: "port-p", pinName: "1" },
+              { terminalId: "port-n", pinName: "2" },
+            ],
+          },
+        },
+        circuit: {
+          version: 1,
+          externalDefinition: {
+            id: definitionId,
+            name,
+            symbolId,
+            terminals: [
+              { id: "port-p", name: "P", direction: "passive" },
+              { id: "port-n", name: "N", direction: "passive" },
+            ],
+            formalParameters: [],
+            interfaceStatus: "declared",
+            implementation: { kind: "source", sourceId, entry: name },
+          },
+          source: {
+            id: sourceId,
+            language: "spice",
+            entry: "model.spice",
+            revision: 1,
+            files: [
+              {
+                path: "model.spice",
+                text: `.include ${mountPath}\n.subckt ${name} P N\nR1 P N 1k\n.ends ${name}\n`,
+              },
+            ],
+            dependencies: [
+              {
+                id: dependencyId,
+                mountPath,
+                sha256: digest.repeat(64),
+              },
+            ],
+          },
+        },
+      };
+      const status = await page.evaluate(
+        async ({ name, entry }) =>
+          (
+            await fetch(`/api/components/dependency-${name}-public`, {
+              method: "PUT",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ ...entry, revision: 0 }),
+            })
+          ).status,
+        { name, entry },
+      );
+      expect(status).toBe(200);
+    }
+    await openUserComponents(page);
+    await page
+      .getByRole("button", { name: "Place alpha", exact: true })
+      .click();
+    await place(page, 300, 250);
+    const captured = await readProject(page);
+    for (const [name, dependencyId] of [
+      ["beta", "vendor"],
+      ["delta", "other-vendor"],
+      ["epsilon", "vendor"],
+    ]) {
+      await openUserComponents(page);
+      await page
+        .getByRole("button", { name: `Place ${name}`, exact: true })
+        .click();
+      await expect(page.getByTestId("status")).toContainText(
+        `Conflicting model dependency ${dependencyId}`,
+      );
+      expect(await readProject(page)).toEqual(captured);
+    }
+    await openUserComponents(page);
+    await page
+      .getByRole("button", { name: "Place gamma", exact: true })
+      .click();
+    await place(page, 550, 250);
+    await expect(page.getByTestId("active-instance-count")).toHaveText("2");
+    expect((await readProject(page)).modelSources).toHaveLength(2);
+  } finally {
+    service.close();
+  }
+});
 
 async function expectNativePreparation(
   project: CircuitProject,
@@ -236,6 +914,87 @@ async function expectNativePreparation(
     ),
   ).toBe(true);
 }
+
+test("keeps interface-only public definitions visible and placeable as unimplemented circuits", async ({
+  page,
+  context,
+}) => {
+  const service = library();
+  try {
+    await service.connect(context, "alice");
+    await openEditor(page);
+    const definition = {
+      symbol: {
+        ...structuredClone(
+          builtInSymbols.find((item) => item.id === "resistor")!,
+        ),
+        id: "legacy-artwork",
+        name: "Interface only",
+      },
+      subcircuit: {
+        id: "legacy-interface",
+        symbolId: "legacy-artwork",
+        target: "legacy_cell",
+        ports: [
+          { name: "A", pinName: "1", direction: "passive" },
+          { name: "B", pinName: "2", direction: "passive" },
+        ],
+      },
+    };
+    const status = await page.evaluate(
+      async (definition) =>
+        (
+          await fetch("/api/components/legacy-public", {
+            method: "PUT",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ definition, revision: 0 }),
+          })
+        ).status,
+      definition,
+    );
+    expect(status).toBe(200);
+    await openUserComponents(page);
+    const tile = page
+      .locator(".user-component-tile")
+      .filter({ hasText: "Interface only" });
+    await expect(
+      tile.getByText("Implementation missing", { exact: true }),
+    ).toBeVisible();
+    await tile
+      .getByRole("button", { name: "Place Interface only", exact: true })
+      .click();
+    await place(page);
+    const label = await page
+      .getByTestId("annotation-hit-instance-label-X1")
+      .boundingBox();
+    if (!label) throw Error("Missing occurrence label");
+    await page.mouse.move(
+      label.x + label.width / 2,
+      label.y + label.height / 2,
+    );
+    await page.mouse.down();
+    await page.mouse.move(label.x + 100, label.y + 70, { steps: 5 });
+    await page.mouse.up();
+    for (const pin of ["1", "2"]) {
+      await page.getByTestId(`terminal-X1-${pin}`).click({ button: "right" });
+      await openSelectionShelf(page);
+      await page
+        .getByRole("button", { name: "Mark No Connect", exact: true })
+        .click();
+      await page.keyboard.press("Escape");
+    }
+    const captured = await readProject(page);
+    expect(captured.documents[0]!.instances[0]!.netlist?.binding).toEqual({
+      kind: "unresolved-subcircuit",
+      name: "legacy_cell",
+    });
+    const copied = createDesignNetlistExport(captured, { format: "spice" });
+    expect(copied.status).toBe("blocked");
+    expect(captured.modelSources ?? []).toEqual([]);
+  } finally {
+    service.close();
+  }
+});
 function electricalMeaning(project: CircuitProject) {
   const document = project.documents[0]!;
   return {

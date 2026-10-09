@@ -29,10 +29,12 @@ export function NativeComponentEditor({
   authoring,
   onDirtyChange,
   onRequestLeave,
+  onApplied,
 }: {
   authoring: CircuitComponentAuthoring;
   onDirtyChange(dirty: boolean): void;
   onRequestLeave(action: () => void): void;
+  onApplied(definitionId: string): void;
 }) {
   const [definitionId, setDefinitionId] = useState(authoring.definitionId);
   const [pendingPlacement, setPendingPlacement] = useState<string | null>(null);
@@ -51,7 +53,10 @@ export function NativeComponentEditor({
     authoring.onPlace(pendingPlacement);
   }, [pendingPlacement, authoring]);
   function remember(result: ExternalDefinitionResult) {
-    if (result.ok && result.definitionId) setDefinitionId(result.definitionId);
+    if (result.ok && result.definitionId) {
+      setDefinitionId(result.definitionId);
+      onApplied(result.definitionId);
+    }
     return result;
   }
   return (

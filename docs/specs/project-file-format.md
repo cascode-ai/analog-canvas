@@ -221,8 +221,8 @@ definition editing must write this same representation rather than introduce
 a second geometry authority. Visual pin-coordinate changes do not implicitly
 rename pins or reorder the electrical interface.
 
-User Components also offers native SPICE/Spectre authoring with an automatic
-symbol. Its Apply reuses the same `modelSources` owner and
+User Components also offers native SPICE/Spectre authoring with automatic or
+mapped custom artwork. Its Apply reuses the same `modelSources` owner and
 `externalSubcircuitDefinitions` projection as Cell Manager; native declarations
 own target, formal terminal order and parameter defaults. An already exposed
 owner/entry reuses its stable definition and terminal IDs. Instances own overrides
@@ -230,6 +230,18 @@ and ordinary connectivity, while generated artwork remains a checked projection.
 This Project Apply is separate from public-library Save; it does not publish an
 interface-only substitute for a native model package. Copy, export and simulation
 preparation resolve the applied owner revision, and saved drafts remain separate.
+
+Public Save carries the applied source's reachable owned files, explicit library
+dependency identities/digests, external interface and checked artwork mapping in
+a versioned resource envelope beside `definition`. Public native editing uses an
+isolated Project snapshot and the same Apply transaction. Library insertion uses
+ordinary copy planning to capture these facts as `modelSources`,
+`externalSubcircuitDefinitions` and `componentDefinitions`; the occurrence binds
+to that Project-owned external definition. No cloud lookup is needed afterward.
+Compatible resources can be reused; conflicting bytes, dependencies or mappings
+are refused atomically. The library stores one current public record with a
+numeric concurrency revision, not a retrievable history. Its updates and deletion
+never rewrite the independently saved Project captures.
 
 Serialization collects references across **all** Project Documents and removes
 only unused classes. It never deletes a Document, Instance, parameter, or

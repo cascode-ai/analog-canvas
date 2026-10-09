@@ -2,6 +2,8 @@ import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it } from "vitest";
 import { builtInSymbols } from "@icm/symbols";
 import { deviceDescriptor } from "@icm/devices";
+import { ComponentDefinitionSchema } from "@icm/model";
+import type { CircuitComponentPackage } from "@icm/edit-engine";
 import {
   ComponentLibraryDO,
   routeComponentLibraryRequest,
@@ -87,7 +89,344 @@ function definition(name = "Custom resistor") {
   };
 }
 
+function nativePackage(): CircuitComponentPackage {
+  return {
+    definition: {
+      symbol: {
+        ...structuredClone(
+          builtInSymbols.find((item) => item.id === "resistor")!,
+        ),
+        id: "package-resistor",
+        name: "Packaged resistor",
+      },
+      circuitBinding: {
+        definitionId: "native-resistor",
+        terminals: [
+          { terminalId: "p", pinName: "1" },
+          { terminalId: "n", pinName: "2" },
+        ],
+      },
+    },
+    circuit: {
+      version: 1,
+      externalDefinition: {
+        id: "native-resistor",
+        name: "pkg_resistor",
+        terminals: [
+          { id: "p", name: "P", direction: "passive" },
+          { id: "n", name: "N", direction: "passive" },
+        ],
+        formalParameters: [{ name: "value", defaultValue: "1k" }],
+        interfaceStatus: "declared",
+        symbolId: "package-resistor",
+        implementation: {
+          kind: "source",
+          sourceId: "source-resistor",
+          entry: "pkg_resistor",
+        },
+      },
+      source: {
+        id: "source-resistor",
+        revision: 1,
+        language: "spice",
+        entry: "model.spice",
+        files: [
+          {
+            path: "model.spice",
+            text: '.include "helper.spice"\n.include "vendor/models.spice"\n.subckt pkg_resistor P N params: value=1k\nR1 P N {value}\n.ends pkg_resistor\n',
+          },
+          {
+            path: "helper.spice",
+            text: ".subckt helper A B\nR1 A B 1k\n.ends helper\n",
+          },
+        ],
+        dependencies: [
+          {
+            id: "vendor-models",
+            mountPath: "vendor/models.spice",
+            sha256: "a".repeat(64),
+          },
+        ],
+      },
+    },
+  };
+}
+
 describe("public component library", () => {
+  it("stores a complete native snapshot with explicit dependencies and refuses inconsistent updates atomically", async () => {
+    const route = harness();
+    const packaged = nativePackage();
+    const body = { ...packaged, revision: 0 };
+    expect((await route("PUT", "/native-package", body)).status).toBe(401);
+    expect(
+      (
+        await route(
+          "PUT",
+          "/native-package",
+          body,
+          "alice",
+          "https://elsewhere.test",
+        )
+      ).status,
+    ).toBe(403);
+    const response = await route("PUT", "/native-package", body, "alice");
+    expect(response.status, await response.clone().text()).toBe(200);
+    const saved = (await response.json()).entry;
+    expect(saved.circuit.source).toEqual(packaged.circuit.source);
+    expect(saved.circuit.externalDefinition.symbolId).toBe(
+      "user-native-package-r1",
+    );
+    expect(saved.definition.circuitBinding).toEqual(
+      packaged.definition.circuitBinding,
+    );
+    expect((await (await route()).json()).entries).toEqual([saved]);
+    expect(
+      (await (await route("GET", "/native-package")).json()).entry,
+    ).toEqual(saved);
+    const invalid: [string, (value: CircuitComponentPackage) => void][] = [
+      [
+        "wrong format version",
+        (value) => {
+          (value.circuit as { version: number }).version = 2;
+        },
+      ],
+      [
+        "wrong source owner",
+        (value) => {
+          value.circuit.source.id = "unrelated";
+        },
+      ],
+      [
+        "missing entry",
+        (value) => {
+          value.circuit.externalDefinition.implementation = {
+            kind: "source",
+            sourceId: "source-resistor",
+            entry: "missing",
+          };
+        },
+      ],
+      [
+        "unsafe path",
+        (value) => {
+          value.circuit.source.files[0]!.path = "../escape.spice";
+        },
+      ],
+      [
+        "duplicate path",
+        (value) => {
+          value.circuit.source.files.push(value.circuit.source.files[0]!);
+        },
+      ],
+      [
+        "unrelated owned file",
+        (value) => {
+          value.circuit.source.files.push({
+            path: "private.spice",
+            text: "* Unrelated Project file\n",
+          });
+        },
+      ],
+      [
+        "draft bytes",
+        (value) => {
+          value.circuit.source.draft = {
+            baseRevision: 1,
+            entry: "model.spice",
+            files: value.circuit.source.files,
+          };
+        },
+      ],
+      [
+        "unapplied source",
+        (value) => {
+          value.circuit.source.revision = 0;
+        },
+      ],
+      [
+        "unknown terminal",
+        (value) => {
+          value.definition.circuitBinding!.terminals[0]!.terminalId = "missing";
+        },
+      ],
+      [
+        "unknown graphical pin",
+        (value) => {
+          value.definition.circuitBinding!.terminals[0] = {
+            terminalId: "p",
+            pinName: "missing",
+          };
+        },
+      ],
+      [
+        "competing primitive",
+        (value) => {
+          value.definition.electrical =
+            ComponentDefinitionSchema.parse(definition()).electrical!;
+        },
+      ],
+      [
+        "stale formal order",
+        (value) => {
+          value.circuit.externalDefinition.terminals.reverse();
+        },
+      ],
+      [
+        "stale default",
+        (value) => {
+          value.circuit.externalDefinition.formalParameters[0]!.defaultValue =
+            "2k";
+        },
+      ],
+      [
+        "invalid digest",
+        (value) => {
+          value.circuit.source.dependencies[0]!.sha256 = "bad";
+        },
+      ],
+      [
+        "duplicate dependency identity",
+        (value) => {
+          value.circuit.source.dependencies.push({
+            ...value.circuit.source.dependencies[0]!,
+            mountPath: "vendor/another.spice",
+          });
+        },
+      ],
+      [
+        "two file owners",
+        (value) => {
+          value.circuit.source.files.push({
+            path: "vendor/models.spice",
+            text: "* Third-party bytes must not replace a dependency\n",
+          });
+        },
+      ],
+    ];
+    for (const [reason, change] of invalid) {
+      const value = structuredClone(packaged);
+      change(value);
+      expect(
+        (
+          await route(
+            "PUT",
+            "/native-package",
+            { ...value, revision: 1 },
+            "alice",
+          )
+        ).status,
+        reason,
+      ).toBe(400);
+      expect(
+        (await (await route("GET", "/native-package")).json()).entry,
+        reason,
+      ).toEqual(saved);
+    }
+    await expect(
+      route.durable.fetch(
+        new Request("https://components/save", {
+          method: "POST",
+          body: JSON.stringify({
+            ...body,
+            revision: 1,
+            id: "native-package",
+            userId: "alice",
+            definition: {
+              ...packaged.definition,
+              circuitBinding: { definitionId: "missing", terminals: [] },
+            },
+          }),
+        }),
+      ),
+    ).rejects.toThrow();
+    expect(
+      (await (await route("GET", "/native-package")).json()).entry,
+    ).toEqual(saved);
+    expect(
+      (
+        await route(
+          "PUT",
+          "/native-package",
+          { ...packaged, revision: 1 },
+          "bob",
+        )
+      ).status,
+    ).toBe(403);
+    expect((await route("PUT", "/native-package", body, "alice")).status).toBe(
+      409,
+    );
+    const oversized = structuredClone(packaged);
+    oversized.circuit.source.files[0]!.text += "* " + "界".repeat(50_000);
+    expect(
+      (
+        await route(
+          "PUT",
+          "/native-package",
+          { ...oversized, revision: 1 },
+          "alice",
+        )
+      ).status,
+    ).toBe(413);
+    expect(
+      (await (await route("GET", "/native-package")).json()).entry,
+    ).toEqual(saved);
+    expect(
+      (
+        await route(
+          "PATCH",
+          "/native-package",
+          { status: "official", revision: 1 },
+          "admin",
+        )
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await route(
+          "PUT",
+          "/native-package",
+          { ...packaged, revision: 2 },
+          "alice",
+        )
+      ).status,
+    ).toBe(403);
+    expect(
+      (
+        await route(
+          "PUT",
+          "/native-package",
+          { ...packaged, revision: 2 },
+          "admin",
+        )
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await route(
+          "PATCH",
+          "/native-package",
+          { status: "deleted", revision: 3 },
+          "admin",
+        )
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await route(
+          "PUT",
+          "/native-package",
+          { ...packaged, revision: 4 },
+          "admin",
+        )
+      ).status,
+    ).toBe(409);
+    expect((await route("GET", "/native-package")).status).toBe(404);
+    const deleted = (
+      await (await route("GET", "?status=deleted", undefined, "admin")).json()
+    ).entries[0];
+    expect(deleted.circuit.source).toEqual(packaged.circuit.source);
+    expect(deleted.authorId).toBe("alice");
+  });
   it("requires sign-in and same-origin saves; every saved component is public", async () => {
     const route = harness();
     const body = { definition: definition(), revision: 0 };

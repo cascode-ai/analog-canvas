@@ -2,7 +2,7 @@ import { sessionUserOf, type AuthNamespaceLike } from "./auth";
 import {
   COMPONENT_DEFINITION_MAX_BYTES,
   COMPONENT_LIBRARY_ID,
-  parseSharedDefinition,
+  parseSharedComponentPayload,
 } from "../apps/editor/src/features/user-components/component-library-contract";
 export { ComponentLibraryDO } from "./component-library-do";
 
@@ -102,9 +102,14 @@ export async function routeComponentLibraryRequest(
       Number(body.revision) < 0
     )
       throw new Error("Expected a component revision");
-    if (request.method === "PUT")
-      body.definition = parseSharedDefinition(body.definition);
-    else if (!["shared", "official", "deleted"].includes(String(body.status)))
+    if (request.method === "PUT") {
+      const parsed = parseSharedComponentPayload({
+        definition: body.definition,
+        ...(body.circuit === undefined ? {} : { circuit: body.circuit }),
+      });
+      body.definition = parsed.definition;
+      body.circuit = parsed.circuit;
+    } else if (!["shared", "official", "deleted"].includes(String(body.status)))
       throw new Error("Invalid component status");
   } catch (error) {
     return Response.json(
@@ -121,6 +126,7 @@ export async function routeComponentLibraryRequest(
     id,
     revision: body.revision,
     definition: body.definition,
+    circuit: body.circuit,
     status: body.status,
     userId: user.id,
     author: user.displayName,

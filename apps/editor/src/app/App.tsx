@@ -84,6 +84,7 @@ import type {
 import {
   instanceValueAnnotation,
   planProjectCellImport,
+  planCircuitComponentCapture,
   planSetVddConnectionMode,
   planRenameCellTerminal,
   planAngledWireRepairs,
@@ -686,6 +687,11 @@ function WorkspaceEditor({
   const [status, setStatus] = useState(workspaceError ?? "Ready");
   const [componentEditor, setComponentEditor] =
     useState<ComponentEditorSession | null>(null);
+  const [pendingPublicComponent, setPendingPublicComponent] = useState<{
+    projectSessionId: string;
+    definitionId: string;
+    symbolId: string;
+  } | null>(null);
   const [componentLibraryRefresh, setComponentLibraryRefresh] = useState(0);
   const [userComponentsOpen, setUserComponentsOpen] = useState(false);
   const libraryResizeOriginRef = useRef<{
@@ -4679,11 +4685,46 @@ function WorkspaceEditor({
 
   function insertSharedComponent(entry: SharedComponent): void {
     try {
+      if (entry.circuit) {
+        insertCircuitComponent(
+          { definition: entry.definition, circuit: entry.circuit },
+          `component-${entry.id}-r${entry.revision}`,
+        );
+        return;
+      }
       editorDocumentController.offerComponentDefinition(entry.definition);
       synchronizeExternalCommit();
       editorCommands.execute({
         id: "insert.start",
         launch: { kind: "quick", request: sharedComponentInsertRequest(entry) },
+      });
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  function insertCircuitComponent(
+    packaged: Parameters<typeof planCircuitComponentCapture>[1],
+    identity: string,
+  ) {
+    try {
+      const captured = planCircuitComponentCapture(
+        definitionProjectRef.current.project,
+        packaged,
+        identity,
+      );
+      if (captured.edits.length) {
+        const result = commitModelEdits(
+          captured.edits,
+          captured.definitionId,
+          "Captured component model",
+        );
+        if (!result.ok) throw Error(result.message);
+      }
+      setPendingPublicComponent({
+        projectSessionId,
+        definitionId: captured.definitionId,
+        symbolId: captured.symbolId,
       });
     } catch (error) {
       setStatus(error instanceof Error ? error.message : String(error));
@@ -5543,8 +5584,9 @@ function WorkspaceEditor({
         hasHierarchyEnterSelection,
         hasDefinitionSelection: Boolean(
           selectedInstance &&
-          !resolver.resolve(selectedInstance.symbolId)?.definition
-            .hierarchicalBlock,
+          (!resolver.resolve(selectedInstance.symbolId)?.definition
+            .hierarchicalBlock ||
+            selectedAuthoredCircuit),
         ),
         canReturnToParent: documentStack.length > 0,
       });
@@ -6212,6 +6254,46 @@ function WorkspaceEditor({
   });
   openWorkingCopyIdsRef.current = () =>
     projectTabs.entries().map(({ session }) => session.recovery.workingCopyId);
+  useEffect(() => {
+    if (!pendingPublicComponent) return;
+    if (pendingPublicComponent.projectSessionId !== projectSessionId) {
+      setPendingPublicComponent(null);
+      return;
+    }
+    const owner = project.externalSubcircuitDefinitions.find(
+      (definition) => definition.id === pendingPublicComponent.definitionId,
+    );
+    const symbol = resolver.resolve(
+      pendingPublicComponent.symbolId,
+    )?.definition;
+    if (!owner || !symbol) return;
+    setPendingPublicComponent(null);
+    editorCommands.execute({
+      id: "insert.start",
+      launch: {
+        kind: "quick",
+        request: {
+          kind: "external-subcircuit",
+          definitionId: owner.id,
+          symbolId: symbol.id,
+          symbolName: symbol.name,
+          masterName: owner.name,
+          parameters: {},
+          initialRotation: 0,
+          showReference: !symbol.hierarchicalBlock,
+          referenceText: null,
+          showValue: true,
+        },
+      },
+    });
+  }, [
+    pendingPublicComponent,
+    project,
+    projectSessionId,
+    resolver,
+    editorCommands,
+  ]);
+
   /**
    * Continue without saving on the way out of the editor (#1288): the
    * window's saved tabs must not bring the dropped edits back. A Project
@@ -10119,6 +10201,12 @@ function WorkspaceEditor({
               return null;
             }}
             onManaged={() => setComponentLibraryRefresh((value) => value + 1)}
+            onPlaceCircuit={(packaged) =>
+              insertCircuitComponent(
+                packaged,
+                `component-${componentEditor.key}`,
+              )
+            }
             onClose={() => setComponentEditor(null)}
           />
         </Suspense>

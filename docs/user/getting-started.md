@@ -490,6 +490,27 @@ the remaining custom contacts keep their drawing. A newly added port needs a
 complete custom JSON mapping, or a switch to **Automatic** before Apply.
 Compatible instance parameter overrides survive model default changes.
 
+After Apply, **Save publicly** shares the selected native circuit and artwork.
+Pending source or artwork must be applied first; a saved source draft cannot be
+published as an executable model. The public snapshot includes reachable owned
+files and keeps third-party dependency identities and digests; it does not copy
+unrelated Project files or a vendor library into your model.
+
+Editing a native library entry opens its own authoring snapshot. **Apply model**
+changes that snapshot, and **Save publicly** updates the public record if you are
+its author or an administrator. Another contributor uses **Save as new
+component**. These actions do not change the open drawing or earlier captures.
+The public library stores one current record with a numeric revision for stale
+save protection; it does not offer archived library revisions.
+
+Placing a native library entry captures its source, interface and artwork into
+your Project. Compatible repeated placement reuses the model and allocates a new
+instance reference. A conflicting implementation or mapping is reported without
+overwriting the Project. Your captured model survives public updates, deletion
+and unavailable network, and is retained by Project Save, portable files,
+Undo/Redo and copying. Its applied body and owned helpers appear in copied and
+exported netlists and in qualified simulation input.
+
 The Library ends with **User Defined**, after **Extended Devices**. Choose
 **Create component**, edit the starter code, and **Save & place**. Signing in
 is required to save; every saved definition is public, with no private-library
