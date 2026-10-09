@@ -6,7 +6,7 @@ import sys
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from analog_canvas_hes_contract import validate_manifest
+from common import validate_aether_manifest as validate_manifest
 
 
 class ContractTest(unittest.TestCase):
@@ -32,7 +32,7 @@ class ContractTest(unittest.TestCase):
                     self.assertRaises(ValueError, validate_manifest, spec)
 
     def test_capture_rejects_missing_explicit_configuration_before_gui(self):
-        script = Path(__file__).resolve().parents[1] / "analog-canvas-aether-screenshot.sh"
+        script = Path(__file__).resolve().parents[1] / "aether_screenshot.sh"
         environment = {key: value for key, value in os.environ.items()
                        if not key.startswith("AETHER_") and key != "DISPLAY"}
         result = subprocess.run(["bash", str(script), "test"], env=environment, capture_output=True, text=True)

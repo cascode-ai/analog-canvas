@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { withNativeNames } from "../analog-canvas-aether-names.mjs";
+import { withNativeNames } from "../aether_names.mjs";
 
 test("native names preserve topology, source data and collision distinction", () => {
   const source = {

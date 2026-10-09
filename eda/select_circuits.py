@@ -6,13 +6,14 @@ import csv
 import json
 from pathlib import Path
 import re
-import runpy
 import shutil
 import subprocess
 import sys
 import tempfile
 
-from analog_canvas_hes_parameters import parameter_plan, apply_minimum_dimensions
+from aether_parameters import parameter_plan, apply_minimum_dimensions
+from aether_geometry import build_layout
+from common import write_json
 
 
 def source_transistor_count(circuit):
@@ -47,10 +48,6 @@ def choose_diverse(rows, limit):
     return selected
 
 
-def write_json(path, value):
-    path.write_text(json.dumps(value, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-
-
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ("canvas-source", "runtime", "snapshot", "output", "library"):
@@ -69,13 +66,12 @@ def main():
     entries = json.loads((args.snapshot / "manifest.json").read_text())["entries"]
     qualified = [entry for entry in entries if entry.get("formats", {}).get("spice", {}).get("qualified")]
     node = args.runtime / "node_modules/node/bin/node"
-    importer = runpy.run_path(str(tools / "analog-canvas-hes-pyaether-import.py"))
     rows = []
     with tempfile.TemporaryDirectory(prefix="candidate-scan-", dir=args.output) as temp:
         temp = Path(temp)
         bundle = temp / "export.mjs"
-        subprocess.run([str(node), str(tools / "analog-canvas-hes-export-build.mjs"),
-                        str(args.canvas_source), str(args.runtime), str(tools / "analog-canvas-hes-export.mjs"),
+        subprocess.run([str(node), str(tools / "build.mjs"),
+                        str(args.canvas_source), str(args.runtime), str(tools / "export.mjs"),
                         str(bundle)], check=True)
         converted = temp / "converted"
         command = [str(node), str(bundle), "--snapshot-export", str(args.snapshot), "--output", str(converted),
@@ -107,7 +103,7 @@ def main():
                         apply_minimum_dimensions({"circuits": [circuit]})
                     for item in circuit["instances"]:
                         parameter_plan(item)
-                    layout = importer["build_layout"](circuit)
+                    layout = build_layout(circuit)
                     if layout["geometryAudit"]["afterViolationCount"]:
                         raise ValueError("Geometry constraints failed")
                     row.update(status="preflight_passed", geometryAudit=layout["geometryAudit"])

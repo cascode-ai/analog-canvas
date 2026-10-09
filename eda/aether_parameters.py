@@ -1,50 +1,13 @@
-"""Explicit source units and HES CDF parameters, independent of the GUI."""
+"""HES-specific CDF writes, bounds and readback expectations."""
 
-import re
 from decimal import Decimal
+from common import number, literal, same_number
 
-_NUMBER = re.compile(r"^([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)\s*([a-zA-Z\u03a9\u03c9]*)$")
-_SCALE = {"": "1", "a": "1e-18", "f": "1e-15", "p": "1e-12", "n": "1e-9", "u": "1e-6",
-          "m": "1e-3", "k": "1e3", "meg": "1e6", "g": "1e9", "t": "1e12"}
-_UNITS = {"capacitance": {"f"}, "resistance": {"ohm", "ohms", "\u03c9"},
-          "inductance": {"h"}, "current": {"a"}, "voltage": {"v"}, "length": {"m"}}
 HES_MIN_CHANNEL_LENGTH = Decimal("130e-9")
 HES_MAX_CHANNEL_LENGTH = Decimal("20e-6")
 HES_MIN_FINGER_WIDTH = Decimal("150e-9")
 HES_MAX_FINGER_WIDTH = Decimal("50e-6")
 SIZING_POLICY = "hes-out-of-range-to-minimum-v2"
-
-
-def number(value, bare_unit="m", quantity=None):
-    """Parse SPICE scales and optional dimension-checked trailing unit labels."""
-    match = _NUMBER.fullmatch(str(value).strip())
-    if not match or bare_unit not in ("m", "um") or (quantity and quantity not in _UNITS):
-        raise ValueError("Unsupported numeric literal or unit: %r (%s)" % (value, bare_unit))
-    suffix = match[2].lower()
-    if suffix in _SCALE:
-        prefix = suffix
-    else:
-        prefix = next((p for p in ("meg", "t", "g", "k", "m", "u", "n", "p", "f", "a")
-                       if suffix.startswith(p)), "")
-        unit = suffix[len(prefix):]
-        if unit not in _UNITS.get(quantity, set()):
-            raise ValueError("Unsupported %s unit: %r" % (quantity or "numeric", value))
-        if match[2].startswith("M") and prefix == "m":
-            raise ValueError("Ambiguous M before unit in %r; use m for milli or Meg for mega" % value)
-    scale = Decimal("1e-6") if not suffix and bare_unit == "um" else Decimal(_SCALE[prefix])
-    return Decimal(match[1]) * scale
-
-
-def literal(value):
-    return str(value.normalize())
-
-
-def same_number(left, right):
-    try:
-        a, b = number(left), number(right)
-        return abs(a - b) <= max(abs(a), abs(b)) * Decimal("1e-6")
-    except ValueError:
-        return False
 
 
 def parameter_plan(item):

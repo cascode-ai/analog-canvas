@@ -5,7 +5,7 @@ import tempfile
 from pathlib import Path
 from html.parser import HTMLParser
 
-helpers = runpy.run_path(os.path.join(os.path.dirname(os.path.dirname(__file__)), "analog-canvas-hes-comparison.py"))
+helpers = runpy.run_path(os.path.join(os.path.dirname(os.path.dirname(__file__)), "report.py"))
 
 
 class ImageParser(HTMLParser):

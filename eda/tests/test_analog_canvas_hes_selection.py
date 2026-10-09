@@ -5,7 +5,7 @@ import unittest
 
 TOOLS = os.path.dirname(os.path.dirname(__file__))
 sys.path.insert(0, TOOLS)
-helpers = runpy.run_path(os.path.join(TOOLS, "analog-canvas-hes-select.py"))
+helpers = runpy.run_path(os.path.join(TOOLS, "select_circuits.py"))
 
 
 class SelectionTest(unittest.TestCase):

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { createEmptyProject } from "@icm/model";
 import { analyzeDesignNetlist } from "@icm/netlist";
 import { parseSpiceNumber } from "@icm/spice";
-import { assertSupportedHierarchy } from "../analog-canvas-aether-bindings.mjs";
+import { assertSupportedHierarchy } from "../canvas_bindings.mjs";
 
 function fixture(customName) {
   const project = createEmptyProject("binding-test", "Binding test", "dut");

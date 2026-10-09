@@ -7,7 +7,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tarfile
-from analog_canvas_hes_contract import validate_manifest
+from common import validate_aether_manifest as validate_manifest
 
 
 def main():
@@ -25,7 +25,7 @@ def main():
     validate_manifest(spec)
     screenshots = root / "screenshots-full-ui"
     screenshots.mkdir(exist_ok=True)
-    command = [sys.executable, str(tools / "analog-canvas-hes-comparison.py"), "--root", str(root),
+    command = [sys.executable, str(tools / "report.py"), "--root", str(root),
                "--snapshot", str(args.snapshot), "--screenshots-dir", "screenshots-full-ui", "--progress"]
 
     def publish():
@@ -49,7 +49,7 @@ def main():
     remaining = [c["cellName"] for c in spec["circuits"] if not (screenshots / (c["cellName"] + ".png")).exists()]
     environment = {**os.environ, "AETHER_LIBRARY": spec["targetLibrary"], "AETHER_CAPTURE_DIR": str(screenshots)}
     for index in range(0, len(remaining), args.batch_size):
-        subprocess.run(["bash", str(tools / "analog-canvas-aether-screenshot.sh"),
+        subprocess.run(["bash", str(tools / "aether_screenshot.sh"),
                         *remaining[index:index + args.batch_size]], env=environment, check=True)
         publish()
 

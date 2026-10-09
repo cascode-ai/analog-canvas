@@ -190,8 +190,8 @@ and [delivery cadence](docs/deployment.md#development-and-delivery-cadence).
   declarations.
 - `tools/` and `references/`: manual Razavi calibration and PDF extraction
   tools, and the pinned external research-source manifest.
-- [`tools/aether/`](tools/aether/README.md): offline Canvas-to-Aether conversion,
-  native PyAether import/readback, and full-interface comparison reports.
+- [`eda/`](docs/eda-import.md): Canvas export and single/batch EDA imports,
+  with PyAether and Virtuoso Bridge adapters.
 - `docs/`: current architecture, user guides, normative contracts, ADRs, and
   delivery plans.
 

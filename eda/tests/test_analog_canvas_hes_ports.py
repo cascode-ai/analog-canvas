@@ -1,6 +1,6 @@
 import unittest
 from types import SimpleNamespace
-from analog_canvas_hes_ports import graphical_port_readback
+from aether_ports import graphical_port_readback
 
 
 def terminal(position=(20, 30), orientation="R0", name="IN", net="input", count=1):

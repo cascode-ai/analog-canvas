@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 import shutil
 from PIL import Image
-from analog_canvas_hes_contract import validate_manifest
+from common import validate_aether_manifest as validate_manifest
 
 
 def screenshot_markup(path, title, size):

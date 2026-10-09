@@ -3,7 +3,7 @@ import sys
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-from analog_canvas_hes_parameters import number, parameter_plan, check_parameters, apply_minimum_dimensions
+from aether_parameters import number, parameter_plan, check_parameters, apply_minimum_dimensions
 
 
 def mos(**parameters):

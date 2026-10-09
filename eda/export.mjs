@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 
-/** Build a strict, PyAether-friendly import manifest from Gallery projects. */
+/** Project canonical Canvas connectivity and geometry; never connect to an EDA. */
 
 import fs from "node:fs";
-import { withNativeNames } from "./analog-canvas-aether-names.mjs";
-import { assertSupportedHierarchy } from "./analog-canvas-aether-bindings.mjs";
+import { withNativeNames } from "./aether_names.mjs";
+import { assertSupportedHierarchy } from "./canvas_bindings.mjs";
 import path from "node:path";
 import { parseArgs } from "node:util";
 
@@ -28,6 +28,7 @@ const { values: options } = parseArgs({
     "snapshot-export": { type: "string" },
     output: { type: "string" },
     library: { type: "string" },
+    backend: { type: "string", default: "aether" },
     "source-commit": { type: "string" },
     "spacing-factor": { type: "string", default: "1.5" },
     "skip-unsupported": { type: "boolean", default: false },
@@ -40,6 +41,7 @@ if (!options["snapshot-export"] || !options.output || !options.library || !optio
 }
 const OUTPUT = path.resolve(options.output);
 const LIBRARY = options.library;
+if (!["aether", "source"].includes(options.backend)) throw new Error("Unknown export backend");
 if (!/^[A-Za-z][A-Za-z0-9_]*$/u.test(LIBRARY)) {
   throw new Error("Invalid Aether library name");
 }
@@ -56,8 +58,25 @@ const selection = options.circuit.map((value) => {
 unique(selection.map((item) => item[0]), "Gallery selections");
 unique(selection.map((item) => item[1]), "target cell names");
 
-function targetDirection() {
-  return "inout";
+function sourceDirectionOrInout(direction) {
+  return ["input", "output", "inout"].includes(direction) ? direction : "inout";
+}
+
+function applyAetherMapping(circuit) {
+  const analog = { capacitor: "cap", resistor: "res", inductor: "ind",
+    "voltage-source": "vdc", "current-source": "idc" };
+  for (const item of circuit.instances) {
+    item.targetLibrary = item.deviceClass === "mos" ? "hes" : "analog";
+    item.targetCell = item.deviceClass === "mos"
+      ? (item.kind === "pmos" ? "p_mos_a" : "n_mos_a") : analog[item.deviceClass];
+    if (!item.targetCell) throw new Error("Unsupported Aether device: " + item.deviceClass);
+  }
+  for (const port of [...circuit.ports, ...circuit.sourceGeometry.portOccurrences,
+    ...circuit.sourceGeometry.localBulkLabels]) {
+    port.direction = "inout";
+  }
+  circuit.geometryPolicy = { name: "hes-symbol-pitch-v1", spacingFactor };
+  return withNativeNames(circuit);
 }
 
 function asParameters(parameters) {
@@ -105,10 +124,10 @@ function passivePinMap(instance, positive, negative) {
   throw new Error(`${instance.reference}: unsupported passive terminals ${pins.join("/")}`);
 }
 
-function targetDevice(
+function sourceDevice(
   instance,
   sourceInstance,
-  { deviceClass, targetLibrary, targetCell, pinMap, kind = null, offset = {} },
+  { deviceClass, pinMap, kind = null, offset = {} },
 ) {
   const position = sourceInstance.placement.position;
   return {
@@ -118,8 +137,6 @@ function targetDevice(
     ...(kind ? { kind } : {}),
     sourceTarget: instance.target,
     sourceInvocationKind: instance.invocationKind,
-    targetLibrary,
-    targetCell,
     sourcePosition: {
       x: position.x + (offset.x ?? 0),
       y: position.y + (offset.y ?? 0),
@@ -159,7 +176,6 @@ function normalizeInstance(galleryId, instance, sourceInstance) {
         sourceExpandedInstanceId: instance.id,
         expansionProfile: "cmos-inverter-w1u-l150n-v1",
         sourceBehavioralParameters: asParameters(instance.parameters),
-        targetLibrary: "hes", targetCell: kind === "pmos" ? "p_mos_a" : "n_mos_a",
         sourcePosition: { x: placement.position.x - Math.round(dy * Math.sin(angle)), y: placement.position.y + Math.round(dy * Math.cos(angle)) },
         sourceTransform: { rotation: placement.rotation, mirror: placement.mirror },
         nodes: [
@@ -180,52 +196,43 @@ function normalizeInstance(galleryId, instance, sourceInstance) {
       throw new Error(`${galleryId}:${instance.reference} unknown MOS ${instance.target}`);
     }
     return [
-      targetDevice(instance, sourceInstance, {
+      sourceDevice(instance, sourceInstance, {
         deviceClass: "mos",
         kind,
-        targetLibrary: "hes",
-        targetCell: kind === "pmos" ? "p_mos_a" : "n_mos_a",
         pinMap: { D: "D", G: "G", S: "S", B: "B" },
       }),
     ];
   }
   if (instance.deviceClass === "capacitor") {
     return [
-      targetDevice(instance, sourceInstance, {
+      sourceDevice(instance, sourceInstance, {
         deviceClass: "capacitor",
-        targetLibrary: "analog",
-        targetCell: "cap",
         pinMap: passivePinMap(instance, "P", "N"),
       }),
     ];
   }
   if (instance.deviceClass === "resistor") {
     return [
-      targetDevice(instance, sourceInstance, {
+      sourceDevice(instance, sourceInstance, {
         deviceClass: "resistor",
-        targetLibrary: "analog",
-        targetCell: "res",
         pinMap: passivePinMap(instance, "P", "N"),
       }),
     ];
   }
   if (instance.deviceClass === "inductor") {
-    return [targetDevice(instance, sourceInstance, {
-      deviceClass: "inductor", targetLibrary: "analog", targetCell: "ind",
+    return [sourceDevice(instance, sourceInstance, {
+      deviceClass: "inductor",
       pinMap: passivePinMap(instance, "P", "N"),
     })];
   }
   if (["current-source", "voltage-source"].includes(instance.deviceClass)) {
     const parameters = asParameters(instance.parameters);
-    const targetCell = instance.deviceClass === "current-source" ? "idc" : "vdc";
     if (parameters.waveform && parameters.waveform !== "dc") {
-      throw new Error(`${galleryId}:${instance.reference}: analog/${targetCell} cannot represent waveform ${parameters.waveform}`);
+      throw new Error(`${galleryId}:${instance.reference}: DC source export cannot represent waveform ${parameters.waveform}`);
     }
     return [
-      targetDevice(instance, sourceInstance, {
+      sourceDevice(instance, sourceInstance, {
         deviceClass: instance.deviceClass,
-        targetLibrary: "analog",
-        targetCell,
         pinMap: { "+": "P", "-": "N" },
       }),
     ];
@@ -687,7 +694,7 @@ function buildCircuit(galleryId, cellName) {
       name: port.name,
       netName: port.netName,
       sourceDirection,
-      direction: targetDirection(port.name, sourceDirection),
+      direction: sourceDirectionOrInout(sourceDirection),
     };
   });
   const sourceNets = cell.nets.map((net) => net.name);
@@ -750,7 +757,6 @@ function buildCircuit(galleryId, cellName) {
     galleryUrl: metadata.url ?? null,
     author: detail.entry.author,
     sourceDocumentId: source.id,
-    geometryPolicy: { name: "hes-symbol-pitch-v1", spacingFactor },
     instances,
     ports,
     nets,
@@ -776,7 +782,11 @@ if (fs.existsSync(OUTPUT) && fs.readdirSync(OUTPUT).length) {
 fs.mkdirSync(OUTPUT, { recursive: true });
 const rejected = [];
 const circuits = selection.flatMap(([galleryId, cellName]) => {
-  try { return [withNativeNames(buildCircuit(galleryId, cellName))]; }
+  try {
+    const circuit = buildCircuit(galleryId, cellName);
+    if (options.backend === "aether") return [applyAetherMapping(circuit)];
+    return [circuit];
+  }
   catch (error) {
     if (!options["skip-unsupported"]) throw error;
     rejected.push({ galleryId, cellName, reason: error.message });
@@ -785,7 +795,10 @@ const circuits = selection.flatMap(([galleryId, cellName]) => {
 });
 if (!circuits.length) throw new Error("No supported circuits in selection");
 
-const manifest = {
+const manifest = options.backend === "source" ? {
+  schema: "analog-canvas-eda-source-v1",
+  circuits, rejected,
+} : {
   schema: "analog-canvas-hes-pyaether-import-v8",
   createdAt: new Date().toISOString(),
   ...(options["source-commit"] ? { sourceCommit: options["source-commit"] } : {}),
@@ -812,7 +825,7 @@ const manifest = {
   rejected,
 };
 fs.writeFileSync(
-  path.join(OUTPUT, "aether_hes_import_spec.json"),
+  path.join(OUTPUT, options.backend === "source" ? "source.json" : "aether_hes_import_spec.json"),
   `${JSON.stringify(manifest, null, 2)}\n`,
 );
 console.log(
