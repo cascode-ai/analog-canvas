@@ -42,6 +42,58 @@ function fractionRows(svg: string) {
 }
 
 describe("mixed fraction text", () => {
+  it.each([
+    [false, false, 0.662],
+    [false, true, 0.676],
+    [true, false, 0.682],
+    [true, true, 0.7],
+  ] as const)(
+    "sizes fraction bars in the drawn face (bold=%s, italic=%s)",
+    (bold, italic, advance) => {
+      const content: RichTextDocument = { runs: [fraction("RR", "1")] };
+      const svg = renderFractionText(content, razaviTextbookProfile, {
+        ...options,
+        bold,
+        italic,
+      })!;
+      const bar = svg.match(
+        /data-role="fraction-bar" x1="([\d.]+)" x2="([\d.]+)"/u,
+      )!;
+      const partSize =
+        options.fontSize *
+        fractionPartScale(razaviTextbookProfile.typography.subscriptScale);
+      expect(Number(bar[2]) - Number(bar[1])).toBeCloseTo(
+        (2 * advance + 2 * fractionGeometry.barOverhangEm) * partSize,
+        5,
+      );
+    },
+  );
+
+  it("keeps a nested italic fraction and its following text on the measured line", () => {
+    const content: RichTextDocument = {
+      runs: [
+        { kind: "span", style: "italic", children: [fraction("RR", "1")] },
+        { kind: "text", value: "R" },
+      ],
+    };
+    const svg = renderFractionText(content, razaviTextbookProfile, {
+      ...options,
+      bold: true,
+    })!;
+    const bar = svg.match(
+      /data-role="fraction-bar" x1="([\d.]+)" x2="([\d.]+)"/u,
+    )!;
+    const partSize =
+      options.fontSize *
+      fractionPartScale(razaviTextbookProfile.typography.subscriptScale);
+    const fractionWidth = (1.4 + 2 * fractionGeometry.barOverhangEm) * partSize;
+    const width = fractionWidth + 0.682 * options.fontSize;
+    expect(Number(bar[1])).toBeCloseTo(options.x - width / 2, 5);
+    expect(Number(bar[2]) - Number(bar[1])).toBeCloseTo(fractionWidth, 5);
+    const trailing = svg.match(/<text x="([\d.]+)"[^>]*>R<\/text>$/u)!;
+    expect(Number(trailing[1])).toBeCloseTo(Number(bar[2]), 5);
+  });
+
   it("keeps a numerator subscript and a denominator superscript clear of the bar", () => {
     const { typography } = razaviTextbookProfile;
     const partFont =

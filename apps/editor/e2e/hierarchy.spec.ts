@@ -1297,6 +1297,7 @@ test("a runtime diagnostic opens the exact applied helper file while retaining i
   await page.getByTestId("open-analog-simulation").click();
   const panel = page.getByRole("region", { name: "Analog simulation" });
   await panel.getByRole("button", { name: "Run", exact: true }).click();
+  await panel.getByRole("tab", { name: "Console", exact: true }).click();
   await panel
     .getByRole("button", {
       name: `Open model source at ${location.file}:${location.line}`,

@@ -231,6 +231,32 @@ describe("shared rich-text layout", () => {
     expect(layout.height).toBeCloseTo(label.ascent + label.descent);
   });
 
+  it("measures a whole-formula slant override in the face it draws", () => {
+    const metrics = {
+      ...richTextMetrics(razaviTextbookProfile),
+      fontSize: 20,
+      bold: true,
+      italic: true,
+    };
+    const latex = String.raw`\overline{\mathrm{R}_{R}}`;
+    const result = labelFormulaLayout(latex, "inline", metrics)!;
+    const letters = result.items.filter((item) => item.kind === "glyph");
+    expect(letters).toHaveLength(2);
+    // Upstream Metropolis Bold Italic R advances by 0.700 em; upright is 0.682.
+    for (const letter of letters) {
+      expect(letter.italic).toBe(true);
+      expect(letter.advance).toBeCloseTo(0.7 * letter.size);
+    }
+    const measured = measureRichTextDocument(
+      { runs: [{ kind: "math", latex, display: "inline" }] },
+      metrics,
+    );
+    expect(measured.width).toBeCloseTo(
+      0.7 * 20 +
+        (0.7 + metrics.subscriptHorizontalGapEm) * 20 * metrics.subscriptScale,
+    );
+  });
+
   it("uses path-renderer metrics for a formula label type cannot set", async () => {
     const metrics = richTextMetrics(razaviTextbookProfile);
     const request = {
@@ -262,13 +288,31 @@ describe("shared rich-text layout", () => {
 });
 
 describe("label text as drawn", () => {
-  // DejaVu Sans, the font stack's first face, is 2048 units to the em.
+  // Metropolis, the primary face, is 1000 units to the em.
   const fontSize = razaviTextbookProfile.typography.instanceFontSize;
   const metrics = {
     ...richTextMetrics(razaviTextbookProfile, "label"),
     fontSize,
   };
-  const units = (value: number) => (fontSize * value) / 2048;
+  const units = (value: number) => (fontSize * value) / 1000;
+
+  it("uses the italic face's own advance and overhang", () => {
+    const label = measureLabelText(
+      { runs: [{ kind: "text", value: "R" }] },
+      {
+        ...metrics,
+        bold: true,
+        italic: true,
+      },
+    );
+    // Metropolis Bold Italic R: 700-unit advance, outline x=17..682.
+    // The upright face is narrower (682); substituting it shifts a script.
+    expect(label.width).toBeCloseTo(units(700), 6);
+    expect(label.lines[0]!.ink).toEqual({
+      left: expect.closeTo(units(17), 6),
+      right: expect.closeTo(units(682), 6),
+    });
+  });
 
   it("sets a bold value by the face's advances, inked from the first outline to the last (#1413)", () => {
     const value: RichTextDocument = {
@@ -280,18 +324,17 @@ describe("label text as drawn", () => {
         },
       ],
     };
-    // Bold figures advance 1425 units, p 1466 and F 1399; the round period
-    // advances 0.36 em. The 1 stands 231 units into its advance and the F
-    // ends 172 short of the end of its own.
-    const width = units(3 * 1425 + 1466 + 1399) + fontSize * 0.36;
+    // Pinned Metropolis Bold tables: 1=438, 3=625, p=648, F=639.
+    // The round period advances 0.36 em; 1 starts at 33, F ends at 600.
+    const width = units(438 + 2 * 625 + 648 + 639) + fontSize * 0.36;
     const { width: measured, lines } = measureLabelText(value, metrics);
     expect(measured).toBeCloseTo(width, 6);
     expect(lines).toEqual([
       {
         width: expect.closeTo(width, 6),
         ink: {
-          left: expect.closeTo(units(231), 6),
-          right: expect.closeTo(width - units(172), 6),
+          left: expect.closeTo(units(33), 6),
+          right: expect.closeTo(width - units(39), 6),
         },
       },
     ]);
@@ -314,19 +357,18 @@ describe("label text as drawn", () => {
         },
       ],
     };
-    // The oblique M leans, standing 55 units into its 1767 advance where the
-    // upright one stands 201; the script follows its gap, and its upright 1
-    // ends 189 units short of its advance.
+    // Metropolis Regular Italic M advances 822 units and starts at 24.
+    // Upright Regular 1 advances 357 and ends at 279.
     const width =
-      units(1767) +
+      units(822) +
       fontSize * subscriptScale * subscriptHorizontalGapEm +
-      subscriptScale * units(1303);
+      subscriptScale * units(357);
     expect(measureLabelText(reference, metrics).lines).toEqual([
       {
         width: expect.closeTo(width, 6),
         ink: {
-          left: expect.closeTo(units(55), 6),
-          right: expect.closeTo(width - subscriptScale * units(189), 6),
+          left: expect.closeTo(units(24), 6),
+          right: expect.closeTo(width - subscriptScale * units(78), 6),
         },
       },
     ]);

@@ -104,7 +104,9 @@ describe("drafting layer rendering", () => {
     expect(svg).toContain("Gain.");
     expect(svg).toContain('font-family:"ICM Round Period"');
     expect(svg).toContain("unicode-range:U+002E");
-    expect(svg).toContain("font-family:'ICM Round Period','DejaVu Sans',Arial");
+    expect(svg).toContain(
+      "font-family:'ICM Round Period','Metropolis','DejaVu Sans',Arial",
+    );
   });
 
   it("renders a DraftText object in a data-layer=drafting group", () => {
@@ -395,6 +397,39 @@ describe("drafting layer rendering", () => {
     expect(fraction).toBeDefined();
     expect(fraction).not.toContain("transform=");
     expect(svg).toContain('data-role="fraction-bar"');
+  });
+
+  it("sizes a formula overbar using its whole-text italic override", () => {
+    const document = createEmptyDocument("doc", "Italic formula width");
+    document.drafting!.objects.push({
+      id: "italic-formula",
+      kind: "text",
+      locked: false,
+      zIndex: 0,
+      anchor: { kind: "free", position: { x: 100, y: 100 } },
+      content: {
+        runs: [
+          {
+            kind: "math",
+            latex: String.raw`\overline{\mathrm{R}}`,
+            display: "inline",
+          },
+        ],
+      },
+      alignment: "middle",
+      rotation: 0,
+      styleOverride: { weight: "bold", italic: true },
+    });
+    const svg = renderDocumentSvg(document, resolver);
+    const bar = svg.match(/<line x1="([\d.]+)" y1="[\d.]+" x2="([\d.]+)"/u)!;
+    const profile = resolveSchematicStyleProfile(
+      document.presentation.styleProfileId,
+    );
+    expect(Number(bar[2]) - Number(bar[1])).toBeCloseTo(
+      0.7 * profile.typography.annotationFontSize,
+      5,
+    );
+    expect(svg).toMatch(/font-style="italic"[^>]*>R<\/tspan>/u);
   });
 
   it.each([

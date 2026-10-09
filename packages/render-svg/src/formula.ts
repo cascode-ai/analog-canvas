@@ -32,9 +32,9 @@ const MATHJAX_FORMULA_TYPOGRAPHY = "sans-v4";
  * italic and subscripts upright, fraction bars and overlines as lines in the
  * labels' stroke — so a formula and a label beside it match exactly.
  *
- * The layout measures with the label advance tables, but a viewer may draw
- * the label font stack in another face (Arial, where DejaVu Sans is not
- * installed). So each run of symbols is one text element whose glyphs follow
+ * The layout measures with the pinned label faces, but a standalone SVG
+ * viewer without them may draw another face. Each run of symbols is one
+ * text element whose glyphs follow
  * one another by the real font's advances, as a label's do, with the layout's
  * spacing and script offsets as relative shifts. A formula that is one run
  * stands at its anchor as a label would. Otherwise each run keeps against
@@ -50,7 +50,6 @@ function renderLabelFormula(
     baselineY: number;
     alignment: "start" | "middle" | "end";
     color?: string;
-    italic?: boolean;
   },
 ): string {
   const left =
@@ -60,10 +59,8 @@ function renderLabelFormula(
         ? options.x - layout.width
         : options.x - layout.width / 2;
   const color = options.color ?? profile.foreground;
-  // A slant override on the text slants the whole formula, as it does a
-  // label; otherwise letters are italic and their subscripts upright.
   const font = (glyph: LabelFormulaGlyph) =>
-    `font-size="${number(glyph.size)}" font-style="${glyph.italic || options.italic === true ? "italic" : "normal"}" font-weight="${glyph.bold ? "bold" : "normal"}"`;
+    `font-size="${number(glyph.size)}" font-style="${glyph.italic ? "italic" : "normal"}" font-weight="${glyph.bold ? "bold" : "normal"}"`;
   // The items in drawing order as runs of flowing glyphs, lone glyphs (a
   // fence, accent or operator), rules and drawn strokes.
   type Line = Exclude<LabelFormulaLayout["items"][number], LabelFormulaGlyph>;
@@ -168,6 +165,7 @@ export function renderFormulaDocument(
   const label = layoutLabelFormula(formula.latex, {
     fontSize: options.fontSize,
     bold: options.bold ?? true,
+    italic: options.italic ?? false,
     display: formula.display,
     subscriptScale: profile.typography.subscriptScale,
     subscriptBaselineShiftEm: profile.typography.subscriptBaselineShiftEm,

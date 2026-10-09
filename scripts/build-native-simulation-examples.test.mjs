@@ -27,23 +27,20 @@ const run = (directory, args = []) =>
 // drawing diagnostics below. Text over a wire or a part warns, as text over
 // text does (#1105); pin the owners so new findings do not pass unnoticed. No
 // fixture geometry is changed.
-// Set in DejaVu Sans with its glyphs' side bearings (#1413), M1's Reference
-// ends on its source wire, as the export draws it, and the Pin name ibias
-// stops short of its port.
-const otaClearanceLabels = [1, 2, 3, 4, 5, 6].map(
-  (n) => `instance-label-M${n}`,
-);
+// Metropolis keeps M1's narrower Reference clear of its source wire; the
+// remaining References retain their observed clearance findings. The Pin
+// name ibias still stops short of its port. No fixture geometry is changed.
+const otaClearanceLabels = [2, 3, 4, 5, 6].map((n) => `instance-label-M${n}`);
 const libraryTbClearanceLabels = [
   "instance-label-XDUT",
   "instance-label-IBIAS",
   "net-label-tb-ibias-route",
 ];
 const expectedClearanceLabels = {
-  // Set in DejaVu Sans (#1413), the names of VDD and VIN reach into their
-  // sources' polarity marks.
+  // VDD still reaches its polarity marks. In Metropolis the narrower VIN
+  // clears them, as the PNG inspection confirms.
   "common-source/cell-common-source": [
     "instance-label-VDD",
-    "instance-label-VIN",
     "instance-label-XM1",
     "instance-value-XM1",
   ],

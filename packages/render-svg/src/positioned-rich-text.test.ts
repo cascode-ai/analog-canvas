@@ -244,7 +244,7 @@ describe("renderPositionedOverbarScriptDocument", () => {
       expect(base).not.toHaveProperty("textLength");
       expect(base).not.toHaveProperty("lengthAdjust");
       expect(numericAttribute(base, "data-text-advance")).toBeCloseTo(
-        schematicTextAdvanceEm("f", metricWeight) * 20,
+        schematicTextAdvanceEm("f", metricWeight, defaultItalic) * 20,
         6,
       );
       expect(positioned!.tspans).not.toContain("spacingAndGlyphs");
@@ -423,9 +423,17 @@ describe("an overbar followed by more of the line", () => {
     );
 
     expect(numericAttribute(overbar, "x1")).toBe(numericAttribute(base, "x"));
-    const nameRight =
+    const superscript = tagAttributes(
+      rendered.tspans,
+      "tspan",
+      'data-text-run="superscript"',
+    );
+    const nameRight = Math.max(
       numericAttribute(subscript, "x") +
-      numericAttribute(subscript, "data-text-advance");
+        numericAttribute(subscript, "data-text-advance"),
+      numericAttribute(superscript, "x") +
+        numericAttribute(superscript, "data-text-advance"),
+    );
     expect(numericAttribute(overbar, "x2")).toBeCloseTo(nameRight, 6);
     // The reported width covers the whole line, so the bar ends short of it.
     expect(numericAttribute(overbar, "x2")).toBeLessThan(

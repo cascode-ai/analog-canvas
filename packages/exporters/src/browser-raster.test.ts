@@ -40,7 +40,7 @@ const labelled = {
 };
 
 describe("a PNG carries the schematic faces (#1413)", () => {
-  it("draws the SVG with DejaVu Sans inlined, as an image loads no font", async () => {
+  it("draws the SVG with Metropolis and its symbol fallback inlined, as an image loads no font", async () => {
     const drawn = stubRasterGlobals();
     const fetched: string[] = [];
     vi.stubGlobal("fetch", async (url: string) => {
@@ -49,11 +49,16 @@ describe("a PNG carries the schematic faces (#1413)", () => {
     });
     await rasterizeFormalSvgInBrowser(labelled);
     const svg = await drawn[0]!.text();
-    expect(fetched).toHaveLength(4);
-    // Each face inlined behind an installed one; none blanks text while it
-    // decodes.
+    expect(fetched).toHaveLength(8);
+    // Pin both families on every system; text remains visible while decoding.
     const rules = svg.match(/@font-face\{[^}]*\}/gu) ?? [];
-    expect(rules).toHaveLength(4);
+    expect(rules).toHaveLength(8);
+    expect(
+      rules.filter((rule) => rule.includes('font-family:"Metropolis"')),
+    ).toHaveLength(4);
+    expect(
+      rules.filter((rule) => rule.includes('font-family:"DejaVu Sans"')),
+    ).toHaveLength(4);
     expect(
       rules.every((rule) =>
         rule.includes('url("data:font/woff;base64,d09GRg==")'),

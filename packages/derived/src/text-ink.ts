@@ -38,7 +38,7 @@ export function labelInkDescentEm(
  * Where upright text's glyphs reach across when each of its lines stands on
  * `x` by `alignment`, as the renderer anchors them: from the first glyph's
  * outline to the last one's, in the label advance tables (measureLabelText).
- * An end-aligned value's first figure stands where DejaVu Sans draws it.
+ * An end-aligned value's first figure stands where the served face draws it.
  * Null for text that draws nothing.
  */
 export function uprightTextInkSpan(

@@ -1,176 +1,40 @@
-/**
- * Proportional schematic-text advances from the existing
- * dejavu-fonts-ttf 2.37.3 faces, unitsPerEm = 2048. Oblique faces retain the
- * matching upright hmtx advances, so weight is the only width dimension.
- * U+002E uses our round-period font's advance. Side bearings come from the
- * same four faces' outlines.
- *
- * These numbers position independent SVG decorations and script attachment
- * columns, and measure label text as it is drawn (measureLabelText). They
- * must never be imposed on glyph outlines with
- * `lengthAdjust="spacingAndGlyphs"`: doing so visibly stretches narrow letters.
- */
-const glyphs =
-  " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~ΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩΪΫάέήίΰαβγδεζηθικλμνξοπρςστυφχψω°±×÷−√∞≈≠≤≥";
-/**
- * Every character these tables measure. The schematic font the editor
- * serves holds them all (packages/exporters/fonts, #1413), so text measured
- * here is drawn in the face it was measured in.
- * @internal The font test checks the served face holds each one.
- */
-export const SCHEMATIC_MEASURED_GLYPHS = glyphs;
-const plainAdvances = [
-  651, 821, 942, 1716, 1303, 1946, 1597, 563, 799, 799, 1024, 1716, 651, 739,
-  651, 690, 1303, 1303, 1303, 1303, 1303, 1303, 1303, 1303, 1303, 1303, 690,
-  690, 1716, 1716, 1716, 1087, 2048, 1401, 1405, 1430, 1577, 1294, 1178, 1587,
-  1540, 604, 604, 1343, 1141, 1767, 1532, 1612, 1235, 1612, 1423, 1300, 1251,
-  1499, 1401, 2025, 1403, 1251, 1403, 799, 690, 799, 1716, 1024, 1024, 1255,
-  1300, 1126, 1300, 1260, 721, 1300, 1298, 569, 569, 1186, 569, 1995, 1298,
-  1253, 1300, 1300, 842, 1067, 803, 1298, 1212, 1675, 1212, 1212, 1075, 1303,
-  690, 1303, 1716, 1401, 1405, 1141, 1401, 1294, 1403, 1540, 1612, 604, 1343,
-  1401, 1767, 1532, 1294, 1612, 1540, 1235, 1294, 1251, 1251, 1612, 1403, 1612,
-  1565, 604, 1251, 1350, 1107, 1298, 693, 1185, 1350, 1307, 1212, 1253, 1107,
-  1114, 1298, 1253, 693, 1207, 1212, 1303, 1144, 1142, 1253, 1233, 1300, 1202,
-  1298, 1233, 1185, 1351, 1183, 1351, 1715, 1024, 1716, 1716, 1716, 1716, 1305,
-  1706, 1716, 1716, 1716, 1716,
-];
-const boldAdvances = [
-  713, 934, 1067, 1716, 1425, 2052, 1786, 627, 936, 936, 1071, 1716, 778, 850,
-  778, 748, 1425, 1425, 1425, 1425, 1425, 1425, 1425, 1425, 1425, 1425, 819,
-  819, 1716, 1716, 1716, 1188, 2048, 1585, 1561, 1503, 1700, 1399, 1399, 1681,
-  1714, 762, 762, 1587, 1305, 2038, 1714, 1741, 1501, 1741, 1577, 1475, 1397,
-  1663, 1585, 2259, 1579, 1483, 1485, 936, 748, 936, 1716, 1024, 1024, 1382,
-  1466, 1214, 1466, 1389, 891, 1466, 1458, 702, 702, 1362, 702, 2134, 1458,
-  1407, 1466, 1466, 1010, 1219, 979, 1458, 1335, 1892, 1321, 1335, 1192, 1458,
-  748, 1458, 1716, 1585, 1561, 1305, 1585, 1399, 1485, 1714, 1741, 762, 1587,
-  1585, 2038, 1714, 1294, 1741, 1714, 1501, 1399, 1397, 1483, 1741, 1579, 1740,
-  1741, 762, 1483, 1407, 1140, 1458, 798, 1383, 1407, 1466, 1395, 1407, 1140,
-  1210, 1458, 1407, 798, 1455, 1296, 1507, 1395, 1210, 1407, 1620, 1466, 1214,
-  1595, 1307, 1383, 1602, 1321, 1626, 1780, 1024, 1716, 1716, 1716, 1716, 1366,
-  1706, 1716, 1716, 1716, 1716,
-];
-/**
- * Each glyph's left and right side bearings, in pairs and font units: how far
- * its outline stands in from where its advance starts and back from where it
- * ends, negative where it overhangs, as f does. The oblique faces lean their
- * outlines, so they keep bearings of their own, taken against the upright
- * advances above. A space has no outline.
- */
-const plainBearings = [
-  0, 0, 309, 309, 197, 197, 158, 157, 170, 170, 113, 113, 129, 63, 197, 196,
-  176, 164, 164, 176, 61, 61, 217, 217, 158, 200, 100, 100, 219, 221, 0, 0, 135,
-  136, 225, 189, 150, 205, 156, 164, 100, 115, 158, 179, 143, 129, 168, 175,
-  139, 140, 129, 144, 240, 239, 158, 239, 217, 217, 217, 217, 217, 217, 147,
-  143, 135, 143, 16, 17, 201, 145, 115, 111, 201, 121, 201, 131, 201, 119, 115,
-  168, 201, 201, 201, 201, -106, 201, 201, -43, 201, 11, 201, 200, 201, 201,
-  115, 115, 201, 70, 115, 115, 201, 59, 135, 114, -6, -6, 178, 178, 16, 17, 68,
-  67, 61, 64, -4, -4, 92, 92, 176, 199, 0, 0, 199, 176, 217, 217, -20, -20, 170,
-  375, 123, 186, 186, 112, 113, 127, 113, 186, 113, 109, 47, -39, 113, 186, 186,
-  174, 193, 192, -37, 192, 186, 6, 193, 192, 186, 174, 186, 174, 113, 112, 186,
-  112, 113, 186, 186, 0, 111, 100, 55, 49, 174, 186, 61, 61, 86, 86, 59, 67, 61,
-  61, 88, 88, 256, 256, 260, 260, 256, 256, 217, 217, 16, 17, 201, 145, 201, 11,
-  16, 17, 201, 131, 92, 92, 201, 201, 115, 115, 201, 201, 201, -43, 16, 17, 201,
-  200, 201, 201, 201, 172, 115, 115, 201, 201, 201, 70, 201, 131, -6, -6, -4,
-  -4, 115, 115, 61, 64, 115, 113, 78, 78, 6, 4, -4, -4, 113, 98, 133, 139, 186,
-  174, 166, 29, 149, 119, 113, 98, 192, 147, 32, 61, 113, 112, 133, 139, 107,
-  98, 186, 174, 113, 112, 166, 71, 191, 50, 61, 61, 174, 50, 74, 96, 107, 117,
-  113, 112, 74, 57, 186, 112, 113, 203, 113, 60, 100, 100, 149, 119, 112, 118,
-  59, 59, 112, 118, 135, 140, 195, 195, 217, 217, 281, 280, 217, 217, 217, 217,
-  61, 0, 220, 220, 217, 217, 217, 217, 217, 217, 217, 217,
-];
-const boldBearings = [
-  0, 0, 287, 287, 195, 195, 139, 139, 160, 139, 66, 65, 123, 86, 195, 195, 176,
-  164, 164, 176, 41, 41, 217, 217, 109, 209, 111, 111, 209, 209, 0, 0, 98, 98,
-  231, 141, 162, 178, 137, 163, 92, 94, 158, 143, 127, 110, 137, 163, 125, 127,
-  106, 131, 229, 229, 129, 229, 217, 217, 217, 217, 217, 217, 141, 133, 135,
-  145, 10, 10, 188, 144, 102, 131, 188, 107, 188, 150, 188, 172, 102, 151, 188,
-  188, 188, 189, -115, 189, 188, -62, 188, 56, 188, 189, 188, 188, 102, 103,
-  188, 84, 102, 103, 188, 41, 147, 150, 10, 11, 188, 188, 10, 10, 61, 64, 39,
-  41, -20, -20, 92, 92, 176, 139, 0, 0, 139, 176, 207, 207, 0, 0, 94, 365, 88,
-  161, 172, 92, 88, 137, 92, 172, 88, 99, 39, -18, 92, 172, 172, 160, 172, 172,
-  -68, 172, 172, -39, 172, 172, 170, 162, 172, 160, 88, 88, 172, 92, 92, 172,
-  172, 6, 106, 97, 27, 47, 160, 172, 31, 30, 72, 71, 31, 31, 25, 37, 92, 98,
-  256, 256, 260, 261, 256, 256, 217, 217, 10, 10, 188, 144, 188, 56, 10, 10,
-  188, 150, 92, 92, 188, 188, 102, 103, 188, 189, 188, -62, 10, 10, 188, 189,
-  188, 188, 201, 172, 102, 103, 188, 188, 188, 84, 188, 150, 10, 11, -20, -20,
-  102, 103, 39, 41, 115, 112, 55, 56, 70, 62, -20, -20, 99, 86, 110, 130, 172,
-  160, 158, 75, 159, 94, 99, 86, 172, 91, 31, 30, 89, 87, 110, 130, 89, 101,
-  172, 160, 88, 87, 160, 86, 172, 114, 61, 61, 174, 65, 31, 95, 89, 101, 88, 88,
-  86, 121, 172, 92, 88, 137, 88, 107, 43, 54, 159, 94, 132, 118, 52, 51, 133,
-  143, 88, 88, 178, 180, 217, 217, 256, 256, 217, 217, 217, 217, 76, -4, 188,
-  188, 217, 217, 217, 217, 217, 217, 217, 217,
-];
-const obliqueBearings = [
-  0, 0, 162, 166, 197, 197, 143, 133, 68, 136, 186, 187, 96, 90, 197, 196, 158,
-  -75, -127, 209, 61, 61, 217, 217, 6, 256, 92, 75, 119, 272, -150, -184, 102,
-  103, 100, 310, 8, 127, 4, 132, 37, 146, 41, 113, 129, 91, 190, 19, 68, 89, 90,
-  127, 106, 166, 2, 143, 217, 217, 217, 217, 217, 217, 252, 40, 119, 102, -109,
-  141, 55, 125, 86, 7, 55, 98, 55, 4, 55, -24, 92, 102, 55, 55, 55, 55, -336,
-  59, 55, -136, 55, 123, 55, 55, 55, 55, 82, 82, 55, 4, 84, 82, 55, 194, 12, 65,
-  88, -133, 119, 39, 160, -119, 197, -64, -88, -37, 129, -133, -45, -37, 82,
-  -61, 174, 153, -78, 99, 217, 217, -20, -20, 389, 229, 84, 135, 74, 98, 94, 28,
-  94, -9, 94, 91, 139, -258, 66, 79, 72, 139, 72, 10, -231, 2, 72, -67, 72, 10,
-  72, 140, 72, 139, 94, 94, -6, 94, 94, 77, 72, -106, 23, 43, 131, -63, 117, 92,
-  147, -25, 174, -2, -53, -17, -51, -23, -6, -37, 248, 64, 260, 260, 14, 297,
-  217, 217, -109, 141, 55, 125, 56, -134, -129, 162, 55, 4, -45, -37, 55, 55,
-  115, 115, 55, 55, 55, -136, -129, 162, 55, 55, 55, 55, 56, 27, 82, 82, 56, 56,
-  55, 4, 56, 4, 88, -133, 129, -133, 102, 102, -88, -37, 181, -32, -69, 85, 55,
-  -214, 129, -133, 113, 29, 79, -42, 116, 31, 137, -190, 120, 26, 113, 29, -2,
-  136, 152, -89, 77, 112, 79, 71, 101, -95, 116, 113, 113, 112, 137, 150, 82,
-  10, -90, 212, -27, 91, 183, 66, 77, -12, 94, 94, 112, -27, 33, 73, 152, 63,
-  116, -52, 173, -9, 120, 94, 152, 77, -91, -91, 136, -32, 139, 136, 195, 195,
-  217, 217, 281, 280, 217, 217, 217, 217, 61, 0, 220, 220, 217, 217, 217, 217,
-  217, 217, 217, 217,
-];
-const boldObliqueBearings = [
-  0, 0, 141, 141, 195, 195, 133, 119, 55, 135, 113, 113, 57, 121, 195, 195, 158,
-  -22, -55, 191, 41, 41, 217, 217, -70, 254, 51, 113, 94, 248, -197, -141, 74,
-  73, 88, 241, 16, 114, 0, 120, -2, 125, 27, 106, 102, 73, 160, 4, 45, 75, 84,
-  90, 84, 157, -72, 157, 217, 217, 217, 217, 217, 217, 213, 53, 92, 150, -133,
-  170, 43, 129, 74, 20, 43, 90, 43, 27, 43, 27, 74, 88, 43, 43, 43, 43, -340,
-  43, 43, -127, 43, 146, 43, 43, 43, 43, 74, 74, 43, 28, 74, 74, 43, 174, 31,
-  113, 98, -135, 139, 43, 156, -135, 219, -82, -104, -84, 129, -174, -53, -31,
-  -20, -18, 145, 183, -57, 18, 207, 207, -20, -20, 268, 264, 35, 131, 63, 80,
-  76, 24, 74, -17, 74, 78, 102, -215, 41, 69, 63, 119, 63, -23, -262, -23, 63,
-  -104, 63, -23, 63, 119, 63, 119, 74, 74, -20, 80, 74, 69, 63, -106, 20, 72,
-  88, -63, 123, 63, 129, -54, 178, -6, -84, -53, 0, -72, -18, -8, 217, 88, 260,
-  261, 90, 217, 217, 217, -133, 170, 43, 129, 43, -89, -135, 155, 43, 27, -53,
-  -31, 43, 43, 81, 82, 43, 43, 43, -127, -135, 155, 43, 43, 43, 43, 56, 27, 74,
-  74, 43, 43, 43, 28, 43, 27, 98, -135, 129, -174, 89, 90, -104, -84, 159, -33,
-  -93, 79, 43, -159, 129, -174, 78, -10, 55, -21, 102, 98, 87, -94, 111, 31, 78,
-  -10, -23, 115, 136, -120, 32, 109, 55, 76, 65, -75, 102, 98, 58, 58, 87, 157,
-  63, 64, -90, 212, -55, 135, 140, 58, 54, -75, 74, 74, 149, 8, 19, 35, 112, -4,
-  75, -5, 106, -59, 111, 63, 156, 61, -98, -99, 162, -7, 68, 71, 178, 180, 217,
-  217, 256, 256, 217, 217, 217, 217, 76, -4, 188, 188, 217, 217, 217, 217, 217,
-  217, 217, 217,
-];
-const plainWidths = new Map(
-  [...glyphs].map((glyph, index) => [glyph, plainAdvances[index]! / 2048]),
-);
-const boldWidths = new Map(
-  [...glyphs].map((glyph, index) => [glyph, boldAdvances[index]! / 2048]),
-);
-const bearingsByGlyph = (pairs: readonly number[]) =>
-  new Map(
-    [...glyphs].map((glyph, index) => [
+import { schematicTextMetrics } from "./schematic-text-metrics.generated.js";
+
+/** Glyphs measured from the same Metropolis / DejaVu faces the editor serves. */
+export const SCHEMATIC_MEASURED_GLYPHS = schematicTextMetrics.glyphs;
+
+function faceMetrics(style: "plain" | "bold" | "italic" | "boldItalic") {
+  const face = schematicTextMetrics[style];
+  return new Map(
+    [...SCHEMATIC_MEASURED_GLYPHS].map((glyph, index) => [
       glyph,
-      { left: pairs[index * 2]! / 2048, right: pairs[index * 2 + 1]! / 2048 },
+      {
+        advance: face.advances[index]!,
+        left: face.bearings[index * 2]!,
+        right: face.bearings[index * 2 + 1]!,
+      },
     ]),
   );
-const plainSides = bearingsByGlyph(plainBearings);
-const boldSides = bearingsByGlyph(boldBearings);
-const obliqueSides = bearingsByGlyph(obliqueBearings);
-const boldObliqueSides = bearingsByGlyph(boldObliqueBearings);
+}
+const faces = {
+  plain: faceMetrics("plain"),
+  bold: faceMetrics("bold"),
+  italic: faceMetrics("italic"),
+  boldItalic: faceMetrics("boldItalic"),
+};
+function metricsFor(weight: "plain" | "bold", italic: boolean) {
+  return faces[italic ? (weight === "bold" ? "boldItalic" : "italic") : weight];
+}
 /** The round period's dot stands 0.105 em into its 0.36 em advance. */
 const roundPeriod = { advance: 0.36, left: 0.105, right: 0.105 };
 
 function glyphAdvanceEm(
   glyph: string,
-  widths: ReadonlyMap<string, number>,
+  widths: ReadonlyMap<string, { advance: number }>,
 ): number {
   return glyph === "."
     ? roundPeriod.advance
-    : (widths.get(glyph) ??
+    : (widths.get(glyph)?.advance ??
         (/\p{Mark}/u.test(glyph)
           ? 0
           : /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u.test(
@@ -183,8 +47,9 @@ function glyphAdvanceEm(
 export function schematicTextAdvanceEm(
   value: string,
   weight: "plain" | "bold",
+  italic = false,
 ): number {
-  const widths = weight === "bold" ? boldWidths : plainWidths;
+  const widths = metricsFor(weight, italic);
   return [...value].reduce(
     (width, glyph) => width + glyphAdvanceEm(glyph, widths),
     0,
@@ -194,23 +59,16 @@ export function schematicTextAdvanceEm(
 /**
  * Where a run of schematic text puts ink, in em from where it starts: from
  * the first glyph's outline to the last one's, each glyph advancing as
- * schematicTextAdvanceEm adds them up. Italic text is set in the oblique
- * faces, whose outlines lean. A glyph the tables do not hold inks its whole
- * advance. Null for a run that draws nothing, such as a space.
+ * schematicTextAdvanceEm adds them up. Italic faces supply their own advances
+ * and ink bearings. A glyph the tables do not hold inks its whole advance.
+ * Null for a run that draws nothing, such as a space.
  */
 export function schematicTextInkEm(
   value: string,
   weight: "plain" | "bold",
   italic = false,
 ): { left: number; right: number } | null {
-  const widths = weight === "bold" ? boldWidths : plainWidths;
-  const sides = italic
-    ? weight === "bold"
-      ? boldObliqueSides
-      : obliqueSides
-    : weight === "bold"
-      ? boldSides
-      : plainSides;
+  const widths = metricsFor(weight, italic);
   let x = 0;
   let left = Infinity;
   let right = -Infinity;
@@ -220,15 +78,11 @@ export function schematicTextInkEm(
       const side =
         glyph === "."
           ? roundPeriod
-          : (sides.get(glyph) ?? { left: 0, right: 0 });
+          : (widths.get(glyph) ?? { left: 0, right: 0 });
       left = Math.min(left, x + side.left);
       right = Math.max(right, x + advance - side.right);
     }
     x += advance;
   }
   return left <= right ? { left, right } : null;
-}
-
-export function fractionTextAdvanceEm(value: string): number {
-  return schematicTextAdvanceEm(value, "bold");
 }

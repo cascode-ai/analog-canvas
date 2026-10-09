@@ -555,22 +555,23 @@ it("measures a value by its glyphs' outlines as the label advance tables set the
     };
   };
   const overPlates = [["VISUAL_LABEL_CLEARANCE", ["value", "CT1"]]];
-  // DejaVu Sans Bold sets it 58.14 wide; its 1 stands 1.70 into its
-  // advance, so ending at 333 its ink starts at 276.56, over the plates...
-  const close = valueAt("end", 333);
-  expect(close.ink.x).toBeCloseTo(276.56, 1);
+  // The original #1413 placement is clear in the narrower textbook face.
+  expect(valueAt("end", 333).findings).toEqual([]);
+  // Metropolis Bold: advance 50.41186, first bearing 0.498828.
+  // Ending at 326.5 places the first ink at 276.59, over the plates.
+  const close = valueAt("end", 326.5);
+  expect(close.ink.x).toBeCloseTo(276.59, 1);
   expect(close.findings).toEqual(overPlates);
-  // ...and ending at 336, at 279.56, clear of them. The F stops 1.27
-  // short of the end.
-  const clear = valueAt("end", 336);
-  expect(clear.ink.x).toBeCloseTo(279.56, 1);
-  expect(clear.ink.x + clear.ink.width).toBeCloseTo(334.73, 1);
+  // Three units farther right is clear; F ends 0.589524 short of the anchor.
+  const clear = valueAt("end", 329.5);
+  expect(clear.ink.x).toBeCloseTo(279.59, 1);
+  expect(clear.ink.x + clear.ink.width).toBeCloseTo(328.91, 1);
   expect(clear.findings).toEqual([]);
   // A start-aligned value stands on its anchor by the same bearing: CT2's
   // spot 12 right of the centre is clear, 6 right of it is not.
   expect(valueAt("start", 282).findings).toEqual([]);
   const over = valueAt("start", 276);
-  expect(over.ink.x).toBeCloseTo(277.7, 1);
+  expect(over.ink.x).toBeCloseTo(276.5, 1);
   expect(over.findings).toEqual(overPlates);
 });
 
@@ -664,11 +665,14 @@ describe("labels that run on (#1412)", () => {
   it("reports two parts' values a few units apart on one line", () => {
     // #53, a Butterworth ladder: C3's value start-aligned beside it, C5's
     // end-aligned to its left.
-    const { doc, part, label, runOn } = drawing();
+    const { doc, part, label, runOn, row } = drawing();
     part("C3", "capacitor", 260, 60);
     part("C5", "capacitor", 392, 60);
     label("C3", "value", bold("637pF"), "start", 272, 65);
     label("C5", "value", bold("197pF"), "end", 380, 65);
+    // The old positions are now clear. Keep the regression at a six-unit gap.
+    expect(runOn()).toEqual([]);
+    row(["C3-value", "C5-value"], 65, 6);
     expect(runOn()).toEqual([
       expect.objectContaining({
         severity: "info",
@@ -679,8 +683,8 @@ describe("labels that run on (#1412)", () => {
           'C3\'s value "637pF" and C5\'s value "197pF" share a line 6 units apart and read as one',
       }),
     ]);
-    // Where #53 had C5, DejaVu Sans sets the two over each other: that is
-    // VISUAL_LABEL_OVERLAP's, and not reported twice.
+    // Moving the second part twelve units left overlaps the labels; that
+    // belongs to VISUAL_LABEL_OVERLAP and is not reported twice.
     doc.instances[1]!.placement!.position.x = 380;
     expect(runOn()).toEqual([]);
     expect(
@@ -693,11 +697,12 @@ describe("labels that run on (#1412)", () => {
   it("reports a name beside another part's value", () => {
     // #63, an L-match: C1's name beside it, L1's value centred under the
     // coil.
-    const { part, label, runOn } = drawing();
+    const { part, label, runOn, row } = drawing();
     part("C1", "capacitor", 150, 40);
     part("L1", "inductor", 214, 20, 90);
     label("C1", "name", reference("C", "1"), "start", 162, 45);
     label("L1", "value", bold("31.8nH"), "middle", 214, 46);
+    row(["C1-name", "L1-value"], 45, 4);
     expect(runOn().map((d) => d.message)).toEqual([
       'C1\'s name "C1" and L1\'s value "31.8nH" share a line 4 units apart and read as one',
     ]);
@@ -752,11 +757,11 @@ describe("labels that run on (#1412)", () => {
     label("R1", "value", bold("1k"), "start", 0, 105);
     label("R2", "value", bold("2k"), "start", 0, 105);
     // R1's name and value run on, as one part's are drawn on purpose; R2's
-    // value stands a figure's width (9.6 units) clear of them.
+    // value stands a figure's width (10.3 units in Metropolis) clear of them.
     row(["R1-name", "R1-value"], 105, 3);
-    row(["R1-value", "R2-value"], 105, 10);
+    row(["R1-value", "R2-value"], 105, 11);
     expect(runOn()).toEqual([]);
-    row(["R1-value", "R2-value"], 105, 9);
+    row(["R1-value", "R2-value"], 105, 10);
     expect(runOn().map((d) => d.objectIds)).toEqual([["R1-value", "R2-value"]]);
   });
 });

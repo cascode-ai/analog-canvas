@@ -118,7 +118,7 @@ weight, as TeX's rules are, not the heavier stroke of schematic lines. A
 radical sign is a drawn stroke that runs on into its overbar, so the two meet
 exactly whatever face the viewer has. The layout measures with the label advance
 tables, but a viewer may draw the font stack in another face, such as Arial
-where DejaVu Sans is not installed. So each run of symbols with their scripts
+in a standalone SVG where Metropolis is not installed. So each run of symbols with their scripts
 is one text element whose glyphs follow one another by the real face's
 advances, as a label's do; fractions, radicals, and fences are placed from the
 layout. A one-run formula stands at its anchor as a label does. Otherwise each
@@ -161,11 +161,13 @@ intent and produce no angle-only warning or error, including on protected
 Routes. Explicit angle straightening remains an optional undoable operation,
 not a diagnostic prerequisite. A terminal resting on another Net's Route is a
 structural warning outside the gate. Spacing and other layout-quality findings
-are observations. Text ink is what DejaVu Sans, the font stack's first face,
-draws: across from the first glyph's outline to the last one's by the label
-advance tables, side bearings included, and from capitals to subscripts. The
-editor and its PNGs draw in that face on every system; an SVG opened where it
-is not installed may show Arial, narrower than it is measured.
+are observations. Text uses the served Metropolis face, an open-source
+approximation of the reference figures' Proxima Nova, with DejaVu Sans for
+missing Greek and math glyphs. Label advance and ink tables come from those same
+files, including each italic face's own advances and side bearings. The editor
+and PNGs use the pinned faces on every system; standalone SVG viewers without
+them may use another face. The [export contract](export.md) owns fallback,
+embedding and character-coverage boundaries.
 
 Every finding declares `category`, `confidence`, and `gateEligible`.
 Structural findings describe high-confidence model, topology, or explicit

@@ -27,13 +27,23 @@ and text; it never embeds the page-cover PNG used by the PNG artifact. The
 original SVG is unchanged. Export filenames are normalized and all three
 formats use the same base name.
 
-The editor serves DejaVu Sans, the schematic font stack's first face, subset
-to the characters schematic text uses (`packages/exporters/fonts/`, written by
-`scripts/generate-schematic-fonts.mjs`). The canvas draws labels in it where
-the system has none, as they are measured. A browser PNG draws its SVG as an
-image, which loads no font, so the rasterizer inlines the faces into that copy
-of the SVG; when they cannot be read it draws in the system's faces. The
-downloaded SVG names the stack and carries no font.
+The editor serves pinned Metropolis faces, an open-source approximation of the
+Proxima Nova lettering in the accepted textbook references. DejaVu Sans supplies
+Greek and mathematical glyphs absent from Metropolis. Both families are subset
+for browser delivery (`packages/exporters/fonts/`, generated together with their
+advance and ink tables by `scripts/generate-schematic-fonts.mjs`). The authored
+round-period face remains first for full stops. Font size, weight, slant and
+subscript intent are unchanged; existing drawings need no migration.
+
+Canvas text, browser PNG and Node raster output use these same glyphs. Node uses
+generated ICM Schematic composite faces so its renderer preserves each weight
+and slant when Latin, Greek, mathematical symbols and periods share a text run.
+Its temporary raster input also accounts for relative formula spacing when
+aligning text runs, keeping operators clear of fraction bars and scripts centered.
+Browser PNG inlines the faces because an SVG drawn as an image loads no external font;
+when the files cannot be read it falls back to system faces. The downloaded SVG
+names the stack and carries only the authored period face, so an external viewer
+needs Metropolis and DejaVu installed for the same appearance.
 
 Canonical SVG resolves script typography before serialization: subscript and
 superscript runs use numeric font sizes and explicit baseline displacement,
@@ -48,16 +58,14 @@ legacy relative text constructs before conversion. This compatibility pass
 must not rewrite the downloaded canonical SVG or flatten PDF text into a page
 image.
 
-All PDF text is set in DejaVu Sans, the schematic font stack's first face, in
-which labels are measured and the editor draws them. The PDF's built-in faces
-would set Latin text in Helvetica and encode Latin-1 only, turning Greek, the
-minus sign, and math symbols into other characters. The face is embedded as a
-subset of the glyphs used, and loaded only when a PDF is made. For the
-conversion, the same face is added to the page, so svg2pdf's in-page text
-measurement places each run by the face the PDF draws; it is removed
-afterwards.
-When the face cannot be loaded, the export fails with that reason rather than
-writing other characters.
+PDF text explicitly selects Metropolis, the DejaVu symbol fallback, or the
+round-period face per glyph. Each used weight/slant is embedded as a subset;
+PDF has no CSS font fallback and its built-in Latin-1 faces cannot preserve
+Greek or math symbols. The converter loads the matching faces into the page
+for its run measurements and removes them afterwards. Failure to load a required
+face fails the export visibly. Glyphs absent from both bundled families, including
+CJK text, are outside the PDF font coverage; browser CJK rendering still uses the
+system's fallback fonts.
 
 Node/headless export retains a high-resolution raster-PDF fallback for release
 tooling because the browser vector converter requires a live DOM. It is not the

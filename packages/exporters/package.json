@@ -33,11 +33,13 @@
     "build": "tsc -p tsconfig.json"
   },
   "dependencies": {
+    "@icm/derived": "workspace:*",
     "@icm/model": "workspace:*",
     "@icm/project-protocol": "workspace:*",
     "@icm/render-svg": "workspace:*",
     "@icm/symbols": "workspace:*",
     "@resvg/resvg-js": "2.6.2",
+    "@xmldom/xmldom": "0.9.12",
     "dejavu-fonts-ttf": "2.37.3",
     "jspdf": "4.2.1",
     "pdf-lib": "1.17.1",

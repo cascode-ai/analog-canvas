@@ -87,6 +87,46 @@ describe("renderRichTextDocument", () => {
     },
   );
 
+  it("stacks scripts by their own styled advances even inside italic text", () => {
+    const svg = renderRichTextDocument(
+      {
+        runs: [
+          { kind: "text", value: "V" },
+          {
+            kind: "span",
+            style: "subscript",
+            children: [
+              {
+                kind: "span",
+                style: "italic",
+                children: [{ kind: "text", value: "R" }],
+              },
+            ],
+          },
+          {
+            kind: "span",
+            style: "superscript",
+            children: [{ kind: "text", value: "R" }],
+          },
+        ],
+      },
+      razaviTextbookProfile,
+      { fontSize: 20, defaultBold: true, defaultItalic: true },
+    );
+    // Metropolis Bold R is 0.682 em; Bold Italic R is 0.700 em. The
+    // upright superscript is drawn first, then backed over by exactly its
+    // advance (0.682 * 20 * 0.76), leaving the wider italic subscript last.
+    expect(svg).toContain(
+      'data-text-run="superscript" dx="0.6992" dy="-6.688" font-size="15.2px" style="font-style:normal;font-weight:700">R</tspan>',
+    );
+    expect(svg).toContain(
+      'data-text-run="subscript" dx="-10.3664" dy="13.376"',
+    );
+    expect(svg).toContain(
+      'style="font-style:italic;font-weight:700">R</tspan>',
+    );
+  });
+
   it("keeps a script upright when it occurs inside bold italic text", () => {
     const svg = renderRichTextDocument(
       {

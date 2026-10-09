@@ -2,16 +2,16 @@ import sansUrl from "../fonts/DejaVuSans.schematic.woff?url";
 import sansBoldUrl from "../fonts/DejaVuSans-Bold.schematic.woff?url";
 import sansBoldObliqueUrl from "../fonts/DejaVuSans-BoldOblique.schematic.woff?url";
 import sansObliqueUrl from "../fonts/DejaVuSans-Oblique.schematic.woff?url";
+import metropolisUrl from "../fonts/Metropolis-Regular.schematic.woff?url";
+import metropolisBoldUrl from "../fonts/Metropolis-Bold.schematic.woff?url";
+import metropolisItalicUrl from "../fonts/Metropolis-RegularItalic.schematic.woff?url";
+import metropolisBoldItalicUrl from "../fonts/Metropolis-BoldItalic.schematic.woff?url";
 
 /**
- * DejaVu Sans, the schematic font stack's first face, served with the editor
- * (#1413). Label measurement reads its tables, while a browser without it
- * installed (macOS, Windows) drew labels in the narrower Arial: a label
- * reported touching its part looked clear of it. The faces are subset to the
- * characters schematic text uses (scripts/generate-schematic-fonts.mjs);
- * anything else falls back glyph by glyph to the rest of the stack.
+ * Metropolis approximates the reference textbook's Proxima Nova lettering.
+ * DejaVu supplies Greek and math glyphs missing from Metropolis. Both are
+ * served and measured from the same pinned files, on every operating system.
  */
-const SCHEMATIC_FONT_FAMILY = "DejaVu Sans";
 
 /** The characters the faces hold, as their generator subsets them. */
 export const SCHEMATIC_FONT_UNICODE_RANGE = [
@@ -29,30 +29,40 @@ export const SCHEMATIC_FONT_UNICODE_RANGE = [
 ].join(",");
 
 const FACES = [
-  { url: sansUrl, weight: 400, style: "normal", local: "DejaVu Sans" },
-  { url: sansBoldUrl, weight: 700, style: "normal", local: "DejaVu Sans Bold" },
-  {
-    url: sansObliqueUrl,
-    weight: 400,
-    style: "italic",
-    local: "DejaVu Sans Oblique",
-  },
-  {
-    url: sansBoldObliqueUrl,
-    weight: 700,
-    style: "italic",
-    local: "DejaVu Sans Bold Oblique",
-  },
-] as const;
+  ...[
+    { url: metropolisUrl, weight: 400, style: "normal" },
+    { url: metropolisBoldUrl, weight: 700, style: "normal" },
+    { url: metropolisItalicUrl, weight: 400, style: "italic" },
+    { url: metropolisBoldItalicUrl, weight: 700, style: "italic" },
+  ].map((face) => ({ ...face, family: "Metropolis" })),
+  ...[
+    { url: sansUrl, weight: 400, style: "normal" },
+    {
+      url: sansBoldUrl,
+      weight: 700,
+      style: "normal",
+    },
+    {
+      url: sansObliqueUrl,
+      weight: 400,
+      style: "italic",
+    },
+    {
+      url: sansBoldObliqueUrl,
+      weight: 700,
+      style: "italic",
+    },
+  ].map((face) => ({ ...face, family: "DejaVu Sans" })),
+];
 
 /**
- * One face's rule: an installed DejaVu Sans first, else `source`. Text shows
+ * One pinned face's rule. Text shows
  * in the next face of the stack until it arrives, and characters the subset
  * lacks are drawn by the stack's next face; label positions do not depend
  * on it, as they come from the tables.
  */
 function fontFaceRule(face: (typeof FACES)[number], source: string): string {
-  return `@font-face{font-family:"${SCHEMATIC_FONT_FAMILY}";src:local("${face.local}"),${source};font-weight:${face.weight};font-style:${face.style};font-display:swap;unicode-range:${SCHEMATIC_FONT_UNICODE_RANGE}}`;
+  return `@font-face{font-family:"${face.family}";src:${source};font-weight:${face.weight};font-style:${face.style};font-display:swap;unicode-range:${SCHEMATIC_FONT_UNICODE_RANGE}}`;
 }
 
 /**
