@@ -103,6 +103,14 @@ export async function routeComponentLibraryRequest(
     )
       throw new Error("Expected a component revision");
     if (request.method === "PUT") {
+      if (
+        body.idempotencyKey !== undefined &&
+        (typeof body.idempotencyKey !== "string" ||
+          !/^[a-zA-Z0-9_-]{1,128}$/u.test(body.idempotencyKey))
+      )
+        throw Error(
+          "Use an idempotency key of 1–128 letters, digits, underscores or hyphens",
+        );
       const parsed = parseSharedComponentPayload({
         definition: body.definition,
         ...(body.circuit === undefined ? {} : { circuit: body.circuit }),
@@ -131,5 +139,6 @@ export async function routeComponentLibraryRequest(
     userId: user.id,
     author: user.displayName,
     admin: user.isAdmin === true,
+    idempotencyKey: body.idempotencyKey,
   });
 }

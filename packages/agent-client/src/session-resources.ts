@@ -223,6 +223,8 @@ export abstract class AgentSessionResources extends AgentSessionTransport {
     const changesProject =
       request.operation === "import-cell" ||
       request.operation === "insert-gallery-entry" ||
+      (request.operation === "components" &&
+        request.request.action === "insert") ||
       request.operation === "replace-project-code" ||
       request.operation === "replace-netlist" ||
       (request.operation === "workspace" && request.request.action !== "list");

@@ -462,102 +462,87 @@ part's whole block of JSON and scrolls the first one into view.
 
 To edit one component, select it and press **E**, or right-click and choose
 **Edit Component Definition**. **Q** continues to edit instance properties.
-The definition workspace shows code and a live, isolated preview with pin
-coordinates. It does not provide mouse drawing tools. **Save & apply** publishes
-a new shared component and changes only the selected instance; peers retain
-their existing definitions. It supports normal Project Undo. A hierarchical
-Cell still uses **E / Enter Cell** to navigate into its circuit.
+A hierarchical Cell uses **E / Enter Cell** to navigate into its circuit.
 
-For a native circuit, open **Edit / User Components… / Create Component…** and
-choose **Native circuit** under Definition type. Enter its SPICE or Spectre
-source, select the subcircuit entry, then use **Apply model** or **Apply & Place**.
-This captures an applied Project model without requiring public library Save.
-It uses the same source as Cell Manager's External Circuits, copied/exported
-netlists and simulation preparation.
+**Edit / User Components… / Create Component…** starts in **Circuit**. The
+**Circuit**, **Symbol** and **Pins** tabs edit one retained authoring session:
 
-**Symbol mode** offers Automatic or Custom. Custom retains the JSON editor and
-isolated preview. `circuitBinding.terminals` connects graphical pin names to
-the native interface's stable terminal IDs; a complete same-name interface can
-initialize the mapping. Graphical names and geometric order may differ from
-the formal source order. To hide a supply, explicitly map its terminal to
-`supply: "VDD"` or `"VSS"` and remove that graphical pin; this uses the existing
-property supply rules, rather than guessing a connection from its name.
+- **Circuit:** enter SPICE or Spectre, select its subcircuit entry, or choose an
+  existing Project source. Format, Process and Copy use the same controls and
+  qualified conversions as External Circuits in Cell Manager.
+- **Symbol:** use Automatic layout and directions, or Custom JSON with an
+  isolated preview. Custom preserves the full Symbol DSL; mouse drawing tools
+  for internal shapes are not provided. A last valid preview remains visible
+  while JSON is unfinished, without replacing the unfinished text.
+- **Pins:** map each native terminal to a distinct graphical pin or explicit
+  VDD/VSS property supply. Add a graphical pin for an unmapped terminal, or
+  explicitly remove an unused graphical pin. Electrical direction is distinct
+  from the pin's drawing side. Unknown, duplicate or missing mappings block Apply.
 
-Select a placed native instance and use **E** to edit its owner and artwork.
-For changed custom artwork, give `symbol.id` a new ID; Apply retains peer
-instances' captured artwork and preserves compatible logical connections.
-Errors identify the source or mapping to repair inline. Pending text is not an
-executable model, and failed Apply leaves the drawing unchanged.
-**Save draft** saves native source text. Apply pending artwork or a changed
-symbol mode first; otherwise Save draft refuses and retains those edits.
-Switching artwork must preserve a compatible property supply mapping or
-explicitly connect the corresponding native terminal. Otherwise Apply refuses
-at that terminal without changing the Project.
+The native source declares port order and parameter defaults. Symbol JSON
+owns artwork and graphical names; `circuitBinding.terminals` is the single
+correspondence to stable native terminal IDs. Complete exact same-name pins can
+initialize this mapping. Graphical order and names may differ from source order.
+Hidden supplies require explicit supply mappings and never acquire a parent
+Net from their name.
 
-Changing formal port order preserves connected Nets. For a renamed or removed
-port, use its **Migrate** selector to choose the replacement or **Disconnect and
-keep wires**. A removal retains dangling wires and removes that port's No Connect;
-the remaining custom contacts keep their drawing. A newly added port needs a
-complete custom JSON mapping, or a switch to **Automatic** before Apply.
-Compatible instance parameter overrides survive model default changes.
+**Apply model** validates the complete candidate and changes the Project in one
+undoable transaction. Failed or stale Apply leaves applied facts unchanged.
+**Place** applies pending work first; canceling placement keeps the applied
+model. Use **View applied version** to deliberately place or publish an existing
+applied revision while keeping its saved draft. Compatible parameter overrides
+and logical connections survive interface-preserving edits. Changed Custom
+artwork needs a fresh `symbol.id` to preserve immutable peer captures.
 
-After Apply, **Save publicly** shares the selected native circuit and artwork.
-Pending source or artwork must be applied first; a saved source draft cannot be
-published as an executable model. The public snapshot includes reachable owned
-files and keeps third-party dependency identities and digests; it does not copy
-unrelated Project files or a vendor library into your model.
+**More / Save draft** retains the whole authoring candidate: native files,
+entry, symbol mode, raw JSON (including invalid text), directions, layout and
+mappings. Project Save, recovery and portable files retain these non-executable
+drafts. Reopen them under **User Components / Project drafts**. Ctrl/Cmd+S in
+the component workspace saves the draft; Ctrl/Cmd+Enter applies. Switching the
+three views or the advanced definition type retains pending work. Closing an
+unsaved session uses the existing keep/discard protection.
 
-Editing a native library entry opens its own authoring snapshot. **Apply model**
-changes that snapshot, and **Save publicly** updates the public record if you are
-its author or an administrator. Another contributor uses **Save as new
-component**. These actions do not change the open drawing or earlier captures.
-The public library stores one current record with a numeric revision for stale
-save protection; it does not offer archived library revisions.
+The **Primitive / Artwork (advanced)** definition type retains free JSON,
+primitive device mapping and explicit interface-only definitions. **Apply** and
+**Place** work locally without signing in. A new applied artwork candidate is
+session-local until placed; Save draft preserves unfinished work without adding
+an unused runtime component to the Project's used-class catalog.
 
-Placing a native library entry captures its source, interface and artwork into
-your Project. Compatible repeated placement reuses the model and allocates a new
-instance reference. A conflicting implementation or mapping is reported without
-overwriting the Project. Your captured model survives public updates, deletion
-and unavailable network, and is retained by Project Save, portable files,
-Undo/Redo and copying. Its applied body and owned helpers appear in copied and
-exported netlists and in qualified simulation input.
+**Publish** is a separate, deliberate public operation requiring sign-in. It
+accepts only an applied definition. A native snapshot contains the selected
+artwork, interface, source and reachable owned helper files, with pinned
+third-party dependency identities and digests. Drafts, unrelated Project files
+and testbenches are excluded. Missing external dependencies still block execution.
+Authors and administrators update a permitted record; other contributors use
+**Publish as new component**. The library has one current revision per record,
+without archived public revisions. A lost reply can be retried with the same
+publication identity and key for seven days.
 
-An older User Component may contain artwork and a `subcircuit` interface without
-an implementation. It remains visible and placeable with **Implementation
-missing**. Its target name alone does not bind a Project model; copied/exported
-netlists and execution remain blocked until you repair it.
+Placing a public native revision captures source, interface and artwork in your
+Project through ordinary placement. Compatible repeated insertion reuses its
+model and allocates a new reference. Conflicts refuse without overwriting the
+Project. Existing captures survive public updates, deletion and unavailable
+network; they remain in Project saves, portable files and Undo/Redo. Copied and
+exported netlists and qualified simulation use the same applied definition closure.
 
-Select its placed instance and press **E**, or use **Edit** on its User
-Components library tile. Choose **Repair implementation** to provide real SPICE
-or Spectre source and select its entry. The existing graphical pins and explicit
-property supplies initialize a checked native mapping. Use each **Migrate**
-selector for renamed or removed ports, and complete the Custom JSON mapping for
-new terminals before **Apply model**. Repair updates occurrences of that captured
-class in this Project, preserves compatible connections and instance overrides,
-and creates a new source-bound class. It does not repair unrelated classes with
-the same target name. One Project Undo restores the old declaration and wiring.
+Older artwork with a `subcircuit` interface but no implementation remains
+placeable and visibly unimplemented; its target name does not bind an existing
+Project model by itself. **E** opens the same Circuit/Symbol/Pins session to
+provide source or explicitly choose an existing model. Inspect every formal
+terminal, add missing pins and select mappings before Apply. The interface
+summary shows native and legacy terminal counts and the actual number of calls
+sharing the source. Repair defaults to the current captured class; **Selected
+instance** creates a separate capture. Editing shared native source still affects
+all of its real callers. Fork the source first when an independent circuit is needed.
 
-Alternatively, choose an applied Project model under **Implementation**, map
-every legacy port to a distinct native terminal, and use **Apply repair**. This
-requires a complete compatible correspondence. It uses the selected applied
-model and retains its saved draft, original callers and per-instance parameters.
-If the Project changes during repair, reopen the component and check the mapping
-again. Invalid or stale repairs leave the drawing unchanged.
-
-Repairing a public library entry edits an isolated snapshot. **Apply model**
-does not publish it or repair existing drawings. An author/admin deliberately
-uses **Save publicly** to upgrade the current record; other contributors use
-**Save as new component**. Earlier Project captures keep their original legacy
-evidence until explicitly repaired. Applied sources, raw artwork and checked
-mappings are embedded in Project saves and portable files; saved source drafts
-remain separate from the executable applied revision.
-
-The Library ends with **User Defined**, after **Extended Devices**. Choose
-**Create component**, edit the starter code, and **Save & place**. Signing in
-is required to save; every saved definition is public, with no private-library
-option. Other people can place it or fork it as a new component. Authors can
-update their own library entries; each revision is captured independently
-when placed, so updates never silently rewrite existing drawings.
+Connected removed legacy ports need explicit **Disconnect … and keep wires**
+under **Repair connections**. Native port rename/remove uses its **Migrate**
+selector, preserving compatible connections or wire stubs and clearing removed
+No Connects. One Undo restores source, captures and connection migrations.
+Attaching unchanged applied source preserves its original callers, revision and
+private source draft. Repair does not change unrelated classes with the same
+target name. Editing a public record uses an isolated authoring snapshot;
+Apply does not publish it or upgrade earlier Project captures.
 
 Administrators can mark an entry **Official**, delete it from the public list,
 or restore it using the **Deleted** filter. Official entries can be updated
@@ -584,8 +569,11 @@ The Project carries one definition per used component type, including uses in
 other Cells. Deleting its final use removes the definition; Undo restores it.
 Unused definitions inside a Project are not a component library. When editing
 through Project Code, keep a placed instance while developing a definition.
-The User Defined library stores published definitions independently. An Agent can make
-the same changes in the complete Project code without a separate file format.
+The User Defined library stores published definitions independently. Agents author through the same Project transactions. The `user_components` MCP
+tool lists, reads, publishes, updates, forks and inserts public records. Public
+writes need their own grant and the signed-in Editor principal; they do not accept
+a caller-supplied author. Inserts require a selected library revision and current
+Project/Cell revisions. Stale versions refuse rather than choosing a newer record.
 
 SPICE files are import inputs, not embedded source attachments. Saving an
 imported Project preserves the editable schematic and source provenance, but

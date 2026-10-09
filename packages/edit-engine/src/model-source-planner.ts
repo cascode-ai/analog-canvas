@@ -240,6 +240,16 @@ export function planModelSourceApply(
         entry: entry.name,
       },
     };
+    for (const id of Object.keys(target.terminalDirections ?? {}))
+      if (!definition.terminals.some((terminal) => terminal.id === id))
+        throw Error("Unknown native terminal in the direction candidate");
+    if (target.terminalDirections)
+      definition.terminals = definition.terminals.map((terminal) => ({
+        ...terminal,
+        direction:
+          target.terminalDirections![terminal.id] ?? terminal.direction,
+      }));
+    if (target.presentation) definition.presentation = target.presentation;
     if (definition.presentation?.pinPlacements)
       definition.presentation.pinPlacements =
         definition.presentation.pinPlacements.filter((s) =>
@@ -343,6 +353,25 @@ export function planModelSourceApply(
     }
   }
   source.revision = (previous?.revision ?? 0) + 1;
-  delete source.draft;
+  // Shared text Apply does not apply another entry's artwork or mapping candidate.
+  const appliedIds = new Set(
+    edit.authoringDefinitionIds ?? edit.definitions.map((d) => d.definitionId),
+  );
+  if (
+    [...appliedIds].some(
+      (id) => !edit.definitions.some((d) => d.definitionId === id),
+    )
+  )
+    throw Error("Authoring Apply must select an explicit definition target.");
+  const remaining = previous?.draft?.authoring?.filter(
+    (d) => !appliedIds.has(d.definitionId),
+  );
+  if (remaining?.length && previous?.draft)
+    source.draft = {
+      ...structuredClone(previous.draft),
+      baseRevision: source.revision,
+      authoring: structuredClone(remaining),
+    };
+  else delete source.draft;
   return [{ kind: "upsert_model_source", source }, ...planned];
 }

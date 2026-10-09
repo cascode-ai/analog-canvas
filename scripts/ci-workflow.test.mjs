@@ -40,7 +40,7 @@ describe("CI workflow", () => {
     expect(workflow).not.toContain("playwright install --with-deps chromium");
   });
 
-  it("avoids duplicate static work and builds only editor dependencies for browser tests", () => {
+  it("avoids duplicate static work and builds browser-test runtime dependencies", () => {
     expect(workflow).toContain(
       "if: steps.plan.outputs.mode == 'documentation'",
     );
@@ -48,8 +48,11 @@ describe("CI workflow", () => {
       "agent-docs:generated:check",
     );
     expect(packageJson.scripts["ci:static"]).not.toContain("agent-docs:check");
-    expect(packageJson.scripts["ci:e2e"]).toContain("@icm/editor^...");
-    expect(packageJson.scripts["ci:e2e"]).not.toContain("!@icm/editor");
+    for (const script of ["ci:e2e", "test:e2e:local"]) {
+      expect(packageJson.scripts[script]).toContain("@icm/editor^...");
+      expect(packageJson.scripts[script]).toContain("@icm/mcp-server^...");
+      expect(packageJson.scripts[script]).not.toContain("!@icm/editor");
+    }
   });
 
   it("uses the planner's shard count while aggregating every shard into the required check", () => {

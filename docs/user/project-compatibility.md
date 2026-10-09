@@ -1,9 +1,9 @@
 # Project File Compatibility
 
-The current portable Project schema is `67`; the normalized editor model is
-schema `58`. Supported files from schemas 24 through 67 enter through the same
+The current portable Project schema is `68`; the normalized editor model is
+schema `58`. Supported files from schemas 24 through 68 enter through the same
 validated reader. Historical input is upgraded or decoded before installation;
-all current writers emit schema 67. See the
+all current writers emit schema 68. See the
 [file-format contract](../specs/project-file-format.md) for the authoritative
 representation and compatibility boundary.
 

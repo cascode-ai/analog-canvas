@@ -47,6 +47,7 @@ export interface ExternalDefinitionResult {
   ok: boolean;
   message: string;
   definitionId?: string;
+  sourceRevision?: number;
 }
 
 export interface ProjectStructureCommandDependencies {

@@ -55,10 +55,35 @@ export class ComponentLibraryDO {
     this.sql.exec(
       "CREATE INDEX IF NOT EXISTS components_status_id ON components(status, id)",
     );
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS component_write_receipts (
+      user_id TEXT NOT NULL, request_key TEXT NOT NULL, component_id TEXT NOT NULL,
+      request_digest TEXT NOT NULL, response_json TEXT NOT NULL, created_at TEXT NOT NULL,
+      PRIMARY KEY (user_id, request_key)
+    ) WITHOUT ROWID`);
   }
   async fetch(request: Request): Promise<Response> {
     const operation = new URL(request.url).pathname.slice(1);
     const body = (await request.json()) as Record<string, unknown>;
+    const digest =
+      operation === "save" && body.idempotencyKey
+        ? [
+            ...new Uint8Array(
+              await crypto.subtle.digest(
+                "SHA-256",
+                new TextEncoder().encode(
+                  JSON.stringify({
+                    id: body.id,
+                    revision: body.revision,
+                    definition: body.definition,
+                    circuit: body.circuit,
+                  }),
+                ),
+              ),
+            ),
+          ]
+            .map((byte) => byte.toString(16).padStart(2, "0"))
+            .join("")
+        : null;
     if (operation === "list") {
       const limit = Math.min(
         30,
@@ -88,6 +113,10 @@ export class ComponentLibraryDO {
           }>("SELECT id FROM components WHERE author_id = ?", authorId)
           .toArray();
         this.sql.exec("DELETE FROM components WHERE author_id = ?", authorId);
+        this.sql.exec(
+          "DELETE FROM component_write_receipts WHERE user_id = ?",
+          authorId,
+        );
         return Response.json({ deleted: ids.length });
       });
     }
@@ -118,6 +147,42 @@ export class ComponentLibraryDO {
             },
             { status: 403 },
           );
+        if (digest) {
+          this.sql.exec(
+            "DELETE FROM component_write_receipts WHERE created_at < ?",
+            new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+          );
+          const receipt = this.sql
+            .exec<{
+              component_id: string;
+              request_digest: string;
+              response_json: string;
+            }>(
+              "SELECT component_id, request_digest, response_json FROM component_write_receipts WHERE user_id = ? AND request_key = ?",
+              String(body.userId),
+              String(body.idempotencyKey),
+            )
+            .toArray()[0];
+          if (receipt) {
+            if (
+              receipt.component_id !== id ||
+              receipt.request_digest !== digest
+            )
+              return Response.json(
+                {
+                  error:
+                    "This idempotency key belongs to a different component write.",
+                },
+                { status: 409 },
+              );
+            if (current?.status === "deleted")
+              return Response.json(
+                { error: "Restore the component before editing it" },
+                { status: 409 },
+              );
+            return Response.json(JSON.parse(receipt.response_json));
+          }
+        }
         if ((current?.revision ?? 0) !== body.revision)
           return Response.json(
             { error: "This component changed. Reload before saving." },
@@ -181,7 +246,19 @@ export class ComponentLibraryDO {
       const row = this.sql
         .exec<Row>("SELECT * FROM components WHERE id = ?", id)
         .toArray()[0]!;
-      return Response.json({ entry: entry(row) });
+      const response = { entry: entry(row) };
+      if (operation === "save" && digest) {
+        this.sql.exec(
+          "INSERT INTO component_write_receipts (user_id, request_key, component_id, request_digest, response_json, created_at) VALUES (?,?,?,?,?,?)",
+          String(body.userId),
+          String(body.idempotencyKey),
+          id,
+          digest,
+          JSON.stringify(response),
+          new Date().toISOString(),
+        );
+      }
+      return Response.json(response);
     });
   }
 }

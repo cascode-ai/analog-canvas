@@ -26,6 +26,205 @@ import type { ProjectStructureEdit } from "./project-transaction.js";
 import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 
 describe("Project-owned external model source", () => {
+  it("applying one shared-source entry retains another entry's unfinished authoring candidate", () => {
+    const project = createEmptyProject("shared-drafts", "Shared drafts");
+    const files = [
+      {
+        path: "model.spice",
+        text: ".subckt A P N\nR1 P N 1k\n.ends A\n.subckt B P N\nR2 P N 2k\n.ends B\n",
+      },
+    ];
+    project.modelSources = [
+      {
+        id: "source",
+        revision: 1,
+        language: "spice",
+        entry: "model.spice",
+        files,
+        dependencies: [],
+        draft: {
+          baseRevision: 1,
+          language: "spice",
+          entry: "model.spice",
+          files,
+          dependencies: [],
+          authoring: [
+            {
+              definitionId: "a",
+              entry: "A",
+              symbolMode: "automatic",
+              artworkText: "",
+              portMaps: {},
+            },
+            {
+              definitionId: "b",
+              entry: "B",
+              symbolMode: "custom",
+              artworkText: "{ unfinished B JSON",
+              portMaps: { b: { P: "IN" } },
+            },
+          ],
+        },
+      },
+    ];
+    const pending = structuredClone(
+      project.modelSources[0]!.draft!.authoring![1]!,
+    );
+    project.externalSubcircuitDefinitions = [
+      {
+        id: "b",
+        name: "B",
+        terminals: [
+          { id: "bp", name: "P", direction: "passive" },
+          { id: "bn", name: "N", direction: "passive" },
+        ],
+        formalParameters: [],
+        interfaceStatus: "declared",
+        implementation: { kind: "source", sourceId: "source", entry: "B" },
+      },
+    ];
+    const result = executeProjectTransaction(project, {
+      transactionId: "apply-a",
+      projectId: project.id,
+      expectedStructureRevision: 0,
+      actor: { kind: "human", id: "test" },
+      edits: [
+        {
+          kind: "apply_model_source",
+          source: project.modelSources[0]!,
+          definitions: [
+            { definitionId: "a", entry: "A", symbol: null },
+            { definitionId: "b", entry: "B" },
+          ],
+          authoringDefinitionIds: ["a"],
+        },
+      ],
+    });
+    expect(result.ok, JSON.stringify(result)).toBe(true);
+    if (!result.ok) return;
+    expect(result.project.modelSources![0]!.draft).toMatchObject({
+      baseRevision: 2,
+      authoring: [pending],
+      files,
+    });
+    expect(
+      result.project.externalSubcircuitDefinitions.map((d) => d.id),
+    ).toEqual(["b", "a"]);
+    expect(project.modelSources[0]!.draft!.authoring).toHaveLength(2);
+    const next = executeProjectTransaction(result.project, {
+      transactionId: "apply-b",
+      projectId: project.id,
+      expectedStructureRevision: result.structureRevision,
+      actor: { kind: "human", id: "test" },
+      edits: [
+        {
+          kind: "apply_model_source",
+          source: result.project.modelSources![0]!,
+          definitions: [{ definitionId: "b", entry: "B" }],
+        },
+      ],
+    });
+    expect(next.ok, JSON.stringify(next)).toBe(true);
+    if (next.ok) expect(next.project.modelSources![0]!.draft).toBeUndefined();
+  });
+  it("saves invalid artwork-only drafts outside the runtime component catalog", () => {
+    const project = createEmptyProject("artwork-draft", "Artwork draft");
+    const result = executeProjectTransaction(project, {
+      projectId: project.id,
+      expectedStructureRevision: 0,
+      transactionId: "artwork",
+      actor: { kind: "human", id: "test" },
+      edits: [
+        {
+          kind: "save_component_authoring_draft",
+          draft: {
+            id: "draft-one",
+            text: '{ "symbol": unfinished',
+          },
+          expectedText: null,
+        },
+      ],
+    });
+    expect(result.ok, JSON.stringify(result)).toBe(true);
+    if (!result.ok) return;
+    expect(result.project.componentAuthoringDrafts).toEqual([
+      { id: "draft-one", text: '{ "symbol": unfinished' },
+    ]);
+    expect(result.project.componentDefinitions ?? []).toEqual([]);
+    const stale = executeProjectTransaction(result.project, {
+      projectId: project.id,
+      expectedStructureRevision: result.structureRevision,
+      transactionId: "stale",
+      actor: { kind: "agent", id: "test" },
+      edits: [
+        {
+          kind: "save_component_authoring_draft",
+          draft: {
+            id: "draft-one",
+            text: "replacement",
+          },
+          expectedText: null,
+        },
+      ],
+    });
+    expect(stale.ok).toBe(false);
+    expect(result.project.componentAuthoringDrafts![0]!.text).toBe(
+      '{ "symbol": unfinished',
+    );
+  });
+  it("persists incomplete symbol text and per-owner mapping candidates without changing applied bytes", () => {
+    const project = createEmptyProject("author-draft", "Author draft");
+    project.modelSources = [
+      {
+        id: "source",
+        revision: 1,
+        language: "spice",
+        entry: "model.spice",
+        files: [
+          {
+            path: "model.spice",
+            text: ".subckt gain A B\nR1 A B 1k\n.ends gain\n",
+          },
+        ],
+        dependencies: [],
+      },
+    ];
+    const authoring = [
+      {
+        definitionId: "gain",
+        entry: "gain",
+        symbolMode: "custom" as const,
+        artworkText: '{ "symbol": unfinished',
+        portMaps: { gain: { A: "IN", B: null } },
+      },
+    ];
+    const result = executeProjectTransaction(project, {
+      projectId: project.id,
+      expectedStructureRevision: 0,
+      transactionId: "save-authoring",
+      actor: { kind: "human", id: "test" },
+      edits: [
+        {
+          kind: "save_model_source_draft",
+          sourceId: "source",
+          expectedRevision: 1,
+          language: "spice",
+          entry: "model.spice",
+          files: [{ path: "model.spice", text: "unfinished model" }],
+          dependencies: [],
+          authoring,
+        },
+      ],
+    });
+    expect(result.ok, JSON.stringify(result)).toBe(true);
+    if (!result.ok) return;
+    expect(result.project.modelSources![0]!.draft).toMatchObject({ authoring });
+    expect(result.project.modelSources![0]!.files).toEqual(
+      project.modelSources[0]!.files,
+    );
+    expect(result.project.modelSources![0]!.revision).toBe(1);
+    expect(project.modelSources[0]!.draft).toBeUndefined();
+  });
   it.each([
     [
       ".subckt Amp A B\nR1 A B 1k\n.ends Amp",

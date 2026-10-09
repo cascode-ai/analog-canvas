@@ -85,18 +85,26 @@ process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:m.id,result})+'\\n');
         "node",
       );
       await mkdir(dirname(cellarNode), { recursive: true });
-      await symlink(process.execPath, cellarNode);
-      await mkdir(join(brew, "opt"));
-      await symlink(
-        join("..", "Cellar", "node", "25.8.1_1"),
-        join(brew, "opt", "node"),
-      );
+      // The core offline installation contract also runs on Windows,
+      // whose executable naming and symlink privileges differ from Homebrew.
+      const node = process.platform === "win32" ? process.execPath : cellarNode;
+      if (process.platform !== "win32") {
+        await symlink(process.execPath, cellarNode);
+        await mkdir(join(brew, "opt"));
+        await symlink(
+          join("..", "Cellar", "node", "25.8.1_1"),
+          join(brew, "opt", "node"),
+          "dir",
+        );
+      }
       const installed = await installMcp(
         ["--origin", launch.env.ANALOG_CANVAS_API_URL, "--host", "codex"],
-        { home: directory, codex, execPath: cellarNode },
+        { home: directory, codex, execPath: node },
       );
       expect(installed.launch.command).toBe(
-        join(brew, "opt", "node", "bin", "node"),
+        process.platform === "win32"
+          ? process.execPath
+          : join(brew, "opt", "node", "bin", "node"),
       );
       expect(installed.hostLoaded).toBe(false);
       expect(await readFile(installed.backupPath!, "utf8")).toBe(original);
@@ -183,14 +191,29 @@ process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:m.id,result})+'\\n');
       }
       await mkdir(join(brew, "opt"));
       await symlink(
-        join("..", "Cellar", "node", "25.0.0"),
+        process.platform === "win32"
+          ? join(brew, "Cellar", "node", "25.0.0")
+          : join("..", "Cellar", "node", "25.0.0"),
         join(brew, "opt", "node"),
+        process.platform === "win32" ? "junction" : "dir",
       );
-      const older = join(brew, "Cellar", "node", "24.1.0", "bin", "node");
+      // The resolver recognizes POSIX Homebrew paths; forward slashes also
+      // let Windows execute the real filesystem-resolution contract.
+      const older = join(
+        brew,
+        "Cellar",
+        "node",
+        "24.1.0",
+        "bin",
+        "node",
+      ).replaceAll("\\", "/");
       expect(stableNodeExecutable(older)).toBe(older);
       expect(
         stableNodeExecutable(
-          join(brew, "Cellar", "node", "25.0.0", "bin", "node"),
+          join(brew, "Cellar", "node", "25.0.0", "bin", "node").replaceAll(
+            "\\",
+            "/",
+          ),
         ),
       ).toBe(join(brew, "opt", "node", "bin", "node"));
     } finally {

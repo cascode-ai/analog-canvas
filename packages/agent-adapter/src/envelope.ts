@@ -288,6 +288,8 @@ export const AgentSessionScopeSchema = z.enum([
    * an Agent to draw a circuit is not authorizing it to publish one.
    */
   "gallery.publish",
+  /** Publish or update User Components as the signed-in Editor principal. */
+  "components.publish",
 ]);
 
 /** Single runtime scope guard for browser recovery and relay consumers. */

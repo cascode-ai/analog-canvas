@@ -497,6 +497,18 @@ export function projectOperationScopes(
   request: AgentProjectResourceRequest,
 ): AgentSessionScope[] {
   switch (request.operation) {
+    case "components":
+      return request.request.action === "list" ||
+        request.request.action === "read"
+        ? ["circuit.snapshot"]
+        : request.request.action === "insert"
+          ? [
+              "project.import",
+              "circuit.edit.geometry",
+              "circuit.edit.connectivity",
+              "circuit.edit.presentation",
+            ]
+          : ["components.publish"];
     case "insert-gallery-entry":
       return [
         "project.import",

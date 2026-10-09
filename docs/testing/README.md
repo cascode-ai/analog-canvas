@@ -219,8 +219,9 @@ queue:
   insertion and runtime-crash fallback. A non-browser implementation change
   skips this required job successfully without allocating a runner. GitHub's
   runner Chrome avoids downloading a separate browser image. `ci:e2e` first
-  compiles only the editor's workspace dependencies whose `dist/` the Vite
-  configuration and the Node-side specs load; Vite serves the editor sources
+  compiles the Editor and MCP workspace dependencies whose `dist/` the Vite
+  configuration and Node-side MCP specs load; `test:e2e:local` uses the same
+  dependency preparation. Vite serves the editor sources
   directly because the Core job already owns the production build.
 
 Nothing runs on a schedule, and CI has no full browser audit. Run

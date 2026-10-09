@@ -714,6 +714,7 @@ test("grants a browser Agent, edits through the live host, and shares undo", asy
           "circuit.edit.presentation",
           "editor.semantic-control",
           "gallery.publish",
+          "components.publish",
           "project.download",
           "project.import",
           "visual.download",

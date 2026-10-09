@@ -23,6 +23,19 @@ const text = (result: Awaited<ReturnType<typeof callTool>>) =>
 beforeAll(() => void listToolDefinitions(), 30_000);
 
 describe("on-demand tool contracts", () => {
+  it("exposes User Components separately from Gallery with fixed-version insertion and principal-owned publication", () => {
+    const schema = toolInputSchema("user_components");
+    expect(schema).toBeTruthy();
+    const selected = describeToolContract({
+      tool: "user_components",
+      operations: ["insert", "publish"],
+    }) as { inputSchema: Record<string, unknown> };
+    const contract = JSON.stringify(selected.inputSchema);
+    expect(contract).toContain("expectedLibraryRevision");
+    expect(contract).toContain("sourceRevision");
+    expect(contract).toContain("idempotencyKey");
+    expect(contract).not.toContain('"author"');
+  });
   it("discovers operations offline without returning every input schema", async () => {
     const result = await callTool("describe_tool", {}, {} as never);
     expect(result.isError).not.toBe(true);

@@ -153,6 +153,45 @@ it("authorizes Gallery, Project Code and Netlist operations by their real effect
   expect(scopes({ operation: "list-gallery" })).toEqual(["circuit.snapshot"]);
   expect(
     scopes({
+      operation: "components",
+      request: { action: "read", componentId: "native-model" },
+    }),
+  ).toEqual(["circuit.snapshot"]);
+  expect(
+    scopes({
+      operation: "components",
+      request: {
+        action: "publish",
+        componentId: "native-model",
+        idempotencyKey: "publish",
+        projectId: "project",
+        expectedStructureRevision: 0,
+        selection: { kind: "component", symbolId: "symbol" },
+      },
+    }),
+  ).toEqual(["components.publish"]);
+  expect(
+    scopes({
+      operation: "components",
+      request: {
+        action: "insert",
+        componentId: "native-model",
+        expectedLibraryRevision: 1,
+        projectId: "project",
+        targetDocumentId: "main",
+        expectedStructureRevision: 0,
+        expectedRevision: 0,
+        position: { x: 0, y: 0 },
+      },
+    }),
+  ).toEqual([
+    "project.import",
+    "circuit.edit.geometry",
+    "circuit.edit.connectivity",
+    "circuit.edit.presentation",
+  ]);
+  expect(
+    scopes({
       operation: "insert-gallery-entry",
       galleryEntryId: "g1",
       targetDocumentId: "main",

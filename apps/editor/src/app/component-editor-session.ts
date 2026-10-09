@@ -1,5 +1,9 @@
 // The shared-component editor session the editor opens, and its target.
-import type { ComponentDefinition, Instance } from "@icm/model";
+import type {
+  ComponentDefinition,
+  Instance,
+  ComponentAuthoringDraft,
+} from "@icm/model";
 import type { SharedComponent } from "../features/user-components/component-library-contract";
 
 export interface ComponentEditorSession {
@@ -8,6 +12,7 @@ export interface ComponentEditorSession {
   definition: ComponentDefinition;
   mode: "new" | "instance" | "library";
   entry?: SharedComponent;
+  draft?: ComponentAuthoringDraft;
   externalDefinitionId?: string;
   target?: { projectSessionId: string; documentId: string; instance: Instance };
 }

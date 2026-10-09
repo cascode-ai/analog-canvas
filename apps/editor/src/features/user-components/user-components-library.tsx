@@ -11,6 +11,8 @@ export default function UserComponentsLibrary({
   onEdit,
   onInsert,
   refresh,
+  drafts = [],
+  onOpenDraft,
 }: {
   open: boolean;
   onClose(): void;
@@ -18,6 +20,8 @@ export default function UserComponentsLibrary({
   onEdit(entry: SharedComponent): void;
   onInsert(entry: SharedComponent): void;
   refresh: number;
+  drafts?: { id: string; label: string }[];
+  onOpenDraft?(id: string): void;
 }) {
   const [user, setUser] = useState<SessionUser | null>(null);
   const [query, setQuery] = useState("");
@@ -217,6 +221,23 @@ export default function UserComponentsLibrary({
           ) : null}
         </div>
         <footer className="user-components-footer">
+          {drafts.length ? (
+            <details>
+              <summary>Project drafts ({drafts.length})</summary>
+              {drafts.map((draft) => (
+                <button
+                  type="button"
+                  key={draft.id}
+                  onClick={() => {
+                    onClose();
+                    onOpenDraft?.(draft.id);
+                  }}
+                >
+                  {draft.label}
+                </button>
+              ))}
+            </details>
+          ) : null}
           {loading ? (
             <small role="status">Loading components…</small>
           ) : (

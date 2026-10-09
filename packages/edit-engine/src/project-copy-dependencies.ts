@@ -1,11 +1,14 @@
 import {
   deriveStableId,
+  resolveCircuitArtworkDraft,
+  ComponentDefinitionSchema,
   type CircuitProject,
   type ExternalSubcircuitDefinition,
   type Instance,
   type ProjectModelSource,
 } from "@icm/model";
 import { externalSubcircuitSymbolId } from "@icm/symbols";
+import { inspectProjectModelSource } from "@icm/netlist";
 import type { ProjectStructureEdit } from "./project-transaction.js";
 
 export type CopyDependencySource = Pick<
@@ -250,6 +253,120 @@ export function planExternalCopyDependencies(
         definition: clone,
       });
     }
+  }
+  // Only copied owners' authoring candidates travel with newly captured sources.
+  // Reusing a source never overwrites its destination-private drafts.
+  for (const edit of edits) {
+    if (edit.kind !== "upsert_model_source" || !edit.source.draft?.authoring)
+      continue;
+    const model = edit.source;
+    const draft = model.draft!;
+    const inspection = inspectProjectModelSource({
+      ...model,
+      ...draft,
+      language: draft.language ?? model.language,
+      dependencies: draft.dependencies ?? model.dependencies,
+      revision: model.revision,
+    });
+    draft.authoring = draft.authoring!.flatMap((candidate) => {
+      const definitionId = externalIds.get(candidate.definitionId);
+      const oldOwner = source.externalSubcircuitDefinitions.find(
+        (definition) => definition.id === candidate.definitionId,
+      );
+      if (!definitionId || !oldOwner) return [];
+      const ids = new Map(terminalIds.get(candidate.definitionId));
+      for (const name of inspection.entries.find(
+        (entry) => entry.name === candidate.entry,
+      )?.ports ?? [])
+        if (!oldOwner.terminals.some((terminal) => terminal.name === name))
+          ids.set(
+            deriveStableId("model-terminal", candidate.definitionId, name),
+            deriveStableId("model-terminal", definitionId, name),
+          );
+      const remap = (id: string) => ids.get(id) ?? id;
+      let rawOwner: string | undefined;
+      try {
+        const parsed = ComponentDefinitionSchema.safeParse(
+          JSON.parse(candidate.artworkText),
+        );
+        if (parsed.success) rawOwner = parsed.data.circuitBinding?.definitionId;
+      } catch {
+        // Unfinished raw JSON retains its earlier copy provenance verbatim.
+      }
+      const previousOrigin =
+        rawOwner === candidate.definitionId
+          ? undefined
+          : candidate.artworkOrigin;
+      const origin = previousOrigin
+        ? {
+            definitionId: previousOrigin.definitionId,
+            terminalIds: Object.fromEntries(
+              Object.entries(previousOrigin.terminalIds).map(([from, to]) => [
+                from,
+                remap(to),
+              ]),
+            ),
+          }
+        : {
+            definitionId: candidate.definitionId,
+            terminalIds: Object.fromEntries(ids),
+          };
+      const owner = {
+        ...oldOwner,
+        id: definitionId,
+        terminals: oldOwner.terminals.map((terminal) => ({
+          ...terminal,
+          id: remap(terminal.id),
+        })),
+      };
+      const { legacyRepair: _legacyRepair, ...copied } = candidate;
+      return [
+        {
+          ...copied,
+          definitionId,
+          artworkOrigin: origin,
+          ...(candidate.lastValidArtwork
+            ? {
+                lastValidArtwork: resolveCircuitArtworkDraft(
+                  candidate.lastValidArtwork,
+                  owner,
+                  {
+                    definitionId: candidate.definitionId,
+                    terminalIds: Object.fromEntries(ids),
+                  },
+                ),
+              }
+            : {}),
+          ...(candidate.terminalDirections
+            ? {
+                terminalDirections: Object.fromEntries(
+                  Object.entries(candidate.terminalDirections).map(
+                    ([id, direction]) => [remap(id), direction],
+                  ),
+                ),
+              }
+            : {}),
+          ...(candidate.presentation
+            ? {
+                presentation: {
+                  ...candidate.presentation,
+                  pinPlacements: candidate.presentation.pinPlacements?.map(
+                    (placement) => ({
+                      ...placement,
+                      terminalId: remap(placement.terminalId),
+                    }),
+                  ),
+                },
+              }
+            : {}),
+          portMaps: Object.fromEntries(
+            Object.entries(candidate.portMaps).flatMap(([id, map]) =>
+              externalIds.has(id) ? [[externalIds.get(id)!, map]] : [],
+            ),
+          ),
+        },
+      ];
+    });
   }
   // Capture artwork and its terminal correspondence together with its owner.
   // GUI clipboard, Cell import and Agent copies all consume these same edits.

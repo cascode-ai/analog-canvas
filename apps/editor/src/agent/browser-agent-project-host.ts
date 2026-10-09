@@ -40,6 +40,7 @@ import { importChunk } from "../components/chunk-import";
 import type { AgentGalleryPublishRequest } from "./agent-gallery-publish";
 import { prepareDocumentFormulaArtifacts } from "../features/text-editing/formula-artifacts";
 import { captureGalleryDrawing } from "../features/editor-shell/gallery-import";
+import { handleAgentComponents } from "./browser-agent-components";
 import {
   planProjectCopyPlacement,
   applyProjectCopyPlacement,
@@ -133,6 +134,13 @@ export class BrowserAgentProjectHost {
         "PROJECT_REPLACED",
         "The Agent session is bound to a Project that has been replaced",
         "refresh",
+      );
+    }
+    if (request.operation === "components") {
+      return handleAgentComponents(
+        request,
+        this.options,
+        () => this.options.getProjectSessionId() === this.boundProjectSessionId,
       );
     }
     if (request.operation === "list-gallery") {

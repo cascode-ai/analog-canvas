@@ -394,7 +394,7 @@ transaction form and plans it with the code the GUI runs.
 |                      | `detach-move`, `extend-power-rail`                                                           | command (`extend-power-rail` batches)                    | GUI move and rail planners                                                                                                                                                                                                                                       |
 |                      | `set-cell-symbol-pins`                                                                       | command                                                  | Cell symbol presentation planner: every Pin's current place kept, the named ones moved; callers keep their Nets, their stretched wiring is redrawn clear, and labels it newly runs through move clear                                                            |
 | `circuit_selection`  | `transform`, `copy`, `align`                                                                 | command                                                  | GUI selection transform, copy and alignment                                                                                                                                                                                                                      |
-| `circuit_view`       | `focus`                                                                                      | semantic intent, after the rest of the list commits      | `fit-document` fits the view like the F key (the Cell on show keeps its selection); also `activate-document`, `select`, `highlight-net`, `clear-focus`. No revision; scope `editor.semantic-control`                                                          |
+| `circuit_view`       | `focus`                                                                                      | semantic intent, after the rest of the list commits      | `fit-document` fits the view like the F key (the Cell on show keeps its selection); also `activate-document`, `select`, `highlight-net`, `clear-focus`. No revision; scope `editor.semantic-control`                                                             |
 | `circuit_text`       | `add-label`, Net Label `edit-text`, `set-net-label`                                          | `set-net-label` command                                  | GUI Net Label planner                                                                                                                                                                                                                                            |
 |                      | `edit-text`                                                                                  | `set-text` command                                       | GUI text commit: a name label renames its part, a value label sets its value; the same characters in a new look only restyle                                                                                                                                     |
 |                      | `annotate`                                                                                   | `add-text` command                                       | GUI Text tool                                                                                                                                                                                                                                                    |
@@ -543,3 +543,32 @@ For Cadence globals, use `action:"stage-spice", namingProfile:"cadence-bang"`.
 
 Exporting a Project file is not Cloud Save or Gallery publication. Account
 operations remain separate work. Simulation sweeps use the Simulation resource.
+
+## User Components
+
+`user_components` exposes `request.action`: `list`, `read`, `publish`, `update`,
+`fork`, and `insert`. This library stores reusable components, separately from
+Gallery circuits. Reads return complete snapshots; `read` also returns the
+SHA-256 digest of the definition and native circuit package.
+
+Publish with an explicit `projectId`, `expectedStructureRevision`, library
+`componentId`, and stable `idempotencyKey`. A circuit selection names its
+`definitionId`, `symbolId`, and `sourceRevision`; a primitive/artwork selection
+names a captured `symbolId`. Apply drafts first. `selection.appliedVersion:true`
+explicitly publishes the applied circuit while excluding a stored draft.
+`update` also needs `expectedLibraryRevision`. The signed-in Editor account is
+the author; an author comment in source does not set account ownership. Writes
+need `components.publish`; existing Claims without it need a new authorization.
+
+`fork` reads the selected current library revision and publishes an independent
+`newComponentId` owned by the signed-in account. `insert` requires the current
+`expectedLibraryRevision`, target Project/Cell revisions, and position. It
+captures the source closure and artwork in one ordinary, undoable Project
+transaction. No history endpoint is implied: reread a changed public record
+before selecting its current revision. Existing captures remain independent.
+
+Reuse identical write inputs and the same `idempotencyKey` after an unknown
+publication outcome. The public library retains publication receipts for seven
+days. Reuse `requestId` for an uncertain insertion. Do not generate a new ID
+just to retry a request that may have committed. Authentication failures mean
+sign in to the Editor; stale revisions mean reread and inspect the change.

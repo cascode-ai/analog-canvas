@@ -5,12 +5,14 @@ type PinSide = "north" | "east" | "south" | "west" | "auto";
 export function CellSymbolLayoutProperties({
   target,
   enabled,
+  readOnly = false,
   onToggle,
   onBodySizeChange,
   onPortPlacementChange,
 }: {
   target: BlockSymbolLayoutTarget;
   enabled: boolean;
+  readOnly?: boolean;
   onToggle?: () => void;
   onBodySizeChange: (width: number, height: number) => void;
   onPortPlacementChange: (
@@ -48,6 +50,7 @@ export function CellSymbolLayoutProperties({
           Width
           <input
             key={`${target.id}-${target.revision}-symbol-width`}
+            disabled={readOnly}
             aria-label="Cell symbol width"
             autoComplete="off"
             defaultValue={String(bodySize?.width ?? 100)}
@@ -64,6 +67,7 @@ export function CellSymbolLayoutProperties({
           Height
           <input
             key={`${target.id}-${target.revision}-symbol-height`}
+            disabled={readOnly}
             aria-label="Cell symbol height"
             autoComplete="off"
             defaultValue={String(bodySize?.height ?? 60)}
@@ -97,6 +101,7 @@ export function CellSymbolLayoutProperties({
                 </th>
                 <td>
                   <select
+                    disabled={readOnly}
                     key={`${target.revision}-${terminal.id}-side`}
                     aria-label={`Cell symbol ${terminal.name} pin side`}
                     defaultValue={pinPlacement?.side ?? "auto"}
@@ -117,6 +122,7 @@ export function CellSymbolLayoutProperties({
                 </td>
                 <td>
                   <input
+                    disabled={readOnly}
                     key={`${target.revision}-${terminal.id}-offset`}
                     aria-label={`Cell symbol ${terminal.name} pin offset`}
                     autoComplete="off"

@@ -6,16 +6,20 @@ import {
   NativeComponentEditor,
   type CircuitComponentAuthoring,
 } from "./native-component-editor";
-import type { CircuitProject, ComponentDefinition } from "@icm/model";
+import type { ComponentDefinition, ComponentAuthoringDraft } from "@icm/model";
 import { hasBuiltInSubcircuitInterface } from "@icm/devices";
 import {
   buildCircuitComponentPackage,
   prepareLegacyCircuitRepair,
-  prepareLegacyCircuitAttachment,
+  prepareLegacyCircuitDraft,
   type LegacyCircuitRepair,
   type CircuitComponentPackage,
 } from "@icm/edit-engine";
-import { useLibraryCircuitAuthoring } from "./library-circuit-authoring";
+import {
+  useLibraryCircuitAuthoring,
+  readLibraryAuthoringDraft,
+} from "./library-circuit-authoring";
+import { localComponentDefinition } from "./component-definition-edit";
 import {
   AccountMenu,
   fetchSessionUser,
@@ -38,16 +42,21 @@ const ProjectTextEditor = lazy(
 export interface ComponentDefinitionEditorProps {
   definition: ComponentDefinition;
   entry?: SharedComponent;
+  draft?: ComponentAuthoringDraft;
+  repairTarget?: { documentId: string; instanceId: string };
   mode: "new" | "instance" | "library";
   circuit?: CircuitComponentAuthoring;
   validateApply?(
     definition: ComponentDefinition,
     planner: typeof planComponentDefinitionEdit,
   ): string | null;
-  onSaved(
-    entry: SharedComponent,
+  onApplyDefinition(
+    definition: ComponentDefinition,
     planner: typeof planComponentDefinitionEdit,
   ): string | null;
+  onPlaceDefinition(definition: ComponentDefinition): string | null;
+  onSaveDefinitionDraft(text: string): string | null;
+  onSaveLibraryDraft(text: string, entry: SharedComponent): string | null;
   onManaged(): void;
   onPlaceCircuit(packaged: CircuitComponentPackage): void;
   onClose(): void;
@@ -58,10 +67,27 @@ export default function ComponentDefinitionEditor(
 ) {
   const latest = useRef(props);
   latest.current = props;
-  const [source, setSource] = useState(() =>
-    JSON.stringify(props.definition, null, 2),
+  const [savedArtwork] = useState(() => {
+    const restored = props.draft?.library
+      ? readLibraryAuthoringDraft(props.draft)
+      : undefined;
+    return restored?.kind === "definition" ? restored : undefined;
+  });
+  const [source, setSource] = useState(
+    () =>
+      savedArtwork?.text ??
+      (!props.draft?.library ? props.draft?.text : undefined) ??
+      JSON.stringify(props.definition, null, 2),
   );
   const [baseline, setBaseline] = useState(source);
+  const [localApplied, setLocalApplied] = useState<ComponentDefinition | null>(
+    savedArtwork?.appliedDefinition ??
+      (props.mode === "new" ? null : props.definition),
+  );
+  const [localAppliedText, setLocalAppliedText] = useState(
+    savedArtwork?.appliedText ??
+      (props.mode === "new" ? "" : JSON.stringify(props.definition, null, 2)),
+  );
   const [record, setRecord] = useState(props.entry);
   const [newId] = useState(() => crypto.randomUUID());
   const [user, setUser] = useState<SessionUser | null>(null);
@@ -70,54 +96,113 @@ export default function ComponentDefinitionEditor(
   const [notice, setNotice] = useState<string | null>(null);
   const [pinNames, setPinNames] = useState(true);
   const libraryAuthoring = useLibraryCircuitAuthoring(
-    props.entry,
+    record,
     (packaged) => {
       props.onPlaceCircuit(packaged);
       props.onClose();
     },
     (text) => props.circuit!.onCopyText(text),
+    {
+      draft: props.draft,
+      onSave: (text, entry) => latest.current.onSaveLibraryDraft(text, entry),
+    },
   );
   const baseAuthoring = libraryAuthoring ?? props.circuit;
-  const [repair, setRepair] = useState<LegacyCircuitRepair | null>(null);
-  const [repairModelId, setRepairModelId] = useState("");
-  const [repairPorts, setRepairPorts] = useState<Record<string, string>>({});
-  const [repairChoice, setRepairChoice] = useState<{
-    destination: CircuitProject;
-    models: CircuitProject;
-  } | null>(null);
-  const repairModel = repairChoice?.models.externalSubcircuitDefinitions.find(
-    (d) => d.id === repairModelId,
+  const savedRepairCandidate = baseAuthoring?.project.modelSources
+    ?.flatMap((source) => source.draft?.authoring ?? [])
+    .find(
+      (candidate) =>
+        candidate.definitionId === baseAuthoring.definitionId &&
+        candidate.legacyRepair,
+    );
+  const [repairIdentity] = useState(
+    savedRepairCandidate?.legacyRepair?.identity ?? newId,
+  );
+  const [repair, setRepair] = useState<LegacyCircuitRepair | null>(() =>
+    props.mode !== "new" &&
+    props.definition.subcircuit &&
+    !hasBuiltInSubcircuitInterface(props.definition) &&
+    !props.entry?.circuit &&
+    baseAuthoring &&
+    (!baseAuthoring.definitionId || savedRepairCandidate?.legacyRepair)
+      ? prepareLegacyCircuitRepair(
+          baseAuthoring.project,
+          props.definition,
+          repairIdentity,
+        )
+      : null,
+  );
+  const [repairScope, setRepairScope] = useState<"class" | "selected">(
+    savedRepairCandidate?.legacyRepair?.selected ? "selected" : "class",
+  );
+  const [disconnectPorts, setDisconnectPorts] = useState<string[]>(
+    savedRepairCandidate?.legacyRepair?.disconnectPorts ?? [],
   );
   const authoring: CircuitComponentAuthoring | undefined =
     repair && baseAuthoring
       ? {
           ...baseAuthoring,
           project: repair.project,
-          definitionId: repair.definitionId,
+          definitionId:
+            savedRepairCandidate?.definitionId ?? repair.definitionId,
           symbolId: repair.symbolId,
           pendingRepair: true,
           onApply: (edit) => {
-            if (
-              edit.definitions.length !== 1 ||
-              edit.definitions[0]!.definitionId !== repair.definitionId
-            )
+            try {
+              const prepared = prepareLegacyCircuitRepair(
+                repair.expectedProject,
+                props.definition,
+                repairIdentity,
+                {
+                  implementation: edit,
+                  disconnectPorts,
+                  ...(repairScope === "selected" && props.repairTarget
+                    ? { selected: props.repairTarget }
+                    : {}),
+                },
+              );
+              const result = baseAuthoring.onRepair(
+                prepared.edits,
+                prepared.definitionId,
+                prepared.expectedProject,
+              );
+              if (result.ok) setRepair(null);
               return {
-                ok: false,
-                message: "Apply the repair to the selected circuit owner.",
+                ...result,
+                sourceRevision: prepared.project.modelSources!.find(
+                  (source) => source.id === edit.source.id,
+                )!.revision,
               };
-            const result = baseAuthoring.onRepair(
-              [...repair.edits, edit],
-              repair.definitionId,
-              repair.expectedProject,
-            );
-            if (result.ok) setRepair(null);
-            return result;
+            } catch (error) {
+              return { ok: false, message: definitionError(error) };
+            }
           },
-          onSaveDraft: () => ({
-            ok: false,
-            message:
-              "Apply a complete implementation before saving a repair draft.",
-          }),
+          onSaveDraft: (edits, definitionId) => {
+            try {
+              const prepared = prepareLegacyCircuitDraft(
+                repair.expectedProject,
+                props.definition,
+                repairIdentity,
+                edits,
+                definitionId,
+                repairScope === "selected" ? props.repairTarget : undefined,
+                disconnectPorts,
+              );
+              const result = baseAuthoring.onSaveDraft(
+                prepared.edits,
+                definitionId,
+              );
+              if (result.ok) setRepair(prepared.repair);
+              return {
+                ...result,
+                message: result.ok
+                  ? "Saved repair draft. The captured class is unchanged."
+                  : result.message,
+              };
+            } catch (error) {
+              return { ok: false, message: definitionError(error) };
+            }
+          },
           onSetDefinition: () => ({
             ok: false,
             message: "Apply the repair before editing metadata.",
@@ -131,9 +216,14 @@ export default function ComponentDefinitionEditor(
         }
       : baseAuthoring;
   const [definitionType, setDefinitionType] = useState(
-    authoring?.definitionId ? "circuit" : "json",
+    props.draft && (!props.draft.library || savedArtwork)
+      ? "json"
+      : authoring?.definitionId || (props.mode === "new" && authoring)
+        ? "circuit"
+        : "json",
   );
   const [nativeDirty, setNativeDirty] = useState(false);
+  const [viewingApplied, setViewingApplied] = useState(false);
   const [nativeDefinitionId, setNativeDefinitionId] = useState(
     authoring?.definitionId,
   );
@@ -153,8 +243,8 @@ export default function ComponentDefinitionEditor(
     nativeOwner?.implementation?.kind === "source" &&
     !!nativeSource &&
     nativeSource.revision > 0 &&
-    !nativeSource.draft;
-  const dirty = native ? nativeDirty : source !== baseline;
+    (!nativeSource.draft || viewingApplied);
+  const dirty = nativeDirty || source !== baseline;
   const dialog = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     dialog.current?.showModal();
@@ -180,6 +270,9 @@ export default function ComponentDefinitionEditor(
       return { definition: null, error: definitionError(error) };
     }
   }, [source]);
+  const lastValidDefinition = useRef(parsed.definition);
+  if (parsed.definition) lastValidDefinition.current = parsed.definition;
+  const previewDefinition = parsed.definition ?? lastValidDefinition.current;
   const canUpdate =
     !!record &&
     (user?.isAdmin ||
@@ -193,6 +286,78 @@ export default function ComponentDefinitionEditor(
   function close() {
     if (busy) return;
     requestLeave(props.onClose);
+  }
+  function applyLocal(): ComponentDefinition | null {
+    if (!parsed.definition) return null;
+    const definition = localComponentDefinition(
+      parsed.definition,
+      crypto.randomUUID(),
+    );
+    const error = latest.current.onApplyDefinition(
+      definition,
+      planComponentDefinitionEdit,
+    );
+    if (error) {
+      setNotice(error);
+      return null;
+    }
+    if (props.mode === "library" && record) {
+      const error = saveArtworkDraft(record, definition, source);
+      if (error) {
+        setNotice(error);
+        return null;
+      }
+    }
+    setLocalApplied(definition);
+    setLocalAppliedText(source);
+    setBaseline(source);
+    setNotice("Applied component definition.");
+    return definition;
+  }
+  function placeLocal() {
+    const definition =
+      source !== localAppliedText || !localApplied
+        ? applyLocal()
+        : localApplied;
+    if (!definition) return;
+    const error = latest.current.onPlaceDefinition(definition);
+    if (error) setNotice(error);
+    else props.onClose();
+  }
+  function saveLocalDraft() {
+    const error =
+      props.mode === "library" && record
+        ? saveArtworkDraft(record)
+        : latest.current.onSaveDefinitionDraft(source);
+    if (error) setNotice(error);
+    else {
+      setBaseline(source);
+      setNotice("Saved authoring draft. Applied definitions are unchanged.");
+    }
+  }
+  function saveArtworkDraft(
+    entry: SharedComponent,
+    appliedDefinition = localApplied,
+    appliedText = localAppliedText,
+  ) {
+    return latest.current.onSaveLibraryDraft(
+      JSON.stringify({
+        entry,
+        definitionText: source,
+        ...(appliedDefinition ? { appliedDefinition, appliedText } : {}),
+      }),
+      entry,
+    );
+  }
+  const publicationRequest = useRef<{
+    fingerprint: string;
+    key: string;
+  } | null>(null);
+  function publicationOptions(payload: unknown) {
+    const fingerprint = JSON.stringify([id, revision, payload]);
+    if (publicationRequest.current?.fingerprint !== fingerprint)
+      publicationRequest.current = { fingerprint, key: crypto.randomUUID() };
+    return { idempotencyKey: publicationRequest.current.key };
   }
   async function save() {
     if (native) {
@@ -209,20 +374,32 @@ export default function ComponentDefinitionEditor(
       setNotice(null);
       try {
         const packaged = buildCircuitComponentPackage(
-          native.project,
+          viewingApplied
+            ? {
+                ...native.project,
+                modelSources: native.project.modelSources?.map(
+                  ({ draft: _draft, ...source }) => source,
+                ),
+              }
+            : native.project,
           nativeDefinitionId,
           native.symbolId,
         );
-        setRecord(
-          await saveSharedComponent(
-            id,
-            revision,
-            packaged.definition,
-            packaged.circuit,
-          ),
+        const saved = await saveSharedComponent(
+          id,
+          revision,
+          packaged.definition,
+          packaged.circuit,
+          publicationOptions(packaged),
         );
+        setRecord(saved);
+        const draftError = libraryAuthoring?.onPublished(saved);
         latest.current.onManaged();
-        setNotice("Saved to the public library.");
+        setNotice(
+          draftError
+            ? `Saved to the public library. Draft: ${draftError}`
+            : "Saved to the public library.",
+        );
       } catch (error) {
         setNotice(definitionError(error));
       } finally {
@@ -230,10 +407,16 @@ export default function ComponentDefinitionEditor(
       }
       return;
     }
-    if (!parsed.definition || busy || !user || record?.status === "deleted")
+    if (
+      !localApplied ||
+      source !== localAppliedText ||
+      busy ||
+      !user ||
+      record?.status === "deleted"
+    )
       return;
     const conflict = latest.current.validateApply?.(
-      parsed.definition,
+      localApplied,
       planComponentDefinitionEdit,
     );
     if (conflict) {
@@ -243,12 +426,22 @@ export default function ComponentDefinitionEditor(
     setBusy(true);
     setNotice(null);
     try {
-      const saved = await saveSharedComponent(id, revision, parsed.definition);
+      const saved = await saveSharedComponent(
+        id,
+        revision,
+        localApplied,
+        undefined,
+        publicationOptions({ definition: localApplied }),
+      );
       setRecord(saved);
       setBaseline(source);
-      const error = latest.current.onSaved(saved, planComponentDefinitionEdit);
+      latest.current.onManaged();
+      const draftError =
+        props.mode === "library" ? saveArtworkDraft(saved) : null;
       setNotice(
-        error ? `Saved publicly. ${error}` : "Saved to the public library.",
+        draftError
+          ? `Published to the public library. Draft: ${draftError}`
+          : "Published to the public library.",
       );
     } catch (error) {
       setNotice(definitionError(error));
@@ -276,6 +469,28 @@ export default function ComponentDefinitionEditor(
       setBusy(false);
     }
   }
+  const publishAction = (
+    <button
+      type="button"
+      className="primary"
+      disabled={
+        !authReady ||
+        !user ||
+        (native
+          ? !nativeReady || nativeDirty
+          : !localApplied || source !== localAppliedText) ||
+        busy ||
+        record?.status === "deleted"
+      }
+      onClick={() => void save()}
+    >
+      {busy
+        ? "Publishing…"
+        : record && !canUpdate
+          ? "Publish as new component"
+          : "Publish"}
+    </button>
+  );
   return (
     <dialog
       ref={dialog}
@@ -292,57 +507,30 @@ export default function ComponentDefinitionEditor(
           event.key.toLowerCase() === "s"
         ) {
           event.preventDefault();
-          void save();
+          saveLocalDraft();
         }
       }}
     >
       <header>
         <strong>Edit Component Definition</strong>
-        {props.mode === "new" && props.circuit ? (
+        {(props.mode === "new" || repair) && props.circuit ? (
           <label className="component-definition-type">
             Definition type{" "}
             <select
+              aria-label="Definition type"
               value={definitionType}
               onChange={(event) => {
                 const next = event.currentTarget.value;
-                requestLeave(() => setDefinitionType(next));
+                setDefinitionType(next);
               }}
             >
-              <option value="json">JSON artwork / primitive</option>
-              <option value="circuit">Native circuit</option>
+              <option value="circuit">Circuit</option>
+              <option value="json">Primitive / Artwork (advanced)</option>
             </select>
           </label>
         ) : null}
         <div className="component-definition-actions">
           {!user && authReady ? <AccountMenu inEditor /> : null}
-          {
-            <button
-              type="button"
-              className="primary"
-              disabled={
-                !authReady ||
-                !user ||
-                (native ? !nativeReady || nativeDirty : !parsed.definition) ||
-                busy ||
-                record?.status === "deleted"
-              }
-              onClick={() => void save()}
-            >
-              {busy
-                ? "Saving…"
-                : native
-                  ? record && !canUpdate
-                    ? "Save as new component"
-                    : "Save publicly"
-                  : props.mode === "instance"
-                    ? "Save & apply"
-                    : props.mode === "new"
-                      ? "Save & place"
-                      : canUpdate
-                        ? "Save"
-                        : "Save as new component"}
-            </button>
-          }
           {dirty || pendingLeave ? (
             <InlineConfirm
               aria-label="Close component editor"
@@ -374,146 +562,94 @@ export default function ComponentDefinitionEditor(
           )}
         </div>
       </header>
-      {native ? (
-        <NativeComponentEditor
-          authoring={native}
-          onDirtyChange={setNativeDirty}
-          onRequestLeave={requestLeave}
-          onApplied={setNativeDefinitionId}
-        />
-      ) : (
+      {authoring ? (
+        <div className="component-native-session" hidden={!native}>
+          {repair ? (
+            <label className="component-definition-type">
+              Apply to{" "}
+              <select
+                aria-label="Repair scope"
+                value={repairScope}
+                onChange={(event) =>
+                  setRepairScope(
+                    event.currentTarget.value as "class" | "selected",
+                  )
+                }
+              >
+                <option value="class">Captured class in this Project</option>
+                {props.repairTarget ? (
+                  <option value="selected">Selected instance</option>
+                ) : null}
+              </select>
+            </label>
+          ) : null}
+          {repair ? (
+            <details className="component-repair-connections">
+              <summary>Repair connections</summary>
+              <p>
+                {repairScope === "selected"
+                  ? 1
+                  : baseAuthoring!.project.documents
+                      .flatMap((document) => document.instances)
+                      .filter(
+                        (instance) =>
+                          instance.symbolId === props.definition.symbol.id,
+                      ).length}{" "}
+                legacy instance(s) in this Project.
+              </p>
+              {props.definition.subcircuit!.ports.map((port) => (
+                <label key={port.name}>
+                  <input
+                    type="checkbox"
+                    checked={disconnectPorts.includes(port.name)}
+                    onChange={(event) =>
+                      setDisconnectPorts(
+                        event.currentTarget.checked
+                          ? [...disconnectPorts, port.name]
+                          : disconnectPorts.filter(
+                              (name) => name !== port.name,
+                            ),
+                      )
+                    }
+                  />
+                  Disconnect {port.name} and keep wires
+                </label>
+              ))}
+            </details>
+          ) : null}
+          <NativeComponentEditor
+            authoring={authoring}
+            publicationAction={publishAction}
+            legacyDefinition={repair ? props.definition : undefined}
+            onDirtyChange={setNativeDirty}
+            onRequestLeave={requestLeave}
+            onApplied={setNativeDefinitionId}
+            onAppliedViewChange={setViewingApplied}
+          />
+        </div>
+      ) : null}
+      {!native ? (
         <>
           <p className="component-definition-note">
-            {props.mode === "instance"
-              ? "Saving publishes this change to User Defined for the selected instance only."
-              : "Saved components are published to User Defined for anyone to insert."}
-            {authReady && !user ? " Sign in to save." : ""}
+            {parsed.definition?.subcircuit &&
+            !hasBuiltInSubcircuitInterface(parsed.definition)
+              ? "Interface only: provide a native implementation to simulate."
+              : "Apply locally; Publish shares an applied version in User Defined."}
+            {!user && authReady ? " Sign in to Publish." : ""}
           </p>
-          {props.definition.subcircuit &&
-          !hasBuiltInSubcircuitInterface(props.definition) &&
-          !props.entry?.circuit &&
-          baseAuthoring ? (
-            <section
-              className="component-definition-note"
-              aria-label="Legacy implementation repair"
-            >
-              <p role="status">
-                <span>Implementation missing</span> · Repair updates this
-                captured class.
-              </p>
-              <label>
-                Implementation{" "}
-                <select
-                  aria-label="Repair model"
-                  value={repairModelId}
-                  onChange={(event) => {
-                    setRepairModelId(event.currentTarget.value);
-                    setRepairPorts({});
-                    setRepairChoice(
-                      props.circuit
-                        ? {
-                            destination: baseAuthoring.project,
-                            models: props.circuit.project,
-                          }
-                        : null,
-                    );
-                  }}
-                >
-                  <option value="">Provided native source</option>
-                  {props.circuit?.project.externalSubcircuitDefinitions
-                    .filter((d) => d.implementation?.kind === "source")
-                    .map((d) => (
-                      <option key={d.id} value={d.id}>
-                        {d.name}
-                      </option>
-                    ))}
-                </select>
-              </label>
-              {repairModel
-                ? props.definition.subcircuit.ports.map((port) => (
-                    <label key={port.name}>
-                      {port.name}{" "}
-                      <select
-                        aria-label={`Map legacy ${port.name}`}
-                        value={repairPorts[port.name] ?? ""}
-                        onChange={(event) =>
-                          setRepairPorts({
-                            ...repairPorts,
-                            [port.name]: event.currentTarget.value,
-                          })
-                        }
-                      >
-                        <option value="">Choose a native terminal…</option>
-                        {repairModel.terminals.map((t) => (
-                          <option key={t.id} value={t.name}>
-                            {t.name}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  ))
-                : null}
-              <button
-                type="button"
-                disabled={dirty}
-                onClick={() => {
-                  try {
-                    if (repairModelId) {
-                      if (
-                        !repairChoice ||
-                        JSON.stringify(props.circuit?.project) !==
-                          JSON.stringify(repairChoice.models)
-                      )
-                        throw Error(
-                          "The selected Project model changed. Select it again before repairing.",
-                        );
-                      const prepared = prepareLegacyCircuitAttachment(
-                        repairChoice.destination,
-                        props.definition,
-                        repairChoice.models,
-                        repairModelId,
-                        repairPorts,
-                        newId,
-                      );
-                      const outcome = baseAuthoring.onRepair(
-                        prepared.edits,
-                        prepared.definitionId,
-                        prepared.expectedProject,
-                      );
-                      if (!outcome.ok) throw Error(outcome.message);
-                      setNativeDefinitionId(prepared.definitionId);
-                      setDefinitionType("circuit");
-                      setNotice("Applied component repair.");
-                      return;
-                    }
-                    const prepared = prepareLegacyCircuitRepair(
-                      baseAuthoring.project,
-                      props.definition,
-                      newId,
-                    );
-                    setRepair(prepared);
-                    setNativeDefinitionId(prepared.definitionId);
-                    setDefinitionType("circuit");
-                    setNotice(null);
-                  } catch (error) {
-                    setNotice(definitionError(error));
-                  }
-                }}
-              >
-                {repairModelId ? "Apply repair" : "Repair implementation"}
-              </button>
-            </section>
-          ) : null}
           <div className="component-definition-workspace">
             <section
               className="component-definition-preview"
               aria-label="Component preview"
             >
-              {parsed.definition ? (
+              {previewDefinition ? (
                 <>
+                  {parsed.error ? (
+                    <p role="status">Showing the last valid preview.</p>
+                  ) : null}
                   <div className="component-definition-art">
                     <SymbolArtwork
-                      symbol={parsed.definition.symbol}
+                      symbol={previewDefinition.symbol}
                       className="component-definition-artwork"
                       paddingRatio={0.25}
                     />
@@ -528,7 +664,7 @@ export default function ComponentDefinitionEditor(
                   </label>
                   {pinNames ? (
                     <ul>
-                      {parsed.definition.symbol.pins.map((pin) => (
+                      {previewDefinition.symbol.pins.map((pin) => (
                         <li key={pin.name}>
                           <code>{pin.name}</code> ({pin.at.x}, {pin.at.y}) ·{" "}
                           {pin.direction}
@@ -537,8 +673,8 @@ export default function ComponentDefinitionEditor(
                     </ul>
                   ) : null}
                   <small>
-                    {parsed.definition.symbol.primitives.length} drawing
-                    primitives · {parsed.definition.symbol.pins.length} pins
+                    {previewDefinition.symbol.primitives.length} drawing
+                    primitives · {previewDefinition.symbol.pins.length} pins
                   </small>
                 </>
               ) : (
@@ -553,20 +689,46 @@ export default function ComponentDefinitionEditor(
                   value={source}
                   invalid={!!parsed.error}
                   onChange={setSource}
-                  onModEnter={() => void save()}
+                  onModEnter={() => applyLocal()}
                 />
               </Suspense>
             </section>
           </div>
           {parsed.error ? <p role="alert">{parsed.error}</p> : null}
           {notice ? <p role="status">{notice}</p> : null}
+          <footer className="component-definition-actions">
+            <button
+              type="button"
+              onClick={() => applyLocal()}
+              disabled={!parsed.definition || busy}
+            >
+              Apply
+            </button>
+            <button
+              type="button"
+              onClick={placeLocal}
+              disabled={!parsed.definition || busy}
+            >
+              Place
+            </button>
+            {publishAction}
+            <details>
+              <summary>More</summary>
+              <button type="button" onClick={saveLocalDraft} disabled={busy}>
+                Save draft
+              </button>
+            </details>
+          </footer>
         </>
-      )}
+      ) : null}
       {native ? (
         <>
           <p className="component-definition-note">
-            Saved components are published to User Defined for anyone to insert.
-            {authReady && !user ? " Sign in to save." : ""}
+            {authReady && !user
+              ? "Sign in to publish."
+              : nativeDirty || !nativeReady
+                ? "Apply a complete definition before publishing."
+                : "Publish shares this applied version in User Defined."}
           </p>
           {notice ? <p role="status">{notice}</p> : null}
         </>

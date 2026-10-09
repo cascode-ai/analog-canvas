@@ -224,6 +224,35 @@
   min-width: 0;
   overflow: auto;
 }
+.component-authoring-tabs {
+  display: flex;
+  gap: var(--icm-space-2);
+  border-bottom: 1px solid var(--icm-border);
+  padding-bottom: var(--icm-space-2);
+}
+.component-authoring-tabs [aria-selected="true"] {
+  color: var(--icm-accent);
+  background: var(--icm-accent-soft);
+}
+.circuit-pin-editor {
+  overflow-x: auto;
+}
+.circuit-pin-editor table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+.circuit-pin-editor th,
+.circuit-pin-editor td {
+  padding: var(--icm-space-2);
+  border-bottom: 1px solid var(--icm-border);
+}
+.circuit-pin-editor td button {
+  margin-left: var(--icm-space-2);
+}
+.component-definition-native [hidden] {
+  display: none !important;
+}
 .component-definition-preview {
   min-height: 0;
   overflow: auto;
@@ -301,4 +330,21 @@
   .component-definition-dialog > header {
     flex-wrap: wrap;
   }
+}
+
+.component-native-session[hidden] {
+  display: none !important;
+}
+.component-native-session {
+  display: contents;
+}
+
+.component-repair-connections {
+  padding: 0.25rem 1rem;
+}
+.component-repair-connections label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin: 0.3rem 1rem 0.3rem 0;
 }

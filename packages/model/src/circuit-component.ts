@@ -2,10 +2,43 @@ import type {
   ComponentDefinition,
   ExternalSubcircuitDefinition,
   SymbolDefinition,
+  ProjectModelSource,
 } from "./schema.js";
 import type { ComponentInterfaceIssue } from "./component-interface.js";
 import { ComponentDefinitionSchema } from "./schema/component-definition.js";
 import { deriveStableId } from "./ids.js";
+
+/** Raw authoring text may still name the owner from which this draft was copied. */
+export function resolveCircuitArtworkDraft(
+  component: ComponentDefinition,
+  owner: ExternalSubcircuitDefinition,
+  origin: NonNullable<
+    NonNullable<ProjectModelSource["draft"]>["authoring"]
+  >[number]["artworkOrigin"],
+): ComponentDefinition {
+  if (!origin || component.circuitBinding?.definitionId !== origin.definitionId)
+    return component;
+  return {
+    ...component,
+    circuitBinding: {
+      definitionId: owner.id,
+      terminals: component.circuitBinding.terminals.map((mapping) => {
+        const terminalId =
+          origin.terminalIds[mapping.terminalId] ??
+          owner.terminals.find(
+            (terminal) =>
+              deriveStableId(
+                "model-terminal",
+                origin.definitionId,
+                terminal.name,
+              ) === mapping.terminalId,
+          )?.id ??
+          mapping.terminalId;
+        return { ...mapping, terminalId };
+      }),
+    },
+  };
+}
 
 /** Explicit native removal forks only the departing graphical contacts and mappings. */
 export function removeCircuitComponentTerminals(
