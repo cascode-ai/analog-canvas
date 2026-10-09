@@ -22,6 +22,9 @@ archive of completed plans.
 
 ## Contributor reading order
 
+External EDA workflow: [Canvas to Aether](../tools/aether/README.md) covers
+offline conversion, native import/readback, and comparison reports.
+
 1. [Development workflow](development-workflow.md), [Agent entry](../AGENTS.md),
    and [product architecture](overall-product-plan.md).
 2. [Schematic model](specs/schematic-model.md), [Edit Engine](specs/edit-engine.md),
