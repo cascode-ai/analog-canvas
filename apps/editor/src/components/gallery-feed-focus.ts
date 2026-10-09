@@ -78,6 +78,7 @@ export function useGalleryFocusLink({
         entries: [focusEntry, ...previous.entries],
       }));
     setLinkedId(focusId);
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- setState is the wall's useState setter, the same function on every render
   }, [focusId, focusEntry, state, visibleEntries]);
   useEffect(() => {
     if (linkedId === null) return;

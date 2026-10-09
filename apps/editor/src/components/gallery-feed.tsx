@@ -306,6 +306,7 @@ export function GalleryFeed({
   useEffect(() => {
     if (ownerUserId && byline && byline !== author)
       updateFilters({ author: byline });
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- updateFilters only merges a patch into the filter state; a new byline, not a new render, runs this
   }, [ownerUserId, author, byline]);
   const localQuickCounts = searchingLoaded || !state.filterCounts;
   const loadedCount = (keep: (entry: GalleryFeedEntry) => boolean) =>
