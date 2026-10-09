@@ -171,6 +171,15 @@ function switched(name) {
   );
 }
 
+/** Two ports and no device. */
+function bare(name) {
+  return draw(
+    name,
+    [part("port", "A", 100, 40), part("port", "B", 300, 40)],
+    [],
+  );
+}
+
 /** One Gallery export entry, as the 2026-10-08 export lays it out. */
 function addEntry(exportDir, id, project, { author = "Ada", netlist } = {}) {
   const dir = join(exportDir, "circuits", id);
@@ -222,7 +231,6 @@ function expectTaskPack(dir) {
         "id",
         "circuitName",
         "functionClass",
-        "sizeTier",
         "devices",
         "netlist",
         "netlistHash",
@@ -234,8 +242,8 @@ function expectTaskPack(dir) {
     expect(
       task.functionClass === null || typeof task.functionClass === "string",
     ).toBe(true);
-    expect(["5-14", "15-49"]).toContain(task.sizeTier);
     expect(Number.isInteger(task.devices)).toBe(true);
+    expect(task.devices).toBeGreaterThan(0);
     expect(task.netlist).toBe(`tasks/${task.id}.sp`);
     expect(task.netlistHash).toBe(sha(readFileSync(join(dir, task.netlist))));
     expect(task.source).toEqual({ gallery: expect.any(String) });
@@ -379,6 +387,7 @@ describe("Season tool (#1560)", () => {
       ladder("twocells", 6, { secondCell: true }),
     );
     addEntry(exportDir, "switched", switched("switched"));
+    addEntry(exportDir, "bare", bare("bare"));
     listPath = join(work, "list.txt");
     writeFileSync(
       listPath,
@@ -396,7 +405,7 @@ describe("Season tool (#1560)", () => {
 
   afterAll(() => rmSync(work, { recursive: true, force: true }));
 
-  it("reports every problem in the Owner's list with totals per size tier and function class, and builds nothing", async () => {
+  it("reports every problem in the Owner's list with device counts and function class totals, and builds nothing", async () => {
     const listText = [
       "amp5\t\tamplifier",
       "nosuch",
@@ -409,6 +418,7 @@ describe("Season tool (#1560)", () => {
       "ladder15\t\tdivider",
       "amp5",
       "switched",
+      "bare",
     ].join("\n");
     const { report } = await checkSeason({
       listText,
@@ -430,12 +440,9 @@ describe("Season tool (#1560)", () => {
           /^The current exporter cannot produce its netlist/u,
         ),
       ],
-      "T005 ladder4": [
-        expect.stringMatching(/^Size outside 5–49 devices: it has 4$/u),
-      ],
-      "T006 ladder50": [
-        expect.stringMatching(/^Size outside 5–49 devices: it has 50$/u),
-      ],
+      // Any positive number of devices is a valid size.
+      "T005 ladder4": [],
+      "T006 ladder50": [],
       "T007 ai16": [
         expect.stringMatching(/^Drawn by an AI account \(Claude Opus 5\.5\)/u),
       ],
@@ -453,11 +460,12 @@ describe("Season tool (#1560)", () => {
           /^The structural SPICE import cannot read its netlist, so it can have no Grid Baseline/u,
         ),
       ],
+      "T012 bare": ["No devices: it has 0"],
     });
     expect(report.ok).toBe(false);
     expect(report.totals).toEqual({
-      sizeTiers: { "5-14": 5, "15-49": 2 },
-      functionClasses: { "(none)": 7, amplifier: 2, divider: 2 },
+      devices: { min: 0, median: 5.5, max: 50 },
+      functionClasses: { "(none)": 8, amplifier: 2, divider: 2 },
     });
     // The out-of-date netlist.sp is a note, not a problem.
     expect(report.entries[8].notes).toEqual([
@@ -480,14 +488,13 @@ describe("Season tool (#1560)", () => {
         task.source.gallery,
         task.circuitName,
         task.functionClass,
-        task.sizeTier,
         task.devices,
       ]),
     ).toEqual([
-      ["T001", "amp5", "Common-source amplifier", "amplifier", "5-14", 5],
-      ["T002", "ladder15", "ladder15 entry", "divider", "15-49", 15],
-      ["T003", "ladder6", "ladder6 entry", null, "5-14", 6],
-      ["T004", "ladder7", "Seven-resistor ladder", null, "5-14", 7],
+      ["T001", "amp5", "Common-source amplifier", "amplifier", 5],
+      ["T002", "ladder15", "ladder15 entry", "divider", 15],
+      ["T003", "ladder6", "ladder6 entry", null, 6],
+      ["T004", "ladder7", "Seven-resistor ladder", null, 7],
     ]);
     expect(readFileSync(join(out, "task-pack/instructions.md"), "utf8")).toBe(
       INSTRUCTIONS,
@@ -738,7 +745,7 @@ describe("Season tool (#1560)", () => {
       DATE,
     );
     expect(built.status, built.stderr).toBe(0);
-    expect(built.stdout).toMatch(/Size tiers: 5-14: 3, 15-49: 1\./u);
+    expect(built.stdout).toMatch(/Devices: min 5, median 6\.5, max 15\./u);
     const head = spawnSync("git", ["rev-parse", "HEAD"], {
       cwd: root,
       encoding: "utf8",

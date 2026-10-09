@@ -4,7 +4,7 @@ An Owner-run, local-only tool. It turns the Owner's list of chosen Gallery
 circuits into a Season's Task pack and the three Project sets every Season
 shows, and turns a model's folder of drawings into its Contestant bundle.
 Arena (#1559) reads what it writes; the layout is fixed by the
-[Season bundle contract](#season-bundle-contract-fixed-by-the-orchestrator-2026-10-09) below.
+[Season bundle contract](#season-bundle-contract-copied-from-arenas-docscontractsmd-2026-10-09) below.
 
 The tool never chooses circuits. It does not add, drop or replace any id:
 every problem is reported against the Owner's line, and a list with a
@@ -55,7 +55,8 @@ uncommitted edits under `apps/` or `packages/` only earn a warning.
   Grid Baseline (on 2026-10-09 it lacks behavioural sources, which the
   ideal blocks' models use, ideal switches, and generic MOS models with no
   `.model` card);
-- a size outside 5–49 devices, counted by the #1524 grader;
+- no devices, counted by the #1524 grader (any positive number is a valid
+  size; Arena sets no size range);
 - an AI-account author (the display names in `AI_SEATS`,
   `worker/auth-do.ts`, current and former);
 - the same id twice, or a duplicate of an earlier id by graph hash (a shared
@@ -65,8 +66,9 @@ uncommitted edits under `apps/` or `packages/` only earn a warning.
 
 Notes do not block: a current netlist that differs from the export's
 `netlist.sp` (the Task always uses the current one), or an export without
-`netlist.sp`. The totals give the count per size tier (5–14, 15–49) and per
-function class (`(none)` when the list gives none).
+`netlist.sp`. The totals give the device count's minimum, median and
+maximum over the entries the grader counted, and the count per function
+class (`(none)` when the list gives none).
 
 ### What `build` writes
 
@@ -137,7 +139,7 @@ the `upload` command in `cli.mjs`, which exits with status 2 and says so;
 until then, upload `task-pack/` and each bundle folder through Arena's
 Owner page.
 
-## Season bundle contract (fixed by the orchestrator, 2026-10-09)
+## Season bundle contract (copied from Arena's docs/contracts.md, 2026-10-09)
 
 The Owner's local Season tool (#1560) writes bundles on disk. Arena (#1559) reads them: the Owner upload page takes a dropped bundle folder, and the HTTP API takes the same content. All text files are UTF-8. Paths are relative to the bundle folder.
 
@@ -155,7 +157,6 @@ The Owner's local Season tool (#1560) writes bundles on disk. Arena (#1559) read
       "id": "T001",
       "circuitName": "Two-stage Miller OTA",
       "functionClass": "amplifier",
-      "sizeTier": "5-14",
       "devices": 9,
       "netlist": "tasks/T001.sp",
       "netlistHash": "sha256:<hex of the netlist file bytes>",
@@ -165,7 +166,7 @@ The Owner's local Season tool (#1560) writes bundles on disk. Arena (#1559) read
 }
 ```
 
-- `sizeTier` is one of `"5-14"` or `"15-49"`.
+- `devices` is any positive whole number; Arena sets no size range.
 - `functionClass` may be `null`.
 
 ### Contestant bundle: `<contestant-slug>/manifest.json`
@@ -205,6 +206,5 @@ One bundle per Contestant, including the three built-in sets.
 
 - `role` is one of `"model"`, `"tool"`, `"grid-baseline"`, `"human-reference"` or `"check-copy"`. `"check-copy"` is never ranked and is used only for Check Battles.
 - `status` is one of `"valid"`, `"not-equivalent"`, `"unreadable"` or `"missing"`. For `missing`, `project`, `svg` and `netlist` are `null`; for `unreadable`, `svg` and `netlist` may be `null`.
-- A `valid` item may lack device values (Owner, 2026-10-09): validity is structural equivalence to the Task, and values are optional. Its `netlist` file is then the editor's draft netlist, with each missing value printed as `?` and a first comment line naming them.
 - `items` holds exactly one entry per Task in the pack. Files named after an unknown Task id are reported by the tool and left out of the bundle.
 - Every bundle in a Season must carry the same `rendererVersion` and `taskPackHash`. Arena rejects a bundle whose renderer version differs from the Season's, with a clear message. Changing the renderer means rebuilding every bundle.

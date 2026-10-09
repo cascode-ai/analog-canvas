@@ -43,10 +43,6 @@ import { drawCheckCopy, drawGridBaseline } from "./projects.mjs";
 
 export { checkContestant };
 
-const SIZE_TIERS = [
-  { tier: "5-14", min: 5, max: 14 },
-  { tier: "15-49", min: 15, max: 49 },
-];
 const GALLERY_ID = /^[A-Za-z0-9][A-Za-z0-9_-]*$/u;
 /** The folders and files a build writes into its output folder. */
 const BUILD_OUTPUTS = [
@@ -95,11 +91,19 @@ const BUILT_IN = [
   },
 ];
 
-function sizeTier(devices) {
-  return (
-    SIZE_TIERS.find(({ min, max }) => devices >= min && devices <= max)?.tier ??
-    null
-  );
+/** The smallest, median and largest device count, or nulls for none. */
+function deviceSummary(counts) {
+  const sorted = counts.toSorted((a, b) => a - b);
+  if (!sorted.length) return { min: null, median: null, max: null };
+  const middle = sorted.length >> 1;
+  return {
+    min: sorted[0],
+    median:
+      sorted.length % 2
+        ? sorted[middle]
+        : (sorted[middle - 1] + sorted[middle]) / 2,
+    max: sorted.at(-1),
+  };
 }
 
 async function readOptional(path) {
@@ -120,7 +124,6 @@ async function checkEntry(row, exportDir) {
     functionClass: row.functionClass ?? null,
     author: null,
     devices: null,
-    sizeTier: null,
     graphHash: null,
     netlistHash: null,
     problems: [],
@@ -212,9 +215,8 @@ async function checkEntry(row, exportDir) {
     );
   }
   result.devices = self.details.devices.reference;
-  result.sizeTier = sizeTier(result.devices);
-  if (!result.sizeTier)
-    result.problems.push(`Size outside 5–49 devices: it has ${result.devices}`);
+  if (!(result.devices >= 1))
+    result.problems.push(`No devices: it has ${result.devices}`);
   try {
     result.graphHash = await netlistGraphHash(exported.text);
   } catch (error) {
@@ -280,10 +282,8 @@ export async function checkSeason({ listText, exportDir, splitText }) {
       result.problems.push("In #1524's private test split");
   }
   const entries = checked.map(({ result }) => result);
-  const sizeTiers = Object.fromEntries(SIZE_TIERS.map(({ tier }) => [tier, 0]));
   const functionClasses = {};
   for (const entry of entries) {
-    if (entry.sizeTier) sizeTiers[entry.sizeTier] += 1;
     const name = entry.functionClass ?? NO_CLASS;
     functionClasses[name] = (functionClasses[name] ?? 0) + 1;
   }
@@ -296,7 +296,11 @@ export async function checkSeason({ listText, exportDir, splitText }) {
       listed: entries.length,
       withProblems,
       totals: {
-        sizeTiers,
+        devices: deviceSummary(
+          entries
+            .map((entry) => entry.devices)
+            .filter((devices) => devices !== null),
+        ),
         functionClasses: Object.fromEntries(
           Object.entries(functionClasses).sort(([a], [b]) =>
             a < b ? -1 : a > b ? 1 : 0,
@@ -401,7 +405,6 @@ export async function buildSeason({
         id: entry.taskId,
         circuitName: entry.circuitName,
         functionClass: entry.functionClass,
-        sizeTier: entry.sizeTier,
         devices: entry.devices,
         netlist: `tasks/${entry.taskId}.sp`,
         netlistHash: entry.netlistHash,
@@ -579,8 +582,7 @@ export function formatReport(report) {
   const lines = [];
   for (const entry of report.entries) {
     const facts = [
-      entry.sizeTier ??
-        (entry.devices === null ? null : `${entry.devices} devices`),
+      entry.devices === null ? null : `${entry.devices} devices`,
       entry.functionClass,
     ].filter(Boolean);
     lines.push(
@@ -590,16 +592,16 @@ export function formatReport(report) {
       lines.push(`      problem: ${problem}`);
     for (const note of entry.notes) lines.push(`      note: ${note}`);
   }
-  const tiers = Object.entries(report.totals.sizeTiers)
-    .map(([tier, count]) => `${tier}: ${count}`)
-    .join(", ");
+  const { min, median, max } = report.totals.devices;
   const classes = Object.entries(report.totals.functionClasses)
     .map(([name, count]) => `${name}: ${count}`)
     .join(", ");
   lines.push(
     "",
     `Listed ${report.listed}; ${report.withProblems} with problems.`,
-    `Size tiers: ${tiers}.`,
+    min === null
+      ? "Devices: none counted."
+      : `Devices: min ${min}, median ${median}, max ${max}.`,
     `Function classes: ${classes || "none"}.`,
   );
   for (const item of report.verification ?? [])
