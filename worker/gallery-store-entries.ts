@@ -146,8 +146,9 @@ export function submit(
         status, recycled_at, owner_user_id, submitter_email,
         submitter_provider, tags, project_text, svg_text, netlistable,
         netlistable_version, component_count, component_count_version,
-        preview_revision, preview_width, preview_height, ai_generated
-      ) VALUES (?, ?, ?, ?, ?, ?, 'public', NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        preview_revision, preview_width, preview_height, ai_generated,
+        testbench_text
+      ) VALUES (?, ?, ?, ?, ?, ?, 'public', NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       entry.id,
       entry.name,
       entry.author,
@@ -167,6 +168,7 @@ export function submit(
       previewDimensions?.width ?? null,
       previewDimensions?.height ?? null,
       entry.ai_generated === 1 ? 1 : 0,
+      entry.testbench_text ?? null,
     );
     bindPublication(sql, body, entry.id);
     sweepRecycledRows(sql, entry.owner_user_id ?? "");
@@ -274,8 +276,10 @@ export function countOpen(
 }
 
 /**
- * One entry. `submitterEmail`/`submitterProvider` ride along for the
- * caller to gate: `routeGalleryRequest` only forwards them to a curator.
+ * One entry. `submitterEmail`/`submitterProvider` and the private
+ * `testbench` ride along for the caller to gate: `routeGalleryRequest`
+ * forwards the first two only to a curator, and puts the testbench back
+ * only for a reader `readsTestbench` names.
  */
 export function entry(
   sql: SqlStorage,
@@ -297,6 +301,7 @@ export function entry(
     rejectReason: row.reject_reason,
     withdrawnByCurator: withdrawnByCurator(row),
     projectText: row.project_text,
+    testbench: row.testbench_text,
     svgText: row.svg_text,
   });
 }
@@ -326,6 +331,7 @@ export function importEntry(
     Number(body.schemaVersion),
     typeof body.tags === "string" ? body.tags : "",
     String(body.projectText),
+    typeof body.testbench === "string" ? body.testbench : null,
     svgText,
     Number(body.netlistable) === 1 ? 1 : 0,
     NETLIST_MARK_RULE_VERSION,
@@ -340,8 +346,8 @@ export function importEntry(
       sql.exec(
         `UPDATE gallery_entries
          SET name = ?, author = ?, description = ?, schema_version = ?,
-             tags = ?, project_text = ?, svg_text = ?, netlistable = ?,
-             netlistable_version = ?, component_count = ?,
+             tags = ?, project_text = ?, testbench_text = ?, svg_text = ?,
+             netlistable = ?, netlistable_version = ?, component_count = ?,
              component_count_version = ?, preview_revision = ?,
              preview_width = ?, preview_height = ?, status = 'public'
          WHERE id = ?`,
@@ -352,10 +358,11 @@ export function importEntry(
       sql.exec(
         `INSERT INTO gallery_entries(
           name, author, description, schema_version, tags, project_text,
-          svg_text, netlistable, netlistable_version, component_count,
-          component_count_version, preview_revision, preview_width,
-          preview_height, id, created_at, status, owner_user_id, ai_generated
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'public', NULL, 0)`,
+          testbench_text, svg_text, netlistable, netlistable_version,
+          component_count, component_count_version, preview_revision,
+          preview_width, preview_height, id, created_at, status,
+          owner_user_id, ai_generated
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'public', NULL, 0)`,
         ...fields,
         id,
         typeof body.createdAt === "string" ? body.createdAt : at,
@@ -406,16 +413,17 @@ export function replaceEntry(
     sql.exec(
       `UPDATE gallery_entries
        SET name = ?, author = ?, description = ?, project_text = ?,
-           svg_text = ?, schema_version = ?, status = ?, tags = ?,
-           netlistable = ?, netlistable_version = ?, component_count = ?,
-           component_count_version = ?, preview_revision = ?,
-           preview_width = ?, preview_height = ?, curation_json = ?,
-           ai_generated = COALESCE(?, ai_generated)
+           testbench_text = ?, svg_text = ?, schema_version = ?, status = ?,
+           tags = ?, netlistable = ?, netlistable_version = ?,
+           component_count = ?, component_count_version = ?,
+           preview_revision = ?, preview_width = ?, preview_height = ?,
+           curation_json = ?, ai_generated = COALESCE(?, ai_generated)
        WHERE id = ?`,
       String(body.name),
       String(body.author),
       String(body.description),
       String(body.projectText),
+      typeof body.testbench === "string" ? body.testbench : null,
       svgText,
       Number(body.schemaVersion),
       String(body.status),

@@ -1,5 +1,5 @@
 // Gallery maintenance over HTTP: backup pages, the netlist read, schema and
-// Project format passes, netlist marks, and label looks.
+// Project format passes, netlist marks, label looks, and moving testbenches.
 
 import {
   diagnoseLabelClearance,
@@ -473,6 +473,47 @@ export async function refreshNetlistMarks(
   });
 }
 
+/**
+ * A backup Release named for the testbench move (#1545): a Gallery or store
+ * capture (`gallery-` or `store-<time>Z-<run>-<attempt>`, as
+ * scripts/gallery-private-snapshot.mjs downloads it) from the last day.
+ */
+function recentBackupRelease(value: unknown, now: Date): boolean {
+  const match =
+    typeof value === "string"
+      ? /^(?:gallery|store)-(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})-(\d{2})Z-\d+-\d+$/u.exec(
+          value,
+        )
+      : null;
+  if (!match) return false;
+  const captured = Date.parse(
+    `${match[1]}T${match[2]}:${match[3]}:${match[4]}Z`,
+  );
+  return (
+    captured <= now.getTime() + 5 * 60_000 &&
+    captured >= now.getTime() - 24 * 60 * 60_000
+  );
+}
+
+/**
+ * One batch of moving testbenches out of stored Project Code. The schedule
+ * runs it every five minutes; it moves nothing before a backup is recorded.
+ */
+export async function moveTestbenches(
+  env: GalleryEnv,
+  body: {
+    backup?: string;
+    apply?: boolean;
+    limit?: number;
+    scheduled?: boolean;
+  },
+): Promise<{ status: number; payload: unknown }> {
+  return callGallery(env, "testbench-privacy", {
+    ...body,
+    at: new Date().toISOString(),
+  });
+}
+
 /** `/api/gallery/maintenance/*`: backups, the netlist read and the passes. */
 export async function routeGalleryMaintenance(
   request: Request,
@@ -654,6 +695,46 @@ export async function routeGalleryMaintenance(
       env,
       Number.isFinite(Number(body?.limit)) ? Number(body!.limit) : undefined,
     );
+    return Response.json(payload, {
+      status,
+      headers: { "cache-control": "no-store" },
+    });
+  }
+  if (
+    segments.length === 2 &&
+    segments[0] === "maintenance" &&
+    segments[1] === "testbench-privacy" &&
+    request.method === "POST"
+  ) {
+    // Without `apply` a report; `backup` records the backup the move
+    // follows, and `apply` moves one batch now rather than at the next tick.
+    if (!sameOrigin(request))
+      return Response.json({ error: "forbidden" }, { status: 403 });
+    if (!(await isAdmin(request, env)))
+      return Response.json({ error: "unauthorized" }, { status: 401 });
+    const body = (await request.json().catch(() => null)) as {
+      backup?: unknown;
+      apply?: unknown;
+      limit?: unknown;
+    } | null;
+    if (
+      body?.backup !== undefined &&
+      !recentBackupRelease(body.backup, new Date())
+    )
+      return Response.json(
+        {
+          error: "invalid-backup",
+          message:
+            "Name the Release of a Gallery or store backup taken in the last 24 hours, as scripts/gallery-private-snapshot.mjs downloads it (store-<time>Z-<run>-<attempt>).",
+        },
+        { status: 400, headers: { "cache-control": "no-store" } },
+      );
+    const limit = Number(body?.limit);
+    const { status, payload } = await moveTestbenches(env, {
+      ...(typeof body?.backup === "string" ? { backup: body.backup } : {}),
+      apply: body?.apply === true,
+      ...(Number.isFinite(limit) ? { limit } : {}),
+    });
     return Response.json(payload, {
       status,
       headers: { "cache-control": "no-store" },

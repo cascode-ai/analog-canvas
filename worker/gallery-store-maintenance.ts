@@ -1,6 +1,6 @@
 // Maintenance passes over stored entries: Project format and schema
-// convergence, netlist marks and part counts, label looks, and the pages of
-// the netlist read.
+// convergence, netlist marks and part counts, label looks, moving testbenches
+// out of the Project Code, and the pages of the netlist read.
 
 import {
   COMPONENT_COUNT_RULE_VERSION,
@@ -45,6 +45,12 @@ import {
   svgPreviewDimensions,
   unwrapTags,
 } from "./gallery-store";
+import {
+  INLINE_TESTBENCH,
+  LEGACY_TESTBENCH,
+  splitTestbench,
+  withTestbench,
+} from "./gallery-testbench";
 
 interface StoredProjectRow {
   id: string;
@@ -137,6 +143,7 @@ export function galleryProjectFormat(
     body.id,
     body.originalProjectText,
   );
+  testbenchesMayBeInline(sql);
   return Response.json({
     id: row.id,
     changed: true,
@@ -452,6 +459,7 @@ export function schemaConverge(
           update.id,
         );
       }
+      testbenchesMayBeInline(sql);
     });
   }
   return Response.json({
@@ -558,6 +566,170 @@ export function refreshNetlistable(
     unreadable,
     ruleVersion: NETLIST_MARK_RULE_VERSION,
     remaining,
+  });
+}
+
+/** Recorded once a pass finds no testbench left inside stored Project Code. */
+const TESTBENCHES_MOVED = "2026-10-09-testbench-privacy";
+/** Each backup the Owner recorded for the move: this prefix and its Release. */
+const TESTBENCH_BACKUP = "2026-10-09-testbench-privacy-backup:";
+/** Rows one pass moves unless asked for another number. */
+const TESTBENCH_BATCH = 25;
+
+/**
+ * A write that can leave a testbench inside stored Project Code again (a
+ * restore, a schema conversion) asks the scheduled pass to look again.
+ */
+export function testbenchesMayBeInline(sql: SqlStorage): void {
+  sql.exec("DELETE FROM data_migrations WHERE id = ?", TESTBENCHES_MOVED);
+}
+
+/**
+ * One row's Project Code without its testbench, checked: the text round-
+ * trips byte for byte, and as JSON nothing but the testbench changed.
+ */
+function movedTestbench(
+  projectText: string,
+): { projectText: string; testbench: string } | string {
+  const split = splitTestbench(projectText);
+  if (!split?.testbench) return "no testbench to move";
+  if (withTestbench(split.projectText, split.testbench) !== projectText)
+    return "the split does not restore the stored text";
+  try {
+    const before = JSON.parse(projectText) as Record<string, unknown>;
+    if (
+      JSON.stringify({ ...before, [split.key]: [] }) !==
+      JSON.stringify(JSON.parse(split.projectText))
+    )
+      return "the split changes more than the testbench";
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error);
+  }
+  return { projectText: split.projectText, testbench: split.testbench };
+}
+
+/**
+ * Move every entry's and saved version's testbench out of its stored Project
+ * Code into its private column (#1545), `limit` rows a call. Every other byte
+ * of the Project Code stays; nothing else of the row changes, and no version
+ * is snapshotted (the content is the same). It moves nothing until the Owner
+ * has recorded a backup taken first (`backup`, the backup Release's name):
+ * the backups run in the private backup repository, which the Worker cannot
+ * start. `scheduled` is the five-minute pass, which returns at once while
+ * there is no backup or nothing left to move. Rows from before schema 42 are
+ * counted as `legacy`: `schema-current` converts them, then this moves them.
+ */
+export function moveStoredTestbenches(
+  sql: SqlStorage,
+  body: Record<string, unknown>,
+): Response {
+  if (typeof body.backup === "string")
+    sql.exec(
+      "INSERT OR IGNORE INTO data_migrations(id, applied_at) VALUES (?, ?)",
+      `${TESTBENCH_BACKUP}${body.backup}`,
+      String(body.at),
+    );
+  const backup =
+    sql
+      .exec<{ id: string }>(
+        `SELECT id FROM data_migrations WHERE substr(id, 1, ?) = ?
+         ORDER BY applied_at DESC LIMIT 1`,
+        TESTBENCH_BACKUP.length,
+        TESTBENCH_BACKUP,
+      )
+      .toArray()[0]
+      ?.id.slice(TESTBENCH_BACKUP.length) ?? null;
+  const done =
+    sql
+      .exec("SELECT 1 FROM data_migrations WHERE id = ?", TESTBENCHES_MOVED)
+      .toArray().length > 0;
+  if (body.scheduled === true && (done || !backup))
+    return Response.json({ skipped: done ? "moved" : "backup-required" });
+  const apply = body.apply === true;
+  if (apply && !backup)
+    return Response.json(
+      {
+        error: "backup-required",
+        message:
+          "Take a backup first: run `node scripts/gallery-private-snapshot.mjs --store` and send the Release it downloads (store-<time>Z-<run>-<attempt>) as `backup`.",
+      },
+      { status: 409 },
+    );
+  const tables = {
+    galleryEntries: "gallery_entries",
+    galleryEntryVersions: "gallery_entry_versions",
+  } as const;
+  const moved = { galleryEntries: 0, galleryEntryVersions: 0 };
+  const failures: { table: string; id: string; message: string }[] = [];
+  let budget = apply
+    ? Math.min(
+        Math.max(Math.trunc(Number(body.limit)) || TESTBENCH_BATCH, 1),
+        200,
+      )
+    : 0;
+  for (const [name, table] of Object.entries(tables) as [
+    keyof typeof tables,
+    string,
+  ][]) {
+    // One row at a time, in id order: a Project Code may be 2 MiB, and a row
+    // that fails stays behind without holding up the rest.
+    let after = "";
+    while (budget > 0) {
+      const row = sql
+        .exec<{ id: string; project_text: string }>(
+          `SELECT id, project_text FROM ${table}
+           WHERE ${INLINE_TESTBENCH} AND id > ? ORDER BY id LIMIT 1`,
+          after,
+        )
+        .toArray()[0];
+      if (!row) break;
+      after = row.id;
+      const result = movedTestbench(row.project_text);
+      if (typeof result === "string") {
+        failures.push({ table: name, id: row.id, message: result });
+        continue;
+      }
+      sql.exec(
+        `UPDATE ${table} SET project_text = ?, testbench_text = ? WHERE id = ?`,
+        result.projectText,
+        result.testbench,
+        row.id,
+      );
+      moved[name] += 1;
+      budget -= 1;
+    }
+  }
+  const count = (table: string, where: string) =>
+    Number(
+      sql
+        .exec<{ count: number }>(
+          `SELECT COUNT(*) AS count FROM ${table} WHERE ${where}`,
+        )
+        .one().count,
+    );
+  const remaining = {
+    galleryEntries: count(tables.galleryEntries, INLINE_TESTBENCH),
+    galleryEntryVersions: count(tables.galleryEntryVersions, INLINE_TESTBENCH),
+  };
+  if (remaining.galleryEntries + remaining.galleryEntryVersions === 0)
+    sql.exec(
+      "INSERT OR IGNORE INTO data_migrations(id, applied_at) VALUES (?, ?)",
+      TESTBENCHES_MOVED,
+      String(body.at),
+    );
+  return Response.json({
+    backup,
+    applied: apply,
+    moved,
+    remaining,
+    legacy: {
+      galleryEntries: count(tables.galleryEntries, LEGACY_TESTBENCH),
+      galleryEntryVersions: count(
+        tables.galleryEntryVersions,
+        LEGACY_TESTBENCH,
+      ),
+    },
+    failures,
   });
 }
 

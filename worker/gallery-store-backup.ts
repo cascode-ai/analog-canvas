@@ -17,6 +17,7 @@ import {
   reapplySolFromAstra,
   syncAiSeatBylines,
 } from "./gallery-store-bylines";
+import { testbenchesMayBeInline } from "./gallery-store-maintenance";
 
 function tableRows(value: unknown): Record<string, unknown>[] | null {
   return Array.isArray(value) && value.every(isRecord) ? value : null;
@@ -263,8 +264,8 @@ export function schemaRestore(
           recycled_at, owner_user_id, submitter_email, submitter_provider,
           project_text, svg_text, reject_reason, reviewed_at, reviewed_by,
           tags, netlistable, preview_revision, preview_width, preview_height, curation_json,
-          ai_generated)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          ai_generated, testbench_text)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         ...values,
         sha256Hex(svgText),
         previewDimensions?.width ?? null,
@@ -272,14 +273,17 @@ export function schemaRestore(
         typeof row.curation_json === "string" ? row.curation_json : "",
         // Backups taken before the mark existed restore unmarked.
         row.ai_generated === 1 ? 1 : 0,
+        // Backups taken before testbenches moved hold them in project_text.
+        typeof row.testbench_text === "string" ? row.testbench_text : null,
       );
     }
     for (const row of galleryEntryVersions) {
       sql.exec(
         `INSERT INTO gallery_entry_versions
          (id, entry_id, version_no, name, author, description, tags,
-          schema_version, project_text, svg_text, created_at, curation_json)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          schema_version, project_text, svg_text, created_at, curation_json,
+          testbench_text)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         ...rowValues(row, [
           "id",
           "entry_id",
@@ -294,10 +298,13 @@ export function schemaRestore(
           "created_at",
         ]),
         typeof row.curation_json === "string" ? row.curation_json : "",
+        typeof row.testbench_text === "string" ? row.testbench_text : null,
       );
     }
     deleteOrphanGalleryData(sql);
     pruneGalleryEntryVersions(sql);
+    // Such a backup's testbenches move again with the next pass.
+    testbenchesMayBeInline(sql);
     for (const row of cloudProjects) {
       sql.exec(
         `INSERT INTO cloud_projects

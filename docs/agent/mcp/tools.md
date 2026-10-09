@@ -167,9 +167,12 @@ Use `gallery_circuits` to traverse the complete public Gallery. `list` is
 cursor-paged; continue with `nextCursor` until it is `null`. Each listed or read
 entry states its saved AI mark as `aiGenerated`. `read` returns one
 entry's complete canonical Project Code and, by default, its generated SPICE
-netlist. `read-many` accepts up to 12 listed IDs and reads them concurrently;
-continue any returned `remainingEntryIds` when the response-size guard stops a
-batch early. Select Spectre explicitly or pass `netlistFormat:null` when only
+netlist. Its simulation folders (the testbench) come only with the signed-in
+account's own circuits, with any AI account's when signed in as one, and with
+every circuit for the Owner's own accounts; reads, opens and inserts of
+anyone else's carry none. `read-many` accepts up to 12 listed IDs and reads
+them concurrently; continue any returned `remainingEntryIds` when the
+response-size guard stops a batch early. Select Spectre explicitly or pass `netlistFormat:null` when only
 the Project Code is needed. `read` with `render:"svg"` or `"png"` also returns
 the top Cell's figure as an image, drawn by the same exporter as `export_file`.
 `open` opens an entry as a new working copy in one call (`background:true`

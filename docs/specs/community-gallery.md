@@ -157,6 +157,8 @@ deleted.
 - `GET /api/gallery/<id>` — one public entry with its canonical
   `projectText`, spending one of the reader's daily opens (see
   [Reader access](#reader-access)); `?summary=1` answers the entry alone, free.
+  The Project carries its simulation folders only for a reader of its
+  testbench ([Testbench privacy](#testbench-privacy)).
 - `GET /api/gallery/<id>/preview.svg?v=<previewRevision>&render=formula-label-v5` — the
   server-rendered preview. A revision matching the stored SVG is immutable;
   unversioned, stale-revision, hidden, and missing responses are `no-store`.
@@ -449,7 +451,8 @@ or false sets the AI mark and leaving it out keeps the stored one, so an
 author can clear the mark an Agent's publish set (an AI account's entries keep
 it); the update dialog starts from the entry's current mark and notes when an
 Agent has worked on the Project. The mark belongs to the entry, not to
-a version: restoring an earlier version keeps it.
+a version: restoring an earlier version keeps it. What an update does to the
+entry's private testbench is under [Testbench privacy](#testbench-privacy).
 
 An AI account may take over another AI account's entry (#1499; owner
 decision 2026-10-08, the AI accounts all being the Owner's): when one model's
@@ -502,7 +505,8 @@ on a withdrawn entry. Delete removes it in one click, without a confirmation.
 
 Every content-replacing update (`PUT`, and Restore itself) first
 snapshots the entry's previous state — name, author, description, tags,
-canonical project text, preview — into `gallery_entry_versions`,
+canonical project text and its private testbench, preview — into
+`gallery_entry_versions`,
 numbered per entry and capped at the newest 3 (older versions are pruned).
 The live current state is separate and does not count toward those 3 snapshots.
 Maintenance re-serialization does not snapshot (content-equivalent).
@@ -512,7 +516,8 @@ owning session:
 - `GET /api/gallery/<id>/versions` — versions, newest first.
 - `GET /api/gallery/<id>/versions/<versionId>/preview.svg`.
 - `GET /api/gallery/<id>/versions/<versionId>/project` — canonical Project text;
-  same owner/reviewer access, `no-store`, no submitter metadata.
+  same owner/reviewer access, `no-store`, no submitter metadata. The
+  version's simulation folders come only to a reader of the entry's testbench.
 - `POST /api/gallery/<id>/versions/<versionId>/restore` — snapshots the
   current state, then adopts the version's content and metadata, so
   restores are themselves reversible. A restore keeps the entry's status
@@ -535,6 +540,74 @@ opens an editor tab using the protected historical Project endpoint. Save create
 an independent private draft; publishing it is a separate action. There is no
 merge graph or automatic publication. Private Cloud Project history follows
 the separate [save-history contract](persistence-and-recovery.md#private-save-history).
+
+## Testbench privacy
+
+A circuit's testbench — its simulation folders (`simulationFolders`: sources,
+analyses, measurements and specs) — is its author's (#1545; Owner decision
+2026-10-09). The drawing stays on the wall; the testbench does not.
+
+- **Who reads it.** One of the Owner's own accounts (`OWNER_ACCOUNT_IDS`), the
+  entry's owner, and an AI account reading an AI account's entry
+  (`readsTestbench`). Nobody else, curators and the read-only credential
+  included.
+- **What they get.** `GET /api/gallery/<id>` and a version's `…/project`
+  answer such a reader the Project with its folders, and everyone else the
+  same Project with `"simulationFolders": []`. The editor's Open, Insert and
+  Compare and the Agent's Gallery read, open and insert read these routes, so
+  opening one's own circuit brings its testbench back and copying someone
+  else's carries none. Previews, netlist marks, part counts, the netlist read
+  and the public documents read only the drawing.
+- **Storage.** Every write — publish, update, take-over, version restore,
+  dataset import — serializes the Project, stores `project_text` with the
+  folders emptied to `[]`, and keeps the folders' own text in the row's
+  `testbench_text` column; a version snapshot copies both. A column of each
+  entry and version row rather than a table: the testbench goes wherever its
+  row goes (history, take-over, retention, deletion), and every backup page
+  carries it without a new table, so the off-site collector's check of the
+  tables it captures holds. Every other byte of the Project Code stays, and
+  putting the testbench back gives the serialized Project byte for byte.
+- **Updates.** An update replaces the content, so a writer who reads the
+  testbench replaces it with the folders its Project holds; none clears it. A
+  writer who does not (a curator's Edit and replace) never received it: the
+  entry keeps the one it holds, and folders in that writer's Project are
+  ignored. A take-over is an AI account writing an AI account's entry, so the
+  redraw's folders become the entry's. A restore brings back that version's.
+
+**Moving the existing ones.** Entries and versions stored before this keep
+their folders inside `project_text`; reads strip them for everyone else from
+the deploy on. `POST /api/gallery/maintenance/testbench-privacy`
+(administrator session, same-origin) moves them into `testbench_text`. It
+moves nothing until a backup is recorded: backups run in the private backup
+repository, which the Worker cannot start. So the Owner first
+
+1. runs `node scripts/gallery-private-snapshot.mjs --store` from the main
+   checkout (the Gallery backup, without `--store`, holds these tables too);
+   the folder it downloads is named after the Release,
+   `store-<time>Z-<run>-<attempt>`;
+2. sends that name from a signed-in administrator's browser on the site. A
+   Release more than 24 hours old answers 400 `invalid-backup`.
+
+```js
+await fetch("/api/gallery/maintenance/testbench-privacy", {
+  method: "POST",
+  body: JSON.stringify({ backup: "store-<time>Z-<run>-<attempt>" }),
+}).then((response) => response.json());
+```
+
+Every call answers `{backup, applied, moved, remaining, legacy, failures}`,
+counting entries and versions. Once a backup is recorded, the five-minute
+scheduled pass moves 25 rows a tick, and `{"apply": true, "limit": n}`
+(n ≤ 200) moves a batch at once; before, `apply` answers 409
+`backup-required`. A moved row keeps every other byte of its Project Code and
+the rest of the row (status, byline, preview, curation revision); no version
+is snapshotted. Each row is checked first — the text round-trips byte for
+byte and, read as JSON, only the testbench changed — and a row that fails
+stays, listed in `failures`. A second run finds nothing and changes nothing;
+with nothing left the schedule reads one row a tick. Rows from before schema
+42 keep one `simulation` instead and are counted as `legacy`: `schema-current`
+converts them, and the pass then moves them. A schema conversion or a
+`schema-restore` makes the schedule look again.
 
 ## Reference datasets
 
@@ -767,6 +840,9 @@ unreadable, ruleVersion, remaining}`). Every entry stores the rule version
   public is skipped (`not-public`). Each result carries the content's
   `savedAt` (and a version's `entryId`), and `legacyWithheld` when that date
   kept `legacyLooks` from applying. Same-origin only.
+- `POST /api/gallery/maintenance/testbench-privacy` — record the backup the
+  testbench move follows, report it, and move a batch: see
+  [Testbench privacy](#testbench-privacy).
 - `POST /api/gallery/maintenance/schema-restore` — atomically restore the three
   Project-bearing tables from a `schema-backup` payload supplied as
   `{ "backup": ... }`, assembled from the backup pages. Current retention is

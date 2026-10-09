@@ -35,8 +35,10 @@ import {
   isAdmin,
   isAutomatedBackup,
   readsAsOwner,
+  readsTestbench,
   recoverFormulaPreview,
 } from "./gallery-requests";
+import { withTestbench, withoutTestbench } from "./gallery-testbench";
 import {
   gallerySourceCounts,
   handleSourceImport,
@@ -634,19 +636,21 @@ export async function routeGalleryRequest(
       submitterEmail?: string | null;
       submitterProvider?: string | null;
       projectText?: string;
+      testbench?: string | null;
     }>(env, "any-entry", { id: segments[0] });
     if (status !== 200) {
       return Response.json({ error: "not-found" }, { status: 404 });
     }
     const curator = await canReview(request, env);
     const viewer = await sessionUserOf(request, env);
+    const held = {
+      ownerUserId: payload.ownerUserId,
+      author: payload.entry?.author,
+    };
     if (
       payload.status !== "public" &&
       !curator &&
-      !readsAsOwner(viewer, {
-        ownerUserId: payload.ownerUserId,
-        author: payload.entry?.author,
-      })
+      !readsAsOwner(viewer, held)
     ) {
       return Response.json({ error: "not-found" }, { status: 404 });
     }
@@ -694,7 +698,15 @@ export async function routeGalleryRequest(
               submitterProvider: payload.submitterProvider ?? null,
             }
           : {}),
-        ...(summary ? {} : { projectText: payload.projectText }),
+        ...(summary
+          ? {}
+          : {
+              // Its testbench only for those who read it (#1545); anyone
+              // else opens, inserts or copies the drawing without one.
+              projectText: readsTestbench(viewer, held)
+                ? withTestbench(payload.projectText ?? "", payload.testbench)
+                : withoutTestbench(payload.projectText ?? ""),
+            }),
       },
       { headers: { "cache-control": "no-store" } },
     );

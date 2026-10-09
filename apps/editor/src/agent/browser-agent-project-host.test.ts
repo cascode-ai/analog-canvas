@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { AGENT_API_VERSION } from "@icm/agent-adapter";
 import { executeProjectTransaction } from "@icm/edit-engine";
 import { createEmptyProject, type CircuitProject } from "@icm/model";
-import { serializeProject } from "@icm/project-protocol";
+import { parseProject, serializeProject } from "@icm/project-protocol";
 
 import {
   editorFetchAs,
@@ -12,7 +12,9 @@ import {
   makerOf,
   rejectOne,
   seatOf,
+  signIn,
   submitOne,
+  testbenchProjectText,
 } from "../../../../worker/gallery.test-support";
 import { BrowserAgentProjectHost } from "./browser-agent-project-host";
 
@@ -477,6 +479,60 @@ describe("BrowserAgentProjectHost", () => {
       ok: false,
       error: { code: "GALLERY_STATUS_NEEDS_SCOPE", recovery: "fix-input" },
     });
+  });
+
+  it("reads and inserts someone else's circuit without its testbench, and its author's own with it (#1545)", async () => {
+    const env = environment();
+    const author = await makerOf(env);
+    const id = await submitOne(env, "Amplifier", {
+      cookie: author,
+      text: testbenchProjectText("Amplifier"),
+    });
+    const readAndInsert = async (cookie: string) => {
+      let destination = createEmptyProject("destination", "Destination");
+      const host = new BrowserAgentProjectHost({
+        getProjectSessionId: () => "session",
+        getProject: () => destination,
+        getActiveDocumentId: () => destination.topDocumentId,
+        commitProjectStructure: (project) => {
+          destination = project;
+        },
+        dispatchProjectTransaction: () => {
+          throw new Error("must not dispatch");
+        },
+        fetch: editorFetchAs(env, cookie),
+      });
+      const read = await host.handle({
+        apiVersion: AGENT_API_VERSION,
+        requestId: "read",
+        operation: "read-gallery-entry",
+        galleryEntryId: id,
+        netlistFormat: null,
+      });
+      if (!read.ok || read.operation !== "read-gallery-entry")
+        throw new Error(JSON.stringify(read));
+      const target = destination.documents[0]!;
+      await expect(
+        host.handle({
+          apiVersion: AGENT_API_VERSION,
+          requestId: "insert",
+          operation: "insert-gallery-entry",
+          galleryEntryId: id,
+          targetDocumentId: target.id,
+          position: { x: 0, y: 0 },
+          expectedRevision: target.revision,
+          expectedStructureRevision: destination.structureRevision,
+        }),
+      ).resolves.toMatchObject({ ok: true });
+      return {
+        read: parseProject(read.projectCode).simulationFolders.length,
+        inserted: destination.simulationFolders.length,
+      };
+    };
+    expect(
+      await readAndInsert(await signIn(env.authDurable, "someone@example.com")),
+    ).toEqual({ read: 0, inserted: 0 });
+    expect(await readAndInsert(author)).toEqual({ read: 1, inserted: 1 });
   });
 
   it("reads and atomically replaces complete Project Code with revision protection", async () => {
