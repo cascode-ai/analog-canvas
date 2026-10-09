@@ -6,6 +6,7 @@ import { createHash } from "node:crypto";
 
 import {
   createDesignNetlistExport,
+  createDraftNetlistPreview,
   unfinishedDrawingDiagnostics,
 } from "@icm/netlist";
 import { parseProject, serializeProject } from "@icm/project-protocol";
@@ -35,17 +36,39 @@ export {
  */
 export function exportNetlist(project) {
   const result = createDesignNetlistExport(project, { format: "spice" });
-  const errors = result.diagnostics
-    .filter((diagnostic) => diagnostic.severity === "error")
-    .map((diagnostic) => diagnostic.message);
-  if (result.status !== "ready") return { text: null, errors, unfinished: [] };
+  const blocking = result.diagnostics.filter(
+    (diagnostic) => diagnostic.severity === "error",
+  );
+  const errors = blocking.map((diagnostic) => diagnostic.message);
+  if (result.status !== "ready")
+    return {
+      text: null,
+      errors,
+      // Blocked only because required device values are missing.
+      valuesOnly:
+        blocking.length > 0 &&
+        blocking.every(
+          (diagnostic) => diagnostic.code === "MISSING_REQUIRED_PARAMETER",
+        ),
+      unfinished: [],
+    };
   return {
     text: result.file.text,
     errors,
+    valuesOnly: false,
     unfinished: unfinishedDrawingDiagnostics(result.diagnostics).map(
       (diagnostic) => diagnostic.message,
     ),
   };
+}
+
+/**
+ * The editor's draft netlist of a drawing that does not export yet: each
+ * missing value, model or connection printed as `?`. Null when even a
+ * draft cannot be printed.
+ */
+export function draftNetlist(project) {
+  return createDraftNetlistPreview(project, { format: "spice" })?.text ?? null;
 }
 
 /** The top Cell as the Gallery renders its preview (gallery-requests.ts). */

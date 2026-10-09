@@ -103,14 +103,22 @@ SEASON_DIR/
 For each `T###.icproj.json` in the model's folder: the SVG rendered as the
 Gallery renders previews, the netlist from the editor's exporter, and the
 #1524 grade against the Task netlist with source polarity on. A file whose
-netlist exports but differs from the Task's is `not-equivalent`. A file
-that is not a Project, cannot be rendered, or whose netlist export is
-blocked is `unreadable`, with the reason (agreed with #1559). The exporter
-on main blocks on a missing required value, such as a resistor drawn with
-no value, so such a file is `unreadable` with the exporter's message; its
-SVG is still written. A Task with no file is `missing`. Files named after no Task in the pack,
-and files not named after a Task, are reported and left out. The bundle
-goes to `SEASON_DIR/<slug>/`, replacing one this tool wrote there before.
+netlist differs from the Task's is `not-equivalent`, with the grader's
+reason. A file that is not a Project, cannot be rendered, or whose netlist
+export is blocked is `unreadable`, with the reason (agreed with #1559). A
+Task with no file is `missing`. Files named after no Task in the pack, and
+files not named after a Task, are reported and left out. The bundle goes
+to `SEASON_DIR/<slug>/`, replacing one this tool wrote there before.
+
+Device values are optional (Owner, 2026-10-09); Voters judge them. The
+exporter on main refuses a drawing that leaves out a required value, such
+as a resistor with no value. When missing required values are the export's
+only errors, the drawing is graded on the editor's draft netlist
+(`createDraftNetlistPreview`), which prints each missing value as `?`: it
+is `valid` when its structure matches the Task and `not-equivalent`
+otherwise. Its `netlist` file is that draft, whose first comment line
+names the missing values. Any other blocking export error stays
+`unreadable`.
 
 `info.json` holds the `contestant` object of the contract below.
 
@@ -197,5 +205,6 @@ One bundle per Contestant, including the three built-in sets.
 
 - `role` is one of `"model"`, `"tool"`, `"grid-baseline"`, `"human-reference"` or `"check-copy"`. `"check-copy"` is never ranked and is used only for Check Battles.
 - `status` is one of `"valid"`, `"not-equivalent"`, `"unreadable"` or `"missing"`. For `missing`, `project`, `svg` and `netlist` are `null`; for `unreadable`, `svg` and `netlist` may be `null`.
+- A `valid` item may lack device values (Owner, 2026-10-09): validity is structural equivalence to the Task, and values are optional. Its `netlist` file is then the editor's draft netlist, with each missing value printed as `?` and a first comment line naming them.
 - `items` holds exactly one entry per Task in the pack. Files named after an unknown Task id are reported by the tool and left out of the bundle.
 - Every bundle in a Season must carry the same `rendererVersion` and `taskPackHash`. Arena rejects a bundle whose renderer version differs from the Season's, with a clear message. Changing the renderer means rebuilding every bundle.

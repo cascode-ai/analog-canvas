@@ -8,6 +8,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import {
+  draftNetlist,
   exportNetlist,
   gradeNetlists,
   parseProject,
@@ -113,11 +114,14 @@ function mismatchReason(grade) {
 
 /**
  * Judge one Project file against its Task netlist: `valid`, or
- * `not-equivalent` with the grader's reason when its netlist exports but
- * differs, or `unreadable` when it is not a Project, cannot be rendered, or
- * its netlist export is blocked (agreed with #1559). The exporter on main
- * blocks on a missing required value, such as a resistor with no value, so
- * such a drawing is `unreadable` with the exporter's reason.
+ * `not-equivalent` with the grader's reason when its netlist differs, or
+ * `unreadable` when it is not a Project, cannot be rendered, or its
+ * netlist export is blocked (agreed with #1559).
+ *
+ * Device values are optional (Owner, 2026-10-09): a drawing whose export
+ * is blocked only by missing required values is graded on the editor's
+ * draft netlist, which prints each missing value as `?`. Its netlist file
+ * is that draft, under a first comment line naming the missing values.
  *
  * @param {Uint8Array} bytes
  * @param {string} taskNetlist
@@ -146,23 +150,29 @@ export async function judgeProjectFile(bytes, taskNetlist) {
     };
   }
   const exported = exportNetlist(project);
-  if (exported.text === null)
+  let netlist = exported.text;
+  if (netlist === null && exported.valuesOnly) {
+    const draft = draftNetlist(project);
+    if (draft !== null)
+      netlist = `* Missing device values, printed as ? placeholders: ${exported.errors.join("; ")}\n${draft}`;
+  }
+  if (netlist === null)
     return {
       status: "unreadable",
       reason: `Its netlist cannot be exported: ${exported.errors.slice(0, 3).join("; ") || "the export is blocked"}`,
       svg,
       netlist: null,
     };
-  const grade = await gradeNetlists(exported.text, taskNetlist, {
+  const grade = await gradeNetlists(netlist, taskNetlist, {
     sourcePolarity: true,
   });
   return grade.exact
-    ? { status: "valid", reason: null, svg, netlist: exported.text }
+    ? { status: "valid", reason: null, svg, netlist }
     : {
         status: "not-equivalent",
         reason: mismatchReason(grade),
         svg,
-        netlist: exported.text,
+        netlist,
       };
 }
 

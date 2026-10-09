@@ -632,18 +632,22 @@ describe("Season tool (#1560)", () => {
       expect(manifest.rendererVersion).toBe(RENDERER);
       return { result, manifest };
     };
-    // The ladder with R1's value left out: main's exporter blocks on it.
-    const valueless = JSON.parse(
-      readFileSync(join(out, "human-reference/T002.icproj.json"), "utf8"),
-    );
-    valueless.documents[0].instances.find(
-      (instance) => instance.name === "R1",
-    ).parameters = {};
+    // A drawing with one resistor's value left out, which main's exporter
+    // refuses; device values are optional, so the structure decides.
+    const withoutValue = (path) => {
+      const project = JSON.parse(readFileSync(path, "utf8"));
+      project.documents[0].instances.find(
+        (instance) => instance.name === "R1",
+      ).parameters = {};
+      return JSON.stringify(project);
+    };
     const { result, manifest } = await submit("model-a", {
       "T001.icproj.json": readFileSync(
         join(out, "human-reference/T001.icproj.json"),
       ),
-      "T002.icproj.json": JSON.stringify(valueless),
+      "T002.icproj.json": withoutValue(
+        join(out, "human-reference/T002.icproj.json"),
+      ),
       // Six resistors where the Task has seven.
       "T004.icproj.json": readFileSync(
         join(exportDir, "circuits/ladder6/project.icproj.json"),
@@ -655,32 +659,63 @@ describe("Season tool (#1560)", () => {
     });
     expect(manifest.items.map((item) => [item.taskId, item.status])).toEqual([
       ["T001", "valid"],
-      ["T002", "unreadable"],
+      ["T002", "valid"],
       ["T003", "missing"],
       ["T004", "not-equivalent"],
     ]);
     expect(manifest.items[1]).toMatchObject({
-      reason: expect.stringMatching(
-        /^Its netlist cannot be exported: Instance R1 requires parameter value/u,
-      ),
+      reason: null,
       svg: "T002.svg",
-      netlist: null,
+      netlist: "T002.sp",
     });
+    const draft = readFileSync(join(out, "model-a/T002.sp"), "utf8");
+    expect(draft.split("\n")[0]).toBe(
+      "* Missing device values, printed as ? placeholders: Instance R1 requires parameter value",
+    );
+    expect(draft).toMatch(/^R1 \S+ \S+ \?$/mu);
     expect(manifest.items[3].reason).toMatch(/6 devices where the Task has 7/u);
     expect(result.unknownTasks).toEqual(["T009.icproj.json"]);
     expect(result.ignored).toEqual(["notes.txt"]);
     expect(existsSync(join(out, "model-a/T009.icproj.json"))).toBe(false);
 
-    const garbled = await submit("model-b", {
+    const other = await submit("model-b", {
       "T001.icproj.json": "{ not a Project",
+      // An unconnected pin blocks the export for another reason.
+      "T003.icproj.json": readFileSync(
+        join(exportDir, "circuits/open6/project.icproj.json"),
+      ),
+      // Without a value and with one resistor too few.
+      "T004.icproj.json": withoutValue(
+        join(exportDir, "circuits/ladder6/project.icproj.json"),
+      ),
     });
-    expect(garbled.manifest.items[0]).toMatchObject({
-      status: "unreadable",
-      reason: expect.stringMatching(/^Not an Analog Canvas Project/u),
-      project: "T001.icproj.json",
-      svg: null,
-      netlist: null,
-    });
+    expect(other.manifest.items).toEqual([
+      {
+        taskId: "T001",
+        status: "unreadable",
+        reason: expect.stringMatching(/^Not an Analog Canvas Project/u),
+        project: "T001.icproj.json",
+        svg: null,
+        netlist: null,
+      },
+      expect.objectContaining({ taskId: "T002", status: "missing" }),
+      {
+        taskId: "T003",
+        status: "unreadable",
+        reason: expect.stringMatching(
+          /^Its netlist cannot be exported: (?!.*requires parameter)/u,
+        ),
+        project: "T003.icproj.json",
+        svg: "T003.svg",
+        netlist: null,
+      },
+      expect.objectContaining({
+        taskId: "T004",
+        status: "not-equivalent",
+        reason: expect.stringMatching(/6 devices where the Task has 7/u),
+        netlist: "T004.sp",
+      }),
+    ]);
   });
 
   it("runs from the command line: build, submissions, and upload as a seam", () => {
