@@ -5,18 +5,22 @@ import { builtInSymbols } from "./builtins.js";
 import { createProjectSymbolResolver } from "./resolver.js";
 import type { SymbolDefinition } from "./schema.js";
 
-function referencedProjectSymbolIds(
-  project: Pick<CircuitProject, "documents">,
+export function referencedProjectSymbolIds(
+  project: Pick<CircuitProject, "documents"> &
+    Partial<Pick<CircuitProject, "externalSubcircuitDefinitions">>,
 ): string[] {
   return [
-    ...new Set(
-      project.documents.flatMap((document) => [
+    ...new Set([
+      ...(project.externalSubcircuitDefinitions ?? []).flatMap((definition) =>
+        definition.symbolId ? [definition.symbolId] : [],
+      ),
+      ...project.documents.flatMap((document) => [
         ...document.instances.map((instance) => instance.symbolId),
         ...(document.drafting?.objects ?? []).flatMap((object) =>
           object.kind === "floating-symbol" ? [object.symbolId] : [],
         ),
       ]),
-    ),
+    ]),
   ].sort();
 }
 

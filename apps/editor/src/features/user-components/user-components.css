@@ -198,6 +198,19 @@
   flex: 1;
   min-height: 0;
 }
+.component-definition-type {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.component-definition-native {
+  --cell-manager-detail-pad: 0px;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  overflow: auto;
+}
 .component-definition-preview {
   min-height: 0;
   overflow: auto;

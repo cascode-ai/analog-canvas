@@ -4,8 +4,10 @@ import type { SharedComponent } from "../features/user-components/component-libr
 
 export interface ComponentEditorSession {
   key: string;
+  projectSessionId: string;
   definition: ComponentDefinition;
   mode: "new" | "instance" | "library";
   entry?: SharedComponent;
+  externalDefinitionId?: string;
   target?: { projectSessionId: string; documentId: string; instance: Instance };
 }

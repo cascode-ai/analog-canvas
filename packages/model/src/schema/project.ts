@@ -9,6 +9,7 @@ import { ProjectSimulationFolderSchema } from "./simulation-source.js";
 import { ProjectModelSourceSchema } from "./model-source.js";
 import { reportDuplicateIds } from "./validation.js";
 import { projectCellInterface } from "../cell-interface-projection.js";
+import { circuitComponentIssues } from "../circuit-component.js";
 
 const ExternalSubcircuitTerminalSchema = z.strictObject({
   /** Stable interface identity. Name and presentation may change independently. */
@@ -28,6 +29,8 @@ export const ExternalSubcircuitDefinitionSchema = z.strictObject({
   /** Imported positional interfaces are valid, but remain visibly provisional. */
   interfaceStatus: z.enum(["declared", "inferred-positional"]),
   presentation: CellSymbolPresentationSchema.optional(),
+  /** Preferred artwork for new occurrences; captured peers keep their own ID. */
+  symbolId: StableIdSchema.optional(),
   implementation: z
     .discriminatedUnion("kind", [
       z.strictObject({
@@ -212,6 +215,47 @@ export const CircuitProjectSchema = z
         path: ["topDocumentId"],
       });
     }
+    for (const [index, component] of (
+      project.componentDefinitions ?? []
+    ).entries()) {
+      if (!component.circuitBinding) continue;
+      const owner = externalDefinitionsById.get(
+        component.circuitBinding.definitionId,
+      );
+      if (!owner)
+        context.addIssue({
+          code: "custom",
+          path: [
+            "componentDefinitions",
+            index,
+            "circuitBinding",
+            "definitionId",
+          ],
+          message: "Missing native circuit owner",
+        });
+      else
+        for (const issue of circuitComponentIssues(component, owner))
+          context.addIssue({
+            code: "custom",
+            ...issue,
+            path: ["componentDefinitions", index, ...issue.path],
+          });
+    }
+    for (const [index, definition] of externalSubcircuitDefinitions.entries()) {
+      if (
+        definition.symbolId &&
+        !project.componentDefinitions?.some(
+          (component) =>
+            component.symbol.id === definition.symbolId &&
+            component.circuitBinding?.definitionId === definition.id,
+        )
+      )
+        context.addIssue({
+          code: "custom",
+          path: ["externalSubcircuitDefinitions", index, "symbolId"],
+          message: "Preferred artwork must map to this native circuit",
+        });
+    }
     const documentById = new Map(
       project.documents.map((document) => [document.id, document]),
     );
@@ -220,6 +264,26 @@ export const CircuitProjectSchema = z
       const children: string[] = [];
       for (const [instanceIndex, instance] of document.instances.entries()) {
         const binding = instance.netlist?.binding;
+        const artworkOwner = project.componentDefinitions?.find(
+          (component) => component.symbol.id === instance.symbolId,
+        )?.circuitBinding?.definitionId;
+        if (
+          artworkOwner &&
+          (binding?.kind !== "external-subcircuit" ||
+            binding.definitionId !== artworkOwner)
+        )
+          context.addIssue({
+            code: "custom",
+            message: "Native artwork owner does not match the instance target",
+            path: [
+              "documents",
+              documentIndex,
+              "instances",
+              instanceIndex,
+              "netlist",
+              "binding",
+            ],
+          });
         if (binding?.kind !== "subcircuit") continue;
         const child = documentById.get(binding.childDocumentId);
         if (!child) {

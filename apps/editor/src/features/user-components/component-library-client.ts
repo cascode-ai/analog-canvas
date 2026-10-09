@@ -1,6 +1,7 @@
 import type { ComponentDefinition } from "@icm/model";
 import {
-  parseSharedDefinition,
+  parseSharedComponentPayload,
+  type SharedDefinitionPayload,
   type ComponentLibraryPage,
   type ComponentLibraryStatus,
   type SharedComponent,
@@ -45,7 +46,10 @@ function sharedEntry(value: unknown): SharedComponent {
     createdAt: value.createdAt,
     updatedAt: value.updatedAt,
     status: value.status,
-    definition: parseSharedDefinition(value.definition),
+    ...parseSharedComponentPayload({
+      definition: value.definition,
+      ...(value.circuit === undefined ? {} : { circuit: value.circuit }),
+    }),
   };
 }
 export async function loadSharedComponents(
@@ -78,13 +82,18 @@ export async function saveSharedComponent(
   id: string,
   revision: number,
   definition: ComponentDefinition,
+  circuit?: SharedDefinitionPayload["circuit"],
 ): Promise<SharedComponent> {
   const payload = await responseJson(
     await fetch(`/api/components/${encodeURIComponent(id)}`, {
       method: "PUT",
       credentials: "same-origin",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ revision, definition }),
+      body: JSON.stringify({
+        revision,
+        definition,
+        ...(circuit ? { circuit } : {}),
+      }),
     }),
   );
   return sharedEntry(payload.entry);

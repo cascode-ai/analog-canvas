@@ -8,7 +8,6 @@ import {
 import type { WireSource } from "@icm/edit-engine";
 import type { CircuitProject, SchematicDocument } from "@icm/model";
 import type { createEditorCommandRouter } from "../commands/editor-command";
-import type { useDocumentController } from "../document/document-controller";
 import type { UseRecoveryCoordinatorResult } from "../document/recovery-coordinator";
 import type { useProjectFileLifecycle } from "../document/use-project-file-lifecycle";
 import type { SchematicClipboard } from "../features/clipboard/clipboard";
@@ -28,7 +27,6 @@ import { EDGE_ALIGNMENT_MODES } from "../features/selection/align-selection";
 import { CanvasContextMenu } from "../features/selection/canvas-context-menu";
 import type { useSelectionController } from "../features/selection/selection-controller";
 import type { summarizeVisualDiagnostics } from "../features/selection/selection-inspector-details";
-import type { deriveSelectionInspectionModel } from "../features/selection/selection-inspection-model";
 import { hasVisualSelection } from "../features/selection/visual-selection";
 import type { useInteractionState } from "../interaction/interaction-state";
 import type { EditorServices } from "../services/editor-services";
@@ -46,7 +44,6 @@ import {
 import type { useProjectTabSessions } from "./use-project-tab-sessions";
 import type { useSimulationSurface } from "./use-simulation-surface";
 
-type DocumentControllerState = ReturnType<typeof useDocumentController>;
 type ProjectFileLifecycle = ReturnType<typeof useProjectFileLifecycle>;
 type EditorPanels = ReturnType<typeof useEditorPanels>;
 type SelectionController = ReturnType<typeof useSelectionController>;
@@ -57,7 +54,6 @@ type TransactionCommands = ReturnType<typeof createEditorTransactionCommands>;
 type ProjectStructureCommands = ReturnType<
   typeof createProjectStructureCommands
 >;
-type SelectionInspection = ReturnType<typeof deriveSelectionInspectionModel>;
 type EditorDerivedModel = ReturnType<typeof useEditorDerivedModel>;
 type NavigationController = ReturnType<typeof createEditorNavigationController>;
 type FileCommands = ReturnType<typeof createEditorFileCommands>;
@@ -610,26 +606,24 @@ export function EditorMenuBar({
 export function EditorCanvasContextMenu({
   canvasContextMenu,
   setCanvasContextMenu,
-  resolver,
   visualSelection,
-  selectedInstance,
   hasHierarchyEnterSelection,
   alignmentParticipantCount,
   enterSelectedHierarchy,
   openSelectedComponentDefinition,
+  hasDefinitionSelection,
   editorCommands,
 }: {
   canvasContextMenu: { x: number; y: number };
   setCanvasContextMenu: Dispatch<
     SetStateAction<{ x: number; y: number } | null>
   >;
-  resolver: DocumentControllerState["resolver"];
   visualSelection: SelectionController["selection"];
-  selectedInstance: SelectionInspection["selectedInstance"];
   hasHierarchyEnterSelection: boolean;
   alignmentParticipantCount: number;
   enterSelectedHierarchy: NavigationController["enterSelectedHierarchy"];
   openSelectedComponentDefinition: () => void;
+  hasDefinitionSelection: boolean;
   editorCommands: ReturnType<typeof createEditorCommandRouter>;
 }) {
   return (
@@ -642,11 +636,7 @@ export function EditorCanvasContextMenu({
       actions={[
         {
           label: "Edit Component Definition (E)",
-          enabled: Boolean(
-            selectedInstance &&
-            !resolver.resolve(selectedInstance.symbolId)?.definition
-              .hierarchicalBlock,
-          ),
+          enabled: hasDefinitionSelection,
           execute: openSelectedComponentDefinition,
         },
         ...(hasHierarchyEnterSelection

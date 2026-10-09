@@ -194,9 +194,23 @@ built-in library. Editing its geometry updates every instance of that class;
 copy the class to a new `symbol.id` (and matching electrical `symbolId`) and
 change selected instances' `type` to customize only those instances.
 
+Source-backed custom classes instead retain `circuitBinding` alongside the raw
+Symbol JSON. The mapping names an external definition and its stable terminal
+IDs; it does not duplicate the native target, formal order or defaults. The
+external definition's optional preferred `symbolId` is a live authoring use,
+so its capture survives save before first placement. Each occurrence otherwise
+keeps its chosen captured class. Runtime formal-name projections are derived
+and do not replace graphical names in the portable file.
+
+Native Apply creates changed artwork under a new captured ID and may migrate
+selected occurrences atomically. Cross-Project copy remaps external owner,
+terminal and symbol identities together with the existing owned source closure.
+Ordinary partial selection still cuts outside connections and does not turn
+graphical labels into parent Net names.
+
 Custom component internals are authored through Project Code or the
 code-and-preview definition workspace (E / Edit Component Definition), not
-through mouse-drawn shapes. The definition workspace publishes every save to
+through mouse-drawn shapes. The JSON definition workspace publishes its Save to
 the public User Defined library and forks a new class for the selected
 instance. Shared library revisions have versioned Symbol IDs; a Project keeps
 its embedded definition even if the public entry is updated or removed.
@@ -206,6 +220,39 @@ changes use the existing validated, undoable Project commit. Future graphical
 definition editing must write this same representation rather than introduce
 a second geometry authority. Visual pin-coordinate changes do not implicitly
 rename pins or reorder the electrical interface.
+
+User Components also offers native SPICE/Spectre authoring with automatic or
+mapped custom artwork. Its Apply reuses the same `modelSources` owner and
+`externalSubcircuitDefinitions` projection as Cell Manager; native declarations
+own target, formal terminal order and parameter defaults. An already exposed
+owner/entry reuses its stable definition and terminal IDs. Instances own overrides
+and ordinary connectivity, while generated artwork remains a checked projection.
+This Project Apply is separate from public-library Save; it does not publish an
+interface-only substitute for a native model package. Copy, export and simulation
+preparation resolve the applied owner revision, and saved drafts remain separate.
+
+Public Save carries the applied source's reachable owned files, explicit library
+dependency identities/digests, external interface and checked artwork mapping in
+a versioned resource envelope beside `definition`. Public native editing uses an
+isolated Project snapshot and the same Apply transaction. Library insertion uses
+ordinary copy planning to capture these facts as `modelSources`,
+`externalSubcircuitDefinitions` and `componentDefinitions`; the occurrence binds
+to that Project-owned external definition. No cloud lookup is needed afterward.
+Compatible resources can be reused; conflicting bytes, dependencies or mappings
+are refused atomically. The library stores one current public record with a
+numeric concurrency revision, not a retrievable history. Its updates and deletion
+never rewrite the independently saved Project captures.
+
+Explicit User Components repair replaces only the selected legacy captured
+class's occurrences with a new source-bound capture. Raw geometry and checked
+terminal correspondences remain in `componentDefinitions`; executable bytes
+remain in the applied `modelSources` owner selected by
+`externalSubcircuitDefinitions`. No decoder body or same-name model is inferred
+from the old `subcircuit.target`. Compatible contacts and instance parameters
+survive ordinary symbol/binding migration; incompatible connected changes use
+native Apply's explicit port migration. Preview and failed/stale repairs change
+neither Project nor public record. Project Undo and independent saved files keep
+pre-repair legacy evidence; public updates do not rewrite those captures.
 
 Serialization collects references across **all** Project Documents and removes
 only unused classes. It never deletes a Document, Instance, parameter, or

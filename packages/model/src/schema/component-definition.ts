@@ -94,6 +94,25 @@ const ComponentSubcircuitSchema = z.strictObject({
   ),
 });
 
+/** Artwork refers to native terminal identity; it does not redeclare port order. */
+const CircuitSymbolBindingSchema = z.strictObject({
+  definitionId: StableIdSchema,
+  terminals: z
+    .array(
+      z.union([
+        z.strictObject({
+          terminalId: StableIdSchema,
+          pinName: z.string().min(1),
+        }),
+        z.strictObject({
+          terminalId: StableIdSchema,
+          supply: z.enum(["VDD", "VSS"]),
+        }),
+      ]),
+    )
+    .max(128),
+});
+
 /** One local class, referenced by Instance.symbolId and floating symbols. */
 export const ComponentDefinitionSchema = z
   .strictObject({
@@ -101,8 +120,21 @@ export const ComponentDefinitionSchema = z
     generatedFrom: ComponentDefinitionSourceSchema.optional(),
     electrical: ComponentElectricalSchema.optional(),
     subcircuit: ComponentSubcircuitSchema.optional(),
+    circuitBinding: CircuitSymbolBindingSchema.optional(),
   })
   .superRefine((definition, ctx) => {
+    if (
+      definition.circuitBinding &&
+      (definition.electrical ||
+        definition.subcircuit ||
+        definition.generatedFrom)
+    )
+      ctx.addIssue({
+        code: "custom",
+        path: ["circuitBinding"],
+        message:
+          "Native source owns the target, port order and defaults; remove competing electrical declarations",
+      });
     for (const issue of componentInterfaceIssues(definition))
       ctx.addIssue({ code: "custom", ...issue });
   });

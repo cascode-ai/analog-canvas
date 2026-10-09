@@ -3,6 +3,10 @@ import {
   type ComponentDefinition,
   type Instance,
 } from "@icm/model";
+import {
+  parseCircuitComponentPackage,
+  type CircuitComponentResources,
+} from "@icm/edit-engine";
 
 export type ComponentLibraryStatus = "shared" | "official" | "deleted";
 export interface SharedComponent {
@@ -14,6 +18,7 @@ export interface SharedComponent {
   createdAt: string;
   updatedAt: string;
   definition: ComponentDefinition;
+  circuit?: CircuitComponentResources;
 }
 export interface ComponentLibraryPage {
   entries: SharedComponent[];
@@ -24,11 +29,30 @@ export const COMPONENT_DEFINITION_MAX_BYTES = 128 * 1024;
 export const COMPONENT_LIBRARY_ID = /^[a-zA-Z0-9_-]{8,80}$/u;
 
 /** The public library stores the same data as Project Code, never executable SVG. */
-export function parseSharedDefinition(value: unknown): ComponentDefinition {
-  const definition = ComponentDefinitionSchema.parse(value);
-  if (definition.generatedFrom || definition.symbol.hierarchicalBlock)
+export interface SharedDefinitionPayload {
+  definition: ComponentDefinition;
+  circuit?: CircuitComponentResources;
+}
+
+export function parseSharedComponentPayload(value: {
+  definition: unknown;
+  circuit?: unknown;
+}): SharedDefinitionPayload {
+  const parsed =
+    value.circuit !== undefined
+      ? parseCircuitComponentPackage(value)
+      : { definition: ComponentDefinitionSchema.parse(value.definition) };
+  const { definition } = parsed;
+  if (
+    definition.generatedFrom ||
+    (definition.symbol.hierarchicalBlock && !("circuit" in parsed))
+  )
     throw new Error(
       "A shared component must be self-contained, without a Project Cell dependency",
+    );
+  if (definition.circuitBinding && !("circuit" in parsed))
+    throw Error(
+      "A source-bound component requires its complete native circuit package",
     );
   if (!definition.symbol.name.trim() || definition.symbol.name.length > 100)
     throw new Error("Use a component name between 1 and 100 characters");
@@ -42,9 +66,16 @@ export function parseSharedDefinition(value: unknown): ComponentDefinition {
     definition.symbol.variants.length
   )
     throw new Error("Variant names must be unique");
-  if (JSON.stringify(definition).length > COMPONENT_DEFINITION_MAX_BYTES)
+  if (
+    new TextEncoder().encode(JSON.stringify(parsed)).byteLength >
+    COMPONENT_DEFINITION_MAX_BYTES
+  )
     throw new Error("Component definition is too large");
-  return definition;
+  return parsed;
+}
+
+export function parseSharedDefinition(value: unknown): ComponentDefinition {
+  return parseSharedComponentPayload({ definition: value }).definition;
 }
 
 /** Each published revision has its own class identity; placed versions never float. */
@@ -53,7 +84,16 @@ export function publishedDefinition(
   id: string,
   revision: number,
 ): ComponentDefinition {
-  const copy = structuredClone(definition);
+  return publishedComponentPayload({ definition }, id, revision).definition;
+}
+
+export function publishedComponentPayload(
+  payload: SharedDefinitionPayload,
+  id: string,
+  revision: number,
+): SharedDefinitionPayload {
+  const snapshot = structuredClone(payload);
+  const copy = snapshot.definition;
   const symbolId = `user-${id}-r${revision}`;
   copy.symbol.id = symbolId;
   if (copy.electrical) {
@@ -64,7 +104,8 @@ export function publishedDefinition(
     copy.subcircuit.id = `${symbolId}-subcircuit`;
     copy.subcircuit.symbolId = symbolId;
   }
-  return parseSharedDefinition(copy);
+  if (snapshot.circuit) snapshot.circuit.externalDefinition.symbolId = symbolId;
+  return parseSharedComponentPayload(snapshot);
 }
 
 export function sharedComponentNetlist(

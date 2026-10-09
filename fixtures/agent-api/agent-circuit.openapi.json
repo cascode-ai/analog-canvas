@@ -1138,7 +1138,7 @@
                 "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema465"
               },
               "actions": {
-                "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema537"
+                "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema541"
               }
             },
             "required": [
@@ -17533,25 +17533,7 @@
                     "const": "capture_component_definition"
                   },
                   "definition": {
-                    "type": "object",
-                    "properties": {
-                      "symbol": {
-                        "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema467"
-                      },
-                      "generatedFrom": {
-                        "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema489"
-                      },
-                      "electrical": {
-                        "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema490"
-                      },
-                      "subcircuit": {
-                        "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema492"
-                      }
-                    },
-                    "required": [
-                      "symbol"
-                    ],
-                    "additionalProperties": false
+                    "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema467"
                   }
                 },
                 "required": [
@@ -17568,7 +17550,7 @@
                     "const": "apply_model_source"
                   },
                   "source": {
-                    "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema495"
+                    "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema498"
                   },
                   "transform": {
                     "type": "object",
@@ -17599,7 +17581,7 @@
                     "maxItems": 256,
                     "type": "array",
                     "items": {
-                      "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema504"
+                      "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema507"
                     }
                   }
                 },
@@ -17618,7 +17600,7 @@
                     "const": "upsert_model_source"
                   },
                   "source": {
-                    "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema495"
+                    "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema498"
                   }
                 },
                 "required": [
@@ -17651,21 +17633,21 @@
                     ]
                   },
                   "entry": {
-                    "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema497"
+                    "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema500"
                   },
                   "files": {
                     "minItems": 1,
                     "maxItems": 256,
                     "type": "array",
                     "items": {
-                      "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema499"
+                      "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema502"
                     }
                   },
                   "dependencies": {
                     "maxItems": 256,
                     "type": "array",
                     "items": {
-                      "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema501"
+                      "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema504"
                     }
                   }
                 },
@@ -17690,7 +17672,7 @@
                     "minItems": 1,
                     "type": "array",
                     "items": {
-                      "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema505"
+                      "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema509"
                     }
                   }
                 },
@@ -17740,10 +17722,10 @@
                         "minLength": 1
                       },
                       "content": {
-                        "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema506"
+                        "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema510"
                       },
                       "originalContent": {
-                        "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema506"
+                        "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema510"
                       }
                     },
                     "required": [
@@ -17774,58 +17756,58 @@
                         "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema1"
                       },
                       "name": {
-                        "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema507"
+                        "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema511"
                       },
                       "revision": {
-                        "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema508"
+                        "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema512"
                       },
                       "sourceBinding": {
-                        "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema509"
-                      },
-                      "importReference": {
-                        "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema510"
-                      },
-                      "sourceStatus": {
                         "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema513"
                       },
-                      "netlist": {
+                      "importReference": {
                         "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema514"
                       },
-                      "instances": {
-                        "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema516"
-                      },
-                      "nets": {
+                      "sourceStatus": {
                         "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema517"
                       },
-                      "connectivityEvidence": {
+                      "netlist": {
                         "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema518"
                       },
-                      "routes": {
-                        "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema519"
-                      },
-                      "junctions": {
+                      "instances": {
                         "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema520"
                       },
-                      "annotations": {
+                      "nets": {
                         "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema521"
                       },
-                      "presentation": {
+                      "connectivityEvidence": {
                         "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema522"
                       },
-                      "mosBulkDefaults": {
+                      "routes": {
                         "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema523"
                       },
-                      "layoutGroups": {
+                      "junctions": {
                         "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema524"
                       },
-                      "constraints": {
+                      "annotations": {
                         "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema525"
                       },
-                      "noConnects": {
+                      "presentation": {
                         "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema526"
                       },
-                      "drafting": {
+                      "mosBulkDefaults": {
                         "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema527"
+                      },
+                      "layoutGroups": {
+                        "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema528"
+                      },
+                      "constraints": {
+                        "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema529"
+                      },
+                      "noConnects": {
+                        "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema530"
+                      },
+                      "drafting": {
+                        "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema531"
                       }
                     },
                     "required": [
@@ -17936,14 +17918,14 @@
                         "maxItems": 128,
                         "type": "array",
                         "items": {
-                          "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema528"
+                          "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema532"
                         }
                       },
                       "formalParameters": {
                         "maxItems": 128,
                         "type": "array",
                         "items": {
-                          "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema529"
+                          "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema533"
                         }
                       },
                       "interfaceStatus": {
@@ -17955,6 +17937,9 @@
                       },
                       "presentation": {
                         "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema319"
+                      },
+                      "symbolId": {
+                        "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema1"
                       },
                       "implementation": {
                         "oneOf": [
@@ -18052,25 +18037,25 @@
                         "type": "object",
                         "properties": {
                           "kind": {
-                            "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema530"
-                          },
-                          "entry": {
-                            "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema497"
-                          },
-                          "configPath": {
-                            "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema497"
-                          },
-                          "files": {
-                            "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema531"
-                          },
-                          "circuitBindings": {
-                            "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema532"
-                          },
-                          "dependencies": {
                             "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema534"
                           },
-                          "drafts": {
+                          "entry": {
+                            "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema500"
+                          },
+                          "configPath": {
+                            "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema500"
+                          },
+                          "files": {
                             "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema535"
+                          },
+                          "circuitBindings": {
+                            "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema536"
+                          },
+                          "dependencies": {
+                            "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema538"
+                          },
+                          "drafts": {
+                            "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema539"
                           }
                         },
                         "required": [
@@ -18163,41 +18148,65 @@
           "__schema467": {
             "type": "object",
             "properties": {
-              "schemaVersion": {
+              "symbol": {
                 "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema468"
+              },
+              "generatedFrom": {
+                "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema490"
+              },
+              "electrical": {
+                "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema491"
+              },
+              "subcircuit": {
+                "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema493"
+              },
+              "circuitBinding": {
+                "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema496"
+              }
+            },
+            "required": [
+              "symbol"
+            ],
+            "additionalProperties": false
+          },
+          "__schema468": {
+            "type": "object",
+            "properties": {
+              "schemaVersion": {
+                "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema469"
               },
               "id": {
                 "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema1"
               },
               "name": {
-                "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema469"
-              },
-              "viewBox": {
                 "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema470"
               },
-              "pins": {
+              "viewBox": {
                 "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema471"
               },
+              "pins": {
+                "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema472"
+              },
               "primitives": {
-                "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema475"
+                "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema476"
               },
               "variants": {
-                "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema483"
-              },
-              "defaultVariantId": {
                 "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema484"
               },
-              "labelVisibility": {
+              "defaultVariantId": {
                 "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema485"
               },
-              "decorative": {
+              "labelVisibility": {
                 "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema486"
               },
-              "hierarchicalBlock": {
+              "decorative": {
                 "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema487"
               },
-              "formulaPresentation": {
+              "hierarchicalBlock": {
                 "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema488"
+              },
+              "formulaPresentation": {
+                "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema489"
               }
             },
             "required": [
@@ -18211,15 +18220,15 @@
             ],
             "additionalProperties": false
           },
-          "__schema468": {
+          "__schema469": {
             "type": "number",
             "const": 1
           },
-          "__schema469": {
+          "__schema470": {
             "type": "string",
             "minLength": 1
           },
-          "__schema470": {
+          "__schema471": {
             "type": "object",
             "properties": {
               "x": {
@@ -18245,14 +18254,14 @@
             ],
             "additionalProperties": false
           },
-          "__schema471": {
+          "__schema472": {
             "minItems": 0,
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema472"
+              "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema473"
             }
           },
-          "__schema472": {
+          "__schema473": {
             "type": "object",
             "properties": {
               "name": {
@@ -18264,7 +18273,7 @@
                 "minLength": 1
               },
               "at": {
-                "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema473"
+                "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema474"
               },
               "direction": {
                 "type": "string",
@@ -18276,7 +18285,7 @@
                 ]
               },
               "routing": {
-                "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema474"
+                "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema475"
               },
               "presentation": {
                 "type": "object",
@@ -18331,7 +18340,7 @@
             ],
             "additionalProperties": false
           },
-          "__schema473": {
+          "__schema474": {
             "type": "object",
             "properties": {
               "x": {
@@ -18347,7 +18356,7 @@
             ],
             "additionalProperties": false
           },
-          "__schema474": {
+          "__schema475": {
             "type": "object",
             "properties": {
               "escape": {
@@ -18355,7 +18364,7 @@
                 "const": "outward"
               },
               "preferredLanding": {
-                "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema473"
+                "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema474"
               }
             },
             "required": [
@@ -18363,13 +18372,13 @@
             ],
             "additionalProperties": false
           },
-          "__schema475": {
+          "__schema476": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema476"
+              "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema477"
             }
           },
-          "__schema476": {
+          "__schema477": {
             "oneOf": [
               {
                 "type": "object",
@@ -18379,16 +18388,16 @@
                     "const": "line"
                   },
                   "from": {
-                    "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema473"
+                    "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema474"
                   },
                   "to": {
-                    "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema473"
+                    "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema474"
                   },
                   "part": {
                     "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema1"
                   },
                   "style": {
-                    "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema477"
+                    "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema478"
                   }
                 },
                 "required": [
@@ -18409,14 +18418,14 @@
                     "minItems": 2,
                     "type": "array",
                     "items": {
-                      "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema473"
+                      "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema474"
                     }
                   },
                   "part": {
                     "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema1"
                   },
                   "style": {
-                    "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema477"
+                    "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema478"
                   }
                 },
                 "required": [
@@ -18433,7 +18442,7 @@
                     "const": "circle"
                   },
                   "center": {
-                    "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema473"
+                    "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema474"
                   },
                   "radius": {
                     "type": "number",
@@ -18457,7 +18466,7 @@
                     "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema1"
                   },
                   "style": {
-                    "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema477"
+                    "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema478"
                   }
                 },
                 "required": [
@@ -18479,13 +18488,13 @@
                     "minLength": 1
                   },
                   "bounds": {
-                    "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema470"
+                    "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema471"
                   },
                   "part": {
                     "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema1"
                   },
                   "style": {
-                    "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema477"
+                    "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema478"
                   }
                 },
                 "required": [
@@ -18505,7 +18514,7 @@
                     "minItems": 3,
                     "type": "array",
                     "items": {
-                      "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema473"
+                      "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema474"
                     }
                   },
                   "fill": {
@@ -18526,7 +18535,7 @@
                     "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema1"
                   },
                   "style": {
-                    "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema477"
+                    "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema478"
                   }
                 },
                 "required": [
@@ -18538,28 +18547,28 @@
               }
             ]
           },
-          "__schema477": {
+          "__schema478": {
             "type": "object",
             "properties": {
               "strokeRole": {
-                "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema478"
-              },
-              "strokeWidth": {
                 "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema479"
               },
-              "lineCap": {
+              "strokeWidth": {
                 "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema480"
               },
-              "lineJoin": {
+              "lineCap": {
                 "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema481"
               },
-              "miterLimit": {
+              "lineJoin": {
                 "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema482"
+              },
+              "miterLimit": {
+                "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema483"
               }
             },
             "additionalProperties": false
           },
-          "__schema478": {
+          "__schema479": {
             "type": "string",
             "enum": [
               "normal",
@@ -18569,11 +18578,11 @@
               "annotation"
             ]
           },
-          "__schema479": {
+          "__schema480": {
             "type": "number",
             "exclusiveMinimum": 0
           },
-          "__schema480": {
+          "__schema481": {
             "type": "string",
             "enum": [
               "butt",
@@ -18581,7 +18590,7 @@
               "square"
             ]
           },
-          "__schema481": {
+          "__schema482": {
             "type": "string",
             "enum": [
               "miter",
@@ -18589,11 +18598,11 @@
               "bevel"
             ]
           },
-          "__schema482": {
+          "__schema483": {
             "type": "number",
             "exclusiveMinimum": 0
           },
-          "__schema483": {
+          "__schema484": {
             "type": "array",
             "items": {
               "type": "object",
@@ -18618,7 +18627,7 @@
                         "minLength": 1
                       },
                       "at": {
-                        "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema473"
+                        "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema474"
                       },
                       "direction": {
                         "type": "string",
@@ -18630,7 +18639,7 @@
                         ]
                       },
                       "routing": {
-                        "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema474"
+                        "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema475"
                       }
                     },
                     "required": [
@@ -18650,7 +18659,7 @@
                 "additionalPrimitives": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema476"
+                    "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema477"
                   }
                 }
               },
@@ -18661,24 +18670,24 @@
               "additionalProperties": false
             }
           },
-          "__schema484": {
+          "__schema485": {
             "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema1"
           },
-          "__schema485": {
+          "__schema486": {
             "type": "string",
             "enum": [
               "shown",
               "hidden"
             ]
           },
-          "__schema486": {
+          "__schema487": {
             "type": "boolean"
           },
-          "__schema487": {
+          "__schema488": {
             "type": "boolean",
             "const": true
           },
-          "__schema488": {
+          "__schema489": {
             "type": "object",
             "properties": {
               "defaultFormula": {
@@ -18690,7 +18699,7 @@
                 "type": "boolean"
               },
               "center": {
-                "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema473"
+                "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema474"
               },
               "fontSize": {
                 "type": "number",
@@ -18755,7 +18764,7 @@
             ],
             "additionalProperties": false
           },
-          "__schema489": {
+          "__schema490": {
             "type": "object",
             "properties": {
               "name": {
@@ -18803,7 +18812,7 @@
             ],
             "additionalProperties": false
           },
-          "__schema490": {
+          "__schema491": {
             "type": "object",
             "properties": {
               "id": {
@@ -18837,7 +18846,7 @@
                 "minItems": 1,
                 "type": "array",
                 "items": {
-                  "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema491"
+                  "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema492"
                 }
               },
               "seriesInsertionPinPair": {
@@ -19035,11 +19044,11 @@
             ],
             "additionalProperties": false
           },
-          "__schema491": {
+          "__schema492": {
             "type": "string",
             "minLength": 1
           },
-          "__schema492": {
+          "__schema493": {
             "type": "object",
             "properties": {
               "id": {
@@ -19060,10 +19069,10 @@
                       "type": "object",
                       "properties": {
                         "name": {
-                          "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema493"
+                          "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema494"
                         },
                         "direction": {
-                          "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema494"
+                          "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema495"
                         },
                         "pinName": {
                           "type": "string",
@@ -19081,10 +19090,10 @@
                       "type": "object",
                       "properties": {
                         "name": {
-                          "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema493"
+                          "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema494"
                         },
                         "direction": {
-                          "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema494"
+                          "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema495"
                         },
                         "supply": {
                           "type": "string",
@@ -19113,11 +19122,11 @@
             ],
             "additionalProperties": false
           },
-          "__schema493": {
+          "__schema494": {
             "type": "string",
             "minLength": 1
           },
-          "__schema494": {
+          "__schema495": {
             "type": "string",
             "enum": [
               "input",
@@ -19126,29 +19135,90 @@
               "passive"
             ]
           },
-          "__schema495": {
+          "__schema496": {
+            "type": "object",
+            "properties": {
+              "definitionId": {
+                "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema1"
+              },
+              "terminals": {
+                "maxItems": 128,
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema497"
+                }
+              }
+            },
+            "required": [
+              "definitionId",
+              "terminals"
+            ],
+            "additionalProperties": false
+          },
+          "__schema497": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "terminalId": {
+                    "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema1"
+                  },
+                  "pinName": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "terminalId",
+                  "pinName"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "terminalId": {
+                    "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema1"
+                  },
+                  "supply": {
+                    "type": "string",
+                    "enum": [
+                      "VDD",
+                      "VSS"
+                    ]
+                  }
+                },
+                "required": [
+                  "terminalId",
+                  "supply"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          },
+          "__schema498": {
             "type": "object",
             "properties": {
               "id": {
                 "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema1"
               },
               "language": {
-                "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema496"
+                "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema499"
               },
               "entry": {
-                "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema497"
-              },
-              "files": {
-                "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema498"
-              },
-              "dependencies": {
                 "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema500"
               },
+              "files": {
+                "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema501"
+              },
+              "dependencies": {
+                "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema503"
+              },
               "revision": {
-                "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema502"
+                "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema505"
               },
               "draft": {
-                "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema503"
+                "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema506"
               }
             },
             "required": [
@@ -19161,29 +19231,29 @@
             ],
             "additionalProperties": false
           },
-          "__schema496": {
+          "__schema499": {
             "type": "string",
             "enum": [
               "spice",
               "spectre"
             ]
           },
-          "__schema497": {
+          "__schema500": {
             "type": "string"
           },
-          "__schema498": {
+          "__schema501": {
             "minItems": 1,
             "maxItems": 256,
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema499"
+              "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema502"
             }
           },
-          "__schema499": {
+          "__schema502": {
             "type": "object",
             "properties": {
               "path": {
-                "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema497"
+                "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema500"
               },
               "text": {
                 "type": "string"
@@ -19195,15 +19265,15 @@
             ],
             "additionalProperties": false
           },
-          "__schema500": {
+          "__schema503": {
             "default": [],
             "maxItems": 256,
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema501"
+              "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema504"
             }
           },
-          "__schema501": {
+          "__schema504": {
             "type": "object",
             "properties": {
               "id": {
@@ -19212,7 +19282,7 @@
                 "maxLength": 256
               },
               "mountPath": {
-                "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema497"
+                "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema500"
               },
               "sha256": {
                 "type": "string",
@@ -19226,26 +19296,26 @@
             ],
             "additionalProperties": false
           },
-          "__schema502": {
+          "__schema505": {
             "type": "integer",
             "minimum": 0,
             "maximum": 9007199254740991
           },
-          "__schema503": {
+          "__schema506": {
             "type": "object",
             "properties": {
               "language": {
-                "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema496"
+                "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema499"
               },
               "entry": {
-                "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema497"
+                "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema500"
               },
               "files": {
                 "minItems": 1,
                 "maxItems": 256,
                 "type": "array",
                 "items": {
-                  "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema499"
+                  "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema502"
                 }
               },
               "baseRevision": {
@@ -19257,7 +19327,7 @@
                 "maxItems": 256,
                 "type": "array",
                 "items": {
-                  "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema501"
+                  "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema504"
                 }
               }
             },
@@ -19268,7 +19338,7 @@
             ],
             "additionalProperties": false
           },
-          "__schema504": {
+          "__schema507": {
             "type": "object",
             "properties": {
               "definitionId": {
@@ -19296,6 +19366,23 @@
                     }
                   ]
                 }
+              },
+              "symbol": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema467"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "callers": {
+                "maxItems": 1024,
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema508"
+                }
               }
             },
             "required": [
@@ -19304,11 +19391,34 @@
             ],
             "additionalProperties": false
           },
-          "__schema505": {
+          "__schema508": {
+            "type": "object",
+            "properties": {
+              "documentId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "instanceId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "expectedSymbolId": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "documentId",
+              "instanceId",
+              "expectedSymbolId"
+            ],
+            "additionalProperties": false
+          },
+          "__schema509": {
             "type": "string",
             "minLength": 1
           },
-          "__schema506": {
+          "__schema510": {
             "type": "object",
             "properties": {
               "text": {
@@ -19331,16 +19441,16 @@
             ],
             "additionalProperties": false
           },
-          "__schema507": {
+          "__schema511": {
             "type": "string",
             "minLength": 1
           },
-          "__schema508": {
+          "__schema512": {
             "type": "integer",
             "minimum": 0,
             "maximum": 9007199254740991
           },
-          "__schema509": {
+          "__schema513": {
             "type": "object",
             "properties": {
               "cellName": {
@@ -19357,14 +19467,14 @@
             ],
             "additionalProperties": false
           },
-          "__schema510": {
+          "__schema514": {
             "type": "object",
             "properties": {
               "files": {
-                "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema511"
+                "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema515"
               },
               "nets": {
-                "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema512"
+                "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema516"
               }
             },
             "required": [
@@ -19373,7 +19483,7 @@
             ],
             "additionalProperties": false
           },
-          "__schema511": {
+          "__schema515": {
             "default": [],
             "type": "array",
             "items": {
@@ -19389,7 +19499,7 @@
               "additionalProperties": false
             }
           },
-          "__schema512": {
+          "__schema516": {
             "type": "array",
             "items": {
               "type": "object",
@@ -19459,7 +19569,7 @@
               "additionalProperties": false
             }
           },
-          "__schema513": {
+          "__schema517": {
             "type": "string",
             "enum": [
               "in-sync",
@@ -19467,7 +19577,7 @@
               "connectivity-modified"
             ]
           },
-          "__schema514": {
+          "__schema518": {
             "type": "object",
             "properties": {
               "name": {
@@ -19484,7 +19594,7 @@
                 "maxItems": 128,
                 "type": "array",
                 "items": {
-                  "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema515"
+                  "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema519"
                 }
               }
             },
@@ -19495,7 +19605,7 @@
             ],
             "additionalProperties": false
           },
-          "__schema515": {
+          "__schema519": {
             "type": "object",
             "properties": {
               "name": {
@@ -19510,13 +19620,13 @@
             ],
             "additionalProperties": false
           },
-          "__schema516": {
+          "__schema520": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema15"
             }
           },
-          "__schema517": {
+          "__schema521": {
             "type": "array",
             "items": {
               "type": "object",
@@ -19552,19 +19662,19 @@
               "additionalProperties": false
             }
           },
-          "__schema518": {
+          "__schema522": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema307"
             }
           },
-          "__schema519": {
+          "__schema523": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema283"
             }
           },
-          "__schema520": {
+          "__schema524": {
             "type": "array",
             "items": {
               "type": "object",
@@ -19593,13 +19703,13 @@
               "additionalProperties": false
             }
           },
-          "__schema521": {
+          "__schema525": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema323"
             }
           },
-          "__schema522": {
+          "__schema526": {
             "type": "object",
             "properties": {
               "styleProfileId": {
@@ -19674,7 +19784,7 @@
             ],
             "additionalProperties": false
           },
-          "__schema523": {
+          "__schema527": {
             "type": "object",
             "properties": {
               "nmosNetId": {
@@ -19686,26 +19796,26 @@
             },
             "additionalProperties": false
           },
-          "__schema524": {
+          "__schema528": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema359"
             }
           },
-          "__schema525": {
+          "__schema529": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema362"
             }
           },
-          "__schema526": {
+          "__schema530": {
             "default": [],
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema315"
             }
           },
-          "__schema527": {
+          "__schema531": {
             "type": "object",
             "properties": {
               "objects": {
@@ -19720,7 +19830,7 @@
             ],
             "additionalProperties": false
           },
-          "__schema528": {
+          "__schema532": {
             "type": "object",
             "properties": {
               "id": {
@@ -19748,7 +19858,7 @@
             ],
             "additionalProperties": false
           },
-          "__schema529": {
+          "__schema533": {
             "type": "object",
             "properties": {
               "name": {
@@ -19767,32 +19877,32 @@
             ],
             "additionalProperties": false
           },
-          "__schema530": {
+          "__schema534": {
             "type": "string",
             "const": "source"
           },
-          "__schema531": {
+          "__schema535": {
             "maxItems": 4096,
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema499"
+              "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema502"
             }
           },
-          "__schema532": {
+          "__schema536": {
             "maxItems": 1024,
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema533"
+              "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema537"
             }
           },
-          "__schema533": {
+          "__schema537": {
             "type": "object",
             "properties": {
               "id": {
                 "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema1"
               },
               "path": {
-                "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema497"
+                "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema500"
               },
               "documentId": {
                 "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema1"
@@ -19813,25 +19923,25 @@
             ],
             "additionalProperties": false
           },
-          "__schema534": {
+          "__schema538": {
             "maxItems": 1024,
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema501"
+              "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema504"
             }
           },
-          "__schema535": {
+          "__schema539": {
             "maxItems": 4096,
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema536"
+              "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema540"
             }
           },
-          "__schema536": {
+          "__schema540": {
             "type": "object",
             "properties": {
               "path": {
-                "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema497"
+                "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema500"
               },
               "base": {
                 "type": "string"
@@ -19840,7 +19950,7 @@
                 "type": "string"
               },
               "binding": {
-                "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema533"
+                "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema537"
               }
             },
             "required": [
@@ -19850,15 +19960,15 @@
             ],
             "additionalProperties": false
           },
-          "__schema537": {
+          "__schema541": {
             "minItems": 1,
             "maxItems": 256,
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema538"
+              "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema542"
             }
           },
-          "__schema538": {}
+          "__schema542": {}
         }
       },
       "agentCircuitResponse": {
@@ -20801,6 +20911,9 @@
                             },
                             "presentation": {
                               "$ref": "#/components/schemas/agentCircuitResponse/$defs/__schema257"
+                            },
+                            "symbolId": {
+                              "$ref": "#/components/schemas/agentCircuitResponse/$defs/__schema1"
                             },
                             "implementation": {
                               "oneOf": [

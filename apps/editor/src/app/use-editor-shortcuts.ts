@@ -16,7 +16,6 @@ import type {
   SchematicDocument,
 } from "@icm/model";
 import type { createEditorCommandRouter } from "../commands/editor-command";
-import type { useDocumentController } from "../document/document-controller";
 import type { useProjectFileLifecycle } from "../document/use-project-file-lifecycle";
 import type { SchematicClipboard } from "../features/clipboard/clipboard";
 import type { useCircuitClipboard } from "../features/clipboard/use-circuit-clipboard";
@@ -58,7 +57,6 @@ import type {
   useSimulationPicking,
 } from "./use-simulation-surface";
 
-type DocumentControllerState = ReturnType<typeof useDocumentController>;
 type ProjectFileLifecycle = ReturnType<typeof useProjectFileLifecycle>;
 type EditorPanels = ReturnType<typeof useEditorPanels>;
 type SelectionController = ReturnType<typeof useSelectionController>;
@@ -85,7 +83,6 @@ interface EditorShortcutDependencies {
   closeSearch: EditorPanels["closeSearch"];
   toggleLibraryPanel: EditorPanels["toggleLibraryPanel"];
   document: SchematicDocument;
-  resolver: DocumentControllerState["resolver"];
   documentStack: HierarchyFrame[];
   visualSelection: SelectionController["selection"];
   selectionFilterOpen: boolean;
@@ -121,7 +118,6 @@ interface EditorShortcutDependencies {
   setSimulationHoverNetId: SimulationPicking["setSimulationHoverNetId"];
   lastCanvasPointRef: RefObject<Point | null>;
   projectInputRef: RefObject<HTMLInputElement | null>;
-  selectedInstance: SelectionInspection["selectedInstance"];
   selectedRoute: SelectionInspection["selectedRoute"];
   selectedDrafting: SelectionInspection["selectedDrafting"];
   hasHierarchyEnterSelection: boolean;
@@ -154,6 +150,7 @@ interface EditorShortcutDependencies {
   circuitClipboard: ReturnType<typeof useCircuitClipboard>;
   toggleExamplesPanel: () => void;
   openSelectedComponentDefinition: () => void;
+  hasDefinitionSelection: boolean;
   activateTool: (nextTool: EditorTool) => void;
   paintSnapGuides: (guides: readonly SnapGuideLine[]) => void;
   resolveNetLabelPlacementTarget: (
@@ -251,7 +248,6 @@ function createEditorShortcutHandler({
   closeSearch,
   toggleLibraryPanel,
   document,
-  resolver,
   documentStack,
   visualSelection,
   selectionFilterOpen,
@@ -284,7 +280,6 @@ function createEditorShortcutHandler({
   setSimulationHoverNetId,
   lastCanvasPointRef,
   projectInputRef,
-  selectedInstance,
   selectedRoute,
   selectedDrafting,
   hasHierarchyEnterSelection,
@@ -311,6 +306,7 @@ function createEditorShortcutHandler({
   circuitClipboard,
   toggleExamplesPanel,
   openSelectedComponentDefinition,
+  hasDefinitionSelection,
   activateTool,
   paintSnapGuides,
   resolveNetLabelPlacementTarget,
@@ -472,11 +468,7 @@ function createEditorShortcutHandler({
       ),
       propertiesOpen: selectionOpen && !documentSettingsOpen,
       hasHierarchyEnterSelection,
-      hasDefinitionSelection: Boolean(
-        selectedInstance &&
-        !resolver.resolve(selectedInstance.symbolId)?.definition
-          .hierarchicalBlock,
-      ),
+      hasDefinitionSelection,
       canReturnToParent: documentStack.length > 0,
     });
     if (!shortcut) return;

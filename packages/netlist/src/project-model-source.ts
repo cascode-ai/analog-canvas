@@ -129,7 +129,7 @@ export function inspectProjectModelSource(source: ProjectModelSource) {
   return { entries, globalModels, graph, diagnostics };
 }
 
-function modelInterfaceMatches(
+export function modelInterfaceMatches(
   definition: ExternalSubcircuitDefinition,
   entry: SubcircuitStartStatement,
 ): boolean {

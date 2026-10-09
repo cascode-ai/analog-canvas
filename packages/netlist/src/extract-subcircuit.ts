@@ -1,8 +1,14 @@
 // Calls to subcircuits: a hierarchy Cell, or an external subcircuit with the
 // size and substrate checks of a reviewed PDK device.
-import { foldNetName, projectCellInterface, routeEndpoints } from "@icm/model";
+import {
+  circuitComponentTerminals,
+  foldNetName,
+  projectCellInterface,
+  routeEndpoints,
+} from "@icm/model";
 import { drawnSupplyNet, namesNegativeSupply } from "@icm/derived";
 import type {
+  ComponentDefinition,
   ExternalSubcircuitDefinition,
   Instance,
   SchematicDocument,
@@ -177,6 +183,7 @@ export function extractExternalSubcircuitInstance(
   document: SchematicDocument,
   instance: Instance,
   definition: ExternalSubcircuitDefinition | undefined,
+  component: ComponentDefinition | undefined,
   context: CellNetContext,
   diagnostics: NetlistDiagnostic[],
 ): DesignNetlistInstance | null {
@@ -215,13 +222,15 @@ export function extractExternalSubcircuitInstance(
         definition.terminals.map((terminal) => terminal.name),
         instance.symbolId,
       );
-  const terminalBindings = reviewed
-    ? reviewed.terminals
-    : definition.terminals.map((terminal) => ({
-        targetName: terminal.name,
-        pinName: terminal.name,
-        interaction: "canvas" as const,
-      }));
+  const terminalBindings = component?.circuitBinding
+    ? circuitComponentTerminals(component, definition)
+    : reviewed
+      ? reviewed.terminals
+      : definition.terminals.map((terminal) => ({
+          targetName: terminal.name,
+          pinName: terminal.name,
+          interaction: "canvas" as const,
+        }));
   const allowedPins = new Set(
     terminalBindings.map((terminal) => terminal.pinName.toLowerCase()),
   );

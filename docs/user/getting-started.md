@@ -468,6 +468,90 @@ a new shared component and changes only the selected instance; peers retain
 their existing definitions. It supports normal Project Undo. A hierarchical
 Cell still uses **E / Enter Cell** to navigate into its circuit.
 
+For a native circuit, open **Edit / User Components… / Create Component…** and
+choose **Native circuit** under Definition type. Enter its SPICE or Spectre
+source, select the subcircuit entry, then use **Apply model** or **Apply & Place**.
+This captures an applied Project model without requiring public library Save.
+It uses the same source as Cell Manager's External Circuits, copied/exported
+netlists and simulation preparation.
+
+**Symbol mode** offers Automatic or Custom. Custom retains the JSON editor and
+isolated preview. `circuitBinding.terminals` connects graphical pin names to
+the native interface's stable terminal IDs; a complete same-name interface can
+initialize the mapping. Graphical names and geometric order may differ from
+the formal source order. To hide a supply, explicitly map its terminal to
+`supply: "VDD"` or `"VSS"` and remove that graphical pin; this uses the existing
+property supply rules, rather than guessing a connection from its name.
+
+Select a placed native instance and use **E** to edit its owner and artwork.
+For changed custom artwork, give `symbol.id` a new ID; Apply retains peer
+instances' captured artwork and preserves compatible logical connections.
+Errors identify the source or mapping to repair inline. Pending text is not an
+executable model, and failed Apply leaves the drawing unchanged.
+**Save draft** saves native source text. Apply pending artwork or a changed
+symbol mode first; otherwise Save draft refuses and retains those edits.
+Switching artwork must preserve a compatible property supply mapping or
+explicitly connect the corresponding native terminal. Otherwise Apply refuses
+at that terminal without changing the Project.
+
+Changing formal port order preserves connected Nets. For a renamed or removed
+port, use its **Migrate** selector to choose the replacement or **Disconnect and
+keep wires**. A removal retains dangling wires and removes that port's No Connect;
+the remaining custom contacts keep their drawing. A newly added port needs a
+complete custom JSON mapping, or a switch to **Automatic** before Apply.
+Compatible instance parameter overrides survive model default changes.
+
+After Apply, **Save publicly** shares the selected native circuit and artwork.
+Pending source or artwork must be applied first; a saved source draft cannot be
+published as an executable model. The public snapshot includes reachable owned
+files and keeps third-party dependency identities and digests; it does not copy
+unrelated Project files or a vendor library into your model.
+
+Editing a native library entry opens its own authoring snapshot. **Apply model**
+changes that snapshot, and **Save publicly** updates the public record if you are
+its author or an administrator. Another contributor uses **Save as new
+component**. These actions do not change the open drawing or earlier captures.
+The public library stores one current record with a numeric revision for stale
+save protection; it does not offer archived library revisions.
+
+Placing a native library entry captures its source, interface and artwork into
+your Project. Compatible repeated placement reuses the model and allocates a new
+instance reference. A conflicting implementation or mapping is reported without
+overwriting the Project. Your captured model survives public updates, deletion
+and unavailable network, and is retained by Project Save, portable files,
+Undo/Redo and copying. Its applied body and owned helpers appear in copied and
+exported netlists and in qualified simulation input.
+
+An older User Component may contain artwork and a `subcircuit` interface without
+an implementation. It remains visible and placeable with **Implementation
+missing**. Its target name alone does not bind a Project model; copied/exported
+netlists and execution remain blocked until you repair it.
+
+Select its placed instance and press **E**, or use **Edit** on its User
+Components library tile. Choose **Repair implementation** to provide real SPICE
+or Spectre source and select its entry. The existing graphical pins and explicit
+property supplies initialize a checked native mapping. Use each **Migrate**
+selector for renamed or removed ports, and complete the Custom JSON mapping for
+new terminals before **Apply model**. Repair updates occurrences of that captured
+class in this Project, preserves compatible connections and instance overrides,
+and creates a new source-bound class. It does not repair unrelated classes with
+the same target name. One Project Undo restores the old declaration and wiring.
+
+Alternatively, choose an applied Project model under **Implementation**, map
+every legacy port to a distinct native terminal, and use **Apply repair**. This
+requires a complete compatible correspondence. It uses the selected applied
+model and retains its saved draft, original callers and per-instance parameters.
+If the Project changes during repair, reopen the component and check the mapping
+again. Invalid or stale repairs leave the drawing unchanged.
+
+Repairing a public library entry edits an isolated snapshot. **Apply model**
+does not publish it or repair existing drawings. An author/admin deliberately
+uses **Save publicly** to upgrade the current record; other contributors use
+**Save as new component**. Earlier Project captures keep their original legacy
+evidence until explicitly repaired. Applied sources, raw artwork and checked
+mappings are embedded in Project saves and portable files; saved source drafts
+remain separate from the executable applied revision.
+
 The Library ends with **User Defined**, after **Extended Devices**. Choose
 **Create component**, edit the starter code, and **Save & place**. Signing in
 is required to save; every saved definition is public, with no private-library

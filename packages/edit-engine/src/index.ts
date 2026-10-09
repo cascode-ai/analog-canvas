@@ -49,6 +49,8 @@ export * from "./project-cell-import.js";
 export * from "./project-cell-body-import.js";
 export * from "./power-rail-label.js";
 export * from "./project-copy-dependencies.js";
+export * from "./circuit-component-package.js";
+export * from "./legacy-circuit-repair.js";
 export * from "./hierarchy-planner.js";
 export * from "./cell-pin-planner.js";
 export * from "./cell-interface-change-planner.js";

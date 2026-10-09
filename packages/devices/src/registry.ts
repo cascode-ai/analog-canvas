@@ -1,4 +1,4 @@
-import type { CircuitProject } from "@icm/model";
+import type { CircuitProject, ComponentDefinition } from "@icm/model";
 import type {
   BuiltInSubcircuitDescriptor,
   DeviceDescriptor,
@@ -80,4 +80,35 @@ export function subcircuitDescriptor(
     (definition) => definition.symbol.id === symbolId,
   );
   return local ? local.subcircuit : subcircuitsBySymbolId.get(symbolId);
+}
+
+/** Recognize an inherited black-box contract, rather than only its Symbol ID.
+ * Formal aliases, order and retargeting remain authorable; generated bodies
+ * independently check their fixed positional interface during netlist export. */
+export function hasBuiltInSubcircuitInterface(
+  component: ComponentDefinition,
+): boolean {
+  const local = component.subcircuit;
+  const canonical = subcircuitsBySymbolId.get(component.symbol.id);
+  if (
+    !local ||
+    !canonical ||
+    local.id !== canonical.id ||
+    local.symbolId !== canonical.symbolId ||
+    local.ports.length !== canonical.ports.length
+  )
+    return false;
+  const contacts = [...local.ports];
+  for (const port of canonical.ports) {
+    const index = contacts.findIndex(
+      (candidate) =>
+        candidate.direction === port.direction &&
+        ("pinName" in candidate
+          ? candidate.pinName === port.pinName
+          : candidate.supply === port.supply),
+    );
+    if (index < 0) return false;
+    contacts.splice(index, 1);
+  }
+  return true;
 }

@@ -3,8 +3,8 @@ import type {
   ComponentLibraryStatus,
 } from "../apps/editor/src/features/user-components/component-library-contract";
 import {
-  publishedDefinition,
-  parseSharedDefinition,
+  publishedComponentPayload,
+  parseSharedComponentPayload,
 } from "../apps/editor/src/features/user-components/component-library-contract";
 
 type Sql = {
@@ -26,16 +26,21 @@ interface Row {
   updated_at: string;
   definition: string;
 }
-const entry = (row: Row): SharedComponent => ({
-  id: row.id,
-  revision: row.revision,
-  authorId: row.author_id,
-  author: row.author,
-  status: row.status,
-  createdAt: row.created_at,
-  updatedAt: row.updated_at,
-  definition: JSON.parse(row.definition),
-});
+const entry = (row: Row): SharedComponent => {
+  const stored = JSON.parse(row.definition);
+  const payload =
+    stored.circuit === undefined ? { definition: stored } : stored;
+  return {
+    id: row.id,
+    revision: row.revision,
+    authorId: row.author_id,
+    author: row.author,
+    status: row.status,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    ...payload,
+  };
+};
 
 /** Separate namespace: no Gallery, account or analytics tables are touched. */
 export class ComponentLibraryDO {
@@ -124,8 +129,11 @@ export class ComponentLibraryDO {
             { status: 409 },
           );
         const revision = (current?.revision ?? 0) + 1;
-        const definition = publishedDefinition(
-          parseSharedDefinition(body.definition),
+        const payload = publishedComponentPayload(
+          parseSharedComponentPayload({
+            definition: body.definition,
+            ...(body.circuit === undefined ? {} : { circuit: body.circuit }),
+          }),
           id,
           revision,
         );
@@ -144,8 +152,8 @@ export class ComponentLibraryDO {
           status,
           current?.created_at ?? at,
           at,
-          definition.symbol.name,
-          JSON.stringify(definition),
+          payload.definition.symbol.name,
+          JSON.stringify(payload.circuit ? payload : payload.definition),
         );
       } else if (operation === "status") {
         if (!admin)

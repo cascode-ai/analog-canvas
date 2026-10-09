@@ -187,6 +187,47 @@ describe("portable component interfaces meet real netlist export", () => {
       expect(exported.file.text).toContain("X1 N2 VDD N1 VSS N0 custom_amp");
   });
 
+  it.each([
+    "identity",
+    "missing-supply",
+    "duplicate-supply",
+    "direction",
+  ] as const)(
+    "requires explicit repair of a registry-ID shadow with changed %s",
+    (change) => {
+      const project = amplifierProject();
+      const component = project.componentDefinitions!.find(
+        (item) => item.symbol.id === "opamp",
+      )!;
+      const descriptor = component.subcircuit!;
+      descriptor.target = "authored_gain";
+      if (change === "identity") descriptor.id = "authored-interface";
+      else if (change === "missing-supply") descriptor.ports.shift();
+      else if (change === "duplicate-supply") {
+        const vdd = descriptor.ports[0]!;
+        if (!("supply" in vdd)) throw Error("Missing supply in fixture");
+        vdd.supply = "VSS";
+      } else descriptor.ports[2]!.direction = "output";
+      project.externalSubcircuitDefinitions.push({
+        id: "unrelated-master",
+        name: "authored_gain",
+        interfaceStatus: "declared",
+        formalParameters: [],
+        terminals: descriptor.ports.map((port, index) => ({
+          id: `custom-port-${index}`,
+          name: port.name,
+          direction: port.direction,
+        })),
+      });
+      const reopened = parseProject(serializeProject(project));
+      const exported = createDesignNetlistExport(reopened);
+      expect(exported.status).toBe("blocked");
+      expect(exported.diagnostics).toContainEqual(
+        expect.objectContaining({ code: "MODEL_IMPLEMENTATION_MISSING" }),
+      );
+    },
+  );
+
   it.each(["order", "mapping"] as const)(
     "does not accept changed %s for an unchanged built-in model",
     (change) => {

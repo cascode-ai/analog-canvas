@@ -355,9 +355,10 @@ export function planProjectCellImport(
             instance.symbolId,
           );
         instance.symbolId =
-          reviewed?.symbolId === instance.symbolId || standardCell
+          dependencies.symbolIds.get(instance.symbolId) ??
+          (reviewed?.symbolId === instance.symbolId || standardCell
             ? instance.symbolId
-            : externalSubcircuitSymbolId(binding.definitionId);
+            : externalSubcircuitSymbolId(binding.definitionId));
       }
     }
     return remapped;

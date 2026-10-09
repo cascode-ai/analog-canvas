@@ -1,5 +1,8 @@
 import {
   deriveStableId,
+  circuitComponentIssues,
+  initializeCircuitComponent,
+  removeCircuitComponentTerminals,
   type CircuitProject,
   type ExternalSubcircuitDefinition,
 } from "@icm/model";
@@ -12,7 +15,11 @@ import {
   instanceReferencesPin,
   planCallerInterfaceChanges,
 } from "./cell-interface-change-planner.js";
-import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
+import {
+  builtInSymbols,
+  createProjectSymbolResolver,
+  externalSubcircuitSymbolId,
+} from "@icm/symbols";
 import { executeTransaction } from "./transaction.js";
 import type { ProjectStructureEdit } from "./project-transaction.js";
 import { resolveReviewedLibraryInterface } from "@icm/devices";
@@ -23,6 +30,34 @@ export class ModelSourceApplyError extends Error {
       `${diagnostic.path ?? diagnostic.sourceRef?.fileId ?? "model"}:${diagnostic.sourceRef?.start.line ?? 1}: ${diagnostic.message}`,
     );
   }
+}
+
+/** During atomic Apply, departing captures resolve against the original interface. */
+export function modelSourceMigrationResolver(
+  project: CircuitProject,
+  previous: CircuitProject,
+) {
+  const original = createProjectSymbolResolver(previous, builtInSymbols);
+  const originals = (previous.componentDefinitions ?? []).flatMap(
+    (component) => {
+      const resolved = original.resolve(component.symbol.id);
+      return resolved ? [resolved.definition] : [];
+    },
+  );
+  const componentDefinitions = (project.componentDefinitions ?? []).filter(
+    (component) => {
+      if (!component.circuitBinding) return true;
+      const owner = project.externalSubcircuitDefinitions.find(
+        (definition) =>
+          definition.id === component.circuitBinding!.definitionId,
+      );
+      return owner && circuitComponentIssues(component, owner).length === 0;
+    },
+  );
+  return createProjectSymbolResolver({ ...project, componentDefinitions }, [
+    ...builtInSymbols,
+    ...originals,
+  ]);
 }
 
 /** Native source Apply plans ordinary edits; all callers share the atomic boundary. */
@@ -90,7 +125,7 @@ export function planModelSourceApply(
           actor: { kind: "human", id: "model-planner" },
         },
         {
-          symbolResolver: createProjectSymbolResolver(working, builtInSymbols),
+          symbolResolver: modelSourceMigrationResolver(working, project),
         },
       );
       if (!result.ok) throw Error(result.error.message);
@@ -166,6 +201,16 @@ export function planModelSourceApply(
       false,
       true,
       entry.ports,
+      new Map(
+        (target.callers ?? []).map((caller) => [
+          JSON.stringify([caller.documentId, caller.instanceId]),
+          target.symbol === null
+            ? externalSubcircuitSymbolId(id)
+            : (target.symbol?.symbol.id ??
+              old?.symbolId ??
+              externalSubcircuitSymbolId(id)),
+        ]),
+      ),
     );
     preview(changes.beforeChild);
     const definition: ExternalSubcircuitDefinition = {
@@ -200,6 +245,43 @@ export function planModelSourceApply(
         definition.presentation.pinPlacements.filter((s) =>
           definition.terminals.some((t) => t.id === s.terminalId),
         );
+    if (
+      definition.symbolId &&
+      changes.symbolMigrations.has(definition.symbolId)
+    )
+      definition.symbolId = changes.symbolMigrations.get(definition.symbolId)!;
+    else if (definition.symbolId && target.symbol === undefined) {
+      const preferred = working.componentDefinitions?.find(
+        (component) => component.symbol.id === definition.symbolId,
+      );
+      if (preferred?.circuitBinding) {
+        const migrated = removeCircuitComponentTerminals(
+          preferred,
+          deleted.map((terminal) => terminal.id),
+        );
+        if (migrated !== preferred) {
+          const captured = {
+            kind: "capture_component_definition" as const,
+            definition: migrated,
+          };
+          preview([captured]);
+          planned.push(captured);
+          definition.symbolId = migrated.symbol.id;
+        }
+      }
+    }
+    if (target.symbol) {
+      const symbol = initializeCircuitComponent(target.symbol, definition);
+      const issue = circuitComponentIssues(symbol, definition)[0];
+      if (issue) throw Error(`${issue.path.join(".")}: ${issue.message}`);
+      const captured = {
+        kind: "capture_component_definition" as const,
+        definition: symbol,
+      };
+      preview([captured]);
+      planned.push(captured);
+      definition.symbolId = symbol.symbol.id;
+    } else if (target.symbol === null) delete definition.symbolId;
     const index = working.externalSubcircuitDefinitions.findIndex(
       (d) => d.id === id,
     );
@@ -211,6 +293,54 @@ export function planModelSourceApply(
       { kind: "upsert_external_subcircuit_definition", definition },
       ...changes.afterChild,
     );
+    const callerEdits = new Map<
+      string,
+      { instanceId: string; symbolId: string; symbolVariantId?: string }[]
+    >();
+    const symbolId = definition.symbolId ?? externalSubcircuitSymbolId(id);
+    const callerResolver = target.callers?.length
+      ? modelSourceMigrationResolver(working, project)
+      : undefined;
+    for (const caller of target.callers ?? []) {
+      const original = project.documents
+        .find((d) => d.id === caller.documentId)
+        ?.instances.find((i) => i.id === caller.instanceId);
+      if (
+        !original ||
+        original.symbolId !== caller.expectedSymbolId ||
+        original.netlist?.binding?.kind !== "external-subcircuit" ||
+        original.netlist.binding.definitionId !== id
+      )
+        throw Error(
+          `Caller ${caller.instanceId} changed; reopen it before applying its artwork`,
+        );
+      const edits = callerEdits.get(caller.documentId) ?? [];
+      if (edits.some((edit) => edit.instanceId === caller.instanceId))
+        throw Error(`Caller ${caller.instanceId} is selected more than once`);
+      edits.push({
+        instanceId: caller.instanceId,
+        symbolId,
+        ...(original.symbolVariantId &&
+        callerResolver?.resolve(symbolId, original.symbolVariantId)
+          ? { symbolVariantId: original.symbolVariantId }
+          : {}),
+      });
+      callerEdits.set(caller.documentId, edits);
+    }
+    for (const [documentId, callers] of callerEdits) {
+      const document = working.documents.find((d) => d.id === documentId)!;
+      const edit: ProjectStructureEdit = {
+        kind: "transact_document",
+        documentId,
+        expectedRevision: document.revision,
+        edits: callers.map((caller) => ({
+          kind: "set_instance_symbol",
+          ...caller,
+        })),
+      };
+      preview([edit]);
+      planned.push(edit);
+    }
   }
   source.revision = (previous?.revision ?? 0) + 1;
   delete source.draft;

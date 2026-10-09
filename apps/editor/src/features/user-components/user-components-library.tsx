@@ -189,6 +189,9 @@ export default function UserComponentsLibrary({
                   {entry.status === "official" ? "Official · " : ""}
                   {entry.author}
                 </small>
+                {entry.definition.subcircuit && !entry.circuit ? (
+                  <small>Implementation missing</small>
+                ) : null}
               </button>
               <button
                 type="button"

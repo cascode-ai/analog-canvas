@@ -2637,7 +2637,9 @@ function WorkspaceEditor({
                 definition.terminals.map((terminal) => terminal.name),
               );
         const symbol = resolver.resolve(
-          mapping?.symbolId ?? externalSubcircuitSymbolId(definition.id),
+          definition.symbolId ??
+            mapping?.symbolId ??
+            externalSubcircuitSymbolId(definition.id),
         )?.definition;
         return symbol
           ? [
@@ -3856,6 +3858,23 @@ function WorkspaceEditor({
       )
     : undefined;
 
+  const selectedCircuitBinding = selectedInstance?.netlist?.binding;
+  const selectedAuthoredCircuit =
+    selectedCircuitBinding?.kind === "external-subcircuit"
+      ? project.externalSubcircuitDefinitions.find(
+          (definition) =>
+            definition.id === selectedCircuitBinding.definitionId &&
+            definition.implementation?.kind === "source",
+        )
+      : undefined;
+
+  const hasDefinitionSelection = Boolean(
+    selectedInstance &&
+    (!resolver.resolve(selectedInstance.symbolId)?.definition
+      .hierarchicalBlock ||
+      selectedAuthoredCircuit),
+  );
+
   function openSelectedComponentDefinition(): void {
     if (!capabilities.community) {
       setStatus("Shared component editing is unavailable in this preview");
@@ -3865,13 +3884,18 @@ function WorkspaceEditor({
       setStatus("Select one component to edit its definition");
       return;
     }
-    if (hasHierarchyEnterSelection) {
+    const external = selectedAuthoredCircuit;
+    if (hasHierarchyEnterSelection && !external) {
       enterSelectedHierarchy();
       return;
     }
-    const definition = project.componentDefinitions?.find(
-      (item) => item.symbol.id === selectedInstance.symbolId,
-    );
+    const definition =
+      project.componentDefinitions?.find(
+        (item) => item.symbol.id === selectedInstance.symbolId,
+      ) ??
+      (external && resolver.resolve(selectedInstance.symbolId)
+        ? { symbol: resolver.resolve(selectedInstance.symbolId)!.definition }
+        : undefined);
     if (!definition) {
       setStatus("No component definition is available for this selection");
       return;
@@ -3880,8 +3904,10 @@ function WorkspaceEditor({
     setCanvasContextMenu(null);
     setComponentEditor({
       key: crypto.randomUUID(),
+      projectSessionId,
       mode: "instance",
       definition: structuredClone(definition),
+      ...(external ? { externalDefinitionId: external.id } : {}),
       target: {
         projectSessionId,
         documentId: document.id,
@@ -4355,7 +4381,6 @@ function WorkspaceEditor({
       closeSearch,
       toggleLibraryPanel,
       document,
-      resolver,
       documentStack,
       visualSelection,
       selectionFilterOpen,
@@ -4388,7 +4413,6 @@ function WorkspaceEditor({
       setSimulationHoverNetId,
       lastCanvasPointRef,
       projectInputRef,
-      selectedInstance,
       selectedRoute,
       selectedDrafting,
       hasHierarchyEnterSelection,
@@ -4415,6 +4439,7 @@ function WorkspaceEditor({
       circuitClipboard,
       toggleExamplesPanel,
       openSelectedComponentDefinition,
+      hasDefinitionSelection,
       activateTool,
       paintSnapGuides,
       resolveNetLabelPlacementTarget,
@@ -6989,18 +7014,29 @@ function WorkspaceEditor({
           <EditorCanvasContextMenu
             canvasContextMenu={canvasContextMenu}
             setCanvasContextMenu={setCanvasContextMenu}
-            resolver={resolver}
             visualSelection={visualSelection}
-            selectedInstance={selectedInstance}
             hasHierarchyEnterSelection={hasHierarchyEnterSelection}
             alignmentParticipantCount={alignmentParticipantCount}
             enterSelectedHierarchy={enterSelectedHierarchy}
             openSelectedComponentDefinition={openSelectedComponentDefinition}
+            hasDefinitionSelection={hasDefinitionSelection}
             editorCommands={editorCommands}
           />
         ) : null}
       </div>
       <EditorComponentEditor
+        project={project}
+        projectSessionId={projectSessionId}
+        resolver={resolver}
+        dispatchProjectTransaction={dispatchProjectTransaction}
+        externalSubcircuitInsertCandidates={externalSubcircuitInsertCandidates}
+        setExternalSubcircuitDefinition={setExternalSubcircuitDefinition}
+        removeExternalSubcircuitDefinition={removeExternalSubcircuitDefinition}
+        copyText={(text) => exportDelivery.copyText(text)}
+        onBeforePlace={() => {
+          setCellManagerOpen(false);
+          setModelEditorDefinitionId(null);
+        }}
         capabilities={capabilities}
         setStatus={setStatus}
         componentEditor={componentEditor}
