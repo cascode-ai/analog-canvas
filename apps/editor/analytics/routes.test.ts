@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { ANALYTICS_OPT_OUT_PATH } from "./client";
+import { ANALYTICS_OPT_OUT_PATH, ANALYTICS_PAGE_LOAD_PATH } from "./client";
 import {
   OPT_OUT_ROUTE,
+  PAGE_LOAD_ROUTE,
   normalizeAcquisitionSource,
   normalizeTrackedPath,
   routeAnalyticsRequest,
@@ -180,5 +181,58 @@ describe("the visitor cookie", () => {
       env,
     );
     expect(await state!.json()).toEqual({ optedOut: true });
+  });
+});
+
+describe("page-load reports (#1581)", () => {
+  function report(body: unknown, headers: Record<string, string> = {}) {
+    const request = new Request(`${SITE}${ANALYTICS_PAGE_LOAD_PATH}`, {
+      method: "POST",
+      headers: {
+        origin: SITE,
+        "user-agent": "Mozilla/5.0 Firefox/150.0",
+        ...headers,
+      },
+      body: JSON.stringify(body),
+    });
+    Object.defineProperty(request, "cf", { value: { country: "cn" } });
+    return request;
+  }
+
+  it("records the times with the country only: no cookie, no visitor", async () => {
+    expect(PAGE_LOAD_ROUTE).toBe(ANALYTICS_PAGE_LOAD_PATH);
+    const recorded: unknown[] = [];
+    const env = analyticsEnv({}, (input, init) => {
+      expect(input).toBe("https://analytics.internal/load");
+      recorded.push(JSON.parse(String(init?.body)));
+    });
+    const response = await routeAnalyticsRequest(
+      report({ t: 812.4, l: 2410.6 }, { cookie: "canvas_vid=abc" }),
+      env,
+    );
+    expect(response!.status).toBe(204);
+    expect(response!.headers.getSetCookie()).toEqual([]);
+    expect(recorded).toEqual([{ country: "CN", ttfb: 812, shown: 2411 }]);
+  });
+
+  it("drops reports from browsers that ask not to be counted, bots and bad values", async () => {
+    let recorded = 0;
+    const env = analyticsEnv({}, () => {
+      recorded += 1;
+    });
+    for (const request of [
+      report({ t: 800, l: 2400 }, { DNT: "1" }),
+      report({ t: 800, l: 2400 }, { "Sec-GPC": "1" }),
+      report({ t: 800, l: 2400 }, { cookie: "canvas_optout=1" }),
+      report({ t: 800, l: 2400 }, { "user-agent": "curl/8.0" }),
+      report({ t: 800, l: 2400 }, { origin: "https://example.com" }),
+      report({ t: "800", l: 2400 }),
+      report({ t: 800, l: 700_000 }),
+      report(null),
+    ]) {
+      const response = await routeAnalyticsRequest(request, env);
+      expect(response!.status).toBe(204);
+    }
+    expect(recorded).toBe(0);
   });
 });

@@ -45,5 +45,17 @@ asking first:
   counting me" (`canvas_optout`, 13 months, set at `/api/track/opt-out`) mean
   no counting and no visitor cookie.
 
+## Page-load times
+
+A counted page load also reports, once, how long it took (#1581): the
+document's first byte and when the page was shown (its largest paint, or the
+load event where a browser has none), at `POST /api/track/load`. The report
+carries no visitor id and sets no cookie; the same rules decide whether it is
+counted (same origin, no Do Not Track, Global Privacy Control or opt-out,
+no bot). The object keeps only histogram counts per day, country, metric and
+bucket (`load_times`), drops days older than the retention window, and the
+dashboard shows each country's median and 75th percentile over the last 30
+days as bucket upper bounds.
+
 The statistics are only shown as totals. Nothing is shared or combined with
 other data.
